@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { id } from './encounter-fixture';
-import { generalId, room, roomFixture, type RoomCall } from './rooms-fixture';
+import { BACKDROP_PATH, generalId, room, roomFixture, type RoomCall } from './rooms-fixture';
 
 /**
  * The room as a place (v3 R-1) in the production export over labelled HTTP fixtures: General under the room's band, the
@@ -67,6 +67,138 @@ test('on a phone a member lands in General under the room’s band, sees the not
   await expect(page.getByTestId('ai-notice')).toHaveCount(0);
   expect(callsTo(calls, '/v1/rooms/preferences')[0]?.body).toMatchObject({ noticeSeen: true });
   await shoot(page, 'phone-2-campfire');
+});
+
+/** A labelled one-pixel PNG, the fixture's `painted backdrop`; never provider output. */
+const ONE_PIXEL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+test('every room has a face: its emblem and band in its own colours on a phone and a desktop, and its residents wear marks', async ({
+  page,
+}) => {
+  const { address } = await roomFixture(page, phone, {
+    others: 1,
+    lastMessageMinutesAgo: 2,
+    noticeSeen: true,
+    resident: 'lively',
+  });
+  await page.goto(address);
+  await expect(page.getByTestId('room-emblem')).toBeVisible();
+  // The band is the kit's ground (midnight), and the room's name on it is the kit's ink (cream).
+  await expect(page.getByTestId('campfire-header')).toHaveCSS('background-color', 'rgb(4, 10, 23)');
+  await expect(page.getByRole('button', { name: 'Space room, room menu' })).toBeVisible();
+  await expect(page.getByTestId('room-motif')).toBeAttached();
+  // The mark sits in the head of the resident's own message, beside its name and its AI label.
+  const head = page.getByTestId('resident-header');
+  await expect(head.getByTestId('resident-mark')).toBeVisible();
+  await expect(head.getByText('Nova', { exact: true })).toBeVisible();
+  await expect(head.getByText('AI · Explainer')).toBeVisible();
+  await shoot(page, 'phone-face-space');
+  expect(await seriousViolations(page)).toEqual([]);
+
+  await page.setViewportSize(desktop);
+  await page.reload();
+  await expect(page.getByTestId('room-rail')).toBeVisible();
+  await expect(page.getByTestId('room-header')).toHaveCSS('background-color', 'rgb(4, 10, 23)');
+  await expect(page.getByTestId('room-emblem')).toBeVisible();
+  await shoot(page, 'desktop-face-space');
+  expect(await seriousViolations(page)).toEqual([]);
+});
+
+test('a room with a light face keeps its words readable on its band, on a phone and a desktop', async ({ page }) => {
+  const { address } = await roomFixture(page, phone, {
+    others: 1,
+    lastMessageMinutesAgo: 180,
+    noticeSeen: true,
+    resident: 'lively',
+    face: 'history',
+  });
+  await page.goto(address);
+  await expect(page.getByTestId('campfire-header')).toHaveCSS('background-color', 'rgb(244, 237, 216)');
+  await expect(page.getByRole('button', { name: 'Space room, room menu' })).toBeVisible();
+  await expect(page.getByTestId('here-caption')).toBeVisible();
+  await expect(page.getByTestId('quiet-pill')).toBeVisible();
+  await shoot(page, 'phone-face-history');
+  // Axe judges the contrast of the name, the caption and the pill on the paper ground, in the kit's ink.
+  expect(await seriousViolations(page)).toEqual([]);
+  await page.setViewportSize(desktop);
+  await page.reload();
+  await expect(page.getByTestId('room-rail')).toBeVisible();
+  await shoot(page, 'desktop-face-history');
+  expect(await seriousViolations(page)).toEqual([]);
+});
+
+test('a server that sends no face keeps the dark band and draws no emblem or mark', async ({ page }) => {
+  const { address } = await roomFixture(page, phone, {
+    others: 1,
+    lastMessageMinutesAgo: 2,
+    noticeSeen: true,
+    resident: 'lively',
+    face: 'none',
+  });
+  await page.goto(address);
+  await expect(page.getByTestId('campfire-header')).toBeVisible();
+  await expect(page.getByTestId('campfire-header')).toHaveCSS('background-color', 'rgb(4, 10, 23)');
+  await expect(page.getByTestId('room-emblem')).toHaveCount(0);
+  await expect(page.getByTestId('room-motif')).toHaveCount(0);
+  await expect(page.getByTestId('resident-mark')).toHaveCount(0);
+});
+
+test('the band moves under no preference, and is a still frame when reduced motion is asked for', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const { address } = await roomFixture(page, phone, {
+    others: 1,
+    lastMessageMinutesAgo: 2,
+    noticeSeen: true,
+    face: 'history',
+  });
+  await page.goto(address);
+  const motif = page.getByTestId('room-motif');
+  await expect(motif).toBeAttached();
+  const transform = () => motif.evaluate((node) => getComputedStyle(node).transform);
+  const first = await transform();
+  await expect.poll(transform, { timeout: 8_000 }).not.toBe(first);
+
+  // Asking for reduced motion stops it: the frame is the same however long it is watched, and nothing is transformed.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect.poll(transform, { timeout: 8_000 }).toBe('none');
+  await page.waitForTimeout(1_200);
+  expect(await transform()).toBe('none');
+});
+
+test('an approved painted backdrop is drawn under the band, and only then', async ({ page }) => {
+  const asked: string[] = [];
+  await page.route('**/media/room/**', (route) => {
+    asked.push(new URL(route.request().url()).pathname);
+    return route.fulfill({ status: 200, contentType: 'image/png', body: ONE_PIXEL_PNG });
+  });
+  const { address } = await roomFixture(page, phone, {
+    others: 1,
+    lastMessageMinutesAgo: 2,
+    noticeSeen: true,
+    backdrop: true,
+  });
+  await page.goto(address);
+  await expect(page.getByTestId('room-backdrop')).toBeAttached();
+  await expect.poll(() => asked).toContain(BACKDROP_PATH);
+  await expect(page.getByRole('button', { name: 'Space room, room menu' })).toBeVisible();
+  await shoot(page, 'phone-face-backdrop');
+  expect(await seriousViolations(page)).toEqual([]);
+});
+
+test('a room without an approved backdrop asks for no picture', async ({ page }) => {
+  const asked: string[] = [];
+  await page.route('**/media/room/**', (route) => {
+    asked.push(route.request().url());
+    return route.fulfill({ status: 404 });
+  });
+  const { address } = await roomFixture(page, phone, { others: 1, lastMessageMinutesAgo: 2, noticeSeen: true });
+  await page.goto(address);
+  await expect(page.getByTestId('room-motif')).toBeAttached();
+  await expect(page.getByTestId('room-backdrop')).toHaveCount(0);
+  expect(asked).toEqual([]);
 });
 
 test('it says a number only from three people here', async ({ page }) => {

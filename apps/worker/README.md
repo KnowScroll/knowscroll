@@ -147,6 +147,12 @@ answers a message; the second makes the model call of an allowed turn under the 
 `rooms.summarise` (v3 R-3, D-169): one call per room and 12-hour window that writes "while you were away", under the same scope as an
 `ambient` role, with kept-out members and removed messages left out of what it reads.
 
+The room face commands (`src/rooms-face-operator.ts`, v3 R-4, D-166, D-170, D-171) are `rooms kit`, `kit-list`, `kit-review`, `backdrop`,
+`backdrop-list`, `backdrop-review`, `spend`, `backdrop-reconcile` and `backdrop-write-off` (the rooms README lists their options). `kit` calls the
+`rooms.station-kit` role under the `rooms` scope (it needs `KS_REASONING_ROOM_ENABLED=1` and a provider); `backdrop` asks MiniMax's `image-01` for one
+still and stores it under `KS_MEDIA_ROOT` (it needs the same key and a media root), and is the only command here that spends money: it is refused
+when the recorded total plus its estimate would pass $1 in all. `--dry-run` calls nothing. Every result is one JSON line; exit 0 done, 2 refused.
+
 `node dist/operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends
 the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and
 `content production-status [--only <keys>]` lists every recipe's standing. Both touch only the shared

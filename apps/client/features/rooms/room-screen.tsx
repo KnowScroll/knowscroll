@@ -3,8 +3,8 @@ import { useContext, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountScope, RoomController, RoomState } from '@knowscroll/client-core';
-import type { RoomJoinBlock, RoomView } from '@knowscroll/contracts';
-import { borderWidth, content, layout, radius, space, spacing } from '@knowscroll/design-tokens';
+import type { RoomIdentity, RoomJoinBlock, RoomView } from '@knowscroll/contracts';
+import { borderWidth, content, layout, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, IconButton, Skeleton, StateBlock, Tag, Text } from '@knowscroll/ui';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
@@ -12,6 +12,9 @@ import { ActivitiesSection } from './activities-section';
 import { AiHere } from './ai-here';
 import { GeneralStage, PhoneRoom } from './campfire';
 import { isRoomId } from './room-links';
+import { BandTag } from './identity/band-tag';
+import { RoomBand } from './identity/room-band';
+import { RoomEmblem } from './identity/room-emblem';
 import { Guidelines, ModeratorTools, RULE_WORDS, WhoIsHere } from './room-parts';
 import { RoomWorkspaceContext } from './room-workspace-context';
 import { TopicsList } from './topics-list';
@@ -20,27 +23,41 @@ import { useRoom, useRoomActivities } from './use-room';
 type Preview = Extract<RoomView, { status: 'preview' }>;
 type Member = Extract<RoomView, { status: 'member' }>;
 
-/** The dark header both the preview and the room share (R01 "rhead"). */
+/**
+ * The header both the preview and the room's rail share (R01 "rhead"): the room's band, with its emblem, its name in the
+ * kit's ink and whatever the caller stands on it. A room without a face keeps the dark space header.
+ */
 export function RoomHeader({
   name,
+  identity,
   onBack,
   children,
 }: {
   readonly name: string;
+  readonly identity?: RoomIdentity | undefined;
   readonly onBack: () => void;
   readonly children?: ReactNode;
 }) {
   return (
-    <View style={styles.header}>
-      <IconButton icon="back" label="Back" variant="onSpace" onPress={onBack} />
-      <Text variant="monoXs" color={space.label2}>
-        Cosmic room
-      </Text>
-      <Text variant="displayL" color={space.label} heading={1}>
-        {name}
-      </Text>
-      {children}
-    </View>
+    <RoomBand identity={identity} style={styles.header} testID="room-header">
+      {(tone) => (
+        <>
+          <IconButton icon="back" label="Back" variant="onSpace" onPress={onBack} />
+          <View style={styles.titleRow}>
+            {identity === undefined ? null : <RoomEmblem kit={identity.kit} size={44} testID="room-emblem" />}
+            <View style={styles.titleText}>
+              <Text variant="monoXs" color={tone.inkSoft}>
+                Cosmic room
+              </Text>
+              <Text variant="displayL" color={tone.ink} heading={1}>
+                {name}
+              </Text>
+            </View>
+          </View>
+          {children}
+        </>
+      )}
+    </RoomBand>
   );
 }
 
@@ -280,10 +297,10 @@ function RoomPage({
     );
   return (
     <ScrollView contentContainerStyle={styles.scroll} testID="room-screen">
-      <RoomHeader name={view.room.name} onBack={back}>
+      <RoomHeader name={view.room.name} identity={view.room.identity} onBack={back}>
         <View style={styles.tags}>
-          <Tag variant="onDark" label={RULE_WORDS[view.room.joinRule]} />
-          {view.hasModerator ? <Tag variant="onDark" label="Moderated" /> : null}
+          <BandTag label={RULE_WORDS[view.room.joinRule]} />
+          {view.hasModerator ? <BandTag label="Moderated" /> : null}
           {view.invited ? <Tag variant="part" label="You’re invited" /> : null}
         </View>
       </RoomHeader>
@@ -375,8 +392,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.gutter,
     paddingTop: spacing[12],
     paddingBottom: spacing[5],
-    backgroundColor: space.s0,
+    overflow: 'hidden',
   },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
+  titleText: { flex: 1, gap: spacing['0.5'] },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   padded: {
     gap: spacing[4],

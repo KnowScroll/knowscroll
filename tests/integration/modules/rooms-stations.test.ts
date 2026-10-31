@@ -103,22 +103,37 @@ describe('room stations on a personal map (real PostgreSQL)', () => {
         }
     };
     collect(answer);
-    // Only these fields exist: nothing counts, names or times anyone.
+    // Only these fields exist: nothing counts, names or times anyone. `identity` and the words under it are the room's
+    // face (D-170): closed-vocabulary words of the room, the same for everyone.
     expect([...keys].sort()).toEqual(
       [
+        'accent',
         'accountId',
+        'cast',
         'description',
+        'emblem',
+        'explainer',
+        'frame',
+        'glyph',
+        'ground',
         'id',
+        'identity',
+        'ink',
         'joinRule',
         'kind',
+        'kit',
         'label',
+        'motif',
+        'motion',
         'name',
+        'palette',
         'placement',
         'privacyEpoch',
         'readId',
         'room',
         'roomId',
         'scope',
+        'skeptic',
         'standing',
         'stations',
         'status',

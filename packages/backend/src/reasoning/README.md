@@ -302,6 +302,12 @@ delivery ever comes back (a crash after dispatch). An answer that arrives for an
 is recorded as `reconciled`; for a `written_off` attempt only its usage is recorded (on the
 receipt) and the answer is never applied.
 
+A painted room backdrop is not a reasoning role either (v3 R-4, D-166). `ImagePort` (`application/image-port.ts`, exported as a type) is the transport
+behind one still: it sends one request and says what happened (`image`, `rejected`, `not_sent`, `unknown` or `unusable`), has no role, schema, tokens or
+repair, and refuses to run inside a database transaction (`guardedImagePort`). `makeMiniMaxImagePort` calls `POST /v1/image_generation` with the
+same token-plan key; `configuredImagePort` is the composition root's choice. The attempt ledger and the $1 cap are the rooms module's own
+(`rooms.backdrop_attempts`), in the same states as the Reel ledger.
+
 Cutroom is not a reasoning role. Its Reel orders keep a ledger of the same states in Content
 (`content.reel_attempts`), because a Reel request is a content production request with its own
 budget in the shared pool, not a model call.

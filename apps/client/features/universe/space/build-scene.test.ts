@@ -126,6 +126,63 @@ describe('a universe with stations, a ship and quiet places', () => {
     space.dispose();
   });
 
+  it('draws a room’s emblem on its station, in its colours, and nothing on a station whose room has no face', () => {
+    const emblem = {
+      emblem: { frame: 'hexagon', glyph: 'atom' },
+      palette: { ground: 'midnight', accent: 'sun', ink: 'cream' },
+    } as const;
+    const withFace: SpaceDefinition = {
+      ...universe,
+      stations: [
+        { ...universe.stations![0]!, id: 'faced', emblem },
+        { ...universe.stations![0]!, id: 'plain', position: { x: -2, y: 0.6, z: 6 } },
+      ],
+    };
+    const space = buildSpace(withFace, 390 / 844, 1);
+    const emblemOf = (id: string) => {
+      let found: THREE.Sprite | undefined;
+      space.anchors
+        .find((anchor) => anchor.id === id)!
+        .object.traverse((node) => {
+          if (node.name === 'room-emblem') found = node as THREE.Sprite;
+        });
+      return found;
+    };
+    const plate = emblemOf('faced')!;
+    expect(plate).toBeInstanceOf(THREE.Sprite);
+    const map = plate.material.map as THREE.DataTexture;
+    expect(map.image.width).toBe(64);
+    // The plate's pixels are the emblem: its frame in the ink, so some of it is cream, and it is not all one colour.
+    const data = map.image.data as Uint8Array;
+    const colours = new Set<number>();
+    for (let at = 0; at < data.length; at += 4)
+      if (data[at + 3]! > 200) colours.add((data[at]! << 16) | (data[at + 1]! << 8) | data[at + 2]!);
+    expect(colours.has(0xfffbf0)).toBe(true);
+    expect(colours.has(0xffe44d)).toBe(true);
+    expect(emblemOf('plain')).toBeUndefined();
+    space.dispose();
+  });
+
+  it('dims the emblem of a station under Lately', () => {
+    const emblem = {
+      emblem: { frame: 'circle', glyph: 'star' },
+      palette: { ground: 'midnight', accent: 'sun', ink: 'cream' },
+    } as const;
+    const space = buildSpace(
+      { ...universe, stations: [{ ...universe.stations![0]!, emblem, calm: true }] },
+      390 / 844,
+      1,
+    );
+    let opacity = 1;
+    space.anchors
+      .find((anchor) => anchor.id === 'room')!
+      .object.traverse((node) => {
+        if (node.name === 'room-emblem') opacity = (node as THREE.Sprite).material.opacity;
+      });
+    expect(opacity).toBeLessThan(1);
+    space.dispose();
+  });
+
   it('shows one system alone when asked, with its stations, and everything again afterwards', () => {
     const space = buildSpace(universe, 390 / 844, 1);
     space.showOnly('two');

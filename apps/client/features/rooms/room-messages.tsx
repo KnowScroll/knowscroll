@@ -433,6 +433,8 @@ export function RoomMessages({
                         trigger={message.trigger}
                         ask={message.ask}
                         ownPersonId={ownPersonId}
+                        kit={state.view?.room.identity?.kit}
+                        inhabitant={message.author.inhabitant}
                       />
                     ) : mine ? null : (
                       <Text variant="metaS" color={content.ink2}>

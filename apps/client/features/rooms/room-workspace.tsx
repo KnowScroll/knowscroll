@@ -4,11 +4,12 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
 import type { RoomHere } from '@knowscroll/contracts';
 import { borderWidth, content, layout, spacing } from '@knowscroll/design-tokens';
-import { Tag, Text } from '@knowscroll/ui';
+import { Text } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { ActivitiesSection } from './activities-section';
 import { PollCard } from './poll-card';
 import { HereNow, HereStrip } from './here-strip';
+import { BandTag } from './identity/band-tag';
 import { RULE_WORDS } from './room-parts';
 import { MemberBody, RoomHeader } from './room-screen';
 import { isRoomId } from './room-links';
@@ -87,10 +88,10 @@ function Panes({
       ) : (
         <View style={styles.row} testID="room-workspace">
           <ScrollView style={styles.left} contentContainerStyle={styles.leftContent} testID="room-rail">
-            <RoomHeader name={member.room.name} onBack={back}>
+            <RoomHeader name={member.room.name} identity={member.room.identity} onBack={back}>
               <View style={styles.tags}>
-                <Tag variant="onDark" label={RULE_WORDS[member.room.joinRule]} />
-                {member.hasModerator ? <Tag variant="onDark" label="Moderated" /> : null}
+                <BandTag label={RULE_WORDS[member.room.joinRule]} />
+                {member.hasModerator ? <BandTag label="Moderated" /> : null}
               </View>
               <HereStrip here={member.here} lastMessageAt={member.lastMessageAt} />
             </RoomHeader>

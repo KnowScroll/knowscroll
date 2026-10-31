@@ -32,6 +32,7 @@ export {
   type SweepDispatchedAttemptsPayload,
 } from './events.js';
 export type { BudgetCap, ReportedUsage } from './domain/budgets.js';
+export type { ImageMime, ImageOutcome, ImagePort, ImageRequest } from './application/image-port.js';
 export { HARNESS_PROMPT_VERSION } from './domain/prompt.js';
 
 /** Injection token of the worker's `ReasoningHarness` (bound by `reasoningProviders`). */
