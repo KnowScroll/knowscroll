@@ -248,12 +248,33 @@ const SEASONS = ['seasons', 'seasons-elsewhere', 'seasons-hemispheres', 'seasons
 /** The recipes of the first waves (D-199): every recipe of these systems has no drawing kit. */
 const WAVE_SYSTEMS = ['human-body', 'computing', 'machine-learning', 'history'];
 const WAVE_RECIPES = recipes.filter((recipe) => WAVE_SYSTEMS.includes(recipe.systemId)).map((recipe) => recipe.key);
+/**
+ * The Earth and Space recipes marked after their kits landed (D-217): every recipe a kit draws, and the plain
+ * parts of the same series. `exoplanet-kinds` has no kit and is in no series, so it is not marked.
+ */
+const KIT_WAVE_RECIPES = [
+  'tides',
+  'tides-spring-neap',
+  'tides-coasts',
+  'greenhouse',
+  'greenhouse-radiation',
+  'greenhouse-balance',
+  'greenhouse-limits',
+  'stars-fusion',
+  'stars-lifecycle',
+  'stars-colour-brightness',
+  'exoplanet-transit',
+  'exoplanet-habitable-zone',
+  'black-hole-formation',
+  'black-hole-horizon',
+  'black-hole-evidence',
+] as const;
 
 describe('the recipes the plan produces as v2 Scrolls (scrollV2, D-137)', () => {
   const v2 = recipes.filter((recipe) => recipe.scrollV2 !== undefined);
 
-  it('marks the four Seasons recipes and the first waves, and nothing else, so adding one is a deliberate edit', () => {
-    expect(v2.map((recipe) => recipe.key).sort()).toEqual([...SEASONS, ...WAVE_RECIPES].sort());
+  it('marks the four Seasons recipes, the first waves and the kit waves, and nothing else, so adding one is a deliberate edit', () => {
+    expect(v2.map((recipe) => recipe.key).sort()).toEqual([...SEASONS, ...WAVE_RECIPES, ...KIT_WAVE_RECIPES].sort());
   });
 
   it('gives a picture exactly where a kit draws the subject: the variant follows stageKit', () => {
@@ -330,6 +351,38 @@ describe('the waves marked for S-6 (D-199)', () => {
   });
 });
 
+describe('the kit waves marked for S-6b (D-217)', () => {
+  const waves = KIT_WAVE_RECIPES.map((key) => ({ key, ...RECIPES[key] }));
+  const PLAIN = ['tides-coasts', 'greenhouse-limits'];
+
+  it('marks every Earth and Space recipe a kit draws, and the plain parts of their series', () => {
+    const drawn = recipes
+      .filter((recipe) => ['earth', 'space'].includes(recipe.systemId) && recipe.stageKit !== undefined)
+      .map((recipe) => recipe.key)
+      .filter((key) => !key.startsWith('seasons'));
+    expect([...drawn, ...PLAIN].sort()).toEqual([...KIT_WAVE_RECIPES].sort());
+    expect(RECIPES['exoplanet-kinds']).not.toHaveProperty('scrollV2');
+  });
+
+  it('makes a stage Scroll where a kit draws it and a plain one for the two audit and coast parts, with no myth and no Final call control', () => {
+    for (const recipe of waves) {
+      expect(recipe.scrollV2?.variant, recipe.key).toBe(PLAIN.includes(recipe.key) ? 'plain' : 'stage');
+      expect(recipe.scrollV2?.misconception, recipe.key).toEqual({ kind: 'none' });
+      expect(recipe.scrollV2?.finalCall, recipe.key).toBeUndefined();
+    }
+  });
+
+  it('names a landmark for each, in plain words that never claim mastery', () => {
+    const mastery = /master|expert\b|genius|champion|perfect|complete|\bwin\b|winner/iu;
+    for (const recipe of waves) {
+      const landmark = recipe.scrollV2?.landmark;
+      expect(landmark, recipe.key).toBeDefined();
+      expect(landmark?.name, recipe.key).not.toMatch(mastery);
+      expect(landmark?.name.split(' ').length, recipe.key).toBeLessThanOrEqual(5);
+    }
+  });
+});
+
 describe('landmarks and the Final call control (D-187, D-188)', () => {
   const v2 = recipes.filter((recipe) => recipe.scrollV2 !== undefined);
 
@@ -339,7 +392,7 @@ describe('landmarks and the Final call control (D-187, D-188)', () => {
         .filter((recipe) => recipe.scrollV2?.landmark !== undefined)
         .map((recipe) => recipe.key)
         .sort(),
-    ).toEqual([...SEASONS, ...WAVE_RECIPES].sort());
+    ).toEqual([...SEASONS, ...WAVE_RECIPES, ...KIT_WAVE_RECIPES].sort());
   });
 
   it('gives every landmark a key and a name that fit the document, and no two the same key or name', () => {

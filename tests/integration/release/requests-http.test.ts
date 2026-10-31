@@ -299,7 +299,8 @@ describe('private Supply HTTP boundary in the installed release', () => {
   });
 
   it('cancels only its private waiter, replays cancellation and rejects command-key reuse', async () => {
-    const c = command('earth.tides', 'scroll');
+    // A topic with a v1 recipe: Create commissions only those (D-138), and every other recipe is v2.
+    const c = command('space.exoplanets', 'scroll');
     const a = await client().supply.create(c);
     const b = await client(stranger).supply.create({ ...c, commandId: randomUUID() });
     expect(await client().supply.read({ requestId: a.requestId })).toMatchObject({
@@ -345,7 +346,7 @@ describe('private Supply HTTP boundary in the installed release', () => {
       .select(['active', 'production_recipe'])
       .where('id', '=', work[0]!.work_id!)
       .executeTakeFirstOrThrow();
-    expect(shared).toEqual({ active: true, production_recipe: 'tides' });
+    expect(shared).toEqual({ active: true, production_recipe: 'exoplanet-kinds' });
   });
 
   it('makes foreign and unknown request reads/cancels identical without private effects', async () => {
@@ -434,7 +435,7 @@ describe('private Supply HTTP boundary in the installed release', () => {
     const p = await seedPerson(handle.db),
       other = await seedPerson(handle.db);
     const first = await client(p).supply.create(command('earth.seasons', 'scroll'));
-    await client(other).supply.create(command('earth.tides', 'scroll'));
+    await client(other).supply.create(command('space.exoplanets', 'scroll'));
     const second = await client(p).supply.create({
       ...command(),
       intent: { kind: 'topic', subject: { kind: 'text', text: 'How do whales sleep?' }, format: 'either' },
@@ -445,7 +446,7 @@ describe('private Supply HTTP boundary in the installed release', () => {
       ['How do whales sleep?', 'either', second.requestId],
       ['Seasons', 'scroll', first.requestId],
     ]);
-    expect(JSON.stringify(listed)).not.toContain('Tides');
+    expect(JSON.stringify(listed)).not.toContain('Exoplanets');
     await expectProblem(await fetch(`${origin}/v1/content/requests`, { headers: {} }), 401, 'UNAUTHENTICATED');
     await expectProblem(
       await fetch(`${origin}/v1/content/requests`, { headers: headers(p, 2) }),

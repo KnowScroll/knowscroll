@@ -116,7 +116,8 @@ describe('the twenty topics of the writer spike', () => {
       const recipe = spikeRecipeV2(topic);
       expect(recipe.variant, topic).toBe('stage');
       expect(recipe.defaulted, topic).toBe(false);
-      expect(recipe.misconception.kind, topic).toBe('myth');
+      // The plan decides these since D-217: no page of theirs states a common wrong belief.
+      expect(recipe.misconception.kind, topic).toBe('none');
       expect(TOPICS[topic].systemId).toBe('space');
       kits.set(recipe.kit ?? '', [...(kits.get(recipe.kit ?? '') ?? []), topic]);
     }
@@ -154,18 +155,11 @@ describe('the twenty topics of the writer spike', () => {
     }
     expect(reviewed).toEqual(['seasons']);
     // The recipes the plan decides (D-137, D-199) give no myth: the Seasons parts with none, and every
-    // recipe of the first waves. Only the recipes the plan has not marked keep the spike’s own table.
+    // recipe of the first waves and the kit waves.
     expect(SPIKE_TOPICS_V2.filter((topic) => spikeRecipeV2(topic).misconception.kind === 'none')).toEqual(
       SPIKE_TOPICS_V2.filter((topic) => topic !== 'seasons' && TOPICS[topic].scrollV2 !== undefined),
     );
-    expect(SPIKE_TOPICS_V2.filter((topic) => TOPICS[topic].scrollV2 === undefined)).toEqual([
-      'tides',
-      'tides-spring-neap',
-      'greenhouse-radiation',
-      'greenhouse-balance',
-      'stars-fusion',
-      'exoplanet-habitable-zone',
-    ]);
+    expect(SPIKE_TOPICS_V2.filter((topic) => TOPICS[topic].scrollV2 === undefined)).toEqual([]);
   });
 
   it('spike a recipe the plan marks v2 exactly as the library will produce it', () => {
@@ -186,8 +180,8 @@ describe('the twenty topics of the writer spike', () => {
     });
   });
 
-  it('default to a plain Scroll with no misconception for a recipe the table does not list, and say so', () => {
-    expect(spikeRecipeV2('tides-coasts')).toEqual({
+  it('default to a plain Scroll with no misconception for a recipe the plan has not marked (`exoplanet-kinds`), and say so', () => {
+    expect(spikeRecipeV2('exoplanet-kinds')).toEqual({
       variant: 'plain',
       misconception: { kind: 'none' },
       defaulted: true,

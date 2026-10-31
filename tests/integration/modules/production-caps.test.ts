@@ -24,6 +24,7 @@ import {
   systemAuthority,
 } from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
+import { markRecipesV1 } from '../support/scroll-v2.js';
 
 const cap = (requestsPerDay: number) => ({ requestsPerDay, tokensPerDay: 1_000_000_000 });
 /** One request a day for a person, two for the production scope, and the global and role caps out of the way. */
@@ -41,6 +42,9 @@ const reasoning: ReasoningSettings = {
 
 /** CI fixture model and real PostgreSQL: which cap bounds which scope. */
 describe('the production scope has its own daily cap (D-037)', () => {
+  // The plan marks these recipes v2 (D-217); this file uses them as v1 examples.
+  const restoreRecipes = markRecipesV1('greenhouse-radiation', 'stars-fusion', 'tides');
+  afterAll(restoreRecipes);
   let database: TestDatabase<Database>;
   beforeAll(async () => {
     database = await createTestDatabase<Database>('production_caps');
