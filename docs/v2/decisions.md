@@ -2159,6 +2159,16 @@ Confirmed by: `answer-check.test.ts` (what the checker is shown and not shown, t
 
 Confirmed by: `library.test.ts` (the thirty-five and the four Seasons recipes are the only v2 recipes; each of the thirty-five is plain, has no kit, no myth and no Final call control, and a landmark with no claim of mastery; every series is wholly marked or not at all; landmarks are unique), `topics.test.ts` of the spike (it runs the marked recipes as the plan decides), `wave-tooling.test.ts` (`cardiac-cycle` is produced as a plain Scroll with its landmark, no myth and a passing check), and `supply-create.test.ts`, `supply.test.ts` and `supply-planned.test.ts` (Create is tested on the v1 library, since it writes no v2 recipe). Shown failing when a wave recipe was given a kit, when a series was marked in part, and when a landmark name claimed mastery.
 
+## D-173 · 2026-10-31 · A painted backdrop asks for full bleed, since dev suggests marks sit in a paper margin (R-4c, #490)
+
+**Amends** D-166 and D-172 (the house style of a painted backdrop).
+
+- **What dev showed.** After D-172's ban, six backdrops were made on dev, one per room. Four of the six still carried a signature or an edition number. In three of the four (Space, Computing, Human body) the mark sat in a cream paper margin below or around the print. The History one sat on a cream ground that covers the whole picture, so no margin can be told apart there. Of the two clean images, Earth runs to every edge; Machine learning is cream all over.
+- **The change.** The house style asks for "wide panoramic composition, full bleed: the picture runs to every edge, with no paper border, margin or mount". It no longer says "band", which reads as a strip on a sheet; the 21:9 shape is sent as the image ratio. The ban on signatures stays. This is a prompt, so it lowers the chance of a mark and cannot promise it; the operator's review (D-171) keeps a mark out.
+- **Not yet measured.** Whether full bleed removes the margin marks. The coordinator re-makes the four rejected backdrops after deploy and records the result on #490. A cream ground or cream ink may still invite a mark in a corner; if so, the ink words are the next thing to look at.
+
+Confirmed by: `backdrop-prompt.test.ts` (the prompt asks for full bleed and no paper border, and never says "band").
+
 ## D-201 · 2026-10-31 · Two kits draw the heart and the nerves, and six Human body recipes name them (S-8b, #479)
 
 **Amends** D-125 ("A new kit is a new id and a new decision") and D-194 (five kits). **Builds on** D-124.
