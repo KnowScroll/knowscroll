@@ -28,8 +28,10 @@ describe('the instructions of the kit role', () => {
     expect(GLYPH_MEANINGS.book).toContain('history');
   });
 
-  it('asks for different glyphs for different topics when another fits', () => {
-    expect(instructions).toContain('should not share a glyph when another one fits better');
+  it('asks for the glyph closest to this room’s topic, and its example does not use a glyph a topic would copy', () => {
+    expect(instructions).toContain('Choose the glyph whose meaning is closest to this room');
+    expect(instructions).not.toContain('should not share');
+    expect(instructions).not.toContain('"glyph":"ringed-planet"');
   });
 
   it('still lets code, not the model, decide what is valid', () => {
