@@ -114,7 +114,22 @@ export const SKY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
 ];
 
 /**
- * The five Space recipes the drawing kits of D-204 give a picture, to measure with the v18 prompt before any of
+ * The six Human body recipes the drawing kits of D-201 give a picture, to measure with the v18 prompt before the
+ * first wave of them: the heart and the blood with `circulation.v1`, the nerves with `nerve.v1`. Each
+ * runs as the library produces it (D-199, D-201): a stage Scroll drawn with its recipe's kit, with the plan's
+ * misconception (none).
+ */
+export const BODY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
+  'cardiac-cycle',
+  'blood-pressure',
+  'oxygen-transport',
+  'action-potential',
+  'synapse-signalling',
+  'reflex-arc',
+];
+
+/**
+ * The five Space recipes the drawing kits of D-204 give a picture, to measure with the v19 prompt before any of
  * them is marked `scrollV2`: colour and brightness and the habitable zone with `starlight.v1`, and the formation,
  * the horizon and the evidence of black holes with `black-hole.v1`. Each runs as the library will produce it,
  * a stage Scroll with the recipe's own kit and the spike's own unreviewed misconception.

@@ -113,6 +113,8 @@ describe('the writer spike runs a stage recipe of each drawing kit (D-194)', () 
     ['greenhouse.v1', 'greenhouse-radiation'],
     ['star.v1', 'stars-fusion'],
     ['transit.v1', 'exoplanet-transit'],
+    ['circulation.v1', 'cardiac-cycle'],
+    ['nerve.v1', 'action-potential'],
     ['starlight.v1', 'stars-colour-brightness'],
     ['black-hole.v1', 'black-hole-formation'],
   ] as const)(
@@ -158,7 +160,7 @@ describe('the writer spike: one topic', () => {
       outcome: 'accepted_first_take',
       variant: 'stage',
       misconception: 'myth',
-      promptVersion: 'scroll-writer.v18',
+      promptVersion: 'scroll-writer.v19',
       requests: 1,
       findings: [],
       stops: 9,

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Circle, Line, Path, Polygon, Text as SvgText } from 'react-native-svg';
+import { Circle, Line, Path, Polygon, Rect, Text as SvgText } from 'react-native-svg';
 import { content, fontFamily, family, status } from '@knowscroll/design-tokens';
 import type { Point } from './earth-sky-scene';
 
@@ -43,6 +43,47 @@ export function ellipsePoints(centre: Point, halfLength: number, halfWidth: numb
 
 export function FocusRing({ at, radius }: { readonly at: Point; readonly radius: number }): ReactElement {
   return <Circle cx={at.x} cy={at.y} r={radius} fill="none" stroke={FOCUS} strokeWidth={3} strokeDasharray="5 4" />;
+}
+
+/** The focus ring for a part that is a stretch, not a point: the same dashed stroke as `FocusRing`, around a box. */
+export function FocusBox({
+  x,
+  y,
+  width,
+  height,
+}: {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}): ReactElement {
+  return (
+    <Rect
+      x={x}
+      y={y}
+      width={width}
+      height={height}
+      rx={6}
+      fill="none"
+      stroke={FOCUS}
+      strokeWidth={3}
+      strokeDasharray="5 4"
+    />
+  );
+}
+
+/** The same dashed stroke round a slanted band: the points of its outline in order. */
+export function FocusOutline({ points }: { readonly points: readonly Point[] }): ReactElement {
+  return (
+    <Polygon
+      points={points.map((point) => `${point.x},${point.y}`).join(' ')}
+      fill="none"
+      stroke={FOCUS}
+      strokeWidth={3}
+      strokeDasharray="5 4"
+      strokeLinejoin="round"
+    />
+  );
 }
 
 export interface ArrowProps {

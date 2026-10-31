@@ -504,7 +504,7 @@ The design's block table lists 12 new, 5 kept and 6 changed blocks. *Implemented
 | `paragraph` | kept | implemented, inside a stop |
 | `heading` | changed | implemented, inside a stop (level 1 or 2, rare) |
 | `aside` | new | implemented (a limits aside is required and never last) |
-| `stage` | new | implemented: five kits (Earth & sky, D-124; tides, greenhouse, star and transit, D-194), each with its physics derived by code (D-195), drawn by the stage engine (S-1c) |
+| `stage` | new | implemented: seven kits (Earth & sky, D-124; tides, greenhouse, star and transit, D-194; circulation and nerve, D-201), each with its physics derived by code (D-195, D-202), drawn by the stage engine (S-1c) |
 | `call_it` | new | implemented as a stop; locking in, sparks, combo and the Plot twist reveal are play, implemented (S-2: `modules/play`, `packages/client-core/src/play-session.ts`) |
 | `final_call` | new | implemented as the last stop (S-3): judged on the server like a Call it, a combo bonus (`sparksEarned`, D-187), an optional `binding: tilt` that hands the reader Earth's tilt on the stage, and the document's `landmark` it awards (D-188). No `bind_stage` for other kits and no simulation formulas for it: the tilt is the kit's physics in code |
 | `recap` | new | implemented |
@@ -551,7 +551,7 @@ Status: **implemented**, unit-tested.
 
 ### The kit
 
-A stage names one drawing kit (`stage.kit`), and every state of it holds that kit's words and no others (D-194, D-204). Seven kits exist, each its own id with its own words and its own derived physics; `kitDefinition(id)` gives the generic view of one (its words, first state, `settle`, `describe` and the guide the writer's prompt reads), and `STAGE_KIT_IDS` lists them. Adding a kit is a new id, its words and physics, and a new decision.
+A stage names one drawing kit (`stage.kit`), and every state of it holds that kit's words and no others (D-194, D-201, D-204). Nine kits exist, each its own id with its own words and its own derived physics; `kitDefinition(id)` gives the generic view of one (its words, first state, `settle`, `describe` and the guide the writer's prompt reads), and `STAGE_KIT_IDS` lists them. Adding a kit is a new id, its words and physics, and a new decision.
 
 | Kit | Draws | The writer chooses | Code derives (D-195) |
 |---|---|---|---|
@@ -560,10 +560,12 @@ A stage names one drawing kit (`stage.kit`), and every state of it holds that ki
 | `greenhouse.v1` | sunlight, reflected sunlight, the ground, one layer of gas, infrared, two energy bars, a thermometer | view, layer (none, thin, thick), settled or just thickened, focus | every flow of energy, the balance or the imbalance, the ground's warmth |
 | `star.v1` | a star cut open with gravity and pressure, three stars by mass with lifetime bars, one star through its life | view, balance, mass class, stage, focus | shrink, hold or swell, colour, size, lifetime, and the end that fits the mass |
 | `transit.v1` | a star, a planet crossing it, its orbit from above, the graph of the light | view, planet (small or large), place along the crossing, focus | how much of the star is covered, the depth of the dip, the whole curve, whether the planet blocks light |
+| `circulation.v1` | the heart with four chambers and four valves, the two loops, the average pressure along the loop through the body, the curve of the oxygen haemoglobin holds | view, point of the beat, flow, width of the arterioles, where the blood is, focus | which valves are open from the pressures, how full the ventricles are, the fall of pressure stretch by stretch (flow times resistance, resistance as one over radius to the fourth), the oxygen handed over (D-202) |
+| `nerve.v1` | the voltage through one spike with the sodium and potassium channels, three pushes, a spike along an axon, a synapse, a reflex arc | view, point of the spike, place along the axon, step of the synapse, excite or inhibit, step of the reflex, focus | the voltage, the threshold, the channels, whether a fresh push fires, the recovering stretch, the direction of a synaptic change, the order of the news (D-202; the membrane model is `v2/kits/membrane.ts`) |
 | `starlight.v1` (D-204) | five kinds of star over the spectrum, one star beside a star like the Sun by size, heat and output, light thinning with distance, the chart of temperature against output, the habitable zones of three stars and a planet's orbit | view, kind of star, distance, orbit, focus | colour and where the glow is strongest (Wien and Planck), output from size and temperature (R squared times T to the fourth), one over distance squared, the place on the chart, the zone's distances (square root of the output) and which zone holds the planet |
 | `black-hole.v1` (D-204) | a massive star's end beside a Sun-like star's, two black holes to scale with the light near the horizon, a star and a black hole of equal mass pulling alike, stars orbiting a hidden mass, a glowing disc, a merger's ripples, a shadow | view, star and stage, hole, merger, focus | the horizon from the mass (2GM over c squared), how the star ends, Kepler orbits, the heat of the disc by radius, the shadow's size against the horizon, the chirp of a merger |
 
-Each kit's tests check its numbers against a computation it does not use (`v2/kits/*.test.ts`). Status: **implemented** (unit tests, and the stage reader draws each in the web export); none has run on real MiniMax yet (the D-204 kits are measured by `space-kits-v18`). The Final call's `binding: tilt` is Earth & sky's alone.
+Each kit's tests check its numbers against a computation it does not use (`v2/kits/*.test.ts`): the nerve kit against a forward-Euler run of the same equations twenty times finer, the circulation kit against Severinghaus' oxygen curve and Poiseuille's law written out again. Status: **implemented** (unit tests, and the stage reader draws each in the web export); none has run on real MiniMax yet (the D-204 kits are measured by `space-kits-v19`). The Final call's `binding: tilt` is Earth & sky's alone. The D-204 kits are measured by the spike `space-kits-v19`.
 
 #### Earth & sky
 

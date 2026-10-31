@@ -2,8 +2,20 @@ import type { ReactElement } from 'react';
 import Svg, { Circle, G, Line, Path, Polygon, Rect } from 'react-native-svg';
 import { VISIBLE_NANOMETRES, wavelengthColour, ZONE_STARS, type StarKind } from '../model';
 import { SCENE_HEIGHT, SCENE_WIDTH, type Point } from './earth-sky-scene';
-import { FocusBox, FocusOutline } from './focus-box';
-import { BLUE, FOCUS, FocusRing, GREEN, INK, Label, MUTED, OUTLINE, PAPER_DEEP, WARM } from './parts';
+import {
+  BLUE,
+  FOCUS,
+  FocusBox,
+  FocusOutline,
+  FocusRing,
+  GREEN,
+  INK,
+  Label,
+  MUTED,
+  OUTLINE,
+  PAPER_DEEP,
+  WARM,
+} from './parts';
 import {
   BARS,
   FRAME,

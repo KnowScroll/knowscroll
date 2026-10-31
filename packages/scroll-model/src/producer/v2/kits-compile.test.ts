@@ -16,6 +16,23 @@ const UNSETTLED: Readonly<Record<Exclude<StageKitId, 'earth-sky.v1'>, Record<str
   'greenhouse.v1': { view: 'sunlight', layer: 'none', change: 'just-thickened', focus: 'none' },
   'star.v1': { view: 'balance', balance: 'steady', mass: 'high', stage: 'main-sequence', focus: 'none' },
   'transit.v1': { view: 'compare', planet: 'large', at: 'middle', focus: 'none' },
+  'circulation.v1': {
+    view: 'pressure',
+    phase: 'ejection',
+    flow: 'usual',
+    vessels: 'usual',
+    where: 'lungs',
+    focus: 'none',
+  },
+  'nerve.v1': {
+    view: 'axon',
+    phase: 'rising',
+    along: 'start',
+    synapseAt: 'arrives',
+    effect: 'excite',
+    arcAt: 'sensor',
+    focus: 'none',
+  },
   'starlight.v1': { view: 'dimming', star: 'giant', distance: 'far', orbit: 'none', focus: 'none' },
   'black-hole.v1': { view: 'pull', star: 'sun-like', stage: 'fusing', hole: 'small', merger: 'apart', focus: 'none' },
 };

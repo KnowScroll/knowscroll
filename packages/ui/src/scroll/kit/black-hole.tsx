@@ -2,10 +2,23 @@ import type { ReactElement } from 'react';
 import Svg, { Circle, G, Line, Path, Polygon, Text as SvgText } from 'react-native-svg';
 import { fontFamily } from '@knowscroll/design-tokens';
 import { SCENE_HEIGHT, SCENE_WIDTH, onCircle, type Point } from './earth-sky-scene';
-import { FocusBox } from './focus-box';
 import type { BlackHoleScene } from './black-hole-scene';
 import { DISC_FLATNESS, ORBIT_ARROW_PX, PULL_ARROW_PX, WAVES } from './black-hole-scene';
-import { Arrow, BLUE, FOCUS, FocusRing, INK, Label, MUTED, OUTLINE, PAPER, PAPER_DEEP, SUN, WARM } from './parts';
+import {
+  Arrow,
+  BLUE,
+  FOCUS,
+  FocusBox,
+  FocusRing,
+  INK,
+  Label,
+  MUTED,
+  OUTLINE,
+  PAPER,
+  PAPER_DEEP,
+  SUN,
+  WARM,
+} from './parts';
 
 /**
  * The black-hole kit drawn in the V3 style (D-204): how a star's end can leave a black hole, black holes to

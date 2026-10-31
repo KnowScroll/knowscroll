@@ -1,7 +1,9 @@
 import { EARTH_SKY_KIT, EARTH_SKY_KIT_DEFINITION } from '../kit.js';
+import { CIRCULATION_KIT, CIRCULATION_KIT_DEFINITION } from './circulation.js';
 import { BLACK_HOLE_KIT, BLACK_HOLE_KIT_DEFINITION } from './black-hole.js';
 import { type KitDefinition } from './definition.js';
 import { GREENHOUSE_KIT, GREENHOUSE_KIT_DEFINITION } from './greenhouse.js';
+import { NERVE_KIT, NERVE_KIT_DEFINITION } from './nerve.js';
 import { STAR_KIT, STAR_KIT_DEFINITION } from './star.js';
 import { STARLIGHT_KIT, STARLIGHT_KIT_DEFINITION } from './starlight.js';
 import { TIDES_KIT, TIDES_KIT_DEFINITION } from './tides.js';
@@ -19,6 +21,8 @@ export const STAGE_KIT_IDS = [
   GREENHOUSE_KIT,
   STAR_KIT,
   TRANSIT_KIT,
+  CIRCULATION_KIT,
+  NERVE_KIT,
   STARLIGHT_KIT,
   BLACK_HOLE_KIT,
 ] as const;
@@ -30,6 +34,8 @@ const KITS: Readonly<Record<StageKitId, KitDefinition>> = {
   [GREENHOUSE_KIT]: GREENHOUSE_KIT_DEFINITION,
   [STAR_KIT]: STAR_KIT_DEFINITION,
   [TRANSIT_KIT]: TRANSIT_KIT_DEFINITION,
+  [CIRCULATION_KIT]: CIRCULATION_KIT_DEFINITION,
+  [NERVE_KIT]: NERVE_KIT_DEFINITION,
   [STARLIGHT_KIT]: STARLIGHT_KIT_DEFINITION,
   [BLACK_HOLE_KIT]: BLACK_HOLE_KIT_DEFINITION,
 };
@@ -51,6 +57,37 @@ export {
   type WordState,
 } from './definition.js';
 export {
+  ARTERIOLE_RADIUS,
+  circulationParts,
+  CIRCULATION_ENUMS,
+  CIRCULATION_KIT,
+  CirculationStateSchema,
+  describeCirculationState,
+  haemoglobinSaturation,
+  heartPhysics,
+  HEART_PRESSURES,
+  INITIAL_CIRCULATION_STATE,
+  loopPhysics,
+  LOOP_STRETCHES,
+  OXYGEN_PRESSURE,
+  oxygenPhysics,
+  RELATIVE_FLOW,
+  settleCirculationState,
+  type BloodFlow,
+  type BloodPlace,
+  type CirculationPart,
+  type CirculationPatch,
+  type CirculationState,
+  type CirculationView,
+  type HeartPhase,
+  type HeartPhysics,
+  type LoopPhysics,
+  type LoopStretch,
+  type OxygenPhysics,
+  type VesselWidth,
+} from './circulation.js';
+export { TRACE_STEP } from './membrane.js';
+export {
   describeGreenhouseState,
   GREENHOUSE_ENUMS,
   GREENHOUSE_KIT,
@@ -68,6 +105,43 @@ export {
   type GreenhouseState,
   type GreenhouseView,
 } from './greenhouse.js';
+export {
+  actionPotential,
+  arcPhysics,
+  ARC_LINKS,
+  axonProfile,
+  AXON_PEAK_AT,
+  AXON_PROFILE_SAMPLES,
+  describeNerveState,
+  INITIAL_NERVE_STATE,
+  NERVE_ENUMS,
+  NERVE_KIT,
+  nerveParts,
+  NerveStateSchema,
+  PUSH_RESPONSE_DURATION_MS,
+  postsynapticCourse,
+  pushResponses,
+  settleNerveState,
+  SPIKE_DURATION_MS,
+  spikePhysics,
+  SYNAPSE_TIME_IN_CONSTANTS,
+  synapsePhysics,
+  type ArcPhysics,
+  type ArcStep,
+  type AxonPlace,
+  type AxonProfile,
+  type ChannelsPhysics,
+  type NervePart,
+  type NervePatch,
+  type NerveState,
+  type NerveView,
+  type PushResponse,
+  type SpikePhase,
+  type SpikePhysics,
+  type SynapseEffect,
+  type SynapsePhysics,
+  type SynapseStep,
+} from './nerve.js';
 export {
   describeStarState,
   INITIAL_STAR_STATE,

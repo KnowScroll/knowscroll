@@ -201,14 +201,20 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
     expect(byKit('greenhouse.v1')).toEqual(['greenhouse', 'greenhouse-balance', 'greenhouse-radiation']);
     expect(byKit('star.v1')).toEqual(['stars-fusion', 'stars-lifecycle']);
     expect(byKit('transit.v1')).toEqual(['exoplanet-transit']);
+    expect(byKit('circulation.v1')).toEqual(['blood-pressure', 'cardiac-cycle', 'oxygen-transport']);
+    expect(byKit('nerve.v1')).toEqual(['action-potential', 'reflex-arc', 'synapse-signalling']);
     expect(byKit('starlight.v1')).toEqual(['exoplanet-habitable-zone', 'stars-colour-brightness']);
     expect(byKit('black-hole.v1')).toEqual(['black-hole-evidence', 'black-hole-formation', 'black-hole-horizon']);
-    expect(recipes.filter((recipe) => recipe.stageKit !== undefined)).toHaveLength(16);
+    expect(recipes.filter((recipe) => recipe.stageKit !== undefined)).toHaveLength(22);
   });
 
-  it('gives a kit only to recipes of the system whose subject it draws: Earth & sky and Space', () => {
+  it('gives a kit only to recipes of the system whose subject it draws: Earth & sky, Space and the heart and nerves of the Human body', () => {
     for (const recipe of recipes.filter((candidate) => candidate.stageKit !== undefined))
-      expect(['earth', 'space'], recipe.key).toContain(recipe.systemId);
+      expect(['earth', 'space', 'human-body'], recipe.key).toContain(recipe.systemId);
+    for (const recipe of recipes.filter((candidate) =>
+      ['circulation.v1', 'nerve.v1'].includes(candidate.stageKit ?? ''),
+    ))
+      expect(recipe.systemId, recipe.key).toBe('human-body');
   });
 
   it('leaves the recipes no kit draws plain: coasts, the blanket audit, kinds of planet and other worlds', () => {
@@ -219,6 +225,10 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
       // A mass ruler would be a chart of real data, and the name says nothing a picture could draw (D-204).
       'exoplanet-kinds',
       'seasons-elsewhere',
+      // No kit draws the immune system.
+      'innate-immunity',
+      'adaptive-immunity',
+      'immune-memory',
     ] as const)
       expect(RECIPES[key].stageKit, key).toBeUndefined();
   });
@@ -277,14 +287,26 @@ describe('the recipes the plan produces as v2 Scrolls (scrollV2, D-137)', () => 
 describe('the waves marked for S-6 (D-199)', () => {
   const waves = WAVE_RECIPES.map((key) => ({ key, ...RECIPES[key] }));
 
-  it('covers every recipe of the four systems that have no kit, which is all of them', () => {
+  /** The six Human body recipes the heart and nerve kits draw (D-201). Every other wave recipe has no kit. */
+  const DRAWN = [
+    'cardiac-cycle',
+    'blood-pressure',
+    'oxygen-transport',
+    'action-potential',
+    'synapse-signalling',
+    'reflex-arc',
+  ];
+
+  it('covers every recipe of the four systems, and only the six heart and nerve recipes have a kit', () => {
     expect(waves).toHaveLength(35);
-    for (const recipe of waves) expect(recipe.stageKit, recipe.key).toBeUndefined();
+    for (const recipe of waves)
+      if (DRAWN.includes(recipe.key)) expect(recipe.stageKit, recipe.key).toMatch(/^(circulation|nerve)\.v1$/u);
+      else expect(recipe.stageKit, recipe.key).toBeUndefined();
   });
 
-  it('makes each a plain Scroll with calls and no myth: none of its pages states a common wrong belief', () => {
+  it('makes each a v2 Scroll with calls and no myth, a stage Scroll exactly where a kit draws it and a plain one otherwise: none of its pages states a common wrong belief', () => {
     for (const recipe of waves) {
-      expect(recipe.scrollV2?.variant, recipe.key).toBe('plain');
+      expect(recipe.scrollV2?.variant, recipe.key).toBe(DRAWN.includes(recipe.key) ? 'stage' : 'plain');
       expect(recipe.scrollV2?.misconception, recipe.key).toEqual({ kind: 'none' });
       expect(recipe.scrollV2?.finalCall, recipe.key).toBeUndefined();
     }

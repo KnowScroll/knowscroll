@@ -22,7 +22,7 @@ import { bannedNames, copiedIn, NOTE_BLOCKS, readerStrings, type BannedName } fr
  * writer (`scroll-writer.v13`) is untouched and still publishes the library; this one only runs in
  * the writer spike until the reader and admission of `scroll-document.v2` exist (D-120).
  */
-export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v18';
+export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v19';
 
 const minutes = (seconds: number): number => seconds / 60;
 

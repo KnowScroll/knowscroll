@@ -2,20 +2,31 @@ import type { ReactElement } from 'react';
 import {
   AXIAL_TILT_DEGREES,
   describeStageAtTilt,
+  type CirculationState,
   type BlackHoleState,
   type GreenhouseState,
+  type NerveState,
   type StageState,
   type StarlightState,
   type StarState,
   type TidesState,
   type TransitState,
 } from '../model';
+import { CirculationPicture } from './circulation';
+import {
+  canTweenCirculation,
+  circulationSceneOf,
+  lerpCirculationScene,
+  type CirculationScene,
+} from './circulation-scene';
 import { BlackHolePicture } from './black-hole';
 import { blackHoleSceneOf, canTweenBlackHole, lerpBlackHoleScene, type BlackHoleScene } from './black-hole-scene';
 import { EarthSkyPicture } from './earth-sky';
 import { canTween, lerpScene, sceneOf, type EarthSkyScene } from './earth-sky-scene';
 import { GreenhousePicture } from './greenhouse';
 import { canTweenGreenhouse, greenhouseSceneOf, lerpGreenhouseScene, type GreenhouseScene } from './greenhouse-scene';
+import { NervePicture } from './nerve';
+import { canTweenNerve, lerpNerveScene, nerveSceneOf, type NerveScene } from './nerve-scene';
 import { StarlightPicture } from './starlight';
 import { canTweenStarlight, lerpStarlightScene, starlightSceneOf, type StarlightScene } from './starlight-scene';
 import { StarPicture } from './star';
@@ -98,6 +109,18 @@ export const KIT_PICTURES = {
     canTween: canTweenTransit,
     lerpScene: lerpTransitScene,
     Picture: TransitPicture,
+  }),
+  'circulation.v1': kitPicture<CirculationState, CirculationScene>({
+    sceneOf: circulationSceneOf,
+    canTween: canTweenCirculation,
+    lerpScene: lerpCirculationScene,
+    Picture: CirculationPicture,
+  }),
+  'nerve.v1': kitPicture<NerveState, NerveScene>({
+    sceneOf: nerveSceneOf,
+    canTween: canTweenNerve,
+    lerpScene: lerpNerveScene,
+    Picture: NervePicture,
   }),
   'starlight.v1': kitPicture<StarlightState, StarlightScene>({
     sceneOf: starlightSceneOf,

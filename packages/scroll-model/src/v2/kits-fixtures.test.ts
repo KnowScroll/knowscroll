@@ -9,6 +9,8 @@ const NAMES = {
   'greenhouse.v1': 'greenhouse',
   'star.v1': 'star',
   'transit.v1': 'transit',
+  'circulation.v1': 'circulation',
+  'nerve.v1': 'nerve',
   'starlight.v1': 'starlight',
   'black-hole.v1': 'black-hole',
 } as const;
