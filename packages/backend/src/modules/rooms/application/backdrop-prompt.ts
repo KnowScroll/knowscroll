@@ -6,7 +6,7 @@ import type { RoomEmblemGlyph, RoomKit, RoomMotif, RoomSwatch } from '@knowscrol
  */
 
 const HOUSE_STYLE =
-  "Screenprint, two to three flat inks, bold ink outlines, flat shapes, wide band composition, full bleed: the picture runs to every edge, with no paper border, margin or mount. No text, no letters, no numbers, no faces, no people, no logos. No signature, no artist's mark, no monogram, no stamp, nothing written in the corners.";
+  "Screenprint, two to three flat inks, bold ink outlines, flat shapes, wide panoramic composition, full bleed: the picture runs to every edge, with no paper border, margin or mount. No text, no letters, no numbers, no faces, no people, no logos. No signature, no artist's mark, no monogram, no stamp, nothing written in the corners.";
 
 const SCENES: Record<RoomEmblemGlyph, string> = {
   'ringed-planet': 'a ringed planet',
