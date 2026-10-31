@@ -195,6 +195,12 @@ Planner. With `MiniMax-M3.1-Flash` it needs `KS_MINIMAX_REQUEST_TIMEOUT_MS=30000
 `RequestPlanner` with `resumeRunId` resumes the same business run. This does not alter reasoning
 caps, quota or failure-brake policy and does not grant permission to use the #232 allowance.
 
+`KS_COMPOSER_POLICY` (API and worker, `v0` or `v1`, default `v0`; any other value is refused at start): the Composer policy
+that new decisions are made under (D-190). The API ranks a navigation under it and the worker ranks the buffer under it, so
+set both processes of a world alike (they read one environment file). `v1` is not meant for a world until its numbers have
+been chosen from `composer replay-policy`; dev stays `v0` until then. A stored decision replays under the policy it names,
+whatever this is set to, so switching back and forth strands nothing, and `composer replay-policy` always replays both.
+
 `KS_JEV_ENABLED` (worker, 0/1, default 0): enable Jev, the optional semantic assessment run by the
 Composer `composer.prepare-buffer` job on the shared reasoning harness. Set it to 1 on dev. It needs a
 configured reasoning provider; without one Jev is simply absent and buffers are still prepared. It does

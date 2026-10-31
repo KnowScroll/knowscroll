@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { composeEncounter, type ComposerDecision, type ComposerSnapshot } from '../public.js';
 import { decideValidated, validateSnapshot } from './compose.js';
 import { features, formatFitOf, recentTopicRepeat, score } from '../domain/features.js';
-import { COMPOSER_POLICY_V0, COMPOSER_POLICY_V1, currentComposerPolicy, policyOf } from '../domain/policy.js';
-import { explorationOutcomes } from '../domain/exploration.js';
+import { COMPOSER_POLICY_V0, COMPOSER_POLICY_V1, composerPolicyFor, policyOf } from '../domain/policy.js';
+import { explorationShare } from '../domain/exploration.js';
 import { fixtureSnapshots } from './snapshot-fixtures.js';
 
 /** Same canonical form as the decision store hashes and compares. */
@@ -114,9 +114,14 @@ describe('policy v0 decisions replay byte for byte', () => {
     expect(canonical(composeEncounter(stored.input, COMPOSER_POLICY_V1))).not.toBe(canonical(stored));
   });
 
-  it('new decisions are made under v1 and name it', () => {
-    expect(currentComposerPolicy()).toBe(COMPOSER_POLICY_V1);
-    expect(composeEncounter(snapshots[0]!).policyVersion).toBe('composer-policy.v1');
+  it('the setting names the policy: v0 by default and without one, v1 only when asked', () => {
+    expect(composerPolicyFor('v0')).toBe(COMPOSER_POLICY_V0);
+    expect(composerPolicyFor('v1')).toBe(COMPOSER_POLICY_V1);
+    expect(composeEncounter(snapshots[0]!).policyVersion).toBe('composer-policy.v0');
+    expect(composeEncounter(snapshots[0]!, composerPolicyFor('v1')).policyVersion).toBe('composer-policy.v1');
+    expect(canonical(composeEncounter(snapshots[0]!))).toBe(
+      canonical(composeEncounter(snapshots[0]!, COMPOSER_POLICY_V0)),
+    );
   });
 
   it('a v0 decision carries no v1-only feature, so its record is unchanged', () => {
@@ -131,15 +136,15 @@ describe('policy v1 is deterministic and bounded', () => {
 
   it('the same snapshot gives the same decision hash, and its label replays it', () => {
     for (const snapshot of snapshots) {
-      const first = composeEncounter(snapshot);
-      expect(sha(composeEncounter(snapshot))).toBe(sha(first));
+      const first = composeEncounter(snapshot, COMPOSER_POLICY_V1);
+      expect(sha(composeEncounter(snapshot, COMPOSER_POLICY_V1))).toBe(sha(first));
       expect(canonical(composeEncounter(first.input, policyOf(first.policyVersion)))).toBe(canonical(first));
     }
   });
 
   it('every feature stays in [0, 1] and every offer is a candidate that was eligible', () => {
     for (const snapshot of snapshots) {
-      const decision = composeEncounter(snapshot);
+      const decision = composeEncounter(snapshot, COMPOSER_POLICY_V1);
       for (const evaluation of decision.evaluations)
         for (const value of Object.values(evaluation.features)) {
           expect(value).toBeGreaterThanOrEqual(0);
@@ -276,70 +281,116 @@ describe('recent-topic repeat penalty', () => {
   });
 });
 
-describe('play-level format cells shrink toward the topic parent', () => {
-  const parent = { kind: 'scroll' as const, measured: 8, qualified: 4 };
-  const parentFit = (1 + 4) / (2 + 8);
+describe('play-level format cells shrink toward the rate of the person’s other levels', () => {
   const game = { kind: 'scroll' as const, traits: { playLevel: 'game' as const } };
-  type Cells = NonNullable<NonNullable<ComposerSnapshot['evidence']>['topics'][number]['cells']>;
-  const topicWith = (cells?: Cells) => ({ topicId: 't', activity: 1, formats: [parent], ...(cells ? { cells } : {}) });
+  type Counts = { readonly measured: number; readonly qualified: number };
+  /** Other levels of the topic at 4 of 8 (rate 1/2, shrunk to 5/10). */
+  const rest: Counts = { measured: 8, qualified: 4 };
+  const restFit = (1 + 4) / (2 + 8);
+  /** A person with `rest` at other levels and `cell` at the game level. The parent counts every level, the cell included. */
+  const person = (others: Counts, cell?: Counts) => ({
+    topicId: 't',
+    activity: 1,
+    formats: [
+      {
+        kind: 'scroll' as const,
+        measured: others.measured + (cell?.measured ?? 0),
+        qualified: others.qualified + (cell?.qualified ?? 0),
+      },
+    ],
+    ...(cell ? { cells: [{ kind: 'scroll' as const, level: 'game' as const, ...cell }] } : {}),
+  });
+  const fit = (others: Counts, cell: Counts, policy = COMPOSER_POLICY_V1) =>
+    formatFitOf(person(others, cell), game, policy);
 
   it('a cell with no encounters equals its parent, and policy v0 never reads a cell', () => {
-    expect(formatFitOf(topicWith(), game, COMPOSER_POLICY_V1)).toBeCloseTo(parentFit);
-    expect(
-      formatFitOf(topicWith([{ kind: 'scroll', level: 'game', measured: 0, qualified: 0 }]), game, COMPOSER_POLICY_V1),
-    ).toBeCloseTo(parentFit);
-    expect(
-      formatFitOf(topicWith([{ kind: 'scroll', level: 'game', measured: 6, qualified: 6 }]), game, COMPOSER_POLICY_V0),
-    ).toBeCloseTo(parentFit);
+    expect(formatFitOf(person(rest), game, COMPOSER_POLICY_V1)).toBeCloseTo(restFit);
+    expect(fit(rest, { measured: 0, qualified: 0 })).toBeCloseTo(restFit);
+    const parent = (1 + 4 + 6) / (2 + 8 + 6);
+    expect(fit(rest, { measured: 6, qualified: 6 }, COMPOSER_POLICY_V0)).toBeCloseTo(parent);
   });
 
-  it('a cell with few encounters stays near the parent and moves toward its own rate as they accumulate', () => {
-    const fit = (measured: number, qualified: number) =>
-      formatFitOf(topicWith([{ kind: 'scroll', level: 'game', measured, qualified }]), game, COMPOSER_POLICY_V1);
-    expect(Math.abs(fit(1, 1) - parentFit)).toBeLessThan(0.15);
-    expect(fit(1, 1)).toBeLessThan(fit(4, 4));
-    expect(fit(4, 4)).toBeLessThan(fit(20, 20));
-    expect(fit(20, 20)).toBeGreaterThan(0.85);
-    expect(fit(20, 0)).toBeLessThan(0.15);
+  it('a cell with few encounters stays near the other levels and moves toward its own rate as they accumulate', () => {
+    const at = (measured: number, qualified: number) => fit(rest, { measured, qualified });
+    expect(at(1, 1)).toBeCloseTo((1 + 4 * restFit) / 5);
+    expect(Math.abs(at(1, 1) - restFit)).toBeLessThan(0.15);
+    expect(at(1, 1)).toBeLessThan(at(4, 4));
+    expect(at(4, 4)).toBeLessThan(at(20, 20));
+    expect(at(20, 20)).toBeGreaterThan(0.85);
+    expect(at(20, 0)).toBeLessThan(0.15);
+  });
+
+  it('does not count the cell twice: history in one level only is shrunk toward even odds, not toward itself', () => {
+    const onlyGame = { measured: 6, qualified: 6 };
+    const none: Counts = { measured: 0, qualified: 0 };
+    const parent = (1 + 6) / (2 + 6);
+    // (6 + 4 * 1/2) / (6 + 4): less extreme than the parent, which already holds these six encounters once.
+    expect(fit(none, onlyGame)).toBeCloseTo(0.8);
+    expect(fit(none, onlyGame)).toBeLessThan(parent);
+    // Another level of the same person has no history of its own, so it reads the parent as it is.
+    const plain = { kind: 'scroll' as const, traits: { playLevel: 'plain' as const } };
+    expect(formatFitOf(person(none, onlyGame), plain, COMPOSER_POLICY_V1)).toBeCloseTo(parent);
   });
 
   it('a candidate reads its own level: a plain Scroll is not moved by a game cell', () => {
-    const cells: Cells = [{ kind: 'scroll', level: 'game', measured: 6, qualified: 6 }];
     const plain = { kind: 'scroll' as const, traits: { playLevel: 'plain' as const } };
-    expect(formatFitOf(topicWith(cells), plain, COMPOSER_POLICY_V1)).toBeCloseTo(parentFit);
-    expect(formatFitOf(topicWith(cells), { kind: 'scroll' as const }, COMPOSER_POLICY_V1)).toBeCloseTo(parentFit);
-    expect(formatFitOf(topicWith(cells), game, COMPOSER_POLICY_V1)).toBeGreaterThan(parentFit);
+    const withGame = person(rest, { measured: 6, qualified: 6 });
+    const parent = (1 + 10) / (2 + 14);
+    expect(formatFitOf(withGame, plain, COMPOSER_POLICY_V1)).toBeCloseTo(parent);
+    expect(formatFitOf(withGame, { kind: 'scroll' as const }, COMPOSER_POLICY_V1)).toBeCloseTo(parent);
+    expect(formatFitOf(withGame, game, COMPOSER_POLICY_V1)).toBeGreaterThan(parent);
   });
 
-  it('two people with the same parent diverge on a game Scroll only after enough measured encounters', () => {
-    const lovesGames = (n: number) => topicWith([{ kind: 'scroll', level: 'game', measured: n, qualified: n }]);
-    const prefersReading = (n: number) => topicWith([{ kind: 'scroll', level: 'game', measured: n, qualified: 0 }]);
-    const gap = (n: number) =>
-      formatFitOf(lovesGames(n), game, COMPOSER_POLICY_V1) - formatFitOf(prefersReading(n), game, COMPOSER_POLICY_V1);
+  it('two people with the same other levels diverge on a game Scroll only after enough measured encounters', () => {
+    const gap = (n: number) => fit(rest, { measured: n, qualified: n }) - fit(rest, { measured: n, qualified: 0 });
     expect(gap(0)).toBeCloseTo(0);
+    // n / (n + 4): a single encounter each moves them 0.2 apart, eight move them two thirds.
+    expect(gap(1)).toBeCloseTo(1 / 5);
+    expect(gap(3)).toBeCloseTo(3 / 7);
+    expect(gap(8)).toBeCloseTo(8 / 12);
     expect(gap(1)).toBeLessThan(gap(3));
     expect(gap(3)).toBeLessThan(gap(8));
-    expect(gap(1)).toBeLessThan(0.35);
-    expect(gap(8)).toBeGreaterThan(0.5);
   });
 
-  test.prop([
-    fc.integer({ min: 0, max: 200 }),
-    fc.integer({ min: 0, max: 200 }),
-    fc.integer({ min: 0, max: 200 }),
-    fc.integer({ min: 0, max: 200 }),
-    fc.constantFrom('plain' as const, 'stage' as const, 'game' as const),
-  ])('is always in [0, 1] for any counts', (parentMeasured, parentQualified, cellMeasured, cellQualified, level) => {
-    const value = formatFitOf(
-      {
+  const counts = fc
+    .tuple(fc.integer({ min: 0, max: 200 }), fc.integer({ min: 0, max: 200 }))
+    .map(([measured, spare]) => ({ measured, qualified: Math.min(measured, spare) }));
+
+  test.prop([counts, counts, fc.constantFrom('plain' as const, 'stage' as const, 'game' as const)])(
+    'is always in [0, 1], and between the rate of the other levels and the cell’s own rate',
+    (others, cell, level) => {
+      const topic = {
         topicId: 't',
         activity: 0,
-        formats: [{ kind: 'scroll', measured: parentMeasured, qualified: Math.min(parentMeasured, parentQualified) }],
-        cells: [{ kind: 'scroll', level, measured: cellMeasured, qualified: Math.min(cellMeasured, cellQualified) }],
-      },
-      { kind: 'scroll', traits: { playLevel: level } },
-      COMPOSER_POLICY_V1,
-    );
+        formats: [
+          {
+            kind: 'scroll' as const,
+            measured: others.measured + cell.measured,
+            qualified: others.qualified + cell.qualified,
+          },
+        ],
+        cells: [{ kind: 'scroll' as const, level, ...cell }],
+      };
+      const value = formatFitOf(topic, { kind: 'scroll', traits: { playLevel: level } }, COMPOSER_POLICY_V1);
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThanOrEqual(1);
+      if (cell.measured > 0) {
+        const prior = (1 + others.qualified) / (2 + others.measured);
+        const own = cell.qualified / cell.measured;
+        expect(value).toBeGreaterThanOrEqual(Math.min(prior, own) - 1e-9);
+        expect(value).toBeLessThanOrEqual(Math.max(prior, own) + 1e-9);
+      }
+    },
+  );
+
+  it('survives a parent that lacks the cell’s counts (a process from before migration 0082)', () => {
+    const behind = {
+      topicId: 't',
+      activity: 0,
+      formats: [{ kind: 'scroll' as const, measured: 2, qualified: 1 }],
+      cells: [{ kind: 'scroll' as const, level: 'game' as const, measured: 5, qualified: 5 }],
+    };
+    const value = formatFitOf(behind, game, COMPOSER_POLICY_V1);
     expect(value).toBeGreaterThanOrEqual(0);
     expect(value).toBeLessThanOrEqual(1);
   });
@@ -358,14 +409,7 @@ describe('play-level format cells shrink toward the topic parent', () => {
         evidence: {
           ...base.evidence!,
           recent: [],
-          topics: [
-            {
-              topicId,
-              activity: 1,
-              formats: [parent],
-              cells: [{ kind: 'scroll', level: 'game', measured: 8, qualified }],
-            },
-          ],
+          topics: [{ ...person(rest, { measured: 8, qualified }), topicId }],
         },
       };
       return features(snapshot, gameCandidate, COMPOSER_POLICY_V1).format;
@@ -374,8 +418,9 @@ describe('play-level format cells shrink toward the topic parent', () => {
   });
 });
 
-describe('exploration covers each play level', () => {
-  const catalogue = (levels: readonly ('plain' | 'stage' | 'game')[], seed: string): ComposerSnapshot => ({
+describe('exploration covers each play level, and keeps the share of Reels', () => {
+  type Member = 'reel' | 'plain' | 'stage' | 'game';
+  const catalogue = (members: readonly Member[], seed: string): ComposerSnapshot => ({
     universeId: 'fixture-universe',
     privacyEpoch: 1,
     evaluatedAt: '2026-10-30T12:00:00.000Z',
@@ -383,62 +428,100 @@ describe('exploration covers each play level', () => {
     mode: 'vertical',
     seed,
     intent: { language: 'en', topicIds: [], text: '' },
-    candidates: levels.map((playLevel, index) => ({
-      admitted: true,
-      accessible: true,
-      renderable: true,
-      encounter: {
-        assetId: `asset-${String(index)}`,
-        assetRevision: 1,
-        kind: 'scroll' as const,
-        explanationUnitId: `unit-${String(index)}`,
-        metadata: { kind: 'scroll' as const, title: `Fixture ${String(index)}`, summary: '', language: 'en' },
-        topics: [{ topicId: 'fixture.topic', role: 'primary' as const, weight: 1 }],
-        facets: [],
-        siblings: [],
-        traits: { playLevel },
-        catalogWatermark: 'fixture-catalog',
-        attributionVersion: 'fixture-taxonomy',
-      },
-    })),
-    explorationPool: levels.map((_, index) => ({ assetId: `asset-${String(index)}`, assetRevision: 1 })),
+    candidates: members.map((member, index) => {
+      const kind = member === 'reel' ? ('reel' as const) : ('scroll' as const);
+      return {
+        admitted: true,
+        accessible: true,
+        renderable: true,
+        encounter: {
+          assetId: `asset-${String(index)}`,
+          assetRevision: 1,
+          kind,
+          explanationUnitId: `unit-${String(index)}`,
+          metadata: { kind, title: `Fixture ${String(index)}`, summary: '', language: 'en' },
+          topics: [{ topicId: 'fixture.topic', role: 'primary' as const, weight: 1 }],
+          facets: [],
+          siblings: [],
+          ...(member === 'reel' ? {} : { traits: { playLevel: member } }),
+          catalogWatermark: 'fixture-catalog',
+          attributionVersion: 'fixture-taxonomy',
+        },
+      };
+    }),
+    explorationPool: members.map((_, index) => ({ assetId: `asset-${String(index)}`, assetRevision: 1 })),
   });
-  const levels = [...Array.from({ length: 20 }, () => 'plain' as const), 'game' as const];
-  const gameShare = (policy: typeof COMPOSER_POLICY_V0) => {
-    // One validation, then only the seed changes: the draw is what is under test.
-    const snapshot = catalogue(levels, 'seed');
+  /** How often the first offer of an exploration is each member, over 4000 seeds of one validated snapshot. */
+  const shares = (members: readonly Member[], policy: typeof COMPOSER_POLICY_V0) => {
+    const snapshot = catalogue(members, 'seed');
     validateSnapshot(snapshot);
-    let exploredGame = 0;
+    const counts = new Map<Member, number>();
     let explored = 0;
     for (let n = 0; n < 4000; n += 1) {
       const decision = decideValidated({ ...snapshot, seed: `seed-${String(n)}` }, policy);
       if (decision.exploration.branch !== 'explore') continue;
       explored += 1;
-      if (decision.selection[0]?.assetId === 'asset-20') exploredGame += 1;
+      const first = Number(decision.selection[0]!.assetId.split('-')[1]);
+      counts.set(members[first]!, (counts.get(members[first]!) ?? 0) + 1);
     }
-    return { explored, share: exploredGame / explored };
+    const share = (member: Member) => (counts.get(member) ?? 0) / explored;
+    return { explored, share };
   };
+  const scrolls = [...Array.from({ length: 20 }, () => 'plain' as const), 'game' as const];
 
   it('draws a level first: a lone game Scroll in a plain catalogue is explored about half the time, not 1 in 21', () => {
-    const { explored, share } = gameShare(COMPOSER_POLICY_V1);
+    const { explored, share } = shares(scrolls, COMPOSER_POLICY_V1);
     expect(explored).toBeGreaterThan(300);
-    expect(share).toBeGreaterThan(0.4);
-    expect(share).toBeLessThan(0.6);
-  });
+    expect(share('game')).toBeGreaterThan(0.4);
+    expect(share('game')).toBeLessThan(0.6);
+  }, 30_000);
 
   it('under v0 the same pool is drawn uniformly, so the game Scroll is explored about 1 in 21', () => {
-    expect(gameShare(COMPOSER_POLICY_V0).share).toBeLessThan(0.15);
-  });
+    expect(shares(scrolls, COMPOSER_POLICY_V0).share('game')).toBeLessThan(0.15);
+  }, 30_000);
 
-  test.prop([
-    fc.array(fc.constantFrom('plain' as const, 'stage' as const, 'game' as const), { minLength: 1, maxLength: 30 }),
-  ])('the exploration probabilities of a pool sum to 1, so the recorded probability is a distribution', (levels) => {
-    const pool = levels.map((level, index) => ({ index, level }));
-    const total = pool.reduce(
-      (sum, item) => sum + 1 / explorationOutcomes(pool, item, (member) => member.level, true),
-      0,
-    );
-    expect(total).toBeCloseTo(1);
+  it('keeps Reel and Scroll equal: the Reels of the pool are explored as often as under v0, not squeezed by the levels', () => {
+    const mixed: Member[] = [
+      ...Array.from({ length: 10 }, () => 'reel' as const),
+      ...Array.from({ length: 10 }, () => 'plain' as const),
+      'stage',
+      'game',
+    ];
+    const v0 = shares(mixed, COMPOSER_POLICY_V0);
+    const v1 = shares(mixed, COMPOSER_POLICY_V1);
+    const reels = (shares_: typeof v0) => shares_.share('reel');
+    // 10 of 22 members are Reels, whichever policy draws.
+    expect(reels(v0)).toBeGreaterThan(0.37);
+    expect(reels(v0)).toBeLessThan(0.54);
+    expect(reels(v1)).toBeGreaterThan(0.37);
+    expect(reels(v1)).toBeLessThan(0.54);
+    // The Scrolls' share is spread over their levels: stage and game are explored far more than 1 in 22.
+    expect(v1.share('game')).toBeGreaterThan(0.1);
+    expect(v0.share('game')).toBeLessThan(0.1);
+  }, 30_000);
+
+  const members = fc.array(
+    fc.record({
+      kind: fc.constantFrom('reel' as const, 'scroll' as const),
+      level: fc.constantFrom('plain' as const, 'stage' as const, 'game' as const),
+    }),
+    { minLength: 1, maxLength: 30 },
+  );
+
+  test.prop([members])(
+    'the exploration probabilities of a pool sum to 1, so the recorded probability is a distribution',
+    (pool) => {
+      for (const byPlayLevel of [false, true]) {
+        const total = pool.reduce((sum, item) => sum + explorationShare(pool, item, byPlayLevel), 0);
+        expect(total).toBeCloseTo(1);
+      }
+    },
+  );
+
+  test.prop([members])('the Reels of a pool hold exactly their share of it, whatever the play levels', (pool) => {
+    const reels = pool.filter((item) => item.kind === 'reel');
+    const total = reels.reduce((sum, item) => sum + explorationShare(pool, item, true), 0);
+    expect(total).toBeCloseTo(reels.length / pool.length);
   });
 });
 

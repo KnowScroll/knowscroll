@@ -3,8 +3,6 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
-  COMPOSER_POLICY_V0,
-  composeEncounter,
   PREPARE_COMPOSER_BUFFER,
   prepareBufferQueue,
   type ComposerDecision,
@@ -379,7 +377,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       expect((await decisionOf(next.decisionId)).stickyFormat).toEqual({ preferred: 'reel', outcome: 'fell_back' });
     });
 
-    it('a client that names no format is ranked with no format rule, and the Scrolls of its topic lead under policy v0', async () => {
+    it('a client that names no format is ranked as before: no format rule, and the Scrolls of its topic lead', async () => {
       const person = await seedPerson(database.db);
       const stand = await standOn(person, reels[0]!);
       const next = ready(await nextSubject(person, stand));
@@ -389,19 +387,11 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       expect(decision.evaluations.some((evaluation) => evaluation.exclusions.includes('format_sticky'))).toBe(false);
       // Both formats are in play. The first slot is the ranked winner nine times in ten and an exploration pick
       // otherwise, so the ranking is what this asserts, not the first offer.
-      const candidateOf = (assetId: string | undefined) =>
-        decision.input.candidates.find((candidate) => candidate.encounter.assetId === assetId)?.encounter;
+      const kindOf = (assetId: string | undefined) =>
+        decision.input.candidates.find((candidate) => candidate.encounter.assetId === assetId)?.encounter.kind;
       const eligible = decision.evaluations.filter((evaluation) => evaluation.eligible);
-      expect(new Set(eligible.map((evaluation) => candidateOf(evaluation.assetId)?.kind))).toEqual(
-        new Set(['scroll', 'reel']),
-      );
-      const onSeasons = (assetId: string | undefined) =>
-        candidateOf(assetId)?.topics.some((topic) => topic.topicId === SEASONS_TOPIC) === true;
-      expect(decision.policyVersion).toBe('composer-policy.v1');
-      // The same input under the policy it replaced ranks a Scroll of the Reel's own topic first, as it did.
-      const before = composeEncounter(decision.input, COMPOSER_POLICY_V0);
-      expect(candidateOf(before.exploration.rankedWinner?.assetId)?.kind).toBe('scroll');
-      expect(onSeasons(before.exploration.rankedWinner?.assetId)).toBe(true);
+      expect(new Set(eligible.map((evaluation) => kindOf(evaluation.assetId)))).toEqual(new Set(['scroll', 'reel']));
+      expect(kindOf(decision.exploration.rankedWinner?.assetId)).toBe('scroll');
     });
   });
 

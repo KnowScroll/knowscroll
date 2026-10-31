@@ -145,7 +145,8 @@ AccountScope synchronously pauses/clears playback on logout/account switch/priva
 Explore discovery, exact return, navigation and offer activation dispatch to the Composer/Experience
 consumers; current exposure context and Like/Unlike/Hide/Save/Unsave dispatch to their scoped
 Experience consumers. Direct open/activate remains available. These are source capabilities;
-fixture or release checks do not establish a live reading journey.
+fixture or release checks do not establish a live reading journey. Navigation ranks under the Composer policy the
+world sets (`KS_COMPOSER_POLICY`, `v0` unless set; D-190).
 
 Supply's `POST /v1/content/requests`, `GET /v1/content/requests/{requestId}` and
 `POST /v1/content/requests/cancel` and `POST /v1/content/requests/retry` are thin adapters to Supply's create/read/cancel/retry ports. They use

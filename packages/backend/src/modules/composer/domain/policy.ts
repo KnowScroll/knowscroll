@@ -44,10 +44,14 @@ export interface ComposerPolicy {
   readonly recentTopicSpan: number;
   /**
    * Prior strength `m` of a play-level cell, in encounters: the Format of a (topic, kind, play level)
-   * cell is `(qualified + m * parentFit) / (measured + m)`. `null` reads the (topic, kind) parent only (v0).
+   * cell is `(qualified + m * prior) / (measured + m)`, the prior being the rate of the person's other levels
+   * (the (topic, kind) parent less this cell). `null` reads the (topic, kind) parent only (v0).
    */
   readonly formatCellPrior: number | null;
-  /** Exploration picks a play level first, then a candidate of it, so no level is crowded out (v1). */
+  /**
+   * A Scroll drawn by exploration is replaced by a draw of a play level and then of a Scroll of it, so no level is
+   * crowded out. Reels are not drawn by level, so the Reel/Scroll split of the pool is unchanged (v1).
+   */
   readonly explorationByPlayLevel: boolean;
 }
 
@@ -92,7 +96,8 @@ export const COMPOSER_POLICY_V0: ComposerPolicy = Object.freeze({
  * to 0.15, and a candidate whose topic the person met in their last three encounters pays a penalty
  * (`recentTopic`, as heavy as a repeated explanation). Format is read per play level with shrinkage to the
  * topic's rate, and exploration covers each play level. Horizontal moves are unchanged. These numbers are
- * provisional until `composer replay-policy` has been read on stored dev decisions.
+ * provisional until `composer replay-policy` has been read on stored dev decisions, so no world makes decisions
+ * under v1 until `KS_COMPOSER_POLICY=v1` is set for it (default `v0`).
  */
 export const COMPOSER_POLICY_V1: ComposerPolicy = Object.freeze({
   ...COMMON,
@@ -112,9 +117,14 @@ export const COMPOSER_POLICY_V1: ComposerPolicy = Object.freeze({
   explorationByPlayLevel: true,
 });
 
-/** The policy new decisions are made under. */
-export function currentComposerPolicy(): ComposerPolicy {
-  return COMPOSER_POLICY_V1;
+/**
+ * Which policy new decisions are made under (`KS_COMPOSER_POLICY`, D-190). It is chosen by configuration, so v1 is
+ * not used before its numbers are: the default is `v0`. Replay never asks: a stored decision names its own policy.
+ */
+export type ComposerPolicySetting = 'v0' | 'v1';
+
+export function composerPolicyFor(setting: ComposerPolicySetting): ComposerPolicy {
+  return setting === 'v1' ? COMPOSER_POLICY_V1 : COMPOSER_POLICY_V0;
 }
 
 const POLICIES: Readonly<Record<ComposerPolicyVersion, ComposerPolicy>> = {

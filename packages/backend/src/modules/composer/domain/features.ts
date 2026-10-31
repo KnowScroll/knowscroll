@@ -37,11 +37,14 @@ export function playLevelOf(encounter: Pick<EncounterSnapshot, 'traits'>): PlayL
 }
 
 /**
- * Format fit of one topic for a candidate (blueprint §8, "Personal interest and format fit"). The
- * (topic, kind) parent is the qualified-response rate with a uniform prior, `(1 + Q) / (2 + O)`. Policy
- * v1 reads the candidate's play-level cell instead, shrunk toward the parent with prior strength `m`:
- * `(Q + m * parent) / (O + m)`. A cell with no encounters equals its parent, and a cell with many moves to
- * its own rate. Both counts are about reading (a qualified response), never about correctness. Always in [0,1].
+ * Format fit of one topic for a candidate (blueprint §8, "Personal interest and format fit"). The (topic, kind)
+ * parent is the qualified-response rate with a uniform prior, `(1 + Q) / (2 + O)`. Policy v1 reads the candidate's
+ * play-level cell instead, shrunk with prior strength `m` toward the rate of the person's other levels:
+ * `(Q + m * prior) / (O + m)`, with `prior = (1 + Q_rest) / (2 + O_rest)`. The parent counts every level, this cell's
+ * encounters included, so the other levels are the parent less the cell: a cell is never shrunk toward itself, and
+ * its encounters are not counted twice. A cell with no encounters equals its parent, a cell with many moves to its own
+ * rate, and a person with history in one level only is shrunk toward even odds. Both counts are about reading (a
+ * qualified response), never about correctness. Always in [0,1].
  */
 export function formatFitOf(
   topic: NonNullable<ComposerSnapshot['evidence']>['topics'][number] | undefined,
@@ -54,7 +57,11 @@ export function formatFitOf(
   const level = playLevelOf(encounter);
   const cell = topic?.cells?.find((c) => c.kind === encounter.kind && c.level === level);
   if (cell === undefined) return parent;
-  return (cell.qualified + policy.formatCellPrior * parent) / (cell.measured + policy.formatCellPrior);
+  // A process from before migration 0082 counts the parent and not the cell, so the rest never goes below zero.
+  const restMeasured = Math.max(0, (parentCounts?.measured ?? 0) - cell.measured);
+  const restQualified = Math.min(restMeasured, Math.max(0, (parentCounts?.qualified ?? 0) - cell.qualified));
+  const prior = (1 + restQualified) / (2 + restMeasured);
+  return (cell.qualified + policy.formatCellPrior * prior) / (cell.measured + policy.formatCellPrior);
 }
 
 /**

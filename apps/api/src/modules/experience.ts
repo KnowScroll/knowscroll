@@ -29,7 +29,10 @@ import {
   READ_SAVED_PAGE,
   EXPERIENCE_RECORDING_EFFECTS,
 } from '@knowscroll/backend/modules/experience';
-import { composerBufferProviders, composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
+import {
+  composerBufferProviders,
+  composerConfiguredProviders,
+} from '@knowscroll/backend/modules/composer/nest-providers';
 import {
   CHECK_ASSET_AUDIENCE,
   READ_SAVED_PAGE_METADATA,
@@ -82,7 +85,7 @@ export const experienceWiring: Provider[] = [
     { recordingEffects: EXPERIENCE_RECORDING_EFFECTS },
   ),
   ...notInterestedProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
-  ...composerProviders({ isOperator: () => false }),
+  ...composerConfiguredProviders({ isOperator: () => false }, API_CONFIG),
   ...composerBufferProviders({ enqueueJob: ENQUEUE_JOB }),
   ...navigationProviders(
     { withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB },

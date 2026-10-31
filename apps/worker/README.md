@@ -194,7 +194,8 @@ person just activated and stores it for the next navigation (`modules/composer/R
 session, candidates, Hide and the person's stored Jev assessments in one short transaction, may ask Jev
 (`KS_JEV_ENABLED=1`) outside any transaction, only about shortlisted candidates that have no stored
 assessment from the last 30 minutes (D-058), then adds what it paid for to the stored assessments, persists
-the ranking and replaces the person's buffer in a second one. A job for a
+the ranking and replaces the person's buffer in a second one. It ranks under the policy the world sets
+(`KS_COMPOSER_POLICY`, `v0` unless set, D-190). A job for a
 superseded intent, an unactivated offer or an old epoch is skipped. A redelivery does nothing. It logs
 `composer.buffer_prepared` with the outcome code and counts only.
 

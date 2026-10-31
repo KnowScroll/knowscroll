@@ -1,8 +1,8 @@
 import { validateTopics } from '../../content/public.js';
-import { explorationOutcomes, explorationPick } from '../domain/exploration.js';
+import { explorationMass, explorationPick } from '../domain/exploration.js';
 import { features, playLevelOf, score, similarity } from '../domain/features.js';
 import { planLifts } from '../domain/plan.js';
-import { currentComposerPolicy, randomSource, refKey, uniformIndex, type ComposerPolicy } from '../domain/policy.js';
+import { COMPOSER_POLICY_V0, randomSource, refKey, uniformIndex, type ComposerPolicy } from '../domain/policy.js';
 import { applyRelatedExclusion, applyStickyFormat, inCurrentSeries, seriesUnitIds } from '../domain/vertical-rules.js';
 import { ComposerSnapshotSchema } from './snapshot-schema.js';
 import type { ComposerDecision, ComposerSnapshot, EncounterRef } from '../domain/types.js';
@@ -226,11 +226,15 @@ function choose(s: ComposerSnapshot, evaluations: readonly Evaluation[], policy:
   const rankedWinner = eligible[0];
   const pool = eligible.filter((e) => s.explorationPool.some((p) => refKey(p) === refKey(e))).sort(byKey);
   const encounter = (id: EncounterRef) => s.candidates.find((c) => refKey(c.encounter) === refKey(id))!.encounter;
-  const levelOf = (entry: EncounterRef) => playLevelOf(encounter(entry));
+  const members = pool.map((evaluation) => ({
+    evaluation,
+    kind: encounter(evaluation).kind,
+    level: playLevelOf(encounter(evaluation)),
+  }));
   const fraction = s.mode === 'vertical' && pool.length ? policy.explorationFraction : 0;
   const random = randomSource(s.seed);
   const explore = fraction > 0 && uniformIndex(random, 10) === 0;
-  const first = explore ? explorationPick(pool, levelOf, random, policy.explorationByPlayLevel) : rankedWinner;
+  const first = explore ? explorationPick(members, random, policy.explorationByPlayLevel).evaluation : rankedWinner;
   const selection: ComposerDecision['selection'][number][] = [];
   if (first)
     selection.push({
@@ -261,12 +265,11 @@ function choose(s: ComposerSnapshot, evaluations: readonly Evaluation[], policy:
     });
     seen.add(next.e.explanationUnitId);
   }
+  const member = first && members.find((m) => refKey(m.evaluation) === refKey(first));
   const probability = !first
     ? 0
     : (rankedWinner && refKey(first) === refKey(rankedWinner) ? 1 - fraction : 0) +
-      (pool.some((p) => refKey(p) === refKey(first))
-        ? fraction / explorationOutcomes(pool, first, levelOf, policy.explorationByPlayLevel)
-        : 0);
+      (member ? explorationMass(fraction, members, member, policy.explorationByPlayLevel) : 0);
   return {
     selection,
     exploration: {
@@ -283,12 +286,13 @@ function choose(s: ComposerSnapshot, evaluations: readonly Evaluation[], policy:
 
 /**
  * Pure policy: caller prepares an authorized bounded snapshot; activation later rechecks eligibility.
- * New decisions are made under the current policy. A stored decision replays under the policy it names
- * (`policyOf(decision.policyVersion)`), so an old decision never changes with a newer policy.
+ * The caller names the policy (the composition roots choose it from `KS_COMPOSER_POLICY`); without one it is v0. A
+ * stored decision replays under the policy it names (`policyOf(decision.policyVersion)`), so an old decision never
+ * changes with a newer policy.
  */
 export function composeEncounter(
   snapshot: ComposerSnapshot,
-  policy: ComposerPolicy = currentComposerPolicy(),
+  policy: ComposerPolicy = COMPOSER_POLICY_V0,
 ): ComposerDecision {
   // Clone first: a caller cannot mutate an asynchronous persistence input through shared references.
   const s: ComposerSnapshot = structuredClone(snapshot);

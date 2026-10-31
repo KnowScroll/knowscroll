@@ -13,7 +13,7 @@ a private store of every decision, and **worker-prepared buffers** with an optio
 | A vertical move leaves the series the person is in (`same_series`, D-131) and its related move (`related_target`, D-136), and stays in the format they are in (`format_sticky`, D-132) | implemented, CI-tested against real PostgreSQL; not yet run on dev |
 | Jev reuse: a person's pool of recent assessments, `composer.jev_assessments`; a call only for candidates without one (D-058) | implemented, CI-tested against real PostgreSQL; run locally with the real model (12 activations: 1 call instead of 12); not yet run on dev |
 | Jev is a background role: it stops at its share of the daily model budgets and falls back to the deterministic ranking (D-058) | implemented, CI-tested; not yet run on dev |
-| Policy v1 (`composer-policy.v1`, D-190): Intent 0.35 to 0.15, a recent-topic penalty, Format per play level (D-192), exploration per play level; v0 decisions replay byte for byte | implemented, CI-tested (60 frozen v0 hashes); the numbers are provisional until the replay has been read on stored dev decisions |
+| Policy v1 (`composer-policy.v1`, D-190): Intent 0.35 to 0.15, a recent-topic penalty, Format per play level (D-192), exploration per play level; v0 decisions replay byte for byte | implemented, CI-tested (60 frozen v0 hashes); **off unless `KS_COMPOSER_POLICY=v1`** (default `v0`), and the numbers are provisional until the replay has been read on stored dev decisions |
 | `composer replay-policy`: stored vertical decisions re-run under v0 and v1, counts only | implemented, CI-tested; not yet run on dev |
 | Jev `jev.2` (D-193): kind, play level, minutes, series part n of m and the myth a Scroll corrects; never play | implemented, unit-tested; one real run on dev still to do |
 
@@ -30,8 +30,10 @@ retrieval 100, chosen plus two buffers (maximum 3), MMR lambda 0.2, vertical exp
 activated encounters within 24 hours of explicit `evaluatedAt`. These are code-selected experimental defaults, not
 calibrated learned parameters. A decision names its policy and replays under exactly that policy
 (`policyOf(decision.policyVersion)`), which `persistComposerDecision` checks byte for byte, so an old decision never
-changes with a newer policy. New decisions are made under v1; a stored v0 decision keeps replaying under v0. A change
-to v1's numbers after v1 decisions are stored needs `composer-policy.v2` and a migration (D-190).
+changes with a newer policy. Which policy new decisions are made under is configuration, `KS_COMPOSER_POLICY` (`v0` or
+`v1`, default `v0`, read by the API and the worker): v1 is not used by a world until its numbers are chosen. A stored
+decision replays under its own policy whatever the setting, and the replay command always runs both. A change to v1's
+numbers after v1 decisions are stored needs `composer-policy.v2` and a migration (D-190).
 Seed and all inputs/watermarks are saved; ties use immutable asset/revision lexical order.
 
 Eligibility precedes scoring: admission/access/renderability, language, explicit format, exact
@@ -53,8 +55,10 @@ encounter come from its frozen attribution (`recent[].topicIds`); the legacy lin
 
 Every feature is bounded [0,1]. Interest uses prepared actual activity `A/(1+A)`. Format is per
 admitted topic and kind `(1+Q)/(2+O)` under v0; unknown measurements do not enter O/Q. Under v1 it is read per play
-level of the candidate (`plain`, `stage`, `game`, derived by Content, D-192): `(Q + m*parent)/(O + m)` with the cell's
-counts, the (topic, kind) parent above and prior strength `m = 4`, so a cell with no encounters equals its parent. The
+level of the candidate (`plain`, `stage`, `game`, derived by Content, D-192): `(Q + m*prior)/(O + m)` with the cell's
+counts, prior strength `m = 4` and `prior` the rate `(1+Q)/(2+O)` of the person's other levels (the (topic, kind) parent
+above less the cell, which the parent counts too, so the cell is not counted twice). A cell with no encounters equals its
+parent, and a person with history in one level only is shrunk toward even odds. The
 counts are about reading (a qualified response is q >= 0.6) and never about correctness, a pick, a spark or a tier
 (D-063): the snapshot schema takes four fields per cell and nothing else. Evidence owns the illustrative 14-day interest half-life and same-time replacement deltas;
 Personal Context owns its revisioned snapshot and qualified structural support. Composer changes
@@ -84,8 +88,9 @@ missing overlap inputs are neutral 0.5. MMR repeatedly takes score minus 0.2 tim
 to the chosen buffer and deduplicates explanation identity, including format twins.
 
 Vertical first-slot choice is a seeded mixture: ranked winner with mass 0.9 plus uniform eligible
-exploration pool with mass 0.1 (v1: a play level present in the pool is drawn first, then a candidate of it, so no
-level is crowded out; the logged probability divides epsilon by the number of equally likely outcomes). FNV-1a/xorshift32 seed policy and rejection-sampled bounded integer
+exploration pool with mass 0.1 (v1: a member is drawn uniformly and, only when it is a Scroll, replaced by a draw of a
+play level present among the pool's Scrolls and then of a Scroll of it, so no level is crowded out while the Reel/Scroll
+share of the pool is unchanged; the logged probability is epsilon times that share). FNV-1a/xorshift32 seed policy and rejection-sampled bounded integer
 choices are pinned in v0. Logged first-choice probability is `(rankedWinner ? 1-epsilon : 0) +
 (inPool ? epsilon/poolSize : 0)`, with epsilon 0 for an empty pool or nonvertical mode. Ties are
 deterministic, so no tie mass is invented. Buffers are deterministic conditional on the first
@@ -284,7 +289,7 @@ logs the same.
 | Notices | none; the next navigation reads the durable row |
 | Lock order | personal root first in both worker transactions; the model call is between them |
 | Erasure | Clear and full erasure delete `composer.buffers` before `composer.decisions`, `composer.jev_assessments` (it references nothing), and the queue payloads (`pgboss/composer.prepare-buffer`) |
-| Config | `KS_JEV_ENABLED` (worker); `KS_REASONING_BACKGROUND_SHARE_PERCENT` (worker, shared with the other background roles); the model is the harness's configured model |
+| Config | `KS_COMPOSER_POLICY` (API and worker, D-190); `KS_JEV_ENABLED` (worker); `KS_REASONING_BACKGROUND_SHARE_PERCENT` (worker, shared with the other background roles); the model is the harness's configured model |
 
 **Failure and recovery.** A job for a changed epoch, an unactivated offer or a superseded revision is
 skipped. A thrown error rolls back both transactions and pg-boss retries. A crash after the model call
