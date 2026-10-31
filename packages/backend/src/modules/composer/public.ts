@@ -1,6 +1,22 @@
 /** Backend-only pure policy and private scoped persistence. No consumer diagnostics wire. */
 export { composeEncounter, validateSnapshot } from './application/compose.js';
-export { COMPOSER_POLICY } from './domain/policy.js';
+export {
+  currentComposerPolicy,
+  COMPOSER_POLICY_V0,
+  COMPOSER_POLICY_V1,
+  policyOf,
+  type ComposerPolicy,
+  type ComposerPolicyVersion,
+} from './domain/policy.js';
+export {
+  DEFAULT_VARIANTS,
+  startPolicyReplay,
+  withVerticalWeights,
+  type PolicyReplayReport,
+  type ReplayVariant,
+  type StoredDecision,
+  type VariantReport,
+} from './application/replay-policy.js';
 export type {
   ComposerSnapshot,
   ComposerDecision,

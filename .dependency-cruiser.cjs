@@ -46,6 +46,8 @@ const compositionRoots = [
   '^apps/worker/src/writer-spike-operator\\.ts$',
   // The review gate commands compose the shared-content review gate, one operator command each (S-1e, D-138).
   '^apps/worker/src/review-operator\\.ts$',
+  // The composer operator replays stored decisions through the composer's provider, read-only (S-5, D-190).
+  '^apps/worker/src/composer-operator\\.ts$',
 ];
 const testFile = '\\.test\\.tsx?$';
 

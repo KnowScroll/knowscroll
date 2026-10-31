@@ -1,10 +1,11 @@
 import { validateTopics } from '../../content/public.js';
-import { features, score, similarity } from '../domain/features.js';
+import { explorationOutcomes, explorationPick } from '../domain/exploration.js';
+import { features, playLevelOf, score, similarity } from '../domain/features.js';
 import { planLifts } from '../domain/plan.js';
-import { COMPOSER_POLICY, randomSource, refKey, uniformIndex } from '../domain/policy.js';
+import { currentComposerPolicy, randomSource, refKey, uniformIndex, type ComposerPolicy } from '../domain/policy.js';
 import { applyRelatedExclusion, applyStickyFormat, inCurrentSeries, seriesUnitIds } from '../domain/vertical-rules.js';
 import { ComposerSnapshotSchema } from './snapshot-schema.js';
-import type { ComposerDecision, ComposerSnapshot } from '../domain/types.js';
+import type { ComposerDecision, ComposerSnapshot, EncounterRef } from '../domain/types.js';
 function validRef(ref: { readonly assetId: string; readonly assetRevision: number }): boolean {
   return (
     ref.assetId.length > 0 &&
@@ -118,7 +119,9 @@ export function validateSnapshot(s: ComposerSnapshot): void {
             !Number.isSafeInteger(f.qualified) ||
             f.qualified < 0 ||
             f.measured < f.qualified,
-        )
+        ) ||
+        new Set((t.cells ?? []).map((cell) => `${cell.kind}:${cell.level}`)).size !== (t.cells ?? []).length ||
+        (t.cells ?? []).some((cell) => cell.qualified < 0 || cell.measured < cell.qualified)
       )
         fail();
     if (e.established) {
@@ -176,18 +179,17 @@ function exclusionsOf(
   if (s.evidence?.hiddenAssetIds.includes(c.encounter.assetId)) exclusions.push('hidden');
   return exclusions;
 }
-/** Pure policy: caller prepares an authorized bounded snapshot; activation later rechecks eligibility. */
-export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
-  // Clone first: a caller cannot mutate an asynchronous persistence input through shared references.
-  const s: ComposerSnapshot = structuredClone(snapshot);
-  validateSnapshot(s);
+type Evaluation = ComposerDecision['evaluations'][number];
+
+/** Every candidate with its exclusions, features and score under the policy. */
+function evaluate(s: ComposerSnapshot, policy: ComposerPolicy) {
   const seriesUnits = seriesUnitIds(s);
   const { screened: unrelated, related } = applyRelatedExclusion(
     s,
     s.candidates.map((candidate) => ({
       candidate,
       exclusions: exclusionsOf(s, candidate, seriesUnits),
-      base: features(s, candidate),
+      base: features(s, candidate, policy),
     })),
   );
   const { screened: assessed, sticky } = applyStickyFormat(s, unrelated);
@@ -196,7 +198,7 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
     s,
     assessed.filter(({ exclusions }) => exclusions.length === 0),
   );
-  const evaluations = assessed.map(({ candidate: c, exclusions, base }) => {
+  const evaluations: Evaluation[] = assessed.map(({ candidate: c, exclusions, base }) => {
     const lift = lifts.get(refKey(c.encounter));
     const f = lift?.features ?? base;
     return {
@@ -207,23 +209,29 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
       exclusions,
       features: f,
       ...(lift ? { plan: lift.influence } : {}),
-      score: score(f, s.mode === 'horizontal'),
+      score: score(f, s.mode === 'horizontal', policy),
     };
   });
-  const eligible = evaluations
-    .filter((e) => e.eligible)
-    .sort((a, b) => b.score - a.score || (refKey(a) < refKey(b) ? -1 : refKey(a) > refKey(b) ? 1 : 0));
+  return { evaluations, sticky, related };
+}
+
+const byKey = (a: EncounterRef, b: EncounterRef) => (refKey(a) < refKey(b) ? -1 : refKey(a) > refKey(b) ? 1 : 0);
+
+/**
+ * The first offer (the ranked winner, or on the exploration branch a draw from the pool) and then up to
+ * `maxOffers - 1` more by maximal marginal relevance. Deterministic for a snapshot and a policy.
+ */
+function choose(s: ComposerSnapshot, evaluations: readonly Evaluation[], policy: ComposerPolicy) {
+  const eligible = evaluations.filter((e) => e.eligible).sort((a, b) => b.score - a.score || byKey(a, b));
   const rankedWinner = eligible[0];
-  const pool = eligible
-    .filter((e) => s.explorationPool.some((p) => refKey(p) === refKey(e)))
-    .sort((a, b) => (refKey(a) < refKey(b) ? -1 : refKey(a) > refKey(b) ? 1 : 0));
-  const fraction = s.mode === 'vertical' && pool.length ? COMPOSER_POLICY.explorationFraction : 0;
+  const pool = eligible.filter((e) => s.explorationPool.some((p) => refKey(p) === refKey(e))).sort(byKey);
+  const encounter = (id: EncounterRef) => s.candidates.find((c) => refKey(c.encounter) === refKey(id))!.encounter;
+  const levelOf = (entry: EncounterRef) => playLevelOf(encounter(entry));
+  const fraction = s.mode === 'vertical' && pool.length ? policy.explorationFraction : 0;
   const random = randomSource(s.seed);
   const explore = fraction > 0 && uniformIndex(random, 10) === 0;
-  const first = explore ? pool[uniformIndex(random, pool.length)] : rankedWinner;
+  const first = explore ? explorationPick(pool, levelOf, random, policy.explorationByPlayLevel) : rankedWinner;
   const selection: ComposerDecision['selection'][number][] = [];
-  const encounter = (id: { readonly assetId: string; readonly assetRevision: number }) =>
-    s.candidates.find((c) => refKey(c.encounter) === refKey(id))!.encounter;
   if (first)
     selection.push({
       assetId: first.assetId,
@@ -233,16 +241,16 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
       mmr: first.score,
     });
   const seen = new Set(first ? [first.explanationUnitId] : []);
-  while (selection.length < COMPOSER_POLICY.maxOffers) {
+  while (selection.length < policy.maxOffers) {
     const next = eligible
       .filter((e) => !seen.has(e.explanationUnitId))
       .map((e) => {
         const redundancy = selection.length
           ? Math.max(...selection.map((chosen) => similarity(encounter(e), encounter(chosen))))
           : 0;
-        return { e, redundancy, mmr: e.score - COMPOSER_POLICY.mmrLambda * redundancy };
+        return { e, redundancy, mmr: e.score - policy.mmrLambda * redundancy };
       })
-      .sort((a, b) => b.mmr - a.mmr || (refKey(a.e) < refKey(b.e) ? -1 : refKey(a.e) > refKey(b.e) ? 1 : 0))[0];
+      .sort((a, b) => b.mmr - a.mmr || byKey(a.e, b.e))[0];
     if (!next) break;
     selection.push({
       assetId: next.e.assetId,
@@ -256,11 +264,49 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
   const probability = !first
     ? 0
     : (rankedWinner && refKey(first) === refKey(rankedWinner) ? 1 - fraction : 0) +
-      (pool.some((p) => refKey(p) === refKey(first)) ? fraction / pool.length : 0);
+      (pool.some((p) => refKey(p) === refKey(first))
+        ? fraction / explorationOutcomes(pool, first, levelOf, policy.explorationByPlayLevel)
+        : 0);
+  return {
+    selection,
+    exploration: {
+      fraction,
+      branch: explore ? ('explore' as const) : ('ranked' as const),
+      pool: pool.map((p) => ({ assetId: p.assetId, assetRevision: p.assetRevision })),
+      selectedProbability: probability,
+      ...(rankedWinner
+        ? { rankedWinner: { assetId: rankedWinner.assetId, assetRevision: rankedWinner.assetRevision } }
+        : {}),
+    },
+  };
+}
+
+/**
+ * Pure policy: caller prepares an authorized bounded snapshot; activation later rechecks eligibility.
+ * New decisions are made under the current policy. A stored decision replays under the policy it names
+ * (`policyOf(decision.policyVersion)`), so an old decision never changes with a newer policy.
+ */
+export function composeEncounter(
+  snapshot: ComposerSnapshot,
+  policy: ComposerPolicy = currentComposerPolicy(),
+): ComposerDecision {
+  // Clone first: a caller cannot mutate an asynchronous persistence input through shared references.
+  const s: ComposerSnapshot = structuredClone(snapshot);
+  validateSnapshot(s);
+  return decideValidated(s, policy);
+}
+
+/**
+ * The decision for a snapshot that has already been validated and will not be changed, as the replay of
+ * many stored decisions under several policies needs it (one validation, one decision per policy).
+ */
+export function decideValidated(s: ComposerSnapshot, policy: ComposerPolicy): ComposerDecision {
+  const { evaluations, sticky, related } = evaluate(s, policy);
+  const { selection, exploration } = choose(s, evaluations, policy);
   return {
     version: 'composer-decision.v0',
-    policyVersion: 'composer-policy.v0',
-    fallbackVersion: 'lexical-admitted.v0',
+    policyVersion: policy.version,
+    fallbackVersion: policy.fallback,
     universeId: s.universeId,
     privacyEpoch: s.privacyEpoch,
     evaluatedAt: s.evaluatedAt,
@@ -268,15 +314,7 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
     input: s,
     evaluations,
     selection,
-    exploration: {
-      fraction,
-      branch: explore ? 'explore' : 'ranked',
-      pool: pool.map((p) => ({ assetId: p.assetId, assetRevision: p.assetRevision })),
-      selectedProbability: probability,
-      ...(rankedWinner
-        ? { rankedWinner: { assetId: rankedWinner.assetId, assetRevision: rankedWinner.assetRevision } }
-        : {}),
-    },
+    exploration,
     ...(sticky ? { stickyFormat: sticky } : {}),
     ...(related ? { relatedTarget: related } : {}),
     outcome: selection.length ? 'ready' : 'exhausted',

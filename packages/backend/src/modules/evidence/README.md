@@ -182,8 +182,13 @@ is not evidence. Diagnostics retain q, unique media, active time, duration and p
 
 Status: implemented, CI-tested against real PostgreSQL. Related: migration 0019, #234.
 
-`activity.v0` keeps q, Like L, bookmark B, confirmed Share S (currently 0), deliberate horizontal H
-and separated return R independently. Routing activity is `min(3,q+.5L+1.5B+S+1.5H+2R)`;
+`activity.v1` (D-191, implemented; CI-tested against real PostgreSQL, not yet run on dev) keeps q, Like L, bookmark B,
+confirmed Share S (currently 0), deliberate horizontal H and separated return R independently. Routing activity is
+`min(3,q+.5L+1.5B+S+1.5H+2R)`; H now counts only when the exposure the move left has coverage of at least 0.5 in a
+measured reading (`continuationCredit`), so swiping Parts 1 to 3 without reading adds nothing. `activity.v0` is the
+same without that bar; its revisions are kept and not rewritten, and a credit committed in an exposure's base stays.
+A new revision names `activity.v1` (migration 0082 widens the pin of 0019) and its input vector names the rule;
+`experience.navigation_transitions` keeps `activity.v0` because it records the fact of the move, not the credit.
 unknown q remains null and never becomes qualification or usable format measurement. H belongs
 once to the activated **source** of an actually activated series/related destination. Variants,
 offers, failures and Back add no H. R belongs to a new explicitly activated return at least 30 min
@@ -203,6 +208,12 @@ jobs with an already-current vector do nothing. Required job failure rolls its o
 | `activity_current` | Current owned epoch/exposure -> matching revision FK | One/exposure; erase after topic contributions, before revisions |
 | `topic_contributions` | Current weighted capped value + independent original channel contributions and measured/qualified flags | <=16 actual attributed topics/exposure; sum topic weights<=1 enforced by content; replacement rather than additive replay |
 | `topic_context` | Scope/topic decayed activity and independent channel aggregates; per-topic-format Q/O | One/topic; exact requested topics<=100; update affected union<=32 topics, no lifetime scan |
+| `topic_format_cells` (`0082`, D-192) | Measured/qualified encounters per (topic, kind, play level), beside the `topic_context` counts, which are their parent over every level. `topic_contributions.play_level` records the level an exposure was counted at, so a correction moves its counts between cells. Reading only: no pick, result, spark or tier (D-063) | <=6 rows/topic; requested topics<=100; erased with `topic_context` |
+
+**Play-level cells** (implemented; CI-tested against real PostgreSQL, not yet run on dev). The play level (`plain`,
+`stage`, `game`) of the Scroll read comes from Content (`READ_PLAY_LEVEL`, derived from the immutable revision), so a
+Reel and every v1 Scroll count as plain. Personal Context hands the cells to Composer as four fields each. A process
+from before migration 0082 counts the parent and not the cell, so a correction never takes a count below zero.
 
 Activity uses a 14-day half-life. Late qualification, original action toggles or metadata corrections
 replace the prior exposure contribution at the **same evaluation time**, including per-channel

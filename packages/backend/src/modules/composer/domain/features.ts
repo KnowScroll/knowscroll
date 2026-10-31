@@ -1,7 +1,7 @@
 import type { EncounterSnapshot } from './types.js';
-import type { ComposerSnapshot, Features } from './types.js';
+import type { ComposerSnapshot, Features, PlayLevel } from './types.js';
 import { semanticFitOf } from './jev.js';
-import { COMPOSER_POLICY, overlap, refKey, tokens } from './policy.js';
+import { overlap, refKey, tokens, type ComposerPolicy } from './policy.js';
 export function similarity(a: EncounterSnapshot, b: EncounterSnapshot): number {
   if (a.explanationUnitId === b.explanationUnitId) return 1;
   return (
@@ -31,7 +31,60 @@ function semanticFit(snapshot: ComposerSnapshot, candidate: EncounterSnapshot): 
   const assessed = snapshot.semanticAssessments.entries.find((entry) => refKey(entry) === refKey(candidate));
   return assessed ? semanticFitOf(assessed) : UNASSESSED_SEMANTIC_FIT;
 }
-export function features(snapshot: ComposerSnapshot, candidate: ComposerSnapshot['candidates'][number]): Features {
+/** The play level of a candidate; a Reel, and a Scroll stored before traits existed, are plain. */
+export function playLevelOf(encounter: Pick<EncounterSnapshot, 'traits'>): PlayLevel {
+  return encounter.traits?.playLevel ?? 'plain';
+}
+
+/**
+ * Format fit of one topic for a candidate (blueprint �8, "Personal interest and format fit"). The
+ * (topic, kind) parent is the qualified-response rate with a uniform prior, `(1 + Q) / (2 + O)`. Policy
+ * v1 reads the candidate's play-level cell instead, shrunk toward the parent with prior strength `m`:
+ * `(Q + m * parent) / (O + m)`. A cell with no encounters equals its parent, and a cell with many moves to
+ * its own rate. Both counts are about reading (a qualified response), never about correctness. Always in [0,1].
+ */
+export function formatFitOf(
+  topic: NonNullable<ComposerSnapshot['evidence']>['topics'][number] | undefined,
+  encounter: Pick<EncounterSnapshot, 'kind' | 'traits'>,
+  policy: Pick<ComposerPolicy, 'formatCellPrior'>,
+): number {
+  const parentCounts = topic?.formats.find((f) => f.kind === encounter.kind);
+  const parent = parentCounts === undefined ? 0.5 : (1 + parentCounts.qualified) / (2 + parentCounts.measured);
+  if (policy.formatCellPrior === null) return parent;
+  const level = playLevelOf(encounter);
+  const cell = topic?.cells?.find((c) => c.kind === encounter.kind && c.level === level);
+  if (cell === undefined) return parent;
+  return (cell.qualified + policy.formatCellPrior * parent) / (cell.measured + policy.formatCellPrior);
+}
+
+/**
+ * How much of the person's last encounters were on the candidate's topics, in [0,1]: the newest `span`
+ * encounters within the recent window, weighted `span, span-1, ..., 1`, each counting when it shares a
+ * non-incidental topic with the candidate. A missing history counts as no repeat (neutral). Only a
+ * vertical move asks: a series or related move exists to stay on a topic.
+ */
+export function recentTopicRepeat(
+  recent: readonly { readonly topicIds?: readonly string[] }[],
+  candidateTopicIds: readonly string[],
+  span: number,
+): number {
+  if (span === 0 || candidateTopicIds.length === 0) return 0;
+  const weightTotal = (span * (span + 1)) / 2;
+  const counted = recent
+    .slice(0, span)
+    .reduce(
+      (sum, encounter, index) =>
+        sum + (encounter.topicIds?.some((id) => candidateTopicIds.includes(id)) ? span - index : 0),
+      0,
+    );
+  return counted / weightTotal;
+}
+
+export function features(
+  snapshot: ComposerSnapshot,
+  candidate: ComposerSnapshot['candidates'][number],
+  policy: ComposerPolicy,
+): Features {
   const c = candidate.encounter;
   const relevant = c.topics.filter((t) => t.role !== 'incidental');
   const weighted = (get: (topicId: string) => number): number => {
@@ -44,9 +97,9 @@ export function features(snapshot: ComposerSnapshot, candidate: ComposerSnapshot
   const recent = (snapshot.evidence?.recent ?? [])
     .filter((r) => {
       const age = Date.parse(snapshot.evaluatedAt) - Date.parse(r.activatedAt);
-      return age >= 0 && age <= COMPOSER_POLICY.recentWindowMs;
+      return age >= 0 && age <= policy.recentWindowMs;
     })
-    .slice(0, COMPOSER_POLICY.recentLimit);
+    .slice(0, policy.recentLimit);
   const repetition =
     recent.length === 0
       ? 0
@@ -89,23 +142,47 @@ export function features(snapshot: ComposerSnapshot, candidate: ComposerSnapshot
       const activity = snapshot.evidence?.topics.find((t) => t.topicId === topicId)?.activity;
       return activity === undefined ? 0.5 : activity / (1 + activity);
     }),
-    format: weighted((topicId) => {
-      const f = snapshot.evidence?.topics.find((t) => t.topicId === topicId)?.formats.find((f) => f.kind === c.kind);
-      return f === undefined ? 0.5 : (1 + f.qualified) / (2 + f.measured);
-    }),
+    format: weighted((topicId) =>
+      formatFitOf(
+        snapshot.evidence?.topics.find((t) => t.topicId === topicId),
+        c,
+        policy,
+      ),
+    ),
     novelty,
     semanticFit: semanticFit(snapshot, c),
     continuity: candidate.continuity?.strength ?? 0.5,
     recentRepetition: repetition,
+    ...(policy.recentTopicSpan > 0 && snapshot.mode === 'vertical'
+      ? {
+          recentTopic: recentTopicRepeat(
+            recent,
+            relevant.map((t) => t.topicId),
+            policy.recentTopicSpan,
+          ),
+        }
+      : {}),
   };
 }
-export function score(f: Features, horizontal: boolean): number {
-  return horizontal
-    ? 0.45 * f.continuity + 0.25 * f.intent + 0.15 * f.format + 0.15 * f.semanticFit - 0.25 * f.recentRepetition
-    : 0.35 * f.intent +
-        0.2 * f.interest +
-        0.15 * f.format +
-        0.15 * f.novelty +
-        0.15 * f.semanticFit -
-        0.25 * f.recentRepetition;
+/** The score of a candidate under a policy. Horizontal moves ask for continuity; every other move for the vertical blend. */
+export function score(f: Features, horizontal: boolean, policy: ComposerPolicy): number {
+  if (horizontal) {
+    const w = policy.horizontal;
+    return (
+      w.continuity * f.continuity +
+      w.intent * f.intent +
+      w.format * f.format +
+      w.semanticFit * f.semanticFit -
+      w.recentRepetition * f.recentRepetition
+    );
+  }
+  const w = policy.vertical;
+  const blend =
+    w.intent * f.intent +
+    w.interest * f.interest +
+    w.format * f.format +
+    w.novelty * f.novelty +
+    w.semanticFit * f.semanticFit -
+    w.recentRepetition * f.recentRepetition;
+  return w.recentTopic === 0 ? blend : blend - w.recentTopic * (f.recentTopic ?? 0);
 }

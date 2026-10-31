@@ -1,6 +1,22 @@
+import type { ComposerPolicyVersion } from './policy.js';
+
 export interface EncounterRef {
   readonly assetId: string;
   readonly assetRevision: number;
+}
+/** How much a Scroll asks of the reader beyond reading it. Reels, and every Scroll before v2, are `plain`. */
+export type PlayLevel = 'plain' | 'stage' | 'game';
+/**
+ * What Content derives from the stored document, public facts of the content and never of the reader. The
+ * play level and the minutes rank; the claim and the series size only describe the candidate to Jev.
+ */
+export interface EncounterTraits {
+  readonly playLevel: PlayLevel;
+  readonly readingMinutes?: number;
+  /** The common wrong idea the Scroll is built to meet (its public Plot twist text); absent for none. */
+  readonly misconceptionClaim?: string;
+  /** How many parts the Scroll's series has, when it is in one. */
+  readonly seriesTotal?: number;
 }
 export interface TopicAttribution {
   readonly topicId: string;
@@ -20,6 +36,8 @@ export interface EncounterSnapshot extends EncounterRef {
   readonly facets: readonly string[];
   readonly siblings: readonly (EncounterRef & { readonly kind: 'reel' | 'scroll' })[];
   readonly series?: { readonly seriesId: string; readonly seriesRevision: number; readonly part: number };
+  /** Absent in decisions stored before policy v1, and for Reels; read as `plain`. */
+  readonly traits?: EncounterTraits;
   readonly catalogWatermark: string;
   readonly attributionVersion: string;
 }
@@ -65,8 +83,19 @@ export interface PreparedEvidenceInput {
   readonly topics: readonly {
     readonly topicId: string;
     readonly activity: number;
+    /** Measured and qualified encounters of the topic per kind, over every play level (the parent). */
     readonly formats: readonly {
       readonly kind: 'reel' | 'scroll';
+      readonly measured: number;
+      readonly qualified: number;
+    }[];
+    /**
+     * The same counts per play level of the Scroll read. Reading only: no correctness, pick, spark or
+     * tier is an input here (D-063). Absent in inputs stored before policy v1.
+     */
+    readonly cells?: readonly {
+      readonly kind: 'reel' | 'scroll';
+      readonly level: PlayLevel;
       readonly measured: number;
       readonly qualified: number;
     }[];
@@ -77,6 +106,8 @@ export interface PreparedEvidenceInput {
     readonly activatedAt: string;
     readonly explanationUnitId: string;
     readonly facets: readonly string[];
+    /** Non-incidental topics of the encounter, when known. Absent in inputs stored before policy v1. */
+    readonly topicIds?: readonly string[];
   }[];
   /** Candidate-relevant actual retained encounter/facet history, not a learning or identity claim. */
   readonly established?: {
@@ -172,6 +203,8 @@ export interface Features {
   readonly semanticFit: number;
   readonly continuity: number;
   readonly recentRepetition: number;
+  /** Policy v1, vertical moves only: how much of the person's last encounters were on the candidate's topic. */
+  readonly recentTopic?: number;
 }
 export interface CandidateEvaluation extends EncounterRef {
   readonly explanationUnitId: string;
@@ -200,7 +233,8 @@ export interface RelatedTargetOutcome {
 
 export interface ComposerDecision {
   readonly version: 'composer-decision.v0';
-  readonly policyVersion: 'composer-policy.v0';
+  /** The policy the decision was made under; it replays under exactly this policy. */
+  readonly policyVersion: ComposerPolicyVersion;
   readonly fallbackVersion: 'lexical-admitted.v0';
   readonly universeId: string;
   readonly privacyEpoch: number;

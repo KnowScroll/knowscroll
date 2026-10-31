@@ -161,7 +161,7 @@ export const checkRecordingCoverageEvidence: CheckRecordingCoverageEvidence = as
       h.activity_id as head_activity_id,h.source_vector->>'legacyQualificationId' as head_legacy_q,h.source_vector->>'sessionQualificationId' as head_session_q
       from evidence.encounter_evidence q join evidence.activity_revisions a on a.universe_id=q.universe_id and a.exposure_id=q.exposure_id and a.privacy_epoch=q.privacy_epoch and a.recording_generation=q.recording_generation
       left join evidence.recording_segment_heads h on h.universe_id=q.universe_id and h.privacy_epoch=q.privacy_epoch and h.exposure_id=q.exposure_id and h.recording_generation=q.recording_generation
-      where q.universe_id=${scope.authority.universeId}::uuid and q.privacy_epoch=${scope.authority.privacyEpoch} and q.exposure_id=${c.exposureId}::uuid and q.recording_generation=${w.recordingGeneration} and q.id=${w.qualificationId}::uuid and a.id=${w.activityId}::uuid and a.policy_version='activity.v0' limit 1`.execute(
+      where q.universe_id=${scope.authority.universeId}::uuid and q.privacy_epoch=${scope.authority.privacyEpoch} and q.exposure_id=${c.exposureId}::uuid and q.recording_generation=${w.recordingGeneration} and q.id=${w.qualificationId}::uuid and a.id=${w.activityId}::uuid and a.policy_version in('activity.v0','activity.v1') limit 1`.execute(
         transactionOf(scope),
       )
     ).rows[0];

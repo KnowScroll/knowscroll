@@ -19,3 +19,4 @@ export { makeComposerStore } from './postgres-store.js';
 export { composerBufferProviders, composerBufferWorkerProviders } from './buffer-providers.js';
 export { composerBufferStore } from './buffer-store.js';
 export { jevPoolStore } from './jev-pool-store.js';
+export { readRetainedDecisions } from './replay-store.js';

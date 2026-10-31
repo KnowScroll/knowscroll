@@ -588,7 +588,7 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
       expect(result).toMatchObject({ kind: 'prepared', jev: 'assessed' });
       expect(worker.calls()).toBe(1);
       const buffer = (await bufferOf(person.universeId))!;
-      expect(buffer.assessments).toMatchObject({ model: 'fixture-model-v1', roleVersion: 'jev.1/hp2' });
+      expect(buffer.assessments).toMatchObject({ model: 'fixture-model-v1', roleVersion: 'jev.2/hp2' });
       const decision = (await decisionPayload(buffer.decision_id))!;
       const fits = decision.evaluations.map((e) => e.features.semanticFit);
       expect(fits.some((fit) => Math.abs(fit - 1) < 1e-9)).toBe(true);
@@ -833,7 +833,7 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
       await expireBuffer(person.universeId);
       await run(worker, await latestJob(person.universeId));
       expect(worker.calls()).toBe(3);
-      expect((await poolOf(person.universeId))!.role_version).toBe('jev.1/hp2');
+      expect((await poolOf(person.universeId))!.role_version).toBe('jev.2/hp2');
 
       await sql`update composer.jev_assessments set model='another-model' where universe_id=${person.universeId}::uuid`.execute(
         database.db,

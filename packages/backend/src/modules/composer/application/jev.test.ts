@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import type { ProposeInput, ProposeOutcome, ReasoningHarness } from '../../../reasoning/public.js';
 import type { EncounterSnapshot } from '../../content/public.js';
 import { JEV_SHORTLIST_LIMIT, semanticFitOf } from '../domain/jev.js';
-import { JEV_ROLE, acceptAssessments, jevContext, makeAssessShortlist, storedAssessments } from './jev.js';
+import {
+  JEV_ASSESSMENT_VERSION,
+  JEV_ROLE,
+  JEV_ROLE_VERSION,
+  acceptAssessments,
+  jevContext,
+  makeAssessShortlist,
+  storedAssessments,
+} from './jev.js';
 
 function encounter(index: number): EncounterSnapshot {
   return {
@@ -18,6 +26,86 @@ function encounter(index: number): EncounterSnapshot {
     attributionVersion: 'taxonomy',
   };
 }
+
+/** A v2 Scroll as Content derives it: public facts of the document, never of a reader. */
+function game(index: number, extra: Partial<EncounterSnapshot> = {}): EncounterSnapshot {
+  return {
+    ...encounter(index),
+    series: { seriesId: 'library.earth.seasons', seriesRevision: 1, part: 2 },
+    traits: {
+      playLevel: 'game',
+      readingMinutes: 6.4,
+      misconceptionClaim: 'The seasons happen because Earth moves closer to the Sun.',
+      seriesTotal: 3,
+    },
+    ...extra,
+  };
+}
+
+describe('jev.2 describes an item by its public facts (D-193)', () => {
+  const textOf = (source: EncounterSnapshot, candidate: EncounterSnapshot) =>
+    jevContext(source, [candidate]).context.items[1]!.text;
+
+  it('says the kind, the play level, the minutes, the place in the series and the myth', () => {
+    const text = textOf(encounter(99), game(1));
+    expect(text).toContain('Kind: scroll, several questions to call, ending in a final one, about 6 min');
+    expect(text).toContain('Series: part 2 of 3');
+    expect(text).toContain('Corrects the common myth: The seasons happen because Earth moves closer to the Sun.');
+    expect(text.indexOf('Title:')).toBeLessThan(text.indexOf('Summary:'));
+  });
+
+  it('describes a plain Scroll, a Reel and an item with no traits without inventing facts', () => {
+    expect(textOf(encounter(99), encounter(1))).toContain('Kind: scroll, nothing to play');
+    expect(textOf(encounter(99), encounter(1))).not.toMatch(/Series:|myth|min/);
+    const reel = { ...encounter(2), kind: 'reel' as const, traits: { playLevel: 'plain' as const } };
+    expect(textOf(encounter(99), reel)).toContain('Kind: reel, nothing to play');
+    const stage = encounter(3);
+    expect(textOf(encounter(99), { ...stage, traits: { playLevel: 'stage', readingMinutes: 0.3 } })).toContain(
+      'Kind: scroll, a picture that changes as you read, or a single question to call, about 1 min',
+    );
+  });
+
+  it('names the series only when the total is known, and never "2 of 3" without the part', () => {
+    const noTotal = game(1, { traits: { playLevel: 'game' } });
+    expect(textOf(encounter(99), noTotal)).not.toContain('Series:');
+  });
+
+  it('keeps the myth when the summary is long: the summary is cut, never the structure', () => {
+    const long = game(1, { metadata: { kind: 'scroll', title: 'T', summary: 'x'.repeat(2000), language: 'en' } });
+    const text = textOf(encounter(99), long);
+    expect(text.length).toBeLessThanOrEqual(900);
+    expect(text).toContain('Corrects the common myth:');
+    expect(text).toContain('Series: part 2 of 3');
+  });
+
+  it('carries no play outcome: the context has no field a pick, a result, a spark or a tier could be in', () => {
+    const { context } = jevContext(game(98), [game(1), game(2)]);
+    const text = JSON.stringify(context).toLowerCase();
+    for (const word of [
+      'correct answer',
+      'wrong',
+      'spark',
+      'combo',
+      'gold',
+      'tier',
+      'picked',
+      'called it',
+      'plot twist',
+    ])
+      expect(text).not.toContain(word);
+  });
+
+  it('is a new role version, so an assessment made under jev.1 is never reused', () => {
+    expect(JEV_ROLE_VERSION).toBe('jev.2');
+    expect(JEV_ASSESSMENT_VERSION.startsWith('jev.2/')).toBe(true);
+    expect(JEV_ROLE.instructions).toContain('Two items that correct the same common myth are redundant');
+    expect(JEV_ROLE.instructions).toContain('do not reward or penalise a candidate for being in a series');
+    expect(
+      JEV_ROLE.outputSchema.safeParse({ assessments: [{ ref: 'c1', relevance: 1, appropriateness: 1, redundancy: 0 }] })
+        .success,
+    ).toBe(true);
+  });
+});
 
 describe('Jev (labelled CI fixtures; no provider output)', () => {
   it('combines criteria by fixed weights into a bounded SemanticFit', () => {
@@ -65,7 +153,7 @@ describe('Jev (labelled CI fixtures; no provider output)', () => {
       lifetimeMs: 30 * 60_000,
     });
     expect(stored).toMatchObject({
-      roleVersion: 'jev.1/hp2',
+      roleVersion: 'jev.2/hp2',
       model: 'fixture-model',
       assessedAt: '2026-10-20T12:00:00.000Z',
       expiresAt: '2026-10-20T12:30:00.000Z',

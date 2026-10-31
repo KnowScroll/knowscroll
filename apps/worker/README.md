@@ -137,6 +137,13 @@ a projected system, planet or region without one (at most `--limit`, default 100
 `scenes.backfill-looks` consumer inserts the missing rows under that universe's lock. No slot, seed, family or anchor
 moves, no provider is called, and running it again assigns nothing. It needs only `KS_WORLD` and `DATABASE_URL`.
 
+`node dist/operator.js composer replay-policy --since <ISO date> [--limit <1-20000>] [--intent-weight <0-1>]
+[--recent-topic-penalty <0-1>] [--sweep]` (`src/composer-operator.ts`, D-190) re-runs the retained vertical Composer decisions
+recorded since a date under `composer-policy.v0` and v1 and prints counts and shares only: first offers that stay on the
+source's topic, are another part of its series or move to another Jev subject, and how often sticky format fell back. It
+names no person, session, asset, title or text, calls no model and writes nothing. It needs only `KS_WORLD` and
+`DATABASE_URL`; exit 2 on bad usage. See the Composer README, "Policy replay".
+
 `node dist/operator.js rooms seed [--dry-run]` (`src/rooms-operator.ts`, D-051) creates one idea room for each
 library system and leaves rooms that exist as they are; `rooms moderator --room <slug> --account <uuid> [--remove]`
 names an account with a claimed profile a moderator of a room, or takes the role back from a current member. Both write room rows only: no member, no message,
