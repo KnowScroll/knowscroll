@@ -8,10 +8,11 @@ import {
   type UniverseSceneState,
 } from '@knowscroll/client-core';
 import { SCENE_LOOK_VERSION, WORLD_GENERATOR_VERSION, type SceneClientCapabilities } from '@knowscroll/contracts';
-import type { SceneDescriptor, SceneGeometry } from '@knowscroll/scene-core';
+import type { SceneDescriptor, SceneGeometry, SceneLook } from '@knowscroll/scene-core';
 import { boundedFrame, DRAW_LIMITS, INITIAL_FRAME, returnLocator, type UniverseFrame } from './universe-camera';
 import { PLANET_ZOOM } from './planet/map-camera';
 import { ZOOM_LIMITS } from './space/camera-rig';
+import { withTransitionGate } from './animation/transition-gate';
 import { createCameraHistory, type CameraEntry } from './universe-camera-history';
 import { createDeviceMemory } from './universe-device-memory';
 import { clearHereMarker, readHereMarker, writeHereMarker } from './universe-here-marker';
@@ -45,6 +46,11 @@ export interface UniverseViewState extends CameraEntry {
   readonly absent: boolean;
   /** A system picked on the map but not entered yet (second tap or Open enters it). */
   readonly selectedId: string | null;
+  /**
+   * The looks to draw when they do not come from a scene read: a friend's visit derives its own on this device
+   * (D-114). Absent on the person's own map, whose looks are the server's (D-102).
+   */
+  readonly looks?: readonly SceneLook[];
   /** U04: the region the person left through its card's Open, private to this device, until they choose it again. */
   readonly youWereHere: string | null;
 }
@@ -369,7 +375,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     formation.setForeground(foreground);
   };
 
-  return {
+  return withTransitionGate({
     getState: () => state,
     subscribe(this: void, listener: () => void) {
       if (!live()) return () => {};
@@ -530,7 +536,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       return geometryCache.get(object, { detail: low ? 'low' : detail, reducedMotion });
     },
     cacheSize: () => geometryCache.size(),
-  };
+  });
 }
 export type UniverseViewSession = ReturnType<typeof createUniverseViewSession>;
 /**

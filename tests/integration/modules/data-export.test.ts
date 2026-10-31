@@ -181,7 +181,9 @@ describe('personal data export (real database)', () => {
     for (const internal of personalStores.map((declaration) => declaration.module))
       if (!['experience', 'geography', 'identity', 'play', 'social', 'supply'].includes(internal))
         expect(text, `${internal} is internal`).not.toContain(`"${internal}"`);
-    expect(file.sections['identity']).toMatchObject({ account: { recordingOn: true } });
+    expect(file.sections['identity']).toMatchObject({
+      account: { recordingOn: true, universeOpeningShown: false },
+    });
     expect(file.sections['social']).toMatchObject({
       profile: { handle: 'export.owner', displayName: 'Owner Display' },
       connections: { friends: 0, requestsSent: 1, requestsReceived: 0, blocked: 0 },
@@ -324,6 +326,7 @@ describe('personal data export (real database)', () => {
       'threads',
       'title',
       'truncated',
+      'universeOpeningShown',
       'version',
       'wasAReply',
       'whoMayVisit',

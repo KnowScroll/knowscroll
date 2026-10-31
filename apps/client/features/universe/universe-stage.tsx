@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { PanResponder, Platform, StyleSheet, View, type LayoutChangeEvent, type ViewProps } from 'react-native';
+import { TapRing, usePlayerValue, useFeedValue } from './animation/animated';
+import { chromeAt as systemChrome } from './animation/enter-system';
+import { chromeAt as planetChrome } from './animation/enter-planet';
+import { enterWorldFrame } from './animation/enter-world';
+import { GlobeLayer, WorldLayers } from './animation/planet-layers';
+import type { StepAnimation, UniverseAnimation } from './animation/use-universe-animation';
+import { globePlacement } from './planet/planet-globe';
 import { PlanetStage } from './planet/planet-stage';
 import { SpaceStage } from './space/space-stage';
 import type { SpaceFailure } from './space/space-surface';
@@ -78,6 +85,8 @@ export function UniverseStage({
   onRefused,
   onUnavailable,
   pickPlanets,
+  animation,
+  onSize,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -94,6 +103,10 @@ export function UniverseStage({
   readonly onUnavailable: (reason: SpaceFailure) => void;
   /** A tap on a planet picks it (D02) instead of flying to it. */
   readonly pickPlanets: boolean;
+  /** The animation playing, if one is (D-114). The drawing for the step down is made here. */
+  readonly animation: UniverseAnimation;
+  /** The stage's size, whenever it is measured: the planet view's globe is placed from it. */
+  readonly onSize: (size: Size) => void;
 }) {
   const [size, setSize] = useState<Size>({ width: 390, height: 640 });
   const view = viewFor(index, state.focusId, state.landed);
@@ -132,6 +145,8 @@ export function UniverseStage({
     }
   };
   const sceneProps = { session, state, index, size, onDust, stations, onStation };
+  const step = animation.active;
+  const worldScene = useMemo(() => worldSceneOf(size), [size]);
   const description =
     view.kind === 'universe'
       ? 'Universe map. Arrow keys pan, plus and minus zoom, slash searches.'
@@ -150,16 +165,25 @@ export function UniverseStage({
       {...(Platform.OS === 'web' ? { onKeyDown } : {})}
       onLayout={(event: LayoutChangeEvent) => {
         const { width, height } = event.nativeEvent.layout;
-        if (width > 0 && height > 0) setSize({ width, height });
+        if (width > 0 && height > 0) {
+          setSize({ width, height });
+          onSize({ width, height });
+        }
       }}
       style={styles.stage}
       {...responder.panHandlers}
     >
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
         {view.kind !== 'planet' ? (
-          <SpaceStage {...sceneProps} view={view} onUnavailable={onUnavailable} pickPlanets={pickPlanets} />
+          <SpaceStage
+            {...sceneProps}
+            view={view}
+            onUnavailable={onUnavailable}
+            pickPlanets={pickPlanets}
+            animation={animation}
+          />
         ) : null}
-        {view.kind === 'planet' ? (
+        {view.kind === 'planet' && step?.kind !== 'enter-world' && !isPlanetEntry(step) ? (
           <PlanetStage
             {...sceneProps}
             planet={view.planet}
@@ -169,9 +193,105 @@ export function UniverseStage({
             onRefused={onRefused}
           />
         ) : null}
+        {view.kind === 'planet' && isPlanetEntry(step) && step.from.kind === 'system' ? (
+          <>
+            <SpaceStage
+              {...sceneProps}
+              view={step.from}
+              onUnavailable={onUnavailable}
+              pickPlanets={false}
+              animation={animation}
+            />
+            <GlobeLayer feed={animation.feed} globe={globeOf(size)}>
+              <PlanetStage
+                {...sceneProps}
+                planet={view.planet}
+                landed={false}
+                selectedRegion={undefined}
+                visitor={visitor === true}
+                onRefused={onRefused}
+              />
+            </GlobeLayer>
+          </>
+        ) : null}
+        {view.kind === 'planet' && step?.kind === 'enter-world' ? (
+          <WorldLayers
+            player={animation.player}
+            scene={worldScene}
+            globe={
+              <PlanetStage
+                {...sceneProps}
+                planet={view.planet}
+                landed={false}
+                selectedRegion={undefined}
+                visitor={visitor === true}
+                onRefused={onRefused}
+              />
+            }
+            map={(arrival) => (
+              <PlanetStage
+                {...sceneProps}
+                planet={view.planet}
+                landed
+                selectedRegion={undefined}
+                visitor={visitor === true}
+                onRefused={onRefused}
+                arrival={arrival}
+              />
+            )}
+          />
+        ) : null}
+        {step !== undefined ? <TapRingLayer animation={animation} size={size} /> : null}
       </View>
     </View>
   );
+}
+
+/** Whether an animation is a glide down to a planet (with or without rings and a moon). */
+const isPlanetEntry = (
+  step: UniverseAnimation['active'],
+): step is Extract<NonNullable<UniverseAnimation['active']>, { kind: 'enter-planet' | 'enter-planet-rings' }> =>
+  step?.kind === 'enter-planet' || step?.kind === 'enter-planet-rings';
+
+/** The planet view's globe, as a circle: where the glide ends and the world opens from. */
+function globeOf(size: Size): { x: number; y: number; radius: number } {
+  const { x, y, diameter } = globePlacement(size);
+  return { x, y, radius: diameter / 2 };
+}
+const worldSceneOf = (size: Size) => ({ screen: size, globe: globeOf(size) });
+
+type FeedRead = NonNullable<Parameters<typeof useFeedValue>[1]>;
+
+/**
+ * The one ring that opens and fades where the tap that started an animation touched (design: "Tap ring"). It
+ * follows the tapped body: the system or planet the renderer projects each frame, or the globe.
+ */
+function TapRingLayer({ animation, size }: { animation: UniverseAnimation; size: Size }) {
+  const kind = animation.active?.kind;
+  const { width, height } = size;
+  const opacity = usePlayerValue(
+    animation.player,
+    useMemo(() => (t: number) => tapRingAt(kind, { width, height }, t).opacity, [kind, width, height]),
+    0,
+  );
+  const scale = usePlayerValue(
+    animation.player,
+    useMemo(() => (t: number) => tapRingAt(kind, { width, height }, t).scale, [kind, width, height]),
+    1,
+  );
+  const globe = globeOf({ width, height });
+  const readX = useMemo<FeedRead>(() => (frame) => (frame.planet ?? frame.system)?.x, []);
+  const readY = useMemo<FeedRead>(() => (frame) => (frame.planet ?? frame.system)?.y, []);
+  const x = useFeedValue(animation.feed, readX, kind === 'enter-world' ? globe.x : width / 2);
+  const y = useFeedValue(animation.feed, readY, kind === 'enter-world' ? globe.y : height / 2);
+  return <TapRing x={x} y={y} opacity={opacity} scale={scale} />;
+}
+
+/** The tap ring of an animation at `t`: opacity and scale. */
+function tapRingAt(kind: StepAnimation['kind'] | undefined, size: Size, t: number): { opacity: number; scale: number } {
+  if (kind === 'enter-system') return systemChrome(t).tapRing;
+  if (kind === 'enter-planet' || kind === 'enter-planet-rings') return planetChrome(t).tapRing;
+  return enterWorldFrame(t, worldSceneOf(size)).tapRing;
 }
 
 const styles = StyleSheet.create({ stage: { flex: 1, overflow: 'hidden' } });

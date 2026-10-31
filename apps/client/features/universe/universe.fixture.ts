@@ -257,6 +257,8 @@ export function universeHarness(count = 5, dust = 0, moreRegions = 0) {
     calls: string[] = [],
     requests: { path: string; body: Record<string, unknown> }[] = [],
     store = memoryStore();
+  /** The answers the account gives to "may I play the first open?", one per ask; once they run out, it was seen. */
+  const firstOpenAnswers: boolean[] = [];
   let gate: Promise<void> | undefined,
     network = false,
     authority = false;
@@ -268,6 +270,10 @@ export function universeHarness(count = 5, dust = 0, moreRegions = 0) {
     fetch: async (request) => {
       const path = new URL(request.url).pathname;
       calls.push(path);
+      if (path === '/v1/account/universe/first-open')
+        return new Response(JSON.stringify({ claimed: firstOpenAnswers.shift() ?? false }), {
+          headers: { 'content-type': 'application/json' },
+        });
       const body = (await request.json()) as Record<string, unknown>;
       requests.push({ path, body });
       const reply = world.reply(path, body); // freeze before the deliberately abort-ignoring gate
@@ -287,6 +293,8 @@ export function universeHarness(count = 5, dust = 0, moreRegions = 0) {
     requests,
     store,
     world,
+    /** Queues the account's answers to the first-open claim: true the first time it is asked, for one device. */
+    firstOpen: (...answers: boolean[]) => void firstOpenAnswers.push(...answers),
     gate: (value: Promise<void> | undefined) => {
       gate = value;
     },

@@ -5,21 +5,26 @@ import type { RoomStation } from '@knowscroll/contracts';
 import type { SceneDescriptor, SceneLook } from '@knowscroll/scene-core';
 import { content, layer, layout, space, spacing } from '@knowscroll/design-tokens';
 import { IconButton, Tag, Text, useDisplay } from '@knowscroll/ui';
+import { Reveal, type Rising } from './animation/animated';
+import type { AnimationPlayer } from './animation/player';
+import { stepChrome } from './animation/step-chrome';
+import { useUniverseAnimation } from './animation/use-universe-animation';
 import { OrbitDial } from './dial/orbit-dial';
 import { SimpleUniverse } from './simple/simple-universe';
 import { UniverseBackdrop } from './universe-backdrop';
 import { PlanetCard, RegionCard, SystemCard } from './universe-cards';
 import { UniverseHeader } from './universe-header';
-import { isQuiet, viewFor, type UniverseIndex } from './universe-layout';
+import { isQuiet, viewFor, type Size, type UniverseIndex, type UniverseView } from './universe-layout';
 import { countOf } from './universe-lists';
 import { UniversePanel } from './universe-panel';
 import { UniverseSearchPanel } from './universe-search-panel';
 import { SpaceChip } from './space-chip';
 import { UniverseStage } from './universe-stage';
+import { globePlacement } from './planet/planet-globe';
 import { paletteOf } from './planet/planet-palette';
 import { planPlanet } from './planet/planet-plan';
 import { lowMemoryDevice } from './space/low-memory-device';
-import { looksById } from './space/space-model';
+import { looksById, looksOfState } from './space/space-model';
 import type { SpaceFailure } from './space/space-surface';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
 
@@ -77,7 +82,7 @@ export function UniverseSurface({
   const searching = state.overlay === 'search';
   const openSearch = () => session.showOverlay('search');
   // A planet in view: what its globe and map are drawn from, which also gives the plain list its order.
-  const looks = state.read.snapshot?.read.looks;
+  const looks = looksOfState(state);
   const planet = view.kind === 'planet' ? view.planet : undefined;
   const { palette } = usePlanetPlan(planet, index, looks);
   // The whole tab is the two plain lists: by the setting, because 3D failed, or for one planet whose world cannot be drawn.
@@ -87,6 +92,25 @@ export function UniverseSurface({
     if (!on) setUnavailable(null);
     session.setSimple(on);
   };
+  // The three steps down are animated (D-114); none plays under reduced motion, with Simple drawing or on the desktop layout (D02).
+  const [stageSize, setStageSize] = useState<Size>({ width: 390, height: 640 });
+  const placement = useMemo(() => {
+    const { x, y, diameter } = globePlacement(stageSize);
+    return { x, y, radius: diameter / 2 };
+  }, [stageSize]);
+  const animation = useUniverseAnimation({
+    session,
+    view,
+    looks,
+    enabled: !state.reducedMotion && !simple && !wide,
+    globe: placement,
+  });
+  const step = animation.active;
+  const stepKind = step?.kind;
+  const chrome = useMemo(
+    () => (stepKind === undefined ? undefined : stepChrome(stepKind, stageSize)),
+    [stepKind, stageSize],
+  );
   // A globe only turns: there is nothing to zoom.
   const globe = view.kind === 'planet' && !view.landed && !simple;
   const dialOpen = !wide && !simple && state.overlay === 'outline';
@@ -119,36 +143,38 @@ export function UniverseSurface({
   ) : null;
   const bottomInset = wide ? spacing[5] : layout.tabBarSlot + insets.bottom;
 
-  const header = searching ? (
-    <UniverseSearchPanel
-      session={session}
-      {...(visitor ? { owner: visitor.ownerName } : {})}
-      {...(stationsOfOwn ? { stations: stationsOfOwn } : {})}
-      {...(onStation ? { onStation } : {})}
-    />
-  ) : (
-    <UniverseHeader
-      session={session}
-      state={state}
-      view={view}
-      hasPlaces={places.length > 0}
-      onSearch={openSearch}
-      {...(visitor ? { visitor: { ownerName: visitor.ownerName } } : {})}
-      {...(systemFacts ? { systemFacts } : {})}
-      searchInPanel={panel}
-    />
-  );
+  const headerOf = (shown: UniverseView): ReactNode =>
+    searching ? (
+      <UniverseSearchPanel
+        session={session}
+        {...(visitor ? { owner: visitor.ownerName } : {})}
+        {...(stationsOfOwn ? { stations: stationsOfOwn } : {})}
+        {...(onStation ? { onStation } : {})}
+      />
+    ) : (
+      <UniverseHeader
+        session={session}
+        state={state}
+        view={shown}
+        hasPlaces={places.length > 0}
+        onSearch={openSearch}
+        {...(visitor ? { visitor: { ownerName: visitor.ownerName } } : {})}
+        {...(systemFacts ? { systemFacts } : {})}
+        searchInPanel={panel}
+      />
+    );
+  const header = headerOf(view);
 
-  const caption =
-    view.kind === 'planet' && !view.landed && !simple ? (
+  const captionOf = (shown: UniverseView): ReactNode =>
+    shown.kind === 'planet' && !shown.landed && !simple ? (
       <View style={styles.caption} pointerEvents="none">
         <Text variant="label" color={space.label2}>
-          {`A planet in ${index.byId.get(view.planet.parentId)?.label ?? 'your universe'}`}
+          {`A planet in ${index.byId.get(shown.planet.parentId)?.label ?? 'your universe'}`}
         </Text>
         <Text variant="displayL" heading={1} color={space.label} style={styles.captionTitle}>
-          {view.planet.label}
+          {shown.planet.label}
         </Text>
-        {view.planet.truthStatus === 'hypothetical' ? <Tag label="Hypothetical" variant="hypothetical" /> : null}
+        {shown.planet.truthStatus === 'hypothetical' ? <Tag label="Hypothetical" variant="hypothetical" /> : null}
         <View style={styles.globeHint}>
           <View style={styles.hintMark} aria-hidden>
             <Text variant="meta" color={HINT_COLOUR}>
@@ -161,27 +187,28 @@ export function UniverseSurface({
         </View>
       </View>
     ) : null;
+  const caption = captionOf(view);
 
   // The ship is parked at the planet of the last place (D-080): the chip returns there, naming the planet.
   const returnTo = returnTarget(index, state.lastPlace);
   // Routes the Cartographer drew between planets of one system, shown as a chip, never as a line (D-074).
-  const planetRoutes =
-    view.kind === 'planet' && !view.selectedRegion
+  const routesOf = (shown: UniverseView) =>
+    shown.kind === 'planet' && !shown.selectedRegion
       ? index.routes.flatMap((route) => {
           const otherId =
-            route.fromObjectId === view.planet.objectId
+            route.fromObjectId === shown.planet.objectId
               ? route.toObjectId
-              : route.toObjectId === view.planet.objectId
+              : route.toObjectId === shown.planet.objectId
                 ? route.fromObjectId
                 : undefined;
           const other = otherId ? index.byId.get(otherId) : undefined;
           return other ? [{ route, other }] : [];
         })
       : [];
-  const chips =
+  const chipsOf = (shown: UniverseView): ReactNode =>
     !card && !searching ? (
       <View style={styles.chips}>
-        {view.kind === 'universe' && returnTo && returnTo.id !== state.focusId ? (
+        {shown.kind === 'universe' && returnTo && returnTo.id !== state.focusId ? (
           <SpaceChip
             testID="universe-return"
             variant="solid"
@@ -190,7 +217,7 @@ export function UniverseSurface({
             onPress={() => session.focus(returnTo.id)}
           />
         ) : null}
-        {planetRoutes.map(({ route, other }) => (
+        {routesOf(shown).map(({ route, other }) => (
           <SpaceChip
             key={route.id}
             testID={`universe-route-${route.id}`}
@@ -210,6 +237,9 @@ export function UniverseSurface({
         ) : null}
       </View>
     ) : null;
+  const chips = chipsOf(view);
+  // The screen being left stays on screen, fading, under the destination's chrome as it rises (design: "Rules for all of them").
+  const leaving = step?.from;
 
   const stage = simple ? (
     <View style={styles.stageHost}>
@@ -270,23 +300,44 @@ export function UniverseSurface({
             onRefused={setRefusedPlanetId}
             onUnavailable={setUnavailable}
             pickPlanets={wide && visitor === undefined}
+            animation={animation}
+            onSize={setStageSize}
           />
           <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
             {visitor?.bar}
-            {header}
+            <ChromeSlot
+              player={animation.player}
+              now={header}
+              was={chrome?.headerOut && leaving ? headerOf(leaving) : undefined}
+              into={chrome?.headerIn}
+              out={chrome?.headerOut}
+            />
             {status ? (
               <View style={styles.status}>
                 <Tag label={status} variant="onDark" />
               </View>
             ) : null}
           </View>
-          {caption}
+          <ChromeSlot
+            player={animation.player}
+            now={caption}
+            was={chrome?.captionOut && leaving ? captionOf(leaving) : undefined}
+            into={chrome?.captionIn}
+            out={chrome?.captionOut}
+            fill
+          />
           <View pointerEvents="box-none" style={[styles.bottom, { paddingBottom: bottomInset }]}>
             {view.kind === 'system' && state.lately && isDormant(index, view.system.objectId) ? (
               <DormantNote session={session} index={index} systemId={view.system.objectId} />
             ) : null}
             {panel ? null : card}
-            {chips}
+            <ChromeSlot
+              player={animation.player}
+              now={chips}
+              was={chrome?.chipsOut && leaving ? chipsOf(leaving) : undefined}
+              into={chrome?.chipsIn}
+              out={chrome?.chipsOut}
+            />
           </View>
           {wide && !globe ? (
             <View pointerEvents="box-none" style={styles.zoomControls}>
@@ -335,6 +386,41 @@ export function UniverseSurface({
   return (
     <View style={styles.ground} testID="universe-screen" role="main">
       {stage}
+    </View>
+  );
+}
+
+/**
+ * A piece of chrome and, while an animation plays, the one it replaces: the old one stays on screen
+ * fading out, drawn over the same place, while the new one rises in. Outside an animation it is just
+ * the piece, so nothing inside it is ever mounted again when an animation starts or ends.
+ */
+function ChromeSlot({
+  player,
+  now,
+  was,
+  into,
+  out,
+  fill = false,
+}: {
+  readonly player: AnimationPlayer;
+  readonly now: ReactNode;
+  readonly was: ReactNode | undefined;
+  readonly into: ((t: number) => Rising) | undefined;
+  readonly out: ((t: number) => Rising) | undefined;
+  /** The piece positions itself against the whole stage (the globe's title). */
+  readonly fill?: boolean;
+}) {
+  return (
+    <View pointerEvents="box-none" style={fill ? StyleSheet.absoluteFill : undefined}>
+      <Reveal player={player} rising={into} {...(fill ? { style: StyleSheet.absoluteFill } : {})}>
+        {now}
+      </Reveal>
+      {was === undefined ? null : (
+        <Reveal player={player} rising={out} style={styles.leaving}>
+          {was}
+        </Reveal>
+      )}
     </View>
   );
 }
@@ -446,6 +532,7 @@ const styles = StyleSheet.create({
     gap: spacing[3],
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], alignItems: 'center' },
+  leaving: { position: 'absolute', left: 0, right: 0, top: 0 },
   caption: { position: 'absolute', left: spacing[6], right: spacing[6], top: '62%', gap: spacing['1.5'] },
   captionTitle: { fontSize: 30, lineHeight: 34 },
   globeHint: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginTop: spacing[1] },

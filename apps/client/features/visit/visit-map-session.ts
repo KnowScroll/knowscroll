@@ -1,4 +1,5 @@
-import type { SceneDescriptor, SceneGeometry } from '@knowscroll/scene-core';
+import type { SceneDescriptor, SceneGeometry, SceneLook } from '@knowscroll/scene-core';
+import { withTransitionGate } from '../universe/animation/transition-gate';
 import { boundedFrame, DRAW_LIMITS, INITIAL_FRAME, type UniverseFrame } from '../universe/universe-camera';
 import { createCameraHistory, type CameraEntry } from '../universe/universe-camera-history';
 import { NO_DUST } from '../universe/universe-dust';
@@ -13,8 +14,11 @@ import type { UniverseMapSession, UniversePlace, UniverseViewState } from '../un
  * camera has been is kept only while the screen is open and is never stored or sent.
  */
 export interface VisitMapSession extends UniverseMapSession {
-  /** Replaces the places (a new list from the server). A camera on a place that is gone returns to the whole map. */
-  readonly setDescriptors: (descriptors: readonly SceneDescriptor[]) => void;
+  /**
+   * Replaces the places (a new list from the server) and the looks this device derived for them (D-114). A camera
+   * on a place that is gone returns to the whole map.
+   */
+  readonly setDescriptors: (descriptors: readonly SceneDescriptor[], looks: readonly SceneLook[]) => void;
   /** Ends the session: the places and the geometry go. */
   readonly end: () => void;
 }
@@ -110,7 +114,7 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
     return true;
   }
 
-  return {
+  return withTransitionGate<Omit<VisitMapSession, 'gate'>>({
     getState: () => state,
     subscribe(listener) {
       if (ended) return () => {};
@@ -177,13 +181,14 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
       return geometryCache.get(object, { detail: low ? 'low' : detail, reducedMotion });
     },
     cacheSize: () => geometryCache.size(),
-    setDescriptors(next) {
+    setDescriptors(next, looks) {
       if (ended) return;
       places = next;
       geometryCache.clear();
       const stale = state.focusId !== null && !exists(state.focusId);
       if (stale) history.clear();
       publish({
+        looks,
         ...(stale
           ? { focusId: null, frame: { ...INITIAL_FRAME }, overlay: null, notice: 'place_unavailable' as const }
           : {}),
@@ -199,5 +204,5 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
       listeners.clear();
       state = { ...state, read: { status: 'ended', active: false }, focusId: null, selectedId: null, overlay: null };
     },
-  };
+  });
 }

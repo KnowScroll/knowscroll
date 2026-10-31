@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo } from 'react';
+import type { Animated } from 'react-native';
 import { chartWorld, type Chart, type SceneDescriptor } from '@knowscroll/scene-core';
 import type { SceneProps } from '../scene-parts';
-import { looksById } from '../space/space-model';
+import { looksById, looksOfState } from '../space/space-model';
 import { PlanetGlobe } from './planet-globe';
 import { PlanetMap } from './planet-map';
 import { paletteOf } from './planet-palette';
@@ -27,6 +28,7 @@ export function PlanetStage({
   selectedRegion,
   visitor,
   onRefused,
+  arrival,
 }: SceneProps & {
   readonly planet: SceneDescriptor;
   readonly landed: boolean;
@@ -35,8 +37,10 @@ export function PlanetStage({
   readonly visitor?: boolean;
   /** The world could not be drawn: the screen shows the plain list of regions instead. */
   readonly onRefused: (planetId: string) => void;
+  /** The map is arriving from the globe: its names come in on this opacity and its clouds when `clouds` is true. */
+  readonly arrival?: { readonly names: Animated.Value; readonly clouds: boolean };
 }) {
-  const looks = state.read.snapshot?.read.looks;
+  const looks = looksOfState(state);
   const plan = useMemo(
     () => planPlanet(planet, index.regions.get(planet.objectId) ?? [], looksById(looks)),
     [planet, index, looks],
@@ -101,6 +105,7 @@ export function PlanetStage({
       reducedMotion={state.reducedMotion}
       hypothetical={hypothetical}
       onChoose={choose}
+      {...(arrival ? { arrival } : {})}
     />
   );
 }

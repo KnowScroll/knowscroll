@@ -7,10 +7,11 @@ import type { SpaceDefinition, SpaceStationDefinition, SpaceSystemDefinition } f
 import { createSpriteTextures, pixelTexture, type Built, type PaintCache, type SceneContext } from './context';
 import { makeHalo } from './halo';
 import { makeNebula } from './nebula';
-import { makePlanet } from './planet';
+import { makePlanet, type BuiltPlanet, type PlanetHandover } from './planet';
 import { makeShip, makeStation } from './props';
+import { makeRocket, type Rocket, type RocketPose } from './rocket';
 import { addSky } from './sky';
-import { makeSun } from './sun';
+import { makeSun, type BuiltSun } from './sun';
 
 /** A point of the scene that a label or tap target follows. */
 export interface WorldAnchor {
@@ -39,8 +40,44 @@ export interface BuiltSpace {
   readonly showOnly: (systemId: string | null) => void;
   /** Pulses a warm glow around one system (picked on the Far level) or one planet (picked on the desktop), or none. */
   readonly highlight: (id: string | null) => void;
+  /** What a camera script ("Enter a system", "Enter a planet") reads of the scene and changes in it. */
+  readonly script: SceneScripting;
   /** Releases textures, geometries and materials. */
   readonly dispose: () => void;
+}
+
+/** A planet seen from outside the scene builder. */
+export interface PlanetBody {
+  readonly id: string;
+  readonly systemId: string;
+  /** Radius in scene units. */
+  readonly radius: number;
+  readonly object: THREE.Object3D;
+  readonly planet: BuiltPlanet;
+}
+
+/**
+ * The few handles an animation needs, so it never reaches into the scene graph itself. Positions are
+ * read at the instant of the last pose (`poseAt`), in world units.
+ */
+export interface SceneScripting {
+  /** The planet, or `undefined` when it is not in this scene. */
+  readonly planet: (id: string) => PlanetBody | undefined;
+  /** The system's sun in the world. */
+  readonly sun: (systemId: string) => THREE.Vector3 | undefined;
+  /** Where a rocket parks in a system: beside the planet that holds the ship, or the first planet. */
+  readonly dock: (systemId: string) => { readonly planetId: string; readonly position: THREE.Vector3 } | undefined;
+  /** Poses the rocket for this frame, or hides it with `undefined`. */
+  readonly rocket: (pose: RocketPose | undefined, t: number) => void;
+  /** Scales the ship that stays parked (the rocket swaps for it, 0 to 1). */
+  readonly shipScale: (scale: number) => void;
+  /** Eases the atmosphere of a planet and the glow of its sun down as the camera comes close; `undefined` restores them. */
+  readonly closeUp: (
+    planetId: string,
+    state: { atmosphere: number; sunBloom: number; sunGlow: number } | undefined,
+  ) => void;
+  /** Turns a planet's ring and moon into the planet view's, or back with `null`. */
+  readonly handOver: (planetId: string, handover: PlanetHandover | null) => void;
 }
 
 /** Angular speed of a planet: inner planets turn faster. */
@@ -49,8 +86,11 @@ function orbitSpeed(system: SpaceSystemDefinition, orbitRadius: number): number 
   return system.speed * Math.pow(innermost / orbitRadius, system.orbitFalloff);
 }
 
-interface SystemBuild {
+export interface SystemBuild {
   readonly built: Built;
+  readonly sun: BuiltSun;
+  readonly bodies: PlanetBody[];
+  readonly ships: readonly { readonly planetId: string; readonly ship: Built }[];
   readonly anchors: WorldAnchor[];
   /** The warm glows a pick turns on: the system's own, and one around each planet (D02 picks a planet). */
   readonly picks: ReadonlyMap<string, THREE.Sprite>;
@@ -81,7 +121,7 @@ function makeGlow(context: SceneContext): THREE.Sprite {
   return glow;
 }
 
-function buildSystem(
+export function buildSystem(
   system: SpaceSystemDefinition,
   context: SceneContext,
   shipPlanetId: string | undefined,
@@ -107,7 +147,8 @@ function buildSystem(
       radius: system.sunRadius,
     },
   ];
-  const ships: Built[] = [];
+  const ships: { planetId: string; ship: Built }[] = [];
+  const bodies: PlanetBody[] = [];
 
   const orbiting = system.planets.map((definition) => {
     const genome = planetGenome(`${definition.id}:${definition.variant ?? 0}`, definition.type, system.family, {
@@ -135,7 +176,9 @@ function buildSystem(
       object: planet.object,
       radius,
     });
-    if (definition.id === shipPlanetId) ships.push(parkShip(planet.object, radius, sunPosition, scoped));
+    bodies.push({ id: definition.id, systemId: system.id, radius, object: planet.object, planet });
+    if (definition.id === shipPlanetId)
+      ships.push({ planetId: definition.id, ship: parkShip(planet.object, radius, sunPosition, scoped) });
     return { definition, planet, pivot, radius, speed: orbitSpeed(system, definition.orbitRadius) };
   });
 
@@ -145,7 +188,7 @@ function buildSystem(
       pivot.rotation.y = -(definition.startAngle + t * speed);
       planet.tick(t);
     }
-    for (const ship of ships) ship.tick(t);
+    for (const { ship } of ships) ship.tick(t);
     const pulse = 0.5 + 0.5 * Math.sin(t * 2.2);
     if (pick.visible) {
       pick.scale.setScalar(outer * (0.9 + 0.25 * pulse));
@@ -159,7 +202,7 @@ function buildSystem(
     }
   };
   tick(0);
-  return { built: { object: group, tick }, anchors, picks };
+  return { built: { object: group, tick }, sun, bodies, ships, anchors, picks };
 }
 
 function buildStation(
@@ -187,6 +230,30 @@ function buildStation(
   };
 }
 
+/** The shared context of one scene: the clock, the haze, the soft sprites and the textures that go with it. */
+export function createSceneContext(
+  fogRange: readonly [number, number],
+  pixelRatio: number,
+  paintCache: PaintCache = new Map(),
+): { readonly context: SceneContext; readonly textures: THREE.Texture[] } {
+  const textures: THREE.Texture[] = [];
+  const trackTexture = (image: PixelImage): THREE.DataTexture => {
+    const texture = pixelTexture(image);
+    textures.push(texture);
+    return texture;
+  };
+  const context: SceneContext = {
+    time: { value: 0 },
+    pixelRatio: { value: pixelRatio },
+    fog: new THREE.Vector2(fogRange[0], fogRange[1]),
+    calm: false,
+    sprites: createSpriteTextures(trackTexture),
+    trackTexture,
+    paintCache,
+  };
+  return { context, textures };
+}
+
 /**
  * Builds the scene of a space view from its definition: stars, systems with their suns, haze and
  * revolving planets, stations, a parked ship and clouds of dust. Nothing here talks to the GPU until
@@ -198,21 +265,7 @@ export function buildSpace(
   pixelRatio: number,
   paintCache: PaintCache = new Map(),
 ): BuiltSpace {
-  const textures: THREE.Texture[] = [];
-  const trackTexture = (image: PixelImage): THREE.DataTexture => {
-    const texture = pixelTexture(image);
-    textures.push(texture);
-    return texture;
-  };
-  const context: SceneContext = {
-    time: { value: 0 },
-    pixelRatio: { value: pixelRatio },
-    fog: new THREE.Vector2(definition.camera.fogRange[0], definition.camera.fogRange[1]),
-    calm: false,
-    sprites: createSpriteTextures(trackTexture),
-    trackTexture,
-    paintCache,
-  };
+  const { context, textures } = createSceneContext(definition.camera.fogRange, pixelRatio, paintCache);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(FIELD_OF_VIEW, aspect, 0.1, 3000);
   addSky(scene, 'sky', context, new THREE.Vector3(...definition.camera.position));
@@ -222,8 +275,21 @@ export function buildSpace(
   const picks = new Map<string, THREE.Sprite>();
   /** What belongs to each system (or dust cloud), so a System view can show one alone. */
   const belongings = new Map<string, THREE.Object3D[]>();
+  const planetBodies = new Map<string, PlanetBody>();
+  const suns = new Map<string, { readonly built: BuiltSun; readonly position: THREE.Vector3 }>();
+  const shipsOf: { planetId: string; ship: Built }[] = [];
   for (const system of definition.systems) {
-    const { built, anchors: systemAnchors, picks: systemPicks } = buildSystem(system, context, definition.shipPlanetId);
+    const {
+      built,
+      sun,
+      bodies,
+      ships,
+      anchors: systemAnchors,
+      picks: systemPicks,
+    } = buildSystem(system, context, definition.shipPlanetId);
+    suns.set(system.id, { built: sun, position: new THREE.Vector3(system.position.x, 0, system.position.z) });
+    for (const body of bodies) planetBodies.set(body.id, body);
+    shipsOf.push(...ships);
     scene.add(built.object);
     ticks.push(built.tick);
     anchors.push(...systemAnchors);
@@ -247,11 +313,55 @@ export function buildSpace(
     belongings.set(dust.id, [nebula.object]);
   }
 
+  const light = new THREE.Vector3();
+  const rocket: Rocket = makeRocket(context, light);
+  scene.add(rocket.object);
+  const place = new THREE.Vector3();
+  const script: SceneScripting = {
+    planet: (id) => planetBodies.get(id),
+    sun: (systemId) => suns.get(systemId)?.position.clone(),
+    dock(systemId) {
+      const own = [...planetBodies.values()].filter((body) => body.systemId === systemId);
+      const parked = own.find((body) => body.id === definition.shipPlanetId);
+      const body = parked ?? own[0];
+      if (body === undefined) return undefined;
+      body.object.updateWorldMatrix(true, false);
+      // The same spot the parked ship rides at, beside and above the planet.
+      return {
+        planetId: body.id,
+        position: body.object.localToWorld(place.set(body.radius * 1.45, body.radius * 1.5, 0)).clone(),
+      };
+    },
+    rocket(pose, t) {
+      if (pose === undefined) {
+        rocket.object.visible = false;
+        return;
+      }
+      // A key light up and to the left of the camera, so the ship always reads.
+      light.copy(camera.localToWorld(place.set(-2.3, 2.75, 2.3)));
+      rocket.set(pose, t);
+    },
+    shipScale(amount) {
+      for (const { ship } of shipsOf) {
+        ship.object.visible = amount > 0.001;
+        ship.object.scale.setScalar(Math.max(amount, 0.001));
+      }
+    },
+    closeUp(planetId, state) {
+      const body = planetBodies.get(planetId);
+      if (body === undefined) return;
+      body.planet.setAtmosphere(state?.atmosphere ?? 1.15);
+      suns.get(body.systemId)?.built.setCloseUp(state?.sunBloom ?? 1, state?.sunGlow ?? 1);
+    },
+    handOver: (planetId, handover) => planetBodies.get(planetId)?.planet.handOver(handover),
+  };
+
   return {
     scene,
     camera,
     pixelRatio: context.pixelRatio,
     anchors,
+    script,
     poseAt(t) {
       context.time.value = t;
       for (const tick of ticks) tick(t);

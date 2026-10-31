@@ -10,9 +10,12 @@ import {
   type RigFocus,
   type RigSpec,
 } from './camera-rig';
+import { ENTER_SYSTEM } from '../animation/enter-system';
 import { buildSpace, type BuiltSpace } from './scene/build-scene';
 import type { PaintCache } from './scene/context';
+import { directFrame, endScript, type DirectedFrame, type Projection } from './script-director';
 import type { SpaceDefinition } from './space-definition';
+import type { SpaceScript } from './space-script';
 import type { SpaceAnchor, SpaceProbe, SpaceSurface } from './space-surface';
 
 /** What the person's camera looks at and how far they have panned and zoomed. The renderer adds the size. */
@@ -34,6 +37,12 @@ export interface SpaceRenderer {
    * true, the camera flies there: 2.4 s going in, 0.3 s coming out. Otherwise it jumps.
    */
   setCamera(spec: SpaceCameraSpec, animate: boolean): void;
+  /**
+   * Hands the camera to an animation ("Enter a system", "Enter a planet") until it is cleared with `null`. The
+   * script's clock decides every frame; clearing it puts the scene back as the live view has it. Call it
+   * before `setCamera` when the camera's focus changes with the animation (entering a system).
+   */
+  setScript(script: SpaceScript | null): void;
   /** Glows around one system (the one picked on the Far level), or none. */
   setHighlight(systemId: string | null): void;
   /** The named points of the scene in layout pixels, for the labels and tap targets drawn over the canvas. */
@@ -90,6 +99,9 @@ export function createSpaceRenderer(surface: SpaceSurface, initial: SpaceDefinit
   let space: BuiltSpace = buildSpace(initial, size.width / size.height, surface.pixelRatio, paintCache);
   let spec: SpaceCameraSpec | null = null;
   let fly: Fly | null = null;
+  let script: SpaceScript | null = null;
+  /** The camera a script starts from, without its breathing. */
+  let scriptFrom: CameraPose | null = null;
   let highlighted: string | null = null;
   let definitionCamera: CameraPose = {
     position: initial.camera.position,
@@ -111,22 +123,44 @@ export function createSpaceRenderer(surface: SpaceSurface, initial: SpaceDefinit
     }
     return flyPose(fly.from, wanted, elapsed, fly.seconds);
   };
+  const wantedPose = (): CameraPose => (spec === null ? definitionCamera : rigPose({ ...spec, ...size }));
+  const projection: Projection = {
+    bodyOnScreen(position, radius) {
+      space.camera.updateMatrixWorld();
+      const point = position.clone();
+      const edge = point
+        .clone()
+        .addScaledVector(new THREE.Vector3().setFromMatrixColumn(space.camera.matrixWorld, 0), radius);
+      point.project(space.camera);
+      edge.project(space.camera);
+      const x = (point.x * 0.5 + 0.5) * size.width;
+      return { x, y: (-point.y * 0.5 + 0.5) * size.height, radiusPx: Math.abs((edge.x * 0.5 + 0.5) * size.width - x) };
+    },
+  };
   /** A System view shows one system alone once the camera has nearly arrived. */
   const showOnlyFocus = (t: number): void => {
     const focus = spec?.focus;
-    const arrived = fly === null || (fly.startedAt !== null && (t - fly.startedAt) / fly.seconds > ALONE_AFTER);
+    const scripted = script?.kind === 'enter-system' ? script.clock() / ENTER_SYSTEM.seconds <= ALONE_AFTER : false;
+    const arrived =
+      !scripted && (fly === null || (fly.startedAt !== null && (t - fly.startedAt) / fly.seconds > ALONE_AFTER));
     space.showOnly(focus?.kind === 'system' && arrived ? focus.systemId : null);
   };
 
   return {
     draw(t) {
       space.poseAt(t);
-      lastPose = poseAt(t);
+      let directed: DirectedFrame | undefined;
+      if (script !== null && scriptFrom !== null) {
+        space.scene.updateMatrixWorld(true);
+        directed = directFrame({ script, space, from: scriptFrom, wanted: wantedPose(), size, t });
+      }
+      lastPose = directed?.pose ?? poseAt(t);
       far = spec !== null && spec.focus.kind === 'universe' && isFarPose(lastPose);
       space.setCamera(lastPose);
       showOnlyFocus(t);
       renderer.render(space.scene, space.camera);
       surface.present?.();
+      directed?.report(projection);
     },
     resize(width, height) {
       size = { width, height };
@@ -141,10 +175,21 @@ export function createSpaceRenderer(surface: SpaceSurface, initial: SpaceDefinit
       definitionCamera = { position: next.camera.position, target: next.camera.target, fov: space.camera.fov };
       space.highlight(highlighted);
       space.setCamera(lastPose);
+      // The scene was built again: a script's props are in the new one.
+      if (script !== null) space.script.shipScale(1);
+    },
+    setScript(next) {
+      if (script !== null) endScript(space, script);
+      script = next;
+      // A glide down to a planet starts from the camera the person was looking through.
+      scriptFrom = next?.kind === 'enter-planet' ? wantedPose() : null;
     },
     setCamera(next, animate) {
       const focusChanged = spec !== null && !sameFocus(spec.focus, next.focus);
-      if (focusChanged && animate) {
+      if (focusChanged && script?.kind === 'enter-system') {
+        scriptFrom = wantedPose();
+        fly = null;
+      } else if (focusChanged && animate) {
         fly = {
           from: lastPose,
           seconds: next.focus.kind === 'system' ? FLY_SECONDS.down : FLY_SECONDS.up,
@@ -200,6 +245,7 @@ export function createSpaceRenderer(surface: SpaceSurface, initial: SpaceDefinit
       return { litPixels: lit, sampledPixels: width * PROBE_ROWS.length, signature };
     },
     dispose(options) {
+      if (script !== null) endScript(space, script);
       space.dispose();
       paintCache.clear();
       renderer.dispose();

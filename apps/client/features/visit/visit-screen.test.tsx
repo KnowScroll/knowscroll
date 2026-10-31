@@ -65,23 +65,17 @@ describe('friend visit screen (labelled in-memory server)', () => {
     expect(screen.queryByRole('togglebutton', { name: 'Lately' })).toBeNull();
     // The request is the visit read and nothing else of the owner's: no scene, geography or evidence.
     expect(server.requests.map((request) => request.path)).toEqual(['/v1/social/visits/read']);
-    // The 3D layer is given the plain look and nothing personal: no looks, stations, dust, ship or Lately.
+    // The 3D layer is given a look derived on this device from the public ids, and nothing personal: no stations, dust, ship or Lately.
     const definition = fakeGpu.renderers.at(-1)!.definition;
     expect(definition.systems.length).toBeGreaterThan(0);
     expect(definition.stations).toEqual([]);
     expect(definition.dust).toEqual([]);
     expect(definition.shipPlanetId).toBeUndefined();
-    for (const system of definition.systems) {
-      expect(system.family).toBe('teal');
-      expect(system.calm).toBeUndefined();
-      for (const planet of system.planets)
-        expect([planet.rings, planet.moon, planet.calm, planet.variant]).toEqual([
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-        ]);
-    }
+    const planets = definition.systems.flatMap((system) => system.planets);
+    expect(new Set(definition.systems.map((system) => system.family)).size).toBe(definition.systems.length);
+    expect(new Set(planets.map((planet) => planet.type)).size).toBe(planets.length);
+    for (const system of definition.systems) expect(system.calm).toBeUndefined();
+    for (const planet of planets) expect(planet.calm).toBeUndefined();
     await rendered.unmount();
     server.scope.end();
   });

@@ -37,6 +37,11 @@ export interface PlanetMapProps {
   readonly hereId: string | undefined;
   readonly reducedMotion: boolean;
   readonly onChoose: (objectId: string) => void;
+  /**
+   * The map is arriving from the globe ("Enter a world"): the names come in on this opacity and the clouds only
+   * once `clouds` is true, as the design leaves both out of the picture that moves.
+   */
+  readonly arrival?: { readonly names: Animated.Value; readonly clouds: boolean };
   /** Regions that are hypothetical, so a screen reader hears it (their drawing is the same). */
   readonly hypothetical?: ReadonlySet<string>;
 }
@@ -181,24 +186,30 @@ export function PlanetMap(props: PlanetMapProps) {
           <G transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
             <MapLand world={world} chart={chart} palette={palette} onChoose={choose} />
             {chosen ? <Spotlight cell={chosen} scale={view.scale} /> : null}
-            <MapClouds world={world} chart={chart} palette={palette} />
+            {props.arrival?.clouds === false ? null : <MapClouds world={world} chart={chart} palette={palette} />}
           </G>
         </Svg>
-        <Svg width={size.width} height={size.height} style={StyleSheet.absoluteFill} pointerEvents="none">
-          {chart.charted.map((cell) => {
-            const at = spots.get(cell.objectId);
-            if (!at || cell.objectId === selectedId || cell.objectId === marked?.objectId || !drawn(cell)) return null;
-            return (
-              <ScreenName
-                key={cell.objectId}
-                x={at.x}
-                y={at.y}
-                text={names.get(cell.objectId) ?? ''}
-                opacity={selectedId ? 0.8 : 1}
-              />
-            );
-          })}
-        </Svg>
+        <Animated.View
+          style={[StyleSheet.absoluteFill, props.arrival ? { opacity: props.arrival.names } : null]}
+          pointerEvents="none"
+        >
+          <Svg width={size.width} height={size.height} style={StyleSheet.absoluteFill} pointerEvents="none">
+            {chart.charted.map((cell) => {
+              const at = spots.get(cell.objectId);
+              if (!at || cell.objectId === selectedId || cell.objectId === marked?.objectId || !drawn(cell))
+                return null;
+              return (
+                <ScreenName
+                  key={cell.objectId}
+                  x={at.x}
+                  y={at.y}
+                  text={names.get(cell.objectId) ?? ''}
+                  opacity={selectedId ? 0.8 : 1}
+                />
+              );
+            })}
+          </Svg>
+        </Animated.View>
         {chosen ? (
           <SelectedName at={spots.get(chosen.objectId)} text={names.get(chosen.objectId) ?? ''} width={size.width} />
         ) : null}

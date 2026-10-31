@@ -26,6 +26,19 @@ const BAND_HEIGHT = 360;
 /** The design's globe is 292 wide, with a ring 430 wide and a moon 40 wide. */
 const DESIGN_GLOBE = 292;
 
+/** Where a planet's globe sits on a stage of the given size: its centre and diameter in layout pixels. */
+export function globePlacement(size: { readonly width: number; readonly height: number }): {
+  readonly x: number;
+  readonly y: number;
+  readonly diameter: number;
+} {
+  return {
+    x: size.width / 2,
+    y: size.height * 0.44,
+    diameter: Math.round(Math.min(size.width * 0.75, size.height * 0.36, 420)),
+  };
+}
+
 const unique = (raw: string) => raw.replaceAll(/[^a-zA-Z0-9]/g, '');
 
 /** The land of one copy of the band: shallows, foam, every continent in colour, patches and coasts. */
@@ -320,10 +333,9 @@ export interface PlanetGlobeProps {
  */
 export function PlanetGlobe(props: PlanetGlobeProps) {
   const { world, chart, palette, labels, size, frame, reducedMotion, rings, moon, onLand, landLabel } = props;
-  const diameter = Math.round(Math.min(size.width * 0.75, size.height * 0.36, 420));
+  const { diameter, ...centre } = globePlacement(size);
   const unit = diameter / BAND_HEIGHT;
   const scale = diameter / DESIGN_GLOBE;
-  const centre = { x: size.width / 2, y: size.height * 0.44 };
   const motion = useGlobeMotion({ reducedMotion, spin: frame.x / unit, unit, radius: diameter / 2 });
   const focus = useFocusRing('onDark');
   const bandWidth = BAND * 2 * unit;
