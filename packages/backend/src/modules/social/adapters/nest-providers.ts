@@ -6,10 +6,12 @@ import {
   READ_CONTENT_SEQUENCE,
   READ_PUBLIC_CONTENT,
   READ_SHAREABLE_CONTENT,
+  READ_SCROLL_PLAY_FACTS,
   RESOLVE_SNIPPET_ANCHOR,
   VALIDATE_SNIPPET_ANCHOR,
   type CheckAssetAudience,
   type ReadContentSequence,
+  type ReadScrollPlayFacts,
   type ReadPublicContent,
   type ReadShareableContent,
   type ResolveSnippetAnchor,
@@ -20,9 +22,11 @@ import { makeConversationCommands } from '../application/conversation-commands.j
 import { makeThreadCommands } from '../application/thread-commands.js';
 import { makeThreadReads } from '../application/thread-reads.js';
 import { makePlaces } from '../application/thread-places.js';
-import type { ThreadPorts } from '../application/thread-ports.js';
+import { makeThreadCalls } from '../application/thread-calls.js';
+import type { ThreadCallPorts, ThreadPorts } from '../application/thread-ports.js';
 import { threadIdFor, threadStore } from './postgres-threads.js';
 import { placeStore } from './postgres-thread-places.js';
+import { callStore } from './postgres-thread-calls.js';
 import { makeThreadGuest } from '../application/thread-guest.js';
 import { makeAnnounceThread, makeReadThreadStanding, sequenceOf } from './postgres-thread-guest.js';
 import { makeConversationReads } from '../application/conversation-reads.js';
@@ -36,8 +40,13 @@ import { makeInvites } from '../application/invites.js';
 import { rosterStore } from './postgres-rosters.js';
 import { inviteStore } from './postgres-invites.js';
 import { rosterCursorCodec } from './roster-cursor.js';
-import type { FenceAccountPair, FenceOwnAccount, WithPersonalScope } from '../../identity/public.js';
-import { FENCE_ACCOUNT_PAIR, FENCE_OWN_ACCOUNT } from '../../identity/public.js';
+import type {
+  FenceAccountPair,
+  FenceOwnAccount,
+  FencePersonalRecording,
+  WithPersonalScope,
+} from '../../identity/public.js';
+import { FENCE_ACCOUNT_PAIR, FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '../../identity/public.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import { requestHash, type CanonicalJson } from '../../../infrastructure/receipts/index.js';
 import { makeReadProfile, makeSetProfile } from '../application/profiles.js';
@@ -196,6 +205,7 @@ function threadPorts(deps: ThreadDeps): ThreadPorts {
     conversations: conversationStore(deps.readContent),
     threads: threadStore,
     places: placeStore,
+    calls: callStore,
     threadIdFor,
     readSequence: deps.readSequence,
     readVisited: deps.readVisited,
@@ -204,10 +214,20 @@ function threadPorts(deps: ThreadDeps): ThreadPorts {
   };
 }
 
+/** What the call commands read beyond a thread's own ports: the Scroll's calls and the recording gate (D-083). */
+interface ThreadCallDeps {
+  readCallFacts: ReadScrollPlayFacts;
+  fenceRecording: FencePersonalRecording;
+}
+
 /** Content threads over the same ports plus the content and experience reads they need. */
-export function threadUseCases(deps: ThreadDeps): ThreadUseCases {
-  const ports = threadPorts(deps);
-  return { ...makeThreadCommands(ports), ...makeThreadReads(ports), ...makePlaces(ports) };
+export function threadUseCases(deps: ThreadDeps & ThreadCallDeps): ThreadUseCases {
+  const ports: ThreadCallPorts = {
+    ...threadPorts(deps),
+    readCallFacts: deps.readCallFacts,
+    fenceRecording: deps.fenceRecording,
+  };
+  return { ...makeThreadCommands(ports), ...makeThreadReads(ports), ...makePlaces(ports), ...makeThreadCalls(ports) };
 }
 
 /** What other modules may do inside a thread, over the same ports (see `ThreadGuest`). */
@@ -237,6 +257,8 @@ const THREAD_INJECTIONS = (tokens: { readonly withPersonalScope: symbol }) => [
   VALIDATE_SNIPPET_ANCHOR,
   RESOLVE_SNIPPET_ANCHOR,
   CHECK_ASSET_AUDIENCE,
+  READ_SCROLL_PLAY_FACTS,
+  FENCE_PERSONAL_RECORDING,
 ];
 
 function threadDepsOf(
@@ -249,7 +271,9 @@ function threadDepsOf(
   validateSnippet: ValidateSnippetAnchor,
   resolveSnippet: ResolveSnippetAnchor,
   audience: CheckAssetAudience,
-): ThreadDeps {
+  readCallFacts: ReadScrollPlayFacts,
+  fenceRecording: FencePersonalRecording,
+): ThreadDeps & ThreadCallDeps {
   return {
     withScope,
     fencePair,
@@ -258,6 +282,8 @@ function threadDepsOf(
     readSequence,
     readVisited,
     ...gateSnippetAnchors(audience, validateSnippet, resolveSnippet),
+    readCallFacts,
+    fenceRecording,
   };
 }
 

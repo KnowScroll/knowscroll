@@ -431,6 +431,15 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
   all 3 parts"), `placeDay` (the day as a date, "Sat 24 Oct", never a time or "today"), `partyLine` ("Ravi is on Part 2 ·
   Asha and Kenji on Part 1", "All finished"), `facesByPart`. No line says "watching". _Implemented; exercised in browsers
   locally, not yet on dev._
+- `createThreadCalls({scope, thread, newId})` (`thread-calls.ts`, Call it together, D-155 to D-157): `load` reads the calls this person
+  may see (one per part with an authored question, each in the stage it is in: counts, the person's own pick, or the reveal);
+  `lock(part, option)` sends the pick with the recording generation, and nothing else. It sends nothing while the recording
+  policy says paused (the state says so), reads the policy again and sends once more on a stale generation, never throws,
+  ignores a second press while one is on its way, and may be pressed again after a lost answer because the first lock stands.
+  The calls are read again after every answer. A failed read keeps what was shown. When the account scope ends the controller
+  drops what it read, other members' revealed picks included, and shows nothing more. `call-words.ts` holds the words
+  (`callSummaryWords`, `callChipWords`, `revealWords`: "Called it!" with a spark, or "Plot twist!" and no loss) and `callForBar`.
+  _Implemented; exercised in browsers locally, not yet on dev._
 - `createExploreWithFriends(...)`: lists friends (`friends.recentCount` of the first items are people the person already talks to), creates the thread with one command ID per intent, and reports
   `created`, `unavailable` or `unconfirmed` (retry sends the identical command, so it cannot make two threads).
 - `readThreadSummaries`, `findThread`, `threadRowView`, `describeThreadMessage`: Talk rows for threads.

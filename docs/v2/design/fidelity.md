@@ -149,3 +149,16 @@ R3 pages p-04 (end to end), p-07 (Today channel), p-09 (on the Universe map) and
 - Dev content is MiniMax-written, so titles differ from the authored examples; only structure, copy and look were compared.
 - Fixture rows were produced over the production export with route-mocked HTTP, not from a backend.
 - Room faces (R-4) were built after this audit and are not rows above. R3's emblem set has fourteen glyphs; the app draws sixteen (D-172 adds a globe and a cell, drawn in the same flat style), since Earth and the human body had no fitting glyph.
+
+## v3 Talk (T3): Call it together (v3 T-E, #485)
+
+The card, the bar and the chip are built from T3 page 4 (frames 2, 4 and 5 and the desktop panel); `apps/client/e2e/thread-calls-smoke.spec.ts` draws them at 390 x 844 and 1440 x 900 over fixtures, not on dev yet. Differences left on purpose:
+
+| T3 frame | Difference | Why |
+|---|---|---|
+| 5, the reveal | No common guess from other threads. T3 and R3 question 16 lean towards one past 30 calls; the card shows only the Scroll's own reviewed note ("The common guess. Source: …") to a member whose pick was that guess, and nothing otherwise. | A live count of picks can be differenced by one account or a small group to read a hidden pick, and a count threshold cannot stop that (D-157). Taken for the owner. |
+| 5, the footer | "WATCHED BY ALL 4 · REVEALED 12:41" is "n of m have called · revealed together". | A pick and a place carry a day, never a clock time or "watched" (D-065, D-152, D-155). |
+| 4, Lock it in | The library's ink button, grey while no option is chosen; T3 draws it dark green and always on. | The Components button set has no green variant. |
+| 4, where it sits | The card sits above the "What if" bar and the composer and opens from a yellow bar or a part's chip; it does not open by itself. | The conversation keeps over 60 % of a phone (D-140). |
+| 2, the chip | "★ Call it first · 2 of 4 in" on a part's row; the desktop panel's "Call it together for Part 3 · 0 of 4" reads the same way. | One chip for both widths. |
+| 5, the party | "ALL 4 FINISHED PART 2 · 12:40" in the stream is not built. | The server keeps no history of places (D-153). |

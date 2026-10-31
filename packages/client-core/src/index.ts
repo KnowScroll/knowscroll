@@ -78,6 +78,16 @@ export {
   type QuoteView,
 } from './talk-reply';
 export { allFinished, facesByPart, joinNames, partyLine, placeDay, placeWords } from './party-lines';
+export { createThreadCalls, type ThreadCallsController, type ThreadCallsState } from './thread-calls';
+export {
+  callChipWords,
+  callForBar,
+  callKey,
+  callPartLabel,
+  callSummaryWords,
+  optionLetter,
+  revealWords,
+} from './call-words';
 export {
   createThreadPlaces,
   placeProgress,

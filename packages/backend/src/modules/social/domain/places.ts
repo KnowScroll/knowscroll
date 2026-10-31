@@ -22,7 +22,7 @@ export interface StoredPlace {
 export const dayOf = (now: Date): string => now.toISOString().slice(0, 10);
 
 /** How far along a place is: finishing a part sits between being on it and being on the next. */
-const progress = (place: Pick<StoredPlace, 'part' | 'state'>): number =>
+export const placeProgress = (place: Pick<StoredPlace, 'part' | 'state'>): number =>
   place.part * 2 + (place.state === 'finished' ? 1 : 0);
 
 export type PlaceMove = { readonly kind: 'keep' } | { readonly kind: 'store'; readonly place: StoredPlace };
@@ -37,7 +37,7 @@ export function movePlace(
   reported: Pick<StoredPlace, 'part' | 'state'>,
   today: string,
 ): PlaceMove {
-  if (current !== undefined && progress(reported) <= progress(current)) return { kind: 'keep' };
+  if (current !== undefined && placeProgress(reported) <= placeProgress(current)) return { kind: 'keep' };
   return { kind: 'store', place: { part: reported.part, state: reported.state, day: today } };
 }
 
@@ -75,7 +75,7 @@ export function shownPlaces<M extends PlaceMember>(input: {
   const compare = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0);
   return shown.toSorted(
     (left, right) =>
-      progress(left.place) - progress(right.place) ||
+      placeProgress(left.place) - placeProgress(right.place) ||
       compare(input.nameOf(left.member), input.nameOf(right.member)) ||
       compare(left.member.accountId, right.member.accountId),
   );

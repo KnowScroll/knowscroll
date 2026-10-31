@@ -1,7 +1,8 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import type { ThreadEpisode, ThreadPlace } from '@knowscroll/contracts';
+import type { ThreadCall, ThreadEpisode, ThreadPlace } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, target } from '@knowscroll/design-tokens';
 import { Icon, Tag, Text, useFocusRing } from '@knowscroll/ui';
+import { CallChip } from './call-together';
 import { episodeKeys, episodeLabel, episodePlace } from './episode-navigator';
 import { PartFaces, partPlacesWords } from './party';
 
@@ -10,49 +11,64 @@ function EpisodeRow({
   selected,
   series,
   faces,
+  call,
   onSelect,
+  onCall,
 }: {
   readonly episode: ThreadEpisode;
   readonly selected: boolean;
   readonly series: boolean;
   /** The members who share a place on this part. */
   readonly faces: readonly ThreadPlace[] | undefined;
+  /** The part's call, when its Scroll has one (D-155). */
+  readonly call: ThreadCall | undefined;
   readonly onSelect: () => void;
+  readonly onCall: ((part: number) => void) | undefined;
 }) {
   const focus = useFocusRing('onLight');
   return (
-    <Pressable
-      {...focus.props}
-      role="button"
-      aria-pressed={selected}
-      accessibilityLabel={[episodeLabel(episode, selected, series), partPlacesWords(faces)].filter(Boolean).join('. ')}
-      onPress={onSelect}
-      style={[
-        styles.row,
-        selected ? styles.selected : null,
-        episode.state === 'unavailable' ? styles.dashed : null,
-        focus.style,
-      ]}
-      testID={`episode-${episode.assetId}`}
-    >
-      <View style={styles.tile}>
-        <Icon name={episode.kind === 'reel' ? 'reel' : 'scroll'} size={20} color={content.paper} />
-      </View>
-      <View style={styles.text}>
-        <Text variant="monoXs" color={content.ink2}>
-          {episodePlace(episode, series)}
-        </Text>
-        <Text variant="uiS" numberOfLines={2}>
-          {episode.title}
-        </Text>
-        <PartFaces faces={faces} />
-      </View>
-      <View style={styles.states}>
-        {selected ? <Tag variant="part" label="Now" /> : null}
-        {episode.state === 'corrected' ? <Tag variant="corrected" label="Updated" /> : null}
-        {episode.visited ? <Icon name="check" size={16} color={content.ink} /> : null}
-      </View>
-    </Pressable>
+    <View style={styles.entry}>
+      <Pressable
+        {...focus.props}
+        role="button"
+        aria-pressed={selected}
+        accessibilityLabel={[episodeLabel(episode, selected, series), partPlacesWords(faces)]
+          .filter(Boolean)
+          .join('. ')}
+        onPress={onSelect}
+        style={[
+          styles.row,
+          selected ? styles.selected : null,
+          episode.state === 'unavailable' ? styles.dashed : null,
+          focus.style,
+        ]}
+        testID={`episode-${episode.assetId}`}
+      >
+        <View style={styles.tile}>
+          <Icon name={episode.kind === 'reel' ? 'reel' : 'scroll'} size={20} color={content.paper} />
+        </View>
+        <View style={styles.text}>
+          <Text variant="monoXs" color={content.ink2}>
+            {episodePlace(episode, series)}
+          </Text>
+          <Text variant="uiS" numberOfLines={2}>
+            {episode.title}
+          </Text>
+          <PartFaces faces={faces} />
+        </View>
+        <View style={styles.states}>
+          {selected ? <Tag variant="part" label="Now" /> : null}
+          {episode.state === 'corrected' ? <Tag variant="corrected" label="Updated" /> : null}
+          {episode.visited ? <Icon name="check" size={16} color={content.ink} /> : null}
+        </View>
+      </Pressable>
+      {call === undefined || onCall === undefined ? null : (
+        // Beside the row, not inside it: a press on the chip opens the call and does not choose the part.
+        <View style={styles.call}>
+          <CallChip call={call} onOpen={() => onCall(call.part)} />
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -69,18 +85,24 @@ export function EpisodeList({
   selected,
   series,
   places,
+  calls,
   onSelect,
   onStep,
+  onCall,
 }: {
   readonly episodes: readonly ThreadEpisode[];
   readonly selected: string;
   readonly series: boolean;
   /** The members who share where they are: their faces sit on the parts they are on (D-065). */
   readonly places?: readonly ThreadPlace[] | undefined;
+  /** The calls of the parts that have one: a chip sits under the part's row (D-155). */
+  readonly calls?: readonly ThreadCall[] | undefined;
   /** A press or Enter on a row: choose it (a sheet closes). */
   readonly onSelect: (assetId: string) => void;
   /** An arrow key: move the selection to the neighbour and nothing else (a sheet stays open). */
   readonly onStep: (assetId: string) => void;
+  /** Opens the call before a part. */
+  readonly onCall?: ((part: number) => void) | undefined;
 }) {
   const current = episodes.findIndex((episode) => episode.assetId === selected);
   const onKeyDown = episodeKeys((by) => {
@@ -102,7 +124,9 @@ export function EpisodeList({
           selected={episode.assetId === selected}
           series={series}
           faces={episode.part === undefined ? undefined : facesOn(places, episode.part)}
+          call={episode.part === undefined ? undefined : calls?.find((call) => call.part === episode.part)}
           onSelect={() => onSelect(episode.assetId)}
+          onCall={onCall}
         />
       ))}
     </View>
@@ -116,6 +140,8 @@ const facesOn = (places: readonly ThreadPlace[] | undefined, part: number): read
 
 const styles = StyleSheet.create({
   list: { gap: spacing[2] },
+  entry: { gap: spacing[1] },
+  call: { paddingHorizontal: spacing[2] },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

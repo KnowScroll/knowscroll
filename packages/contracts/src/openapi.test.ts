@@ -398,6 +398,8 @@ describe('the API contract', () => {
       '/v1/social/threads/places/read': ['post'],
       '/v1/social/threads/places/set': ['post'],
       '/v1/social/threads/places/hide': ['post'],
+      '/v1/social/threads/calls/read': ['post'],
+      '/v1/social/threads/calls/lock': ['post'],
       '/v1/social/scenarios/draft': ['post'],
       '/v1/social/scenarios/draft/read': ['post'],
       '/v1/social/scenarios/choose': ['post'],

@@ -204,13 +204,21 @@ export const socialStore: SocialStore = {
         .where('account_id', '=', s.accountId)
         .execute();
   },
-  async forgetPlacesBetween(lock, accountA, accountB) {
+  async forgetPartyBetween(lock, accountA, accountB) {
+    const trx = sharedTransactionOf(lock.shared);
     await sql`
       delete from social.thread_places place using social.conversation_members member
       where member.conversation_id = place.thread_id and member.account_id = place.account_id
         and ((member.account_id = ${accountA}::uuid and member.invited_by_account_id = ${accountB}::uuid)
           or (member.account_id = ${accountB}::uuid and member.invited_by_account_id = ${accountA}::uuid))`.execute(
-      sharedTransactionOf(lock.shared),
+      trx,
+    );
+    await sql`
+      delete from social.thread_calls pick using social.conversation_members member
+      where member.conversation_id = pick.thread_id and member.account_id = pick.account_id
+        and ((member.account_id = ${accountA}::uuid and member.invited_by_account_id = ${accountB}::uuid)
+          or (member.account_id = ${accountB}::uuid and member.invited_by_account_id = ${accountA}::uuid))`.execute(
+      trx,
     );
   },
   async binding(lock, actor, operation, command) {

@@ -151,6 +151,20 @@ module.exports = {
       to: { path: '^packages/backend/src/modules/play/' },
     },
     {
+      name: 'thread-pick-wall-only-listed-modules-import-social',
+      comment:
+        "The same wall around a pick on a thread's call (D-063, D-156), an allow-list. Social stores it (`social.thread_calls`) because it needs the thread's lock, its members, their places and the blocks between them, so the wall that `play` has cannot surround it. Which option a member picked is a play result: no module that ranks, plans, remembers or forms places may import Social, whatever it is called today or tomorrow, and a path through a module that is not on the list (planner imports supply, so planner to supply to social) would go unseen if the rule named the modules to fear. Only Social itself, the modules that already use its people, friends and thread reads (feedback, rooms, scenarios: none of those reads carries a pick, and the table is not named outside Social: see `social/wall.test.ts`), and the erasure registry may import it; a later module must be added here on purpose.",
+      severity: 'error',
+      from: {
+        path: '^packages/',
+        pathNot: [
+          '^packages/backend/src/modules/(?:social|feedback|rooms|scenarios)/',
+          '^packages/backend/src/erasure-registry\\.ts$',
+        ],
+      },
+      to: { path: '^packages/backend/src/modules/social/' },
+    },
+    {
       name: 'play-wall-play-imports-three-public-surfaces',
       comment:
         "The other side of the wall, also an allow-list: play imports only the public surfaces of identity (the personal scope and the recording gate), content (the immutable revision's calls) and experience (the activated exposure), plus infrastructure and contracts. It imports none of the modules that derive from behaviour, the reasoning engine, or any module added later, so it cannot write to them or read their state to decide what a pick is worth.",

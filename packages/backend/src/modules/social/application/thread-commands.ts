@@ -349,7 +349,8 @@ export function makeThreadCommands(p: ThreadPorts) {
 
     /**
      * Ends the caller's place. The thread goes on for the others; whoever the caller invited now stands
-     * on their own membership. The caller's messages stay, and their party place (D-065) is deleted.
+     * on their own membership. The caller's messages stay, and their party place (D-065) and their picks on the
+     * thread's calls (D-156) are deleted.
      */
     leave(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadLeaveAcceptanceSchema>>> {
       const parsed = LeaveThreadSchema.safeParse(input);
@@ -366,6 +367,7 @@ export function makeThreadCommands(p: ThreadPorts) {
             ok({
               write: async () => {
                 await p.places.remove(entered.lock, entered.owner.accountId);
+                await p.calls.removeOf(entered.lock, entered.owner.accountId);
                 await p.threads.leave(entered.lock, entered.owner.accountId, now);
                 return ThreadLeaveAcceptanceSchema.parse({
                   ...receiptBase(scope, now, command.commandId),

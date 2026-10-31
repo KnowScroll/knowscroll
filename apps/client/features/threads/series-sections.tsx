@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import type { ThreadEpisode, ThreadPlace } from '@knowscroll/contracts';
+import type { ThreadCall, ThreadEpisode, ThreadPlace } from '@knowscroll/contracts';
 import { content, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 import { EpisodeList } from './episode-list';
@@ -21,8 +21,10 @@ export function PartsSection({
   series,
   heading,
   places,
+  calls,
   onSelect,
   onStep,
+  onCall,
   onMap,
 }: {
   readonly episodes: readonly ThreadEpisode[];
@@ -32,8 +34,12 @@ export function PartsSection({
   readonly heading: string | undefined;
   /** The members who share where they are, for the faces on their parts. */
   readonly places?: readonly ThreadPlace[] | undefined;
+  /** The calls of the parts that have one, with a chip under each part's row (D-155). */
+  readonly calls?: readonly ThreadCall[] | undefined;
   readonly onSelect: (assetId: string) => void;
   readonly onStep: (assetId: string) => void;
+  /** Opens the call before a part. */
+  readonly onCall?: ((part: number) => void) | undefined;
   /** Offered only once the thread has several branches (X04); never for a first exploration. */
   readonly onMap: (() => void) | undefined;
 }) {
@@ -49,8 +55,10 @@ export function PartsSection({
         selected={selected}
         series={series}
         places={places}
+        calls={calls}
         onSelect={onSelect}
         onStep={onStep}
+        onCall={onCall}
       />
       {onMap === undefined ? null : (
         <Button label="Map" size="sm" variant="ghost" onPress={onMap} testID="thread-map-button" />
