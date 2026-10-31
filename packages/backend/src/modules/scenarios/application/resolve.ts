@@ -1,7 +1,7 @@
 import type { AnnounceThread } from '../../social/public.js';
 import type { ReadMadeToOrderProduction } from '../../content/public.js';
 import { madeToOrderKey } from '../../content/public.js';
-import { branchProgress, type ProductionStanding } from '../domain/progress.js';
+import { answerWaitOver, branchProgress, type ProductionStanding } from '../domain/progress.js';
 import type { BranchPoolStore } from './ports.js';
 
 export interface ResolveBranchesPorts {
@@ -17,6 +17,8 @@ export interface ResolveSummary {
   readonly bound: number;
   readonly failed: number;
   readonly sent: number;
+  /** Short answers whose wait was ended as unavailable. */
+  readonly answersEnded: number;
 }
 
 /** How many preparing branches one sweep looks at. */
@@ -30,6 +32,9 @@ const SWEEP_LIMIT = 50;
  * research or answers, and makes no model call. Each branch is its own transaction, so one stuck row
  * delays only itself, and a branch another transaction holds is left for the next sweep.
  *
+ * It also ends the wait for a short answer that has been in the making too long (D-211): the card then says there
+ * will be none, and an answer that arrives later is dropped by the worker.
+ *
  * After a change commits it tells the thread's inboxes; the hint is disposable, and the screens poll,
  * so a crash between the two loses an update's speed and nothing else.
  */
@@ -38,6 +43,7 @@ export function makeResolveBranches(p: ResolveBranchesPorts) {
     let bound = 0;
     let failed = 0;
     let sent = 0;
+    let answersEnded = 0;
     for (const branch of await p.store.preparing(SWEEP_LIMIT)) {
       const recipe = madeToOrderKey(branch.nodeId);
       const reading = await p.readProduction(recipe);
@@ -67,6 +73,13 @@ export function makeResolveBranches(p: ResolveBranchesPorts) {
         await p.announce(settled.threadId).catch(() => undefined);
       }
     }
-    return { bound, failed, sent };
+    for (const waiting of await p.store.answersMaking(SWEEP_LIMIT)) {
+      if (!answerWaitOver(p.now().getTime() - waiting.createdAt.getTime())) continue;
+      const settled = await p.store.settleAnswerUnavailable(waiting.nodeId, p.now());
+      if (settled === undefined) continue;
+      answersEnded += 1;
+      await p.announce(settled.threadId).catch(() => undefined);
+    }
+    return { bound, failed, sent, answersEnded };
   };
 }

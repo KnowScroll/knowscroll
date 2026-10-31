@@ -382,7 +382,7 @@ routes. Each handler calls `SCENARIO_USE_CASES` and maps a refusal to the closed
 (`invalid_input` to `INVALID_REQUEST`, `stale_revision` to `SHARING_REVISION_STALE`, `command_key_reused` to
 `COMMAND_KEY_REUSED`, `budget_unavailable` to `TOO_MANY_REQUESTS`, `unsupported` to `UNPROCESSABLE_REQUEST`,
 `unavailable` to `SHARING_UNAVAILABLE`). Membership, the parent's revision, the caps and idempotence are decided in the use
-cases; no handler waits for a model. The API also reads `KS_SUPPLY_SCENARIO_DAILY_CAP` and `KS_SUPPLY_SCENARIO_THREAD_CAP`.
+cases; no handler waits for a model. The API also reads `KS_SUPPLY_SCENARIO_DAILY_CAP` and `KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP` (five a day per thread, D-158).
 Tests: `tests/integration/modules/scenarios.test.ts`. *Implemented. Not yet run on dev.*
 
 ### Play (#473, D-180)

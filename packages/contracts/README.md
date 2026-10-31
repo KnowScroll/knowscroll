@@ -953,7 +953,8 @@ Related: #370, #241, #242.
 `send`, caller-only `mark-read`, `mute` and `leave`. A current accepted friend may start
 one direct two-human conversation. Existing Friends/profile/invite/visibility/presence/visitor
 contracts and their partial unmounted backend remain unchanged. These declarations mount
-nothing. Group/thread invitations, content threads, snippets/anchors/block settings, scenarios,
+nothing. Group/thread invitations, content threads, snippets/anchors/block settings, scenarios (a what-if's card carries an optional
+`answer`: `making`, `unavailable` or `ready` with the assumption, the answer, up to three figures and a fixed `madeBy: 'knowscroll'`, D-211),
 rooms, typing, AI participants and Social sockets are separate phases. Never display authored
 contacts, messages or availability as real activity. Missing features stay explicitly unavailable.
 

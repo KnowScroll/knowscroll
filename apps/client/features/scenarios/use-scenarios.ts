@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import {
   TALK_QUERY_KEY,
+  awaitingServer,
   createScenarioBoard,
   createScenarioComposer,
   type AccountScope,
@@ -13,7 +14,10 @@ import {
 import type { ContentThreadRef } from '@knowscroll/contracts';
 import { newCommandId } from '../../platform/command-id';
 
-/** How often the branches are read again while one is preparing, and while none is (a lost hint is repaired by this). */
+/**
+ * How often the branches are read again while one is preparing or its short answer is being made (about 30 s: the card
+ * should appear soon after it is ready), and while none is (a lost hint is repaired by this).
+ */
 const PREPARING_POLL_MS = 5_000;
 const IDLE_POLL_MS = 20_000;
 /** How often an open composer looks at its draft while the directions are being thought of. */
@@ -29,7 +33,7 @@ export function useScenarioBoard(
 ): { readonly controller: ScenarioBoardController; readonly state: ScenarioBoardState } {
   const [controller] = useState(() => createScenarioBoard({ scope, thread, newId: newCommandId }));
   const state = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
-  const preparing = state.cards.some((card) => card.status === 'preparing');
+  const preparing = awaitingServer(state.cards);
   useQuery({
     queryKey: scope.queryKey(TALK_QUERY_KEY, 'scenario-board', thread.threadId),
     queryFn: async () => {

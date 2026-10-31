@@ -1,8 +1,9 @@
 import type { PersonalAuthority, PersonalScopeTx, ReadOn, WithPersonalScope } from '../../identity/public.js';
-import type { ReadScrollSourcePages, ReadShareableContent } from '../../content/public.js';
+import type { ReadScrollEvidence, ReadScrollSourcePages, ReadShareableContent } from '../../content/public.js';
 import type { ReadVisitedAssets } from '../../experience/public.js';
 import type { CommissionScenarioOrder } from '../../supply/public.js';
-import type { ThreadGuest } from '../../social/public.js';
+import type { AnnounceThread, ThreadGuest } from '../../social/public.js';
+import type { StoredAnswer } from '../domain/answer-card.js';
 import type { Assumption, StepChange } from '../domain/assumptions.js';
 import type { ScenarioKind } from '../domain/exploration.js';
 
@@ -50,6 +51,19 @@ export type NewDraft = Omit<DraftRow, 'state' | 'failure' | 'mode' | 'options' |
 
 export type NodeStatus = 'preparing' | 'ready' | 'failed' | 'removed';
 
+/**
+ * The short answer of a what-if branch (D-211): being written, shown, or not coming. Absent for a perspective, a
+ * removed branch and a branch made before short answers existed.
+ */
+export type NodeAnswer =
+  | { readonly state: 'making' }
+  | { readonly state: 'unavailable'; readonly settledAt: Date }
+  | { readonly state: 'ready'; readonly settledAt: Date; readonly stored: StoredAnswer };
+
+/** How a short answer ended. */
+export type AnswerSettlement =
+  { readonly kind: 'ready'; readonly stored: StoredAnswer } | { readonly kind: 'unavailable' };
+
 /** A branch of the thread: one node of its exploration graph. */
 export interface NodeRow {
   readonly nodeId: string;
@@ -73,10 +87,14 @@ export interface NodeRow {
   readonly assetId: string;
   readonly assetRevision?: number;
   readonly assetTitle?: string;
+  readonly answer?: NodeAnswer;
   readonly createdAt: Date;
 }
 
-export type NewNode = Omit<NodeRow, 'status' | 'revision' | 'assetRevision' | 'assetTitle'>;
+/** A node as it is made: its answer, if it gets one, is being written. */
+export type NewNode = Omit<NodeRow, 'status' | 'revision' | 'assetRevision' | 'assetTitle' | 'answer'> & {
+  readonly answerMaking: boolean;
+};
 
 /** What the resolver does with a preparing branch. */
 export type Settlement =
@@ -113,8 +131,14 @@ export interface ScenarioStore {
   /** This member's ready, unexpired, unchosen drafts in the thread, newest first: the directions they have not made. */
   listOpenDrafts(scope: PersonalScopeTx, accountId: string, threadId: string, now: Date): Promise<readonly DraftRow[]>;
   findLiveByMeaning(scope: PersonalScopeTx, threadId: string, semanticKey: string): Promise<NodeRow | undefined>;
-  /** Sets `removed` and moves the revision. */
+  /** Sets `removed`, moves the revision and clears the short answer: a removed branch keeps nothing it said. */
   removeNode(scope: PersonalScopeTx, nodeId: string): Promise<NodeRow>;
+  /**
+   * Stores how the short answer ended, only while it is being made and the branch stands; false otherwise.
+   * It does not move the card's revision: a person who is about to remove or continue the branch does not
+   * find it changed under them because words arrived.
+   */
+  finishAnswer(scope: PersonalScopeTx, nodeId: string, settlement: AnswerSettlement, now: Date): Promise<boolean>;
 }
 
 /** Reads and writes that need no personal scope: the resolver's, and the audience check. Each write is its own short transaction. */
@@ -129,6 +153,15 @@ export interface BranchPoolStore {
    * nothing changed.
    */
   settle(nodeId: string, settlement: Settlement, now: Date): Promise<{ readonly threadId: string } | undefined>;
+  /** Branches whose short answer is still being written, oldest first. */
+  answersMaking(
+    limit: number,
+  ): Promise<readonly { readonly nodeId: string; readonly threadId: string; readonly createdAt: Date }[]>;
+  /**
+   * Ends a short answer that is still being written as `unavailable` (the wait took too long), unless another
+   * transaction holds the branch. Returns the thread to tell, or `undefined` when nothing changed.
+   */
+  settleAnswerUnavailable(nodeId: string, now: Date): Promise<{ readonly threadId: string } | undefined>;
   /** The branch that holds each of these Scrolls (by asset), where one does. Reads on `on`: a scope's own transaction, or the pool. */
   holdersOfAssets(
     on: ReadOn,
@@ -149,6 +182,14 @@ export interface DraftWorkerPorts {
   readonly now: () => Date;
 }
 
+/** What the worker needs to write a short answer: the draft worker's reads, the Scroll's own cited claims and the hint. */
+export interface AnswerWorkerPorts extends DraftWorkerPorts {
+  /** The claims the thread root's Scroll cites, public research text the writer may cite in turn. */
+  readonly readEvidence: ReadScrollEvidence;
+  /** Tells the thread's inboxes the card changed, after a commit. Disposable: the screens poll. */
+  readonly announce: AnnounceThread;
+}
+
 /** What the HTTP commands need. */
 export interface ScenarioPorts extends DraftWorkerPorts {
   readonly readSourcePages: ReadScrollSourcePages;
@@ -157,6 +198,8 @@ export interface ScenarioPorts extends DraftWorkerPorts {
   readonly readVisited: ReadVisitedAssets;
   /** Sends the planner's job in the caller's transaction (once per draft). */
   readonly enqueueSuggest: (scope: PersonalScopeTx, job: { readonly draftId: string }) => Promise<void>;
+  /** Sends the short answer's job in the caller's transaction (once per branch). */
+  readonly enqueueAnswer: (scope: PersonalScopeTx, job: { readonly nodeId: string }) => Promise<void>;
   readonly hash: (operation: string, input: unknown) => string;
   /** A stable UUID derived from the parts, so a retried command finds its own rows again. */
   readonly stableId: (...parts: readonly string[]) => string;

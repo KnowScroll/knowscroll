@@ -730,7 +730,7 @@ form with earlier premises (add or replace) and the removed-branch note are cove
   chip, "Your idea"), thinking with "Write my own version", `direction-steps.tsx` (one clear idea as a summary with Edit and
   **Explore**, a few suggested directions each with **Explore this**, and the confirm step "Speculative scenario · not
   established science" with **Create branch**), `own-request-form.tsx` and `outcome-steps.tsx` (no suggestions, started,
-  and a plain message when blocked: no more branches for now, nothing to look up, offline). The words are kept on the
+  and a plain message when blocked: no more branches today ("This thread has made its five branches for today" when its own cards show five from today), nothing to look up, offline). The words are kept on the
   device until a branch exists. Asking never makes anything; only Explore, Explore this or Create branch does.
 - `own-request-form.tsx` is the member's own complete request: what changes, what stays, or the lens. Where the branch
   continues others, it lists the premises that already hold, and a changed line is either a new premise or **Replaces:
@@ -739,7 +739,15 @@ form with earlier premises (add or replace) and the removed-branch note are cove
   real subject; "Hypothetical" and the Changed and Kept chips (which wrap); Preparing with a stripe, Ready with **Explore this**,
   **What if…** (continue from this branch), and Remove for whoever asked; "Couldn't prepare this branch"; a removed branch
   stays in the chat as a quiet note. It shows nobody's position and no part number.
-- `use-scenarios.ts`: `useScenarioBoard` polls the branches every 20 seconds (5 while one is preparing) and on focus or
+- `what-if-card.tsx` (T3, D-211): a what-if that has, or is getting, a short answer is a paper card labelled "What-if · made by
+  KnowScroll". While it is made it says "Making a short what-if · about 30 s · keep chatting" with a bar and "We check it before it
+  posts" (after 90 s, "Taking longer than usual"); the one who asked can Cancel. Once ready it shows ASSUMED, CHANGED, KEPT, the answer
+  and any figure a source states, then **Open** (the full Scroll, once it exists, else a plain note) and **Branch again**. A what-if with
+  no short answer, a perspective and an old branch keep the card above, with "No short answer this time" where that is true. It
+  shows no source, score, prompt or model, and nothing about where anyone is. *Implemented; `thread-whatif-smoke.spec.ts` drives it
+  with two people at 390 by 844 and 1440 by 900 with axe. Not yet run with the real model.* Not drawn (D-213): Reply in branch, Call it
+  first, the Branches tab, the step list.
+- `use-scenarios.ts`: `useScenarioBoard` polls the branches every 20 seconds (5 while one is preparing or its short answer is being made) and on focus or
   reconnect; `useScenarioComposer` looks at its draft every 1.5 seconds while the directions are being thought of.
   `use-thread-scenarios.ts` holds where a request starts in one open thread, and `asks-bar.tsx` is the two buttons above the
   message box. The controllers are `createScenarioBoard` and `createScenarioComposer` in client-core.
