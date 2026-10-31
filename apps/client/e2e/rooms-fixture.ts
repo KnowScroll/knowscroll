@@ -98,6 +98,8 @@ export interface RoomFixtureOptions {
   readonly recordingPaused?: boolean;
   /** R-5: today's strip of the room view (the Today discussion, the approved question and whether there is a Spot the flaw). */
   readonly today?: Record<string, unknown>;
+  /** R-6: the room view's word for the Launch (ready, lobby, live or finished), read afresh each time; absent says nothing. */
+  readonly launch?: () => Record<string, unknown> | undefined;
 }
 
 /** Every request the fixture answered, in order, so a test can see what the screen asked for. */
@@ -288,6 +290,7 @@ export async function roomFixture(
           memberTotal: 24,
           sky: options.sky?.() ?? { lit: 0, of: 7, state: 'forming', finished: 0 },
           ...(options.today === undefined ? {} : { today: options.today }),
+          ...(options.launch?.() === undefined ? {} : { launch: options.launch() }),
           limits: {
             asked: { perPersonPerHour: 10, perRoomPerDay: 80 },
             unprompted: { humanMessagesPerTurn: 3, perHour: 8, perDay: 40, explainerPerHour: 4, skepticPerHour: 3 },

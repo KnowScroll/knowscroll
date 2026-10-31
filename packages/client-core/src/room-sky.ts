@@ -45,11 +45,21 @@ export function stationSkyLine(sky: Pick<RoomSky, 'lit' | 'state' | 'constellati
   return sky.constellationName === undefined ? base : `${base} · ${sky.constellationName}`;
 }
 
+/**
+ * A station's caption on the map: its sky line, and "Launch live" while the room is playing one (R3 E, D-178). The room's activity is
+ * shown to its members only, on their own map; a station that carries no `live` says nothing of it.
+ */
+export const stationCaption = (
+  sky: Pick<RoomSky, 'lit' | 'state' | 'constellationName'>,
+  live: boolean | undefined,
+): string => (live === true ? `${stationSkyLine(sky)} · Launch live` : stationSkyLine(sky));
+
 /** What a star is, in the act's own words: fixed text, never a message, a title or a person. */
 export const STAR_ACT_WORDS: Record<RoomStarAct, string> = {
   answer_useful: 'An answer someone found useful',
   debate_closed: 'A debate closed by vote',
   daily_solved: 'The day’s Spot the flaw found',
+  launch_finished: 'A Launch finished',
 };
 
 /**

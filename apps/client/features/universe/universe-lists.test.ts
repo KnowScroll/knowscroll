@@ -65,6 +65,21 @@ describe('the lists the Simple view, the panel and the dial share', () => {
     expect(rooms.find((room) => room.id === 'o')).not.toHaveProperty('caption');
   });
 
+  it('says a Launch is live in the room’s caption, only while it is and only on a station that carries it', () => {
+    const live = {
+      ...station('m', 's-b'),
+      sky: { lit: 3, of: 7, state: 'forming', finished: 0 },
+      live: true,
+    } as unknown as RoomStation;
+    const quiet = {
+      ...station('q', 's-b'),
+      sky: { lit: 3, of: 7, state: 'forming', finished: 0 },
+    } as unknown as RoomStation;
+    const { rooms } = listUniverse(index, [live, quiet], null);
+    expect(rooms.find((room) => room.id === 'm')?.caption).toBe('3 of 7 · Launch live');
+    expect(rooms.find((room) => room.id === 'q')?.caption).toBe('3 of 7');
+  });
+
   it('puts places with recent activity first only when Lately is on, and lists the same places either way', () => {
     const plain = listUniverse(index, [], null, false);
     const lately = listUniverse(index, [], null, true);
