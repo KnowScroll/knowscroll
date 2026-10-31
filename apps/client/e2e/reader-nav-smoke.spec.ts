@@ -216,6 +216,20 @@ async function shareFromMore(page: Page) {
   await expect(page.getByRole('heading', { name: 'Send to a conversation' })).toBeVisible();
 }
 
+test('closing ••• on a Part you moved on to stays on that Part', async ({ page }) => {
+  await openFromExplore(page);
+  await page.getByRole('button', { name: /^Part 2: / }).click();
+  const heading = page.getByRole('heading', { level: 1 });
+  await expect(heading).not.toHaveText('CI encounter fixture 1');
+  const part2 = await heading.innerText();
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
+  // Closing the sheet takes its history entry off; that must not read as the person's Back.
+  await page.waitForTimeout(500);
+  await expect(heading).toHaveText(part2);
+});
+
 for (const [name, viewport] of [
   ['phone', phone],
   ['desktop', desktop],
