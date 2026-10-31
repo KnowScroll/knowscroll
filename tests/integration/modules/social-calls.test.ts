@@ -1047,7 +1047,8 @@ describe('Call it together (real PostgreSQL)', () => {
      * how a thread whose root did not change comes to hold a newer Part 1 (the root's own revision is still in both).
      */
     async function releaseSecondRevision(world: Awaited<ReturnType<typeof party>>) {
-      const [first, second] = world.scrolls as [{ assetId: string }, { assetId: string }];
+      const [first, second] = world.scrolls;
+      if (first === undefined || second === undefined) throw new Error('CI series has two Scrolls');
       await seedCallRevision(database.db, first.assetId, 2, SECOND_REVISION_CALL);
       await declareSeries(
         database.db,
