@@ -13,6 +13,11 @@ import { moved, shownOrder, type Attempt } from './sort-state';
 /** Where a person is with a sort: still ordering, told how close they are, in order, or shown the order. */
 type Progress = 'ordering' | 'close' | 'right' | 'shown';
 
+/**
+ * One arrow of a card. At the end of the list it stays focusable and does nothing (`aria-disabled`, never
+ * `disabled`): a native disabled button drops keyboard focus to the page when a card reaches the top or the
+ * bottom, so a person moving a card with the keyboard would lose their place.
+ */
 function MoveButton({
   direction,
   item,
@@ -31,8 +36,8 @@ function MoveButton({
       accessibilityRole="button"
       accessibilityLabel={`Move "${item}" ${direction}`}
       aria-disabled={disabled}
-      disabled={disabled}
-      onPress={onPress}
+      accessibilityState={{ disabled }}
+      onPress={disabled ? undefined : onPress}
       hitSlop={4}
       style={[styles.move, disabled ? styles.moveOff : null, focus.style]}
     >
@@ -54,9 +59,15 @@ export function SortBody({ sort, asText }: { readonly sort: SortBlock; readonly 
   const [heard, setHeard] = useState('');
   const settled = progress === 'right' || progress === 'shown';
   const move = (place: number, by: -1 | 1) => {
-    setAttempt(moved(attempt, place, by));
-    setProgress('ordering');
     const item = sort.items[attempt[place] ?? 0] ?? '';
+    const next = moved(attempt, place, by);
+    // At an end nothing moves: say so, since the arrow stays focusable and a silent press would seem broken.
+    if (next === attempt) {
+      setHeard(`${item} is already ${by < 0 ? 'first' : 'last'}.`);
+      return;
+    }
+    setAttempt(next);
+    setProgress('ordering');
     setHeard(`${item} is now number ${String(place + by + 1)} of ${String(attempt.length)}.`);
   };
   const check = () => {
