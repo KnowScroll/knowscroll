@@ -33,7 +33,12 @@ export function RowLink({ label, onPress, href, children, current = false, testI
       {...currentPageSemantics(current)}
       accessibilityLabel={label}
       testID={testID}
-      style={({ pressed }) => [styles.row, current || pressed ? styles.pressed : null, current || pressed ? tintStyle(tint) : null, focus.style]}
+      style={({ pressed }) => [
+        styles.row,
+        current || pressed ? styles.pressed : null,
+        current || pressed ? tintStyle(tint) : null,
+        focus.style,
+      ]}
     >
       {children}
     </Pressable>

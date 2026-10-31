@@ -62,7 +62,10 @@ export function useOverlayHistory(visible: boolean, onClose: () => void): void {
  * overlay finds its entry gone and does not call Back, so Back would not pop the new marker and close the
  * screen's sheet at once.
  */
-export function claimOverlayEntry(state: unknown): { readonly state: Record<string, unknown>; readonly replace: boolean } {
+export function claimOverlayEntry(state: unknown): {
+  readonly state: Record<string, unknown>;
+  readonly replace: boolean;
+} {
   const base = { ...(typeof state === 'object' && state !== null ? (state as Record<string, unknown>) : {}) };
   if (overlayToken(base) === undefined) return { state: base, replace: false };
   delete base[marker];

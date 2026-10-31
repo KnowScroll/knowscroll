@@ -56,8 +56,7 @@ export function quoteView(
   loaded: readonly QuotableMessage[],
   ownPersonId?: string | undefined,
 ): QuoteView {
-  const nameOf = (person: PublicPersonRef): string =>
-    person.personId === ownPersonId ? 'You' : person.displayName;
+  const nameOf = (person: PublicPersonRef): string => (person.personId === ownPersonId ? 'You' : person.displayName);
   const own = loaded.find((candidate) => candidate.sequence === replyTo.sequence);
   if (own?.status === 'unavailable')
     return { messageId: replyTo.messageId, sequence: replyTo.sequence, author: undefined, preview: '' };

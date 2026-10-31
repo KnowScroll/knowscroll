@@ -68,13 +68,7 @@ export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProp
       pointerEvents="box-none"
       style={[styles.slot, { height: layout.tabBarSlot + insets.bottom, paddingBottom: insets.bottom }]}
     >
-      <TabBar
-        active={active}
-        onSelect={select}
-        hrefFor={destinationHref}
-        tone={tone}
-        unread={unread}
-      />
+      <TabBar active={active} onSelect={select} hrefFor={destinationHref} tone={tone} unread={unread} />
     </View>
   );
 }

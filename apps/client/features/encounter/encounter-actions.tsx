@@ -25,8 +25,7 @@ function useActionProps(
       } else if (action === 'share') {
         beforeOverlay?.();
         session.openShare();
-      }
-      else if (action === 'save' || action === 'like') {
+      } else if (action === 'save' || action === 'like') {
         if (state.actionPending || state.actionFailed) return;
         const on = action === 'save' ? entry.context.actions.saved : entry.context.actions.liked;
         session.act(on ? (action === 'save' ? 'unsave' : 'unlike') : action);

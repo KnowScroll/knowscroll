@@ -63,9 +63,7 @@ export function InhabitantBar({
           <Icon name={open ? 'chevronDown' : 'chevronUp'} size={20} />
         </Pressable>
       ) : null}
-      {shut ? null : (
-        <Panel inhabitants={inhabitants} asking={asking} onAsk={onAsk} compact={compact === true} />
-      )}
+      {shut ? null : <Panel inhabitants={inhabitants} asking={asking} onAsk={onAsk} compact={compact === true} />}
       {outcome === undefined ? null : (
         <View accessibilityLiveRegion="polite">
           <Text variant="metaS">{outcome}</Text>
@@ -145,7 +143,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     backgroundColor: content.paper,
   },
-  toggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing[2], minHeight: 44 },
+  toggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing[2],
+    minHeight: 44,
+  },
   toggleText: { flexShrink: 1 },
   list: { gap: spacing[2] },
   compact: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
