@@ -39,6 +39,7 @@ it('Back closes the panel before restoring a camera and unregisters; history car
   });
   const session = {
     back,
+    escape: () => false,
     getState: () => state,
     canBack: () => Boolean(state.overlay || state.historyDepth),
     subscribe: (listener: () => void) => {
@@ -87,6 +88,7 @@ it('Escape closes a selected-system card as well as a panel', () => {
   });
   const session = {
     back,
+    escape: back,
     getState: () => state,
     canBack: () => Boolean(state.overlay || state.selectedId),
     subscribe: (listener: () => void) => {
@@ -109,4 +111,71 @@ it('Escape closes a selected-system card as well as a panel', () => {
   expect(back).toHaveBeenCalledTimes(1);
   expect(state.selectedId).toBeNull();
   act(() => root.unmount());
+});
+
+it('Escape asks the session to close what is open or step up one level, and the key is theirs only if it did', () => {
+  const escape = jest.fn(() => true);
+  const session = {
+    back: jest.fn(() => false),
+    escape,
+    getState: () => ({ overlay: null, selectedId: null }),
+    canBack: () => false,
+    subscribe: () => () => undefined,
+  };
+  function Host() {
+    useUniverseBack(session as unknown as Parameters<typeof useUniverseBack>[0], true);
+    return null;
+  }
+  const root = createRoot();
+  act(() => root.render(<Host />));
+  const handled = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+  act(() => {
+    window.dispatchEvent(handled);
+  });
+  expect(escape).toHaveBeenCalledTimes(1);
+  expect(handled.defaultPrevented).toBe(true);
+  // On the whole map the session has nothing to do: the key is left for the page.
+  escape.mockReturnValue(false);
+  const left = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+  act(() => {
+    window.dispatchEvent(left);
+  });
+  expect(left.defaultPrevented).toBe(false);
+  // Other keys never reach the session.
+  act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
+  });
+  expect(escape).toHaveBeenCalledTimes(2);
+  act(() => root.unmount());
+});
+
+it('goes back one browser step when its marker is no longer needed, however many times the change is announced', () => {
+  const listeners = new Set<() => void>();
+  let canBack = true;
+  const session = {
+    back: jest.fn(() => false),
+    escape: () => false,
+    getState: () => ({ overlay: null, selectedId: null }),
+    canBack: () => canBack,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+  function Host() {
+    useUniverseBack(session as unknown as Parameters<typeof useUniverseBack>[0], true);
+    return null;
+  }
+  const back = jest.spyOn(window.history, 'back').mockImplementation(() => undefined);
+  const root = createRoot();
+  act(() => root.render(<Host />));
+  // Something is open: a marker is pushed. Then it closes, and the change is announced twice before the browser moves.
+  expect((window.history.state as { ksUniverse?: string }).ksUniverse).toMatch(/^universe-/);
+  canBack = false;
+  act(() => listeners.forEach((listener) => listener()));
+  act(() => listeners.forEach((listener) => listener()));
+  expect(back).toHaveBeenCalledTimes(1);
+  act(() => root.unmount());
+  back.mockRestore();
+  window.history.replaceState({}, '', window.location.href);
 });

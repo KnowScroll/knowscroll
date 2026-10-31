@@ -19,6 +19,8 @@ export function UniverseHeader({
   hasPlaces,
   onSearch,
   visitor,
+  systemFacts,
+  searchInPanel = false,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -27,6 +29,10 @@ export function UniverseHeader({
   readonly onSearch: () => void;
   /** A friend's universe (U06): their name, and none of the controls that mean something only for your own map. */
   readonly visitor?: { readonly ownerName: string };
+  /** On the desktop a system says what it holds: "3 planets · 1 room" (D02). */
+  readonly systemFacts?: string;
+  /** The desktop panel carries the search field (D02), so the header draws no second search button. */
+  readonly searchInPanel?: boolean;
 }) {
   const router = useRouter();
   const initial = useAccountInitial();
@@ -46,7 +52,7 @@ export function UniverseHeader({
   if (view.kind === 'universe' && visitor)
     return (
       <View style={styles.root}>
-        {hasPlaces ? (
+        {hasPlaces && !searchInPanel ? (
           <View style={styles.row}>
             <IconButton
               icon="search"
@@ -82,13 +88,15 @@ export function UniverseHeader({
         ) : null}
         {hasPlaces ? (
           <View style={styles.actions}>
-            <IconButton
-              icon="search"
-              label="Search your universe"
-              variant="onSpace"
-              onPress={onSearch}
-              testID="universe-search"
-            />
+            {searchInPanel ? null : (
+              <IconButton
+                icon="search"
+                label="Search your universe"
+                variant="onSpace"
+                onPress={onSearch}
+                testID="universe-search"
+              />
+            )}
             {lens}
           </View>
         ) : null}
@@ -122,10 +130,7 @@ export function UniverseHeader({
             </View>
           ) : null}
         </View>
-        <View style={styles.actions}>
-          {view.kind === 'planet' && state.detail === 'low' ? <Tag label="Low detail" variant="onDark" /> : null}
-          {view.kind === 'system' && !visitor ? lens : null}
-        </View>
+        <View style={styles.actions}>{view.kind === 'system' && !visitor ? lens : null}</View>
       </View>
       {view.kind === 'system' ? (
         <View style={styles.block}>
@@ -133,7 +138,7 @@ export function UniverseHeader({
             {title}
           </Text>
           <Text variant="label" color={space.label2}>
-            A system
+            {systemFacts === undefined ? 'A system' : `A system · ${systemFacts}`}
           </Text>
           {view.system.truthStatus === 'hypothetical' ? <Tag label="Hypothetical" variant="hypothetical" /> : null}
         </View>

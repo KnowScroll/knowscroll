@@ -6,6 +6,16 @@ export type PlanetType = 'lush' | 'ocean' | 'frozen' | 'scorched' | 'barren' | '
 /** The system haze families (they tint the haze around a sun, never the sun itself). */
 export type HazeFamily = 'teal' | 'cobalt' | 'coral' | 'amber' | 'pink' | 'violet';
 
+/** The two colours of each haze family, inner and outer (design: Foundations, "Haze"). */
+export const HAZE_COLOURS: Readonly<Record<HazeFamily, readonly [string, string]>> = {
+  teal: ['#3BFFD0', '#2B5BFF'],
+  cobalt: ['#7AD8FF', '#6B3BFF'],
+  coral: ['#FFB03B', '#E02B7F'],
+  amber: ['#FFD84D', '#E0502B'],
+  pink: ['#FF8AE2', '#6B2BFF'],
+  violet: ['#C8A8FF', '#3B2BD0'],
+};
+
 /** Hue shift a haze family gives to the planets of its system. */
 const FAMILY_HUE_SHIFT: Readonly<Record<HazeFamily, number>> = {
   teal: 0,
