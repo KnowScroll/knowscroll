@@ -2583,3 +2583,45 @@ Confirmed by: `social-calls.test.ts` ("a part whose Scroll gets a new revision":
 - **Collusion.** Two accounts can still ask, answer and mark each other. The daily cap of three and one star per act and source are what bound that; a rule about the asker would not (the answerer could just as well mark a third account's words). R3 says "a different person gives Useful", meaning different from the author.
 
 Confirmed by: `rooms-sky.test.ts` ("counts the asker's own Useful on someone else's answer, and nobody's Useful on the asker's own words"). Shown failing when a mark by the asker was refused.
+
+## D-237 · 2026-10-31 · An AI reply is an ordinary message with a colour edge, still labelled (v3 dev check, #570)
+
+**Amends** the v2.1 rule that an AI contribution is drawn with a dotted outline, a square corner and "A suggestion. Nothing is made unless someone chooses it." R3 (C1) says: "Drop the dotted 'suggestion' box. An AI reply is a message in the conversation, not a proposal waiting for approval. The label and the Challenge button keep it honest", and "Character colour as a 4px edge. No dotted box, no footnote."
+
+- **What a reply looks like.** The same bubble as a person's, with a thick left edge in the resident's colour: the Explainer's is the room's accent and the Skeptic's its ink, the colours of their marks (D-170). A room without a face has an ink edge.
+- **Still labelled.** The resident's name, the AI label, the kind of contribution and the reason it spoke stay above the bubble, and a screen reader hears "AI, Skeptic". The edge is colour only and is never what says it is an AI.
+- **The buttons stay.** Challenge and Other side stay under a reply, since asking is how a person pushes back. The footnote is gone: nothing about an AI reply is a proposal.
+- **Left as it was.** The "while you were away" card is a card, not a reply, and R3 does not draw it as a message; it keeps its dotted outline.
+
+Confirmed by: `room-messages.test.tsx` (no footnote, no dotted style, the label and the buttons stay; the edge is the resident's colour in a room with a face), `room-identity.test.tsx` (the colour of each resident).
+
+## D-238 · 2026-10-31 · A sheet closes before the screen it opens, and on the web waits for its own Back (v3 dev check, #570)
+
+**Builds on** D-006 k (a sheet adds one transient history entry and a Back removes it). That Back is asynchronous, so a screen opened in the same moment is popped with it: the address changes and the old screen stays. Found on dev three ways: "Visit a friend's universe" left Friends showing, "Open thread" in the Share sheet on `/scroll/<id>` did nothing, and a topic picked in the room menu opened behind the menu.
+
+- **One helper.** `closeThen(close, run)` marks the Back as pending, closes the sheet, and runs the navigation once the Back has landed (or after 400 ms if it never reports). On native it closes and runs.
+- **Where it is used.** Visit a friend's universe, Open conversation and Open thread in the Share sheet, and a topic picked from the room menu's Topics or Pins, which closes the menu first. The older local copies in the room menu, the branch sheets and Explore keep working as they are.
+
+Confirmed by: `close-then.web.test.ts` (the order, and the fallback), `friends-smoke.spec.ts` (Visit reaches `/visit/<handle>` and Friends is not the screen shown; shown failing with the helper replaced by close-then-navigate), `campfire.test.tsx` (picking a topic closes the menu first; shown failing without it), `rooms-smoke.spec.ts` (the topic opens and no sheet is left).
+
+## D-239 · 2026-10-31 · Who is here ends with the lease: a minute after the last beat, and at once when the device says away (v3 dev check, #570)
+
+**Builds on** D-069 and D-160. States the rule a dev check asked for, with no change to the numbers. A dev check saw "3 here" for "minutes" after two members closed their browsers. Measured again on dev with two killed browsers: the header went from 3 to none between 70 and 75 seconds, which is the rule below.
+
+- **The lease.** A face is a lease the member's own device renews every 25 seconds (`ROOM_PRESENCE_BEAT_MS`) and the server reads only while it is under 60 seconds old (`ROOM_PRESENCE_LEASE_MS`). A device that leaves, hides the app or is covered by another screen says `away`, which deletes the lease at once.
+- **What the others see.** An open room reads again every 20 seconds, on a hint, and on focus. So a person who says `away` is gone from another member's header at its next read, and one who just disappears (a closed browser, a lost connection) within the lease and one read: at most about 80 seconds, usually less.
+- **A hidden tab.** A tab that is not visible does not poll; it reads again when it is shown. Nobody is looking at it, so nothing stale is seen.
+- **Not changed.** The lease is not shortened: a shorter one would drop a face for a single lost beat, and a face that comes and goes is worse than one that stays a minute. A closed tab's `away` is not guaranteed on the web (the request may be cut off), which is why the lease exists.
+
+Confirmed by: the measurement above (dev, 31 Oct), and the existing presence tests for the lease and `away` (unchanged).
+
+## D-240 · 2026-10-31 · How a person finds a room: the design is silent, and nothing lists rooms to browse (v3 dev check, #570)
+
+**Records, builds nothing.** A dev check with a new account could not reach the Space room. `/rooms/space` said "This room isn't available". `space` is not a room's address: a room's address carries its ID, which is shown nowhere, so the answer is the same as for a room that does not exist.
+
+- **What reaches a room today.** The room's station on the person's own Universe map (it appears beside a system of their own, so a person has to have formed that system by reading), a room row in Talk once they are a member, an invitation, or a link that carries the room's ID. A preview before joining is read from the station or the link.
+- **What the design says.** R1 and R3 draw a room from the inside, and draw the station on the map (R3 p-04, p-09, "Enter room"). Neither draws a list of rooms to browse or search.
+- **What this means for a new account.** It meets a room after it has read about the room's topic. That is the shape the designs give ("rooms follow your own universe"), but it makes a room unreachable from Explore alone. If the owner wants a directory, it is a new design (a list of the rooms of systems the person has formed, a "Rooms near you" row, or a share link), not a fix.
+- **Seeded rooms.** An operator seeds one room per library system. Nothing links the seed to a person until their map has the system.
+
+Recorded as a fidelity row ("R1, R3, finding a room") and in the PR. No code changes.

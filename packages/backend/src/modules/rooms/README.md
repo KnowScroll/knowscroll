@@ -102,7 +102,7 @@ conversations or threads.
   room list and a preview count nobody and say nothing about activity. An empty room says it is empty.
 - **Who is here (D-069, D-160).** Only a member's own view of a room carries `here`, `memberTotal` and
   `lastMessageAt` (an explicit allow-list in the contract). Faces come from a one-minute lease the member's own
-  device renews (`setPresence`), never from messages or another module. The number appears only from three people
+  device renews (`setPresence`), never from messages or another module. `away` ends it at once; a device that just vanishes ends it within the lease and the reader's next read, about 80 seconds at most (D-239). The number appears only from three people
   and the contract refuses one below that, so "0 online" and "1 online" cannot be said. The AI cast has no lease and
   is never a face or counted. The reader is always a face. A blocked person is left out of the blocker's faces and
   count, and nobody else's. The quiet pill is worked out on the device from `lastMessageAt`.
