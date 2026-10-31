@@ -6,15 +6,21 @@
 export {
   applyStagePatch,
   AXIAL_TILT_DEGREES,
+  describeStageAtTilt,
   describeStageState,
   EARTH_SKY_KIT,
   INITIAL_STAGE_STATE,
+  physicsAtTilt,
+  pinDistanceDegrees,
+  PIN_LATITUDE_DEGREES,
   settleStageState,
   STAGE_ENUMS,
   STAGE_KEYS,
   stageParts,
   stagePhysics,
   StageStateSchema,
+  sunLatitudeDegrees,
+  TILT_RANGE,
   type HemispherePhysics,
   type PinMark,
   type StageKey,
@@ -23,6 +29,7 @@ export {
   type StagePhysics,
   type StageState,
   type SunHeight,
+  type TiltedPhysics,
 } from './kit.js';
 export { FIELD_LIMITS_V2, LIMITS_V2, SCROLL_LIMITS_V2_VERSION } from './limits.js';
 export {
@@ -30,7 +37,9 @@ export {
   ASIDE_KINDS,
   callsOf,
   CallItStop,
+  FinalCallBinding,
   FinalCallStop,
+  Landmark,
   MeasuresV2,
   Misconception,
   ReadStop,
@@ -60,4 +69,16 @@ export {
 export { computeIntegrityV2, validateDocumentV2, type DocumentV2Outcome, type ValidateV2Options } from './validate.js';
 export { negotiateV2, parseDocumentV2, type NegotiationV2Outcome } from './delivery.js';
 export { CALL_READ_INTERACTIONS, INTERACTION_KINDS_V2 } from './interactions.js';
-export { NO_TALLY, talliesAfterEach, tallyOf, type CallTally } from './play.js';
+export {
+  afterLock,
+  COMBO_FOR_FINAL_BONUS,
+  finalBonusReady,
+  landmarkTier,
+  NO_TALLY,
+  sparksEarned,
+  talliesAfterEach,
+  tallyOf,
+  type CallTally,
+  type LandmarkTier,
+  type LockedCall,
+} from './play.js';

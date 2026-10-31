@@ -61,7 +61,7 @@ export const ReadStop = z.strictObject({
 });
 export type ReadStop = z.infer<typeof ReadStop>;
 
-/** What a call stop carries. Correctness is recomputed from the immutable revision on the server (planned, S-2). */
+/** What a call stop carries. Correctness is recomputed from the immutable revision on the server (`modules/play`, D-181). */
 const callShape = {
   id: LocalId,
   prompt: plainText(1, F.promptChars),
@@ -97,8 +97,21 @@ export const CallItStop = z.strictObject({
 });
 export type CallItStop = z.infer<typeof CallItStop>;
 
+/**
+ * A control the Final call hands the reader on the pinned stage (D-187). `tilt` is Earth's axis: the
+ * reader may turn it from nothing to a right angle on the Earth & sky picture, and the picture
+ * follows. Set by code from the recipe, never by the model; the reader keeps the value to itself and
+ * nothing about it is reported or stored.
+ */
+export const FinalCallBinding = z.strictObject({ kind: z.literal('tilt') });
+export type FinalCallBinding = z.infer<typeof FinalCallBinding>;
+
 /** The boss question at the end: the last stop of the spine. */
-export const FinalCallStop = z.strictObject({ kind: z.literal('final_call'), ...callShape });
+export const FinalCallStop = z.strictObject({
+  kind: z.literal('final_call'),
+  ...callShape,
+  binding: FinalCallBinding.optional(),
+});
 export type FinalCallStop = z.infer<typeof FinalCallStop>;
 
 export const Stop = z.discriminatedUnion('kind', [ReadStop, CallItStop, FinalCallStop]);
@@ -130,6 +143,17 @@ export const Stage = z.strictObject({
     .max(L.maxStops),
 });
 export type Stage = z.infer<typeof Stage>;
+
+/**
+ * The landmark a Scroll awards when its Final call is locked (D-188): a stable key and the name the
+ * reader sees ("The Leaning Axis"). Recipe data set by code, never model text. A Scroll without one
+ * awards nothing.
+ */
+export const Landmark = z.strictObject({
+  key: LocalId,
+  name: plainText(4, F.landmarkNameChars),
+});
+export type Landmark = z.infer<typeof Landmark>;
 
 /** The payoff: the stage in its last state plus up to three captions. */
 export const Recap = z.strictObject({
@@ -172,6 +196,8 @@ export const ScrollDocumentV2 = z.strictObject({
   dek: plainText(10, 200),
   framing: Framing,
   misconception: Misconception,
+  /** What the Final call awards, when the recipe names one. */
+  landmark: Landmark.optional(),
   /** Present when the Scroll has a stage; a plain Scroll has none. */
   stage: Stage.optional(),
   stops: z.array(Stop).min(1).max(L.maxStops),

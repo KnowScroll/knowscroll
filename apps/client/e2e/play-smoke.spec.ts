@@ -107,7 +107,7 @@ test('two right calls in a row build a combo, and a wrong call after them keeps 
   await goToCall(page, 'Call it 2 of 3');
   await page.getByRole('radio', { name: /The southern half/ }).click();
   await secondCall(page).getByRole('button', { name: 'Lock it in' }).click();
-  await expect(page.getByText('Combo ×2')).toBeVisible();
+  await expect(secondCall(page).getByText('Combo ×2')).toBeVisible();
   await sparksIn(page, 2);
 });
 

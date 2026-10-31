@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CallLockRequest } from '@knowscroll/contracts';
-import type { ScrollCallFacts } from '../../content/public.js';
+import type { ScrollCallFacts, ScrollPlayFacts } from '../../content/public.js';
 import type {
   FencePersonalRecording,
   PersonalAuthority,
@@ -11,7 +11,15 @@ import type {
 import { NO_PLAY, type Tally } from '../domain/results.js';
 import { makeLockCall } from './lock-call.js';
 import { makeReadResults } from './read-results.js';
-import type { NewCall, PlayPorts, ReceiptKey, ReceiptLookup, StoredCall } from './ports.js';
+import type {
+  NewCall,
+  NewLandmark,
+  PlayPorts,
+  ReceiptKey,
+  ReceiptLookup,
+  StoredCall,
+  StoredLandmark,
+} from './ports.js';
 
 const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 const authority: PersonalAuthority = {
@@ -30,16 +38,20 @@ const calls: readonly ScrollCallFacts[] = [
   { stopId: 'final', kind: 'final_call', optionCount: 3, answer: 2 },
 ];
 
+const landmarkNamed = { key: 'the-ci-landmark', name: 'The CI Landmark' };
+
 interface Options {
   readonly recording?: 'on' | 'paused' | 'stale';
   readonly exposure?: boolean;
-  readonly revisionCalls?: readonly ScrollCallFacts[] | undefined;
+  /** What the revision reads as; `undefined` is a revision that is not there. Default: the three calls and no landmark. */
+  readonly revisionFacts?: ScrollPlayFacts | undefined;
   readonly lookup?: ReceiptLookup;
 }
 
 /** Ports over memory: reads answer what the test says and every write is logged. */
 function fixture(options: Options = {}) {
   const stored = new Map<string, StoredCall>();
+  let landmark: StoredLandmark | undefined;
   let tally: Tally = NO_PLAY;
   const order: string[] = [];
   const receipts = new Map<string, { key: ReceiptKey; outcome?: Record<string, unknown> }>();
@@ -77,9 +89,16 @@ function fixture(options: Options = {}) {
       return Promise.resolve();
     },
     hasActivatedExposure: () => Promise.resolve(options.exposure ?? true),
-    readCalls: () => Promise.resolve('revisionCalls' in options ? options.revisionCalls : calls),
+    readFacts: () =>
+      Promise.resolve('revisionFacts' in options ? options.revisionFacts : { calls, landmark: undefined }),
     store: {
-      readPlay: () => Promise.resolve({ calls: order.map((stopId) => stored.get(stopId)!), tally }),
+      readPlay: () => Promise.resolve({ calls: order.map((stopId) => stored.get(stopId)!), tally, landmark }),
+      insertLandmark: (_scope, awarded: NewLandmark) => {
+        writes.push('landmark');
+        landmark = { key: awarded.key, name: awarded.name, tier: awarded.tier };
+        return Promise.resolve();
+      },
+      listLandmarks: () => Promise.resolve([]),
       insertCall: (_scope, call: NewCall, next) => {
         writes.push('call');
         order.push(call.stopId);
@@ -158,14 +177,13 @@ describe('locking a call', () => {
     expect(play.writes).toEqual([]);
   });
 
-  it('refuses a stop that is not a Call it of that revision, the Final call included', async () => {
+  it('refuses a stop that is not a call of that revision, and a revision that is not there', async () => {
     const play = fixture();
-    for (const stopId of ['not-a-stop', 'final'])
-      expect(await play.lock(authority, lockRequest({ stopId }))).toEqual({
-        kind: 'refused',
-        reason: 'call_not_found',
-      });
-    expect(await fixture({ revisionCalls: undefined }).lock(authority, lockRequest())).toEqual({
+    expect(await play.lock(authority, lockRequest({ stopId: 'not-a-stop' }))).toEqual({
+      kind: 'refused',
+      reason: 'call_not_found',
+    });
+    expect(await fixture({ revisionFacts: undefined }).lock(authority, lockRequest())).toEqual({
       kind: 'refused',
       reason: 'call_not_found',
     });
@@ -202,6 +220,100 @@ describe('locking a call', () => {
       kind: 'refused',
       reason: 'outcome_from_newer_release',
     });
+  });
+});
+
+describe('locking the Final call (D-187, D-188)', () => {
+  const lockFinal = (option: number, over: Partial<CallLockRequest> = {}) =>
+    lockRequest({ commandId: id(200), stopId: 'final', option, ...over });
+  const withLandmark = { revisionFacts: { calls, landmark: landmarkNamed } };
+
+  /** Locks both Call its right, so a combo of two is waiting for the Final call. */
+  async function withComboWaiting(play: ReturnType<typeof fixture>) {
+    await play.lock(authority, lockRequest());
+    await play.lock(authority, lockRequest({ commandId: id(101), stopId: 'call-two', option: 0 }));
+  }
+
+  it('judges it on the server like any call, and a right one earns a spark', async () => {
+    const play = fixture();
+    expect(await play.lock(authority, lockFinal(2))).toMatchObject({
+      kind: 'saved',
+      outcome: { stopId: 'final', correct: true, newlyLocked: true, results: { sparks: 1, combo: 1 } },
+    });
+    const wrong = fixture();
+    expect(await wrong.lock(authority, lockFinal(0))).toMatchObject({
+      kind: 'saved',
+      outcome: { correct: false, results: { sparks: 0, combo: 0 } },
+    });
+  });
+
+  it('earns two sparks when it is right after a combo of two, and one when the combo was broken', async () => {
+    const comboed = fixture();
+    await withComboWaiting(comboed);
+    expect(await comboed.lock(authority, lockFinal(2))).toMatchObject({
+      outcome: { correct: true, results: { sparks: 4, combo: 3 } },
+    });
+    const broken = fixture();
+    await broken.lock(authority, lockRequest());
+    await broken.lock(authority, lockRequest({ commandId: id(101), stopId: 'call-two', option: 1 }));
+    expect(await broken.lock(authority, lockFinal(2))).toMatchObject({
+      outcome: { correct: true, results: { sparks: 2, combo: 1 } },
+    });
+  });
+
+  it('awards a gold landmark for a right answer, in the same step as the call', async () => {
+    const play = fixture(withLandmark);
+    const answer = await play.lock(authority, lockFinal(2));
+    expect(answer).toMatchObject({
+      kind: 'saved',
+      outcome: { results: { landmark: { ...landmarkNamed, tier: 'gold' } } },
+    });
+    expect(play.writes).toEqual(['receipt', 'call', 'landmark']);
+  });
+
+  it('awards a plain landmark for a wrong answer: the Final call never costs the landmark', async () => {
+    const play = fixture(withLandmark);
+    expect(await play.lock(authority, lockFinal(1))).toMatchObject({
+      outcome: { correct: false, results: { landmark: { ...landmarkNamed, tier: 'plain' } } },
+    });
+  });
+
+  it('awards nothing when the Scroll names no landmark, and never for a Call it', async () => {
+    const none = fixture();
+    const answer = await none.lock(authority, lockFinal(2));
+    expect(answer).toMatchObject({ kind: 'saved' });
+    expect(answer.kind === 'saved' ? answer.outcome.results.landmark : 'unexpected').toBeUndefined();
+    expect(none.writes).not.toContain('landmark');
+    const named = fixture(withLandmark);
+    await named.lock(authority, lockRequest());
+    expect(named.writes).not.toContain('landmark');
+  });
+
+  it('awards once: a retry answers the same landmark, and another command locking again changes nothing', async () => {
+    const play = fixture(withLandmark);
+    await play.lock(authority, lockFinal(2));
+    const retry = await play.lock(authority, lockFinal(2));
+    expect(retry).toMatchObject({ outcome: { replayed: true, results: { landmark: { tier: 'gold' } } } });
+    const again = await play.lock(authority, lockFinal(0, { commandId: id(201) }));
+    expect(again).toMatchObject({
+      outcome: { newlyLocked: false, correct: true, results: { landmark: { tier: 'gold' } } },
+    });
+    expect(play.writes.filter((write) => write === 'landmark')).toHaveLength(1);
+  });
+
+  it('awards nothing without an activated exposure, and nothing while recording is paused', async () => {
+    const unexposed = fixture({ ...withLandmark, exposure: false });
+    expect(await unexposed.lock(authority, lockFinal(2))).toEqual({ kind: 'refused', reason: 'exposure_required' });
+    expect(unexposed.writes).toEqual([]);
+    const paused = fixture({ ...withLandmark, recording: 'paused' });
+    expect(await paused.lock(authority, lockFinal(2))).toMatchObject({ kind: 'not_saved' });
+    expect(paused.writes).toEqual([]);
+  });
+
+  it('refuses a forged option of the Final call, and awards nothing', async () => {
+    const play = fixture(withLandmark);
+    expect(await play.lock(authority, lockFinal(3))).toEqual({ kind: 'refused', reason: 'option_invalid' });
+    expect(play.writes).toEqual([]);
   });
 });
 

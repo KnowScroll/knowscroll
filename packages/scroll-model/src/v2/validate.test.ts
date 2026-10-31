@@ -302,6 +302,84 @@ describe('validateDocumentV2: the rules of scroll-limits.v2', () => {
     ).toContain('reading_length_out_of_brief@measures.readingSeconds');
   });
 
+  describe('a Final call that hands the reader the tilt (D-187)', () => {
+    const bound = (document: ScrollDocumentV2) => {
+      const final = call(document, document.stops.length - 1);
+      if (final.kind !== 'final_call') throw new Error('the last stop is the Final call');
+      final.binding = { kind: 'tilt' };
+      document.landmark = { key: 'ci-fixture-axis', name: 'The CI Fixture Axis' };
+    };
+    /**
+     * What the binding rule says of the bound Scroll with its last stage state replaced, so the picture held at
+     * the Final call is the one given. Other findings (a state that repeats the one before it) are not this rule's.
+     */
+    const endingOn = (state: Parameters<typeof describeStageState>[0]) =>
+      broken((document) => {
+        bound(document);
+        const last = stageOf(document).states.at(-1);
+        if (last === undefined) throw new Error('the fixture has a stage');
+        last.state = state;
+        last.alt = describeStageState(state);
+      }).filter((issue) => issue.startsWith('final_call_binding_invalid'));
+    const finalIndex = fixture().stops.length - 1;
+    const refused = [`final_call_binding_invalid@stops.${String(finalIndex)}.binding`];
+
+    it('takes a picture where the tilt shows: a June or December picture in a view that draws the axis and the season, and a landmark with it', () => {
+      for (const view of ['sun-earth', 'earth-close', 'orbit', 'orbit-stretched'] as const)
+        for (const earthAt of ['jun', 'dec', 'jan', 'may'] as const)
+          expect(endingOn({ view, earthAt, moonAt: 'off', focus: 'none' }), `${view} ${earthAt}`).toEqual([]);
+    });
+
+    it('refuses a Scroll with no stage: there is no axis to turn', () => {
+      expect(broken(bound, 'plain')).toEqual([
+        `final_call_binding_invalid@stops.${String(fixture('plain').stops.length - 1)}.binding`,
+      ]);
+    });
+
+    it('refuses a stage that ends on the Moon view, which draws no axis', () => {
+      expect(endingOn({ view: 'moon-orbit', earthAt: 'mar', moonAt: 'full', focus: 'none' })).toEqual(refused);
+    });
+
+    it('refuses a stage that ends at an equinox, where the picture is the same at every tilt', () => {
+      for (const view of ['sun-earth', 'earth-close', 'orbit', 'orbit-stretched'] as const)
+        for (const earthAt of ['mar', 'sep'] as const)
+          expect(endingOn({ view, earthAt, moonAt: 'off', focus: 'none' }), `${view} ${earthAt}`).toEqual(refused);
+    });
+
+    it('judges the picture held at the Final call, not an earlier one: an equinox before it is no matter', () => {
+      expect(
+        broken((document) => {
+          bound(document);
+          const [last, early] = [...stageOf(document).states].reverse();
+          if (last === undefined || early === undefined) throw new Error('the fixture has several states');
+          last.state = { view: 'sun-earth', earthAt: 'jun', moonAt: 'off', focus: 'none' };
+          last.alt = describeStageState(last.state);
+          early.state = { view: 'orbit', earthAt: 'mar', moonAt: 'off', focus: 'none' };
+          early.alt = describeStageState(early.state);
+        }),
+      ).toEqual([]);
+    });
+  });
+
+  it('refuses a binding or a landmark that is not one the schema knows', () => {
+    expect(
+      broken((document) => {
+        const final = call(document, document.stops.length - 1);
+        if (final.kind === 'final_call') (final as { binding?: unknown }).binding = { kind: 'slider' };
+      }),
+    ).not.toEqual([]);
+    expect(
+      broken((document) => {
+        (document as { landmark?: unknown }).landmark = { key: 'Bad Key', name: 'A landmark' };
+      }),
+    ).not.toEqual([]);
+    expect(
+      broken((document) => {
+        (document as { landmark?: unknown }).landmark = { key: 'a-landmark', name: 'A landmark', points: 3 };
+      }),
+    ).not.toEqual([]);
+  });
+
   it('notes an unreviewed source without refusing the Scroll', () => {
     const document = fixture();
     if (document.misconception.kind !== 'myth') throw new Error('the fixture names a myth');

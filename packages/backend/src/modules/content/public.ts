@@ -97,18 +97,30 @@ export interface ScrollCallFacts {
   readonly answer: number;
 }
 
+/** What a Scroll revision awards when its Final call is locked: the stable key and the name the reader sees (D-188). */
+export interface ScrollLandmarkFacts {
+  readonly key: string;
+  readonly name: string;
+}
+
+/** What play needs of one Scroll revision: its calls, and the landmark its Final call awards (none for most). */
+export interface ScrollPlayFacts {
+  readonly calls: readonly ScrollCallFacts[];
+  readonly landmark: ScrollLandmarkFacts | undefined;
+}
+
 /**
- * Port: the calls of one stored Scroll revision, read from its immutable document inside the
- * caller's personal transaction. `undefined` when the revision does not exist or is not a
- * `scroll-document.v2`; an empty list when it has no call.
+ * Port: the calls and the landmark of one stored Scroll revision, read from its immutable document
+ * inside the caller's personal transaction. `undefined` when the revision does not exist, is not a
+ * `scroll-document.v2`, or is held or rejected by the review gate (D-138); no calls when it has none.
  */
-export type ReadScrollCalls = (
+export type ReadScrollPlayFacts = (
   scope: PersonalScopeTx,
   assetId: string,
   revision: number,
-) => Promise<readonly ScrollCallFacts[] | undefined>;
+) => Promise<ScrollPlayFacts | undefined>;
 
-export const READ_SCROLL_CALLS = Symbol('content.readScrollCalls');
+export const READ_SCROLL_PLAY_FACTS = Symbol('content.readScrollPlayFacts');
 
 /** Shared semantic catalogue and exact-revision sidecars; no wire or personal coverage consumer. */
 export { CONCEPT_CATALOGUE_VERSION, CONCEPTS, conceptLabel } from './domain/concepts.js';

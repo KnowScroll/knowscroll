@@ -4,7 +4,9 @@ import {
   SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
   type Aside,
   type CallItStop,
+  type FinalCallBinding,
   type FinalCallStop,
+  type Landmark,
   type Misconception,
   type ReadStop,
   type Recap,
@@ -37,11 +39,19 @@ export interface PublicationV2 {
   readonly themeFamily: ScrollDocumentV2['theme']['family'];
 }
 
-/** What the recipe decides before the writer starts: whether there is a stage, and the misconception. */
+/**
+ * What the recipe decides before the writer starts: whether there is a stage, the misconception, the
+ * landmark the Final call awards and the control it hands the reader. All of it is code-owned plan
+ * data; the writer is told what the Final call is for, and writes none of it.
+ */
 export interface RecipeDataV2 {
   /** `stage` Scrolls carry the Earth & sky kit's stage; `plain` Scrolls have no stage and still have calls. */
   readonly variant: 'stage' | 'plain';
   readonly misconception: Misconception;
+  /** What a locked Final call awards. Absent: the Scroll awards nothing (D-188). */
+  readonly landmark?: Landmark;
+  /** The control the Final call hands the reader on the stage. Absent: the Final call is a plain call (D-187). */
+  readonly finalCall?: FinalCallBinding;
 }
 
 /** Where each stop and aside of the document came from in the authored list, to report findings at the writer's item. */
@@ -137,7 +147,8 @@ function callStop(
     twist: oneLine(item.twist),
     simple: oneLine(item.simple),
   };
-  if (item.type === 'final_call') return { kind: 'final_call', ...shared };
+  if (item.type === 'final_call')
+    return { kind: 'final_call', ...shared, ...(recipe.finalCall === undefined ? {} : { binding: recipe.finalCall }) };
   const guess =
     guessSource !== undefined && shuffled.commonGuess !== undefined
       ? { commonGuess: { option: shuffled.commonGuess, source: guessSource } }
@@ -255,6 +266,7 @@ export function assembleScrollV2(
     dek: fit(authored.dek, 200),
     framing: publication.framing,
     misconception: recipe.misconception,
+    ...(recipe.landmark === undefined ? {} : { landmark: recipe.landmark }),
     ...(recipe.variant === 'stage' ? { stage: buildStage(stops, patches) } : {}),
     stops,
     asides,

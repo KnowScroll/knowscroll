@@ -6,14 +6,14 @@ import { describe, expect, it } from 'vitest';
 /**
  * The SQL side of the play wall (D-063, D-180). The import rules in `.dependency-cruiser.cjs` stop
  * modules importing `play`, but a module could still read the person's picks straight from the
- * tables. So no production file outside `modules/play/` may name `play.calls` or `play.scroll_results`
+ * tables. So no production file outside `modules/play/` may name `play.calls`, `play.scroll_results` or `play.landmarks`
  * (or build a `play.` table name): the only other place that knows the schema is the generated types
  * file, which describes every table and runs no query.
  */
 const repository = fileURLToPath(new URL('../../../../../', import.meta.url));
 const SKIPPED_FOLDERS = new Set(['node_modules', 'dist', 'dist-gallery', '.expo', 'test-results', 'coverage', '.git']);
 const SOURCE = /\.(?:ts|tsx|mjs|cjs|js)$/;
-const PLAY_TABLE = /\bplay\.(?:calls|scroll_results|\$\{)/;
+const PLAY_TABLE = /\bplay\.(?:calls|scroll_results|landmarks|\$\{)/;
 
 const ALLOWED = [
   /^packages\/backend\/src\/modules\/play\//,
@@ -36,7 +36,7 @@ function mentioning(paths: readonly string[], read: (path: string) => string): s
 describe('who can read the play tables', () => {
   const read = (path: string) => readFileSync(join(repository, path), 'utf8');
 
-  it('is play alone: no other production file names play.calls or play.scroll_results', () => {
+  it('is play alone: no other production file names play.calls, play.scroll_results or play.landmarks', () => {
     const production = [...sourcesUnder('packages'), ...sourcesUnder('apps')].filter(
       (path) => !ALLOWED.some((allowed) => allowed.test(path)),
     );

@@ -242,7 +242,7 @@ const PIN_WORDS: Readonly<Record<PinMark, string>> = {
   cool: 'marked cool',
 };
 
-const pinSentence = (physics: StagePhysics): string =>
+const pinSentence = (physics: Pick<StagePhysics, 'north' | 'south'>): string =>
   `A pin in the north is ${PIN_WORDS[physics.north.pin]}, and a pin in the south is ${PIN_WORDS[physics.south.pin]}.`;
 
 const RAY_WORDS: Readonly<Record<SunHeight, string>> = {
@@ -251,7 +251,7 @@ const RAY_WORDS: Readonly<Record<SunHeight, string>> = {
   low: 'arrives at a low angle and spreads over a wide patch of ground',
 };
 
-const raySentence = (physics: StagePhysics): string =>
+const raySentence = (physics: Pick<StagePhysics, 'north' | 'south'>): string =>
   `In the north, Ray the sunbeam ${RAY_WORDS[physics.north.sunHeight]}. In the south, Ray ${RAY_WORDS[physics.south.sunHeight]}.`;
 
 /**
@@ -273,6 +273,143 @@ export function describeStageState(chosen: StageState): string {
     has('pins') ? pinSentence(physics) : '',
     has('ray') ? raySentence(physics) : '',
     has('moon') ? MOON_SENTENCE[state.moonAt] : '',
+    FOCUS_SENTENCE[state.focus],
+  ]
+    .filter((sentence) => sentence !== '')
+    .join(' ');
+}
+
+/**
+ * The tilt the Final call lets a reader turn (D-187): Earth's axis from straight up to a right angle,
+ * in whole degrees, and the tilt of the real Earth between them. A reader's turn is a view of "what
+ * if", held on the device; nothing a document stores depends on it.
+ */
+export const TILT_RANGE = { min: 0, max: 90, step: 1 } as const;
+
+/** The latitude of the pins, north and south: the places whose noon Sun the picture compares. */
+export const PIN_LATITUDE_DEGREES = 50;
+
+/** A pin whose noon Sun is within this many degrees of straight overhead has a high Sun; from the far end of this band a low one. */
+const HIGH_SUN_WITHIN_DEGREES = 40;
+const LOW_SUN_BEYOND_DEGREES = 60;
+
+const radiansOf = (degrees: number): number => (degrees * Math.PI) / 180;
+const degreesOf = (radians: number): number => (radians * 180) / Math.PI;
+
+/** Where Earth is in its year, as the angle of the season: nothing at the March equinox, 90 degrees at the June solstice. */
+const SEASON_ANGLE_DEGREES: Readonly<Record<StageMonth, number>> = {
+  jan: -60,
+  feb: -30,
+  mar: 0,
+  apr: 30,
+  may: 60,
+  jun: 90,
+  jul: 120,
+  aug: 150,
+  sep: 180,
+  oct: 210,
+  nov: 240,
+  dec: 270,
+};
+
+/**
+ * The latitude, in degrees north, that the noon Sun is overhead in a month, for an axis tilted by
+ * `tiltDegrees`: `asin(sin(tilt) · sin(season))`. It is the tilt itself at the June solstice,
+ * minus the tilt at the December solstice and nothing at the equinoxes. Pure and total: the tilt is
+ * kept in the range the Final call offers.
+ */
+export function sunLatitudeDegrees(month: StageMonth, tiltDegrees: number): number {
+  const tilt = Math.min(TILT_RANGE.max, Math.max(TILT_RANGE.min, tiltDegrees));
+  return degreesOf(Math.asin(Math.sin(radiansOf(tilt)) * Math.sin(radiansOf(SEASON_ANGLE_DEGREES[month]))));
+}
+
+/** How far a hemisphere's pin sits from the point of the surface that faces the Sun, in degrees. */
+export function pinDistanceDegrees(sunLatitude: number, hemisphere: 'north' | 'south'): number {
+  const latitude = hemisphere === 'north' ? PIN_LATITUDE_DEGREES : -PIN_LATITUDE_DEGREES;
+  return Math.min(90, Math.abs(latitude - sunLatitude));
+}
+
+function sunHeightOfDistance(distance: number): SunHeight {
+  if (distance <= HIGH_SUN_WITHIN_DEGREES) return 'high';
+  return distance >= LOW_SUN_BEYOND_DEGREES ? 'low' : 'middle';
+}
+
+/** What follows from a month and a tilt: the physics of `stagePhysics`, for a tilt the reader chose. */
+export interface TiltedPhysics extends Omit<StagePhysics, 'tiltDegrees'> {
+  readonly tiltDegrees: number;
+  /** Each pin's distance from the point facing the Sun, which the picture draws exactly. */
+  readonly northDistance: number;
+  readonly southDistance: number;
+}
+
+/** The physics of a month for an axis tilted by `tiltDegrees`. At today's tilt it agrees with `stagePhysics` in every month. */
+export function physicsAtTilt(state: Pick<StageState, 'earthAt'>, tiltDegrees: number): TiltedPhysics {
+  const latitude = sunLatitudeDegrees(state.earthAt, tiltDegrees);
+  const northDistance = pinDistanceDegrees(latitude, 'north');
+  const southDistance = pinDistanceDegrees(latitude, 'south');
+  const north = sunHeightOfDistance(northDistance);
+  const south = sunHeightOfDistance(southDistance);
+  return {
+    tiltDegrees,
+    northDistance,
+    southDistance,
+    leansToward:
+      north === 'high' && south !== 'high' ? 'north' : south === 'high' && north !== 'high' ? 'south' : 'neither',
+    north: { sunHeight: north, pin: PIN_FOR[north] },
+    south: { sunHeight: south, pin: PIN_FOR[south] },
+  };
+}
+
+/**
+ * Whether turning the tilt visibly changes this picture (D-187). It does where the view draws Earth's
+ * axis and the season, and the month is one with a lean to lose: at the March and September equinoxes
+ * the Sun stands over the equator at every tilt, so the pins stay neutral and Ray lands the same on both
+ * halves whatever the slider says. A Final call that hands the reader the tilt needs a picture for which
+ * this is true.
+ */
+export function tiltMatters(chosen: StageState): boolean {
+  const state = settleStageState(chosen);
+  const parts = stageParts(state.view);
+  return (
+    parts.includes('axis') &&
+    parts.includes('season') &&
+    Math.abs(sunLatitudeDegrees(state.earthAt, TILT_RANGE.max)) > 1
+  );
+}
+
+const NO_TILT_SENTENCE =
+  'Earth’s axis is not tilted: it stands straight up, and the Sun stays over the equator all year.';
+
+function tiltSentence(tiltDegrees: number): string {
+  if (tiltDegrees <= TILT_RANGE.min) return NO_TILT_SENTENCE;
+  const comparison =
+    tiltDegrees < AXIAL_TILT_DEGREES
+      ? 'less than the tilt it has now'
+      : tiltDegrees > AXIAL_TILT_DEGREES
+        ? 'more than the tilt it has now'
+        : 'the tilt it has now';
+  return `Earth’s axis is tilted by ${tiltDegrees} degrees, ${comparison}, and points the same way all year.`;
+}
+
+/**
+ * The text version of a stage whose reader has turned Earth's axis: the same sentences as
+ * `describeStageState`, with the tilt, the lean, the pins and Ray worked out for that tilt. At
+ * today's tilt it is exactly `describeStageState`. Derived by code, so it never disagrees with the
+ * picture drawn for the same tilt.
+ */
+export function describeStageAtTilt(chosen: StageState, tiltDegrees: number): string {
+  if (tiltDegrees === AXIAL_TILT_DEGREES) return describeStageState(chosen);
+  const state = settleStageState(chosen);
+  const parts = stageParts(state.view);
+  const physics = physicsAtTilt(state, tiltDegrees);
+  const has = (part: StagePart): boolean => parts.includes(part);
+  return [
+    VIEW_SENTENCE[state.view],
+    has('season') ? `The time of year is ${MONTH_NAMES[state.earthAt]}.` : '',
+    has('axis') ? tiltSentence(tiltDegrees) : '',
+    has('season') ? LEAN_SENTENCE[physics.leansToward] : '',
+    has('pins') ? pinSentence(physics) : '',
+    has('ray') ? raySentence(physics) : '',
     FOCUS_SENTENCE[state.focus],
   ]
     .filter((sentence) => sentence !== '')

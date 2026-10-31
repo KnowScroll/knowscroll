@@ -114,6 +114,17 @@ export interface ScrollV2Plan {
         readonly source: { readonly label: string; readonly reviewed: boolean };
       }
     | { readonly kind: 'none' };
+  /**
+   * What a locked Final call awards: a stable key (`the-leaning-axis`) and the name the reader sees.
+   * Chosen by a person, per recipe, and set into the document by code; the writer never writes it.
+   * Absent: the Scroll awards no landmark and the payoff shows none (D-188). Keys are unique in the library.
+   */
+  readonly landmark?: { readonly key: string; readonly name: string };
+  /**
+   * The control the Final call hands the reader on the stage. `tilt` turns Earth's axis and needs a
+   * stage Scroll on the Earth & sky kit. Absent: the Final call is a plain call (D-187).
+   */
+  readonly finalCall?: { readonly kind: 'tilt' };
 }
 
 /**
