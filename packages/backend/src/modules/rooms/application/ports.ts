@@ -783,8 +783,8 @@ export interface LaunchStore {
   unfinished(lock: RoomLock, rowLock: 'none' | 'share' | 'update'): Promise<LaunchRow | undefined>;
   /** The room's newest Launch, finished or not. */
   latest(lock: RoomLock): Promise<LaunchRow | undefined>;
-  /** The newest approved deck of this day or later that no Launch has used. */
-  readyDeck(lock: RoomLock, fromDay: string): Promise<ReadyDeck | undefined>;
+  /** The newest approved deck dated from `fromDay` to `toDay` (UTC days, both included) that no Launch has used. */
+  readyDeck(lock: RoomLock, fromDay: string, toDay: string): Promise<ReadyDeck | undefined>;
   insert(
     lock: RoomLock,
     launch: {

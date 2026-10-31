@@ -232,7 +232,7 @@ export async function startDecision(
   if (!roomAcceptsPosts(standing.room.status)) return { allowed: false, reason: 'room_paused' };
   if (latest !== undefined && now.getTime() - latest.createdAt.getTime() < p.launchGapMs)
     return { allowed: false, reason: 'resting' };
-  const deck = await p.launches.readyDeck(lock, earliestDeckDay(now));
+  const deck = await p.launches.readyDeck(lock, earliestDeckDay(now), dayOf(now));
   if (deck === undefined) return { allowed: false, reason: 'no_deck' };
   const here = await p.presence.fresh(lock, new Date(now.getTime() - ROOM_PRESENCE_LEASE_MS), PEOPLE_READ_LIMIT);
   if (new Set([...here, owner.accountId]).size < MIN_HERE_TO_START) return { allowed: false, reason: 'few_here' };
@@ -248,6 +248,6 @@ export async function launchStrip(p: RoomPorts, lock: RoomLock, now: Date): Prom
     if (latest.state === 'live' && phase.kind !== 'over') return { state: 'live' };
     if (podiumReadable(overAt(latest), now)) return { state: 'finished' };
   }
-  const deck = await p.launches.readyDeck(lock, earliestDeckDay(now));
+  const deck = await p.launches.readyDeck(lock, earliestDeckDay(now), dayOf(now));
   return deck === undefined ? undefined : { state: 'ready' };
 }

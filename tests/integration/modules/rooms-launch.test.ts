@@ -203,6 +203,12 @@ describe('the Launch (real PostgreSQL, labelled CI fixtures)', () => {
       await sql`delete from rooms.rituals where room_id = ${roomId}::uuid`.execute(world.db);
       await approvedDeck(roomId, { day: dayOf(new Date(t0.getTime() - 3 * 24 * HOUR)) });
       expect((await read(asha, roomId)).start).toEqual({ allowed: false, reason: 'no_deck' });
+      // A deck an operator dated for tomorrow is not played tonight.
+      await approvedDeck(roomId, { day: dayOf(new Date(t0.getTime() + 24 * HOUR)) });
+      expect((await read(asha, roomId)).start).toEqual({ allowed: false, reason: 'no_deck' });
+      await sql`delete from rooms.rituals where room_id = ${roomId}::uuid and day > ${dayOf(t0)}::date`.execute(
+        world.db,
+      );
       await approvedDeck(roomId, { asset: gone });
       expect((await start(asha, roomId)).kind).toBe('refused');
       expect(

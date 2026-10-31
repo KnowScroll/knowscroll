@@ -74,11 +74,11 @@ export const launchStore: LaunchStore = {
     return found === undefined ? undefined : rowOf(found);
   },
 
-  async readyDeck(lock, fromDay) {
+  async readyDeck(lock, fromDay, toDay) {
     const found = await sql<{ ritual_id: string; payload: unknown }>`
       select ritual.ritual_id, ritual.payload from rooms.rituals ritual
       where ritual.room_id = ${lock.roomId}::uuid and ritual.kind = 'launch' and ritual.state = 'approved'
-        and ritual.day >= ${fromDay}::date
+        and ritual.day between ${fromDay}::date and ${toDay}::date
         and not exists (select 1 from rooms.launches launch where launch.deck_ritual_id = ritual.ritual_id)
       order by ritual.day desc limit 1`.execute(trxOf(lock));
     const [row] = found.rows;
