@@ -65,6 +65,8 @@ const NOT_SEEDED = new Set([
   'social.message_snippets',
   // The same, for a room's snippet: `rooms-erasure.test.ts` proves it goes.
   'rooms.message_snippets',
+  // Reached only through its discussion, which has a starter column of its own: `rooms-sky.test.ts` proves it stays.
+  'rooms.debates',
   // Keyed by the thread, which names no person: it is kept with the thread, and the test below proves it stays.
   'social.thread_call_reveals',
 ]);
@@ -422,7 +424,7 @@ describe('account deletion (real database)', () => {
         .execute();
       await seedScenarioRows(erased, scenarioThreadId);
       // A room: the person joined, started a discussion, wrote in it, invited their friend and asked an inhabitant.
-      const rooms = await roomWorld(database);
+      const rooms = await roomWorld(database, { now: new Date('2026-10-24T08:00:00Z') }, { starsPerDay: 20 });
       try {
         const room = await seedRoom(rooms);
         unwrap(await joinRoom(rooms, erasedAsFriend, room.roomId));
@@ -448,6 +450,90 @@ describe('account deletion (real database)', () => {
         await makeModerator(rooms, room.slug, erasedAsFriend);
         const poll = unwrap(await startPoll(rooms, erasedAsFriend, room.roomId));
         unwrap(await votePoll(rooms, erasedAsFriend, room.roomId, poll.activityId, 'o1'));
+        // The sky: a debate they started and voted on, a tap on a Spot the flaw (a labelled fixture item), seven stars from
+        // answers the person who stays wrote and they found useful, and their vote on the constellation's name.
+        const debate = unwrap(
+          await rooms.rooms.create(erasedAsFriend.authority, {
+            version: 'rooms.v1',
+            commandId: randomUUID(),
+            roomId: room.roomId,
+            start: {
+              kind: 'topic',
+              title: 'A debate',
+              tag: 'debate',
+              debate: { sides: ['Yes', 'No'], closesInHours: 24 },
+            },
+          }),
+        );
+        unwrap(
+          await rooms.rooms.voteDebate(erasedAsFriend.authority, {
+            version: 'rooms.v1',
+            commandId: randomUUID(),
+            roomId: room.roomId,
+            discussionId: debate.discussionId,
+            side: 'a',
+          }),
+        );
+        const ritualId = randomUUID();
+        await rooms.db
+          .insertInto('rooms.rituals')
+          .values({
+            ritual_id: ritualId,
+            room_id: room.roomId,
+            day: '2026-10-24',
+            kind: 'flaw',
+            payload: JSON.stringify({
+              sentences: ['One sentence.', 'Another sentence that was altered.', 'A third sentence.'],
+              flawIndex: 1,
+              original: 'Another sentence that was not altered.',
+              source: {
+                assetId: randomUUID(),
+                assetRevision: 1,
+                blockId: 'b1',
+                start: 0,
+                end: 80,
+                quoteHash: 'a'.repeat(64),
+              },
+            }),
+            payload_version: 'ritual.v1',
+            state: 'approved',
+            made_by: 'template',
+            created_at: new Date('2026-10-24T07:00:00Z'),
+            decided_at: new Date('2026-10-24T07:30:00Z'),
+            decided_by: 'cli:ci',
+          })
+          .execute();
+        unwrap(
+          await rooms.rooms.solveFlaw(erasedAsFriend.authority, {
+            version: 'rooms.v1',
+            commandId: randomUUID(),
+            roomId: room.roomId,
+            ritualId,
+            sentence: 1,
+            recordingGeneration: 1,
+          }),
+        );
+        const todayChannel = await rooms.db
+          .selectFrom('rooms.discussions')
+          .select('discussion_id')
+          .where('room_id', '=', room.roomId)
+          .where('kind', '=', 'today')
+          .executeTakeFirstOrThrow();
+        for (let index = 0; index < 7; index++) {
+          const answer = unwrap(
+            await say(rooms, stayer, room.roomId, todayChannel.discussion_id, `An answer ${String(index)}`),
+          );
+          unwrap(await markUseful(rooms, erasedAsFriend, room.roomId, todayChannel.discussion_id, answer.messageId));
+        }
+        unwrap(
+          await rooms.rooms.nameConstellation(erasedAsFriend.authority, {
+            version: 'rooms.v1',
+            commandId: randomUUID(),
+            roomId: room.roomId,
+            constellation: 1,
+            candidate: 1,
+          }),
+        );
       } finally {
         await rooms.close();
       }

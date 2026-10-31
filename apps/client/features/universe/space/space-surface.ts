@@ -37,6 +37,8 @@ export interface SpaceAnchor {
   readonly kind: 'system' | 'planet' | 'station' | 'dust';
   /** Empty for dust, which has no name. */
   readonly name: string;
+  /** A station's sky in words ("6 of 7 · The Lantern"), shown with its name; absent for anything else. */
+  readonly caption?: string;
   /** The system it belongs to; dust belongs to none. */
   readonly systemId: string | null;
   readonly x: number;

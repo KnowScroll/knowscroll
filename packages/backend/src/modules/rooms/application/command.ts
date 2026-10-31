@@ -29,6 +29,12 @@ export interface CommandSpec<A extends object> {
   readonly requires: Requires;
   /** `write` locks the room FOR UPDATE: commands that change who is in, the status or roles. */
   readonly mode: 'read' | 'write';
+  /**
+   * An answer in place of the command when the caller has not passed a gate that they may pass later (recording is paused).
+   * It writes nothing, not even a receipt, so the same intent can be sent again. It is asked after a replay is ruled out,
+   * so a command that was accepted still replays when the gate has closed since.
+   */
+  gate?(context: CommandContext): Promise<Result<A> | undefined>;
   /** Decides without writing; a refusal writes nothing, not even a receipt. */
   decide(context: CommandContext): Promise<Result<Decision<A>>>;
 }
@@ -72,7 +78,10 @@ export async function runCommand<A extends object>(
     const receipt = await p.rooms.findReceipt(entered.lock, key);
     if (receipt.kind === 'refused') return receipt;
     if (receipt.kind === 'replay') return ok({ ...spec.acceptance.parse(receipt.outcome), replayed: true });
-    const decision = await spec.decide({ scope, entered, member: entered.member, now: p.now() });
+    const context = { scope, entered, member: entered.member, now: p.now() };
+    const gated = await spec.gate?.(context);
+    if (gated !== undefined) return gated;
+    const decision = await spec.decide(context);
     if (decision.kind === 'refused') return decision;
     await p.rooms.beginReceipt(entered.lock, key);
     const acceptance = await decision.value();

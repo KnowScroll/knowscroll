@@ -206,7 +206,7 @@ export const discussionStore: DiscussionStore = {
       .selectFrom('rooms.discussions')
       .select(DISCUSSION_COLUMNS)
       .where('room_id', '=', lock.roomId)
-      .where('kind', '<>', 'general')
+      .where('kind', 'not in', ['general', 'today'])
       .orderBy(sql`pinned_at desc nulls last`)
       .orderBy('last_activity_at', 'desc')
       .orderBy('discussion_id')
@@ -370,6 +370,16 @@ export const discussionStore: DiscussionStore = {
       .select(DISCUSSION_COLUMNS)
       .where('room_id', '=', lock.roomId)
       .where('kind', '=', 'general')
+      .executeTakeFirst();
+    return row === undefined ? undefined : discussionOf(row);
+  },
+
+  async today(lock) {
+    const row = await trxOf(lock)
+      .selectFrom('rooms.discussions')
+      .select(DISCUSSION_COLUMNS)
+      .where('room_id', '=', lock.roomId)
+      .where('kind', '=', 'today')
       .executeTakeFirst();
     return row === undefined ? undefined : discussionOf(row);
   },

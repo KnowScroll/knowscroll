@@ -13,7 +13,7 @@ import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens
 import { Button, Icon, Tag, Text } from '@knowscroll/ui';
 import { afterPendingBack } from '../../platform/after-pending-back';
 import { TAGS, TAG_WORDS } from './ask-words';
-import { discussionHref, roomHref } from './room-links';
+import { discussionHref, roomHref, todayHref } from './room-links';
 import { ShareIntoRoomSheet } from './share-into-room-sheet';
 import { StartTopicSheet } from './start-topic-sheet';
 import { topicFigures } from './topic-card';
@@ -132,6 +132,32 @@ function DiscussionRow({
   );
 }
 
+/** Today's row (R3 B): the daily channel is never a topic of the list; it sits under General in the rail. */
+function TodayRow({ roomId, prompt }: { readonly roomId: string; readonly prompt: string | undefined }) {
+  const router = useRouter();
+  return (
+    <Pressable
+      role="link"
+      accessibilityLabel={`Today${prompt === undefined ? '' : `, ${prompt}`}`}
+      onPress={() => router.push(todayHref(roomId))}
+      style={styles.row}
+      testID="today-row"
+    >
+      <View style={styles.rowMain}>
+        <View style={styles.tile} aria-hidden>
+          <Icon name="star" size={20} color={content.paper} />
+        </View>
+        <View style={styles.rowText}>
+          <Text variant="ui">Today</Text>
+          <Text variant="meta" color={content.ink2} numberOfLines={2}>
+            {prompt ?? 'The day’s question and Spot the flaw'}
+          </Text>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
 /** General's own row: it is where a member lands, so it leads the list and is never pinned or counted as a topic. */
 function GeneralRow({ roomId, selected }: { readonly roomId: string; readonly selected: boolean }) {
   const router = useRouter();
@@ -200,7 +226,7 @@ export function TopicsList({
   });
   const items: readonly (RoomDiscussionSummary & Partial<Pick<RoomTopicItem, 'usefulCount'>>)[] = pinned
     ? view.discussions.filter((item) => item.pinned)
-    : (forum ?? view.discussions.filter((item) => tag === undefined || item.tag === tag));
+    : (forum ?? view.discussions.filter((item) => item.kind !== 'today' && (tag === undefined || item.tag === tag)));
   return (
     <>
       <View style={styles.listHeader}>
@@ -250,6 +276,9 @@ export function TopicsList({
         </View>
       )}
       {general === undefined ? null : <GeneralRow roomId={view.room.roomId} selected={general.selected} />}
+      {general === undefined || view.today === undefined ? null : (
+        <TodayRow roomId={view.room.roomId} prompt={view.today.prompt} />
+      )}
       {items.length === 0 ? (
         <View style={styles.quiet}>
           <Text variant="ui">
@@ -279,9 +308,14 @@ export function TopicsList({
         suggestedTitle=""
         working={state.working}
         onClose={() => setStarting(false)}
-        onStart={(title, chosen) =>
+        onStart={(title, chosen, debate) =>
           void controller
-            .startDiscussion({ kind: 'topic', title, ...(chosen === undefined ? {} : { tag: chosen }) })
+            .startDiscussion({
+              kind: 'topic',
+              title,
+              ...(chosen === undefined ? {} : { tag: chosen }),
+              ...(debate === undefined ? {} : { debate }),
+            })
             .then((discussionId) => {
               if (discussionId === undefined) return;
               setStarting(false);

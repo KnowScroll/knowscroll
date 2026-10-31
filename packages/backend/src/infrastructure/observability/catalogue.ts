@@ -259,6 +259,8 @@ export const diagnosticCatalogue = {
   'geography.quiet_swept': { severity: 'info', module: 'geography', fields: ['count'] },
   // One universe's settle: what it did (a code) and how many places changed activity. No person, no place.
   'geography.quiet_settled': { severity: 'info', module: 'geography', fields: ['outcome', 'count'] },
+  // The night's room items (D-176) failed for one room: its slug and the sanitised error. The other rooms are still drafted and the job retries.
+  'rooms.rituals_room_failed': { severity: 'warn', module: 'rooms', fields: ['context', 'error'] },
   // The daily purge removed reports about deleted accounts whose 90 days were over (D-055).
   'feedback.reports_purged': { severity: 'info', module: 'feedback', fields: ['count'] },
   'reasoning.purge_failed': { severity: 'warn', module: 'reasoning', fields: ['error'] },

@@ -20,6 +20,7 @@ export function reuseUnchangedAnchors(
       old !== undefined &&
       old.visible === anchor.visible &&
       old.name === anchor.name &&
+      old.caption === anchor.caption &&
       Math.abs(old.radiusPx - anchor.radiusPx) < SAME_PLACE_PX &&
       Math.abs(old.x - anchor.x) < SAME_PLACE_PX &&
       Math.abs(old.y - anchor.y) < SAME_PLACE_PX

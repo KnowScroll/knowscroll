@@ -75,6 +75,8 @@ export interface RoomDiscussionController {
   readonly askAbout: (kind: PointedAsk, messageId: string) => Promise<AskOutcome>;
   /** Marks a message Useful, or takes the mark back. The message shows the change at once; returns whether the server accepted it. */
   readonly markUseful: (messageId: string, useful: boolean) => Promise<boolean>;
+  /** Votes on a debate's side, or changes the vote until it closes. The discussion is read again; returns whether the server accepted it. */
+  readonly voteDebate: (side: 'a' | 'b') => Promise<boolean>;
   /** Moderator: pin or unpin this discussion in the room. */
   readonly pin: (pinned: boolean) => Promise<boolean>;
   /** Moderator: remove a message from view, or restore it. */
@@ -393,6 +395,13 @@ export function createRoomDiscussion(options: RoomDiscussionOptions): RoomDiscus
         }),
       });
       return true;
+    },
+    async voteDebate(side) {
+      const accepted = await moderate(`debate:${side}`, (commandId) =>
+        scope.api.rooms.voteDebate({ version: VERSION, commandId, ...ids, side }),
+      );
+      if (accepted !== undefined) await load();
+      return accepted !== undefined;
     },
     async pin(pinned) {
       const accepted = await moderate(`pin:${String(pinned)}`, (commandId) =>

@@ -23,6 +23,22 @@ async function ensureGeneral(db: Kysely<Database>, roomId: string, now: Date): P
     .execute();
 }
 
+/** Gives a room its Today discussion if it has none: the daily channel, made with the room like General (D-174). */
+async function ensureToday(db: Kysely<Database>, roomId: string, now: Date): Promise<void> {
+  await db
+    .insertInto('rooms.discussions')
+    .values({
+      discussion_id: uuidv7(),
+      room_id: roomId,
+      kind: 'today',
+      title: 'Today',
+      last_activity_at: now,
+      created_at: now,
+    })
+    .onConflict((conflict) => conflict.column('room_id').where('kind', '=', 'today').doNothing())
+    .execute();
+}
+
 /** Gives a room its residents if it has none: the cast of its seed, by role, leaving any name a room already has. */
 async function ensureCast(db: Kysely<Database>, roomId: string, seed: RoomSeed): Promise<void> {
   const problem = castProblem(seed.cast);
@@ -43,7 +59,7 @@ async function ensureCast(db: Kysely<Database>, roomId: string, seed: RoomSeed):
 
 /**
  * Creates the rooms that do not exist yet, by slug, and leaves existing ones as they are, except that a room
- * without a General or a cast gets them. It writes only room, General and cast rows: no member, no message and no
+ * without a General, a Today or a cast gets them. It writes only room, General and cast rows: no member, no message and no
  * moderator, so a seeded room is empty until people come.
  */
 export async function seedRooms(
@@ -75,6 +91,7 @@ export async function seedRooms(
       (await db.selectFrom('rooms.rooms').select('room_id').where('slug', '=', seed.slug).executeTakeFirstOrThrow())
         .room_id;
     await ensureGeneral(db, roomId, now);
+    await ensureToday(db, roomId, now);
     await ensureCast(db, roomId, seed);
     (inserted === undefined ? existing : created).push(seed.slug);
   }
