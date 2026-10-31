@@ -2158,3 +2158,12 @@ Confirmed by: `answer-check.test.ts` (what the checker is shown and not shown, t
 | `industrial-debate` | History | Wikipedia, Great Divergence | none | The Fork in the Road (`the-fork-in-the-road`) |
 
 Confirmed by: `library.test.ts` (the thirty-five and the four Seasons recipes are the only v2 recipes; each of the thirty-five is plain, has no kit, no myth and no Final call control, and a landmark with no claim of mastery; every series is wholly marked or not at all; landmarks are unique), `topics.test.ts` of the spike (it runs the marked recipes as the plan decides), `wave-tooling.test.ts` (`cardiac-cycle` is produced as a plain Scroll with its landmark, no myth and a passing check), and `supply-create.test.ts`, `supply.test.ts` and `supply-planned.test.ts` (Create is tested on the v1 library, since it writes no v2 recipe). Shown failing when a wave recipe was given a kit, when a series was marked in part, and when a landmark name claimed mastery.
+
+## D-173 · 2026-10-31 · A painted backdrop is full bleed, because a signed print keeps its signature in the paper margin (#490)
+
+**Amends** D-166 and D-172 (the house style of a painted backdrop).
+
+- **What dev showed.** After D-172's ban, six backdrops were made on dev (one per room, $0.021). Four of the six still carried a signature or an edition number. Every mark sat in a cream paper margin below the print, the way a real signed screenprint is signed. The two clean images ran to every edge.
+- **The change.** The house style asks for a full-bleed picture: "full bleed: the picture runs to every edge, with no paper border, margin or mount". The ban on signatures stays. It is still a prompt, so the operator's review (D-171) remains what keeps a mark out.
+
+Confirmed by: `backdrop-prompt.test.ts` (the prompt asks for full bleed and no paper border). Measured on dev after deploy: the share of new backdrops with a mark, recorded on #490.
