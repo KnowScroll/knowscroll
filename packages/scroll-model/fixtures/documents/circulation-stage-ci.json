@@ -1,0 +1,402 @@
+{
+  "schemaVersion": "scroll-document.v2",
+  "assetId": "ci-fixture-circulation-stage",
+  "revision": 1,
+  "language": "en",
+  "explanationUnitId": "ci-fixture-circulation-stage-unit",
+  "theme": {
+    "family": "worlds"
+  },
+  "kicker": "CI fixture · not product content",
+  "title": "The heart and the blood (a CI fixture)",
+  "dek": "A heartbeat, two loops, pressure along a vessel and the hand-off of oxygen, in short steps (a CI fixture).",
+  "framing": {
+    "kind": "factual"
+  },
+  "misconception": {
+    "kind": "none"
+  },
+  "stage": {
+    "kit": "circulation.v1",
+    "states": [
+      {
+        "stop": "filling",
+        "state": {
+          "view": "heart",
+          "phase": "filling",
+          "flow": "usual",
+          "vessels": "usual",
+          "where": "lungs",
+          "focus": "none"
+        },
+        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in an atrium, a ventricle and an artery, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The ventricles are relaxed. The valves between the atria and the ventricles are open, and the valves to the arteries are shut. Blood flows from the atria into the ventricles."
+      },
+      {
+        "stop": "atria",
+        "state": {
+          "view": "heart",
+          "phase": "atria-squeeze",
+          "flow": "usual",
+          "vessels": "usual",
+          "where": "lungs",
+          "focus": "atria"
+        },
+        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in an atrium, a ventricle and an artery, and a valve is open when the pressure behind it is higher than ahead of it. The two atria squeeze. The ventricles are relaxed. The valves between the atria and the ventricles are open, and the valves to the arteries are shut. Blood flows from the atria into the ventricles. The picture draws the eye to the atria."
+      },
+      {
+        "stop": "tense",
+        "state": {
+          "view": "heart",
+          "phase": "ventricles-tense",
+          "flow": "usual",
+          "vessels": "usual",
+          "where": "lungs",
+          "focus": "valves"
+        },
+        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in an atrium, a ventricle and an artery, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The two ventricles squeeze. The valves between the atria and the ventricles are shut, and the valves to the arteries are shut. No blood enters or leaves the ventricles. The picture draws the eye to the valves."
+      },
+      {
+        "stop": "ejection",
+        "state": {
+          "view": "heart",
+          "phase": "ejection",
+          "flow": "usual",
+          "vessels": "usual",
+          "where": "lungs",
+          "focus": "ventricles"
+        },
+        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in an atrium, a ventricle and an artery, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The two ventricles squeeze. The valves between the atria and the ventricles are shut, and the valves to the arteries are open. Blood is pushed out, from the right side to the lungs and from the left side to the body. The picture draws the eye to the ventricles."
+      },
+      {
+        "stop": "relaxing",
+        "state": {
+          "view": "heart",
+          "phase": "relaxing",
+          "flow": "usual",
+          "vessels": "usual",
+          "where": "lungs",
+          "focus": "none"
+        },
+        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in an atrium, a ventricle and an artery, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The ventricles are relaxed. The valves between the atria and the ventricles are shut, and the valves to the arteries are shut. No blood enters or leaves the ventricles."
+      },
+      {
+        "stop": "circuits",
+        "state": {
+          "view": "circuits",
+          "phase": "filling",
+          "flow": "usual",
+          "vessels": "usual",
+          "where": "lungs",
+          "focus": "lungs"
+        },
+        "alt": "Two loops meet at the heart. The right side sends blood to the lungs, where it picks up oxygen, and it returns to the left side. The left side sends it to the rest of the body, where it gives up oxygen, and it returns to the right side. Blood is drawn red where it is rich in oxygen and blue where it is poor. That is a drawing convention: blood is red either way. The picture draws the eye to the lungs."
+      },
+      {
+        "stop": "pressure",
+        "state": {
+          "view": "pressure",
+          "phase": "filling",
+          "flow": "usual",
+          "vessels": "usual",
+          "where": "lungs",
+          "focus": "arterioles"
+        },
+        "alt": "Bars show the average pressure along the loop through the body: the large arteries, the arterioles, the capillaries, the veins. It falls all the way, because each stretch uses some of it pushing the blood through. The biggest fall is across the arterioles. The fall across a stretch is the flow times its resistance. Pressures are relative and the pulse is left out. The picture draws the eye to the arterioles."
+      },
+      {
+        "stop": "narrowed",
+        "state": {
+          "view": "pressure",
+          "phase": "filling",
+          "flow": "usual",
+          "vessels": "narrowed",
+          "where": "lungs",
+          "focus": "arteries"
+        },
+        "alt": "Bars show the average pressure along the loop through the body: the large arteries, the arterioles, the capillaries, the veins. It falls all the way, because each stretch uses some of it pushing the blood through. The biggest fall is across the arterioles. The fall across a stretch is the flow times its resistance. Pressures are relative and the pulse is left out. The arterioles are narrowed, which raises their resistance, so the pressure before them is higher. The picture draws the eye to the arteries."
+      },
+      {
+        "stop": "oxygen-lungs",
+        "state": {
+          "view": "oxygen",
+          "phase": "filling",
+          "flow": "usual",
+          "vessels": "usual",
+          "where": "lungs",
+          "focus": "curve"
+        },
+        "alt": "A curve of how much of the haemoglobin in red blood cells carries oxygen, against how much oxygen is around. It is S-shaped, because each haemoglobin holds up to four oxygen molecules and the first makes the next easier to bind. The picture leaves out the effects of acidity and warmth. In the lungs oxygen is plentiful, so nearly all of the haemoglobin is loaded. The picture draws the eye to the curve."
+      },
+      {
+        "stop": "oxygen-rest",
+        "state": {
+          "view": "oxygen",
+          "phase": "filling",
+          "flow": "usual",
+          "vessels": "usual",
+          "where": "resting-tissue",
+          "focus": "handoff"
+        },
+        "alt": "A curve of how much of the haemoglobin in red blood cells carries oxygen, against how much oxygen is around. It is S-shaped, because each haemoglobin holds up to four oxygen molecules and the first makes the next easier to bind. The picture leaves out the effects of acidity and warmth. In resting tissue oxygen is scarcer, so the blood gives up a small share of its load and the rest stays on the haemoglobin. The picture draws the eye to the oxygen handed over."
+      },
+      {
+        "stop": "oxygen-work",
+        "state": {
+          "view": "oxygen",
+          "phase": "filling",
+          "flow": "usual",
+          "vessels": "usual",
+          "where": "active-tissue",
+          "focus": "handoff"
+        },
+        "alt": "A curve of how much of the haemoglobin in red blood cells carries oxygen, against how much oxygen is around. It is S-shaped, because each haemoglobin holds up to four oxygen molecules and the first makes the next easier to bind. The picture leaves out the effects of acidity and warmth. In working tissue oxygen is much scarcer, so the blood gives up most of its load, though some stays on the haemoglobin. The picture draws the eye to the oxygen handed over."
+      }
+    ]
+  },
+  "stops": [
+    {
+      "kind": "read",
+      "id": "filling",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Between beats the heart is relaxed. Blood from the veins flows into the two upper chambers, the atria, and on through open valves into the two lower chambers, the ventricles. The valves to the arteries are shut."
+        }
+      ],
+      "simple": "Between beats, blood flows into the relaxed chambers.",
+      "emphasis": "hook"
+    },
+    {
+      "kind": "read",
+      "id": "atria",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "The two atria squeeze together and top up the ventricles, which are still relaxed."
+        }
+      ],
+      "simple": "The atria squeeze first."
+    },
+    {
+      "kind": "call_it",
+      "id": "call-order",
+      "prompt": "Which chambers squeeze first?",
+      "options": ["The two atria, then the two ventricles", "All four at once"],
+      "answer": 0,
+      "explain": "The atria squeeze first and top up the ventricles. Then the ventricles squeeze and push the blood out.",
+      "twist": "All four at once is an easy picture of a heartbeat, but the chambers squeeze in order.",
+      "simple": "The atria, then the ventricles."
+    },
+    {
+      "kind": "read",
+      "id": "tense",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Next the ventricles begin to squeeze and their pressure climbs. The valves between the atria and ventricles snap shut. The valves to the arteries are not open yet, so no blood leaves."
+        }
+      ],
+      "simple": "The ventricles tense with every valve shut."
+    },
+    {
+      "kind": "read",
+      "id": "ejection",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Once the pressure in the ventricles rises above the pressure in the arteries, the valves to the arteries open and blood is pushed out: from the right side to the lungs, from the left side to the rest of the body."
+        }
+      ],
+      "simple": "Blood is pushed out into the arteries."
+    },
+    {
+      "kind": "read",
+      "id": "relaxing",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "The ventricles relax and their pressure falls below that in the arteries, so the valves to the arteries shut. For a moment every valve is closed. Then the valves between atria and ventricles open and the beat starts again."
+        }
+      ],
+      "simple": "The valves to the arteries shut and the beat starts again."
+    },
+    {
+      "kind": "read",
+      "id": "circuits",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "The right side of the heart sends blood to the lungs, which return it to the left side. The left side sends it to the rest of the body, which returns it to the right. Red marks blood rich in oxygen and blue blood poor in it: a drawing convention."
+        }
+      ],
+      "simple": "Two loops: through the lungs and through the body."
+    },
+    {
+      "kind": "call_it",
+      "id": "call-loops",
+      "prompt": "Where does the right side of the heart send blood?",
+      "options": ["To the lungs", "To the rest of the body"],
+      "answer": 0,
+      "explain": "The right side serves the lungs. The left side serves the rest of the body.",
+      "twist": "The body is the bigger trip, so it is the natural guess, but it belongs to the left side.",
+      "simple": "The right side serves the lungs."
+    },
+    {
+      "kind": "read",
+      "id": "pressure",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Pressure is highest in the large arteries and falls all the way round the loop, because each stretch uses some of it pushing the blood through. Most of the fall is across the arterioles."
+        }
+      ],
+      "simple": "Pressure falls along the loop, most across the arterioles."
+    },
+    {
+      "kind": "read",
+      "id": "narrowed",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Narrow the arterioles and their resistance rises steeply. For the same flow the pressure before them is higher. The pressure after them is no higher."
+        }
+      ],
+      "simple": "Narrow arterioles raise the pressure before them."
+    },
+    {
+      "kind": "read",
+      "id": "oxygen-lungs",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "In the lungs, where oxygen is plentiful, nearly all the haemoglobin in the red blood cells picks up oxygen. The curve is S-shaped: flat at the top and steep in the middle."
+        }
+      ],
+      "simple": "In the lungs the haemoglobin loads up."
+    },
+    {
+      "kind": "read",
+      "id": "oxygen-rest",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "In resting tissue oxygen is scarcer, so the blood gives up a small share of its oxygen and carries the rest on."
+        }
+      ],
+      "simple": "At rest the blood gives up a little."
+    },
+    {
+      "kind": "read",
+      "id": "oxygen-work",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "In working muscle oxygen is much scarcer. The steep part of the curve means the blood gives up far more."
+        }
+      ],
+      "simple": "In working muscle the blood gives up far more."
+    },
+    {
+      "kind": "final_call",
+      "id": "final-oxygen",
+      "prompt": "Working muscle uses oxygen faster. What happens to the oxygen the blood gives up there?",
+      "options": [
+        "It gives up more, because oxygen is scarcer in the tissue",
+        "It gives up the same, because haemoglobin holds a fixed amount"
+      ],
+      "answer": 0,
+      "explain": "Less oxygen around the haemoglobin puts it on the steep part of the curve, so more comes off.",
+      "twist": "A fixed amount is the natural guess, and the curve says otherwise.",
+      "simple": "Scarcer oxygen, more handed over."
+    }
+  ],
+  "asides": [
+    {
+      "id": "where-this-stops",
+      "kind": "limits",
+      "title": "Where this stops",
+      "text": "The picture shows average pressure and leaves out the pulse. Real vessels stretch, blood is not a simple fluid, and the colours of the blood are only a drawing convention.",
+      "anchorStop": "pressure",
+      "collapsed": true
+    }
+  ],
+  "recap": {
+    "captions": [
+      "The atria squeeze, then the ventricles.",
+      "Pressure falls all the way round the loop.",
+      "Blood gives up more oxygen where it is scarcer."
+    ],
+    "smallPrintAside": "where-this-stops"
+  },
+  "askSuggestions": ["What would change if the numbers were different?", "Where does this picture stop being true?"],
+  "limitsVersion": "scroll-limits.v2",
+  "measures": {
+    "version": "scroll-measures.v2",
+    "readingSeconds": 179,
+    "readingMinutes": 3,
+    "totalWeight": 686,
+    "recapWeight": 23,
+    "stops": [
+      {
+        "stopId": "filling",
+        "weight": 37
+      },
+      {
+        "stopId": "atria",
+        "weight": 14
+      },
+      {
+        "stopId": "call-order",
+        "weight": 88
+      },
+      {
+        "stopId": "tense",
+        "weight": 32
+      },
+      {
+        "stopId": "ejection",
+        "weight": 41
+      },
+      {
+        "stopId": "relaxing",
+        "weight": 39
+      },
+      {
+        "stopId": "circuits",
+        "weight": 50
+      },
+      {
+        "stopId": "call-loops",
+        "weight": 91
+      },
+      {
+        "stopId": "pressure",
+        "weight": 67
+      },
+      {
+        "stopId": "narrowed",
+        "weight": 25
+      },
+      {
+        "stopId": "oxygen-lungs",
+        "weight": 32
+      },
+      {
+        "stopId": "oxygen-rest",
+        "weight": 22
+      },
+      {
+        "stopId": "oxygen-work",
+        "weight": 20
+      },
+      {
+        "stopId": "final-oxygen",
+        "weight": 105
+      }
+    ]
+  },
+  "integrity": {
+    "method": "canonical-json-sha256.v1",
+    "sha256": "3f2f0ce1d95f3f916a8132d827f38d0d3c768e66c7593808f234c32a4ee911a7"
+  }
+}

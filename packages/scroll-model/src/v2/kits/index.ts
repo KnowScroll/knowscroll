@@ -1,6 +1,8 @@
 import { EARTH_SKY_KIT, EARTH_SKY_KIT_DEFINITION } from '../kit.js';
+import { CIRCULATION_KIT, CIRCULATION_KIT_DEFINITION } from './circulation.js';
 import { type KitDefinition } from './definition.js';
 import { GREENHOUSE_KIT, GREENHOUSE_KIT_DEFINITION } from './greenhouse.js';
+import { NERVE_KIT, NERVE_KIT_DEFINITION } from './nerve.js';
 import { STAR_KIT, STAR_KIT_DEFINITION } from './star.js';
 import { TIDES_KIT, TIDES_KIT_DEFINITION } from './tides.js';
 import { TRANSIT_KIT, TRANSIT_KIT_DEFINITION } from './transit.js';
@@ -11,7 +13,15 @@ import { TRANSIT_KIT, TRANSIT_KIT_DEFINITION } from './transit.js';
  * plan's `stageKit`), and a test keeps the plan's list and this one the same. Adding a kit is a new id,
  * its own words and physics, and a new decision.
  */
-export const STAGE_KIT_IDS = [EARTH_SKY_KIT, TIDES_KIT, GREENHOUSE_KIT, STAR_KIT, TRANSIT_KIT] as const;
+export const STAGE_KIT_IDS = [
+  EARTH_SKY_KIT,
+  TIDES_KIT,
+  GREENHOUSE_KIT,
+  STAR_KIT,
+  TRANSIT_KIT,
+  CIRCULATION_KIT,
+  NERVE_KIT,
+] as const;
 export type StageKitId = (typeof STAGE_KIT_IDS)[number];
 
 const KITS: Readonly<Record<StageKitId, KitDefinition>> = {
@@ -20,6 +30,8 @@ const KITS: Readonly<Record<StageKitId, KitDefinition>> = {
   [GREENHOUSE_KIT]: GREENHOUSE_KIT_DEFINITION,
   [STAR_KIT]: STAR_KIT_DEFINITION,
   [TRANSIT_KIT]: TRANSIT_KIT_DEFINITION,
+  [CIRCULATION_KIT]: CIRCULATION_KIT_DEFINITION,
+  [NERVE_KIT]: NERVE_KIT_DEFINITION,
 };
 
 /** The generic definition of a kit: its words, its first state, how it settles and describes a state. */
@@ -39,6 +51,43 @@ export {
   type WordState,
 } from './definition.js';
 export {
+  ARTERIOLE_RADIUS,
+  circulationParts,
+  CIRCULATION_ENUMS,
+  CIRCULATION_KIT,
+  CirculationStateSchema,
+  describeCirculationState,
+  HALF_LOADED_PRESSURE,
+  haemoglobinSaturation,
+  heartPhysics,
+  HEART_PRESSURES,
+  HILL_STEEPNESS,
+  INITIAL_CIRCULATION_STATE,
+  loopPhysics,
+  LOOP_STRETCHES,
+  OXYGEN_PRESSURE,
+  oxygenPhysics,
+  RELATIVE_FLOW,
+  resistanceFactor,
+  settleCirculationState,
+  USUAL_RESISTANCE_SHARE,
+  valveIsOpen,
+  VENTRICLE_FILL,
+  type BloodFlow,
+  type BloodPlace,
+  type CirculationPart,
+  type CirculationPatch,
+  type CirculationState,
+  type CirculationView,
+  type HeartPhase,
+  type HeartPhysics,
+  type LoopPhysics,
+  type LoopStretch,
+  type OxygenPhysics,
+  type VesselWidth,
+} from './circulation.js';
+export { TRACE_STEP } from './membrane.js';
+export {
   describeGreenhouseState,
   GREENHOUSE_ENUMS,
   GREENHOUSE_KIT,
@@ -56,6 +105,56 @@ export {
   type GreenhouseState,
   type GreenhouseView,
 } from './greenhouse.js';
+export {
+  actionPotential,
+  arcPhysics,
+  ARC_LINKS,
+  axonProfile,
+  AXON_PEAK_AT,
+  AXON_PROFILE_SAMPLES,
+  channelsAtIndex,
+  describeNerveState,
+  EXCITATORY_REVERSAL,
+  freshPushFiresAt,
+  INHIBITORY_REVERSAL,
+  INITIAL_NERVE_STATE,
+  NERVE_ENUMS,
+  NERVE_KIT,
+  nerveParts,
+  NerveStateSchema,
+  PUSH_END,
+  PUSH_RESPONSE_DURATION_MS,
+  PUSH_START,
+  postsynapticCourse,
+  PUSH_STRENGTH,
+  pushResponses,
+  settleNerveState,
+  SPIKE_DURATION_MS,
+  spikePhysics,
+  SYNAPSE_TIME_IN_CONSTANTS,
+  SYNAPTIC_PULL,
+  synapsePhysics,
+  synapticShift,
+  type ActionPotential,
+  type ArcPhysics,
+  type ArcStep,
+  type AxonPlace,
+  type AxonProfile,
+  type ChannelsPhysics,
+  type NervePart,
+  type NervePatch,
+  type NerveState,
+  type NerveView,
+  type PotassiumChannels,
+  type PushResponse,
+  type PushSize,
+  type SodiumChannels,
+  type SpikePhase,
+  type SpikePhysics,
+  type SynapseEffect,
+  type SynapsePhysics,
+  type SynapseStep,
+} from './nerve.js';
 export {
   describeStarState,
   INITIAL_STAR_STATE,
