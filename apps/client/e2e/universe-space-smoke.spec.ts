@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { fixtureAccount, fixtureId, sceneFixture } from '../features/universe/universe.fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
+import { tapOrbitingTarget } from './orbiting-target';
 
 /**
  * The Universe tab's space views (v3 U-2, D-106) in a real browser with a real WebGL 2 context, over
@@ -62,14 +63,28 @@ async function openUniverse(page: Page, requests: Request[], options: Options = 
   const world = sceneFixture(5, options.dust ?? 0);
   if (options.station === true) world.stations.push(station);
   await page.setViewportSize(size);
-  // Count the frames the renderer draws: three.js clears the canvas once per frame.
+  // Count the frames the renderer draws: three.js clears the canvas once per frame. A frame is stamped
+  // with the time the browser gave its animation-frame callback (the stamp the 30 fps cap is decided on),
+  // not the time `clear` ran: that moves with the runner's stalls, and two frames could then look 14 ms apart.
   await page.addInitScript(() => {
     const frames: number[] = [];
     (window as unknown as { __ksFrames: number[] }).__ksFrames = frames;
+    let frameStamp: number | null = null;
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- called back with the right `this` below
+    const request = window.requestAnimationFrame;
+    window.requestAnimationFrame = (callback) =>
+      request.call(window, (stamp) => {
+        frameStamp = stamp;
+        try {
+          callback(stamp);
+        } finally {
+          frameStamp = null;
+        }
+      });
     // eslint-disable-next-line @typescript-eslint/unbound-method -- called back with the right `this` below
     const clear = WebGL2RenderingContext.prototype.clear;
     WebGL2RenderingContext.prototype.clear = function (this: WebGL2RenderingContext, mask: number): void {
-      frames.push(performance.now());
+      frames.push(frameStamp ?? performance.now());
       clear.call(this, mask);
     };
   });
@@ -231,10 +246,11 @@ test('holds the 30 fps cap on the real tab, and stops drawing when the tab is hi
   expect(drawn.length).toBeGreaterThan(10);
   const gaps = drawn.slice(1).map((at, index) => at - drawn[index]!);
   const mean = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
-  // The cap: ~33 ms between frames on average. Single gaps are read at draw time, not at the frame stamp,
-  // so they jitter a few ms either way; one under 25 ms would mean the loop runs above 40 per second.
-  expect(mean).toBeGreaterThanOrEqual(30);
-  expect(Math.min(...gaps)).toBeGreaterThanOrEqual(25);
+  // The cap: the loop draws a frame only when its stamp is 32 ms or more after the last drawn one (33 ms
+  // less 1 ms of vsync jitter), and a stall only lengthens a gap. So no gap is shorter, and the mean is
+  // at least the cap; a loop that drew on every 16 ms frame would fail both.
+  expect(mean).toBeGreaterThanOrEqual(32);
+  expect(Math.min(...gaps)).toBeGreaterThanOrEqual(32);
   const line = `universe tab (web, 390x844): ${drawn.length} frames in 4 s, mean interval ${mean.toFixed(1)} ms, min ${Math.min(...gaps).toFixed(1)} ms`;
   // eslint-disable-next-line no-console -- the numbers go in the PR description
   console.log(line);
@@ -351,7 +367,7 @@ test('draws the desktop panel, docks a picked planet’s card, and the Simple dr
     timeout: 60_000,
   });
   await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).first().click();
-  await page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).first().click();
+  await tapOrbitingTarget(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).first());
   await expect(page.getByTestId('universe-planet-card')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Zoom in', exact: true })).toBeVisible();
   await expect(page.getByText('Back up a level')).toBeVisible();
