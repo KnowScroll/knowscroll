@@ -66,10 +66,13 @@ import {
 import {
   resolveBranchesQueue,
   suggestDraftQueue,
+  writeAnswerQueue,
   RESOLVE_SCENARIO_BRANCHES,
   SUGGEST_SCENARIO_DRAFT,
+  WRITE_SCENARIO_ANSWER,
   type ResolveSummary,
   type SuggestStep,
+  type WriteAnswerStep,
 } from '@knowscroll/backend/modules/scenarios';
 import { resolveSupplyQueue, RESOLVE_CONTENT_REQUEST, type ResolveRequest } from '@knowscroll/backend/modules/supply';
 import {
@@ -252,6 +255,7 @@ export const jobWiring: Provider[] = [
       SWEEP_QUIET,
       RESOLVE_CONTENT_REQUEST,
       SUGGEST_SCENARIO_DRAFT,
+      WRITE_SCENARIO_ANSWER,
       RESOLVE_SCENARIO_BRANCHES,
       CHECK_ASSET_AUDIENCE,
       RUN_PLANNER,
@@ -285,6 +289,7 @@ export const jobWiring: Provider[] = [
       sweepQuiet: SweepQuiet,
       resolveRequest: ResolveRequest,
       suggestDraft: SuggestStep,
+      writeAnswer: WriteAnswerStep,
       resolveBranches: () => Promise<ResolveSummary>,
       audience: CheckAssetAudience,
       runPlanner: RunPlanner,
@@ -373,10 +378,16 @@ export const jobWiring: Provider[] = [
       jobConsumer(suggestDraftQueue, async (payload, delivery) => {
         await suggestDraft(payload, delivery.signal);
       }),
-      // Every minute: preparing branches get their Scroll, the next take, or an honest end.
+      jobConsumer(writeAnswerQueue, async (payload, delivery) => {
+        await writeAnswer(payload, delivery.signal);
+      }),
+      // Every minute: preparing branches get their Scroll, the next take, or an honest end; a short answer that
+      // took too long is given up on.
       jobConsumer(resolveBranchesQueue, async () => {
         const summary = await resolveBranches();
-        logEvent('scenarios.branches_resolved', { count: summary.bound + summary.failed + summary.sent });
+        logEvent('scenarios.branches_resolved', {
+          count: summary.bound + summary.failed + summary.sent + summary.answersEnded,
+        });
       }),
       jobConsumer(plannerQueue, async (payload, delivery) => {
         await runPlanner(payload, delivery.signal);

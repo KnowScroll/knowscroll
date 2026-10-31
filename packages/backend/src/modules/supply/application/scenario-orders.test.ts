@@ -15,7 +15,8 @@ const order = (id: string): MadeToOrderScroll => ({
 });
 
 /** In-memory ledger and ports: the use case's rules, without a database. */
-function world(caps: { perDay: number; perThread: number }, now = new Date('2026-10-24T10:00:00Z')) {
+function world(caps: { perDay: number; perThreadPerDay: number }, start = new Date('2026-10-24T10:00:00Z')) {
+  const clock = { now: start };
   const rows: { orderId: string; threadId: string; createdAt: Date }[] = [];
   const recorded: string[] = [];
   const sent: [string, number][] = [];
@@ -26,9 +27,10 @@ function world(caps: { perDay: number; perThread: number }, now = new Date('2026
       return Promise.resolve();
     },
     countSince: (_, since) => Promise.resolve(rows.filter((row) => row.createdAt >= since).length),
-    countForThread: (_, threadId) => Promise.resolve(rows.filter((row) => row.threadId === threadId).length),
+    countForThreadSince: (_, threadId, since) =>
+      Promise.resolve(rows.filter((row) => row.threadId === threadId && row.createdAt >= since).length),
     insert: (_, row) => {
-      rows.push({ ...row, createdAt: now });
+      rows.push({ ...row, createdAt: clock.now });
       return Promise.resolve();
     },
   };
@@ -43,14 +45,14 @@ function world(caps: { perDay: number; perThread: number }, now = new Date('2026
       return Promise.resolve();
     },
     caps,
-    now: () => now,
+    now: () => clock.now,
   });
-  return { commission, rows, recorded, sent, events };
+  return { commission, rows, recorded, sent, events, clock };
 }
 
 describe('Quartermaster scenario Create', () => {
   it('records the order, the ledger row and the first production job together, after taking the lock', async () => {
-    const w = world({ perDay: 5, perThread: 5 });
+    const w = world({ perDay: 5, perThreadPerDay: 5 });
     const outcome = await w.commission(scope, { threadId: 't1', order: order('n1') });
     expect(outcome).toEqual({ kind: 'commissioned', recipe: 'order-n1' });
     expect(w.events).toEqual(['lock']);
@@ -60,7 +62,7 @@ describe('Quartermaster scenario Create', () => {
   });
 
   it('stops at the day’s cap and writes nothing', async () => {
-    const w = world({ perDay: 2, perThread: 9 });
+    const w = world({ perDay: 2, perThreadPerDay: 9 });
     await w.commission(scope, { threadId: 't1', order: order('n1') });
     await w.commission(scope, { threadId: 't2', order: order('n2') });
     expect(await w.commission(scope, { threadId: 't3', order: order('n3') })).toEqual({
@@ -72,7 +74,7 @@ describe('Quartermaster scenario Create', () => {
   });
 
   it('is off when the day’s cap is zero', async () => {
-    const w = world({ perDay: 0, perThread: 9 });
+    const w = world({ perDay: 0, perThreadPerDay: 9 });
     expect(await w.commission(scope, { threadId: 't1', order: order('n1') })).toEqual({
       kind: 'refused',
       reason: 'day_cap',
@@ -81,12 +83,35 @@ describe('Quartermaster scenario Create', () => {
   });
 
   it('stops at the thread’s cap, and another thread is not affected', async () => {
-    const w = world({ perDay: 9, perThread: 1 });
+    const w = world({ perDay: 9, perThreadPerDay: 1 });
     await w.commission(scope, { threadId: 't1', order: order('n1') });
     expect(await w.commission(scope, { threadId: 't1', order: order('n2') })).toEqual({
       kind: 'refused',
       reason: 'thread_cap',
     });
     expect(await w.commission(scope, { threadId: 't2', order: order('n3') })).toMatchObject({ kind: 'commissioned' });
+  });
+  it('lets a thread order five a day and refuses the sixth, without writing anything (D-076)', async () => {
+    const w = world({ perDay: 100, perThreadPerDay: 5 });
+    for (const n of [1, 2, 3, 4, 5])
+      expect(await w.commission(scope, { threadId: 't1', order: order(`n${String(n)}`) })).toMatchObject({
+        kind: 'commissioned',
+      });
+    expect(await w.commission(scope, { threadId: 't1', order: order('n6') })).toEqual({
+      kind: 'refused',
+      reason: 'thread_cap',
+    });
+    expect(w.rows).toHaveLength(5);
+    expect(w.recorded).not.toContain('n6');
+    expect(w.sent).toHaveLength(5);
+  });
+
+  it('gives the thread its five again on the next UTC day, and not before midnight', async () => {
+    const w = world({ perDay: 100, perThreadPerDay: 1 }, new Date('2026-10-24T23:59:00Z'));
+    await w.commission(scope, { threadId: 't1', order: order('n1') });
+    w.clock.now = new Date('2026-10-24T23:59:59Z');
+    expect(await w.commission(scope, { threadId: 't1', order: order('n2') })).toMatchObject({ reason: 'thread_cap' });
+    w.clock.now = new Date('2026-10-25T00:00:00Z');
+    expect(await w.commission(scope, { threadId: 't1', order: order('n3') })).toMatchObject({ kind: 'commissioned' });
   });
 });

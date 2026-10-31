@@ -1,9 +1,10 @@
-import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { chipText, kindWord } from '@knowscroll/client-core';
+import { answerStage, chipText, kindWord } from '@knowscroll/client-core';
 import type { Assumption, ScenarioCard } from '@knowscroll/contracts';
 import { borderWidth, content, elevation, radius, spacing, status } from '@knowscroll/design-tokens';
-import { BottomSheet, Button, Icon, IconButton, PendingStripe, Tag, Text } from '@knowscroll/ui';
+import { Button, Icon, PendingStripe, Tag, Text } from '@knowscroll/ui';
+import { BranchMenu, SPECULATIVE_NOTICE } from './branch-parts';
+import { WhatIfCard } from './what-if-card';
 
 /** A chip of what a branch changes (dashed cobalt, as the premise) or keeps (ink). */
 function Chip({ prefix, assumption }: { readonly prefix: 'Changed' | 'Kept'; readonly assumption: Assumption }) {
@@ -17,12 +18,6 @@ function Chip({ prefix, assumption }: { readonly prefix: 'Changed' | 'Kept'; rea
   );
 }
 
-/**
- * What a branch the Planner flagged says of its premise. It is the premise's own text, not a second status
- * label: the only status labels are Hypothetical and Corrected (D-006 a).
- */
-export const SPECULATIVE_NOTICE = 'Speculative scenario · not established science';
-
 /** The card's accessible name: the kind and its status in words, then the title (X02, accessibility). */
 export function branchLabel(card: ScenarioCard): string {
   const kind = card.hypothetical ? `${kindWord(card)}, hypothetical` : kindWord(card);
@@ -35,38 +30,6 @@ export function branchLabel(card: ScenarioCard): string {
           ? 'removed'
           : 'ready';
   return `${kind}: ${card.title}, ${state}`;
-}
-
-/** What a ready branch offers beside Explore this: ask What if from it, and (its starter) remove it. */
-function BranchMenu({
-  card,
-  starterIsYou,
-  onRemove,
-  onContinue,
-}: {
-  readonly card: ScenarioCard;
-  readonly starterIsYou: boolean;
-  readonly onRemove: (card: ScenarioCard) => void;
-  readonly onContinue: (card: ScenarioCard) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const choose = (action: (card: ScenarioCard) => void) => () => {
-    setOpen(false);
-    action(card);
-  };
-  return (
-    <>
-      <IconButton icon="more" label="More about this branch" variant="plain" onPress={() => setOpen(true)} />
-      <BottomSheet visible={open} title={card.title} onClose={() => setOpen(false)}>
-        <View style={styles.menu}>
-          {card.status === 'ready' ? (
-            <Button label="What if…" icon="hypothetical" fullWidth variant="ghost" onPress={choose(onContinue)} />
-          ) : null}
-          {starterIsYou ? <Button label="Remove" fullWidth variant="ghost" onPress={choose(onRemove)} /> : null}
-        </View>
-      </BottomSheet>
-    </>
-  );
 }
 
 /**
@@ -83,6 +46,7 @@ export function BranchCard({
   starterIsYou,
   startedLine,
   openedByYou,
+  now = new Date(),
   onOpen,
   onRemove,
   onContinue,
@@ -91,6 +55,8 @@ export function BranchCard({
   readonly starterIsYou: boolean;
   /** "from the thread", "from Ravi’s message", "from a moment": where it began, in words. */
   readonly startedLine: string;
+  /** The time the card is judged at (how long a short answer has been waited for). */
+  readonly now?: Date;
   /** This member opened the branch's Scroll (their own history; the server tells no one else's). */
   readonly openedByYou: boolean;
   readonly onOpen: (card: ScenarioCard) => void;
@@ -105,6 +71,21 @@ export function BranchCard({
           A branch was removed · nothing else changed
         </Text>
       </View>
+    );
+  const stage = answerStage(card, now);
+  // A what-if with a short answer, being made or ready, is the T3 card (D-211); every other branch is the card it was.
+  if (stage === 'making' || stage === 'slow' || stage === 'ready')
+    return (
+      <WhatIfCard
+        card={card}
+        now={now}
+        starterIsYou={starterIsYou}
+        startedLine={startedLine}
+        openedByYou={openedByYou}
+        onOpen={onOpen}
+        onRemove={onRemove}
+        onContinue={onContinue}
+      />
     );
   const failed = card.status === 'failed';
   const asker = starterIsYou
@@ -153,6 +134,11 @@ export function BranchCard({
       <Text variant="meta" color={content.ink2}>
         {asker} · {startedLine}
       </Text>
+      {stage === 'unavailable' ? (
+        <Text variant="meta" color={content.ink2} testID="no-short-answer">
+          No short answer this time.
+        </Text>
+      ) : null}
       {openedByYou ? (
         <View style={styles.opened}>
           <Icon name="check" size={14} color={content.freshInk} />
@@ -241,7 +227,6 @@ const styles = StyleSheet.create({
   },
   failure: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   actions: { flexDirection: 'row', gap: spacing[2], flexWrap: 'wrap', alignItems: 'center' },
-  menu: { gap: spacing[3], paddingBottom: spacing[2] },
   opened: { flexDirection: 'row', alignItems: 'center', gap: spacing[1] },
   removed: {
     alignSelf: 'center',

@@ -610,6 +610,19 @@ direct conversations and threads together; a thread row shows its people, the la
   sheet, docking, Full screen and the snippet viewer tell nothing. Single-item threads have none of it. No clock time is
   drawn: a place carries a day. Covered by `party.test.tsx` and `e2e/thread-party-smoke.spec.ts` (two people in two browser
   contexts; axe at 390 × 844 and 1440 × 900). _Implemented; not runtime-verified on dev._
+- **Call it together (v3 T-E, D-155 to D-157).** `call-together.tsx` draws `CallCard` (T3 frames 4 and 5: a yellow band "CALL IT
+  TOGETHER · BEFORE PART 2", the question, options as a radio group, "n of m have called · answers stay hidden until you call",
+  and Lock it in; keys 1 to 3 choose and Enter locks), the same card locked (the person's own call, and what it waits for) and
+  revealed (a green "CALLED IT!" band with the spark, or an orange "PLOT TWIST!" band with the warm second look and no spark;
+  each option with the initials of who called it, a tick on the right answer, "PLOT TWIST" on the person's own miss, why, and
+  the Scroll's reviewed "The common guess. Source: …" note when the server sends it, never a figure), `CallBar` (a yellow pill above the composer for the first call the person can make,
+  then the first they wait on, then a reveal not yet opened here) and `CallChip` (on a part's row in the Series sheet and panel).
+  `use-thread-calls.ts` reads the calls (first read, hints, focus, a 20 s poll) only for a series thread and keeps which reveals
+  were opened in the account scope's storage on this device; nothing about that is sent. A pick is sent only while recording is
+  on: paused, the card says so and nothing is sent (D-156). The card shows counts and the person's own pick until the reveal, and
+  no screen holds another member's pick before it: the contract carries picks only in the revealed stage. Covered by
+  `call-together.test.tsx` and `e2e/thread-calls-smoke.spec.ts` (two people in two browser contexts and a third member; the
+  reveal, a member who hides, paused recording; axe at 390 × 844 and 1440 × 900). _Implemented; not runtime-verified on dev._
 - `reel-encounter.tsx` plays a Reel inside the thread. It starts with a poster and an explicit Watch; only that opens and
   activates an exposure and mounts the ordinary `ReelPlayer`. The full-screen `snippet-viewer.tsx` does the same for a
   moment ("Watch from here") and always has a Back to thread button that returns to the same message.
@@ -717,7 +730,7 @@ form with earlier premises (add or replace) and the removed-branch note are cove
   chip, "Your idea"), thinking with "Write my own version", `direction-steps.tsx` (one clear idea as a summary with Edit and
   **Explore**, a few suggested directions each with **Explore this**, and the confirm step "Speculative scenario · not
   established science" with **Create branch**), `own-request-form.tsx` and `outcome-steps.tsx` (no suggestions, started,
-  and a plain message when blocked: no more branches for now, nothing to look up, offline). The words are kept on the
+  and a plain message when blocked: no more branches today ("This thread has made its five branches for today" when its own cards show five from today), nothing to look up, offline). The words are kept on the
   device until a branch exists. Asking never makes anything; only Explore, Explore this or Create branch does.
 - `own-request-form.tsx` is the member's own complete request: what changes, what stays, or the lens. Where the branch
   continues others, it lists the premises that already hold, and a changed line is either a new premise or **Replaces:
@@ -726,7 +739,15 @@ form with earlier premises (add or replace) and the removed-branch note are cove
   real subject; "Hypothetical" and the Changed and Kept chips (which wrap); Preparing with a stripe, Ready with **Explore this**,
   **What if…** (continue from this branch), and Remove for whoever asked; "Couldn't prepare this branch"; a removed branch
   stays in the chat as a quiet note. It shows nobody's position and no part number.
-- `use-scenarios.ts`: `useScenarioBoard` polls the branches every 20 seconds (5 while one is preparing) and on focus or
+- `what-if-card.tsx` (T3, D-211): a what-if that has, or is getting, a short answer is a paper card labelled "What-if · made by
+  KnowScroll". While it is made it says "Making a short what-if · about 30 s · keep chatting" with a bar and "We check it before it
+  posts" (after 90 s, "Taking longer than usual"); the one who asked can Cancel. Once ready it shows ASSUMED, CHANGED, KEPT, the answer
+  and any figure a source states, then **Open** (the full Scroll, once it exists, else a plain note) and **Branch again**. A what-if with
+  no short answer, a perspective and an old branch keep the card above, with "No short answer this time" where that is true. It
+  shows no source, score, prompt or model, and nothing about where anyone is. *Implemented; `thread-whatif-smoke.spec.ts` drives it
+  with two people at 390 by 844 and 1440 by 900 with axe. Not yet run with the real model.* Not drawn (D-213): Reply in branch, Call it
+  first, the Branches tab, the step list.
+- `use-scenarios.ts`: `useScenarioBoard` polls the branches every 20 seconds (5 while one is preparing or its short answer is being made) and on focus or
   reconnect; `useScenarioComposer` looks at its draft every 1.5 seconds while the directions are being thought of.
   `use-thread-scenarios.ts` holds where a request starts in one open thread, and `asks-bar.tsx` is the two buttons above the
   message box. The controllers are `createScenarioBoard` and `createScenarioComposer` in client-core.

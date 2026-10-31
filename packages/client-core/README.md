@@ -430,6 +430,15 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
   all 3 parts"), `placeDay` (the day as a date, "Sat 24 Oct", never a time or "today"), `partyLine` ("Ravi is on Part 2 ·
   Asha and Kenji on Part 1", "All finished"), `facesByPart`. No line says "watching". _Implemented; exercised in browsers
   locally, not yet on dev._
+- `createThreadCalls({scope, thread, newId})` (`thread-calls.ts`, Call it together, D-155 to D-157): `load` reads the calls this person
+  may see (one per part with an authored question, each in the stage it is in: counts, the person's own pick, or the reveal);
+  `lock(part, option)` sends the pick with the recording generation, and nothing else. It sends nothing while the recording
+  policy says paused (the state says so), reads the policy again and sends once more on a stale generation, never throws,
+  ignores a second press while one is on its way, and may be pressed again after a lost answer because the first lock stands.
+  The calls are read again after every answer. A failed read keeps what was shown. When the account scope ends the controller
+  drops what it read, other members' revealed picks included, and shows nothing more. `call-words.ts` holds the words
+  (`callSummaryWords`, `callChipWords`, `revealWords`: "Called it!" with a spark, or "Plot twist!" and no loss) and `callForBar`.
+  _Implemented; exercised in browsers locally, not yet on dev._
 - `createExploreWithFriends(...)`: lists friends (`friends.recentCount` of the first items are people the person already talks to), creates the thread with one command ID per intent, and reports
   `created`, `unavailable` or `unconfirmed` (retry sends the identical command, so it cannot make two threads).
 - `readThreadSummaries`, `findThread`, `threadRowView`, `describeThreadMessage`: Talk rows for threads.
@@ -458,6 +467,10 @@ Pure controllers over `scope.api.scenarios`. *Implemented; exercised in tests an
   `attach(draftId)` picks up a draft the member was offered and has not chosen, and shows its directions.
   The board also carries `suggestions`, the member's own unmade offers from `list`.
 - `subjectOfStatement`, `chipText`, `describeOption`, `kindWord`, `kindedTitle`: the words a screen uses for an assumption chip and a card (`kindedTitle` does not say "What if" twice).
+- `scenario-answers.ts` (pure, D-211): the short answer card's words and states. `WHAT_IF_MADE_BY` is the label every card carries;
+  `answerStage` says `none`, `making`, `slow` (past 90 s), `ready` or `unavailable`; `awaitingServer` says when the board is read again
+  soon (a branch preparing or an answer being made); `madeInSeconds`; `branchesMadeToday` and `threadMadeAllToday` count a thread's
+  UTC day against the cap of five (D-158) so a refusal can say why. The server decides; these only explain. *Implemented.*
 - `ownSelection` carries `fromOptionId` when a request was edited from one of the draft's directions.
 - `scenario-map.ts` (pure): `buildMap` (a few named steps: `forestOf`, `narrow`, `layOut`) makes the outline of a thread
   (X04) from its episodes, the branch cards and the member's offers: branches nested under the root episode, the Mine, Everyone and Suggestions filters (they keep the

@@ -13,6 +13,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   TALK_QUERY_KEY,
+  answersKey,
+  callForBar,
   composerAddressees,
   findThread,
   liveReplyTarget,
@@ -46,6 +48,7 @@ import { AsksBar } from '../scenarios/asks-bar';
 import { BranchSheets } from '../scenarios/branch-sheets';
 import { useScenarioBoard } from '../scenarios/use-scenarios';
 import { useThreadBranches } from '../scenarios/use-thread-branches';
+import { CallBar, CallCard } from './call-together';
 import { useOwnPlace } from './own-place';
 import { useMarkHere } from '../scenarios/use-mark-here';
 import { MembersSection, PartWorlds, PartyLine, SeriesTabs, type SeriesTab } from './party';
@@ -56,6 +59,7 @@ import { ThreadEncounter } from './thread-encounter';
 import { readInThreadHref, snippetHref, threadRefFromParams } from './thread-links';
 import { ThreadMessages } from './thread-messages';
 import { useContentThread } from './use-content-thread';
+import { useThreadCalls } from './use-thread-calls';
 import { useThreadPlaces } from './use-thread-places';
 
 /** D03, T3: the series panel beside the conversation. */
@@ -124,7 +128,9 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
     ref: scrollRef,
     onScroll,
     follow,
-  } = useFollowEnd(`${String(state.messages.length)}:${String(board.state.cards.length)}`);
+  } = useFollowEnd(
+    `${String(state.messages.length)}:${String(board.state.cards.length)}:${answersKey(board.state.cards)}`,
+  );
   // The keyboard opening folds the player, and folding pauses it (C04).
   useEffect(() => {
     const subscription = Keyboard.addListener('keyboardDidShow', () => place.setFolded(true));
@@ -139,6 +145,15 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
   const series = state.sequence === 'series';
   const current = episodes.find((episode) => episode.assetId === place.selected) ?? episodes[0];
   const ownPersonId = state.participants.find((participant) => participant.you)?.person.personId;
+  // "Call it together" (D-155): the calls of the series' parts, and the one the person has open.
+  const calls = useThreadCalls(scope, thread, series);
+  const [callPart, setCallPart] = useState<number>();
+  const openCall = calls.state.calls.find((call) => call.part === callPart);
+  const barCall = callForBar(calls.state.calls, calls.seen);
+  const { markSeen } = calls;
+  useEffect(() => {
+    if (openCall?.stage === 'revealed') markSeen(openCall);
+  }, [openCall, markSeen]);
   const branches = useThreadBranches({
     scope,
     thread,
@@ -185,11 +200,16 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
         series={series}
         heading={sideBySide ? seriesHeading(series, episodes.length) : undefined}
         places={parties.state.places}
+        calls={calls.state.calls}
         onSelect={(assetId) => {
           place.select(assetId);
           setSeriesOpen(false);
         }}
         onStep={place.select}
+        onCall={(part) => {
+          setSeriesOpen(false);
+          setCallPart(part);
+        }}
         onMap={showMap}
       />
     );
@@ -303,6 +323,20 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
               })
             }
           />
+          {openCall === undefined ? (
+            barCall === undefined ? null : (
+              <CallBar call={barCall} onOpen={() => setCallPart(barCall.part)} />
+            )
+          ) : (
+            <CallCard
+              key={`${String(openCall.part)}@${openCall.assetId}@${String(openCall.assetRevision)}`}
+              call={openCall}
+              notice={calls.state.notice?.part === openCall.part ? calls.state.notice.reason : undefined}
+              locking={calls.state.locking === openCall.part}
+              onLock={(option) => void calls.controller.lock(openCall.part, option)}
+              onClose={() => setCallPart(undefined)}
+            />
+          )}
           <AsksBar onAsk={branches.scenarios.askFromRoot} />
           <Composer
             name={composerAddressees(

@@ -953,7 +953,8 @@ Related: #370, #241, #242.
 `send`, caller-only `mark-read`, `mute` and `leave`. A current accepted friend may start
 one direct two-human conversation. Existing Friends/profile/invite/visibility/presence/visitor
 contracts and their partial unmounted backend remain unchanged. These declarations mount
-nothing. Group/thread invitations, content threads, snippets/anchors/block settings, scenarios,
+nothing. Group/thread invitations, content threads, snippets/anchors/block settings, scenarios (a what-if's card carries an optional
+`answer`: `making`, `unavailable` or `ready` with the assumption, the answer, up to three figures and a fixed `madeBy: 'knowscroll'`, D-211),
 rooms, typing, AI participants and Social sockets are separate phases. Never display authored
 contacts, messages or availability as real activity. Missing features stay explicitly unavailable.
 
@@ -1334,7 +1335,7 @@ The declarations above are now served. Changes made with that slice:
 
 `threads.ts` declares `content-thread.v1`: `apiContract.threads` has thirteen private JSON POSTs under `/v1/social/threads/`
 (`create`, `read`, `history`, `changes`, `send`, `respond`, `mark-read`, `leave`, `inbox`, `snippets/open`, and for party
-places `places/read`, `places/set`, `places/hide`).
+places `places/read`, `places/set`, `places/hide`, and for Call it together `calls/read`, `calls/lock`).
 
 - A thread is named by `ContentThreadRef` (thread ID, membership ID, membership revision), like a conversation.
 - `CreateContentThread` takes one to eight distinct friend person IDs, the exact root revision and an optional plain name.
@@ -1353,5 +1354,14 @@ places `places/read`, `places/set`, `places/hide`).
   idempotent by their state, so they have no command ID, keep no receipt and answer with the scope and what they did,
   never a time (`threads.test.ts` refuses a command ID, a replay flag or a time). The thread view and list stay free of
   places. _Implemented._
+- **Call it together (v3 T-E, D-155 to D-157).** `ThreadCall` is one call of a series part in the stage the caller may see it, a
+  discriminated union so that a stage cannot carry what it must not: `open` (the question, the options, `called` and `of`),
+  `locked` (plus the caller's own `option`), `closed` (counts and a reason) and `revealed` (the caller's `option`, the right
+  `answer`, `explain`, a `twist` only when the caller missed, `right`, every `pick` the caller may see, `rightCount` and, when the caller's pick
+  was the Scroll's authored common guess, its reviewed `guessSource`; nothing numeric about other threads). `ReadThreadCalls` -> `ThreadCalls` (`unavailable`, or `ready` with at most one call
+  for each part). `LockThreadCall` is a part, an option and the recording generation: no stop, no correctness, no command ID
+  (the first lock stands, so there is no receipt), and its answer is `locked`, `stands` or `closed`, or `recorded: false` with
+  `recording_paused` or `recording_generation_stale` (D-083). Nothing carries who is waiting, a time, a position or a score
+  (`threads.test.ts` tries each). _Implemented._
 - A snippet message carries a card: the exact target, the anchor in words (range, quote, label, settings description) and the
   content status (`available`, `corrected`, `unavailable`). Quote and settings are omitted when the content is unavailable.

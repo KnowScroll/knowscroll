@@ -187,6 +187,9 @@ export async function talkFixture(page: Page, viewport: { width: number; height:
     // Nobody in this thread shares a place (D-065): the header has worlds and no faces.
     if (path === '/v1/social/threads/places/read')
       return route.fulfill({ json: { ...base, status: 'ready', thread, hidden: false, places: [] } });
+    // No part of this thread has an authored call (D-155).
+    if (path === '/v1/social/threads/calls/read')
+      return route.fulfill({ json: { ...base, status: 'ready', thread, calls: [] } });
     if (path === '/v1/social/threads/changes')
       return route.fulfill({
         json: {

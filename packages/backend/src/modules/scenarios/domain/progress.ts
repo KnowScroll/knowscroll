@@ -1,6 +1,17 @@
 /** How long a branch may stay preparing before it closes as unable to prepare. */
 export const BRANCH_WAIT_LIMIT_MS = 30 * 60_000;
 
+/**
+ * How long a short answer may stay in the making before the thread is told there will be none: 12 minutes. It is about
+ * 30 seconds when it goes well, but a paid attempt can take the largest request deadline (300 s) and the one repair
+ * as long again, 10 minutes, and the job's own claim lasts 670 s. Giving up any sooner could drop an answer that is
+ * still on its way and was paid for. The answer that arrives after the wait was ended is dropped (D-211).
+ */
+export const ANSWER_WAIT_LIMIT_MS = 12 * 60_000;
+
+/** Whether a short answer that has been in the making for `ageMs` is given up on. Pure. */
+export const answerWaitOver = (ageMs: number): boolean => ageMs >= ANSWER_WAIT_LIMIT_MS;
+
 /** Where an order's production stands, as content reports it. */
 export interface ProductionStanding {
   /** `held` is a library recipe's state at the review gate (D-138); an order never reaches it, and if it did nothing here could produce it. */

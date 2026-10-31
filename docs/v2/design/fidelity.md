@@ -123,9 +123,34 @@ Where a fix and the v3 design disagree, or the design is silent. 390 × 844 and 
 | Universe, desktop key hints | Bottom right of the map, above the clouds. | differs | The design draws them bottom left, where the chips sit when a place has a "Route to" chip. |
 | Universe, list view with no planets | "No planets in <system> yet." under the system row. | differs | The design draws systems with planets only. |
 
+## v3 T-F, the what-if answer card (#486)
+
+T3 "Threads" frames 6 to 9 and the desktop panel, at 390 × 844 and 1440 × 900, production export, labelled two-person fixtures (`thread-whatif-smoke.spec.ts`). Not yet seen with the real model.
+
+| Frame | What | Status | Why |
+|---|---|---|---|
+| 6 What if… | The sheet's note: "We make a short what-if, check it, then post it here as a branch. About 30 s. Keep chatting meanwhile." | matches | The sheet is the existing X01 sheet; only the line is new, for a what-if. |
+| 7 Making it | A paper card labelled "What-if · made by KnowScroll", the title, "Making a short what-if · about 30 s · keep chatting", a bar, "We check it before it posts.", Cancel for the one who asked. | differs | No step list ("Read Part 2 / Set the assumption / Checking the numbers"): no step is tracked, so none is drawn (D-213). After 90 seconds the line says it is taking longer than usual. |
+| 8 The branch, posted | "WHAT-IF READY · MADE IN 26 S · 12:46", ASSUMED, CHANGED (cobalt edge), KEPT, the answer, Open, Branch again. | differs | No Reply, Call it first or "2 replies in this branch" (D-213). The label is a pill inside the card, not floating over the card's top edge beside a planet. A figure row appears only when a source states a figure. |
+| 9 Branches tab | Every what-if under the part it came from. | missing | A branch continues the thread's root or another branch, never a part, so there is nothing to group by (D-213). The branch map (X04) stays the list. |
+| Desktop | The card sits in the conversation column beside the Series panel. | differs | The panel has no Branches section (frame 9). |
+
 ## Honest limits
 
 - No VoiceOver or TalkBack run. Real devices were not used; the engine is desktop Chromium at the artboard's width.
 - Dev content is MiniMax-written, so titles differ from the authored examples; only structure, copy and look were compared.
 - Fixture rows were produced over the production export with route-mocked HTTP, not from a backend.
 - Room faces (R-4) were built after this audit and are not rows above. R3's emblem set has fourteen glyphs; the app draws sixteen (D-172 adds a globe and a cell, drawn in the same flat style), since Earth and the human body had no fitting glyph.
+
+## v3 Talk (T3): Call it together (v3 T-E, #485)
+
+The card, the bar and the chip are built from T3 page 4 (frames 2, 4 and 5 and the desktop panel); `apps/client/e2e/thread-calls-smoke.spec.ts` draws them at 390 x 844 and 1440 x 900 over fixtures, not on dev yet. Differences left on purpose:
+
+| T3 frame | Difference | Why |
+|---|---|---|
+| 5, the reveal | No common guess from other threads. T3 and R3 question 16 lean towards one past 30 calls; the card shows only the Scroll's own reviewed note ("The common guess. Source: …") to a member whose pick was that guess, and nothing otherwise. | A live count of picks can be differenced by one account or a small group to read a hidden pick, and a count threshold cannot stop that (D-157). Taken for the owner. |
+| 5, the footer | "WATCHED BY ALL 4 · REVEALED 12:41" is "n of m have called · revealed together". | A pick and a place carry a day, never a clock time or "watched" (D-065, D-152, D-155). |
+| 4, Lock it in | The library's ink button, grey while no option is chosen; T3 draws it dark green and always on. | The Components button set has no green variant. |
+| 4, where it sits | The card sits above the "What if" bar and the composer and opens from a yellow bar or a part's chip; it does not open by itself. | The conversation keeps over 60 % of a phone (D-140). |
+| 2, the chip | "★ Call it first · 2 of 4 in" on a part's row; the desktop panel's "Call it together for Part 3 · 0 of 4" reads the same way. | One chip for both widths. |
+| 5, the party | "ALL 4 FINISHED PART 2 · 12:40" in the stream is not built. | The server keeps no history of places (D-153). |

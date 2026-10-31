@@ -46,9 +46,9 @@ export interface SocialStore {
   savePair(lock: PairLock, pair: Pair): Promise<void>;
   /**
    * A friendship began or ended: whoever one of the two had invited into a thread loses their place there
-   * (their membership no longer stands), and the party place goes with it (D-065).
+   * (their membership no longer stands), and their party place and their picks on its calls go with it (D-065, D-156).
    */
-  forgetPlacesBetween(lock: PairLock, accountA: string, accountB: string): Promise<void>;
+  forgetPartyBetween(lock: PairLock, accountA: string, accountB: string): Promise<void>;
   binding(lock: PairLock, actor: string, operation: Operation, command: string): Promise<Binding | undefined>;
   bind(lock: PairLock, actor: string, operation: Operation, command: string, binding: Binding): Promise<void>;
   findReceipt(

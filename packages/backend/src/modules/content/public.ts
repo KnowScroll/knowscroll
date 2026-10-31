@@ -90,13 +90,30 @@ export type ReadScrollReadingFacts = (
 
 export const READ_SCROLL_READING_FACTS = Symbol('content.readScrollReadingFacts');
 
-/** One call of a `scroll-document.v2`, as the server judges a locked pick: the stop, how many options it has, which one is right. */
+/**
+ * One call of a `scroll-document.v2`: the stop, what it asks and offers, which option is right and what the reveal
+ * says. The server judges a locked pick from it, and a thread shows the question to everyone and the rest at the reveal.
+ */
 export interface ScrollCallFacts {
   readonly stopId: string;
   readonly kind: 'call_it' | 'final_call';
   readonly optionCount: number;
+  /** The question, as the reader sees it. */
+  readonly prompt: string;
+  /** The options, as the reader sees them, in order; `optionCount` of them. */
+  readonly options: readonly string[];
   /** Zero-based index of the right option. Never sent to another module's ranking or planning (D-063). */
   readonly answer: number;
+  /** Why the answer is what it is: shown after the lock, to everyone. */
+  readonly explain: string;
+  /** The warm second look shown after a wrong pick. */
+  readonly twist: string;
+  /**
+   * The option that is the common wrong guess and the label of the source that says so, only when the source was
+   * reviewed by a person: an unreviewed label is never given (admission requires it, so this is the same rule the
+   * reader applies). Authored with the recipe, never counted from what people picked (D-157).
+   */
+  readonly commonGuess: { readonly option: number; readonly source: string } | undefined;
 }
 
 /** What a Scroll revision awards when its Final call is locked: the stable key and the name the reader sees (D-188). */
@@ -444,6 +461,21 @@ export const ENQUEUE_SCROLL_PRODUCTION = Symbol('content.enqueueScrollProduction
  */
 export type ReadScrollSourcePages = (scope: PersonalScopeTx, root: ContentRef) => Promise<readonly string[]>;
 export const READ_SCROLL_SOURCE_PAGES = Symbol('content.readScrollSourcePages');
+
+/** One claim a Scroll cites: its ID in the provenance and the passage text of a public source, as stored. */
+export interface ScrollEvidenceClaim {
+  readonly claimId: string;
+  readonly text: string;
+}
+
+/**
+ * The claims an exact revision rests on, for a short answer a what-if may cite: those the revision's own provenance
+ * records, else those of the admitted Scroll that gives the same explanation (a Reel's twin, a Scroll's other
+ * revision). The same Scrolls, under the same review gate, as `ReadScrollSourcePages`. Stored research text only:
+ * nothing is fetched. At most 24, in the order the provenance lists them; empty when nothing is known.
+ */
+export type ReadScrollEvidence = (scope: PersonalScopeTx, root: ContentRef) => Promise<readonly ScrollEvidenceClaim[]>;
+export const READ_SCROLL_EVIDENCE = Symbol('content.readScrollEvidence');
 
 /**
  * Port the ordering module implements: which of these Scrolls it ordered may this caller open? Content

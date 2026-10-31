@@ -3,10 +3,29 @@ import type { Assumption, ScenarioOption } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 import { AssumptionChips } from './assumption-chips';
-import { SPECULATIVE_NOTICE } from './branch-card';
+import { SPECULATIVE_NOTICE } from './branch-parts';
 import { sheetStyles } from './sheet-styles';
 
 const SHARED_NOTE = 'Everyone in this thread will see the branch. Each of you opens it at your own pace.';
+/** What a what-if makes, and how long it takes (T3 frame 6): a short card first, the full Scroll after. */
+const MAKING_NOTE =
+  'We make a short what-if, check it, then post it here as a branch. About 30 s. Keep chatting meanwhile.';
+
+/** The line under the choice: what everyone sees, and for a what-if what is made and how long it takes. */
+function ChoiceNote({ option }: { readonly option: Pick<ScenarioOption, 'lens'> }) {
+  return (
+    <>
+      {option.lens === undefined ? (
+        <Text variant="meta" color={content.ink2}>
+          {MAKING_NOTE}
+        </Text>
+      ) : null}
+      <Text variant="meta" color={content.ink2}>
+        {SHARED_NOTE}
+      </Text>
+    </>
+  );
+}
 
 /** What we would explore, for one clear idea (X01 first phone): the summary, Edit, Explore. */
 export function SummaryStep({
@@ -44,9 +63,7 @@ export function SummaryStep({
         icon="hypothetical"
         onPress={onExplore}
       />
-      <Text variant="meta" color={content.ink2}>
-        {SHARED_NOTE}
-      </Text>
+      <ChoiceNote option={option} />
     </View>
   );
 }
@@ -122,9 +139,7 @@ export function ConfirmStep({
       </View>
       <Text variant="ui">{option.title}</Text>
       <AssumptionChips option={option} premises={premises} />
-      <Text variant="meta" color={content.ink2}>
-        {SHARED_NOTE}
-      </Text>
+      <ChoiceNote option={option} />
       <View style={sheetStyles.actions}>
         <Button label="Create branch" variant="primary" busy={busy} busyLabel="Creating" onPress={onCreate} />
         <Button label="Edit" variant="ghost" onPress={onEdit} />

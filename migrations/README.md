@@ -243,3 +243,12 @@ foreign key) and `social.conversation_members.place_hidden` (the member's own "h
 Additive: older writers never touch the table and the column defaults. Apply with the new binary; the generated database types change by
 the same table and column. Clear deletes the places and keeps the switch; deleting the account deletes the places before the membership
 rows.
+
+0083 is Call it together (v3 T-E, #485, D-155 to D-157): `social.thread_calls` (one row per member, thread and call: the option locked and a `date`, so nothing finer than a day can be stored; the row follows the member's membership row through a composite foreign key, and the call is an exact Scroll revision and stop). `social.thread_call_reveals` (one row per thread and call that has revealed, so a reveal stays revealed for a reader no block touches; the row's existence is all it holds: no day, no person, no pick; it has a foreign key to the thread and is declared in the erasure registry as kept with the thread). Additive: older writers never touch the table. Apply with the new binary; the generated database types change by the same table. Leaving, an ended friendship, Clear and deleting the account delete the picks. Numbered 0083 on the branch; the coordinator renumbers at merge if another migration lands first.
+
+0084 is the short answer card of a what-if branch (v3 T-F, #486, D-211): three nullable columns on `scenarios.nodes` (`answer_state`,
+`answer` and `answer_settled_at`), four checks added `NOT VALID` and then validated (the table is one row per branch, and no row has an
+answer yet), and a partial index of answers still being made. Additive: an older writer that inserts a node without the columns leaves
+the branch with no short answer, which the card draws as the branch card it always was. Apply with the new binary; the generated
+database types change by the same columns, and the worker registers the `scenarios.write-answer` queue. Numbers 0083 and 0084 belong to
+other slices.

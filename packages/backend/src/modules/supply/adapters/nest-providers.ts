@@ -78,8 +78,8 @@ export interface SupplySettings {
 export interface ScenarioOrderSettings {
   /** Branches Quartermaster may order per UTC day; 0 turns scenario Create off. */
   readonly supplyScenarioDailyCap: number;
-  /** Branches one thread may have ordered over its life. */
-  readonly supplyScenarioThreadCap: number;
+  /** Branches one thread may have ordered per UTC day. */
+  readonly supplyScenarioThreadDailyCap: number;
 }
 
 /** Priority of a person's production job over operator seeding (priority 0). */
@@ -261,7 +261,7 @@ export function scenarioOrderProviders(t: { readonly enqueueJob: symbol; readonl
           store: scenarioOrderStore,
           recordOrder,
           enqueueProduction: sendProduction(enqueue),
-          caps: { perDay: settings.supplyScenarioDailyCap, perThread: settings.supplyScenarioThreadCap },
+          caps: { perDay: settings.supplyScenarioDailyCap, perThreadPerDay: settings.supplyScenarioThreadDailyCap },
           now: () => new Date(),
         }),
     },

@@ -15,11 +15,12 @@ export const scenarioOrderStore: ScenarioOrderStore = {
       .executeTakeFirstOrThrow();
     return Number(row.total);
   },
-  async countForThread(scope, threadId) {
+  async countForThreadSince(scope, threadId, since) {
     const row = await transactionOf(scope)
       .selectFrom('supply.scenario_orders')
       .select((eb) => eb.fn.countAll<string>().as('total'))
       .where('thread_id', '=', threadId)
+      .where('created_at', '>=', since)
       .executeTakeFirstOrThrow();
     return Number(row.total);
   },
