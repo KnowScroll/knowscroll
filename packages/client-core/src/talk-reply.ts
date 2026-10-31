@@ -51,11 +51,7 @@ export interface QuoteView {
  * page) the server's words stand. The reader's own words are quoted as "You" (the quote strip of T3), which needs
  * `ownPersonId`; without it every author is named.
  */
-export function quoteView(
-  replyTo: MessageQuote,
-  loaded: readonly QuotableMessage[],
-  ownPersonId?: string | undefined,
-): QuoteView {
+export function quoteView(replyTo: MessageQuote, loaded: readonly QuotableMessage[], ownPersonId?: string): QuoteView {
   const nameOf = (person: PublicPersonRef): string => (person.personId === ownPersonId ? 'You' : person.displayName);
   const own = loaded.find((candidate) => candidate.sequence === replyTo.sequence);
   if (own?.status === 'unavailable')
