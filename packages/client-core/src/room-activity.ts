@@ -42,7 +42,7 @@ const initialList: RoomActivitiesState = {
 };
 
 /** Runs one command under the intent's command ID: a definitive answer retires it, an unknown one keeps it, so a retry is the same command. */
-function intentRunner(newId: () => string) {
+export function intentRunner(newId: () => string) {
   const intents = new Map<string, string>();
   return async function run<T>(
     intent: string,
