@@ -55,14 +55,63 @@ describe('RoomsController', () => {
           roomId,
           discussionId,
           inhabitant: 'skeptic',
+          kind: 'ask',
         },
       }),
     );
     const request = await admitted();
     const input = { version: 'rooms.v1' as const, commandId, roomId, discussionId, inhabitant: 'skeptic' as const };
     const answer = await call(controllerOver({ ask }).askInhabitantRoute(request), input);
-    expect(answer).toMatchObject({ operation: 'inhabitant.ask', inhabitant: 'skeptic' });
+    expect(answer).toMatchObject({ operation: 'inhabitant.ask', inhabitant: 'skeptic', kind: 'ask' });
     expect(ask).toHaveBeenCalledExactlyOnceWith(authority, input);
+  });
+
+  it('serves the topics list, a mark of Useful and the dismissal of an away card to their use cases, as the caller', async () => {
+    const topics = vi.fn<RoomUseCases['topics']>(() =>
+      Promise.resolve({
+        kind: 'ok',
+        value: {
+          version: 'rooms.v1',
+          scope,
+          readId: commandId,
+          status: 'ready',
+          roomId,
+          sort: 'hot',
+          canPost: true,
+          topics: [],
+        },
+      }),
+    );
+    const markUseful = vi.fn<RoomUseCases['markUseful']>(() => refused('invalid_input'));
+    const dismissAway = vi.fn<RoomUseCases['dismissAway']>(() =>
+      Promise.resolve({
+        kind: 'ok',
+        value: {
+          version: 'rooms.v1',
+          scope,
+          commandId,
+          recordedAt: '2026-10-24T08:00:00.000Z',
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'room.away-dismiss',
+          roomId,
+        },
+      }),
+    );
+    const request = await admitted();
+    const controller = controllerOver({ topics, markUseful, dismissAway });
+    const read = { version: 'rooms.v1' as const, readId: commandId, roomId, sort: 'hot' as const };
+    expect(await call(controller.topicsRoute(request), read)).toMatchObject({ status: 'ready', topics: [] });
+    expect(topics).toHaveBeenCalledExactlyOnceWith(authority, read);
+    const mark = { version: 'rooms.v1' as const, commandId, roomId, discussionId, messageId: id(8), useful: true };
+    const failure = await call(controller.markUsefulRoute(request), mark).catch((error: unknown) => error);
+    expect(failure).toMatchObject({ status: problemDetails('INVALID_REQUEST').status });
+    expect(markUseful).toHaveBeenCalledExactlyOnceWith(authority, mark);
+    const dismissal = { version: 'rooms.v1' as const, commandId, roomId };
+    expect(await call(controller.dismissAwayRoute(request), dismissal)).toMatchObject({
+      operation: 'room.away-dismiss',
+    });
+    expect(dismissAway).toHaveBeenCalledExactlyOnceWith(authority, dismissal);
   });
 
   it('serves the stations of a map and a poll vote by the same rules', async () => {

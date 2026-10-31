@@ -180,6 +180,70 @@ describe('a room discussion on the client', () => {
     expect(await controller.ask('skeptic')).toBe('failed');
   });
 
+  it('points an ask at a message, sends the kind and not the resident, and tells a rested resident from an unavailable one', async () => {
+    let answer: () => Promise<unknown> = () => Promise.resolve({ inhabitant: 'skeptic', kind: 'challenge' });
+    const scope = scopeOf({
+      readDiscussion: () => Promise.resolve(readyView([text(1, 'More traffic means a bigger bill')])),
+      askInhabitant: () => answer(),
+    });
+    const controller = createRoomDiscussion({ scope, roomId, discussionId, newId });
+    await controller.load();
+    expect(await controller.askAbout('challenge', id(101))).toBe('asked');
+    expect(scope.calls.find((call) => call.name === 'askInhabitant')?.input).toMatchObject({
+      about: { kind: 'challenge', messageId: id(101) },
+    });
+    expect(scope.calls.find((call) => call.name === 'askInhabitant')?.input).not.toHaveProperty('inhabitant');
+    answer = () => Promise.reject(rejected('TOO_MANY_REQUESTS'));
+    expect(await controller.askAbout('other_side', id(101))).toBe('resting');
+    answer = () => Promise.reject(rejected('SHARING_UNAVAILABLE'));
+    expect(await controller.askAbout('about', id(101))).toBe('unavailable');
+  });
+
+  it('keeps the same command for a pointed ask whose outcome is unknown, so a retry never asks twice', async () => {
+    let fail = true;
+    const scope = scopeOf({
+      readDiscussion: () => Promise.resolve(readyView([text(1, 'words')])),
+      askInhabitant: () => (fail ? Promise.reject(new TypeError('network')) : Promise.resolve({})),
+    });
+    const controller = createRoomDiscussion({ scope, roomId, discussionId, newId });
+    await controller.load();
+    expect(await controller.askAbout('challenge', id(101))).toBe('failed');
+    fail = false;
+    expect(await controller.askAbout('challenge', id(101))).toBe('asked');
+    const commands = scope.calls
+      .filter((call) => call.name === 'askInhabitant')
+      .map((call) => (call.input as { commandId: string }).commandId);
+    expect(commands[0]).toBe(commands[1]);
+  });
+
+  it('marks a message Useful and takes the mark back, showing it at once because a mark gives the message no new number', async () => {
+    const scope = scopeOf({
+      readDiscussion: () => Promise.resolve(readyView([text(1, 'a reply worth keeping')])),
+      markUseful: () => Promise.resolve({}),
+    });
+    const controller = createRoomDiscussion({ scope, roomId, discussionId, newId });
+    await controller.load();
+    expect(await controller.markUseful(id(101), true)).toBe(true);
+    expect(controller.getState().messages[0]).toMatchObject({ usefulByYou: true });
+    expect(scope.calls.find((call) => call.name === 'markUseful')?.input).toMatchObject({
+      messageId: id(101),
+      useful: true,
+    });
+    expect(await controller.markUseful(id(101), false)).toBe(true);
+    expect(controller.getState().messages[0]).not.toHaveProperty('usefulByYou');
+  });
+
+  it('leaves a message as it was when the server refuses the mark', async () => {
+    const scope = scopeOf({
+      readDiscussion: () => Promise.resolve(readyView([text(1, 'my own words')])),
+      markUseful: () => Promise.reject(rejected('SHARING_UNAVAILABLE')),
+    });
+    const controller = createRoomDiscussion({ scope, roomId, discussionId, newId });
+    await controller.load();
+    expect(await controller.markUseful(id(101), true)).toBe(false);
+    expect(controller.getState().messages[0]).not.toHaveProperty('usefulByYou');
+  });
+
   it('shows the discussion as unavailable when the server refuses a read without saying why', async () => {
     const scope = scopeOf({ readDiscussion: () => Promise.reject(rejected('SHARING_UNAVAILABLE')) });
     const controller = createRoomDiscussion({ scope, roomId, discussionId, newId });

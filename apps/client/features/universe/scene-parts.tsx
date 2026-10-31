@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import type { RoomStation } from '@knowscroll/contracts';
 import { content, highlightRing, space, target } from '@knowscroll/design-tokens';
 import { Text, useFocusRing } from '@knowscroll/ui';
-import type { SceneDescriptor, SceneGeometry } from '@knowscroll/scene-core';
 import type { UniverseIndex, Size, PlacedLabel } from './universe-layout';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
 
@@ -21,26 +20,9 @@ export interface SceneProps {
   readonly onStation?: (roomId: string) => void;
 }
 
-/**
- * A place's silhouette, or `undefined` when it cannot be built. A descriptor that fails the drawing
- * rules must not take the screen down: its target and its row in the list stay, only the drawing goes.
- */
-export function safeGeometry(
-  session: UniverseMapSession,
-  descriptor: SceneDescriptor,
-  low = false,
-): SceneGeometry | undefined {
-  try {
-    return session.geometry(descriptor, low);
-  } catch {
-    return undefined;
-  }
-}
-
 /** Width of a map label in 13 px semibold, estimated because text cannot be measured before it is drawn. */
 export const labelWidth = (text: string, padding = 8) => Math.ceil(text.length * 7.3) + padding;
 export const LABEL_HEIGHT = 20;
-export const PILL_HEIGHT = 26;
 
 /** The kind word a screen reader hears after a place's name: "Machine learning, a system". */
 export const KIND_PHRASE = { system: 'a system', star: 'a star', planet: 'a planet', region: 'a region' } as const;
@@ -57,6 +39,7 @@ export function BodyTarget({
   kind,
   hypothetical,
   selected,
+  plain = false,
   floor = target.comfortable,
   onPress,
   testID,
@@ -70,6 +53,8 @@ export function BodyTarget({
   readonly kind?: keyof typeof KIND_PHRASE;
   readonly hypothetical?: boolean;
   readonly selected?: boolean;
+  /** The selection is drawn by the scene (a pill), so no ring is drawn round the target. It is still announced as selected. */
+  readonly plain?: boolean;
   /** The smallest side, when crowded bodies make the usual 48 px impossible (see `separateTargets`). */
   readonly floor?: number;
   readonly onPress: () => void;
@@ -90,7 +75,7 @@ export function BodyTarget({
         styles.target,
         { left: x - side / 2, top: y - side / 2, width: side, height: side, borderRadius: side / 2 },
         focus.style,
-        selected ? { borderWidth: highlightRing.width, borderColor: highlightRing.color } : null,
+        selected && !plain ? { borderWidth: highlightRing.width, borderColor: highlightRing.color } : null,
       ]}
     />
   );

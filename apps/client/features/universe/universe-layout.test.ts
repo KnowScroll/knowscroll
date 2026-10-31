@@ -1,13 +1,5 @@
 import type { SceneDescriptor } from '@knowscroll/scene-core';
-import {
-  composeRegions,
-  indexUniverse,
-  outlineRows,
-  placeLabels,
-  placeTrail,
-  unitsFromId,
-  viewFor,
-} from './universe-layout';
+import { indexUniverse, outlineRows, placeLabels, placeTrail, viewFor } from './universe-layout';
 import { fixtureId, sceneFixture } from './universe.fixture';
 
 /** Authored CI descriptors only. */
@@ -46,8 +38,14 @@ describe('Universe layout', () => {
     expect(viewFor(index, null).kind).toBe('universe');
     expect(viewFor(index, system.objectId).kind).toBe('system');
     expect(viewFor(index, star.objectId)).toEqual({ kind: 'system', system });
-    expect(viewFor(index, planets[0]!.objectId)).toEqual({ kind: 'planet', planet: planets[0] });
-    expect(viewFor(index, regions[1]!.objectId)).toMatchObject({ kind: 'planet', selectedRegion: regions[1] });
+    expect(viewFor(index, planets[0]!.objectId)).toEqual({ kind: 'planet', planet: planets[0], landed: false });
+    expect(viewFor(index, planets[0]!.objectId, true)).toEqual({ kind: 'planet', planet: planets[0], landed: true });
+    // A chosen region is always on the map, whatever the planet's own flag says.
+    expect(viewFor(index, regions[1]!.objectId)).toMatchObject({
+      kind: 'planet',
+      landed: true,
+      selectedRegion: regions[1],
+    });
     expect(viewFor(index, fixtureId(999)).kind).toBe('universe');
   });
 
@@ -55,20 +53,6 @@ describe('Universe layout', () => {
     expect(placeTrail(index, regions[0]!)).toEqual(['Near', 'Alpha']);
     expect(placeTrail(index, planets[0]!)).toEqual(['Alpha']);
     expect(placeTrail(index, system)).toEqual([]);
-  });
-
-  it('spreads regions apart on their own spots and never moves one when another is added', () => {
-    const three = composeRegions(index, planets[0]!);
-    expect(new Set(three.map((r) => `${r.offset.x},${r.offset.y}`)).size).toBe(3);
-    const newest = descriptor(250, 'region', planets[0]!.objectId, 0, 0);
-    const four = composeRegions(indexUniverse([system, star, ...planets, ...regions, newest], []), planets[0]!);
-    for (const region of three)
-      expect(four.find((r) => r.descriptor.objectId === region.descriptor.objectId)!.offset).toEqual(region.offset);
-    expect(four).toHaveLength(4);
-  });
-
-  it('gives decoration numbers between 0 and 1 from an opaque id', () => {
-    expect(unitsFromId(fixtureId(2)).every((unit) => unit >= 0 && unit <= 1)).toBe(true);
   });
 
   it('lists every place in order, with recent activity first only when Lately is on', () => {

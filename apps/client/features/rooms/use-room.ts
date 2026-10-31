@@ -11,6 +11,7 @@ import {
   createRoomActivity,
   createRoomDiscussion,
   readRoomList,
+  readRoomTopics,
   type AccountScope,
   type RoomActivitiesController,
   type RoomActivitiesState,
@@ -22,6 +23,7 @@ import {
   type RoomState,
 } from '@knowscroll/client-core';
 import { useMemo } from 'react';
+import type { RoomTopicItem, RoomTopicSort, RoomTopicTag } from '@knowscroll/contracts';
 import { newCommandId } from '../../platform/command-id';
 
 /** How often an open room or discussion asks again, in case nothing else did. */
@@ -86,6 +88,43 @@ export function useRoom(scope: AccountScope, roomId: string): { controller: Room
     refetchOnReconnect: true,
   });
   return { controller, state };
+}
+
+/**
+ * The room's topics as a forum list in the order a sort asks for, optionally one tag. It reads again whenever the room is
+ * read (`refreshKey` changes with each answer), so a topic that gained a reply moves with the room. While the list has not
+ * arrived, or cannot, the caller shows the room's own list instead: this never says a room has no topics when it could
+ * not ask.
+ */
+export function useRoomTopics(
+  scope: AccountScope,
+  roomId: string,
+  query: {
+    readonly sort: RoomTopicSort;
+    readonly tag: RoomTopicTag | undefined;
+    readonly refreshKey: unknown;
+    /** Off where the list is not shown (the pinned page), so nothing is read for it. */
+    readonly enabled: boolean;
+  },
+): readonly RoomTopicItem[] | undefined {
+  const [topics, setTopics] = useState<readonly RoomTopicItem[]>();
+  const { sort, tag, refreshKey, enabled } = query;
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let current = true;
+    readRoomTopics(scope, newCommandId, roomId, { sort, ...(tag === undefined ? {} : { tag }) }).then(
+      (items) => {
+        if (current) setTopics(items);
+      },
+      () => {
+        if (current) setTopics(undefined);
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [scope, roomId, sort, tag, refreshKey, enabled]);
+  return enabled ? topics : undefined;
 }
 
 /**

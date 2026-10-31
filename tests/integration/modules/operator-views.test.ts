@@ -74,6 +74,7 @@ const SHOWN_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     'decided_by',
     'dispatched',
     'created_at',
+    'ask_kind',
   ],
   jobs: [
     'job_id',

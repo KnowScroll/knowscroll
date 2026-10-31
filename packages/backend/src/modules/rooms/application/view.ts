@@ -2,11 +2,14 @@ import {
   AI_INHABITANT_BLURBS,
   AI_INHABITANT_LABELS,
   type RoomInhabitant,
+  type RoomLimits,
   type RoomSummary,
   type RoomYou,
 } from '@knowscroll/contracts';
 import { conceptLabel } from '../../content/public.js';
 import type { CastMember } from '../domain/cast.js';
+import { PERSON_ASKS_PER_HOUR, ROOM_ASKS_PER_DAY } from '../domain/contribution.js';
+import { UNPROMPTED_CAPS } from '../domain/router.js';
 import type { MemberRow, RoomRow } from './ports.js';
 
 /** A room as lists and previews name it. No member, activity or online count. */
@@ -37,3 +40,20 @@ export const youOf = (member: MemberRow): RoomYou => ({
   keepOut: member.keepOut,
   ...(member.noticeSeenAt === null ? {} : { noticeSeenAt: member.noticeSeenAt.toISOString() }),
 });
+
+/**
+ * What the room's AI may do, from the same constants the bounds and the router use, so the room menu can never say
+ * one thing while the rules do another (D-068, D-167).
+ */
+export function limitsOf(): RoomLimits {
+  return {
+    asked: { perPersonPerHour: PERSON_ASKS_PER_HOUR, perRoomPerDay: ROOM_ASKS_PER_DAY },
+    unprompted: {
+      humanMessagesPerTurn: UNPROMPTED_CAPS.humanMessagesPerTurn,
+      perHour: UNPROMPTED_CAPS.roomPerHour,
+      perDay: UNPROMPTED_CAPS.roomPerDay,
+      explainerPerHour: UNPROMPTED_CAPS.residentPerHour.explainer,
+      skepticPerHour: UNPROMPTED_CAPS.residentPerHour.skeptic,
+    },
+  };
+}

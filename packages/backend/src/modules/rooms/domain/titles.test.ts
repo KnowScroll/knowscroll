@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TITLE_MAX_CHARS, titleFrom } from './titles.js';
+import { NEUTRAL_TOPIC_TITLE, TITLE_MAX_CHARS, shownTitle, titleFrom } from './titles.js';
 
 describe('titleFrom', () => {
   it('collapses whitespace and drops control characters', () => {
@@ -15,5 +15,25 @@ describe('titleFrom', () => {
   it('keeps a title that fits as it is, and falls back when nothing is left', () => {
     expect(titleFrom('x'.repeat(TITLE_MAX_CHARS), 'Shared')).toBe('x'.repeat(TITLE_MAX_CHARS));
     expect(titleFrom(' \u0001 ', 'Shared')).toBe('Shared');
+  });
+});
+
+describe('shownTitle', () => {
+  const derived = { title: 'So the Moon alone explains the tides', titleDerived: true };
+  const typed = { title: 'Tides, in my words', titleDerived: false };
+
+  it('shows a title made from a message only while the message is shown and its author is not blocked', () => {
+    expect(shownTitle(derived, { shown: true, authorBlocked: false })).toBe(derived.title);
+    expect(shownTitle(derived, { shown: false, authorBlocked: false })).toBe(NEUTRAL_TOPIC_TITLE);
+    expect(shownTitle(derived, { shown: true, authorBlocked: true })).toBe(NEUTRAL_TOPIC_TITLE);
+  });
+
+  it('shows no words when the origin cannot be found', () => {
+    expect(shownTitle(derived, undefined)).toBe(NEUTRAL_TOPIC_TITLE);
+  });
+
+  it('always shows a title the starter typed', () => {
+    expect(shownTitle(typed, undefined)).toBe(typed.title);
+    expect(shownTitle(typed, { shown: false, authorBlocked: true })).toBe(typed.title);
   });
 });

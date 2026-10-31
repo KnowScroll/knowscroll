@@ -9,6 +9,7 @@ import { layout, space, spacing } from '@knowscroll/design-tokens';
 import { Icon, IconButton, Text } from '@knowscroll/ui';
 import { afterPendingBack } from '../../platform/after-pending-back';
 import { AiNoticeCard } from './ai-notice';
+import { AwayCard } from './away-card';
 import { OpenDiscussion } from './discussion-screen';
 import { HereStrip } from './here-strip';
 import { discussionHref } from './room-links';
@@ -140,14 +141,27 @@ export function GeneralStage({
     <View style={styles.stage}>
       {header}
       {view.you.noticeSeenAt === undefined ? (
-        <AiNoticeCard busy={state.working} onAcknowledge={() => void controller.setPreferences({ noticeSeen: true })} />
+        <AiNoticeCard
+          busy={state.working}
+          welcome={view.welcome}
+          onAcknowledge={() => void controller.setPreferences({ noticeSeen: true })}
+        />
       ) : null}
+      {view.away === undefined ? null : (
+        <AwayCard
+          away={view.away}
+          now={new Date()}
+          busy={state.working}
+          onDismiss={() => void controller.dismissAway()}
+        />
+      )}
       <OpenDiscussion
         key={view.general.discussionId}
         scope={scope}
         roomId={view.room.roomId}
         discussionId={view.general.discussionId}
         header={null}
+        topics={view.discussions}
       />
     </View>
   );

@@ -37,6 +37,7 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
     read: { status: 'ready', active: true },
     frame: { ...INITIAL_FRAME },
     focusId: null,
+    landed: false,
     overlay: null,
     detail,
     reducedMotion,
@@ -151,6 +152,8 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
       return true;
     },
     focusLast: () => false,
+    // A friend's planets turn but never land: a visit shows only what the friend shares, and regions are never shared.
+    land: () => false,
     refresh: () => (live() ? options.refresh() : Promise.resolve()),
     travel: () => false,
     geometry(object, low = false): SceneGeometry | undefined {

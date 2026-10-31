@@ -105,14 +105,23 @@ export function UniverseHeader({
   return (
     <View style={styles.root}>
       <View style={styles.row}>
-        <SpaceChip
-          testID="universe-up"
-          variant="solid"
-          icon="back"
-          label={backLabel}
-          accessibilityLabel={`Back to ${backLabel}`}
-          onPress={() => session.up()}
-        />
+        <View style={styles.actions}>
+          <SpaceChip
+            testID="universe-up"
+            variant="solid"
+            icon="back"
+            label={backLabel}
+            accessibilityLabel={`Back to ${backLabel}`}
+            onPress={() => session.up()}
+          />
+          {view.kind === 'planet' && view.landed ? (
+            <View style={styles.level} testID="universe-level">
+              <Text variant="metaS" color="#111111" style={styles.levelText}>
+                {view.selectedRegion ? 'REGION' : 'PLANET'}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         <View style={styles.actions}>
           {view.kind === 'planet' && state.detail === 'low' ? <Tag label="Low detail" variant="onDark" /> : null}
           {view.kind === 'system' && !visitor ? lens : null}
@@ -139,6 +148,9 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   title: { flexShrink: 1 },
   subtitle: { marginTop: -spacing[2] },
+  /** The level of a landed view, a small orange tag beside Back (U04). */
+  level: { backgroundColor: '#ff684c', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 4 },
+  levelText: { fontSize: 10, lineHeight: 12, letterSpacing: 1.1 },
   block: { gap: 2, paddingTop: spacing[2] },
   name: { fontSize: 30, lineHeight: 34 },
 });

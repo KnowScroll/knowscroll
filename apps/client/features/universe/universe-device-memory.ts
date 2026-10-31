@@ -11,12 +11,13 @@ import {
 /** What the view tells memory to keep. */
 export interface RememberedView {
   readonly focusId: string | null;
+  readonly landed: boolean;
   readonly frame: UniverseFrame;
   readonly lately: boolean;
   readonly lastPlace: LastPlace | undefined;
 }
 export interface Restored {
-  readonly camera: { readonly focusId: string; readonly frame: UniverseFrame } | undefined;
+  readonly camera: { readonly focusId: string; readonly frame: UniverseFrame; readonly landed: boolean } | undefined;
   readonly lastPlace: LastPlace | undefined;
   readonly absent: boolean;
 }
@@ -40,6 +41,7 @@ export function createDeviceMemory(scope: AccountScope, now: () => number, live:
     const view = latest();
     saveUniverseMemory(scope, {
       focusId: view.focusId,
+      landed: view.landed,
       frame: view.frame,
       lately: view.lately,
       lastPlace: view.lastPlace,
@@ -75,7 +77,7 @@ export function createDeviceMemory(scope: AccountScope, now: () => number, live:
       const focusId = remembered.focusId;
       const back = !absent && focusId !== null && hasPlace(focusId);
       return {
-        camera: back ? { focusId, frame: remembered.frame } : undefined,
+        camera: back ? { focusId, frame: remembered.frame, landed: remembered.landed } : undefined,
         lastPlace,
         absent: absent && lastPlace !== undefined,
       };

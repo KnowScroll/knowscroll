@@ -93,7 +93,7 @@ test('authoritative map/outline/travel and browser Back keep camera private and 
   expect(calls.every((path) => reads.has(path))).toBe(true);
 });
 
-test('canonical region card opens displayed A through actual activation, then Back restores exact private map/focus and parks real Scroll place', async ({
+test('canonical region card opens displayed A through actual activation, then Back lands on the planet map with the region marked and focused, and parks real Scroll place', async ({
   page,
 }) => {
   const world = sceneFixture(),
@@ -257,7 +257,6 @@ test('canonical region card opens displayed A through actual activation, then Ba
   const before = await pin.boundingBox();
   await page.keyboard.press('ArrowRight');
   await expect.poll(async () => (await pin.boundingBox())?.x).not.toBe(before?.x);
-  const panned = await pin.boundingBox();
   const card = page.getByTestId('universe-region-card');
   await expect(card.getByText(metadata.title)).toBeVisible();
   expect(calls.some((c) => /region\/open|activate|observations/.test(c.path))).toBe(false);
@@ -272,12 +271,13 @@ test('canonical region card opens displayed A through actual activation, then Ba
   const fromRegion = page.getByRole('button', { name: 'From CI region 4 · CI planet 2. Back to the map', exact: true });
   await expect(fromRegion).toBeVisible();
   await fromRegion.click();
-  await expect(page.getByRole('button', { name: 'Back to CI planet 2', exact: true })).toBeVisible();
+  // U04: back from the encounter is the planet's map at planet level (Back names the system), the card is closed,
+  // and the region left through its card says so until it is chosen again.
+  await expect(page.getByRole('button', { name: 'Back to CI system 0', exact: true })).toBeVisible();
   await expect(card).toHaveCount(0);
-  // The region left through its card says so; choosing it again clears that.
   const here = page.getByRole('button', { name: 'CI region 4 · you were here, a region', exact: true });
   await expect(here).toBeFocused();
-  expect(await here.boundingBox()).toEqual(panned);
+  await expect(page.getByTestId('universe-level')).toHaveText('PLANET');
   expect(calls.filter((c) => c.path.endsWith('/region/open'))).toHaveLength(1);
   expect(calls.filter((c) => c.path.endsWith('/activate'))).toHaveLength(1);
   expect(calls.some((c) => c.path === '/v1/experience/open')).toBe(false);
