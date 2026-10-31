@@ -56,7 +56,10 @@ export const ROOM_SWATCH_NAMES = [
 
 /** The shape an emblem sits in; R3 chooses it by the topic's family (science circle, sport shield, tech hexagon, history arch, food rounded square). */
 export const ROOM_EMBLEM_FRAMES = ['circle', 'shield', 'hexagon', 'arch', 'rounded-square', 'diamond'] as const;
-/** What an emblem shows inside its frame; the same marks stand for a resident (a cast skin), so none draws a person. */
+/**
+ * What an emblem shows inside its frame; the same marks stand for a resident (a cast skin), so none draws a person.
+ * The vocabulary only grows, and new words go at the end: a stored kit that names an older word stays valid (D-172).
+ */
 export const ROOM_EMBLEM_GLYPHS = [
   'ringed-planet',
   'star',
@@ -72,6 +75,8 @@ export const ROOM_EMBLEM_GLYPHS = [
   'gear',
   'mountain',
   'spiral',
+  'globe',
+  'cell',
 ] as const;
 /** The faint pattern behind a room's band. */
 export const ROOM_MOTIFS = [

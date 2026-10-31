@@ -304,6 +304,38 @@ export const GLYPH_SHAPES: Readonly<Record<RoomEmblemGlyph, readonly Shape[]>> =
     ]),
   ],
   spiral: [{ role: 'mark', contours: stroke(spiral(), 1.4) }],
+  // The Earth seen from space: a disc with flat continents cut out of it.
+  globe: [
+    mark(circle(CENTRE, CENTRE, 7.6)),
+    cut(
+      [
+        [6.2, 9.4],
+        [8.6, 7.2],
+        [11.2, 7],
+        [12.4, 8.6],
+        [10.6, 10.4],
+        [11.6, 12.8],
+        [10.2, 15.6],
+        [8.8, 16.6],
+        [8.2, 13.4],
+        [6.6, 11.8],
+      ],
+      [
+        [14, 9.2],
+        [16.2, 8],
+        [18, 10.2],
+        [17.2, 13],
+        [15.2, 16.2],
+        [14, 13.4],
+      ],
+    ),
+  ],
+  // A living cell: a round membrane, a nucleus with its nucleolus, and two organelles.
+  cell: [
+    { role: 'mark', contours: ringOf(CENTRE, CENTRE, 7, 1.4) },
+    mark(circle(10.8, 11, 2.9), ellipse(15.4, 14.8, 1.7, 1, 0.6), circle(8.6, 15.2, 1.1), circle(15, 8.6, 0.9)),
+    cut(circle(10.8, 11, 1)),
+  ],
 };
 
 const roundedSquare = (): Point[] => {

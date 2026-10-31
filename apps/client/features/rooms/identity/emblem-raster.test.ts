@@ -41,6 +41,19 @@ describe('the emblem drawings', () => {
     expect(open).toEqual([]);
   });
 
+  it('draws the globe as a disc with land cut out of it, and the cell as a membrane around a nucleus', () => {
+    expect(GLYPH_SHAPES.globe.map((shape) => shape.role)).toEqual(['mark', 'cut']);
+    expect(GLYPH_SHAPES.cell.map((shape) => shape.role)).toEqual(['mark', 'mark', 'cut']);
+    const globe = accentMask('circle', 'globe');
+    const cell = accentMask('circle', 'cell');
+    const row = (mask: string, y: number) => mask.slice(y * 32, y * 32 + 32);
+    // The globe's disc is filled on the left edge of its middle row and cut by land further in.
+    expect(row(globe, 16)).toContain('10');
+    // The cell is hollow between its membrane and nucleus: a run of accent, a gap, then accent again.
+    expect(row(cell, 16)).toMatch(/1+0+1+/);
+    expect(areaOf(globe)).toBeGreaterThan(areaOf(cell));
+  });
+
   it('draws no two glyphs alike, so a word is never another word with the same picture', () => {
     const masks = ROOM_EMBLEM_GLYPHS.map((glyph) => accentMask('circle', glyph));
     expect(new Set(masks).size).toBe(masks.length);
