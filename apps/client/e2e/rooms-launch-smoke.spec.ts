@@ -107,6 +107,8 @@ for (const { name, size } of VIEWPORTS) {
     await expect(page.getByTestId('launch-start-sheet')).toContainText('Pixel');
     await expect(page.getByTestId('launch-start-sheet')).toContainText('AI · Quizmaster');
     await expect(page.getByTestId('launch-start')).toBeEnabled();
+    // The sheet fades in; contrast is read on the finished frame, not on the way (a half-transparent label reads as low contrast).
+    await expect(page.getByTestId('launch-start-sheet')).toHaveCSS('opacity', '1');
     await shoot(page, `${name}-2-start-sheet`);
     expect(await seriousViolations(page)).toEqual([]);
     await page.getByTestId('launch-start').click();
