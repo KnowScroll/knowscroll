@@ -128,15 +128,16 @@ function interactiveIssues(interactive: Interactive, path: string): IssueV2[] {
   }
 }
 
-/**
- * The play blocks and the guide of the read stops (D-207): at most two interactives and two guide
- * lines, a guide that speaks rarely (two stops at least between lines) and in few words, and each block's
- * own structure: a sort that has an order to find, a scale that rises, a fork whose branches differ.
- * Only data is checked here; that a chart's figures come from the cited passages is the authoring rules'.
- */
 /** A guide speaks rarely: two stops at least between one line and the next (D-207). */
 const GUIDE_GAP = 3;
 
+/**
+ * The play blocks and the guide of the read stops (D-207): at most two interactives and two guide
+ * lines, none on the opening stop (it hooks), a guide that speaks rarely (two stops at least between
+ * lines) and in few words, and each block's own structure: a sort that has an order to find, a scale that
+ * rises, a fork whose branches differ. Only data is checked here; that a chart's figures come from the
+ * cited passages is the authoring rules'.
+ */
 function blockIssues(document: ScrollDocumentV2): IssueV2[] {
   const issues: IssueV2[] = [];
   let interactives = 0;
@@ -145,6 +146,9 @@ function blockIssues(document: ScrollDocumentV2): IssueV2[] {
   document.stops.forEach((stop, index) => {
     if (stop.kind !== 'read') return;
     const path = `stops.${index}`;
+    if (index === 0 && stop.interactive !== undefined)
+      issues.push({ code: 'block_unexpected', path: `${path}.interactive` });
+    if (index === 0 && stop.guide !== undefined) issues.push({ code: 'guide_unexpected', path: `${path}.guide` });
     if (stop.interactive !== undefined) {
       interactives += 1;
       if (interactives === LIMITS_V2.otherInteractives + 1)

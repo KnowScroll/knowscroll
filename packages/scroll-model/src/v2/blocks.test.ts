@@ -137,12 +137,12 @@ describe('the play blocks of a document', () => {
     expect(
       issuesOf(
         edited((stops) => {
-          give(stops, 0, { interactive: SORT });
-          give(stops, 2, { interactive: CHART });
-          give(stops, 3, { interactive: FORK });
+          give(stops, 2, { interactive: SORT });
+          give(stops, 3, { interactive: CHART });
+          give(stops, 5, { interactive: FORK });
         }),
       ),
-    ).toContain('interactive_budget_exceeded@stops.3.interactive');
+    ).toContain('interactive_budget_exceeded@stops.5.interactive');
     const guide = { character: 'ray', pose: 'smile', line: 'A short word from the guide.' };
     expect(
       issuesOf(
@@ -160,6 +160,15 @@ describe('the play blocks of a document', () => {
         }),
       ),
     ).toEqual([]);
+  });
+
+  it('refuse a block or a guide on the opening stop, which hooks', () => {
+    const guide = { character: 'ray', pose: 'smile', line: 'A short word from the guide.' };
+    expect(issuesOf(edited((stops) => give(stops, 0, { interactive: SORT })))).toContain(
+      'block_unexpected@stops.0.interactive',
+    );
+    expect(issuesOf(edited((stops) => give(stops, 0, { guide })))).toContain('guide_unexpected@stops.0.guide');
+    expect(issuesOf(edited((stops) => give(stops, 2, { interactive: SORT, guide })))).toEqual([]);
   });
 
   it('count the words of the block and ten seconds of play in the reading time, and nothing else changes', () => {
