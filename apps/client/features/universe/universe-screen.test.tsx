@@ -9,6 +9,11 @@ import { COLLECTION_READS, fixtureAccount, fixtureId, sceneFixture, universeHarn
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
 import { DisplayProvider } from '@knowscroll/ui';
 import { universeSessionFor } from './use-universe-session';
+
+/** Most of these tests walk the map step by step; the three steps down have animations of their own (animation/step-animations.test.tsx), which reduced motion skips. */
+const calm = (screenNode: React.ReactElement) => (
+  <DisplayProvider value={{ width: 750, textScale: 1, reducedMotion: true }}>{screenNode}</DisplayProvider>
+);
 import { encounterSessionFor } from '../encounter/use-encounter-session';
 import type { AccountScope } from '@knowscroll/client-core';
 let mockScope: AccountScope;
@@ -26,6 +31,7 @@ jest.mock('./space/space-canvas', () => ({
 }));
 jest.mock('./space/load-space-renderer', () => ({
   loadSpaceRenderer: () => jest.requireActual<typeof FakeGpu>('./space/fake-space-gpu').fakeGpu.load(),
+  loadFirstOpenRenderer: () => () => jest.requireActual<typeof FakeGpu>('./space/fake-space-gpu').fakeGpu.load(),
 }));
 const mockNavigate = jest.fn();
 const mockPush = jest.fn();
@@ -60,11 +66,7 @@ it('mounts the real core in StrictMode; shows loading, then actual empty without
       release = resolve;
     }),
   );
-  const v = await render(
-    <StrictMode>
-      <UniverseScreen />
-    </StrictMode>,
-  );
+  const v = await render(<StrictMode>{calm(<UniverseScreen />)}</StrictMode>);
   expect(screen.queryByText('Your universe starts quiet.')).toBeNull();
   await act(() => {
     release();
@@ -77,7 +79,7 @@ it('mounts the real core in StrictMode; shows loading, then actual empty without
 it('draws the real map; landing on a planet reaches a region whose card never manufactures an encounter', async () => {
   const h = universeHarness();
   mockScope = h.scope;
-  const v = await render(<UniverseScreen />);
+  const v = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen());
   expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
@@ -97,7 +99,7 @@ it('draws the real map; landing on a planet reaches a region whose card never ma
 it('flies from the map into a system and a planet, with Back steps up and the ship parked where they went', async () => {
   const h = universeHarness();
   mockScope = h.scope;
-  const v = await render(<UniverseScreen />);
+  const v = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
   expect(screen.getByRole('header', { name: 'Your universe' })).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
@@ -131,7 +133,7 @@ function allStrings(node: unknown, found: string[] = []): string[] {
 describe('a planet: its globe, landing, and the land not reached yet (D-109)', () => {
   const openPlanet = async (h: ReturnType<typeof universeHarness>) => {
     mockScope = h.scope;
-    const view = await render(<UniverseScreen />);
+    const view = await render(calm(<UniverseScreen />));
     await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
     await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
     await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
@@ -219,7 +221,7 @@ describe('a planet: its globe, landing, and the land not reached yet (D-109)', (
 it('searches and toggles Lately without leaving the map, and none of it is a command', async () => {
   const h = universeHarness();
   mockScope = h.scope;
-  const v = await render(<UniverseScreen />);
+  const v = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByRole('button', { name: 'Search your universe' })).toBeOnTheScreen());
   await fireEvent.press(screen.getByRole('togglebutton', { name: 'Lately' }));
   expect(h.scope.storage.get('universe.view.v1')).toContain('"lately":true');
@@ -239,7 +241,7 @@ it('searches and toggles Lately without leaving the map, and none of it is a com
 it('shows dust as an unlabelled, non-navigable cue before any system exists', async () => {
   const h = universeHarness(0, 1);
   mockScope = h.scope;
-  const v = await render(<UniverseScreen />);
+  const v = await render(calm(<UniverseScreen />));
   const cue = await screen.findByRole('button', { name: 'Recent reading is gathering here' });
   expect(screen.queryByText('Your universe starts quiet.')).toBeNull();
   expect(screen.queryByRole('button', { name: 'List view' })).toBeNull();
@@ -254,14 +256,14 @@ it('shows dust as an unlabelled, non-navigable cue before any system exists', as
 it('flies to the last place on ?focus=last, from the whole map', async () => {
   const h = universeHarness();
   mockScope = h.scope;
-  const first = await render(<UniverseScreen />);
+  const first = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
   await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
   await fireEvent.press(screen.getByRole('button', { name: 'Back to Universe' }));
   expect(screen.getByRole('header', { name: 'Your universe' })).toBeOnTheScreen();
   await first.unmount();
   mockParams = { focus: 'last' };
-  const second = await render(<UniverseScreen />);
+  const second = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByRole('header', { name: 'CI system 0' })).toBeOnTheScreen());
   await act(() => h.scope.end());
   await second.unmount();
@@ -270,7 +272,7 @@ it('flies to the last place on ?focus=last, from the whole map', async () => {
 it('follows a route by its chip from either planet, and draws no route line', async () => {
   const h = universeHarness();
   mockScope = h.scope;
-  const v = await render(<UniverseScreen />);
+  const v = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
   await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
   // A route is a relation, not a line (D-074): the system view has no route target at all.
@@ -288,7 +290,7 @@ it('follows a route by its chip from either planet, and draws no route line', as
 it('asks for the looks and draws the types, rings, moon and haze the server gave, nothing of its own', async () => {
   const h = universeHarness();
   mockScope = h.scope;
-  const v = await render(<UniverseScreen />);
+  const v = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
   const manifest = h.requests.find((request) => request.path.endsWith('/manifest/read'))!;
   expect(manifest.body.capabilities).toMatchObject({ looks: ['scene-look.v1'] });
@@ -308,6 +310,7 @@ it('asks for the looks and draws the types, rings, moon and haze the server gave
 it('flies the camera into a system and back out inside one scene', async () => {
   const h = universeHarness();
   mockScope = h.scope;
+  // With motion on: the step down is the animation, and the renderer is told to move.
   const v = await render(<UniverseScreen />);
   await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
   const renderer = fakeGpu.renderers.at(-1)!;
@@ -329,7 +332,7 @@ it('picks a system on the Far level before it enters, then enters on the next ta
   const h = universeHarness();
   mockScope = h.scope;
   fakeGpu.far = true;
-  const v = await render(<UniverseScreen />);
+  const v = await render(calm(<UniverseScreen />));
   const system = await screen.findByRole('button', { name: 'CI system 0, a system' });
   await fireEvent.press(system);
   expect(screen.getByTestId('universe-system-card')).toBeOnTheScreen();
@@ -344,7 +347,7 @@ it('picks a system on the Far level before it enters, then enters on the next ta
 describe('the Simple drawing turns itself on when 3D cannot be drawn (D-111)', () => {
   const opensAsLists = async (h: ReturnType<typeof universeHarness>) => {
     mockScope = h.scope;
-    const view = await render(<UniverseScreen />);
+    const view = await render(calm(<UniverseScreen />));
     await screen.findByTestId('universe-simple');
     // The same places, as a heading and its planets; every one still opens.
     // The Simple list's system names are headings: pressing one would change nothing on this screen.
@@ -371,7 +374,7 @@ describe('the Simple drawing turns itself on when 3D cannot be drawn (D-111)', (
   it('when the context is lost, after the map was drawn', async () => {
     const h = universeHarness();
     mockScope = h.scope;
-    const view = await render(<UniverseScreen />);
+    const view = await render(calm(<UniverseScreen />));
     await waitFor(() => expect(fakeGpu.renderers.length).toBeGreaterThan(0));
     expect(screen.queryByTestId('universe-simple')).toBeNull();
     await act(() => fakeGpu.loseContext());
@@ -392,7 +395,7 @@ describe('the Simple drawing turns itself on when 3D cannot be drawn (D-111)', (
     try {
       const h = universeHarness();
       mockScope = h.scope;
-      const view = await render(<UniverseScreen />);
+      const view = await render(calm(<UniverseScreen />));
       await waitFor(() => expect(handlers.length).toBeGreaterThan(0));
       await act(() => handlers.forEach((handler) => handler()));
       await screen.findByTestId('universe-simple');
@@ -407,7 +410,7 @@ describe('the Simple drawing turns itself on when 3D cannot be drawn (D-111)', (
     const h = universeHarness();
     mockScope = h.scope;
     fakeGpu.failToCreate = true;
-    const view = await render(<UniverseScreen />);
+    const view = await render(calm(<UniverseScreen />));
     await screen.findByTestId('universe-simple');
     fakeGpu.failToCreate = false;
     await fireEvent.press(screen.getByRole('switch', { name: 'Simple view' }));
@@ -420,7 +423,7 @@ describe('the Simple drawing turns itself on when 3D cannot be drawn (D-111)', (
   it('is the setting, remembered on this device: the lists in the finalized words, and a switch that turns it off', async () => {
     const h = universeHarness(5, 0, 3);
     mockScope = h.scope;
-    const view = await render(<UniverseScreen />);
+    const view = await render(calm(<UniverseScreen />));
     await waitFor(() => expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen());
     await fireEvent.press(screen.getByRole('button', { name: 'List view' }));
     await fireEvent.press(screen.getByRole('togglebutton', { name: 'Simple view' }));
@@ -441,7 +444,7 @@ describe('the Simple drawing turns itself on when 3D cannot be drawn (D-111)', (
 it('parks the ship at the planet of the last place, and hides it under Lately', async () => {
   const h = universeHarness();
   mockScope = h.scope;
-  const v = await render(<UniverseScreen />);
+  const v = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
   await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
   await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
@@ -458,7 +461,7 @@ it('parks the ship at the planet of the last place, and hides it under Lately', 
 it('opens the orbit dial from List view: the systems on a wheel, a system’s planets on a dial, and a tap on the big planet lands', async () => {
   const h = universeHarness();
   mockScope = h.scope;
-  const v = await render(<UniverseScreen />);
+  const v = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen());
   await fireEvent.press(screen.getByRole('button', { name: 'List view' }));
   expect(screen.getByTestId('universe-dial')).toBeOnTheScreen();
@@ -495,7 +498,7 @@ it('opens the orbit dial for a system with no planets: a plain note, no big plan
   // universeHarness(1) is one system and nothing in it (#548: the dial read the first planet of an empty list).
   const h = universeHarness(1);
   mockScope = h.scope;
-  const v = await render(<UniverseScreen />);
+  const v = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen());
   await fireEvent.press(screen.getByRole('button', { name: 'List view' }));
   expect(screen.getByTestId('universe-dial')).toBeOnTheScreen();
@@ -574,7 +577,7 @@ it('shows only an actual correlated card; deliberate Open sends displayed ref an
   let recordingReadId = 9900;
   scope.recording?.useIdSource(() => fixtureId(++recordingReadId));
   mockScope = scope;
-  const view = await render(<UniverseScreen />);
+  const view = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen());
   await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
   await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
@@ -612,7 +615,7 @@ it('shows only an actual correlated card; deliberate Open sends displayed ref an
 it('a missing formation service shows an honest unavailable state without a birth, claim or shown acknowledgement', async () => {
   const h = universeHarness();
   mockScope = h.scope;
-  const v = await render(<UniverseScreen />);
+  const v = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByText('New-place views aren’t available right now.')).toBeOnTheScreen());
   expect(screen.queryByText(/A new place:/)).toBeNull();
   expect(h.calls.filter((p) => p.endsWith('/formation/read'))).toHaveLength(1);
@@ -625,7 +628,7 @@ it('a missing formation service shows an honest unavailable state without a birt
 it('the simple drawing keeps every region reachable as a plain list', async () => {
   const h = universeHarness();
   mockScope = h.scope;
-  const v = await render(<UniverseScreen />);
+  const v = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
   await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
   await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
@@ -657,7 +660,7 @@ it('draws a room station beside the system of its topic, lists it under Rooms, a
   const h = universeHarness();
   h.world.stations.push(roomStation());
   mockScope = h.scope;
-  const v = await render(<UniverseScreen />);
+  const v = await render(calm(<UniverseScreen />));
   const id = roomStation().room.roomId;
   await waitFor(() => expect(screen.getByTestId(`universe-station-${id}`)).toBeOnTheScreen());
   expect(screen.getByRole('button', { name: 'CI room, a room station' })).toBeOnTheScreen();
@@ -684,7 +687,7 @@ it('draws a station inside its system too, and none where the map holds no syste
     placement: { systemId: fixtureId(9999) },
   });
   mockScope = h.scope;
-  const v = await render(<UniverseScreen />);
+  const v = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
   expect(screen.queryByRole('button', { name: 'Elsewhere room, a room station' })).toBeNull();
   await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
@@ -698,7 +701,7 @@ it('says plainly, with its apostrophes, when there is no map to draw: offline, n
   const h = universeHarness();
   mockScope = h.scope;
   h.network(true);
-  const offline = await render(<UniverseScreen />);
+  const offline = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByText('You’re offline')).toBeOnTheScreen());
   expect(screen.getByText('Your universe is kept. Refresh when you’re connected.')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: 'Refresh map' })).toBeOnTheScreen();
@@ -708,7 +711,7 @@ it('says plainly, with its apostrophes, when there is no map to draw: offline, n
   const gone = universeHarness();
   mockScope = gone.scope;
   gone.authority(true);
-  const refused = await render(<UniverseScreen />);
+  const refused = await render(calm(<UniverseScreen />));
   await waitFor(() => expect(screen.getByText('Your map is no longer available.')).toBeOnTheScreen());
   await refused.unmount();
   gone.scope.end();
@@ -735,7 +738,7 @@ it('words every reason there is no map, and none of the words carries a broken c
 describe('search over what the person already has (v3 U-5)', () => {
   const openSearch = async (h: ReturnType<typeof universeHarness>) => {
     mockScope = h.scope;
-    const view = await render(<UniverseScreen />);
+    const view = await render(calm(<UniverseScreen />));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Search your universe' })).toBeOnTheScreen());
     await waitFor(() => expect(h.requests.some((request) => request.path === '/v1/rooms/stations')).toBe(true));
     await fireEvent.press(screen.getByRole('button', { name: 'Search your universe' }));
@@ -889,7 +892,7 @@ describe('desktop D02 (v3 U-5)', () => {
 describe('the orbit dial’s two searches (O2 and O4)', () => {
   const openDial = async (h: ReturnType<typeof universeHarness>) => {
     mockScope = h.scope;
-    const view = await render(<UniverseScreen />);
+    const view = await render(calm(<UniverseScreen />));
     await waitFor(() => expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen());
     await fireEvent.press(screen.getByRole('button', { name: 'List view' }));
     return view;
@@ -962,7 +965,7 @@ describe('a hypothetical place says so wherever it is listed (D-006, D-053)', ()
 
   it('in search, the dial and the Simple lists, in the accessible name, and the Simple planet carries its tag', async () => {
     const h = hypotheticalHarness();
-    const v = await render(<UniverseScreen />);
+    const v = await render(calm(<UniverseScreen />));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Search your universe' })).toBeOnTheScreen());
     await fireEvent.press(screen.getByRole('button', { name: 'Search your universe' }));
     await fireEvent.changeText(screen.getByLabelText('Search your universe'), 'planet 2');
@@ -1009,7 +1012,7 @@ describe('the Simple lists keep to the finalized file (v3 U-5)', () => {
     const h = universeHarness();
     h.world.stations.push(roomStation());
     mockScope = h.scope;
-    const v = await render(<UniverseScreen />);
+    const v = await render(calm(<UniverseScreen />));
     await waitFor(() => expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen());
     await waitFor(() => expect(h.requests.some((request) => request.path === '/v1/rooms/stations')).toBe(true));
     await fireEvent.press(screen.getByRole('button', { name: 'List view' }));

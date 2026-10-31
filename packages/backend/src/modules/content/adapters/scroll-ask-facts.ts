@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { parseDocumentV2, SCROLL_DOCUMENT_V2_SCHEMA_VERSION, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import { parseDocumentV2, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { notUnderReview } from './review-gate-sql.js';
 import type { ReadScrollAskFacts } from '../public.js';
@@ -27,11 +27,7 @@ export const readScrollAskFacts: ReadScrollAskFacts = async (scope, ref, stopId)
     .where('asset.kind', '=', 'scroll')
     .where(sql<boolean>`${notUnderReview('revision.asset_id', 'revision.revision')}`)
     .executeTakeFirst();
-  if (
-    (row?.document as { schemaVersion?: unknown } | null | undefined)?.schemaVersion !==
-    SCROLL_DOCUMENT_V2_SCHEMA_VERSION
-  )
-    return undefined;
+  // The v2 parse alone refuses a v1 document (and an absent row): no separate schema check is needed.
   const parsed = parseDocumentV2(row?.document);
   if (parsed.kind !== 'valid') return undefined;
   const stop = parsed.document.stops.find((candidate) => candidate.id === stopId);

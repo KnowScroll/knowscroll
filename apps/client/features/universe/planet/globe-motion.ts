@@ -22,6 +22,19 @@ const scheduler: FrameScheduler = {
 
 const wrap = (value: number): number => ((value % BAND) + BAND) % BAND;
 
+/** The angle the moon stands at when nothing has moved yet, and how fast it goes round (radians per second). */
+export const MOON_START_ANGLE = STILL_MOON_ANGLE;
+export const MOON_RADIANS_PER_SECOND = 1 / MOON_SECONDS_PER_RADIAN;
+
+/** The moon's offset from the globe's centre at `angle`, in pixels, for a globe of the given radius. */
+export function moonOffsetAt(angle: number, radius: number): { x: number; y: number } {
+  const x = Math.cos(angle) * MOON_REACH.x * radius;
+  const y = Math.sin(angle) * MOON_REACH.y * radius;
+  const cos = Math.cos(MOON_REACH.tilt);
+  const sin = Math.sin(MOON_REACH.tilt);
+  return { x: x * cos - y * sin, y: x * sin + y * cos };
+}
+
 /** The animated places of a globe's moving parts. Set from the render loop, never from React state. */
 export interface GlobeMotion {
   /** Horizontal shift of the land band and of its names, in pixels (zero or negative). */
@@ -76,12 +89,9 @@ export function useGlobeMotion(options: {
       motion.surfaceX.setValue(-wrap((t / SURFACE_SECONDS) * BAND + turned) * pixels);
       motion.cloudX.setValue(-wrap((t / CLOUD_SECONDS) * BAND + turned) * pixels);
       const angle = STILL_MOON_ANGLE + (reducedMotion ? 0 : t / MOON_SECONDS_PER_RADIAN);
-      const x = Math.cos(angle) * MOON_REACH.x * reach;
-      const y = Math.sin(angle) * MOON_REACH.y * reach;
-      const cos = Math.cos(MOON_REACH.tilt);
-      const sin = Math.sin(MOON_REACH.tilt);
-      motion.moonX.setValue(x * cos - y * sin);
-      motion.moonY.setValue(x * sin + y * cos);
+      const offset = moonOffsetAt(angle, reach);
+      motion.moonX.setValue(offset.x);
+      motion.moonY.setValue(offset.y);
       const behind = Math.sin(angle) < 0;
       motion.moonFront.setValue(behind ? 0 : 1);
       motion.moonBehind.setValue(behind ? 1 : 0);

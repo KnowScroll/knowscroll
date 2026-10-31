@@ -522,6 +522,14 @@ export type EndOtherSessions = (request: {
   readonly currentSessionId: string;
 }) => Promise<{ readonly revoked: number }>;
 
+/**
+ * Use case: claims the Universe tab's first-open animation for the account (D-114). `claimed` is true
+ * for exactly one call in the lifetime of the account, whichever device makes it. Writes the flag on the
+ * account row only.
+ */
+export type ClaimFirstOpen = (caller: { readonly accountId: string }) => Promise<{ readonly claimed: boolean }>;
+
+export const CLAIM_FIRST_OPEN = Symbol('identity.claimFirstOpen');
 export const LIST_SESSIONS = Symbol('identity.listSessions');
 export const END_SESSION = Symbol('identity.endSession');
 export const END_OTHER_SESSIONS = Symbol('identity.endOtherSessions');

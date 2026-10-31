@@ -138,7 +138,7 @@ export interface SupplyStore {
     brief: CanonicalBrief,
   ): Promise<{ readonly id: string; readonly state: 'deferred' | 'ready' } | undefined>;
 }
-/** Quartermaster's ledger of ask orders: names no person and no words (see migration 0086). */
+/** Quartermaster's ledger of ask orders: names no person and no words (see migration 0087). */
 export interface AskOrderLedger {
   /** Orders made since `since`, for the world's daily cap. */
   countSince(scope: PersonalScopeTx, since: Date): Promise<number>;

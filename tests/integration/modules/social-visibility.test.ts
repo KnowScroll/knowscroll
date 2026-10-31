@@ -163,6 +163,36 @@ describe('visibility, presence and the friend visit (real database)', () => {
       expect(Number.isSafeInteger(answer.authority.publishedProjectionRevision)).toBe(true);
     });
 
+    it('holds exactly a label and a public id for each system and planet: no position, branch, landmark, play result or private item', async () => {
+      const { owner, world, friends } = await setup();
+      const [friend] = friends as [Friend];
+      expectAccepted(await setVisibility(cases, owner, { mode: 'all_friends' }, [systemId(world, 'earth')]));
+      const answer = await visitOf(friend, owner);
+      if (answer.status !== 'available') throw new Error('CI visit not available');
+      const keysOf = (value: object) => Object.keys(value).sort();
+      expect(keysOf(answer.projection)).toEqual(['presentation', 'systems']);
+      for (const system of answer.projection.systems) {
+        expect(keysOf(system)).toEqual(['label', 'planets', 'publicSystemId']);
+        for (const planet of system.planets) expect(keysOf(planet)).toEqual(['label', 'publicPlanetId']);
+      }
+      expect(keysOf(answer.authority)).toEqual(['pairRevision', 'publishedProjectionRevision']);
+      // The wire names no kind of thing a visitor must never see, however the owner has used the app.
+      const wire = JSON.stringify(answer);
+      for (const word of [
+        'landmark',
+        'branch',
+        'position',
+        'result',
+        'region',
+        'route',
+        'room',
+        'station',
+        'ship',
+        'lately',
+      ])
+        expect(wire.toLowerCase(), word).not.toContain(word);
+    });
+
     it('lets only the chosen friends in', async () => {
       const { owner, world, friends } = await setup(2);
       const [chosen, other] = friends as [Friend, Friend];

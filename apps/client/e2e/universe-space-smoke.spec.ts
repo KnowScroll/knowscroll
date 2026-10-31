@@ -32,6 +32,8 @@ interface Options {
   /** Dust cues the emerging read answers with, and whether one room station sits beside the first system. */
   readonly dust?: number;
   readonly station?: boolean;
+  /** The test walks the map, not its animations (universe-animations-smoke.spec.ts has those). */
+  readonly calm?: boolean;
 }
 
 /** A room whose topic is the fixture's first system (authored for CI, never product data). */
@@ -64,6 +66,7 @@ async function openUniverse(page: Page, requests: Request[], options: Options = 
   const world = sceneFixture(5, options.dust ?? 0);
   if (options.station === true) world.stations.push(station);
   await page.setViewportSize(size);
+  if (options.calm === true) await page.emulateMedia({ reducedMotion: 'reduce' });
   // Count the frames the renderer draws: three.js clears the canvas once per frame. A frame is stamped
   // with the time the browser gave its animation-frame callback (the stamp the 30 fps cap is decided on),
   // not the time `clear` ran: that moves with the runner's stalls, and two frames could then look 14 ms apart.
@@ -190,7 +193,7 @@ test('stations, dust, Lately, search, the ship’s chip and the Far card all wor
   page,
 }) => {
   const requests: Request[] = [];
-  await openUniverse(page, requests, { dust: 1, station: true });
+  await openUniverse(page, requests, { dust: 1, station: true, calm: true });
   const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
   await expect(system).toBeVisible({ timeout: 60_000 });
 
@@ -303,7 +306,7 @@ test('search, the orbit dial and the Simple view work over the real map; search 
   page,
 }) => {
   const requests: Request[] = [];
-  await openUniverse(page, requests, { station: true });
+  await openUniverse(page, requests, { station: true, calm: true });
   const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
   await expect(system).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: 'CI room, a room station', exact: true })).toBeVisible();
