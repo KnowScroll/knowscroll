@@ -29,6 +29,9 @@ const SPIKE_MYTHS: Readonly<Partial<Record<ScrollTopic, Misconception>>> = {
   'greenhouse-radiation': myth('The atmosphere traps heat like a lid that stops warm air from rising away.'),
   'greenhouse-balance': myth('Heat trapped by the atmosphere means energy only goes in and never leaves.'),
   'stars-fusion': myth('The Sun shines because it burns, the way a fire burns.'),
+  'stars-lifecycle': myth('The Sun will end its life by exploding as a supernova.'),
+  'exoplanet-transit': myth('Astronomers find planets around other stars by photographing them.'),
+  greenhouse: { kind: 'none' },
   'exoplanet-habitable-zone': myth('A planet inside the habitable zone is a planet with life on it.'),
   // Human body.
   'cardiac-cycle': myth('The heart squeezes all four of its chambers at once in a single beat.'),
@@ -50,8 +53,9 @@ const SPIKE_MYTHS: Readonly<Partial<Record<ScrollTopic, Misconception>>> = {
 /**
  * The twenty recipes of the first spike, in the order they ran: the three Seasons parts first, then
  * nine Earth & sky and Space recipes in all, four of the human body, and seven of computing,
- * machine learning and history. Only three Seasons parts are drawn by a kit, so only they get a
- * stage; the rest are plain Scrolls with calls. `seasons-elsewhere` is not one of the twenty: name
+ * machine learning and history. A recipe gets a stage only where its library entry names a kit
+ * (`stageKit`), so the stage recipes among them are the three Seasons parts and the ones a kit of
+ * D-194 draws; the rest are plain Scrolls with calls. `seasons-elsewhere` is not one of the twenty: name
  * it with `--topics` (see `SEASONS_SPIKE_TOPICS_V2`).
  */
 export const SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
@@ -89,17 +93,35 @@ export const SEASONS_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
 ];
 
 /**
- * The spike's decisions for a recipe. The picture comes from the recipe's own `stageKit`; a recipe
- * the misconception table does not list has no misconception, and the line says so.
+ * The eight Earth & sky and Space recipes the drawing kits of D-194 give a picture, to measure with the
+ * v17 prompt before any of them is marked `scrollV2`: tides, the greenhouse effect, stars and exoplanet
+ * transits. Each runs as the library will produce it, a stage Scroll with the recipe's own kit, and with the
+ * spike's own unreviewed misconception (`SPIKE_MYTHS`) where the table lists one.
+ */
+export const SKY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
+  'tides',
+  'tides-spring-neap',
+  'greenhouse',
+  'greenhouse-radiation',
+  'greenhouse-balance',
+  'stars-fusion',
+  'stars-lifecycle',
+  'exoplanet-transit',
+];
+
+/**
+ * The spike's decisions for a recipe. The picture and its kit come from the recipe's own `stageKit`;
+ * a recipe the misconception table does not list has no misconception, and the line says so.
  */
 export function spikeRecipeV2(topic: ScrollTopic): SpikeRecipeV2 {
-  const planned = TOPICS[topic].scrollV2;
-  if (planned !== undefined) return { ...planned, defaulted: false };
-  const variant = TOPICS[topic].stageKit === undefined ? 'plain' : 'stage';
+  const { scrollV2: planned, stageKit } = TOPICS[topic];
+  const kit = stageKit === undefined ? {} : { kit: stageKit };
+  if (planned !== undefined) return { ...planned, ...kit, defaulted: false };
+  const variant = stageKit === undefined ? 'plain' : 'stage';
   const listed = SPIKE_MYTHS[topic];
   return listed === undefined
-    ? { variant, misconception: { kind: 'none' }, defaulted: true }
-    : { variant, misconception: listed, defaulted: false };
+    ? { variant, ...kit, misconception: { kind: 'none' }, defaulted: true }
+    : { variant, ...kit, misconception: listed, defaulted: false };
 }
 
 /** Recipe keys from `--topics a,b,c`; `undefined` when any name is not a library recipe. Repeats are dropped. */

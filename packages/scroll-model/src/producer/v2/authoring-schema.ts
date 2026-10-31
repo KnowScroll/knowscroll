@@ -1,6 +1,5 @@
 import { z } from '../../zod.js';
 import { ASIDE_KINDS, STOP_EMPHASES } from '../../v2/document.js';
-import { STAGE_ENUMS } from '../../v2/kit.js';
 import { LIMITS_V2 } from '../../v2/limits.js';
 
 /**
@@ -21,18 +20,13 @@ const cites = z.array(prose(1, 12)).min(1).max(8);
 
 /**
  * Only what changes at this item; every other value carries over from the item before. The writer
- * chooses the view, the month, the Moon's phase and the focus: the tilt, the pins and Ray's angle
- * are derived by code from the month (D-124). Only a read stop may carry one: a call never changes
- * the picture, and the document's own admission refuses a state on a call.
+ * chooses words of the recipe's kit (D-194): for Earth & sky the view, the month, the Moon's phase and
+ * the focus. The schema holds the shape (a few short words by key); which keys and words are allowed
+ * depends on the recipe's kit, which only the authoring rules know (`stage_choice_invalid`). Only a read
+ * stop may carry one: a call never changes the picture, and the document's own admission refuses a
+ * state on a call.
  */
-const stagePatch = z
-  .strictObject({
-    view: z.enum(STAGE_ENUMS.view).optional(),
-    earthAt: z.enum(STAGE_ENUMS.earthAt).optional(),
-    moonAt: z.enum(STAGE_ENUMS.moonAt).optional(),
-    focus: z.enum(STAGE_ENUMS.focus).optional(),
-  })
-  .optional();
+const stagePatch = z.record(prose(1, 24), prose(1, 24)).optional();
 
 const stopItem = z.strictObject({
   type: z.literal('stop'),

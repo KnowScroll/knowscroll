@@ -1,0 +1,287 @@
+{
+  "schemaVersion": "scroll-document.v2",
+  "assetId": "ci-fixture-star-stage",
+  "revision": 1,
+  "language": "en",
+  "explanationUnitId": "ci-fixture-star-stage-unit",
+  "theme": {
+    "family": "worlds"
+  },
+  "kicker": "CI fixture · not product content",
+  "title": "A star: pressure, mass and an ending (a CI fixture)",
+  "dek": "Gravity and pressure, mass and lifetime, and two endings, in short steps (a CI fixture).",
+  "framing": {
+    "kind": "factual"
+  },
+  "misconception": {
+    "kind": "none"
+  },
+  "stage": {
+    "kit": "star.v1",
+    "states": [
+      {
+        "stop": "cloud",
+        "state": {
+          "view": "life",
+          "balance": "steady",
+          "mass": "sun-like",
+          "stage": "cloud",
+          "focus": "none"
+        },
+        "alt": "The life of a star like the Sun, shown at one stage. No years are drawn. A cloud of gas and dust starts to collapse under its own gravity, and its centre grows denser and hotter."
+      },
+      {
+        "stop": "ignites",
+        "state": {
+          "view": "balance",
+          "balance": "steady",
+          "mass": "sun-like",
+          "stage": "main-sequence",
+          "focus": "core"
+        },
+        "alt": "A star cut open to show its centre. In the hot, dense core, hydrogen fuses into helium and releases the energy that keeps the star shining. Gravity pulls inward and the pressure from the core’s energy pushes outward with equal strength, so the star holds its size. The picture draws the eye to the core."
+      },
+      {
+        "stop": "gravity",
+        "state": {
+          "view": "balance",
+          "balance": "gravity-wins",
+          "mass": "sun-like",
+          "stage": "main-sequence",
+          "focus": "gravity"
+        },
+        "alt": "A star cut open to show its centre. In the hot, dense core, hydrogen fuses into helium and releases the energy that keeps the star shining. Gravity pulls inward harder than the pressure pushes outward, so the star would shrink. The picture draws the eye to gravity."
+      },
+      {
+        "stop": "pressure",
+        "state": {
+          "view": "balance",
+          "balance": "pressure-wins",
+          "mass": "sun-like",
+          "stage": "main-sequence",
+          "focus": "pressure"
+        },
+        "alt": "A star cut open to show its centre. In the hot, dense core, hydrogen fuses into helium and releases the energy that keeps the star shining. The pressure pushes outward harder than gravity pulls inward, so the star would swell. The picture draws the eye to the pressure."
+      },
+      {
+        "stop": "mass",
+        "state": {
+          "view": "mass",
+          "balance": "steady",
+          "mass": "high",
+          "stage": "main-sequence",
+          "focus": "lifetime"
+        },
+        "alt": "Three stars side by side: a low-mass star, a star like the Sun and a high-mass star. A high-mass star is bigger, hotter and bluer, and a low-mass star is smaller, cooler and redder. Bars show how long each one shines, drawn on a stretched scale so that all three fit: the more massive the star, the faster it uses its fuel and the shorter its life. A high-mass star is marked. The picture draws the eye to the bars."
+      },
+      {
+        "stop": "low",
+        "state": {
+          "view": "life",
+          "balance": "steady",
+          "mass": "low",
+          "stage": "end",
+          "focus": "remnant"
+        },
+        "alt": "The life of a low-mass star, shown at one stage. No years are drawn. The star sheds its outer layers into space and leaves a small, hot white dwarf. The picture draws the eye to what is left."
+      },
+      {
+        "stop": "high",
+        "state": {
+          "view": "life",
+          "balance": "steady",
+          "mass": "high",
+          "stage": "end",
+          "focus": "remnant"
+        },
+        "alt": "The life of a high-mass star, shown at one stage. No years are drawn. The star’s core collapses and the star explodes as a supernova, leaving a small, very dense remnant. The picture draws the eye to what is left."
+      }
+    ]
+  },
+  "stops": [
+    {
+      "kind": "read",
+      "id": "cloud",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "A cloud of gas and dust collapses under its own gravity. Its centre grows denser and hotter."
+        }
+      ],
+      "simple": "A cloud collapses and its centre heats.",
+      "emphasis": "hook"
+    },
+    {
+      "kind": "read",
+      "id": "ignites",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "When the core is hot enough, hydrogen fuses into helium and releases energy. That energy pushes outward as gravity pulls inward, and the star holds its size."
+        }
+      ],
+      "simple": "Fusion in the core pushes out against gravity."
+    },
+    {
+      "kind": "call_it",
+      "id": "call-steady",
+      "prompt": "What keeps a steady star from collapsing?",
+      "options": [
+        "Pressure from the core’s energy pushes out as hard as gravity pulls in",
+        "Nothing: it is slowly collapsing right now"
+      ],
+      "answer": 0,
+      "explain": "A star in balance has pressure pushing outward exactly as hard as gravity pulls inward.",
+      "twist": "Gravity is always pulling, so it is natural to think something must give. Pressure is pushing back.",
+      "simple": "Pressure balances gravity."
+    },
+    {
+      "kind": "read",
+      "id": "gravity",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "If gravity pulled harder than the pressure pushed, the star would shrink. The dashed circle is the size it was."
+        }
+      ],
+      "simple": "Gravity winning means the star shrinks."
+    },
+    {
+      "kind": "read",
+      "id": "pressure",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "If the pressure pushed harder than gravity pulled, the star would swell."
+        }
+      ],
+      "simple": "Pressure winning means the star swells."
+    },
+    {
+      "kind": "read",
+      "id": "mass",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "A more massive star squeezes its core harder and uses its fuel faster, so it shines for a much shorter time. The bars are on a stretched scale so that all three fit."
+        }
+      ],
+      "simple": "More mass, a shorter life."
+    },
+    {
+      "kind": "call_it",
+      "id": "call-lifetime",
+      "prompt": "Which of the three stars shines longest?",
+      "options": ["The low-mass star", "The high-mass star"],
+      "answer": 0,
+      "explain": "A low-mass star uses its fuel slowly, so it lasts far longer than the others.",
+      "twist": "Bigger looks as if it should last longer. A bigger star burns through its fuel faster.",
+      "simple": "The lightest star lasts longest."
+    },
+    {
+      "kind": "read",
+      "id": "low",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "A low-mass star swells into a giant and ends as a small, hot white dwarf, with its outer layers drifting off into space."
+        }
+      ],
+      "simple": "A low-mass star ends as a white dwarf."
+    },
+    {
+      "kind": "read",
+      "id": "high",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "A high-mass star ends in a supernova, an explosion, and leaves a small, very dense remnant."
+        }
+      ],
+      "simple": "A high-mass star ends in a supernova."
+    },
+    {
+      "kind": "final_call",
+      "id": "final-ending",
+      "prompt": "What decides whether a star ends as a white dwarf or in a supernova?",
+      "options": ["How massive the star is", "How old the star is when we look"],
+      "answer": 0,
+      "explain": "The mass sets how the star ends: a low-mass star becomes a white dwarf and a high-mass one explodes.",
+      "twist": "Age is a natural thing to blame, but it is the mass that sets the path.",
+      "simple": "Mass sets the ending."
+    }
+  ],
+  "asides": [
+    {
+      "id": "where-this-stops",
+      "kind": "limits",
+      "title": "Where this stops",
+      "text": "The masses here are classes, not figures, and the bars are on a stretched scale. Real stars vary far more than three pictures can show.",
+      "anchorStop": "ignites",
+      "collapsed": true
+    }
+  ],
+  "recap": {
+    "captions": [
+      "Pressure holds a star against gravity.",
+      "More mass, a shorter life.",
+      "The ending depends on the mass."
+    ],
+    "smallPrintAside": "where-this-stops"
+  },
+  "askSuggestions": ["What would change if the numbers were different?", "Where does this picture stop being true?"],
+  "limitsVersion": "scroll-limits.v2",
+  "measures": {
+    "version": "scroll-measures.v2",
+    "readingSeconds": 123,
+    "readingMinutes": 2.1,
+    "totalWeight": 472,
+    "recapWeight": 17,
+    "stops": [
+      {
+        "stopId": "cloud",
+        "weight": 17
+      },
+      {
+        "stopId": "ignites",
+        "weight": 55
+      },
+      {
+        "stopId": "call-steady",
+        "weight": 97
+      },
+      {
+        "stopId": "gravity",
+        "weight": 20
+      },
+      {
+        "stopId": "pressure",
+        "weight": 12
+      },
+      {
+        "stopId": "mass",
+        "weight": 33
+      },
+      {
+        "stopId": "call-lifetime",
+        "weight": 82
+      },
+      {
+        "stopId": "low",
+        "weight": 23
+      },
+      {
+        "stopId": "high",
+        "weight": 16
+      },
+      {
+        "stopId": "final-ending",
+        "weight": 100
+      }
+    ]
+  },
+  "integrity": {
+    "method": "canonical-json-sha256.v1",
+    "sha256": "76bc0d1d34393ae19182929b071ee0bcb235b9bfc614d341e7d4160fa7426d87"
+  }
+}

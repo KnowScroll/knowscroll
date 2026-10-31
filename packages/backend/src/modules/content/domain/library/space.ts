@@ -72,6 +72,9 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.stars',
     facetId: 'space.stars.fusion',
+    // Fusion in the core, gravity against pressure and how mass sets how long a star shines are the three
+    // views the kit has.
+    stageKit: 'star.v1',
     interactive: true,
     interactiveKind: 'diagram',
     brief:
@@ -84,6 +87,9 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.stars',
     facetId: 'space.stars.lifecycle',
+    // The stages of a low-mass star and of a high-mass star, in order and without years, are the life view;
+    // code draws the end that fits the mass.
+    stageKit: 'star.v1',
     interactive: true,
     interactiveKind: 'timeline',
     brief:
@@ -108,6 +114,9 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.exoplanets',
     facetId: 'space.exoplanets.detection',
+    // The transit method is the subject: a planet crossing its star and the dip it makes, small against large.
+    // The wobble method is told in words only.
+    stageKit: 'transit.v1',
     interactive: true,
     interactiveKind: 'chart',
     brief:

@@ -1,2 +1,2 @@
-export { EarthSkyPicture } from './earth-sky';
-export { canTween, lerpScene, sceneOf, type EarthSkyScene } from './earth-sky-scene';
+export { canTween, lerpScene, sceneOf } from './earth-sky-scene';
+export { KIT_PICTURES } from './registry';

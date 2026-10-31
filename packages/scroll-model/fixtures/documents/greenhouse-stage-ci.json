@@ -1,0 +1,255 @@
+{
+  "schemaVersion": "scroll-document.v2",
+  "assetId": "ci-fixture-greenhouse-stage",
+  "revision": 1,
+  "language": "en",
+  "explanationUnitId": "ci-fixture-greenhouse-stage-unit",
+  "theme": {
+    "family": "worlds"
+  },
+  "kicker": "CI fixture · not product content",
+  "title": "Energy in, energy out (a CI fixture)",
+  "dek": "Sunlight, infrared and one layer of gas, in short steps (a CI fixture).",
+  "framing": {
+    "kind": "factual"
+  },
+  "misconception": {
+    "kind": "none"
+  },
+  "stage": {
+    "kit": "greenhouse.v1",
+    "states": [
+      {
+        "stop": "sunlight",
+        "state": {
+          "view": "sunlight",
+          "layer": "none",
+          "change": "settled",
+          "focus": "sun"
+        },
+        "alt": "Sunlight arrives from the Sun at the top. A share of it is reflected straight back to space. The rest is taken up by the ground, which warms. There is no layer of gas above the ground. This is a simple picture with one layer, not the real atmosphere. The picture draws the eye to the sunlight."
+      },
+      {
+        "stop": "glow",
+        "state": {
+          "view": "infrared",
+          "layer": "none",
+          "change": "settled",
+          "focus": "to-space"
+        },
+        "alt": "The warm ground sends infrared (heat radiation) upward. With no layer above it all of that infrared goes out to space, as much as the sunlight the ground takes up. This is a simple picture with one layer, not the real atmosphere. The picture draws the eye to the energy that leaves to space."
+      },
+      {
+        "stop": "layer",
+        "state": {
+          "view": "infrared",
+          "layer": "thin",
+          "change": "settled",
+          "focus": "layer"
+        },
+        "alt": "The warm ground sends infrared (heat radiation) upward. Above it lies a thin layer that absorbs some of the infrared. The layer sends out infrared of its own, half up to space and half back down to the ground. The rest of the ground’s infrared passes straight through. Settled, the ground sends up more infrared than the sunlight it takes up, yet as much infrared leaves to space as the sunlight the ground takes up: the layer makes no energy, it sends part of it back. This is a simple picture with one layer, not the real atmosphere. The picture draws the eye to the layer."
+      },
+      {
+        "stop": "thicker",
+        "state": {
+          "view": "infrared",
+          "layer": "thick",
+          "change": "settled",
+          "focus": "back-down"
+        },
+        "alt": "The warm ground sends infrared (heat radiation) upward. Above it lies a thick layer that absorbs most of the infrared. The layer sends out infrared of its own, half up to space and half back down to the ground. The rest of the ground’s infrared passes straight through. Settled, the ground sends up more infrared than the sunlight it takes up, yet as much infrared leaves to space as the sunlight the ground takes up: the layer makes no energy, it sends part of it back. This is a simple picture with one layer, not the real atmosphere. The picture draws the eye to the infrared sent back down."
+      },
+      {
+        "stop": "change",
+        "state": {
+          "view": "energy-balance",
+          "layer": "thick",
+          "change": "just-thickened",
+          "focus": "to-space"
+        },
+        "alt": "Above the ground lies a thick layer that absorbs most of the infrared. The layer has just become thicker. Two bars compare the energy the ground takes up from the Sun with the energy leaving to space, and a thermometer shows its warmth. The bar for energy leaving is shorter than the one for energy taken up: for now the ground takes up more than leaves, so it warms until the two bars match. The thermometer shows the ground as warm as it was before the layer thickened. This is a simple picture with one layer, not the real atmosphere. The picture draws the eye to the energy that leaves to space."
+      },
+      {
+        "stop": "settles",
+        "state": {
+          "view": "energy-balance",
+          "layer": "thick",
+          "change": "settled",
+          "focus": "surface"
+        },
+        "alt": "Above the ground lies a thick layer that absorbs most of the infrared. Two bars compare the energy the ground takes up from the Sun with the energy leaving to space, and a thermometer shows its warmth. The two bars are equal: as much infrared leaves to space as the ground takes up from the Sun, so nothing is gained or lost. The thermometer shows the ground warmer than it would be with no layer at all. This is a simple picture with one layer, not the real atmosphere. The picture draws the eye to the ground."
+      }
+    ]
+  },
+  "stops": [
+    {
+      "kind": "read",
+      "id": "sunlight",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Sunlight arrives. A share of it bounces straight back to space, and the rest is taken up by the ground, which warms. The arrows are as wide as the energy they carry."
+        }
+      ],
+      "simple": "Some sunlight bounces back and the rest warms the ground.",
+      "emphasis": "hook"
+    },
+    {
+      "kind": "call_it",
+      "id": "call-ground",
+      "prompt": "What does the warm ground do with the energy it took up?",
+      "options": ["It sends infrared, a form of heat radiation, back upward", "It keeps all of it for good"],
+      "answer": 0,
+      "explain": "Anything warm gives off infrared. The ground sends its energy back upward that way.",
+      "twist": "Keeping it all is a natural guess, and it would mean the ground just heats up forever.",
+      "simple": "The ground sends infrared back up."
+    },
+    {
+      "kind": "read",
+      "id": "glow",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "A warm ground sends infrared upward. With nothing above it, all of that infrared leaves, as much as the sunlight the ground took up. The two arrows are the same width."
+        }
+      ],
+      "simple": "With no layer, as much energy leaves as arrives."
+    },
+    {
+      "kind": "read",
+      "id": "layer",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Now add a thin layer of gas that absorbs some of the infrared. The layer sends out infrared of its own, half up and half back down toward the ground. The rest passes straight through."
+        }
+      ],
+      "simple": "A thin layer sends some infrared back down."
+    },
+    {
+      "kind": "read",
+      "id": "thicker",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Make the layer thick and more infrared is sent back down. The ground now sends up more than the sunlight it takes up, but as much infrared leaves to space as the sunlight the ground takes up."
+        }
+      ],
+      "simple": "A thick layer sends more back down."
+    },
+    {
+      "kind": "call_it",
+      "id": "call-energy",
+      "prompt": "Does the layer make energy?",
+      "options": ["No: it sends part of the infrared back", "Yes: that is why the ground is warmer"],
+      "answer": 0,
+      "explain": "The layer only returns part of what the ground sent. What leaves to space is always the sunlight the ground takes up, once things settle.",
+      "twist": "It sounds as if a warmer ground needs extra energy from somewhere. It needs only a longer route for the energy it has.",
+      "simple": "No energy is made."
+    },
+    {
+      "kind": "read",
+      "id": "change",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Just after the layer thickens, less energy leaves than the ground takes up. For now the ground keeps the difference and warms. The gap between the two bars is that difference."
+        }
+      ],
+      "simple": "At first less leaves than arrives."
+    },
+    {
+      "kind": "read",
+      "id": "settles",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "The ground warms until the energy leaving matches the energy it takes up again. The thermometer shows the warmer ground, and the two bars are level."
+        }
+      ],
+      "simple": "The ground warms until the bars match."
+    },
+    {
+      "kind": "final_call",
+      "id": "final-balance",
+      "prompt": "The layer gets thicker still. What happens to the ground, in the end?",
+      "options": [
+        "It warms further, until energy out again equals energy in",
+        "It stays as warm as it was, because the layer makes no energy"
+      ],
+      "answer": 0,
+      "explain": "A thicker layer returns more infrared, so the ground has to be warmer before as much energy leaves as arrives.",
+      "twist": "Because no energy is made, it is easy to think nothing can change. The route out is longer, so the ground must be warmer.",
+      "simple": "A thicker layer means a warmer ground."
+    }
+  ],
+  "asides": [
+    {
+      "id": "where-this-stops",
+      "kind": "limits",
+      "title": "Where this stops",
+      "text": "This is a simple picture with one layer. The real atmosphere has many layers, and it absorbs a little of the sunlight too.",
+      "anchorStop": "thicker",
+      "collapsed": true
+    }
+  ],
+  "recap": {
+    "captions": [
+      "Sunlight warms the ground.",
+      "A layer sends some infrared back down.",
+      "Warmer ground, the same balance."
+    ],
+    "smallPrintAside": "where-this-stops"
+  },
+  "askSuggestions": ["What would change if the numbers were different?", "Where does this picture stop being true?"],
+  "limitsVersion": "scroll-limits.v2",
+  "measures": {
+    "version": "scroll-measures.v2",
+    "readingSeconds": 146,
+    "readingMinutes": 2.4,
+    "totalWeight": 557,
+    "recapWeight": 16,
+    "stops": [
+      {
+        "stopId": "sunlight",
+        "weight": 32
+      },
+      {
+        "stopId": "call-ground",
+        "weight": 98
+      },
+      {
+        "stopId": "glow",
+        "weight": 31
+      },
+      {
+        "stopId": "layer",
+        "weight": 35
+      },
+      {
+        "stopId": "thicker",
+        "weight": 63
+      },
+      {
+        "stopId": "call-energy",
+        "weight": 107
+      },
+      {
+        "stopId": "change",
+        "weight": 31
+      },
+      {
+        "stopId": "settles",
+        "weight": 26
+      },
+      {
+        "stopId": "final-balance",
+        "weight": 118
+      }
+    ]
+  },
+  "integrity": {
+    "method": "canonical-json-sha256.v1",
+    "sha256": "14bf09c82ac6aff5366cc3dd6593ed4ac53c6b880f65b3ee631758786c15f6f7"
+  }
+}

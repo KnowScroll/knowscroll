@@ -1,7 +1,8 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { authoredV2, PUBLICATION_V2, recipeV2 } from '../../test-support/v2-fixtures.js';
-import { describeStageState, INITIAL_STAGE_STATE } from '../../v2/kit.js';
+import { EARTH_SKY_KIT, INITIAL_STAGE_STATE } from '../../v2/kit.js';
+import { isKitPatch, kitDefinition } from '../../v2/kits/index.js';
 import { assembleScrollV2, shuffleOptions } from './assemble.js';
 import { AuthoredScrollV2 } from './authoring-schema.js';
 
@@ -87,18 +88,14 @@ describe('assembleScrollV2', () => {
 
   it('records every state of the stage with the description its physics gives, never one the writer chose', () => {
     const { document } = assemble();
-    for (const entry of document.stage?.states ?? []) expect(entry.alt).toBe(describeStageState(entry.state));
+    const kit = kitDefinition(document.stage?.kit ?? EARTH_SKY_KIT);
+    for (const entry of document.stage?.states ?? []) expect(entry.alt).toBe(kit.describe(entry.state));
     expect(Object.keys(document.stage?.states[0]?.state ?? {}).sort()).toEqual(['earthAt', 'focus', 'moonAt', 'view']);
   });
 
-  it('writes the description of every state itself: the writer cannot supply one', () => {
-    const parsed = AuthoredScrollV2.safeParse({
-      ...authoredV2(),
-      items: authoredV2().items.map((item, index) =>
-        index === 0 ? { ...item, stage: { view: 'orbit', alt: 'Anything' } } : item,
-      ),
-    });
-    expect(parsed.success).toBe(false);
+  it('writes the description of every state itself: a description the writer supplies is no key of the kit', () => {
+    expect(isKitPatch(kitDefinition(EARTH_SKY_KIT), { view: 'orbit', alt: 'Anything' })).toBe(false);
+    expect(isKitPatch(kitDefinition(EARTH_SKY_KIT), { view: 'orbit' })).toBe(true);
   });
 
   it('leaves a plain Scroll without a stage, whatever the writer put in it', () => {
