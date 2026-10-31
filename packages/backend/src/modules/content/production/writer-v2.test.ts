@@ -39,6 +39,14 @@ describe('the v18 writer', () => {
     expect(writerRoleV2(context()).id).toBe('content.scroll-writer');
   });
 
+  it('tells the writer, for every recipe, to keep calls to what the pages state and to give an effect its size', () => {
+    for (const key of ['seasons', 'tides', 'stars-fusion', 'black-hole-horizon', 'dns-lookup'] as const) {
+      const text = writerInstructionsV2(spikeRecipeV2(key));
+      expect(text, key).toContain('a fact the passages do not state must never be the subject of a call');
+      expect(text, key).toContain('never “slightly” or “a little”');
+    }
+  });
+
   it('compiles the recorded fixture answer for a stage recipe with a myth', () => {
     const outcome = compileGeneratedScrollV2(fixtureAuthoredV2(), context());
     expect(outcome.kind).toBe('compiled');
