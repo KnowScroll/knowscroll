@@ -81,7 +81,11 @@ async function openUniverse(page: Page, options: Options = {}): Promise<Written>
         canvasIds.set(this.canvas, id);
       }
       canvasOf.push(id);
-      ratios.push(this.drawingBufferWidth / (this.canvas as HTMLCanvasElement).clientWidth);
+      // The density is measured only on a canvas that is attached, shown and has a size: a canvas that is being
+      // built, hidden or taken away has no client width, and dividing by it says nothing about the cap.
+      const canvas = this.canvas as HTMLCanvasElement;
+      const shown = canvas.isConnected && canvas.clientWidth > 0 && getComputedStyle(canvas).visibility !== 'hidden';
+      ratios.push(shown ? this.drawingBufferWidth / canvas.clientWidth : Number.NaN);
       clear.call(this, mask);
     };
   });
@@ -152,8 +156,11 @@ async function expectCapped(page: Page, from: number, to?: number): Promise<void
     if (gaps.length > 0) expect(Math.min(...gaps)).toBeGreaterThanOrEqual(32);
   }
   expect(longest).toBeGreaterThan(8);
-  for (const ratio of density) expect(ratio).toBeLessThanOrEqual(1.5 + 1e-6);
-  expect(Math.max(...density)).toBeGreaterThan(1.4);
+  // Only frames of a visible canvas have a density; at least one must have been measured, or the cap was never checked.
+  const measured = density.filter((ratio) => Number.isFinite(ratio));
+  expect(measured.length).toBeGreaterThan(8);
+  for (const ratio of measured) expect(ratio).toBeLessThanOrEqual(1.5 + 1e-6);
+  expect(Math.max(...measured)).toBeGreaterThan(1.4);
 }
 
 /** The frames drawn so far: a mark to measure from. */
