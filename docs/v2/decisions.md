@@ -2058,3 +2058,19 @@ The writer of V3 can make two Scrolls that bust the same myth, and Jev could not
 - **Version.** `jev.2`. A stored assessment made under `jev.1` is not reused, so the first preparation after the deploy asks again.
 - **Call rate.** The bound of D-058 is unchanged: at most one call per subject (language and primary topic) per ten minutes, within the background share of the budgets. A pull-up that leaves the topic more often makes more subjects, so more calls are possible. `composer replay-policy` counts the first offers that move to another subject, which is the upper bound on new calls per move. If the rate matters on dev, the knob is the refresh wait, not the context.
 - **Verified.** Unit tests of the description (the facts, a plain Scroll, a Reel, a long summary, no total), of the instructions and of the version. One real `jev.2` run on dev, checking the `model` field, is listed in the PR for the coordinator.
+
+## D-154 · 2026-10-31 · The Talk list follows the Talk theme (v3 dev check, #548)
+
+**Amends** D-145 and D-151, which kept the Talk list on paper "for now".
+
+- **What changes.** The Talk list, its empty and error states, the navigation beside it and the inbox pane next to an open conversation are drawn on the dark sky when the Talk theme is the sky, and on paper when it is Paper. T3 draws the list on the sky.
+- **What stays.** A thread invitation is a paper card on either ground. The theme is still a device choice (D-151).
+- **Verified.** `conversations-screen.test.tsx` (cream names on the sky, ink on Paper).
+
+## D-113 · 2026-10-31 · The landed map opens on the formed regions (v3 dev check, #548)
+
+**Amends** D-110 (a planet lands on its map).
+
+- **What changes.** The map opens centred on the box round every formed region and its name, shrinking by at most 40 % so the names are inside the screen. Before, it was centred on the whole map, and a planet whose regions sat on one side opened off-centre with a name cut at the edge.
+- **What stays.** A chosen region still drops the camera over it. Pan and zoom still work from the new start. Land not reached yet is still grey and unnamed (D-078).
+- **Verified.** `planet-plan.test.ts` (centred, names inside the screen, nothing formed keeps the old view) and `universe-planet-smoke.spec.ts`.

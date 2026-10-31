@@ -108,6 +108,21 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 - **Larger than a sweep:** Friends roster as one list (F01), Account identity card, Notifications and Accessibility & playback (P01), recording as a switch (P02, D05), share sheet header (H01).
 - **Not opened:** thread presence and members sheet (C03), snippet range handles (H03), failed and dismissed branches (X02), branch map (X04), three-person worlds (U07), series threads on dev (C04). They are drawn in code and covered by tests; no dev data reaches them yet.
 
+## v3 dev check, round 1 (#548)
+
+Where a fix and the v3 design disagree, or the design is silent. 390 × 844 and 1440 × 900, production export, labelled fixtures.
+
+| Screen | What | Status | Why |
+|---|---|---|---|
+| Scroll reader, ••• on `/scroll/<id>` | Save and Share. Like and Ask are not there. | differs | No encounter on this address, so no like or ask to send. G5 also lists Challenge, Text, Simpler, Small print and Report; none is built yet. |
+| Scroll reader, ••• in Explore | Like, Save, Share and the path; Ask is in the dock only | differs | G5 draws Save, Share and the rest, not Like or Ask. Kept as built; Share, Ask and the path now open from it. |
+| Room, AI residents | One line naming the residents on a phone; a tap opens Ask and the note. Open on desktop. | differs | R3 has no standing panel (Ask is in a message's ••• and by @name). The panel stays because the person needs a way to ask without a message; a phone keeps 60 % of its height for messages (T-A). |
+| Talk list | On the dark sky under the Talk theme, cream rows. A thread invitation stays a paper card. | matches | T3 draws the list on the sky. Paper theme keeps the paper list. D-154. |
+| Universe, Back pill | A long name ends in an ellipsis; the whole name stays in the accessible name. | differs | The design draws short names only. |
+| Universe, landed map | Opens on the formed regions, centred, shrinking the map by at most 40 % to fit their names. | differs | The design shows the whole map; with four regions on one side that left names at the edge. D-113. |
+| Universe, desktop key hints | Bottom right of the map, above the clouds. | differs | The design draws them bottom left, where the chips sit when a place has a "Route to" chip. |
+| Universe, list view with no planets | "No planets in <system> yet." under the system row. | differs | The design draws systems with planets only. |
+
 ## Honest limits
 
 - No VoiceOver or TalkBack run. Real devices were not used; the engine is desktop Chromium at the artboard's width.
