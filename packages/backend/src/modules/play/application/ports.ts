@@ -1,5 +1,5 @@
 import type { HasActivatedExposure } from '../../experience/public.js';
-import type { ReadScrollPlayFacts } from '../../content/public.js';
+import type { ReadEncounterTopics, ReadScrollPlayFacts } from '../../content/public.js';
 import type {
   FenceOwnAccount,
   FencePersonalRecording,
@@ -73,6 +73,17 @@ export interface PlayStore {
   insertLandmark(scope: RecordingScopeTx, landmark: NewLandmark): Promise<void>;
   /** The person's own landmarks, newest first. */
   listLandmarks(scope: PersonalScopeTx): Promise<readonly LandmarkListing[]>;
+  /**
+   * Today, and the recent days on which the person locked a call, as `YYYY-MM-DD` in `timeZone` (UTC when the
+   * database does not know the name). Looks back far enough to cover the week that contains today.
+   */
+  readPlayDays(scope: PersonalScopeTx, timeZone: string | undefined): Promise<PlayDays>;
+}
+
+/** Day names in the person's time zone, from the database's clock. */
+export interface PlayDays {
+  readonly today: string;
+  readonly playedDays: readonly string[];
 }
 
 export interface PlayPorts {
@@ -91,5 +102,7 @@ export interface PlayPorts {
   ) => Promise<void>;
   readonly hasActivatedExposure: HasActivatedExposure;
   readonly readFacts: ReadScrollPlayFacts;
+  /** The catalogue topics of a Scroll revision, to say which planet a landmark belongs on. */
+  readonly readTopics: ReadEncounterTopics;
   readonly store: PlayStore;
 }

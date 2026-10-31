@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import type { CollectionLandmark } from '@knowscroll/client-core';
 import { PanResponder, Platform, StyleSheet, View, type LayoutChangeEvent, type ViewProps } from 'react-native';
 import { PlanetStage } from './planet/planet-stage';
 import { SpaceStage } from './space/space-stage';
@@ -78,6 +79,7 @@ export function UniverseStage({
   onRefused,
   onUnavailable,
   pickPlanets,
+  landmarksByPlanet,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -94,6 +96,8 @@ export function UniverseStage({
   readonly onUnavailable: (reason: SpaceFailure) => void;
   /** A tap on a planet picks it (D02) instead of flying to it. */
   readonly pickPlanets: boolean;
+  /** The landmarks standing on each planet (D-089). Empty on a friend's universe. */
+  readonly landmarksByPlanet?: ReadonlyMap<string, readonly CollectionLandmark[]>;
 }) {
   const [size, setSize] = useState<Size>({ width: 390, height: 640 });
   const view = viewFor(index, state.focusId, state.landed);
@@ -167,6 +171,9 @@ export function UniverseStage({
             selectedRegion={view.selectedRegion}
             visitor={visitor === true}
             onRefused={onRefused}
+            {...(landmarksByPlanet?.get(view.planet.objectId)
+              ? { landmarks: landmarksByPlanet.get(view.planet.objectId)! }
+              : {})}
           />
         ) : null}
       </View>

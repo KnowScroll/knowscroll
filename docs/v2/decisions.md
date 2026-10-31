@@ -2460,3 +2460,43 @@ Confirmed by: `writer-v2.test.ts` (each recipe's instructions hold its kit's gui
 - **Cost.** No new image is needed for the change: the four held backdrops on dev are reviewed again with the crop in mind after it deploys, including the D04 rail, where only the middle of the picture shows.
 
 Confirmed by: `room-identity.test.tsx` (the backdrop is drawn at 1.25 inside a clipping view).
+
+## D-214 · 2026-11-01 · A landmark stands on the planet of its Scroll's topic, joined by the client from two reads, and waits in a tray until then (v3 S-4, #475)
+
+**Builds on** D-063, D-084, D-089, D-180 and D-188.
+
+- **The join.** `play` and Geography never see each other (D-180). A landmark names a Scroll revision; `play` adds that Scroll's primary catalogue topic from Content's `READ_ENCOUNTER_TOPICS` (`topicId`, a public id, absent when the Scroll can no longer be read). Geography answers a second, separate read, `POST /v1/universe/places/concepts/read`, with the topic of each established factual planet. The client sets a landmark on the planet whose topic matches, if that planet is on its map now. Matching by label was ruled out: a label can change and is not an identity.
+- **The tray.** A landmark whose planet is not on the map waits. The Universe says "Your landmark is waiting" with its name and finish, and the person can open the list. When the planet forms, the next read of Geography moves the landmark onto it with nothing else changed. A landmark never makes a planet form, and a gold one and a plain one are placed the same way (D-063).
+- **Drawn as a small pennant.** `landmarkSpots` in `scene-core` picks the places: land that has formed first, then any land, clear of every name and of each other, ranked by a fixed hash of the planet's seed, variant and place, using only the world generator's pinned maths. The first `n` places of a longer list are the same as a list of `n`, so a landmark does not move when another is earned. A region forming can move a landmark only onto a place that now outranks its old one. At most twelve are painted on a planet; the list holds all.
+- **Listed in words.** The same collection is a plain list in the landmarks sheet, the desktop panel and the Simple drawing, each row naming its finish and where it stands ("Gold finish · On Earth & sky" or "Waiting for its planet"). The drawing is hidden from assistive technology, so the list is how a screen reader meets it.
+- **Never on a friend's universe.** The person's own session reads the collection. A friend's map session holds an empty one, and the surface ignores any other. A landmark is a play result, private to its owner (D-065, D-110).
+- **A deliberate difference from the Simple file.** `simple-views-finalized.html` is "Do not change" (D-111). The Simple drawing now also carries a collection section above its places (the Orbit line, the resume button and the landmark rows), because a person on the Simple drawing, or a screen reader, has no other way to meet a landmark. Nothing in the file's own lists or rows changes, and the section is absent when there is nothing to say.
+- **Not built.** The design's dashed "next landmark" and "2 of 3 seen" would need the count of landmarks not yet earned, which the library does not publish for a person. No cloud thinning and no ring around the star (D-087, D-088).
+
+Confirmed by: `tests/integration/modules/play.test.ts` (a landmark lists its Scroll's topic; before any planet exists the planets read is empty and the landmark waits; after formation the topic names the same planet for a gold landmark and a plain one, and the same places formed for both), `geography.controller.test.ts`, `universe-collection.test.ts` of client-core (`placeLandmarks`), `collection-view.test.ts`, `collection-screen.test.tsx` (tray, sheet, painted marker, Simple list, a friend's universe shows none), `landmark-spots.test.ts` (clear of names, spaced, prefix-stable, no banned maths), `e2e/universe-collection-smoke.spec.ts`.
+
+## D-215 · 2026-11-01 · The weekly Orbit counts the days of the week on which a call was locked, in the person's time zone, and is only text (v3 S-4, #475)
+
+**Builds on** D-064, D-083, D-087 and D-182.
+
+- **What a day is.** A day on which the person locked at least one call (a Call it or the Final call) of a Scroll. The design says "3 days a week of anything"; today play is the only thing that earns one. Reading alone does not, so Orbit and reading evidence stay apart.
+- **What a week is.** Monday to Sunday in the person's own time zone, which the device sends (`timeZone`, an IANA name). A name the database does not know is read as UTC, never refused. The read counts distinct days from this week's Monday to today. There is no table and no migration: the calls already say when they were locked.
+- **Three days close it.** `ORBIT_DAYS_TO_CLOSE` is 3 in the contract, and the server's copy in `play/domain` is tested against it. More days that week still read "3 of 3 · closed".
+- **No loss, no streak.** Nothing looks at an earlier week. A missed week removes no landmark, no spark and nothing the person owns, and the next Monday starts at zero. The words never say streak or lose, and a missed week is named only to say that nothing goes away: the one reassuring line is the design's own ("Missed a week? Nothing here goes away. Orbits just start fresh on Monday.").
+- **Said only once there is something to say.** The Universe prints the Orbit once the person has played this week or holds a landmark; before that it stays quiet.
+- **Paused and Clear.** A call locked while recording is paused was never stored (D-083), so its day is not counted. Clear and account deletion erase the calls (D-182), so the Orbit starts over with them.
+- **Text, not a ring.** D-087 stands: the Orbit shows in the Universe's strip, sheet, panel and Simple list, never on the map.
+
+Confirmed by: `orbit.test.ts` (Monday weeks across a month, a year and a leap day; distinct days; closes at three; a missed week starts at zero; a day after today is ignored), `tests/integration/modules/play.test.ts` (one day for two calls, the calendar count over three days, twenty days ago leaves the landmark, two zones fourteen and eleven hours apart, an unknown zone, one person's own days, nothing while paused, a read that writes nothing, Clear), `universe-collection.test.ts`, `collection-screen.test.tsx`.
+
+## D-216 · 2026-11-01 · "Resume Part 2 of 3" is the next unopened Part of a series the person started, read from their own openings only (v3 S-4, #475)
+
+**Builds on** D-059, D-131 and D-184.
+
+- **What it offers.** From the person's own activated Scroll openings of the last 30 days (the newest eight), the first whose series has a next Part that is admitted, not hidden and not yet opened by them. The chip says "Resume Part 2 of 3"; the Scroll's title is its accessible description. `part` and `total` are counted from the admitted series, never declared (D-059). The design's chip names the series ("Resume Seasons · Part 2"); the series has no display name in the data, so none is invented.
+- **What "unfinished" means here.** The server cannot know how far into a Scroll a person got: that is the device's private position, and play results are walled off. So "unfinished" means a series with a Part still to open, and a Scroll that stands alone offers nothing.
+- **Own state only.** `POST /v1/experience/resume/read` reads the caller's `experience.exposures` and the admitted series. It reads no thread, no place of another member and nothing from Social or play, so it cannot reveal anyone's position (D-065). A test has one person read to Part 3 and finds another person's chip unmoved.
+- **A read.** It opens, writes and enqueues nothing. Tapping the chip opens the Part by its address (`/scroll/<id>`, a `direct` open), like any link.
+- **Where it shows.** A chip at the top of the phone Universe, a button in the desktop panel and the Simple list. Not on a friend's universe.
+
+Confirmed by: `tests/integration/modules/universe-resume.test.ts` (nothing before any reading; Part 2 then Part 3 then nothing, counted from the series; another person's reading changes nothing; a long absence offers nothing; the read writes no exposure, receipt or revision), `experience.controller.test.ts`, `collection-screen.test.tsx` (the chip opens the Part's address, and is absent when there is none), `e2e/universe-collection-smoke.spec.ts`.

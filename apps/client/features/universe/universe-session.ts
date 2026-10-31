@@ -15,6 +15,7 @@ import { ZOOM_LIMITS } from './space/camera-rig';
 import { createCameraHistory, type CameraEntry } from './universe-camera-history';
 import { createDeviceMemory } from './universe-device-memory';
 import { clearHereMarker, readHereMarker, writeHereMarker } from './universe-here-marker';
+import { createCollectionReader, NO_COLLECTION_STATE, type CollectionState } from './universe-collection-reader';
 import { createDustReader, NO_DUST, type DustState } from './universe-dust';
 import { createGeometryCache } from './universe-geometry-cache';
 import type { LastPlace } from './universe-memory';
@@ -25,12 +26,14 @@ import { encounterSessionFor } from '../encounter/use-encounter-session';
 
 export type { UniversePlace } from './universe-places';
 export type { DustState } from './universe-dust';
+export type { CollectionState } from './universe-collection-reader';
 
 export interface UniverseViewState extends CameraEntry {
   /** On a planet: its landed map (U04) is showing instead of its globe (U03). A focused region is always landed. */
   readonly landed: boolean;
   readonly read: UniverseSceneState;
-  readonly overlay: 'outline' | 'place' | 'search' | null;
+  /** `collection` is the landmarks sheet (D-084). */
+  readonly overlay: 'outline' | 'place' | 'search' | 'collection' | null;
   readonly detail: 'full' | 'low';
   readonly reducedMotion: boolean;
   readonly notice?: 'place_unavailable';
@@ -39,6 +42,8 @@ export interface UniverseViewState extends CameraEntry {
   /** The Lately lens: quiet places draw calm, and the list puts recent ones first. Per device. */
   readonly lately: boolean;
   readonly dust: DustState;
+  /** The person's own landmarks, Orbit and next Part. Always empty for a friend's universe (D-214). */
+  readonly collection: CollectionState;
   /** Where the ship is parked: the last place flown to on this device. */
   readonly lastPlace: LastPlace | undefined;
   /** Away long enough that the camera starts framed on everything, with the ship at its last place. */
@@ -97,6 +102,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     regionPreview: preview.getState(),
     lately: memory.lately,
     dust: NO_DUST,
+    collection: NO_COLLECTION_STATE,
     lastPlace: memory.lastPlace,
     absent: false,
     selectedId: null,
@@ -109,6 +115,12 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
   };
   memory.keep(() => ({ ...state, simple: state.detail === 'low' }));
   const dust = createDustReader({ scope, live, current: () => state.dust, publish: (next) => publish({ dust: next }) });
+  const collection = createCollectionReader({
+    scope,
+    live,
+    current: () => state.collection,
+    publish: (next) => publish({ collection: next }),
+  });
   const formationOff = formation.subscribe(() => publish({}));
   const previewOff = preview.subscribe(() => publish({ regionPreview: preview.getState() }));
   const cancelPreview = () => preview.cancel();
@@ -162,8 +174,10 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       returnPoint = undefined;
       cancelPreview();
       geometryCache.clear();
+      collection.stop();
       publish({
         read,
+        collection: NO_COLLECTION_STATE,
         frame: { ...INITIAL_FRAME },
         focusId: null,
         landed: false,
@@ -182,7 +196,10 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       publish({ focusId: null, landed: false, locator: undefined, overlay: null, notice: 'place_unavailable' });
     }
     if (!hadSnapshot && read.snapshot) restoreMemory();
-    if (read.geography) dust.seeGeography(read.geography.geography.revision);
+    if (read.geography) {
+      dust.seeGeography(read.geography.geography.revision);
+      collection.seeGeography(read.geography.geography.revision);
+    }
   };
   let unsubscribe = core.subscribe(readChanged);
   const end = () => {
@@ -192,6 +209,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     history.clear();
     memory.stop();
     dust.stop();
+    collection.stop();
     geometryCache.clear();
     unsubscribe();
     core.dispose();
@@ -205,6 +223,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       overlay: null,
       selectedId: null,
       dust: NO_DUST,
+      collection: NO_COLLECTION_STATE,
     });
     previewOff();
     preview.dispose();
@@ -407,6 +426,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       if (value) {
         core.resume();
         dust.refreshIfStarted();
+        collection.refresh();
       } else {
         cancelPreview();
         core.pause();

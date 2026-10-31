@@ -6,6 +6,7 @@ import type {
   CallLockRefusal,
   PlayUseCases,
   ReadLandmarksResult,
+  ReadOrbitResult,
   ReadResultsResult,
 } from '@knowscroll/backend/modules/play';
 import { PLAY_USE_CASES } from '../modules/play.js';
@@ -25,7 +26,7 @@ const lockProblems: Record<CallLockRefusal, ProblemCode> = {
 };
 
 const readProblems: Record<
-  Extract<ReadResultsResult | ReadLandmarksResult, { kind: 'refused' }>['reason'],
+  Extract<ReadResultsResult | ReadLandmarksResult | ReadOrbitResult, { kind: 'refused' }>['reason'],
   ProblemCode
 > = {
   epoch_changed: 'PRIVACY_EPOCH_CHANGED',
@@ -33,8 +34,8 @@ const readProblems: Record<
 };
 
 /**
- * `/v1/play/*`: locking a call (a Call it or the Final call), and reading the person's own results and
- * landmarks (D-180, D-187, D-188). Handlers only
+ * `/v1/play/*`: locking a call (a Call it or the Final call), and reading the person's own results,
+ * landmarks and weekly Orbit (D-180, D-187, D-188, D-215). Handlers only
  * authenticate (the scope guard already admitted the caller) and map the use cases' outcomes; each
  * use case rechecks authority. Every answer is private to the caller and none is cacheable.
  */
@@ -69,6 +70,16 @@ export class PlayController {
       const result = await this.play.readLandmarks(authorityOf(admittedCaller(request)));
       if (result.kind === 'refused') throw problem(readProblems[result.reason]);
       return { landmarks: result.landmarks };
+    });
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.play.readOrbit)
+  readOrbitRoute(@Req() request: Request) {
+    return implement(apiContract.play.readOrbit).handler(async ({ input }) => {
+      const result = await this.play.readOrbit(authorityOf(admittedCaller(request)), input);
+      if (result.kind === 'refused') throw problem(readProblems[result.reason]);
+      return { orbit: result.orbit };
     });
   }
 }

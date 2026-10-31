@@ -37,6 +37,7 @@ function wiredController() {
       navigation,
       context,
       actions,
+      effects,
     ),
     effects,
     navigation,
@@ -44,6 +45,49 @@ function wiredController() {
     actions,
   };
 }
+
+describe('The resume read', () => {
+  it('answers the own next Part of the caller and maps a refusal to the shared problem', async () => {
+    const effects = vi.fn(() => Promise.reject(new Error('Not for a read')));
+    const resume = { assetId: id, title: 'Why the hemispheres take turns', part: 2, total: 3 };
+    const read = vi.fn(() => Promise.resolve({ kind: 'read' as const, resume }));
+    const controller = new ExperienceController(
+      effects,
+      effects,
+      effects,
+      effects,
+      effects,
+      effects,
+      effects,
+      effects,
+      effects,
+      effects,
+      read,
+    );
+    const request = await admittedRequest();
+    expect(await call(controller.resumeRoute(request), {})).toEqual({ resume });
+    expect(read).toHaveBeenCalledExactlyOnceWith({
+      universeId: id,
+      privacyEpoch: 1,
+      actor: { kind: 'account', accountId: id },
+    });
+    const refused = new ExperienceController(
+      effects,
+      effects,
+      effects,
+      effects,
+      effects,
+      effects,
+      effects,
+      effects,
+      effects,
+      effects,
+      () => Promise.resolve({ kind: 'refused' as const, code: 'UNIVERSE_UNAVAILABLE' as const }),
+    );
+    await expect(call(refused.resumeRoute(request), {})).rejects.toMatchObject({ code: 'UNIVERSE_UNAVAILABLE' });
+    await expect(call(controller.resumeRoute({} as unknown as Request), {})).rejects.toThrow('without the scope guard');
+  });
+});
 
 describe('Explore wire dispatch and legacy compatibility', () => {
   it('routes discovery, exact return and navigation to the navigation consumer without legacy effects', async () => {
@@ -162,6 +206,7 @@ describe('versioned Saved page dispatch', () => {
         effects,
         effects,
         read,
+        effects,
         effects,
         effects,
         effects,

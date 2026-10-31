@@ -382,3 +382,39 @@ export const readEmergingUniverseContract = oc
   .route({ method: 'POST', path: '/v1/universe/emerging/read', successStatus: 200 })
   .input(ReadEmergingUniverseSchema)
   .output(EmergingUniverseSchema);
+
+/** No input: everything is derived from the authenticated own scope. */
+export const ReadPlaceConceptsSchema = z.strictObject({});
+
+/**
+ * Which catalogue topic each established factual planet of this universe is. A topic is a public
+ * catalogue id, so the answer holds nothing personal beyond which planets exist, which the geography
+ * snapshot already says. It is read to set a play landmark on the planet of its Scroll's topic (D-214);
+ * the read never forms, moves or changes a place, and play never reaches this module.
+ */
+export const PlaceConceptsSchema = z.strictObject({
+  version: z.literal('universe-place-concepts.v1'),
+  ...ScopeFields,
+  /** The geography this was read against, so a client can tell it from the map's own revision. */
+  geography: GeographyRevisionsSchema,
+  planets: z
+    .array(
+      z.strictObject({
+        id: UuidSchema,
+        topicId: z
+          .string()
+          .min(1)
+          .max(160)
+          .regex(/^[a-z0-9][a-z0-9._-]{0,159}$/),
+      }),
+    )
+    .max(GEOGRAPHY_LIMITS.objects),
+});
+export type ReadPlaceConcepts = z.infer<typeof ReadPlaceConceptsSchema>;
+export type PlaceConcepts = z.infer<typeof PlaceConceptsSchema>;
+
+/** Read-only: the topic of each established planet. Never a command. */
+export const readPlaceConceptsContract = oc
+  .route({ method: 'POST', path: '/v1/universe/places/concepts/read', successStatus: 200 })
+  .input(ReadPlaceConceptsSchema)
+  .output(PlaceConceptsSchema);

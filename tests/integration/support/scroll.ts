@@ -67,6 +67,7 @@ import type {
   NavigateEncounter,
   ActivateOffer,
   ReadExposureContext,
+  ReadResume,
   ApplyEncounterAction,
   ApplyAction,
   ListSaved,
@@ -98,6 +99,7 @@ import {
   NAVIGATE_ENCOUNTER,
   ACTIVATE_OFFER,
   READ_EXPOSURE_CONTEXT,
+  READ_RESUME,
   APPLY_ENCOUNTER_ACTION,
   APPLY_ACTION,
   LIST_SAVED,
@@ -167,6 +169,7 @@ export async function scrollUseCases(
   readonly navigate: NavigateEncounter;
   readonly activateOffer: ActivateOffer;
   readonly readContext: ReadExposureContext;
+  readonly readResume: ReadResume;
   readonly applyEncounterAction: ApplyEncounterAction;
   readonly applyAction: ApplyAction;
   readonly listSaved: ListSaved;
@@ -310,6 +313,7 @@ export async function scrollUseCases(
     navigate: build(NAVIGATE_ENCOUNTER) as NavigateEncounter,
     activateOffer: build(ACTIVATE_OFFER) as ActivateOffer,
     readContext: build(READ_EXPOSURE_CONTEXT) as ReadExposureContext,
+    readResume: build(READ_RESUME) as ReadResume,
     applyEncounterAction: build(APPLY_ENCOUNTER_ACTION) as ApplyEncounterAction,
     applyAction: build(APPLY_ACTION) as ApplyAction,
     listSaved: build(LIST_SAVED) as ListSaved,

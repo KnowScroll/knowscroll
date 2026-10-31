@@ -50,17 +50,56 @@ export const ScrollResultsSchema = z.strictObject({
   landmark: EarnedLandmarkSchema.optional(),
 });
 
-/** One landmark in the person's own list: which Scroll revision it was earned on, and when. */
+/**
+ * One landmark in the person's own list: which Scroll revision it was earned on, and when.
+ * `topicId` is the public catalogue topic the Scroll is about, so the Universe can set the landmark
+ * on that topic's planet once it has formed (D-084, D-214). It is absent when the Scroll can no
+ * longer be read, and then the landmark waits in the tray. It says nothing about the person.
+ */
 export const LandmarkListEntrySchema = EarnedLandmarkSchema.extend({
   assetId: AssetIdSchema,
   revision: z.number().int().min(1),
   earnedAt: z.iso.datetime(),
+  topicId: z
+    .string()
+    .min(1)
+    .max(160)
+    .regex(/^[a-z0-9][a-z0-9._-]{0,159}$/)
+    .optional(),
 });
 
 /** The person's own landmarks, newest first. Their own and none else's. */
 export const ReadLandmarksResponseSchema = z.strictObject({
   landmarks: z.array(LandmarkListEntrySchema).max(200),
 });
+
+/** Days of an Orbit that close it (D-087). One number, kept here so the screen and the server cannot differ. */
+export const ORBIT_DAYS_TO_CLOSE = 3;
+
+/**
+ * The person's weekly Orbit (D-087, D-215): how many days of this week they played a Scroll's calls,
+ * out of three. A week is Monday to Sunday in the person's own time zone. It is text, never a ring, a
+ * streak or a loss: a missed week removes nothing, and the next Monday begins at zero.
+ */
+export const OrbitSchema = z.strictObject({
+  /** Distinct days this week on which the person locked a call, 0 to 7. */
+  days: z.number().int().min(0).max(7),
+  goal: z.literal(ORBIT_DAYS_TO_CLOSE),
+  /** The Monday this week began, as `YYYY-MM-DD` in the person's time zone. */
+  weekStart: z.iso.date(),
+  /** Three days or more this week. */
+  closed: z.boolean(),
+});
+
+/**
+ * The time zone names the person's days. An IANA name from the device; a name the server does not
+ * know is read as UTC, never refused, so a read always answers.
+ */
+export const ReadOrbitRequestSchema = z.strictObject({
+  timeZone: z.string().min(1).max(64).optional(),
+});
+
+export const ReadOrbitResponseSchema = z.strictObject({ orbit: OrbitSchema });
 
 export const ReadScrollResultsRequestSchema = z.strictObject({
   assetId: AssetIdSchema,
@@ -117,6 +156,9 @@ export type CallOption = z.infer<typeof CallOptionSchema>;
 export type ScrollResults = z.infer<typeof ScrollResultsSchema>;
 export type LandmarkTier = z.infer<typeof LandmarkTierSchema>;
 export type EarnedLandmark = z.infer<typeof EarnedLandmarkSchema>;
+export type Orbit = z.infer<typeof OrbitSchema>;
+export type ReadOrbitRequest = z.infer<typeof ReadOrbitRequestSchema>;
+export type ReadOrbitResponse = z.infer<typeof ReadOrbitResponseSchema>;
 export type ReadLandmarksResponse = z.infer<typeof ReadLandmarksResponseSchema>;
 export type ReadScrollResultsRequest = z.infer<typeof ReadScrollResultsRequestSchema>;
 export type CallLockRequest = z.infer<typeof CallLockRequestSchema>;
@@ -136,6 +178,8 @@ export const playContract = {
   lockCall: post('/v1/play/calls/lock', CallLockRequestSchema, CallLockResponseSchema),
   /** The person's own results for one revision. A read, so it works while recording is paused. */
   readResults: post('/v1/play/results/read', ReadScrollResultsRequestSchema, ScrollResultsSchema),
-  /** The person's own landmarks (the Universe's overlay reads this later). A read, so it works while recording is paused. */
+  /** The person's own landmarks, each with the catalogue topic it belongs to. A read, so it works while recording is paused. */
   readLandmarks: post('/v1/play/landmarks/read', z.strictObject({}), ReadLandmarksResponseSchema),
+  /** This week's Orbit, for the Universe's text. A read, so it works while recording is paused. */
+  readOrbit: post('/v1/play/orbit/read', ReadOrbitRequestSchema, ReadOrbitResponseSchema),
 };

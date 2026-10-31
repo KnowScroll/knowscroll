@@ -1,6 +1,7 @@
 import type { SceneDescriptor, SceneGeometry } from '@knowscroll/scene-core';
 import { boundedFrame, DRAW_LIMITS, INITIAL_FRAME, type UniverseFrame } from '../universe/universe-camera';
 import { createCameraHistory, type CameraEntry } from '../universe/universe-camera-history';
+import { NO_COLLECTION_STATE } from '../universe/universe-collection-reader';
 import { NO_DUST } from '../universe/universe-dust';
 import { createGeometryCache } from '../universe/universe-geometry-cache';
 import type { UniverseMapSession, UniversePlace, UniverseViewState } from '../universe/universe-session';
@@ -45,6 +46,8 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
     regionPreview: { status: 'idle' },
     lately: false,
     dust: NO_DUST,
+    // A friend's universe never shows the visitor's own landmarks, Orbit or reading, and holds no reader for them.
+    collection: NO_COLLECTION_STATE,
     lastPlace: undefined,
     absent: false,
     selectedId: null,
