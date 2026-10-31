@@ -230,6 +230,18 @@ The two encounter `.web.tsx` platform adapters are explicit app entries in `knip
 selects them by platform suffix. They remain fully scanned; production-export browser fixtures
 exercise the actual stage and path dialog.
 
+## Ask from here (D1, D-218, D-230 to D-232; v3 S-7)
+
+Status: **implemented** (web smoke over labelled HTTP fixtures; native by unit tests only), not yet runtime-verified on dev.
+
+In Explore, the dock's "Ask about this" on a v2 Scroll opens the Ask sheet (`features/requests/ask-sheet.tsx`, drawn by `RequestPanel` when the request session's mode is `ask`); a Reel or a v1 Scroll keeps the E04 sheet below.
+The session anchors the question to the stop on screen (`openRequest('ask', { stopId })`). The sheet shows the Scroll's own suggested questions (a tap sends one at once; keys 1 to 3 pick one while the box is empty), a box for any question (the counter appears from 240 of 280 characters),
+one editable line ("A short Scroll · about …", Change toggles "something new", which sends a free-text ask with no source), and Send. Nothing is asked before typing: no format, no topic.
+After Send the card says "Making it now" with the question, "We'll let you know here when it's ready" and "usually about N min" only when the server sent a measured time, "Keep reading" (the request stands) and Cancel;
+below it is a puzzle (`ask-puzzle.tsx`, `puzzle-pick.ts`): an unplayed Call it of the Scroll, played in one tap through the play layer. Ready shows "Open your Scroll"; could-not-prepare shows E07's words with Try again (the same request) and Ask differently.
+While recording is paused the sheet says asking is off and sends nothing (the session checks the policy, and the server fences with the recording generation: D-083, D-231). `?` and A open the sheet from the reader, Esc closes it.
+Covered by `ask-sheet.test.tsx`, `ask-puzzle.test.tsx`, `puzzle-pick.test.ts`, `ask-copy.test.ts`, the ask cases of `request-session.test.ts` and `e2e/ask-smoke.spec.ts` (390 by 844 and 1440 by 900, axe).
+
 ## Private Ask and format requests
 
 Related: #239.

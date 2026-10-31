@@ -58,11 +58,12 @@ import {
   type RunNightlyRituals,
   type Summarise,
 } from '@knowscroll/backend/modules/rooms';
-import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
+import { askOrderAudienceProviders, supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { threadGuestProviders } from '@knowscroll/backend/modules/social/nest-providers';
 import { orderAudienceProviders, scenarioWorkerProviders } from '@knowscroll/backend/modules/scenarios/nest-providers';
 import {
   CHECK_ASSET_AUDIENCE,
+  READ_ASK_ORDER_AUDIENCE,
   READ_ORDER_AUDIENCE,
   type CheckAssetAudience,
 } from '@knowscroll/backend/modules/content';
@@ -225,12 +226,13 @@ export const jobWiring: Provider[] = [
   ...composerConfiguredProviders({ isOperator: () => false }, WORKER_CONFIG),
   ...composerBufferWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
   ...contentProviders(),
-  ...madeToOrderProviders({ database: DATABASE, orderAudience: READ_ORDER_AUDIENCE }),
+  ...madeToOrderProviders({ database: DATABASE, orderAudiences: [READ_ORDER_AUDIENCE, READ_ASK_ORDER_AUDIENCE] }),
   ...scrollProductionSenderProviders({ boss: PG_BOSS }),
   // Scenarios (D-049): the planner answers a draft, and a sweep binds branches to their Scrolls.
   ...threadGuestProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, database: DATABASE }),
   // Who may reach a branch's Scroll, so the data export keeps a title only for those still in its thread.
   ...orderAudienceProviders({ database: DATABASE }),
+  ...askOrderAudienceProviders({ database: DATABASE }),
   ...scenarioWorkerProviders({
     withPersonalScope: WITH_PERSONAL_SCOPE,
     database: DATABASE,

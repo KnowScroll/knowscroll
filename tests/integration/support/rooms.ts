@@ -146,7 +146,7 @@ export async function roomWorld(
     resolveSnippet: resolveSnippetAnchor,
     readGeography: geographyReader(database.db),
     // No Scroll in these tests is made for a thread, so the audience of an order is nobody's.
-    checkAudience: makeCheckAssetAudience(database.db, () => Promise.resolve(new Set())),
+    checkAudience: makeCheckAssetAudience(database.db, [() => Promise.resolve(new Set())]),
     now: () => clock.now,
     residentsEnabled: options.residentsEnabled ?? false,
     ...(options.starsPerDay === undefined ? {} : { starsPerDay: options.starsPerDay }),

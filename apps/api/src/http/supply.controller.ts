@@ -29,6 +29,9 @@ const refusalProblems: Record<Refusal, ProblemCode> = {
   not_found: 'NOT_FOUND',
   // Too many asks are open at once: try again after one ends or is cancelled.
   too_many_open: 'TOO_MANY_REQUESTS',
+  // An ask from here needs recording on (D-083); a stale generation reads the policy again.
+  recording_paused: 'RECORDING_PAUSED',
+  recording_stale: 'RECORDING_POLICY_STALE',
 };
 
 /** Private demand commands: acceptance receipts and current status remain separate reads. */

@@ -21,6 +21,7 @@ const BY_KEY: Readonly<Record<string, ReaderKey>> = {
   n: { action: 'next-topic' },
   u: { action: 'universe' },
   a: { action: 'ask' },
+  '?': { action: 'ask' },
   t: { action: 'text-version' },
   f: { action: 'format' },
   Enter: { action: 'lock-in' },

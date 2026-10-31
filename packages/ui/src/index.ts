@@ -1,7 +1,13 @@
 export { DisplayProvider, DisplayRoot, useDisplay, type Display } from './display/display';
 export { Text, useTypeStyle, type TextProps } from './text/text';
 export { useFocusRing } from './display/focus-ring';
-export { dialogHostSemantics, dialogSemantics, toggleSemantics } from './display/semantics';
+export {
+  dialogHostSemantics,
+  dialogSemantics,
+  radioGroupSemantics,
+  radioSemantics,
+  toggleSemantics,
+} from './display/semantics';
 export { spaceActivates } from './display/space-key';
 export { usePageInert } from './overlay/page-inert';
 export { claimOverlayEntry } from './overlay/overlay-history';

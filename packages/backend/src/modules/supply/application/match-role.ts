@@ -19,7 +19,8 @@ export interface CatalogueMatch {
   readonly facetId?: string;
 }
 
-const PLANETS = CONCEPTS.filter((concept) => concept.parent !== null);
+/** The topics a match may choose: planets, never systems. */
+export const PLANETS = CONCEPTS.filter((concept) => concept.parent !== null);
 
 /**
  * The model's answer. Exact catalogue membership is part of the schema, so a made-up or near-miss id
@@ -63,25 +64,27 @@ export const MATCH_ROLE: ReasoningRole<MatchAnswer> = {
   minContextItems: 2,
 };
 
+/** The catalogue as context items, one per system: the topics a match may choose, with their meaning and facets. */
+export function catalogueItems(): ReasoningContext['items'] {
+  const systems = CONCEPTS.filter((concept) => concept.parent === null);
+  return systems.map((system) => ({
+    ref: `catalogue:${system.id}`,
+    kind: 'catalogue',
+    text: JSON.stringify(
+      PLANETS.filter((planet) => planet.parent === system.id).map((planet) => ({
+        topicId: planet.id,
+        meaning: planet.meaning,
+        facets: planet.facets,
+      })),
+    ),
+  }));
+}
+
 /** The person's words and the catalogue, one item per system. Only what the match needs. */
 export function matchContext(requestId: string, text: string): ReasoningContext {
-  const systems = CONCEPTS.filter((concept) => concept.parent === null);
   return {
     bundleRef: `supply-match:${requestId}`,
-    items: [
-      { ref: 'request', kind: 'learner_request', text },
-      ...systems.map((system) => ({
-        ref: `catalogue:${system.id}`,
-        kind: 'catalogue',
-        text: JSON.stringify(
-          PLANETS.filter((planet) => planet.parent === system.id).map((planet) => ({
-            topicId: planet.id,
-            meaning: planet.meaning,
-            facets: planet.facets,
-          })),
-        ),
-      })),
-    ],
+    items: [{ ref: 'request', kind: 'learner_request', text }, ...catalogueItems()],
   };
 }
 
@@ -92,7 +95,7 @@ export type MatchVerdict =
   | { readonly kind: 'no_topic'; readonly end: 'completed' }
   | {
       readonly kind: 'unavailable';
-      readonly reason: 'could_not_prepare' | 'budget_unavailable';
+      readonly reason: 'could_not_prepare' | 'budget_unavailable' | 'source_unavailable';
       /** Absent when the attempt may have reached the provider: the run stays open for reconciliation. */
       readonly end?: 'failed' | 'cancelled';
     };

@@ -9,6 +9,7 @@ describe('the reader keys', () => {
     expect(readerKeyOf('ArrowLeft')).toEqual({ action: 'previous-part' });
     expect(readerKeyOf('N')).toEqual({ action: 'next-topic' });
     expect(readerKeyOf('u')).toEqual({ action: 'universe' });
+    expect(readerKeyOf('?')).toEqual({ action: 'ask' });
     expect(readerKeyOf('3')).toEqual({ action: 'pick', option: 3 });
     expect(readerKeyOf('Enter')).toEqual({ action: 'lock-in' });
   });

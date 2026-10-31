@@ -227,7 +227,7 @@ export async function scrollUseCases(
   values.set(
     CHECK_ASSET_AUDIENCE,
     buildFromProviders(
-      madeToOrderProviders({ database: DATABASE, orderAudience: ORDER_AUDIENCE }),
+      madeToOrderProviders({ database: DATABASE, orderAudiences: [ORDER_AUDIENCE] }),
       CHECK_ASSET_AUDIENCE,
       values,
     ),
