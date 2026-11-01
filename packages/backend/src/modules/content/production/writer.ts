@@ -36,9 +36,11 @@ export const SCENARIO_WRITER_PROMPT_VERSION = 'scenario-writer.v1';
  * v2 (D-250): the reason a "why" question asks for comes from the passages, a gap is said in one sentence, and the
  * writer is told that each sentence is checked against the passages it cites. v3: the title, the headings and the
  * callout's title are checked too. v4 (D-266): a heading of four words or fewer that only names what follows needs no
- * passage (the title and a longer heading are checked), and a plain admission of a gap stands alone as its own sentence. `versions.test.ts` pairs it with the support check's version.
+ * passage (the title and a longer heading are checked), and a plain admission of a gap stands alone as its own sentence.
+ * v5 (D-282): a fact is said in the passages' own terms, and a link between two ideas is short and plain or part of the
+ * next fact. `versions.test.ts` pairs it with the support check's version.
  */
-export const QUESTION_WRITER_PROMPT_VERSION = 'question-writer.v4';
+export const QUESTION_WRITER_PROMPT_VERSION = 'question-writer.v5';
 
 /** What the Scroll is: a library explanation, a what-if, another perspective, or the answer to one person's question. */
 export type WriterMode = 'library' | 'what_if' | 'perspective' | 'question';
@@ -140,6 +142,8 @@ const QUESTION_RULES: readonly string[] = [
   '- When the question asks why, give the reason the passages themselves give, in their terms. If they state what happens but not why, say what they state and then say in one sentence that the pages do not give the reason. Never supply a reason from your own knowledge.',
   '- If the passages do not hold the answer at all, say so in one sentence at the start, then say what they do cover that is closest to the question. Never fill the gap with a guess.',
   '- Every sentence that states a fact must rest on a passage you cite in that same block. A second reader checks each sentence against the passages you cited, and an answer with a sentence they do not support is refused. A heading or a callout’s title of four words or fewer that only names what follows needs no passage; the title and any longer heading state something and are checked like any sentence, so say nothing in them that a cited passage does not say. Do not join two things the passages say apart into a claim neither makes, and do not say how a part works unless a passage says it.',
+  '- State each fact in the passages’ own terms: keep the names and words a passage uses for the thing, the quantity and the relation (the rule against copying runs of words still holds), rather than a general word of your own, so the passage that says it can be found. You may say what a passage says in other words, but add no cause, mechanism, comparison, example, figure or condition that the passages do not give, even when it is true.',
+  '- Keep a link between two ideas short and plain. Best, begin the next fact with the link (“Because …, …”) so that no sentence only links. A sentence that only links states no fact and uses none of the passages’ terms (“Here is why.”, “There is more to it.”). A link that names the topic and says it matters or adds another layer is a claim and is checked like one, so write it only if a passage says it.',
   '- When you say what the pages or this answer do not cover, begin the sentence with that admission (“The pages do not say …”, “This answer cannot tell …”) and put nothing else in it. Say anything the passages do state in a sentence of its own.',
   '- Do not repeat what the reader just read; use it only to see what they already know. Write for someone who read the stop quoted in the brief.',
   '- End with the callout of kind "limit": what this answer cannot tell us.',

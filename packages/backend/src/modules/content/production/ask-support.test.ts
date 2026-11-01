@@ -606,6 +606,134 @@ describe('the role', () => {
   });
 });
 
+/**
+ * The calibrated instructions (D-281). What a model makes of them is measured on dev with the replay; what a test can hold
+ * is that they say what each verdict means, still tell the checker the rules code applies to its reply, and that the worked
+ * examples they carry are consistent with those rules.
+ */
+describe('the instructions of ask-support-check.v4 (D-281)', () => {
+  it('is version 4', () => {
+    expect(ASK_SUPPORT_CHECK_VERSION).toBe('ask-support-check.v4');
+  });
+
+  it('says supported covers what the passages state, say in other words or directly imply, and that putting two statements together counts', () => {
+    expect(ASK_SUPPORT_INSTRUCTIONS).toContain(
+      '"supported": the cited passages state the sentence, say it in other words, or directly imply it.',
+    );
+    expect(ASK_SUPPORT_INSTRUCTIONS).toContain('Putting together two statements the passages make counts');
+    expect(ASK_SUPPORT_INSTRUCTIONS).toContain('Wording is not a fact');
+    expect(ASK_SUPPORT_INSTRUCTIONS).toContain('"Directly implies" means one plain step');
+  });
+
+  it('says unsupported is a fact, figure, cause, comparison or example the passages neither state nor imply, or one they contradict', () => {
+    expect(ASK_SUPPORT_INSTRUCTIONS).toContain(
+      '"unsupported": the sentence gives a fact, a figure, a cause, a comparison or an example that the cited passages neither state nor imply, or one that a cited passage contradicts.',
+    );
+    expect(ASK_SUPPORT_INSTRUCTIONS).toContain('Do not fill a gap with what you know');
+    expect(ASK_SUPPORT_INSTRUCTIONS).toContain('A new cause, mechanism, figure, comparison, example, direction or condition');
+  });
+
+  it('says no_claim is for sentences that add no fact, and names the grounds code accepts it on', () => {
+    expect(ASK_SUPPORT_INSTRUCTIONS).toContain('"no_claim": the sentence adds no fact.');
+    for (const ground of [
+      'a question put to the reader',
+      'a label of at most four words',
+      'a plain admission of what the pages or this answer do not cover',
+      'any other sentence with no number that shares no key word with the passages it cites',
+      'A sentence that has a number',
+    ])
+      expect(ASK_SUPPORT_INSTRUCTIONS).toContain(ground);
+  });
+
+  it('keeps the rules code holds the quote to: real words, in one sentence, no dropped negation, two of the sentence’s key words', () => {
+    for (const rule of [
+      'three to twenty-five words copied exactly from a cited passage',
+      'keep at least two words on each side of it',
+      'keep all of it inside one sentence of the passage',
+      'never leave out a "not", "never", "no" or "without"',
+      'Never join words of two passages and never change a word',
+      'at least two of the sentence’s own key words',
+    ])
+      expect(ASK_SUPPORT_INSTRUCTIONS).toContain(rule);
+  });
+
+  it('holds no text of the real answers it was calibrated on, so a measurement on them is not a test of what it was shown', () => {
+    expect(ASK_SUPPORT_INSTRUCTIONS).not.toMatch(
+      /asymptotic|constant factor|growth class|Big O|overhead|cross-attention|causal mask|render tree|tidal|equator|axial|multiplier/iu,
+    );
+  });
+
+  describe('worked examples', () => {
+    /** Each example as the instructions print it, and as code receives it for that sentence. */
+    const examples = [
+      {
+        passage: 'A kettle’s thermostat switches the heater off once the water reaches boiling.',
+        sentence: 'The thermostat stops the heater when the water boils.',
+        quote: 'thermostat switches the heater off once the water reaches boiling',
+      },
+      {
+        passage: 'The run time equals the number of steps multiplied by the time one step takes.',
+        sentence: 'With the same number of steps, slower steps mean a longer run time.',
+        quote: 'The run time equals the number of steps multiplied by the time one step takes',
+      },
+    ];
+    const verdictFor = (example: (typeof examples)[number]) => {
+      const sentence = { number: 1, text: example.sentence, cites: ['e1'] };
+      const schema = askSupportSchema([sentence], [{ handle: 'e1', text: example.passage }]);
+      return schema.parse({ sentences: [{ n: 1, verdict: 'supported', quote: example.quote }] }).sentences[0];
+    };
+
+    it.each(examples)('shows a supported sentence whose quote passes every rule code applies: $sentence', (example) => {
+      expect(ASK_SUPPORT_INSTRUCTIONS).toContain(`Passage: "${example.passage}" Sentence: "${example.sentence}"`);
+      expect(ASK_SUPPORT_INSTRUCTIONS).toContain(`Quote: "${example.quote}"`);
+      expect(verdictFor(example)).toMatchObject({ verdict: 'supported', quote: example.quote });
+    });
+
+    it('can fail: the same example with a quote that is about something else is set aside by code', () => {
+      const [first] = examples;
+      const sentence = { number: 1, text: first!.sentence, cites: ['e1'] };
+      const schema = askSupportSchema([sentence], [{ handle: 'e1', text: `${first!.passage} A pump lifts water.` }]);
+      const [verdict] = schema.parse({
+        sentences: [{ n: 1, verdict: 'supported', quote: 'A pump lifts water.' }],
+      }).sentences;
+      expect(verdict).toMatchObject({ verdict: 'unsupported', code: 'quote_not_about_sentence' });
+    });
+
+    it('shows the two unsupported kinds', () => {
+      expect(ASK_SUPPORT_INSTRUCTIONS).toContain(
+        'Passage: "The pump lifts water from the well to a tank on the roof." Sentence: "The pump spins a blade to push the water upward." Unsupported, "not_stated"',
+      );
+      expect(ASK_SUPPORT_INSTRUCTIONS).toContain(
+        'Passage: "The bridge is closed in heavy snow." Sentence: "The bridge is closed all winter." Unsupported, "goes_beyond"',
+      );
+    });
+
+    it('names as no_claim only signposts that code accepts as stating no fact, because they share no key word with a passage', () => {
+      // Beside two supported sentences, so that the credibility rule (more than half of a request marked "no fact") is not in play.
+      for (const signpost of ['Here is why.', 'There is more to it.']) {
+        expect(ASK_SUPPORT_INSTRUCTIONS).toContain(`"${signpost}"`);
+        const sentences = [
+          { number: 1, text: examples[0]!.sentence, cites: ['e1'] },
+          { number: 2, text: signpost, cites: ['e1'] },
+          { number: 3, text: examples[1]!.sentence, cites: ['e2'] },
+        ];
+        const schema = askSupportSchema(sentences, [
+          { handle: 'e1', text: examples[0]!.passage },
+          { handle: 'e2', text: examples[1]!.passage },
+        ]);
+        const verdicts = schema.parse({
+          sentences: [
+            { n: 1, verdict: 'supported', quote: examples[0]!.quote },
+            { n: 2, verdict: 'no_claim' },
+            { n: 3, verdict: 'supported', quote: examples[1]!.quote },
+          ],
+        }).sentences;
+        expect(verdicts.map((verdict) => verdict.verdict)).toEqual(['supported', 'no_claim', 'supported']);
+      }
+    });
+  });
+});
+
 describe('the one repair an unsupported sentence earns', () => {
   const sentences = sentencesOfAnswer(ANSWER);
 
