@@ -134,6 +134,7 @@ describe('a find in the feed', () => {
     await wrap(
       <FeedPost post={{ ...quiet, folded: true }} identity={identity} now={new Date()} href="/x" onOpen={onOpen} />,
     );
+    expect(screen.getByTestId('feed-post-discuss')).toHaveTextContent('Read the note');
     await fireEvent.press(screen.getByTestId('feed-post-discuss'));
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId('feed-post-note')).not.toBeOnTheScreen();

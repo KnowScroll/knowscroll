@@ -30,8 +30,13 @@ export function FeedPost({
 }) {
   const { author } = post;
   const age = agoWords(now.getTime() - new Date(post.postedAt).getTime());
+  // A held-back note is the first message of the talk, so the way to it is named for what the reader came for.
   const replies =
-    post.replies === 0 ? 'Start the talk' : `${String(post.replies)} ${post.replies === 1 ? 'reply' : 'replies'}`;
+    post.note === undefined
+      ? 'Read the note'
+      : post.replies === 0
+        ? 'Start the talk'
+        : `${String(post.replies)} ${post.replies === 1 ? 'reply' : 'replies'}`;
   return (
     <View
       style={styles.post}

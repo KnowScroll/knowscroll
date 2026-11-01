@@ -129,7 +129,7 @@ for (const { name, size } of VIEWPORTS) {
     await expect(first).not.toContainText('Worth a look');
     await expect(first.getByLabel('AI, Explainer')).toBeVisible();
     // The line promises nothing to tap: the way to the talk is the button beside it.
-    await expect(first.getByTestId('feed-post-discuss')).toBeVisible();
+    await expect(first.getByTestId('feed-post-discuss')).toHaveText('Read the note');
     await shoot(page, `${name}-quieter-feed`);
     expect(await seriousViolations(page)).toEqual([]);
   });
