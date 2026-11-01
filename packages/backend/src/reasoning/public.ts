@@ -4,7 +4,7 @@ import type { ClearAccountingTx, ClearLiability, PrivacyScopeTx } from '../modul
  * roles call and its typed inputs and outcomes. Roles (instructions, context builder, output
  * schema, semantic validator, applier) live in their owning modules. Deliberately NOT exported
  * here: the harness factory, its ports, the attempt ledger and the model transport port. A module
- * receives a ready `ReasoningHarness` (injected by `REASONING_HARNESS`) and cannot build its own
+ * receives a ready `ReasoningHarness` (injected by `RECORDING_REASONING_HARNESS`) and cannot build its own
  * with its own ledger or transport; composition roots and tests reach the factories through
  * `adapters/nest-providers.ts` only.
  */
@@ -35,9 +35,6 @@ export {
 export type { BudgetCap, ReportedUsage } from './domain/budgets.js';
 export type { ImageMime, ImageOutcome, ImagePort, ImageRequest } from './application/image-port.js';
 export { HARNESS_PROMPT_VERSION } from './domain/prompt.js';
-
-/** Injection token of the worker's `ReasoningHarness` (bound by `reasoningProviders`). */
-export const REASONING_HARNESS = Symbol('reasoning.harness');
 
 /** Injection token of the scheduled protected-request purge (bound by `reasoningPurgeProviders`). */
 export const PURGE_EXPIRED_REQUESTS = Symbol('reasoning.purge-expired-requests');

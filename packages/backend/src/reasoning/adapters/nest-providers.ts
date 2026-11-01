@@ -21,7 +21,7 @@ import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { IDLE_RUN_CLOSES_AFTER_SECONDS, makeReasoningOperator } from '../application/operator.js';
 import type { ImagePort } from '../application/image-port.js';
 import type { HarnessPorts, HarnessSettings, ModelPort, ExecutionPorts } from '../application/ports.js';
-import { makeReasoningHarness, makeScopedReasoningHarness } from '../application/propose.js';
+import { makeScopedReasoningHarness } from '../application/propose.js';
 import {
   PURGE_EXPIRED_REQUESTS,
   RECORDING_REASONING_HARNESS,
@@ -35,7 +35,6 @@ import {
   ROOM_REASONING_HARNESS,
   WITH_PRODUCTION_SCOPE,
   WITH_ROOM_SCOPE,
-  REASONING_HARNESS,
   SWEEP_DISPATCHED_ATTEMPTS,
   type PurgeExpiredRequests,
   type SweepDispatchedAttempts,
@@ -272,8 +271,13 @@ export function personalRecordingReasoningProviders(
         checkScenarios: PersonalRecordingHarnessPorts['checkScenarios'],
         checkRooms: PersonalRecordingHarnessPorts['checkRooms'],
         checkComposer: PersonalRecordingHarnessPorts['checkComposer'],
-      ) =>
-        personalRecordingReasoningHarnessFor({
+      ) => {
+        const model = configuredModelPort(settings);
+        logEvent('reasoning.provider_configured', {
+          provider: model?.provider ?? 'none',
+          ...(model === undefined ? {} : { model: model.model }),
+        });
+        return personalRecordingReasoningHarnessFor({
           db,
           withPersonalScope,
           logEvent,
@@ -284,9 +288,10 @@ export function personalRecordingReasoningProviders(
           checkScenarios,
           checkRooms,
           checkComposer,
-          model: configuredModelPort(settings),
+          model,
           settings: harnessSettings(settings, `worker:${process.pid}`),
-        }),
+        });
+      },
     },
   ];
 }
@@ -418,42 +423,16 @@ export function reasoningPurgeProviders(tokens: { readonly database: symbol; rea
 }
 
 /**
- * Nest providers for the worker composition root: binds `REASONING_HARNESS` to a harness over the
- * worker's database, personal scope and diagnostics, with the configured provider (none, or the
- * MiniMax token plan). Roles inject `REASONING_HARNESS` from their module's wiring.
+ * Nest providers for the worker composition root: the production scope and harness and the room
+ * scope and harness, over the worker's database and diagnostics, with the configured provider (none,
+ * or the MiniMax token plan). The personal harness is `personalRecordingReasoningProviders`.
  */
 export function reasoningProviders(
-  tokens: { readonly database: symbol; readonly withPersonalScope: symbol; readonly logEvent: symbol },
+  tokens: { readonly database: symbol; readonly logEvent: symbol },
   settings: ReasoningSettings,
   scopeLockTimeoutMs = 5_000,
 ) {
   return [
-    {
-      provide: REASONING_HARNESS,
-      inject: [tokens.database, tokens.withPersonalScope, tokens.logEvent, FENCE_OWN_ACCOUNT],
-      useFactory: (
-        db: Kysely<Database>,
-        withPersonalScope: WithPersonalScope,
-        logEvent: LogEvent,
-        fenceOwn: FenceOwnAccount,
-      ) => {
-        const model = configuredModelPort(settings);
-        logEvent('reasoning.provider_configured', {
-          provider: model?.provider ?? 'none',
-          ...(model === undefined ? {} : { model: model.model }),
-        });
-        return makeReasoningHarness(
-          postgresHarnessPorts({
-            db,
-            withPersonalScope,
-            fenceOwn,
-            model,
-            logEvent,
-            settings: harnessSettings(settings, `worker:${process.pid}`),
-          }),
-        );
-      },
-    },
     {
       provide: WITH_PRODUCTION_SCOPE,
       inject: [tokens.database],
