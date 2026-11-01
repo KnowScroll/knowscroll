@@ -14,6 +14,7 @@ import { makeProduceScroll } from '../../../packages/backend/src/modules/content
 import {
   hasEnoughWords,
   isAbout,
+  mayStateNoFact,
   sharedStems,
 } from '../../../packages/backend/src/modules/content/domain/ask-support.js';
 import type { WriterFormat } from '../../../packages/backend/src/modules/content/production/writer.js';
@@ -301,7 +302,7 @@ export function quoteAbout(sentence: string, passages: readonly string[]): strin
 
 /**
  * A support checker's reply: every sentence supported with words of a passage it cites that are about it, except the
- * ones named, and a sentence no cited passage is about is marked as stating no fact. The quote is real text of the
+ * ones named, and a sentence no cited passage is about is marked as stating no fact (where that is allowed). The quote is real text of the
  * request and about the sentence, so the reply passes the schema's checks; an unrelated quote would not.
  */
 export function supportReply(call: FixtureCall, script: SupportScript = {}): FixtureScenario {
@@ -313,9 +314,11 @@ export function supportReply(call: FixtureCall, script: SupportScript = {}): Fix
       if (script.noClaim?.includes(sentence.n) === true) return { n: sentence.n, verdict: 'no_claim' };
       const cited = sentence.cites.flatMap((handle) => passages.get(handle) ?? []);
       const quote = quoteAbout(sentence.text, cited);
-      return quote === undefined
-        ? { n: sentence.n, verdict: 'no_claim' }
-        : { n: sentence.n, verdict: 'supported', quote };
+      if (quote !== undefined) return { n: sentence.n, verdict: 'supported', quote };
+      // A sentence no passage is about may state no fact only where code can see it; a fixture answer must not need more.
+      if (!mayStateNoFact(sentence.text, cited))
+        throw new Error(`CI fixture: sentence ${String(sentence.n)} has no words of its passages about it`);
+      return { n: sentence.n, verdict: 'no_claim' };
     }),
   });
 }

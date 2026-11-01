@@ -948,6 +948,21 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         2,
       ],
       [
+        'half the sentences marked as stating no fact with nothing to show for it',
+        (_check: number, call: FixtureCall) => {
+          const grounded = supportReply(call);
+          if (grounded.kind !== 'success') throw new Error('CI: the fixture reply is a success');
+          const { sentences } = JSON.parse(grounded.text) as { sentences: { n: number }[] };
+          return answerWith({
+            sentences: sentences.map((sentence) =>
+              sentence.n % 2 === 0 ? { n: sentence.n, verdict: 'no_claim' } : sentence,
+            ),
+          });
+        },
+        'invalid_output',
+        2,
+      ],
+      [
         'a quote of a cited passage that is about something else, given for every sentence',
         (_check: number, call: FixtureCall) => {
           const { sentences, passages } = supportRequestOf(call);

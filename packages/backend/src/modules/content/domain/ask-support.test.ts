@@ -5,6 +5,9 @@ import {
   checkedRecord,
   contentStems,
   isAbout,
+  isQuestion,
+  mayStateNoFact,
+  namesTheGap,
   passes,
   quoteIsIn,
   splitSentences,
@@ -125,5 +128,41 @@ describe('the key words that tie a quote to a sentence (B1.2)', () => {
     // A heading of one key word needs that one; a text with no key word needs none.
     expect(isAbout('light into a single beam', 'The beam')).toBe(true);
     expect(isAbout('light into a single beam', 'Why?')).toBe(true);
+  });
+});
+
+describe('which sentences may state no fact (B1.3)', () => {
+  const cited = ['A prism ring around the flame gathers the light into a single beam that sweeps across the water.'];
+
+  it('reads a figure written in words as a figure', () => {
+    for (const text of ['Twenty-one crows nested.', 'A hundred crows nested.', 'About two thousand.', 'Three beams.'])
+      expect(statesFigure(text)).toBe(true);
+    expect(statesFigure('Many crows nested there.')).toBe(false);
+  });
+
+  it('recognises a question and a plain admission of a gap', () => {
+    expect(isQuestion('Why does the beam turn?')).toBe(true);
+    expect(isQuestion('“Why does it turn?”')).toBe(true);
+    expect(isQuestion('The beam turns.')).toBe(false);
+    for (const text of [
+      'The pages do not say how the lamp was built.',
+      'These passages never explain the colour.',
+      'This answer cannot tell us about radio.',
+      'It does not cover satellite navigation.',
+      'This picture ignores radio and satellite navigation.',
+      'Nothing in the pages gives the reason.',
+    ])
+      expect(namesTheGap(text)).toBe(true);
+    expect(namesTheGap('The beam does not stop at the fog line.')).toBe(false);
+    expect(namesTheGap('It does not stop the fog.')).toBe(false);
+  });
+
+  it('allows no fact for a question, a gap, or a label with no key word in the passages and no figure, and nothing else', () => {
+    expect(mayStateNoFact('Why does the beam turn?', cited)).toBe(true);
+    expect(mayStateNoFact('The pages do not say how.', cited)).toBe(true);
+    expect(mayStateNoFact('Putting it together', cited)).toBe(true);
+    expect(mayStateNoFact('The beam is narrow.', cited)).toBe(false);
+    expect(mayStateNoFact('Seven crows nested.', cited)).toBe(false);
+    expect(mayStateNoFact('7 crows nested.', cited)).toBe(false);
   });
 });

@@ -7,9 +7,9 @@ import {
   checkedRecord,
   hasEnoughWords,
   isAbout,
+  mayStateNoFact,
   quoteIsIn,
   splitSentences,
-  statesFigure,
   tooManyNoClaims,
   uncheckedRecord,
   type SentenceUnderCheck,
@@ -101,7 +101,7 @@ export const ASK_SUPPORT_INSTRUCTIONS = [
   'Give one verdict for every sentence, in the order given:',
   '- "supported": a passage the sentence cites states it, or states what it plainly means, and the sentence adds nothing to it. Give "quote": three to twenty-five words copied exactly from that passage that state it. The quote must be about the sentence: it carries at least two of the sentence’s own key words (one, if the sentence has only one). Words that are in the passage but say something else do not support the sentence.',
   '- "unsupported": the sentence says something no cited passage states, or says it differently in a way that changes the meaning, or a cited passage says the opposite. Give "kind" and "problem". "problem" is one or two plain sentences: the few words of the sentence that are not supported, and what the passages say instead. Never refer to a sentence by its number.',
-  '- "no_claim": the sentence states no fact. A transition, a question put to the reader, or a plain admission of what the passages do not cover.',
+  '- "no_claim": the sentence states no fact, and code accepts it only for a question put to the reader, a plain admission of what the pages or this answer do not cover, or a label or transition that shares no key word with the passages it cites and has no number (spelled out or not). Every other sentence is "supported" or "unsupported".',
   '',
   'The kinds of "unsupported": "not_stated" (no cited passage says it), "contradicted" (a cited passage says otherwise), "goes_beyond" (a cited passage says something narrower, weaker or different, so the sentence claims more).',
   '',
@@ -110,7 +110,7 @@ export const ASK_SUPPORT_INSTRUCTIONS = [
   '- A sentence about a cause, a direction, a size, a comparison, a condition or how a part works states a fact. So does every sentence with a number.',
   '- Two things the passages say apart are not supported when the sentence joins them in a way no passage does.',
   '- A paraphrase that keeps the meaning is supported. Do not flag wording, style or length, and do not flag a sentence only because it is simple.',
-  '- Most sentences of an answer state facts. Use "no_claim" only for a sentence that states none.',
+  '- Most sentences of an answer state facts. Use "no_claim" only as described above, and never for a sentence with a number.',
   '',
   'Reply with one JSON object: {"sentences": [{"n": 1, "verdict": "supported", "quote": "…"}, {"n": 2, "verdict": "unsupported", "kind": "goes_beyond", "problem": "…"}, {"n": 3, "verdict": "no_claim"}]}.',
   'Give exactly one entry for every sentence, in order, with its number. Write nothing else.',
@@ -125,7 +125,8 @@ const SAFE_HINTS = {
     'For a "supported" sentence, copy the quote exactly, word for word, from one passage that the sentence cites.',
   quote_not_about_sentence:
     'The quote must be about the sentence: choose words of the passage that carry at least two of the sentence’s own key words. If no passage has such words, judge the sentence "unsupported".',
-  figure_marked_no_claim: 'A sentence with a number states a fact: judge it "supported" or "unsupported".',
+  no_claim_without_ground:
+    'Use "no_claim" only for a question, a plain admission of what the pages do not cover, or a label or transition that shares no key word with the passages it cites and has no number. Judge every other sentence "supported" or "unsupported".',
   too_many_no_claim: 'Most sentences of an answer state facts. Use "no_claim" only for a sentence that states none.',
 } as const;
 
@@ -145,7 +146,7 @@ const NoClaim = z.strictObject({ n: z.number().int(), verdict: z.literal('no_cla
 /**
  * The checker's reply for these sentences: one verdict for every sentence, in order, with a quote from a cited passage
  * for each supported sentence that has enough words, is in a passage that sentence cites and is about the sentence, a kind
- * and a problem for each unsupported one, no fact marked as stating none, and not mostly "no_claim". Code owns every rule
+ * and a problem for each unsupported one, "no_claim" only where code can see that the sentence states no fact, and not mostly "no_claim". Code owns every rule
  * here, so a lazy or invented reply is refused as an invalid reply. Whether the quoted words support the sentence is not a
  * rule code can check: it is the checker's judgement.
  */
@@ -165,10 +166,10 @@ export function askSupportSchema(sentences: readonly SentenceUnderCheck[], passa
         return issue('sentences_not_in_order', ['sentences']);
       reply.sentences.forEach((verdict, index) => {
         const sentence = sentences[index]!;
-        if (verdict.verdict === 'no_claim' && statesFigure(sentence.text))
-          issue('figure_marked_no_claim', ['sentences', index]);
-        if (verdict.verdict !== 'supported') return;
         const cited = sentence.cites.flatMap((handle) => textOf.get(handle) ?? []);
+        if (verdict.verdict === 'no_claim' && !mayStateNoFact(sentence.text, cited))
+          issue('no_claim_without_ground', ['sentences', index]);
+        if (verdict.verdict !== 'supported') return;
         if (!hasEnoughWords(verdict.quote)) return issue('quote_too_short', ['sentences', index, 'quote']);
         if (!cited.some((text) => quoteIsIn(verdict.quote, text)))
           return issue('quote_not_in_cited_passages', ['sentences', index, 'quote']);

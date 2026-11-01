@@ -183,8 +183,38 @@ export function isAbout(quote: string, text: string): boolean {
   return sharedStems(quote, text) >= Math.min(MIN_SHARED_WORDS, contentStems(text).size);
 }
 
-/** Whether a sentence states a figure. A sentence with a number is a claim, whatever the checker thinks. */
-export const statesFigure = (text: string): boolean => /\p{N}/u.test(text);
+/** Numbers written in words ("twenty-one", "a hundred"). A figure written in words is a figure. */
+const SPELLED_NUMBER =
+  /\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|trillions?)\b/iu;
+
+/** Whether a sentence states a figure, in digits or in words. A sentence with a number is a claim, whatever the checker thinks. */
+export const statesFigure = (text: string): boolean => /\p{N}/u.test(text) || SPELLED_NUMBER.test(text);
+
+/** Whether a sentence is a question put to the reader: it asserts nothing. */
+export const isQuestion = (text: string): boolean => /\?["'”’)\]]*\s*$/u.test(text.trim());
+
+/** Plain admissions of what the pages or the answer do not hold: a sentence that says so asserts nothing about the subject. */
+const GAP_PATTERNS: readonly RegExp[] = [
+  /\b(?:pages?|passages?|sources?|material|text)\b[^.?!]{0,40}\b(?:do not|does not|don['’]t|doesn['’]t|never|cannot|can['’]t|say nothing|are silent|leave out)\b/iu,
+  /\b(?:this|that|it|the answer|this answer|this explanation|this picture|this story)\s+(?:cannot|can['’]t|can not|does not|doesn['’]t|do not|don['’]t)\s+(?:tell|say|cover|explain|show|settle|answer|give|state|include|speak|hold)\b/iu,
+  /\b(?:this|that|it|the answer|this answer|this explanation|this picture|this story)\s+(?:ignores|leaves out|omits|skips|says nothing)\b/iu,
+  /\bnothing in (?:the|these|those) (?:pages?|passages?|sources?)\b/iu,
+];
+
+/** Whether a sentence names a gap ("the pages do not say...", "this cannot tell us...") instead of stating a fact. */
+export const namesTheGap = (text: string): boolean => GAP_PATTERNS.some((pattern) => pattern.test(text));
+
+/**
+ * Whether a sentence may be marked as stating no fact, on grounds code can see: it is a question, or it names a gap, or it
+ * has no figure and shares no key word with any passage it cites (a label or a transition: nothing a passage could support
+ * or contradict). Any other sentence states something and must be judged.
+ */
+export function mayStateNoFact(sentence: string, citedTexts: readonly string[]): boolean {
+  if (isQuestion(sentence) || namesTheGap(sentence)) return true;
+  if (statesFigure(sentence)) return false;
+  const cited = new Set(citedTexts.flatMap((text) => [...contentStems(text)]));
+  return ![...contentStems(sentence)].some((stem) => cited.has(stem));
+}
 
 /** Whether more than half the sentences were marked as stating no fact: an answer states facts, so the reply is not credible. */
 export const tooManyNoClaims = (verdicts: readonly { readonly verdict: string }[]): boolean =>

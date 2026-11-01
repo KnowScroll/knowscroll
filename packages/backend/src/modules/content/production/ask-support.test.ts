@@ -139,7 +139,7 @@ describe('the checker’s reply is validated by code', () => {
 
   it('refuses a sentence with a number marked as stating no fact', () => {
     expect(codes(parse([good[0], { n: 2, verdict: 'no_claim' }, { n: 3, verdict: 'no_claim' }]))).toContain(
-      'figure_marked_no_claim',
+      'no_claim_without_ground',
     );
   });
 
@@ -154,6 +154,83 @@ describe('the checker’s reply is validated by code', () => {
       sentences: questions.map((_question, index) => ({ n: index + 1, verdict: 'no_claim' })),
     });
     expect(codes(lazy)).toContain('too_many_no_claim');
+  });
+
+  describe('lets a sentence state no fact only on grounds code can see (B1.3)', () => {
+    // Two sentences that are supported with real quotes about them, so a test can add the sentence it is about.
+    const prism: SentenceUnderCheck = {
+      number: 90,
+      text: 'A prism ring gathers the light into one beam.',
+      cites: ['e2'],
+    };
+    const tower: SentenceUnderCheck = {
+      number: 91,
+      text: 'The tower is tall enough to clear distant waves.',
+      cites: ['e4'],
+    };
+    const prismQuote = 'prism ring around the flame';
+    const towerQuote = 'lamp high enough to clear distant waves';
+    const supportedPair = [
+      { verdict: 'supported', quote: prismQuote },
+      { verdict: 'supported', quote: towerQuote },
+    ];
+    /** The reply to these sentences, numbered in order, with one verdict each. */
+    const reply = (answer: readonly SentenceUnderCheck[], verdicts: readonly object[]) =>
+      askSupportSchema(
+        answer.map((sentence, index) => ({ ...sentence, number: index + 1 })),
+        PASSAGES,
+      ).safeParse({ sentences: verdicts.map((verdict, index) => ({ n: index + 1, ...verdict })) });
+    const noClaim = { verdict: 'no_claim' };
+
+    it('refuses exactly half the sentences marked as stating no fact when nothing shows that they state none', () => {
+      const answer: readonly SentenceUnderCheck[] = [
+        prism,
+        { number: 0, text: 'The beam sweeps across the water.', cites: ['e2'] },
+        tower,
+        { number: 0, text: 'Fog stops the light quickly.', cites: ['e3'] },
+      ];
+      // Two of four is not "more than half", so the old rule let this through with no evidence at all.
+      const result = reply(answer, [supportedPair[0]!, noClaim, supportedPair[1]!, noClaim]);
+      expect(codes(result)).toEqual(['no_claim_without_ground', 'no_claim_without_ground']);
+    });
+
+    it.each([
+      ['a question', 'Why does the beam turn?', 'e2'],
+      ['an admission that the pages do not cover something', 'The pages do not say how the lamp was built.', 'e2'],
+      ['an admission that the answer cannot tell something', 'This answer cannot tell us about radio.', 'e2'],
+      ['a label that shares no key word with its passages', 'Putting it together', 'e2'],
+    ])('allows %s to state no fact', (_name, text, cite) => {
+      const answer: readonly SentenceUnderCheck[] = [{ number: 0, text, cites: [cite] }, prism, tower];
+      expect(reply(answer, [noClaim, ...supportedPair]).success).toBe(true);
+    });
+
+    it.each([
+      ['a sentence that shares a key word with its passages', 'The beam is narrow and bright.', 'e2'],
+      ['a figure written in words', 'Twenty-one crows nested there.', 'e1'],
+      ['a figure written in words, larger', 'A hundred crows nested there.', 'e1'],
+      ['a figure in digits', '21 crows nested there.', 'e1'],
+    ])('refuses %s marked as stating no fact', (_name, text, cite) => {
+      const answer: readonly SentenceUnderCheck[] = [{ number: 0, text, cites: [cite] }, prism, tower];
+      expect(codes(reply(answer, [noClaim, ...supportedPair]))).toEqual(['no_claim_without_ground']);
+    });
+
+    it('allows the same words without a figure when they share nothing with the passages', () => {
+      const answer: readonly SentenceUnderCheck[] = [
+        { number: 0, text: 'Many crows nested there.', cites: ['e1'] },
+        prism,
+        tower,
+      ];
+      expect(reply(answer, [noClaim, ...supportedPair]).success).toBe(true);
+    });
+
+    it('still refuses a reply in which more than half the sentences state no fact, even when each is allowed', () => {
+      const answer: readonly SentenceUnderCheck[] = [
+        { number: 0, text: 'Why does the beam turn?', cites: ['e2'] },
+        { number: 0, text: 'Is it bright?', cites: ['e2'] },
+        prism,
+      ];
+      expect(codes(reply(answer, [noClaim, noClaim, supportedPair[0]!]))).toEqual(['too_many_no_claim']);
+    });
   });
 
   describe('ties the quote to the sentence it is given for (B1.2)', () => {
@@ -261,7 +338,7 @@ describe('the role', () => {
     const role = askSupportRole(sentences, PASSAGES);
     expect(role).toMatchObject({ id: 'content.ask-support-check', version: ASK_SUPPORT_CHECK_VERSION });
     expect(Object.keys(role.safeCustomIssues ?? {}).sort()).toEqual([
-      'figure_marked_no_claim',
+      'no_claim_without_ground',
       'quote_not_about_sentence',
       'quote_not_in_cited_passages',
       'quote_too_short',
