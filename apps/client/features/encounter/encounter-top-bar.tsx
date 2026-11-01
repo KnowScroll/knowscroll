@@ -1,5 +1,6 @@
+import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { FormatSwitch, IconButton, Tag, type FormatAvailability } from '@knowscroll/ui';
+import { FormatSwitch, IconButton, useDisplay, type FormatAvailability } from '@knowscroll/ui';
 import { spacing } from '@knowscroll/design-tokens';
 import type { EncounterEntry } from './encounter-history';
 import type { EncounterSession } from './encounter-session';
@@ -47,6 +48,10 @@ export function EncounterFormatSwitch({
  * The top row of an encounter (E01, E02): Back on a Scroll, the format switch, and the ⋯ menu,
  * in the same places for both formats. Choosing a ready sibling opens it; choosing a missing one
  * opens the request sheet (E06). Account and settings live in the ⋯ menu.
+ *
+ * A Reel has the same two buttons a Scroll has (V3 Q16, D-246): Your Universe at the left and Next ↑ at the right, for
+ * the times a swipe does not work. Nothing else about a Reel changes: Reel and Scroll keep equal standing, so neither
+ * format is given a control the other lacks.
  */
 export function EncounterTopBar({
   entry,
@@ -60,20 +65,42 @@ export function EncounterTopBar({
   readonly back: () => void;
 }) {
   const onMedia = surface === 'media';
+  const router = useRouter();
+  const { breakpoint } = useDisplay();
+  const narrow = breakpoint === 'compact' || breakpoint === 'phone';
   return (
     <View style={styles.bar} pointerEvents="box-none">
-      {onMedia ? null : <IconButton icon="back" label="Back" variant="paper" onPress={back} />}
+      {onMedia ? (
+        <IconButton
+          icon="universe"
+          label="Your Universe"
+          variant="onMedia"
+          onPress={() => router.navigate('/universe')}
+        />
+      ) : (
+        <IconButton icon="back" label="Back" variant="paper" onPress={back} />
+      )}
       <View style={styles.spacer} pointerEvents="none" />
-      {onMedia && entry.kind === 'reel' && entry.document.fixture ? (
-        <Tag label="Fixture video" variant="onDark" />
-      ) : null}
       <IconButton
         icon="more"
         label="More options"
         variant={onMedia ? 'onMedia' : 'paper'}
         onPress={() => session.setOverlay(true)}
       />
-      <EncounterFormatSwitch entry={entry} session={session} />
+      <EncounterFormatSwitch
+        entry={entry}
+        session={session}
+        showIcons={!narrow || !onMedia}
+        terse={narrow && onMedia}
+      />
+      {onMedia ? (
+        <IconButton
+          icon="arrowUp"
+          label="Next topic"
+          variant="onMedia"
+          onPress={() => session.navigate({ mode: 'vertical', direction: 'next' })}
+        />
+      ) : null}
     </View>
   );
 }

@@ -1,5 +1,6 @@
 import type {
   NewDebate,
+  QuestionAsked,
   RoomAiLevel,
   RoomListItem,
   RoomReports,
@@ -133,7 +134,26 @@ export interface RoomController {
   readonly setPresence: (state: 'here' | 'away') => Promise<void>;
   /** The member has read their "while you were away": it is not shown again. Returns whether the server accepted it. */
   readonly dismissAway: () => Promise<boolean>;
+  /**
+   * Leaves a question for the next person (R3 F): a topic that stays open until a person answers. Returns its discussion and
+   * whether a resident was asked, or `undefined` when the server refused or could not be reached; the room is read again.
+   */
+  readonly leaveQuestion: (question: QuestionToLeave) => Promise<QuestionLeft | undefined>;
+  /** The asker's own switch for being told when a person answers a question, and their acknowledgement of an answer. */
+  readonly setQuestionNotice: (discussionId: string, change: QuestionNoticeChange) => Promise<boolean>;
 }
+
+/** What a member types when they leave a question: the words, whether a resident answers now and whether to be told. */
+export interface QuestionToLeave {
+  readonly text: string;
+  readonly askNow: boolean;
+  readonly notify: boolean;
+}
+export interface QuestionLeft {
+  readonly discussionId: string;
+  readonly asked: QuestionAsked;
+}
+export type QuestionNoticeChange = { readonly notify: boolean } | { readonly noticed: true };
 
 export interface RoomOptions {
   readonly scope: AccountScope;
@@ -251,6 +271,20 @@ export function createRoom(options: RoomOptions): RoomController {
       if (accepted === undefined) return false;
       if (state.view?.status === 'member') publish({ view: { ...state.view, you: accepted.you } });
       return true;
+    },
+    async leaveQuestion(question) {
+      const left = await command(`question:${JSON.stringify(question)}`, (commandId) =>
+        scope.api.rooms.leaveQuestion({ version: VERSION, commandId, roomId, ...question }),
+      );
+      if (left !== undefined) await load();
+      return left === undefined ? undefined : { discussionId: left.discussionId, asked: left.asked };
+    },
+    async setQuestionNotice(discussionId, change) {
+      const accepted = await command(`notice:${discussionId}:${JSON.stringify(change)}`, (commandId) =>
+        scope.api.rooms.questionNotice({ version: VERSION, commandId, roomId, discussionId, ...change }),
+      );
+      if (accepted !== undefined) await load();
+      return accepted !== undefined;
     },
     async dismissAway() {
       const accepted = await command('dismiss-away', (commandId) =>

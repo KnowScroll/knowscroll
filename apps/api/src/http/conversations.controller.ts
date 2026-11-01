@@ -95,6 +95,14 @@ export class ConversationsController {
   }
 
   @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.conversations.lockChallenge)
+  lockChallengeRoute(@Req() request: Request) {
+    return implement(apiContract.conversations.lockChallenge).handler(async ({ input }) =>
+      value(await this.useCases.conversations.lockChallenge(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
   @Implement(apiContract.conversations.markRead)
   markReadRoute(@Req() request: Request) {
     return implement(apiContract.conversations.markRead).handler(async ({ input }) =>

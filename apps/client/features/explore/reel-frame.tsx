@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { useRouter } from 'expo-router';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { borderWidth, content, elevation, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, IconButton, Tag, Text } from '@knowscroll/ui';
@@ -90,6 +91,7 @@ export function ReelFrame({
   const idle = state.phase !== 'active';
   const origin = encounterOrigin(state.trail, entry, session.regionOriginOf(entry));
   const [keysOpen, setKeysOpen] = useState(false);
+  const router = useRouter();
   return (
     <View
       testID={framed ? 'explore-desktop-frame' : undefined}
@@ -97,6 +99,12 @@ export function ReelFrame({
     >
       {framed ? (
         <View style={styles.top}>
+          <IconButton
+            icon="universe"
+            label="Your Universe"
+            variant="paper"
+            onPress={() => router.navigate('/universe')}
+          />
           <Button
             label="Previous subject"
             icon="arrowUp"

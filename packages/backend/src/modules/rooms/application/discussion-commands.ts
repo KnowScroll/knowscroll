@@ -208,6 +208,8 @@ export function makeDiscussionCommands(p: RoomPorts) {
               root,
               originMessageId,
               startedByAccountId: owner.accountId,
+              // The starter of a question is told when a person answers it, until they say otherwise (D-242).
+              notifyAnswer: tag === 'question',
               now,
             });
             if (debate !== undefined)

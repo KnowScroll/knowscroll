@@ -5,7 +5,9 @@ import { COPY_RUN_WORDS } from '../compile.js';
 import type { AuthoredItemV2, AuthoredScrollV2 } from './authoring-schema.js';
 import { isKitPatch, kitDefinition } from '../../v2/kits/index.js';
 import { EARTH_SKY_KIT } from '../../v2/kit.js';
-import { recipeKit, type RecipeDataV2 } from './assemble.js';
+import { pointAgrees, plainFigure, unitInPassages } from './figures.js';
+import { isFigure, recipeKit, type RecipeDataV2 } from './assemble.js';
+import { LIMITS_V2 } from '../../v2/limits.js';
 
 /** What the authoring rules need besides the authored list. */
 export interface AuthoringRulesInput {
@@ -22,11 +24,27 @@ function figuresIn(text: string): Set<string> {
   return new Set(numericTokens(text).map(([start, end]) => figure(text.slice(start, end))));
 }
 
+/** The strings every read stop has: what a stop that carries a play block says before the block. */
+function readTexts(item: Extract<AuthoredItemV2, { type: 'sort' | 'fork' | 'scale' | 'chart' }>): string[] {
+  return [item.heading, item.text, item.line, item.simple].filter((text): text is string => text !== undefined);
+}
+
 /** The reader-facing strings of an item, in reading order. Citations are handles, not reader text. */
 function readerTexts(item: AuthoredItemV2): string[] {
   switch (item.type) {
     case 'stop':
-      return [item.heading, item.text, item.line, item.simple].filter((text): text is string => text !== undefined);
+      return [item.heading, item.text, item.line, item.simple, item.guide?.line].filter(
+        (text): text is string => text !== undefined,
+      );
+    case 'sort':
+      return [...readTexts(item), ...item.items, item.explain];
+    case 'fork':
+      return [...readTexts(item), item.prompt, ...item.branches.flatMap((branch) => [branch.label, branch.text])];
+    // A scale's and a chart's values are read like any figure in reader text: each must appear in a passage the item cites (D-208).
+    case 'scale':
+      return [...readTexts(item), item.unit, ...item.points.flatMap((point) => [point.label, String(point.value)])];
+    case 'chart':
+      return [...readTexts(item), item.unit, ...item.points.flatMap((point) => [point.label, String(point.value)])];
     case 'call_it':
     case 'final_call':
       return [item.prompt, ...item.options, item.explain, item.twist, item.simple];
@@ -75,6 +93,44 @@ function stageIssues(authored: AuthoredScrollV2, recipe: RecipeDataV2): IssueV2[
     opening.stage?.view === undefined
   )
     issues.push({ code: 'stage_first_state_missing', path: `items.${first}.stage` });
+  return issues;
+}
+
+/**
+ * The play blocks and the guide against the recipe's plan (D-207): only a block the recipe names may be
+ * written, each once, and a recipe that names a block must get it. A figure of a scale or a chart is
+ * written as a passage writes figures; which passage states it is the citation rule's.
+ */
+function blockIssues(authored: AuthoredScrollV2, recipe: RecipeDataV2, evidence: AuthoringEvidence): IssueV2[] {
+  const issues: IssueV2[] = [];
+  const claimsQuotes = (handles: readonly string[]): string[] =>
+    handles.flatMap((handle) => {
+      const claimId = evidence.claimIdOf.get(handle);
+      return claimId === undefined ? [] : [evidence.quoteOf.get(claimId) ?? ''];
+    });
+  const planned = new Set(recipe.blocks ?? []);
+  const used = new Set<string>();
+  let guides = 0;
+  authored.items.forEach((item, index) => {
+    const path = `items.${index}`;
+    if (item.type === 'stop' && item.guide !== undefined) {
+      guides += 1;
+      if (recipe.guide === undefined) issues.push({ code: 'guide_unexpected', path: `${path}.guide` });
+      if (guides > LIMITS_V2.guides) issues.push({ code: 'guide_budget_exceeded', path: `${path}.guide` });
+    }
+    if (item.type !== 'sort' && item.type !== 'fork' && item.type !== 'scale' && item.type !== 'chart') return;
+    if (!planned.has(item.type) || used.has(item.type)) issues.push({ code: 'block_unexpected', path });
+    used.add(item.type);
+    if (item.type !== 'scale' && item.type !== 'chart') return;
+    if (item.points.some((point) => !isFigure(point.value))) issues.push({ code: 'block_value_invalid', path });
+    const quotes = claimsQuotes(item.cites);
+    const itemFigures = new Set(readerTexts(item).flatMap((text) => [...figuresIn(text)].map(plainFigure)));
+    if (item.points.some((point) => !pointAgrees(point, quotes, itemFigures)) || !unitInPassages(item.unit, quotes))
+      issues.push({ code: 'block_value_invalid', path });
+    if (item.type === 'scale' && item.here !== undefined && !item.points.some((point) => point.label === item.here))
+      issues.push({ code: 'scale_here_invalid', path });
+  });
+  for (const kind of planned) if (!used.has(kind)) issues.push({ code: 'block_missing', path: 'items' });
   return issues;
 }
 
@@ -178,6 +234,7 @@ export function authoringIssuesV2(authored: AuthoredScrollV2, input: AuthoringRu
   return uniqueIssuesV2([
     ...placementIssues(authored),
     ...stageIssues(authored, input.recipe),
+    ...blockIssues(authored, input.recipe, input.evidence),
     ...earthAxisIssues(authored, input.recipe),
     ...citationIssues(authored, input.evidence),
     ...copyIssues(authored, input.sources),

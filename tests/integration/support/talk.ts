@@ -58,6 +58,8 @@ export function talkCases(db: Kysely<Database>, clock: { now: Date } = { now: ne
       db,
       readContent: readShareableContent,
       readPublicContent: makeReadPublicContent(db),
+      readCallFacts: readScrollPlayFacts,
+      fenceRecording: fencePersonalRecording,
     }),
     threads: threadUseCases(threadDeps),
     /** What the scenarios module may do inside a thread. */

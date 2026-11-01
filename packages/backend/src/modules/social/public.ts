@@ -7,6 +7,7 @@ import type {
   ConversationMessageAcceptanceSchema,
   ConversationMuteAcceptanceSchema,
   ConversationReactionAcceptanceSchema,
+  ChallengeLockAcceptanceSchema,
   ConversationReadAcceptanceSchema,
   ContentShareRevocationAcceptanceSchema,
   ThreadReactionAcceptanceSchema,
@@ -103,6 +104,10 @@ export interface ConversationUseCases {
       authority: PersonalAuthority,
       input: unknown,
     ): Promise<Result<z.infer<typeof ConversationReactionAcceptanceSchema>>>;
+    lockChallenge(
+      authority: PersonalAuthority,
+      input: unknown,
+    ): Promise<Result<z.infer<typeof ChallengeLockAcceptanceSchema>>>;
     markRead(
       authority: PersonalAuthority,
       input: unknown,

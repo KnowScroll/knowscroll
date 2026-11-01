@@ -25,8 +25,18 @@ export const LIMITS_V2 = {
   stages: 1,
   /** Calls, the Final call included. */
   calls: 4,
-  /** Interactives other than a stage or a call (scene, sort, fork, scale, simulation, chart). None is built yet. */
+  /** Interactives other than a stage or a call: a read stop's sort, fork, scale or chart (D-207). */
   otherInteractives: 2,
+  /** The items of a sort. */
+  sortItems: { min: 3, max: 5 },
+  /** The points of a scale and of a growing chart. */
+  scalePoints: { min: 3, max: 6 },
+  chartPoints: { min: 3, max: 8 },
+  /** The words of one fork branch (its label excluded). */
+  branchWords: 40,
+  /** The words of a guide's line, and how many lines a Scroll gives its guide. */
+  guideWords: 25,
+  guides: 2,
   asides: 4,
   askSuggestions: 3,
   optionsPerCall: { min: 2, max: 3 },
@@ -56,4 +66,10 @@ export const FIELD_LIMITS_V2 = {
   claimChars: 160,
   sourceLabelChars: 120,
   landmarkNameChars: 40,
+  sortItemChars: 60,
+  branchLabelChars: 40,
+  branchChars: 400,
+  pointLabelChars: 40,
+  unitChars: 30,
+  guideChars: 160,
 } as const;

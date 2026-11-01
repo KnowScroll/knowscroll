@@ -68,6 +68,17 @@ export const STAGE_KIT_IDS = [
 ] as const;
 export type StageKitId = (typeof STAGE_KIT_IDS)[number];
 
+/**
+ * The play blocks a v2 recipe may have besides its calls (D-207): a sort, a fork, a scale or a growing
+ * chart. `scroll-model` owns the blocks; this list names them for the plan, and a test keeps the two in step.
+ */
+export const PLAY_BLOCK_KINDS = ['sort', 'fork', 'scale', 'chart'] as const;
+export type PlayBlockKind = (typeof PLAY_BLOCK_KINDS)[number];
+
+/** The characters that can guide a Scroll (D-207). Named here for the plan; a test keeps the list in step with `scroll-model`. */
+export const GUIDE_CHARACTER_IDS = ['ray'] as const;
+export type GuideCharacterId = (typeof GUIDE_CHARACTER_IDS)[number];
+
 type Interactivity =
   | { readonly interactive: true; readonly interactiveKind: InteractiveKind }
   | { readonly interactive: false; readonly interactiveKind: null };
@@ -135,6 +146,14 @@ export interface ScrollV2Plan {
    * stage Scroll on the Earth & sky kit. Absent: the Final call is a plain call (D-187).
    */
   readonly finalCall?: { readonly kind: 'tilt' };
+  /**
+   * The play blocks the Scroll has, each used once and at most two in all (D-207). The pages must state the
+   * figures a scale or a chart shows, and the order a sort asks for. Chosen by a person, per recipe; the
+   * writer is told which blocks to write and never adds one. Absent: the Scroll has calls only.
+   */
+  readonly blocks?: readonly PlayBlockKind[];
+  /** The character that speaks the Scroll's guide lines. Absent: no guide (D-207). Chosen by a person, per recipe. */
+  readonly guide?: GuideCharacterId;
 }
 
 /**

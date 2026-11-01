@@ -63,6 +63,8 @@ import { makeSkyUseCases } from '../application/sky.js';
 import { makeStationReads } from '../application/stations.js';
 import { makeSummarise, type SummarisePorts } from '../application/summarise.js';
 import { makeLaunch } from '../application/launch.js';
+import { makeQuestions } from '../application/questions.js';
+import { makeReplay } from '../application/replay.js';
 import { makeToday } from '../application/today.js';
 import { LAUNCH_GAP_MINUTES_DEFAULT } from '../domain/launch.js';
 import { STARS_PER_DAY_DEFAULT } from '../domain/sky.js';
@@ -98,6 +100,7 @@ import { readRoomMembership } from './membership-reads.js';
 import { discussionStore } from './postgres-discussions.js';
 import { roomStore } from './postgres-rooms.js';
 import { launchStore } from './postgres-launch.js';
+import { questionStore } from './postgres-questions.js';
 import { debateStore, skyStore, todayStore } from './postgres-sky.js';
 import { summaryStore } from './postgres-summaries.js';
 import { readReportableRoomMessage } from './report-reads.js';
@@ -157,6 +160,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     debates: debateStore,
     today: todayStore,
     launches: launchStore,
+    questions: questionStore,
     people: {
       async byAccounts(scope, accountIds) {
         const people = await deps.readPeople(scope, { accountIds });
@@ -247,6 +251,8 @@ export function roomUseCases(deps: RoomsDeps): RoomUseCases {
     ...makeSkyUseCases(ports),
     ...makeToday(ports),
     ...makeLaunch(ports),
+    ...makeReplay(ports),
+    ...makeQuestions(ports),
     ...makeDebateVotes(ports),
   };
 }
