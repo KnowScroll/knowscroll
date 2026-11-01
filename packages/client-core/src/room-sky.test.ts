@@ -10,6 +10,7 @@ import {
   skyLine,
   starsOfCurrent,
   stationCaption,
+  stationMapCaption,
   stationSkyLine,
 } from './room-sky';
 
@@ -96,9 +97,20 @@ describe('a station caption on the map', () => {
     expect(stationCaption(sky(), 'launch')).toBe('3 of 7 · Launch live');
     expect(stationCaption(sky(), 'reel')).toBe('3 of 7 · Reel live');
     expect(stationCaption(sky(), undefined)).toBe('3 of 7');
+    expect(stationCaption(sky({ lit: 7, state: 'named', finished: 1, constellationName: 'The Lantern' }), 'reel')).toBe(
+      '7 of 7 · The Lantern · Reel live',
+    );
+  });
+});
+
+describe('a station label on the map', () => {
+  it('keeps the count and what is live, and drops the constellation name', () => {
+    expect(stationMapCaption(sky(), undefined)).toBe('3 of 7');
     expect(
-      stationCaption(sky({ lit: 7, state: 'named', finished: 1, constellationName: 'The Lantern' }), 'reel'),
-    ).toBe('7 of 7 · The Lantern · Reel live');
+      stationMapCaption(sky({ lit: 7, state: 'named', finished: 1, constellationName: 'The Lantern' }), undefined),
+    ).toBe('7 of 7');
+    expect(stationMapCaption(sky(), 'reel')).toBe('3 of 7 · Reel live');
+    expect(stationMapCaption(sky(), 'launch')).toBe('3 of 7 · Launch live');
   });
 });
 

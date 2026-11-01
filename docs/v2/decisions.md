@@ -3136,6 +3136,7 @@ Confirmed by: `ask-smoke.spec.ts` (the dock on `/scroll/<id>` opens the sheet at
 
 - **The defect.** While a Reel was watched together, the Universe list read "Launch live", because one flag could not say which. Saying "Launch" for a Reel is wrong, and saying only "live" hides a fact the member already sees in the room's band.
 - **The rule.** `live` on a station is now `launch` or `reel`, for a member or moderator only, and absent for anyone else, as before. The caption reads "Launch live" or "Reel live". It still names no person and no number. A room holds one thing at a time (D-257), so there is one value.
+- **On the 3D map.** The label under the station read "Earth room · 2 of 7" while the list said more: the label kept only the first part of the caption. It now keeps the count and what is live ("Earth room · 2 of 7 · Reel live"), and still leaves out the constellation's name. R3 draws a red pulse for a live Launch and no words, so the words are the list's.
 - **Not changed.** An outsider's or invitee's station says nothing of the room's activity (D-174). The pulse on the 3D station is the same for both.
 
-Confirmed by: `room-sky.test.ts` ("says what is live"), `universe-lists.test.ts`, `room-launch.test.ts` in contracts (a boolean is refused), `rooms-launch.test.ts` and `rooms-watch.test.ts` (the station's kind).
+Confirmed by: `room-sky.test.ts` ("says what is live", the map label), `space-overlay.test.tsx` (the label under the station), `universe-lists.test.ts`, `room-launch.test.ts` in contracts (a boolean is refused), `rooms-launch.test.ts` and `rooms-watch.test.ts` (the station's kind).
