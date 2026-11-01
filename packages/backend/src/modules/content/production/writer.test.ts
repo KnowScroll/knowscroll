@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
+import { AuthoredScroll, COPY_RUN_WORDS } from '@knowscroll/scroll-model/producer';
 import { extractResearch } from '../../../infrastructure/research/public-pages.js';
 import { evidencePassages } from './evidence.js';
 import {
@@ -210,11 +210,23 @@ describe('the instructions for the answer to one question (D-218)', () => {
     );
     expect(text).toContain('begin the sentence with that admission');
     expect(text).toContain('do not say how a part works unless a passage says it');
+    // D-282: a fact keeps the passages' own terms, and a link between two ideas is short and plain or part of the next fact.
+    expect(text).toContain('State each fact in the passages’ own terms');
+    expect(text).toContain(
+      'add no cause, mechanism, comparison, example, figure or condition that the passages do not give',
+    );
+    expect(text).toContain('Keep a link between two ideas short and plain');
+    expect(text).toContain('begin the next fact with the link');
+    expect(text).toContain('A sentence that only links states no fact and uses none of the passages’ terms');
+    expect(text).toContain('adds another layer is a claim and is checked like one');
     expect(text).not.toContain('THIS IS A WHAT-IF');
     expect(text.length).toBeLessThan(16_000);
     // The library's and the scenarios' own instructions are untouched.
     expect(writerInstructions('plain')).not.toContain('THIS IS ANSWERING ONE QUESTION');
     expect(writerInstructions('comparison', 'what_if')).not.toContain('THIS IS ANSWERING ONE QUESTION');
+    for (const other of [writerInstructions('plain'), writerInstructions('comparison', 'what_if')])
+      expect(other).not.toContain('State each fact in the passages’ own terms');
+    expect(QUESTION_WRITER_PROMPT_VERSION).toBe('question-writer.v5');
   });
 
   it('record their own prompt version, a one-to-two-minute target and a hint for the length, not the library’s', () => {
@@ -241,6 +253,24 @@ describe('the instructions for the answer to one question (D-218)', () => {
     title: 'Where this stops',
     text: 'This answer ignores radio and satellite navigation, which now do most of the work.',
   };
+
+  it('names the copy rule’s own number, and the rule refuses a run of exactly that many words and accepts one fewer (D-282)', () => {
+    const text = writerInstructions('plain', 'question');
+    expect(text).toContain(`never copy a run of ${String(COPY_RUN_WORDS)} or more words in a row from a passage`);
+    expect(text).toContain('Keep the key terms and build your own sentence around them');
+    // The library’s words for the same number, written out. This fails, on purpose, when the constant changes and the words do not.
+    const numberWords: Readonly<Record<number, string>> = { 9: 'nine' };
+    expect(text).toContain(`any run of ${numberWords[COPY_RUN_WORDS] ?? 'CI: add the number in words'} words in a row`);
+    // And the rule itself is where the number comes from: the same run, one word shorter, passes.
+    const sourceWords = SOURCE[1]!.split(' ');
+    const codesWith = (run: string) => {
+      const answer = scroll([...BODY, prose(`Beyond that, ${run} and no more.`, ['e2', 'e3']), limit]);
+      const outcome = compileGeneratedScroll(answer, questionProvenance, passages, 'plain');
+      return outcome.kind === 'refused' ? outcome.issues.map((issue) => issue.code) : [];
+    };
+    expect(codesWith(sourceWords.slice(0, COPY_RUN_WORDS).join(' '))).toContain('copied_passage');
+    expect(codesWith(sourceWords.slice(0, COPY_RUN_WORDS - 1).join(' '))).not.toContain('copied_passage');
+  });
 
   it('accept a short prose answer with no rich block, which the library would refuse as too short', () => {
     const short = scroll([...BODY, limit]);

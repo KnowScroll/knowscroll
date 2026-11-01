@@ -8,8 +8,9 @@ import type {
   WithProductionScope,
 } from '../../../reasoning/public.js';
 import { noClaimGround, type SentenceUnderCheck, type SentenceVerdict } from '../domain/ask-support.js';
+import { candidateCheckerRole, type CandidateCheckerInstructions } from './ask-support-candidate.js';
 import { makeAskSupportStep } from './ask-support-step.js';
-import { sentencesOfAnswer } from './ask-support.js';
+import { askSupportRole, sentencesOfAnswer } from './ask-support.js';
 import { evidencePassages, type EvidencePassage } from './evidence.js';
 import { SPIKE_MODEL } from './spike-v2/run.js';
 
@@ -56,6 +57,10 @@ export interface ReplayLine {
   /** Why the check gave no usable answer, when it did not. */
   readonly code?: string;
   readonly runIds?: readonly string[];
+  /** Present, and `true`, when the replay used candidate instructions rather than the production ones (D-280). */
+  readonly candidate?: true;
+  /** The SHA-256 of the candidate file, on every line of a candidate replay. */
+  readonly candidateSha256?: string;
 }
 
 /** One sentence as the file shows it: the sentence, the passages it cites and the checker's verdict on it. */
@@ -74,6 +79,8 @@ export interface ReplayDetail {
   readonly title: string;
   readonly runIds: readonly string[];
   readonly sentences: readonly ReplaySentence[];
+  readonly candidate?: true;
+  readonly candidateSha256?: string;
 }
 
 export interface ReplayResult {
@@ -89,6 +96,11 @@ export interface AskSupportReplayDeps {
   /** The model the harness is configured with; the replay refuses to run on any other (D-031). */
   readonly model: string;
   readonly newRunKey: () => string;
+  /**
+   * Candidate checker instructions to try in place of the production ones (D-280). Every line and detail the replay
+   * produces is then labelled with the candidate's hash. Only the operator's `ask-check` passes it.
+   */
+  readonly candidate?: CandidateCheckerInstructions;
 }
 
 interface StoredAnswer {
@@ -159,7 +171,22 @@ async function storedAnswers(db: Kysely<Database>, target: ReplayTarget): Promis
  * No model call or network wait runs inside a transaction. A spent budget or quota stops the replay at that answer.
  */
 export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
-  const step = makeAskSupportStep(deps);
+  const { candidate } = deps;
+  const step = makeAskSupportStep(
+    deps,
+    candidate === undefined
+      ? askSupportRole
+      : (sentences, passages) => candidateCheckerRole(candidate, sentences, passages),
+  );
+  /** A candidate replay marks everything it produces, so its output can never be read as the production checker's. */
+  const labelled = (result: ReplayResult): ReplayResult => {
+    if (candidate === undefined) return result;
+    const label = { candidate: true as const, candidateSha256: candidate.sha256 };
+    return {
+      line: { ...result.line, ...label },
+      ...(result.detail === undefined ? {} : { detail: { ...result.detail, ...label } }),
+    };
+  };
 
   async function replayOne(stored: StoredAnswer, signal: AbortSignal): Promise<ReplayResult> {
     const assetId = stored.asset_id;
@@ -238,7 +265,7 @@ export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
     emit: (result: ReplayResult) => Promise<void> | void,
   ): Promise<{ readonly answers: number; readonly stopped: boolean }> {
     if (deps.model !== SPIKE_MODEL) {
-      await emit({ line: emptyLine('', 'model_mismatch', 'configured_model_not_allowed') });
+      await emit(labelled({ line: emptyLine('', 'model_mismatch', 'configured_model_not_allowed') }));
       return { answers: 0, stopped: true };
     }
     const stored = await storedAnswers(deps.db, target);
@@ -246,11 +273,11 @@ export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
     if (target.kind === 'assets')
       for (const assetId of target.assetIds)
         if (!found.has(assetId.toLowerCase()))
-          await emit({ line: emptyLine(assetId, 'not_replayable', 'not_an_ask_answer') });
+          await emit(labelled({ line: emptyLine(assetId, 'not_replayable', 'not_an_ask_answer') }));
     let answers = 0;
     for (const answer of stored) {
       if (signal.aborted) return { answers, stopped: true };
-      const result = await replayOne(answer, signal);
+      const result = labelled(await replayOne(answer, signal));
       await emit(result);
       answers += 1;
       if (

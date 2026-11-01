@@ -256,6 +256,13 @@ export {
   type ReplayResult,
   type ReplayTarget,
 } from '../production/ask-support-replay.js';
+/** Candidate checker instructions for that replay alone (D-280): read from a file, labelled by their hash, never used by production. */
+export {
+  CANDIDATE_INSTRUCTIONS_MAX_BYTES,
+  readCandidateInstructions,
+  type CandidateCheckerInstructions,
+  type CandidateReading,
+} from '../production/ask-support-candidate.js';
 /** The job one `content.produce-scroll` delivery runs, and the operator's enqueue and status reads. */
 export { makeRunScrollProduction } from '../production/job.js';
 export { makeEnqueueScrollProduction } from './enqueue-production.js';
