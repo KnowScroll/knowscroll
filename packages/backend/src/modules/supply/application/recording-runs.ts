@@ -15,8 +15,7 @@ import type { FenceOwnAccount, PersonalScopeTx } from '../../identity/public.js'
 /**
  * Supply's personal model runs follow the person's recording generation (D-264).
  *
- * A question's placement and library check and a Quick answer's writer and checks run on the recording-aware harness, not on the
- * compatibility harness that works only at the first generation. Each run is stamped with the generation its record (the
+ * A question's placement and library check and a Quick answer's writer and checks run on the recording-aware harness. Each run is stamped with the generation its record (the
  * request or the Quick answer) was made at, and every private read and write of the run is fenced to it: a person who paused and
  * resumed gets answers, and a run that was in flight across a pause or a Clear writes nothing into the new generation. A
  * free-text match is stamped with the generation recording is at when its step starts (D-270), because that ask carries none.

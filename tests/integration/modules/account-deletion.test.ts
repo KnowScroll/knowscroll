@@ -18,7 +18,7 @@ import {
 import { makeAttemptLedger } from '@knowscroll/backend/reasoning/nest-providers';
 import { heartbeatRecorder, socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
 import { openToEveryone } from '../support/audience.js';
-import { PLANETS, setScout } from '../support/rooms-feed.js';
+import { PLANETS, postFind, setScout, sourceLink, votePost } from '../support/rooms-feed.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { reportCases } from '../support/feedback.js';
 import { everyStoreSeeder } from '../support/every-store.js';
@@ -627,6 +627,21 @@ describe('account deletion (real database)', () => {
           .execute();
         // A scout the person sent into the room, by their own choice of the room's topics (D-259, D-260).
         unwrap(await setScout(rooms, erasedAsFriend, room.roomId, { interests: [PLANETS[0]!] }));
+        // A post to the Feed with a source of their own, a post of someone who stays that they voted on, and a vote on theirs
+        // (D-271 to D-273): the post's words, its source and the votes are theirs to erase.
+        unwrap(
+          await postFind(rooms, erasedAsFriend, room.roomId, {
+            title: 'A post that will go',
+            link: sourceLink('https://example.org/fixture-erasure'),
+          }),
+        );
+        const stayersPost = unwrap(
+          await postFind(rooms, stayer, room.roomId, {
+            title: 'A post that stays',
+            link: sourceLink('https://example.org/stays'),
+          }),
+        );
+        unwrap(await votePost(rooms, erasedAsFriend, room.roomId, stayersPost.discussionId));
         await rooms.db
           .insertInto('rooms.memory_edits')
           .values({

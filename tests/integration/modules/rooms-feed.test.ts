@@ -180,9 +180,8 @@ describe('residents’ finds (real PostgreSQL, CI fixture model)', () => {
         note: FIND_NOTE,
         replies: 0,
       });
-      expect(feed.posts[0]!.content).toMatchObject({
-        status: 'available',
-        target: { assetId: newer, assetRevision: 1 },
+      expect(feed.posts[0]).toMatchObject({
+        content: { status: 'available', target: { assetId: newer, assetRevision: 1 } },
       });
     });
 
@@ -509,7 +508,7 @@ describe('residents’ finds (real PostgreSQL, CI fixture model)', () => {
       });
       // The refusal shows nothing: the member's feed has no post and says nothing of it.
       expect((await readFeed(world, people[0]!, roomId)).posts).toEqual([]);
-      expect((await memberView(world, people[0]!, roomId)).feed).toBeUndefined();
+      expect((await memberView(world, people[0]!, roomId)).live).toBeUndefined();
       // The refused row holds nothing: the asset is offered again once the day turns.
       at('2026-11-02T08:00:00Z');
       expect((await look(slug)).find.kind).toBe('posted');
@@ -546,9 +545,9 @@ describe('residents’ finds (real PostgreSQL, CI fixture model)', () => {
       const full = await readFeed(world, lively, roomId);
       expect(full.posts[0]).toMatchObject({ note: FIND_NOTE });
       expect(full.posts[0]).not.toHaveProperty('folded');
-      expect((await memberView(world, lively, roomId)).feed).toMatchObject({
-        by: { kind: 'ai', name: 'Nova', label: 'AI · Explainer' },
-      });
+      expect((await memberView(world, lively, roomId)).live).toMatchObject([
+        { kind: 'posted', by: { kind: 'ai', name: 'Nova', label: 'AI · Explainer' } },
+      ]);
       const folded = await readFeed(world, quieter, roomId);
       expect(folded.posts[0]).toMatchObject({ folded: true });
       expect(folded.posts[0]).not.toHaveProperty('note');
@@ -556,7 +555,7 @@ describe('residents’ finds (real PostgreSQL, CI fixture model)', () => {
       const none = await readFeed(world, off, roomId);
       expect(none.posts).toEqual([]);
       expect(none.aiLevel).toBe('off');
-      expect((await memberView(world, off, roomId)).feed).toBeUndefined();
+      expect((await memberView(world, off, roomId)).live).toBeUndefined();
       expect(JSON.stringify(none)).not.toContain(FIND_NOTE);
     });
 
@@ -612,9 +611,8 @@ describe('residents’ finds (real PostgreSQL, CI fixture model)', () => {
       const { roomId, asset, people } = await postedRoom();
       await database.db.updateTable('content.assets').set({ status: 'withdrawn' }).where('id', '=', asset).execute();
       const feed = await readFeed(world, people[0]!, roomId);
-      expect(feed.posts[0]!.content).toMatchObject({
-        status: 'unavailable',
-        target: { assetId: asset, assetRevision: 1 },
+      expect(feed.posts[0]).toMatchObject({
+        content: { status: 'unavailable', target: { assetId: asset, assetRevision: 1 } },
       });
     });
 

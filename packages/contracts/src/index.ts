@@ -38,6 +38,7 @@ export * from './conversations.js';
 export * from './threads.js';
 export * from './room-identity.js';
 export * from './room-launch.js';
+export * from './room-posts.js';
 export * from './room-quiet.js';
 export * from './room-watch.js';
 export * from './room-sky.js';

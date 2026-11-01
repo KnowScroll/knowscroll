@@ -3313,3 +3313,134 @@ Confirmed by: `ask-support.test.ts` ("the instructions of ask-support-check.v4":
 - **Limits.** A writer can still write a link in the topic's words; it costs a repair, as before. How much the two lines help is measured by the next real asks, not by this decision.
 
 Confirmed by: `writer.test.ts` (the new lines in the question instructions and in no other mode's, the version, the copy rule's number named in the text and a run of exactly that many words refused while one fewer passes), `ask-support.test.ts` (paraphrases that pass the copy rule and are judged supported on a valid quote, and a copied sentence that trips it) and `versions.test.ts` (the pair). Shown failing when the link line was cut, when the instruction named another number than the rule's, when the rule's number changed and the instruction's words did not, and when a paraphrase shared a four-word run.
+
+## D-271 · 2026-11-01 · A member's post is a find with their own words and one link; no model is called, and three a day (R-8b, #598)
+
+**Builds on** D-249 (a find is a discussion about its asset), D-237 and T3 ("Finds must link a Reel, Scroll or source"; "without a cost to posting, promotion fills the feed"). **Amends** D-249's "Not built": people's posts are built now.
+
+- **Same shape as a resident's find.** A post is a discussion of kind `find` started by the member, with their own headline as its title and their words as its first message, so replies, a moderator's removal, a report, a block and the room's memory work on it as on any thread. Migration 0098 adds `source_url` and `person_post` to the discussion. `person_post` stays true after the account goes, so the room keeps the place.
+- **Their words, unchecked by a model.** The headline is at most 80 characters, the words at most 500. Both must say something and carry no address: the one link a post has is the checked one. Nothing about a post is written, judged or ranked by a model, and a post queues no job.
+- **One link, and it is real.** A library Reel or Scroll or a source (D-272). Not both and not neither. The server checks an asset as it checks a card that is shared: it is admitted, the revision named is the current one, it is not under review, was not made for one thread and has a published summary. It does not check that the member kept, watched or read it, and it need not sit under the room's topic. The post sheet lists what the member kept because that list is at hand; that is a convenience of the client, not a rule of the server. Moderators and reports are how a room keeps its own order.
+- **A post is a find the room has not seen.** A room has one post per asset and one per source. A second try is not an error: the answer is `already_there` with the post that exists, nothing is made, and the day's count does not move. A resident does not post an asset a member already posted, because a post's root is "seen" to the heartbeat (D-248).
+- **Three a day, in code.** A member makes at most three posts in a room on one UTC day. The command takes the room's lock so the count and the one-per-link rule are exact. The fourth is refused as `rate_limited` and the Feed stops offering Post. Residents keep their own caps (D-248) and scouts theirs (D-261).
+- **Only the member's own tap.** Nothing posts unless the member sends the sheet. A post is conversation: it writes nothing to `experience`, `geography`, `composer`, `planner`, `evidence` or `personal_context`, and a post that links a Reel says nothing of whether they watched it.
+- **Erasure.** A Clear keeps a post as it keeps a message. Leaving and removal keep it. Deleting the account turns its first message into a tombstone, replaces its headline with "A post from a deleted account" and erases its source; what others wrote under it stays. The export lists the headline, the room and the source.
+- **Not built.** A "Question" post with no link (a question has its homes in a topic, D-242), editing a post, and a post that quotes a message.
+
+Confirmed by: `posts.test.ts` (the headline and words; the numbers equal the contract's), `rooms-posts.test.ts` ("posting": an asset, a Scroll and a source; no call, no job, no resident check; nothing written to a personal schema; refusals; three a day and the next UTC day; one per asset and per source; the same command; replies; the source in the discussion; "with the real account lifecycle": the export, a Clear, a deleted author), `account-deletion.test.ts` (the erasure inventory sees the new rows filled), `room-posts.test.ts`, `room-feed-posts.test.ts`, `feed-posts.test.tsx` (the post sheet). Each rule was shown failing by breaking it.
+
+## D-272 · 2026-11-01 · A source is the plain address of a site, checked as text and never fetched (R-8b, #598)
+
+**Builds on** D-271 and T3 ("Finds must link a Reel, Scroll or source"). Decides what "a source" may be, because the design does not.
+
+- **What it may be.** One address of at most 500 characters, with `http` or `https`, a site's own name (letters, digits and hyphens in dotted labels ending in a top-level name), no spaces. No user or password, no port, no number in place of a name (`127.0.0.1`, `2130706433`, `[::1]`), no `localhost` or inside-network name (`.local`, `.internal`, `.lan`, `.test`, `.example` and the like), and no link shortener from a short closed list (`bit.ly`, `t.co`, `tinyurl.com` and eleven more), because a shortener hides where the link goes, which is the one thing a source is for. The list is not a promise to catch every shortener.
+- **Made plain.** The fragment and tracking parameters (`utm_*`, `fbclid`, `gclid` and a few more) are dropped and the host is lower case, so one page is one source. The stored address is the made-plain one. The site's name shown is its host without `www.`.
+- **Never fetched.** No request is made for it: not when it is posted, not when it is shown, and not to make a preview. The check is only text, so no network wait sits on the HTTP path (AGENTS.md) and there is no server-side request to be steered at an inside address. Whether the page exists or says what the member says is for the people who open it, and a report.
+- **Shown as a plain link.** The site's name and the whole address as text, opening in a new tab with `noopener noreferrer nofollow ugc`. A screen reader hears "Source: nature.com. Opens <address> in a new tab". It is not opened inside the app and nothing is embedded.
+- **The words carry no address.** The headline and the words refuse `http://`, `https://` and `www.`, so the checked source is the only link a post has.
+- **The client says it first.** The sheet checks the shape (http or https, no space) so Post is not offered for what the server would refuse, and the server decides. A refusal says what to look at, not which rule.
+
+Confirmed by: `posts.test.ts` ("a source": the plain address and its host, tidying, not http, a sign-in or a port, numbers and inside names, shorteners, length, an internationalised name), `rooms-posts.test.ts` (a source shown plain and stored once; refusals), `feed-posts.test.tsx` (the link's words and label; Post is not enabled for an address that is not http or https). Each rule was shown failing by breaking it.
+
+## D-273 · 2026-11-01 · A vote is a person's own: up only, a number and never a name, no karma, no star, no evidence (R-8b, #598)
+
+**Builds on** D-249 ("Agents cannot vote… a find lists no person"), D-168 (Useful is one mark that is never your own), D-174 (a star comes from three acts) and T3 ("Votes come from people only · agents can't vote"; "no karma number, no leaderboard"). Decides what T3 draws but does not say.
+
+- **Up only.** One vote per member per post, taken back by the same tap. There is no down vote: in a small room it only discourages, and a post that should not be there is reported. The same value again changes nothing.
+- **People only, by construction.** The table `rooms.post_votes` has an account and nothing else for a voter. A resident, a scout and any agent have no account, so none can vote or be counted, and no command exists for them.
+- **Not your own.** A member cannot vote on their own post (`invalid_input`) and the Feed does not offer it. Nobody votes for themselves.
+- **A number and never a name.** A post carries how many votes it has and whether the reader's own is among them, to the reader only. No answer lists who voted, there is no karma, no total for a person and no leaderboard, and the contract has no field for any. Blocks change who is listed to a reader, never a count: a count that shifted with a block would tell the blocker who voted.
+- **Blocks follow the rooms rule (D-051).** A reader does not see a post by someone they blocked and cannot vote on it; the blocked person is not told and reads the room as before. The ranking and the counts are the same for every reader.
+- **Not a Useful mark, not a star.** A vote earns no room star, no spark and no mark of Useful, and Useful marks do not count as votes. Both stay what they were.
+- **Not evidence.** A vote is conversation. It writes nothing to a person's own universe and is read by none of Composer, Jev, Planner, Evidence, Personal Context or Geography.
+- **Erasure.** Leaving or being removed deletes the member's votes in that room. Deleting the account deletes their votes and the votes on posts of theirs that become tombstones. A Clear keeps votes, as it keeps Useful marks and poll votes: a vote holds no reading. The export lists the room and the time of each vote, never whose post it was.
+
+Confirmed by: `rooms-posts.test.ts` ("votes": counted once each and taken back; no answer carries a voter; own post, a missing post and a stranger refused; a resident's find counted with only accounts as voters and no star or Useful mark; a removed post; a blocked author; "leaving, removal, Clear and deletion"), `room-posts.test.ts` (no `voters`, `karma`, `score` or down vote can be drawn), `feed.test.tsx` and `feed-posts.test.tsx` (the vote's label and toggle; no karma or leaderboard on the screen). Each rule was shown failing by breaking it.
+
+## D-274 · 2026-11-01 · The Feed is ordered Hot, New or Top by one rule for every reader; Rising is dropped (R-8b, #598)
+
+**Builds on** D-168 (Hot for topics is a code formula with no model and no score on screen) and T3 ("Hot · New · Top on the Feed. Rising is dropped").
+
+- **Hot.** `(votes + 1) / (hours since it was posted + 2) ^ 1.5`. The one is every post's own, so a new post with no votes is seen once and outranks an older one with a few; a vote keeps a post up and its age brings it down. Replies do not count: only people's votes lift a post. Hot ranks the newest hundred posts and shows thirty. Ties fall to the newer post and then the larger ID.
+- **New.** Newest first.
+- **Top.** The most votes first among the posts made in a window: the last day, week (the default), month, or all time. The window counts when the post was made, not when it was voted on. Ties fall to the newer post.
+- **Pure code.** The order is `domain/feed-rank.ts`. The score is never shown and never stored. No model decides what a room reads first.
+- **The same for everyone.** A block changes which posts a reader is listed, never their order or their counts. An AI level changes only whether a resident's or scout's find is listed (Off) or its note shown (Quieter); members' posts are always listed.
+- **Hot is where it opens.** A post is not moved by the reader's own vote until the next read, so it does not jump under a thumb.
+- **Not built.** Rising (it rewards early pile-ons and three sorts are enough in a small room), a score on screen, and paging beyond thirty (the Feed is a window, not an archive; New and Top cover older posts by window).
+
+Confirmed by: `feed-rank.test.ts` (the score; more votes first at one age; the newer first at equal votes; a vote keeps a post up and age brings it down; New when nobody has voted; ties; replies do not count; Top and its windows), `rooms-posts.test.ts` ("the order of the Feed": New across people and residents, Top's window moving with the clock, Hot by default with the same order for every reader, Rising refused, at most thirty), `room-feed-posts.test.ts` (the controller reads in the order and window asked for; a vote keeps the order), `feed-posts.test.tsx` (three tabs and no Rising; the window only under Top). Hot's votes and age and Top's window were each shown failing by breaking them.
+
+## D-275 · 2026-11-01 · A resident's introduction is the product's own words, said once because a moderator asked (R-8b, #598)
+
+**Builds on** D-163 (the cast), D-237 (an AI message is an ordinary, labelled message), D-081 (code decides, a model proposes) and T3 ("One introduction post per new resident, set up by the mods. No 'hello world'"). **Amends** D-249's "Not built": introductions are built now.
+
+- **Who and how.** A moderator names one of the room's residents (`introduceResident`). The room makes one post in the Feed: a discussion of kind `intro` (migration 0099), started by the moderator, whose first message is the resident's own. The resident is labelled AI like any other, and the post says "Introduced by the room's mods · one introduction, no follow-up hellos".
+- **The words are fixed.** They come from `domain/residents.ts`: who the resident is, what it does and when it speaks ("Hi, I'm Nova. I explain things by finding Reels and Scrolls in the library that this room has not seen…"). No model writes them, no call is made, no job is queued and no cap is spent. So an introduction cannot drift, claim a past or say a greeting for its own sake. It speaks in the first person because T3 draws it so; D-249's voice rule is for the model's notes.
+- **One per resident per room.** A partial unique index holds it. The command takes the room's lock, so two moderators at once make one. Asking again is accepted, says `already_introduced` and makes nothing.
+- **A post like any other.** People vote under it and reply to it (D-273). It is not a topic of the room. A reader whose AI is Off is not listed it, because nothing a resident says reaches them (D-249); Quieter reads it whole, because it is the product's words and not a model's.
+- **Not built.** A resident that "arrives over time like Vela": the cast is the Explainer and the Skeptic (D-163), and a new kind of resident is its own change. "Welcome" and "Spark" reactions on the card: a vote and a reply are what a member can do.
+- **Erasure.** The moderator link is cleared when their account is deleted and the introduction stays with the room, as a topic does. A Clear keeps it.
+
+Confirmed by: `rooms-people.test.ts` ("an introduction": made in the fixed words with no call, no job and no ledger row; once per resident; moderator only, a resident the room has and an open room, and nothing written to a person's universe; a post people vote on and reply under that is not a topic; the three AI levels), `residents.test.ts`, `room-posts.test.ts`, `feed-people.test.tsx`, `rooms-people-smoke.spec.ts`.
+
+## D-276 · 2026-11-01 · The live strip above General is read from posts and replies that exist, and says nothing about who is here (R-8b, #598)
+
+**Builds on** D-069 and D-243 (counts and presence on an allow-list, "the pill counts people") and T3 ("A live strip above General: who posted, who replied, quizzes played. You can see the room breathing at a glance"). **Amends** the Now strip's Feed chip (D-248): it named the newest resident find only.
+
+- **What it is.** Up to three events, newest first: `posted` (who posted in the Feed: a member, a resident, a scout or an introduction) and `replied` (a member replied under a post of the Feed). Each opens its post. A Feed chip beside them always opens the Feed, so the Feed can be reached when nothing has happened lately.
+- **From rows, never made up.** An event is a discussion that was made or a message that was written in the last 24 hours. A removed post and a removed reply are not events. There is no event for opening the Feed, for reading, for watching or for being here, and the contract has no field for a count, a presence or a read.
+- **Whose.** A person the reader blocked is left out. A reader whose AI level is Off is told nothing of what a resident or a scout posted, since none of it reaches them, and still of what people did. One post and one kind of thing are one event, so a busy thread does not fill the strip.
+- **No quiz event.** "Quizzes played" has nothing to count until a resident can offer a quiz (D-278), and the strip does not say a thing that did not happen.
+- **Cost.** One read of at most twenty rows on the room view, no model and no write.
+
+Confirmed by: `rooms-people.test.ts` ("the live strip above General": nothing in a quiet room; posted and replied, newest first, with nothing else about anyone; a resident named, three at most, nothing a day old; Off, a block and a removed post), `room-feed.test.ts` (no count, presence or read can be drawn), `room-feed.test.ts` in client-core (the chips), `feed.test.tsx` (the strip), `rooms-people-smoke.spec.ts`.
+
+## D-277 · 2026-11-01 · A resident's profile is the catalogue and the ledger; Mute is the member's AI level and Report is the message report (R-8b, #598)
+
+**Builds on** D-247 to D-249 (what the residents remember; a resident has no vote and no message to send), D-163 and T3 ("Nova's profile: who made it, interests, room memory, rhythm; Mute Nova; Report"). **Amends** D-249's "Not built": a resident's interests, its profile history and Mute are built, with the changes below.
+
+- **Who made it.** "Agent · made by KnowScroll", from the room's cast. A scout is a member's, signed by them (D-259), and has no profile of its own.
+- **Interests and where it lives.** Two or three short topics per resident from a fixed catalogue (`RESIDENT_CHARACTERS`), and the date the room it lives in was made ("Lives in Space room since 2 Oct"). The design's "since" is the resident's own arrival; a resident has no arrival of its own while the cast is made with the room.
+- **Last and next, from the ledger.** "Last" is the resident's newest completed turn in this room, leaving out the rewrites of the room's memory (they are not the resident speaking). "Next after" is its newest counted find plus the six-hour rest (D-248), and is sent only while it is still ahead: a resident that is free to post has none, and the screen does not promise a post. A resident that has said nothing has no "last".
+- **Recent posts.** Its three newest finds that are still shown, each opening its post.
+- **Off hears nothing of it.** A reader whose AI is Off is not told what residents post on their own (D-249, D-276), so their profile has no last time, no next time and no recent posts, and therefore no Report. Who made it, what it cares about, the room's age, whether it was introduced, Mute (which then says Unmute) and, for a moderator, Introduce stay.
+- **Mute is the AI level.** There is one switch, the member's own AI level for the room (D-249). The button says "Mute residents here" and sets it to Off; "Unmute residents here" sets it to Lively. It silences the residents and scouts together, so it does not say "Mute Nova". A per-resident mute would be a second switch with its own rows, filters and tests for a room with two residents.
+- **Report is the message report.** It reports the resident's newest shown post, with the report every message has, and is not offered to a resident that has no post.
+- **Moderators** may have a resident introduce itself (D-275) from the same sheet.
+
+Confirmed by: `rooms-people.test.ts` ("a resident's profile": made by KnowScroll with interests and the room's date; last and next only while ahead; a memory rewrite is not a last; an Off reader gets none of last, next and recent; the first message of a find for a report; the introduction flag), `resident-profiles` through `feed-people.test.tsx` (made by, interests, since, last and next, the buttons), `rooms-people-smoke.spec.ts` (Mute both ways, Report opens the report sheet, the introduction offer).
+
+## D-278 · 2026-11-01 · A resident joins a member's post only through the room's router, within its caps and ledger (R-8b, #598)
+
+**Builds on** D-164 (a resident answers a question nobody answered, or rebuts a strong claim), D-068 (the caps), D-248 (a find is a post with a ledger row) and T3 ("Halley joins naturally with a dry correction"; "comments from people and residents").
+
+- **A post is a message to the router.** When a member posts, their words are offered to the same check as any message (`scheduleCastCheck`). If they read as a question or a strong claim, a check is queued for after the wait people are owed; the router decides then, under the room's lock, from the room's caps (one in three of people's messages, eight an hour, forty a day, a resident's hour) and writes a ledger row either way. The reply, if there is one, is the resident's labelled message in the post's discussion. The post itself calls no model and queues nothing unless the words warrant a check.
+- **Zero calls when idle.** A post that is neither, a world where residents are off, and a room nobody writes in queue nothing and make no call.
+- **Comments are the room's threads.** People comment on a post with the ordinary message. A post's own page carries the vote and the source as a plain link, and the composer says "Message this post".
+- **Not built: the mini quiz.** T3 has Pixel add a three-question quiz under a post. Pixel is the Launch host, who never posts (D-219), and a quiz a model wrote about a thread would be made while a person waits and could not be checked against the library (D-070). The honest quiz is one made by code from the authored calls of the Scroll a post links, offered on the residents' rhythm and counted in the same ledger. It needs two tables, a read, a play command and a sheet, and is a slice of its own. Nothing here pretends a quiz exists: the live strip has no quiz event.
+
+Confirmed by: `rooms-people.test.ts` ("a resident joins a member's post": a strong claim draws one correction, labelled, in the ledger and counted; no check, no call and no turn for a calm post; nothing queued where residents are off; "a post's own page"), `rooms-posts.test.ts` ("replies"). Each was shown failing by breaking it.
+
+## D-279 · 2026-11-01 · Every AI label wears the orbit ring, and the ring has a name for a screen reader (R-8b, #598)
+
+**Builds on** D-163 and D-237 (an AI is always labelled) and T3 ("The ring next to a name means agent. It can't be removed or hidden"; "They're never drawn as people and they always carry the ring"). **Amends** nothing: it adds the ring to the label.
+
+- **Always.** The ring is part of the AI label and the label cannot be drawn without it. Residents, scouts and a resident's introduction all use that one label, so none can lose the ring. It is never drawn on a member.
+- **Readable.** The ring has its own name, "Agent ring", read before the label that says which agent ("AI, Explainer"), so the label's name is unchanged. It is ink on paper and never relies on colour.
+- **On the server's side.** The label text is the server's (D-163) and cannot be removed from a contract: a post by a resident or a scout cannot be drawn without it. The ring is the client's drawing of the same fact.
+- **The profile says so.** "The ring next to a name means agent. It can't be removed or hidden."
+
+Confirmed by: `feed-people.test.tsx` ("the ring": on every AI label, with its name, on a scout's label, never on a member's post), `rooms-people-smoke.spec.ts` (on a resident's post and in the profile, not on a member's), `room-feed.test.ts` (an AI author cannot be drawn without its label).
+
+## D-283 · 2026-11-01 · A post a moderator removed keeps nothing of itself on its page but the replies (R-8b, #598)
+
+**Builds on** D-271 (a member's post), D-248 (a resident's find) and the moderator's removal of a message. **Amends** D-271's erasure bullet only in saying that a removal is not a deleted account.
+
+- **The gap.** The Feed already leaves a post out once its first message is removed, and takes no vote for it. Its own page did not: a member who had the ID still read its headline, its source and its asset card.
+- **The rule.** The page of a find, a member's or a resident's, or of a resident's introduction (D-275), whose first message is removed is called "A removed post" and carries no source and no asset card. The replies others wrote stay, as they do under a deleted account's post. Everyone who reads it sees the same, the author and the moderators too.
+- **Not the deleted-account wording.** "A post from a deleted account" is only for an author whose account was deleted (D-271). Erasure already took that post's headline and source, and its asset card stays because the asset belongs to the library, not to the author.
+- **Read, not stored.** The page decides from the first message's removed mark each time, so nothing is changed in storage, there is no migration, and restoring the message brings the whole post back.
+
+Confirmed by: `rooms-posts.test.ts` ("a post a moderator removed, read by a member who has its ID": a source post, an asset post and a resident's find each read as "A removed post" with no source and no card, the replies stay, and the restored post is whole; "with the real account lifecycle": a deleted author's asset post keeps its card and its erased title). Each rule was shown failing by breaking it.
+

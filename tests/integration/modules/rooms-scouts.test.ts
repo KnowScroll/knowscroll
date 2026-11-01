@@ -318,9 +318,8 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
         note: FIND_NOTE,
         replies: 0,
       });
-      expect(feed.posts[0]!.content).toMatchObject({
-        status: 'available',
-        target: { assetId: wanted, assetRevision: 1 },
+      expect(feed.posts[0]).toMatchObject({
+        content: { status: 'available', target: { assetId: wanted, assetRevision: 1 } },
       });
       // Opened, it is an ordinary labelled message in the discussion, signed the same way.
       const opened = await readDiscussion(world, scene.listeners[0]!, scene.roomId, discussion!.discussion_id);
@@ -797,7 +796,7 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
       expect((await readFeed(world, lively, scene.roomId)).posts[0]).toMatchObject({ note: FIND_NOTE });
       const folded = (await readFeed(world, quieter, scene.roomId)).posts[0]!;
       expect(folded).toMatchObject({ folded: true });
-      expect(folded.note).toBeUndefined();
+      expect(folded).not.toHaveProperty('note');
       expect((await readFeed(world, silent, scene.roomId)).posts).toEqual([]);
       const discussionId = (await readFeed(world, lively, scene.roomId)).posts[0]!.discussionId;
       const asOff = await readDiscussion(world, silent, scene.roomId, discussionId);
@@ -819,16 +818,16 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
       expect(blocked.posts).toEqual([]);
       expect(JSON.stringify(blocked)).not.toContain(scene.owner.person.handle);
       const strip = await memberView(world, blocker, scene.roomId);
-      expect(strip.feed).toBeUndefined();
+      expect(strip.live).toBeUndefined();
       const opened = await readDiscussion(world, blocker, scene.roomId, discussionId);
       if (opened.status !== 'ready') throw new Error('expected ready');
       expect(opened.messages[0]).toMatchObject({ status: 'blocked' });
       expect(JSON.stringify(opened)).not.toContain(FIND_NOTE);
       // Nobody else is told, and the owner's own scout is still theirs.
       expect((await readFeed(world, bystander, scene.roomId)).posts).toHaveLength(1);
-      expect((await memberView(world, bystander, scene.roomId)).feed).toMatchObject({
-        by: { kind: 'agent', sentBy: { personId: scene.owner.person.personId } },
-      });
+      expect((await memberView(world, bystander, scene.roomId)).live).toMatchObject([
+        { kind: 'posted', by: { kind: 'agent', sentBy: { personId: scene.owner.person.personId } } },
+      ]);
     });
 
     it('is not something a reader who blocked its owner can ask a resident about', async () => {

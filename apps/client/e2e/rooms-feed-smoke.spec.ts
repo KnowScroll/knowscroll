@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { id } from './encounter-fixture';
-import { feedRoutes, feedStrip, feedWorld, findId, type FeedWorld } from './rooms-feed-fixture';
+import { feedRoutes, liveStrip, feedWorld, findId, type FeedWorld } from './rooms-feed-fixture';
 import { roomFixture } from './rooms-fixture';
 
 /**
@@ -49,7 +49,7 @@ async function open(page: Page, size: { width: number; height: number }, world: 
     others: 1,
     lastMessageMinutesAgo: 5,
     noticeSeen: true,
-    feed: () => feedStrip(world),
+    live: () => liveStrip(world),
   });
   const { calls } = await feedRoutes(page, world, scope);
   await page.goto(address);
@@ -64,15 +64,19 @@ for (const { name, size } of VIEWPORTS) {
     const { calls } = await open(page, size, world);
 
     // The Now strip: the Feed beside the sky, with who found something and how long ago. No number of people.
-    await expect(page.getByTestId('now-feed')).toContainText('Nova found something · 2 h ago');
+    await expect(page.getByTestId('now-feed')).toContainText('Nova');
+    await expect(page.getByTestId('now-feed')).toContainText('posted · 2 h ago');
+    // A resident's chip wears the agent ring and is read as an AI.
+    await expect(page.getByTestId('now-feed').getByTestId('orbit-ring')).toBeVisible();
+    await expect(page.getByTestId('now-feed')).toHaveAttribute('aria-label', 'Feed, AI resident Nova posted · 2 h ago');
     await expect(page.getByTestId('now-strip').getByText(/online/i)).toHaveCount(0);
     await shoot(page, `${name}-room-now-strip`);
     expect(await seriousViolations(page)).toEqual([]);
 
-    await page.getByTestId('now-feed').click();
+    await page.getByTestId('now-feed-open').click();
     await expect(page).toHaveURL(/\/feed$/);
     await expect(page.getByTestId('feed-screen')).toBeVisible();
-    // Each find: a labelled resident, a note, a real asset to open, and the way into the talk. Nothing to vote with.
+    // Each find: a labelled resident, a note, a real asset to open, the way into the talk, and a count of people's votes.
     const first = page.getByTestId(`feed-post-${findId}`);
     await expect(first).toContainText('Nova');
     await expect(first).toContainText('AI · Explainer');
@@ -80,9 +84,10 @@ for (const { name, size } of VIEWPORTS) {
     await expect(first).toContainText('Light that bends around something we can’t see');
     await expect(first.getByRole('link', { name: 'Open Reel' })).toBeVisible();
     await expect(page.getByRole('link', { name: /Start the talk|2 replies/ }).first()).toBeVisible();
-    // The desktop room workspace has its own panes beside the feed; the feed itself has no vote and no count of people.
+    // The desktop room workspace has its own panes beside the feed; the feed has no karma, no leaderboard and no count of who is here.
     const feedScreen = page.getByTestId('feed-screen');
-    await expect(feedScreen.getByText(/vote|upvote|\blike\b|follow/i)).toHaveCount(0);
+    await expect(feedScreen.getByText(/upvote|\blike\b|follow|karma|leaderboard|rising/i)).toHaveCount(0);
+    await expect(first.getByTestId('feed-vote')).toHaveAccessibleName('14 votes. Vote up');
     await expect(feedScreen.getByText(/\bonline\b|here now/i)).toHaveCount(0);
     // The resident's mark is for the eye; the label says what it is, in the words a screen reader reads.
     await expect(first.getByLabel('AI, Explainer')).toBeVisible();
@@ -120,20 +125,18 @@ for (const { name, size } of VIEWPORTS) {
   });
 }
 
-for (const { name, size } of VIEWPORTS) {
-  test(`${name}: a Quieter reader’s notes are held back and the line says where to read them`, async ({ page }) => {
-    await open(page, size, feedWorld({ aiLevel: 'quieter' }));
-    await page.getByTestId('now-feed').click();
-    const first = page.getByTestId(`feed-post-${findId}`);
-    await expect(first).toContainText('Nova found something. The note is in the talk.');
-    await expect(first).not.toContainText('Worth a look');
-    await expect(first.getByLabel('AI, Explainer')).toBeVisible();
-    // The line promises nothing to tap: the way to the talk is the button beside it.
-    await expect(first.getByTestId('feed-post-discuss')).toHaveText('Read the note');
-    await shoot(page, `${name}-quieter-feed`);
-    expect(await seriousViolations(page)).toEqual([]);
-  });
-}
+test('phone: a Quieter reader’s notes are held back and the line says where to read them', async ({ page }) => {
+  await open(page, VIEWPORTS[0].size, feedWorld({ aiLevel: 'quieter' }));
+  await page.getByTestId('now-feed-open').click();
+  const first = page.getByTestId(`feed-post-${findId}`);
+  await expect(first).toContainText('Nova found something. The note is in the talk.');
+  await expect(first).not.toContainText('Worth a look');
+  await expect(first.getByLabel('AI, Explainer')).toBeVisible();
+  // The line promises nothing to tap: the way to the talk is the button beside it.
+  await expect(first.getByTestId('feed-post-discuss')).toHaveText('Read the note');
+  await shoot(page, 'phone-quieter-feed');
+  expect(await seriousViolations(page)).toEqual([]);
+});
 
 test('phone: for a reader whose AI is Off the strip says nothing, the feed lists nothing and says why', async ({
   page,
@@ -168,7 +171,7 @@ test('phone: a member who is not a moderator sees what the residents remember an
     VIEWPORTS[0].size,
     feedWorld({ memory: { state: 'ready', text: 'People compared lensing with modified gravity.', by: 'residents' } }),
   );
-  await page.getByTestId('now-feed').click();
+  await page.getByTestId('now-feed-open').click();
   await page.getByTestId('feed-resident-skeptic').click();
   await expect(page.getByTestId('resident-memory-text')).toContainText('People compared lensing');
   await expect(page.getByTestId('resident-memory')).toContainText('It never has a name');

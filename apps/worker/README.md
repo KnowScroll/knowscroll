@@ -245,8 +245,8 @@ a second gate nor creates a recording capability.
 Planner and Geography inject the required `RECORDING_REASONING_HARNESS` built by
 `personalRecordingReasoningProviders`, with BOTH actual module-owned run checkers. Its role
 header/purpose/account/original-generation/claim/full-context/model-context proof is required
-before private execution and apply. The generic compatibility harness and nonpersonal production
-harness remain separate; neither substitutes for a missing recording-role owner. Missing tokens
+before private execution and apply. The nonpersonal production and room
+harnesses remain separate; neither substitutes for a missing recording-role owner. Missing tokens
 or required owner effects fail construction rather than return a successful empty result.
 
 Evidence receives the actual Experience lineage/channel readers, lifecycle reader and PC's

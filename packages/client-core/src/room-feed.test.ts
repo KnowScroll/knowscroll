@@ -1,11 +1,11 @@
 import { ORPCError } from '@orpc/client';
 import { describe, expect, it } from 'vitest';
-import { problemDetails, type RoomFeedPost } from '@knowscroll/contracts';
+import { problemDetails, type ConversationContentProjection } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
 import {
   createRoomFeed,
   emptyFeedWords,
-  feedChip,
+  liveChips,
   findKindWord,
   findTitleWords,
   memoryWords,
@@ -37,7 +37,7 @@ function scopeOf(rooms: Api): AccountScope & { calls: { name: string; input: unk
 let counter = 100;
 const newId = () => id(counter++);
 
-const card = (kind: 'reel' | 'scroll'): RoomFeedPost['content'] => ({
+const card = (kind: 'reel' | 'scroll'): ConversationContentProjection => ({
   status: 'available',
   target: { assetId: id(20), assetRevision: 1 },
   metadata: { kind, title: 'Light that bends', summary: 'A cluster bends the light behind it.', language: 'en' },
@@ -54,7 +54,12 @@ const ready = (over: object = {}) => ({
   memory: { state: 'none' },
   canEditMemory: true,
   aiLevel: 'lively',
-  limits: { postsPerDay: 3, restHours: 6 },
+  roomName: 'Space room',
+  profiles: [],
+  sort: 'hot',
+  window: 'week',
+  canPost: true,
+  limits: { postsPerDay: 3, restHours: 6, memberPostsPerDay: 3 },
   ...over,
 });
 
@@ -68,17 +73,44 @@ describe('the words of the feed', () => {
     expect(findTitleWords(gone)).toBe('This is no longer in the library');
   });
 
-  it('draws the Now strip chip with who found something and how long ago, never a count', () => {
+  it('draws the live strip chips with who posted or replied and how long ago, never a count', () => {
     const now = new Date('2026-11-01T11:07:00.000Z');
-    expect(feedChip(undefined, now)).toBeUndefined();
-    expect(feedChip({ by: NOVA, postedAt: '2026-11-01T09:07:00.000Z' }, now)).toEqual({
-      label: 'Feed',
-      detail: 'Nova found something · 2 h ago',
-    });
+    expect(liveChips(undefined, now)).toEqual([]);
+    const asha = { kind: 'person', personId: id(2), handle: 'asha', displayName: 'Asha' } as const;
+    expect(
+      liveChips(
+        [
+          {
+            kind: 'replied',
+            by: { kind: 'person', person: asha, you: false },
+            at: '2026-11-01T10:47:00.000Z',
+            discussionId: id(3),
+          },
+          { kind: 'posted', by: NOVA, at: '2026-11-01T09:07:00.000Z', discussionId: id(4) },
+        ],
+        now,
+      ),
+    ).toEqual([
+      {
+        key: `replied:${id(3)}`,
+        label: 'Asha',
+        detail: 'replied · 20 min ago',
+        spoken: 'Asha replied · 20 min ago',
+        discussionId: id(3),
+      },
+      {
+        key: `posted:${id(4)}`,
+        label: 'Nova',
+        detail: 'posted · 2 h ago',
+        spoken: 'AI resident Nova posted · 2 h ago',
+        agent: 'resident',
+        discussionId: id(4),
+      },
+    ]);
   });
 
   it('says the rhythm from the server’s own numbers', () => {
-    expect(rhythmLines({ postsPerDay: 3, restHours: 6 })).toEqual({
+    expect(rhythmLines({ postsPerDay: 3, restHours: 6, memberPostsPerDay: 3 })).toEqual({
       checksIn: 'Looks at the room about 3 times a day',
       posts: 'Each posts at most once every 6 hours',
     });

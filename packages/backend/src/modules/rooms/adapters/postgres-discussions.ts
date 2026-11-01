@@ -23,6 +23,9 @@ interface DiscussionColumns {
   tag: string | null;
   root_asset_id: string | null;
   root_asset_revision: number | null;
+  source_url: string | null;
+  person_post: boolean;
+  intro_inhabitant: string | null;
   origin_message_id: string | null;
   started_by_account_id: string | null;
   pinned_at: Date | null;
@@ -41,6 +44,9 @@ const DISCUSSION_COLUMNS = [
   'tag',
   'root_asset_id',
   'root_asset_revision',
+  'source_url',
+  'person_post',
+  'intro_inhabitant',
   'origin_message_id',
   'started_by_account_id',
   'pinned_at',
@@ -61,6 +67,9 @@ const discussionOf = (row: DiscussionColumns): DiscussionRow => ({
     row.root_asset_id === null || row.root_asset_revision === null
       ? null
       : { assetId: row.root_asset_id, assetRevision: row.root_asset_revision },
+  source: row.source_url,
+  personPost: row.person_post,
+  introInhabitant: row.intro_inhabitant === null ? null : inhabitantOf(row.intro_inhabitant),
   originMessageId: row.origin_message_id,
   startedByAccountId: row.started_by_account_id,
   pinned: row.pinned_at !== null,
@@ -209,7 +218,7 @@ export const discussionStore: DiscussionStore = {
       .selectFrom('rooms.discussions')
       .select(DISCUSSION_COLUMNS)
       .where('room_id', '=', lock.roomId)
-      .where('kind', 'not in', ['general', 'today', 'find'])
+      .where('kind', 'not in', ['general', 'today', 'find', 'intro'])
       .orderBy(sql`pinned_at desc nulls last`)
       .orderBy('last_activity_at', 'desc')
       .orderBy('discussion_id')
@@ -444,6 +453,10 @@ export const discussionStore: DiscussionStore = {
         room_id: lock.roomId,
         title: discussion.title,
         title_derived: discussion.titleDerived,
+        ...(discussion.post === undefined
+          ? {}
+          : { kind: 'find', person_post: true, source_url: discussion.post.sourceUrl ?? null }),
+        ...(discussion.intro === undefined ? {} : { kind: 'intro', intro_inhabitant: discussion.intro.inhabitant }),
         tag: discussion.tag ?? null,
         root_asset_id: discussion.root?.assetId ?? null,
         root_asset_revision: discussion.root?.assetRevision ?? null,

@@ -5,7 +5,7 @@ import type { AccountScope } from './account-scope';
 import {
   createRoomFeed,
   feedAuthorName,
-  feedChip,
+  liveChips,
   scoutCadenceWords,
   scoutDraftOf,
   scoutSignature,
@@ -79,10 +79,18 @@ describe('who a find is by, in words', () => {
 
   it('puts a scout in the Now strip as the owner’s scout, never as the owner', () => {
     const now = new Date('2026-11-04T10:00:00.000Z');
-    expect(feedChip({ by: SCOUT, postedAt: '2026-11-04T08:37:00.000Z' }, now)).toEqual({
-      label: 'Feed',
-      detail: 'Asha’s scout found something · 1 h ago',
-    });
+    expect(
+      liveChips([{ kind: 'posted', by: SCOUT, at: '2026-11-04T08:37:00.000Z', discussionId: id(3) }], now),
+    ).toEqual([
+      {
+        key: `posted:${id(3)}`,
+        label: 'Asha’s scout',
+        detail: 'posted · 1 h ago',
+        spoken: 'AI scout, sent by Asha, posted · 1 h ago',
+        agent: 'scout',
+        discussionId: id(3),
+      },
+    ]);
   });
 });
 
