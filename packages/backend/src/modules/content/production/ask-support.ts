@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AuthoredScroll } from '@knowscroll/scroll-model/producer';
+import { COPY_RUN_WORDS, type AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import type { ContextItem, ReasoningRole } from '../../../reasoning/public.js';
 import {
   UNSUPPORTED_HINTS,
@@ -261,6 +261,7 @@ export const verdictsOf = (answer: AskSupportAnswer): readonly SentenceVerdict[]
 const SUPPORT_REPAIR_INSTRUCTIONS = [
   'REVISION AFTER A SUPPORT CHECK. A reader of your previous draft would find sentences that the passages you cited do not support. The context has two more items, both data: "check-problems" lists each unsupported sentence, what to do about it and a note on what is wrong, and "previous-draft" is the complete draft you wrote.',
   'Return the complete corrected answer in the same shape. For each listed sentence, remove it, or rewrite it to say only what a passage you cite states. If that leaves the answer without the reason the reader asked for, say so plainly in one sentence: that the pages do not give it. Keep every other sentence exactly as it was. All the other rules above still hold, including the ending with the callout of kind "limit".',
+  `A sentence you rewrite is built in your own words around the key terms of the passage, as in the example above; it is never the passage’s sentence with a word changed. A revision that repeats ${String(COPY_RUN_WORDS)} or more words in a row from a passage is refused.`,
 ].join('\n');
 
 /** The version a support-repair writer is recorded under: the writer's own, marked as a revision. */

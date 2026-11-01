@@ -44,7 +44,7 @@ const claimSecondsFor = (requests: number): number =>
 /** A library recipe's worst case is six requests: 6 x 320 s + 180 s = 2,100 s. */
 export const PRODUCE_SCROLL_CLAIM_SECONDS = claimSecondsFor(REQUEST_BOUND_V2_PER_TOPIC);
 
-/** The answer to a question sends up to twelve requests, its support check in batches (D-267): 12 x 320 s + 180 s = 4,020 s. */
+/** The answer to a question sends up to fourteen requests, its support check in batches (D-267, D-297): 14 x 320 s + 180 s = 4,660 s. */
 export const PRODUCE_ANSWER_CLAIM_SECONDS = claimSecondsFor(REQUEST_BOUND_ASK_ORDER);
 
 const productionPolicy = (expireInSeconds: number) =>
@@ -75,7 +75,7 @@ export const produceScrollQueue = defineQueue({
 
 /**
  * The same job for the answer to a person's question (an ask order, D-218), on a queue of its own because its claim is
- * longer: the support check of the answer runs in batches, so a take may send twelve requests (D-267). Library recipes keep
+ * longer: the support check of the answer runs in batches, so a take may send fourteen requests (D-267, D-297). Library recipes keep
  * the shorter claim of `content.produce-scroll`, so a worker that dies in the middle of one is retried sooner. The payload,
  * the singleton key and the consumer are the same.
  */

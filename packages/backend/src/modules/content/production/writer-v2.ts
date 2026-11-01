@@ -20,9 +20,10 @@ import type { ResearchPage } from '../../../infrastructure/research/public-pages
 import type { ReasoningRole } from '../../../reasoning/public.js';
 import type { AdmissionIssue } from '../application/ports.js';
 import { CITATIONS_TOO_MANY, CITATIONS_TOO_MANY_HINT, citationLimitIssues } from './citation-limits.js';
+import { copyRepairNotes } from './copy-repair.js';
 import { authoringEvidence, MIN_EVIDENCE_PASSAGES, type EvidencePassage } from './evidence.js';
 import { explanationUnitFor, TOPICS, type ScrollTopic } from './topics.js';
-import { bannedNames, copiedIn, NOTE_BLOCKS, readerStrings, type BannedName } from './writer.js';
+import { bannedNames, readerStrings, type BannedName } from './writer.js';
 
 /**
  * The version of the v2 writer's instructions and output contract (`scroll-authoring.v2`). The v1
@@ -226,9 +227,8 @@ export function compileGeneratedScrollV2(authored: AuthoredScrollV2, context: Wr
 }
 
 /**
- * What the repair is told about a copy finding: the copied words themselves, cut from the research
- * text (public, and the same text the check compared against), never from the model's own words.
- * Rebuilt from the refused answer with the same compile that refused it.
+ * What the repair is told about a copy finding: the copied words themselves (`copyRepairNotes`), cut from the
+ * research text and never from the model's own words. Rebuilt from the refused answer with the same compile that refused it.
  */
 function copyNotes(previousAnswer: string, context: WriterV2Context): string | undefined {
   let parsed: unknown;
@@ -241,21 +241,13 @@ function copyNotes(previousAnswer: string, context: WriterV2Context): string | u
   if (!authored.success) return undefined;
   const outcome = compileGeneratedScrollV2(authored.data, context);
   if (outcome.kind !== 'refused') return undefined;
-  const sources = sourcesOf(context);
-  const lines = outcome.issues
+  const places = outcome.issues
     .filter((issue) => issue.code === 'copied_passage')
-    .slice(0, NOTE_BLOCKS)
-    .flatMap((issue) => {
-      const runs = copiedIn(authoredPart(authored.data, issue.path), sources);
-      return runs.length === 0
-        ? []
-        : [`${issue.path.replace(/\.(\d+)/u, '[$1]')} copies: ${runs.map((run) => `"${run}"`).join(' | ')}`];
-    });
-  if (lines.length === 0) return undefined;
-  return [
-    'Each line names the words of your text that also appear in the source passages, lower case and without punctuation. Rewrite only the sentences that contain them and keep every other sentence as it is.',
-    ...lines,
-  ].join('\n');
+    .map((issue) => ({
+      where: issue.path.replace(/\.(\d+)/u, '[$1]'),
+      texts: [...readerStrings(authoredPart(authored.data, issue.path))],
+    }));
+  return copyRepairNotes(places, sourcesOf(context));
 }
 
 /**

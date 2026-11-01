@@ -43,6 +43,9 @@ export const askSupportRunId = (jobId: string, draft: 1 | 2, batch: number): str
 /** The run of the one writer repair an unsupported sentence earns, derived from the job for the same reason. */
 export const askSupportRepairRunId = (jobId: string): string => stableUuid(`content.ask-support-repair:${jobId}`);
 
+/** The finding of the copy rule, the one refusal the revision's own repair is for (D-297). */
+const COPIED_PASSAGE_CODE = 'copied_passage';
+
 /** What asking the checker about one batch came to. */
 type BatchOutcome =
   | { readonly kind: 'verdicts'; readonly verdicts: readonly SentenceVerdict[]; readonly repaired: boolean }
@@ -243,8 +246,8 @@ export function makeAskSupportStep(deps: AskSupportStepDependencies, checkerRole
           bundleRef: `scroll:${input.jobId}:ask-support-repair`,
           items: [...input.writerItems, ...supportRepairItems(input.sentences, input.unsupported, input.previousDraft)],
         },
-        // The first draft's single repair is this one: a refusal of this answer ends the job.
-        limits: { allowRepair: false },
+        // The revision may be repaired once, and only for copying a passage (D-297): any other refusal of it ends the job.
+        limits: { repairOnlyFor: [COPIED_PASSAGE_CODE] },
       },
       input.signal,
     );
