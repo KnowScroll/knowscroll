@@ -18,6 +18,7 @@ import {
   type RoomHere,
   type RoomFeedStrip,
   type RoomLaunchStrip,
+  type RoomWatchStrip,
   type RoomQuestions,
   type RoomReplayStrip,
   type RoomTodayStrip,
@@ -36,6 +37,7 @@ import { titlesFor } from './discussion-titles.js';
 import { feedStrip } from './feed-reads.js';
 import { enterRoom, type EnteredRoom } from './gate.js';
 import { launchStrip } from './launch-view.js';
+import { watchStrip } from './watch-view.js';
 import { questionsView } from './questions.js';
 import { replayStrip } from './replay.js';
 import { skyOfRoom } from './sky.js';
@@ -207,6 +209,7 @@ async function awayOf(p: RoomPorts, entered: EnteredRoom, member: MemberRow): Pr
 const awayFor = (away: RoomAway | undefined) => (away === undefined ? {} : { away });
 const todayFor = (today: RoomTodayStrip | undefined) => (today === undefined ? {} : { today });
 const launchFor = (launch: RoomLaunchStrip | undefined) => (launch === undefined ? {} : { launch });
+const watchFor = (watch: RoomWatchStrip | undefined) => (watch === undefined ? {} : { watch });
 const feedFor = (feed: RoomFeedStrip | undefined) => (feed === undefined ? {} : { feed });
 const replayFor = (replay: RoomReplayStrip | undefined) => (replay === undefined ? {} : { replay });
 const questionsFor = (questions: RoomQuestions | undefined) => (questions === undefined ? {} : { questions });
@@ -249,6 +252,7 @@ async function memberView(p: RoomPorts, scope: PersonalScopeTx, entered: Entered
     sky: await skyOfRoom(p, lock),
     ...todayFor(await todayStrip(p, lock, p.now())),
     ...launchFor(await launchStrip(p, lock, p.now())),
+    ...watchFor(await watchStrip(p, scope, lock, room.topic, p.now())),
     ...feedFor(await feedStrip(p, lock, entered.member, room.cast)),
     ...replayFor(await replayStrip(p, scope, entered, p.now())),
     ...questionsFor(await questionsView(p, scope, entered)),
