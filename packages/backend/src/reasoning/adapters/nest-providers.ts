@@ -5,6 +5,7 @@ import type { LogEvent } from '../../infrastructure/observability/index.js';
 import {
   makeAuthorityHolds,
   fencePersonalRecording,
+  readPersonalRecordingNow,
   makeWithProductionScope,
   makeProductionAuthorityHolds,
   type Database,
@@ -27,6 +28,9 @@ import {
   CHECK_PLANNER_RECORDING_RUN,
   CHECK_GEOGRAPHY_RECORDING_RUN,
   CHECK_SUPPLY_RECORDING_RUN,
+  CHECK_SCENARIOS_RECORDING_RUN,
+  CHECK_ROOMS_RECORDING_RUN,
+  CHECK_COMPOSER_RECORDING_RUN,
   PRODUCTION_REASONING_HARNESS,
   ROOM_REASONING_HARNESS,
   WITH_PRODUCTION_SCOPE,
@@ -186,6 +190,7 @@ export function postgresHarnessPorts(options: {
       withScope,
       fenceOwn: options.fenceOwn,
       fenceRecording: fencePersonalRecording,
+      readRecording: readPersonalRecordingNow,
       ledger,
     }),
     withPersonalScope: options.withPersonalScope,
@@ -202,10 +207,13 @@ export function postgresHarnessPorts(options: {
   };
 }
 
-/** The recording boundary: all three actual role owners are required. */
+/** The recording boundary: all six actual role owners are required. */
 export function personalRecordingReasoningHarnessFor(
   options: Parameters<typeof postgresHarnessPorts>[0] &
-    Pick<PersonalRecordingHarnessPorts, 'checkPlanner' | 'checkGeography' | 'checkSupply'>,
+    Pick<
+      PersonalRecordingHarnessPorts,
+      'checkPlanner' | 'checkGeography' | 'checkSupply' | 'checkScenarios' | 'checkRooms' | 'checkComposer'
+    >,
 ) {
   const engine = postgresHarnessPorts(options);
   const checkOwner = recordingOwnerDispatcher(options);
@@ -216,6 +224,7 @@ export function personalRecordingReasoningHarnessFor(
         withScope: engine.withPersonalScope,
         fenceOwn: options.fenceOwn,
         fenceRecording: fencePersonalRecording,
+        readRecording: readPersonalRecordingNow,
         ledger: engine.ledger,
         checkOwner,
       }),
@@ -223,6 +232,9 @@ export function personalRecordingReasoningHarnessFor(
     checkPlanner: options.checkPlanner,
     checkGeography: options.checkGeography,
     checkSupply: options.checkSupply,
+    checkScenarios: options.checkScenarios,
+    checkRooms: options.checkRooms,
+    checkComposer: options.checkComposer,
     hashContext: canonicalSha256,
   });
 }
@@ -245,6 +257,9 @@ export function personalRecordingReasoningProviders(
         CHECK_PLANNER_RECORDING_RUN,
         CHECK_GEOGRAPHY_RECORDING_RUN,
         CHECK_SUPPLY_RECORDING_RUN,
+        CHECK_SCENARIOS_RECORDING_RUN,
+        CHECK_ROOMS_RECORDING_RUN,
+        CHECK_COMPOSER_RECORDING_RUN,
       ],
       useFactory: (
         db: Kysely<Database>,
@@ -254,6 +269,9 @@ export function personalRecordingReasoningProviders(
         checkPlanner: PersonalRecordingHarnessPorts['checkPlanner'],
         checkGeography: PersonalRecordingHarnessPorts['checkGeography'],
         checkSupply: PersonalRecordingHarnessPorts['checkSupply'],
+        checkScenarios: PersonalRecordingHarnessPorts['checkScenarios'],
+        checkRooms: PersonalRecordingHarnessPorts['checkRooms'],
+        checkComposer: PersonalRecordingHarnessPorts['checkComposer'],
       ) =>
         personalRecordingReasoningHarnessFor({
           db,
@@ -263,6 +281,9 @@ export function personalRecordingReasoningProviders(
           checkPlanner,
           checkGeography,
           checkSupply,
+          checkScenarios,
+          checkRooms,
+          checkComposer,
           model: configuredModelPort(settings),
           settings: harnessSettings(settings, `worker:${process.pid}`),
         }),

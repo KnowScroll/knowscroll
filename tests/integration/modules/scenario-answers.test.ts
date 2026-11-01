@@ -45,11 +45,14 @@ import { makeReadThreadStanding } from '../../../packages/backend/src/modules/so
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { answerWith } from '../support/generated-scroll.js';
-import { fixtureHarness, fixtureModel, gate, protectedRequestsOf } from '../support/fixture-model.js';
+import { fixtureModel, gate, protectedRequestsOf } from '../support/fixture-model.js';
+import { fixtureRecordingHarness } from '../support/recording-harness.js';
+import { clearRecordingPerson, pauseAndResume, recordingPerson, setRecording } from '../support/recording-person.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { openToEveryone } from '../support/audience.js';
 import { scrollUseCases } from '../support/scroll.js';
 import { buildRecursively } from '../support/providers.js';
+import type { FixturePerson } from '../support/fixtures.js';
 import { befriend, seedFriend, talkCases, type Friend, type Friends, type Threads } from '../support/talk.js';
 import { seedScroll } from '../support/thread-fixtures.js';
 
@@ -134,8 +137,15 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
   let compose: (caps: { perDay: number; perThreadPerDay: number }) => ScenarioUseCases;
   let writeAnswer: WriteAnswerStep;
   let answerScript: (sequence: number) => FixtureScenario | Promise<FixtureScenario>;
-  let plannerScript: () => FixtureScenario;
+  let plannerScript: () => FixtureScenario | Promise<FixtureScenario>;
   let answerCalls = () => 0;
+  let plannerCalls = () => 0;
+  /** What runs once, just before a worker enters its transaction to store a result: a pause or a Clear in that gap. */
+  let beforeApply: () => Promise<void> = () => Promise.resolve();
+  const once = (action: () => Promise<void>) => () => {
+    beforeApply = () => Promise.resolve();
+    return action();
+  };
   const announced: string[] = [];
 
   beforeAll(async () => {
@@ -151,6 +161,7 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
     const planner = fixtureModel(() => plannerScript(), { label: 'scenario-planner-CI-fixture' });
     const writer = fixtureModel((sequence) => answerScript(sequence), { label: 'scenario-answer-CI-fixture' });
     answerCalls = () => writer.calls.length;
+    plannerCalls = () => planner.calls.length;
 
     const SCOPE = Symbol('scope');
     const ENQUEUE = Symbol('enqueue');
@@ -163,7 +174,10 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
         [ENQUEUE, makeEnqueueJob(content.boss)],
         [DATABASE, database.db],
         [CONFIG, { supplyScenarioDailyCap: caps.perDay, supplyScenarioThreadDailyCap: caps.perThreadPerDay }],
-        [HARNESS, fixtureHarness(database.db, { model: harnessModel }).harness],
+        [
+          HARNESS,
+          fixtureRecordingHarness(database.db, { model: harnessModel, beforeApply: () => beforeApply() }).harness,
+        ],
         [THREAD_GUEST, cases.guest],
         [READ_THREAD_STANDING, standing],
         [READ_VISITED_ASSETS, readVisitedAssets],
@@ -194,6 +208,7 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
   afterEach(() => {
     plannerScript = () => answerWith({ mode: 'options', options: [batching, instances] });
     answerScript = () => answerWith(validAnswer);
+    beforeApply = () => Promise.resolve();
   });
   afterAll(async () => {
     await content.close();
@@ -236,9 +251,9 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
     readonly root: { assetId: string; assetRevision: number };
   }
 
-  /** Asha started a thread on a generated Scroll; Ravi joined. */
-  async function begun(claims = FIXTURE_CLAIMS): Promise<Begun> {
-    const a = await seedFriend(database.db, friends);
+  /** Asha started a thread on a generated Scroll; Ravi joined. `asha` is a person who can pause and clear recording. */
+  async function begun(claims = FIXTURE_CLAIMS, options: { readonly asha?: FixturePerson } = {}): Promise<Begun> {
+    const a = await seedFriend(database.db, friends, options.asha === undefined ? {} : { person: options.asha });
     const b = await seedFriend(database.db, friends);
     await befriend(friends, a, b);
     const root = await seedRoot(claims);
@@ -819,6 +834,159 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
       expect(await chosen(first.a, first.aRef, first.root, { use: small, optionId: 'o2' })).toMatchObject({
         kind: 'ok',
       });
+    });
+  });
+
+  /**
+   * What and who a what-if or another perspective answers for: the planner's directions and the card's writer run at the
+   * generation recording is at when their step starts (D-270). Generation 1 is on, 2 is off, and 3 is on again after a pause
+   * and a resume.
+   */
+  describe('for a person who paused and resumed recording (D-270)', () => {
+    const runsOf = async (id: string) =>
+      (
+        await database.db
+          .selectFrom('reasoning.business_runs')
+          .select(['purpose', 'state', 'recording_generation'])
+          .where('id', '=', id)
+          .execute()
+      ).map((run) => ({ ...run }));
+    const draftRow = (draftId: string) =>
+      database.db
+        .selectFrom('scenarios.drafts')
+        .select(['state', 'failure'])
+        .where('draft_id', '=', draftId)
+        .executeTakeFirstOrThrow();
+    const draftsFor = async (who: Friend, thread: ContentThreadRef, text = 'What if traffic increases tenfold?') =>
+      unwrap(
+        await scenarios.draft(who.authority, {
+          version,
+          commandId: randomUUID(),
+          thread,
+          kind: 'what_if',
+          origin: { kind: 'root' },
+          parent: { kind: 'root', assetRevision: 1 },
+          text,
+        }),
+      ).draftId;
+    const suggestFor = (who: Friend, draftId: string) =>
+      suggest({ v: 1, universeId: who.universeId, privacyEpoch: 1, draftId }, new AbortController().signal);
+    const writtenForTheNewEpoch = async (who: Friend) =>
+      (
+        await sql<{
+          runs: string;
+          drafts: string;
+        }>`select (select count(*) from reasoning.business_runs where universe_id = ${who.universeId}::uuid and privacy_epoch > 1) as runs,
+                  (select count(*) from scenarios.drafts where requester_universe_id = ${who.universeId}::uuid and privacy_epoch > 1) as drafts`.execute(
+          database.db,
+        )
+      ).rows[0];
+    /** A thread whose starter can pause and clear recording. */
+    const withRecordingStarter = async () => begun(FIXTURE_CLAIMS, { asha: await recordingPerson(database) });
+
+    it('has the planner’s directions made, and the run stamped with the generation it started at', async () => {
+      const { a, aRef } = await withRecordingStarter();
+      await pauseAndResume(database, a);
+      const draftId = await draftsFor(a, aRef);
+      const before = plannerCalls();
+      await suggestFor(a, draftId);
+      expect(plannerCalls()).toBe(before + 1);
+      expect(await draftRow(draftId)).toMatchObject({ state: 'ready' });
+      expect(await runsOf(draftId)).toEqual([{ purpose: 'suggest', state: 'completed', recording_generation: 3 }]);
+    });
+
+    it('has the short answer written, and the run stamped with the generation it started at', async () => {
+      const { a, aRef, root } = await withRecordingStarter();
+      await pauseAndResume(database, a);
+      const { node } = unwrap(await chosen(a, aRef, root));
+      await write(a, node.nodeId);
+      expect((await cardOf(a, aRef, node.nodeId)).answer).toMatchObject({ status: 'ready' });
+      expect(await runsOf(node.nodeId)).toEqual([{ purpose: 'answer', state: 'completed', recording_generation: 3 }]);
+    });
+
+    it('drops directions reached across a pause and a resume: the draft fails, and the new generation holds no run', async () => {
+      const { a, aRef } = await withRecordingStarter();
+      const draftId = await draftsFor(a, aRef);
+      plannerScript = async () => {
+        await pauseAndResume(database, a);
+        return answerWith({ mode: 'options', options: [batching, instances] });
+      };
+      await suggestFor(a, draftId);
+      expect(await draftRow(draftId)).toMatchObject({ state: 'failed', failure: 'could_not_suggest' });
+      expect(
+        await database.db
+          .selectFrom('reasoning.business_runs')
+          .select('id')
+          .where('universe_id', '=', a.universeId)
+          .where('recording_generation', '=', 3)
+          .execute(),
+      ).toEqual([]);
+      // They ask again at the new generation and are answered: only the old reply was dropped.
+      plannerScript = () => answerWith({ mode: 'options', options: [batching, instances] });
+      const again = await draftsFor(a, aRef, 'What if traffic doubles?');
+      await suggestFor(a, again);
+      expect(await draftRow(again)).toMatchObject({ state: 'ready' });
+    });
+
+    it('drops a short answer reached across a pause and a resume: the card ends with none, and nothing is stamped for the new generation', async () => {
+      const { a, aRef, root } = await withRecordingStarter();
+      const { node } = unwrap(await chosen(a, aRef, root));
+      answerScript = async () => {
+        await pauseAndResume(database, a);
+        return answerWith(validAnswer);
+      };
+      await write(a, node.nodeId);
+      expect(answerCalls()).toBeGreaterThan(0);
+      expect(await answerRow(node.nodeId)).toMatchObject({ answer_state: 'unavailable', answer: null });
+      expect((await runsOf(node.nodeId)).filter((run) => run.recording_generation === 3)).toEqual([]);
+    });
+
+    it('applies nothing when recording is paused between the planner’s reply and the store', async () => {
+      const { a, aRef } = await withRecordingStarter();
+      const draftId = await draftsFor(a, aRef);
+      beforeApply = once(() => setRecording(database, a, 1, false));
+      await suggestFor(a, draftId);
+      expect(await draftRow(draftId)).toMatchObject({ state: 'failed', failure: 'could_not_suggest' });
+      expect((await runsOf(draftId)).map((run) => run.state)).toEqual(['admitted']);
+    });
+
+    it('applies nothing for directions or a short answer in flight across Clear: nothing is written for the new epoch', async () => {
+      const { a, aRef } = await withRecordingStarter();
+      const draftId = await draftsFor(a, aRef);
+      plannerScript = async () => {
+        await clearRecordingPerson(database, content.boss, a);
+        return answerWith({ mode: 'options', options: [batching, instances] });
+      };
+      await suggestFor(a, draftId);
+      expect(await writtenForTheNewEpoch(a)).toEqual({ runs: '0', drafts: '0' });
+
+      // A branch made in the old epoch is cleared with it; a writer in flight for one is dropped the same way.
+      const b = await withRecordingStarter();
+      plannerScript = () => answerWith({ mode: 'options', options: [batching, instances] });
+      const { node } = unwrap(await chosen(b.a, b.aRef, b.root));
+      answerScript = async () => {
+        await clearRecordingPerson(database, content.boss, b.a);
+        return answerWith(validAnswer);
+      };
+      await write(b.a, node.nodeId);
+      expect(await writtenForTheNewEpoch(b.a)).toEqual({ runs: '0', drafts: '0' });
+    });
+
+    it('is refused without a model call while recording is paused: the draft fails and the card ends with no answer', async () => {
+      const { a, aRef, root } = await withRecordingStarter();
+      const { node } = unwrap(await chosen(a, aRef, root));
+      await setRecording(database, a, 1, false);
+      const planned = plannerCalls();
+      const draftId = await draftsFor(a, aRef, 'What if traffic doubles?');
+      await suggestFor(a, draftId);
+      expect(plannerCalls()).toBe(planned);
+      expect(await draftRow(draftId)).toMatchObject({ state: 'failed', failure: 'could_not_suggest' });
+      expect(await runsOf(draftId)).toEqual([]);
+      const written = answerCalls();
+      await write(a, node.nodeId);
+      expect(answerCalls()).toBe(written);
+      expect(await answerRow(node.nodeId)).toMatchObject({ answer_state: 'unavailable', answer: null });
+      expect(await runsOf(node.nodeId)).toEqual([]);
     });
   });
 });

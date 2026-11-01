@@ -51,4 +51,4 @@ export {
   isClearCore,
   closeClearCore,
 } from './privacy-scope.js';
-export { fencePersonalRecording, recordingTransactionOf } from './recording-scope.js';
+export { fencePersonalRecording, readPersonalRecordingNow, recordingTransactionOf } from './recording-scope.js';

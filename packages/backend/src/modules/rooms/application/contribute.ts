@@ -1,5 +1,12 @@
-import { HARNESS_PROMPT_VERSION } from '../../../reasoning/public.js';
-import type { ReasoningHarness } from '../../../reasoning/public.js';
+import {
+  HARNESS_PROMPT_VERSION,
+  applyClosingRun,
+  proposeWhenRecording,
+  runOwnerOf,
+  runToClose,
+  type PersonalRecordingPurpose,
+  type RecordingReasoningHarness,
+} from '../../../reasoning/public.js';
 import type { CheckPersonalOwnerActive, PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { pointedKind } from '../domain/asks.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
@@ -15,9 +22,6 @@ import {
 } from './inhabitant-role.js';
 import { hasResident, type AiTurnRow, type RoomPorts } from './ports.js';
 import { unpostedOutcome } from './turn-outcome.js';
-
-/** The harness refuses with this fixed message when a run can no longer be closed legitimately. */
-const HARNESS_REFUSAL = 'PERSONAL_REASONING_AUTHORITY_REFUSED';
 
 /** The worker's consumer of `rooms.contribute`. */
 export type Contribute = (job: ContributeJob, signal: AbortSignal) => Promise<void>;
@@ -53,18 +57,20 @@ async function standingAsk(p: ContributePorts, scope: PersonalScopeTx, requestId
  * the message it is about as the turn's focus; if that message is gone or kept out, the ask ends without a call.
  *
  * Steps: (1) one transaction rechecks authority, reads this room's own discussion and reduces it to
- * the bounded context; (2) outside any transaction the harness makes one model call (plus at most
- * one repair) on the ask's own run; (3) one transaction rechecks the asker is still a member of an
- * open room, stores the message with its provenance (role and prompt versions, model, attempt)
- * and closes the run. Nothing is stored when authority is gone: a member who left or was removed,
- * a paused room or a Clear cancels the contribution even if the model had finished.
+ * the bounded context, and learns the generation the asker's recording is at; (2) outside any transaction the
+ * recording-aware harness makes one model call (plus at most one repair) on the ask's own run, at that generation (D-270);
+ * (3) one transaction under the recording fence rechecks the asker is still a member of an open room, stores the message with
+ * its provenance (role and prompt versions, model, attempt) and closes the run. Nothing is stored when authority is gone: a
+ * member who left or was removed, a paused room, or an asker who paused, resumed or cleared their recording cancels the
+ * contribution even if the model had finished. While the asker's recording is paused no call is made and the ask ends as
+ * failed, not counted.
  *
  * Failure/retry: the run ID is the request ID, so a redelivery answers from the ledger and never
  * pays twice; an attempt of unknown outcome is never resent: the ask ends as failed and the run
  * stays open for an operator. The contribution is a suggestion in words: nothing here starts
  * production, and an inhabitant never writes unless a member's ask is queued.
  */
-export function makeContribute(p: ContributePorts, harness: ReasoningHarness): Contribute {
+export function makeContribute(p: ContributePorts, harness: RecordingReasoningHarness): Contribute {
   return async (job, signal) => {
     const authority: PersonalAuthority = {
       universeId: job.universeId,
@@ -92,12 +98,17 @@ export function makeContribute(p: ContributePorts, harness: ReasoningHarness): C
         await p.ai.settle(found.lock, job.requestId, { state: 'failed', at: p.now(), dispatched: false });
         return undefined;
       }
-      return { request: found.request, context: contributionContext(material) };
+      // The asker is the ask's own account (the job names their universe), so only the generation is read.
+      const askerId = found.request.requestedByAccountId;
+      const owner = askerId === null ? undefined : await runOwnerOf(harness, scope, found.request.turnId, askerId);
+      return { request: found.request, context: contributionContext(material), owner };
     });
     if (prepared.kind !== 'entered' || prepared.value === undefined) return;
-    const { request, context } = prepared.value;
+    const { request, context, owner } = prepared.value;
 
-    const outcome = await harness.propose(
+    const { outcome, purpose } = await proposeWhenRecording(
+      harness,
+      owner,
       {
         run: {
           id: request.turnId,
@@ -112,57 +123,72 @@ export function makeContribute(p: ContributePorts, harness: ReasoningHarness): C
       },
       signal,
     );
-    await applyVerdict(p, harness, authority, request, contributionVerdict(outcome));
+    await applyVerdict(p, harness, authority, request, contributionVerdict(outcome), purpose);
   };
 }
 
-/** Closes the run and, when the asker is still allowed, stores the message; otherwise settles the ask without one. */
+/** What an ask ends as when the recording fence refused its result: the model was called, so the ask stays counted. */
+const FENCE_REFUSED: ContributionVerdict = { kind: 'failed', dispatched: true };
+
+/**
+ * Closes the run and, when the asker is still allowed, stores the message, in one transaction under the recording fence; a run
+ * with no conclusive end settles in a plain one. When the fence no longer holds (the asker paused, resumed or cleared) the
+ * answer is dropped and the ask ends without one.
+ */
 async function applyVerdict(
   p: ContributePorts,
-  harness: ReasoningHarness,
+  harness: RecordingReasoningHarness,
   authority: PersonalAuthority,
   request: AiTurnRow,
   verdict: ContributionVerdict,
+  purpose: PersonalRecordingPurpose | undefined,
 ): Promise<void> {
-  await p.withScope(authority, async (scope) => {
-    if (verdict.end) {
-      try {
-        await harness.closeRun(scope, { runId: request.turnId, state: verdict.end });
-      } catch (error) {
-        if (!(error instanceof Error) || error.message !== HARNESS_REFUSAL) throw error;
-      }
-    }
-    if (!(await p.ownerActive(scope))) return;
-    const found = await standingAsk(p, scope, request.turnId);
-    if (found === undefined) return;
-    const at = p.now();
-    if (verdict.kind !== 'contribution' || !found.allowed) {
-      // An answer the asker is no longer allowed to have (they left, the room paused) is dropped, but the
-      // model was called: the ask stays counted. Only an ask that never reached the provider is refunded.
-      await p.ai.settle(found.lock, request.turnId, unpostedOutcome(verdict, found.allowed, at));
-      return;
-    }
-    const messageId = p.newId();
-    await p.discussions.append(found.lock, request.discussionId, {
-      kind: 'ai',
-      messageId,
-      inhabitant: request.inhabitant,
-      aiKind: verdict.answer.kind,
-      text: verdict.answer.text,
-      recordedAt: at,
-    });
-    await p.ai.settle(found.lock, request.turnId, {
-      state: 'completed',
-      at,
-      messageId,
-      provenance: {
-        roleVersion: INHABITANT_ROLE_VERSION,
-        promptVersion: HARNESS_PROMPT_VERSION,
-        model: p.model,
-        attemptId: verdict.attemptId,
-      },
-    });
-    // The room's members read the new message within seconds, not at the next poll.
-    await p.rooms.announce(found.lock, at);
+  const closing = runToClose(request.turnId, purpose, verdict.end);
+  if (closing === undefined) {
+    await p.withScope(authority, (scope) => settle(p, scope, request, verdict));
+    return;
+  }
+  const applied = await applyClosingRun(harness, authority, closing, (scope) => settle(p, scope, request, verdict));
+  if (applied.kind === 'dropped') await p.withScope(authority, (scope) => settle(p, scope, request, FENCE_REFUSED));
+}
+
+/** Stores the message when the asker is still allowed, otherwise settles the ask without one; inside the caller's transaction. */
+async function settle(
+  p: ContributePorts,
+  scope: PersonalScopeTx,
+  request: AiTurnRow,
+  verdict: ContributionVerdict,
+): Promise<void> {
+  if (!(await p.ownerActive(scope))) return;
+  const found = await standingAsk(p, scope, request.turnId);
+  if (found === undefined) return;
+  const at = p.now();
+  if (verdict.kind !== 'contribution' || !found.allowed) {
+    // An answer the asker is no longer allowed to have (they left, the room paused) is dropped, but the
+    // model was called: the ask stays counted. Only an ask that never reached the provider is refunded.
+    await p.ai.settle(found.lock, request.turnId, unpostedOutcome(verdict, found.allowed, at));
+    return;
+  }
+  const messageId = p.newId();
+  await p.discussions.append(found.lock, request.discussionId, {
+    kind: 'ai',
+    messageId,
+    inhabitant: request.inhabitant,
+    aiKind: verdict.answer.kind,
+    text: verdict.answer.text,
+    recordedAt: at,
   });
+  await p.ai.settle(found.lock, request.turnId, {
+    state: 'completed',
+    at,
+    messageId,
+    provenance: {
+      roleVersion: INHABITANT_ROLE_VERSION,
+      promptVersion: HARNESS_PROMPT_VERSION,
+      model: p.model,
+      attemptId: verdict.attemptId,
+    },
+  });
+  // The room's members read the new message within seconds, not at the next poll.
+  await p.rooms.announce(found.lock, at);
 }

@@ -147,6 +147,9 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
       checkPlanner: makeCheckPlannerRecordingRun({ store: plannerStore, now: () => new Date() }),
       checkGeography: makeCheckGeographyRecordingRun({ store: geographyStore, now: () => new Date() }),
       checkSupply: () => Promise.resolve('unavailable' as const),
+      checkScenarios: () => Promise.resolve('unavailable' as const),
+      checkRooms: () => Promise.resolve('unavailable' as const),
+      checkComposer: () => Promise.resolve('unavailable' as const),
     });
     ports = {
       ...(values.get(requestProviders[0]!.provide) as PlannerPorts),

@@ -2,7 +2,12 @@ import type { WorkerConfig } from '../../../infrastructure/config/index.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import type { EnqueueJob } from '../../../infrastructure/jobs/enqueue.js';
 import { requestHash } from '../../../infrastructure/receipts/index.js';
-import { REASONING_HARNESS, type ReasoningHarness } from '../../../reasoning/public.js';
+import {
+  CHECK_COMPOSER_RECORDING_RUN,
+  RECORDING_REASONING_HARNESS,
+  type CheckPersonalRecordingRun,
+  type RecordingReasoningHarness,
+} from '../../../reasoning/public.js';
 import {
   READ_CONTINUATIONS,
   READ_DISCOVERY_CANDIDATES,
@@ -13,9 +18,11 @@ import {
 } from '../../content/public.js';
 import type { WithPersonalScope } from '../../identity/public.js';
 import { READ_COMPOSER_CONTEXT } from '../../personal-context/public.js';
+import { makeCheckComposerRecordingRun } from '../application/check-recording-run.js';
 import { makeAssessShortlist } from '../application/jev.js';
 import { makePrepareBuffer, type PrepareBuffer } from '../application/prepare-buffer.js';
 import type {
+  CheckRecordedActivation,
   ComposeEncounter,
   PersistComposerDecision,
   ReadBufferSource,
@@ -25,6 +32,7 @@ import type {
 } from '../application/ports.js';
 import { prepareBufferQueue } from '../events.js';
 import {
+  CHECK_RECORDED_ACTIVATION,
   COMPOSE_ENCOUNTER,
   PERSIST_COMPOSER_DECISION,
   PREPARE_COMPOSER_BUFFER,
@@ -63,10 +71,26 @@ export function composerBufferProviders(t: { readonly enqueueJob: symbol }) {
   ];
 }
 
-/** The reasoning harness refuses with this fixed message when the run can no longer be closed legitimately. */
-const HARNESS_REFUSAL = 'PERSONAL_REASONING_AUTHORITY_REFUSED';
+/**
+ * The owner check the recording-aware harness runs for Jev's personal runs (D-270): the exposure a buffer job was made for must
+ * still be an activated one. Installed wherever the recording harness is (the worker), because the harness cannot be built without
+ * it; it needs Experience's `CHECK_RECORDED_ACTIVATION`.
+ */
+export function composerRecordingOwnerProviders() {
+  return [
+    {
+      provide: CHECK_COMPOSER_RECORDING_RUN,
+      inject: [CHECK_RECORDED_ACTIVATION],
+      useFactory: (activationRecorded: CheckRecordedActivation): CheckPersonalRecordingRun =>
+        makeCheckComposerRecordingRun({ activationRecorded }),
+    },
+  ];
+}
 
-/** The worker's side: the `composer.prepare-buffer` use case. Jev is built only when `KS_JEV_ENABLED=1`. */
+/**
+ * The worker's side: the `composer.prepare-buffer` use case. Jev is built only when `KS_JEV_ENABLED=1`, and runs on the
+ * recording-aware harness (D-270).
+ */
 export function composerBufferWorkerProviders(t: {
   readonly withPersonalScope: symbol;
   readonly workerConfig: symbol;
@@ -77,7 +101,7 @@ export function composerBufferWorkerProviders(t: {
       inject: [
         t.withPersonalScope,
         t.workerConfig,
-        REASONING_HARNESS,
+        RECORDING_REASONING_HARNESS,
         READ_BUFFER_SOURCE,
         READ_HIDDEN_ASSETS,
         READ_EXACT_ENCOUNTER,
@@ -90,7 +114,7 @@ export function composerBufferWorkerProviders(t: {
       useFactory: (
         withPersonalScope: WithPersonalScope,
         config: WorkerConfig,
-        harness: ReasoningHarness,
+        harness: RecordingReasoningHarness,
         readSource: ReadBufferSource,
         readHidden: ReadHiddenAssets,
         readExactEncounter: ReadExactEncounter,
@@ -119,16 +143,10 @@ export function composerBufferWorkerProviders(t: {
             ? {
                 jev: {
                   assess: makeAssessShortlist(harness),
+                  harness,
                   model: config.reasoning.minimax?.model ?? 'none',
                   readPool: jevPoolStore.read,
                   storePool: jevPoolStore.store,
-                  closeRun: async (scope, runId, state) => {
-                    try {
-                      await harness.closeRun(scope, { runId, state });
-                    } catch (error) {
-                      if (!(error instanceof Error) || error.message !== HARNESS_REFUSAL) throw error;
-                    }
-                  },
                 },
               }
             : {}),

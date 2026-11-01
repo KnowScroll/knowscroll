@@ -20,11 +20,11 @@ import { contentProviders } from '@knowscroll/backend/modules/content/nest-provi
 import { experienceBufferSourceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
 import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
-import { REASONING_HARNESS } from '@knowscroll/backend/reasoning';
+import { RECORDING_REASONING_HARNESS } from '@knowscroll/backend/reasoning';
 import type { NavigationOutcome } from '@knowscroll/contracts';
 import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureHarness } from '../support/fixture-model.js';
+import { fixtureRecordingHarness } from '../support/recording-harness.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { buildFromProviders } from '../support/providers.js';
@@ -355,11 +355,11 @@ describe('Not interested (real PostgreSQL)', () => {
     try {
       const withScope = Symbol('test.withPersonalScope');
       const workerConfig = Symbol('test.workerConfig');
-      const { harness } = fixtureHarness(database.db, { model: undefined });
+      const { harness } = fixtureRecordingHarness(database.db, { model: undefined });
       const values = new Map<symbol, unknown>([
         [withScope, makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })],
         [workerConfig, { jevEnabled: false, reasoning: { minimax: { model: 'fixture-model-v1' } } }],
-        [REASONING_HARNESS, harness],
+        [RECORDING_REASONING_HARNESS, harness],
         [READ_COMPOSER_CONTEXT, buffered.readComposerContext],
         ...[
           ...experienceBufferSourceProviders(),

@@ -64,7 +64,10 @@ describe('personal recording Reasoning prerequisite (PostgreSQL hosted fixtures 
   function recording() {
     const checkPlanner = vi.fn(() => Promise.resolve('unavailable' as const)),
       checkGeography = vi.fn(() => Promise.resolve('unavailable' as const)),
-      checkSupply = vi.fn(() => Promise.resolve('unavailable' as const));
+      checkSupply = vi.fn(() => Promise.resolve('unavailable' as const)),
+      checkScenarios = vi.fn(() => Promise.resolve('unavailable' as const)),
+      checkRooms = vi.fn(() => Promise.resolve('unavailable' as const)),
+      checkComposer = vi.fn(() => Promise.resolve('unavailable' as const));
     const model = fixtureModel();
     const harness = personalRecordingReasoningHarnessFor({
       db: db(),
@@ -76,8 +79,11 @@ describe('personal recording Reasoning prerequisite (PostgreSQL hosted fixtures 
       checkPlanner,
       checkGeography,
       checkSupply,
+      checkScenarios,
+      checkRooms,
+      checkComposer,
     });
-    return { harness, model, checkPlanner, checkGeography, checkSupply };
+    return { harness, model, checkPlanner, checkGeography, checkSupply, checkScenarios, checkRooms, checkComposer };
   }
   const purpose = (p: FixturePerson, g: number, id = randomUUID()): PersonalRecordingPurpose => ({
     version: 'personal-role-purpose.v1',
@@ -91,6 +97,24 @@ describe('personal recording Reasoning prerequisite (PostgreSQL hosted fixtures 
     contextSha256: 'a'.repeat(64),
     modelContextSha256: canonicalSha256(fixtureContext),
     claimId: randomUUID(),
+  });
+
+  it('reads where recording is now for a step that is about to start a run (D-270): on at its generation, paused, on again at the next', async () => {
+    const p = await seedPerson(db());
+    const { harness } = recording();
+    const now = async () => {
+      const entered = await withScope()(p.authority, async (scope) => ({
+        owner: await harness.currentOwner(scope),
+        generation: await harness.currentGeneration(scope),
+      }));
+      if (entered.kind !== 'entered') throw new Error('CI scope refused');
+      return entered.value;
+    };
+    expect(await now()).toEqual({ owner: { accountId: p.accountId, generation: 1 }, generation: 1 });
+    await toggle(p, 1, false);
+    expect(await now()).toEqual({ owner: undefined, generation: undefined });
+    await toggle(p, 2, true);
+    expect(await now()).toEqual({ owner: { accountId: p.accountId, generation: 3 }, generation: 3 });
   });
 
   it('never reads a kept initial1 output/issues after off2/on3, and never upgrades that old run', async () => {

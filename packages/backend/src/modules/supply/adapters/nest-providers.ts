@@ -42,7 +42,6 @@ import {
 import {
   CHECK_SUPPLY_RECORDING_RUN,
   type CheckPersonalRecordingRun,
-  type ReasoningHarness,
   type RecordingReasoningHarness,
 } from '../../../reasoning/public.js';
 import {
@@ -140,17 +139,16 @@ const sendAnswerProduction =
 
 /**
  * Supply's use cases for the API and the worker. `config` names the token of the process's
- * configuration (`SupplySettings`). The worker also passes `harness`, the personal reasoning
- * harness, which lets its resolver match free-text asks to the catalogue, and `recordingHarness`, the recording-aware
- * one (D-264), which lets it place a question asked from a Scroll and read it against the library Scrolls of its subject
- * at the generation it was asked at (it then needs content's `READ_LIBRARY_PASSAGES`, the `FENCE_OWN_ACCOUNT`
- * provider and `supplyRecordingOwnerProviders`); without them (the API, tests) a waiting ask simply waits for a worker.
+ * configuration (`SupplySettings`). The worker also passes `recordingHarness`, the recording-aware personal harness
+ * (D-264, D-270), which lets its resolver match a free-text ask to the catalogue and place a question asked from a Scroll and
+ * read it against the library Scrolls of its subject, each at the person's recording generation (it then needs content's
+ * `READ_LIBRARY_PASSAGES`, the `FENCE_OWN_ACCOUNT` provider and `supplyRecordingOwnerProviders`); without them (the API,
+ * tests) a waiting ask simply waits for a worker.
  */
 export function supplyProviders(t: {
   readonly withPersonalScope: symbol;
   readonly enqueueJob: symbol;
   readonly config: symbol;
-  readonly harness?: symbol;
   readonly recordingHarness?: symbol;
 }) {
   return [
@@ -287,22 +285,19 @@ export function supplyProviders(t: {
       provide: RESOLVE_CONTENT_REQUEST,
       inject: [
         SUPPLY_PORTS,
-        ...(t.harness === undefined || t.recordingHarness === undefined
-          ? []
-          : [t.harness, t.recordingHarness, FENCE_OWN_ACCOUNT, READ_LIBRARY_PASSAGES]),
+        ...(t.recordingHarness === undefined ? [] : [t.recordingHarness, FENCE_OWN_ACCOUNT, READ_LIBRARY_PASSAGES]),
       ],
       useFactory: (
         p: SupplyPorts,
-        harness?: ReasoningHarness,
         recordingHarness?: RecordingReasoningHarness,
         fenceOwn?: FenceOwnAccount,
         readLibrary?: ReadLibraryPassages,
       ) =>
         makeResolveRequest(
           p,
-          harness === undefined || recordingHarness === undefined || fenceOwn === undefined || readLibrary === undefined
+          recordingHarness === undefined || fenceOwn === undefined || readLibrary === undefined
             ? undefined
-            : makeMatchRequest(p, harness, { harness: recordingHarness, fenceOwn }, readLibrary),
+            : makeMatchRequest(p, { harness: recordingHarness, fenceOwn }, readLibrary),
         ),
     },
     {
@@ -313,8 +308,8 @@ export function supplyProviders(t: {
   ];
 }
 /**
- * The owner check the recording-aware harness runs for Supply's personal runs (D-264): the request or the Quick answer a run
- * serves must still be the one it was made for, at the generation it was made at. Installed wherever the recording harness is
+ * The owner check the recording-aware harness runs for Supply's personal runs (D-264, D-270): the request or the Quick answer
+ * a run serves must still be the one it was made for. Installed wherever the recording harness is
  * (the worker), because the harness cannot be built without it.
  */
 export function supplyRecordingOwnerProviders() {
