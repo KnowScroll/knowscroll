@@ -247,9 +247,13 @@ made under `jev.1` is not reused. `KS_JEV_ENABLED` defaults to 0 and is meant to
 generation recording is at (`startRunOwner`) and Jev's run is stamped with it (`purpose` `jev-assessment`, claim the exposure
 the job is for). While recording is paused Jev is absent (`refused_scope_refused`): no run, no call, and the buffer is ranked
 from the baseline as before. When a run was made, the second transaction (the paid assessments, the decision, the buffer and
-the run's close) is one transaction under the recording fence (`commitUnderFence` in `application/prepare-buffer.ts`), so a
-pause, a resume or a Clear while the model worked stores none of it (`recording_changed`; the run is left for the ledger's idle
-sweep) and the next navigation ranks for itself. Jev's owner check (`application/check-recording-run.ts`) asks Experience
+the run's close) is one transaction under the recording fence (`commitUnderFence` in `application/prepare-buffer.ts`). A reply
+that comes back after a pause or a resume is refused by the engine (`refused_output_ineligible`): there is no run to close, Jev
+is absent, and the plain commit stores the baseline decision and buffer at the new generation (a ranking derived from earlier
+data, not evidence; nothing of the late reply is in it). After a Clear the root refuses the plain commit too, so nothing is
+stored. A change only in the gap between accepting the reply and
+storing it refuses that whole transaction: nothing is stored (`recording_changed`; the run is left for the ledger's idle sweep)
+and the next navigation ranks for itself. Jev's owner check (`application/check-recording-run.ts`) asks Experience
 whether the exposure was activated while recording was on (`CHECK_RECORDED_ACTIVATION`), so an exposure activated while recording
 was paused is never assessed, even when its job runs after a resume (the buffer is still ranked from the baseline). It does not
 ask whether the session has moved on, because a superseded job still keeps what it paid for. Status: implemented, CI-verified on real PostgreSQL.

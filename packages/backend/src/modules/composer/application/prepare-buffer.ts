@@ -79,7 +79,7 @@ export type PrepareBufferSkip =
   | 'region_scoped'
   | 'already_prepared'
   | 'nothing_to_offer'
-  /** Recording was paused, resumed or cleared while Jev worked: its result was dropped and nothing was prepared. */
+  /** Recording changed between the engine accepting Jev's reply and the store: the whole second transaction was refused. */
   | 'recording_changed';
 
 export type PrepareBufferResult =
@@ -130,8 +130,10 @@ const skipped = (reason: PrepareBufferSkip): PrepareBufferResult => ({ kind: 'sk
  * (and none at all when there are none, or the subject was assessed minutes ago), on the recording-aware harness at that
  * generation (D-270); (3) the ranking runs with the stored and new assessments; (4) one transaction rechecks the session, adds
  * what was paid for to the person's pool, persists the decision, replaces the buffer and closes Jev's run. When Jev's run
- * was made it is that whole transaction that runs under the recording fence: a person who paused, resumed or cleared recording
- * meanwhile gets nothing stored (`recording_changed`) and the next navigation ranks for itself.
+ * was made it is that whole transaction that runs under the recording fence. A reply that comes back after a pause or a
+ * resume never gets here: the engine refuses it, Jev is absent and the baseline buffer is stored as usual (after a Clear the root
+ * refuses the plain commit too, so nothing is stored). A change only in the gap before the store refuses the transaction whole
+ * (`recording_changed`) and the next navigation ranks for itself.
  * Side effects: `composer.decisions`, `composer.buffers`, `composer.jev_assessments` and Jev's
  * reasoning run. No evidence, no encounter: a buffer is only a prepared ranking.
  * Failure/retry: a redelivery finds the buffer already prepared and does nothing; Jev's run ID is
