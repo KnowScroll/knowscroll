@@ -153,7 +153,7 @@ export function makePrepareBuffer(ports: PrepareBufferPorts): PrepareBuffer {
       source: { offerId: job.sourceOfferId, exposureId: job.sourceExposureId },
     };
 
-    const entered = await ports.withPersonalScope(authority, (scope) => gather(ports, scope, key, delivery));
+    const entered = await ports.withPersonalScope(authority, (scope) => gather(ports, scope, key));
     if (entered.kind !== 'entered') return skipped('universe_unavailable');
     if (entered.value.kind === 'skip') return skipped(entered.value.reason);
     const gathered = entered.value.gathered;
@@ -189,7 +189,6 @@ async function gather(
   ports: PrepareBufferPorts,
   scope: PersonalScopeTx,
   key: BufferKey,
-  delivery: PrepareBufferDelivery,
 ): Promise<{ kind: 'skip'; reason: PrepareBufferSkip } | { kind: 'gathered'; gathered: Gathered }> {
   const skip = (reason: PrepareBufferSkip) => ({ kind: 'skip' as const, reason });
   const now = ports.now();

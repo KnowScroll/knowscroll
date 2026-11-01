@@ -212,7 +212,7 @@ describe('personal recording facade strict protocol (authored source fixtures on
     };
     // Each owner is required on its own: leaving any one out is refused at construction.
     for (const left of Object.keys(all))
-      expect(() => recordingOwnerDispatcher({ ...all, [left]: undefined } as never)).toThrow(
+      expect(() => recordingOwnerDispatcher({ ...all, [left]: undefined })).toThrow(
         'PERSONAL_RECORDING_OWNERS_REQUIRED',
       );
     const dispatch = recordingOwnerDispatcher(all);
