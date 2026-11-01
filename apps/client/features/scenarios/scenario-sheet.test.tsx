@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import type { AccountScope } from '@knowscroll/client-core';
-import { ORPCError } from '@orpc/client';
-import { problemDetails, type ContentThreadRef, type ScenarioCard } from '@knowscroll/contracts';
+import { createApiClient } from '@knowscroll/client-core';
+import { problemDetails, type ContentThreadRef, type ProblemCode, type ScenarioCard } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
 import { ScenarioSheet, type ScenarioStart } from './scenario-sheet';
 
@@ -433,13 +433,40 @@ describe('the What if… sheet', () => {
   });
 
   describe('a refused version of the member’s own', () => {
-    const problem = (code: 'SHARING_UNAVAILABLE' | 'SHARING_REVISION_STALE' | 'INTERNAL') =>
-      new ORPCError(code, { status: code === 'INTERNAL' ? 500 : 400, data: problemDetails(code) });
+    /** What the API client throws for a problem answer: the real error, made by answering a request with it. */
+    async function problem(code: ProblemCode): Promise<unknown> {
+      const details = problemDetails(code);
+      const api = createApiClient({
+        baseUrl: 'https://app.fixture.test',
+        fetch: () =>
+          Promise.resolve(
+            new Response(JSON.stringify(details), {
+              status: details.status,
+              headers: { 'content-type': 'application/problem+json' },
+            }),
+          ),
+      });
+      return api.scenarios
+        .choose({
+          version: 'scenario.v1',
+          commandId: id(30),
+          thread,
+          draftId: id(7),
+          selection: { kind: 'suggestion', optionId: 'o1' },
+        })
+        .then(
+          () => {
+            throw new Error('the fixture answer was not a problem');
+          },
+          (error: unknown) => error,
+        );
+    }
     async function refused(code: 'SHARING_UNAVAILABLE' | 'SHARING_REVISION_STALE' | 'INTERNAL') {
+      const failure = await problem(code);
       await open({
         draft: () => Promise.resolve({ draftId: id(7) }),
         readDraft: () => Promise.resolve({ status: 'failed', reason: 'could_not_suggest' }),
-        choose: () => Promise.reject(problem(code)),
+        choose: () => Promise.reject(failure),
       });
       await ask();
       await fireEvent.press(await screen.findByRole('button', { name: 'Write my own version' }));
