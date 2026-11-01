@@ -20,9 +20,12 @@ import type {
 const HARNESS_REFUSAL = 'PERSONAL_REASONING_AUTHORITY_REFUSED';
 
 type Prepared =
-  /** Nothing to do: the answer is gone, dismissed, expired, settled or belongs to another scope. */
+  /** Nothing to do: the answer is gone, dismissed or settled, or belongs to another scope. */
   | { readonly kind: 'skip' }
-  /** The Scroll can no longer be read for it (withdrawn or held), so no model is asked. */
+  /**
+   * No model is asked and the card closes as unavailable, its words cleared: the Scroll can no longer be read for it
+   * (withdrawn or held), or the job came too late (the wait limit or the day is over), so nobody is waiting for it.
+   */
   | { readonly kind: 'unavailable' }
   | {
       readonly kind: 'ready';
@@ -50,13 +53,11 @@ export function makeAnswerQuickAnswer(p: QuickAnswerPorts, harness: ReasoningHar
   async function prepare(scope: PersonalScopeTx, row: QuickAnswerRow | undefined): Promise<Prepared> {
     if (!(await p.ownerActive(scope))) return { kind: 'skip' };
     const now = p.now();
-    if (
-      row?.state !== 'waiting' ||
-      row.passage === undefined ||
-      row.expiresAt <= now ||
-      now.getTime() - row.createdAt.getTime() > QUICK_ANSWER_WAIT_LIMIT_MS
-    )
-      return { kind: 'skip' };
+    if (row?.state !== 'waiting' || row.passage === undefined) return { kind: 'skip' };
+    // A job that arrives after the person's wait is over (a stopped worker, a queue that was behind) settles the card and
+    // clears the words now: left waiting they would stay up to a day and hold one of the person's places.
+    if (row.expiresAt <= now || now.getTime() - row.createdAt.getTime() > QUICK_ANSWER_WAIT_LIMIT_MS)
+      return { kind: 'unavailable' };
     const facts = await p.readFacts(scope, { assetId: row.assetId, assetRevision: row.assetRevision }, row.stopId);
     if (facts === undefined) return { kind: 'unavailable' };
     const passages = facts.passages.map((passage, index): CitablePassage => ({

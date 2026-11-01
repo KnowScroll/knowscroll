@@ -62,6 +62,7 @@ function fixture(options: Options = {}) {
     receipts: new Map<string, unknown>(),
   };
   let clock = start;
+  let issued = 0;
   const withScope: WithPersonalScope = (_authority, work) => work(scope).then((value) => ({ kind: 'entered', value }));
   const ports: QuickAnswerPorts = {
     withScope,
@@ -127,7 +128,11 @@ function fixture(options: Options = {}) {
         return Promise.resolve();
       },
       countSince: () => Promise.resolve(options.person ?? rows.size),
-      countWaiting: () => Promise.resolve(options.waiting ?? 0),
+      countWaiting: (_scope, youngerThan) =>
+        Promise.resolve(
+          options.waiting ??
+            [...rows.values()].filter((row) => row.state === 'waiting' && row.createdAt > youngerThan).length,
+        ),
     },
     ledger: {
       countSince: () => Promise.resolve(options.ledger ?? 0),
@@ -161,7 +166,7 @@ function fixture(options: Options = {}) {
       return Promise.resolve();
     },
     supportCheck: options.supportCheck ?? (() => Promise.resolve('supported')),
-    newId: () => id(50),
+    newId: () => id(50 + issued++),
     now: () => clock,
   };
   return {
@@ -391,7 +396,37 @@ describe('answering a Quick answer in the worker', () => {
     expect(late.rows.get(id(50))).toMatchObject({ state: 'unavailable', answer: undefined });
   });
 
-  it('asks no model for an answer that is dismissed, settled, past its wait or whose Scroll is gone', async () => {
+  it('settles a job that arrives late as unavailable and clears the words, asking no model: a stopped worker never leaves them waiting', async () => {
+    for (const lateBy of [QUICK_ANSWER_WAIT_LIMIT_MS + 1, 25 * 3_600_000]) {
+      const { ports, rows, tick, log } = fixture();
+      await makeAskQuickAnswer(ports)(authority, command);
+      log.notified.length = 0;
+      tick(lateBy);
+      const model = harness(proposed(good));
+      await makeAnswerQuickAnswer(ports, model.value)(job, signal);
+      expect(model.propose).not.toHaveBeenCalled();
+      expect(rows.get(id(50))).toMatchObject({ state: 'unavailable', passage: undefined, question: undefined });
+      expect(log.notified).toEqual([id(50)]);
+    }
+  });
+
+  it('does not let answers nobody waits for any more hold the person’s places', async () => {
+    const { ports, rows, tick } = fixture({ perPerson: 10, perDay: 10 });
+    const ask = makeAskQuickAnswer(ports);
+    for (let asked = 0; asked < 3; asked += 1) await ask(authority, { ...command, commandId: id(80 + asked) });
+    expect([...rows.values()].filter((row) => row.state === 'waiting')).toHaveLength(3);
+    // Three are waiting: a fourth is refused.
+    expect(await ask(authority, { ...command, commandId: id(90) })).toMatchObject({
+      value: { outcome: 'unavailable', reason: 'too_many_open' },
+    });
+    // Nobody waits for them after the wait limit, whether or not a job ever settled them: the places are free again.
+    tick(QUICK_ANSWER_WAIT_LIMIT_MS + 1);
+    expect(await ask(authority, { ...command, commandId: id(90) })).toMatchObject({
+      value: { outcome: 'accepted' },
+    });
+  });
+
+  it('asks no model for an answer that is dismissed, settled or whose Scroll is gone', async () => {
     const gone = fixture({ facts: false });
     await gone.ports.store.insert(scope, {
       id: id(50),

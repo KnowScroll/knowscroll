@@ -89,12 +89,13 @@ export const quickAnswerStore: QuickAnswerStore = {
       .executeTakeFirstOrThrow();
     return Number(row.total);
   },
-  async countWaiting(scope) {
+  async countWaiting(scope, youngerThan) {
     const row = await transactionOf(scope)
       .selectFrom('supply.quick_answers')
       .select((eb) => eb.fn.countAll<string>().as('total'))
       .where('universe_id', '=', scope.authority.universeId)
       .where('state', '=', 'waiting')
+      .where('created_at', '>', youngerThan)
       .executeTakeFirstOrThrow();
     return Number(row.total);
   },
@@ -114,6 +115,29 @@ export const quickAnswerLedger: QuickAnswerLedger = {
     await transactionOf(scope).insertInto('supply.quick_answer_ledger').values({ id }).execute();
   },
 };
+
+/**
+ * Closes up to `limit` Quick answers that are still `waiting` more than `waitLimitMs` after they were asked: unavailable, with
+ * the words the person selected and typed cleared (the row's own check requires it). The clock is the database's. Rows another
+ * transaction holds are skipped; the next run takes them.
+ */
+export const giveUpStaleQuickAnswers =
+  (db: Kysely<Database>, waitLimitMs: number) =>
+  async (limit: number): Promise<number> => {
+    const closed = await withTransaction(db, 'supply.give-up-quick-answers', (trx) =>
+      sql`
+        update supply.quick_answers
+        set state = 'unavailable', passage = null, question = null, settled_at = now()
+        where (universe_id, id) in (
+          select universe_id, id from supply.quick_answers
+          where state = 'waiting' and created_at <= now() - (${waitLimitMs / 1000} * interval '1 second')
+          order by created_at
+          limit ${limit}
+          for update skip locked
+        )`.execute(trx),
+    );
+    return Number(closed.numAffectedRows ?? 0);
+  };
 
 /**
  * Deletes up to `limit` Quick answers whose day is over (index `quick_answers_expiry`). The clock is the database's.

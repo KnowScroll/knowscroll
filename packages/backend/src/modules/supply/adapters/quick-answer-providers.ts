@@ -30,6 +30,7 @@ import {
   makeDismissQuickAnswer,
   makeReadQuickAnswer,
   makeReadQuickAnswerForReport,
+  QUICK_ANSWER_WAIT_LIMIT_MS,
 } from '../application/quick-answers.js';
 import { answerQuickAnswerQueue } from '../quick-answer-events.js';
 import {
@@ -40,7 +41,12 @@ import {
   READ_QUICK_ANSWER,
   READ_QUICK_ANSWER_FOR_REPORT,
 } from '../public.js';
-import { purgeExpiredQuickAnswers, quickAnswerLedger, quickAnswerStore } from './postgres-quick-answers.js';
+import {
+  giveUpStaleQuickAnswers,
+  purgeExpiredQuickAnswers,
+  quickAnswerLedger,
+  quickAnswerStore,
+} from './postgres-quick-answers.js';
 
 export const QUICK_ANSWER_PORTS = Symbol('supply.quick-answer-ports');
 
@@ -179,7 +185,11 @@ export function quickAnswerPurgeProviders(tokens: { readonly database: symbol; r
       provide: PURGE_QUICK_ANSWERS,
       inject: [tokens.database, tokens.logEvent],
       useFactory: (db: Kysely<Database>, logEvent: LogEvent) =>
-        makePurgeQuickAnswers({ purgeDue: purgeExpiredQuickAnswers(db), logEvent }),
+        makePurgeQuickAnswers({
+          purgeDue: purgeExpiredQuickAnswers(db),
+          giveUpStale: giveUpStaleQuickAnswers(db, QUICK_ANSWER_WAIT_LIMIT_MS),
+          logEvent,
+        }),
     },
   ];
 }

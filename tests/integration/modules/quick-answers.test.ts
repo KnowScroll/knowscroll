@@ -32,7 +32,11 @@ import {
   type ReadQuickAnswerUseCase,
 } from '@knowscroll/backend/modules/supply';
 import { QUICK_ANSWER_PORTS, quickAnswerProviders } from '@knowscroll/backend/modules/supply/nest-providers';
-import { purgeExpiredQuickAnswers } from '../../../packages/backend/src/modules/supply/adapters/postgres-quick-answers.js';
+import {
+  giveUpStaleQuickAnswers,
+  purgeExpiredQuickAnswers,
+} from '../../../packages/backend/src/modules/supply/adapters/postgres-quick-answers.js';
+import { QUICK_ANSWER_WAIT_LIMIT_MS } from '../../../packages/backend/src/modules/supply/application/quick-answers.js';
 import {
   fixtureAuthoredV2,
   fixtureResearchPageV2,
@@ -70,6 +74,21 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
   let scroll: { readonly assetId: string; readonly revision: number };
   let document: ScrollDocumentV2;
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
+  /** The worker's own entries into the personal scope so far, and the one (if any) on which it stops, as a crash would. */
+  let workerEntries = 0;
+  let workerStopsAtEntry: number | undefined;
+  /** The real scope, except that a worker (a system actor) can be made to stop on a chosen entry. */
+  function workerScope(): ReturnType<typeof withScope> {
+    const real = withScope();
+    return (authority, work) => {
+      if (authority.actor.kind === 'system') {
+        workerEntries += 1;
+        if (workerEntries === workerStopsAtEntry)
+          return Promise.reject(new Error('CI: the worker stopped before it stored the answer'));
+      }
+      return real(authority, work);
+    };
+  }
 
   /** Composes the use cases with the given daily caps, the way the API's and the worker's providers do. */
   function build(caps: { perDay: number; perPerson: number }) {
@@ -84,7 +103,7 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
       harness: HARNESS,
     });
     const values = new Map<symbol, unknown>([
-      [SCOPE, withScope()],
+      [SCOPE, workerScope()],
       [ENQUEUE, makeEnqueueJob(content.boss)],
       [CONFIG, { supplyQuickAnswerDailyCap: caps.perDay, supplyQuickAnswerPersonDailyCap: caps.perPerson }],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
@@ -415,15 +434,39 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
       expect(await row(quickAnswerId)).toMatchObject({ state: 'unavailable', answer: null, passage: null });
     });
 
-    it('says it could not answer when the model fails, and a redelivery never pays twice', async () => {
+    it('says it could not answer when the model fails, and a redelivery finds the card settled and asks nothing', async () => {
       await setup();
       const person = await reader();
       script = () => ({ kind: 'server_error' });
       const quickAnswerId = await accept(person);
       await answer(job(person, quickAnswerId), signal());
       await answer(job(person, quickAnswerId), signal());
-      expect(model.calls.length).toBeLessThanOrEqual(1);
+      expect(model.calls).toHaveLength(1);
       expect(await status(person, quickAnswerId)).toMatchObject({ status: 'unavailable' });
+    });
+
+    it('never pays twice for a redelivery: a worker that stopped after the model answered gets the answer from the ledger, not the model', async () => {
+      await setup();
+      const person = await reader();
+      const quickAnswerId = await accept(person);
+      // The first delivery enters the scope to read (entry 1), asks the model, and stops before it enters to store (entry 2).
+      workerEntries = 0;
+      workerStopsAtEntry = 2;
+      await expect(answer(job(person, quickAnswerId), signal())).rejects.toThrow('the worker stopped');
+      workerStopsAtEntry = undefined;
+      expect(model.calls).toHaveLength(1);
+      expect(await row(quickAnswerId)).toMatchObject({ state: 'waiting' });
+      // The redelivery reads the same row, reaches the ledger through the harness, and stores the answer the first one paid for.
+      await answer(job(person, quickAnswerId), signal());
+      expect(model.calls).toHaveLength(1);
+      expect(await row(quickAnswerId)).toMatchObject({ state: 'answered', passage: null, question: null });
+      // The ledger holds the one attempt, settled.
+      const attempts = await sql<{
+        n: string;
+      }>`select count(*) as n from reasoning.external_attempts where run_id = ${quickAnswerId}::uuid`.execute(
+        database.db,
+      );
+      expect(Number(attempts.rows[0]!.n)).toBe(1);
     });
 
     it('says it could not answer, calling no model, for a person who paused and resumed recording: the personal harness runs only at the first generation', async () => {
@@ -481,6 +524,58 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
       expect((await facts(read[1]!.id))?.passages.map((passage) => passage.stopId)).toEqual([read[0]!.id, read[1]!.id]);
       expect(await facts(document.stops.find((stop) => stop.kind !== 'read')!.id)).toBeUndefined();
       expect(await facts('no-such-stop')).toBeUndefined();
+    });
+  });
+
+  describe('an answer nobody waits for any more (B3)', () => {
+    const longAgo = () => sql`now() - interval '1 hour'`;
+
+    it('is settled as unavailable with its words cleared when its job arrives late, and no model is asked', async () => {
+      await setup();
+      const person = await reader();
+      const quickAnswerId = await accept(person, askCommand({ question: 'Why does it matter?' }));
+      await sql`update supply.quick_answers set created_at = ${new Date(Date.now() - 3_600_000)} where id = ${quickAnswerId}::uuid`.execute(
+        database.db,
+      );
+      await answer(job(person, quickAnswerId), signal());
+      expect(model.calls).toHaveLength(0);
+      expect(await row(quickAnswerId)).toMatchObject({
+        state: 'unavailable',
+        passage: null,
+        question: null,
+        answer: null,
+      });
+      expect(await status(person, quickAnswerId)).toMatchObject({ status: 'unavailable', reason: 'could_not_answer' });
+    });
+
+    it('does not hold the person’s places: rows older than the wait limit are not counted, so a fourth ask is accepted', async () => {
+      await setup();
+      const person = await reader();
+      const old: string[] = [];
+      for (let n = 0; n < 3; n += 1) old.push(await accept(person));
+      expect(await ask(person.authority, askCommand())).toMatchObject({
+        value: { outcome: 'unavailable', reason: 'too_many_open' },
+      });
+      for (const quickAnswerId of old)
+        await sql`update supply.quick_answers set created_at = ${new Date(Date.now() - 3_600_000)} where id = ${quickAnswerId}::uuid`.execute(
+          database.db,
+        );
+      expect(await ask(person.authority, askCommand())).toMatchObject({ value: { outcome: 'accepted' } });
+    });
+
+    it('is closed by the scheduled purge when no job ever ran: unavailable, the words cleared, a younger answer left alone', async () => {
+      await setup();
+      const person = await reader();
+      const stale = await accept(person, askCommand({ question: 'Why does it matter?' }));
+      const young = await accept(person);
+      await sql`update supply.quick_answers set created_at = ${longAgo()} where id = ${stale}::uuid`.execute(
+        database.db,
+      );
+      expect(await giveUpStaleQuickAnswers(database.db, QUICK_ANSWER_WAIT_LIMIT_MS)(500)).toBe(1);
+      expect(await row(stale)).toMatchObject({ state: 'unavailable', passage: null, question: null });
+      expect(await row(young)).toMatchObject({ state: 'waiting' });
+      // Nothing is left to close, and the closed one is kept until its day is over and then purged.
+      expect(await giveUpStaleQuickAnswers(database.db, QUICK_ANSWER_WAIT_LIMIT_MS)(500)).toBe(0);
     });
   });
 

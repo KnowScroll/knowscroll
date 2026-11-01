@@ -45,7 +45,8 @@ async function refusalReason(
   const startOfDay = utcDayStart(now);
   if ((await p.ledger.countSince(scope, startOfDay)) >= p.caps.perDay) return 'not_available';
   if ((await p.store.countSince(scope, startOfDay)) >= p.caps.perPersonPerDay) return 'person_limit';
-  if ((await p.store.countWaiting(scope)) >= MAX_OPEN_QUICK_ANSWERS) return 'too_many_open';
+  const stillWaitedFor = new Date(now.getTime() - QUICK_ANSWER_WAIT_LIMIT_MS);
+  if ((await p.store.countWaiting(scope, stillWaitedFor)) >= MAX_OPEN_QUICK_ANSWERS) return 'too_many_open';
   return undefined;
 }
 

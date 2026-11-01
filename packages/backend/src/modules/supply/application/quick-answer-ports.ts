@@ -61,8 +61,11 @@ export interface QuickAnswerStore {
   dismiss(scope: PersonalScopeTx, id: string): Promise<void>;
   /** The person's answers asked since `since`, every state: what their daily cap counts. */
   countSince(scope: PersonalScopeTx, since: Date): Promise<number>;
-  /** The person's answers still waiting, which bound the jobs they can queue. */
-  countWaiting(scope: PersonalScopeTx): Promise<number>;
+  /**
+   * The person's answers still waiting and asked after `youngerThan`: what bounds the jobs they can queue. A row older than
+   * the wait limit is no longer waited for by anyone, so it never holds a place (the worker or the purge settles it).
+   */
+  countWaiting(scope: PersonalScopeTx, youngerThan: Date): Promise<number>;
 }
 
 /** Quartermaster's ledger of Quick answers: an ID and a time, no person and no words (migration 0092). */
