@@ -7,7 +7,6 @@ import {
   replayCountLine,
   replayHostLine,
   replayScoreLine,
-  squaresOf,
   type RoomReplayController,
   type RoomReplayState,
 } from '@knowscroll/client-core';
@@ -161,13 +160,6 @@ export function ReplaySheet({
               <View style={styles.reveal} testID="replay-done">
                 <Text variant="title" heading={2}>
                   {replayScoreLine(state.squares)}
-                </Text>
-                <Text
-                  variant="metaS"
-                  color={content.ink2}
-                  accessibilityLabel={`${String(state.squares.filter(Boolean).length)} right`}
-                >
-                  {squaresOf(state.squares)}
                 </Text>
                 <Text variant="metaS" color={content.ink2}>
                   This replay is just for you. The podium and the room’s star stay as they were.

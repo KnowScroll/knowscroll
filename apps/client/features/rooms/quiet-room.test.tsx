@@ -207,6 +207,8 @@ describe('the replay of a finished Launch', () => {
       replayState({ step: 'done', index: 4, squares: [true, true, false, true, false] }),
     );
     expect(screen.getByTestId('replay-done')).toHaveTextContent(/You’d have got 3 of 5 · ■■□■□/);
+    // The squares are drawn once, in the score line, and not again under it.
+    expect(screen.getAllByText(/[■□]{5}/)).toHaveLength(1);
     expect(screen.getByTestId('replay-done')).toHaveTextContent(/The podium and the room’s star stay as they were./);
     await fireEvent.press(screen.getByTestId('replay-done-button'));
     expect(controller.leave).toHaveBeenCalledTimes(1);
