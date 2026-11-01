@@ -546,7 +546,9 @@ export const feedReadStore: FeedReadStore = {
         select 'replied', discussion.discussion_id, reply.recorded_at, reply.author_account_id, null::uuid, null::text
         from rooms.messages reply
         join rooms.discussions discussion on discussion.discussion_id = reply.discussion_id
+        join rooms.messages first on first.discussion_id = discussion.discussion_id and first.sequence = 1
         where discussion.room_id = ${lock.roomId}::uuid and discussion.kind in ('find', 'intro')
+          and first.hidden_at is null and first.body_text is not null
           and reply.sequence > 1 and reply.author_account_id is not null and reply.hidden_at is null
           and reply.recorded_at >= ${since}
       ) events

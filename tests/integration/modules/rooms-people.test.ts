@@ -347,10 +347,16 @@ describe('people and residents in the Feed (real PostgreSQL, CI fixture model)',
           (event) => event.by.kind === 'person' && event.by.person.personId === asha.person.personId,
         ),
       ).toBe(true);
+      // A reply under the post is an event of its own, until the post it answers is removed.
+      at(3 * MINUTE);
+      unwrap(await say(world, kenji, roomId, removed, 'The tides are the interesting part.'));
+      expect((await live(ravi, roomId))!.map((event) => event.kind)).toContain('replied');
       const view = await readDiscussion(world, moderator, roomId, removed);
       if (view.status !== 'ready') throw new Error('expected ready');
       unwrap(await hideMessage(world, moderator, roomId, removed, view.messages[0]!.messageId));
-      expect((await live(ravi, roomId))!.map((event) => event.discussionId)).not.toContain(removed);
+      const afterRemoval = (await live(ravi, roomId))!;
+      expect(afterRemoval.map((event) => event.discussionId)).not.toContain(removed);
+      expect(afterRemoval.map((event) => event.kind)).not.toContain('replied');
     });
   });
 
