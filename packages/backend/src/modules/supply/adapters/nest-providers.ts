@@ -17,11 +17,13 @@ import {
   READ_SCROLL_PRODUCTION,
   READ_SCROLL_ASK_FACTS,
   READ_SCROLL_SOURCE_PAGES,
+  READ_LIBRARY_PASSAGES,
   READ_MADE_TO_ORDER_PRODUCTION_IN,
   READ_ASK_ORDER_AUDIENCE,
   LOCK_CURRENT_ENCOUNTERS,
   RECORD_MADE_TO_ORDER_SCROLL,
   type RecordMadeToOrderScroll,
+  type ReadLibraryPassages,
   type ReadScrollAskFacts,
   type ReadScrollSourcePages,
   type ReadMadeToOrderProductionIn,
@@ -117,8 +119,9 @@ const sendProduction =
 /**
  * Supply's use cases for the API and the worker. `config` names the token of the process's
  * configuration (`SupplySettings`). The worker also passes `harness`, the personal reasoning
- * harness, which lets its resolver match free-text asks to the catalogue; without it (the API, tests)
- * a free-text ask simply waits for a worker.
+ * harness, which lets its resolver match free-text asks to the catalogue and read a question against the
+ * library Scrolls of its subject (it then needs content's `READ_LIBRARY_PASSAGES`); without it (the API,
+ * tests) a free-text ask simply waits for a worker.
  */
 export function supplyProviders(t: {
   readonly withPersonalScope: symbol;
@@ -202,6 +205,7 @@ export function supplyProviders(t: {
         lockCurrent,
         checkSource,
         newId: () => uuidv7(),
+        idFor: stableUuid,
         now: () => new Date(),
         advance: advanceScopeRevision,
         notify: (scope, revision, eventId) => notifyScopeChanged(scope, { revision, eventId }),
@@ -256,9 +260,12 @@ export function supplyProviders(t: {
     { provide: RETRY_CONTENT_REQUEST, inject: [SUPPLY_PORTS], useFactory: (p: SupplyPorts) => makeRetryRequest(p) },
     {
       provide: RESOLVE_CONTENT_REQUEST,
-      inject: [SUPPLY_PORTS, ...(t.harness === undefined ? [] : [t.harness])],
-      useFactory: (p: SupplyPorts, harness?: ReasoningHarness) =>
-        makeResolveRequest(p, harness === undefined ? undefined : makeMatchRequest(p, harness)),
+      inject: [SUPPLY_PORTS, ...(t.harness === undefined ? [] : [t.harness, READ_LIBRARY_PASSAGES])],
+      useFactory: (p: SupplyPorts, harness?: ReasoningHarness, readLibrary?: ReadLibraryPassages) =>
+        makeResolveRequest(
+          p,
+          harness === undefined || readLibrary === undefined ? undefined : makeMatchRequest(p, harness, readLibrary),
+        ),
     },
     {
       provide: RECORD_PLANNED_DEMAND,

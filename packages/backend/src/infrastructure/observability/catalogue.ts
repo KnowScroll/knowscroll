@@ -261,6 +261,7 @@ export const diagnosticCatalogue = {
   'geography.quiet_settled': { severity: 'info', module: 'geography', fields: ['outcome', 'count'] },
   // The night's room items (D-176) failed for one room: its slug and the sanitised error. The other rooms are still drafted and the job retries.
   'rooms.rituals_room_failed': { severity: 'warn', module: 'rooms', fields: ['context', 'error'] },
+  'rooms.feed_room_failed': { severity: 'warn', module: 'rooms', fields: ['context', 'error'] },
   // The daily purge removed reports about deleted accounts whose 90 days were over (D-055).
   'feedback.reports_purged': { severity: 'info', module: 'feedback', fields: ['count'] },
   // The scheduled purge removed Quick answers whose day was over (D-253).

@@ -52,7 +52,7 @@ export function proseBlocksOf(stored: unknown): readonly Block[] {
 }
 
 /** The topic IDs a library topic covers: a system covers each of its planets, a planet itself. */
-function topicIdsOf(topic: { readonly kind: 'system' | 'planet'; readonly id: string }): readonly string[] {
+export function topicIdsOf(topic: { readonly kind: 'system' | 'planet'; readonly id: string }): readonly string[] {
   return topic.kind === 'planet'
     ? CONCEPTS.some((concept) => concept.id === topic.id && concept.parent !== null)
       ? [topic.id]

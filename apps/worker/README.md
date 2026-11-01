@@ -165,7 +165,7 @@ The ritual commands (`src/rooms-ritual-operator.ts`, v3 R-5, D-176) are `rooms r
 registered with the other room jobs only while `KS_REASONING_ROOM_ENABLED=1`) drafts today's day for every open room with a member; nothing it drafts is
 shown to a member before an operator approves it (the rooms README, "Today's ritual items"). The same commands draft and approve a room's **Launch deck** (v3 R-6, D-179): five calls of the room topic's library Scrolls chosen by code, with no model call, listed with their right answers for the operator and re-read from their Scrolls when approved.
 
-The room face commands (`src/rooms-face-operator.ts`, v3 R-4, D-166, D-170, D-171) are `rooms kit`, `kit-list`, `kit-review`, `backdrop`,
+The `rooms.feed-heartbeat` consumer (cron `7 0,8,16 * * *`, v3 R-8, D-248) gives each open room that has someone listening one look by its residents: it writes the room's memory again when due and posts a find about a library asset the room has not seen (two roles, `rooms.ambient-memory` and `rooms.ambient-find-explainer` or `-skeptic`, under the nonpersonal `rooms` scope; no call when there is nothing to do). It is registered only where `KS_REASONING_ROOM_ENABLED=1` **and** `KS_ROOMS_FEED_ENABLED=1`, so a world that has residents on does not start posting until its own switch is on. `rooms feed --room <slug> [--dry-run]` (`src/rooms-feed-operator.ts`) makes one look at one room exactly as the heartbeat does, or prints the assets code would choose from; one JSON line. The room face commands (`src/rooms-face-operator.ts`, v3 R-4, D-166, D-170, D-171) are `rooms kit`, `kit-list`, `kit-review`, `backdrop`,
 `backdrop-list`, `backdrop-review`, `spend`, `backdrop-reconcile` and `backdrop-write-off` (the rooms README lists their options). `kit` calls the
 `rooms.station-kit` role under the `rooms` scope (it needs `KS_REASONING_ROOM_ENABLED=1` and a provider); `backdrop` asks MiniMax's `image-01` for one
 still and stores it under `KS_MEDIA_ROOT` (it needs the same key and a media root), and is the only command here that spends money: it is refused
@@ -175,7 +175,7 @@ when the recorded total plus its estimate would pass $1 in all. `--dry-run` call
 the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and
 `content production-status [--only <keys>]` lists every recipe's standing, and for a v2 recipe its regeneration state, the takes it has
 left and what the answer check said. `content regenerate --only <keys> [--dry-run]` (`src/library-operator.ts`, D-197) sends the next take of a
-v2 recipe whose Scroll is served; the new take is stored held. These touch only the shared database and pg-boss; no provider is called. `content admit-continuity [--dry-run]` admits the library
+v2 recipe whose Scroll is served; the new take is stored held. These touch only the shared database and pg-boss; no provider is called. `content ask-check (--asset <id,…> | --recent <n>) --out <file>` (`src/ask-check-operator.ts`, D-250 to D-252) runs the support checker again over stored ask answers through the production harness: counts on stdout, the sentences and verdicts in the file; it stores nothing (runbook: scroll-production.md). `content admit-continuity [--dry-run]` admits the library
 plan's series (Part tabs) and related moves (Related tab) between the published Scrolls: idempotent,
 shared database only (D-059).
 

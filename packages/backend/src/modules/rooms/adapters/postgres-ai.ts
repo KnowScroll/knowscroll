@@ -8,7 +8,8 @@ import { askKindOf, contributionKindOf, inhabitantOf, turnStateOf, turnTriggerOf
 interface TurnColumns {
   turn_id: string;
   room_id: string;
-  discussion_id: string;
+  /** Null for a find that was not posted and for a memory refresh: neither is a turn of a discussion (migration 0091). */
+  discussion_id: string | null;
   inhabitant: string;
   requested_by_account_id: string | null;
   state: string;
@@ -38,10 +39,16 @@ const TURN_COLUMNS = [
   'held_text',
 ] as const;
 
+/** The discussion of a turn an ask or the router made: every such turn has one. Finds and refreshes are never read here. */
+function discussionOf(row: TurnColumns): string {
+  if (row.discussion_id === null) throw new Error('ROOMS_TURN_WITHOUT_DISCUSSION');
+  return row.discussion_id;
+}
+
 const turnOf = (row: TurnColumns): AiTurnRow => ({
   turnId: row.turn_id,
   roomId: row.room_id,
-  discussionId: row.discussion_id,
+  discussionId: discussionOf(row),
   inhabitant: inhabitantOf(row.inhabitant),
   requestedByAccountId: row.requested_by_account_id,
   state: turnStateOf(row.state),
@@ -165,6 +172,7 @@ export const aiStore: AiStore = {
       .select(TURN_COLUMNS)
       .where('turn_id', '=', turnId)
       .where('room_id', '=', lock.roomId)
+      .where('trigger', 'not in', ['feed_find', 'memory_refresh'])
       .executeTakeFirst();
     return row === undefined ? undefined : turnOf(row);
   },
@@ -270,7 +278,8 @@ export const aiStore: AiStore = {
         count(*) filter (where turn.created_at >= ${hourStart} and turn.inhabitant = ${query.inhabitant}) as resident_hour,
         count(*) filter (where turn.created_at >= ${hourStart} and turn.inhabitant = 'skeptic'
           and cause.author_account_id = ${query.authorAccountId}::uuid) as person_hour,
-        max(turn.created_at) filter (where turn.state in ('queued', 'completed')) as last_at
+        max(turn.created_at) filter (where turn.state in ('queued', 'completed')
+          and turn.trigger not in ('feed_find', 'memory_refresh')) as last_at
       from rooms.ai_turns turn
       left join rooms.messages cause on cause.message_id = turn.cause_message_id
       where turn.room_id = ${lock.roomId}::uuid and turn.trigger <> 'asked' and turn.state <> 'refused'

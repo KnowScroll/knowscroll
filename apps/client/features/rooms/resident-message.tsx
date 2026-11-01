@@ -18,6 +18,7 @@ export const KIND_WORDS = {
   assumption: 'An assumption to check',
   perspective: 'Another perspective',
   counterexample: 'A counterexample',
+  find: 'A find',
 } as const satisfies Record<AiContributionKind, string>;
 
 /**
@@ -28,6 +29,7 @@ export const WHY_WORDS = {
   unanswered_question: 'Answering a question nobody had answered yet',
   overstated_claim: 'Asking about something said very strongly',
   answer_overstated: 'Replying to something said very strongly above',
+  feed_find: 'Found something in the library that this room has not seen',
 } as const satisfies Record<RoomSpeechTrigger, string>;
 
 /**

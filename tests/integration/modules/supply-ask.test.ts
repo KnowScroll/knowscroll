@@ -3,8 +3,10 @@ import { sql } from 'kysely';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { CreateContentRequest } from '@knowscroll/contracts';
 import { parseDocumentV2 } from '@knowscroll/scroll-model';
+import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { exportCurrentPerson, personalStores } from '@knowscroll/backend/erasure-registry';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
+import { stableUuid } from '@knowscroll/backend/infrastructure/ids';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import {
   fencePersonalRecording,
@@ -14,12 +16,13 @@ import {
 import { FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
 import {
   contentProviders,
+  makeReadLibraryPassages,
   makeReviewGate,
   readScrollAskFacts,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
-import { produceScrollJob } from '@knowscroll/backend/modules/content';
+import { READ_LIBRARY_PASSAGES, produceScrollJob } from '@knowscroll/backend/modules/content';
 import { READ_EXPLORATION_SNAPSHOT } from '@knowscroll/backend/modules/personal-context';
 import {
   CANCEL_CONTENT_REQUEST,
@@ -42,12 +45,28 @@ import {
 } from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { madeToOrderKey } from '../../../packages/backend/src/modules/content/domain/order-key.js';
+import { UNSUPPORTED_HINTS } from '../../../packages/backend/src/modules/content/domain/ask-support.js';
+import {
+  askSupportRepairRunId,
+  askSupportRunId,
+} from '../../../packages/backend/src/modules/content/production/ask-support-step.js';
+import { sentencesOfAnswer } from '../../../packages/backend/src/modules/content/production/ask-support.js';
+import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { makeReadAskOrderAudience } from '../../../packages/backend/src/modules/supply/adapters/postgres-ask-orders.js';
 import { makeCheckAssetAudience } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal, fixtureHarness, fixtureModel } from '../support/fixture-model.js';
-import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
+import type { FixtureCall, FixtureScenario } from '../support/fixture-model-port.js';
+import {
+  answerWith,
+  enableProductionScope,
+  fixtureAnswer,
+  fixtureAuthored,
+  fixtureProduction,
+  fixtureResearchFor,
+  supportReply,
+  supportRequestOf,
+} from '../support/generated-scroll.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
 import { openActive } from '../support/observations.js';
 import { buildFromProviders } from '../support/providers.js';
@@ -70,6 +89,15 @@ const scopeAnswer = (
   facetId: string | null = null,
 ): FixtureScenario => ({ kind: 'success', text: JSON.stringify({ scope, topicId, facetId }) });
 
+/** The library check's answer: a Scroll by handle with words of it, or neither. */
+const libraryReply = (scroll: string | null, quote: string | null): FixtureScenario => ({
+  kind: 'success',
+  text: JSON.stringify({ scroll, quote }),
+});
+const isLibraryCall = (call: FixtureCall): boolean => call.request.system.includes('supply.ask-library');
+/** Words of the labelled library Scroll's first paragraph (the CI lighthouse text). */
+const LIBRARY_QUOTE = 'a way to know where the land begins';
+
 describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
   let database: TestDatabase<Database>;
   let content: Awaited<ReturnType<typeof scrollUseCases>>;
@@ -81,8 +109,14 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
   let resolve: ResolveRequest;
   let production: ReturnType<typeof fixtureProductionWorker>;
   let writer: () => FixtureScenario;
+  /** The support checker's replies for an ask order's answer; by default every sentence is supported. */
+  let supportScript: NonNullable<NonNullable<Parameters<typeof fixtureProductionWorker>[2]>['support']>;
   let scopeScript: () => FixtureScenario;
+  let libraryScript: (call: FixtureCall) => FixtureScenario;
   let scopeModel: ReturnType<typeof fixtureModel>;
+  /** The library Scroll a question about tides may be answered by: a labelled CI v1 Scroll under `earth.tides`. */
+  let library: { readonly assetId: string; readonly revision: number };
+  const libraryCalls = () => scopeModel.calls.filter(isLibraryCall);
   let scroll: { readonly assetId: string; readonly revision: number };
   let stopId: string;
   let suggestions: readonly string[];
@@ -115,6 +149,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [READ_EXPLORATION_SNAPSHOT, content.readExploration],
       [HARNESS, fixtureHarness(database.db, { model: scopeModel }).harness],
+      [READ_LIBRARY_PASSAGES, makeReadLibraryPassages(database.db)],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),
       ...experienceEvidenceReadProviders().map((p) => [p.provide, p.useValue] as const),
@@ -155,6 +190,19 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       .executeTakeFirstOrThrow();
     const parsed = parseDocumentV2(row.document);
     if (parsed.kind !== 'valid') throw new Error('the CI fixture must parse');
+    // The library: a v1 Scroll of the tides recipe, produced as it was before the waves (Create writes only v1 recipes).
+    const restoreTides = markScrollV1('tides');
+    try {
+      const tides = fixtureProduction(
+        database.db,
+        () => answerWith(fixtureAuthored(writerFormatOf(TOPICS.tides))),
+        fixtureResearchFor,
+      );
+      expect(await tides.produce('tides', false, signal())).toMatchObject({ outcome: 'published' });
+    } finally {
+      restoreTides();
+    }
+    library = { assetId: TOPICS.tides.assetId, revision: 1 };
     stopId = parsed.document.stops[0]!.id;
     suggestions = parsed.document.askSuggestions;
     content = await scrollUseCases(database, {
@@ -167,8 +215,10 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     await database.drop();
   });
   afterEach(() => {
-    writer = () => answerWith(fixtureAuthored('plain'));
+    writer = () => answerWith(fixtureAnswer());
     scopeScript = () => scopeAnswer('here');
+    libraryScript = () => libraryReply(null, null);
+    supportScript = (_check, call) => supportReply(call);
   });
 
   async function setup(caps?: Parameters<typeof build>[0]) {
@@ -176,10 +226,16 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     await sql`delete from pgboss.job where name = 'content.produce-scroll'`.execute(database.db);
     await sql`delete from supply.requests`.execute(database.db);
     await sql`delete from supply.ask_orders`.execute(database.db);
-    writer = () => answerWith(fixtureAuthored('plain'));
+    writer = () => answerWith(fixtureAnswer());
     scopeScript = () => scopeAnswer('here');
-    scopeModel = fixtureModel(() => scopeScript(), { label: 'supply-ask-scope-CI-fixture' });
-    production = fixtureProductionWorker(database, () => writer());
+    libraryScript = () => libraryReply(null, null);
+    supportScript = (_check, call) => supportReply(call);
+    scopeModel = fixtureModel((_sequence, call) => (isLibraryCall(call) ? libraryScript(call) : scopeScript()), {
+      label: 'supply-ask-scope-CI-fixture',
+    });
+    production = fixtureProductionWorker(database, () => writer(), {
+      support: (check, call) => supportScript(check, call),
+    });
     build(caps);
   }
 
@@ -333,40 +389,179 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(stored.brief.split('\n')).toHaveLength(4);
     });
 
-    it('names another subject the catalogue covers: it goes to the library, and makes no ask order', async () => {
-      await setup();
-      const { person, exposure } = await reader();
-      scopeScript = () => scopeAnswer('catalogue', 'earth.tides');
-      const requestId = await ask(person, askCommand(exposure, 'How do tides work?'));
-      // Create writes only v1 library recipes (D-138): the tides recipe is one for this question, as it was before the waves.
-      const restoreLibrary = markScrollV1('tides');
-      try {
+    describe('a question that names another subject the catalogue covers (D-251)', () => {
+      /** A typed question the scope step places on a catalogue subject, resolved by the worker. */
+      async function placed(topicId: string, question = 'How do ships know where the land begins?') {
+        const { person, exposure } = await reader();
+        scopeScript = () => scopeAnswer('catalogue', topicId);
+        const requestId = await ask(person, askCommand(exposure, question));
         await resolve(job(person, requestId));
-      } finally {
-        restoreLibrary();
+        return { person, requestId };
       }
-      const row = await requestRow(requestId);
-      expect(row).toMatchObject({ state: 'requested', ask_order_id: null });
-      // The library's own Create started the work, under its own cap, and the ask ledger stayed empty.
-      expect(row.work_id).not.toBeNull();
-      expect(await database.db.selectFrom('supply.ask_orders').select('order_id').execute()).toEqual([]);
-    });
+      /** The library check's run of one request, derived from the request's ID. */
+      const libraryRunOf = (requestId: string) =>
+        database.db
+          .selectFrom('reasoning.business_runs')
+          .select(['purpose', 'state'])
+          .where('id', '=', stableUuid(`supply.ask-library:${requestId}`))
+          .execute();
 
-    it('closes as could-not-prepare when the library has no served Scroll for it and Create may not write a v2 recipe (D-138)', async () => {
-      await setup();
-      const { person, exposure } = await reader();
-      scopeScript = () => scopeAnswer('catalogue', 'earth.tides');
-      const requestId = await ask(person, askCommand(exposure, 'How do tides work?'));
-      await resolve(job(person, requestId));
-      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
-      expect(await database.db.selectFrom('supply.ask_orders').select('order_id').execute()).toEqual([]);
-      expect(await queuedProduction()).toEqual([]);
+      it('serves a library Scroll when the checker finds that it answers, with words of it that do', async () => {
+        await setup();
+        libraryScript = () => libraryReply('s1', LIBRARY_QUOTE);
+        const { person, requestId } = await placed('earth.tides');
+
+        expect(await status(person, requestId)).toMatchObject({
+          status: 'ready',
+          content: { assetId: library.assetId },
+        });
+        expect(await requestRow(requestId)).toMatchObject({ state: 'ready', decision: 'reuse', ask_order_id: null });
+        // The checker read the question with the words of the library Scroll, and not the Scroll being read.
+        const checks = libraryCalls();
+        expect(checks).toHaveLength(1);
+        expect(checks[0]!.request.user).toContain('How do ships know where the land begins?');
+        expect(checks[0]!.request.user).toContain(LIBRARY_QUOTE);
+        // Nothing was ordered, queued or counted: the library answered.
+        expect(await database.db.selectFrom('supply.ask_orders').select('order_id').execute()).toEqual([]);
+        expect(await queuedProduction()).toEqual([]);
+        expect(await libraryRunOf(requestId)).toEqual([{ purpose: 'ask-library', state: 'completed' }]);
+      });
+
+      it('does not offer a library Scroll that does not answer: an order is made for the question instead', async () => {
+        await setup();
+        libraryScript = () => libraryReply(null, null);
+        const { person, requestId } = await placed('earth.tides');
+
+        expect(libraryCalls()).toHaveLength(1);
+        // Not the library's Scroll: the request waits on an order made for this question, counted in the ledger.
+        expect(await requestRow(requestId)).toMatchObject({ state: 'requested', decision: 'create', content: null });
+        const order = await orderOf(requestId);
+        expect(await status(person, requestId)).toMatchObject({ status: 'preparing', phase: 'preparing' });
+        expect(await database.db.selectFrom('supply.ask_orders').select('order_id').execute()).toEqual([
+          { order_id: order.orderId },
+        ]);
+        expect(await queuedProduction()).toEqual([expect.objectContaining({ recipe: order.recipe, take: 1 })]);
+        expect(await libraryRunOf(requestId)).toEqual([{ purpose: 'ask-library', state: 'completed' }]);
+      });
+
+      it.each([
+        ['a quote that is not in the Scroll', () => libraryReply('s1', 'words the Scroll never wrote at all')],
+        [
+          'a quote of the Scroll that is not about the question',
+          () => libraryReply('s1', 'In earlier times a keeper climbed the stairs'),
+        ],
+        ['a Scroll that is not a candidate', () => libraryReply('s7', LIBRARY_QUOTE)],
+        ['a Scroll without a quote', () => libraryReply('s1', null)],
+        [
+          'an answer that is not the shape asked for',
+          (): FixtureScenario => ({ kind: 'success', text: '{"ok":true}' }),
+        ],
+      ] as const)('offers nothing on %s, after the one repair, and makes an order', async (_name, reply) => {
+        await setup();
+        libraryScript = reply;
+        const { requestId } = await placed('earth.tides');
+
+        // The checker's word alone offers nothing: code needs the quote in the text. One repair, then no offer.
+        expect(libraryCalls()).toHaveLength(2);
+        expect(await requestRow(requestId)).toMatchObject({ state: 'requested', decision: 'create', content: null });
+        expect((await requestRow(requestId)).ask_order_id).not.toBeNull();
+        expect(await libraryRunOf(requestId)).toEqual([{ purpose: 'ask-library', state: 'failed' }]);
+      });
+
+      it('makes an order without asking the checker when the subject has no library Scroll', async () => {
+        await setup();
+        const { requestId } = await placed('earth.greenhouse-effect');
+        expect(libraryCalls()).toHaveLength(0);
+        expect(await requestRow(requestId)).toMatchObject({ state: 'requested', decision: 'create' });
+        expect((await requestRow(requestId)).ask_order_id).not.toBeNull();
+      });
+
+      it('never starts the library for a question: no shared work, no Create cap spent', async () => {
+        await setup();
+        libraryScript = () => libraryReply(null, null);
+        const { requestId } = await placed('earth.tides');
+        expect((await requestRow(requestId)).work_id).toBeNull();
+        expect(await database.db.selectFrom('supply.work').select('id').execute()).toEqual([]);
+      });
+
+      it('reads the question against the library Scroll and never against the Scroll being read', async () => {
+        await setup();
+        // The Scroll being read is filed under the same subject, so it fits that meaning exactly.
+        await database.db
+          .updateTable('content.encounter_topics')
+          .set({ topic_id: 'earth.tides' })
+          .where('asset_id', '=', scroll.assetId)
+          .where('asset_revision', '=', scroll.revision)
+          .where('role', '=', 'primary')
+          .execute();
+        libraryScript = () => libraryReply('s1', LIBRARY_QUOTE);
+        try {
+          const { person, requestId } = await placed('earth.tides');
+          const listed = libraryCalls()[0]!.request.user.match(/kind="library_scroll"/gu) ?? [];
+          expect(listed).toHaveLength(1);
+          expect(await status(person, requestId)).toMatchObject({
+            status: 'ready',
+            content: { assetId: library.assetId },
+          });
+        } finally {
+          await database.db
+            .updateTable('content.encounter_topics')
+            .set({ topic_id: 'earth.seasons' })
+            .where('asset_id', '=', scroll.assetId)
+            .where('asset_revision', '=', scroll.revision)
+            .where('role', '=', 'primary')
+            .execute();
+        }
+      });
+
+      it('is closed honestly when the day’s ask orders are used up and the library does not answer', async () => {
+        await setup({ perDay: 0, perPerson: 5 });
+        libraryScript = () => libraryReply(null, null);
+        const { person, requestId } = await placed('earth.tides');
+        expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
+        expect((await requestRow(requestId)).ask_order_id).toBeNull();
+        expect(await queuedProduction()).toEqual([]);
+      });
+
+      it('still serves a library Scroll that answers when the day’s ask orders are used up: it costs no order', async () => {
+        await setup({ perDay: 0, perPerson: 5 });
+        libraryScript = () => libraryReply('s1', LIBRARY_QUOTE);
+        const { person, requestId } = await placed('earth.tides');
+        expect(await status(person, requestId)).toMatchObject({
+          status: 'ready',
+          content: { assetId: library.assetId },
+        });
+      });
+
+      it('never resends a check of unknown outcome: the ask closes as could-not-prepare and makes no order', async () => {
+        await setup();
+        libraryScript = () => ({ kind: 'timeout_after_dispatch' });
+        const { person, requestId } = await placed('earth.tides');
+        await resolve(job(person, requestId));
+        expect(libraryCalls()).toHaveLength(1);
+        expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+        expect((await requestRow(requestId)).ask_order_id).toBeNull();
+        // The run stays open for an operator: an attempt that may have reached the provider is never settled by guessing.
+        expect(await libraryRunOf(requestId)).toEqual([{ purpose: 'ask-library', state: 'admitted' }]);
+      });
+
+      it('does not ask the checker for a question the scope step placed with the Scroll being read, or nowhere', async () => {
+        await setup();
+        const { person, exposure } = await reader();
+        const here = await ask(person, askCommand(exposure, 'Why does the far side of Orrin stay cold in its summer?'));
+        await resolve(job(person, here));
+        scopeScript = () => scopeAnswer('none');
+        const nowhere = await ask(person, askCommand(exposure, 'Who won the match last night?'));
+        await resolve(job(person, nowhere));
+        expect(libraryCalls()).toHaveLength(0);
+      });
     });
 
     it('never returns the Scroll being read, whether the ask is placed, polled or tried again (D-230)', async () => {
       await setup();
       const { person, exposure } = await reader();
-      // The Scroll being read is filed under the topic the question names, so it fits that meaning exactly.
+      // The Scroll being read is filed under the topic the question names, and no other library Scroll is: the library has
+      // nothing to offer, so an order is made, and no look at the request can return the Scroll in front of the person.
       const filedUnder = async (topicId: string) =>
         database.db
           .updateTable('content.encounter_topics')
@@ -375,14 +570,15 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
           .where('asset_revision', '=', scroll.revision)
           .where('role', '=', 'primary')
           .execute();
-      await filedUnder('earth.tides');
-      scopeScript = () => scopeAnswer('catalogue', 'earth.tides');
-      const requestId = await ask(person, askCommand(exposure, 'How do tides work?'));
-      const restoreLibrary = markScrollV1('tides');
+      await filedUnder('earth.greenhouse-effect');
+      scopeScript = () => scopeAnswer('catalogue', 'earth.greenhouse-effect');
+      const requestId = await ask(person, askCommand(exposure, 'How does the greenhouse effect work?'));
       try {
-        // Placing it: Create starts the library's work instead of binding to the Scroll in front of the person.
+        // Placing it: an order is made instead of binding to the Scroll in front of the person.
         await resolve(job(person, requestId));
-        expect((await requestRow(requestId)).state).toBe('requested');
+        expect(await requestRow(requestId)).toMatchObject({ state: 'requested', content: null });
+        expect((await requestRow(requestId)).ask_order_id).not.toBeNull();
+        expect(libraryCalls()).toHaveLength(0);
         // Polling it: the same rule holds on every look.
         await resolve(job(person, requestId));
         expect(await status(person, requestId)).toMatchObject({ status: 'preparing' });
@@ -395,7 +591,6 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         expect(await status(person, requestId)).not.toMatchObject({ status: 'ready' });
         expect((await requestRow(requestId)).content).toBeNull();
       } finally {
-        restoreLibrary();
         await filedUnder('earth.seasons');
       }
     });
@@ -450,8 +645,9 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       const ready = await status(person, requestId);
       expect(ready).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
       expect(ready.status === 'ready' ? ready.content.metadata.title : '').not.toBe('');
-      // Only the writer ran for the order: the question's scope was never asked for a suggested question.
-      expect(production.fixture.calls).toHaveLength(1);
+      // The writer and the support check ran for the order; the question's scope was never asked for a suggested question.
+      expect(production.writerCalls).toHaveLength(1);
+      expect(production.supportCalls).toHaveLength(1);
       expect(scopeModel.calls).toHaveLength(0);
       expect(
         (await database.db.selectFrom('supply.ask_orders').select('ready_at').executeTakeFirstOrThrow()).ready_at,
@@ -480,15 +676,21 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       const { person, exposure } = await reader();
       const waiting = await ask(person, askCommand(exposure, suggestions[0]!));
       // Four finished orders are too few.
-      await sql`insert into supply.ask_orders(order_id, created_at, ready_at)
-        select gen_random_uuid(), now() - interval '1 hour', now() - interval '1 hour' + make_interval(secs => s)
+      await sql`insert into supply.ask_orders(order_id, created_at, ready_at, support_checked)
+        select gen_random_uuid(), now() - interval '1 hour', now() - interval '1 hour' + make_interval(secs => s), true
         from unnest(array[100, 110, 120, 130]) as s`.execute(database.db);
       expect(await status(person, waiting)).not.toHaveProperty('typicalSeconds');
+      // Orders made before the support check did not wait for it (D-252): a fifth of those is not a fifth sample.
       await sql`insert into supply.ask_orders(order_id, created_at, ready_at)
-        values (gen_random_uuid(), now() - interval '1 hour', now() - interval '1 hour' + interval '600 seconds')`.execute(
+        values (gen_random_uuid(), now() - interval '1 hour', now() - interval '1 hour' + interval '5 seconds')`.execute(
         database.db,
       );
-      // The median of 100, 110, 120, 130 and 600 is 120: one slow order does not move it.
+      expect(await status(person, waiting)).not.toHaveProperty('typicalSeconds');
+      await sql`insert into supply.ask_orders(order_id, created_at, ready_at, support_checked)
+        values (gen_random_uuid(), now() - interval '1 hour', now() - interval '1 hour' + interval '600 seconds', true)`.execute(
+        database.db,
+      );
+      // The median of 100, 110, 120, 130 and 600 is 120: one slow order does not move it, and the unchecked order is not counted.
       expect(await status(person, waiting)).toMatchObject({ status: 'preparing', typicalSeconds: 120 });
       // A question still being placed is not an order yet, and says no time, however many orders have finished.
       const placing = await ask(person, askCommand(exposure, 'Why does the far side of Orrin stay cold?'));
@@ -497,6 +699,379 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       await sql`delete from supply.ask_orders where ready_at is not null and order_id not in (select ask_order_id from supply.requests where ask_order_id is not null)`.execute(
         database.db,
       );
+    });
+  });
+
+  describe('the support check of an answer (D-250)', () => {
+    /** A person who asked a suggested question, so an order waits for production. */
+    async function orderedAsk() {
+      const { person, exposure } = await reader();
+      const requestId = await ask(person, askCommand(exposure, suggestions[0]!));
+      return { person, requestId, order: await orderOf(requestId), question: suggestions[0]! };
+    }
+    const jobsOf = (recipe: string) =>
+      database.db
+        .selectFrom('content.scroll_production_runs')
+        .selectAll()
+        .where('topic', '=', recipe)
+        .orderBy('take')
+        .execute();
+    /** The state of the reasoning runs a job derived and used, by id; a run left open would never settle. */
+    const runStates = async (ids: readonly string[]) =>
+      (
+        await database.db
+          .selectFrom('reasoning.production_runs')
+          .select(['id', 'state', 'closed_at'])
+          .where('id', 'in', ids)
+          .execute()
+      )
+        .map((run) => ({ id: run.id, state: run.state, closed: run.closed_at !== null }))
+        .sort((a, b) => a.id.localeCompare(b.id));
+    const storedAnswer = (assetId: string) =>
+      database.db
+        .selectFrom('content.asset_revisions')
+        .select('document')
+        .where('asset_id', '=', assetId)
+        .executeTakeFirst();
+    /** The number of the first sentence of the answer that starts with these words, as the checker is shown it. */
+    const numberOf = (start: string) =>
+      sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer())).find((sentence) => sentence.text.startsWith(start))!
+        .number;
+    const BEFORE = 'Because the beam turns';
+    const BEFORE_SENTENCE = 'Because the beam turns, sailors see it only as a flash, once each turn.';
+    const REPAIRED = 'Because the beam turns, sailors catch only a brief flash of it on each pass.';
+    const flagged = (start: string) => ({
+      unsupported: {
+        [numberOf(start)]: { kind: 'goes_beyond', problem: 'The passage says something narrower than that.' },
+      },
+    });
+
+    it('serves an answer after one writer request and one check when every sentence is supported', async () => {
+      await setup();
+      const { person, requestId, order, question } = await orderedAsk();
+
+      const done = await publish(order.recipe);
+
+      // The check is inside the order's request bound of six, and in the same job as the writer.
+      expect(done).toMatchObject({ kind: 'finished', result: { outcome: 'published', requestBound: 6, take: 1 } });
+      expect(production.writerCalls).toHaveLength(1);
+      expect(production.supportCalls).toHaveLength(1);
+      const [row] = await jobsOf(order.recipe);
+      expect(row).toMatchObject({ state: 'published' });
+      expect(row!.outcomes).toContainEqual(
+        expect.objectContaining({ role: 'support_check', kind: 'checked', draft: 1, unsupported: [] }),
+      );
+      // The check is one more attempt in the ledger, in a run of its own, and the job closed it.
+      expect(await runStates([askSupportRunId(row!.id, 1)])).toEqual([
+        { id: askSupportRunId(row!.id, 1), state: 'completed', closed: true },
+      ]);
+      // The checker read the answer’s sentences against the passages they cite, and never the person's question.
+      const request = production.supportCalls[0]!.request;
+      expect(request.system).toContain('content.ask-support-check');
+      expect(request.user).toContain('kind="answer_sentences"');
+      expect(request.user).toContain('kind="cited_passages"');
+      expect(request.user).not.toContain(question);
+      expect(request.user).not.toContain('THE QUESTION');
+
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
+    });
+
+    it('repairs one unsupported sentence once, with fixed hints, checks the repair in turn and then serves it', async () => {
+      await setup();
+      const { person, requestId, order } = await orderedAsk();
+      let writes = 0;
+      writer = () => {
+        writes += 1;
+        return answerWith(fixtureAnswer(writes === 1 ? {} : { sentence: [BEFORE_SENTENCE, REPAIRED] }));
+      };
+      supportScript = (check, call) => (check === 1 ? supportReply(call, flagged(BEFORE)) : supportReply(call));
+
+      const done = await publish(order.recipe);
+
+      expect(done).toMatchObject({ kind: 'finished', result: { outcome: 'published' } });
+      expect(production.writerCalls).toHaveLength(2);
+      expect(production.supportCalls).toHaveLength(2);
+      // The repair is the writer's second request and its only one: the revision notice, the fixed hint of the kind, the checker's
+      // note as data and the draft it refers to. The harness gives it no repair of its own.
+      const repair = production.writerCalls[1]!.request;
+      expect(repair.system).toContain('REVISION AFTER A SUPPORT CHECK');
+      expect(repair.user).toContain(`Sentence "${BEFORE}`);
+      expect(repair.user).toContain(UNSUPPORTED_HINTS.goes_beyond);
+      expect(repair.user).toContain('Note: The passage says something narrower than that.');
+      expect(repair.user).toContain('kind="previous_draft"');
+      // The second check read the repaired sentence, and it is what the person gets.
+      expect(production.supportCalls[1]!.request.user).toContain('a brief flash of it');
+      expect(JSON.stringify((await storedAnswer(order.assetId))?.document)).toContain('a brief flash of it');
+
+      const [row] = await jobsOf(order.recipe);
+      expect(row!.writer_run_id).toBe(askSupportRepairRunId(row!.id));
+      // Receipts hold numbers and kinds, never a sentence or the checker's words (D-231).
+      const receipts = row!.outcomes as {
+        role: string;
+        kind: string;
+        runId?: string;
+        draft?: number;
+        unsupported?: unknown;
+      }[];
+      expect(receipts.filter((receipt) => receipt.role === 'support_check')).toEqual([
+        expect.objectContaining({
+          kind: 'checked',
+          draft: 1,
+          unsupported: [{ number: numberOf(BEFORE), kind: 'goes_beyond' }],
+        }),
+        expect.objectContaining({ kind: 'checked', draft: 2, unsupported: [] }),
+      ]);
+      const text = JSON.stringify(receipts);
+      expect(text).not.toContain(BEFORE);
+      expect(text).not.toContain('narrower than that');
+      // All four runs closed: the first writer's, both checks and the repair.
+      const superseded = receipts.find((receipt) => receipt.kind === 'draft_unsupported')!.runId!;
+      const ids = [
+        superseded,
+        askSupportRunId(row!.id, 1),
+        askSupportRunId(row!.id, 2),
+        askSupportRepairRunId(row!.id),
+      ];
+      const runs = await runStates(ids);
+      expect(runs).toHaveLength(4);
+      expect(runs.every((run) => run.closed)).toBe(true);
+      expect(runs.find((run) => run.id === superseded)?.state).toBe('failed');
+
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
+    });
+
+    it('checks the title like any sentence: an unsupported title is repaired once, and the repaired title is what the person gets (B1.4)', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      const title = 'How a lamp and a prism ring guide sailors';
+      const repairedTitle = 'How a prism ring and a lamp guide sailors';
+      let writes = 0;
+      writer = () => {
+        writes += 1;
+        return answerWith(fixtureAnswer(writes === 1 ? {} : { sentence: [title, repairedTitle] }));
+      };
+      supportScript = (check, call) => (check === 1 ? supportReply(call, flagged(title)) : supportReply(call));
+
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+
+      // The checker was shown the title as the first sentence, resting on everything the answer cites.
+      const { sentences } = supportRequestOf(production.supportCalls[0]!);
+      expect(sentences[0]!.text).toBe(title);
+      expect(sentences[0]!.cites.length).toBeGreaterThan(4);
+      expect(production.writerCalls[1]!.request.user).toContain(`Sentence "${title}"`);
+      expect((await storedAnswer(order.assetId))?.document).toMatchObject({ title: repairedTitle });
+    });
+
+    it('refuses when the repaired answer still has an unsupported sentence: nothing is stored and the person gets the honest state', async () => {
+      await setup();
+      const { person, requestId, order } = await orderedAsk();
+      supportScript = (_check, call) => supportReply(call, flagged(BEFORE));
+
+      const done = await publish(order.recipe);
+
+      expect(done).toMatchObject({
+        kind: 'finished',
+        result: { outcome: 'rejected', codes: ['support_check_failed'] },
+      });
+      // One repair and no more: two writer requests and two checks, inside the bound of six.
+      expect(production.writerCalls).toHaveLength(2);
+      expect(production.supportCalls).toHaveLength(2);
+      expect(await storedAnswer(order.assetId)).toBeUndefined();
+      expect(
+        await database.db.selectFrom('content.assets').select('id').where('id', '=', order.assetId).execute(),
+      ).toEqual([]);
+      // The person is never served an unchecked answer: the existing refusal state.
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+      const [row] = await jobsOf(order.recipe);
+      const ids = [askSupportRunId(row!.id, 1), askSupportRunId(row!.id, 2), askSupportRepairRunId(row!.id)];
+      expect((await runStates(ids)).every((run) => run.closed)).toBe(true);
+    });
+
+    it('lets Try again make the next take, which is checked again from the start', async () => {
+      await setup();
+      const { person, requestId, order } = await orderedAsk();
+      supportScript = (_check, call) => supportReply(call, flagged(BEFORE));
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'rejected' } });
+      await resolve(job(person, requestId));
+      supportScript = (_check, call) => supportReply(call);
+      const tried = await retry(person.authority, {
+        version: 'content-request-retry.v1',
+        commandId: randomUUID(),
+        requestId,
+      });
+      expect(tried).toMatchObject({ kind: 'ok', value: { outcome: 'retrying' } });
+      expect(await publish(order.recipe, 2)).toMatchObject({ result: { outcome: 'published', take: 2 } });
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
+    });
+
+    it('has no repair to give a draft the validator already repaired: an unsupported sentence ends the job at once', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      let writes = 0;
+      writer = () => {
+        writes += 1;
+        return writes === 1 ? answerWith({ title: 'not a Scroll' }) : answerWith(fixtureAnswer());
+      };
+      supportScript = (_check, call) => supportReply(call, flagged(BEFORE));
+
+      expect(await publish(order.recipe)).toMatchObject({
+        result: { outcome: 'rejected', codes: ['support_check_failed'] },
+      });
+      // The draft and the validator's repair were two writer requests already, so one check only.
+      expect(production.writerCalls).toHaveLength(2);
+      expect(production.supportCalls).toHaveLength(1);
+    });
+
+    it('ends the job when the repair an unsupported sentence earned is refused by the validator, with no second repair', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      let writes = 0;
+      writer = () => {
+        writes += 1;
+        return writes === 1 ? answerWith(fixtureAnswer()) : { kind: 'malformed' };
+      };
+      supportScript = (_check, call) => supportReply(call, flagged(BEFORE));
+
+      expect(await publish(order.recipe)).toMatchObject({
+        result: { outcome: 'rejected', codes: ['support_repair_invalid_output'] },
+      });
+      expect(production.writerCalls).toHaveLength(2);
+      expect(production.supportCalls).toHaveLength(1);
+      expect(await storedAnswer(order.assetId)).toBeUndefined();
+    });
+
+    it.each([
+      ['malformed', () => ({ kind: 'malformed' }) as FixtureScenario, 'invalid_output', 2],
+      ['a provider failure', () => ({ kind: 'rate_limited' }) as FixtureScenario, 'provider_failed', 1],
+      [
+        'a reply that marks most sentences as stating no fact',
+        (_check: number, call: FixtureCall) =>
+          answerWith({
+            sentences: supportRequestOf(call).sentences.map((sentence) => ({ n: sentence.n, verdict: 'no_claim' })),
+          }),
+        'invalid_output',
+        2,
+      ],
+      [
+        'a supported sentence with a quote that no cited passage contains',
+        (_check: number, call: FixtureCall) =>
+          answerWith({
+            sentences: supportRequestOf(call).sentences.map((sentence) => ({
+              n: sentence.n,
+              verdict: 'supported',
+              quote: 'words that no passage ever contained',
+            })),
+          }),
+        'invalid_output',
+        2,
+      ],
+      [
+        'half the sentences marked as stating no fact with nothing to show for it',
+        (_check: number, call: FixtureCall) => {
+          const grounded = supportReply(call);
+          if (grounded.kind !== 'success') throw new Error('CI: the fixture reply is a success');
+          const { sentences } = JSON.parse(grounded.text) as { sentences: { n: number; verdict: string }[] };
+          // Exactly half the sentences state no fact: the old rule (more than half) let that through whatever they were.
+          let spare = Math.floor(sentences.length / 2) - sentences.filter((one) => one.verdict === 'no_claim').length;
+          return answerWith({
+            sentences: sentences.map((sentence) =>
+              sentence.verdict === 'supported' && spare-- > 0 ? { n: sentence.n, verdict: 'no_claim' } : sentence,
+            ),
+          });
+        },
+        'invalid_output',
+        2,
+      ],
+      [
+        'a quote of a cited passage that is about something else, given for every sentence',
+        (_check: number, call: FixtureCall) => {
+          const { sentences, passages } = supportRequestOf(call);
+          return answerWith({
+            sentences: sentences.map((sentence) => ({
+              n: sentence.n,
+              verdict: 'supported',
+              quote: (passages.get(sentence.cites[0]!) ?? '').split(/\s+/u).slice(-4).join(' '),
+            })),
+          });
+        },
+        'invalid_output',
+        2,
+      ],
+    ] as const)('never serves an unchecked answer: %s refuses the answer', async (_name, reply, code, requests) => {
+      await setup();
+      const { person, requestId, order } = await orderedAsk();
+      supportScript = reply;
+
+      expect(await publish(order.recipe)).toMatchObject({
+        result: { outcome: 'rejected', codes: [`support_check_${code}`] },
+      });
+      // The checker is asked once, and once more when its reply is unusable (the harness's single repair).
+      expect(production.supportCalls).toHaveLength(requests);
+      expect(production.writerCalls).toHaveLength(1);
+      expect(await storedAnswer(order.assetId)).toBeUndefined();
+      const [row] = await jobsOf(order.recipe);
+      expect(row!.outcomes).toContainEqual(expect.objectContaining({ role: 'support_check', kind: 'unchecked', code }));
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+    });
+
+    it('never resends a check of unknown outcome: the job waits for an operator and Try again starts nothing', async () => {
+      await setup();
+      const { person, requestId, order } = await orderedAsk();
+      supportScript = () => ({ kind: 'timeout_after_dispatch' });
+
+      expect(await publish(order.recipe)).toMatchObject({
+        result: { outcome: 'unknown', codes: ['support_check_outcome_unknown'] },
+      });
+      // A redelivery answers from the job: nothing is sent again.
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'unknown' } });
+      expect(production.supportCalls).toHaveLength(1);
+      expect(production.writerCalls).toHaveLength(1);
+      expect(
+        await database.db
+          .selectFrom('reasoning.production_attempts')
+          .select('role_id')
+          .where('state', '=', 'unknown')
+          .execute(),
+      ).toEqual([{ role_id: 'content.ask-support-check' }]);
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+      expect(
+        await retry(person.authority, { version: 'content-request-retry.v1', commandId: randomUUID(), requestId }),
+      ).toMatchObject({ value: { outcome: 'not_retryable' } });
+    });
+
+    it('pauses when the quota is spent before the check, and finishes later without asking the writer again', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      let released = false;
+      const worker = fixtureProductionWorker(database, () => writer(), {
+        // The writer's request is allowed; the provider's quota is spent by the time the checker would be asked.
+        quota: () => ({
+          verdict: released || worker.writerCalls.length === 0 ? 'not_applicable' : 'unavailable',
+          intervalRemainingPercent: null,
+          weeklyRemainingPercent: null,
+        }),
+      });
+      const produce = worker.producer();
+
+      expect(await produce(order.recipe, false, signal(), true, 1)).toMatchObject({
+        outcome: 'paused',
+        codes: ['quota_unavailable'],
+      });
+      expect(worker.writerCalls).toHaveLength(1);
+      expect(worker.supportCalls).toHaveLength(0);
+      expect(await storedAnswer(order.assetId)).toBeUndefined();
+
+      released = true;
+      expect(await produce(order.recipe, false, signal(), true, 1)).toMatchObject({ outcome: 'published' });
+      // The writer's kept answer was read from the ledger: no second writer request was paid for.
+      expect(worker.writerCalls).toHaveLength(1);
+      expect(worker.supportCalls).toHaveLength(1);
     });
   });
 
@@ -545,7 +1120,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       // Nothing is sent on its own after a refusal: the person decides.
       expect((await queuedProduction()).filter((queued) => queued.take === 2)).toEqual([]);
 
-      writer = () => answerWith(fixtureAuthored('plain'));
+      writer = () => answerWith(fixtureAnswer());
       const tried = await retry(person.authority, {
         version: 'content-request-retry.v1',
         commandId: randomUUID(),

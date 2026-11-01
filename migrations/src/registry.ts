@@ -126,5 +126,10 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
   { name: '0088_room_launch', sha256: '9716646ad098698dcb476b2a98166fb69eafd40aa2adc5f7ac1ba673be281c62' },
   { name: '0089_room_questions', sha256: 'e1557c0b069a79ad8d5b73dd433fff02bff119c1d0f4ef842e199c47c1706847' },
   { name: '0090_challenge_messages', sha256: '09bc0a2eeb8e05c3b16c10877766e8ca3070d0ee1c7213d27ce46db321ea31d9' },
-  { name: '0092_quick_answers', sha256: 'b5b1023d82aa5bad4e466e6e50137a0ba6607b3f35071153ff453a291ed3b759' },
+  { name: '0091_resident_feed', sha256: '7ea1717c6e309258647fd92a7050b3e2372ac58c02baa356a7340387a140cd9c' },
+  {
+    name: '0092_ask_support_check',
+    sha256: '5c85cd5296c474900d82b97eca824e76e2dc7c3d43c1fbbb076a15accf8a8d59',
+  },
+  { name: '0094_quick_answers', sha256: 'b5b1023d82aa5bad4e466e6e50137a0ba6607b3f35071153ff453a291ed3b759' },
 ];

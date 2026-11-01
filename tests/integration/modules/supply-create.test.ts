@@ -14,9 +14,9 @@ import {
 } from '@knowscroll/backend/infrastructure/postgres';
 import { FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
-import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
+import { contentProviders, makeReadLibraryPassages } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
-import { produceScrollJob, produceScrollQueue } from '@knowscroll/backend/modules/content';
+import { READ_LIBRARY_PASSAGES, produceScrollJob, produceScrollQueue } from '@knowscroll/backend/modules/content';
 import { READ_EXPLORATION_SNAPSHOT } from '@knowscroll/backend/modules/personal-context';
 import {
   CANCEL_CONTENT_REQUEST,
@@ -111,6 +111,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [READ_EXPLORATION_SNAPSHOT, content.readExploration],
       [HARNESS, fixtureHarness(database.db, { model: matchModel }).harness],
+      [READ_LIBRARY_PASSAGES, makeReadLibraryPassages(database.db)],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),
       ...experienceEvidenceReadProviders().map((p) => [p.provide, p.useValue] as const),

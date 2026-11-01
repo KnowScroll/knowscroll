@@ -9,6 +9,7 @@ import {
   castDueQueue,
   castPassQueue,
   contributeQueue,
+  feedHeartbeatQueue,
   nightlyRitualsQueue,
   summariseQueue,
 } from './modules/rooms/public.js';
@@ -63,6 +64,7 @@ export const releaseQueues = queueRegistry([
   castPassQueue,
   summariseQueue,
   nightlyRitualsQueue,
+  feedHeartbeatQueue,
   applyActionEvidenceQueue,
   projectScrollReadingQueue,
   projectEncounterActivityQueue,

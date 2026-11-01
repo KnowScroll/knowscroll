@@ -12,7 +12,7 @@ import type {
   RoomLock,
   WindowMessage,
 } from '../application/ports.js';
-import { contributionKindOf, discussionKindOf, inhabitantOf, speechTriggerOf, topicTagOf } from './columns.js';
+import { contributionKindOf, discussionKindOf, inhabitantOf, messageTriggerOf, topicTagOf } from './columns.js';
 
 interface DiscussionColumns {
   discussion_id: string;
@@ -122,7 +122,7 @@ const messageOf = (row: MessageColumns): MessageRow => ({
       ? null
       : { assetId: row.asset_id, assetRevision: row.asset_revision },
   note: row.note,
-  trigger: row.trigger === null ? null : speechTriggerOf(row.trigger),
+  trigger: row.trigger === null ? null : messageTriggerOf(row.trigger),
   topicDiscussionId: row.topic_discussion_id,
 });
 
@@ -206,7 +206,7 @@ export const discussionStore: DiscussionStore = {
       .selectFrom('rooms.discussions')
       .select(DISCUSSION_COLUMNS)
       .where('room_id', '=', lock.roomId)
-      .where('kind', 'not in', ['general', 'today'])
+      .where('kind', 'not in', ['general', 'today', 'find'])
       .orderBy(sql`pinned_at desc nulls last`)
       .orderBy('last_activity_at', 'desc')
       .orderBy('discussion_id')

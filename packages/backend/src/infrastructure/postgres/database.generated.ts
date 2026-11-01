@@ -1530,8 +1530,10 @@ export interface RoomsAiTurns {
   command_id: string | null;
   created_at: Timestamp;
   decided_by: Generated<string>;
-  discussion_id: string;
+  discussion_id: string | null;
   dispatched: Generated<boolean>;
+  find_asset_id: string | null;
+  find_asset_revision: number | null;
   held_kind: string | null;
   held_text: string | null;
   inhabitant: string;
@@ -1670,6 +1672,15 @@ export interface RoomsMembers {
   room_id: string;
 }
 
+export interface RoomsMemoryEdits {
+  action: string;
+  at: Timestamp;
+  body_sha256: string | null;
+  by_account_id: string | null;
+  edit_id: string;
+  room_id: string;
+}
+
 export interface RoomsMessages {
   ai_kind: string | null;
   asset_id: string | null;
@@ -1786,6 +1797,20 @@ export interface RoomsRoomIdentity {
   revision: number;
   role_version: string;
   room_id: string;
+}
+
+export interface RoomsRoomMemory {
+  body: string | null;
+  covers_from: Timestamp | null;
+  covers_through: Timestamp | null;
+  edited_at: Timestamp | null;
+  edited_by_account_id: string | null;
+  messages_read: Generated<number>;
+  room_id: string;
+  source: string;
+  state: string;
+  turn_id: string | null;
+  updated_at: Timestamp;
 }
 
 export interface RoomsRoomPresence {
@@ -2192,6 +2217,7 @@ export interface SupplyAskOrders {
   created_at: Generated<Timestamp>;
   order_id: string;
   ready_at: Timestamp | null;
+  support_checked: Generated<boolean>;
 }
 
 export interface SupplyQuickAnswerLedger {
@@ -2385,6 +2411,7 @@ export interface DB {
   "rooms.launch_players": RoomsLaunchPlayers;
   "rooms.launches": RoomsLaunches;
   "rooms.members": RoomsMembers;
+  "rooms.memory_edits": RoomsMemoryEdits;
   "rooms.message_snippets": RoomsMessageSnippets;
   "rooms.message_useful": RoomsMessageUseful;
   "rooms.messages": RoomsMessages;
@@ -2395,6 +2422,7 @@ export interface DB {
   "rooms.room_backdrops": RoomsRoomBackdrops;
   "rooms.room_cast": RoomsRoomCast;
   "rooms.room_identity": RoomsRoomIdentity;
+  "rooms.room_memory": RoomsRoomMemory;
   "rooms.room_presence": RoomsRoomPresence;
   "rooms.rooms": RoomsRooms;
   "rooms.stars": RoomsStars;

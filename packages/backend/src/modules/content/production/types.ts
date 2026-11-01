@@ -1,5 +1,6 @@
 import type { ProductionAttemptAccounting } from '../../../reasoning/public.js';
 import type { CallVerdict } from '../domain/answer-check.js';
+import type { UnsupportedKind } from '../domain/ask-support.js';
 
 /**
  * Code-only operator outcomes; no prompts, research, drafts or internal provenance. The checker's
@@ -7,14 +8,17 @@ import type { CallVerdict } from '../domain/answer-check.js';
  * kept on the private job for the operator who reads the Scroll (D-198).
  */
 export interface RoleReceipt {
-  /** `answer_check`: what the answer check said about one draft (D-198). */
-  readonly role: 'writer' | 'checks' | 'answer_check';
+  /** `answer_check`: what the answer check said about one draft (D-198). `support_check`: what the support check of an ask order's answer said (D-250). */
+  readonly role: 'writer' | 'checks' | 'answer_check' | 'support_check';
   readonly kind: string;
   /** For the receipt of a superseded draft: the writer run that wrote it, which the job no longer names. */
   readonly runId?: string;
   /** For an `answer_check` receipt: which draft of the writer it checked (1, or 2 after a check repair). */
   readonly draft?: 1 | 2;
   readonly verdicts?: readonly CallVerdict[];
+  /** For a `support_check` receipt: how many sentences were checked and which were found unsupported. Numbers and kinds only, never the sentences (D-231). */
+  readonly sentences?: number;
+  readonly unsupported?: readonly { readonly number: number; readonly kind: UnsupportedKind }[];
   readonly attemptId?: string;
   readonly attempts?: readonly ProductionAttemptAccounting[];
   readonly code?: string;

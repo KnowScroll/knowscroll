@@ -5,12 +5,16 @@ import type {
   ProposeOutcome,
   WithProductionScope,
 } from '../../../reasoning/public.js';
+import type { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { CompileOutcome } from '../application/ports.js';
 import { flaggedCalls, type CallVerdict } from '../domain/answer-check.js';
+import { passes, unsupportedOf, type SentenceUnderCheck, type UnsupportedVerdict } from '../domain/ask-support.js';
 import { callsOfStoredDocument, type CallUnderCheck } from './answer-check.js';
 import { makeAnswerCheckStep } from './answer-check-step.js';
-import { EvidenceRefusal, evidencePassages, evidenceText } from './evidence.js';
+import { hasSupportCheck, sentencesOfAnswer } from './ask-support.js';
+import { makeAskSupportStep } from './ask-support-step.js';
+import { EvidenceRefusal, evidencePassages, evidenceText, type EvidencePassage } from './evidence.js';
 import { isSentAttempt } from './publication-topic.js';
 import { withAccounting, writerReceipt } from './receipts.js';
 import { hasAnswerCheck } from './review-hold.js';
@@ -64,6 +68,8 @@ interface Stage {
   readonly plan: WriterPlan;
   /** The writer's own context: the brief and the evidence. */
   readonly items: readonly ContextItem[];
+  /** The passages the writer was offered, by handle: what an ask order's support check reads the answer against. */
+  readonly passages: readonly EvidencePassage[];
   readonly signal: AbortSignal;
 }
 
@@ -89,12 +95,14 @@ const isResult = (value: Draft | ProduceScrollResult): value is ProduceScrollRes
 
 /**
  * The writer stage of a production job: ask the writer, compile its answer and publish it. For a v2
- * library recipe the answer check sits between the two (D-198). The stage sends at most two writer
- * requests (the first draft with the harness's repair, or with the one repair a flag earns) and at most
- * two checks (one for each draft), and holds no transaction while a request is out.
+ * library recipe the answer check sits between the two (D-198), and for the answer to a person's question
+ * the support check does (D-250). The stage sends at most two writer requests (the first draft with the
+ * harness's repair, or with the one repair a flag earns) and at most two checks (one for each draft), and
+ * holds no transaction while a request is out.
  */
 export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperations) {
   const answerCheck = makeAnswerCheckStep(deps);
+  const supportCheck = makeAskSupportStep(deps);
 
   const paused = (row: ProductionRow, code: string): ProduceScrollResult => ({
     outcome: 'paused',
@@ -225,13 +233,101 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     return isResult(second) ? second : checkDraft(stage, second, history);
   }
 
-  /** The first draft is in: a v2 library Scroll is checked, any other is published as it is. */
+  /**
+   * Asks the support checker about the answer to a question and acts on the verdicts (D-250). Nothing unsupported:
+   * the Scroll is published. An unsupported sentence earns the writer one repair if it has not used it; one that
+   * stands after that ends the job. So does a check that gave no usable answer: nobody reads an ask order before the
+   * person who asked, so it is never served unchecked.
+   */
+  async function supportCheckDraft(stage: Stage, draft: Draft, history: History): Promise<ProduceScrollResult> {
+    const { row } = stage;
+    const sentences = sentencesOfAnswer(draft.authored as AuthoredScroll);
+    const checked = await supportCheck.check({
+      jobId: row.id,
+      policyVersion: productionVersionOf(stage.subject.key),
+      draft: draft.number,
+      sentences,
+      passages: stage.passages,
+      signal: stage.signal,
+    });
+    if (checked.kind === 'advanced') return ops.replayCurrent(row);
+    if (checked.kind === 'paused') return paused(row, checked.code);
+
+    const checkRun: ClosingRun = {
+      runId: checked.runId,
+      state: checked.record.kind === 'checked' ? 'completed' : 'failed',
+    };
+    const receipts = [draft.receipt, ...history.receipts, checked.receipt];
+    const closing = [...history.closing, { runId: draft.runId, state: 'failed' as const }, checkRun];
+    if (checked.record.kind === 'unchecked') {
+      const code = `support_check_${checked.record.code ?? 'unchecked'}`;
+      return ops.end(
+        row,
+        checked.record.code === 'outcome_unknown' ? 'unknown' : 'rejected',
+        [code],
+        receipts,
+        closing,
+      );
+    }
+    if (passes(checked.record))
+      return ops.publish(stage.subject, row, receipts, draft.authored, draft.compiled, draft.runId, [
+        ...history.closing,
+        checkRun,
+      ]);
+    if (draft.number === 2 || draft.repaired)
+      return ops.end(row, 'rejected', ['support_check_failed'], receipts, closing);
+    // The unsupported first draft is superseded: its writer receipt is kept as history, not as the Scroll's writer.
+    const earlier: History = {
+      receipts: [
+        ...history.receipts,
+        { ...draft.receipt, role: 'checks', kind: 'draft_unsupported', runId: draft.runId },
+        checked.receipt,
+      ],
+      closing,
+    };
+    return repairUnsupported(stage, draft, sentences, unsupportedOf(checked.verdicts), earlier);
+  }
+
+  /** The one repair an unsupported first draft earns: the writer sees the findings and its draft, and the new draft is checked in turn. */
+  async function repairUnsupported(
+    stage: Stage,
+    draft: Draft,
+    sentences: readonly SentenceUnderCheck[],
+    unsupported: readonly UnsupportedVerdict[],
+    history: History,
+  ): Promise<ProduceScrollResult> {
+    const { row } = stage;
+    const repaired = await supportCheck.repair({
+      jobId: row.id,
+      policyVersion: productionVersionOf(stage.subject.key),
+      writer: stage.plan.role,
+      writerItems: stage.items,
+      sentences,
+      unsupported,
+      previousDraft: draft.authored,
+      signal: stage.signal,
+    });
+    if (repaired.kind === 'advanced') return ops.replayCurrent(row);
+    if (repaired.kind === 'paused') return paused(row, repaired.code);
+    if (repaired.kind === 'ended')
+      return ops.end(
+        row,
+        repaired.state,
+        [repaired.code],
+        [...history.receipts, repaired.receipt],
+        [...history.closing, { runId: repaired.runId, state: 'failed' }],
+      );
+    const second = await acceptDraft(stage, repaired.runId, 2, repaired.writer, history);
+    return isResult(second) ? second : supportCheckDraft(stage, second, history);
+  }
+
+  /** The first draft is in: a v2 library Scroll or the answer to a question is checked, any other is published as it is. */
   async function settleFirstDraft(stage: Stage, writer: Proposed): Promise<ProduceScrollResult> {
     const draft = await acceptDraft(stage, stage.row.writer_run_id, 1, writer, NO_HISTORY);
     if (isResult(draft)) return draft;
-    return hasAnswerCheck(stage.subject)
-      ? checkDraft(stage, draft, NO_HISTORY)
-      : ops.publish(stage.subject, stage.row, [draft.receipt], draft.authored, draft.compiled, draft.runId, []);
+    if (hasAnswerCheck(stage.subject)) return checkDraft(stage, draft, NO_HISTORY);
+    if (hasSupportCheck(stage.subject)) return supportCheckDraft(stage, draft, NO_HISTORY);
+    return ops.publish(stage.subject, stage.row, [draft.receipt], draft.authored, draft.compiled, draft.runId, []);
   }
 
   /** The writer stage: ask once (the harness allows one repair), then settle the answer. */
@@ -292,6 +388,6 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
         [{ runId: row.writer_run_id, state: 'failed' }],
       );
     }
-    return settleFirstDraft({ subject, row, plan, items, signal }, writer);
+    return settleFirstDraft({ subject, row, plan, items, passages, signal }, writer);
   };
 }

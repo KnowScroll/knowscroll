@@ -1,7 +1,7 @@
 import type { AskKind } from '../domain/asks.js';
 import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
 import type { AiLevel, JoinRule, RoomRole, RoomStatus } from '../domain/membership.js';
-import type { SpeechTrigger } from '../domain/triggers.js';
+import type { MessageTrigger } from '../domain/triggers.js';
 import type { SummaryState, TopicTag, TurnState, TurnTrigger } from '../application/ports.js';
 import type { ReviewState } from '../application/face-ports.js';
 import type { BackdropAttemptState } from '../domain/backdrop-spend.js';
@@ -25,19 +25,26 @@ export const contributionKindOf = closed<ContributionKind>('ai_kind', [
   'assumption',
   'perspective',
   'counterexample',
+  'find',
 ]);
 export const roleOf = closed<RoomRole>('role', ['member', 'moderator']);
 export const aiLevelOf = closed<AiLevel>('ai_level', ['lively', 'quieter', 'off']);
-export const discussionKindOf = closed<'general' | 'topic' | 'today'>('kind', ['general', 'topic', 'today']);
+export const discussionKindOf = closed<'general' | 'topic' | 'today' | 'find'>('kind', [
+  'general',
+  'topic',
+  'today',
+  'find',
+]);
 export const joinRuleOf = closed<JoinRule>('join_rule', ['open', 'friends_of_members', 'invite_only']);
 export const statusOf = closed<RoomStatus>('status', ['open', 'paused', 'closed']);
 export const topicKindOf = closed<'system' | 'planet'>('topic_kind', ['system', 'planet']);
 export const endedByOf = closed<'left' | 'removed'>('ended_by', ['left', 'removed']);
 export const turnStateOf = closed<TurnState>('state', ['queued', 'completed', 'declined', 'failed', 'refused']);
-export const speechTriggerOf = closed<SpeechTrigger>('trigger', [
+export const messageTriggerOf = closed<MessageTrigger>('trigger', [
   'unanswered_question',
   'overstated_claim',
   'answer_overstated',
+  'feed_find',
 ]);
 export const turnTriggerOf = closed<TurnTrigger>('trigger', [
   'asked',
