@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { LAUNCH_QUESTIONS } from '@knowscroll/contracts';
 import {
   REPLAY_ANSWER_MS,
@@ -135,6 +135,9 @@ export function ReplaySheet({
     onClose();
   };
   const outcome = state.answer === undefined ? undefined : { picked: state.picked, correct: state.answer.correct };
+  // The sheet has no scroll of its own: the black banner (D-241) and the buttons stay in view, and the question scrolls between.
+  const { height } = useWindowDimensions();
+  const scrollRoom = Math.max(MIN_SCROLL_ROOM, height - CHROME_HEIGHT);
   return (
     <BottomSheet visible={visible} title="Replay" onClose={close} testID="replay-sheet">
       <View style={styles.body}>
@@ -153,40 +156,54 @@ export function ReplaySheet({
                 {replayBanner(replay)}
               </Text>
             </View>
-            <Host state={state} line={replayHostLine(state.host ?? { name: 'Pixel' }, step, state.index, outcome)} />
+            <ScrollView
+              style={{ maxHeight: scrollRoom }}
+              contentContainerStyle={styles.scrolled}
+              testID="replay-scroll"
+              // A region that scrolls is reachable by keyboard (axe: scrollable-region-focusable).
+              tabIndex={0}
+              role="region"
+              aria-label="Replay"
+              showsVerticalScrollIndicator={false}
+            >
+              <Host state={state} line={replayHostLine(state.host ?? { name: 'Pixel' }, step, state.index, outcome)} />
+              {step === 'idle' ? null : step === 'done' ? (
+                <View style={styles.reveal} testID="replay-done">
+                  <Text variant="title" heading={2}>
+                    {replayScoreLine(state.squares)}
+                  </Text>
+                  <Text variant="metaS" color={content.ink2}>
+                    This replay is just for you. The podium and the room’s star stay as they were.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <Question state={state} controller={controller} />
+                  {state.offline ? (
+                    <Banner kind="offline" lead="Reconnecting…" message="Tap your answer again when you’re back." />
+                  ) : null}
+                </>
+              )}
+            </ScrollView>
             {step === 'idle' ? (
               <Button label="Start the replay" variant="primary" onPress={controller.begin} testID="replay-start" />
             ) : step === 'done' ? (
-              <View style={styles.reveal} testID="replay-done">
-                <Text variant="title" heading={2}>
-                  {replayScoreLine(state.squares)}
-                </Text>
-                <Text variant="metaS" color={content.ink2}>
-                  This replay is just for you. The podium and the room’s star stay as they were.
-                </Text>
-                <View style={styles.actions}>
-                  <Button label="Play it again" variant="default" onPress={controller.begin} testID="replay-again" />
-                  <Button label="Done" variant="primary" onPress={close} testID="replay-done-button" />
-                </View>
+              <View style={styles.actions}>
+                <Button label="Play it again" variant="default" onPress={controller.begin} testID="replay-again" />
+                <Button label="Done" variant="primary" onPress={close} testID="replay-done-button" />
               </View>
             ) : (
-              <>
-                <Question state={state} controller={controller} />
-                {state.offline ? (
-                  <Banner kind="offline" lead="Reconnecting…" message="Tap your answer again when you’re back." />
+              <View style={styles.actions}>
+                <Button label="Leave replay" variant="ghost" onPress={close} testID="replay-leave" />
+                {step === 'revealed' ? (
+                  <Button
+                    label={state.index + 1 >= LAUNCH_QUESTIONS ? 'See how you did' : 'Next question'}
+                    variant="primary"
+                    onPress={controller.next}
+                    testID="replay-next"
+                  />
                 ) : null}
-                <View style={styles.actions}>
-                  <Button label="Leave replay" variant="ghost" onPress={close} testID="replay-leave" />
-                  {step === 'revealed' ? (
-                    <Button
-                      label={state.index + 1 >= LAUNCH_QUESTIONS ? 'See how you did' : 'Next question'}
-                      variant="primary"
-                      onPress={controller.next}
-                      testID="replay-next"
-                    />
-                  ) : null}
-                </View>
-              </>
+              </View>
             )}
           </>
         )}
@@ -195,8 +212,13 @@ export function ReplaySheet({
   );
 }
 
+/** What the sheet takes besides the scrolling part: its grab and title, the banner, the buttons and the gaps, on a phone. */
+const CHROME_HEIGHT = 330;
+const MIN_SCROLL_ROOM = 240;
+
 const styles = StyleSheet.create({
   body: { gap: spacing[3] },
+  scrolled: { gap: spacing[3], paddingBottom: spacing[2], paddingRight: spacing[2] },
   banner: { padding: spacing[3], borderRadius: radius.md, backgroundColor: content.ink },
   host: { gap: spacing[2] },
   hostHead: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing[2] },

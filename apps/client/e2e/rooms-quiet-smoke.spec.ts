@@ -123,6 +123,12 @@ for (const { name, size } of VIEWPORTS) {
         await shoot(page, `${name}-4-replay-reveal`);
         expect(await seriousViolations(page)).toEqual([]);
       }
+      // The black banner (D-241) and the buttons stay inside the window while the question is read, whatever its height.
+      for (const id of ['replay-banner', 'replay-next']) {
+        const box = (await page.getByTestId(id).boundingBox())!;
+        expect(box.y).toBeGreaterThanOrEqual(0);
+        expect(box.y + box.height).toBeLessThanOrEqual(size.height);
+      }
       await page.getByTestId('replay-next').click();
     }
     await expect(page.getByTestId('replay-done')).toContainText('You’d have got 3 of 5 · ■■■□□');
