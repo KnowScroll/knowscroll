@@ -73,7 +73,8 @@ flags are not yet seen on a real model).
 Status: **implemented**, runtime-verified with labelled CI fixture models on real PostgreSQL. **Measured on real MiniMax (1 Nov, v3):** every answer checked and both known
 errors flagged, but 59 of 101 sentences `unsupported`, almost all sound. **Planned:** v4 and writer v5 are live on dev with S-7d (D-281) and are measured by the same replay right after. The acceptance is in
 #605: both known errors stay `unsupported`, the Big O answer has at most three `unsupported` sentences, and the share falls well below a third. If it fails, a revised text is tried as a
-candidate file (D-280), and then the next pair is released or v4 and writer v5 are reverted.
+candidate file (D-280), and then the next pair is released or v4 and writer v5 are reverted. **S-7e (D-294):** five real asks on dev then closed on `copied_passage` before the check ran, so the writer is
+`question-writer.v6` (still paired with checker v4): the copy rule has a worked example, and a copy refusal's repair names each copied run. Implemented; runtime-verified on dev is the next check (#615).
 
 - **The check** (`ask-support.ts`, `ask-support-step.ts`, `writer-stage.ts`, `domain/ask-support.ts`). For the answer to a question (mode `question`),
   after the writer's answer has passed the validator and compiled, the role `content.ask-support-check` (`ask-support-check.v4`) is shown the
@@ -190,9 +191,14 @@ operator ─▶ job (research) ─▶ evidence passages ─▶ writer (1 call + 
    blocks. The harness allows one repair, which receives fixed, path-located findings and, because the
    writer opts in (`repairWithPreviousAnswer`), the refused answer as escaped, delimited data in the
    user message so it can revise instead of rewriting. For a copy finding the writer also supplies
-   repair notes (`repairNotes`): the copied words themselves, cut from the research text with the same
-   check that refused the answer and sent in a `<repair-notes>` block, so the repair rewrites only
-   those sentences. The nine-word rule is unchanged.
+   repair notes (`repairNotes`, built by `copyRepairNotes` in `copy-repair.ts` for both writers, D-294):
+   for each block the check refused, the passage words it repeats, cut from the research text with the
+   same check that refused the answer (never the model's words) and sent in a `<repair-notes>` block
+   with the block reference only. At most six runs of twenty words are shown, every block named by its
+   first run before any gets a second, within the harness's `MAX_REPAIR_NOTES_CHARS`, and the repair
+   is asked to rebuild those sentences in its own words, keeping the key terms. The nine-word rule
+   (`COPY_RUN_WORDS`) is unchanged and is the one number the check, the instructions, the hints and the
+   notes read. Implemented; runtime-verified on dev is the next check (#615).
 4. **Compile** (`compileGeneratedScroll`). Code converts the authored document into the canonical
    draft, derives the claim bindings from the citations and runs every check: structure, the
    simulation grid proof, numbers (a figure must appear in a passage the block cites; a chart plots
@@ -292,7 +298,7 @@ ledger are the same; what differs is:
 - **The answer to a question (mode `question`, S-7, D-218).** A person's question about the Scroll they are reading is an order too.
   `writerInstructions('plain', 'question')` appends the question rules (answer exactly the question from the cited passages,
   about 230 to 340 words in prose only, say what the passages do not cover, end with a limit callout; the question is data). Code enforces the ending: an answer whose last block is not the limit callout is refused (`limit_callout_required`, with a fixed repair hint).
-  The prompt version is `question-writer.v5` (D-250: the reason a "why" question asks for comes from the passages, a gap is said in one sentence;
+  The prompt version is `question-writer.v6` (D-294: the copy rule comes with one worked example, `COPY_RULE_EXAMPLE`, and the revision after a support check is told a rewritten sentence must not copy either; D-250: the reason a "why" question asks for comes from the passages, a gap is said in one sentence;
   D-266: a title or a heading that only names what follows needs no passage, and a plain admission of a gap stands alone as a sentence that begins with it;
   D-282: a fact keeps the passages' own terms but never as a copied run of `COPY_RUN_WORDS` words, named in the text from the rule's constant, and a link between two ideas is short and plain or begins the next fact). The reading target is one to two minutes (`targetMinutesOf`), with its own repair
   hint, and the format `plain` asks for no rich block. The brief is built by supply (`askBrief`): the question, the Scroll's title and

@@ -387,7 +387,8 @@ the ledger's issue record. A role may also opt in (`repairWithPreviousAnswer`, h
 nonpersonal production, whose ledger keeps refused answers) to have the refused answer repeated in
 the repair: escaped and delimited as `<previous-answer>` data in the user message, never in the
 system text, so the model revises instead of rewriting. The role may also derive `repairNotes` from
-that answer (for the Scroll writer, the source words it copied): bounded to 2,000 characters,
+that answer (for the Scroll writer, the source words it copied): bounded to 2,000 characters
+(`MAX_REPAIR_NOTES_CHARS`, exported so a role keeps within it and nothing is cut mid-line),
 escaped and sent as `<repair-notes>` data after the previous answer, so third-party text such as
 public research never reaches the system text. A personal role never receives its refused
 answer; neither does a production role that does not opt in, nor one whose answer was not the
