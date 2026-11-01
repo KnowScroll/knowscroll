@@ -446,11 +446,11 @@ node dist/operator.js content ask-check --asset <asset id>[,<asset id>…] --out
   sentences, supported, unsupported and no-claim, and the requests sent (1, or 2 when the harness repaired an unusable reply). No sentence, title or question is
   printed, so the output may be pasted into an issue.
 - **The file** gets one JSON line for each checked answer: its title, and every sentence with the passages it cites and the checker's verdict (the quote for a supported
-  sentence; the kind and the note for an unsupported one). It holds the answer's own words, so read it from the server shell and never paste it into an issue.
+  sentence; the kind and the note for an unsupported one). It holds the answer's own words, which can echo a person's question, so read it from the server shell, never paste it into an issue, and **delete the file as soon as you have read it** (`shred -u <file>` or `rm <file>`). The command creates it readable by its owner only.
 - **Exit status:** 0 when it ran to the end, 2 when it was refused or stopped early (a spent budget or quota, an attempt of unknown outcome, the wrong model), 1 on a failure.
 
-What to look for: the sentences you know are wrong should be `unsupported`; a good answer's sentences should be `supported` with a quote you can find in the answer's
-passages. Many `unsupported` verdicts on sentences that are fine mean the checker is too strict (people will see "could not prepare" more often); `supported` on a
+What the checker is, and is not: code checks that each `supported` verdict quotes real words of a passage the sentence cites and that the words are about the sentence (D-250). Whether the words support the sentence is the checker model's judgement, and this replay is how it is measured. What to look for: the sentences you know are wrong should be `unsupported`; a good answer's sentences should be `supported` with a quote you can find in the answer's
+passages, and the quote should say what the sentence says, not only share its words. Many `unsupported` verdicts on sentences that are fine mean the checker is too strict (people will see "could not prepare" more often); `supported` on a
 sentence that says more than its passage means it is too lenient. Both are reasons to change the checker's instructions (a new `ask-support-check` version and the
 pair in `versions.test.ts`), not to read answers by hand.
 
