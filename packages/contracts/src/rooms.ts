@@ -232,8 +232,6 @@ export const RoomDiscussionSummarySchema = z.strictObject({
   root: ConversationContentProjectionSchema.optional(),
   /** Absent once the starter's account was deleted. */
   startedBy: PublicPersonRefSchema.optional(),
-  /** The address a member's post cites in place of a library asset (v3 R-8b), shown as a plain link; erased with the account. */
-  source: RoomSourceSchema.optional(),
   pinned: z.boolean(),
   lastActivityAt: z.iso.datetime(),
   /** Messages in it that are shown (not removed, not a deleted account's). */
@@ -1070,6 +1068,8 @@ export const DiscussionViewSchema = z.discriminatedUnion('status', [
         tag: RoomTopicTagSchema.optional(),
         pinned: z.boolean(),
         startedBy: PublicPersonRefSchema.optional(),
+        /** The address a member's post cites in place of a library asset (v3 R-8b), shown as a plain link; erased with the account. */
+        source: RoomSourceSchema.optional(),
       }),
       /** The message a topic began from, as this reader may see it: its first item. Absent for any other discussion. */
       origin: RoomMessageSchema.optional(),

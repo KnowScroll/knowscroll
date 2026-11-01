@@ -115,7 +115,7 @@ export function checkSource(
 
 /** The site's name for the words of a stored source's link: its host without a leading `www.`. */
 export function hostOf(url: string): string {
-  return new URL(url).hostname.toLowerCase().replace(/^www./u, '');
+  return new URL(url).hostname.toLowerCase().replace(/^www\./u, '');
 }
 
 // --- How many a person may post ------------------------------------------------------------------
