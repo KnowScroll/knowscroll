@@ -14,13 +14,17 @@ import { useRoomReplay } from './use-replay';
 
 type Member = Extract<RoomView, { status: 'member' }>;
 
-/** The nights whose replay offer this person put away, for as long as the app stays open: "I'll only offer once" (R3 F). */
-const putAway = new Set<string>();
+/**
+ * Where a put-away offer is remembered: the account scope's own storage, under the room and the night the offer was for ("I'll only
+ * offer once", R3 F). It goes with the scope when the account switches, the person signs out or a Clear changes the epoch.
+ */
+const offerKey = (roomId: string, day: string): string => `quiet-offer.${roomId}.${day}`;
 
 export interface QuietRoom {
   /** The host's offer to replay a real Launch, while the room is quiet and the offer was not put away. */
   readonly offer: { readonly key: string; readonly line: string } | undefined;
-  readonly putOfferAway: (key: string) => void;
+  /** Puts the offer for this night away in this room. */
+  readonly putOfferAway: (day: string) => void;
   readonly replay: {
     readonly open: boolean;
     readonly setOpen: (open: boolean) => void;
@@ -45,10 +49,14 @@ export function useQuietRoom(scope: AccountScope, view: Member): QuietRoom {
   const [questioning, setQuestioning] = useState(false);
   const [, setPutAwayCount] = useState(0);
   const replay = useRoomReplay(scope, roomId, replaying);
+  const putAway =
+    view.replay !== undefined && scope.storage.get(offerKey(roomId, view.replay.day)) !== undefined
+      ? new Set([view.replay.day])
+      : new Set<string>();
   return {
     offer: quietOffer({ replay: view.replay, lastMessageAt: view.lastMessageAt, now, dismissed: putAway }),
-    putOfferAway(key) {
-      putAway.add(key);
+    putOfferAway(day) {
+      scope.storage.set(offerKey(roomId, day), '1');
       setPutAwayCount((count) => count + 1);
     },
     replay: { open: replaying, setOpen: setReplaying, ...replay },

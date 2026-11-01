@@ -171,7 +171,21 @@ const controller = () =>
     startDiscussion: jest.fn(),
     setPreferences: jest.fn(),
   }) as unknown as RoomController & { leave: jest.Mock; setPreferences: jest.Mock };
-const scope = {} as AccountScope;
+/** An account scope with the storage the quiet room keeps a put-away offer in (purged with the scope, as the real one is). */
+const scopeWithStorage = (): AccountScope => {
+  const values = new Map<string, string>();
+  return {
+    storage: {
+      get: (key: string) => values.get(key),
+      set: (key: string, value: string) => void values.set(key, value),
+      remove: (key: string) => void values.delete(key),
+    },
+  } as unknown as AccountScope;
+};
+let scope = scopeWithStorage();
+beforeEach(() => {
+  scope = scopeWithStorage();
+});
 const wrap = (node: React.ReactNode) =>
   render(<DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>{node}</DisplayProvider>);
 
@@ -507,9 +521,13 @@ describe('the Launch in the room', () => {
 describe('the quiet room', () => {
   const READ = { noticeSeenAt: '2026-10-24T08:00:00.000Z' };
   const quietFor = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
-  const stageOf = (view: Member, actions: Partial<Record<'setQuestionNotice' | 'leaveQuestion', jest.Mock>> = {}) => (
+  const stageOf = (
+    view: Member,
+    actions: Partial<Record<'setQuestionNotice' | 'leaveQuestion', jest.Mock>> = {},
+    inScope: AccountScope = scope,
+  ) => (
     <GeneralStage
-      scope={scope}
+      scope={inScope}
       view={view}
       controller={{ ...controller(), ...actions }}
       state={roomState()}
@@ -538,6 +556,34 @@ describe('the quiet room', () => {
     await fireEvent.press(screen.getByTestId('quiet-offer-dismiss'));
     expect(screen.queryByTestId('quiet-offer')).not.toBeOnTheScreen();
     expect(screen.getByTestId('now-replay')).toBeOnTheScreen();
+  });
+
+  it('puts the offer away for that room and night only, and a new account scope is offered it again', async () => {
+    const day = '2026-10-29';
+    const otherRoom = { ...room, roomId: id(2) };
+    const { rerender } = await wrap(stageOf(quietView(day)));
+    await fireEvent.press(screen.getByTestId('quiet-offer-dismiss'));
+    expect(screen.queryByTestId('quiet-offer')).not.toBeOnTheScreen();
+    // Another room, the same night: it is that room's offer, not this one's.
+    await rerender(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        {stageOf(quietView(day, { room: otherRoom }))}
+      </DisplayProvider>,
+    );
+    expect(screen.getByTestId('quiet-offer')).toBeOnTheScreen();
+    // The first room is still put away in this scope; after an account switch (a new scope) it is offered again.
+    await rerender(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        {stageOf(quietView(day))}
+      </DisplayProvider>,
+    );
+    expect(screen.queryByTestId('quiet-offer')).not.toBeOnTheScreen();
+    await rerender(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        {stageOf(quietView(day), {}, scopeWithStorage())}
+      </DisplayProvider>,
+    );
+    expect(screen.getByTestId('quiet-offer')).toBeOnTheScreen();
   });
 
   it('opens the replay from the offer and from the chip', async () => {
