@@ -26,8 +26,10 @@ function purposeFitsOwner(p: { readonly ownerModule: string; readonly purpose: s
       return p.purpose === 'personal-planner';
     case 'geography':
       return p.purpose === 'personal-cartographer';
+    case 'supply':
+      return PURPOSE_CODE.test(p.purpose);
     default:
-      return p.ownerModule === 'supply' && PURPOSE_CODE.test(p.purpose);
+      return false;
   }
 }
 

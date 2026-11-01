@@ -1374,6 +1374,26 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         ).toBe('0');
     });
 
+    it('lets a cancel that arrives while the question is placed win: no order is made, and the run is left open for the ledger’s sweep', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      const requestId = await ask(person, askCommand(exposure, 'How do ships know where the land begins?'));
+      scopeScript = async () => {
+        const cancelled = await cancel(person.authority, {
+          version: 'content-request-cancel.v1',
+          commandId: randomUUID(),
+          requestId,
+        });
+        expect(cancelled).toMatchObject({ kind: 'ok', value: { outcome: 'cancelled' } });
+        return scopeAnswer('here');
+      };
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'cancelled' });
+      expect(await askOrders()).toEqual([]);
+      expect(await queuedProduction()).toEqual([]);
+      expect((await runsOf(requestId)).map((run) => run.state)).toEqual(['admitted']);
+    });
+
     it('is still refused while recording is paused, as before', async () => {
       await setup();
       const { person, exposure } = await reader();
