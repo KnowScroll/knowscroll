@@ -22,6 +22,7 @@ export interface PipelineDeps {
   readonly support: QuickAnswerSupportCheck;
   /** A UUID derived from a name, so a redelivery names the same runs again. */
   readonly idFor: (name: string) => string;
+  readonly now: () => Date;
 }
 
 export interface PipelineInput {
@@ -30,6 +31,8 @@ export interface PipelineInput {
   readonly ask: QuickAnswerAsk;
   readonly passages: readonly CitablePassage[];
   readonly context: ReasoningContext;
+  /** The instant after which nobody is waiting: an answer that comes later is dropped, so no paid step starts after it. */
+  readonly waitEndsAt: Date;
   readonly signal: AbortSignal;
 }
 
@@ -39,7 +42,8 @@ export interface PipelineInput {
  * and the check of it. An answer that says the passages do not cover the question is not checked: none of its words is shown.
  * An answer is shown only when a check answered and found nothing unsupported; a check that gave nothing usable, or a second
  * finding of unsupported sentences, shows nothing. Every run is named from the answer's ID, so a redelivery asks the ledger for
- * the replies it already holds and never pays twice.
+ * the replies it already holds and never pays twice. No paid step starts after the person's wait is over (`waitEndsAt`): the answer
+ * would be dropped when it arrived, so the answer is unavailable and the steps already paid are closed.
  */
 export async function answerAndCheck(deps: PipelineDeps, input: PipelineInput): Promise<PipelineResult> {
   const written = await write(
@@ -54,11 +58,13 @@ export async function answerAndCheck(deps: PipelineDeps, input: PipelineInput): 
   const draft = written.verdict.draft;
   if (!draft.covered) return { kind: 'shown', shown: shownOf(draft, input.ask), runs: [written.run] };
 
+  if (isLate(deps, input)) return { kind: 'unavailable', runs: [written.run] };
   const sentences = sentencesOf(draft);
   const first = await check(deps, input, 1, sentences, true);
   if (first.finding.kind === 'supported')
     return { kind: 'shown', shown: shownOf(draft, input.ask), runs: [written.run, first.run] };
-  if (first.finding.kind === 'unchecked') return { kind: 'unavailable', runs: [written.run, first.run] };
+  if (first.finding.kind === 'unchecked' || isLate(deps, input))
+    return { kind: 'unavailable', runs: [written.run, first.run] };
 
   const context: ReasoningContext = {
     ...input.context,
@@ -76,11 +82,15 @@ export async function answerAndCheck(deps: PipelineDeps, input: PipelineInput): 
   if (rewritten.verdict.kind !== 'ready') return { kind: 'unavailable', runs };
   const second = rewritten.verdict.draft;
   if (!second.covered) return { kind: 'shown', shown: shownOf(second, input.ask), runs };
+  if (isLate(deps, input)) return { kind: 'unavailable', runs };
   const last = await check(deps, input, 2, sentencesOf(second), false);
   return last.finding.kind === 'supported'
     ? { kind: 'shown', shown: shownOf(second, input.ask), runs: [...runs, last.run] }
     : { kind: 'unavailable', runs: [...runs, last.run] };
 }
+
+/** Whether the person's wait is over, so that a paid step would be for an answer nobody will see. */
+const isLate = (deps: PipelineDeps, input: PipelineInput): boolean => deps.now() > input.waitEndsAt;
 
 async function write(
   deps: PipelineDeps,

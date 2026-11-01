@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import { defineQueue } from '../../../infrastructure/jobs/queues.js';
 import { MINIMAX_REQUEST_TIMEOUT_MAX_MS } from '../../../infrastructure/config/index.js';
-import { MAX_TAKES_PER_RECIPE, productionVersionOf, REQUEST_BOUND_V2_PER_TOPIC } from './topics.js';
+import {
+  MAX_TAKES_PER_RECIPE,
+  productionVersionOf,
+  REQUEST_BOUND_ASK_ORDER,
+  REQUEST_BOUND_V2_PER_TOPIC,
+} from './topics.js';
 
 /**
  * One request to produce the Scroll of a library recipe, or of an order placed from code (`order-…`).
@@ -21,21 +26,28 @@ export const ProduceScrollJobSchema = z.strictObject({
 });
 export type ProduceScrollJob = z.infer<typeof ProduceScrollJobSchema>;
 
+/** Per paid request: the quota preflight (10 s) and the two personal-scope lock waits (5 s each), as the reasoning README counts them. */
+const REQUEST_OVERHEAD_SECONDS = 20;
+
 /** Time for the research fetch and the short database steps of a take, besides its model requests. */
-const TAKE_MARGIN_SECONDS = 300;
+const TAKE_MARGIN_SECONDS = 180;
+
+/** The most paid requests any take sends: a v2 library recipe's, or the answer to a question with its support check (D-263). */
+const WORST_CASE_REQUESTS = Math.max(REQUEST_BOUND_V2_PER_TOPIC, REQUEST_BOUND_ASK_ORDER);
 
 /**
- * How long a delivery may hold its claim: a take's worst case, which is every request it may send, one
- * after the other, each running to the largest request timeout the transport accepts, plus a margin
- * (D-198). Six requests at 300 s and 300 s of margin come to 2,100 s. A shorter claim would be lost
- * while the take was still working, and the redelivery would then wait on the same ledger.
+ * How long a delivery may hold its claim: a take's worst case, which is every request it may send, one after the other,
+ * each running to the largest request timeout the transport accepts plus the waits around it (reasoning README, "Queue
+ * settings for a job that calls `propose`"), plus a margin for the research and the database steps (D-198). The most is
+ * the answer to a question: twelve requests at 300 s and 20 s of waits, and 180 s of margin, 4,020 s. A shorter claim would
+ * be lost while the take was still working, and the redelivery would then wait on the same ledger.
  */
 export const PRODUCE_SCROLL_CLAIM_SECONDS =
-  (REQUEST_BOUND_V2_PER_TOPIC * MINIMAX_REQUEST_TIMEOUT_MAX_MS) / 1000 + TAKE_MARGIN_SECONDS;
+  WORST_CASE_REQUESTS * (MINIMAX_REQUEST_TIMEOUT_MAX_MS / 1000 + REQUEST_OVERHEAD_SECONDS) + TAKE_MARGIN_SECONDS;
 
 /**
- * Shared, nonpersonal work. A take chains up to six model requests (a writer, its repair and the answer
- * check, D-198) and also fetches research, so a claim runs as long as the worst case before pg-boss
+ * Shared, nonpersonal work. A take chains up to twelve model requests (a writer, its repair and the support check of
+ * an answer in batches, D-198, D-263) and also fetches research, so a claim runs as long as the worst case before pg-boss
  * treats it as lost. Retries cover an unavailable database or a lost claim; every delivery resumes the
  * same business run, and an attempt whose outcome is unknown is never resent.
  */

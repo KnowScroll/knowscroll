@@ -424,7 +424,7 @@ node dist/operator.js content production-status --only seasons,seasons-hemispher
 
 **Leaving a wave.** Record the yield (recipes held, released, rejected, unchecked), the tokens (sum the `attempts` of `production-status`) and the top findings of `reasoning rejected` in the tracker.
 
-## Checking stored ask answers (S-7b, D-250 to D-252)
+## Checking stored ask answers (S-7b and S-7c, D-250 to D-252, D-263)
 
 A person's question from a Scroll becomes a short answer made for them (an ask order, D-218). Nobody reads it first, so its job runs a second model, the **support
 check**, which reads each sentence against the passages the answer cites; an answer with a sentence they do not support is repaired once or refused, and
@@ -443,13 +443,15 @@ node dist/operator.js content ask-check --asset <asset id>[,<asset id>…] --out
 `not_replayable` and asks the model nothing). `--out` is required.
 
 - **Standard output** is one JSON line for each answer: its asset ID, `outcome` (`checked`, `unchecked` with a `code`, `paused`, `not_replayable`), the counts of
-  sentences, supported, unsupported and no-claim, and the requests sent (1, or 2 when the harness repaired an unusable reply). No sentence, title or question is
+  sentences, supported, unsupported and no-claim, the batches (a long answer is checked ten sentences at a time), the requests sent (one for each batch, and one
+  more when the harness repaired an unusable reply) and `codes`: how many sentences code set aside as unsupported, for each rule that did it
+  (`quote_not_in_cited_passages`, `quote_not_about_sentence`, `quote_too_short`, `no_claim_without_ground`, `too_many_no_claim`). No sentence, title or question is
   printed, so the output may be pasted into an issue.
 - **The file** gets one JSON line for each checked answer: its title, and every sentence with the passages it cites and the checker's verdict (the quote for a supported
-  sentence; the kind and the note for an unsupported one). It holds the answer's own words, which can echo a person's question, so read it from the server shell, never paste it into an issue, and **delete the file as soon as you have read it** (`shred -u <file>` or `rm <file>`). The command creates it readable by its owner only.
+  sentence; the kind and the note for an unsupported one, and the rule's `code` when code set it aside). It holds the answer's own words, which can echo a person's question, so read it from the server shell, never paste it into an issue, and **delete the file as soon as you have read it** (`shred -u <file>` or `rm <file>`). The command creates it readable by its owner only.
 - **Exit status:** 0 when it ran to the end, 2 when it was refused or stopped early (a spent budget or quota, an attempt of unknown outcome, the wrong model), 1 on a failure.
 
-What the checker is, and is not: code checks that each `supported` verdict quotes real words of a passage the sentence cites and that the words are about the sentence (D-250). Whether the words support the sentence is the checker model's judgement, and this replay is how it is measured. What to look for: the sentences you know are wrong should be `unsupported`; a good answer's sentences should be `supported` with a quote you can find in the answer's
+What the checker is, and is not: code checks the shape of the reply (a sentence skipped or reordered refuses the reply), and judges each verdict on its own sentence: a `supported` verdict that does not quote real words of a passage the sentence cites, or whose words are not about the sentence, makes that sentence unsupported with a `code` (D-250, D-263). A high count in `codes` means the checker's quotes are the problem, not the answer's sentences. Whether the words support the sentence is the checker model's judgement, and this replay is how it is measured. What to look for: the sentences you know are wrong should be `unsupported`; a good answer's sentences should be `supported` with a quote you can find in the answer's
 passages, and the quote should say what the sentence says, not only share its words. Many `unsupported` verdicts on sentences that are fine mean the checker is too strict (people will see "could not prepare" more often); `supported` on a
 sentence that says more than its passage means it is too lenient. Both are reasons to change the checker's instructions (a new `ask-support-check` version and the
 pair in `versions.test.ts`), not to read answers by hand.

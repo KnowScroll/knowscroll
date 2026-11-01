@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ProposeOutcome, ReasoningContext, ReasoningRole } from '../../../reasoning/public.js';
-import { isAbout } from '../../content/public.js';
+import { ASK_SUPPORT_BATCH_SENTENCES, isAbout, splitSentences } from '../../content/public.js';
 import {
   ANSWER_MAX_CHARS,
   MAX_CITATIONS,
@@ -13,7 +13,7 @@ import {
 } from '../domain/quick-answer.js';
 
 /** Changes with the instructions or the answer schema; recorded on every run and attempt. */
-export const QUICK_ANSWER_ROLE_VERSION = 'quick-answer.1';
+export const QUICK_ANSWER_ROLE_VERSION = 'quick-answer.2';
 export const QUICK_ANSWER_POLICY_VERSION = 'supply-quick-answer.v1';
 
 const INSTRUCTIONS = [
@@ -44,8 +44,17 @@ export function quickAnswerRewriteRole(role: ReasoningRole<QuickAnswerDraft>): R
   };
 }
 
+/**
+ * The most sentences an answer may have: what one request of the support check carries (D-263). The writer is asked for two to
+ * four, so this only refuses an answer that ran on, and it keeps the check to one request.
+ */
+const MAX_ANSWER_SENTENCES = ASK_SUPPORT_BATCH_SENTENCES;
+
 /** Fixed hints for the one repair: they name the rule that failed, never anything the model wrote. */
-const SAFE_HINTS: Readonly<Record<string, string>> = QUICK_ANSWER_HINTS;
+const SAFE_HINTS: Readonly<Record<string, string>> = {
+  ...QUICK_ANSWER_HINTS,
+  too_many_sentences: `Answer in two to four sentences, and never more than ${String(MAX_ANSWER_SENTENCES)}.`,
+};
 
 const Handle = z.string().regex(/^e[1-9][0-9]?$/u);
 const QuickAnswerShape = z.strictObject({
@@ -56,9 +65,11 @@ const QuickAnswerShape = z.strictObject({
 });
 
 /**
- * Whether the question a covered draft asks is about the words the reader selected and the passages the draft cites, in their own
- * words: it carries their key words. A question cannot bring a subject of its own, so the card's heading is never where outside
- * knowledge comes in. A draft that says the passages do not cover the question shows none of its words, so it is not asked.
+ * Whether the question a covered draft asks is about the words the reader selected and the passages the draft cites: it carries at
+ * least two of their key words together (all of them when they have fewer), compared as `isAbout` does. That is all code checks: a
+ * question that shares two key words can still add words of its own, so the card's heading is the writer's wording, and only the
+ * answer's sentences are read against the passages by the support check. A draft that says the passages do not cover the question
+ * shows none of its words, so it is not asked.
  */
 function questionIsAbout(draft: QuickAnswerDraft, passages: readonly CitablePassage[], ask: QuickAnswerAsk): boolean {
   if (!draft.covered) return true;
@@ -79,6 +90,9 @@ export function quickAnswerRole(
     const refusals = [
       ...quickAnswerRefusals(draft, passages, ask),
       ...(questionIsAbout(draft, passages, ask) ? [] : [{ code: 'question_off_topic', path: ['question'] } as const]),
+      ...(!draft.covered || splitSentences(draft.answer).length <= MAX_ANSWER_SENTENCES
+        ? []
+        : [{ code: 'too_many_sentences', path: ['answer'] } as const]),
     ];
     for (const refusal of refusals)
       context.addIssue({

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { ProposeOutcome } from '../../../reasoning/public.js';
 import type { CitablePassage, QuickAnswerDraft } from '../domain/quick-answer.js';
-import { quickAnswerContext, quickAnswerRole, quickAnswerVerdict } from './quick-answer-role.js';
+import {
+  QUICK_ANSWER_ROLE_VERSION,
+  quickAnswerContext,
+  quickAnswerRole,
+  quickAnswerVerdict,
+} from './quick-answer-role.js';
 
 const passages: readonly CitablePassage[] = [
   { handle: 'e1', stopId: 'a', text: 'The axis leans 23.4 degrees.' },
@@ -57,7 +62,20 @@ describe('the Quick answer writer', () => {
     );
   });
 
-  it('refuses a question that is not about the selected words and the cited passages, so the heading cannot bring a subject of its own', () => {
+  it('refuses an answer of more sentences than one request of the support check carries, with a fixed hint (D-263)', () => {
+    const role = quickAnswerRole(passages, ask);
+    const sentences = (count: number) => Array.from({ length: count }, () => 'Nothing turns it.').join(' ');
+    expect(QUICK_ANSWER_ROLE_VERSION).toBe('quick-answer.2');
+    expect(role.outputSchema.safeParse({ ...draft, answer: sentences(10) }).success).toBe(true);
+    expect(role.outputSchema.safeParse({ ...draft, answer: sentences(11) }).success).toBe(false);
+    expect(role.safeCustomIssues).toHaveProperty('too_many_sentences');
+    // An answer that says the passages do not cover the question is never shown or checked: its sentences are not counted.
+    expect(role.outputSchema.safeParse({ ...draft, covered: false, cites: [], answer: sentences(11) }).success).toBe(
+      true,
+    );
+  });
+
+  it('refuses a question that shares fewer than two key words with the selected words and the cited passages (that is all code checks of it)', () => {
     const role = quickAnswerRole(passages, ask);
     expect(role.outputSchema.safeParse(draft).success).toBe(true);
     for (const question of ['Who first measured the tilt of the Moon?', 'What happened next?'])

@@ -204,7 +204,11 @@ describe('the instructions for the answer to one question (D-218)', () => {
     expect(text).toContain('say in one sentence that the pages do not give the reason');
     expect(text).toContain('If the passages do not hold the answer at all, say so in one sentence');
     expect(text).toContain('A second reader checks each sentence against the passages you cited');
-    expect(text).toContain('the title, the headings and the callout’s title included');
+    // D-263: a title or a heading that only names what follows needs no passage, and a gap is said in a sentence of its own.
+    expect(text).toContain(
+      'A title, a heading or a callout’s title that only names what follows needs no passage; one that states a fact is checked like any sentence',
+    );
+    expect(text).toContain('begin the sentence with that admission');
     expect(text).toContain('do not say how a part works unless a passage says it');
     expect(text).not.toContain('THIS IS A WHAT-IF');
     expect(text.length).toBeLessThan(16_000);

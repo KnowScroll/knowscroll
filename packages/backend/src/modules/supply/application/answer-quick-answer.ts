@@ -28,6 +28,8 @@ type Prepared =
       readonly ask: QuickAnswerAsk;
       readonly passages: readonly CitablePassage[];
       readonly title: string;
+      /** When the person asked: their wait ends a fixed time after it. */
+      readonly createdAt: Date;
     };
 
 /**
@@ -70,7 +72,13 @@ export function makeAnswerQuickAnswer(
     // The plainer words of the reader's own stop are the Scroll's too (D-085): the reader may have selected inside them.
     const offered = [...facts.passages, { stopId: row.stopId, text: facts.anchorSimple }];
     const passages = offered.map((passage, index): CitablePassage => ({ handle: handleOf(index), ...passage }));
-    return { kind: 'ready', ask: { passage: row.passage, question: row.question }, passages, title: facts.title };
+    return {
+      kind: 'ready',
+      ask: { passage: row.passage, question: row.question },
+      passages,
+      title: facts.title,
+      createdAt: row.createdAt,
+    };
   }
 
   /**
@@ -119,7 +127,7 @@ export function makeAnswerQuickAnswer(
       value.kind === 'unavailable'
         ? { kind: 'unavailable', runs: [] }
         : await answerAndCheck(
-            { harness, support, idFor: p.idFor },
+            { harness, support, idFor: p.idFor, now: p.now },
             {
               authority,
               quickAnswerId: job.quickAnswerId,
@@ -131,6 +139,7 @@ export function makeAnswerQuickAnswer(
                 ask: value.ask,
                 passages: value.passages,
               }),
+              waitEndsAt: new Date(value.createdAt.getTime() + QUICK_ANSWER_WAIT_LIMIT_MS),
               signal,
             },
           );

@@ -1,6 +1,7 @@
 import type { ContextItem, ProposeOutcome, ReasoningHarness } from '../../../reasoning/public.js';
 import type { PersonalAuthority } from '../../identity/public.js';
 import {
+  ASK_SUPPORT_BATCH_SENTENCES,
   UNSUPPORTED_HINTS,
   askSupportContext,
   askSupportRole,
@@ -101,6 +102,11 @@ export function findingOf(outcome: ProposeOutcome<Parameters<typeof verdictsOf>[
  */
 export function makeSupportCheck(harness: ReasoningHarness): QuickAnswerSupportCheck {
   return async (input) => {
+    // A Quick answer is checked in one request, which bounds its paid attempts (`MAX_PAID_ATTEMPTS`). The writer is told to answer
+    // in a few sentences and its draft is refused above one request's worth, so this is a second guard: an answer longer than
+    // that is not checked, and an unchecked answer is never shown.
+    if (input.sentences.length > ASK_SUPPORT_BATCH_SENTENCES)
+      return { finding: { kind: 'unchecked' }, run: { runId: input.runId } };
     const outcome = await harness.propose(
       {
         run: {

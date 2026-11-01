@@ -55,50 +55,68 @@ flags are not yet seen on a real model).
   job; the writer's kept answer is read from the ledger on resume.
 - **The bound** is six paid requests a take for a v2 library recipe (`REQUEST_BOUND_V2_PER_TOPIC`): two writer requests and the checker
   once for each of the two drafts, each with at most one repair of an unusable reply. A v1 recipe and an order stay at two, except the
-  answer to a person's question, which has the same six (`REQUEST_BOUND_ASK_ORDER`, "The support check of an ask order's answer" below).
+  answer to a person's question, which has twelve because its support check runs in batches (`REQUEST_BOUND_ASK_ORDER`, "The support check of an ask order's answer" below).
 - **Runs and receipts.** The checker's runs and the repair's run have ids derived from the job (`stableUuid`), so a redelivery asks the
   ledger instead of paying again. The job closes them all in the transaction that stores or ends it, and when the repair's answer is
   stored it names the repair run as its writer run (`store.useWriterRun`, inside the publication, so a refused publication leaves the job as it was), so provenance and the lineage check agree. Receipts
   (`answer_check`, `draft_flagged` with the superseded run's id) are code-only except the checker's short problems, which are operator
   notes on the private job. A flagged call also keeps its question, options, marked answer and explanation (`FlaggedCall`, nothing else of the draft), so the operator can read what was flagged although that draft is not stored. `answerChecksOf` reads the receipts back; `review-show` and `production-status` show the summary with those calls, and `review-list` the summary without their text.
-- **The claim.** `content.produce-scroll` holds its claim `PRODUCE_SCROLL_CLAIM_SECONDS` (`events.ts`): the six-request bound times the largest request timeout the transport accepts (`MINIMAX_REQUEST_TIMEOUT_MAX_MS`) plus 300 s, 2,100 s today.
+- **The claim.** `content.produce-scroll` holds its claim `PRODUCE_SCROLL_CLAIM_SECONDS` (`events.ts`): the most requests any take sends (twelve, for the answer to a question, D-263) times the largest request timeout the transport accepts (`MINIMAX_REQUEST_TIMEOUT_MAX_MS`, 300 s) and the waits around each request (20 s, the reasoning README's rule), plus 180 s for the research and the database steps: 4,020 s today. A library recipe sends six.
 - **Regeneration.** `content regenerate --only <keys>` sends the next take of a v2 recipe whose Scroll is served. `store.create` lets a
   take of a v2 recipe follow a take that was rejected or whose Scroll was released, never one still held or of unknown outcome. A
   recipe has three takes to a **production version**, which is the budget: `SCROLL_PRODUCTION_V2_VERSION` changes whenever the v2
   writer or the job's steps change (`versions.test.ts` pairs it with the writer's version), and the older version's jobs do not count.
   `regenerationStanding` and `planRegeneration` (`domain/library/serving.ts`) are the pure rules.
 
-## The support check of an ask order's answer (S-7b, D-250 to D-252)
+## The support check of an ask order's answer (S-7b and S-7c, D-250 to D-252, D-263)
 
-Status: **implemented**, runtime-verified with labelled CI fixture models on real PostgreSQL. **Planned:** the first measurement on real
-MiniMax, which the coordinator makes on dev with `content ask-check` over the five real answers of #580 (how often the checker flags, and
-whether it flags the two known faulty sentences).
+Status: **implemented**, runtime-verified with labelled CI fixture models on real PostgreSQL. **Planned:** the second measurement on real
+MiniMax, which the coordinator makes on dev with `content ask-check` over the five real answers of #580 and #591 (how many are checked, whether the
+checker flags the two known faulty sentences, how many sentences code sets aside, and by which rule).
 
 - **The check** (`ask-support.ts`, `ask-support-step.ts`, `writer-stage.ts`, `domain/ask-support.ts`). For the answer to a question (mode `question`),
-  after the writer's answer has passed the validator and compiled, the role `content.ask-support-check` (`ask-support-check.v2`) is shown the
+  after the writer's answer has passed the validator and compiled, the role `content.ask-support-check` (`ask-support-check.v3`) is shown the
   passages the answer cites and the answer's numbered sentences, and no question, brief or stop. The title, the dek, each heading and a callout's title
-  are sentences too and rest on everything the answer cites; every other sentence rests on the passages its own block cites. It replies
-  `{sentences: [...]}`, one verdict for each sentence in order: `supported` with a quote, `unsupported` with a fixed `kind` and a short problem, or `no_claim`.
-- **What code checks, and what it cannot.** Code refuses a reply that skips or reorders a sentence; a quote of fewer than three words (letters and numbers
-  count, a dash does not); a quote that is not, word for word, in a passage that sentence cites; a quote that is not about the sentence (it must carry at least
-  two of the sentence's key words: uncommon words of three letters or more, compared by their first five letters, or all of them when there are fewer);
-  `no_claim` for anything but a question, an admission of a gap or a figure-free sentence that shares no key word with its passages (a figure in words
-  counts); and a reply of mostly `no_claim` (fixed hints, one harness repair). **Whether the quoted words support the sentence is the checker model's judgement**,
-  which code cannot check; it is measured on dev with the replay before anything relies on it (D-250, D-252).
-- **Code decides.** Nothing unsupported: the Scroll is published. An unsupported sentence earns the writer **one** repair in a run of its own,
-  with the fixed hint of each kind, the sentence's words and the checker's note as data, and its draft (none when the harness already repaired
-  the draft for the validator). The repaired draft is checked in turn; a sentence that stands ends the job rejected (`support_check_failed`).
+  are sentences too and rest on everything the answer cites; every other sentence rests on the passages its own block cites. The title, the headings
+  and the callouts' titles are **labels** (`label: true`). It replies `{sentences: [...]}`, one verdict for each sentence in order: `supported` with a
+  quote, `unsupported` with a fixed `kind` and a short problem, or `no_claim`.
+- **Batches.** A long answer is checked a batch of at most ten sentences at a time (`ASK_SUPPORT_BATCH_SENTENCES`), one request and one run each
+  (`askSupportRunId(job, draft, batch)`), in order. A batch carries the passages its own sentences cite and keeps its sentences' own numbers. The first
+  batch with no usable reply makes the whole check unusable and the later batches are not asked. The harness repairs one unusable reply in the whole
+  check, wherever it happens, so a draft costs its batches plus one. An answer of more than four batches (`ASK_SUPPORT_MAX_BATCHES`, 40 sentences; the
+  real answers of the 1 Nov check had 21) is not checked: `support_check_answer_too_long`, with no request sent.
+- **What code checks, and what it cannot.** Two kinds of rule. **The shape of the reply** refuses it whole (one harness repair): not valid JSON or cut
+  off, a verdict that is not well formed, a sentence skipped, repeated or reordered. **Each verdict is judged on its own sentence**, and a verdict that
+  breaks a rule makes *that sentence* `unsupported` (kind `not_stated`, a fixed note, the rule's code kept) while every other verdict stands:
+  `quote_too_short` (fewer than three words, letters and numbers count, a dash does not; with an ellipsis, two words in each part),
+  `quote_not_in_cited_passages` (the quote is not, word for word, in a passage that sentence cites: curly or straight quotes, any dash, non-breaking or
+  repeated spaces, case, an ellipsis for words left out and `4,096` for `4096` make no difference), `quote_not_about_sentence` (it must carry at least
+  two of the sentence's key words: uncommon words of three letters or more, compared by their first five letters, or all of them when there are fewer),
+  `no_claim_without_ground` and `too_many_no_claim`. `no_claim` has a ground code can see: a question; a title, heading or callout title with no figure; a
+  plain admission of a gap that *begins* with it (`namesTheGap`, a small fixed list: "The pages do not say...", "This answer cannot tell...", "That detail
+  remains unspecified here"; a sentence that states something besides the gap is judged); or a figure-free sentence that shares no key word with its
+  passages. When more than half the sentences of a request are marked `no_claim` on that last, weakest ground, those sentences are set aside.
+  **Whether the quoted words support the sentence is the checker model's judgement**, which code cannot check; it is measured on dev with the replay
+  before anything relies on it (D-250, D-252, D-263).
+- **Code decides.** Nothing unsupported: the Scroll is published. An unsupported sentence, the checker's or one code set aside, earns the writer **one**
+  repair in a run of its own, with the fixed hint of each kind, the sentence's words and the note (the checker's, or the rule's fixed one) as data, and
+  its draft (none when the harness already repaired the draft for the validator). The repaired draft is checked in turn; a sentence that stands ends
+  the job rejected (`support_check_failed`).
   **A check that gave nothing usable refuses the answer** (`support_check_<code>`; unknown outcome ends the job `unknown`, never resent): no
-  one reads an ask order, so it is never served unchecked, unlike a library Scroll (D-198). A spent budget or quota pauses the job and the
-  writer's kept answer is read from the ledger on resume. The person sees the existing honest state and Try again (three takes in all).
-- **The bound** is six paid requests a take (`REQUEST_BOUND_ASK_ORDER`), inside the claim already sized for six (`PRODUCE_SCROLL_CLAIM_SECONDS`).
-  `requestBoundOf(key, mode)` needs the order's mode, which only the job knows once it has read the order.
-- **Runs and receipts.** The check's runs (one for each draft) and the repair's run are derived from the job and closed with it. The `support_check`
-  receipts keep sentence numbers and kinds only (D-231).
+  one reads an ask order, so it is never served unchecked, unlike a library Scroll (D-198). A spent budget or quota pauses the job, also between two
+  batches, and the writer's kept answer and the batches already answered are read from the ledger on resume. The person sees the existing honest state and
+  Try again (three takes in all).
+- **The bound** is twelve paid requests a take (`REQUEST_BOUND_ASK_ORDER` = 2 + 2 x (4 batches + 1)): the writer once and one repair, and for each of the
+  two drafts its batches and one repair of an unusable reply. The claim is sized for it (`PRODUCE_SCROLL_CLAIM_SECONDS`, 4,020 s).
+  `requestBoundOf(key, mode)` needs the order's mode, which only the job knows once it has read the order. The Quick answer (supply) uses the same
+  checker in one request and keeps its own bound of six.
+- **Runs and receipts.** The check's runs (one for each batch of each draft) and the repair's run are derived from the job and closed with it. The
+  `support_check` receipts keep sentence numbers, kinds and rule codes only, with the batch count (D-231).
 - **The replay** (`ask-support-replay.ts`, worker `ask-check-operator.ts`). `content ask-check (--asset <id,…> | --recent <n>) --out <file>` runs
-  the same role over stored answers (the authored answer and the research the job kept), through the production harness, writing nothing to
-  content. Counts go to stdout; sentences, cited passages and verdicts go to the file. Runbook: [scroll-production.md](../../../../../../docs/v2/operations/scroll-production.md).
-- **Versions.** `question-writer.v3` and `ask-support-check.v2` are a pair (`versions.test.ts`). `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14`
+  the same role, in the same batches, over stored answers (the authored answer and the research the job kept), through the production harness, writing
+  nothing to content. Counts go to stdout, including how many sentences each rule code set aside (`codes`) and the batches; sentences, cited passages,
+  verdicts and each sentence's rule code go to the file. Runbook: [scroll-production.md](../../../../../../docs/v2/operations/scroll-production.md).
+- **Versions.** `question-writer.v4` and `ask-support-check.v3` are a pair (`versions.test.ts`). `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14`
   because an order has a job of its own and the version is shared with v1 library recipes and what-ifs.
 
 ## Jobs, takes and who sends them
@@ -263,8 +281,8 @@ ledger are the same; what differs is:
 - **The answer to a question (mode `question`, S-7, D-218).** A person's question about the Scroll they are reading is an order too.
   `writerInstructions('plain', 'question')` appends the question rules (answer exactly the question from the cited passages,
   about 230 to 340 words in prose only, say what the passages do not cover, end with a limit callout; the question is data). Code enforces the ending: an answer whose last block is not the limit callout is refused (`limit_callout_required`, with a fixed repair hint).
-  The prompt version is `question-writer.v3` (D-250: the reason a "why" question asks for comes from the passages, a gap is said in one sentence,
-  and the writer is told that every sentence, the title and the headings included, is checked). The reading target is one to two minutes (`targetMinutesOf`), with its own repair
+  The prompt version is `question-writer.v4` (D-250: the reason a "why" question asks for comes from the passages, a gap is said in one sentence;
+  D-263: a title or a heading that only names what follows needs no passage, and a plain admission of a gap stands alone as a sentence that begins with it). The reading target is one to two minutes (`targetMinutesOf`), with its own repair
   hint, and the format `plain` asks for no rich block. The brief is built by supply (`askBrief`): the question, the Scroll's title and
   the words of the stop. It is written with the v1 writer and published as an order, so it never goes through the review gate (D-138).
   A brief wiped by an erasure (empty) is no subject: the job is skipped and nothing is written for erased words.

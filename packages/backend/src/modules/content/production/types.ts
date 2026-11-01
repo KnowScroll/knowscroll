@@ -1,6 +1,6 @@
 import type { ProductionAttemptAccounting } from '../../../reasoning/public.js';
 import type { CallVerdict } from '../domain/answer-check.js';
-import type { UnsupportedKind } from '../domain/ask-support.js';
+import type { RuleCode, UnsupportedKind } from '../domain/ask-support.js';
 
 /**
  * Code-only operator outcomes; no prompts, research, drafts or internal provenance. The checker's
@@ -18,7 +18,14 @@ export interface RoleReceipt {
   readonly verdicts?: readonly CallVerdict[];
   /** For a `support_check` receipt: how many sentences were checked and which were found unsupported. Numbers and kinds only, never the sentences (D-231). */
   readonly sentences?: number;
-  readonly unsupported?: readonly { readonly number: number; readonly kind: UnsupportedKind }[];
+  /** For a `support_check` receipt: how many requests' worth of sentences the answer was split into (D-263). */
+  readonly batches?: number;
+  /** `code` is present when code, not the checker, found the sentence unsupported: the rule its verdict broke (D-263). */
+  readonly unsupported?: readonly {
+    readonly number: number;
+    readonly kind: UnsupportedKind;
+    readonly code?: RuleCode;
+  }[];
   readonly attemptId?: string;
   readonly attempts?: readonly ProductionAttemptAccounting[];
   readonly code?: string;

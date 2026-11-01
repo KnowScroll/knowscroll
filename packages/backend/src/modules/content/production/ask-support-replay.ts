@@ -8,7 +8,7 @@ import type {
   WithProductionScope,
 } from '../../../reasoning/public.js';
 import type { SentenceUnderCheck, SentenceVerdict } from '../domain/ask-support.js';
-import { askSupportRunId, makeAskSupportStep } from './ask-support-step.js';
+import { makeAskSupportStep } from './ask-support-step.js';
 import { sentencesOfAnswer } from './ask-support.js';
 import { evidencePassages, type EvidencePassage } from './evidence.js';
 import { SPIKE_MODEL } from './spike-v2/run.js';
@@ -43,10 +43,15 @@ export interface ReplayLine {
   readonly supported: number;
   readonly unsupported: number;
   readonly noClaim: number;
-  /** Paid requests the replay sent: 1, or 2 when the harness repaired an unusable reply. */
+  /** How many requests' worth of sentences the answer was split into (D-263). */
+  readonly batches: number;
+  /** Paid requests the replay sent: one for each batch, and one more when the harness repaired an unusable reply. */
   readonly requests: number;
+  /** For each rule code, how many sentences code set aside as unsupported; the sentences' words are never here (D-263). */
+  readonly codes: Readonly<Record<string, number>>;
+  /** Why the check gave no usable answer, when it did not. */
   readonly code?: string;
-  readonly runId?: string;
+  readonly runIds?: readonly string[];
 }
 
 /** One sentence as the file shows it: the sentence, the passages it cites and the checker's verdict on it. */
@@ -54,6 +59,8 @@ export interface ReplaySentence extends SentenceUnderCheck {
   readonly verdict: SentenceVerdict['verdict'];
   readonly kind?: string;
   readonly problem?: string;
+  /** The rule code, when code set the sentence aside as unsupported (D-263). */
+  readonly code?: string;
   readonly quote?: string;
 }
 
@@ -61,7 +68,7 @@ export interface ReplaySentence extends SentenceUnderCheck {
 export interface ReplayDetail {
   readonly assetId: string;
   readonly title: string;
-  readonly runId: string;
+  readonly runIds: readonly string[];
   readonly sentences: readonly ReplaySentence[];
 }
 
@@ -93,9 +100,20 @@ const emptyLine = (assetId: string, outcome: ReplayOutcome, code?: string): Repl
   supported: 0,
   unsupported: 0,
   noClaim: 0,
+  batches: 0,
   requests: 0,
+  codes: {},
   ...(code === undefined ? {} : { code }),
 });
+
+/** How many sentences each rule code set aside. */
+function codeCounts(verdicts: readonly SentenceVerdict[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const verdict of verdicts)
+    if (verdict.verdict === 'unsupported' && verdict.code !== undefined)
+      counts[verdict.code] = (counts[verdict.code] ?? 0) + 1;
+  return counts;
+}
 
 /** Whether an asset id is a UUID, so it can be matched without a cast failing the whole read. */
 export const isAssetId = (value: string): boolean =>
@@ -149,16 +167,13 @@ export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
     if (checked.kind === 'paused') return { line: emptyLine(assetId, 'paused', checked.code) };
     // A fresh run id cannot already be closed.
     if (checked.kind === 'advanced') return { line: emptyLine(assetId, 'not_replayable', 'run_closed') };
-    const runId = askSupportRunId(jobId, 1);
-    // An attempt of unknown outcome keeps its run open for reconciliation; every other outcome is final.
-    if (checked.record.code !== 'outcome_unknown')
+    const runIds = checked.runs.map((run) => run.runId);
+    // An attempt of unknown outcome keeps its run open for reconciliation; every other run is final.
+    const unknown = checked.record.code === 'outcome_unknown';
+    for (const run of unknown ? checked.runs.slice(0, -1) : checked.runs)
       await deps.withScope(deps.authority, (scope) =>
-        deps.harness.closeProductionRun(scope, {
-          runId,
-          state: checked.record.kind === 'checked' ? 'completed' : 'cancelled',
-        }),
+        deps.harness.closeProductionRun(scope, { runId: run.runId, state: run.state }),
       );
-    const requests = checked.receipt.attempts?.length ?? 0;
     const verdicts = new Map(checked.verdicts.map((verdict) => [verdict.number, verdict]));
     const count = (kind: SentenceVerdict['verdict']) =>
       checked.verdicts.filter((verdict) => verdict.verdict === kind).length;
@@ -169,21 +184,29 @@ export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
       supported: count('supported'),
       unsupported: count('unsupported'),
       noClaim: count('no_claim'),
-      requests,
-      runId,
+      batches: checked.record.batches,
+      requests: checked.receipt.attempts?.length ?? 0,
+      codes: codeCounts(checked.verdicts),
+      runIds,
       ...(checked.record.code === undefined ? {} : { code: checked.record.code }),
     };
     if (checked.record.kind !== 'checked') return { line };
     const detail: ReplayDetail = {
       assetId,
       title: answer.data.title,
-      runId,
+      runIds,
       sentences: sentences.map((sentence): ReplaySentence => {
         const verdict = verdicts.get(sentence.number);
         return {
           ...sentence,
           verdict: verdict?.verdict ?? 'no_claim',
-          ...(verdict?.verdict === 'unsupported' ? { kind: verdict.kind, problem: verdict.problem } : {}),
+          ...(verdict?.verdict === 'unsupported'
+            ? {
+                kind: verdict.kind,
+                problem: verdict.problem,
+                ...(verdict.code === undefined ? {} : { code: verdict.code }),
+              }
+            : {}),
           ...(verdict?.verdict === 'supported' ? { quote: verdict.quote } : {}),
         };
       }),

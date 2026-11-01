@@ -87,8 +87,11 @@ itself fails `schema-structure.test.ts`, instead of silently masking every path.
   (`KS_MINIMAX_REQUEST_TIMEOUT_MS`, default 240 s, at most 300 s) plus the database waits (each
   personal-scope lock wait is at most `KS_SCOPE_LOCK_TIMEOUT_MS`, 5 s, and there are two), and a
   repair doubles it. Declare `expireInSeconds ≥ 2 × (10 + request deadline in seconds + 10) + 30`
-  (550 s with the defaults, 670 s at the 300 s maximum). Below that, pg-boss expires a delivery that
-  is still waiting on the provider; the next delivery finds the attempt `dispatched`, marks it
+  (550 s with the defaults, 670 s at the 300 s maximum). A job that makes several proposals counts
+  every request it may send at `10 + 300 + 10` s each: the Scroll production job twelve for the answer
+  to a question plus 180 s for research and database steps (`PRODUCE_SCROLL_CLAIM_SECONDS`, 4,020 s,
+  D-263), and the Quick answer job its six paid attempts (1,950 s). Below that, pg-boss expires a
+  delivery that is still waiting on the provider; the next delivery finds the attempt `dispatched`, marks it
   `unknown` (never resent) and the operator has to write it off.
 - **Aborts.** A graceful stop (the delivery's signal) before the request leaves records a failure
   with code `ABORTED_BEFORE_DISPATCH` that charges nothing; the stop after it left records `unknown`.
