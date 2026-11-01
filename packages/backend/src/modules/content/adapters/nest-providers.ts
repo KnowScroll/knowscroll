@@ -237,6 +237,18 @@ export {
   type SpikeResult,
 } from '../production/spike-v2/run.js';
 export { parseSpikeBlocks, parseSpikeTopics, SPIKE_TOPICS_V2 } from '../production/spike-v2/topics.js';
+/**
+ * The operator's replay of the support check over stored ask answers (D-250): the checker run again on answers already
+ * served, writing nothing. The line it prints holds counts only; the detail goes to a file the operator reads.
+ */
+export {
+  ASK_SUPPORT_REPLAY_MAX,
+  isAssetId,
+  makeAskSupportReplay,
+  type ReplayLine,
+  type ReplayResult,
+  type ReplayTarget,
+} from '../production/ask-support-replay.js';
 /** The job one `content.produce-scroll` delivery runs, and the operator's enqueue and status reads. */
 export { makeRunScrollProduction } from '../production/job.js';
 export { makeEnqueueScrollProduction } from './enqueue-production.js';

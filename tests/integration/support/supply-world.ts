@@ -10,9 +10,9 @@ import {
 } from '@knowscroll/backend/infrastructure/postgres';
 import { FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
-import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
+import { contentProviders, makeReadLibraryPassages } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
-import { produceScrollJob } from '@knowscroll/backend/modules/content';
+import { READ_LIBRARY_PASSAGES, produceScrollJob } from '@knowscroll/backend/modules/content';
 import { READ_EXPLORATION_SNAPSHOT } from '@knowscroll/backend/modules/personal-context';
 import {
   CREATE_CONTENT_REQUEST,
@@ -72,6 +72,7 @@ export async function supplyWorld(purpose: string) {
     [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
     [READ_EXPLORATION_SNAPSHOT, content.readExploration],
     [HARNESS, fixtureHarness(database.db, { model: matchModel }).harness],
+    [READ_LIBRARY_PASSAGES, makeReadLibraryPassages(database.db)],
     ...identityScopeOwnerProviders().map((provider) => [provider.provide, provider.useValue] as const),
     ...contentProviders().map((provider) => [provider.provide, provider.useValue] as const),
     ...experienceEvidenceReadProviders().map((provider) => [provider.provide, provider.useValue] as const),

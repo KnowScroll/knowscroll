@@ -15,7 +15,11 @@ export const askOrderLedger: AskOrderLedger = {
     return Number(row.total);
   },
   async insert(scope, orderId) {
-    await transactionOf(scope).insertInto('supply.ask_orders').values({ order_id: orderId }).execute();
+    // An order made now waits for the support check (D-252); only such orders measure the "usually" time.
+    await transactionOf(scope)
+      .insertInto('supply.ask_orders')
+      .values({ order_id: orderId, support_checked: true })
+      .execute();
   },
   async markReady(scope, orderId) {
     await sql`update supply.ask_orders set ready_at = greatest(now(), created_at)
@@ -23,7 +27,7 @@ export const askOrderLedger: AskOrderLedger = {
   },
   async recentWaitsSeconds(scope, limit) {
     const rows = await sql<{ seconds: string }>`select extract(epoch from (ready_at - created_at))::text as seconds
-      from supply.ask_orders where ready_at is not null order by ready_at desc limit ${limit}`.execute(
+      from supply.ask_orders where ready_at is not null and support_checked order by ready_at desc limit ${limit}`.execute(
       transactionOf(scope),
     );
     return rows.rows.map((row) => Number(row.seconds));
