@@ -79,6 +79,9 @@ describe('the reader’s own scout (v3 R-9, D-260)', () => {
     };
     expect(RoomScoutSchema.safeParse(on).success).toBe(true);
     expect(RoomScoutSchema.safeParse({ ...on, lastPostedAt: '2026-11-04T08:37:00.000Z' }).success).toBe(true);
+    // The owner is told while their recording is paused; it is said only when true.
+    expect(RoomScoutSchema.safeParse({ ...on, recordingPaused: true }).success).toBe(true);
+    expect(RoomScoutSchema.safeParse({ ...on, recordingPaused: false }).success).toBe(false);
   });
 
   it('has one to five topics and a cadence of a day or a week, and nothing about what the member did', () => {

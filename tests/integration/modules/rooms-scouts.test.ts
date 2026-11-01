@@ -538,10 +538,13 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
       await pauseRecording(scene.owner, false);
       expect((await look(scene.slug, scene.owner)).find).toEqual({ kind: 'dropped', reason: 'recording_paused' });
       expect(model.calls).toHaveLength(0);
+      // The owner is told it is waiting for recording, not that it is looking.
+      expect(await scoutFeed(scene, scene.owner)).toMatchObject({ state: 'on', recordingPaused: true });
       // The heartbeat does not even list it while recording is paused.
       const { heartbeat } = scoutBeat(world);
       expect(await heartbeat.lookAtAll({ signal: new AbortController().signal })).toEqual([]);
       await pauseRecording(scene.owner, true);
+      expect(await scoutFeed(scene, scene.owner)).not.toHaveProperty('recordingPaused');
       expect((await look(scene.slug, scene.owner)).find.kind).toBe('posted');
     });
 

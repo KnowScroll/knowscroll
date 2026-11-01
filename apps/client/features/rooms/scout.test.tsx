@@ -232,6 +232,12 @@ describe('the Send your scout sheet', () => {
     expect(screen.getByTestId('scout-status')).toHaveTextContent(/A moderator stopped your scout/);
   });
 
+  it('tells the owner their recording is paused, not that the scout is looking', async () => {
+    await sheet(on({ recordingPaused: true }));
+    expect(screen.getByTestId('scout-status')).toHaveTextContent(/Recording is paused, so your scout posts nothing/);
+    expect(screen.getByTestId('scout-status')).not.toHaveTextContent(/Looking/);
+  });
+
   it('says so when a change was refused', async () => {
     await sheet(none, { refused: true });
     expect(screen.getByText('Couldn’t change it.')).toBeOnTheScreen();

@@ -40,6 +40,7 @@ export async function scoutViewOf(
   const scout = await p.scouts.scoutOf(lock, accountId);
   if (scout === undefined) return { state: 'none', choices };
   const lastPost = await p.scouts.lastPostOf(lock, accountId);
+  const recording = await p.scouts.recordingOn(lock, accountId);
   return {
     state: 'on',
     choices,
@@ -47,6 +48,7 @@ export async function scoutViewOf(
     cadence: scout.cadence,
     paused: scout.paused,
     stopped: scout.stopped,
+    ...(recording ? {} : { recordingPaused: true as const }),
     ...(lastPost === undefined ? {} : { lastPostedAt: lastPost.toISOString() }),
   };
 }

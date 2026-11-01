@@ -956,6 +956,8 @@ export interface ScoutRow {
 export interface ScoutReadStore {
   /** The member's own scout in the room, if they sent one. */
   scoutOf(lock: RoomLock, accountId: string): Promise<ScoutRow | undefined>;
+  /** Whether the member's own recording is on: a scout posts nothing while it is paused (D-259). */
+  recordingOn(lock: RoomLock, accountId: string): Promise<boolean>;
   /** When the member's scout last had a find counted in this room; none when it has not posted. */
   lastPostOf(lock: RoomLock, accountId: string): Promise<Date | undefined>;
   /** Sends a scout, or changes the one that stands; a moderator's stop is kept. */

@@ -604,6 +604,8 @@ export const RoomScoutSchema = z.discriminatedUnion('state', [
     cadence: RoomScoutCadenceSchema,
     paused: z.boolean(),
     stopped: z.boolean(),
+    /** The owner's recording is paused, so the scout posts nothing until it is back on (D-259). Absent while it is on. */
+    recordingPaused: z.literal(true).optional(),
     /** When it last posted in this room, so the sheet can say when it may post again. */
     lastPostedAt: z.iso.datetime().optional(),
   }),

@@ -119,6 +119,8 @@ export function toggleInterest(draft: ScoutDraft, topicId: string, most: number)
 export function scoutStatusWords(scout: RoomScout, now: Date): string {
   if (scout.state === 'none') return 'No scout sent to this room yet.';
   if (scout.stopped) return 'A moderator stopped your scout in this room. It posts nothing until a moderator lets it.';
+  if (scout.recordingPaused === true)
+    return 'Recording is paused, so your scout posts nothing. It looks again when you turn recording back on.';
   const last =
     scout.lastPostedAt === undefined
       ? 'It has not posted here yet.'

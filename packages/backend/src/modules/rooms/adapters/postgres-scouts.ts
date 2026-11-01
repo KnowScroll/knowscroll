@@ -141,6 +141,14 @@ export const scoutReadStore: ScoutReadStore = {
         };
   },
 
+  async recordingOn(lock, accountId) {
+    const row = await sql<{ recording_on: boolean }>`
+      select recording_on from identity.universes where account_id = ${accountId}::uuid`.execute(
+      sharedTransactionOf(lock.shared),
+    );
+    return row.rows[0]?.recording_on ?? false;
+  },
+
   async lastPostOf(lock, accountId) {
     const row = await sql<{ at: Date | string | null }>`
       select ${lastCounted(sql`${lock.roomId}::uuid`, sql`${accountId}::uuid`)} as at`.execute(

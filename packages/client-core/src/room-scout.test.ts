@@ -115,7 +115,13 @@ describe('a scout’s sheet', () => {
     );
     expect(scoutStatusWords(on({ paused: true }), now)).toContain('Paused. It posts nothing until you start it again.');
     expect(scoutStatusWords(on({ stopped: true }), now)).toContain('A moderator stopped your scout');
-    for (const scout of [on(), on({ paused: true }), on({ stopped: true })])
+    // While recording is paused it says so, and never that the scout is looking; a moderator's stop is told first.
+    expect(scoutStatusWords(on({ recordingPaused: true }), now)).toBe(
+      'Recording is paused, so your scout posts nothing. It looks again when you turn recording back on.',
+    );
+    expect(scoutStatusWords(on({ recordingPaused: true }), now)).not.toContain('Looking');
+    expect(scoutStatusWords(on({ recordingPaused: true, stopped: true }), now)).toContain('A moderator stopped');
+    for (const scout of [on(), on({ paused: true }), on({ stopped: true }), on({ recordingPaused: true })])
       expect(scoutStatusWords(scout, now)).not.toMatch(/\b(watched|read)\b/);
   });
 });
