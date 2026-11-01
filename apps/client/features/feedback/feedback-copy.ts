@@ -70,3 +70,10 @@ export function whatHappensNext(kind: ReportFlowState['kind'], target: FeedbackT
     return 'Our safety team will review it. The moderators of the room can see it too. You don’t need to do anything else.';
   return 'Our safety team will review it. You don’t need to do anything else.';
 }
+
+/**
+ * What a report about a Quick answer tells the person before they send it (D-255): the report keeps the question and the answer,
+ * because the answer itself is erased a day later, and a report outlives Clear and lasts until the account is deleted.
+ */
+export const QUICK_ANSWER_REPORT_KEPT =
+  'Your report keeps this question and answer until you delete your account. Clear does not remove it.';

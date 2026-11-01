@@ -98,6 +98,10 @@ export function createQuickAnswerSession(options: QuickAnswerSessionOptions): Qu
   let serial = 0;
 
   const live = () => scope.active;
+  /** Asks the server to erase an answer's words now. One that cannot be reached is left to expire with its day. */
+  const eraseOnServer = (quickAnswerId: string) => {
+    if (live()) void scope.api.quickAnswers.dismiss({ quickAnswerId }).catch(() => undefined);
+  };
   const publish = (stopId: string, card: QuickAnswerCard | undefined) => {
     if (!live()) return;
     const cards = { ...snapshot.cards };
@@ -172,6 +176,9 @@ export function createQuickAnswerSession(options: QuickAnswerSessionOptions): Qu
     const mine = ++serial;
     serials.set(stopId, mine);
     stopTimer(stopId);
+    // An answer this one replaces is not read any more: its words are erased now, not left to expire.
+    const replaced = snapshot.cards[stopId];
+    if (replaced !== undefined && 'id' in replaced && replaced.id !== undefined) eraseOnServer(replaced.id);
     // Recording paused: the server keeps no record of reading, so nothing is sent (D-254). The card says so.
     if (scope.recording?.getState().policy?.on === false)
       return publish(stopId, { phase: 'unavailable', passage, reason: 'paused' });
@@ -188,7 +195,11 @@ export function createQuickAnswerSession(options: QuickAnswerSessionOptions): Qu
         recordingGeneration,
       };
       const result = await scope.api.quickAnswers.ask(command);
-      if (!current(stopId, mine)) return;
+      if (!current(stopId, mine)) {
+        // The card was closed or replaced while the ask was on its way: the server stored an answer nobody will read.
+        if (result.outcome === 'accepted') eraseOnServer(result.quickAnswerId);
+        return;
+      }
       if (result.outcome === 'unavailable')
         return publish(stopId, { phase: 'unavailable', passage, reason: result.reason });
       if (result.commandId !== command.commandId || result.privacyEpoch !== scope.account.privacyEpoch)
@@ -228,9 +239,8 @@ export function createQuickAnswerSession(options: QuickAnswerSessionOptions): Qu
       serials.set(stopId, ++serial);
       stopTimer(stopId);
       publish(stopId, undefined);
-      const id = card !== undefined && 'id' in card ? card.id : undefined;
-      // A dismissal that cannot reach the server leaves the words to expire with the day; the card is gone either way.
-      if (id !== undefined && live()) void scope.api.quickAnswers.dismiss({ quickAnswerId: id }).catch(() => undefined);
+      // The card is gone either way; a dismissal that cannot reach the server leaves the words to expire with the day.
+      if (card !== undefined && 'id' in card && card.id !== undefined) eraseOnServer(card.id);
     },
   };
 }

@@ -14,7 +14,13 @@ import { REPORT_NOTE_MAX } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Icon, Text } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
-import { ABUSE_CHOICES, CONTENT_ERROR_CHOICES, receiptLine, whatHappensNext } from './feedback-copy';
+import {
+  ABUSE_CHOICES,
+  CONTENT_ERROR_CHOICES,
+  QUICK_ANSWER_REPORT_KEPT,
+  receiptLine,
+  whatHappensNext,
+} from './feedback-copy';
 import { FeedbackMenuRow, NoteField, NotInterestedRow, ReasonChips } from './feedback-parts';
 import { useFeedbackStore } from './use-feedback';
 
@@ -73,6 +79,11 @@ function AboutCard({
         <Text variant="uiS" numberOfLines={3}>
           {target.title}
         </Text>
+        {target.quickAnswerId === undefined ? null : (
+          <Text variant="metaS" color={content.ink2} testID="feedback-quick-answer-kept">
+            {QUICK_ANSWER_REPORT_KEPT}
+          </Text>
+        )}
         {moment === undefined || target.quickAnswerId !== undefined ? null : (
           <View style={styles.moment}>
             <Text variant="metaS" color={content.ink2}>

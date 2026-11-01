@@ -113,6 +113,38 @@ async function show(
   return { onClose };
 }
 
+describe('a report about a Quick answer (D-255)', () => {
+  const answer: FeedbackTarget = {
+    kind: 'asset',
+    assetId: id(1),
+    assetRevision: 2,
+    title: 'Seasons',
+    format: 'scroll',
+    anchor: { kind: 'scroll', blockId: 'the-lean' },
+    quickAnswerId: id(60),
+  };
+
+  it('says before it is sent that the question and answer are kept until the account is deleted, and Clear keeps them', async () => {
+    const { scope, feedback } = setup();
+    await show(scope, answer, 'content_error');
+    expect(screen.getByText('The Quick answer you asked for, about')).toBeOnTheScreen();
+    expect(screen.getByTestId('feedback-quick-answer-kept')).toHaveTextContent(
+      'Your report keeps this question and answer until you delete your account. Clear does not remove it.',
+    );
+    // The place is the answer's own: there is no "moment" to leave out.
+    expect(screen.queryByRole('button', { name: 'Leave out the moment' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Send report' }));
+    await waitFor(() => expect(feedback.reportContentError).toHaveBeenCalledTimes(1));
+    expect(sentTo(feedback.reportContentError)).toMatchObject({ quickAnswerId: id(60), anchor: { kind: 'scroll' } });
+  });
+
+  it('says nothing of the kind for a report about a Scroll alone', async () => {
+    const { scope } = setup();
+    await show(scope, { ...answer, quickAnswerId: undefined }, 'content_error');
+    expect(screen.queryByTestId('feedback-quick-answer-kept')).toBeNull();
+  });
+});
+
 describe('the menu', () => {
   it('names what it is about and offers Not interested, a content error and abuse, with Cancel', async () => {
     const { scope } = setup();

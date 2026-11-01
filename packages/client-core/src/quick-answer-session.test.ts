@@ -207,7 +207,7 @@ describe('a Quick answer session', () => {
   it('lets a later ask at the same stop replace the earlier one, so a slow first answer cannot overwrite it', async () => {
     let first: (value: AskQuickAnswerResult) => void = () => undefined;
     const sent: AskQuickAnswer[] = [];
-    const { session } = fixture({
+    const { session, dismiss } = fixture({
       ask: (command) => {
         sent.push(command);
         if (sent.length === 1) return new Promise((resolve) => (first = resolve));
@@ -220,6 +220,42 @@ describe('a Quick answer session', () => {
     await firstAsk;
     expect(stop(session.getSnapshot())).toMatchObject({ phase: 'waiting', id: id(51), passage: 'second words' });
     expect(sent[1]).toMatchObject({ question: 'And then?' });
+    // The answer the server stored for the replaced ask is nobody's: its words are erased now, not left for a day.
+    expect(dismiss).toHaveBeenCalledExactlyOnceWith({ quickAnswerId: answerId });
+  });
+
+  it('erases on the server an answer whose card was closed while the ask was on its way', async () => {
+    let receipt: (value: AskQuickAnswerResult) => void = () => undefined;
+    let command: AskQuickAnswer | undefined;
+    const { session, dismiss, read } = fixture({
+      ask: (sent) => {
+        command = sent;
+        return new Promise((resolve) => (receipt = resolve));
+      },
+    });
+    const asking = session.ask({ stopId: 'one', passage: 'words' });
+    await settle();
+    session.dismiss('one');
+    // The card had no answer yet to name, so nothing could be erased by the dismissal itself.
+    expect(dismiss).not.toHaveBeenCalled();
+    receipt(accepted(command!));
+    await asking;
+    expect(dismiss).toHaveBeenCalledExactlyOnceWith({ quickAnswerId: answerId });
+    expect(session.getSnapshot().cards).toEqual({});
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('erases an answer that a follow-up replaces, and one that an ended scope can no longer reach is left to expire', async () => {
+    const { session, dismiss, end } = fixture({ read: () => Promise.resolve(answered) });
+    await session.ask({ stopId: 'one', passage: 'words' });
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(stop(session.getSnapshot())).toMatchObject({ phase: 'answered' });
+    await session.ask({ stopId: 'one', passage: 'words', question: 'And then?' });
+    expect(dismiss).toHaveBeenCalledExactlyOnceWith({ quickAnswerId: answerId });
+    end();
+    session.dismiss('one');
+    expect(dismiss).toHaveBeenCalledTimes(1);
   });
 
   it('keeps one card per stop and publishes nothing once its scope has ended', async () => {

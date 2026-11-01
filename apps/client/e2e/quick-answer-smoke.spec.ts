@@ -151,6 +151,10 @@ for (const viewport of [phone, desktop]) {
     await card.getByRole('button', { name: 'Report' }).click({ timeout: 15_000 });
     const sheet = page.getByRole('dialog', { name: 'Report' });
     await expect(sheet.getByRole('heading', { name: 'Report an error' })).toBeVisible();
+    // It says what it keeps and for how long before it is sent (D-255).
+    await expect(sheet.getByTestId('feedback-quick-answer-kept')).toHaveText(
+      'Your report keeps this question and answer until you delete your account. Clear does not remove it.',
+    );
     await shot(page, `report-${name}`);
     await sheet.getByRole('button', { name: /^Send/ }).click();
     await expect.poll(() => quickCommands(served, '/v1/feedback/content-errors')).toHaveLength(1);
@@ -176,7 +180,12 @@ for (const viewport of [phone, desktop]) {
     });
     await card.getByRole('button', { name: 'Close' }).click();
     await expect(card).toHaveCount(0);
-    await expect.poll(() => quickCommands(served, '/v1/quick-answers/dismiss')).toHaveLength(1);
+    // The answer the follow-up replaced and the one the person closed are both erased on the server.
+    await expect.poll(() => quickCommands(served, '/v1/quick-answers/dismiss')).toHaveLength(2);
+    expect(quickCommands(served, '/v1/quick-answers/dismiss').map((command) => command.body['quickAnswerId'])).toEqual([
+      '0199a000-0000-7000-8000-000000000961',
+      '0199a000-0000-7000-8000-000000000962',
+    ]);
   });
 
   test(`an answer the Scroll does not cover says so, and still offers the full Scroll, at ${size}`, async ({
