@@ -23,7 +23,7 @@ type Find = Extract<RoomFeedPost, { kind: 'find' }>;
 type MemberPost = Extract<RoomFeedPost, { kind: 'post' }>;
 
 /**
- * A source as a plain link (D-270): the site's name and the address, as text. It is never previewed, fetched or opened inside the
+ * A source as a plain link (D-272): the site's name and the address, as text. It is never previewed, fetched or opened inside the
  * app: on the web it is a real link that opens in a new tab with no opener and no referrer, so the address is what a member sees
  * before they go, and anyone can copy it.
  */
@@ -213,7 +213,7 @@ function PersonPost({
  * discussion; a scout's find is signed "Sent by <owner>" so it is never read as the owner's own words. A member's post shows their
  * headline and words and one link, a library asset or a plain source link. The mark of an AI is drawn for the eye only; the AI label
  * says what the author is, and a screen reader reads the name, then "AI, Explainer" or "AI, Scout", then who sent it, then the words.
- * Every post carries a vote and a count of people (D-271): a resident or a scout cannot vote, and a member cannot vote on their own.
+ * Every post carries a vote and a count of people (D-273): a resident or a scout cannot vote, and a member cannot vote on their own.
  */
 export function FeedPost({
   post,

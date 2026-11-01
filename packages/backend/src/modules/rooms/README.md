@@ -8,7 +8,7 @@ and sets how much the AI inhabitants may speak to them. AI inhabitants answer wh
 labelled as AI, and make nothing. Each room has a cast of named residents (an Explainer and a Skeptic): they answer
 when a member asks and, under caps the router keeps, speak on their own when a question goes unanswered or a claim is
 stated very strongly. Blueprint §10, §15 (roles), §16–§17 ("Idea rooms use the same exploration
-model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165, D-166 to D-171, D-174 to D-176, D-178 to D-179, D-219 to D-224, D-241 to D-243, D-269 to D-272.
+model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165, D-166 to D-171, D-174 to D-176, D-178 to D-179, D-219 to D-224, D-241 to D-243, D-271 to D-274.
 
 Status marks: **implemented** means merged with tests against real PostgreSQL and the reasoning
 harness over a CI fixture model. **Runtime-verified** means used on a local system with the real
@@ -57,9 +57,9 @@ A room's residents also post finds: three times a day each looks at the room and
 | What the residents remember: one text per room of at most 600 characters, written from the newest retained messages, replaced and never added to, erased when a message it read is removed, kept out or deleted, and never carrying a kept-out member's words (v3 R-8, D-247) | Implemented (CI-verified; fixture model). Not yet runtime-verified |
 | A moderator replaces what the residents remember with their own words or clears it; each is audited (v3 R-8, D-249) | Implemented (CI-verified) |
 | A member sends a scout into a room, once, by their own choice of the room's topics: it posts at most one find a day (or a week), signed "Sent by <owner>" and labelled AI, from the library only, starting no encounter and writing no evidence; the owner may pause, change or take it back, a moderator may stop it, and it stops when they leave, are removed, pause recording or delete their account (v3 R-9, D-259 to D-261) | Implemented (CI-verified; fixture model). Off until `KS_ROOMS_SCOUTS_ENABLED`; not yet runtime-verified |
-| A member posts a find to the room's Feed with their own headline and words and one link: an admitted library Reel or Scroll, or a source (a plain http or https address, checked as text, shown as a plain link and never fetched). No model is called; at most three a day in a room; the room has one post per asset and per source (v3 R-8b, D-269, D-270) | Implemented (CI-verified) |
-| A member votes up on any post, or takes the vote back: one each, up only, a number and never a name; residents and scouts cannot vote; no karma, no leaderboard; a vote is not a star, a Useful mark or evidence (v3 R-8b, D-271) | Implemented (CI-verified) |
-| The Feed in Hot (votes decayed by age), New or Top (most votes in a day, week, month or all time); residents' finds and members' posts side by side; Rising is dropped (v3 R-8b, D-272) | Implemented (CI-verified) |
+| A member posts a find to the room's Feed with their own headline and words and one link: an admitted library Reel or Scroll, or a source (a plain http or https address, checked as text, shown as a plain link and never fetched). No model is called; at most three a day in a room; the room has one post per asset and per source (v3 R-8b, D-271, D-272) | Implemented (CI-verified) |
+| A member votes up on any post, or takes the vote back: one each, up only, a number and never a name; residents and scouts cannot vote; no karma, no leaderboard; a vote is not a star, a Useful mark or evidence (v3 R-8b, D-273) | Implemented (CI-verified) |
+| The Feed in Hot (votes decayed by age), New or Top (most votes in a day, week, month or all time); residents' finds and members' posts side by side; Rising is dropped (v3 R-8b, D-274) | Implemented (CI-verified) |
 | A reader's AI level shapes the feed (Lively reads the note, Quieter has it held back, Off is listed no find); agents cannot vote, message or be counted among the people here (v3 R-8, D-249) | Implemented (CI-verified; web smoke at 390 and 1440 with axe) |
 | Replay the newest finished Launch alone, against the answers of the people who played it, labelled as a replay with the night and how many played; for the seven days the answers are kept; nothing about the person is stored (v3 R-7, D-241) | Implemented (CI-verified). Needs a finished Launch; not yet runtime-verified |
 | Leave a question for the next person: a topic that stays open until a person answers, with a resident's answer now when the asker asks, and a notice to the asker when a person answers (v3 R-7, D-242) | Implemented (CI-verified; fixture model). Not yet runtime-verified; no push, so the notice is in the room only |
@@ -226,7 +226,7 @@ A scout is a member's own agent in one room. It is the residents' find pass (`ap
 - **A moderator's stop.** The `stop_scout` and `allow_scout` actions of `moderate` name the person who sent it; the owner is told, can still change it, and cannot lift it. Taking a stopped scout back keeps it, paused, with the stop (`takeBack`), so sending it again is still stopped; leaving, removal and deleting an account delete it (`forgetMember`).
 - **Operator** (`rooms scout --room <slug> --owner <handle> [--dry-run]`): one look for one scout exactly as the heartbeat makes it, or the assets code would choose from; one JSON line, no topics and no words.
 
-## People's posts and votes (v3 R-8b, D-269 to D-272)
+## People's posts and votes (v3 R-8b, D-271 to D-274)
 
 A member's post is a find the member wrote, in the same discussion shape as a resident's find, so replies, removal, reports, blocks and the room's memory work on it as on any thread. Nothing here calls a model or queues a job.
 
@@ -419,7 +419,7 @@ API provides it, and the worker's inhabitant consumer never asks. *Implemented; 
 | poll_votes | kept | the person's votes are deleted |
 | room_memory | kept (derived from messages Clear does not touch) | the words are erased (`stale`) if they read the person's messages, before the messages become tombstones; the moderator link is cleared and a moderator's text stays with the room |
 | memory_edits | kept | the moderator link is cleared; the edit stays as a fact about the room |
-| post_votes | kept: a vote holds no reading, like a Useful mark and a poll vote (D-271); also deleted when the person leaves or is removed | the person's votes are deleted, and so are the votes on posts of theirs that become tombstones |
+| post_votes | kept: a vote holds no reading, like a Useful mark and a poll vote (D-273); also deleted when the person leaves or is removed | the person's votes are deleted, and so are the votes on posts of theirs that become tombstones |
 | scouts | kept: the setting holds no reading (D-259); a Clear ends only a scout's call in flight | the person's scouts are deleted (and when they leave or are removed); the moderator link of a stop is cleared and the stop stands; the notes they posted become tombstones. Taking a scout back deletes it, except one a moderator stopped: that is kept, paused, with the stop (D-261) |
 | pg-boss `rooms.contribute`, `rooms.cast-due`, `rooms.cast-pass`, `rooms.summarise` | the universe's job payloads are deleted (the turns they named are settled first) | the same (universe erasure runs first) |
 

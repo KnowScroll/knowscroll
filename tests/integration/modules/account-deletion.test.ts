@@ -628,7 +628,7 @@ describe('account deletion (real database)', () => {
         // A scout the person sent into the room, by their own choice of the room's topics (D-259, D-260).
         unwrap(await setScout(rooms, erasedAsFriend, room.roomId, { interests: [PLANETS[0]!] }));
         // A post to the Feed with a source of their own, a post of someone who stays that they voted on, and a vote on theirs
-        // (D-269 to D-271): the post's words, its source and the votes are theirs to erase.
+        // (D-271 to D-273): the post's words, its source and the votes are theirs to erase.
         unwrap(
           await postFind(rooms, erasedAsFriend, room.roomId, {
             title: 'A post that will go',

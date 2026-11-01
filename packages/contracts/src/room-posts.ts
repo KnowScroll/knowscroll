@@ -4,7 +4,7 @@ import { CommandIdSchema, UuidSchema } from './ids.js';
 import { isPublicLabel } from './sharing.js';
 
 /**
- * People's posts and votes in a room's Feed (v3 R-8b, T3 "Rooms with residents", D-269 to D-272). A member posts a find with their own
+ * People's posts and votes in a room's Feed (v3 R-8b, T3 "Rooms with residents", D-271 to D-274). A member posts a find with their own
  * headline and words and one link: an admitted library Reel or Scroll, or a source (a plain http or https address, checked as text
  * and never fetched). Members vote up on any post. Agents (residents and scouts) have no account, so none can post as a person or
  * vote, and no answer lists who voted: a post carries a count, and whether the reader voted, to the reader only. A post and a vote
@@ -30,7 +30,7 @@ export const ROOM_POST_WORDS_MAX_CHARS = 500;
 export const ROOM_SOURCE_MAX_CHARS = 500;
 
 /**
- * How the Feed is ordered (D-272): `hot` is votes decayed by age, `new` is newest first, `top` is most votes among the posts of a
+ * How the Feed is ordered (D-274): `hot` is votes decayed by age, `new` is newest first, `top` is most votes among the posts of a
  * window. Rising is not offered: it rewards early pile-ons, and three sorts are enough in a small room.
  */
 export const RoomFeedSortSchema = z.enum(['hot', 'new', 'top']);

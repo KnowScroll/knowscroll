@@ -16,7 +16,7 @@ type PostLink =
   { readonly kind: 'content'; readonly root: ContentRef } | { readonly kind: 'source'; readonly url: string };
 
 /**
- * A member's post to the Feed, and the votes on every post (v3 R-8b, D-269 to D-271). Both run in the caller's personal scope and the
+ * A member's post to the Feed, and the votes on every post (v3 R-8b, D-271 to D-273). Both run in the caller's personal scope and the
  * room's lock, need a current member of a room that is open, and commit their effect and receipt together. Neither calls a model, and
  * neither is consumption evidence: a post and a vote are conversation, and nothing here writes to a person's universe.
  */

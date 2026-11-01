@@ -1,5 +1,5 @@
 /**
- * A person's post in the room's Feed (v3 R-8b, D-269, D-270): what a post may say, what a source may be, and how many posts one
+ * A person's post in the room's Feed (v3 R-8b, D-271, D-272): what a post may say, what a source may be, and how many posts one
  * person may make. Pure: text in, a verdict out, with no database, clock, model or network. A person's words are never judged by a
  * model; code only checks their shape, and a source is checked as text and never fetched.
  */
@@ -81,7 +81,7 @@ const IP_LITERAL = /^\[|^\d{1,3}(?:\.\d{1,3}){3}$|^\d+$/u;
 const DNS_NAME = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})$/u;
 
 /**
- * Checks and tidies the address a member pastes as a post's source (D-270). It must be one address of at most 500 characters, with
+ * Checks and tidies the address a member pastes as a post's source (D-272). It must be one address of at most 500 characters, with
  * `http` or `https`, a site's own name (no number, no `localhost`, no inside-network name, no user or password, no port), not a
  * link shortener. Tidying drops the fragment and tracking parameters and lowercases the host, so the same page is one source. It never
  * reaches the network: whether the page exists, or is what the member says, is for the people who open it to judge, and a report

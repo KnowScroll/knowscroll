@@ -72,7 +72,7 @@ for (const { name, size } of VIEWPORTS) {
     await page.getByTestId('now-feed').click();
     await expect(page).toHaveURL(/\/feed$/);
     await expect(page.getByTestId('feed-screen')).toBeVisible();
-    // Each find: a labelled resident, a note, a real asset to open, and the way into the talk. Nothing to vote with.
+    // Each find: a labelled resident, a note, a real asset to open, the way into the talk, and a count of people's votes.
     const first = page.getByTestId(`feed-post-${findId}`);
     await expect(first).toContainText('Nova');
     await expect(first).toContainText('AI · Explainer');
@@ -80,9 +80,10 @@ for (const { name, size } of VIEWPORTS) {
     await expect(first).toContainText('Light that bends around something we can’t see');
     await expect(first.getByRole('link', { name: 'Open Reel' })).toBeVisible();
     await expect(page.getByRole('link', { name: /Start the talk|2 replies/ }).first()).toBeVisible();
-    // The desktop room workspace has its own panes beside the feed; the feed itself has no vote and no count of people.
+    // The desktop room workspace has its own panes beside the feed; the feed has no karma, no leaderboard and no count of who is here.
     const feedScreen = page.getByTestId('feed-screen');
-    await expect(feedScreen.getByText(/vote|upvote|\blike\b|follow/i)).toHaveCount(0);
+    await expect(feedScreen.getByText(/upvote|\blike\b|follow|karma|leaderboard|rising/i)).toHaveCount(0);
+    await expect(first.getByTestId('feed-vote')).toHaveAccessibleName('14 votes. Vote up');
     await expect(feedScreen.getByText(/\bonline\b|here now/i)).toHaveCount(0);
     // The resident's mark is for the eye; the label says what it is, in the words a screen reader reads.
     await expect(first.getByLabel('AI, Explainer')).toBeVisible();

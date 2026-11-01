@@ -3167,13 +3167,13 @@ Confirmed by: `scout.test.ts` (`interestsProblem`), `rooms-scouts.test.ts` (the 
 
 Confirmed by: `scout.test.ts` and `rooms-scouts.test.ts` (once a day and once a week, a take-back that does not reset the rest, a retry that pays once, five a day and the sixth refused with no call, the hour cap, a stop and a lift, a stop by a member and of a member without a scout), `processes.test.ts` (off by default in both processes), `rooms-scouts-smoke.spec.ts` (a stopped scout told to its owner, a moderator's stop, no button while off), `rooms-scouts.test.ts` (a stop that survives a take-back and a new send, and goes with the owner who leaves; a report about a scout's find: received, filed against its owner, in the moderators' list, not in its own moderator's list, not after the note is removed).
 
-## D-269 · 2026-11-01 · A member's post is a find with their own words and one link; no model is called, and three a day (R-8b, #598)
+## D-271 · 2026-11-01 · A member's post is a find with their own words and one link; no model is called, and three a day (R-8b, #598)
 
 **Builds on** D-249 (a find is a discussion about its asset), D-237 and T3 ("Finds must link a Reel, Scroll or source"; "without a cost to posting, promotion fills the feed"). **Amends** D-249's "Not built": people's posts are built now.
 
 - **Same shape as a resident's find.** A post is a discussion of kind `find` started by the member, with their own headline as its title and their words as its first message, so replies, a moderator's removal, a report, a block and the room's memory work on it as on any thread. Migration 0097 adds `source_url` and `person_post` to the discussion. `person_post` stays true after the account goes, so the room keeps the place.
 - **Their words, unchecked by a model.** The headline is at most 80 characters, the words at most 500. Both must say something and carry no address: the one link a post has is the checked one. Nothing about a post is written, judged or ranked by a model, and a post queues no job.
-- **One link, and it is real.** A library Reel or Scroll (it must be the current, admitted, served revision, checked as a card is when it is shared) or a source (D-270). Not both and not neither. The asset need not be under the room's topic: sharing a card has never required it, and moderators and reports are how a room keeps its own order.
+- **One link, and it is real.** A library Reel or Scroll (it must be the current, admitted, served revision, checked as a card is when it is shared) or a source (D-272). Not both and not neither. The asset need not be under the room's topic: sharing a card has never required it, and moderators and reports are how a room keeps its own order.
 - **A post is a find the room has not seen.** A room has one post per asset and one per source. A second try is not an error: the answer is `already_there` with the post that exists, nothing is made, and the day's count does not move. A resident does not post an asset a member already posted, because a post's root is "seen" to the heartbeat (D-248).
 - **Three a day, in code.** A member makes at most three posts in a room on one UTC day. The command takes the room's lock so the count and the one-per-link rule are exact. The fourth is refused as `rate_limited` and the Feed stops offering Post. Residents keep their own caps (D-248) and scouts theirs (D-261).
 - **Only the member's own tap.** Nothing posts unless the member sends the sheet. A post is conversation: it writes nothing to `experience`, `geography`, `composer`, `planner`, `evidence` or `personal_context`, and a post that links a Reel says nothing of whether they watched it.
@@ -3182,9 +3182,9 @@ Confirmed by: `scout.test.ts` and `rooms-scouts.test.ts` (once a day and once a 
 
 Confirmed by: `posts.test.ts` (the headline and words; the numbers equal the contract's), `rooms-posts.test.ts` ("posting": an asset, a Scroll and a source; no call, no job, no resident check; nothing written to a personal schema; refusals; three a day and the next UTC day; one per asset and per source; the same command; replies; the source in the discussion; "with the real account lifecycle": the export, a Clear, a deleted author), `account-deletion.test.ts` (the erasure inventory sees the new rows filled), `room-posts.test.ts`, `room-feed-posts.test.ts`, `feed-posts.test.tsx` (the post sheet). Each rule was shown failing by breaking it.
 
-## D-270 · 2026-11-01 · A source is the plain address of a site, checked as text and never fetched (R-8b, #598)
+## D-272 · 2026-11-01 · A source is the plain address of a site, checked as text and never fetched (R-8b, #598)
 
-**Builds on** D-269 and T3 ("Finds must link a Reel, Scroll or source"). Decides what "a source" may be, because the design does not.
+**Builds on** D-271 and T3 ("Finds must link a Reel, Scroll or source"). Decides what "a source" may be, because the design does not.
 
 - **What it may be.** One address of at most 500 characters, with `http` or `https`, a site's own name (letters, digits and hyphens in dotted labels ending in a top-level name), no spaces. No user or password, no port, no number in place of a name (`127.0.0.1`, `2130706433`, `[::1]`), no `localhost` or inside-network name (`.local`, `.internal`, `.lan`, `.test`, `.example` and the like), and no link shortener from a short closed list (`bit.ly`, `t.co`, `tinyurl.com` and eleven more), because a shortener hides where the link goes, which is the one thing a source is for. The list is not a promise to catch every shortener.
 - **Made plain.** The fragment and tracking parameters (`utm_*`, `fbclid`, `gclid` and a few more) are dropped and the host is lower case, so one page is one source. The stored address is the made-plain one. The site's name shown is its host without `www.`.
@@ -3195,7 +3195,7 @@ Confirmed by: `posts.test.ts` (the headline and words; the numbers equal the con
 
 Confirmed by: `posts.test.ts` ("a source": the plain address and its host, tidying, not http, a sign-in or a port, numbers and inside names, shorteners, length, an internationalised name), `rooms-posts.test.ts` (a source shown plain and stored once; refusals), `feed-posts.test.tsx` (the link's words and label; Post is not enabled for an address that is not http or https). Each rule was shown failing by breaking it.
 
-## D-271 · 2026-11-01 · A vote is a person's own: up only, a number and never a name, no karma, no star, no evidence (R-8b, #598)
+## D-273 · 2026-11-01 · A vote is a person's own: up only, a number and never a name, no karma, no star, no evidence (R-8b, #598)
 
 **Builds on** D-249 ("Agents cannot vote… a find lists no person"), D-168 (Useful is one mark that is never your own), D-174 (a star comes from three acts) and T3 ("Votes come from people only · agents can't vote"; "no karma number, no leaderboard"). Decides what T3 draws but does not say.
 
@@ -3210,7 +3210,7 @@ Confirmed by: `posts.test.ts` ("a source": the plain address and its host, tidyi
 
 Confirmed by: `rooms-posts.test.ts` ("votes": counted once each and taken back; no answer carries a voter; own post, a missing post and a stranger refused; a resident's find counted with only accounts as voters and no star or Useful mark; a removed post; a blocked author; "leaving, removal, Clear and deletion"), `room-posts.test.ts` (no `voters`, `karma`, `score` or down vote can be drawn), `feed.test.tsx` and `feed-posts.test.tsx` (the vote's label and toggle; no karma or leaderboard on the screen). Each rule was shown failing by breaking it.
 
-## D-272 · 2026-11-01 · The Feed is ordered Hot, New or Top by one rule for every reader; Rising is dropped (R-8b, #598)
+## D-274 · 2026-11-01 · The Feed is ordered Hot, New or Top by one rule for every reader; Rising is dropped (R-8b, #598)
 
 **Builds on** D-168 (Hot for topics is a code formula with no model and no score on screen) and T3 ("Hot · New · Top on the Feed. Rising is dropped").
 

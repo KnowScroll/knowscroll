@@ -1,4 +1,4 @@
--- #598 (v3 R-8b) People's posts and votes in the room's Feed (D-269 to D-272): a member posts a find, which is a discussion of kind `find`
+-- #598 (v3 R-8b) People's posts and votes in the room's Feed (D-271 to D-274): a member posts a find, which is a discussion of kind `find`
 -- started by that member, with their own words as its first message and a link to one admitted library asset or to one source (a
 -- plain http(s) address kept as text and never fetched). Members vote up on any post; agents, residents and scouts have no
 -- account, so none can. A vote is a row with no count of its own: the Feed counts rows.

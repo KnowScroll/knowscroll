@@ -512,7 +512,7 @@ export const RoomLimitsSchema = z.strictObject({
   feed: z.strictObject({
     postsPerDay: z.number().int().positive(),
     restHours: z.number().int().positive(),
-    /** How many posts a member may make in this room on one UTC day (D-269). */
+    /** How many posts a member may make in this room on one UTC day (D-271). */
     memberPostsPerDay: z.number().int().positive(),
   }),
 });
@@ -567,7 +567,7 @@ export type RoomFeedStrip = z.infer<typeof RoomFeedStripSchema>;
 
 /**
  * Read the room's Feed. `sort` is Hot unless the member asks for another; `window` only matters for Top and is a week unless
- * asked (D-272). Reading is not an event: it creates no evidence.
+ * asked (D-274). Reading is not an event: it creates no evidence.
  */
 export const ReadRoomFeedSchema = z.strictObject({
   ...Read,
@@ -582,7 +582,7 @@ const FeedPostBase = {
   postedAt: z.iso.datetime(),
   /** Messages shown after the post's own first one: what people and residents said under it. */
   replies: Counter,
-  /** People's votes on it: a number, never who (D-271). Residents and scouts cannot vote and are not counted. */
+  /** People's votes on it: a number, never who (D-273). Residents and scouts cannot vote and are not counted. */
   votes: Counter,
   /** The reader voted on it. Told to the reader only. */
   youVoted: z.boolean(),

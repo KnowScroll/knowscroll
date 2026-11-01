@@ -82,7 +82,7 @@ export function feedChip(strip: RoomFeedStrip | undefined, now: Date): { label: 
 
 // --- Sorts, votes and a member's own post (v3 R-8b) ----------------------------------------------
 
-/** The three ways the Feed is ordered, in the order the tabs show them. Rising is not offered (D-272). */
+/** The three ways the Feed is ordered, in the order the tabs show them. Rising is not offered (D-274). */
 export const feedSorts: readonly { readonly sort: RoomFeedSort; readonly label: string }[] = [
   { sort: 'hot', label: 'Hot' },
   { sort: 'new', label: 'New' },

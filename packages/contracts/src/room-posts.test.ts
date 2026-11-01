@@ -31,7 +31,7 @@ const base = {
   words: 'At 0:40 the arc is a normal galaxy far behind, stretched by mass we mostly cannot see.',
 } as const;
 
-describe('a member’s post in the Feed (v3 R-8b, D-269)', () => {
+describe('a member’s post in the Feed (v3 R-8b, D-271)', () => {
   it('links a library asset or a source, never both and never neither', () => {
     expect(RoomFeedPostSchema.safeParse({ ...base, link: { kind: 'content', content: card } }).success).toBe(true);
     expect(
@@ -89,7 +89,7 @@ describe('a member’s post in the Feed (v3 R-8b, D-269)', () => {
   });
 });
 
-describe('posting and voting (v3 R-8b, D-269 to D-271)', () => {
+describe('posting and voting (v3 R-8b, D-271 to D-273)', () => {
   const post = {
     version: 'rooms.v1',
     commandId: ID(5),

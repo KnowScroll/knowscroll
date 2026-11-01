@@ -1,5 +1,5 @@
 /**
- * How the room's Feed is ordered (v3 R-8b, D-272): Hot, New and Top. Pure: facts in, an order out, with no database, clock, model
+ * How the room's Feed is ordered (v3 R-8b, D-274): Hot, New and Top. Pure: facts in, an order out, with no database, clock, model
  * or network. Only people's votes count, and the ranking is the same for every reader (a block changes who is listed, never the
  * order or the count), so neither says who voted.
  */

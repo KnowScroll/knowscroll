@@ -1,5 +1,5 @@
 /**
- * People's posts and votes in a room's Feed (v3 R-8b, D-269 to D-272) over real PostgreSQL, with library assets admitted through the
+ * People's posts and votes in a room's Feed (v3 R-8b, D-271 to D-274) over real PostgreSQL, with library assets admitted through the
  * real import use case and the real reasoning harness over a CI fixture model (never provider output). A member posts a find with their
  * own words and one link, an admitted Reel or Scroll or a checked source; people vote up and nobody else can; the Feed is ordered Hot,
  * New or Top; no post and no vote calls a model or writes to a person's own universe; leaving, removal and deletion take the votes.
