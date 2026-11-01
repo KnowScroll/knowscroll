@@ -258,8 +258,10 @@ Ask opens a local E04 overlay over the exact parked encounter. The same host own
 and request composer. The composer uses a bounded bottom sheet with a grab, rounded top corners
 and a visible backdrop; wider screens center the same sheet. A desktop Ask-anchor position is
 not implemented. Exclusive format/context choices expose radio groups. Close, Esc and Back dismiss it first and preserve paused position and sound.
-Missing siblings remain unavailable in the format switch; the menu offers explicit Request Reel
-or Request Scroll actions. Existing ready siblings keep the normal navigation path.
+In Explore a missing sibling is offered in the format switch as something to ask for (it opens this request sheet), and the menu
+offers explicit Request Reel or Request Scroll actions. Existing ready siblings keep the normal navigation path. On a Scroll's or a
+Reel's own address a missing twin reads "unavailable" at every width and cannot be pressed (D-269): there is no request flow
+there, and Reel supply is closed until the owner approves spend.
 
 `features/requests/request-session.ts` owns one memory-only draft/request per AccountScope. It sends
 real `supply.create/read/cancel/retry` HTTP commands with the existing encounter capabilities. Private text

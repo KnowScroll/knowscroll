@@ -84,7 +84,10 @@ export class WatchWorld {
     if (at === undefined || at >= this.reel.durationMs)
       return {
         start: { allowed: true },
-        last: { kind: this.startsAt === undefined ? 'launch' : 'reel', at: this.lastAt },
+        last:
+          this.startsAt === undefined
+            ? { kind: 'launch', at: this.lastAt }
+            : { kind: 'reel', at: this.lastAt, title: this.reel.title },
       };
     const common = {
       sessionId,

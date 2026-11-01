@@ -209,6 +209,7 @@ export {
   skyLine,
   starsOfCurrent,
   stationCaption,
+  stationMapCaption,
   stationSkyLine,
   type RoomSkyController,
   type RoomSkyState,

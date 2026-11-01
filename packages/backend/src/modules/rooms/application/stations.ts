@@ -39,15 +39,13 @@ export function makeStationReads(p: RoomPorts) {
           rows.filter((row) => row.standing === 'member' || row.standing === 'moderator').map((row) => row.room.roomId),
         );
         // A Launch or a Reel watched together that is on shows on a member's station too, and on no one else's: a room's activity is
-        // for those who joined it. The station says only that something is on, never which of the two, who or how many.
+        // for those who joined it. The station says which of the two is on (D-268), never who or how many.
         const memberRooms = rows
           .filter((row) => row.standing === 'member' || row.standing === 'moderator')
           .map((row) => row.room.roomId);
         const now = p.now();
-        const live = new Set([
-          ...(await p.launches.liveRooms(scope, memberRooms, now)),
-          ...(await p.watches.liveRooms(scope, memberRooms, now)),
-        ]);
+        const launching = await p.launches.liveRooms(scope, memberRooms, now);
+        const watching = await p.watches.liveRooms(scope, memberRooms, now);
         const stations = rows.flatMap((row) => {
           const place = placements.find(
             (candidate) => candidate.topic.kind === row.room.topic.kind && candidate.topic.id === row.room.topic.id,
@@ -62,7 +60,7 @@ export function makeStationReads(p: RoomPorts) {
                 ...(place.planetId === undefined ? {} : { planetId: place.planetId }),
               },
               ...skyFor(skies.get(row.room.roomId)),
-              ...(live.has(row.room.roomId) ? { live: true } : {}),
+              ...liveFor(launching.has(row.room.roomId), watching.has(row.room.roomId)),
             },
           ];
         });
@@ -74,5 +72,9 @@ export function makeStationReads(p: RoomPorts) {
     },
   };
 }
+
+/** A room holds one thing on its stage at a time (D-257); if both ever showed, the Launch is the one with a clock running. */
+const liveFor = (launching: boolean, watching: boolean) =>
+  launching ? { live: 'launch' as const } : watching ? { live: 'reel' as const } : {};
 
 const skyFor = (figures: SkyFigures | undefined) => (figures === undefined ? {} : { sky: skyOf(figures) });

@@ -196,7 +196,8 @@ describe('a find in the feed', () => {
     expect(onVote).toHaveBeenLastCalledWith(false);
   });
 
-  it('holds the note back for a Quieter reader and says where to read it', async () => {
+  it('holds the note back for a Quieter reader, says where it is and opens that talk from the button beside it', async () => {
+    const onOpen = jest.fn();
     const { note: _note, ...quiet } = post();
     await wrap(
       <FeedPost
@@ -204,13 +205,16 @@ describe('a find in the feed', () => {
         identity={identity}
         now={new Date()}
         href="/x"
-        onOpen={jest.fn()}
+        onOpen={onOpen}
         onVote={jest.fn()}
       />,
     );
+    expect(screen.getByTestId('feed-post-discuss')).toHaveTextContent('Read the note');
+    await fireEvent.press(screen.getByTestId('feed-post-discuss'));
+    expect(onOpen).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId('feed-post-note')).not.toBeOnTheScreen();
     expect(screen.getByTestId('feed-post-folded')).toHaveTextContent(
-      has('Nova found something. Open it to read the note.'),
+      has('Nova found something. The note is in the talk.'),
     );
   });
 

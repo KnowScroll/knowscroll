@@ -175,7 +175,7 @@ describe('a scout’s find in the feed', () => {
       />,
     );
     expect(screen.getByTestId('feed-post-folded')).toHaveTextContent(
-      'Asha’s scout found something. Open it to read the note.',
+      'Asha’s scout found something. The note is in the talk.',
     );
   });
 });

@@ -57,22 +57,30 @@ function SourceLink({ source }: { readonly source: RoomSource }) {
   );
 }
 
-/** The foot of every post: the vote and the talk under it. */
+/**
+ * The foot of every post: the vote and the talk under it. A held-back note is the first message of the talk, so the way to it
+ * is named for what the reader came for.
+ */
 function PostFoot({
   post,
   href,
   onOpen,
   onVote,
   title,
+  noteHeldBack = false,
 }: {
   readonly post: RoomFeedPost;
   readonly href: string;
   readonly onOpen: () => void;
   readonly onVote: (voted: boolean) => void;
   readonly title: string;
+  readonly noteHeldBack?: boolean;
 }) {
-  const replies =
-    post.replies === 0 ? 'Start the talk' : `${String(post.replies)} ${post.replies === 1 ? 'reply' : 'replies'}`;
+  const replies = noteHeldBack
+    ? 'Read the note'
+    : post.replies === 0
+      ? 'Start the talk'
+      : `${String(post.replies)} ${post.replies === 1 ? 'reply' : 'replies'}`;
   return (
     <View style={styles.foot}>
       <FeedVote post={post} onVote={onVote} />
@@ -138,7 +146,7 @@ function FindPost({
       )}
       {post.note === undefined ? (
         <Text variant="bodyS" color={content.ink2} testID="feed-post-folded">
-          {`${name} found something. Open it to read the note.`}
+          {`${name} found something. The note is in the talk.`}
         </Text>
       ) : (
         <Text variant="body" testID="feed-post-note">
@@ -146,7 +154,14 @@ function FindPost({
         </Text>
       )}
       <ContentCard card={post.content} />
-      <PostFoot post={post} href={href} onOpen={onOpen} onVote={onVote} title={findTitleWords(post)} />
+      <PostFoot
+        post={post}
+        href={href}
+        onOpen={onOpen}
+        onVote={onVote}
+        title={findTitleWords(post)}
+        noteHeldBack={post.note === undefined}
+      />
       {author.kind === 'agent' && onStopScout !== undefined ? (
         <Button
           label="Stop this scout"

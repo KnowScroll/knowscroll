@@ -1272,11 +1272,11 @@ export const RoomStationSchema = z.strictObject({
    */
   sky: RoomSkySchema.optional(),
   /**
-   * A Launch or a Watch together session is on in the room (D-178, D-257), for a member or moderator only: the station says so on
-   * their map (R3 E: "a live Launch pulses the station"). A room's activity is not shown to people who have not joined it. Names no
-   * person and no number.
+   * What is on in the room (D-178, D-268), for a member or moderator only: a Launch or a Reel watched together. The station says
+   * which on their map (R3 E: "a live Launch pulses the station"). A room's activity is not shown to people who have not joined
+   * it. A room holds one thing at a time (D-257), so there is one value. Names no person and no number.
    */
-  live: z.boolean().optional(),
+  live: z.enum(['launch', 'reel']).optional(),
 });
 export type RoomStation = z.infer<typeof RoomStationSchema>;
 export const RoomStationsSchema = z.strictObject({
