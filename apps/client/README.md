@@ -696,6 +696,7 @@ direct conversations and threads together; a thread row shows its people, the la
 - `share-moment-sheet.tsx` (H03 for a Reel) picks a range in whole seconds with steps and "Here". `share-from-scroll-sheet.tsx`
   (H03 for a Scroll) picks sentences or a block, and says "Include how I set it" and, if the block holds the person's own
   value, "Include my own value" separately (default off). `use-snippet-send.ts` sends one snippet once.
+- `share-stop-sheet.tsx` is Share a moment for a v2 Scroll (V3 G5, D-292, D-293): the ••• sheet of the Stage + Spine reader offers it for the read stop on screen. In a thread it sends into that thread; in Explore or on `/scroll/<id>` it first asks which of the person's joined threads. It sends the exact revision and a passage anchor with a hash and no words, and an optional message. A call cannot be shared. The viewer opens a shared moment in the same reader, at its stop. _Implemented; not runtime-verified on dev._
 - `snippet-card.tsx` shows a moment as its range with Play, a passage as its quote with Read in context, a block as its
   title and settings in words with Open or Open as set. It marks a corrected source "Updated" and a withdrawn one with a
   quiet note and nothing to open.

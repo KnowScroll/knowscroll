@@ -3313,3 +3313,27 @@ Confirmed by: `ask-support.test.ts` ("the instructions of ask-support-check.v4":
 - **Limits.** A writer can still write a link in the topic's words; it costs a repair, as before. How much the two lines help is measured by the next real asks, not by this decision.
 
 Confirmed by: `writer.test.ts` (the new lines in the question instructions and in no other mode's, the version, the copy rule's number named in the text and a run of exactly that many words refused while one fewer passes), `ask-support.test.ts` (paraphrases that pass the copy rule and are judged supported on a valid quote, and a copied sentence that trips it) and `versions.test.ts` (the pair). Shown failing when the link line was cut, when the instruction named another number than the rule's, when the rule's number changed and the instruction's words did not, and when a paraphrase shared a four-word run.
+
+## D-292 · 2026-11-02 · A moment of a v2 Scroll is one whole read stop, shared as a passage anchor with a hash and no words (v3 dev check fixes, #609)
+
+**Builds on** D-234 ("Not built: sharing a passage of a v2 Scroll back into the thread") and D-153. **Amends** D-135 ("Threads, snippets and everything else still declare v1 only") for the snippet viewer.
+
+- **The unit.** The V3 ••• sheet (G5) offers "Share a moment: This stop, with its picture". A v2 Scroll has stops, not blocks, so a moment is one **read** stop: its blocks' words, one to a line, at most one passage (600 characters). A call is not a moment, because its words would give the answer away; the way to share a call is Challenge a friend (D-244).
+- **Reuse of the v1 contract.** The wire and the stored message are unchanged: a `snippet` body with the exact revision and a `scroll_passage` anchor. The stop's id is the block, `start` is 0, `end` is the length of the words, and `quoteHash` is the hash of what the sender saw. Nothing about the stop's words travels; the card's quote is read from the exact revision by the server and stored with the message, as for a v1 passage. No migration, no new anchor kind, and rooms are untouched.
+- **The server's check.** For a v2 revision `validateSnippetAnchor` admits the document again from its stored bytes and accepts only an anchor that is exactly that stop's moment (`anchorIsMoment`). A call, a stop that is not there, a part of a stop, a changed hash or a block anchor is `invalid`; a v1 revision keeps its checks. Only the current revision of an admitted Scroll can be anchored, as before.
+- **Corrections.** There is no anchor map for stops. A moment of a Scroll that has been corrected opens as `changed`: the card offers the current Scroll and never shows the old moment as if it still held.
+- **Opening.** The snippet viewer asks for a v2 document (`stage`), so a moment opens in the Stage + Spine reader at its stop. A v1 passage or block still opens the article. Opening a card is not an encounter; reading afterwards is an ordinary one.
+- **Not changed.** Idea rooms, which have their own snippet sheet, and the Reel moment.
+
+Confirmed by: `scroll-model` `moment.test.ts`; `social-thread-moments.test.ts` on real PostgreSQL (a read stop is shared and its card quotes the stop; a part of a stop, a changed hash, a missing stop, a call and a block anchor are refused and write nothing; a withdrawn Scroll leaves the card without its quote); `share-stop-sheet.test.tsx`. Shown failing when the server did not read v2 revisions.
+
+## D-293 · 2026-11-02 · Share a moment is in every Stage + Spine reader's ••• sheet and names a thread (v3 dev check fixes, #609)
+
+**Builds on** D-292 and D-262 (one reader wherever it is shown).
+
+- **Where.** "Share a moment" is a row of the ••• sheet of the Stage + Spine reader, so it is the same in the thread's own reader, in Explore and on `/scroll/<id>`. It is for the read stop on screen when the sheet opened, and disabled on a call stop. Before this the thread's reader had no ••• sheet at all, so it now has Simpler, Challenge a friend (where the Scroll has a call) and Share a moment, as the others do. The sheet's keys (the design's `H`) are not added.
+- **Which thread.** A snippet is a message in a content thread. In the thread's reader the thread is known, so the sheet shows the stop's words, an optional message and "Share this moment". In Explore and on a Scroll's address it first lists the person's joined threads (not invitations), and an account with none is told to start one from Share, Explore with friends. Sharing a moment creates no thread; "Explore with friends" is still the way to start one.
+- **One send.** The send is the existing snippet send (`useSnippetSend`): one command per body, kept for a retry after an unknown outcome, so sharing again cannot post twice. "Shared" is said only after the server's receipt. The thread is told nothing about where the sender is or what they read, and the sheet pauses the reader as every sheet does.
+- **Not built.** The design's chat-stream line ("Ravi shared a moment") and a picture on the card: the card quotes the stop, and the picture is the one the reader draws when it opens.
+
+Confirmed by: `share-stop-sheet.test.tsx` (in the thread's reader the stop goes to that thread as the anchor and the note; outside a thread only joined threads are offered; an unknown outcome retried is the same command; a call is not offered) and `share-moment-smoke.spec.ts` at 390 and 1440 (the row is there and the sheet sends the stop; Explore asks which thread; axe).
