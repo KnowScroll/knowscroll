@@ -566,6 +566,8 @@ says what it did. *Implemented.*
 
 A room's Launch (v3 R-6, D-179) reads the same Scrolls for their **calls** through a third port, `READ_LIBRARY_CALLS` (`makeReadLibraryCalls(db)(topic, limit, only?)`, in `libraryPassageProviders`): the `call_it` and `final_call` stops of each admitted `scroll-document.v2` under the topic, each with its stop ID, question, options, right option and reason as written. A v1 document and a Scroll with no call are not listed; the same Scrolls are excluded as for the prose. The operator's approval of a deck reads one exact revision with `only`. Reads only. *Implemented.*
 
+A room's Watch together (v3 R-10, D-256) reads the library **Reels** under a topic through a fourth port, `READ_LIBRARY_REELS` (`readLibraryReels(scope, topic, limit, only?)`, in `contentProviders`, inside the caller's transaction): the current revision of each admitted `reel-document.v1` whose primary encounter topic is the topic (the same rule that places a Scroll under one: a system covers its planets), not a fixture, not under review and with a stored length, by title, at most 50. With `only` it checks one Reel. It gives the Reel, its title and its length and nothing else; a Reel is opened only by a person's own device, through the ordinary exposure. Reads only. *Implemented.*
+
 ## Thread sequences and snippet anchors (#243, D-046)
 
 Social threads read three things from Content through `public.ts`, never through its tables. None creates evidence.
@@ -596,6 +598,7 @@ Content owns the order, the production and the access rule; the `scenarios` modu
 | `RECORD_MADE_TO_ORDER_SCROLL` | inside the caller's personal transaction | record an order (idempotent per order ID); returns its recipe and asset |
 | `READ_MADE_TO_ORDER_PRODUCTION` | on the pool | the standing of one order: not started, running, published (asset revision and title), retryable (next take) or stopped |
 | `READ_MADE_TO_ORDER_PRODUCTION_IN` | inside the caller's personal transaction | the same standing, for a use case that already holds a transaction (a person's ask waiting on its order): no second connection |
+| `READ_SCROLL_QUICK_ANSWER_FACTS` | inside the caller's transaction | for a Quick answer (D-253): the title and the words of the read stops from the start of the exact v2 revision up to and including the stop the words were selected in, plus that stop's plainer words; never a later stop and never a call; absent for an anchor that is not a read stop, a held or rejected revision, or a v1 document |
 | `READ_SCROLL_ASK_FACTS` | inside the caller's transaction | for "Ask from here": the title, the words of one stop and the questions the Scroll suggests, from the exact immutable v2 revision; absent for a stop that is not there, a held or rejected revision, or a v1 document |
 | `READ_SCROLL_SOURCE_PAGES` | inside the caller's transaction | up to three research pages chosen by code for a branch: the provenance sources of the root Scroll, else the same explanation's other Scroll, else the library recipe's pages |
 | `READ_SCROLL_EVIDENCE` | inside the caller's transaction | up to 24 claims (passages of public sources) that the root Scroll's provenance records, else the same explanation's other Scroll's: what a what-if's short answer may cite (D-212). Stored text only, under the same review gate as the source pages; nothing is fetched |

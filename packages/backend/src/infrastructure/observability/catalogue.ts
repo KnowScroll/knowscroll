@@ -265,6 +265,10 @@ export const diagnosticCatalogue = {
   'rooms.scout_room_failed': { severity: 'warn', module: 'rooms', fields: ['context', 'error'] },
   // The daily purge removed reports about deleted accounts whose 90 days were over (D-055).
   'feedback.reports_purged': { severity: 'info', module: 'feedback', fields: ['count'] },
+  // The scheduled purge removed Quick answers whose day was over (D-253).
+  'supply.quick_answers_purged': { severity: 'info', module: 'supply', fields: ['count'] },
+  // The same job closed Quick answers still waiting after the wait limit (a job that never ran) and cleared their words (D-255).
+  'supply.quick_answers_given_up': { severity: 'info', module: 'supply', fields: ['count'] },
   'reasoning.purge_failed': { severity: 'warn', module: 'reasoning', fields: ['error'] },
   // A refused production answer could not be kept for diagnosis; the attempt's outcome is unchanged.
   'reasoning.rejected_answer_not_recorded': { severity: 'warn', module: 'reasoning', fields: ['attemptId', 'error'] },

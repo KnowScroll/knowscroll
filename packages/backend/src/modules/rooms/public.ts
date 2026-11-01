@@ -43,7 +43,13 @@ import type {
   RoomTodaySchema,
   RoomTopicsSchema,
   RoomViewSchema,
+  RoomWatchSchema,
   UsefulAcceptanceSchema,
+  WatchJoinedAcceptanceSchema,
+  WatchLeftAcceptanceSchema,
+  WatchReelsSchema,
+  WatchStartedAcceptanceSchema,
+  WatchStoppedAcceptanceSchema,
 } from '@knowscroll/contracts';
 import type { PersonalAuthority, PersonalScopeTx } from '../identity/public.js';
 import type { CastDueJob, CastPassJob, ContributeJob, SummariseJob } from './events.js';
@@ -139,6 +145,28 @@ export interface RoomUseCases {
     authority: PersonalAuthority,
     input: unknown,
   ): Promise<Result<z.infer<typeof LaunchFinishedAcceptanceSchema>>>;
+  /**
+   * The room's stage for a member: the Reel being watched together (the time on the server's clock, whether they joined, "N watching"
+   * only from three) or, when none is, whether they may start one and what was last on the stage (v3 R-10, D-256). No answer carries
+   * anyone's playback position. Writes nothing.
+   */
+  watch(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomWatchSchema>>>;
+  /** The library Reels under the room's topic, for the member about to start one. Writes nothing. */
+  watchReels(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof WatchReelsSchema>>>;
+  /** A member starts Watch together on a library Reel of the room's topic and joins it; refused while recording is paused (D-258). */
+  startWatch(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof WatchStartedAcceptanceSchema>>>;
+  /** A member says they are watching the session that is on; refused while recording is paused (D-258). */
+  joinWatch(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof WatchJoinedAcceptanceSchema>>>;
+  /** A member leaves the stage: they are no longer counted and nothing of theirs is kept. */
+  leaveWatch(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof WatchLeftAcceptanceSchema>>>;
+  /** The member who shared the session, or a moderator, ends it for everyone. */
+  stopWatch(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof WatchStoppedAcceptanceSchema>>>;
   /**
    * The finished Launch this member may replay and its five questions without their keys, or none (v3 R-7, D-241). Writes nothing:
    * nothing about the person replaying is kept.

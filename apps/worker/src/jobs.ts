@@ -69,7 +69,12 @@ import {
   type RunScoutHeartbeat,
   type Summarise,
 } from '@knowscroll/backend/modules/rooms';
-import { askOrderAudienceProviders, supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
+import {
+  askOrderAudienceProviders,
+  quickAnswerProviders,
+  quickAnswerPurgeProviders,
+  supplyProviders,
+} from '@knowscroll/backend/modules/supply/nest-providers';
 import { threadGuestProviders } from '@knowscroll/backend/modules/social/nest-providers';
 import { orderAudienceProviders, scenarioWorkerProviders } from '@knowscroll/backend/modules/scenarios/nest-providers';
 import {
@@ -89,7 +94,17 @@ import {
   type SuggestStep,
   type WriteAnswerStep,
 } from '@knowscroll/backend/modules/scenarios';
-import { resolveSupplyQueue, RESOLVE_CONTENT_REQUEST, type ResolveRequest } from '@knowscroll/backend/modules/supply';
+import {
+  answerQuickAnswerQueue,
+  purgeQuickAnswersQueue,
+  resolveSupplyQueue,
+  ANSWER_QUICK_ANSWER,
+  PURGE_QUICK_ANSWERS,
+  RESOLVE_CONTENT_REQUEST,
+  type AnswerQuickAnswerUseCase,
+  type PurgeQuickAnswers,
+  type ResolveRequest,
+} from '@knowscroll/backend/modules/supply';
 import {
   plannerReadProviders,
   plannerRequestProviders,
@@ -232,6 +247,14 @@ export const jobWiring: Provider[] = [
     config: WORKER_CONFIG,
     harness: REASONING_HARNESS,
   }),
+  // Quick answers (D-253): the worker writes each one through the personal reasoning harness and purges them after a day.
+  ...quickAnswerProviders({
+    withPersonalScope: WITH_PERSONAL_SCOPE,
+    enqueueJob: ENQUEUE_JOB,
+    config: WORKER_CONFIG,
+    harness: REASONING_HARNESS,
+  }),
+  ...quickAnswerPurgeProviders({ database: DATABASE, logEvent: LOG_EVENT }),
   ...plannerRequestProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...plannerWorkerProviders({ workerConfig: WORKER_CONFIG }),
   ...plannerReadProviders(),
@@ -278,6 +301,8 @@ export const jobWiring: Provider[] = [
       SETTLE_QUIET,
       SWEEP_QUIET,
       RESOLVE_CONTENT_REQUEST,
+      ANSWER_QUICK_ANSWER,
+      PURGE_QUICK_ANSWERS,
       SUGGEST_SCENARIO_DRAFT,
       WRITE_SCENARIO_ANSWER,
       RESOLVE_SCENARIO_BRANCHES,
@@ -315,6 +340,8 @@ export const jobWiring: Provider[] = [
       settleQuiet: SettleQuiet,
       sweepQuiet: SweepQuiet,
       resolveRequest: ResolveRequest,
+      answerQuickAnswer: AnswerQuickAnswerUseCase,
+      purgeQuickAnswers: PurgeQuickAnswers,
       suggestDraft: SuggestStep,
       writeAnswer: WriteAnswerStep,
       resolveBranches: () => Promise<ResolveSummary>,
@@ -404,6 +431,14 @@ export const jobWiring: Provider[] = [
       }),
       jobConsumer(resolveSupplyQueue, async (payload, delivery) => {
         await resolveRequest(payload, delivery);
+      }),
+      // A Quick answer: one model call on the person's own harness, then a hint (D-253).
+      jobConsumer(answerQuickAnswerQueue, async (payload, delivery) => {
+        await answerQuickAnswer(payload, delivery.signal);
+      }),
+      // Every ten minutes: Quick answers past their day are erased (logs `supply.quick_answers_purged`).
+      jobConsumer(purgeQuickAnswersQueue, async () => {
+        await purgeQuickAnswers();
       }),
       jobConsumer(suggestDraftQueue, async (payload, delivery) => {
         await suggestDraft(payload, delivery.signal);

@@ -17,11 +17,13 @@ import {
 import {
   CHECK_ASSET_AUDIENCE,
   READ_CONTENT_SEQUENCE,
+  READ_LIBRARY_REELS,
   READ_SHAREABLE_CONTENT,
   RESOLVE_SNIPPET_ANCHOR,
   VALIDATE_SNIPPET_ANCHOR,
   type CheckAssetAudience,
   type ReadContentSequence,
+  type ReadLibraryReels,
   type ReadShareableContent,
   type ResolveSnippetAnchor,
   type ValidateSnippetAnchor,
@@ -65,6 +67,7 @@ import { makeSkyUseCases } from '../application/sky.js';
 import { makeStationReads } from '../application/stations.js';
 import { makeSummarise, type SummarisePorts } from '../application/summarise.js';
 import { makeLaunch } from '../application/launch.js';
+import { makeWatch } from '../application/watch.js';
 import { makeQuestions } from '../application/questions.js';
 import { makeReplay } from '../application/replay.js';
 import { makeToday } from '../application/today.js';
@@ -104,6 +107,7 @@ import { roomStore } from './postgres-rooms.js';
 import { feedReadStore } from './postgres-feed.js';
 import { scoutReadStore } from './postgres-scouts.js';
 import { launchStore } from './postgres-launch.js';
+import { watchStore } from './postgres-watch.js';
 import { questionStore } from './postgres-questions.js';
 import { debateStore, skyStore, todayStore } from './postgres-sky.js';
 import { summaryStore } from './postgres-summaries.js';
@@ -121,6 +125,8 @@ export interface RoomsDeps {
   /** Which of some accounts the caller has blocked: their words are collapsed for the caller, never for anyone else. */
   readonly readBlocked: ReadBlockedAmong;
   readonly readContent: ReadShareableContent;
+  /** The library Reels under a topic, for Watch together; only the API serves the commands that read them (v3 R-10). */
+  readonly readReels?: ReadLibraryReels;
   readonly readSequence: ReadContentSequence;
   readonly readVisited: ReadVisitedAssets;
   /** Reports on a room's messages, for its moderators; only the API serves that read. */
@@ -166,6 +172,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     debates: debateStore,
     today: todayStore,
     launches: launchStore,
+    watches: watchStore,
     feed: feedReadStore,
     scouts: scoutReadStore,
     questions: questionStore,
@@ -193,6 +200,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
       },
     },
     readContent: deps.readContent,
+    readReels: deps.readReels ?? (() => Promise.resolve([])),
     readSequence: deps.readSequence,
     readVisited: deps.readVisited,
     readReports: (scope, query) => {
@@ -260,6 +268,7 @@ export function roomUseCases(deps: RoomsDeps): RoomUseCases {
     ...makeSkyUseCases(ports),
     ...makeToday(ports),
     ...makeLaunch(ports),
+    ...makeWatch(ports),
     ...makeReplay(ports),
     ...makeQuestions(ports),
     ...makeDebateVotes(ports),
@@ -424,6 +433,7 @@ export function roomsProviders(tokens: {
         tokens.enqueueJob,
         tokens.apiConfig,
         FENCE_PERSONAL_RECORDING,
+        READ_LIBRARY_REELS,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -442,6 +452,7 @@ export function roomsProviders(tokens: {
         enqueue: EnqueueJob,
         config: ApiConfig,
         fenceRecording: FencePersonalRecording,
+        readReels: ReadLibraryReels,
       ) =>
         roomUseCases({
           withScope,
@@ -451,6 +462,7 @@ export function roomsProviders(tokens: {
           readFriends,
           readBlocked,
           readContent,
+          readReels,
           readSequence,
           readVisited,
           validateSnippet,

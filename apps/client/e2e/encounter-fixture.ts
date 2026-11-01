@@ -32,6 +32,20 @@ export interface EncounterFixtureOptions {
     /** A measured usual wait in seconds; absent, as it is until five orders have finished. */
     readonly typicalSeconds?: number;
   };
+  /**
+   * The Quick answer routes (V3 D2, D-253): what the ask is answered with and what the status read says. The answers are
+   * authored here, so this proves what the screen does with them, not what a model says.
+   */
+  readonly quickAnswers?: {
+    /** What the ask is answered with: accepted (the default) or an honest "not now". */
+    readonly ask?: 'accepted' | 'not_available' | 'person_limit';
+    /** How many status reads say "waiting" before the answer is there (default 0: the first read has it). */
+    readonly waits?: number;
+    /** Whether what the person has read so far covers the question (default true). */
+    readonly covered?: boolean;
+    /** The status read ends as unavailable instead of answered. */
+    readonly fails?: boolean;
+  };
 }
 
 /** Actual production-export UI with explicitly labelled HTTP fixtures, not backend/provider acceptance. */
@@ -101,6 +115,27 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       status: 'preparing',
       phase: 'preparing',
       ...(options.requests?.typicalSeconds === undefined ? {} : { typicalSeconds: options.requests.typicalSeconds }),
+    };
+  };
+  /** What the Quick answer routes answer. The first ask is answer 1; a follow-up is answer 2. */
+  const quick = { asked: 0, reads: new Map<string, number>(), dismissed: new Set<string>() };
+  const quickAnswerId = (n: number) => id(960 + n);
+  const quickStatus = (quickId: string) => {
+    const reads = (quick.reads.get(quickId) ?? 0) + 1;
+    quick.reads.set(quickId, reads);
+    const base = { version: 'quick-answer-status.v1', quickAnswerId: quickId, privacyEpoch: 1 };
+    if (reads <= (options.quickAnswers?.waits ?? 0)) return { ...base, status: 'waiting' };
+    if (options.quickAnswers?.fails === true) return { ...base, status: 'unavailable', reason: 'could_not_answer' };
+    const covered = options.quickAnswers?.covered !== false;
+    return {
+      ...base,
+      status: 'answered',
+      label: 'Quick answer · not a checked Scroll',
+      question: quickId === quickAnswerId(2) ? 'And what does that change?' : 'Why does it keep pointing the same way?',
+      answer: covered
+        ? 'Nothing turns the axis during a year, so it keeps its direction as Earth goes round the Sun.'
+        : 'What the Scroll has said so far does not answer that. A full Scroll would.',
+      covered,
     };
   };
   const recording = options.play?.recordingPaused === true ? { on: false, generation: 2 } : { on: true, generation: 1 };
@@ -235,6 +270,49 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
           replayed: false,
           outcome: 'cancelled',
         },
+      });
+      return;
+    }
+    if (path === '/v1/quick-answers' && request.method() === 'POST') {
+      commands.push({ path, body });
+      const asking = options.quickAnswers?.ask ?? 'accepted';
+      if (asking !== 'accepted') {
+        await route.fulfill({
+          json: { version: 'quick-answer-receipt.v1', outcome: 'unavailable', reason: asking },
+        });
+        return;
+      }
+      quick.asked += 1;
+      await route.fulfill({
+        json: {
+          version: 'quick-answer-receipt.v1',
+          outcome: 'accepted',
+          commandId: body.commandId,
+          quickAnswerId: quickAnswerId(quick.asked),
+          recordedAt: '2026-10-20T10:00:00.000Z',
+          privacyEpoch: 1,
+          replayed: false,
+        },
+      });
+      return;
+    }
+    if (path === '/v1/quick-answers/dismiss') {
+      commands.push({ path, body });
+      quick.dismissed.add(String(body.quickAnswerId));
+      await route.fulfill({
+        json: { version: 'quick-answer-dismissed.v1', quickAnswerId: body.quickAnswerId },
+      });
+      return;
+    }
+    if (path.startsWith('/v1/quick-answers/') && request.method() === 'GET') {
+      const quickId = path.slice('/v1/quick-answers/'.length);
+      await route.fulfill({ json: quickStatus(quickId) });
+      return;
+    }
+    if (path === '/v1/feedback/content-errors') {
+      commands.push({ path, body });
+      await route.fulfill({
+        json: { commandId: body.commandId, reportId: id(980), receivedAt: '2026-10-20T10:00:00.000Z', replayed: false },
       });
       return;
     }

@@ -335,6 +335,54 @@ export class RoomsController {
   }
 
   @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.watch)
+  watchRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.watch).handler(async ({ input }) =>
+      value(await this.useCases.watch(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.watchReels)
+  watchReelsRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.watchReels).handler(async ({ input }) =>
+      value(await this.useCases.watchReels(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.startWatch)
+  startWatchRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.startWatch).handler(async ({ input }) =>
+      value(await this.useCases.startWatch(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.joinWatch)
+  joinWatchRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.joinWatch).handler(async ({ input }) =>
+      value(await this.useCases.joinWatch(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.leaveWatch)
+  leaveWatchRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.leaveWatch).handler(async ({ input }) =>
+      value(await this.useCases.leaveWatch(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.stopWatch)
+  stopWatchRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.stopWatch).handler(async ({ input }) =>
+      value(await this.useCases.stopWatch(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
   @Implement(apiContract.rooms.feed)
   feedRoute(@Req() request: Request) {
     return implement(apiContract.rooms.feed).handler(async ({ input }) =>

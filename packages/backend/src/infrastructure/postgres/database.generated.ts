@@ -645,6 +645,7 @@ export interface FeedbackReports {
   kind: string;
   message_id: string | null;
   note: string | null;
+  quick_answer: string | null;
   report_id: string;
   reported_account_id: string | null;
   reporter_account_id: string;
@@ -1881,6 +1882,23 @@ export interface RoomsTypingHolds {
   held_until: Timestamp;
 }
 
+export interface RoomsWatchSessions {
+  asset_id: string;
+  asset_revision: number;
+  duration_ms: number;
+  room_id: string;
+  session_id: string;
+  started_by: string | null;
+  starts_at: Timestamp;
+  stopped_at: Timestamp | null;
+  title: string;
+}
+
+export interface RoomsWatchViewers {
+  account_id: string;
+  session_id: string;
+}
+
 export interface ScenariosDrafts {
   created_at: Timestamp;
   draft_id: string;
@@ -2233,6 +2251,29 @@ export interface SupplyAskOrders {
   support_checked: Generated<boolean>;
 }
 
+export interface SupplyQuickAnswerLedger {
+  created_at: Generated<Timestamp>;
+  id: string;
+}
+
+export interface SupplyQuickAnswers {
+  answer: string | null;
+  asset_id: string;
+  asset_revision: number;
+  covered: boolean | null;
+  created_at: Timestamp;
+  expires_at: Timestamp;
+  id: string;
+  passage: string | null;
+  privacy_epoch: number;
+  question: string | null;
+  settled_at: Timestamp | null;
+  shown_question: string | null;
+  state: string;
+  stop_id: string;
+  universe_id: string;
+}
+
 export interface SupplyRequests {
   ask_asset_id: string | null;
   ask_order_id: string | null;
@@ -2419,6 +2460,8 @@ export interface DB {
   "rooms.stars": RoomsStars;
   "rooms.summaries": RoomsSummaries;
   "rooms.typing_holds": RoomsTypingHolds;
+  "rooms.watch_sessions": RoomsWatchSessions;
+  "rooms.watch_viewers": RoomsWatchViewers;
   "scenarios.drafts": ScenariosDrafts;
   "scenarios.nodes": ScenariosNodes;
   "scenes.chunks": ScenesChunks;
@@ -2453,6 +2496,8 @@ export interface DB {
   "social.visit_publications": SocialVisitPublications;
   "social.visit_systems": SocialVisitSystems;
   "supply.ask_orders": SupplyAskOrders;
+  "supply.quick_answer_ledger": SupplyQuickAnswerLedger;
+  "supply.quick_answers": SupplyQuickAnswers;
   "supply.requests": SupplyRequests;
   "supply.scenario_orders": SupplyScenarioOrders;
   "supply.work": SupplyWork;

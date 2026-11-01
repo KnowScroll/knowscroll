@@ -587,6 +587,30 @@ describe('account deletion (real database)', () => {
             recordingGeneration: 1,
           }),
         );
+        // A Reel they shared to watch together and joined: the link that says they shared it, and their place among the viewers
+        // (a labelled fixture row: the use cases are proved in rooms-watch.test.ts).
+        const watched = randomUUID();
+        await rooms.db
+          .insertInto('rooms.watch_sessions')
+          .values({
+            session_id: watched,
+            room_id: room.roomId,
+            asset_id: talkContent.assetId,
+            asset_revision: 1,
+            title: 'Fixture Reel for an erasure',
+            duration_ms: 60_000,
+            started_by: erasedAsFriend.accountId,
+            starts_at: new Date('2026-10-24T09:00:00Z'),
+            stopped_at: null,
+          })
+          .execute();
+        await rooms.db
+          .insertInto('rooms.watch_viewers')
+          .values({
+            session_id: watched,
+            account_id: erasedAsFriend.accountId,
+          })
+          .execute();
         // What the room remembers, in words the person chose as its moderator, and the audit of that edit (D-247): labelled
         // fixture rows; `rooms-memory.test.ts` proves the real path and that the edit stays when the account goes.
         await rooms.db

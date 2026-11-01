@@ -1,6 +1,7 @@
 import type { FindAssetForAction } from '../../content/public.js';
 import type { FenceOwnAccount, PersonalScopeTx, WithPersonalScope } from '../../identity/public.js';
 import type { ReadReportableRoomMessage } from '../../rooms/public.js';
+import type { ReadQuickAnswerForReport } from '../../supply/public.js';
 import type { ReadPublicPeople, ReadReportableMessage } from '../../social/public.js';
 
 export interface ReceiptKey {
@@ -37,6 +38,8 @@ export interface NewReport {
   readonly reportedAccountId?: string;
   readonly anchor?: Readonly<Record<string, unknown>>;
   readonly note?: string;
+  /** The words of the Quick answer a content error is about, copied when the report is sent (D-255). */
+  readonly quickAnswer?: string;
   readonly createdAt: Date;
 }
 
@@ -64,6 +67,8 @@ export interface ReportPorts {
   readonly readMessage: ReadReportableMessage;
   readonly readRoomMessage: ReadReportableRoomMessage;
   readonly readPeople: ReadPublicPeople;
+  /** The person's own Quick answer, for a content error about one; absent when it is not theirs, not kept or not about this revision. */
+  readonly readQuickAnswer: ReadQuickAnswerForReport;
   readonly reports: ReportStore;
   readonly newId: () => string;
   readonly now: () => Date;
