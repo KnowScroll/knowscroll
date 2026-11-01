@@ -38,7 +38,7 @@ describe('what the reasoning engine exposes (review m9, m10)', () => {
     ])
       expect(text, `public.ts must not mention ${forbidden}`).not.toContain(forbidden);
     // What a module does get: the harness type to call, its inputs and outcomes, the injection token.
-    for (const wanted of ['type ReasoningHarness', 'type ProposeOutcome', 'REASONING_HARNESS'])
+    for (const wanted of ['type ReasoningHarness', 'type ProposeOutcome', 'RECORDING_REASONING_HARNESS'])
       expect(text, `public.ts should export ${wanted}`).toContain(wanted);
   });
 

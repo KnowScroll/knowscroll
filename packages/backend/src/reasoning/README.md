@@ -104,7 +104,7 @@ object (bare or in one fenced block, nested at most 32 levels) that passes the r
 (`domain/output.ts`).
 
 A module reaches this engine only through `public.ts`: the types above, the injected
-`REASONING_HARNESS` / `RECORDING_REASONING_HARNESS` and the queue declarations. The harness factory, its ports, the attempt ledger
+`RECORDING_REASONING_HARNESS` and the queue declarations. The harness factory, its ports, the attempt ledger
 and the model transport are deliberately not exported there (a boundary probe and the dependency
 rules enforce it), so a module cannot build its own harness with its own ledger or transport, and an
 ESLint rule keeps global `fetch`, Node's HTTP clients and provider SDKs out of everything but
@@ -582,7 +582,7 @@ Planner and Cartographer roles are off by default (`KS_PLANNER_ENABLED=0`,
 `RECORDING_REASONING_HARNESS` is a separate required personal facade. The existing generic
 `ReasoningHarness.propose` is only actual initial 1/on compatibility; a first real toggle
 permanently makes omitted provenance ineligible. Since D-270 no module uses the generic harness any more: every personal
-model step runs on the facade. `REASONING_HARNESS` stays provided for the tests that exercise the engine itself. Generic close also requires actual 1/on and an
+model step runs on the facade, and no worker provider binds the generic harness; only the engine's own tests build it (`makeReasoningHarness`). Generic close also requires actual 1/on and an
 unproved legacy run, so an old in-flight applier cannot commit through closure after a toggle. Neither path can stamp a later current generation
 onto an old run. This foundation installs no Role/API/UI/worker control and changes no production
 root, transport profile, cap, accounting state machine, reservation policy or paid permission.
