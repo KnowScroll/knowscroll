@@ -137,7 +137,7 @@ describe('a scout’s find in the feed', () => {
       <FeedPost post={{ ...quiet, folded: true }} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} />,
     );
     expect(screen.getByTestId('feed-post-folded')).toHaveTextContent(
-      'Asha’s scout found something. Open it to read the note.',
+      'Asha’s scout found something. The note is in the talk.',
     );
   });
 });

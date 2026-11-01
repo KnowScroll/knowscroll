@@ -3232,6 +3232,29 @@ Confirmed by: `domain/ask-support.test.ts` (the limits lines of the five 1 Nov a
 
 Confirmed by: `ask-support-step.test.ts` (ten sentences to a request, a run each, one repair in the whole check, stop at the first unusable batch, an unknown outcome never resent, a pause between batches, the answer that is too long), `versions.test.ts` (the bound of twelve; both claims, 2,100 s and 4,020 s, written out again from the README's rule; the two queues alike in everything but the claim), `supply-ask.test.ts` on real PostgreSQL (19 sentences in two requests, 23 in three with only the passages of their own sentences, every run closed; one repair in the whole check; a pause between two batches that does not pay for the first again), `ask-support-replay.test.ts` (batches and requests on the line), and for the Quick answer `quick-answer-role.test.ts` (the sentence limit), `quick-answer-support.test.ts` and `quick-answer.test.ts` (the bound of six). Shown failing when the batch was thirty sentences, when the repair was allowed again after one was used, and when an unusable batch did not stop the check.
 
+## D-268 · 2026-11-01 · A member's station says whether a Launch or a Reel is on (v3 dev check fixes, #596)
+
+**Amends** D-257, "A member's or moderator's station says `live` while one is on, as for a Launch (D-222), and never which of the two, who or how many."
+
+- **The defect.** While a Reel was watched together, the Universe list read "Launch live", because one flag could not say which. Saying "Launch" for a Reel is wrong, and saying only "live" hides a fact the member already sees in the room's band.
+- **The rule.** `live` on a station is now `launch` or `reel`, for a member or moderator only, and absent for anyone else, as before. The caption reads "Launch live" or "Reel live". It still names no person and no number. A room holds one thing at a time (D-257), so there is one value.
+- **On the 3D map.** The label under the station read "Earth room · 2 of 7" while the list said more: the label kept only the first part of the caption. It now keeps the count and what is live ("Earth room · 2 of 7 · Reel live"), and still leaves out the constellation's name. R3 draws a red pulse for a live Launch and no words, so the words are the list's.
+- **Older clients.** The contracts are strict, so an older client rejects `live: 'reel'` and leaves the map as it was. This is accepted before launch: the web client ships with the server and no native build is out.
+- **Not changed.** An outsider's or invitee's station says nothing of the room's activity (D-174). The pulse on the 3D station is the same for both.
+
+Confirmed by: `room-sky.test.ts` ("says what is live", the map label), `space-overlay.test.tsx` (the label under the station), `universe-lists.test.ts`, `room-launch.test.ts` in contracts (a boolean is refused), `rooms-launch.test.ts` and `rooms-watch.test.ts` (the station's kind).
+
+## D-269 · 2026-11-01 · A missing Reel or Scroll twin on an address reads "unavailable" at every width and cannot be pressed (v3 dev check fixes, #596)
+
+**Builds on** D-006 (Reel and Scroll have equal status), D-184 and D-262. Keeps the note in `use-format-siblings.ts` that a direct route has no request flow.
+
+- **The question.** The same Scroll showed "Reel · unavailable" at 1440 and "Reel" at 390 for the same account. The data was the same: no Reel twin. The phone bar draws only "Reel" and "Scroll" because it has no room for state words, and an unavailable option is dimmed and disabled.
+- **The rule.** A twin that exists and is admitted opens as itself. One being made is "preparing". One that does not exist is "unavailable": not pressable, and named "Reel · unavailable" (or "Scroll · unavailable") to a screen reader at every width, because the phone bar keeps the state in the name. It is the same on a Reel's own address, so Reel and Scroll are treated alike.
+- **Why not offer to ask for it.** A pressable "Reel" would always dead-end. Reel supply is closed: `commissionSupply` answers `budget_unavailable` for every Reel, because no Cutroom or fal spend is made without the owner's approval. A request path is offered only where the server can fulfil it, so it comes back when the owner opens Reel supply.
+- **Not changed.** Explore's switch and menu keep their own request paths.
+
+Confirmed by: `reader-nav-smoke.spec.ts` (the name "Reel · unavailable" and the text "Reel" at 320, 360 and 390 px), `ask-smoke.spec.ts` (disabled and named the same at 390 and 1440, no request sent).
+
 ## D-270 · 2026-11-01 · A free-text ask, Jev, What-if and a room's answer run at the recording generation their step starts at, so a person who paused and resumed gets them (v3, #595)
 
 **Builds on** D-264. **Replaces** the last line of D-264, "The other four paths".
