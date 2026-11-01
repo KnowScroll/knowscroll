@@ -105,6 +105,11 @@ ks_v2_supply_planner_create_daily_cap: { dev: 5 }
 ks_v2_supply_ask_daily_cap: { dev: 8 }
 # The ask orders one person may have made per UTC day (KS_SUPPLY_ASK_PERSON_DAILY_CAP). A world not listed gets 5.
 ks_v2_supply_ask_person_daily_cap: { dev: 5 }
+# Quick answers (a short unchecked answer about selected words, #480, D-253) the whole world may have per UTC day, per world
+# (KS_SUPPLY_QUICK_ANSWER_DAILY_CAP). Each is at most six paid model attempts (the writer, its support check, one rewrite and its check). A world not listed gets 0, which turns them off.
+ks_v2_supply_quick_answer_daily_cap: {}
+# The Quick answers one person may ask per UTC day (KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP). A world not listed gets 10.
+ks_v2_supply_quick_answer_person_daily_cap: {}
 # Branches of content threads (a what-if or another perspective, #244, D-049) that Quartermaster may
 # order per UTC day, per world (KS_SUPPLY_SCENARIO_DAILY_CAP), counted apart from the caps above. Each is
 # one writer call and at most one repair. A world not listed gets 0, which turns scenario Create off.

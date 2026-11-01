@@ -33,6 +33,21 @@ import {
   RoomReplayStripSchema,
   SetQuestionNoticeSchema,
 } from './room-quiet.js';
+import {
+  JoinWatchSchema,
+  LeaveWatchSchema,
+  ReadRoomWatchSchema,
+  ReadWatchReelsSchema,
+  RoomWatchSchema,
+  RoomWatchStripSchema,
+  StartWatchSchema,
+  StopWatchSchema,
+  WatchJoinedAcceptanceSchema,
+  WatchLeftAcceptanceSchema,
+  WatchReelsSchema,
+  WatchStartedAcceptanceSchema,
+  WatchStoppedAcceptanceSchema,
+} from './room-watch.js';
 import { NewDebateSchema, RoomDebateSchema, RoomNamingSchema, RoomSkySchema, RoomStarSchema } from './room-sky.js';
 import { RecordingGenerationSchema } from './recording.js';
 import { PublicPersonRefSchema } from './sharing.js';
@@ -651,6 +666,8 @@ export const RoomViewSchema = z.discriminatedUnion('status', [
     today: RoomTodayStripSchema.optional(),
     /** Whether a Launch can be started, is starting, is on, or just finished (v3 R-6). Absent when there is nothing to say. */
     launch: RoomLaunchStripSchema.optional(),
+    /** Whether a Reel can be watched together, or one is on (v3 R-10). Absent when the room's topic has no Reel. Names no person and no number. */
+    watch: RoomWatchStripSchema.optional(),
     /** The newest find a resident posted that this reader may see (v3 R-8). Absent when there is none, or the reader's AI is Off. */
     feed: RoomFeedStripSchema.optional(),
     /** A finished Launch this member did not play, whose answers are still kept: it can be replayed (v3 R-7). */
@@ -1126,8 +1143,9 @@ export const RoomStationSchema = z.strictObject({
    */
   sky: RoomSkySchema.optional(),
   /**
-   * A Launch is on in the room (D-178), for a member or moderator only: the station says so on their map (R3 E: "a live Launch
-   * pulses the station"). A room's activity is not shown to people who have not joined it. Names no person and no number.
+   * A Launch or a Watch together session is on in the room (D-178, D-257), for a member or moderator only: the station says so on
+   * their map (R3 E: "a live Launch pulses the station"). A room's activity is not shown to people who have not joined it. Names no
+   * person and no number.
    */
   live: z.boolean().optional(),
 });
@@ -1455,6 +1473,16 @@ export const roomsLaunchContract = {
   finishLaunch: roomsPost('/v1/rooms/launch/finish', FinishLaunchSchema, LaunchFinishedAcceptanceSchema),
 };
 
+/** Watch together: read the stage, the Reels a room may watch, start one, join, leave and stop (v3 R-10). */
+export const roomsWatchContract = {
+  watch: roomsPost('/v1/rooms/watch/read', ReadRoomWatchSchema, RoomWatchSchema),
+  watchReels: roomsPost('/v1/rooms/watch/reels', ReadWatchReelsSchema, WatchReelsSchema),
+  startWatch: roomsPost('/v1/rooms/watch/start', StartWatchSchema, WatchStartedAcceptanceSchema),
+  joinWatch: roomsPost('/v1/rooms/watch/join', JoinWatchSchema, WatchJoinedAcceptanceSchema),
+  leaveWatch: roomsPost('/v1/rooms/watch/leave', LeaveWatchSchema, WatchLeftAcceptanceSchema),
+  stopWatch: roomsPost('/v1/rooms/watch/stop', StopWatchSchema, WatchStoppedAcceptanceSchema),
+};
+
 /** The residents' feed and what they remember (v3 R-8). */
 export const roomsFeedContract = {
   feed: roomsPost('/v1/rooms/feed/read', ReadRoomFeedSchema, RoomFeedSchema),
@@ -1478,6 +1506,7 @@ export const roomsContract: typeof roomsRoomContract &
   typeof roomsActivityContract &
   typeof roomsSkyContract &
   typeof roomsLaunchContract &
+  typeof roomsWatchContract &
   typeof roomsFeedContract &
   typeof roomsQuietContract = {
   ...roomsRoomContract,
@@ -1485,6 +1514,7 @@ export const roomsContract: typeof roomsRoomContract &
   ...roomsActivityContract,
   ...roomsSkyContract,
   ...roomsLaunchContract,
+  ...roomsWatchContract,
   ...roomsFeedContract,
   ...roomsQuietContract,
 };

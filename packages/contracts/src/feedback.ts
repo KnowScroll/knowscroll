@@ -88,6 +88,13 @@ export const ContentErrorReportRequestSchema = z.strictObject({
   category: ContentErrorCategorySchema,
   anchor: ContentErrorAnchorSchema.optional(),
   note: ReportNoteSchema.optional(),
+  /**
+   * The Quick answer the person is reporting (D-255). The server reads its words from the person's own copy and keeps
+   * them with the report, because the answer is erased a day later and the safety team could not otherwise read what
+   * was wrong. Only the person's own, still-kept Quick answer about this Scroll revision is accepted; anything else is
+   * a missing target, as for any report.
+   */
+  quickAnswerId: UuidSchema.optional(),
 });
 
 /**

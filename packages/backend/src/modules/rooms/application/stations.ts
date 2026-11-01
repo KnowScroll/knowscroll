@@ -38,12 +38,16 @@ export function makeStationReads(p: RoomPorts) {
           scope,
           rows.filter((row) => row.standing === 'member' || row.standing === 'moderator').map((row) => row.room.roomId),
         );
-        // A Launch that is on shows on a member's station too, and on no one else's: a room's activity is for those who joined it.
-        const live = await p.launches.liveRooms(
-          scope,
-          rows.filter((row) => row.standing === 'member' || row.standing === 'moderator').map((row) => row.room.roomId),
-          p.now(),
-        );
+        // A Launch or a Reel watched together that is on shows on a member's station too, and on no one else's: a room's activity is
+        // for those who joined it. The station says only that something is on, never which of the two, who or how many.
+        const memberRooms = rows
+          .filter((row) => row.standing === 'member' || row.standing === 'moderator')
+          .map((row) => row.room.roomId);
+        const now = p.now();
+        const live = new Set([
+          ...(await p.launches.liveRooms(scope, memberRooms, now)),
+          ...(await p.watches.liveRooms(scope, memberRooms, now)),
+        ]);
         const stations = rows.flatMap((row) => {
           const place = placements.find(
             (candidate) => candidate.topic.kind === row.room.topic.kind && candidate.topic.id === row.room.topic.id,

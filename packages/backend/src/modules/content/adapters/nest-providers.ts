@@ -27,6 +27,7 @@ import {
   READ_SCROLL_READING_FACTS,
   READ_SCROLL_PLAY_FACTS,
   READ_SCROLL_ASK_FACTS,
+  READ_SCROLL_QUICK_ANSWER_FACTS,
   READ_ADMITTED_COVERAGE_MAPPING,
   LOCK_CURRENT_COVERAGE_AUTHORITIES,
   READ_REGION_ENCOUNTER_CANDIDATES,
@@ -45,6 +46,7 @@ import {
   READ_LIBRARY_PASSAGES,
   READ_LIBRARY_PASSAGE_TEXT,
   READ_LIBRARY_CALLS,
+  READ_LIBRARY_REELS,
   READ_LIBRARY_FINDS,
   type CheckAssetAudience,
   type EnqueueScrollProduction,
@@ -66,6 +68,7 @@ import {
 import { makeRenderScroll } from './render-scroll.js';
 import { readScrollPlayFacts } from './scroll-play-facts.js';
 import { readScrollAskFacts } from './scroll-ask-facts.js';
+import { readScrollQuickAnswerFacts } from './scroll-quick-answer-facts.js';
 import { makeReadPublicContent, readShareableContent } from './shareable-content.js';
 import { compileEditorialSource, parseEditorialSource } from './scroll-compiler.js';
 import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollReadingFacts } from './postgres-store.js';
@@ -83,6 +86,7 @@ import { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.j
 import { chooseScrollRecipe, readScrollProduction } from './production-state.js';
 import { readRegionEncounterCandidates, lockRegionEncounterCandidates } from './region-candidates.js';
 import { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
+import { readLibraryReels } from './library-reels.js';
 import { makeReadLibraryFinds } from './library-finds.js';
 
 /**
@@ -104,6 +108,7 @@ export function contentProviders() {
     { provide: READ_SAVED_METADATA, useValue: readSavedMetadata },
     { provide: READ_SAVED_PAGE_METADATA, useValue: readSavedPageMetadata },
     { provide: READ_SHAREABLE_CONTENT, useValue: readShareableContent },
+    { provide: READ_LIBRARY_REELS, useValue: readLibraryReels },
     { provide: READ_CONTENT_SEQUENCE, useValue: readContentSequence },
     { provide: VALIDATE_SNIPPET_ANCHOR, useValue: validateSnippetAnchor },
     { provide: RESOLVE_SNIPPET_ANCHOR, useValue: resolveSnippetAnchor },
@@ -118,6 +123,7 @@ export function contentProviders() {
     { provide: READ_SCROLL_READING_FACTS, useValue: readScrollReadingFacts },
     { provide: READ_SCROLL_PLAY_FACTS, useValue: readScrollPlayFacts },
     { provide: READ_SCROLL_ASK_FACTS, useValue: readScrollAskFacts },
+    { provide: READ_SCROLL_QUICK_ANSWER_FACTS, useValue: readScrollQuickAnswerFacts },
     { provide: READ_ADMITTED_COVERAGE_MAPPING, useValue: readAdmittedCoverageMapping },
     { provide: LOCK_CURRENT_COVERAGE_AUTHORITIES, useValue: lockCurrentCoverageAuthorities },
     { provide: CHOOSE_SCROLL_RECIPE, useValue: chooseScrollRecipe },
@@ -220,6 +226,7 @@ export function importEditorialScrollUseCase(db: Kysely<Database>) {
 }
 
 export { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
+export { readLibraryReels } from './library-reels.js';
 export { makeReadLibraryFinds } from './library-finds.js';
 export { makeCutroomReelImporter, type CutroomImportSettings } from './import-cutroom-reel.js';
 export { makeMediaAccess } from './media-access.js';
@@ -299,6 +306,7 @@ export { makeReadPublicContent, readShareableContent } from './shareable-content
 export { readContentSequence } from './content-sequence.js';
 export { readScrollPlayFacts } from './scroll-play-facts.js';
 export { readScrollAskFacts } from './scroll-ask-facts.js';
+export { readScrollQuickAnswerFacts } from './scroll-quick-answer-facts.js';
 export { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.js';
 
 /** The operator's Reel commands over real adapters (#240, D-041). */

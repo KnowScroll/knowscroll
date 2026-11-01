@@ -24,6 +24,7 @@ import { dayOf } from '../domain/rituals.js';
 import type { EnteredRoom } from './gate.js';
 import type { LaunchRow, StoredAnswer } from './launch-ports.js';
 import type { RoomLock, RoomPorts } from './ports.js';
+import { liveSession } from './watch-view.js';
 
 /** The most people one read looks up. */
 const PEOPLE_READ_LIMIT = 200;
@@ -231,6 +232,8 @@ export async function startDecision(
 > {
   const { lock, owner, standing } = entered;
   if (!roomAcceptsPosts(standing.room.status)) return { allowed: false, reason: 'room_paused' };
+  // A Reel being watched together has the stage (D-257): a Launch waits until it is over.
+  if ((await liveSession(p, lock, now)) !== undefined) return { allowed: false, reason: 'stage_busy' };
   if (latest !== undefined && now.getTime() - latest.createdAt.getTime() < p.launchGapMs)
     return { allowed: false, reason: 'resting' };
   const deck = await p.launches.readyDeck(lock, earliestDeckDay(now), dayOf(now));

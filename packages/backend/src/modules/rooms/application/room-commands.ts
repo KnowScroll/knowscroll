@@ -93,6 +93,7 @@ export function makeRoomCommands(p: RoomPorts) {
               await p.positions.forget(entered.lock, entered.owner.accountId);
               await p.sky.forgetMember(entered.lock, entered.owner.accountId);
               await p.launches.forgetMember(entered.lock, entered.owner.accountId);
+              await p.watches.forgetMember(entered.lock, entered.owner.accountId);
               await p.questions.forgetMember(entered.lock, entered.owner.accountId);
               await p.rooms.announce(entered.lock, now);
               return RoomLeaveAcceptanceSchema.parse({
@@ -185,6 +186,7 @@ export function makeRoomCommands(p: RoomPorts) {
               await p.positions.forget(lock, targetAccountId);
               await p.sky.forgetMember(lock, targetAccountId);
               await p.launches.forgetMember(lock, targetAccountId);
+              await p.watches.forgetMember(lock, targetAccountId);
               await p.questions.forgetMember(lock, targetAccountId);
               await p.rooms.announce(lock, now);
               return accepted();

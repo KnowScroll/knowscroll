@@ -50,6 +50,10 @@ export interface StopListProps {
   readonly onToggleSimpler: (stopId: string) => void;
   /** Drawn in the end tray, before the ways on. */
   readonly endSlot?: ReactNode;
+  /** What the screen draws under a read stop's words: a Quick answer (V3 D2). Nothing for a call. */
+  readonly stopFooter?: ((stopId: string) => ReactNode) | undefined;
+  /** A footer was laid out under a stop: its section's index and its height with the section's bottom padding. */
+  readonly onStopFooterLayout?: ((index: number, height: number) => void) | undefined;
 }
 
 /** The sections of the text: one per stop (with the asides beside it) and the end tray, stacked. */
@@ -86,6 +90,7 @@ export function StopList(props: StopListProps) {
               onLockIn={() => props.lock(stop.id)}
             />
           )}
+          {stop.kind === 'read' ? footerOf(props, index, stop.id) : null}
           {document.asides
             .filter((aside) => aside.anchorStop === stop.id)
             .map((aside) => (
@@ -121,6 +126,17 @@ export function StopList(props: StopListProps) {
         />
       </View>
     </>
+  );
+}
+
+/** What the screen draws under a read stop, told to the reader when it is laid out so it can be brought on screen. */
+function footerOf(props: StopListProps, index: number, stopId: string): ReactNode {
+  const footer = props.stopFooter?.(stopId);
+  if (footer === null || footer === undefined) return null;
+  return (
+    <View onLayout={(event) => props.onStopFooterLayout?.(index, event.nativeEvent.layout.height + SECTION_PADDING)}>
+      {footer}
+    </View>
   );
 }
 

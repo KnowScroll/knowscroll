@@ -247,6 +247,23 @@ export {
   type RoomLaunchState,
 } from './room-launch';
 export {
+  SYNC_TOLERANCE_MS,
+  WATCH_START_BLOCK_WORDS,
+  clockMs,
+  clockWords,
+  createRoomWatch,
+  lastOnStageWords,
+  msUntilNextWatchRead,
+  positionWords,
+  syncSeekSeconds,
+  watchChip,
+  watchPhaseNow,
+  watchingLine,
+  type RoomWatchController,
+  type RoomWatchOptions,
+  type RoomWatchState,
+} from './room-watch';
+export {
   REPLAY_ANSWER_MS,
   createRoomReplay,
   replayBanner,
@@ -513,3 +530,14 @@ export {
   type PlaySessionOptions,
   type PlaySnapshot,
 } from './play-session';
+export {
+  NO_QUICK_ANSWERS,
+  QUICK_ANSWER_POLL_MS,
+  createQuickAnswerSession,
+  quickAnswerSessionFor,
+  type QuickAnswerCard,
+  type QuickAnswerSession,
+  type QuickAnswerSessionOptions,
+  type QuickAnswerSnapshot,
+  type QuickAnswerUnavailable,
+} from './quick-answer-session';

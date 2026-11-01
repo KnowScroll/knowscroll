@@ -29,7 +29,7 @@ const refused = (reason: ReportRefusal): ReportResult => ({ kind: 'refused', rea
 /** What the target of a report turned out to be: the fields of `NewReport` that name it. */
 type ResolvedTarget = Pick<
   NewReport,
-  'targetKind' | 'assetId' | 'assetRevision' | 'messageId' | 'roomId' | 'reportedAccountId'
+  'targetKind' | 'assetId' | 'assetRevision' | 'messageId' | 'roomId' | 'reportedAccountId' | 'quickAnswer'
 >;
 
 interface ReportSpec {
@@ -127,6 +127,22 @@ async function resolveAsset(
   return { targetKind: 'asset', assetId: target.assetId, assetRevision: target.assetRevision };
 }
 
+/**
+ * The Scroll a content error is about and, when it is about a Quick answer, the words of that answer as the person's own
+ * copy holds them (D-255). A Quick answer that is not theirs, not answered, past its day or about another revision is
+ * a missing target, the same answer as for a missing Scroll.
+ */
+async function resolveContentError(
+  ports: ReportPorts,
+  scope: PersonalScopeTx,
+  command: ContentErrorReportRequest,
+): Promise<ResolvedTarget | undefined> {
+  const target = await resolveAsset(ports, scope, command.target);
+  if (target === undefined || command.quickAnswerId === undefined) return target;
+  const quickAnswer = await ports.readQuickAnswer(scope, { quickAnswerId: command.quickAnswerId, ...command.target });
+  return quickAnswer === undefined ? undefined : { ...target, quickAnswer };
+}
+
 /** Another person's account, never the reporter's own: reporting oneself says nothing to the safety team. */
 const notSelf = (caller: string, account: string | null | undefined): string | undefined =>
   account === caller ? undefined : (account ?? undefined);
@@ -177,8 +193,14 @@ export function makeReportUseCases(ports: ReportPorts) {
         category: command.category,
         note: command.note,
         ...(command.anchor === undefined ? {} : { anchor: command.anchor }),
-        request: { target: command.target, category: command.category, anchor: command.anchor, note: command.note },
-        resolve: (scope) => resolveAsset(ports, scope, command.target),
+        request: {
+          target: command.target,
+          category: command.category,
+          anchor: command.anchor,
+          note: command.note,
+          quickAnswerId: command.quickAnswerId,
+        },
+        resolve: (scope) => resolveContentError(ports, scope, command),
       }),
 
     /** `POST /v1/feedback/abuse-reports`: a Reel or Scroll, a message or a person is abusive. */

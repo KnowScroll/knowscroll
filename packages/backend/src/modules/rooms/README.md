@@ -60,6 +60,7 @@ A room's residents also post finds: three times a day each looks at the room and
 | Replay the newest finished Launch alone, against the answers of the people who played it, labelled as a replay with the night and how many played; for the seven days the answers are kept; nothing about the person is stored (v3 R-7, D-241) | Implemented (CI-verified). Needs a finished Launch; not yet runtime-verified |
 | Leave a question for the next person: a topic that stays open until a person answers, with a resident's answer now when the asker asks, and a notice to the asker when a person answers (v3 R-7, D-242) | Implemented (CI-verified; fixture model). Not yet runtime-verified; no push, so the notice is in the room only |
 | An honest quiet room: the pill counts people, and a host's offer to replay appears only when there is a real replay (v3 R-7, D-243) | Implemented (CI-verified) |
+| Watch together (v3 R-10, D-256 to D-258): a member starts a library Reel the room's topic rests on; everyone who joins plays it from one server clock, from where the room is; "N watching" shows from three people who joined; a stage above General while it is on, and a "Nothing on stage right now" sheet when it is not | Implemented (CI-verified over real PostgreSQL and labelled fixtures; two and three people in browser contexts at 390 and 1440). Not runtime-verified on dev |
 | What-if branches inside a room thread, reports, a moderator quiz's results (a quiz keeps none) | Planned (not built) |
 
 ## What the module owns
@@ -89,6 +90,8 @@ A room's residents also post finds: three times a day each looks at the room and
 | `launches` | One Launch: its room, the approved deck it was made from (unique: a deck is played once), the five frozen questions with their keys (served one at a time, the key only after the question closes), when its first question opens, `live` or `finished`, and once finished how many people answered and whether the room earned a star. No account: who started it is not kept (D-178) |
 | `launch_players` | A person who is in a Launch: the Launch, the account and when they joined. Deleted by a Clear, leaving, removal, deletion and seven days after the Launch ended, by the first member command after that (D-220) |
 | `launch_answers` | One answer to one question: the round, the option, whether it was right, and how many milliseconds the **server** measured from the question's opening. The first answer to a round stands. Deleted like the players (D-220). Read by a replay for the same seven days (D-241) |
+| `watch_sessions` | One Watch together session (migration 0094): its room, the library Reel and revision, its title and length (frozen from Content's public read), the member who shared it (empty once they leave, are removed, Clear or delete the account), when the first frame is due and, once it ended or was stopped, when. **No column holds a position, a pause or a time of a person's own** (D-256). One unstopped session per room (partial unique index) |
+| `watch_viewers` | A person who joined a session: the session and the account, and nothing more (no time, no position). Deleted when the session ends or is stopped, by a Clear, leaving, removal and account deletion (D-258) |
 | `room_memory` | What the residents remember: one row per room, `ready` or `stale` (the words erased), derived from the newest retained messages or written by a moderator (`source`), with the window of messages it read (`covers_from`, `covers_through`) and the AI turn that wrote it. Never a name (D-247) |
 | `memory_edits` | The audit of a moderator's replacement or clearing: who, what, when and the SHA-256 of the words. An earlier text is not kept (D-249) |
 | `typing_holds` | Unlogged: one row per discussion, `held_until` a few seconds ahead. No account, no text. Holds back an AI turn and is read by nothing else (D-165) |
@@ -99,7 +102,7 @@ Use cases (`public.ts`, `RoomUseCases`): `feed`, `replaceMemory`, `list`, `read`
 `setPreferences` (AI level, keep-out, notice acknowledged), `setPresence` (`here` or `away`), `create` (a discussion),
 `readDiscussion`, `history`, `changes`, `send` (which asks the resident a text message names, or else queues the resident check for a
 question or a strong claim), `openSnippet`, `pin`, `hideMessage`, `markUseful`, `ask` (a plain ask, or one pointed at a message),
-`topics`, `dismissAway`, `stations`, `today`, `solveFlaw`, `sky`, `nameConstellation`, `voteDebate`, `launch`, `startLaunch`, `joinLaunch`, `answerLaunch`, `finishLaunch`, `replay`, `replayRound`, `leaveQuestion`, `questionNotice`, `activities`, `readActivity`, `createActivity`, `votePoll`, `moderateActivity`. `create` also starts
+`topics`, `dismissAway`, `stations`, `today`, `solveFlaw`, `sky`, `nameConstellation`, `voteDebate`, `launch`, `startLaunch`, `joinLaunch`, `answerLaunch`, `finishLaunch`, `watch`, `watchReels`, `startWatch`, `joinWatch`, `leaveWatch`, `stopWatch`, `replay`, `replayRound`, `leaveQuestion`, `questionNotice`, `activities`, `readActivity`, `createActivity`, `votePoll`, `moderateActivity`. `create` also starts
 a topic from a message. `setPresence` also moves the member's place and, on a long return, claims the window and queues the summary. The
 worker's `ContributeAsInhabitant` consumes the `rooms.contribute` queue, `DecideCast` the `rooms.cast-due` queue, `RunCastPass` the
 `rooms.cast-pass` queue and `Summarise` the `rooms.summarise` queue (the last three only where `KS_REASONING_ROOM_ENABLED` is on). `HoldCast` is the socket gateway's port for a typing hint.
@@ -109,7 +112,7 @@ Dependency direction: `domain/` (pure rules: join decision, ask bounds, contribu
 cursors) <- `application/` (use cases over ports) <- `adapters/` (PostgreSQL, Nest providers, erasure).
 Other modules and the API import only `public.ts`. Rooms reads other modules only through their
 public ports: the caller's own map from Geography (`READ_GEOGRAPHY_SCENE_INPUT`, for stations), people, friends and blocks from Social (`READ_PUBLIC_PEOPLE`, `READ_FRIEND_ACCOUNTS`, `READ_BLOCKED_AMONG`, and the
-`snippetCard` presentation rule), content cards, sequences and snippet anchors from Content, a person's
+`snippetCard` presentation rule), content cards, sequences and snippet anchors from Content, the library Reels under a topic (`READ_LIBRARY_REELS`, Watch together), a person's
 own visited markers from Experience, and the personal harness from Reasoning. It never reads Social's
 conversations or threads.
 
@@ -375,6 +378,8 @@ API provides it, and the worker's inhabitant consumer never asks. *Implemented; 
 | message_snippets | kept | deleted with the author's tombstoned message |
 | ai_turns | kept; asks and unprompted turns still queued under the universe end as failed (and stay counted) | the asker link is cleared and queued asks end as failed, as do queued unprompted turns whose job the universe owned; an AI contribution a deleted person asked for, and every unprompted turn, stays with the room |
 | rituals, stars, constellations, debates, launches | kept: no account (a star outlives everyone who earned it; a Launch row holds no person) | kept: no account |
+| watch_viewers | erased: who is watching with the room is the person's own (D-258), by a Clear too; also deleted when they leave or are removed and when the session ends or is stopped | the person's rows are deleted |
+| watch_sessions | kept: a Reel and a start time, no position; deleted seven days after it ended | the link that says the person shared one is emptied (by a Clear too, and when they leave or are removed); the session stays with the room |
 | launch_players, launch_answers | erased: play results of the person (D-082, D-220), by a Clear too; also deleted when they leave or are removed and seven days after the Launch ended | the person's rows are deleted |
 | ritual_solves | erased: a play result of the person (D-082), by a Clear too | the person's taps are deleted (and when they leave or are removed) |
 | constellation_votes, debate_votes | kept: explicit communication, like poll votes | the person's votes are deleted (and when they leave or are removed) |
@@ -465,6 +470,26 @@ A room plays a live quiz together. It is made of rooms-owned pieces and calls no
 - **Where it shows.** `RoomView.launch` (ready, lobby, live, finished; no number) on a member's own view; `RoomStation.live` on a member's or moderator's station on their own map; nothing in a preview, an outsider's station or a friend's visit.
 - **Recording paused.** Start, join and answer are refused with `not_saved` (no row, no receipt) while recording is paused or the generation is stale: a round does not wait and the key is on the server.
 - **Wall.** Answers are play results (D-063). Rooms writes nothing to a personal schema; an import rule and `launch-wall.test.ts` keep the tables inside Rooms.
+
+## Watch together (v3 R-10, D-256 to D-258)
+
+Status: implemented (CI-verified over real PostgreSQL and labelled fixtures; two and three people in browser contexts at 390 and 1440, with a dropped connection). No model call is made and no Reel is ordered. Not runtime-verified on dev.
+
+A room watches one library Reel on a shared clock. The server keeps only which Reel, when its first frame is due and when it stopped; each device works its own position out.
+
+- **Which Reels** (`watchReels`). `ReadLibraryReels` (Content's public read, in the caller's transaction): the current revision of each admitted Reel whose primary topic is the room's (a system covers its planets), not a fixture, not under review, by title, at most 24. A start re-reads the one Reel it names and refuses with `unavailable` for any other.
+- **Start** (`startWatch`, a current member, the room locked FOR UPDATE): an open room, a free stage (no session, no Launch in its lobby or running), a Reel, two people with the room open, and fewer than 20 sessions started in the room that UTC day (`rate_limited`). The Reel's title and length are frozen onto the session, the first frame is due five seconds on, and the starter joins. Any session due to be settled is settled first.
+- **The clock** (`domain/watch.ts` is the only place that knows the numbers). A read carries `startsInMs` before the first frame and `elapsedMs` from it, on the server's clock, never a time of day; the session is over when the Reel's length has passed. The contract has no field for anyone's position and its schemas are strict, so none can be sent or read (`room-watch.test.ts`).
+- **Join, leave, stop.** `joinWatch` (a member, while the session is on and its Reel is still the current served revision), `leaveWatch` (always possible) and `stopWatch` (the member who shared it, or a moderator). Joining twice changes nothing. A stranger, an invitee and a person who left get the same `unavailable` for every read and command.
+- **Read** (`watch`). The session as this reader sees it: the Reel, whether they joined, who shared it (while a member the reader has not blocked), whether they may stop it, "N watching" **only from three**: people who joined and still have the room open (a fresh presence lease), the reader included when they joined, a person the reader blocked left out, an AI never in it. Below three there is no number. With no session it carries whether a Reel can be started, and why not, and what was last on the stage (the newer of the last session and the last Launch).
+- **Settling.** No job: the first member command in the room after the end (a presence beat, a start) marks the session stopped at the moment it ended, deletes its viewers, and deletes sessions that ended seven days ago. The session row is taken FOR UPDATE, so a join in flight commits first and is deleted with the others.
+- **Lock order.** Personal root, own account gate, the room root (FOR UPDATE for a start; FOR SHARE otherwise), the session row (FOR SHARE to join or leave; FOR UPDATE to settle or stop). Watch together takes no sky lock.
+- **Hints.** A start, a join, a leave, a stop and a settlement announce the room (a disposable hint that names the room and nothing else); a join that changed nothing announces nothing. A device reads again on a hint, on focus and reconnect, on a 20-second poll and when the phase it shows ends, so a dropped socket costs seconds, never a wrong stage.
+- **Where it shows.** `RoomView.watch` (ready, live; no number or person) on a member's own view; `RoomStation.live` on a member's or moderator's station (with a Launch, never which); nothing in a preview or an outsider's station.
+- **One stage.** A Reel cannot start while a Launch is in its lobby or running, and a Launch answers `stage_busy` while a Reel is on.
+- **Recording paused.** Start and join are refused with `not_saved` (no row, no receipt) while recording is paused or the generation is stale. Leave and stop are always possible (D-258).
+- **Evidence.** None is written, for anyone: no command here reaches `experience`, `geography`, `composer` or `planning` (`write-boundary.test.ts` and a row count around a whole session). A person's own watch is the ordinary Reel encounter their own device opens once they have joined. `watch-wall.test.ts` keeps the tables inside Rooms.
+- **Erasure and export.** See the table above. The export lists, as `watchTogether`, the sessions the person shared and the ones they joined that are still held, by room and day.
 
 ## The quiet room (v3 R-7, D-241 to D-243)
 
