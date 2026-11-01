@@ -1019,7 +1019,7 @@ export interface RoomPorts {
   readonly launches: LaunchStore;
   /** The residents' feed and the room's memory, as a member reads and a moderator changes them (migration 0091). */
   readonly feed: FeedReadStore;
-  /** A member's own scout in a room (migration 0094). */
+  /** A member's own scout in a room (migration 0095). */
   readonly scouts: ScoutReadStore;
   /** The notice state of the questions left for people (migration 0089). */
   readonly questions: QuestionStore;

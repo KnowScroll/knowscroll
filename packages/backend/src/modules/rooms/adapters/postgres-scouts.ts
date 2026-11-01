@@ -38,7 +38,7 @@ const refOf = (row: ScoutRefRow): ScoutRef => ({
 });
 
 /**
- * Postgres reads of the scouts' heartbeat (migration 0094), as the other methods of the feed store: a pass runs in the nonpersonal
+ * Postgres reads of the scouts' heartbeat (migration 0095), as the other methods of the feed store: a pass runs in the nonpersonal
  * `rooms` scope's transaction with the room row locked, so each count is exact. The one read of a personal fact is whether the
  * owner's recording is on, taken without a lock on purpose: a personal lock after the room's would invert the lock order, and the
  * answer is read again just before a note is posted (D-259).
@@ -121,7 +121,7 @@ export function scoutLooks(db: Kysely<Database>): Pick<FeedStore, 'scoutsToLook'
   };
 }
 
-/** A member's own scout, read and changed inside their personal scope and the room's lock (migration 0094). */
+/** A member's own scout, read and changed inside their personal scope and the room's lock (migration 0095). */
 export const scoutReadStore: ScoutReadStore = {
   async scoutOf(lock, accountId) {
     const row = await sharedTransactionOf(lock.shared)
