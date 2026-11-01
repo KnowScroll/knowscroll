@@ -31,6 +31,7 @@ import type {
   RoomListSchema,
   RoomMessageAcceptanceSchema,
   RoomMemoryReplacementSchema,
+  RoomScoutAcceptanceSchema,
   RoomMessageHidingAcceptanceSchema,
   RoomModerationAcceptanceSchema,
   RoomPreferencesAcceptanceSchema,
@@ -62,18 +63,21 @@ export {
   SummariseJobSchema,
   NightlyRitualsJobSchema,
   FeedHeartbeatJobSchema,
+  ScoutHeartbeatJobSchema,
   castDueQueue,
   castPassQueue,
   contributeQueue,
   summariseQueue,
   nightlyRitualsQueue,
   feedHeartbeatQueue,
+  scoutHeartbeatQueue,
   type CastDueJob,
   type CastPassJob,
   type ContributeJob,
   type SummariseJob,
   type NightlyRitualsJob,
   type FeedHeartbeatJob,
+  type ScoutHeartbeatJob,
 } from './events.js';
 export { libraryRoomSeeds } from './application/library-rooms.js';
 export { DEFAULT_CAST, type CastMember } from './domain/cast.js';
@@ -95,6 +99,11 @@ export interface RoomUseCases {
    * residents remember. Off lists no find; Quieter holds the note back. Writes nothing.
    */
   feed(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomFeedSchema>>>;
+  /**
+   * Sends the caller's scout into a room, changes it, pauses it or takes it back (v3 R-9, D-259). Their own choice of the room's
+   * topics; reads nothing of them, starts no encounter and writes no evidence. Refused while scouts are off in this world.
+   */
+  setScout(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomScoutAcceptanceSchema>>>;
   /** A moderator replaces what the residents remember with their own words, or clears it; audited (D-247). */
   replaceMemory(
     authority: PersonalAuthority,
@@ -248,7 +257,7 @@ export const CONTRIBUTE_AS_INHABITANT = Symbol('rooms.contributeAsInhabitant');
 
 /**
  * Port: a message of a room discussion the caller can see, for a report: its room and the account that
- * wrote it (none for an AI inhabitant). A caller who is not a current member of the room, a message a
+ * wrote it (none for an AI inhabitant; for a scout's note, the member who sent it). A caller who is not a current member of the room, a message a
  * moderator removed or that was deleted, and an unknown ID are all absent. Read inside the caller's
  * personal transaction; it decides nothing else.
  */
@@ -329,3 +338,17 @@ export type RunFeedHeartbeat = (
   onRoomFailed: (slug: string, error: unknown) => void,
 ) => Promise<void>;
 export const RUN_FEED_HEARTBEAT = Symbol('rooms.runFeedHeartbeat');
+
+/**
+ * The worker's consumer of `rooms.scout-heartbeat` (v3 R-9, D-259): three times a day each scout that may post gets one look. A
+ * look picks, by code, a library asset in the topics the owner chose that the room has not seen, and asks a model only for the
+ * short note (one call, as an `ambient` role under the nonpersonal `rooms` scope). A scout that is paused, stopped or resting,
+ * whose owner left or paused recording, whose room nobody listens to, or for which the library holds nothing new, makes no call.
+ * Registered only where the worker holds the rooms grant and `KS_ROOMS_SCOUTS_ENABLED` is on. It throws when a look failed, so the
+ * job retries; everything it stores is idempotent by (room, owner, slot).
+ */
+export type RunScoutHeartbeat = (
+  signal: AbortSignal,
+  onScoutFailed: (slug: string, error: unknown) => void,
+) => Promise<void>;
+export const RUN_SCOUT_HEARTBEAT = Symbol('rooms.runScoutHeartbeat');

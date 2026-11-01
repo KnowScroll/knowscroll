@@ -34,6 +34,7 @@ const reasoning: ReasoningSettings = {
   roomEnabled: false,
   roomGeneration: 1,
   roomFeedEnabled: false,
+  roomScoutsEnabled: false,
   caps: { global: cap(10_000), scope: cap(1), productionScope: cap(2), roomScope: cap(2), roleDefault: cap(10_000) },
   backgroundSharePercent: 100,
   ambientSharePercent: 100,

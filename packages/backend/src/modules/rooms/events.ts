@@ -176,6 +176,31 @@ export const nightlyRitualsQueue = defineQueue({
 export const FeedHeartbeatJobSchema = z.strictObject({ v: z.literal(1) });
 export type FeedHeartbeatJob = z.infer<typeof FeedHeartbeatJobSchema>;
 
+/**
+ * The scouts' heartbeat (v3 R-9, D-259): every scout that may post gets one look, on the residents' rhythm but a little after it.
+ * IDs only; the job carries nothing of any member.
+ */
+export const ScoutHeartbeatJobSchema = z.strictObject({ v: z.literal(1) });
+export type ScoutHeartbeatJob = z.infer<typeof ScoutHeartbeatJobSchema>;
+
+export const scoutHeartbeatQueue = defineQueue({
+  name: 'rooms.scout-heartbeat',
+  purpose: "Let each member's scout look in the library for one find for the room it was sent to.",
+  payload: ScoutHeartbeatJobSchema,
+  policy: {
+    // One call a scout, each up to two attempts at the largest provider deadline: three hours cover a handful of scouts.
+    expireInSeconds: 10_800,
+    retryLimit: 2,
+    retryDelaySeconds: 300,
+    retryBackoff: true,
+    retentionSeconds: 3 * 86400,
+    deleteAfterSeconds: 86400,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
+  schedule: { cron: '37 0,8,16 * * *', payload: { v: 1 } },
+});
+
 export const feedHeartbeatQueue = defineQueue({
   name: 'rooms.feed-heartbeat',
   purpose:
