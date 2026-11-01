@@ -61,11 +61,9 @@ const wrap = (node: ReactNode) =>
 describe('the room’s General / Feed / Topics bar', () => {
   it('names the three tabs and marks the open one', async () => {
     await wrap(<Harness />);
-    expect(screen.getAllByRole('tab').map((tab) => tab.props['aria-label'] ?? tab.props.accessibilityLabel)).toEqual([
-      'General',
-      'Feed',
-      'Topics',
-    ]);
+    expect(screen.getAllByRole('tab')).toHaveLength(3);
+    for (const label of ['General', 'Feed', 'Topics'])
+      expect(screen.getByRole('tab', { name: label })).toBeOnTheScreen();
     expect(screen.getByTestId('room-tab-general')).toBeSelected();
     expect(screen.getByTestId('room-tab-feed')).not.toBeSelected();
   });
@@ -121,18 +119,18 @@ describe('the room’s ground', () => {
     expect(screen.getByTestId('probe').props.children).toBe(`${ROOM_SWATCHES.paper}|${ROOM_SWATCHES.soot}`);
   });
 
-  it('keeps the dark space ground for a room with no face, and draws no ground off a room’s page', async () => {
+  it('keeps the dark space ground for a room with no face', async () => {
     await wrap(
-      <>
-        <RoomGround identity={undefined} testID="ground">
-          <Probe />
-        </RoomGround>
-      </>,
+      <RoomGround identity={undefined} testID="ground">
+        <Probe />
+      </RoomGround>,
     );
     expect(StyleSheet.flatten(screen.getByTestId('ground').props.style as object)).toMatchObject({
       backgroundColor: SPACE_TONE.ground,
     });
-    screen.unmount();
+  });
+
+  it('draws no ground off a room’s page: a plain page keeps its own colours', async () => {
     await wrap(<Probe />);
     expect(screen.getByTestId('probe').props.children).toBe('fallback-ground|fallback-ink');
   });
