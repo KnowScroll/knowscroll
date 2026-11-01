@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { AuthoredScroll, COPY_RUN_WORDS } from '@knowscroll/scroll-model/producer';
+import { AuthoredScroll, COPY_RUN_WORDS, copiedRuns } from '@knowscroll/scroll-model/producer';
 import { extractResearch } from '../../../infrastructure/research/public-pages.js';
 import { evidencePassages } from './evidence.js';
 import {
   compileGeneratedScroll,
+  COPY_RULE_EXAMPLE,
   generatedProvenance,
   libraryIdentity,
   QUESTION_WRITER_PROMPT_VERSION,
@@ -226,7 +227,7 @@ describe('the instructions for the answer to one question (D-218)', () => {
     expect(writerInstructions('comparison', 'what_if')).not.toContain('THIS IS ANSWERING ONE QUESTION');
     for (const other of [writerInstructions('plain'), writerInstructions('comparison', 'what_if')])
       expect(other).not.toContain('State each fact in the passages’ own terms');
-    expect(QUESTION_WRITER_PROMPT_VERSION).toBe('question-writer.v5');
+    expect(QUESTION_WRITER_PROMPT_VERSION).toBe('question-writer.v6');
   });
 
   it('record their own prompt version, a one-to-two-minute target and a hint for the length, not the library’s', () => {
@@ -270,6 +271,94 @@ describe('the instructions for the answer to one question (D-218)', () => {
     };
     expect(codesWith(sourceWords.slice(0, COPY_RUN_WORDS).join(' '))).toContain('copied_passage');
     expect(codesWith(sourceWords.slice(0, COPY_RUN_WORDS - 1).join(' '))).not.toContain('copied_passage');
+  });
+
+  describe('the worked example of the copy rule (D-294)', () => {
+    const { passage, copied, rebuilt, keyTerms } = COPY_RULE_EXAMPLE;
+    const examplePage = extractResearch(
+      `<html><title>Fixture</title><main>${[...SOURCE, passage].map((text) => `<p>${text}</p>`).join('')}</main></html>`,
+      'https://science.nasa.gov/earth/earth-facts/',
+      '2026-10-20T00:00:00.000Z',
+    );
+    const examplePassages = evidencePassages([examplePage]);
+    const exampleProvenance = generatedProvenance({
+      identity,
+      mode: 'question',
+      runId: 'ci-writer-run',
+      attemptIds: ['ci-attempt'],
+      model: 'MiniMax-M3.1-Flash',
+      passages: examplePassages,
+      pages: [examplePage],
+    });
+    /** The codes the writer's compile gives an answer whose last paragraph says `sentence` in the example passage's name. */
+    const codesWith = (sentence: string) => {
+      const answer = scroll([...BODY, prose(sentence, [examplePassages.at(-1)!.handle]), limit]);
+      const outcome = compileGeneratedScroll(answer, exampleProvenance, examplePassages, 'plain');
+      return outcome.kind === 'refused' ? outcome.issues.map((issue) => issue.code) : [];
+    };
+
+    it('is in the question instructions only, with its three sentences and its key terms', () => {
+      const text = writerInstructions('plain', 'question');
+      for (const part of [passage, copied, rebuilt]) expect(text).toContain(part);
+      expect(text).toContain(`Built around the same key terms (${keyTerms.join(', ')})`);
+      for (const other of [
+        writerInstructions('plain'),
+        writerInstructions('comparison', 'what_if'),
+        writerInstructions('comparison', 'perspective'),
+      ])
+        expect(other).not.toContain(passage);
+      expect(text.length).toBeLessThan(16_000);
+    });
+
+    it('says only what is true under the rule: the copy is refused and the rebuilt sentence passes', () => {
+      expect(codesWith(copied)).toContain('copied_passage');
+      expect(codesWith(rebuilt)).not.toContain('copied_passage');
+      // The rebuilt sentence is not a near copy either: no five words in a row are the passage's.
+      expect(copiedRuns(rebuilt, [passage], 5)).toEqual([]);
+      expect(copiedRuns(copied, [passage], COPY_RUN_WORDS)[0]?.split(' ').length).toBeGreaterThan(COPY_RUN_WORDS);
+    });
+
+    it('keeps every key term in the passage and in the rebuilt sentence', () => {
+      for (const term of keyTerms) {
+        expect(passage.toLowerCase()).toContain(term);
+        expect(rebuilt.toLowerCase()).toContain(term);
+      }
+    });
+
+    it('is invented: no word of it is in a source passage the other tests use', () => {
+      for (const source of SOURCE) expect(copiedRuns(passage, [source], 3)).toEqual([]);
+    });
+  });
+
+  it('names every block of an answer that copies, in the one repair, and none of the model’s own words (D-294)', () => {
+    const role = writerRole({ provenance: questionProvenance, passages, format: 'plain', mode: 'question' });
+    const plainOf = (text: string) => text.toLowerCase().replace(/[^a-z\s]/gu, '');
+    const answer = scroll([
+      prose(SOURCE[0]!, ['e1']),
+      BODY[0]!,
+      prose(SOURCE[1]!, ['e2']),
+      BODY[1]!,
+      prose(`${SOURCE[3]} Its own tail has quite different words.`, ['e4']),
+      limit,
+    ]);
+    expect(compileGeneratedScroll(answer, questionProvenance, passages, 'plain')).toMatchObject({
+      kind: 'refused',
+      issues: expect.arrayContaining([
+        { code: 'copied_passage', path: 'blocks.1' },
+        { code: 'copied_passage', path: 'blocks.3' },
+        { code: 'copied_passage', path: 'blocks.5' },
+      ]),
+    });
+    const notes = role.repairNotes?.(JSON.stringify(answer)) ?? '';
+    for (const [block, source] of [
+      [1, SOURCE[0]],
+      [3, SOURCE[1]],
+      [5, SOURCE[3]],
+    ] as const)
+      expect(notes).toContain(`blocks[${String(block)}] copies: "${plainOf(source!)}"`);
+    for (const untouched of [0, 2, 4, 6]) expect(notes).not.toContain(`blocks[${String(untouched)}]`);
+    expect(notes).not.toContain('tail has quite different');
+    expect(notes).toContain('keep its key terms');
   });
 
   it('accept a short prose answer with no rich block, which the library would refuse as too short', () => {
@@ -435,6 +524,10 @@ describe('the writer role', () => {
     expect(role.effort).toBe('medium');
     expect(Object.isFrozen(role.safeCustomIssues)).toBe(true);
     expect(role.safeCustomIssues?.['copied_passage']).toContain('Rewrite only the sentences of this block');
+    // The hint states the rule’s own number and asks for the key terms; every hint fits the 256 characters the harness admits.
+    expect(role.safeCustomIssues?.['copied_passage']).toContain(`${String(COPY_RUN_WORDS)} or more words in a row`);
+    expect(role.safeCustomIssues?.['copied_passage']).toContain('keeping their key terms');
+    for (const hint of Object.values(role.safeCustomIssues ?? {})) expect(hint.length).toBeLessThanOrEqual(256);
     expect(Object.keys(role.safeCustomIssues ?? {})).toEqual(
       expect.arrayContaining([
         'format_required',
@@ -478,7 +571,7 @@ describe('the writer role', () => {
       const notes = role.repairNotes?.(copiedAnswer());
       const run = SOURCE[1]?.toLowerCase().replace(/[^a-z\s]/gu, '');
       expect(notes).toContain(`blocks[6] copies: "${run}"`);
-      expect(notes).toContain('Rewrite only the sentences that contain them');
+      expect(notes).toContain('Rebuild each sentence that holds them in your own words: keep its key terms');
       // The notes carry words of the research only, never the writer's own sentences.
       expect(notes).not.toContain('some more words of its own');
     });

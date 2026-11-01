@@ -894,6 +894,81 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
     });
 
+    describe('a draft the validator refuses for copying a passage (D-294)', () => {
+      /** A passage sentence of the labelled lighthouse fixture, word for word: more than nine words in a row. */
+      const COPIED = 'A prism ring around the flame gathers the light into a single beam that sweeps across the water.';
+      const OWN_TAIL = 'This tail is the writer’s own sentence and the notes never repeat it.';
+      const copiedDraft = () =>
+        answerWith(fixtureAnswer({ sentence: [BEFORE_SENTENCE, `${COPIED} ${OWN_TAIL}`] }));
+      /** The `<repair-notes>` data of a writer request, as the model would read it. */
+      const notesOf = (call: FixtureCall) =>
+        /<repair-notes>\n([\s\S]*?)\n<\/repair-notes>/u.exec(call.request.user)?.[1] ?? '';
+
+      it('is repaired once with the passage words it copied named by block, and the repair is checked and served', async () => {
+        await setup();
+        const { person, requestId, order } = await orderedAsk();
+        let writes = 0;
+        writer = () => {
+          writes += 1;
+          return writes === 1 ? copiedDraft() : answerWith(fixtureAnswer());
+        };
+
+        const done = await publish(order.recipe);
+
+        expect(done).toMatchObject({ kind: 'finished', result: { outcome: 'published', take: 1 } });
+        // The draft and the validator's one repair; the checker read the repaired answer only, since the first never compiled.
+        expect(production.writerCalls).toHaveLength(2);
+        expect(production.supportCalls).toHaveLength(BATCHES);
+        const [primary, repair] = production.writerCalls.map((call) => call.request);
+        expect(primary!.user).not.toContain('<repair-notes>');
+        expect(repair!.system).toContain('Rewrite only the sentences of this block that contain one');
+        expect(repair!.system).toContain('the <repair-notes> block there holds facts about it');
+        // The notes name the block and the passage's own words, and nothing the model wrote besides.
+        const notes = notesOf(production.writerCalls[1]!);
+        expect(notes).toContain('keep its key terms');
+        expect(notes).toContain(
+          'blocks[1] copies: "a prism ring around the flame gathers the light into a single beam that sweeps across the water"',
+        );
+        expect(notes).not.toContain('tail');
+        expect(notes).not.toContain('writer’s own');
+        expect(repair!.user).toContain('<previous-answer>');
+        // Both writer requests are the question writer, version 6.
+        const [row] = await jobsOf(order.recipe);
+        const attempts = await database.db
+          .selectFrom('reasoning.production_attempts')
+          .select(['role_version', 'step', 'state'])
+          .where('run_id', '=', row!.writer_run_id)
+          .orderBy('reserved_at')
+          .execute();
+        expect(attempts).toEqual([
+          { role_version: 'question-writer.v6', step: 'primary', state: 'succeeded' },
+          { role_version: 'question-writer.v6', step: 'repair', state: 'succeeded' },
+        ]);
+        // The answer served has none of the copied sentence, and every sentence of it passed the check.
+        const stored = JSON.stringify((await storedAnswer(order.assetId))?.document);
+        expect(stored).not.toContain('gathers the light into a single beam');
+        expect(row!.outcomes).toContainEqual(
+          expect.objectContaining({ role: 'support_check', kind: 'checked', draft: 1, unsupported: [] }),
+        );
+        await resolve(job(person, requestId));
+        expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
+      });
+
+      it('ends the job when the repair copies again, with no second repair and no check', async () => {
+        await setup();
+        const { order } = await orderedAsk();
+        writer = () => copiedDraft();
+
+        expect(await publish(order.recipe)).toMatchObject({
+          result: { outcome: 'rejected', codes: ['invalid_output'] },
+        });
+        expect(production.writerCalls).toHaveLength(2);
+        expect(production.supportCalls).toHaveLength(0);
+        expect(notesOf(production.writerCalls[1]!)).toContain('blocks[1] copies: ');
+        expect(await storedAnswer(order.assetId)).toBeUndefined();
+      });
+    });
+
     it('checks the title like any sentence: an unsupported title is repaired once, and the repaired title is what the person gets (B1.4)', async () => {
       await setup();
       const { order } = await orderedAsk();

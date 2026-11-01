@@ -264,8 +264,8 @@ function roleProblem<T>(role: ReasoningRole<T>): boolean {
   );
 }
 
-/** The most characters of a role's repair notes the harness sends. */
-const MAX_REPAIR_NOTES_CHARS = 2_000;
+/** The most characters of a role's repair notes the harness sends. A role that builds notes keeps within it, so none is cut mid-line. */
+export const MAX_REPAIR_NOTES_CHARS = 2_000;
 
 /** The role's notes about a refused answer, bounded; none when the role has none or fails to produce them. */
 function repairNotesOf<T>(role: ReasoningRole<T>, previousAnswer: string): string | undefined {

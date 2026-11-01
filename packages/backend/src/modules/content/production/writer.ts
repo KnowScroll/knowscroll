@@ -4,7 +4,6 @@ import {
   authoringReference,
   compileAuthored,
   COPY_RUN_WORDS,
-  copiedRuns,
   REPAIR_HINTS,
   type AuthoredBlockType,
   type DraftProvenance,
@@ -13,6 +12,7 @@ import type { ResearchPage } from '../../../infrastructure/research/public-pages
 import type { ReasoningRole } from '../../../reasoning/public.js';
 import { readingFactsOf } from '../adapters/scroll-compiler.js';
 import type { AdmissionIssue, CompileOutcome } from '../application/ports.js';
+import { copyRepairNotes } from './copy-repair.js';
 import { authoringEvidence, MIN_EVIDENCE_PASSAGES, type EvidencePassage } from './evidence.js';
 import { explanationUnitFor, TOPICS, type ScrollTopic } from './topics.js';
 
@@ -39,9 +39,11 @@ export const SCENARIO_WRITER_PROMPT_VERSION = 'scenario-writer.v1';
  * passage (the title and a longer heading are checked), and a plain admission of a gap stands alone as its own sentence.
  * v5 (D-282): a fact is said in the passages' own terms, but never as a copied run of `COPY_RUN_WORDS` words (the rule that
  * refuses an answer, so the instruction names its number), and a link between two ideas is short and plain or part of the
- * next fact. `versions.test.ts` pairs it with the support check's version.
+ * next fact. v6 (D-294): the copy rule comes with one worked example (a passage, a copy that is refused, a rebuilt sentence that
+ * keeps the key terms and passes), and the revision after a support check is told that a rewritten sentence must not copy
+ * either. `versions.test.ts` pairs it with the support check's version.
  */
-export const QUESTION_WRITER_PROMPT_VERSION = 'question-writer.v5';
+export const QUESTION_WRITER_PROMPT_VERSION = 'question-writer.v6';
 
 /** What the Scroll is: a library explanation, a what-if, another perspective, or the answer to one person's question. */
 export type WriterMode = 'library' | 'what_if' | 'perspective' | 'question';
@@ -96,8 +98,7 @@ const FORMAT_GUIDANCE: Readonly<Record<WriterFormat, string>> = {
  */
 const WRITER_SAFE_ISSUES: Readonly<Record<string, string>> = Object.freeze({
   ...REPAIR_HINTS,
-  copied_passage:
-    'Nine or more words in a row match a passage; the repair notes quote each such run. Rewrite only the sentences of this block that contain one, in your own words and with a different sentence structure, and keep the other sentences as they are.',
+  copied_passage: `${String(COPY_RUN_WORDS)} or more words in a row match a passage; the repair notes quote each run. Rewrite only the sentences of this block that contain one, in your own words and structure, keeping their key terms; keep the other sentences as they are.`,
   reading_length_out_of_brief:
     'The Scroll must read in two to eight minutes: write about 450 to 600 words of prose, besides the interactive block.',
   format_required: 'Include the block the recipe asks for, as described in the instructions.',
@@ -131,6 +132,21 @@ const SCENARIO_RULES: Readonly<Record<'what_if' | 'perspective', readonly string
 };
 
 /**
+ * The worked example of the copy rule in a question's instructions (D-294): an invented passage sentence, a copy of it that
+ * the rule refuses, and a sentence rebuilt around the same key terms that passes. It is about a canal lock, a subject no
+ * library Scroll or asked question is about, and invented. A test holds all three to what the instruction says of them.
+ */
+export const COPY_RULE_EXAMPLE = {
+  passage:
+    'A canal lock raises a boat by letting water into a closed chamber until the water level inside matches the higher stretch of the canal.',
+  copied:
+    'A canal lock raises a boat by letting water into a closed chamber until the water level inside matches the higher part of the canal.',
+  rebuilt:
+    'A canal lock lifts the boat when water fills its closed chamber, and the lifting ends once the level of water inside equals that of the higher canal.',
+  keyTerms: ['canal lock', 'boat', 'closed chamber', 'water'],
+} as const;
+
+/**
  * What a question adds to the contract (D-218). The brief holds a person's own words as the question, the title of the
  * Scroll they were reading and the words of the stop they asked from, all as data. The Scroll answers that question from
  * the cited passages and says where the answer stops. These lines override the library's length and shape.
@@ -144,6 +160,7 @@ const QUESTION_RULES: readonly string[] = [
   '- If the passages do not hold the answer at all, say so in one sentence at the start, then say what they do cover that is closest to the question. Never fill the gap with a guess.',
   '- Every sentence that states a fact must rest on a passage you cite in that same block. A second reader checks each sentence against the passages you cited, and an answer with a sentence they do not support is refused. A heading or a callout’s title of four words or fewer that only names what follows needs no passage; the title and any longer heading state something and are checked like any sentence, so say nothing in them that a cited passage does not say. Do not join two things the passages say apart into a claim neither makes, and do not say how a part works unless a passage says it.',
   `- State each fact in the passages’ own terms: keep the names and words a passage uses for the thing, the quantity and the relation, rather than a general word of your own, so the passage that says it can be found. But never copy a run of ${String(COPY_RUN_WORDS)} or more words in a row from a passage (case and punctuation ignored): an answer with one is refused before anyone reads it. Keep the key terms and build your own sentence around them, as the writing rules above say: change the order of the ideas and the structure of the sentence, not only a word or two. You may say what a passage says in other words, but add no cause, mechanism, comparison, example, figure or condition that the passages do not give, even when it is true.`,
+  `- The copy rule in one example (invented, to show the method; never content to reuse). A passage says: “${COPY_RULE_EXAMPLE.passage}” Copied with one word changed — “${COPY_RULE_EXAMPLE.copied}” — it is refused, because nearly every word is the passage’s, in the passage’s order. Built around the same key terms (${COPY_RULE_EXAMPLE.keyTerms.join(', ')}) — “${COPY_RULE_EXAMPLE.rebuilt}” — it passes: it says what the passage says, in a new order and shape, and a reader can still find the passage that says it. If a repair names words you copied, rebuild the sentence that holds them this way.`,
   '- Keep a link between two ideas short and plain. Best, begin the next fact with the link (“Because …, …”) so that no sentence only links. A sentence that only links states no fact and uses none of the passages’ terms (“Here is why.”, “There is more to it.”). A link that names the topic and says it matters or adds another layer is a claim and is checked like one, so write it only if a passage says it.',
   '- When you say what the pages or this answer do not cover, begin the sentence with that admission (“The pages do not say …”, “This answer cannot tell …”) and put nothing else in it. Say anything the passages do state in a sentence of its own.',
   '- Do not repeat what the reader just read; use it only to see what they already know. Write for someone who read the stop quoted in the brief.',
@@ -424,11 +441,6 @@ export function compileGeneratedScroll(
   };
 }
 
-/** The most blocks, runs per block and words per run a repair note names. */
-export const NOTE_BLOCKS = 6;
-const NOTE_RUNS_PER_BLOCK = 3;
-const NOTE_RUN_WORDS = 40;
-
 /** The part of an authored Scroll a finding path (`title`, `dek`, `blocks.7`) points at. */
 function authoredPart(authored: AuthoredScroll, path: string): unknown {
   if (path === 'title') return authored.title;
@@ -437,22 +449,10 @@ function authoredPart(authored: AuthoredScroll, path: string): unknown {
   return index === undefined ? undefined : authored.blocks[Number(index)];
 }
 
-/** The runs of the reader text in `part` that the copy check refuses, each shortened to a few lines of words. */
-export function copiedIn(part: unknown, sources: readonly string[]): string[] {
-  return [...readerStrings(part)]
-    .flatMap((text) => copiedRuns(text, sources, COPY_RUN_WORDS))
-    .slice(0, NOTE_RUNS_PER_BLOCK)
-    .map((run) => {
-      const words = run.split(' ');
-      return words.length > NOTE_RUN_WORDS ? `${words.slice(0, NOTE_RUN_WORDS).join(' ')} …` : run;
-    });
-}
-
 /**
- * What the repair is told about a copy finding: the copied words themselves. The runs are cut from
- * the research text, which is public and the same text the check compared against, never from the
- * model's own words; the harness sends them as delimited data. Rebuilt from the refused answer
- * with the same compile that refused it, so it names exactly the blocks the findings name.
+ * What the repair is told about a copy finding: for each block the check refused, the words of the passages that its text
+ * repeats (`copyRepairNotes`). Rebuilt from the refused answer with the same compile that refused it, so it names exactly the
+ * blocks the findings name. The harness sends the notes as delimited data.
  */
 function copyNotes(
   previousAnswer: string,
@@ -470,20 +470,13 @@ function copyNotes(
   if (!authored.success) return undefined;
   const outcome = compileGeneratedScroll(authored.data, provenance, passages, format);
   if (outcome.kind !== 'refused') return undefined;
-  const sources = [...provenance.claims.map((claim) => claim.quote), ...provenance.material];
-  const lines = outcome.issues
+  const places = outcome.issues
     .filter((issue) => issue.code === 'copied_passage')
-    .slice(0, NOTE_BLOCKS)
-    .flatMap((issue) => {
-      const runs = copiedIn(authoredPart(authored.data, issue.path), sources);
-      const where = issue.path.replace(/^blocks\.(\d+)$/u, 'blocks[$1]');
-      return runs.length === 0 ? [] : [`${where} copies: ${runs.map((run) => `"${run}"`).join(' | ')}`];
-    });
-  if (lines.length === 0) return undefined;
-  return [
-    'Each line names the words of your text that also appear in the source passages, lower case and without punctuation. Rewrite only the sentences that contain them and keep every other sentence as it is.',
-    ...lines,
-  ].join('\n');
+    .map((issue) => ({
+      where: issue.path.replace(/^blocks\.(\d+)$/u, 'blocks[$1]'),
+      texts: [...readerStrings(authoredPart(authored.data, issue.path))],
+    }));
+  return copyRepairNotes(places, [...provenance.claims.map((claim) => claim.quote), ...provenance.material]);
 }
 
 /**

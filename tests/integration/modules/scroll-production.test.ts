@@ -172,7 +172,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     expect(repair?.system).toContain('the <repair-notes> block there holds facts about it');
     expect(repair?.system).not.toContain('a prism ring around');
     expect(repair?.user).toContain(
-      '<repair-notes>\nEach line names the words of your text that also appear in the source passages',
+      '<repair-notes>\nEach line names a place in your text and the words there that also appear, in a row, in the source passages',
     );
     expect(repair?.user).toContain(
       'blocks[2] copies: "a prism ring around the flame gathers the light into a single beam that sweeps across the water"',
