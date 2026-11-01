@@ -1,14 +1,19 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   askCheckCommand,
   isCheckerInstructionsMisplaced,
+  isForbiddenLocation,
   readCandidateFile,
   type AskCheckOptions,
 } from './ask-check-operator.js';
+
+/** A file as a candidate would be: labelled CI text that names the three verdicts the checker replies with. */
+const INSTRUCTIONS =
+  'CI candidate instructions: judge each sentence by the passages it cites. Reply "supported", "unsupported" or "no_claim".\n';
 
 /**
  * The options of `content ask-check` are checked before anything else is touched: no configuration is read, no database
@@ -84,7 +89,8 @@ describe('--checker-instructions belongs to content ask-check alone (D-280)', ()
 describe('reading a candidate file from the server (D-280)', () => {
   let directory: string;
   beforeAll(async () => {
-    directory = await mkdtemp(join(tmpdir(), 'ks-ask-check-'));
+    // The real path of the folder, so that a test of a link is not confused by a short name or a link in the temporary folder.
+    directory = await realpath(await mkdtemp(join(tmpdir(), 'ks-ask-check-')));
   });
   afterAll(async () => {
     await rm(directory, { recursive: true, force: true });
@@ -97,7 +103,7 @@ describe('reading a candidate file from the server (D-280)', () => {
   };
 
   it('reads a plain text file and labels it with the hash of its bytes', async () => {
-    const text = 'CI candidate instructions: judge each sentence by the passages it cites.\n';
+    const text = INSTRUCTIONS;
     const reading = await readCandidateFile(await fileWith('good.txt', text));
     if (reading.kind !== 'accepted') throw new Error(`CI: expected the file to be accepted, got ${reading.code}`);
     expect(reading.candidate.text).toBe(text);
@@ -120,7 +126,7 @@ describe('reading a candidate file from the server (D-280)', () => {
   it('refuses a file over the size limit without reading it into memory, and accepts one of exactly the limit', async () => {
     const big = await fileWith('big.txt', 'a'.repeat(16 * 1024 + 1));
     expect(await readCandidateFile(big)).toEqual({ kind: 'refused', code: 'too_large' });
-    const largest = await fileWith('largest.txt', 'a'.repeat(16 * 1024));
+    const largest = await fileWith('largest.txt', INSTRUCTIONS + 'a'.repeat(16 * 1024 - INSTRUCTIONS.length));
     expect((await readCandidateFile(largest)).kind).toBe('accepted');
   });
 
@@ -134,6 +140,76 @@ describe('reading a candidate file from the server (D-280)', () => {
       kind: 'refused',
       code: 'not_utf8',
     });
+  });
+
+  /**
+   * The text of this file is sent to the provider and kept in the request store, so the wrong file must never be taken:
+   * a settings file, a link to one, or a place that holds the machine's settings. Labelled fakes throughout.
+   */
+  it('refuses a file shaped like a settings file, and one that is not instructions for this checker, without quoting it', async () => {
+    const env = await fileWith('fake.env', `${INSTRUCTIONS}CI_FAKE_SETTING=ci-value-not-a-secret\nCI_OTHER=1\n`);
+    const refused = await readCandidateFile(env);
+    expect(refused).toEqual({ kind: 'refused', code: 'not_instructions' });
+    expect(JSON.stringify(refused)).not.toContain('ci-value-not-a-secret');
+    const settingsOnly = await fileWith('only.env', 'export CI_FAKE_SETTING="ci-value"\n');
+    expect(await readCandidateFile(settingsOnly)).toEqual({ kind: 'refused', code: 'not_instructions' });
+    const prose = await fileWith('prose.txt', 'Judge each sentence by the passages it cites.\n');
+    expect(await readCandidateFile(prose)).toEqual({ kind: 'refused', code: 'not_instructions' });
+  });
+
+  /** Making a link may need a privilege on Windows; a folder link (a junction) does not, and Linux needs none. */
+  async function link(target: string, name: string, kind: 'file' | 'dir'): Promise<string | undefined> {
+    const path = join(directory, name);
+    try {
+      await symlink(target, path, kind === 'dir' ? 'junction' : 'file');
+      return path;
+    } catch {
+      return undefined;
+    }
+  }
+
+  it('refuses a link to a file that would be accepted, and a path with a link in any part of it', async (context) => {
+    const real = await fileWith('linked-target.txt', INSTRUCTIONS);
+    expect((await readCandidateFile(real)).kind).toBe('accepted');
+    const fileLink = await link(real, 'file-link.txt', 'file');
+    const folder = join(directory, 'real-folder');
+    await mkdir(folder);
+    await writeFile(join(folder, 'inside.txt'), INSTRUCTIONS);
+    const folderLink = await link(folder, 'folder-link', 'dir');
+    if (fileLink === undefined && folderLink === undefined) return context.skip();
+    if (fileLink !== undefined) expect(await readCandidateFile(fileLink)).toEqual({ kind: 'refused', code: 'symlink' });
+    if (folderLink !== undefined) {
+      // The file inside is a plain file, but the folder it is reached through is a link.
+      expect((await readCandidateFile(join(folder, 'inside.txt'))).kind).toBe('accepted');
+      expect(await readCandidateFile(join(folderLink, 'inside.txt'))).toEqual({ kind: 'refused', code: 'symlink' });
+    }
+  });
+
+  it('refuses a path under /etc, /proc or /root/.ssh before it touches the file system, however it is written', async () => {
+    for (const path of [
+      '/etc/knowscroll/dev.v2.env',
+      '/etc/passwd',
+      '/etc',
+      '/proc/self/environ',
+      '/root/.ssh/id_ed25519',
+      '/tmp/../etc/knowscroll/dev.v2.env',
+      '/etc//knowscroll/./dev.v2.env',
+      '/etc\\knowscroll\\dev.v2.env',
+    ])
+      expect(await readCandidateFile(path), path).toEqual({ kind: 'refused', code: 'forbidden_location' });
+  });
+
+  it('knows a forbidden place from a name that only starts the same way', () => {
+    expect(isForbiddenLocation('/etc/x')).toBe(true);
+    expect(isForbiddenLocation('/root/.ssh/authorized_keys')).toBe(true);
+    for (const path of [
+      '/etcetera/x',
+      '/processes/x',
+      '/root/.sshd/x',
+      '/root/notes.txt',
+      '/var/tmp/ks-v3-spike/c.txt',
+    ])
+      expect(isForbiddenLocation(path), path).toBe(false);
   });
 });
 

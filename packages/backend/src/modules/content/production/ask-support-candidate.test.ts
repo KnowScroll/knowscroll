@@ -19,6 +19,10 @@ import {
 
 const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
 
+/** A file as a candidate would be: labelled CI text that names the three verdicts the checker replies with. */
+const INSTRUCTIONS =
+  'CI candidate instructions: judge each sentence against the passages it cites.\nReply "supported", "unsupported" or "no_claim" for each.\n';
+
 function accepted(bytes: Uint8Array): CandidateCheckerInstructions {
   const reading = readCandidateInstructions(bytes);
   if (reading.kind !== 'accepted') throw new Error(`CI: expected the file to be accepted, got ${reading.code}`);
@@ -26,7 +30,7 @@ function accepted(bytes: Uint8Array): CandidateCheckerInstructions {
 }
 
 describe('reading candidate checker instructions (D-280)', () => {
-  const TEXT = 'CI candidate instructions: judge each sentence against the passages it cites.\nReply with JSON.\n';
+  const TEXT = INSTRUCTIONS;
 
   it('accepts UTF-8 plain text and labels it by the SHA-256 of the file’s bytes', () => {
     const candidate = accepted(encode(TEXT));
@@ -52,19 +56,21 @@ describe('reading candidate checker instructions (D-280)', () => {
 
   it('accepts tabs, Windows line breaks and letters of any script', () => {
     expect(
-      readCandidateInstructions(encode('Rule:\tjudge “each” sentence.\r\nÉcrivez en français — 判断。\r\n')).kind,
+      readCandidateInstructions(
+        encode(`Rule:\tjudge “each” sentence.\r\nÉcrivez en français — 判断。\r\n${INSTRUCTIONS}`),
+      ).kind,
     ).toBe('accepted');
   });
 
   it('accepts exactly the largest size and refuses one byte more', () => {
-    const atLimit = 'a'.repeat(CANDIDATE_INSTRUCTIONS_MAX_BYTES);
+    const atLimit = INSTRUCTIONS + 'a'.repeat(CANDIDATE_INSTRUCTIONS_MAX_BYTES - INSTRUCTIONS.length);
     expect(readCandidateInstructions(encode(atLimit)).kind).toBe('accepted');
     expect(readCandidateInstructions(encode(`${atLimit}a`))).toEqual({ kind: 'refused', code: 'too_large' });
   });
 
   it('counts bytes, not characters, against the limit', () => {
     // Two bytes each: half the limit in characters is the whole limit in bytes.
-    const twoByte = 'é'.repeat(CANDIDATE_INSTRUCTIONS_MAX_BYTES / 2);
+    const twoByte = INSTRUCTIONS + 'é'.repeat(Math.floor((CANDIDATE_INSTRUCTIONS_MAX_BYTES - INSTRUCTIONS.length) / 2));
     expect(readCandidateInstructions(encode(twoByte)).kind).toBe('accepted');
     expect(readCandidateInstructions(encode(`${twoByte}é`))).toEqual({ kind: 'refused', code: 'too_large' });
   });
@@ -92,11 +98,50 @@ describe('reading candidate checker instructions (D-280)', () => {
     ['a NUL byte', 'Judge\u0000 each sentence.'],
     ['a bell character', 'Judge\u0007 each sentence.'],
     ['an escape sequence', 'Judge \u001b[31meach\u001b[0m sentence.'],
-    ['a byte-order mark', '﻿Judge each sentence.'],
-    ['a zero-width space', 'Judge each​ sentence.'],
-    ['a bidirectional override', 'Judge each sentence.‮'],
+    ['a byte-order mark', '\uFEFFJudge each sentence.'],
+    ['a zero-width space', 'Judge each\u200B sentence.'],
+    ['a bidirectional override', 'Judge each sentence.\u202E'],
   ])('refuses text with %s, so what an editor shows is what the model is sent', (_name, text) => {
-    expect(readCandidateInstructions(encode(text))).toEqual({ kind: 'refused', code: 'not_plain_text' });
+    expect(readCandidateInstructions(encode(`${INSTRUCTIONS}${text}`))).toEqual({
+      kind: 'refused',
+      code: 'not_plain_text',
+    });
+  });
+
+  /**
+   * A candidate's text is sent to the provider as the checker's system prompt and kept in the request store, so a file
+   * named by mistake (a settings file, a key) must be refused before a word of it goes anywhere. These are labelled fakes.
+   */
+  it.each([
+    ['a line that sets a variable', `${INSTRUCTIONS}CI_FAKE_SETTING=ci-value-not-a-secret\n`],
+    ['an exported variable', `${INSTRUCTIONS}export CI_FAKE_SETTING="ci-value"\n`],
+    ['an indented assignment with spaces', `${INSTRUCTIONS}  ci_fake_setting = ci-value\n`],
+    ['an assignment on the first line', `CI_FAKE_SETTING=1\n${INSTRUCTIONS}`],
+    ['an assignment among Windows line breaks', INSTRUCTIONS.replaceAll('\n', '\r\n') + 'CI_FAKE_SETTING=1\r\n'],
+  ])('refuses a file with %s, even when it names all three verdicts', (_name, text) => {
+    expect(readCandidateInstructions(encode(text))).toEqual({ kind: 'refused', code: 'not_instructions' });
+  });
+
+  it.each([
+    ['"supported"', 'Judge each sentence. Reply "unsupported" or "no_claim" for each.'],
+    ['"unsupported"', 'Judge each sentence. Reply "supported" or "no_claim" for each.'],
+    ['"no_claim"', 'Judge each sentence. Reply "supported" or "unsupported" for each.'],
+  ])('refuses a file that does not name the verdict %s', (_name, text) => {
+    expect(readCandidateInstructions(encode(text))).toEqual({ kind: 'refused', code: 'not_instructions' });
+  });
+
+  it('refuses text that is not instructions at all, and never puts the text in the refusal', () => {
+    const reading = readCandidateInstructions(
+      encode('-----BEGIN CI FAKE KEY-----\nZmFrZQ==\n-----END CI FAKE KEY-----\n'),
+    );
+    expect(reading).toEqual({ kind: 'refused', code: 'not_instructions' });
+    expect(JSON.stringify(reading)).not.toContain('FAKE');
+  });
+
+  it('does not take a sentence that mentions an equals sign, or a JSON example, for an assignment', () => {
+    const text = `${INSTRUCTIONS}Reply {"sentences": [{"n": 1, "verdict": "supported"}]}. A sum such as 1 + 1 = 2 is a figure.\n- n = the number of the sentence, in the list.\n`;
+    // Only a line that begins with a name and an equals sign is an assignment: a dash, a brace or a word first is not.
+    expect(readCandidateInstructions(encode(text)).kind).toBe('accepted');
   });
 });
 
@@ -105,7 +150,7 @@ describe('the role built from candidate instructions (D-280)', () => {
     { number: 1, text: 'The lamp turns once a minute.', cites: ['e1'] },
   ];
   const passages = [{ handle: 'e1', text: 'The lamp turns once a minute, driven by a small motor.' }];
-  const candidate = accepted(encode('CI candidate instructions: judge each sentence.'));
+  const candidate = accepted(encode(INSTRUCTIONS));
 
   it('changes the instructions and the version and nothing else: same role id, budget, ceilings and repair hints', () => {
     const production = askSupportRole(sentences, passages);

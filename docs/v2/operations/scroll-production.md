@@ -448,7 +448,9 @@ change can be measured on dev before it is built into a version. Copy the file t
 repository is itself a valid candidate). Everything else is the same: the same role and budget, the same batches, the same rules applied to every reply, nothing stored, and the model must
 still be `MiniMax-M3.1-Flash`. Every line on standard output (and every line in the file) then carries `"candidate": true` and `"candidateSha256"`, the SHA-256 of the file, and the ledger
 records the requests under the role version `ask-support-check.cand-<first 8 characters of the hash>`, so a candidate's runs are never taken for the production checker's. A file that is
-not absolute, not a plain file, too big, not UTF-8, blank or not plain text is refused with a one-word code and exit status 2, before anything is touched. No other operator command
+not absolute, under `/etc`, `/proc` or `/root/.ssh`, a link (or reached through one), not a plain file, too big, not UTF-8, blank, not plain text, or not instructions for this checker
+(any `NAME=value` line, or any of `"supported"`, `"unsupported"`, `"no_claim"` missing: a settings file named by mistake is refused) is refused with a one-word code and exit status 2, before anything is touched.
+The text goes to the provider and into the request store, so never put a secret in a candidate file. No other operator command
 accepts the option, and the job that serves people never reads such a file. To compare, run the same `--asset` list with the candidate and without it, and read `codes` first: a
 high `quote_not_about_sentence` or `no_claim_without_ground` count is the code's rule deciding, not the checker's judgement.
 

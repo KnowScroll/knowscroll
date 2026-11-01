@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { appendFile, open, stat } from 'node:fs/promises';
-import { isAbsolute } from 'node:path';
+import { constants } from 'node:fs';
+import { appendFile, lstat, open, realpath } from 'node:fs/promises';
+import { isAbsolute, normalize, posix } from 'node:path';
 import { ConfigurationError, readScrollProductionOperatorConfig } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, makeWithProductionScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
@@ -47,14 +48,39 @@ const USAGE = `content ask-check (--asset <uuid>[,<uuid>…] | --recent <1-${Str
 export const isCheckerInstructionsMisplaced = (positionals: readonly string[], option: string | undefined): boolean =>
   option !== undefined && !(positionals[0] === 'content' && positionals[1] === 'ask-check');
 
-/** Why a candidate file is not read: what the file's text can be refused for, and the ways the file itself can fail. */
-type CandidateFileRefusal = Extract<CandidateReading, { kind: 'refused' }>['code'] | 'path_not_absolute' | 'unreadable';
+/**
+ * Why a candidate file is not read: what its text can be refused for (`readCandidateInstructions`), and the ways its place
+ * can be refused. `symlink` is a link, or a path with a link in it. `forbidden_location` is a place that holds the machine's
+ * settings or keys.
+ */
+type CandidateFileRefusal =
+  | Extract<CandidateReading, { kind: 'refused' }>['code']
+  | 'path_not_absolute'
+  | 'forbidden_location'
+  | 'symlink'
+  | 'unreadable';
+
+/** Places a candidate file may not be named from: the machine's settings (`/etc`), a login's keys and the process table. */
+const FORBIDDEN_LOCATIONS = /^\/(?:etc|proc)(?:\/|$)|^\/root\/\.ssh(?:\/|$)/u;
+
+/** Whether a path, once `..` and doubled slashes are taken out, is under a place no candidate file may come from. */
+export const isForbiddenLocation = (path: string): boolean =>
+  FORBIDDEN_LOCATIONS.test(posix.normalize(path.replaceAll('\\', '/')));
+
+/** Whether two paths name the same place as written (Windows paths are not case sensitive). */
+const samePath = (first: string, second: string): boolean =>
+  process.platform === 'win32' ? first.toLowerCase() === second.toLowerCase() : first === second;
 
 /**
- * Reads candidate checker instructions from a file on the server. The path must be absolute and name a regular file of at
- * most {@link CANDIDATE_INSTRUCTIONS_MAX_BYTES} bytes, which is checked before it is opened, so a pipe, a device or a huge file
- * is never opened or slurped. The file's text must be UTF-8 plain text (`readCandidateInstructions`). The refusal says why and never
- * quotes the file.
+ * Reads candidate checker instructions from a file on the server. The text becomes the checker's system prompt, which is
+ * sent to the provider and kept in the request store, so the file is held to a narrow rule:
+ * - the path is absolute, not under `/etc`, `/proc` or `/root/.ssh`, and names a regular file, never a link and never a path with a
+ *   link in any part of it (`realpath` must equal the path given);
+ * - it is looked at before it is opened, so a pipe, a device or a huge file (over {@link CANDIDATE_INSTRUCTIONS_MAX_BYTES} bytes)
+ *   is never opened or slurped, and it is opened without following a link;
+ * - the text is UTF-8 plain text that looks like instructions for this checker (`readCandidateInstructions`): a settings file
+ *   is refused.
+ * The refusal says why with a code and never quotes the file.
  */
 export async function readCandidateFile(
   path: string,
@@ -63,17 +89,20 @@ export async function readCandidateFile(
   | { readonly kind: 'refused'; readonly code: CandidateFileRefusal }
 > {
   if (!isAbsolute(path)) return { kind: 'refused', code: 'path_not_absolute' };
-  // Looked at before it is opened, so a named pipe (which blocks an open) or a device is never opened or read.
+  if (isForbiddenLocation(path)) return { kind: 'refused', code: 'forbidden_location' };
   try {
-    const info = await stat(path);
-    if (!info.isFile()) return { kind: 'refused', code: 'unreadable' };
-    if (info.size > CANDIDATE_INSTRUCTIONS_MAX_BYTES) return { kind: 'refused', code: 'too_large' };
+    const entry = await lstat(path);
+    if (entry.isSymbolicLink()) return { kind: 'refused', code: 'symlink' };
+    if (!entry.isFile()) return { kind: 'refused', code: 'unreadable' };
+    if (!samePath(await realpath(path), normalize(path))) return { kind: 'refused', code: 'symlink' };
+    if (entry.size > CANDIDATE_INSTRUCTIONS_MAX_BYTES) return { kind: 'refused', code: 'too_large' };
   } catch {
     return { kind: 'refused', code: 'unreadable' };
   }
   let handle;
   try {
-    handle = await open(path, 'r');
+    // Not following a link where the system can say so (not on Windows), in case the path changed since it was looked at.
+    handle = await open(path, constants.O_RDONLY | ((constants.O_NOFOLLOW as number | undefined) ?? 0));
     // One byte more than the limit, so a file that grew since it was looked at is refused as too large.
     const buffer = Buffer.alloc(CANDIDATE_INSTRUCTIONS_MAX_BYTES + 1);
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);

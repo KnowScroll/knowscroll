@@ -116,7 +116,7 @@ errors flagged, but 59 of 101 sentences `unsupported`, almost all sound. **Plann
 - **Runs and receipts.** The check's runs (one for each batch of each draft) and the repair's run are derived from the job and closed with it. The
   `support_check` receipts keep sentence numbers, kinds and rule codes only, with the batch count (D-231).
 - **Candidate instructions (D-280)** (`ask-support-candidate.ts`, replay only). `content ask-check … --checker-instructions <absolute path>` reads instructions from a file
-  (at most 16 KiB of UTF-8 plain text) and asks the checker with them in place of the production ones, so a change can be measured on dev without a deploy. The role keeps its id,
+  (at most 16 KiB of UTF-8 plain text that names all three verdicts and has no `NAME=value` line; an absolute path to a regular file that is not a link, has no link in its path and is not under `/etc`, `/proc` or `/root/.ssh`) and asks the checker with them in place of the production ones, so a change can be measured on dev without a deploy. The role keeps its id,
   schema, batches and every code rule; its ledger version is `ask-support-check.cand-<8 hex of the hash>`. Every line printed or appended says `candidate: true` with the
   file's `candidateSha256`. Production never reads such a file: the step takes a role function that defaults to `askSupportRole` and only the replay passes another, the
   option is refused by every other operator command, and `ask-support-candidate.test.ts` scans the source and fails if any other file names the reader, the role or the option.

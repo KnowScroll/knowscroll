@@ -23,8 +23,12 @@ export interface CandidateCheckerInstructions {
   readonly version: string;
 }
 
-/** Why a file is not accepted as candidate instructions. */
-export type CandidateRefusal = 'empty' | 'too_large' | 'not_utf8' | 'not_plain_text';
+/**
+ * Why a file is not accepted as candidate instructions. `not_instructions` is a file that does not look like instructions for
+ * this checker: a line that assigns a variable (an environment file, whose text would otherwise be sent to the provider and
+ * kept in the request store), or text that does not name all three verdicts.
+ */
+export type CandidateRefusal = 'empty' | 'too_large' | 'not_utf8' | 'not_plain_text' | 'not_instructions';
 
 export type CandidateReading =
   | { readonly kind: 'accepted'; readonly candidate: CandidateCheckerInstructions }
@@ -38,10 +42,22 @@ const isPlainText = (text: string): boolean =>
     (character) => character === '\n' || character === '\r' || character === '\t' || !/[\p{Cc}\p{Cf}]/u.test(character),
   );
 
+/** A line that sets a variable: `NAME=value`, `export NAME=value`. Instructions for a checker have none. */
+const ENV_ASSIGNMENT = /^[ \t]*(?:export[ \t]+)?[A-Za-z_][A-Za-z0-9_]*[ \t]*=/mu;
+
+/** The verdicts the checker replies with: instructions for it name all three. */
+const VERDICT_NAMES = ['"supported"', '"unsupported"', '"no_claim"'] as const;
+
+/** Whether the text can be instructions for this checker. It is a guard against naming the wrong file, not a judgement of quality. */
+const looksLikeInstructions = (text: string): boolean =>
+  !ENV_ASSIGNMENT.test(text) && VERDICT_NAMES.every((name) => text.includes(name));
+
 /**
  * Reads the bytes of a candidate file. Accepts at most {@link CANDIDATE_INSTRUCTIONS_MAX_BYTES} bytes of valid UTF-8 plain
  * text that is not blank. A byte-order mark, a control character or an invisible formatting character (a zero-width space,
- * a bidirectional override) is refused, so what the operator reads in an editor is what the model is sent.
+ * a bidirectional override) is refused, so what the operator reads in an editor is what the model is sent. The text must
+ * also look like instructions for this checker (`not_instructions`): no line that assigns a variable and all three verdicts
+ * named, so a settings file named by mistake is refused before a word of it is sent anywhere. The refusal never quotes the text.
  */
 export function readCandidateInstructions(bytes: Uint8Array): CandidateReading {
   if (bytes.length > CANDIDATE_INSTRUCTIONS_MAX_BYTES) return { kind: 'refused', code: 'too_large' };
@@ -53,6 +69,7 @@ export function readCandidateInstructions(bytes: Uint8Array): CandidateReading {
   }
   if (text.trim() === '') return { kind: 'refused', code: 'empty' };
   if (!isPlainText(text)) return { kind: 'refused', code: 'not_plain_text' };
+  if (!looksLikeInstructions(text)) return { kind: 'refused', code: 'not_instructions' };
   const sha256 = createHash('sha256').update(bytes).digest('hex');
   return { kind: 'accepted', candidate: { text, sha256, version: `ask-support-check.cand-${sha256.slice(0, 8)}` } };
 }

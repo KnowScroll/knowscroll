@@ -55,7 +55,8 @@ vi.mock('@knowscroll/backend/modules/content/nest-providers', async (importOrigi
 
 describe('content ask-check with and without candidate instructions (D-280)', () => {
   const ASSET = '5d7a1a3e-52e5-4a4a-9a45-0b6bf6b3a222';
-  const CANDIDATE_TEXT = 'CI candidate instructions: judge each sentence by the passages it cites.\n';
+  const CANDIDATE_TEXT =
+    'CI candidate instructions: judge each sentence by the passages it cites. Reply "supported", "unsupported" or "no_claim".\n';
   let directory: string;
   beforeAll(async () => {
     directory = await mkdtemp(join(tmpdir(), 'ks-ask-check-glue-'));

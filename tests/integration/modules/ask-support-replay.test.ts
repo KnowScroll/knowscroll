@@ -265,7 +265,10 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     }
   });
 
-  /** Candidate instructions as the operator command reads them from a file: a labelled CI text, never product content. */
+  /** A candidate file's text: labelled CI text that names the three verdicts, never product content. */
+  const CANDIDATE_TEXT =
+    'CI candidate instructions: judge each sentence by the passages it cites. Reply "supported", "unsupported" or "no_claim".';
+  /** Candidate instructions as the operator command reads them from a file. */
   const candidateOf = (text: string): CandidateCheckerInstructions => {
     const reading = readCandidateInstructions(new TextEncoder().encode(text));
     if (reading.kind !== 'accepted') throw new Error(`CI: the candidate was refused: ${reading.code}`);
@@ -293,7 +296,7 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
 
   it('with a candidate, sends its instructions in place of the production ones, labels every line and detail with its hash, and stores nothing (D-280)', async () => {
     const answer = await producedOrder('question');
-    const candidate = candidateOf('CI candidate instructions: judge each sentence by the passages it cites.');
+    const candidate = candidateOf(CANDIDATE_TEXT);
     const before = await contentRows();
     const callsBefore = worker.supportCalls.length;
     // A candidate reply goes through the production rules like any other: this one quotes words no passage holds.
@@ -336,7 +339,7 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
   it('labels the lines that name no answer too, and still refuses another model before asking anything (D-280)', async () => {
     const whatIf = await producedOrder('what_if');
     const question = await producedOrder('question');
-    const candidate = candidateOf('CI candidate instructions for lines that carry no verdict.');
+    const candidate = candidateOf(`${CANDIDATE_TEXT}Lines that carry no verdict are labelled too.`);
     const callsBefore = worker.supportCalls.length;
 
     const notReplayable = await replayed({ kind: 'assets', assetIds: [whatIf.assetId] }, { candidate });
