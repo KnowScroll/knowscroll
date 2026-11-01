@@ -66,6 +66,7 @@ describe('route map', () => {
         '/rooms/[roomId]',
         '/rooms/[roomId]/activity',
         '/rooms/[roomId]/activity/[activityId]',
+        '/rooms/[roomId]/feed',
         '/rooms/[roomId]/t/[discussionId]',
         '/rooms/[roomId]/today',
         '/saved',
