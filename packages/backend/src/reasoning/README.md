@@ -89,9 +89,9 @@ itself fails `schema-structure.test.ts`, instead of silently masking every path.
   personal-scope lock wait is at most `KS_SCOPE_LOCK_TIMEOUT_MS`, 5 s, and there are two), and a
   repair doubles it. Declare `expireInSeconds ≥ 2 × (10 + request deadline in seconds + 10) + 30`
   (550 s with the defaults, 670 s at the 300 s maximum). A job that makes several proposals counts
-  every request it may send at `10 + 300 + 10` s each: the Scroll production job twelve for the answer
+  every request it may send at `10 + 300 + 10` s each: the Scroll production job fourteen for the answer
   to a question plus 180 s for research and database steps (`content.produce-answer`,
-  `PRODUCE_ANSWER_CLAIM_SECONDS`, 4,020 s, D-267), a library recipe its six (`content.produce-scroll`, 2,100 s), and the Quick answer job its six paid attempts (1,950 s). Below that, pg-boss expires a
+  `PRODUCE_ANSWER_CLAIM_SECONDS`, 4,660 s, D-267, D-297), a library recipe its six (`content.produce-scroll`, 2,100 s), and the Quick answer job its six paid attempts (1,950 s). Below that, pg-boss expires a
   delivery that is still waiting on the provider; the next delivery finds the attempt `dispatched`, marks it
   `unknown` (never resent) and the operator has to write it off.
 - **Aborts.** A graceful stop (the delivery's signal) before the request leaves records a failure
@@ -330,7 +330,8 @@ values explicitly; no step keeps state in a closure flag.
    reservation and budgets) and handed to `executeAttempt`, which does the steps in the next
    section. `outcomeOf` reads the finished attempt back as a typed outcome.
 4. **Repair** (`runRepair`), only after a conclusively invalid answer and unless the caller set
-   `allowRepair: false`. It reads the kept refused answer when the role asks for it, builds the
+   `allowRepair: false`, or narrowed it with `repairOnlyFor` to refusals whose every finding has one of
+   the listed codes (the ask order's revision, for a copied passage, D-297). It reads the kept refused answer when the role asks for it, builds the
    richest request that fits (answer and notes, then the answer alone, then the findings alone) and
    runs a second attempt caused by the first.
 

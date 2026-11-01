@@ -137,6 +137,12 @@ export interface ReasoningContext {
 export interface ProposeLimits {
   /** Whether one repair attempt may follow an invalid answer (default `true`). */
   readonly allowRepair?: boolean;
+  /**
+   * Narrows the one repair to refusals of these kinds: it follows an invalid answer only when every finding of the
+   * refusal carries one of these codes (a code of the role's `safeCustomIssues`), and any other refusal stands. Not set,
+   * every invalid answer may be repaired. Has no effect when `allowRepair` is `false`.
+   */
+  readonly repairOnlyFor?: readonly string[];
 }
 
 export interface ProposeInput<T, A = PersonalAuthority> {
@@ -685,6 +691,15 @@ const invalidOutputOf = <T>(attempt: Repairable): ProposeOutcome<T> => ({
   reason: attempt.reason,
 });
 
+/** Whether the caller's limits let the one repair follow this refusal (`ProposeLimits`). */
+function repairFollows(refused: Repairable, limits: ProposeLimits | undefined): boolean {
+  if (limits?.allowRepair === false) return false;
+  const only = limits?.repairOnlyFor;
+  return (
+    only === undefined || (refused.issues.length > 0 && refused.issues.every((issue) => only.includes(issue.code)))
+  );
+}
+
 /**
  * The model's own refused answer, for a role that asks to revise it. Only nonpersonal production
  * keeps refused answers, so a personal role gets none.
@@ -758,7 +773,7 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
       const proposal = admittedProposal(ports, input, admission.model);
       const primary = await runPrimary(engine, proposal, signal);
       if (primary.kind !== 'repairable') return primary;
-      if (input.limits?.allowRepair === false) return invalidOutputOf(primary);
+      if (!repairFollows(primary, input.limits)) return invalidOutputOf(primary);
       return runRepair(engine, proposal, primary, signal);
     },
 

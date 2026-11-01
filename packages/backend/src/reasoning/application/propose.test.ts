@@ -296,6 +296,50 @@ describe('a proposal over the scripted model', () => {
     expect(sent).toHaveLength(1);
   });
 
+  describe('a repair narrowed to the refusals of one kind', () => {
+    // `{"ok":false}` is refused with the role's own code; `{"ok":"no"}` with the schema's type finding.
+    const narrow: ReasoningRole<unknown> = {
+      ...input().role,
+      outputSchema: z.object({ ok: z.boolean() }).superRefine((value, context) => {
+        if (!value.ok) context.addIssue({ code: 'custom', path: [], message: 'x', params: { safeCode: 'only_this' } });
+      }),
+      safeCustomIssues: { only_this: 'Fixed hint for the one kind.' },
+    };
+    const narrowed = (codes: readonly string[]) => input({ role: narrow, limits: { repairOnlyFor: codes } });
+
+    it('repairs a refusal whose every finding is of that kind', async () => {
+      const { harness, sent } = scriptedEngine({ replies: [invalid, valid] });
+      await expect(harness.propose(narrowed(['only_this']), signal)).resolves.toMatchObject({
+        kind: 'proposed',
+        repaired: true,
+      });
+      expect(sent).toHaveLength(2);
+      expect(sent[1]?.system).toContain('Fixed hint for the one kind.');
+    });
+
+    it('leaves a refusal of another kind as it is, with no second request', async () => {
+      const { harness, sent } = scriptedEngine({ replies: ['{"ok":"no"}', valid] });
+      await expect(harness.propose(narrowed(['only_this']), signal)).resolves.toMatchObject({ kind: 'invalid_output' });
+      expect(sent).toHaveLength(1);
+    });
+
+    it('repairs nothing when the list is empty, and never when the caller forbids repair', async () => {
+      for (const limits of [{ repairOnlyFor: [] }, { allowRepair: false, repairOnlyFor: ['only_this'] }]) {
+        const { harness, sent } = scriptedEngine({ replies: [invalid, valid] });
+        await expect(harness.propose(input({ role: narrow, limits }), signal)).resolves.toMatchObject({
+          kind: 'invalid_output',
+        });
+        expect(sent).toHaveLength(1);
+      }
+    });
+
+    it('still gives up after the one repair', async () => {
+      const { harness, sent } = scriptedEngine({ replies: [invalid, invalid, valid] });
+      await expect(harness.propose(narrowed(['only_this']), signal)).resolves.toMatchObject({ kind: 'invalid_output' });
+      expect(sent).toHaveLength(2);
+    });
+  });
+
   describe('the repair request for a role that revises its refused answer', () => {
     const keptAnswer = `PREVIOUS-ANSWER ${'x'.repeat(1_000)}`;
     const revising: ReasoningRole<unknown> = {

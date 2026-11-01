@@ -362,7 +362,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         { order_id: order.orderId },
       ]);
       expect(await queuedProduction()).toEqual([expect.objectContaining({ recipe: order.recipe, take: 1 })]);
-      // The answer to a question is on the queue whose claim covers its twelve requests, not the library's (D-267).
+      // The answer to a question is on the queue whose claim covers its fourteen requests, not the library's (D-267, D-297).
       expect((await queuedProductionRows()).map((row) => row.name)).toEqual(['content.produce-answer']);
       expect(scopeModel.calls).toHaveLength(0);
       // An ask is never consumption evidence: nothing was opened, observed or acted on because of it.
@@ -793,9 +793,9 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
 
       const done = await publish(order.recipe);
 
-      // The check is inside the order's request bound of twelve, and in the same job as the writer.
+      // The check is inside the order's request bound of fourteen, and in the same job as the writer.
       expect(BATCHES).toBe(2);
-      expect(done).toMatchObject({ kind: 'finished', result: { outcome: 'published', requestBound: 12, take: 1 } });
+      expect(done).toMatchObject({ kind: 'finished', result: { outcome: 'published', requestBound: 14, take: 1 } });
       expect(production.writerCalls).toHaveLength(1);
       expect(production.supportCalls).toHaveLength(BATCHES);
       const [row] = await jobsOf(order.recipe);
@@ -966,6 +966,112 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         expect(notesOf(production.writerCalls[1]!)).toContain('blocks[1] copies: ');
         expect(await storedAnswer(order.assetId)).toBeUndefined();
       });
+
+      describe('as the revision a support check earned (D-297)', () => {
+        /** The first draft is sound but for one sentence; the checker flags it; the revision (the writer's second request) copies. */
+        const revisionCopies = () => {
+          let writes = 0;
+          writer = () => {
+            writes += 1;
+            if (writes === 1) return answerWith(fixtureAnswer());
+            // The second request is the revision; the third is its repair.
+            return writes === 2 ? copiedDraft() : answerWith(fixtureAnswer({ sentence: [BEFORE_SENTENCE, REPAIRED] }));
+          };
+          supportScript = (check, call) =>
+            firstDraft(check) ? supportReply(call, flagged(BEFORE)) : supportReply(call);
+        };
+
+        it('is repaired once with the passage words named by block, and the repair is checked and served', async () => {
+          await setup();
+          const { person, requestId, order } = await orderedAsk();
+          revisionCopies();
+
+          const done = await publish(order.recipe);
+
+          expect(done).toMatchObject({ kind: 'finished', result: { outcome: 'published', requestBound: 14, take: 1 } });
+          // The draft, the revision that copied and its repair; a check for each of the two drafts, the second of the repair.
+          expect(production.writerCalls).toHaveLength(3);
+          expect(production.supportCalls).toHaveLength(2 * BATCHES);
+          const [, revision, repair] = production.writerCalls.map((call) => call.request);
+          expect(revision!.system).toContain('REVISION AFTER A SUPPORT CHECK');
+          expect(revision!.user).not.toContain('<repair-notes>');
+          // The repair keeps the revision notice and its two items, and adds the validator’s fixed hint and the copy notes.
+          expect(repair!.system).toContain('REVISION AFTER A SUPPORT CHECK');
+          expect(repair!.system).toContain('Rewrite only the sentences of this block that contain one');
+          expect(repair!.user).toContain('kind="previous_draft"');
+          expect(repair!.user).toContain('<previous-answer>');
+          const notes = notesOf(production.writerCalls[2]!);
+          expect(notes).toContain(
+            'blocks[1] copies: "a prism ring around the flame gathers the light into a single beam that sweeps across the water"',
+          );
+          expect(notes).not.toContain('tail');
+          // Both requests of the revision are in the revision’s own run, under the revision’s version.
+          const [row] = await jobsOf(order.recipe);
+          expect(row!.writer_run_id).toBe(askSupportRepairRunId(row!.id));
+          const attempts = await database.db
+            .selectFrom('reasoning.production_attempts')
+            .select(['role_version', 'step', 'state'])
+            .where('run_id', '=', row!.writer_run_id)
+            .orderBy('reserved_at')
+            .execute();
+          expect(attempts).toEqual([
+            { role_version: 'question-writer.v6.fix', step: 'primary', state: 'succeeded' },
+            { role_version: 'question-writer.v6.fix', step: 'repair', state: 'succeeded' },
+          ]);
+          // What the person gets is the repaired revision, with none of the copied sentence.
+          const stored = JSON.stringify((await storedAnswer(order.assetId))?.document);
+          expect(stored).toContain('a brief flash of it');
+          expect(stored).not.toContain('gathers the light into a single beam');
+          expect(row!.outcomes).toContainEqual(
+            expect.objectContaining({ role: 'support_check', kind: 'checked', draft: 2, unsupported: [] }),
+          );
+          await resolve(job(person, requestId));
+          expect(await status(person, requestId)).toMatchObject({
+            status: 'ready',
+            content: { assetId: order.assetId },
+          });
+        });
+
+        it('ends the job when the repair of the revision copies again: no second repair, and no second check', async () => {
+          await setup();
+          const { order } = await orderedAsk();
+          let writes = 0;
+          writer = () => {
+            writes += 1;
+            return writes === 1 ? answerWith(fixtureAnswer()) : copiedDraft();
+          };
+          supportScript = (_check, call) => supportReply(call, flagged(BEFORE));
+
+          expect(await publish(order.recipe)).toMatchObject({
+            result: { outcome: 'rejected', codes: ['support_repair_invalid_output'] },
+          });
+          // The draft, the revision and its one repair: three writer requests, and the first draft’s check only.
+          expect(production.writerCalls).toHaveLength(3);
+          expect(production.supportCalls).toHaveLength(BATCHES);
+          expect(await storedAnswer(order.assetId)).toBeUndefined();
+        });
+
+        it('is repaired for copying alone: a revision refused for anything else ends the job with no repair', async () => {
+          await setup();
+          const { order } = await orderedAsk();
+          let writes = 0;
+          writer = () => {
+            writes += 1;
+            // The revision copies a passage and also drops the limit callout, so not every finding is the copy rule’s.
+            const draft = fixtureAnswer({ sentence: [BEFORE_SENTENCE, `${COPIED} ${OWN_TAIL}`] });
+            return writes === 1
+              ? answerWith(fixtureAnswer())
+              : answerWith({ ...draft, blocks: draft.blocks.slice(0, -1) });
+          };
+          supportScript = (_check, call) => supportReply(call, flagged(BEFORE));
+
+          expect(await publish(order.recipe)).toMatchObject({
+            result: { outcome: 'rejected', codes: ['support_repair_invalid_output'] },
+          });
+          expect(production.writerCalls).toHaveLength(2);
+          expect(production.supportCalls).toHaveLength(BATCHES);
+        });
+      });
     });
 
     it('checks the title like any sentence: an unsupported title is repaired once, and the repaired title is what the person gets (B1.4)', async () => {
@@ -1034,7 +1140,26 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
     });
 
-    it('has no repair to give a draft the validator already repaired: an unsupported sentence ends the job at once', async () => {
+    it('gives a draft the validator already repaired the revision an unsupported sentence earns, and serves the revision (D-297)', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      let writes = 0;
+      writer = () => {
+        writes += 1;
+        if (writes === 1) return answerWith({ title: 'not a Scroll' });
+        return answerWith(fixtureAnswer(writes === 2 ? {} : { sentence: [BEFORE_SENTENCE, REPAIRED] }));
+      };
+      supportScript = (check, call) => (firstDraft(check) ? supportReply(call, flagged(BEFORE)) : supportReply(call));
+
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+      // The draft, the validator's repair and the revision: three writer requests, and a check for each of the two drafts.
+      expect(production.writerCalls).toHaveLength(3);
+      expect(production.supportCalls).toHaveLength(2 * BATCHES);
+      expect(production.writerCalls[2]!.request.system).toContain('REVISION AFTER A SUPPORT CHECK');
+      expect(JSON.stringify((await storedAnswer(order.assetId))?.document)).toContain('a brief flash of it');
+    });
+
+    it('ends the job when the revision of a repaired draft is still unsupported: three writer requests, two checks', async () => {
       await setup();
       const { order } = await orderedAsk();
       let writes = 0;
@@ -1047,12 +1172,12 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await publish(order.recipe)).toMatchObject({
         result: { outcome: 'rejected', codes: ['support_check_failed'] },
       });
-      // The draft and the validator's repair were two writer requests already, so one check only.
-      expect(production.writerCalls).toHaveLength(2);
-      expect(production.supportCalls).toHaveLength(BATCHES);
+      expect(production.writerCalls).toHaveLength(3);
+      expect(production.supportCalls).toHaveLength(2 * BATCHES);
+      expect(await storedAnswer(order.assetId)).toBeUndefined();
     });
 
-    it('ends the job when the repair an unsupported sentence earned is refused by the validator, with no second repair', async () => {
+    it('ends the job when the revision an unsupported sentence earned is refused by the validator for another reason than copying, with no repair', async () => {
       await setup();
       const { order } = await orderedAsk();
       let writes = 0;
@@ -1279,7 +1404,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       });
       writer = () => answerWith(longAnswer);
 
-      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published', requestBound: 12 } });
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published', requestBound: 14 } });
 
       expect(sentencesOfAnswer(longAnswer)).toHaveLength(23);
       expect(production.supportCalls).toHaveLength(3);

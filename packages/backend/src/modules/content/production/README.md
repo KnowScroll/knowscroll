@@ -55,13 +55,13 @@ flags are not yet seen on a real model).
   job; the writer's kept answer is read from the ledger on resume.
 - **The bound** is six paid requests a take for a v2 library recipe (`REQUEST_BOUND_V2_PER_TOPIC`): two writer requests and the checker
   once for each of the two drafts, each with at most one repair of an unusable reply. A v1 recipe and an order stay at two, except the
-  answer to a person's question, which has twelve because its support check runs in batches (`REQUEST_BOUND_ASK_ORDER`, "The support check of an ask order's answer" below).
+  answer to a person's question, which has fourteen because its support check runs in batches and its revision has a repair for copying (`REQUEST_BOUND_ASK_ORDER`, "The support check of an ask order's answer" below).
 - **Runs and receipts.** The checker's runs and the repair's run have ids derived from the job (`stableUuid`), so a redelivery asks the
   ledger instead of paying again. The job closes them all in the transaction that stores or ends it, and when the repair's answer is
   stored it names the repair run as its writer run (`store.useWriterRun`, inside the publication, so a refused publication leaves the job as it was), so provenance and the lineage check agree. Receipts
   (`answer_check`, `draft_flagged` with the superseded run's id) are code-only except the checker's short problems, which are operator
   notes on the private job. A flagged call also keeps its question, options, marked answer and explanation (`FlaggedCall`, nothing else of the draft), so the operator can read what was flagged although that draft is not stored. `answerChecksOf` reads the receipts back; `review-show` and `production-status` show the summary with those calls, and `review-list` the summary without their text.
-- **The claim.** A claim is the most requests a take sends times the largest request timeout the transport accepts (`MINIMAX_REQUEST_TIMEOUT_MAX_MS`, 300 s) and the waits around each request (20 s, the reasoning README's rule), plus 180 s for the research and the database steps (`events.ts`). `content.produce-scroll` holds `PRODUCE_SCROLL_CLAIM_SECONDS`, for the six requests of a library recipe: 2,100 s. The answer to a question has a queue of its own, `content.produce-answer`, with `PRODUCE_ANSWER_CLAIM_SECONDS` for its twelve requests: 4,020 s (D-267). The payload, the singleton key, the policy and the consumer are the same; only supply's ask path sends to it, so a library recipe whose worker died is still retried after 35 minutes, not 67.
+- **The claim.** A claim is the most requests a take sends times the largest request timeout the transport accepts (`MINIMAX_REQUEST_TIMEOUT_MAX_MS`, 300 s) and the waits around each request (20 s, the reasoning README's rule), plus 180 s for the research and the database steps (`events.ts`). `content.produce-scroll` holds `PRODUCE_SCROLL_CLAIM_SECONDS`, for the six requests of a library recipe: 2,100 s. The answer to a question has a queue of its own, `content.produce-answer`, with `PRODUCE_ANSWER_CLAIM_SECONDS` for its fourteen requests: 4,660 s (D-267, D-297). The payload, the singleton key, the policy and the consumer are the same; only supply's ask path sends to it, so a library recipe whose worker died is still retried after 35 minutes, not 78.
 - **Regeneration.** `content regenerate --only <keys>` sends the next take of a v2 recipe whose Scroll is served. `store.create` lets a
   take of a v2 recipe follow a take that was rejected or whose Scroll was released, never one still held or of unknown outcome. A
   recipe has three takes to a **production version**, which is the budget: `SCROLL_PRODUCTION_V2_VERSION` changes whenever the v2
@@ -104,15 +104,16 @@ candidate file (D-280), and then the next pair is released or v4 and writer v5 a
   **Whether the quoted words support the sentence is the checker model's judgement**, which code cannot check; it is measured on dev with the replay
   before anything relies on it (D-250, D-252, D-263 to D-267).
 - **Code decides.** Nothing unsupported: the Scroll is published. An unsupported sentence, the checker's or one code set aside, earns the writer **one**
-  repair in a run of its own, with the fixed hint of each kind, the sentence's words and the note (the checker's, or the rule's fixed one) as data, and
-  its draft (none when the harness already repaired the draft for the validator). The repaired draft is checked in turn; a sentence that stands ends
+  repair in a run of its own (the revision), with the fixed hint of each kind, the sentence's words and the note (the checker's, or the rule's fixed one) as data, and
+  its draft, whether or not the harness already repaired the draft for the validator (D-297). The revision has one repair of its own, for copying a passage alone
+  (`repairOnlyFor`, with the copy notes of D-294); any other refusal of it ends the job (`support_repair_invalid_output`). The revised draft is checked in turn; a sentence that stands ends
   the job rejected (`support_check_failed`).
   **A check that gave nothing usable refuses the answer** (`support_check_<code>`; unknown outcome ends the job `unknown`, never resent): no
   one reads an ask order, so it is never served unchecked, unlike a library Scroll (D-198). A spent budget or quota pauses the job, also between two
   batches, and the writer's kept answer and the batches already answered are read from the ledger on resume. The person sees the existing honest state and
   Try again (three takes in all).
-- **The bound (D-267)** is twelve paid requests a take (`REQUEST_BOUND_ASK_ORDER` = 2 + 2 x (4 batches + 1)): the writer once and one repair, and for each of the
-  two drafts its batches and one repair of an unusable reply. The claim of its own queue is sized for it (`content.produce-answer`, `PRODUCE_ANSWER_CLAIM_SECONDS`, 4,020 s).
+- **The bound (D-267, D-297)** is fourteen paid requests a take (`REQUEST_BOUND_ASK_ORDER` = 2 + 1 + 1 + 2 x (4 batches + 1)): the writer and the validator's repair, the revision and its repair for copying, and for each of the
+  two drafts its batches and one repair of an unusable reply. The claim of its own queue is sized for it (`content.produce-answer`, `PRODUCE_ANSWER_CLAIM_SECONDS`, 4,660 s). A job queued before this change keeps the 4,020 s it was sent with.
   `requestBoundOf(key, mode)` needs the order's mode, which only the job knows once it has read the order. The Quick answer (supply) uses the same
   checker in one request and keeps its own bound of six.
 - **Runs and receipts.** The check's runs (one for each batch of each draft) and the repair's run are derived from the job and closed with it. The
