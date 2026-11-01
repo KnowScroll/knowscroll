@@ -28,7 +28,7 @@ export interface RunOwner {
 
 /**
  * The steps of Supply's that run under the recording fence: a question's placement and library check, and a Quick answer's
- * writer and checks. The same list is in migration 0094 and in the owner check.
+ * writer and checks. The same list is in migration 0096 and in the owner check.
  */
 export type SupplyRunPurpose = 'ask-scope' | 'ask-library' | 'quick-answer' | 'quick-answer-support';
 

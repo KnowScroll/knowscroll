@@ -17,7 +17,7 @@ const Digest = z.string().regex(/^[a-f0-9]{64}$/u);
 /**
  * The closed set of owners, and what each may stamp on a run. The Planner and the Cartographer have one purpose each. Supply
  * names its steps itself: this engine does not name them, so a code is only checked to be one, and the schema
- * (`reasoning_personal_recording_proof_shape`, migration 0094) and Supply's owner check hold the list.
+ * (`reasoning_personal_recording_proof_shape`, migration 0096) and Supply's owner check hold the list.
  */
 const PURPOSE_CODE = /^[a-z][a-z0-9-]{0,63}$/u;
 function purposeFitsOwner(p: { readonly ownerModule: string; readonly purpose: string }): boolean {

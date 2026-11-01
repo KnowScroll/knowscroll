@@ -6,7 +6,7 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 
 /**
- * What the schema allows of a run's recording proof (migration 0094, D-264): the Planner's and Cartographer's, as before, and
+ * What the schema allows of a run's recording proof (migration 0096, D-264): the Planner's and Cartographer's, as before, and
  * Supply's four steps, at an odd generation and with both hashes. The code never writes anything else; this is the last line.
  */
 describe('the recording proof of a personal run in the schema', () => {

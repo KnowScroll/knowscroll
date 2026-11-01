@@ -166,7 +166,7 @@ export interface RecordingRunProof {
 /**
  * Immutable private proof; claim is checked by the owner, never stored as run identity.
  * The Planner and the Cartographer have one purpose each. Supply names the step a run is (a lowercase code): its owner check
- * knows which exist, and the schema repeats them (migration 0094). `claimId` is whatever the owner's own record is called: the
+ * knows which exist, and the schema repeats them (migration 0096). `claimId` is whatever the owner's own record is called: the
  * Planner's current claim, or the ID of the request or answer a Supply run serves.
  */
 export interface PersonalRecordingPurpose {

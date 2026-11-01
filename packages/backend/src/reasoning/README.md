@@ -590,7 +590,7 @@ universe, privacy epoch, original recording generation, business run, current cl
 frozen-context SHA and exact model-context SHA. Its owners are planner (purpose personal-planner), geography
 (personal-cartographer) and supply (a step it names, D-264: `ask-scope`, `ask-library`, `quick-answer`,
 `quick-answer-support`). The engine only checks that a Supply step is a lowercase code; the schema
-(`reasoning_personal_recording_proof_shape`, migration 0094) and Supply's owner check hold the list. For Supply, `claimId` is
+(`reasoning_personal_recording_proof_shape`, migration 0096) and Supply's owner check hold the list. For Supply, `claimId` is
 the ID of the request or Quick answer the run serves, and both hashes are of the context the model is sent. All fields are required; bounded UUID,
 int32 positive odd generation and lowercase 64 hex parsing has no default/coercion/transform. Own
 undefined, extra/hidden/symbol fields, inherited objects and getters refuse. The facade snapshots
