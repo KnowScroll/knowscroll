@@ -20,6 +20,10 @@ const HINTS: Record<MemoryProblem, string> = {
   claims_to_be_a_person:
     'You are an AI resident. Never describe yourself as a person, student or engineer; write about the room.',
   names_a_member: 'Do not mention speaker numbers such as "Member 2". Say "someone" or "a member".',
+  first_person:
+    'Write about the room, never about yourselves: do not use "I", "me" or "my". Say what members discussed, in the third person.',
+  claims_experience:
+    'Do not say you watched, read, remembered or were changed by anything. Say only what the messages say members discussed.',
   control: 'Write plain text, one line after another, with no control characters.',
 };
 

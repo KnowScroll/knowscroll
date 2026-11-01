@@ -503,6 +503,32 @@ describe('what the residents remember (real PostgreSQL, CI fixture model)', () =
     });
   });
 
+  describe('what a memory may not say', () => {
+    it('is written again when the first text speaks as a self that is not there, with a fixed hint', async () => {
+      const r = await room(3);
+      await talk(r, 12);
+      const { look, model } = feedHeartbeat(world, (sequence) =>
+        sequence === 1 ? memory('I remember when people asked about batching.') : memory(),
+      );
+      at('2026-11-01T01:00:00Z');
+      expect((await look(r.slug)).memory).toEqual({ kind: 'written' });
+      expect(model.calls).toHaveLength(2);
+      expect(bytesOf(model.calls[1]!)).toContain('never about yourselves');
+      expect(await memoryRow(world.db, r.roomId)).toMatchObject({ state: 'ready', body: MEMORY_TEXT });
+    });
+
+    it('is never stored when it claims an experience twice, and the call stays counted', async () => {
+      const r = await room(3);
+      await talk(r, 12);
+      const { look, model } = feedHeartbeat(world, () => memory('The thread changed how people picture batching.'));
+      at('2026-11-01T01:00:00Z');
+      expect((await look(r.slug)).memory).toEqual({ kind: 'not_written', reason: 'call_failed' });
+      expect(model.calls).toHaveLength(2);
+      expect(await memoryRow(world.db, r.roomId)).toBeUndefined();
+      expect((await feedTurns(world.db, r.roomId))[0]).toMatchObject({ state: 'failed', dispatched: true });
+    });
+  });
+
   describe('a moderator’s own words', () => {
     it('replace what the residents remember, are audited, and stand until a moderator ends them', async () => {
       const r = await room();

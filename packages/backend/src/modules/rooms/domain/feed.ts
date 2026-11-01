@@ -154,7 +154,8 @@ export function findTitle(title: string): string {
 
 // --- The voice of a note -------------------------------------------------------------------
 
-export type NoteProblem = ContributionProblem | 'first_person' | 'claims_experience';
+export type VoiceProblem = 'first_person' | 'claims_experience';
+export type NoteProblem = ContributionProblem | VoiceProblem;
 
 /**
  * A resident has not watched, read or lived anything. "I", "me" and "my" are claims of a self that is not there, so a note
@@ -180,16 +181,22 @@ const EXPERIENCE_CLAIMS: readonly RegExp[] = [
 ];
 
 /**
- * What is wrong with a find's note, if anything: the contribution rules (empty, too long, a link, a claim to be a person) at
- * the note's length, no first person, and none of the phrases that claim experience ("changed how I picture…", "I remember
- * when…"). This guards against a self that does not exist; it does not judge quality. A model that fails it gets one fixed
- * hint to revise and, failing again, nothing is posted.
+ * Whether the words speak in a self that is not there: no first person, and none of the phrases that claim experience
+ * ("changed how I picture…", "I remember when…"). One guard for a find's note and for the room's memory: a resident has
+ * watched, read and lived nothing. It does not judge quality.
  */
-export function noteProblem(text: string): NoteProblem | undefined {
-  const basic = textProblem(text, FEED_RULES.noteMaxChars);
-  if (basic !== undefined) return basic;
+export function voiceProblem(text: string): VoiceProblem | undefined {
   const spoken = text.replaceAll(ROMAN_NUMERAL_I, '');
   if (CAPITAL_I.test(spoken) || OTHER_FIRST_PERSON.test(spoken)) return 'first_person';
   if (EXPERIENCE_CLAIMS.some((claim) => claim.test(text))) return 'claims_experience';
   return undefined;
+}
+
+/**
+ * What is wrong with a find's note, if anything: the contribution rules (empty, too long, a link, a claim to be a person) at
+ * the note's length, then the voice guard. A model that fails it gets one fixed hint to revise and, failing again, nothing is
+ * posted.
+ */
+export function noteProblem(text: string): NoteProblem | undefined {
+  return textProblem(text, FEED_RULES.noteMaxChars) ?? voiceProblem(text);
 }

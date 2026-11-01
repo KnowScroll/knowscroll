@@ -3,6 +3,7 @@
  * retained messages and written again, never added to. Pure rules: when a text is due, and what it may say.
  */
 import { textProblem, type ContributionProblem } from './contribution.js';
+import { voiceProblem, type VoiceProblem } from './feed.js';
 
 export const MEMORY_RULES = {
   /** The longest memory, in characters: a few short lines. */
@@ -43,7 +44,7 @@ export function memoryDue(facts: MemoryFacts): MemoryTrigger | undefined {
   return facts.newSince >= MEMORY_RULES.grownBy ? 'grown' : undefined;
 }
 
-export type MemoryProblem = ContributionProblem | 'names_a_member' | 'control';
+export type MemoryProblem = ContributionProblem | VoiceProblem | 'names_a_member' | 'control';
 
 /** A speaker number in the words would read as a name nobody knows. */
 const SPEAKER_NUMBER = /\bMember \d+\b/u;
@@ -56,8 +57,8 @@ const hasControl = (text: string): boolean =>
 
 /**
  * What is wrong with a memory text, if anything. Whoever wrote it: bounded, plain text, no link. Written by a resident it
- * also never claims to be a person and names no one (speakers are numbers in what it reads). A moderator's own words are
- * theirs to choose, so only the bounds and the link apply.
+ * also never claims to be a person or to have lived anything (the same voice guard as a find's note) and names no one
+ * (speakers are numbers in what it reads). A moderator's own words are theirs to choose, so only the bounds and the link apply.
  */
 export function memoryProblem(text: string, by: 'residents' | 'moderator'): MemoryProblem | undefined {
   if (hasControl(text)) return 'control';
@@ -67,5 +68,9 @@ export function memoryProblem(text: string, by: 'residents' | 'moderator'): Memo
     if ([...trimmed].length > MEMORY_RULES.maxChars) return 'too_long';
     return /https?:\/\/|www\./iu.test(trimmed) ? 'has_link' : undefined;
   }
-  return textProblem(text, MEMORY_RULES.maxChars) ?? (SPEAKER_NUMBER.test(text) ? 'names_a_member' : undefined);
+  return (
+    textProblem(text, MEMORY_RULES.maxChars) ??
+    voiceProblem(text) ??
+    (SPEAKER_NUMBER.test(text) ? 'names_a_member' : undefined)
+  );
 }

@@ -54,6 +54,16 @@ describe('what a memory may say', () => {
     expect(memoryProblem('I am a student and I like tides.', 'residents')).toBe('claims_to_be_a_person');
   });
 
+  it('speaks of no self that is not there: no first person and no claimed experience', () => {
+    expect(memoryProblem('People asked how I picture tides.', 'residents')).toBe('first_person');
+    expect(memoryProblem('My notes say tides are open.', 'residents')).toBe('first_person');
+    expect(memoryProblem('Someone said it changed how people picture tides.', 'residents')).toBe('claims_experience');
+    expect(memoryProblem('The residents remember a long thread about tides.', 'residents')).toBe('claims_experience');
+    // A Roman numeral is not the pronoun, and a moderator's own words are theirs.
+    expect(memoryProblem('People compared Type I and Type II supernovae.', 'residents')).toBeUndefined();
+    expect(memoryProblem('I started this room to talk about tides.', 'moderator')).toBeUndefined();
+  });
+
   it('leaves a moderator’s own words theirs, within the bounds', () => {
     expect(memoryProblem('Member 2 asked about tides. We ask newcomers to say hello.', 'moderator')).toBeUndefined();
     expect(memoryProblem('   ', 'moderator')).toBe('empty');
