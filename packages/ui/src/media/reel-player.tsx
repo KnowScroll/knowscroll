@@ -208,7 +208,9 @@ export function ReelPlayer({
           if (!Number.isFinite(seconds)) return null;
           return {
             positionMs: clampPositionMs(seconds * 1000, durationMs),
-            playing: player.playing,
+            // Only a play the person asked for counts. Right after a source is replaced the web SDK can still report the
+            // autoplay it started and this player cancelled, and a sheet that closes would then play a Reel that was paused.
+            playing: playbackIntent.current && player.playing,
             muted: muteIntent.current,
           };
         } catch {

@@ -3305,3 +3305,13 @@ Confirmed by: `request-session.test.ts` (twelve quick reads, then slow ones up t
 - **Not changed.** The path, the sheet's other rows and what Back does inside an encounter.
 
 Confirmed by: `reader-back-smoke.spec.ts` at 390 and 1440 (after More, Account and settings, one Back is on Explore, no second document was fetched, a marker the page held is still there, and no open, activation or navigation was sent). Shown failing before the change: the click fetched `/account` as a document and the first Back stayed on `/account`.
+
+## D-287 · 2026-11-01 · A Reel's "was playing" is the play the person asked for, so a closed sheet never plays a paused Reel (v3 dev check fixes, #609)
+
+**Builds on** D-006 k ("Playback pauses while a sheet is open and resumes where it was when it closes").
+
+- **The defect.** At 1440, a Reel paused before the Share sheet stayed paused when the sheet closed with Esc, but played on when the sheet was opened a second time and closed with the browser Back. The sheet remembers whether the Reel was playing when it opened. The second time, the player had just been rebuilt after the first close. The web video SDK starts playback itself when a source is replaced, and this player stops it at once, but the SDK still reported "playing" at that moment. That report was stored as "was playing", and the second close resumed it.
+- **The rule.** The player reports a Reel as playing only when the person asked for it to play (its own play intent) and the SDK agrees. The SDK's word alone is not enough. A sheet, a Back, a trail jump and a tab detour therefore return a Reel exactly as the person left it: playing only if they were playing.
+- **Not changed.** What a recorder counts as played (its samples already required the intent), and how a Reel that was playing under a sheet plays on when it closes.
+
+Confirmed by: `reel-player.test.tsx` (a player the SDK calls playing that nobody pressed Play on is captured as not playing; after Play it is, and after a pause it is not) and `reader-back-smoke.spec.ts` at 390 and 1440 (a paused Reel is still paused after the Share sheet closes with Esc and then, a second time, with Back). Shown failing before the change: the second close played the Reel on.
