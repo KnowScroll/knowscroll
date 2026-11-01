@@ -38,6 +38,9 @@ describe('the request bound of an answer and the claim of its jobs (reasoning RE
   it('is the claim of both jobs that make a resident’s answer, so neither is expired while the provider is still working', () => {
     expect(contributeQueue.policy.expireInSeconds).toBeGreaterThanOrEqual(claimFor(ANSWER_PAID_ATTEMPTS));
     expect(castPassQueue.policy.expireInSeconds).toBeGreaterThanOrEqual(claimFor(ANSWER_PAID_ATTEMPTS));
+    // And no more than the bound: one more attempt would not fit, so the bound cannot grow without the claim growing.
+    expect(claimFor(ANSWER_PAID_ATTEMPTS + 1)).toBeGreaterThan(contributeQueue.policy.expireInSeconds);
+    expect(claimFor(ANSWER_PAID_ATTEMPTS + 1)).toBeGreaterThan(castPassQueue.policy.expireInSeconds);
   });
 });
 

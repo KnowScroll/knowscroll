@@ -10,6 +10,8 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { LibraryPassageSource, ReadLibraryPassages } from '@knowscroll/backend/modules/content';
+import { CONCEPTS } from '@knowscroll/backend/modules/content';
+import { importEditorialScrollUseCase, makeReadLibraryPassages } from '@knowscroll/backend/modules/content/nest-providers';
 import { holdCast, makeReadGround } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { attemptsOf, fixtureModel, receiptClassesOf } from '../support/fixture-model.js';
@@ -29,6 +31,7 @@ import {
   unwrap,
   type RoomWorld,
 } from '../support/rooms.js';
+import { starterSource } from '../support/scroll.js';
 import type { Friend } from '../support/talk.js';
 
 const version = 'rooms.v1' as const;
@@ -501,6 +504,58 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
         held_text: null,
         answer_support: { result: 'cleared' },
       });
+    });
+  });
+
+  describe('the library read', () => {
+    it('reads the admitted Scrolls under the room’s topic and offers the passage that fits the question', async () => {
+      // An authored CI Scroll (the shipped starter under another identity), admitted through the real import and filed under a
+      // planet of the room's system.
+      const assetId = randomUUID();
+      const source = starterSource() as unknown as {
+        assetId: string;
+        publication: { explanationUnitId: string };
+      };
+      source.assetId = assetId;
+      source.publication.explanationUnitId = `ci-answer-${assetId.slice(0, 8)}`;
+      expect((await importEditorialScrollUseCase(database.db)(source as never)).kind).toBe('imported');
+      await database.db
+        .insertInto('content.encounter_topics')
+        .values({
+          asset_id: assetId,
+          asset_revision: 1,
+          topic_id: CONCEPTS.find((concept) => concept.parent === 'machine-learning')!.id,
+          role: 'primary',
+          weight: 0.8,
+        })
+        .execute();
+
+      const real = await roomWorld(
+        database,
+        { now: START },
+        { realSupport: true, ground: makeReadGround(makeReadLibraryPassages(database.db)) },
+      );
+      try {
+        const { roomId } = await seedRoom(real);
+        const [asha] = (await joined(real, roomId, 1)) as [Friend];
+        const discussionId = await startTopic(real, asha, roomId, 'Colours of the sky');
+        unwrap(await say(real, asha, roomId, discussionId, 'Why does air scatter the short colours of sunlight so much?'));
+        unwrap(await ask(real, asha, roomId, discussionId, 'explainer'));
+        const answerText = 'Sunlight holds every colour, and air scatters the short colours far more than the long ones.';
+        const model = playbook({ writer: [writes(answerText)] }, 'real-library');
+        const { harness } = fixtureRecordingHarness(database.db, { model });
+        await real.contribute(harness)(real.queued.at(-1)!);
+
+        expect(itemOf(model.calls[0]!, 'passage:e1')).toContain('air scatters the short colours');
+        expect((await textsOf(asha, roomId, discussionId)).at(-1)).toMatchObject({ ai: true, text: answerText });
+        const turn = await turnOf(real.queued.at(-1)!.requestId);
+        expect(turn.answer_support).toMatchObject({
+          result: 'cleared',
+          cited: [{ assetId, assetRevision: 1, blockId: 'intro-short-version' }],
+        });
+      } finally {
+        await real.close();
+      }
     });
   });
 
