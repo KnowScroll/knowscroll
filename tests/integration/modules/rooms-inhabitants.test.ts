@@ -5,11 +5,12 @@
  */
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureModel, attemptsOf, receiptClassesOf } from '../support/fixture-model.js';
 import { fixtureRecordingHarness } from '../support/recording-harness.js';
+import { clearRecordingPerson, pauseAndResume, recordingPerson, setRecording } from '../support/recording-person.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import {
   ask,
@@ -505,4 +506,134 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     );
     return Number(row.rows[0]?.n ?? 0);
   }
+
+  /**
+   * An AI inhabitant's answer to a member's ask runs in the asker's own scope, at the generation their recording is at when the
+   * job starts (D-270). Generation 1 is on, 2 is off, and 3 is on again after a pause and a resume. A resident speaking on its
+   * own runs in the room's scope and is not in question here.
+   */
+  describe('for a member who paused and resumed recording (D-270)', () => {
+    let beforeApply: () => Promise<void> = () => Promise.resolve();
+
+    /** A room whose asker can pause and clear recording, with the harness playing `script`. */
+    async function recordingConversation(script: (sequence: number) => FixtureScenario | Promise<FixtureScenario>) {
+      const { roomId } = await seedRoom(world);
+      const ravi = await seedFriend(world.db, world.friends, { person: await recordingPerson(database) });
+      unwrap(await joinRoom(world, ravi, roomId));
+      const discussionId = await startTopic(world, ravi, roomId, 'Does batching always help?');
+      unwrap(await say(world, ravi, roomId, discussionId, 'I think batching makes it cheaper.'));
+      const model = fixtureModel(script, { label: 'rooms-inhabitants-recording' });
+      const { harness } = fixtureRecordingHarness(database.db, { model, beforeApply: () => beforeApply() });
+      return { roomId, ravi, discussionId, model, contribute: world.contribute(harness) };
+    }
+    const runsOf = async (turnId: string) =>
+      (
+        await sql<{
+          purpose: string;
+          state: string;
+          recording_generation: number;
+        }>`select purpose, state, recording_generation from reasoning.business_runs where id = ${turnId}::uuid`.execute(
+          database.db,
+        )
+      ).rows;
+    const noRunAtTheNewGeneration = async (ravi: Friend) =>
+      (
+        await sql<{
+          n: string;
+        }>`select count(*)::text as n from reasoning.business_runs where universe_id = ${ravi.universeId}::uuid and recording_generation = 3`.execute(
+          database.db,
+        )
+      ).rows[0]!.n;
+    beforeEach(() => {
+      beforeApply = () => Promise.resolve();
+    });
+
+    it('answers the ask, and stamps the run with the generation recording was at when the job started', async () => {
+      const { roomId, ravi, discussionId, model, contribute } = await recordingConversation(() =>
+        answer('counterexample', 'Batching can hurt latency when requests arrive one at a time.'),
+      );
+      await pauseAndResume(database, ravi);
+      const job = await askAndTake(ravi, roomId, discussionId);
+      await contribute(job);
+      expect(model.calls).toHaveLength(1);
+      const view = await messagesOf(ravi, roomId, discussionId);
+      expect(view.messages.at(-1)).toMatchObject({
+        author: { kind: 'ai', inhabitant: 'skeptic' },
+        body: { kind: 'text', text: 'Batching can hurt latency when requests arrive one at a time.' },
+      });
+      expect(await requestState(job.requestId)).toMatchObject({ state: 'completed' });
+      expect(await runsOf(job.requestId)).toEqual([
+        { purpose: 'inhabitant-contribution', state: 'completed', recording_generation: 3 },
+      ]);
+    });
+
+    it('drops an answer that comes back after a pause and a resume: no message, the ask fails and the new generation holds no run', async () => {
+      let release: (scenario: FixtureScenario) => void = () => undefined;
+      const held = new Promise<FixtureScenario>((resolve) => (release = resolve));
+      const { roomId, ravi, discussionId, model, contribute } = await recordingConversation(() => ({
+        kind: 'hold',
+        until: held,
+      }));
+      const job = await askAndTake(ravi, roomId, discussionId);
+      const running = contribute(job);
+      await expect.poll(() => model.calls.length).toBe(1);
+      await pauseAndResume(database, ravi);
+      release(answer('assumption', 'too late'));
+      await running;
+      expect(await requestState(job.requestId)).toMatchObject({ state: 'failed' });
+      expect(JSON.stringify(await messagesOf(ravi, roomId, discussionId))).not.toContain('too late');
+      expect(await noRunAtTheNewGeneration(ravi)).toBe('0');
+    });
+
+    it('stores nothing when recording is paused between the answer and the store', async () => {
+      const { roomId, ravi, discussionId, model, contribute } = await recordingConversation(() =>
+        answer('assumption', 'unstored'),
+      );
+      const job = await askAndTake(ravi, roomId, discussionId);
+      beforeApply = async () => {
+        beforeApply = () => Promise.resolve();
+        await setRecording(database, ravi, 1, false);
+      };
+      await contribute(job);
+      expect(model.calls).toHaveLength(1);
+      expect(await requestState(job.requestId)).toMatchObject({ state: 'failed', dispatched: true });
+      expect(JSON.stringify(await messagesOf(ravi, roomId, discussionId))).not.toContain('unstored');
+      expect((await runsOf(job.requestId)).map((run) => run.state)).toEqual(['admitted']);
+    });
+
+    it('stores nothing for an answer in flight across Clear: nothing is written for the new epoch', async () => {
+      let release: (scenario: FixtureScenario) => void = () => undefined;
+      const held = new Promise<FixtureScenario>((resolve) => (release = resolve));
+      const { roomId, ravi, discussionId, model, contribute } = await recordingConversation(() => ({
+        kind: 'hold',
+        until: held,
+      }));
+      const job = await askAndTake(ravi, roomId, discussionId);
+      const running = contribute(job);
+      await expect.poll(() => model.calls.length).toBe(1);
+      await clearRecordingPerson(database, world.boss, ravi);
+      release(answer('assumption', 'too late'));
+      await running;
+      const written = await sql<{
+        n: string;
+      }>`select count(*)::text as n from reasoning.business_runs where universe_id = ${ravi.universeId}::uuid and privacy_epoch > 1`.execute(
+        database.db,
+      );
+      expect(written.rows[0]!.n).toBe('0');
+      expect(JSON.stringify(await world.db.selectFrom('rooms.messages').selectAll().execute())).not.toContain('too late');
+    });
+
+    it('is refused without a model call while recording is paused: the ask ends as failed and is not counted', async () => {
+      const { roomId, ravi, discussionId, model, contribute } = await recordingConversation(() =>
+        answer('assumption', 'unused'),
+      );
+      await pauseAndResume(database, ravi);
+      await setRecording(database, ravi, 3, false);
+      const job = await askAndTake(ravi, roomId, discussionId);
+      await contribute(job);
+      expect(model.calls).toHaveLength(0);
+      expect(await requestState(job.requestId)).toMatchObject({ state: 'failed', dispatched: false });
+      expect(await runsOf(job.requestId)).toEqual([]);
+    });
+  });
 });
