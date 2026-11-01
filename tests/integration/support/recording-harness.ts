@@ -70,7 +70,7 @@ export function fixtureRecordingHarness(
 }
 
 /**
- * The two entries a worker's composition needs beside the compatibility harness: the recording-aware harness under `token`
+ * The two entries a worker's composition needs: the recording-aware harness under `token`
  * and the account gate it reads the person's account with.
  */
 export function recordingEntries(
