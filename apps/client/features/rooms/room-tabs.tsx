@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
-import { borderWidth, dimension, layout, radius, spacing, target } from '@knowscroll/design-tokens';
+import { layout, radius, spacing, target } from '@knowscroll/design-tokens';
 import { Text, useFocusRing } from '@knowscroll/ui';
 import { episodeKeys } from '../threads/episode-navigator';
 import { useBandTone } from './identity/band-tone';
@@ -101,7 +101,7 @@ export function RoomTabBar({ tab, onSelect }: { readonly tab: RoomTab; readonly 
       <View
         role="tablist"
         aria-label="This room"
-        style={[styles.bar, { borderColor: tone.edge, backgroundColor: tone.wash }]}
+        style={[styles.bar, { backgroundColor: tone.wash }]}
         testID="room-tabs"
       >
         {ROOM_TABS.map((entry) => (
@@ -200,16 +200,15 @@ export function RoomPanels({
 }
 
 const styles = StyleSheet.create({
-  barFrame: { paddingHorizontal: layout.gutter, paddingTop: spacing[3], paddingBottom: spacing[2] },
+  // The bar costs a phone as little height as a 44 px target allows: the room's messages keep their share of the screen (D-140).
+  barFrame: { paddingHorizontal: layout.gutter, paddingTop: spacing['1.5'], paddingBottom: spacing['0.5'] },
   bar: {
     flexDirection: 'row',
     width: '100%',
     maxWidth: layout.measureDesktop,
     alignSelf: 'center',
-    padding: dimension.segmentInset,
-    gap: spacing['0.5'],
     borderRadius: radius.pill,
-    borderWidth: borderWidth.regular,
+    overflow: 'hidden',
   },
   segment: {
     flex: 1,

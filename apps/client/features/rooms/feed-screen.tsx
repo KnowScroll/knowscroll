@@ -18,7 +18,7 @@ import { FeedbackSheet } from '../feedback/feedback-sheet';
 import { AiLabel } from './ai-label';
 import { FeedPost } from './feed-post';
 import { ResidentMark } from './identity/room-emblem';
-import { useGroundInk } from './identity/room-ground';
+import { useGroundInk, useQuietButton } from './identity/room-ground';
 import { PostSheet } from './post-sheet';
 import { ResidentSheet } from './resident-sheet';
 import { ScoutSheet } from './scout-sheet';
@@ -72,6 +72,7 @@ function SortBar({
   readonly onPost: () => void;
 }) {
   const ink = useGroundInk(content.ink2);
+  const quiet = useQuietButton();
   return (
     <View style={styles.sortBar}>
       <View style={styles.sortRow}>
@@ -99,7 +100,7 @@ function SortBar({
               key={window}
               label={label}
               size="sm"
-              variant={state.window === window ? 'ink' : 'ghost'}
+              variant={state.window === window ? 'ink' : quiet}
               toggled={state.window === window}
               onPress={() => void controller.setWindow(window)}
               testID={`feed-window-${window}`}
