@@ -1,6 +1,6 @@
 import { ORPCError } from '@orpc/client';
 import { describe, expect, it } from 'vitest';
-import { problemDetails, type RoomFeedPost } from '@knowscroll/contracts';
+import { problemDetails, type ConversationContentProjection } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
 import {
   createRoomFeed,
@@ -37,7 +37,7 @@ function scopeOf(rooms: Api): AccountScope & { calls: { name: string; input: unk
 let counter = 100;
 const newId = () => id(counter++);
 
-const card = (kind: 'reel' | 'scroll'): RoomFeedPost['content'] => ({
+const card = (kind: 'reel' | 'scroll'): ConversationContentProjection => ({
   status: 'available',
   target: { assetId: id(20), assetRevision: 1 },
   metadata: { kind, title: 'Light that bends', summary: 'A cluster bends the light behind it.', language: 'en' },
@@ -54,7 +54,10 @@ const ready = (over: object = {}) => ({
   memory: { state: 'none' },
   canEditMemory: true,
   aiLevel: 'lively',
-  limits: { postsPerDay: 3, restHours: 6 },
+  sort: 'hot',
+  window: 'week',
+  canPost: true,
+  limits: { postsPerDay: 3, restHours: 6, memberPostsPerDay: 3 },
   ...over,
 });
 
@@ -78,7 +81,7 @@ describe('the words of the feed', () => {
   });
 
   it('says the rhythm from the server’s own numbers', () => {
-    expect(rhythmLines({ postsPerDay: 3, restHours: 6 })).toEqual({
+    expect(rhythmLines({ postsPerDay: 3, restHours: 6, memberPostsPerDay: 3 })).toEqual({
       checksIn: 'Looks at the room about 3 times a day',
       posts: 'Each posts at most once every 6 hours',
     });

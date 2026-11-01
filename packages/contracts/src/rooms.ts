@@ -48,6 +48,17 @@ import {
   WatchStartedAcceptanceSchema,
   WatchStoppedAcceptanceSchema,
 } from './room-watch.js';
+import {
+  PostRoomFindSchema,
+  ROOM_POST_TITLE_MAX_CHARS,
+  ROOM_POST_WORDS_MAX_CHARS,
+  RoomFeedSortSchema,
+  RoomFeedWindowSchema,
+  RoomFindPostedAcceptanceSchema,
+  RoomPostVoteAcceptanceSchema,
+  RoomSourceSchema,
+  VoteRoomPostSchema,
+} from './room-posts.js';
 import { NewDebateSchema, RoomDebateSchema, RoomNamingSchema, RoomSkySchema, RoomStarSchema } from './room-sky.js';
 import { RecordingGenerationSchema } from './recording.js';
 import { PublicPersonRefSchema } from './sharing.js';
@@ -501,6 +512,8 @@ export const RoomLimitsSchema = z.strictObject({
   feed: z.strictObject({
     postsPerDay: z.number().int().positive(),
     restHours: z.number().int().positive(),
+    /** How many posts a member may make in this room on one UTC day (D-271). */
+    memberPostsPerDay: z.number().int().positive(),
   }),
 });
 export type RoomLimits = z.infer<typeof RoomLimitsSchema>;
@@ -552,26 +565,69 @@ export const RoomFeedStripSchema = z.strictObject({
 });
 export type RoomFeedStrip = z.infer<typeof RoomFeedStripSchema>;
 
-export const ReadRoomFeedSchema = z.strictObject({ ...Read, roomId: UuidSchema });
+/**
+ * Read the room's Feed. `sort` is Hot unless the member asks for another; `window` only matters for Top and is a week unless
+ * asked (D-274). Reading is not an event: it creates no evidence.
+ */
+export const ReadRoomFeedSchema = z.strictObject({
+  ...Read,
+  roomId: UuidSchema,
+  sort: RoomFeedSortSchema.optional(),
+  window: RoomFeedWindowSchema.optional(),
+});
+
+/** What every post in the Feed says of itself: where it opens, when, how much talk and what people's votes made of it. */
+const FeedPostBase = {
+  discussionId: UuidSchema,
+  postedAt: z.iso.datetime(),
+  /** Messages shown after the post's own first one: what people and residents said under it. */
+  replies: Counter,
+  /** People's votes on it: a number, never who (D-273). Residents and scouts cannot vote and are not counted. */
+  votes: Counter,
+  /** The reader voted on it. Told to the reader only. */
+  youVoted: z.boolean(),
+  /** The reader may vote on it: not their own post. */
+  canVote: z.boolean(),
+};
 
 /**
- * One find: the discussion it opens, the resident that posted it, the library asset it is about (the card the member opens)
- * and the resident's short note. For a reader whose AI level is Quieter the note is held back (`folded`), and it is one tap away.
- * `replies` is how many messages people and residents wrote after the note. A find always has a card, because a find
- * without a real asset is never made; a card whose asset was since withdrawn says so (`unavailable`).
+ * A find by a resident or a member's scout: the discussion it opens, who posted it, the library asset it is about (the card the
+ * member opens) and the short note. For a reader whose AI level is Quieter the note is held back (`folded`), and it is one tap away.
+ * A find always has a card, because a find without a real asset is never made; a card whose asset was since withdrawn says so
+ * (`unavailable`).
  */
-export const RoomFeedPostSchema = z
+export const RoomFeedFindSchema = z
   .strictObject({
-    discussionId: UuidSchema,
+    kind: z.literal('find'),
+    ...FeedPostBase,
     /** A resident, or a member's scout signed by its owner (v3 R-9). */
     author: z.discriminatedUnion('kind', [AiAuthorSchema, ScoutAuthorSchema]),
-    postedAt: z.iso.datetime(),
     content: ConversationContentProjectionSchema,
     note: z.string().min(1).max(ROOM_FIND_NOTE_MAX_CHARS).optional(),
     folded: z.literal(true).optional(),
-    replies: Counter,
   })
   .refine((post) => (post.note === undefined) === (post.folded === true));
+export type RoomFeedFind = z.infer<typeof RoomFeedFindSchema>;
+
+/**
+ * A member's post (v3 R-8b): their headline and words, and one link, a library asset (the card the member opens) or a source (a
+ * plain address, shown as a plain link and never previewed). It is the member's own, so it is never folded or hidden by the AI level.
+ */
+export const RoomFeedPersonPostSchema = z.strictObject({
+  kind: z.literal('post'),
+  ...FeedPostBase,
+  author: z.strictObject({ kind: z.literal('person'), person: PublicPersonRefSchema, you: z.boolean() }),
+  title: z.string().min(1).max(ROOM_POST_TITLE_MAX_CHARS),
+  words: z.string().min(1).max(ROOM_POST_WORDS_MAX_CHARS),
+  link: z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('content'), content: ConversationContentProjectionSchema }),
+    z.strictObject({ kind: z.literal('source'), source: RoomSourceSchema }),
+  ]),
+});
+export type RoomFeedPersonPost = z.infer<typeof RoomFeedPersonPostSchema>;
+
+/** One post of the Feed: a resident's or scout's find, or a member's own post. Both are voted on by people alone. */
+export const RoomFeedPostSchema = z.discriminatedUnion('kind', [RoomFeedFindSchema, RoomFeedPersonPostSchema]);
 export type RoomFeedPost = z.infer<typeof RoomFeedPostSchema>;
 
 /**
@@ -643,7 +699,12 @@ export const RoomFeedSchema = z.discriminatedUnion('status', [
     roomId: UuidSchema,
     /** The room's face, so a post and a profile wear the marks of this room's residents (D-170). */
     identity: RoomIdentitySchema,
+    /** How the posts are ordered, as the server applied it: Hot by default, and for Top the window it counted. */
+    sort: RoomFeedSortSchema,
+    window: RoomFeedWindowSchema,
     posts: z.array(RoomFeedPostSchema).max(ROOM_FEED_POSTS_MAX),
+    /** The reader may post to the Feed now: the room is open and they have posts left today. */
+    canPost: z.boolean(),
     residents: z.array(RoomInhabitantSchema).max(4),
     memory: RoomMemorySchema,
     /** Moderators may replace what the residents remember. */
@@ -1007,6 +1068,8 @@ export const DiscussionViewSchema = z.discriminatedUnion('status', [
         tag: RoomTopicTagSchema.optional(),
         pinned: z.boolean(),
         startedBy: PublicPersonRefSchema.optional(),
+        /** The address a member's post cites in place of a library asset (v3 R-8b), shown as a plain link; erased with the account. */
+        source: RoomSourceSchema.optional(),
       }),
       /** The message a topic began from, as this reader may see it: its first item. Absent for any other discussion. */
       origin: RoomMessageSchema.optional(),
@@ -1572,11 +1635,13 @@ export const roomsWatchContract = {
   stopWatch: roomsPost('/v1/rooms/watch/stop', StopWatchSchema, WatchStoppedAcceptanceSchema),
 };
 
-/** The residents' feed, what they remember, and the member's own scout (v3 R-8, R-9). */
+/** The Feed (residents' finds and people's posts), what the residents remember, votes and the member's own scout (v3 R-8, R-8b, R-9). */
 export const roomsFeedContract = {
   feed: roomsPost('/v1/rooms/feed/read', ReadRoomFeedSchema, RoomFeedSchema),
   replaceMemory: roomsPost('/v1/rooms/memory/replace', ReplaceRoomMemorySchema, RoomMemoryReplacementSchema),
   setScout: roomsPost('/v1/rooms/scout/set', SetRoomScoutSchema, RoomScoutAcceptanceSchema),
+  postFind: roomsPost('/v1/rooms/feed/post', PostRoomFindSchema, RoomFindPostedAcceptanceSchema),
+  votePost: roomsPost('/v1/rooms/feed/vote', VoteRoomPostSchema, RoomPostVoteAcceptanceSchema),
 };
 
 /** The quiet room: replay a finished Launch alone, and leave a question for people (v3 R-7). */

@@ -42,7 +42,11 @@ describe('a scout as an author (v3 R-9, D-259)', () => {
 
   it('writes a find in the feed and the Now strip, and a labelled message in a discussion', () => {
     const post = {
+      kind: 'find',
       discussionId: ID(3),
+      votes: 0,
+      youVoted: false,
+      canVote: true,
       author: SCOUT,
       postedAt: '2026-11-04T08:37:00.000Z',
       content: card,

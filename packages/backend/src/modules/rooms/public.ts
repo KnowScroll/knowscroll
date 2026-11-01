@@ -20,6 +20,8 @@ import type {
   LaunchStartedAcceptanceSchema,
   PollVoteAcceptanceSchema,
   RoomFeedSchema,
+  RoomFindPostedAcceptanceSchema,
+  RoomPostVoteAcceptanceSchema,
   QuestionLeftAcceptanceSchema,
   QuestionNoticeAcceptanceSchema,
   RoomInviteAcceptanceSchema,
@@ -95,10 +97,21 @@ export type { RoomSeed } from './application/seeds.js';
  */
 export interface RoomUseCases {
   /**
-   * The room's feed for a member (v3 R-8, D-248): the newest finds residents posted, each about a library asset, and what the
-   * residents remember. Off lists no find; Quieter holds the note back. Writes nothing.
+   * The room's Feed for a member (v3 R-8, R-8b, D-248, D-274): residents' and scouts' finds and members' own posts side by side, in
+   * the order they ask for (Hot, New or Top), each with its votes as a number, and what the residents remember. Off lists no find;
+   * Quieter holds a find's note back. Writes nothing.
    */
   feed(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomFeedSchema>>>;
+  /**
+   * A member posts a find to the Feed: their own headline and words and one link, a library Reel or Scroll or a plain source
+   * (v3 R-8b, D-271, D-272). No model is called. At most three a member a room a UTC day.
+   */
+  postFind(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof RoomFindPostedAcceptanceSchema>>>;
+  /** A member votes up on a post or takes the vote back (D-273). People only; a count and never who. */
+  votePost(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomPostVoteAcceptanceSchema>>>;
   /**
    * Sends the caller's scout into a room, changes it, pauses it or takes it back (v3 R-9, D-259). Their own choice of the room's
    * topics; reads nothing of them, starts no encounter and writes no evidence. Refused while scouts are off in this world.

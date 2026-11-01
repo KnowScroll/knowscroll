@@ -180,9 +180,8 @@ describe('residents’ finds (real PostgreSQL, CI fixture model)', () => {
         note: FIND_NOTE,
         replies: 0,
       });
-      expect(feed.posts[0]!.content).toMatchObject({
-        status: 'available',
-        target: { assetId: newer, assetRevision: 1 },
+      expect(feed.posts[0]).toMatchObject({
+        content: { status: 'available', target: { assetId: newer, assetRevision: 1 } },
       });
     });
 
@@ -612,9 +611,8 @@ describe('residents’ finds (real PostgreSQL, CI fixture model)', () => {
       const { roomId, asset, people } = await postedRoom();
       await database.db.updateTable('content.assets').set({ status: 'withdrawn' }).where('id', '=', asset).execute();
       const feed = await readFeed(world, people[0]!, roomId);
-      expect(feed.posts[0]!.content).toMatchObject({
-        status: 'unavailable',
-        target: { assetId: asset, assetRevision: 1 },
+      expect(feed.posts[0]).toMatchObject({
+        content: { status: 'unavailable', target: { assetId: asset, assetRevision: 1 } },
       });
     });
 

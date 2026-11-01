@@ -120,12 +120,46 @@ export function feedHeartbeat(
   };
 }
 
-/** The room's feed as this person reads it. */
-export const readFeed = async (world: RoomWorld, person: Friend, roomId: string) => {
-  const feed = unwrap(await world.rooms.feed(person.authority, { version, readId: randomUUID(), roomId }));
+/** The room's feed as this person reads it, in the order they ask for (Hot, and Top over a week, when they say nothing). */
+export const readFeed = async (
+  world: RoomWorld,
+  person: Friend,
+  roomId: string,
+  order: { readonly sort?: 'hot' | 'new' | 'top'; readonly window?: 'day' | 'week' | 'month' | 'all' } = {},
+) => {
+  const feed = unwrap(await world.rooms.feed(person.authority, { version, readId: randomUUID(), roomId, ...order }));
   if (feed.status !== 'ready') throw new Error('expected a ready feed');
   return feed;
 };
+
+/** What a member posts to the Feed: their headline and words, and one link. */
+export interface PostInput {
+  readonly title?: string;
+  readonly words?: string;
+  readonly link:
+    { kind: 'content'; target: { assetId: string; assetRevision: number } } | { kind: 'source'; url: string };
+}
+
+/** A member posts a find to the Feed, under a fresh command ID. */
+export const postFind = (world: RoomWorld, person: Friend, roomId: string, input: PostInput) =>
+  world.rooms.postFind(person.authority, {
+    version,
+    commandId: randomUUID(),
+    roomId,
+    title: input.title ?? 'The arc at the edge',
+    words: input.words ?? 'The arc near the middle is a far galaxy, stretched by the mass in front of it.',
+    link: input.link,
+  });
+
+/** A link to a library asset at its first revision. */
+export const assetLink = (assetId: string) => ({ kind: 'content', target: { assetId, assetRevision: 1 } }) as const;
+
+/** A link to a source. */
+export const sourceLink = (url: string) => ({ kind: 'source', url }) as const;
+
+/** A member votes up on a post, or takes the vote back, under a fresh command ID. */
+export const votePost = (world: RoomWorld, person: Friend, roomId: string, discussionId: string, voted = true) =>
+  world.rooms.votePost(person.authority, { version, commandId: randomUUID(), roomId, discussionId, voted });
 
 /** A moderator replaces what the residents remember (text), or clears it (null), under a fresh command ID. */
 export const replaceMemory = (world: RoomWorld, moderator: Friend, roomId: string, text: string | null) =>

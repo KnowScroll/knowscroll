@@ -14,7 +14,15 @@ jest.mock('expo-router', () => ({
 const mockFeed: { current: { controller: Partial<RoomFeedController>; state: RoomFeedState } } = {
   current: {
     controller: {},
-    state: { phase: 'loading', view: undefined, offline: false, working: false, refused: false },
+    state: {
+      phase: 'loading',
+      view: undefined,
+      sort: 'hot',
+      window: 'week',
+      offline: false,
+      working: false,
+      refused: false,
+    },
   },
 };
 jest.mock('./use-room', () => ({
@@ -57,7 +65,13 @@ const on = (over: Partial<Extract<RoomScout, { state: 'on' }>> = {}): RoomScout 
   stopped: false,
   ...over,
 });
-const post = (patch: Partial<RoomFeedPost> = {}): RoomFeedPost => ({
+const post = (
+  patch: Partial<Extract<RoomFeedPost, { kind: 'find' }>> = {},
+): Extract<RoomFeedPost, { kind: 'find' }> => ({
+  kind: 'find',
+  votes: 0,
+  youVoted: false,
+  canVote: true,
   discussionId: id(3),
   author: scoutAuthor,
   postedAt: new Date(Date.now() - 3_600_000).toISOString(),
@@ -82,7 +96,10 @@ const feed = (patch: Partial<Extract<RoomFeed, { status: 'ready' }>> = {}): Extr
   memory: { state: 'none' },
   canEditMemory: false,
   aiLevel: 'lively',
-  limits: { postsPerDay: 3, restHours: 6 },
+  sort: 'hot',
+  window: 'week',
+  canPost: true,
+  limits: { postsPerDay: 3, restHours: 6, memberPostsPerDay: 3 },
   ...patch,
 });
 const wrap = (node: React.ReactNode) =>
@@ -90,7 +107,7 @@ const wrap = (node: React.ReactNode) =>
 const show = (view: Extract<RoomFeed, { status: 'ready' }>, controller: Partial<RoomFeedController> = {}) => {
   mockFeed.current = {
     controller,
-    state: { phase: 'ready', view, offline: false, working: false, refused: false },
+    state: { phase: 'ready', view, sort: 'hot', window: 'week', offline: false, working: false, refused: false },
   };
   return wrap(<RoomFeedScreen roomId={roomId} />);
 };
@@ -99,7 +116,9 @@ beforeEach(() => mockPush.mockClear());
 
 describe('a scout’s find in the feed', () => {
   it('is signed with its owner’s name, labelled AI, and read as an article that says both', async () => {
-    await wrap(<FeedPost post={post()} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} />);
+    await wrap(
+      <FeedPost post={post()} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} onVote={jest.fn()} />,
+    );
     expect(screen.getByText('Asha’s scout')).toBeOnTheScreen();
     expect(screen.getByLabelText('AI, Scout')).toBeOnTheScreen();
     expect(screen.getByTestId('feed-post-signature')).toHaveTextContent('Sent by Asha');
@@ -113,19 +132,31 @@ describe('a scout’s find in the feed', () => {
   });
 
   it('never says its owner watched or read anything', async () => {
-    await wrap(<FeedPost post={post()} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} />);
+    await wrap(
+      <FeedPost post={post()} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} onVote={jest.fn()} />,
+    );
     expect(screen.queryByText(/while .* away|watched|read it/i)).not.toBeOnTheScreen();
   });
 
   it('has no way to stop it for a reader who is not a moderator', async () => {
-    await wrap(<FeedPost post={post()} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} />);
+    await wrap(
+      <FeedPost post={post()} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} onVote={jest.fn()} />,
+    );
     expect(screen.queryByTestId('feed-post-stop-scout')).not.toBeOnTheScreen();
   });
 
   it('gives a moderator a way to stop it, naming the person who sent it', async () => {
     const stop = jest.fn();
     await wrap(
-      <FeedPost post={post()} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} onStopScout={stop} />,
+      <FeedPost
+        post={post()}
+        identity={identity}
+        now={new Date()}
+        href="/x"
+        onOpen={jest.fn()}
+        onVote={jest.fn()}
+        onStopScout={stop}
+      />,
     );
     await fireEvent.press(screen.getByTestId('feed-post-stop-scout'));
     expect(stop).toHaveBeenCalledWith(asha.personId);
@@ -134,7 +165,14 @@ describe('a scout’s find in the feed', () => {
   it('holds the note back for a Quieter reader, naming the scout and not the owner’s words', async () => {
     const { note: _note, ...quiet } = post();
     await wrap(
-      <FeedPost post={{ ...quiet, folded: true }} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} />,
+      <FeedPost
+        post={{ ...quiet, folded: true }}
+        identity={identity}
+        now={new Date()}
+        href="/x"
+        onOpen={jest.fn()}
+        onVote={jest.fn()}
+      />,
     );
     expect(screen.getByTestId('feed-post-folded')).toHaveTextContent(
       'Asha’s scout found something. The note is in the talk.',

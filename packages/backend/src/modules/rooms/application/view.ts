@@ -11,6 +11,7 @@ import { conceptLabel } from '../../content/public.js';
 import type { CastMember } from '../domain/cast.js';
 import { PERSON_ASKS_PER_HOUR, ROOM_ASKS_PER_DAY } from '../domain/contribution.js';
 import { FEED_RULES } from '../domain/feed.js';
+import { POST_RULES } from '../domain/posts.js';
 import { UNPROMPTED_CAPS } from '../domain/router.js';
 import { kitToShow } from './kit.js';
 import type { MemberRow, RoomRow } from './ports.js';
@@ -70,6 +71,10 @@ export function limitsOf(): RoomLimits {
       explainerPerHour: UNPROMPTED_CAPS.residentPerHour.explainer,
       skepticPerHour: UNPROMPTED_CAPS.residentPerHour.skeptic,
     },
-    feed: { postsPerDay: FEED_RULES.postsPerDay, restHours: FEED_RULES.residentRestMs / 3_600_000 },
+    feed: {
+      postsPerDay: FEED_RULES.postsPerDay,
+      restHours: FEED_RULES.residentRestMs / 3_600_000,
+      memberPostsPerDay: POST_RULES.perDay,
+    },
   };
 }

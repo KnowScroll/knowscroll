@@ -117,7 +117,7 @@ for (const { name, size } of VIEWPORTS) {
     expect(calls.filter((call) => call.path === '/v1/rooms/scout/set').at(-1)?.body).toMatchObject({ scout: null });
   });
 
-  test(`${name}: a scout's find is signed by its owner, labelled AI, links a real Scroll and has nothing to vote with`, async ({
+  test(`${name}: a scout's find is signed by its owner, labelled AI, links a real Scroll and cannot vote itself`, async ({
     page,
   }) => {
     const world = feedWorld({ scout: { ...noScout }, scoutPost: true });
