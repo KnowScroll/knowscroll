@@ -512,12 +512,15 @@ export interface LibraryFindSource {
 /**
  * The admitted library assets under a topic, newest first: a system covers every planet of it, a planet is its own. At most `limit`
  * (1 to 100). With `only` the read is for that one exact revision, found only while it is still a served asset under the topic, so the
- * check that a post's asset still stands never depends on how many others the topic has.
+ * check that a post's asset still stands never depends on how many others the topic has. With `within` it keeps only assets whose
+ * primary topic is one of those planets of the topic (a scout's own choice, v3 R-9); a planet outside the topic is ignored, and an
+ * empty list finds nothing.
  */
 export type ReadLibraryFinds = (
   topic: { readonly kind: 'system' | 'planet'; readonly id: string },
   limit: number,
   only?: { readonly assetId: string; readonly assetRevision: number },
+  within?: readonly string[],
 ) => Promise<readonly LibraryFindSource[]>;
 export const READ_LIBRARY_FINDS = Symbol('content.readLibraryFinds');
 

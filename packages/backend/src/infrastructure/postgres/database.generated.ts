@@ -1535,7 +1535,7 @@ export interface RoomsAiTurns {
   find_asset_revision: number | null;
   held_kind: string | null;
   held_text: string | null;
-  inhabitant: string;
+  inhabitant: string | null;
   message_id: string | null;
   model: string | null;
   prompt_version: string | null;
@@ -1681,6 +1681,7 @@ export interface RoomsMemoryEdits {
 }
 
 export interface RoomsMessages {
+  agent_owner_account_id: string | null;
   ai_kind: string | null;
   asset_id: string | null;
   asset_revision: number | null;
@@ -1830,6 +1831,19 @@ export interface RoomsRooms {
   status: Generated<string>;
   topic_id: string;
   topic_kind: string;
+}
+
+export interface RoomsScouts {
+  cadence: string;
+  created_at: Timestamp;
+  interests: string[];
+  owner_account_id: string;
+  paused: Generated<boolean>;
+  room_id: string;
+  scout_id: string;
+  stopped_at: Timestamp | null;
+  stopped_by_account_id: string | null;
+  updated_at: Timestamp;
 }
 
 export interface RoomsStars {
@@ -2401,6 +2415,7 @@ export interface DB {
   "rooms.room_memory": RoomsRoomMemory;
   "rooms.room_presence": RoomsRoomPresence;
   "rooms.rooms": RoomsRooms;
+  "rooms.scouts": RoomsScouts;
   "rooms.stars": RoomsStars;
   "rooms.summaries": RoomsSummaries;
   "rooms.typing_holds": RoomsTypingHolds;

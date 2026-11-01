@@ -113,6 +113,7 @@ export const RoomSpeechTriggerSchema = z.enum([
   'overstated_claim',
   'answer_overstated',
   'feed_find',
+  'scout_find',
 ]);
 export type RoomSpeechTrigger = z.infer<typeof RoomSpeechTriggerSchema>;
 
@@ -131,6 +132,21 @@ export const AiAuthorSchema = z
   .strictObject({ kind: z.literal('ai'), inhabitant: InhabitantIdSchema, name: ResidentName, label: z.string() })
   .refine((author) => author.label === AI_INHABITANT_LABELS[author.inhabitant]);
 export type AiAuthor = z.infer<typeof AiAuthorSchema>;
+
+/** The label a scout's notes always carry. Fixed by the kind of author, so no client can show a scout without it. */
+export const SCOUT_LABEL = 'AI · Scout';
+
+/**
+ * A scout's note is signed by the member who sent it (v3 R-9, D-259): the owner's public profile and a label that says it is an
+ * AI. A scout is not a person and not a resident: it has no profile of its own and it never votes, messages or counts as the
+ * owner being present. `sentBy` is a person's public reference, so a screen can write "Sent by Asha" and nothing else about them.
+ */
+export const ScoutAuthorSchema = z.strictObject({
+  kind: z.literal('agent'),
+  sentBy: PublicPersonRefSchema,
+  label: z.literal(SCOUT_LABEL),
+});
+export type ScoutAuthor = z.infer<typeof ScoutAuthorSchema>;
 
 const RoomName = z.string().min(1).max(80).refine(isPublicLabel);
 const DiscussionTitle = z.string().min(1).max(80).refine(isPublicLabel);
@@ -515,7 +531,10 @@ export const ROOM_MEMORY_MAX_CHARS = 600;
  * What the Now strip says of the feed: the newest find and who posted it. Names a resident and a time, never a person or a
  * count. Absent for a reader whose AI level is Off, because nothing a resident posts on its own reaches them.
  */
-export const RoomFeedStripSchema = z.strictObject({ by: AiAuthorSchema, postedAt: z.iso.datetime() });
+export const RoomFeedStripSchema = z.strictObject({
+  by: z.discriminatedUnion('kind', [AiAuthorSchema, ScoutAuthorSchema]),
+  postedAt: z.iso.datetime(),
+});
 export type RoomFeedStrip = z.infer<typeof RoomFeedStripSchema>;
 
 export const ReadRoomFeedSchema = z.strictObject({ ...Read, roomId: UuidSchema });
@@ -529,7 +548,8 @@ export const ReadRoomFeedSchema = z.strictObject({ ...Read, roomId: UuidSchema }
 export const RoomFeedPostSchema = z
   .strictObject({
     discussionId: UuidSchema,
-    author: AiAuthorSchema,
+    /** A resident, or a member's scout signed by its owner (v3 R-9). */
+    author: z.discriminatedUnion('kind', [AiAuthorSchema, ScoutAuthorSchema]),
     postedAt: z.iso.datetime(),
     content: ConversationContentProjectionSchema,
     note: z.string().min(1).max(ROOM_FIND_NOTE_MAX_CHARS).optional(),
@@ -555,6 +575,41 @@ export const RoomMemorySchema = z.discriminatedUnion('state', [
 ]);
 export type RoomMemory = z.infer<typeof RoomMemorySchema>;
 
+// --- Scouts (v3 R-9, D-259 to D-261) ------------------------------------------------------------
+
+/** The most topics a scout looks in: the member's own choice among the room's. */
+export const ROOM_SCOUT_INTERESTS_MAX = 5;
+/** How often a scout may post in a room: once a day at most, or once a week. Both are caps, not promises. */
+export const RoomScoutCadenceSchema = z.enum(['daily', 'weekly']);
+export type RoomScoutCadence = z.infer<typeof RoomScoutCadenceSchema>;
+
+/** One of the room's topics a member may send a scout to look in: a catalogue topic and its plain label. */
+export const RoomScoutChoiceSchema = z.strictObject({
+  id: z.string().min(1).max(160),
+  label: z.string().min(1).max(80),
+});
+export type RoomScoutChoice = z.infer<typeof RoomScoutChoiceSchema>;
+
+/**
+ * The reader's own scout in this room. `none`: they have not sent one, and these are the topics they may choose from. `on`: their
+ * choice (which topics, how often, whether it is paused) and whether a moderator stopped it. Absent from the feed when scouts are
+ * not switched on in this world. Only the owner is told any of it; a moderator is told only that a scout stands.
+ */
+export const RoomScoutSchema = z.discriminatedUnion('state', [
+  z.strictObject({ state: z.literal('none'), choices: z.array(RoomScoutChoiceSchema).max(40) }),
+  z.strictObject({
+    state: z.literal('on'),
+    choices: z.array(RoomScoutChoiceSchema).max(40),
+    interests: z.array(z.string().min(1).max(160)).min(1).max(ROOM_SCOUT_INTERESTS_MAX),
+    cadence: RoomScoutCadenceSchema,
+    paused: z.boolean(),
+    stopped: z.boolean(),
+    /** When it last posted in this room, so the sheet can say when it may post again. */
+    lastPostedAt: z.iso.datetime().optional(),
+  }),
+]);
+export type RoomScout = z.infer<typeof RoomScoutSchema>;
+
 /** The caps on what residents post on their own, as the rules in force say them (D-248). */
 export const RoomFeedLimitsSchema = RoomLimitsSchema.shape.feed;
 
@@ -578,6 +633,8 @@ export const RoomFeedSchema = z.discriminatedUnion('status', [
     canEditMemory: z.boolean(),
     aiLevel: RoomAiLevelSchema,
     limits: RoomFeedLimitsSchema,
+    /** The reader's own scout (v3 R-9). Absent while scouts are not switched on in this world. */
+    scout: RoomScoutSchema.optional(),
   }),
 ]);
 export type RoomFeed = z.infer<typeof RoomFeedSchema>;
@@ -691,6 +748,9 @@ export const RoomModerationActionSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('resume') }),
   /** Removes a person from the room. They can read nothing more and cannot join again. */
   z.strictObject({ kind: z.literal('remove_member'), personId: UuidSchema }),
+  /** Stops a member's scout in this room until a moderator lets it post again (v3 R-9, D-261). The member stays. */
+  z.strictObject({ kind: z.literal('stop_scout'), personId: UuidSchema }),
+  z.strictObject({ kind: z.literal('allow_scout'), personId: UuidSchema }),
 ]);
 export const ModerateRoomSchema = z.strictObject({
   ...Command,
@@ -701,7 +761,7 @@ export const RoomModerationAcceptanceSchema = z.strictObject({
   ...Receipt,
   operation: z.literal('room.moderate'),
   roomId: UuidSchema,
-  action: z.enum(['pause', 'resume', 'remove_member']),
+  action: z.enum(['pause', 'resume', 'remove_member', 'stop_scout', 'allow_scout']),
 });
 
 /**
@@ -747,7 +807,11 @@ export const RoomPresenceAckSchema = z.strictObject({
 // --- Discussions and messages ---------------------------------------------------------------
 
 const MessageIdentity = { messageId: UuidSchema, sequence: Revision };
-export const RoomAuthorSchema = z.discriminatedUnion('kind', [PublicPersonRefSchema, AiAuthorSchema]);
+export const RoomAuthorSchema = z.discriminatedUnion('kind', [
+  PublicPersonRefSchema,
+  AiAuthorSchema,
+  ScoutAuthorSchema,
+]);
 export type RoomAuthor = z.infer<typeof RoomAuthorSchema>;
 
 /** What a member asked that a resident's message answers: the kind, who asked and which message it was about (D-167). */
@@ -1455,10 +1519,34 @@ export const roomsLaunchContract = {
   finishLaunch: roomsPost('/v1/rooms/launch/finish', FinishLaunchSchema, LaunchFinishedAcceptanceSchema),
 };
 
-/** The residents' feed and what they remember (v3 R-8). */
+/**
+ * Sends the caller's scout into a room, changes it, pauses it or takes it back (`scout: null`). The same command again is
+ * accepted. The topics are the caller's own choice among the room's; the server checks each against the room's topics and reads
+ * nothing of the caller to fill them in. Refused while scouts are not switched on in this world.
+ */
+export const SetRoomScoutSchema = z.strictObject({
+  ...Command,
+  roomId: UuidSchema,
+  scout: z
+    .strictObject({
+      interests: z.array(z.string().min(1).max(160)).min(1).max(ROOM_SCOUT_INTERESTS_MAX),
+      cadence: RoomScoutCadenceSchema,
+      paused: z.boolean(),
+    })
+    .nullable(),
+});
+export const RoomScoutAcceptanceSchema = z.strictObject({
+  ...Receipt,
+  operation: z.literal('room.scout-set'),
+  roomId: UuidSchema,
+  scout: RoomScoutSchema,
+});
+
+/** The residents' feed, what they remember, and the member's own scout (v3 R-8, R-9). */
 export const roomsFeedContract = {
   feed: roomsPost('/v1/rooms/feed/read', ReadRoomFeedSchema, RoomFeedSchema),
   replaceMemory: roomsPost('/v1/rooms/memory/replace', ReplaceRoomMemorySchema, RoomMemoryReplacementSchema),
+  setScout: roomsPost('/v1/rooms/scout/set', SetRoomScoutSchema, RoomScoutAcceptanceSchema),
 };
 
 /** The quiet room: replay a finished Launch alone, and leave a question for people (v3 R-7). */

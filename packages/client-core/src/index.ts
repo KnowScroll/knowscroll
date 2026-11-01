@@ -219,14 +219,21 @@ export {
 export {
   createRoomFeed,
   emptyFeedWords,
+  feedAuthorName,
   feedChip,
   findKindWord,
   findTitleWords,
   memoryWords,
   rhythmLines,
+  scoutCadenceWords,
+  scoutDraftOf,
+  scoutSignature,
+  scoutStatusWords,
+  toggleInterest,
   type RoomFeedController,
   type RoomFeedOptions,
   type RoomFeedState,
+  type ScoutDraft,
 } from './room-feed';
 export {
   START_BLOCK_WORDS,

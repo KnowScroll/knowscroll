@@ -262,6 +262,7 @@ export const diagnosticCatalogue = {
   // The night's room items (D-176) failed for one room: its slug and the sanitised error. The other rooms are still drafted and the job retries.
   'rooms.rituals_room_failed': { severity: 'warn', module: 'rooms', fields: ['context', 'error'] },
   'rooms.feed_room_failed': { severity: 'warn', module: 'rooms', fields: ['context', 'error'] },
+  'rooms.scout_room_failed': { severity: 'warn', module: 'rooms', fields: ['context', 'error'] },
   // The daily purge removed reports about deleted accounts whose 90 days were over (D-055).
   'feedback.reports_purged': { severity: 'info', module: 'feedback', fields: ['count'] },
   'reasoning.purge_failed': { severity: 'warn', module: 'reasoning', fields: ['error'] },

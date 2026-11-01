@@ -249,7 +249,7 @@ async function memberView(p: RoomPorts, scope: PersonalScopeTx, entered: Entered
     sky: await skyOfRoom(p, lock),
     ...todayFor(await todayStrip(p, lock, p.now())),
     ...launchFor(await launchStrip(p, lock, p.now())),
-    ...feedFor(await feedStrip(p, lock, entered.member, room.cast)),
+    ...feedFor(await feedStrip(p, scope, lock, entered.member, room.cast)),
     ...replayFor(await replayStrip(p, scope, entered, p.now())),
     ...questionsFor(await questionsView(p, scope, entered)),
   };

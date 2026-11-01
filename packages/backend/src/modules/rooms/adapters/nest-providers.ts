@@ -48,6 +48,7 @@ import {
 import { makeActivities } from '../application/activities.js';
 import { makeDebateVotes } from '../application/debates.js';
 import { makeFeed } from '../application/feed-reads.js';
+import { makeScoutCommands } from '../application/scout-commands.js';
 import { makeCastDue, type CastDuePorts } from '../application/cast-due.js';
 import { makeCastPass, type CastPassPorts } from '../application/cast-pass.js';
 import { makeContribute, type ContributePorts } from '../application/contribute.js';
@@ -101,6 +102,7 @@ import { readRoomMembership } from './membership-reads.js';
 import { discussionStore } from './postgres-discussions.js';
 import { roomStore } from './postgres-rooms.js';
 import { feedReadStore } from './postgres-feed.js';
+import { scoutReadStore } from './postgres-scouts.js';
 import { launchStore } from './postgres-launch.js';
 import { questionStore } from './postgres-questions.js';
 import { debateStore, skyStore, todayStore } from './postgres-sky.js';
@@ -136,6 +138,8 @@ export interface RoomsDeps {
   readonly enqueue?: EnqueueJob;
   /** Residents may speak unprompted in this world (`KS_REASONING_ROOM_ENABLED`, D-162). Off queues nothing. */
   readonly residentsEnabled?: boolean;
+  /** Members may send scouts in this world (`KS_ROOMS_SCOUTS_ENABLED`, v3 R-9, D-259). Off, no scout can be set. */
+  readonly scoutsEnabled?: boolean;
   /** The most stars a room earns on one UTC day (`KS_ROOMS_STARS_PER_DAY`, D-174); the default is three. */
   readonly starsPerDay?: number;
   /** The rest between the start of one Launch and the next, in minutes (`KS_ROOMS_LAUNCH_GAP_MINUTES`, D-178); the default is two hours. */
@@ -163,6 +167,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     today: todayStore,
     launches: launchStore,
     feed: feedReadStore,
+    scouts: scoutReadStore,
     questions: questionStore,
     people: {
       async byAccounts(scope, accountIds) {
@@ -209,6 +214,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
       );
     },
     residentsEnabled: deps.residentsEnabled ?? false,
+    scoutsEnabled: deps.scoutsEnabled ?? false,
     starsPerDay: deps.starsPerDay ?? STARS_PER_DAY_DEFAULT,
     launchGapMs: (deps.launchGapMinutes ?? LAUNCH_GAP_MINUTES_DEFAULT) * 60_000,
     enqueueCastDue: async (scope, job, startAfter) => {
@@ -258,6 +264,7 @@ export function roomUseCases(deps: RoomsDeps): RoomUseCases {
     ...makeQuestions(ports),
     ...makeDebateVotes(ports),
     ...makeFeed(ports),
+    ...makeScoutCommands(ports),
   };
 }
 
@@ -366,7 +373,12 @@ export { seedRooms, setRoomModerator, type ModeratorOutcome } from './seed.js';
 export { holdCast } from './typing-holds.js';
 export { readApprovedBackdrop } from './postgres-face.js';
 export { composeRitualOperator, roomsRitualProviders } from './ritual-providers.js';
-export { composeFeedHeartbeat, roomsFeedProviders } from './feed-providers.js';
+export {
+  composeFeedHeartbeat,
+  composeScoutHeartbeat,
+  roomsFeedProviders,
+  roomsScoutProviders,
+} from './feed-providers.js';
 
 /** The API's room use cases, and the room read the report use cases ask for. */
 export function roomsProviders(tokens: {
@@ -448,6 +460,7 @@ export function roomsProviders(tokens: {
           readReports,
           enqueue,
           residentsEnabled: config.roomResidentsEnabled,
+          scoutsEnabled: config.roomScoutsEnabled,
           starsPerDay: config.roomStarsPerDay,
           launchGapMinutes: config.roomLaunchGapMinutes,
         }),

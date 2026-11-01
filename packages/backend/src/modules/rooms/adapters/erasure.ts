@@ -39,7 +39,8 @@ const LIFECYCLE = {
   'rooms.invitations': 'invitations made to or by the account are removed',
   'rooms.discussions':
     'the starter link is cleared; the discussion stays for the others; the starter\'s "tell me when a person answers" switch and the marker of the answer they noticed are cleared by a Clear too, and when they leave or are removed',
-  'rooms.messages': 'the account authored messages become tombstones',
+  'rooms.messages':
+    'the account authored messages become tombstones, and so do the notes of the scouts the account sent (no owner, no words, same place and number)',
   'rooms.message_snippets': 'deleted with the author tombstoned message',
   'rooms.ai_turns': 'the asker link is cleared; a turn and its contribution stay with the room',
   'rooms.activities': 'the creator link is cleared; the poll or quiz stays with the room',
@@ -60,6 +61,8 @@ const LIFECYCLE = {
   'rooms.room_memory':
     'the words of a derived memory that read what the account wrote are erased (stale) before their messages become tombstones; the moderator link is cleared; a moderator text stays with the room',
   'rooms.memory_edits': 'the moderator link of an edit is cleared; the edit stays as a fact about the room',
+  'rooms.scouts':
+    'the account scouts are deleted, by leaving or removal from the room too; a Clear keeps them (they hold no reading); the moderator link of a stop is cleared and the stop stands',
 } as const;
 
 /**
@@ -103,7 +106,7 @@ async function lockRoomsOf(trx: ReturnType<typeof transactionOf>, account: strin
   await sql`select room_id from rooms.rooms
     where room_id in (select discussion.room_id from rooms.messages message
       join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
-      where message.author_account_id = ${account}::uuid)
+      where message.author_account_id = ${account}::uuid or message.agent_owner_account_id = ${account}::uuid)
     order by room_id for share`.execute(trx);
 }
 
@@ -115,7 +118,8 @@ async function lockRoomsOf(trx: ReturnType<typeof transactionOf>, account: strin
 async function lockDiscussionsOf(trx: ReturnType<typeof transactionOf>, account: string): Promise<void> {
   await sql`select discussion_id from rooms.discussions
     where started_by_account_id = ${account}::uuid
-      or discussion_id in (select discussion_id from rooms.messages where author_account_id = ${account}::uuid)
+      or discussion_id in (select discussion_id from rooms.messages
+        where author_account_id = ${account}::uuid or agent_owner_account_id = ${account}::uuid)
     order by discussion_id for update`.execute(trx);
 }
 
@@ -147,7 +151,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'members', ownerColumn: 'account_id' },
     { schema: 'rooms', table: 'invitations', ownerColumn: 'invitee_account_id,inviter_account_id' },
     { schema: 'rooms', table: 'discussions', ownerColumn: 'started_by_account_id' },
-    { schema: 'rooms', table: 'messages', ownerColumn: 'author_account_id' },
+    { schema: 'rooms', table: 'messages', ownerColumn: 'author_account_id,agent_owner_account_id' },
     { schema: 'rooms', table: 'message_snippets', ownerColumn: 'message_id' },
     { schema: 'rooms', table: 'ai_turns', ownerColumn: 'requested_by_account_id' },
     { schema: 'rooms', table: 'activities', ownerColumn: 'created_by_account_id' },
@@ -163,6 +167,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'launch_answers', ownerColumn: 'account_id' },
     { schema: 'rooms', table: 'room_memory', ownerColumn: 'edited_by_account_id' },
     { schema: 'rooms', table: 'memory_edits', ownerColumn: 'by_account_id' },
+    { schema: 'rooms', table: 'scouts', ownerColumn: 'owner_account_id,stopped_by_account_id' },
   ],
   accountColumns: [
     { schema: 'rooms', table: 'members', column: 'account_id' },
@@ -170,6 +175,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'invitations', column: 'inviter_account_id' },
     { schema: 'rooms', table: 'discussions', column: 'started_by_account_id' },
     { schema: 'rooms', table: 'messages', column: 'author_account_id' },
+    { schema: 'rooms', table: 'messages', column: 'agent_owner_account_id' },
     { schema: 'rooms', table: 'ai_turns', column: 'requested_by_account_id' },
     { schema: 'rooms', table: 'activities', column: 'created_by_account_id' },
     { schema: 'rooms', table: 'poll_votes', column: 'account_id' },
@@ -183,6 +189,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'launch_answers', column: 'account_id' },
     { schema: 'rooms', table: 'room_memory', column: 'edited_by_account_id' },
     { schema: 'rooms', table: 'memory_edits', column: 'by_account_id' },
+    { schema: 'rooms', table: 'scouts', column: 'owner_account_id' },
+    { schema: 'rooms', table: 'scouts', column: 'stopped_by_account_id' },
   ],
 
   /** Full erasure of one universe: the queued ask jobs and the asks waiting on them. */
@@ -222,9 +230,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
     removed += count(await staleMemoryOf({ byAccount: account }).execute(trx));
     removed += count(
       await sql`delete from rooms.message_useful where account_id = ${account}::uuid
-        or message_id in (select message_id from rooms.messages where author_account_id = ${account}::uuid)`.execute(
-        trx,
-      ),
+        or message_id in (select message_id from rooms.messages
+          where author_account_id = ${account}::uuid or agent_owner_account_id = ${account}::uuid)`.execute(trx),
     );
     removed += count(await sql`delete from rooms.read_positions where account_id = ${account}::uuid`.execute(trx));
     removed += count(await sql`delete from rooms.constellation_votes where account_id = ${account}::uuid`.execute(trx));
@@ -250,14 +257,15 @@ export const roomsErasure: ModuleErasure = declareErasure({
           select discussion_id, sequence,
             row_number() over (partition by discussion_id order by sequence) as position,
             count(*) over (partition by discussion_id) as total
-          from rooms.messages where author_account_id = ${account}::uuid
+          from rooms.messages where author_account_id = ${account}::uuid or agent_owner_account_id = ${account}::uuid
         ), bumped as (
           update rooms.discussions d set last_change_sequence = d.last_change_sequence + t.total
           from (select discussion_id, max(total) as total from mine group by discussion_id) t
           where d.discussion_id = t.discussion_id
           returning d.discussion_id, d.last_change_sequence as top, t.total
         )
-        update rooms.messages m set author_account_id = null, command_id = null, body_text = null,
+        update rooms.messages m set author_kind = 'person', author_account_id = null, agent_owner_account_id = null,
+          ai_kind = null, trigger = null, command_id = null, body_text = null,
           asset_id = null, asset_revision = null, note = null, topic_discussion_id = null,
           change_sequence = bumped.top - bumped.total + mine.position
         from mine join bumped on bumped.discussion_id = mine.discussion_id
@@ -278,6 +286,12 @@ export const roomsErasure: ModuleErasure = declareErasure({
           state = case when state = 'queued' then 'failed' else state end,
           settled_at = case when state = 'queued' then now() else settled_at end
         where requested_by_account_id = ${account}::uuid`.execute(trx),
+    );
+    removed += count(await sql`delete from rooms.scouts where owner_account_id = ${account}::uuid`.execute(trx));
+    removed += count(
+      await sql`update rooms.scouts set stopped_by_account_id = null where stopped_by_account_id = ${account}::uuid`.execute(
+        trx,
+      ),
     );
     removed += count(
       await sql`update rooms.room_memory set edited_by_account_id = null
@@ -364,6 +378,7 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
       'rooms.launch_players',
       'rooms.launch_answers',
       'rooms.memory_edits',
+      'rooms.scouts',
     ],
     'What the residents remember belongs to the room and is derived from many people; an invitation is a notice between two members and holds no words of the person; a presence lease lasts a minute and records only that the room was open; the place where they left off is private bookkeeping that holds no words; a summary holds a window of the room and no one of its own; the job queue is delivery bookkeeping.',
     async (scope, person) => {
@@ -482,6 +497,25 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         from rooms.memory_edits edit join rooms.rooms room on room.room_id = edit.room_id
         where edit.by_account_id = ${person.accountId}::uuid
         order by edit.at desc limit 500`.execute(trx);
+      // The scouts the person sent: where, which of the room's topics they chose, how often, and what each posted in their name.
+      const scouts = await sql<{
+        room: string;
+        interests: string[];
+        cadence: string;
+        paused: boolean;
+        stopped: boolean;
+      }>`
+        select room.name as room, scout.interests, scout.cadence, scout.paused, scout.stopped_at is not null as stopped
+        from rooms.scouts scout join rooms.rooms room on room.room_id = scout.room_id
+        where scout.owner_account_id = ${person.accountId}::uuid
+        order by scout.created_at desc limit 500`.execute(trx);
+      const scoutNotes = await sql<{ room: string; sent_at: Date; body_text: string | null; title: string }>`
+        select room.name as room, message.recorded_at as sent_at, message.body_text, discussion.title
+        from rooms.messages message
+        join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
+        join rooms.rooms room on room.room_id = discussion.room_id
+        where message.agent_owner_account_id = ${person.accountId}::uuid
+        order by message.recorded_at desc, message.sequence desc limit ${EXPORT_MESSAGE_LIMIT}`.execute(trx);
       const messageCount = Number(written.rows[0]?.n ?? 0);
       const askCount = Number(asks.rows[0]?.n ?? 0);
       // A person who never took part in a room has no section: the file does not name the module.
@@ -497,6 +531,8 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         taps.rows.length === 0 &&
         launches.rows.length === 0 &&
         memoryEdits.rows.length === 0 &&
+        scouts.rows.length === 0 &&
+        scoutNotes.rows.length === 0 &&
         startedActivities.rows.length === 0
       )
         return {};
@@ -572,6 +608,20 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
           room: row.room,
           action: row.action === 'clear' ? 'cleared' : 'replaced',
           at: row.at.toISOString(),
+        })),
+        scouts: scouts.rows.map((row) => ({
+          room: row.room,
+          topics: row.interests,
+          often: row.cadence === 'weekly' ? 'once a week' : 'once a day',
+          paused: row.paused,
+          stoppedByAModerator: row.stopped,
+        })),
+        // What a scout posted, signed with the person's name: the find's title and the note a model wrote for it.
+        scoutNotes: scoutNotes.rows.map((row) => ({
+          room: row.room,
+          find: row.title,
+          note: row.body_text ?? '',
+          sentAt: row.sent_at.toISOString(),
         })),
         activitiesStarted: startedActivities.rows.map((row) => ({
           room: row.room,

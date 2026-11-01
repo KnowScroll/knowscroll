@@ -109,6 +109,11 @@ export interface ApiConfig extends ReleaseIdentity {
    * is on, so a world that leaves it off queues nothing. The worker reads the same variable.
    */
   readonly roomResidentsEnabled: boolean;
+  /**
+   * `KS_ROOMS_SCOUTS_ENABLED`: members may send a scout into a room, which posts at most one find a day, signed by its owner (v3 R-9,
+   * D-259). The API shows and accepts scouts only when it is on. The worker reads the same variable, and also needs the rooms scope.
+   */
+  readonly roomScoutsEnabled: boolean;
   /** `KS_ROOMS_LAUNCH_GAP_MINUTES`: the rest between the start of one Launch and the next in a room (D-178); two hours unless a world changes it. */
   readonly roomLaunchGapMinutes: number;
   /** `KS_ROOMS_STARS_PER_DAY`: the most stars one room earns on a UTC day (D-174); three unless a world raises it. */
@@ -193,6 +198,8 @@ export interface ReasoningSettings {
    * rhythm (v3 R-8, D-248). Off by default, and it needs `roomEnabled`: the heartbeat's calls are paid by the rooms scope.
    */
   readonly roomFeedEnabled: boolean;
+  /** `KS_ROOMS_SCOUTS_ENABLED`: the scouts' heartbeat runs (v3 R-9, D-259). Off by default, and it needs `roomEnabled`. */
+  readonly roomScoutsEnabled: boolean;
   readonly minimax?: {
     readonly apiKey: string;
     readonly model: (typeof MINIMAX_MODELS)[number];
@@ -341,6 +348,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       KS_SUPPLY_SCENARIO_DAILY_CAP: supplyScenarioDailyCapVariable,
       KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP: supplyScenarioThreadCapVariable,
       KS_REASONING_ROOM_ENABLED: z.enum(['0', '1']).default('0'),
+      KS_ROOMS_SCOUTS_ENABLED: z.enum(['0', '1']).default('0'),
       KS_ROOMS_STARS_PER_DAY: positiveInteger(3, 50),
       KS_ROOMS_LAUNCH_GAP_MINUTES: positiveInteger(120, 1440),
       KS_COMPOSER_POLICY: composerPolicyVariable,
@@ -364,6 +372,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       'KS_SUPPLY_SCENARIO_DAILY_CAP',
       'KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP',
       'KS_REASONING_ROOM_ENABLED',
+      'KS_ROOMS_SCOUTS_ENABLED',
       'KS_ROOMS_STARS_PER_DAY',
       'KS_ROOMS_LAUNCH_GAP_MINUTES',
       'KS_COMPOSER_POLICY',
@@ -408,6 +417,7 @@ export function readApiConfig(env: Environment): ApiConfig {
     supplyScenarioDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_SCENARIO_DAILY_CAP, release.world),
     supplyScenarioThreadDailyCap: parsed.KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP,
     roomResidentsEnabled: parsed.KS_REASONING_ROOM_ENABLED === '1',
+    roomScoutsEnabled: parsed.KS_ROOMS_SCOUTS_ENABLED === '1',
     roomStarsPerDay: parsed.KS_ROOMS_STARS_PER_DAY,
     roomLaunchGapMinutes: parsed.KS_ROOMS_LAUNCH_GAP_MINUTES,
     composerPolicy: parsed.KS_COMPOSER_POLICY,
@@ -612,6 +622,7 @@ const reasoningVariables = z.object({
   KS_REASONING_ROOM_ENABLED: z.enum(['0', '1']).default('0'),
   KS_REASONING_ROOM_GENERATION: positiveInteger(1, 2_147_483_647),
   KS_ROOMS_FEED_ENABLED: z.enum(['0', '1']).default('0'),
+  KS_ROOMS_SCOUTS_ENABLED: z.enum(['0', '1']).default('0'),
   KS_REASONING_PROVIDER: z.enum(['none', 'minimax']).default('none'),
   MINIMAX_API_KEY: z.string().optional(),
   KS_MINIMAX_MODEL: z.enum(MINIMAX_MODELS).default('MiniMax-M3.1-Flash'),
@@ -671,6 +682,7 @@ function reasoningSettings(parsed: z.infer<typeof reasoningVariables>): Reasonin
     roomEnabled: parsed.KS_REASONING_ROOM_ENABLED === '1',
     roomGeneration: parsed.KS_REASONING_ROOM_GENERATION,
     roomFeedEnabled: parsed.KS_ROOMS_FEED_ENABLED === '1',
+    roomScoutsEnabled: parsed.KS_ROOMS_SCOUTS_ENABLED === '1',
     ...(parsed.KS_REASONING_PROVIDER === 'minimax' && key !== undefined
       ? {
           minimax: {

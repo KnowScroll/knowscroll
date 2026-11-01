@@ -11,6 +11,7 @@ import {
   contributeQueue,
   feedHeartbeatQueue,
   nightlyRitualsQueue,
+  scoutHeartbeatQueue,
   summariseQueue,
 } from './modules/rooms/public.js';
 import { prepareBufferQueue } from './modules/composer/public.js';
@@ -63,6 +64,7 @@ export const releaseQueues = queueRegistry([
   summariseQueue,
   nightlyRitualsQueue,
   feedHeartbeatQueue,
+  scoutHeartbeatQueue,
   applyActionEvidenceQueue,
   projectScrollReadingQueue,
   projectEncounterActivityQueue,

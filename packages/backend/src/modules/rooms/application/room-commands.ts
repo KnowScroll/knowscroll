@@ -91,6 +91,7 @@ export function makeRoomCommands(p: RoomPorts) {
               await p.rooms.end(entered.lock, entered.owner.accountId, 'left', now);
               await p.presence.clear(entered.lock, entered.owner.accountId);
               await p.positions.forget(entered.lock, entered.owner.accountId);
+              await p.scouts.forgetMember(entered.lock, entered.owner.accountId);
               await p.sky.forgetMember(entered.lock, entered.owner.accountId);
               await p.launches.forgetMember(entered.lock, entered.owner.accountId);
               await p.questions.forgetMember(entered.lock, entered.owner.accountId);
@@ -183,10 +184,35 @@ export function makeRoomCommands(p: RoomPorts) {
               await p.rooms.end(lock, targetAccountId, 'removed', now);
               await p.presence.clear(lock, targetAccountId);
               await p.positions.forget(lock, targetAccountId);
+              await p.scouts.forgetMember(lock, targetAccountId);
               await p.sky.forgetMember(lock, targetAccountId);
               await p.launches.forgetMember(lock, targetAccountId);
               await p.questions.forgetMember(lock, targetAccountId);
               await p.rooms.announce(lock, now);
+              return accepted();
+            });
+          }
+          if (action.kind === 'stop_scout' || action.kind === 'allow_scout') {
+            const targetAccountId = await p.people.accountOf(scope, action.personId);
+            const target = targetAccountId === undefined ? undefined : await p.rooms.memberOf(lock, targetAccountId);
+            // A moderator may stop the scout of any current member except themselves; one that is not there is the one refusal.
+            if (
+              targetAccountId === undefined ||
+              target === undefined ||
+              target.endedBy !== null ||
+              targetAccountId === owner.accountId
+            )
+              return refuse('unavailable');
+            const stopped = action.kind === 'stop_scout';
+            const scout = await p.scouts.scoutOf(lock, targetAccountId);
+            if (scout === undefined || scout.stopped === stopped) return refuse('unavailable');
+            return ok(async () => {
+              await p.scouts.setStopped(lock, {
+                accountId: targetAccountId,
+                stopped,
+                byAccountId: owner.accountId,
+                now,
+              });
               return accepted();
             });
           }

@@ -23,9 +23,10 @@ const READ_LIMIT_MAX = 100;
  */
 export const makeReadLibraryFinds =
   (db: Kysely<Database>): ReadLibraryFinds =>
-  async (topic, limit, only) => {
+  async (topic, limit, only, within) => {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > READ_LIMIT_MAX) throw new Error('LIBRARY_FINDS_LIMIT');
-    const topicIds = topicIdsOf(topic);
+    // A choice of planets narrows the topic and never widens it: only the topic's own planets count.
+    const topicIds = topicIdsOf(topic).filter((id) => within === undefined || within.includes(id));
     if (topicIds.length === 0) return [];
     const result = await sql<Row>`select a.id as asset_id, a.revision, a.kind, r.title, d.summary
       from content.assets a

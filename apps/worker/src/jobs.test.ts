@@ -5,8 +5,10 @@ import { COMPOSE_ENCOUNTER, type ComposeEncounter, type ComposerSnapshot } from 
 import {
   RUN_FEED_HEARTBEAT,
   RUN_NIGHTLY_RITUALS,
+  RUN_SCOUT_HEARTBEAT,
   feedHeartbeatQueue,
   nightlyRitualsQueue,
+  scoutHeartbeatQueue,
 } from '@knowscroll/backend/modules/rooms';
 import { jobWiring } from './jobs.js';
 import { WORKER_CONFIG } from './tokens.js';
@@ -76,6 +78,24 @@ describe('the residents’ heartbeat (rooms.feed-heartbeat, v3 R-8, D-248)', () 
   it('has its consumer built from the worker wiring', () => {
     const provided = jobWiring.filter(
       (provider) => typeof provider === 'object' && 'provide' in provider && provider.provide === RUN_FEED_HEARTBEAT,
+    );
+    expect(provided).toHaveLength(1);
+  });
+});
+
+describe('the scouts’ heartbeat (rooms.scout-heartbeat, v3 R-9, D-259)', () => {
+  it('is a declared release queue that looks three times a day a little after the residents, with a payload of its version only', () => {
+    const declared = releaseQueues.find((queue) => queue.name === scoutHeartbeatQueue.name);
+    expect(declared?.schedule).toEqual({ cron: '37 0,8,16 * * *', payload: { v: 1 } });
+    expect(scoutHeartbeatQueue.payload.safeParse({ v: 1 }).success).toBe(true);
+    // It names no member, no room and no universe: whose scouts to look at is read from rows, under the room's own scope.
+    expect(scoutHeartbeatQueue.payload.safeParse({ v: 1, universeId: 'x' }).success).toBe(false);
+    expect(scoutHeartbeatQueue.payload.safeParse({ v: 1, ownerId: 'x' }).success).toBe(false);
+  });
+
+  it('has its consumer built from the worker wiring', () => {
+    const provided = jobWiring.filter(
+      (provider) => typeof provider === 'object' && 'provide' in provider && provider.provide === RUN_SCOUT_HEARTBEAT,
     );
     expect(provided).toHaveLength(1);
   });

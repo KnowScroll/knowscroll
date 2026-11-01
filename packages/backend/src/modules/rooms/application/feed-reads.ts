@@ -5,8 +5,11 @@ import {
   ReplaceRoomMemorySchema,
   RoomFeedSchema,
   RoomMemoryReplacementSchema,
+  SCOUT_LABEL,
   type AiAuthor,
+  type PublicPersonRef,
   type RoomFeedStrip,
+  type ScoutAuthor,
   type RoomMemory,
 } from '@knowscroll/contracts';
 import type { z } from 'zod';
@@ -20,6 +23,8 @@ import { enterRoom } from './gate.js';
 import type { MemoryView } from './feed-ports.js';
 import { ok, refuse, roomEnvelope, type ContentCard, type Result, type RoomLock, type RoomPorts } from './ports.js';
 import { identityOf, inhabitantsOf, limitsOf } from './view.js';
+import { scoutViewOf } from './scout-commands.js';
+import type { FindRow } from './feed-ports.js';
 
 const residentOf = (cast: readonly CastMember[], inhabitant: InhabitantId): AiAuthor => ({
   kind: 'ai',
@@ -28,27 +33,59 @@ const residentOf = (cast: readonly CastMember[], inhabitant: InhabitantId): AiAu
   label: AI_INHABITANT_LABELS[inhabitant],
 });
 
+/**
+ * Who signs a find, for this reader: the resident, or the member whose scout it was, by their public profile. A scout whose owner
+ * the reader blocked, or whose owner cannot be named, is nobody's to show: the reader sees no scout post from them (D-259).
+ */
+async function authorOf(
+  p: RoomPorts,
+  scope: Parameters<RoomPorts['people']['byAccounts']>[0],
+  readerAccountId: string,
+  cast: readonly CastMember[],
+  rows: readonly FindRow[],
+): Promise<(row: FindRow) => AiAuthor | ScoutAuthor | undefined> {
+  const owners = [...new Set(rows.flatMap((row) => (row.author.kind === 'scout' ? [row.author.ownerAccountId] : [])))];
+  const people: ReadonlyMap<string, PublicPersonRef> =
+    owners.length === 0 ? new Map() : await p.people.byAccounts(scope, owners);
+  const blocked = owners.length === 0 ? new Set<string>() : await p.blocked(scope, readerAccountId, owners);
+  return (row) => {
+    if (row.author.kind === 'resident') return residentOf(cast, row.author.inhabitant);
+    const owner = people.get(row.author.ownerAccountId);
+    return owner === undefined || blocked.has(row.author.ownerAccountId)
+      ? undefined
+      : { kind: 'agent', sentBy: owner, label: SCOUT_LABEL };
+  };
+}
+
 /** What a reader is told the residents remember: the words while they stand, nothing once they were erased. */
 const memoryShown = (memory: MemoryView | undefined): RoomMemory =>
   memory?.state === 'ready' && memory.body !== null
     ? { state: 'ready', text: memory.body, by: memory.source === 'moderator' ? 'moderator' : 'residents' }
     : { state: 'none' };
 
+/** How many of the newest finds the Now strip looks through to find one this reader may see. */
+const STRIP_LOOKS = 5;
+
 /**
  * What the Now strip says of the feed: the newest find a reader may see, or nothing. A reader whose AI level is Off is told
- * nothing, because nothing a resident posts on its own reaches them. A find a moderator removed is not listed, so it is not here.
+ * nothing, because nothing a resident posts on its own reaches them. A find a moderator removed is not listed, so it is not here,
+ * and neither is a scout's find whose owner the reader blocked.
  */
 export async function feedStrip(
   p: RoomPorts,
+  scope: Parameters<RoomPorts['people']['byAccounts']>[0],
   lock: RoomLock,
-  reader: { readonly aiLevel: AiLevel },
+  reader: { readonly aiLevel: AiLevel; readonly accountId: string },
   cast: readonly CastMember[],
 ): Promise<RoomFeedStrip | undefined> {
   if (reader.aiLevel === 'off') return undefined;
-  const [newest] = await p.feed.finds(lock, 1);
-  return newest === undefined
-    ? undefined
-    : { by: residentOf(cast, newest.inhabitant), postedAt: newest.postedAt.toISOString() };
+  const rows = await p.feed.finds(lock, STRIP_LOOKS);
+  const authorOfRow = await authorOf(p, scope, reader.accountId, cast, rows);
+  for (const row of rows) {
+    const by = authorOfRow(row);
+    if (by !== undefined) return { by, postedAt: row.postedAt.toISOString() };
+  }
+  return undefined;
 }
 
 /**
@@ -82,15 +119,17 @@ export function makeFeed(p: RoomPorts) {
         const cardOf = new Map(
           cards.map((card) => [`${card.target.assetId}:${String(card.target.assetRevision)}`, card]),
         );
+        const authorOfRow = await authorOf(p, scope, entered.owner.accountId, cast, rows);
         const posts = rows.flatMap((row) => {
           const key = `${row.asset.assetId}:${String(row.asset.assetRevision)}`;
           const card: ContentCard = cardOf.get(key) ?? { status: 'unavailable', target: row.asset };
-          return row.note === null
+          const author = authorOfRow(row);
+          return row.note === null || author === undefined
             ? []
             : [
                 {
                   discussionId: row.discussionId,
-                  author: residentOf(cast, row.inhabitant),
+                  author,
                   postedAt: row.postedAt.toISOString(),
                   content: card,
                   ...(member.aiLevel === 'quieter' ? { folded: true as const } : { note: row.note }),
@@ -111,6 +150,9 @@ export function makeFeed(p: RoomPorts) {
             canEditMemory: member.role === 'moderator',
             aiLevel: member.aiLevel,
             limits: limitsOf().feed,
+            ...(p.scoutsEnabled
+              ? { scout: await scoutViewOf(p, lock, entered.owner.accountId, entered.standing.room.topic) }
+              : {}),
           }),
         );
       });

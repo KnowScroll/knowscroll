@@ -103,6 +103,8 @@ export interface RoomWorld {
 export interface RoomWorldOptions {
   /** Residents may speak unprompted (`KS_REASONING_ROOM_ENABLED`). Off by default, as in a world that has not turned them on. */
   readonly residentsEnabled?: boolean;
+  /** Members may send scouts (`KS_ROOMS_SCOUTS_ENABLED`). Off by default, as in a world that has not turned them on. */
+  readonly scoutsEnabled?: boolean;
   /** The most stars a room earns on one UTC day (`KS_ROOMS_STARS_PER_DAY`); the default is three. */
   readonly starsPerDay?: number;
   /** The rest between the start of one Launch and the next, in minutes (`KS_ROOMS_LAUNCH_GAP_MINUTES`); the default is two hours. */
@@ -149,6 +151,7 @@ export async function roomWorld(
     checkAudience: makeCheckAssetAudience(database.db, [() => Promise.resolve(new Set())]),
     now: () => clock.now,
     residentsEnabled: options.residentsEnabled ?? false,
+    scoutsEnabled: options.scoutsEnabled ?? false,
     ...(options.starsPerDay === undefined ? {} : { starsPerDay: options.starsPerDay }),
     ...(options.launchGapMinutes === undefined ? {} : { launchGapMinutes: options.launchGapMinutes }),
   };
