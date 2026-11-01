@@ -484,6 +484,7 @@ Back). While recording is paused the exposure is marked `made_while_paused` (mig
 written (`insertExposure`, `markExposureActivated`), from the recording state read under the root the caller holds, and is never
 taken back. The reads that tell a person what they opened leave a marked exposure out: the export's `encounters` list, the
 "continue" prompt (`readRecentExposures`) and the "opened" marks of a thread's Parts, a room's Parts and a branch's card
-(`readVisitedAssets`). The gates that serve the open item (`hasActivatedExposure`, the document and media reads, the Composer's
-repeat avoidance) still count it.
+(`readVisitedAssets`). The gates that serve the open item (`hasActivatedExposure`, the document and media reads) still count it. The
+Composer reads no exposure: its routing history reads `encounter_lineage` and `recording_segments`, and a paused-time
+opening writes neither, so repeat avoidance already ignores it.
 *Implemented; CI-verified against PostgreSQL; not yet run on dev.*

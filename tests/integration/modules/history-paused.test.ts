@@ -4,7 +4,12 @@ import { exportCurrentPerson } from '@knowscroll/backend/erasure-registry';
 import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { dataExportFor } from '@knowscroll/backend/modules/identity/nest-providers';
-import { hasActivatedExposure, readVisitedAssets } from '@knowscroll/backend/modules/experience/nest-providers';
+import {
+  experienceEvidenceReadProviders,
+  hasActivatedExposure,
+  readVisitedAssets,
+} from '@knowscroll/backend/modules/experience/nest-providers';
+import { READ_ROUTING_HISTORY, type ReadRoutingHistory } from '@knowscroll/backend/modules/experience';
 import type { NavigationOutcome } from '@knowscroll/contracts';
 import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
@@ -203,5 +208,44 @@ describe('History while recording is paused (real PostgreSQL)', () => {
       made_while_paused: false,
     });
     expect(await encountersInExport(person)).toHaveLength(1);
+  });
+
+  it('leaves the routing history the Composer reads empty for what was opened while paused, and fills it after a resume', async () => {
+    const person = await recordingPerson(database);
+    for (let index = 0; index < 4; index++) await importScroll();
+    const provider = experienceEvidenceReadProviders().find((candidate) => candidate.provide === READ_ROUTING_HISTORY);
+    if (provider === undefined || !('useValue' in provider)) throw new Error('CI expected the routing history reader');
+    const routing = provider.useValue as ReadRoutingHistory;
+    const recent = async () => {
+      const read = await withScope()(person.authority, (scope) =>
+        routing(scope, { evaluatedAt: new Date().toISOString(), candidates: [], candidateAssetIds: [] }),
+      );
+      if (read.kind !== 'entered') throw new Error('scope refused');
+      return read.value.recent;
+    };
+    const rowsOf = async (table: 'experience.encounter_lineage' | 'experience.recording_segments') =>
+      (await database.db.selectFrom(table).select('exposure_id').where('universe_id', '=', person.universeId).execute())
+        .length;
+
+    await setRecording(database, person, 1, false);
+    const whilePaused = [await exploreOpen(person, 2), await exploreOpen(person, 2), await directOpen(person, 2)];
+    // Each paused-time opening wrote an exposure and nothing the Composer reads: no lineage, no recording segment, even after
+    // the activity job for it has run. So repeat avoidance never sees them, and the Composer reads no exposure at all.
+    expect((await exposuresOf(person)).filter((row) => row.made_while_paused)).toHaveLength(whilePaused.length);
+    for (const item of whilePaused)
+      await cases.projectActivity({
+        v: 1,
+        universeId: person.universeId,
+        privacyEpoch: 1,
+        exposureId: item.exposureId,
+      });
+    expect([await rowsOf('experience.encounter_lineage'), await rowsOf('experience.recording_segments')]).toEqual([
+      0, 0,
+    ]);
+    expect(await recent()).toEqual([]);
+
+    await setRecording(database, person, 2, true);
+    const resumed = await exploreOpen(person, 3);
+    expect((await recent()).map((entry) => entry.exposureId)).toEqual([resumed.exposureId]);
   });
 });
