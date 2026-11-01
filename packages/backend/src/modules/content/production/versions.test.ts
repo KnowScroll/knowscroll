@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { isReadingInteractionAllowed } from '../public.js';
-import { produceScrollJob, produceScrollQueue, PRODUCE_SCROLL_CLAIM_SECONDS } from './events.js';
+import {
+  produceAnswerQueue,
+  produceScrollJob,
+  produceScrollQueue,
+  PRODUCE_ANSWER_CLAIM_SECONDS,
+  PRODUCE_SCROLL_CLAIM_SECONDS,
+} from './events.js';
 import { MINIMAX_REQUEST_TIMEOUT_MAX_MS } from '../../../infrastructure/config/index.js';
 import { makeRunScrollProduction } from './job.js';
 import { ASK_SUPPORT_BATCH_SENTENCES, ASK_SUPPORT_MAX_BATCHES } from '../domain/ask-support.js';
@@ -160,23 +166,33 @@ describe('the answer to a question is written and checked as a pair (D-250)', ()
 describe('how long a production delivery may hold its claim (D-198, D-267)', () => {
   /**
    * The reasoning README's rule for a job that calls `propose`: each request waits 10 s for the quota preflight, up to
-   * its deadline and 10 s for the two scope locks. Written out again, so the queue cannot drift from it by editing the
-   * constant it is derived from; 180 s is the margin for the research and the database steps of a take.
+   * its deadline and 10 s for the two scope locks. Written out again, so the queues cannot drift from it by editing the
+   * constants they are derived from; 180 s is the margin for the research and the database steps of a take.
    */
   const claimNeeded = (requests: number, deadlineSeconds: number): number =>
     requests * (10 + deadlineSeconds + 10) + 180;
+  const deadlineSeconds = MINIMAX_REQUEST_TIMEOUT_MAX_MS / 1000;
 
-  it('outlasts the worst case of a take: every request it may send, one after the other, at the largest timeout, plus the waits around them and a margin', () => {
-    const deadlineSeconds = MINIMAX_REQUEST_TIMEOUT_MAX_MS / 1000;
+  it('gives a library recipe the claim of its six requests, at the largest timeout', () => {
     expect(deadlineSeconds).toBe(300);
-    // The most requests a take can send is the answer to a question: a library recipe sends six.
-    expect(Math.max(REQUEST_BOUND_V2_PER_TOPIC, REQUEST_BOUND_ASK_ORDER)).toBe(REQUEST_BOUND_ASK_ORDER);
-    expect(PRODUCE_SCROLL_CLAIM_SECONDS).toBeGreaterThanOrEqual(claimNeeded(REQUEST_BOUND_ASK_ORDER, deadlineSeconds));
-    expect(PRODUCE_SCROLL_CLAIM_SECONDS).toBe(4020);
-    expect(produceScrollQueue.policy.expireInSeconds).toBe(PRODUCE_SCROLL_CLAIM_SECONDS);
+    expect(PRODUCE_SCROLL_CLAIM_SECONDS).toBe(claimNeeded(6, deadlineSeconds));
+    expect(PRODUCE_SCROLL_CLAIM_SECONDS).toBe(2100);
+    expect(produceScrollQueue.policy.expireInSeconds).toBe(2100);
   });
 
-  it('can fail: one request more than the claim was sized for would not fit', () => {
-    expect(claimNeeded(REQUEST_BOUND_ASK_ORDER + 1, 300)).toBeGreaterThan(PRODUCE_SCROLL_CLAIM_SECONDS);
+  it('gives the answer to a question, on a queue of its own, the claim of its twelve requests', () => {
+    expect(produceAnswerQueue.name).toBe('content.produce-answer');
+    expect(PRODUCE_ANSWER_CLAIM_SECONDS).toBe(claimNeeded(12, deadlineSeconds));
+    expect(PRODUCE_ANSWER_CLAIM_SECONDS).toBe(4020);
+    expect(produceAnswerQueue.policy.expireInSeconds).toBe(4020);
+  });
+
+  it('keeps the two queues alike in everything but the claim, so the same consumer serves both', () => {
+    const { expireInSeconds: scrollClaim, ...scrollPolicy } = produceScrollQueue.policy;
+    const { expireInSeconds: answerClaim, ...answerPolicy } = produceAnswerQueue.policy;
+    expect(answerPolicy).toEqual(scrollPolicy);
+    expect(answerClaim).toBeGreaterThan(scrollClaim);
+    expect(produceAnswerQueue.payload).toBe(produceScrollQueue.payload);
+    expect(produceAnswerQueue.exclusive).toBe(produceScrollQueue.exclusive);
   });
 });

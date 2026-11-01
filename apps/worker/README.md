@@ -111,7 +111,7 @@ from the personal harness. Nonpersonal Scroll supply requires explicit worker co
 the database root enabled/generation gate; both default disabled. Shared sweep/purge/operator
 maintenance still records and resolves production liabilities while production is disabled.
 
-The `content.produce-scroll` consumer (`src/production-jobs.ts`, #239) runs the production use case for
+The `content.produce-scroll` and `content.produce-answer` consumers (`src/production-jobs.ts`, #239, D-267) run the production use case for
 one recipe and take per delivery, with resume, so a redelivery continues the same business run. It is
 registered only when `KS_REASONING_PRODUCTION_ENABLED=1`; otherwise jobs wait in the queue. The
 `supply.resolve-request` consumer advances a person's request (a free-text match, the scope step of a question asked from a Scroll, the wait for

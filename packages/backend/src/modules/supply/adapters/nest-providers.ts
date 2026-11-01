@@ -31,6 +31,7 @@ import {
   produceScrollJob,
   produceScrollSingletonKey,
   produceScrollQueue,
+  produceAnswerQueue,
   type ChooseScrollRecipe,
   type ReadDiscoveryCandidates,
   type ReadExactEncounter,
@@ -110,6 +111,18 @@ const sendProduction =
   (scope: PersonalScopeTx, recipe: string, take: number): Promise<void> => {
     const job = produceScrollJob(recipe, take);
     return enqueue(scope, produceScrollQueue, job, {
+      singletonKey: produceScrollSingletonKey(job),
+      duplicate: 'ignore',
+      priority: REQUEST_PRIORITY,
+    });
+  };
+
+/** Sends the production job of one take of an ask order's answer, on its own queue, with a person's priority. */
+const sendAnswerProduction =
+  (enqueue: EnqueueJob) =>
+  (scope: PersonalScopeTx, recipe: string, take: number): Promise<void> => {
+    const job = produceScrollJob(recipe, take);
+    return enqueue(scope, produceAnswerQueue, job, {
       singletonKey: produceScrollSingletonKey(job),
       duplicate: 'ignore',
       priority: REQUEST_PRIORITY,
@@ -200,6 +213,7 @@ export function supplyProviders(t: {
             : new Set(query.units);
         },
         enqueueProduction: sendProduction(enqueue),
+        enqueueAnswerProduction: sendAnswerProduction(enqueue),
         readCandidates,
         readExact,
         lockCurrent,

@@ -229,7 +229,9 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
 
   async function setup(caps?: Parameters<typeof build>[0]) {
     // Each test starts with no queued production, no ledger and no earlier asks: the caps count a day's rows.
-    await sql`delete from pgboss.job where name = 'content.produce-scroll'`.execute(database.db);
+    await sql`delete from pgboss.job where name in ('content.produce-scroll', 'content.produce-answer')`.execute(
+      database.db,
+    );
     await sql`delete from supply.requests`.execute(database.db);
     await sql`delete from supply.ask_orders`.execute(database.db);
     writer = () => answerWith(fixtureAnswer());
@@ -291,11 +293,14 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     if (row.ask_order_id === null || row.ask_asset_id === null) throw new Error('CI: the request made no ask order');
     return { orderId: row.ask_order_id, assetId: row.ask_asset_id, recipe: madeToOrderKey(row.ask_order_id) };
   };
-  const queuedProduction = async () =>
+  /** The production jobs waiting, on either queue: an ask order's answer is on its own, never on the library's (D-267). */
+  const queuedProductionRows = async () =>
     (
-      await sql<{ data: { recipe: string; take: number } }>`select data from pgboss.job
-        where name = 'content.produce-scroll' and state = 'created' order by created_on`.execute(database.db)
-    ).rows.map((row) => row.data);
+      await sql<{ name: string; data: { recipe: string; take: number } }>`select name, data from pgboss.job
+        where name in ('content.produce-scroll', 'content.produce-answer') and state = 'created'
+        order by created_on`.execute(database.db)
+    ).rows;
+  const queuedProduction = async () => (await queuedProductionRows()).map((row) => row.data);
   const count = async (
     table: 'experience.exposures' | 'evidence.observations' | 'evidence.action_events',
     universe: string,
@@ -337,6 +342,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         { order_id: order.orderId },
       ]);
       expect(await queuedProduction()).toEqual([expect.objectContaining({ recipe: order.recipe, take: 1 })]);
+      // The answer to a question is on the queue whose claim covers its twelve requests, not the library's (D-267).
+      expect((await queuedProductionRows()).map((row) => row.name)).toEqual(['content.produce-answer']);
       expect(scopeModel.calls).toHaveLength(0);
       // An ask is never consumption evidence: nothing was opened, observed or acted on because of it.
       expect({

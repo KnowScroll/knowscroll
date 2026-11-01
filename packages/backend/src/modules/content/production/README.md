@@ -61,7 +61,7 @@ flags are not yet seen on a real model).
   stored it names the repair run as its writer run (`store.useWriterRun`, inside the publication, so a refused publication leaves the job as it was), so provenance and the lineage check agree. Receipts
   (`answer_check`, `draft_flagged` with the superseded run's id) are code-only except the checker's short problems, which are operator
   notes on the private job. A flagged call also keeps its question, options, marked answer and explanation (`FlaggedCall`, nothing else of the draft), so the operator can read what was flagged although that draft is not stored. `answerChecksOf` reads the receipts back; `review-show` and `production-status` show the summary with those calls, and `review-list` the summary without their text.
-- **The claim.** `content.produce-scroll` holds its claim `PRODUCE_SCROLL_CLAIM_SECONDS` (`events.ts`): the most requests any take sends (twelve, for the answer to a question, D-267) times the largest request timeout the transport accepts (`MINIMAX_REQUEST_TIMEOUT_MAX_MS`, 300 s) and the waits around each request (20 s, the reasoning README's rule), plus 180 s for the research and the database steps: 4,020 s today. A library recipe sends six.
+- **The claim.** A claim is the most requests a take sends times the largest request timeout the transport accepts (`MINIMAX_REQUEST_TIMEOUT_MAX_MS`, 300 s) and the waits around each request (20 s, the reasoning README's rule), plus 180 s for the research and the database steps (`events.ts`). `content.produce-scroll` holds `PRODUCE_SCROLL_CLAIM_SECONDS`, for the six requests of a library recipe: 2,100 s. The answer to a question has a queue of its own, `content.produce-answer`, with `PRODUCE_ANSWER_CLAIM_SECONDS` for its twelve requests: 4,020 s (D-267). The payload, the singleton key, the policy and the consumer are the same; only supply's ask path sends to it, so a library recipe whose worker died is still retried after 35 minutes, not 67.
 - **Regeneration.** `content regenerate --only <keys>` sends the next take of a v2 recipe whose Scroll is served. `store.create` lets a
   take of a v2 recipe follow a take that was rejected or whose Scroll was released, never one still held or of unknown outcome. A
   recipe has three takes to a **production version**, which is the budget: `SCROLL_PRODUCTION_V2_VERSION` changes whenever the v2
@@ -107,7 +107,7 @@ checker flags the two known faulty sentences, how many sentences code sets aside
   batches, and the writer's kept answer and the batches already answered are read from the ledger on resume. The person sees the existing honest state and
   Try again (three takes in all).
 - **The bound (D-267)** is twelve paid requests a take (`REQUEST_BOUND_ASK_ORDER` = 2 + 2 x (4 batches + 1)): the writer once and one repair, and for each of the
-  two drafts its batches and one repair of an unusable reply. The claim is sized for it (`PRODUCE_SCROLL_CLAIM_SECONDS`, 4,020 s).
+  two drafts its batches and one repair of an unusable reply. The claim of its own queue is sized for it (`content.produce-answer`, `PRODUCE_ANSWER_CLAIM_SECONDS`, 4,020 s).
   `requestBoundOf(key, mode)` needs the order's mode, which only the job knows once it has read the order. The Quick answer (supply) uses the same
   checker in one request and keeps its own bound of six.
 - **Runs and receipts.** The check's runs (one for each batch of each draft) and the repair's run are derived from the job and closed with it. The
@@ -121,7 +121,7 @@ checker flags the two known faulty sentences, how many sentences code sets aside
 
 ## Jobs, takes and who sends them
 
-Production is the `content.produce-scroll` job (`events.ts`), one per **recipe, recipe version and
+Production is the `content.produce-scroll` job (`events.ts`; the answer to a question is the same job on `content.produce-answer`, D-267), one per **recipe, recipe version and
 take**. The payload is IDs only: the recipe key, the version and the take. The queue is `exclusive`:
 a second send for the same recipe, version and take is refused while one is queued or running, and a
 finished or failed job never blocks a new send. The consumer (`job.ts`, wired in `apps/worker`) runs
@@ -225,7 +225,7 @@ a new `SCROLL_PRODUCTION_VERSION` (and `WRITER_PROMPT_VERSION`), never an edit o
 When a Scroll fails, `reasoning rejected` lists the refused answers with the validator's findings
 (`packages/backend/src/reasoning/README.md`); that is where to look first.
 
-Jobs: `content.produce-scroll` (above). Notices: none. Erasure: nonpersonal supply, nothing to erase.
+Jobs: `content.produce-scroll` and `content.produce-answer` (above). Notices: none. Erasure: nonpersonal supply, nothing to erase.
 Operator steps: `docs/v2/operations/scroll-production.md`.
 
 The recipes the producer runs are the library plan in `../domain/library/` (one file per topic

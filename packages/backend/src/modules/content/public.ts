@@ -264,6 +264,7 @@ export function isReadingInteractionAllowed(blockType: string, interactionKind: 
  */
 export {
   produceScrollQueue,
+  produceAnswerQueue,
   produceScrollJob,
   produceScrollSingletonKey,
   ProduceScrollJobSchema,

@@ -89,8 +89,8 @@ itself fails `schema-structure.test.ts`, instead of silently masking every path.
   repair doubles it. Declare `expireInSeconds ≥ 2 × (10 + request deadline in seconds + 10) + 30`
   (550 s with the defaults, 670 s at the 300 s maximum). A job that makes several proposals counts
   every request it may send at `10 + 300 + 10` s each: the Scroll production job twelve for the answer
-  to a question plus 180 s for research and database steps (`PRODUCE_SCROLL_CLAIM_SECONDS`, 4,020 s,
-  D-267), and the Quick answer job its six paid attempts (1,950 s). Below that, pg-boss expires a
+  to a question plus 180 s for research and database steps (`content.produce-answer`,
+  `PRODUCE_ANSWER_CLAIM_SECONDS`, 4,020 s, D-267), a library recipe its six (`content.produce-scroll`, 2,100 s), and the Quick answer job its six paid attempts (1,950 s). Below that, pg-boss expires a
   delivery that is still waiting on the provider; the next delivery finds the attempt `dispatched`, marks it
   `unknown` (never resent) and the operator has to write it off.
 - **Aborts.** A graceful stop (the delivery's signal) before the request leaves records a failure
