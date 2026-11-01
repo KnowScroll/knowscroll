@@ -71,8 +71,9 @@ flags are not yet seen on a real model).
 ## The support check of an ask order's answer (S-7b to S-7d, D-250 to D-252, D-263, D-265 to D-267, D-280 to D-282)
 
 Status: **implemented**, runtime-verified with labelled CI fixture models on real PostgreSQL. **Measured on real MiniMax (1 Nov, v3):** every answer checked and both known
-errors flagged, but 59 of 101 sentences `unsupported`, almost all sound. **Planned:** the same replay with the v4 text as a candidate (D-280), then v4 released. The acceptance is in
-#605: both known errors stay `unsupported`, the Big O answer has at most three `unsupported` sentences, and the share falls well below a third.
+errors flagged, but 59 of 101 sentences `unsupported`, almost all sound. **Planned:** v4 and writer v5 are live on dev with S-7d (D-281) and are measured by the same replay right after. The acceptance is in
+#605: both known errors stay `unsupported`, the Big O answer has at most three `unsupported` sentences, and the share falls well below a third. If it fails, a revised text is tried as a
+candidate file (D-280), and then the next pair is released or v4 and writer v5 are reverted.
 
 - **The check** (`ask-support.ts`, `ask-support-step.ts`, `writer-stage.ts`, `domain/ask-support.ts`). For the answer to a question (mode `question`),
   after the writer's answer has passed the validator and compiled, the role `content.ask-support-check` (`ask-support-check.v4`) is shown the

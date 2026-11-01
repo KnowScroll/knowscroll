@@ -42,7 +42,7 @@ describe('reading candidate checker instructions (D-280)', () => {
     expect(candidate.version).not.toBe(ASK_SUPPORT_CHECK_VERSION);
   });
 
-  it('accepts the production instructions themselves, so the text of a version can be replayed as a candidate before it is released', () => {
+  it('accepts the production instructions themselves, so the text of a released version can be replayed as a candidate beside a revision of it', () => {
     const candidate = accepted(encode(ASK_SUPPORT_INSTRUCTIONS));
     expect(candidate.text).toBe(ASK_SUPPORT_INSTRUCTIONS);
   });
