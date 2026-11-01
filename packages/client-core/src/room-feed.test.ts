@@ -91,8 +91,21 @@ describe('the words of the feed', () => {
         now,
       ),
     ).toEqual([
-      { key: `replied:${id(3)}`, label: 'Asha', detail: 'replied · 20 min ago', discussionId: id(3) },
-      { key: `posted:${id(4)}`, label: 'Nova', detail: 'posted · 2 h ago', discussionId: id(4) },
+      {
+        key: `replied:${id(3)}`,
+        label: 'Asha',
+        detail: 'replied · 20 min ago',
+        spoken: 'Asha replied · 20 min ago',
+        discussionId: id(3),
+      },
+      {
+        key: `posted:${id(4)}`,
+        label: 'Nova',
+        detail: 'posted · 2 h ago',
+        spoken: 'AI resident Nova posted · 2 h ago',
+        agent: 'resident',
+        discussionId: id(4),
+      },
     ]);
   });
 

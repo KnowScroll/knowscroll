@@ -81,7 +81,16 @@ describe('who a find is by, in words', () => {
     const now = new Date('2026-11-04T10:00:00.000Z');
     expect(
       liveChips([{ kind: 'posted', by: SCOUT, at: '2026-11-04T08:37:00.000Z', discussionId: id(3) }], now),
-    ).toEqual([{ key: `posted:${id(3)}`, label: 'Asha’s scout', detail: 'posted · 1 h ago', discussionId: id(3) }]);
+    ).toEqual([
+      {
+        key: `posted:${id(3)}`,
+        label: 'Asha’s scout',
+        detail: 'posted · 1 h ago',
+        spoken: 'AI scout, sent by Asha, posted · 1 h ago',
+        agent: 'scout',
+        discussionId: id(3),
+      },
+    ]);
   });
 });
 

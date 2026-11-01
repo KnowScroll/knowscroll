@@ -14,6 +14,7 @@ import type {
 } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Icon, Text } from '@knowscroll/ui';
+import { OrbitRing } from './orbit-ring';
 import { discussionHref, feedHref, todayHref } from './room-links';
 import { SkySheet } from './sky-sheet';
 
@@ -26,6 +27,7 @@ function Chip({
   accessibilityLabel,
   star,
   live,
+  agent,
 }: {
   readonly label: string;
   readonly detail?: string | undefined;
@@ -35,6 +37,8 @@ function Chip({
   readonly star?: boolean;
   /** A Launch is on: a small red mark with the word, never colour alone (R3 E). */
   readonly live?: boolean;
+  /** The chip is an AI's: the ring that marks an agent is drawn before its name, as on every AI label (D-279). */
+  readonly agent?: boolean;
 }) {
   return (
     <Pressable
@@ -46,6 +50,7 @@ function Chip({
     >
       {star === true ? <Icon name="star" size={16} color={content.ink} /> : null}
       {live === true ? <View style={styles.liveDot} aria-hidden /> : null}
+      {agent === true ? <OrbitRing size={16} /> : null}
       <Text variant="label">{label}</Text>
       {detail === undefined ? null : (
         <Text variant="bodyS" color={content.ink2} numberOfLines={1} style={styles.detail}>
@@ -160,7 +165,8 @@ export function NowStrip({
             key={chip.key}
             label={chip.label}
             detail={chip.detail}
-            accessibilityLabel={`Feed, ${chip.label} ${chip.detail}`}
+            accessibilityLabel={`Feed, ${chip.spoken}`}
+            agent={chip.agent !== undefined}
             onPress={() => router.push(discussionHref(roomId, chip.discussionId))}
             testID={index === 0 ? 'now-feed' : `now-feed-${String(index)}`}
           />

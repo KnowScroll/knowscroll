@@ -1,5 +1,5 @@
 import type * as React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import type { RoomFeedController, RoomFeedState } from '@knowscroll/client-core';
 import type {
   ConversationContentProjection,
@@ -381,6 +381,37 @@ describe('the live strip on the Now strip', () => {
     await fireEvent.press(screen.getByTestId('now-feed-open'));
     expect(mockPush).toHaveBeenCalledWith(`/rooms/${roomId}/feed`);
     expect(screen.queryByText(/online|people here|\d+ (people|members)/i)).not.toBeOnTheScreen();
+  });
+
+  it('draws the agent ring on a resident’s or scout’s chip and reads it as an AI, and draws none on a person’s', async () => {
+    const asha = { kind: 'person' as const, personId: id(7), handle: 'asha', displayName: 'Asha' };
+    const scout = { kind: 'agent' as const, sentBy: asha, label: 'AI · Scout' };
+    await wrap(
+      <NowStrip
+        scope={{} as never}
+        roomId={roomId}
+        today={undefined}
+        sky={sky}
+        launch={noLaunch}
+        live={[
+          event({ kind: 'replied', by: { kind: 'person', person: asha, you: false }, discussionId: id(4) }),
+          event({ discussionId: id(5) }),
+          event({ by: scout, discussionId: id(6) }),
+        ]}
+      />,
+    );
+    expect(within(screen.getByTestId('now-feed')).queryByTestId('orbit-ring')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('now-feed')).toHaveProp('accessibilityLabel', 'Feed, Asha replied · 2 h ago');
+    expect(within(screen.getByTestId('now-feed-1')).getByTestId('orbit-ring')).toBeOnTheScreen();
+    expect(screen.getByTestId('now-feed-1')).toHaveProp(
+      'accessibilityLabel',
+      'Feed, AI resident Nova posted · 2 h ago',
+    );
+    expect(within(screen.getByTestId('now-feed-2')).getByTestId('orbit-ring')).toBeOnTheScreen();
+    expect(screen.getByTestId('now-feed-2')).toHaveProp(
+      'accessibilityLabel',
+      'Feed, AI scout, sent by Asha, posted · 2 h ago',
+    );
   });
 
   it('shows no event when nothing happened, and still the way into the Feed', async () => {

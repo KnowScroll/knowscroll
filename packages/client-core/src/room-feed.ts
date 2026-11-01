@@ -92,22 +92,43 @@ export const timeOfDayWords = (iso: string): string =>
 export const dayWords = (iso: string): string =>
   new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
-/** One chip of the live strip above General: who did what in the Feed, and how long ago. Never a count. */
+/**
+ * One chip of the live strip above General: who did what in the Feed, and how long ago. Never a count. `agent` says the chip is an
+ * AI's, so the screen draws the ring; `spoken` is the whole chip in words for a screen reader, which always says what an AI is.
+ */
 export interface LiveChip {
   readonly key: string;
   readonly label: string;
   readonly detail: string;
+  readonly spoken: string;
+  readonly agent?: 'resident' | 'scout';
   readonly discussionId: string;
 }
 
-/** The live strip's chips (v3 R-8b, D-276): "Nova posted · 12 min ago", "Asha replied · 20 min ago". Nothing here is a number of people. */
+/**
+ * The live strip's chips (v3 R-8b, D-276, D-279): "Nova posted · 12 min ago", "Asha replied · 20 min ago". Nothing here is a number of
+ * people. A resident's or scout's chip is marked as an agent and is read as one: "AI resident Nova posted · 12 min ago".
+ */
 export function liveChips(events: readonly RoomLiveEvent[] | undefined, now: Date): LiveChip[] {
-  return (events ?? []).map((event) => ({
-    key: `${event.kind}:${event.discussionId}`,
-    label: feedAuthorName(event.by),
-    detail: `${event.kind === 'posted' ? 'posted' : 'replied'} · ${agoWords(now.getTime() - new Date(event.at).getTime())}`,
-    discussionId: event.discussionId,
-  }));
+  return (events ?? []).map((event) => {
+    const label = feedAuthorName(event.by);
+    const detail = `${event.kind === 'posted' ? 'posted' : 'replied'} · ${agoWords(now.getTime() - new Date(event.at).getTime())}`;
+    const agent = event.by.kind === 'ai' ? 'resident' : event.by.kind === 'agent' ? 'scout' : undefined;
+    const who =
+      event.by.kind === 'ai'
+        ? `AI resident ${label}`
+        : event.by.kind === 'agent'
+          ? `AI scout, sent by ${event.by.sentBy.displayName},`
+          : label;
+    return {
+      key: `${event.kind}:${event.discussionId}`,
+      label,
+      detail,
+      spoken: `${who} ${detail}`,
+      ...(agent === undefined ? {} : { agent }),
+      discussionId: event.discussionId,
+    };
+  });
 }
 
 // --- Sorts, votes and a member's own post (v3 R-8b) ----------------------------------------------

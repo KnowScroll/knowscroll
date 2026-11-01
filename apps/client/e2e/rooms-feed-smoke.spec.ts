@@ -66,6 +66,9 @@ for (const { name, size } of VIEWPORTS) {
     // The Now strip: the Feed beside the sky, with who found something and how long ago. No number of people.
     await expect(page.getByTestId('now-feed')).toContainText('Nova');
     await expect(page.getByTestId('now-feed')).toContainText('posted · 2 h ago');
+    // A resident's chip wears the agent ring and is read as an AI.
+    await expect(page.getByTestId('now-feed').getByTestId('orbit-ring')).toBeVisible();
+    await expect(page.getByTestId('now-feed')).toHaveAttribute('aria-label', 'Feed, AI resident Nova posted · 2 h ago');
     await expect(page.getByTestId('now-strip').getByText(/online/i)).toHaveCount(0);
     await shoot(page, `${name}-room-now-strip`);
     expect(await seriousViolations(page)).toEqual([]);
