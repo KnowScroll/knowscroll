@@ -14,9 +14,10 @@ type Acceptance = z.infer<typeof ChallengeLockAcceptanceSchema>;
  * stands, so a stranger, a person who left, a blocked pair and a message that is not a challenge are all `unavailable`
  * and cannot be told apart. Recording must be on and the generation current (D-083): otherwise nothing is stored and the
  * answer says why. The option must be one of the call's options. The first lock stands: a repeat, or another pick, answers
- * `stands` and changes nothing, and no receipt is kept, because a receipt would keep the time of a pick (D-156). A new pick
- * gives the card's message a fresh change number and tells both people's inboxes, so the friend's card moves within
- * seconds (disposable hints carry only IDs). It is not consumption evidence for anyone and is never read by ranking.
+ * `stands` and changes nothing, and no receipt is kept, because a receipt would keep the time of a pick (D-156). A pick that reveals
+ * (the friend has already called) gives the message a fresh change number and tells both people's inboxes, so the friend's
+ * card moves within seconds (disposable hints carry only IDs). A pick made before the friend has called moves nothing on
+ * the friend's side, so the wire never says whether the friend has called. It is not consumption evidence for anyone and is never read by ranking.
  */
 export function makeChallengeLock(p: ConversationPorts) {
   return {
@@ -61,13 +62,17 @@ export function makeChallengeLock(p: ConversationPorts) {
             command.option,
             dayOf(p.now()),
           );
-          await p.conversations.touchMessage(entered.lock, conversationId, challenge.sequence);
-          const inboxes: InboxChange[] = [
-            { accountId: entered.owner.accountId, universeId: entered.owner.universeId },
-            ...(entered.peerAccess === undefined
-              ? []
-              : [{ accountId: entered.peerAccess.accountId, universeId: entered.peerAccess.universeId }]),
-          ];
+          // The friend's card changes only when this pick reveals (the friend has already called). Before that it stays
+          // `open` for them, so nothing may move on their side: no new change number for the message and no hint to their
+          // inbox, or a network observer would learn that this person has called. The person's own client reads the thread
+          // again after its lock.
+          const reveals = picks.some((pick) => pick.accountId !== entered.owner.accountId);
+          const own: InboxChange = { accountId: entered.owner.accountId, universeId: entered.owner.universeId };
+          const inboxes: InboxChange[] =
+            reveals && entered.peerAccess !== undefined
+              ? [own, { accountId: entered.peerAccess.accountId, universeId: entered.peerAccess.universeId }]
+              : [own];
+          if (reveals) await p.conversations.touchMessage(entered.lock, conversationId, challenge.sequence);
           await p.conversations.announce(entered.reader, inboxes, () => p.newId());
         }
         return {

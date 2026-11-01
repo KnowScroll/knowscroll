@@ -80,8 +80,8 @@ export interface ThreadController {
   readonly react: (messageId: string, kind: MessageReactionKind, present: boolean) => Promise<void>;
   /**
    * Locks this person's pick on a challenge card (D-245). The first lock stands, so pressing again after a lost answer is
-   * safe. While recording is paused nothing is sent and the card says so. Never throws; the thread is caught up after
-   * every answer, so the card shows what the server holds (the friend's pick only once both have called).
+   * safe. While recording is paused nothing is sent and the card says so. Never throws; the thread is read again after
+   * a kept pick (caught up otherwise), so the card shows what the server holds (the friend's pick only once both have called).
    */
   readonly lockChallenge: (messageId: string, option: number) => Promise<void>;
   readonly retry: (commandId: string) => Promise<void>;
@@ -438,7 +438,9 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
         challengeNotice:
           outcome === 'kept' ? undefined : { messageId, reason: outcome === 'paused' ? 'paused' : 'failed' },
       });
-      await catchUp();
+      // A pick made before the friend has called moves nothing in the changes feed (that would tell the friend), so the
+      // thread is read afresh to show the person's own pick.
+      await (outcome === 'kept' ? load() : catchUp());
     },
     async retry(commandId) {
       const entry = state.outgoing.find((candidate) => candidate.commandId === commandId);
