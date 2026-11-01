@@ -1,9 +1,12 @@
 import { z } from 'zod';
 import {
   HARNESS_PROMPT_VERSION,
+  proposeWhenRecording,
+  type PersonalRecordingPurpose,
   type ReasoningContext,
-  type ReasoningHarness,
   type ReasoningRole,
+  type RecordingReasoningHarness,
+  type RunOwner,
 } from '../../../reasoning/public.js';
 import type { EncounterSnapshot } from '../../content/public.js';
 import type { PersonalAuthority } from '../../identity/public.js';
@@ -136,9 +139,23 @@ export function acceptAssessments(
 /** How the business run should end when the result is applied; absent when it must stay open. */
 export type JevRunEnd = 'completed' | 'failed' | 'cancelled';
 
+/**
+ * What Jev made of a shortlist. `purpose` is the proof the run was made under; the step that applies the result closes the run
+ * with it (and only under the recording fence). It is absent when no run was started (recording was paused).
+ */
 export type JevResult =
-  | { readonly kind: 'assessed'; readonly entries: readonly (EncounterRef & JevCriteria)[]; readonly end: JevRunEnd }
-  | { readonly kind: 'absent'; readonly reason: string; readonly end?: JevRunEnd };
+  | {
+      readonly kind: 'assessed';
+      readonly entries: readonly (EncounterRef & JevCriteria)[];
+      readonly end: JevRunEnd;
+      readonly purpose?: PersonalRecordingPurpose;
+    }
+  | {
+      readonly kind: 'absent';
+      readonly reason: string;
+      readonly end?: JevRunEnd;
+      readonly purpose?: PersonalRecordingPurpose;
+    };
 
 export interface AssessShortlist {
   (request: {
@@ -147,19 +164,24 @@ export interface AssessShortlist {
     readonly authority: PersonalAuthority;
     readonly source: EncounterSnapshot;
     readonly shortlist: readonly EncounterSnapshot[];
+    /** Who the run is for and the generation recording was at when the buffer job started; absent while recording is paused. */
+    readonly owner: RunOwner | undefined;
     readonly signal: AbortSignal;
   }): Promise<JevResult>;
 }
 
 /**
  * Jev: a fast optional semantic assessment of a shortlist (blueprint §9). It runs only in the
- * buffer worker and never inside a database transaction. Provider failure, refusal or an unusable
- * answer is the absence of an assessment, never a negative judgement.
+ * buffer worker and never inside a database transaction, on the recording-aware harness at the generation recording was at
+ * when the buffer job started (D-270). Provider failure, refusal or an unusable answer is the absence of an assessment, never a
+ * negative judgement, and so is a paused recording: no run is started and no model is called.
  */
-export function makeAssessShortlist(harness: ReasoningHarness): AssessShortlist {
-  return async ({ runId, authority, source, shortlist, signal }) => {
+export function makeAssessShortlist(harness: RecordingReasoningHarness): AssessShortlist {
+  return async ({ runId, authority, source, shortlist, owner, signal }) => {
     const { context, candidatesByRef } = jevContext(source, shortlist);
-    const outcome = await harness.propose(
+    const { outcome, purpose } = await proposeWhenRecording(
+      harness,
+      owner,
       {
         run: {
           id: runId,
@@ -174,22 +196,28 @@ export function makeAssessShortlist(harness: ReasoningHarness): AssessShortlist 
       },
       signal,
     );
+    const proof = purpose === undefined ? {} : { purpose };
     switch (outcome.kind) {
       case 'proposed':
-        return { kind: 'assessed', entries: acceptAssessments(outcome.output, candidatesByRef), end: 'completed' };
+        return {
+          kind: 'assessed',
+          entries: acceptAssessments(outcome.output, candidatesByRef),
+          end: 'completed',
+          ...proof,
+        };
       case 'invalid_output':
-        return { kind: 'absent', reason: 'invalid_output', end: 'failed' };
+        return { kind: 'absent', reason: 'invalid_output', end: 'failed', ...proof };
       case 'failed':
-        return { kind: 'absent', reason: 'provider_failed', end: 'failed' };
+        return { kind: 'absent', reason: 'provider_failed', end: 'failed', ...proof };
       case 'budget_exhausted':
-        return { kind: 'absent', reason: 'budget_exhausted', end: 'cancelled' };
+        return { kind: 'absent', reason: 'budget_exhausted', end: 'cancelled', ...proof };
       case 'quota_unavailable':
-        return { kind: 'absent', reason: 'quota_unavailable', end: 'cancelled' };
+        return { kind: 'absent', reason: 'quota_unavailable', end: 'cancelled', ...proof };
       case 'unknown':
         // May have reached the provider: it stays open for reconciliation and is never resent.
-        return { kind: 'absent', reason: 'unknown_outcome' };
+        return { kind: 'absent', reason: 'unknown_outcome', ...proof };
       case 'refused':
-        return { kind: 'absent', reason: `refused_${outcome.reason}` };
+        return { kind: 'absent', reason: `refused_${outcome.reason}`, ...proof };
     }
   };
 }

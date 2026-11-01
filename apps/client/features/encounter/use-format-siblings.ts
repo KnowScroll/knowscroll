@@ -21,7 +21,8 @@ export function useOpenedContext(scope: AccountScope, exposureId: string) {
 /**
  * Which formats of this explanation exist, for a Reel or Scroll opened by its address. A direct open
  * returns no format variants; the exposure context does, so the switch reads it. A missing twin stays
- * "unavailable" here: a direct route has no request flow. The read shares its cache entry with
+ * "unavailable" and cannot be pressed, on a Scroll and on a Reel alike: a direct route has no request flow, and a Reel could not be
+ * made anyway while Reel supply is closed (D-269). The read shares its cache entry with
  * Explore's, and creates no exposure.
  */
 export function useFormatSiblings(scope: AccountScope, exposureId: string, current: Format) {

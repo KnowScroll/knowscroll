@@ -313,6 +313,9 @@ export async function geographyWorld(name: string) {
       checkPlanner: makeCheckPlannerRecordingRun({ store: plannerStore, now }),
       checkGeography: makeCheckGeographyRecordingRun({ store: geographyStore, now }),
       checkSupply: () => Promise.resolve('unavailable' as const),
+      checkScenarios: () => Promise.resolve('unavailable' as const),
+      checkRooms: () => Promise.resolve('unavailable' as const),
+      checkComposer: () => Promise.resolve('unavailable' as const),
     });
     const ports: CartographerPorts = {
       ...base,

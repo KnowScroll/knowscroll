@@ -21,7 +21,8 @@ import {
 } from '../../../packages/backend/src/modules/rooms/domain/launch.js';
 import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureHarness, fixtureModel } from '../support/fixture-model.js';
+import { fixtureModel } from '../support/fixture-model.js';
+import { fixtureRecordingHarness } from '../support/recording-harness.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import {
   hideMessage,
@@ -616,7 +617,7 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
       const model = fixtureModel(() => explanation('Nearby stars shift against far ones as Earth moves: parallax.'), {
         label: 'rooms-quiet',
       });
-      const { harness } = fixtureHarness(database.db, { model });
+      const { harness } = fixtureRecordingHarness(database.db, { model });
       await world.contribute(harness)(world.queued.at(-1)!);
       expect(model.calls).toHaveLength(1);
       // The resident reads the question once: its first message is the topic's origin and is also in the newest messages, and its title is
@@ -716,7 +717,7 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
       const model = fixtureModel(() => explanation('Parallax: a nearby star shifts against far ones.'), {
         label: 'rooms-quiet',
       });
-      const { harness } = fixtureHarness(database.db, { model });
+      const { harness } = fixtureRecordingHarness(database.db, { model });
       await world.contribute(harness)(world.queued.at(-1)!);
       const afterAi = await readDiscussion(world, lena, roomId, left.discussionId);
       if (afterAi.status !== 'ready') throw new Error('expected ready');
@@ -935,7 +936,7 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
       const model = fixtureModel(() => explanation('Parallax: a nearby star shifts against far ones.'), {
         label: 'rooms-quiet',
       });
-      const { harness } = fixtureHarness(database.db, { model });
+      const { harness } = fixtureRecordingHarness(database.db, { model });
       await world.contribute(harness)(world.queued.at(-1)!);
       const read = await readDiscussion(world, asha, roomId, left.discussionId);
       if (read.status !== 'ready') throw new Error('expected ready');

@@ -13,11 +13,11 @@ import { composerBufferWorkerProviders, composerProviders } from '@knowscroll/ba
 import { admitLibraryContinuityUseCase, contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceBufferSourceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
 import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
-import { REASONING_HARNESS } from '@knowscroll/backend/reasoning';
+import { RECORDING_REASONING_HARNESS } from '@knowscroll/backend/reasoning';
 import type { NavigationOutcome } from '@knowscroll/contracts';
 import { RECIPES, type RecipeKey } from '../../../packages/backend/src/modules/content/domain/library/index.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureHarness } from '../support/fixture-model.js';
+import { fixtureRecordingHarness } from '../support/recording-harness.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { buildFromProviders } from '../support/providers.js';
 import { scrollUseCases, starterSource, textCapabilities } from '../support/scroll.js';
@@ -167,11 +167,11 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
 
   /** The worker side over the real providers; Jev is off, so no model is involved. */
   function worker(): PrepareBuffer {
-    const { harness } = fixtureHarness(database.db, { model: undefined });
+    const { harness } = fixtureRecordingHarness(database.db, { model: undefined });
     const values = new Map<symbol, unknown>([
       [WITH_SCOPE, withScope()],
       [WORKER_CONFIG, { jevEnabled: false, reasoning: {} }],
-      [REASONING_HARNESS, harness],
+      [RECORDING_REASONING_HARNESS, harness],
       [READ_COMPOSER_CONTEXT, cases.readComposerContext],
       ...[
         ...experienceBufferSourceProviders(),

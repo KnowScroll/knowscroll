@@ -64,8 +64,14 @@ export const WatchSessionViewSchema = z.discriminatedUnion('phase', [
 ]);
 export type WatchSessionView = z.infer<typeof WatchSessionViewSchema>;
 
-/** The last thing on the room's stage, for the "Nothing on stage right now" card. A time, never a person. */
-export const WatchLastOnStageSchema = z.strictObject({ kind: z.enum(['reel', 'launch']), at: z.iso.datetime() });
+/**
+ * The last thing on the room's stage, for the "Nothing on stage right now" card: a time, and the Reel's title when it was a Reel.
+ * Never a person.
+ */
+export const WatchLastOnStageSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('launch'), at: z.iso.datetime() }),
+  z.strictObject({ kind: z.literal('reel'), at: z.iso.datetime(), title: WatchReelSchema.shape.title }),
+]);
 export type WatchLastOnStage = z.infer<typeof WatchLastOnStageSchema>;
 
 /** Why a Reel cannot be started now. */
