@@ -12,6 +12,7 @@ import {
 } from '@knowscroll/backend/infrastructure/postgres';
 import {
   readContentSequence,
+  readLibraryReels,
   readShareableContent,
   resolveSnippetAnchor,
   validateSnippetAnchor,
@@ -139,6 +140,7 @@ export async function roomWorld(
     readFriends: readFriendAccounts,
     readBlocked: readBlockedAmong,
     readContent: readShareableContent,
+    readReels: readLibraryReels,
     readSequence: readContentSequence,
     readVisited: readVisitedAssets,
     readReports: roomReportsReader,

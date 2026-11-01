@@ -491,6 +491,30 @@ export type ReadLibraryCalls = (
 ) => Promise<readonly LibraryCallSource[]>;
 export const READ_LIBRARY_CALLS = Symbol('content.readLibraryCalls');
 
+/** One library Reel a room may watch together (v3 R-10): the current revision of an admitted Reel, as it is stored. */
+export interface LibraryReel {
+  readonly assetId: string;
+  readonly assetRevision: number;
+  readonly title: string;
+  /** The Reel's length from its stored document, for the session's end. */
+  readonly durationMs: number;
+}
+
+/**
+ * The library Reels under a topic: the current revision of each admitted, non-fixture Reel that is not under review and whose
+ * primary topic is the topic (a system covers every planet of it, a planet is its own), by title, at most `limit` (1 to 50). With
+ * `only` the read is for that one Reel, found only while it is still a served library Reel under the topic, so a check of one
+ * Reel never depends on how many others the topic has. Shared public content read inside the caller's transaction: no person, no
+ * evidence, nothing recorded.
+ */
+export type ReadLibraryReels = (
+  scope: PersonalScopeTx,
+  topic: { readonly kind: 'system' | 'planet'; readonly id: string },
+  limit: number,
+  only?: { readonly assetId: string },
+) => Promise<readonly LibraryReel[]>;
+export const READ_LIBRARY_REELS = Symbol('content.readLibraryReels');
+
 /**
  * Scrolls ordered from code (D-049). A module that holds shared work (a scenario branch) builds a
  * brief, a framing and the research pages itself and orders a Scroll. Content stores the order,

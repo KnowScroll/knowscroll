@@ -2950,3 +2950,38 @@ Confirmed by: `social-challenges.test.ts` (real PostgreSQL: the card with no pic
 - **Nothing else changes.** Reel and Scroll keep equal standing: neither gets a control the other lacks. A v1 Scroll's article keeps Back.
 
 Confirmed by: `e2e/simpler-smoke.spec.ts` (the order of the buttons, 44 px targets, Next topic sends the vertical intent, Your Universe opens `/universe`, nothing clipped at 320 px, axe at 390 by 844 and 1440 by 900).
+
+## D-256 · 2026-11-01 · A Watch together session keeps a Reel and a start time; each device works out its own position (R-10, #496)
+
+**Implements** D-075. **Amends** the blueprint's §17 line 1152, "There is no synchronised co-watching or shared playback cursor in the initial version", for a room's Watch together only. The blueprint text is not edited; this entry is the amendment.
+
+- **What the server keeps.** `rooms.watch_sessions` holds the library Reel and its revision, its title and length, the member who shared it, when the first frame is due and, once it is over, when it stopped. `rooms.watch_viewers` holds who joined. No column holds a position, a pause or a time of a person's own, and a test lists the columns. A read says how long ago the first frame was due, on the server's clock; a device counts on from that with a steady clock, so a fast, slow or mis-set device clock changes nothing, as in D-178.
+- **The clock.** The first frame is due five seconds after the start command, so people who have the room open can load the Reel. The session ends when the Reel's length has passed. There is no job: the first member command in the room after the end (a presence beat) marks it stopped **at the moment it ended**, deletes its viewers, and deletes sessions that ended seven days ago. The member who shared it, or a moderator, can stop it for everyone. A room has one session at a time (a partial unique index) and at most 20 a day.
+- **Where a position lives.** The device compares its own player with the clock and moves the player only when it is more than a second and a half off. Pause is the person's own: nothing is sent, and Play brings them back to where the room is. The line "0:41 / 1:10 · synced for everyone" and the bar are the clock's, never a person's place. No request, answer or hint has a field for a position.
+- **Which Reels.** Library Reels the room's topic rests on: the current revision of each admitted Reel whose primary topic is the room's (a system covers its planets), not a fixture and not under review, read through Content's public `ReadLibraryReels`. No Reel is ordered or made for this.
+- **Hints are disposable.** A start, a join, a leave, a stop and a settlement announce the room, and the hint names nothing else. A device that heard none of them reads the whole truth again: the session, whether it joined, and the time.
+
+Confirmed by: `domain/watch.test.ts` (the phases at each millisecond of the edge), `room-watch.test.ts` (contracts: no field for a position), `rooms-watch.test.ts` ("what the server keeps", "the clock", "a device that lost its hints"), `client-core/room-watch.test.ts` (the clock, the drift rule), `e2e/rooms-watch-smoke.spec.ts` (both players on the clock; a dropped connection recovers from one read).
+
+## D-257 · 2026-11-01 · The stage shows "N watching" only from three people who joined, names no one, and holds one thing at a time (R-10, #496)
+
+**Builds on** D-069, D-160, D-222 and D-224. The allow-list of D-069 gains no entry: `watching` is not a count of who is here.
+
+- **Members only.** Every read and command answers `unavailable` to a stranger, an invitee and a person who left. A room's preview says nothing of a session. A member's or moderator's station says `live` while one is on, as for a Launch (D-222), and never which of the two, who or how many.
+- **"N watching".** A number is sent only from three people. It counts people who **joined** and still have the room open (a lapsed lease is not watching, D-239); someone who only has the room open is not counted. The reader counts when they joined. A person the reader blocked is left out for that reader only. An AI cannot join, so it is never counted. Below three there is no number at all.
+- **No names.** R3 A2 draws faces beside "4 watching". They are not built: two faces would tell a person who is watching, which a count from three exists to prevent. The member who shared the session is named ("Shared by Lena") while they are still a member the reader has not blocked, as a message's author is.
+- **One thing on the stage.** A Reel cannot start while a Launch is in its lobby or running, and a Launch refuses with `stage_busy` while a Reel is on. A Reel also needs two people with the room open: it is for watching together.
+- **Stage mode.** While a session is on, the stage sits above General at 42 percent of a phone's height (260 to 380 px), edge to edge under the band as R3 A2 draws it, and General keeps the rest as the crowd, as D-224 does for a Launch. Measured at 390 × 844 the messages have 206 px (24 percent) while a Reel is on (a Launch leaves 18 percent), and 574 px (68 percent) when nothing is on. The band says "LIVE · REEL". R3 itself picks "A1 turns into stage mode only while something is live", so a room with nothing on its stage keeps its 68 percent. "Nothing on stage right now", with what was last on the stage and the two offers (a Reel, a quiz), is a sheet from the Now strip, not a screen of its own.
+
+Confirmed by: `rooms-watch.test.ts` ("N watching", "the stage is one thing at a time", "who can take part"), `watch.test.tsx` and `campfire.test.tsx` (the number, the chip, the band, the sheet), `e2e/rooms-watch-smoke.spec.ts` (two and three people at 390 by 844 and 1440 by 900 with axe; both measures).
+
+## D-258 · 2026-11-01 · A join is kept in the room and taken back like a play result; the watch itself is the person's own encounter (R-10, #496)
+
+**Builds on** D-063, D-082, D-083 and D-220.
+
+- **Paused.** Starting and joining are kept in the room (who joined, who shared it), so each carries the recording generation and is refused with `not_saved` while recording is paused or the device is out of date. Nothing is stored and no receipt is written. The stage and the sheet say so before any tap. Leaving and stopping remove what is kept, so they always work.
+- **Taken back.** A Clear deletes the person's place among the viewers and empties the link that says they shared a session. So does leaving or being removed from the room, and so does deleting the account. Viewers also go when a session ends or is stopped. The person's file lists the sessions they shared and the ones they joined that are still held, by room and day, never a position and never another person.
+- **Evidence is the person's own.** A session writes nothing to evidence, experience, geography, composer or planning, for anyone. Only after a person taps Join (or starts one) does their device open the Reel through the ordinary open, grant and activation with the ordinary recorder, as an encounter of their own. Leaving ends it; joining again is a new one. Showing a session, being counted in one or being invited to one creates nothing. A device that has not joined opens nothing.
+- **A wall.** No file outside Rooms names a Watch table (`watch-wall.test.ts`), so who watched with a room can reach no ranking, planning or formation.
+
+Confirmed by: `rooms-watch.test.ts` ("recording paused", "what a person can take back", "writes nothing for anyone in the personal universe"), `watch-wall.test.ts`, `watch.test.tsx` (an unjoined device opens no encounter), `e2e/rooms-watch-smoke.spec.ts` (each person's observations name only their own exposure).

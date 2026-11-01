@@ -14,6 +14,7 @@ import { receiptBase, runCommand } from './command.js';
 import { enterRoom } from './gate.js';
 import { ok, refuse, roomEnvelope, type Result, type RoomPorts } from './ports.js';
 import { settleLaunches } from './launch.js';
+import { settleWatch } from './watch.js';
 import { settleDue } from './sky.js';
 import { youOf } from './view.js';
 
@@ -132,6 +133,7 @@ export function makeMemberCommands(p: RoomPorts) {
           if (state === 'here') {
             await settleDue(p, lock, entered.standing.room.topic.id, now);
             await settleLaunches(p, lock, entered.standing.room.topic.id, now);
+            await settleWatch(p, lock, now);
           }
           if (state === 'here' && changed && previous !== undefined)
             await openWindowOnReturn(

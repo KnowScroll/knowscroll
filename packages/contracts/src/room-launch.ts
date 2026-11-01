@@ -141,7 +141,7 @@ export const LaunchViewSchema = z.discriminatedUnion('phase', [
 export type LaunchView = z.infer<typeof LaunchViewSchema>;
 
 /** Why a Launch cannot be started now. */
-export const LaunchStartBlockSchema = z.enum(['no_deck', 'few_here', 'resting', 'room_paused']);
+export const LaunchStartBlockSchema = z.enum(['no_deck', 'few_here', 'resting', 'room_paused', 'stage_busy']);
 export type LaunchStartBlock = z.infer<typeof LaunchStartBlockSchema>;
 
 export const ReadRoomLaunchSchema = z.strictObject({ ...Read, roomId: UuidSchema });

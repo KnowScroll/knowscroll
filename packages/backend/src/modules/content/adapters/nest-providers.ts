@@ -45,6 +45,7 @@ import {
   READ_LIBRARY_PASSAGES,
   READ_LIBRARY_PASSAGE_TEXT,
   READ_LIBRARY_CALLS,
+  READ_LIBRARY_REELS,
   type CheckAssetAudience,
   type EnqueueScrollProduction,
   type ReadMadeToOrderProduction,
@@ -82,6 +83,7 @@ import { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.j
 import { chooseScrollRecipe, readScrollProduction } from './production-state.js';
 import { readRegionEncounterCandidates, lockRegionEncounterCandidates } from './region-candidates.js';
 import { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
+import { readLibraryReels } from './library-reels.js';
 
 /**
  * Reusable outer wiring (blueprint §22): content's scope-bound read ports, used inside a personal
@@ -102,6 +104,7 @@ export function contentProviders() {
     { provide: READ_SAVED_METADATA, useValue: readSavedMetadata },
     { provide: READ_SAVED_PAGE_METADATA, useValue: readSavedPageMetadata },
     { provide: READ_SHAREABLE_CONTENT, useValue: readShareableContent },
+    { provide: READ_LIBRARY_REELS, useValue: readLibraryReels },
     { provide: READ_CONTENT_SEQUENCE, useValue: readContentSequence },
     { provide: VALIDATE_SNIPPET_ANCHOR, useValue: validateSnippetAnchor },
     { provide: RESOLVE_SNIPPET_ANCHOR, useValue: resolveSnippetAnchor },
@@ -213,6 +216,7 @@ export function importEditorialScrollUseCase(db: Kysely<Database>) {
 }
 
 export { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
+export { readLibraryReels } from './library-reels.js';
 export { makeCutroomReelImporter, type CutroomImportSettings } from './import-cutroom-reel.js';
 export { makeMediaAccess } from './media-access.js';
 
