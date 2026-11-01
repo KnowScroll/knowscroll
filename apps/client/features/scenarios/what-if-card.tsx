@@ -95,9 +95,7 @@ function Answer({ card, answer }: { readonly card: ScenarioCard; readonly answer
     <View style={styles.body}>
       <Line name="ASSUMED" words={answer.assumption} tone="assumed" />
       <Line name="CHANGED" words={statementsInWords(card.changes)} tone="changed" />
-      {card.kept.length === 0 ? null : (
-        <Line name="KEPT" words={statementsInWords(card.kept)} tone="kept" />
-      )}
+      {card.kept.length === 0 ? null : <Line name="KEPT" words={statementsInWords(card.kept)} tone="kept" />}
       <Text variant="bodyS" color={universe.ink} testID="what-if-answer">
         {answer.answer}
       </Text>
