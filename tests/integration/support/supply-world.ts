@@ -24,6 +24,7 @@ import { SUPPLY_PORTS, supplyProviders } from '@knowscroll/backend/modules/suppl
 import { createTestDatabase, type TestDatabase } from './database.js';
 import { fixtureAuthored } from './generated-scroll.js';
 import { fixtureHarness, fixtureModel } from './fixture-model.js';
+import { recordingEntries } from './recording-harness.js';
 import type { FixtureScenario } from './fixture-model-port.js';
 import { fixtureProductionWorker } from './production-worker.js';
 import { buildFromProviders } from './providers.js';
@@ -56,11 +57,13 @@ export async function supplyWorld(purpose: string) {
   const ENQUEUE = Symbol('enqueue');
   const CONFIG = Symbol('config');
   const HARNESS = Symbol('harness');
+  const RECORDING = Symbol('recording-harness');
   const providers = supplyProviders({
     withPersonalScope: SCOPE,
     enqueueJob: ENQUEUE,
     config: CONFIG,
     harness: HARNESS,
+    recordingHarness: RECORDING,
   });
   const values = new Map<symbol, unknown>([
     [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
@@ -72,6 +75,7 @@ export async function supplyWorld(purpose: string) {
     [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
     [READ_EXPLORATION_SNAPSHOT, content.readExploration],
     [HARNESS, fixtureHarness(database.db, { model: matchModel }).harness],
+    ...recordingEntries(database.db, matchModel, RECORDING),
     [READ_LIBRARY_PASSAGES, makeReadLibraryPassages(database.db)],
     ...identityScopeOwnerProviders().map((provider) => [provider.provide, provider.useValue] as const),
     ...contentProviders().map((provider) => [provider.provide, provider.useValue] as const),

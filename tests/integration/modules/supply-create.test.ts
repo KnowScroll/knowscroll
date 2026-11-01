@@ -42,6 +42,7 @@ import { buildFromProviders } from '../support/providers.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureAuthored } from '../support/generated-scroll.js';
 import { fixtureHarness, fixtureModel, receiptClassesOf } from '../support/fixture-model.js';
+import { recordingEntries } from '../support/recording-harness.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
@@ -89,12 +90,14 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     const SCOPE = Symbol('scope'),
       ENQUEUE = Symbol('enqueue'),
       CONFIG = Symbol('config'),
-      HARNESS = Symbol('harness');
+      HARNESS = Symbol('harness'),
+      RECORDING = Symbol('recording-harness');
     const providers = supplyProviders({
       withPersonalScope: SCOPE,
       enqueueJob: ENQUEUE,
       config: CONFIG,
       harness: HARNESS,
+      recordingHarness: RECORDING,
     });
     const values = new Map<symbol, unknown>([
       [SCOPE, withScope()],
@@ -111,6 +114,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [READ_EXPLORATION_SNAPSHOT, content.readExploration],
       [HARNESS, fixtureHarness(database.db, { model: matchModel }).harness],
+      ...recordingEntries(database.db, matchModel, RECORDING),
       [READ_LIBRARY_PASSAGES, makeReadLibraryPassages(database.db)],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),

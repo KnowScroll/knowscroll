@@ -74,6 +74,7 @@ import {
   quickAnswerProviders,
   quickAnswerPurgeProviders,
   supplyProviders,
+  supplyRecordingOwnerProviders,
 } from '@knowscroll/backend/modules/supply/nest-providers';
 import { threadGuestProviders } from '@knowscroll/backend/modules/social/nest-providers';
 import { orderAudienceProviders, scenarioWorkerProviders } from '@knowscroll/backend/modules/scenarios/nest-providers';
@@ -177,6 +178,7 @@ import {
   PRODUCTION_REASONING_HARNESS,
   PURGE_EXPIRED_REQUESTS,
   REASONING_HARNESS,
+  RECORDING_REASONING_HARNESS,
   SWEEP_DISPATCHED_ATTEMPTS,
   WITH_PRODUCTION_SCOPE,
   purgeExpiredRequestsQueue,
@@ -240,19 +242,22 @@ export const jobWiring: Provider[] = [
       },
   },
   ...identityScopeOwnerProviders(),
-  // The worker's resolver matches free-text asks through the personal reasoning harness.
+  // The worker's resolver matches free-text asks through the personal reasoning harness, and places a question asked from a
+  // Scroll through the recording-aware one, at the generation it was asked at (D-264).
   ...supplyProviders({
     withPersonalScope: WITH_PERSONAL_SCOPE,
     enqueueJob: ENQUEUE_JOB,
     config: WORKER_CONFIG,
     harness: REASONING_HARNESS,
+    recordingHarness: RECORDING_REASONING_HARNESS,
   }),
-  // Quick answers (D-253): the worker writes each one through the personal reasoning harness and purges them after a day.
+  ...supplyRecordingOwnerProviders(),
+  // Quick answers (D-253): the worker writes each one through the recording-aware harness and purges them after a day.
   ...quickAnswerProviders({
     withPersonalScope: WITH_PERSONAL_SCOPE,
     enqueueJob: ENQUEUE_JOB,
     config: WORKER_CONFIG,
-    harness: REASONING_HARNESS,
+    harness: RECORDING_REASONING_HARNESS,
   }),
   ...quickAnswerPurgeProviders({ database: DATABASE, logEvent: LOG_EVENT }),
   ...plannerRequestProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
@@ -432,7 +437,7 @@ export const jobWiring: Provider[] = [
       jobConsumer(resolveSupplyQueue, async (payload, delivery) => {
         await resolveRequest(payload, delivery);
       }),
-      // A Quick answer: one model call on the person's own harness, then a hint (D-253).
+      // A Quick answer: the writer, its support check and at most one rewrite on the person's own harness, then a hint (D-253).
       jobConsumer(answerQuickAnswerQueue, async (payload, delivery) => {
         await answerQuickAnswer(payload, delivery.signal);
       }),

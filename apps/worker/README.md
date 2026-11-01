@@ -111,7 +111,7 @@ from the personal harness. Nonpersonal Scroll supply requires explicit worker co
 the database root enabled/generation gate; both default disabled. Shared sweep/purge/operator
 maintenance still records and resolves production liabilities while production is disabled.
 
-The `content.produce-scroll` consumer (`src/production-jobs.ts`, #239) runs the production use case for
+The `content.produce-scroll` and `content.produce-answer` consumers (`src/production-jobs.ts`, #239, D-267) run the production use case for
 one recipe and take per delivery, with resume, so a redelivery continues the same business run. It is
 registered only when `KS_REASONING_PRODUCTION_ENABLED=1`; otherwise jobs wait in the queue. The
 `supply.resolve-request` consumer advances a person's request (a free-text match, the scope step of a question asked from a Scroll, the wait for
@@ -177,7 +177,7 @@ when the recorded total plus its estimate would pass $1 in all. `--dry-run` call
 the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and
 `content production-status [--only <keys>]` lists every recipe's standing, and for a v2 recipe its regeneration state, the takes it has
 left and what the answer check said. `content regenerate --only <keys> [--dry-run]` (`src/library-operator.ts`, D-197) sends the next take of a
-v2 recipe whose Scroll is served; the new take is stored held. These touch only the shared database and pg-boss; no provider is called. `content ask-check (--asset <id,…> | --recent <n>) --out <file>` (`src/ask-check-operator.ts`, D-250 to D-252) runs the support checker again over stored ask answers through the production harness: counts on stdout, the sentences and verdicts in the file; it stores nothing (runbook: scroll-production.md). `content admit-continuity [--dry-run]` admits the library
+v2 recipe whose Scroll is served; the new take is stored held. These touch only the shared database and pg-boss; no provider is called. `content ask-check (--asset <id,…> | --recent <n>) --out <file>` (`src/ask-check-operator.ts`, D-250 to D-252) runs the support checker again over stored ask answers through the production harness, a batch of sentences at a time: counts (and how many sentences each rule code set aside) on stdout, the sentences and verdicts in the file; it stores nothing (runbook: scroll-production.md). `content admit-continuity [--dry-run]` admits the library
 plan's series (Part tabs) and related moves (Related tab) between the published Scrolls: idempotent,
 shared database only (D-059).
 

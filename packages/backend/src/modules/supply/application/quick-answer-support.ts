@@ -1,6 +1,7 @@
-import type { ContextItem, ProposeOutcome, ReasoningHarness } from '../../../reasoning/public.js';
+import type { ContextItem, ProposeOutcome, RecordingReasoningHarness } from '../../../reasoning/public.js';
 import type { PersonalAuthority } from '../../identity/public.js';
 import {
+  ASK_SUPPORT_BATCH_SENTENCES,
   UNSUPPORTED_HINTS,
   askSupportContext,
   askSupportRole,
@@ -11,6 +12,7 @@ import {
   type UnsupportedVerdict,
 } from '../../content/public.js';
 import type { CitablePassage, QuickAnswerDraft } from '../domain/quick-answer.js';
+import { proposeAtGeneration, purposeOf, type RunOwner, type StartedRun } from './recording-runs.js';
 
 /**
  * The support check of a Quick answer (D-250, D-253). The checker is the one an ask order's answer goes through: a second
@@ -27,11 +29,8 @@ import type { CitablePassage, QuickAnswerDraft } from '../domain/quick-answer.js
 export const QUICK_ANSWER_SUPPORT_ROLE_ID = 'supply.quick-answer-support';
 export const QUICK_ANSWER_SUPPORT_POLICY_VERSION = 'supply-quick-answer-support.v1';
 
-/** How a paid model run ended, so the step that applies the verdict can close it; absent when it may have reached the provider. */
-export interface RunEnd {
-  readonly runId: string;
-  readonly end?: 'completed' | 'failed' | 'cancelled';
-}
+/** A paid model run and how it ended, so the step that applies the verdict can close it. */
+export type RunEnd = StartedRun;
 
 /** What one check came to. `unchecked` means nothing is known: the checker failed, was refused, or its reply stayed invalid. */
 export type SupportFinding =
@@ -41,6 +40,8 @@ export type SupportFinding =
 
 export interface SupportCheckInput {
   readonly authority: PersonalAuthority;
+  /** The Quick answer's account and the recording generation it was asked at (D-264). */
+  readonly owner: RunOwner;
   readonly quickAnswerId: string;
   /** The run of this draft's check, derived from the answer's ID so a redelivery asks the ledger instead of the model. */
   readonly runId: string;
@@ -99,9 +100,26 @@ export function findingOf(outcome: ProposeOutcome<Parameters<typeof verdictsOf>[
  * The checker on the personal reasoning harness. Every attempt has a row in the attempt ledger under the person's own run and counts
  * against the harness's caps; none is made inside a transaction. The run is derived from the answer's ID, one for each draft.
  */
-export function makeSupportCheck(harness: ReasoningHarness): QuickAnswerSupportCheck {
+export function makeSupportCheck(harness: RecordingReasoningHarness): QuickAnswerSupportCheck {
   return async (input) => {
-    const outcome = await harness.propose(
+    const context = {
+      bundleRef: `supply-quick-answer-support:${input.quickAnswerId}:${String(input.draft)}`,
+      items: askSupportContext(input.sentences, input.passages),
+    };
+    // A Quick answer is checked in one request, which bounds its paid attempts (`MAX_PAID_ATTEMPTS`). The writer is told to answer
+    // in a few sentences and its draft is refused above one request's worth, so this is a second guard: an answer longer than
+    // that is not checked, no run is started, and an unchecked answer is never shown (D-267).
+    if (input.sentences.length > ASK_SUPPORT_BATCH_SENTENCES)
+      return {
+        finding: { kind: 'unchecked' },
+        run: {
+          runId: input.runId,
+          purpose: purposeOf(input.owner, 'quick-answer-support', input.runId, harness.contextDigest(context)),
+        },
+      };
+    const { outcome, purpose } = await proposeAtGeneration(
+      harness,
+      input.owner,
       {
         run: {
           id: input.runId,
@@ -111,16 +129,13 @@ export function makeSupportCheck(harness: ReasoningHarness): QuickAnswerSupportC
           policyVersion: QUICK_ANSWER_SUPPORT_POLICY_VERSION,
         },
         role: { ...askSupportRole(input.sentences, input.passages), id: QUICK_ANSWER_SUPPORT_ROLE_ID },
-        context: {
-          bundleRef: `supply-quick-answer-support:${input.quickAnswerId}:${String(input.draft)}`,
-          items: askSupportContext(input.sentences, input.passages),
-        },
+        context,
         limits: { allowRepair: input.allowRepair },
       },
       input.signal,
     );
     const { finding, end } = findingOf(outcome);
-    return { finding, run: end === undefined ? { runId: input.runId } : { runId: input.runId, end } };
+    return { finding, run: end === undefined ? { runId: input.runId, purpose } : { runId: input.runId, purpose, end } };
   };
 }
 

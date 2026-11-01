@@ -9,7 +9,9 @@ Status: **implemented**, CI-verified, and **runtime-verified** on a local databa
 client). Not yet running on dev. Ask orders (below, D-218) are **implemented** and CI-verified with labelled fixture
 models; the real-model run of five ask orders is **planned** (the coordinator's, on dev). The library check of a question (D-251) and the support
 check of an order's answer (D-250, in [content/production](../content/production/README.md)) are **implemented** and CI-verified with labelled
-fixture models; their first real-model measurement is **planned** (the coordinator's replay, `content ask-check`).
+fixture models; their real-model measurement is **planned** (the coordinator's replay, `content ask-check`). S-7c (D-263, D-265 to D-267) made the check work on real
+model output: quotes are matched after normalising marks and spacing, a verdict that breaks a rule makes only its sentence unsupported, titles and
+headings may be marked as stating no fact, and a long answer is checked in batches.
 
 ## What a person can do
 
@@ -63,7 +65,7 @@ It is the same request row, the same states (E07), polling, cancel and retry; on
 1. **Gate.** The create transaction refuses an ask while recording is paused or its generation is stale (`recording_paused`, `recording_stale`; no receipt),
    checks the exact activated source, and reads the anchor from the exact immutable revision (`READ_SCROLL_ASK_FACTS`): a stop that is not there is `source_unavailable`.
 2. **A suggested question** (the exact words of the Scroll's own `askSuggestions`) is about that Scroll by construction. `commissionAskOrder` runs in the same transaction: no model call.
-3. **A typed question** waits as `matching`. The worker's `supply.resolve-request` runs the scope step (`ask-scope.1`, one call and one repair on the personal harness):
+3. **A typed question** waits as `matching`. The worker's `supply.resolve-request` runs the scope step (`ask-scope.1`, one call and one repair on the recording-aware personal harness, at the recording generation the question was asked at, D-264):
    `here` makes an ask order; `catalogue` runs the library check below; `none` closes `unsupported_request`; a failure or an unknown outcome closes `could_not_prepare` and is never resent.
    **The library check** (D-251, `application/ask-library.ts`, `ask-library-role.ts`): a library Scroll is offered for a question only when a checker finds that it answers it.
    Code lists up to three admitted library Scrolls of the matched subject (never the Scroll being read), reads their prose (`READ_LIBRARY_PASSAGES`), and the personal harness runs
@@ -93,18 +95,36 @@ A person who selects words in a read stop of a v2 Scroll and chooses Ask gets a 
 | Capability | Where | Status |
 |---|---|---|
 | Ask: `POST /v1/quick-answers` stores the row, one ledger row and one job in one transaction (`application/quick-answers.ts`). No model call. | `AskQuickAnswerUseCase` | implemented |
-| Answer: a worker asks the writer (one repair) on the personal harness, role `supply.quick-answer`, then the support check below, outside any transaction, then settles the row (`application/answer-quick-answer.ts`, `quick-answer-pipeline.ts`). At most six paid attempts. | `supply.answer-quick-answer` | implemented, CI-verified with labelled fixture models; real-model run is the coordinator's on dev |
+| Answer: a worker asks the writer (one repair) on the recording-aware personal harness, role `supply.quick-answer`, then the support check below, outside any transaction, then settles the row (`application/answer-quick-answer.ts`, `quick-answer-pipeline.ts`). At most six paid attempts. | `supply.answer-quick-answer` | implemented, CI-verified with labelled fixture models; real-model run is the coordinator's on dev |
 | Read and dismiss: `GET /v1/quick-answers/{id}`, `POST /v1/quick-answers/dismiss` (clears the words now). | `ReadQuickAnswerUseCase`, `DismissQuickAnswerUseCase` | implemented |
 | What the model is offered: the read stops up to and including the reader's and the plainer words of that stop, nothing after, no call (`READ_SCROLL_QUICK_ANSWER_FACTS`, Content). Whether the answer stays within them is what the checks below decide. | `domain/quick-answer.ts` | implemented |
 | What code checks of a draft: every citation is an offered passage, a digit only where a cited passage, the selected words or the question states it, plain text, and a question about the selected words and the cited passages. It cannot see whether a sentence without a digit says what its passage says. | `quickAnswerRefusals` | implemented |
-| What the checker model judges: S-7b's support check (D-250) reads each sentence against the passages the answer cites, under its own role `supply.quick-answer-support`; code validates its reply (a quote in a cited passage and about the sentence). Not cleared: one rewrite with fixed hints and a second check; not cleared again, or no usable check at all: no card. The answering step cannot be built without a checker. A model's judgement, not a proof. | `quick-answer-support.ts`, `quick-answer-pipeline.ts` | implemented; real-model accuracy is the coordinator's on dev |
+| What the checker model judges: S-7b's support check (D-250) reads each sentence against the passages the answer cites, under its own role `supply.quick-answer-support`; code validates the shape of its reply and judges each verdict on its own sentence (a quote in a cited passage and about the sentence, D-265; a verdict that breaks a rule makes that sentence unsupported). A Quick answer is checked in one request (D-267): its writer's answer is held to ten sentences (`too_many_sentences`, `quick-answer.2`), so its bound stays six. Not cleared: one rewrite with fixed hints and a second check; not cleared again, or no usable check at all: no card. No paid step starts once the person's wait is over. The answering step cannot be built without a checker. A model's judgement, not a proof. | `quick-answer-support.ts`, `quick-answer-pipeline.ts` | implemented; real-model accuracy is the coordinator's on dev |
 | A question the passages do not cover: the card shows a sentence code owns, under the person's own words, and none of the model's. | `shownOf` | implemented |
 | Caps: the world's day (`KS_SUPPLY_QUICK_ANSWER_DAILY_CAP`, from the ledger; 0 is off), the person's day (`KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP`, from their rows) and three waiting at once. A full cap is an honest `unavailable` outcome with no row and no receipt. | `refusalReason` | implemented |
-| Refused while recording is paused (D-254). Stored, then "could not answer", for a person who paused and resumed: the personal harness runs only at the first generation, as for an ask's scope step. | `fenceRecording` | implemented; the resumed case is a known limit |
+| Refused while recording is paused (D-254). A person who paused and resumed is answered at their current generation (D-264); a card asked before a pause is not answered after it. | `fenceRecording`, recording-aware harness | implemented |
 | Retention (D-255): the selected words and the typed question are cleared when the answer settles or the card is dismissed, when a job arrives after the wait limit, or when `supply.purge-quick-answers` (every ten minutes) finds the answer still waiting after it; the answer is kept one day, then the purge deletes it; an expired answer reads as not found at once. The three-at-once limit counts only answers younger than the wait limit. | `adapters/postgres-quick-answers.ts` | implemented |
 | A report keeps the answer's words (`READ_QUICK_ANSWER_FOR_REPORT`, read by Feedback). | `makeReadQuickAnswerForReport` | implemented |
 
 A wait is four minutes at most. A status read past it says "could not answer" even if no worker ever closed the row, and a late answer finds the wait ended and is dropped. A redelivered job answers from the ledger (the run is the answer's ID), and an attempt of unknown outcome is never resent: the card ends as unavailable and the run stays open for an operator. The files that may name a Quick answer are allow-listed by `quick-answer-wall.test.ts`: nothing that ranks, plans, remembers or forms places can.
+
+## Recording generation (D-264)
+
+A question's placement (`ask-scope`, `ask-library`) and a Quick answer's writer, rewrite and support checks (`quick-answer`,
+`quick-answer-support`) run on the recording-aware personal harness, as the Planner's and the Cartographer's do. Supply is its third owner.
+
+| Capability | Where | Status |
+|---|---|---|
+| Each run is stamped when it starts with the person's account, the generation its record was asked at and a hash of what the model is sent, and every private read and write of it is fenced to that generation (and the root, epoch and account). | `application/recording-runs.ts`, `reasoning/application/personal-recording.ts` | implemented, CI-verified on real PostgreSQL with labelled fixture models |
+| The generation is the request's own (`command.intent.recordingGeneration`) or the card's (`supply.quick_answers.recording_generation`, migration 0096), both checked against the person's root by the create transaction. | `application/requests.ts`, `application/quick-answers.ts` | implemented |
+| Supply's owner check finds the record still current: the request still `matching`, or the card not dismissed, and asked at that generation. | `application/check-recording-run.ts`, installed by `supplyRecordingOwnerProviders` | implemented |
+| A verdict or an answer is stored in the transaction that closes its run, under the fence. When the fence refuses, the question closes as `could_not_prepare` and the card as unavailable, and the model's reply is dropped. After a Clear nothing is written. | `applyQuestionVerdict` in `application/matching.ts`, `apply` in `application/answer-quick-answer.ts` | implemented |
+| A free-text ask, Jev, What-if and a room's contribution still use the compatibility harness and run only at the first generation. | | planned, each with its own owner check |
+
+Failure and recovery: a pause, a resume or a Clear while a run is in flight ends it. A reply that arrives late is paid for and dropped,
+and a reservation not yet sent is released. A run the fence will not close stays open until the ledger's idle sweep closes it (six
+hours). A question or card asked before a pause is not answered after it; the person asks again. The lock order is unchanged: root,
+then the account gate, then the owner's rows.
 
 ## Waiting for production
 
@@ -162,9 +182,9 @@ and must be an exact catalogue member (the schema refuses anything else; one rep
 is then handled like a person's own catalogue ask. A cancel that arrives while the model thinks wins.
 An attempt of unknown outcome is never resent: the request closes as `could_not_prepare` and the run is
 left for an operator. A context-bearing text ask ("about this encounter") is not matched and closes as
-unsupported. The personal harness runs only while recording is at its initial generation, so a person
-who used Pause gets `could_not_prepare` for a free-text ask until the recording-aware harness accepts
-this purpose.
+unsupported. A free-text ask runs on the compatibility personal harness, which works only while recording is at its
+initial generation, so a person who used Pause gets `could_not_prepare` for a free-text ask until it moves to the
+recording-aware harness (its request records no generation yet; D-264 names it as not changed).
 
 ## Entry points
 
@@ -208,6 +228,7 @@ transaction that makes the branch, so a retry never gets here twice. The scenari
 | `supply.work` | Public shared group: SHA-256 key of a code-built brief, the recipe whose production it commissioned, who commissioned it (`person` or `planner`, for the two caps), `active`. No owner, no private context. | Survives erasure; it is public metadata. |
 | `pgboss/supply.resolve-request` | IDs only (`universeId`, `privacyEpoch`, `requestId`). Four at a time, 360 s expiry, three retries. A recovery job uses the same payload. | The eraser removes every queued, active, retained and dead-lettered payload of the owner. |
 | `pgboss/content.produce-scroll` | Owned by Content; names a recipe, never a person. | Nothing personal to erase. |
+| `pgboss/content.produce-answer` | Owned by Content; the same job for an ask order's answer (supply's ask path sends it, D-267); names an order's key, never a person. | Nothing personal to erase. |
 | `supply.scenario_orders` | The ledger of a thread's branch orders that the scenario caps count: order ID, thread ID, time. | Names no person; survives erasure. |
 | `supply.quick_answers` | A person's Quick answer (0093): the Scroll revision and stop, the words they selected and the question they typed (only while it waits), then the question the card shows and the answer. One day (`expires_at`). | Erased with the person (full erasure and Clear), at once; the export lists the answers still kept. |
 | `supply.quick_answer_ledger` | The ledger of Quick answers: an ID and a time, no person and no words. The world's day cap reads it. | Names no person and no words; survives erasure. |

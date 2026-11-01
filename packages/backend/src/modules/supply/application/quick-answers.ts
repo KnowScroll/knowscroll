@@ -98,6 +98,7 @@ export function makeAskQuickAnswer(p: QuickAnswerPorts): AskQuickAnswerUseCase {
       await p.store.insert(scope, {
         id,
         ...source,
+        recordingGeneration: asked.recordingGeneration,
         passage: asked.passage,
         question: asked.question,
         createdAt: now,

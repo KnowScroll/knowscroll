@@ -23,6 +23,8 @@ export interface QuickAnswerRow {
   readonly assetId: string;
   readonly assetRevision: number;
   readonly stopId: string;
+  /** The recording generation the answer was asked at, checked against the person's root by the create transaction (D-264). */
+  readonly recordingGeneration: number;
   readonly state: QuickAnswerState;
   readonly passage: string | undefined;
   readonly question: string | undefined;
@@ -38,6 +40,7 @@ export interface NewQuickAnswer {
   readonly assetId: string;
   readonly assetRevision: number;
   readonly stopId: string;
+  readonly recordingGeneration: number;
   readonly passage: string;
   readonly question: string | undefined;
   readonly createdAt: Date;

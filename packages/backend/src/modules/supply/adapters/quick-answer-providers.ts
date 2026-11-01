@@ -1,11 +1,13 @@
 import type { Kysely } from 'kysely';
-import type { ReasoningHarness } from '../../../reasoning/public.js';
+import type { RecordingReasoningHarness } from '../../../reasoning/public.js';
 import { READ_SCROLL_QUICK_ANSWER_FACTS, type ReadScrollQuickAnswerFacts } from '../../content/public.js';
 import { HAS_ACTIVATED_EXPOSURE, type HasActivatedExposure } from '../../experience/public.js';
 import {
   CHECK_PERSONAL_OWNER_ACTIVE,
+  FENCE_OWN_ACCOUNT,
   FENCE_PERSONAL_RECORDING,
   type CheckPersonalOwnerActive,
+  type FenceOwnAccount,
   type FencePersonalRecording,
   type PersonalScopeTx,
   type WithPersonalScope,
@@ -61,8 +63,9 @@ export interface QuickAnswerSettings {
 
 /**
  * Quick answer's use cases for the API and the worker. The API asks, reads and dismisses; the worker also passes `harness`,
- * the personal reasoning harness, which lets it answer. The worker's answering step is always built with the support check on
- * that same harness: there is no way to wire it without one.
+ * the recording-aware personal reasoning harness (D-264), which lets it answer. The worker's answering step is always built with
+ * the support check on that same harness: there is no way to wire it without one. The worker also needs the `FENCE_OWN_ACCOUNT`
+ * provider and Supply's `supplyRecordingOwnerProviders`.
  */
 export function quickAnswerProviders(t: {
   readonly withPersonalScope: symbol;
@@ -166,9 +169,9 @@ export function quickAnswerProviders(t: {
       : [
           {
             provide: ANSWER_QUICK_ANSWER,
-            inject: [QUICK_ANSWER_PORTS, t.harness],
-            useFactory: (p: QuickAnswerPorts, harness: ReasoningHarness) =>
-              makeAnswerQuickAnswer(p, harness, makeSupportCheck(harness)),
+            inject: [QUICK_ANSWER_PORTS, t.harness, FENCE_OWN_ACCOUNT],
+            useFactory: (p: QuickAnswerPorts, harness: RecordingReasoningHarness, fenceOwn: FenceOwnAccount) =>
+              makeAnswerQuickAnswer(p, { harness, fenceOwn }, makeSupportCheck(harness)),
           },
         ]),
   ];

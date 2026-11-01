@@ -146,6 +146,7 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
       overrides: fixture.ports,
       checkPlanner: makeCheckPlannerRecordingRun({ store: plannerStore, now: () => new Date() }),
       checkGeography: makeCheckGeographyRecordingRun({ store: geographyStore, now: () => new Date() }),
+      checkSupply: () => Promise.resolve('unavailable' as const),
     });
     ports = {
       ...(values.get(requestProviders[0]!.provide) as PlannerPorts),
