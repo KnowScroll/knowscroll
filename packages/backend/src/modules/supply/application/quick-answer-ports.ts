@@ -67,7 +67,7 @@ export interface QuickAnswerStore {
   countWaiting(scope: PersonalScopeTx, youngerThan: Date): Promise<number>;
 }
 
-/** Quartermaster's ledger of Quick answers: an ID and a time, no person and no words (migration 0094). */
+/** Quartermaster's ledger of Quick answers: an ID and a time, no person and no words (migration 0093). */
 export interface QuickAnswerLedger {
   /** Answers asked since `since` by anyone: what the world's daily cap counts. */
   countSince(scope: PersonalScopeTx, since: Date): Promise<number>;

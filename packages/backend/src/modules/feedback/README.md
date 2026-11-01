@@ -40,7 +40,7 @@ so one person reporting twice does not raise what moderators see.
 
 | Item | Detail |
 |---|---|
-| Table | `feedback.reports` (0068, 0094): account-keyed; reporter, kind, reason, target (asset and revision, message ID, room ID, reported account), anchor, note, the Quick answer's words (a content error about one), time, `retain_until`. Message IDs are soft references. |
+| Table | `feedback.reports` (0068, 0093): account-keyed; reporter, kind, reason, target (asset and revision, message ID, room ID, reported account), anchor, note, the Quick answer's words (a content error about one), time, `retain_until`. Message IDs are soft references. |
 | View | `ops.feedback_reports` (operator): ids, kind, reason, target kind, whether a note exists, time. No note, no accounts. |
 | Jobs | `feedback.purge-reports` (`events.ts`, scheduled daily at 03:17 UTC, worker): deletes reports whose `retain_until` has passed, 500 per transaction, at most 20 batches a run, skipping rows another transaction holds. Logs `feedback.reports_purged` with a count. Listed under the Operator's retention jobs. |
 | Notices | none |

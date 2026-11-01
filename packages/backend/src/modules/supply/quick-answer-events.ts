@@ -51,7 +51,7 @@ export const answerQuickAnswerQueue = defineQueue({
 export const PurgeQuickAnswersPayloadSchema = z.object({ v: z.literal(1) });
 
 /**
- * Erases the Quick answers whose day is over (D-253). Every row is kept for a day (migration 0094) and must not outlive
+ * Erases the Quick answers whose day is over (D-253). Every row is kept for a day (migration 0093) and must not outlive
  * it, so expiry cannot wait for traffic: it runs every ten minutes in small batches that skip rows another transaction
  * holds. Safe to run late, twice or concurrently.
  */
