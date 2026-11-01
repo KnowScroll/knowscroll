@@ -1,4 +1,11 @@
 import { ClientCapabilities } from '@knowscroll/contracts';
+import {
+  applyClosingRun,
+  runToClose,
+  startRunOwner,
+  type RecordingReasoningHarness,
+  type RunOwner,
+} from '../../../reasoning/public.js';
 import type {
   EncounterSnapshot,
   ReadContinuations,
@@ -18,13 +25,7 @@ import {
 import { refKey } from '../domain/policy.js';
 import type { ComposerDecision, ComposerSnapshot, SemanticAssessments } from '../domain/types.js';
 import { PrepareBufferJobSchema, type PrepareBufferJob } from '../events.js';
-import {
-  JEV_ASSESSMENT_VERSION,
-  storedAssessments,
-  type AssessShortlist,
-  type JevResult,
-  type JevRunEnd,
-} from './jev.js';
+import { JEV_ASSESSMENT_VERSION, storedAssessments, type AssessShortlist, type JevResult } from './jev.js';
 import type {
   ComposeEncounter,
   PersistComposerDecision,
@@ -40,12 +41,13 @@ import { assembleSnapshot, evidenceQueryFor, type SnapshotInput } from './snapsh
 import { readRelatedAssetIds } from './related-targets.js';
 import { readVerticalCandidates, renderableFormats } from './vertical-candidates.js';
 
-/** Jev, when it is switched on: the assessor, the model it runs on, how to close its run and the person's pool. */
+/** Jev, when it is switched on: the assessor, the recording-aware harness it runs on, the model and the person's pool. */
 export interface JevPorts {
   readonly assess: AssessShortlist;
+  /** Learns the generation recording is at, and closes Jev's run under that generation's fence (D-268). */
+  readonly harness: RecordingReasoningHarness;
   /** The configured model name, stored beside the assessments. */
   readonly model: string;
-  readonly closeRun: (scope: PersonalScopeTx, runId: string, end: JevRunEnd) => Promise<void>;
   /** The person's stored assessments, read in the first transaction. */
   readonly readPool: ReadJevPool;
   /** Adds the assessments just paid for to the person's pool, in the second transaction. */
@@ -76,7 +78,9 @@ export type PrepareBufferSkip =
   | 'source_unavailable'
   | 'region_scoped'
   | 'already_prepared'
-  | 'nothing_to_offer';
+  | 'nothing_to_offer'
+  /** Recording was paused, resumed or cleared while Jev worked: its result was dropped and nothing was prepared. */
+  | 'recording_changed';
 
 export type PrepareBufferResult =
   | {
@@ -106,6 +110,8 @@ interface Gathered {
   /** The baseline ranking input: without assessments, so the shortlist is chosen the same way every time. */
   readonly rankingInput: SnapshotInput;
   readonly pool?: JevPool;
+  /** Who Jev's run is for and the generation recording was at when the job started; absent while recording is paused. */
+  readonly owner?: RunOwner;
 }
 
 const skipped = (reason: PrepareBufferSkip): PrepareBufferResult => ({ kind: 'skipped', reason });
@@ -119,11 +125,13 @@ const skipped = (reason: PrepareBufferSkip): PrepareBufferResult => ({ kind: 'sk
  * lock in both transactions (workers have no HTTP guard). The session must still be at the job's
  * intent revision and the offer must really have been activated.
  * Steps: (1) one transaction reads the session facts, candidates, Hide, prepared context and the
- * person's stored Jev assessments and builds the ranking input; (2) outside any transaction, when
- * Jev is on, it assesses only the best baseline candidates that have no usable stored assessment
- * (and none at all when there are none, or the subject was assessed minutes ago); (3) the ranking
- * runs with the stored and new assessments; (4) one transaction rechecks the session, adds what
- * was paid for to the person's pool, persists the decision, replaces the buffer and closes Jev's run.
+ * person's stored Jev assessments, learns the generation recording is at, and builds the ranking input; (2) outside any
+ * transaction, when Jev is on, it assesses only the best baseline candidates that have no usable stored assessment
+ * (and none at all when there are none, or the subject was assessed minutes ago), on the recording-aware harness at that
+ * generation (D-268); (3) the ranking runs with the stored and new assessments; (4) one transaction rechecks the session, adds
+ * what was paid for to the person's pool, persists the decision, replaces the buffer and closes Jev's run. When Jev's run
+ * was made it is that whole transaction that runs under the recording fence: a person who paused, resumed or cleared recording
+ * meanwhile gets nothing stored (`recording_changed`) and the next navigation ranks for itself.
  * Side effects: `composer.decisions`, `composer.buffers`, `composer.jev_assessments` and Jev's
  * reasoning run. No evidence, no encounter: a buffer is only a prepared ranking.
  * Failure/retry: a redelivery finds the buffer already prepared and does nothing; Jev's run ID is
@@ -145,7 +153,7 @@ export function makePrepareBuffer(ports: PrepareBufferPorts): PrepareBuffer {
       source: { offerId: job.sourceOfferId, exposureId: job.sourceExposureId },
     };
 
-    const entered = await ports.withPersonalScope(authority, (scope) => gather(ports, scope, key));
+    const entered = await ports.withPersonalScope(authority, (scope) => gather(ports, scope, key, delivery));
     if (entered.kind !== 'entered') return skipped('universe_unavailable');
     if (entered.value.kind === 'skip') return skipped(entered.value.reason);
     const gathered = entered.value.gathered;
@@ -157,9 +165,15 @@ export function makePrepareBuffer(ports: PrepareBufferPorts): PrepareBuffer {
     });
     const decision = ports.compose(snapshot);
 
-    const committed = await ports.withPersonalScope(authority, (scope) =>
-      commit(ports, scope, { key, delivery, snapshot, decision, assessments: jev.assessments, jev }),
-    );
+    const committed = await commitUnderFence(ports, authority, {
+      key,
+      delivery,
+      snapshot,
+      decision,
+      assessments: jev.assessments,
+      jev,
+    });
+    if (committed.kind === 'dropped') return skipped('recording_changed');
     if (committed.kind !== 'entered') return skipped('universe_unavailable');
     if (committed.value.kind === 'skip') return skipped(committed.value.reason);
     return {
@@ -175,9 +189,12 @@ async function gather(
   ports: PrepareBufferPorts,
   scope: PersonalScopeTx,
   key: BufferKey,
+  delivery: PrepareBufferDelivery,
 ): Promise<{ kind: 'skip'; reason: PrepareBufferSkip } | { kind: 'gathered'; gathered: Gathered }> {
   const skip = (reason: PrepareBufferSkip) => ({ kind: 'skip' as const, reason });
   const now = ports.now();
+  // The account gate comes first. The claim is the exposure the buffer is for: Jev's owner check finds it by that.
+  const owner = ports.jev && (await startRunOwner(ports.jev.harness, scope, key.source.exposureId));
   const facts = await ports.readSource(scope, {
     sessionId: key.sessionId,
     offerId: key.source.offerId,
@@ -209,6 +226,7 @@ async function gather(
     gathered: {
       source,
       ...(pool ? { pool } : {}),
+      ...(owner ? { owner } : {}),
       rankingInput: {
         universeId: scope.authority.universeId,
         privacyEpoch: scope.authority.privacyEpoch,
@@ -273,6 +291,7 @@ async function assessIfDue(
     authority,
     source: gathered.source,
     shortlist: plan.candidates,
+    owner: gathered.owner,
     signal: delivery.signal,
   });
   const absent = (reason: string): JevOutcome => ({
@@ -321,22 +340,36 @@ function baselineShortlist(ports: PrepareBufferPorts, gathered: Gathered): reado
     });
 }
 
-async function commit(
-  ports: PrepareBufferPorts,
-  scope: PersonalScopeTx,
-  input: {
-    readonly key: BufferKey;
-    readonly delivery: PrepareBufferDelivery;
-    readonly snapshot: ComposerSnapshot;
-    readonly decision: ComposerDecision;
-    readonly assessments: SemanticAssessments | undefined;
-    readonly jev: JevOutcome;
-  },
-): Promise<{ kind: 'skip'; reason: PrepareBufferSkip } | { kind: 'stored'; offers: number }> {
+interface CommitInput {
+  readonly key: BufferKey;
+  readonly delivery: PrepareBufferDelivery;
+  readonly snapshot: ComposerSnapshot;
+  readonly decision: ComposerDecision;
+  readonly assessments: SemanticAssessments | undefined;
+  readonly jev: JevOutcome;
+}
+type Committed = { kind: 'skip'; reason: PrepareBufferSkip } | { kind: 'stored'; offers: number };
+
+/**
+ * The second transaction. When Jev's run was made, the run closes and everything it bought is stored in one transaction under
+ * the recording fence, so a pause, a resume or a Clear while the model worked stores nothing (`dropped`; the run is left for
+ * the ledger's idle sweep). With no run to close (Jev off, paused, reused, or an attempt of unknown outcome) it is the plain
+ * transaction it always was.
+ */
+async function commitUnderFence(ports: PrepareBufferPorts, authority: PersonalAuthority, input: CommitInput) {
+  const closing = runToClose(input.delivery.jobId, input.jev.result?.purpose, input.jev.result?.end);
+  if (ports.jev === undefined || closing === undefined)
+    return ports.withPersonalScope(authority, (scope) => commit(ports, scope, input));
+  const applied = await applyClosingRun(ports.jev.harness, authority, closing, (scope) =>
+    commit(ports, scope, input),
+  );
+  return applied.kind === 'applied' ? ({ kind: 'entered', value: applied.value } as const) : applied;
+}
+
+/** Stores what Jev bought and the buffer, inside the caller's transaction. Closing Jev's run is the caller's. */
+async function commit(ports: PrepareBufferPorts, scope: PersonalScopeTx, input: CommitInput): Promise<Committed> {
   const { key, snapshot, decision } = input;
-  // The paid run ends, and what it bought is kept, whatever happens to the buffer: a superseded job
-  // still settles its run, and its assessments serve the next preparation.
-  if (ports.jev && input.jev.result?.end) await ports.jev.closeRun(scope, input.delivery.jobId, input.jev.result.end);
+  // What the paid run bought is kept whatever happens to the buffer: a superseded job's assessments serve the next preparation.
   if (ports.jev && input.jev.paid.length > 0)
     await ports.jev.storePool(
       scope,

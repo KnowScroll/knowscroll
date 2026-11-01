@@ -1,4 +1,11 @@
-import type { ReasoningHarness } from '../../../reasoning/public.js';
+import {
+  applyClosingRun,
+  proposeWhenRecording,
+  runToClose,
+  startRunOwner,
+  type RecordingReasoningHarness,
+  type RunOwner,
+} from '../../../reasoning/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { ROOT_PARENT, type ParentFacts, type ScenarioKind } from '../domain/exploration.js';
 import type { SuggestDraftJob } from '../events.js';
@@ -15,9 +22,6 @@ import type { DraftRow, DraftWorkerPorts } from './ports.js';
 /** Asks the Scenario Planner about one waiting draft; the worker's consumer calls it. */
 export type SuggestStep = (job: SuggestDraftJob, signal: AbortSignal) => Promise<void>;
 
-/** The harness refuses with this fixed message when a run can no longer be closed legitimately. */
-const HARNESS_REFUSAL = 'PERSONAL_REASONING_AUTHORITY_REFUSED';
-
 type Prepared =
   /** Nothing to do: the draft is gone, answered, chosen or expired, or belongs to another scope. */
   | { readonly kind: 'skip' }
@@ -30,6 +34,8 @@ type Prepared =
       readonly draftKind: ScenarioKind;
       readonly parent: ParentFacts;
       readonly context: ReturnType<typeof plannerContext>;
+      /** Absent while recording is paused: the draft is then refused without a run (D-268). */
+      readonly owner: RunOwner | undefined;
     };
 
 /**
@@ -40,16 +46,20 @@ type Prepared =
  *
  * Authority: a `system` actor for the requester's universe and epoch, rechecked under the personal
  * lock in both transactions. Steps: (1) one transaction reads the still-waiting draft, the
- * requester's place in the thread and the context; (2) outside any transaction the harness makes
- * one model call (plus at most one repair) on the draft's own run; (3) one transaction closes the
- * run, rechecks the draft is still waiting and the member still takes part, and stores the
- * outcome. A member who left meanwhile gets nothing stored: the late answer is dropped.
+ * requester's place in the thread, the context and the generation recording is at; (2) outside any transaction the
+ * recording-aware harness makes one model call (plus at most one repair) on the draft's own run, at that generation (D-268);
+ * (3) one transaction under the recording fence closes the run, rechecks the draft is still waiting and the member still takes
+ * part, and stores the outcome. A member who left meanwhile gets nothing stored: the late answer is dropped. So is a
+ * reply that comes back after the person paused, resumed or cleared recording: the draft then closes as `could_not_suggest`
+ * (a Clear leaves nothing to close), and while recording is paused the draft is refused without a call.
  * Failure/retry: the run ID is the draft ID, so a redelivery answers from the ledger and never pays
  * twice, and an attempt of unknown outcome is never resent: the draft closes as `could_not_suggest`
  * and the run stays open for an operator.
  */
-export function makeSuggestDraft(p: DraftWorkerPorts, harness: ReasoningHarness): SuggestStep {
+export function makeSuggestDraft(p: DraftWorkerPorts, harness: RecordingReasoningHarness): SuggestStep {
   async function prepare(scope: PersonalScopeTx, draftId: string): Promise<Prepared> {
+    // The account gate comes before any thread row is read or locked.
+    const owner = await startRunOwner(harness, scope, draftId);
     const draft = await p.store.readDraft(scope, draftId);
     if (
       draft?.state !== 'thinking' ||
@@ -80,6 +90,7 @@ export function makeSuggestDraft(p: DraftWorkerPorts, harness: ReasoningHarness)
         origin: draft.origin,
         window,
       }),
+      owner,
     };
   }
 
@@ -99,13 +110,6 @@ export function makeSuggestDraft(p: DraftWorkerPorts, harness: ReasoningHarness)
   }
 
   async function apply(scope: PersonalScopeTx, draftId: string, verdict: SuggestVerdict): Promise<void> {
-    if (verdict.end !== undefined) {
-      try {
-        await harness.closeRun(scope, { runId: draftId, state: verdict.end });
-      } catch (error) {
-        if (!(error instanceof Error) || error.message !== HARNESS_REFUSAL) throw error;
-      }
-    }
     const draft = await p.store.lockDraft(scope, draftId);
     // A choice made while the model thought, or an expiry, wins: the late answer is dropped.
     if (draft?.state !== 'thinking') return;
@@ -138,7 +142,9 @@ export function makeSuggestDraft(p: DraftWorkerPorts, harness: ReasoningHarness)
       );
       return;
     }
-    const outcome = await harness.propose(
+    const { outcome, purpose } = await proposeWhenRecording(
+      harness,
+      value.owner,
       {
         run: {
           id: job.draftId,
@@ -153,6 +159,15 @@ export function makeSuggestDraft(p: DraftWorkerPorts, harness: ReasoningHarness)
       },
       signal,
     );
-    await p.withScope(authority, (scope) => apply(scope, job.draftId, suggestVerdict(outcome, value.draftKind)));
+    const verdict = suggestVerdict(outcome, value.draftKind);
+    const closing = runToClose(job.draftId, purpose, verdict.end);
+    if (closing === undefined) {
+      await p.withScope(authority, (scope) => apply(scope, job.draftId, verdict));
+      return;
+    }
+    const applied = await applyClosingRun(harness, authority, closing, (scope) => apply(scope, job.draftId, verdict));
+    // The fence no longer holds: only the end of what was asked is written, and after a Clear nothing is.
+    if (applied.kind === 'dropped')
+      await p.withScope(authority, (scope) => apply(scope, job.draftId, { kind: 'failed', failure: 'could_not_suggest' }));
   };
 }

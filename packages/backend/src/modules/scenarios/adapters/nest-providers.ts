@@ -24,12 +24,17 @@ import {
   type ThreadGuest,
 } from '../../social/public.js';
 import { COMMISSION_SCENARIO_ORDER, type CommissionScenarioOrder } from '../../supply/public.js';
-import type { ReasoningHarness } from '../../../reasoning/public.js';
+import {
+  CHECK_SCENARIOS_RECORDING_RUN,
+  type CheckPersonalRecordingRun,
+  type RecordingReasoningHarness,
+} from '../../../reasoning/public.js';
 import { stableUuid } from '../../../infrastructure/ids/index.js';
 import type { EnqueueJob } from '../../../infrastructure/jobs/enqueue.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { requestHash, type CanonicalJson } from '../../../infrastructure/receipts/index.js';
 import { makeReadOrderAudience } from '../application/audience.js';
+import { makeCheckScenariosRecordingRun } from '../application/check-recording-run.js';
 import { makeChoose } from '../application/choose.js';
 import { makeListScenarios } from '../application/list.js';
 import type { AnswerWorkerPorts, DraftWorkerPorts, ScenarioPorts } from '../application/ports.js';
@@ -163,9 +168,24 @@ export function orderAudienceProviders(tokens: { readonly database: symbol }) {
 }
 
 /**
+ * The owner check the recording-aware harness runs for Scenarios' personal runs (D-268): the draft or branch a run serves must
+ * still be waiting for it. Installed wherever the recording harness is (the worker), because the harness cannot be built without it.
+ */
+export function scenariosRecordingOwnerProviders() {
+  return [
+    {
+      provide: CHECK_SCENARIOS_RECORDING_RUN,
+      inject: [],
+      useFactory: (): CheckPersonalRecordingRun => makeCheckScenariosRecordingRun({ store: scenarioStore }),
+    },
+  ];
+}
+
+/**
  * The worker's scenarios: the planner step that answers a draft and the step that writes a what-if's short answer
- * (both need the personal reasoning harness), and the sweep that settles preparing branches and ends a short
- * answer's wait (it needs the process's pg-boss to send a production job outside a transaction).
+ * (both run on the recording-aware personal harness, at the person's recording generation, D-268), and the sweep that
+ * settles preparing branches and ends a short answer's wait (it needs the process's pg-boss to send a production job outside
+ * a transaction).
  */
 export function scenarioWorkerProviders(tokens: ScenarioTokens & { readonly harness: symbol }) {
   return [
@@ -177,7 +197,7 @@ export function scenarioWorkerProviders(tokens: ScenarioTokens & { readonly harn
         base: DraftWorkerPorts,
         readEvidence: ReadScrollEvidence,
         announce: AnnounceThread,
-        harness: ReasoningHarness,
+        harness: RecordingReasoningHarness,
       ) => {
         const ports: AnswerWorkerPorts = { ...base, readEvidence, announce };
         return makeWriteAnswer(ports, harness);
@@ -186,7 +206,7 @@ export function scenarioWorkerProviders(tokens: ScenarioTokens & { readonly harn
     {
       provide: SUGGEST_SCENARIO_DRAFT,
       inject: [SCENARIO_WORKER_PORTS, tokens.harness],
-      useFactory: (ports: DraftWorkerPorts, harness: ReasoningHarness) => makeSuggestDraft(ports, harness),
+      useFactory: (ports: DraftWorkerPorts, harness: RecordingReasoningHarness) => makeSuggestDraft(ports, harness),
     },
     {
       provide: RESOLVE_SCENARIO_BRANCHES,

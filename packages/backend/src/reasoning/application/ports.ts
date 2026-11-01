@@ -163,7 +163,7 @@ export interface RecordingRunProof {
   readonly modelContextSha256: string;
 }
 
-/** What every owner's proof holds. `claimId` is whatever the owner's own record is called: the Planner's current claim, or the ID of the request or answer a Supply run serves. */
+/** What every owner's proof holds. `claimId` is whatever the owner's own record is called: the Planner's current claim, or the ID of the request, draft, ask or answer a run serves. */
 interface PersonalRecordingProof {
   readonly version: 'personal-role-purpose.v1';
   readonly accountId: string;
@@ -177,16 +177,21 @@ interface PersonalRecordingProof {
 }
 
 /**
+ * The modules that name their own steps. This engine does not name them: it only checks a purpose is a lowercase code, and the
+ * schema (`reasoning_personal_recording_proof_shape`, migrations 0096 and 0097) and the module's owner check hold the list.
+ */
+export type StepOwnerModule = 'supply' | 'scenarios' | 'rooms' | 'composer';
+
+/**
  * Immutable private proof; claim is checked by the owner, never stored as run identity. The owner decides the purpose: the
- * Planner and the Cartographer have one each, so a wrong literal does not compile. Supply names the step a run is (a lowercase
- * code, `string` here because this engine does not name Supply's steps): its owner check knows which exist, and the schema
- * repeats them (migration 0096).
+ * Planner and the Cartographer have one each, so a wrong literal does not compile. The other owners name the step a run is
+ * (`string` here, see {@link StepOwnerModule}): the owner's check knows which exist.
  */
 export type PersonalRecordingPurpose = PersonalRecordingProof &
   (
     | { readonly ownerModule: 'planner'; readonly purpose: 'personal-planner' }
     | { readonly ownerModule: 'geography'; readonly purpose: 'personal-cartographer' }
-    | { readonly ownerModule: 'supply'; readonly purpose: string }
+    | { readonly ownerModule: StepOwnerModule; readonly purpose: string }
   );
 export type CheckPersonalRecordingRun = (
   scope: RecordingScopeTx,
@@ -272,6 +277,11 @@ export interface PersonalHarnessAccess {
     runId: string,
     readExpectedBinding: ReadPersonalRunAccountingBinding,
   ): Promise<PersonalRunAccounting>;
+  /**
+   * The person a scope belongs to and the generation their recording is at now, for a step about to start a run for one of
+   * their records. Takes the scope's one account gate. Nothing when recording is paused or the owner is not active.
+   */
+  currentOwner(scope: PersonalScopeTx): Promise<{ readonly accountId: string; readonly generation: number } | undefined>;
 }
 
 /** Fixed refusal, with no private values or exception-derived diagnostic text. */

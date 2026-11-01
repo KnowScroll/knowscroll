@@ -44,6 +44,7 @@ import {
   roomsFeedProviders,
   roomsScoutProviders,
   roomsRitualProviders,
+  roomsRecordingOwnerProviders,
   roomsWorkerProviders,
 } from '@knowscroll/backend/modules/rooms/nest-providers';
 import {
@@ -77,7 +78,11 @@ import {
   supplyRecordingOwnerProviders,
 } from '@knowscroll/backend/modules/supply/nest-providers';
 import { threadGuestProviders } from '@knowscroll/backend/modules/social/nest-providers';
-import { orderAudienceProviders, scenarioWorkerProviders } from '@knowscroll/backend/modules/scenarios/nest-providers';
+import {
+  orderAudienceProviders,
+  scenarioWorkerProviders,
+  scenariosRecordingOwnerProviders,
+} from '@knowscroll/backend/modules/scenarios/nest-providers';
 import {
   CHECK_ASSET_AUDIENCE,
   READ_ASK_ORDER_AUDIENCE,
@@ -165,6 +170,7 @@ import { PREPARE_COMPOSER_BUFFER, prepareBufferQueue, type PrepareBuffer } from 
 import {
   composerBufferWorkerProviders,
   composerConfiguredProviders,
+  composerRecordingOwnerProviders,
 } from '@knowscroll/backend/modules/composer/nest-providers';
 import {
   SWEEP_SIGN_IN_RECORDS,
@@ -177,7 +183,6 @@ import { feedbackPurgeProviders } from '@knowscroll/backend/modules/feedback/nes
 import {
   PRODUCTION_REASONING_HARNESS,
   PURGE_EXPIRED_REQUESTS,
-  REASONING_HARNESS,
   RECORDING_REASONING_HARNESS,
   SWEEP_DISPATCHED_ATTEMPTS,
   WITH_PRODUCTION_SCOPE,
@@ -214,8 +219,9 @@ export const jobWiring: Provider[] = [
   ...formationProviders({ database: DATABASE, boss: PG_BOSS, withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...geographyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...visitRefreshProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
-  // An AI inhabitant answers a member's ask through the personal harness; it reads people and content only.
+  // An AI inhabitant answers a member's ask through the recording-aware personal harness (D-268); it reads people and content only.
   ...socialPeopleProviders(),
+  ...roomsRecordingOwnerProviders(),
   ...roomsWorkerProviders({
     withPersonalScope: WITH_PERSONAL_SCOPE,
     workerConfig: WORKER_CONFIG,
@@ -242,13 +248,12 @@ export const jobWiring: Provider[] = [
       },
   },
   ...identityScopeOwnerProviders(),
-  // The worker's resolver matches free-text asks through the personal reasoning harness, and places a question asked from a
-  // Scroll through the recording-aware one, at the generation it was asked at (D-264).
+  // The worker's resolver matches free-text asks and places a question asked from a Scroll through the recording-aware
+  // harness, at the person's recording generation (D-264, D-268).
   ...supplyProviders({
     withPersonalScope: WITH_PERSONAL_SCOPE,
     enqueueJob: ENQUEUE_JOB,
     config: WORKER_CONFIG,
-    harness: REASONING_HARNESS,
     recordingHarness: RECORDING_REASONING_HARNESS,
   }),
   ...supplyRecordingOwnerProviders(),
@@ -268,6 +273,8 @@ export const jobWiring: Provider[] = [
   // The worker persists decisions and ranks; it exposes no operator read of them.
   ...composerConfiguredProviders({ isOperator: () => false }, WORKER_CONFIG),
   ...composerBufferWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
+  // Jev runs on the recording-aware harness; its owner check asks Experience whether the exposure was activated (D-268).
+  ...composerRecordingOwnerProviders(),
   ...contentProviders(),
   ...madeToOrderProviders({ database: DATABASE, orderAudiences: [READ_ORDER_AUDIENCE, READ_ASK_ORDER_AUDIENCE] }),
   ...scrollProductionSenderProviders({ boss: PG_BOSS }),
@@ -276,11 +283,13 @@ export const jobWiring: Provider[] = [
   // Who may reach a branch's Scroll, so the data export keeps a title only for those still in its thread.
   ...orderAudienceProviders({ database: DATABASE }),
   ...askOrderAudienceProviders({ database: DATABASE }),
+  // The planner step and the short-answer writer run on the recording-aware harness (D-268).
   ...scenarioWorkerProviders({
     withPersonalScope: WITH_PERSONAL_SCOPE,
     database: DATABASE,
-    harness: REASONING_HARNESS,
+    harness: RECORDING_REASONING_HARNESS,
   }),
+  ...scenariosRecordingOwnerProviders(),
   // Same required PC-owned Composer adapter as the API; no legacy prepared-input binding.
   ...personalContextProviders({ readCurrentPlan: READ_CURRENT_PLAN }),
   ...evidenceProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),

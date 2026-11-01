@@ -1,5 +1,13 @@
-import type { ReasoningHarness } from '../../../reasoning/public.js';
-import type { PersonalScopeTx } from '../../identity/public.js';
+import {
+  applyClosingRun,
+  proposeWhenRecording,
+  runToClose,
+  startRunOwner,
+  type PersonalRecordingPurpose,
+  type RecordingReasoningHarness,
+  type RunOwner,
+} from '../../../reasoning/public.js';
+import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { MAX_CARD_PASSAGES, MIN_CARD_PASSAGES, type CardPassage } from '../domain/answer-card.js';
 import type { WriteAnswerJob } from '../events.js';
 import {
@@ -16,9 +24,6 @@ import type { AnswerWorkerPorts, AnswerSettlement } from './ports.js';
 /** Writes the short answer of one waiting what-if branch; the worker's consumer calls it. */
 export type WriteAnswerStep = (job: WriteAnswerJob, signal: AbortSignal) => Promise<void>;
 
-/** The harness refuses with this fixed message when a run can no longer be closed legitimately. */
-const HARNESS_REFUSAL = 'PERSONAL_REASONING_AUTHORITY_REFUSED';
-
 type Prepared =
   /** Nothing to do: the branch is gone, removed, answered, not a what-if, or belongs to another scope. */
   | { readonly kind: 'skip' }
@@ -30,6 +35,8 @@ type Prepared =
       readonly passages: readonly CardPassage[];
       readonly premiseTexts: readonly string[];
       readonly context: ReturnType<typeof answerContext>;
+      /** Absent while recording is paused: the answer is then refused without a run (D-268). */
+      readonly owner: RunOwner | undefined;
     };
 
 /**
@@ -40,16 +47,21 @@ type Prepared =
  *
  * Authority: a `system` actor for the starter's universe and epoch, rechecked under the personal lock in both
  * transactions; the starter must still take part in the thread, because their allowance pays. Steps: (1) one
- * transaction reads the still-waiting branch, the starter's place and the context; (2) outside any transaction the
- * harness makes one model call (plus at most one repair) on the branch's own run; (3) one transaction closes the run,
- * rechecks the branch still stands and its answer is still waited for, and stores the outcome. A branch removed
- * meanwhile, or whose wait the sweep already ended, gets nothing stored: the late answer is dropped.
+ * transaction reads the still-waiting branch, the starter's place, the context and the generation recording is at; (2)
+ * outside any transaction the recording-aware harness makes one model call (plus at most one repair) on the branch's own run,
+ * at that generation (D-268); (3) one transaction under the recording fence closes the run, rechecks the branch still stands
+ * and its answer is still waited for, and stores the outcome. A branch removed meanwhile, or whose wait the sweep already
+ * ended, gets nothing stored: the late answer is dropped. So is a reply that comes back after the person paused, resumed or
+ * cleared recording: the card then ends as unavailable (a Clear leaves nothing to end), and while recording is paused the
+ * card is refused without a call.
  * Failure/retry: the run ID is the branch ID, so a redelivery answers from the ledger and never pays twice, and an
  * attempt of unknown outcome is never resent: the card ends as unavailable and the run stays open for an operator.
  * With fewer than two claims to cite no model is asked at all.
  */
-export function makeWriteAnswer(p: AnswerWorkerPorts, harness: ReasoningHarness): WriteAnswerStep {
+export function makeWriteAnswer(p: AnswerWorkerPorts, harness: RecordingReasoningHarness): WriteAnswerStep {
   async function prepare(scope: PersonalScopeTx, nodeId: string): Promise<Prepared> {
+    // The account gate comes before any thread row is read or locked.
+    const owner = await startRunOwner(harness, scope, nodeId);
     const node = await p.store.readNode(scope, nodeId);
     if (node?.kind !== 'what_if' || node.status === 'removed' || node.answer?.state !== 'making')
       return { kind: 'skip' };
@@ -79,18 +91,12 @@ export function makeWriteAnswer(p: AnswerWorkerPorts, harness: ReasoningHarness)
         subject: { title: subject.metadata.title, summary: subject.metadata.summary },
         passages,
       }),
+      owner,
     };
   }
 
   /** Stores the outcome if the branch still stands and its answer is still waited for. Returns the thread to tell. */
   async function apply(scope: PersonalScopeTx, nodeId: string, verdict: AnswerVerdict): Promise<string | undefined> {
-    if (verdict.end !== undefined) {
-      try {
-        await harness.closeRun(scope, { runId: nodeId, state: verdict.end });
-      } catch (error) {
-        if (!(error instanceof Error) || error.message !== HARNESS_REFUSAL) throw error;
-      }
-    }
     const node = await p.store.lockNode(scope, nodeId);
     // A removal, or the sweep ending a wait that took too long, wins: the late answer is dropped.
     if (node === undefined || node.status === 'removed' || node.answer?.state !== 'making') return undefined;
@@ -121,7 +127,9 @@ export function makeWriteAnswer(p: AnswerWorkerPorts, harness: ReasoningHarness)
       const settled = await p.withScope(authority, (scope) => apply(scope, job.nodeId, { kind: 'unavailable' }));
       told = settled.kind === 'entered' ? settled.value : undefined;
     } else {
-      const outcome = await harness.propose(
+      const { outcome, purpose } = await proposeWhenRecording(
+        harness,
+        value.owner,
         {
           run: {
             id: job.nodeId,
@@ -136,12 +144,30 @@ export function makeWriteAnswer(p: AnswerWorkerPorts, harness: ReasoningHarness)
         },
         signal,
       );
-      const settled = await p.withScope(authority, (scope) =>
-        apply(scope, job.nodeId, answerVerdict(outcome, value.passages)),
-      );
-      told = settled.kind === 'entered' ? settled.value : undefined;
+      told = await settleAnswer(job, authority, answerVerdict(outcome, value.passages), purpose);
     }
     // After the commit; a lost hint costs speed, never correctness, because the screens poll.
     if (told !== undefined) await p.announce(told).catch(() => undefined);
   };
+
+  /**
+   * Stores the answer's outcome and closes its run under the recording fence; a run with no conclusive end is stored in a plain
+   * transaction. When the fence no longer holds only the card's end is written. Returns the thread to tell.
+   */
+  async function settleAnswer(
+    job: WriteAnswerJob,
+    authority: PersonalAuthority,
+    verdict: AnswerVerdict,
+    purpose: PersonalRecordingPurpose | undefined,
+  ): Promise<string | undefined> {
+    const closing = runToClose(job.nodeId, purpose, verdict.end);
+    let outcome = verdict;
+    if (closing !== undefined) {
+      const applied = await applyClosingRun(harness, authority, closing, (scope) => apply(scope, job.nodeId, verdict));
+      if (applied.kind === 'applied') return applied.value;
+      outcome = { kind: 'unavailable' };
+    }
+    const settled = await p.withScope(authority, (scope) => apply(scope, job.nodeId, outcome));
+    return settled.kind === 'entered' ? settled.value : undefined;
+  }
 }

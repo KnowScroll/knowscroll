@@ -1,5 +1,10 @@
 import type { Transaction } from 'kysely';
-import type { FencePersonalRecording, RecordingScopeTx, PersonalScopeTx } from '../../modules/identity/public.js';
+import type {
+  FencePersonalRecording,
+  PersonalScopeTx,
+  ReadPersonalRecordingNow,
+  RecordingScopeTx,
+} from '../../modules/identity/public.js';
 import type { Database } from './database.js';
 import { transactionOf, ScopeClosedError } from './personal-scope.js';
 const open = new WeakMap<RecordingScopeTx, PersonalScopeTx>();
@@ -44,6 +49,38 @@ export const fencePersonalRecording: FencePersonalRecording = async (personal, o
   open.set(scope, personal);
   return { kind: 'recording', scope };
 };
+/**
+ * Reads where the person's recording is under the root the caller already holds: on at a generation, paused, or not usable
+ * (the universe or account is not active, a Clear is running, or the scope is another's). Same checks as the fence, without an
+ * expected generation, so a step that starts later can stamp its run with the generation it began at.
+ */
+export const readPersonalRecordingNow: ReadPersonalRecordingNow = async (personal) => {
+  const row = await transactionOf(personal)
+    .selectFrom('identity.universes as u')
+    .innerJoin('identity.accounts as a', 'a.id', 'u.account_id')
+    .select([
+      'u.account_id',
+      'u.privacy_epoch',
+      'u.status',
+      'u.clear_operation_id',
+      'u.recording_on',
+      'u.recording_generation',
+      'a.status as account_status',
+    ])
+    .where('u.id', '=', personal.authority.universeId)
+    .executeTakeFirst();
+  if (
+    !row ||
+    row.status !== 'active' ||
+    row.account_status !== 'active' ||
+    row.clear_operation_id !== null ||
+    row.privacy_epoch !== personal.authority.privacyEpoch ||
+    (personal.authority.actor.kind === 'account' && row.account_id !== personal.authority.actor.accountId)
+  )
+    return { kind: 'unavailable' };
+  return row.recording_on ? { kind: 'recording', generation: row.recording_generation } : { kind: 'paused' };
+};
+
 /** Runtime provenance and the existing personal capability lifetime, not structural typing. */
 export function recordingTransactionOf(scope: RecordingScopeTx): Transaction<Database> {
   const personal = open.get(scope);
