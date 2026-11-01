@@ -40,6 +40,8 @@ async function seriousViolations(page: Page, within?: string) {
 const VIEWPORTS = [
   { name: 'phone', size: { width: 390, height: 844 } },
   { name: 'desktop', size: { width: 1440, height: 900 } },
+  // The smallest phone the reader supports: the banner and the buttons must still fit around the question.
+  { name: 'small', size: { width: 320, height: 568 } },
 ] as const;
 const scope = { accountId: id(1), privacyEpoch: 1 };
 

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { LAUNCH_QUESTIONS } from '@knowscroll/contracts';
 import {
   REPLAY_ANSWER_MS,
@@ -135,11 +135,9 @@ export function ReplaySheet({
     onClose();
   };
   const outcome = state.answer === undefined ? undefined : { picked: state.picked, correct: state.answer.correct };
-  // The sheet has no scroll of its own: the black banner (D-241) and the buttons stay in view, and the question scrolls between.
-  const { height } = useWindowDimensions();
-  const scrollRoom = Math.max(MIN_SCROLL_ROOM, height - CHROME_HEIGHT);
   return (
-    <BottomSheet visible={visible} title="Replay" onClose={close} testID="replay-sheet">
+    // `fit`: the black banner (D-241) and the buttons stay in view and the question scrolls between them, whatever the text size.
+    <BottomSheet visible={visible} title="Replay" onClose={close} testID="replay-sheet" fit>
       <View style={styles.body}>
         {replay === undefined ? (
           <Text variant="bodyS" color={content.ink2} testID="replay-none">
@@ -157,7 +155,7 @@ export function ReplaySheet({
               </Text>
             </View>
             <ScrollView
-              style={{ maxHeight: scrollRoom }}
+              style={styles.scroll}
               contentContainerStyle={styles.scrolled}
               testID="replay-scroll"
               // A region that scrolls is reachable by keyboard (axe: scrollable-region-focusable).
@@ -212,12 +210,9 @@ export function ReplaySheet({
   );
 }
 
-/** What the sheet takes besides the scrolling part: its grab and title, the banner, the buttons and the gaps, on a phone. */
-const CHROME_HEIGHT = 330;
-const MIN_SCROLL_ROOM = 240;
-
 const styles = StyleSheet.create({
-  body: { gap: spacing[3] },
+  body: { gap: spacing[3], flexShrink: 1, minHeight: 0 },
+  scroll: { flexShrink: 1, flexGrow: 0 },
   scrolled: { gap: spacing[3], paddingBottom: spacing[2], paddingRight: spacing[2] },
   banner: { padding: spacing[3], borderRadius: radius.md, backgroundColor: content.ink },
   host: { gap: spacing[2] },
