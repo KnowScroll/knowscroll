@@ -231,6 +231,55 @@ describe('Challenge a friend (real PostgreSQL)', () => {
       expect(receipts.rows).toEqual([]);
     });
 
+    it('moves nothing on the friend’s side for a first pick, so the wire never says the friend has called; the reveal moves both', async () => {
+      const { a, b, aRef, bRef, scroll, stopId } = await pair();
+      const sent = unwrap(await challenge(a, aRef, scroll, stopId));
+      const head = async (person: Friend) =>
+        Number(
+          (
+            await database.db
+              .selectFrom('social.inbox_heads')
+              .select('revision')
+              .where('account_id', '=', person.accountId)
+              .executeTakeFirstOrThrow()
+          ).revision,
+        );
+      const cursorOf = async (person: Friend, ref: DirectConversationRef) => {
+        const snapshot = unwrap(
+          await talk().read(person.authority, { version: direct, readId: randomUUID(), conversation: ref, limit: 50 }),
+        );
+        if (snapshot.status !== 'ready') throw new Error('CI snapshot unavailable');
+        return snapshot.catchUpCursor;
+      };
+      const changesSince = async (person: Friend, ref: DirectConversationRef, cursor: string) => {
+        const page = unwrap(
+          await talk().changes(person.authority, {
+            version: direct,
+            readId: randomUUID(),
+            conversation: ref,
+            limit: 50,
+            cursor,
+          }),
+        );
+        if (page.status !== 'ready') throw new Error('CI changes unavailable');
+        return page.changes.length;
+      };
+      const [friendHead, friendCursor, firstHead, firstCursor] = [
+        await head(b),
+        await cursorOf(b, bRef),
+        await head(a),
+        await cursorOf(a, aRef),
+      ];
+      // Asha calls first: Ravi's inbox revision and his changes feed do not move.
+      unwrap(await lock(a, aRef, sent.messageId, 1));
+      expect(await head(b)).toBe(friendHead);
+      expect(await changesSince(b, bRef, friendCursor)).toBe(0);
+      // Ravi calls second: this reveals, so both move.
+      unwrap(await lock(b, bRef, sent.messageId, 0));
+      expect(await head(a)).toBeGreaterThan(firstHead);
+      expect(await changesSince(a, aRef, firstCursor)).toBe(1);
+    });
+
     it('moves the message in the changes feed when a pick lands, so the friend’s open card refreshes', async () => {
       const { a, b, aRef, bRef, scroll, stopId } = await pair();
       const sent = unwrap(await challenge(a, aRef, scroll, stopId));
@@ -415,6 +464,22 @@ describe('Challenge a friend (real PostgreSQL)', () => {
       const message = (await messagesOf(b, bRef)).find((candidate) => candidate.messageId === sent.messageId);
       expect(message?.status).toBe('unavailable');
       expect((await picksOf()).filter((pick) => pick.account_id === a.accountId)).toEqual([]);
+    });
+
+    it('after a Clear the person’s side is gone: their card is open again, the friend’s goes back to waiting, and a new call shows as theirs (D-245)', async () => {
+      const { a, b, aRef, bRef, scroll, stopId } = await pair();
+      const sent = unwrap(await challenge(a, aRef, scroll, stopId));
+      unwrap(await lock(a, aRef, sent.messageId, 1));
+      unwrap(await lock(b, bRef, sent.messageId, 0));
+      expect(await cardOf(a, aRef, sent.messageId)).toMatchObject({ stage: 'revealed' });
+      await clearExploration(a);
+      // Clear erased Asha's pick. Hers is open again; Ravi's shows only his own, waiting for her.
+      const asha = { ...a, authority: { ...a.authority, privacyEpoch: 2 } };
+      expect(await cardOf(asha, aRef, sent.messageId)).toMatchObject({ stage: 'open' });
+      expect(await cardOf(b, bRef, sent.messageId)).toMatchObject({ stage: 'locked', option: 0 });
+      // She may call again, knowing what she saw: nothing is scored, and the new call is her call.
+      unwrap(await lock(asha, aRef, sent.messageId, 2));
+      expect(await cardOf(b, bRef, sent.messageId)).toMatchObject({ stage: 'revealed', option: 0, theirs: 2 });
     });
 
     it('erases a deleted friend’s pick, so the other person’s card falls back to locked', async () => {
