@@ -1,4 +1,4 @@
-import { askCheckCommand } from './ask-check-operator.js';
+import { askCheckCommand, isCheckerInstructionsMisplaced } from './ask-check-operator.js';
 import { replayPolicyCommand } from './composer-operator.js';
 import {
   admitContinuityCommand,
@@ -66,14 +66,14 @@ import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backen
  *   content regenerate --only <keys> [--dry-run]            another take of a served v2 library Scroll, stored held until release (library-operator.ts, D-197)
  *   content review-list [--all] | review-show --asset <id> [--revision <n>] [--sources]   library v2 Scrolls held for review, and their text with the answer check (review-operator.ts, D-138, D-198)
  *   content release --asset <id> --revision <n> | reject --asset <id> --revision <n> --reason <text>   the two decisions; both are recorded with who and when
- *   content ask-check (--asset <id,…> | --recent <n>) --out <file>   the support check run again over stored ask answers; counts on stdout, the sentences and verdicts in the file (ask-check-operator.ts, D-250)
+ *   content ask-check (--asset <id,…> | --recent <n>) --out <file> [--checker-instructions <absolute path>]   the support check run again over stored ask answers; counts on stdout, the sentences and verdicts in the file; candidate instructions from a file try a change, labelled, for this replay alone (ask-check-operator.ts, D-250, D-280)
  *
  * Exit status: 0 done, 2 refused or not applicable (bad usage, not unknown, missing), 1 failure.
  * MiniMax offers no request lookup: an `unknown` attempt is never resent; a write-off records the
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js composer replay-policy --since <ISO date> [--limit <1-20000>] [--intent-weight <0-1>] [--recent-topic-penalty <0-1>] [--sweep] | operator.js scenes backfill-looks [--dry-run] [--limit <1-1000>] | operator.js rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | rooms kit|kit-list|kit-review|backdrop|backdrop-list|backdrop-review|spend|backdrop-reconcile|backdrop-write-off|rituals|ritual-list|ritual-review|feed|scout (see `rooms` for its options) | operator.js journey <id> | journey --account <accountId> [--json] | operator.js reel <check|order|follow|receive|status|write-off|settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content writer-spike-v2 --topics <recipe keys> [--blocks <recipe=sort|fork|scale|chart|ray,…>] [--out <file>] [--concurrency <1-4>] [--spike-id <id>] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content regenerate --only <keys> [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js content readmit-coverage [--dry-run] | operator.js content admit-continuity [--dry-run] | operator.js content review-list [--all] | content review-show --asset <uuid> [--revision <n>] [--sources] | content release --asset <uuid> --revision <n> | content reject --asset <uuid> --revision <n> --reason <text> | operator.js content ask-check (--asset <uuid,…> | --recent <1-20>) --out <file> | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
+  'usage: operator.js composer replay-policy --since <ISO date> [--limit <1-20000>] [--intent-weight <0-1>] [--recent-topic-penalty <0-1>] [--sweep] | operator.js scenes backfill-looks [--dry-run] [--limit <1-1000>] | operator.js rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | rooms kit|kit-list|kit-review|backdrop|backdrop-list|backdrop-review|spend|backdrop-reconcile|backdrop-write-off|rituals|ritual-list|ritual-review|feed|scout (see `rooms` for its options) | operator.js journey <id> | journey --account <accountId> [--json] | operator.js reel <check|order|follow|receive|status|write-off|settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content writer-spike-v2 --topics <recipe keys> [--blocks <recipe=sort|fork|scale|chart|ray,…>] [--out <file>] [--concurrency <1-4>] [--spike-id <id>] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content regenerate --only <keys> [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js content readmit-coverage [--dry-run] | operator.js content admit-continuity [--dry-run] | operator.js content review-list [--all] | content review-show --asset <uuid> [--revision <n>] [--sources] | content release --asset <uuid> --revision <n> | content reject --asset <uuid> --revision <n> --reason <text> | operator.js content ask-check (--asset <uuid,…> | --recent <1-20>) --out <file> [--checker-instructions <absolute path>] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -127,6 +127,7 @@ async function main(): Promise<number> {
         'older-than-seconds': { type: 'string' },
         topics: { type: 'string' },
         out: { type: 'string' },
+        'checker-instructions': { type: 'string' },
         concurrency: { type: 'string' },
         'spike-id': { type: 'string' },
         blocks: { type: 'string' },
@@ -148,6 +149,11 @@ async function main(): Promise<number> {
     return 2;
   }
   const [area, command] = args.positionals;
+  // Candidate checker instructions are for the replay alone (D-280): any other command refuses them rather than ignore them.
+  if (isCheckerInstructionsMisplaced(args.positionals, args.values['checker-instructions'])) {
+    print({ result: 'usage', usage });
+    return 2;
+  }
   if (area === 'content' && command === 'produce-scroll' && args.positionals.length === 2) {
     const topic = parseScrollTopic(args.values.topic);
     if (topic === undefined) {
@@ -276,6 +282,7 @@ async function main(): Promise<number> {
         asset: args.values.asset,
         recent: args.values.recent,
         out: args.values.out,
+        checkerInstructions: args.values['checker-instructions'],
         dispatchedBy: operatorSource(process.env),
       },
       print,

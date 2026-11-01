@@ -19,7 +19,15 @@ import {
   type UnsupportedVerdict,
 } from '../domain/ask-support.js';
 import { pauseCode, uncheckedCode } from './answer-check-step.js';
-import { askSupportContext, askSupportRole, supportRepairItems, supportRepairRole, verdictsOf } from './ask-support.js';
+import {
+  askSupportContext,
+  askSupportRole,
+  supportRepairItems,
+  supportRepairRole,
+  verdictsOf,
+  type AskSupportAnswer,
+  type SupportPassage,
+} from './ask-support.js';
 import type { EvidencePassage } from './evidence.js';
 import { withAccounting, writerReceipt } from './receipts.js';
 import type { ClosingRun, RoleReceipt } from './types.js';
@@ -47,6 +55,12 @@ export interface AskSupportStepDependencies {
   readonly withScope: WithProductionScope;
   readonly harness: ProductionReasoningHarness;
 }
+
+/** The checker's role for one batch of sentences. Production always uses {@link askSupportRole}. */
+export type CheckerRoleOf = (
+  sentences: readonly SentenceUnderCheck[],
+  passages: readonly SupportPassage[],
+) => ReasoningRole<AskSupportAnswer>;
 
 /** What asking the checker about one draft came to. */
 export type SupportCheckOutcome =
@@ -112,8 +126,11 @@ export interface SupportRepairInput {
  * draft, and the one writer repair a draft with unsupported sentences earns. Both go through the production harness,
  * so each request has an attempt in the ledger and counts against the production caps; neither holds a transaction.
  * They return what happened and decide nothing: the writer stage does.
+ *
+ * `checkerRoleOf` says which role asks the checker. The production job and the Quick answer leave it out and get the
+ * production role; only the operator's replay passes another, to try candidate instructions (D-280).
  */
-export function makeAskSupportStep(deps: AskSupportStepDependencies) {
+export function makeAskSupportStep(deps: AskSupportStepDependencies, checkerRoleOf: CheckerRoleOf = askSupportRole) {
   /** Every paid attempt of a run with its usage, for the job's receipt; none when the ledger cannot say. */
   async function attemptsOf(runId: string) {
     const accounted = await deps.withScope(deps.authority, (scope) =>
@@ -138,7 +155,7 @@ export function makeAskSupportStep(deps: AskSupportStepDependencies) {
           purpose: 'ask-support-check',
           policyVersion: input.policyVersion,
         },
-        role: askSupportRole(batch, input.passages),
+        role: checkerRoleOf(batch, input.passages),
         context: {
           bundleRef: `scroll:${input.jobId}:ask-support:${String(input.draft)}:${String(batchIndex)}`,
           items: askSupportContext(batch, input.passages),
