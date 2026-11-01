@@ -22,8 +22,8 @@ export async function residentProfiles(
     profiles.push({
       inhabitant: member.inhabitant,
       madeBy: 'KnowScroll',
-      interests: [...RESIDENT_CHARACTERS[member.inhabitant].interests],
-      livesHereSince: facts.roomSince.toISOString(),
+      caresAbout: [...RESIDENT_CHARACTERS[member.inhabitant].interests],
+      roomSince: facts.roomSince.toISOString(),
       ...(facts.lastAt === undefined ? {} : { lastAt: facts.lastAt.toISOString() }),
       ...(after === undefined ? {} : { nextAfter: after.toISOString() }),
       introduced: facts.introduced,

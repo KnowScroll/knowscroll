@@ -323,14 +323,14 @@ function postsOf(world: FeedWorld) {
 function profilesOf(world: FeedWorld) {
   const profile = (
     inhabitant: 'explainer' | 'skeptic',
-    interests: string[],
+    caresAbout: string[],
     last: number | undefined,
     recent: { discussionId: string; messageId: string; title: string; postedAt: string }[],
   ) => ({
     inhabitant,
     madeBy: 'KnowScroll' as const,
-    interests,
-    livesHereSince: '2026-10-02T10:00:00.000Z',
+    caresAbout,
+    roomSince: '2026-10-02T10:00:00.000Z',
     ...(last === undefined ? {} : { lastAt: hoursAgo(last), nextAfter: hoursAgo(last - 6) }),
     introduced: world.introduced[inhabitant],
     recent,

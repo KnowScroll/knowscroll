@@ -672,9 +672,9 @@ export type RoomFeedPost = z.infer<typeof RoomFeedPostSchema>;
 export const RoomResidentProfileSchema = z.strictObject({
   inhabitant: InhabitantIdSchema,
   madeBy: z.literal('KnowScroll'),
-  interests: z.array(z.string().min(1).max(40)).min(1).max(4),
+  caresAbout: z.array(z.string().min(1).max(40)).min(1).max(4),
   /** When the room it lives in was made. */
-  livesHereSince: z.iso.datetime(),
+  roomSince: z.iso.datetime(),
   /** The last time it spoke in this room. */
   lastAt: z.iso.datetime().optional(),
   nextAfter: z.iso.datetime().optional(),

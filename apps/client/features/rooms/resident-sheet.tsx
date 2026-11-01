@@ -50,6 +50,8 @@ export function ResidentSheet({
   readonly onIntroduce?: (inhabitant: RoomInhabitant['inhabitant']) => void;
   readonly onOpenPost?: (discussionId: string) => void;
 }) {
+  // The ages of the recent posts are told against the moment the sheet opened, so they do not change under a reader's eyes.
+  const [now] = useState(() => Date.now());
   const remembered = memoryWords(feed.memory);
   const rhythm = rhythmLines(feed.limits);
   const profile =
@@ -76,7 +78,7 @@ export function ResidentSheet({
               </Text>
               {profile === undefined ? null : (
                 <Text variant="metaS" color={content.ink2} testID="resident-since">
-                  {`Lives in ${feed.roomName} since ${dayWords(profile.livesHereSince)}`}
+                  {`Lives in ${feed.roomName} since ${dayWords(profile.roomSince)}`}
                 </Text>
               )}
               <Text variant="metaS" color={content.ink2}>
@@ -86,7 +88,7 @@ export function ResidentSheet({
           </View>
           {profile === undefined ? null : (
             <View style={styles.chips} role="list" accessibilityLabel="Interests" testID="resident-interests">
-              {profile.interests.map((interest) => (
+              {profile.caresAbout.map((interest) => (
                 <View key={interest} role="listitem" style={styles.chip}>
                   <Text variant="metaS">{interest}</Text>
                 </View>
@@ -147,7 +149,7 @@ export function ResidentSheet({
               {profile.recent.map((post) => (
                 <Button
                   key={post.discussionId}
-                  label={`${post.title} · ${agoWords(Date.now() - new Date(post.postedAt).getTime())}`}
+                  label={`${post.title} · ${agoWords(now - new Date(post.postedAt).getTime())}`}
                   variant="default"
                   size="sm"
                   onPress={() => onOpenPost?.(post.discussionId)}

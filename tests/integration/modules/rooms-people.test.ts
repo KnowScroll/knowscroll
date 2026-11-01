@@ -213,7 +213,7 @@ describe('people and residents in the Feed (real PostgreSQL, CI fixture model)',
       expect(profiles.map((profile) => profile.inhabitant)).toEqual(residents.map((resident) => resident.inhabitant));
       for (const profile of profiles) {
         expect(profile).toMatchObject({ madeBy: 'KnowScroll', introduced: false, recent: [] });
-        expect(profile.interests.length).toBeGreaterThan(0);
+        expect(profile.caresAbout.length).toBeGreaterThan(0);
         expect(profile).not.toHaveProperty('lastAt');
         expect(profile).not.toHaveProperty('nextAfter');
       }
@@ -222,7 +222,7 @@ describe('people and residents in the Feed (real PostgreSQL, CI fixture model)',
         .select('created_at')
         .where('room_id', '=', roomId)
         .executeTakeFirstOrThrow();
-      expect(new Date(profiles[0]!.livesHereSince).getTime()).toBe(new Date(room.created_at).getTime());
+      expect(new Date(profiles[0]!.roomSince).getTime()).toBe(new Date(room.created_at).getTime());
     });
 
     it('says when a resident last spoke and, only while it is still ahead, when it may post next; and lists its newest finds', async () => {
@@ -237,7 +237,7 @@ describe('people and residents in the Feed (real PostgreSQL, CI fixture model)',
       expect(first.lastAt).toBe(START.toISOString());
       expect(first.nextAfter).toBe(new Date(START.getTime() + 6 * HOUR).toISOString());
       expect(first.recent).toHaveLength(1);
-      expect(first.recent[0]).toMatchObject({ title: expect.any(String) });
+      expect(typeof first.recent[0]?.title).toBe('string');
       const feed = await readFeed(world, asha, roomId);
       expect(feed.profiles.find((profile) => profile.inhabitant === 'skeptic')).not.toHaveProperty('lastAt');
       // Seven hours on, the rest is over: the profile promises nothing.
@@ -377,7 +377,8 @@ describe('people and residents in the Feed (real PostgreSQL, CI fixture model)',
         await postFind(world, room.kenji, room.roomId, { link: sourceLink('https://example.org/tides'), words: CLAIM }),
       ).discussionId;
       const [check] = checksOf(discussionId);
-      expect(check!.job).toMatchObject({ trigger: 'overstated_claim', causeMessageId: expect.any(String) });
+      expect(check!.job.trigger).toBe('overstated_claim');
+      expect(check!.job.discussionId).toBe(discussionId);
       // Nothing is called until the router has looked, and the look is the residents' own pass.
       expect(await turnCount(room.roomId)).toBe(0);
       world.clock.now = new Date(check!.startAfter!.getTime());

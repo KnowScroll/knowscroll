@@ -35,16 +35,13 @@ jest.mock('../../providers/account-scope', () => ({
   useAccountScope: () => ({ state: { status: 'signed_in', scope: { active: true } } }),
 }));
 jest.mock('../../platform/document-title', () => ({ useDocumentTitle: () => undefined }));
-jest.mock('../feedback/feedback-sheet', () => {
-  const React = require('react');
-  const { Text } = require('react-native');
-  return {
-    FeedbackSheet: ({ target }: { target: { messageId: string } | undefined }) =>
-      target === undefined
-        ? null
-        : React.createElement(Text, { testID: 'report-target' }, `reporting ${target.messageId}`),
-  };
-});
+const mockReported = jest.fn();
+jest.mock('../feedback/feedback-sheet', () => ({
+  FeedbackSheet: ({ target }: { target: unknown }) => {
+    mockReported(target);
+    return null;
+  },
+}));
 
 const id = (n: number) => `0199e000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const roomId = id(1);
@@ -74,8 +71,8 @@ const intro = (patch: Partial<Intro> = {}): Intro => ({
 const profile = (patch: Partial<RoomResidentProfile> = {}): RoomResidentProfile => ({
   inhabitant: 'explainer',
   madeBy: 'KnowScroll',
-  interests: ['Plain explanations', 'Finds from the library'],
-  livesHereSince: '2026-10-02T10:00:00.000Z',
+  caresAbout: ['Plain explanations', 'Finds from the library'],
+  roomSince: '2026-10-02T10:00:00.000Z',
   lastAt: '2026-11-01T21:12:00.000Z',
   nextAfter: '2026-11-02T03:12:00.000Z',
   introduced: false,
@@ -120,7 +117,10 @@ const show = (view: Extract<RoomFeed, { status: 'ready' }>, controller: Partial<
 };
 const has = (text: string) => new RegExp(text.replaceAll(/[.*+?^${}()|[\]\\]/g, (character) => `\\${character}`));
 
-beforeEach(() => mockPush.mockClear());
+beforeEach(() => {
+  mockPush.mockClear();
+  mockReported.mockClear();
+});
 
 describe('the ring (v3 R-8b, D-279)', () => {
   it('is on every AI label, has a name of its own for a screen reader, and sits before the label that says which agent', async () => {
@@ -280,7 +280,7 @@ describe('the feed screen’s profile', () => {
     await fireEvent.press(screen.getByTestId('resident-mute'));
     expect(setMuted).toHaveBeenCalledWith(true);
     await fireEvent.press(screen.getByTestId('resident-report'));
-    expect(screen.getByTestId('report-target')).toHaveTextContent(`reporting ${id(31)}`);
+    expect(mockReported).toHaveBeenLastCalledWith({ kind: 'room_message', messageId: id(31) });
   });
 });
 
