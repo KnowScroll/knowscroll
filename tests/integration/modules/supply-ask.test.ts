@@ -1181,8 +1181,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       await setup();
       const { order } = await orderedAsk();
       // Request 1 (batch one) is malformed and its repair is good; request 3 (batch two) is malformed and has no repair left.
-      supportScript = (check, call) =>
-        check === 1 || check === 3 ? ({ kind: 'malformed' } as FixtureScenario) : supportReply(call);
+      supportScript = (check, call) => (check === 1 || check === 3 ? { kind: 'malformed' } : supportReply(call));
 
       expect(await publish(order.recipe)).toMatchObject({
         result: { outcome: 'rejected', codes: ['support_check_invalid_output'] },
