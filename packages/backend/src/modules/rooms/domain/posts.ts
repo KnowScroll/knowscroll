@@ -19,6 +19,9 @@ export const POST_RULES = {
 /** What a post is called once the account that wrote it is deleted: its headline and its source were that person's words. */
 export const NEUTRAL_POST_TITLE = 'A post from a deleted account';
 
+/** What a post is called on its page once a moderator removed it: nothing of what its author or the resident wrote stays but the replies. */
+export const REMOVED_POST_TITLE = 'A removed post';
+
 export type PostTextProblem = 'empty' | 'too_long' | 'has_link' | 'has_control';
 
 /** A link belongs in the source, where it is checked; the headline and the words carry none. */

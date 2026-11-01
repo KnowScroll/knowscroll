@@ -17,12 +17,21 @@ import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.j
 import { askDecision, hourBefore, utcDayStart, type InhabitantId } from '../domain/contribution.js';
 import { changesCursor, historyCursor } from '../domain/cursors.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
-import { hostOf, NEUTRAL_POST_TITLE } from '../domain/posts.js';
+import { hostOf, NEUTRAL_POST_TITLE, REMOVED_POST_TITLE } from '../domain/posts.js';
 import { debateViewOf } from './debates.js';
 import { titlesFor } from './discussion-titles.js';
 import { discussionEpisodes, viewRoomMessages } from './discussion-view.js';
 import { enterRoom, type EnteredRoom } from './gate.js';
-import { ok, refuse, roomEnvelope, type ContentRef, type Result, type RoomLock, type RoomPorts } from './ports.js';
+import {
+  ok,
+  refuse,
+  roomEnvelope,
+  type ContentRef,
+  type DiscussionRow,
+  type Result,
+  type RoomLock,
+  type RoomPorts,
+} from './ports.js';
 import { roomSummary } from './view.js';
 
 /**
@@ -65,18 +74,23 @@ async function currentTitle(p: RoomPorts, scope: PersonalScopeTx, location: Cont
   return card?.status === 'available' ? card.metadata.title : undefined;
 }
 
+/** What became of a post's first message, which decides how much of the post its page may still say. */
+type PostStanding = 'shown' | 'removed' | 'author_deleted';
+
 /**
- * Whether a person's post has lost its first message: a moderator removed it, or its author's account is gone.
- * Such a post is no longer called what it said and shows no source link, however the reader got its ID.
+ * A post of the Feed (a find, by a person or a resident) whose first message a moderator removed is a removed post: its page keeps
+ * the replies others wrote and nothing of the post, neither its headline, its source nor its asset. A person's post whose author's
+ * account is gone keeps its asset and is called what erasure left (D-271). Any other discussion is shown as it is. Reads one row.
  */
-async function postIsGone(
+async function postStanding(
   p: RoomPorts,
   lock: RoomLock,
-  discussion: { readonly discussionId: string; readonly personPost: boolean },
-): Promise<boolean> {
-  if (!discussion.personPost) return false;
+  discussion: Pick<DiscussionRow, 'discussionId' | 'kind' | 'personPost'>,
+): Promise<PostStanding> {
+  if (discussion.kind !== 'find') return 'shown';
   const [first] = await p.discussions.messages(lock, discussion.discussionId, { before: 2, limit: 1 });
-  return first === undefined || first.hidden || first.text === null;
+  if (first === undefined || first.hidden) return 'removed';
+  return discussion.personPost && first.text === null ? 'author_deleted' : 'shown';
 }
 
 /**
@@ -179,8 +193,10 @@ export function makeDiscussionReads(p: RoomPorts) {
             ...(discussion.lastSequence > 0 ? { before: discussion.lastSequence + 1 } : {}),
           });
           const oldest = rows[0];
-          const content = discussion.root === null ? undefined : await discussionEpisodes(p, scope, discussion.root);
-          const [root] = discussion.root === null ? [] : await p.readContent(scope, [discussion.root]);
+          const standing = await postStanding(p, lock, discussion);
+          const rootShown = discussion.root !== null && standing !== 'removed' ? discussion.root : null;
+          const content = rootShown === null ? undefined : await discussionEpisodes(p, scope, rootShown);
+          const [root] = rootShown === null ? [] : await p.readContent(scope, [rootShown]);
           const asks = await inhabitantStatuses(p, entered, discussion.discussionId, p.now());
           const wanted = [
             entered.owner.accountId,
@@ -204,10 +220,14 @@ export function makeDiscussionReads(p: RoomPorts) {
             discussion.tag === 'debate'
               ? await debateViewOf(p, lock, discussion.discussionId, entered.owner.accountId, p.now())
               : undefined;
-          const gone = await postIsGone(p, lock, discussion);
-          const title = gone
-            ? NEUTRAL_POST_TITLE
-            : (await titlesFor(p, scope, lock, entered.owner.accountId, [discussion])).get(discussion.discussionId)!;
+          const title =
+            standing === 'removed'
+              ? REMOVED_POST_TITLE
+              : standing === 'author_deleted'
+                ? NEUTRAL_POST_TITLE
+                : (await titlesFor(p, scope, lock, entered.owner.accountId, [discussion])).get(
+                    discussion.discussionId,
+                  )!;
           return DiscussionViewSchema.parse({
             ...roomEnvelope(scope),
             readId: query.readId,
@@ -222,17 +242,17 @@ export function makeDiscussionReads(p: RoomPorts) {
               ...(discussion.tag === null ? {} : { tag: discussion.tag }),
               pinned: discussion.pinned,
               ...(starter === undefined ? {} : { startedBy: starter }),
-              ...(discussion.source === null || gone
+              ...(discussion.source === null || standing !== 'shown'
                 ? {}
                 : { source: { url: discussion.source, host: hostOf(discussion.source) } }),
             },
             ...(origin === undefined ? {} : { origin }),
             ...(debate === undefined ? {} : { debate }),
-            ...(content === undefined || discussion.root === null
+            ...(content === undefined || rootShown === null
               ? {}
               : {
                   content: {
-                    root: root ?? { status: 'unavailable', target: discussion.root },
+                    root: root ?? { status: 'unavailable', target: rootShown },
                     sequence: content.sequence,
                     episodes: content.episodes,
                   },

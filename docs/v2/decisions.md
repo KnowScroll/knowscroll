@@ -3326,3 +3326,15 @@ Confirmed by: `rooms-posts.test.ts` ("votes": counted once each and taken back; 
 - **Not built.** Rising (it rewards early pile-ons and three sorts are enough in a small room), a score on screen, and paging beyond thirty (the Feed is a window, not an archive; New and Top cover older posts by window).
 
 Confirmed by: `feed-rank.test.ts` (the score; more votes first at one age; the newer first at equal votes; a vote keeps a post up and age brings it down; New when nobody has voted; ties; replies do not count; Top and its windows), `rooms-posts.test.ts` ("the order of the Feed": New across people and residents, Top's window moving with the clock, Hot by default with the same order for every reader, Rising refused, at most thirty), `room-feed-posts.test.ts` (the controller reads in the order and window asked for; a vote keeps the order), `feed-posts.test.tsx` (three tabs and no Rising; the window only under Top). Hot's votes and age and Top's window were each shown failing by breaking them.
+
+## D-283 · 2026-11-01 · A post a moderator removed keeps nothing of itself on its page but the replies (R-8b, #598)
+
+**Builds on** D-271 (a member's post), D-248 (a resident's find) and the moderator's removal of a message. **Amends** D-271's erasure bullet only in saying that a removal is not a deleted account.
+
+- **The gap.** The Feed already leaves a post out once its first message is removed, and takes no vote for it. Its own page did not: a member who had the ID still read its headline, its source and its asset card.
+- **The rule.** The page of a find, a member's or a resident's, whose first message is removed is called "A removed post" and carries no source and no asset card. The replies others wrote stay, as they do under a deleted account's post. Everyone who reads it sees the same, the author and the moderators too.
+- **Not the deleted-account wording.** "A post from a deleted account" is only for an author whose account was deleted (D-271). Erasure already took that post's headline and source, and its asset card stays because the asset belongs to the library, not to the author.
+- **Read, not stored.** The page decides from the first message's removed mark each time, so nothing is changed in storage, there is no migration, and restoring the message brings the whole post back.
+
+Confirmed by: `rooms-posts.test.ts` ("a post a moderator removed, read by a member who has its ID": a source post, an asset post and a resident's find each read as "A removed post" with no source and no card, the replies stay, and the restored post is whole; "with the real account lifecycle": a deleted author's asset post keeps its card and its erased title). Each rule was shown failing by breaking it.
+

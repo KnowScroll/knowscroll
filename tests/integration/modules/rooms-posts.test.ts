@@ -456,39 +456,85 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
       expect(await personPosts(roomId, ravi)).toHaveLength(1);
     });
 
-    it('does not show the headline or the source of a post a moderator removed to a member who has its ID, and shows them again when it is restored', async () => {
-      const { roomId, slug, people } = await scene(3);
-      const [asha, ravi, moderator] = people as [Friend, Friend, Friend];
-      await makeModerator(world, slug, moderator);
-      const discussionId = await posted(
-        asha,
-        roomId,
-        sourceLink('https://example.org/removed-source'),
-        'A headline to hide',
-      );
-      const read = async (reader: Friend) => {
+    describe('a post a moderator removed, read by a member who has its ID', () => {
+      const readReady = async (reader: Friend, roomId: string, discussionId: string) => {
         const view = await readDiscussion(world, reader, roomId, discussionId);
         if (view.status !== 'ready') throw new Error('expected ready');
         return view;
       };
-      const before = await read(ravi);
-      expect(before.discussion).toMatchObject({
-        title: 'A headline to hide',
-        source: { url: 'https://example.org/removed-source', host: 'example.org' },
+
+      it('is called "A removed post" and shows no source, keeps what others wrote under it, and comes back when it is restored', async () => {
+        const { roomId, slug, people } = await scene(3);
+        const [asha, ravi, moderator] = people as [Friend, Friend, Friend];
+        await makeModerator(world, slug, moderator);
+        const discussionId = await posted(
+          asha,
+          roomId,
+          sourceLink('https://example.org/removed-source'),
+          'A headline to hide',
+        );
+        unwrap(await say(world, ravi, roomId, discussionId, 'A reply that stays.'));
+        const before = await readReady(ravi, roomId, discussionId);
+        expect(before.discussion).toMatchObject({
+          title: 'A headline to hide',
+          source: { url: 'https://example.org/removed-source', host: 'example.org' },
+        });
+        const firstMessageId = before.messages[0]!.messageId;
+        unwrap(await hideMessage(world, moderator, roomId, discussionId, firstMessageId));
+        for (const reader of [ravi, asha, moderator]) {
+          const view = await readReady(reader, roomId, discussionId);
+          expect(view.discussion.title).toBe('A removed post');
+          expect(view.discussion).not.toHaveProperty('source');
+          expect(view.messages.at(-1)).toMatchObject({ status: 'available' });
+          expect(JSON.stringify(view)).not.toContain('A headline to hide');
+          expect(JSON.stringify(view)).not.toContain('removed-source');
+        }
+        unwrap(await hideMessage(world, moderator, roomId, discussionId, firstMessageId, false));
+        expect((await readReady(ravi, roomId, discussionId)).discussion).toMatchObject({
+          title: 'A headline to hide',
+          source: { url: 'https://example.org/removed-source' },
+        });
       });
-      const firstMessageId = before.messages[0]!.messageId;
-      unwrap(await hideMessage(world, moderator, roomId, discussionId, firstMessageId));
-      for (const reader of [ravi, asha, moderator]) {
-        const view = await read(reader);
-        expect(view.discussion.title).toBe('A post from a deleted account');
-        expect(view.discussion).not.toHaveProperty('source');
-        expect(JSON.stringify(view)).not.toContain('A headline to hide');
-        expect(JSON.stringify(view)).not.toContain('removed-source');
-      }
-      unwrap(await hideMessage(world, moderator, roomId, discussionId, firstMessageId, false));
-      expect((await read(ravi)).discussion).toMatchObject({
-        title: 'A headline to hide',
-        source: { url: 'https://example.org/removed-source' },
+
+      it('shows no asset card for a post that linked an asset, and shows it again when the post is restored', async () => {
+        const reel = await libraryReel(world.db, 'A Reel on a removed post');
+        const { roomId, slug, people } = await scene(3);
+        const [asha, ravi, moderator] = people as [Friend, Friend, Friend];
+        await makeModerator(world, slug, moderator);
+        const discussionId = await posted(asha, roomId, assetLink(reel), 'An asset headline');
+        const before = await readReady(ravi, roomId, discussionId);
+        expect(before.content?.root).toMatchObject({
+          status: 'available',
+          metadata: { title: 'A Reel on a removed post' },
+        });
+        const firstMessageId = before.messages[0]!.messageId;
+        unwrap(await hideMessage(world, moderator, roomId, discussionId, firstMessageId));
+        const removed = await readReady(ravi, roomId, discussionId);
+        expect(removed.discussion.title).toBe('A removed post');
+        expect(removed).not.toHaveProperty('content');
+        expect(JSON.stringify(removed)).not.toContain('A Reel on a removed post');
+        unwrap(await hideMessage(world, moderator, roomId, discussionId, firstMessageId, false));
+        const restored = await readReady(ravi, roomId, discussionId);
+        expect(restored.discussion.title).toBe('An asset headline');
+        expect(restored.content?.root).toMatchObject({ status: 'available' });
+      });
+
+      it('is the same for a resident’s find', async () => {
+        await libraryScroll(world.db, 'A Scroll a removed find links', 10);
+        const { roomId, slug, people } = await scene(3);
+        const [asha, , moderator] = people as [Friend, Friend, Friend];
+        await makeModerator(world, slug, moderator);
+        const { look } = feedHeartbeat(world, () => find());
+        expect((await look(slug)).find).toMatchObject({ kind: 'posted' });
+        const [resident] = await postsOf(roomId, asha);
+        const discussionId = resident!.discussionId;
+        const before = await readReady(asha, roomId, discussionId);
+        expect(before.content?.root).toMatchObject({ status: 'available' });
+        unwrap(await hideMessage(world, moderator, roomId, discussionId, before.messages[0]!.messageId));
+        const removed = await readReady(asha, roomId, discussionId);
+        expect(removed.discussion.title).toBe('A removed post');
+        expect(removed).not.toHaveProperty('content');
+        expect(JSON.stringify(removed)).not.toContain('A Scroll a removed find links');
       });
     });
 
@@ -840,6 +886,12 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
         expect(view.messages.map((message) => message.status)).toEqual(['unavailable', 'available']);
         expect(JSON.stringify(view)).not.toContain('Words that will go');
         expect(JSON.stringify(view)).not.toContain('deleted-author');
+        expect(view.discussion.title).toBe('A post from a deleted account');
+        // A deleted account is not a removal: the asset a post linked is still the library's and stays.
+        const assetView = await readDiscussion(world, staying, roomId, asset);
+        if (assetView.status !== 'ready') throw new Error('expected ready');
+        expect(assetView.discussion.title).toBe('A post from a deleted account');
+        expect(assetView.content?.root).toMatchObject({ status: 'available', metadata: { title: 'Deleted author' } });
         await deleteAccount(voter);
         expect(await votesIn(roomId)).toEqual([]);
       });
