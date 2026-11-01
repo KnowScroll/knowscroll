@@ -28,7 +28,9 @@ async function shot(page: Page, name: string) {
   await page.screenshot({ path: join(folder, `${name}.png`) });
 }
 
+/** The sheet rises and fades in; contrast is measured once it has stopped, as the other sheet specs do. */
 async function seriousViolations(page: Page) {
+  await page.waitForTimeout(450);
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
     .analyze();
