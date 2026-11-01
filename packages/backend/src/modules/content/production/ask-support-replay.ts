@@ -7,7 +7,7 @@ import type {
   ProductionReasoningHarness,
   WithProductionScope,
 } from '../../../reasoning/public.js';
-import type { SentenceUnderCheck, SentenceVerdict } from '../domain/ask-support.js';
+import { noClaimGround, type SentenceUnderCheck, type SentenceVerdict } from '../domain/ask-support.js';
 import { makeAskSupportStep } from './ask-support-step.js';
 import { sentencesOfAnswer } from './ask-support.js';
 import { evidencePassages, type EvidencePassage } from './evidence.js';
@@ -47,7 +47,11 @@ export interface ReplayLine {
   readonly batches: number;
   /** Paid requests the replay sent: one for each batch, and one more when the harness repaired an unusable reply. */
   readonly requests: number;
-  /** For each rule code, how many sentences code set aside as unsupported; the sentences' words are never here (D-265). */
+  /**
+   * For each rule code, how many sentences code set aside as unsupported (D-265), and for each ground, how many sentences passed as
+   * `no_claim` on it (`no_claim_label`, `no_claim_gap`, `no_claim_question`, `no_claim_unshared`, D-266), so a replay shows how many
+   * pass on a label's word and how many on a gap line. The sentences' words are never here.
+   */
   readonly codes: Readonly<Record<string, number>>;
   /** Why the check gave no usable answer, when it did not. */
   readonly code?: string;
@@ -106,12 +110,25 @@ const emptyLine = (assetId: string, outcome: ReplayOutcome, code?: string): Repl
   ...(code === undefined ? {} : { code }),
 });
 
-/** How many sentences each rule code set aside. */
-function codeCounts(verdicts: readonly SentenceVerdict[]): Record<string, number> {
+/** How many sentences each rule code set aside, and how many `no_claim` verdicts passed on each ground. */
+function codeCounts(
+  verdicts: readonly SentenceVerdict[],
+  sentences: readonly SentenceUnderCheck[],
+  passages: readonly EvidencePassage[],
+): Record<string, number> {
   const counts: Record<string, number> = {};
-  for (const verdict of verdicts)
-    if (verdict.verdict === 'unsupported' && verdict.code !== undefined)
-      counts[verdict.code] = (counts[verdict.code] ?? 0) + 1;
+  const count = (key: string) => {
+    counts[key] = (counts[key] ?? 0) + 1;
+  };
+  const textOf = new Map(passages.map((passage) => [passage.handle, passage.text]));
+  const sentenceOf = new Map(sentences.map((sentence) => [sentence.number, sentence]));
+  for (const verdict of verdicts) {
+    if (verdict.verdict === 'unsupported' && verdict.code !== undefined) count(verdict.code);
+    const sentence = sentenceOf.get(verdict.number);
+    if (verdict.verdict !== 'no_claim' || sentence === undefined) continue;
+    const cited = sentence.cites.flatMap((handle) => textOf.get(handle) ?? []);
+    count(`no_claim_${noClaimGround(sentence, cited) ?? 'unknown'}`);
+  }
   return counts;
 }
 
@@ -186,7 +203,7 @@ export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
       noClaim: count('no_claim'),
       batches: checked.record.batches,
       requests: checked.receipt.attempts?.length ?? 0,
-      codes: codeCounts(checked.verdicts),
+      codes: codeCounts(checked.verdicts, sentences, passages),
       runIds,
       ...(checked.record.code === undefined ? {} : { code: checked.record.code }),
     };

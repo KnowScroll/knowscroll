@@ -168,6 +168,38 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     support = (_check, call) => supportReply(call);
   });
 
+  it('counts the no_claim verdicts by the ground they passed on, so the replay shows how many pass on a label or a gap line (D-266)', async () => {
+    const answer = await producedOrder('question');
+    // The checker marks the three short headings and the limits line as stating no fact.
+    support = (_check, call) => {
+      const { sentences } = supportRequestOf(call);
+      const noClaim = sentences
+        .filter((one) =>
+          ['The beam', 'The upkeep', 'Putting it together', 'This picture ignores'].some((start) =>
+            one.text.startsWith(start),
+          ),
+        )
+        .map((one) => one.n);
+      return supportReply(call, { noClaim });
+    };
+
+    const { results } = await replayed({ kind: 'assets', assetIds: [answer.assetId] });
+    support = (_check, call) => supportReply(call);
+
+    const [only] = results;
+    // Every no_claim verdict of the line is counted on exactly one of the four grounds, and no rule code was needed.
+    const grounds = Object.entries(only!.line.codes);
+    expect(grounds.map(([key]) => key).filter((key) => !key.startsWith('no_claim_'))).toEqual([]);
+    expect(
+      grounds.every(([key]) => ['label', 'gap', 'question', 'unshared'].includes(key.slice('no_claim_'.length))),
+    ).toBe(true);
+    expect(grounds.reduce((total, [, n]) => total + n, 0)).toBe(only!.line.noClaim);
+    // The three short headings passed on their label ground (a callout's title, which the fixture also leaves unquoted, is a fourth).
+    expect(only!.line.codes.no_claim_label).toBeGreaterThanOrEqual(3);
+    // Counts only: no sentence is printed.
+    expect(JSON.stringify(only!.line)).not.toContain('The upkeep');
+  });
+
   it('names an asset that is not a stored ask answer, and asks the model nothing for it', async () => {
     const whatIf = await producedOrder('what_if');
     const callsBefore = worker.supportCalls.length;

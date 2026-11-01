@@ -445,7 +445,7 @@ node dist/operator.js content ask-check --asset <asset id>[,<asset id>…] --out
 - **Standard output** is one JSON line for each answer: its asset ID, `outcome` (`checked`, `unchecked` with a `code`, `paused`, `not_replayable`), the counts of
   sentences, supported, unsupported and no-claim, the batches (a long answer is checked ten sentences at a time), the requests sent (one for each batch, and one
   more when the harness repaired an unusable reply) and `codes`: how many sentences code set aside as unsupported, for each rule that did it
-  (`quote_not_in_cited_passages`, `quote_not_about_sentence`, `quote_too_short`, `no_claim_without_ground`, `too_many_no_claim`). No sentence, title or question is
+  (`quote_not_in_cited_passages`, `quote_not_about_sentence`, `quote_too_short`, `no_claim_without_ground`, `too_many_no_claim`), and how many `no_claim` verdicts passed on each ground (`no_claim_label`, `no_claim_gap`, `no_claim_question`, `no_claim_unshared`): a high `no_claim_label` or `no_claim_unshared` is the place to look for a checker that waves sentences through. No sentence, title or question is
   printed, so the output may be pasted into an issue.
 - **The file** gets one JSON line for each checked answer: its title, and every sentence with the passages it cites and the checker's verdict (the quote for a supported
   sentence; the kind and the note for an unsupported one, and the rule's `code` when code set it aside). It holds the answer's own words, which can echo a person's question, so read it from the server shell, never paste it into an issue, and **delete the file as soon as you have read it** (`shred -u <file>` or `rm <file>`). The command creates it readable by its owner only.

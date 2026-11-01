@@ -114,7 +114,7 @@ checker flags the two known faulty sentences, how many sentences code sets aside
   `support_check` receipts keep sentence numbers, kinds and rule codes only, with the batch count (D-231).
 - **The replay** (`ask-support-replay.ts`, worker `ask-check-operator.ts`). `content ask-check (--asset <id,…> | --recent <n>) --out <file>` runs
   the same role, in the same batches, over stored answers (the authored answer and the research the job kept), through the production harness, writing
-  nothing to content. Counts go to stdout, including how many sentences each rule code set aside (`codes`) and the batches; sentences, cited passages,
+  nothing to content. Counts go to stdout, including how many sentences each rule code set aside and how many `no_claim` verdicts passed on each ground (`codes`) and the batches; sentences, cited passages,
   verdicts and each sentence's rule code go to the file. Runbook: [scroll-production.md](../../../../../../docs/v2/operations/scroll-production.md).
 - **Versions.** `question-writer.v4` and `ask-support-check.v3` are a pair (`versions.test.ts`). `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14`
   because an order has a job of its own and the version is shared with v1 library recipes and what-ifs.
