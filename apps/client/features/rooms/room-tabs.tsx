@@ -1,9 +1,8 @@
 import { useIsFocused } from 'expo-router';
 import { useRef, useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
-import { layout, radius, spacing, target } from '@knowscroll/design-tokens';
+import { borderWidth, layout, radius, spacing, target } from '@knowscroll/design-tokens';
 import { Text, useFocusRing } from '@knowscroll/ui';
-import { episodeKeys } from '../threads/episode-navigator';
 import { useBandTone } from './identity/band-tone';
 import { RoomTabOpenProvider } from './room-tab-open';
 
@@ -20,6 +19,37 @@ const tabId = (tab: RoomTab) => `room-tab-${tab}`;
 const panelId = (tab: RoomTab) => `room-panel-${tab}`;
 
 type Step = 1 | -1 | 'first' | 'last';
+
+/**
+ * The keys of the bar on the web: the left and right arrows step to the neighbouring tab, Home and End go to the first and last.
+ * Alt+Arrow is the browser's Back and Forward and Ctrl and Cmd are the person's own shortcuts, so a key with a modifier passes through.
+ */
+function tabKeys(step: (by: Step) => void): (event: unknown) => void {
+  return (event) => {
+    const keyEvent = event as {
+      key?: string;
+      altKey?: boolean;
+      ctrlKey?: boolean;
+      metaKey?: boolean;
+      preventDefault?: () => void;
+    };
+    if (keyEvent.altKey === true || keyEvent.ctrlKey === true || keyEvent.metaKey === true) return;
+    const by: Step | undefined =
+      keyEvent.key === 'ArrowRight'
+        ? 1
+        : keyEvent.key === 'ArrowLeft'
+          ? -1
+          : keyEvent.key === 'Home'
+            ? 'first'
+            : keyEvent.key === 'End'
+              ? 'last'
+              : undefined;
+    if (by === undefined) return;
+    // Called on the event itself: a detached `preventDefault` throws "Illegal invocation" in the browser.
+    keyEvent.preventDefault?.();
+    step(by);
+  };
+}
 
 interface Focusable {
   focus?: () => void;
@@ -42,18 +72,13 @@ function Segment({
 }) {
   const tone = useBandTone();
   const focus = useFocusRing('onLight');
-  const arrows = episodeKeys((by) => onStep(tab, by));
+  const keys = tabKeys((by) => onStep(tab, by));
   // One Tab stop for the bar, on the open tab; the arrows, Home and End move between tabs (WAI-ARIA tabs).
   const keyboard =
     Platform.OS === 'web'
       ? {
           tabIndex: selected ? (0 as const) : (-1 as const),
-          onKeyDown: (event: { key?: string; preventDefault?: () => void }) => {
-            if (event.key === 'Home' || event.key === 'End') {
-              event.preventDefault?.();
-              onStep(tab, event.key === 'Home' ? 'first' : 'last');
-            } else arrows(event);
-          },
+          onKeyDown: keys,
         }
       : {};
   return (
@@ -99,12 +124,7 @@ export function RoomTabBar({ tab, onSelect }: { readonly tab: RoomTab; readonly 
   };
   return (
     <View style={styles.barFrame}>
-      <View
-        role="tablist"
-        aria-label="This room"
-        style={[styles.bar, { backgroundColor: tone.wash }]}
-        testID="room-tabs"
-      >
+      <View role="tablist" aria-label="This room" style={styles.bar} testID="room-tabs">
         {ROOM_TABS.map((entry) => (
           <Segment
             key={entry.tab}
@@ -118,6 +138,13 @@ export function RoomTabBar({ tab, onSelect }: { readonly tab: RoomTab; readonly 
             }}
           />
         ))}
+        {/* The bar's edge, drawn over the ground without taking height; the words stand straight on the ground, so their contrast is the kit's own. */}
+        <View
+          pointerEvents="none"
+          aria-hidden
+          style={[styles.edge, { borderColor: tone.edge }]}
+          testID="room-tabs-edge"
+        />
       </View>
     </View>
   );
@@ -212,6 +239,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     borderRadius: radius.pill,
   },
+  edge: { ...StyleSheet.absoluteFill, borderRadius: radius.pill, borderWidth: borderWidth.light },
   segment: {
     flex: 1,
     minWidth: 0,

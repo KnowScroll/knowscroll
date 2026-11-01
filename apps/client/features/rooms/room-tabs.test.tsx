@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text as NativeText } from 'react-native';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { ROOM_SWATCHES, type RoomIdentity, type RoomKit } from '@knowscroll/contracts';
 import { focusHalo, focusRing } from '@knowscroll/design-tokens';
 import { Button, DisplayProvider } from '@knowscroll/ui';
@@ -44,7 +44,8 @@ function Held() {
   );
 }
 
-function Harness({ initial = 'general', identity = dark }: { initial?: RoomTab; identity?: RoomIdentity | undefined }) {
+function Harness({ initial = 'general', ...rest }: { initial?: RoomTab; identity?: RoomIdentity | undefined }) {
+  const identity = 'identity' in rest ? rest.identity : dark;
   const [tab, setTab] = useState<RoomTab>(initial);
   return (
     <RoomGround identity={identity} testID="ground">
@@ -138,11 +139,38 @@ describe('the room’s ground', () => {
     expect(screen.getByTestId('probe').props.children).toBe('fallback-ground|fallback-ink');
   });
 
-  it('keeps AA contrast for words on the ground and for the open tab’s words on its fill, in a dark kit, a pale one and the default', () => {
-    for (const tone of [toneOf(dark.kit), toneOf(pale.kit), SPACE_TONE]) {
-      expect(contrast(tone.ink, tone.ground)).toBeGreaterThanOrEqual(4.5);
-    }
-  });
+  // The thinnest legal kit (ink on ground at 4.54:1), a dark one, a pale one and the default.
+  const thin: RoomIdentity = { kit: kitOf('midnight', 'coral') };
+  it.each([
+    ['the thinnest legal kit', thin],
+    ['a dark kit', dark],
+    ['a pale kit', pale],
+    ['a room with no face', 'none' as const],
+  ])(
+    'draws the bar’s words at AA on what is really behind them, in %s: the ground for a tab that is not open, its own fill for the open one',
+    async (_name, identity) => {
+      expect(contrastOf(ROOM_SWATCHES.coral, ROOM_SWATCHES.midnight)).toBeLessThan(4.6);
+      await wrap(<Harness identity={identity === 'none' ? undefined : identity} />);
+      const ground = StyleSheet.flatten(screen.getByTestId('ground').props.style as object) as {
+        backgroundColor: string;
+      };
+      const colourOf = (testID: string) => {
+        const tab = screen.getByTestId(testID);
+        const label = within(tab).getByText(tab.props['aria-label'] ?? tab.props.accessibilityLabel);
+        return (StyleSheet.flatten(label.props.style as object) as { color: string }).color;
+      };
+      const fillOf = (testID: string) =>
+        (StyleSheet.flatten(screen.getByTestId(testID).props.style as object) as { backgroundColor?: string })
+          .backgroundColor;
+      // Nothing is laid between a closed tab's words and the ground (no wash), so its pair is the kit's own.
+      expect(fillOf('room-tab-feed')).toBeUndefined();
+      expect(
+        StyleSheet.flatten(screen.getByTestId('room-tabs').props.style as object) as { backgroundColor?: string },
+      ).not.toHaveProperty('backgroundColor');
+      expect(contrastOf(colourOf('room-tab-feed'), ground.backgroundColor)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastOf(colourOf('room-tab-general'), fillOf('room-tab-general')!)).toBeGreaterThanOrEqual(4.5);
+    },
+  );
 
   it('gives the cobalt focus ring a halo on every ground it cannot be seen on alone, so no ground leaves it under 3:1', () => {
     for (const ground of Object.values(ROOM_SWATCHES)) {

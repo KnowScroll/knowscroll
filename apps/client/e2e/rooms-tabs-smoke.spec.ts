@@ -46,7 +46,7 @@ async function open(
   page: Page,
   size: { width: number; height: number },
   options: {
-    face?: 'space' | 'history';
+    face?: 'space' | 'history' | 'thin';
     world?: FeedWorld;
     path?: string;
     live?: () => Record<string, unknown>[];
@@ -66,11 +66,49 @@ async function open(
   return { address };
 }
 
+/**
+ * The contrast of the bar's words as drawn: each label against what is behind it in the browser (the ground for a tab that is not
+ * open, the tab's own fill for the open one), read from the computed colours so a wash or a fill laid over the ground shows.
+ */
+async function barContrast(page: Page) {
+  const ratio = await page.evaluate(() => {
+    const parse = (value: string) => (value.match(/[\d.]+/g) ?? []).slice(0, 4).map(Number);
+    const luminance = ([red, green, blue]: number[]) => {
+      const [r, g, b] = [red, green, blue].map((channel) => {
+        const unit = (channel ?? 0) / 255;
+        return unit <= 0.03928 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const contrast = (first: number[], second: number[]) => {
+      const [light, dark] = [luminance(first), luminance(second)].sort((a, b) => b - a);
+      return (light! + 0.05) / (dark! + 0.05);
+    };
+    /** The first background up the tree that is not transparent. */
+    const behind = (node: Element): number[] => {
+      for (let at: Element | null = node; at !== null; at = at.parentElement) {
+        const colour = parse(getComputedStyle(at).backgroundColor);
+        if (colour.length >= 3 && (colour[3] ?? 1) > 0) return colour;
+      }
+      return [255, 255, 255];
+    };
+    const read = (testID: string) => {
+      const tab = document.querySelector(`[data-testid="${testID}"]`)!;
+      const label = tab.querySelector('div[dir]') ?? tab;
+      return contrast(parse(getComputedStyle(label).color), behind(tab));
+    };
+    return { unselected: read('room-tab-feed'), selected: read('room-tab-general') };
+  });
+  expect(ratio.unselected).toBeGreaterThanOrEqual(4.5);
+  expect(ratio.selected).toBeGreaterThanOrEqual(4.5);
+  return { unselected: ratio.unselected, selected: ratio.selected };
+}
+
 const selected = (page: Page, tab: 'general' | 'feed' | 'topics') =>
   expect(page.getByTestId(`room-tab-${tab}`)).toHaveAttribute('aria-selected', 'true');
 
 for (const { name, size } of VIEWPORTS) {
-  for (const face of ['space', 'history'] as const) {
+  for (const face of ['space', 'history', 'thin'] as const) {
     test(`${name}, ${face} room: the bar switches in place on the room's own ground, and axe finds nothing`, async ({
       page,
     }) => {
@@ -82,10 +120,11 @@ for (const { name, size } of VIEWPORTS) {
       // The ground is the kit's: dark midnight for the Space room, paper for the History room.
       await expect(page.getByTestId('room-ground')).toHaveCSS(
         'background-color',
-        face === 'space' ? 'rgb(4, 10, 23)' : 'rgb(244, 237, 216)',
+        face === 'history' ? 'rgb(244, 237, 216)' : 'rgb(4, 10, 23)',
       );
       await shoot(page, `${name}-${face}-general`);
       expect(await seriousViolations(page)).toEqual([]);
+      expect(await barContrast(page)).toEqual({ unselected: expect.any(Number), selected: expect.any(Number) });
 
       const url = page.url();
       const entries = await page.evaluate(() => history.length);
@@ -242,8 +281,6 @@ for (const { name, size } of VIEWPORTS) {
 
     // A control on the ground itself (the Feed's sort) and a button in the panel draw the same ring.
     await page.getByTestId('feed-sort-new').focus();
-    await page.keyboard.press('Shift+Tab');
-    await page.keyboard.press('Tab');
     const sort = await ringOf('feed-sort-new');
     expect(sort.outline).toBe('rgb(44, 70, 232)');
     expect(sort.shadow).toContain('rgb(255, 255, 255)');
