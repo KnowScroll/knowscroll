@@ -10,6 +10,10 @@ export interface ReaderCommands {
   readonly wayOn?: () => void;
   readonly previousPart?: () => void;
   readonly nextTopic?: () => void;
+  /** Challenge a friend with one of this Scroll's calls (D-245); absent where it cannot be sent. */
+  readonly challenge?: (() => void) | undefined;
+  /** Opens Ask from here anchored to a stop, with the passage the reader selected as the draft question (D-244). */
+  readonly askAbout?: ((stopId: string, passage: string) => void) | undefined;
 }
 
 /** Runs a command the app may not provide; whether it ran is whether the key or swipe was used. */
@@ -22,7 +26,8 @@ export function run(command: (() => void) | undefined): boolean {
 /** What a key can reach: where the reader is, how to move, the calls and the app's commands. */
 export interface KeyTargets {
   readonly stops: ScrollDocumentV2['stops'];
-  readonly hasStage: boolean;
+  /** There is a picture or a play block that has a text version: the T key has something to swap. */
+  readonly hasTextVersion: boolean;
   readonly commands: ReaderCommands;
   readonly jump: (index: number, animated: boolean) => void;
   /**
@@ -60,7 +65,7 @@ export function actOnKey(key: ReaderKey, at: KeyTargets): boolean {
     case 'format':
       return run(at.commands.format);
     case 'text-version':
-      if (!at.hasStage) return false;
+      if (!at.hasTextVersion) return false;
       at.toggleTextVersion();
       return true;
     case 'pick':

@@ -21,6 +21,18 @@ import {
   RoomLaunchStripSchema,
   StartLaunchSchema,
 } from './room-launch.js';
+import {
+  LeaveQuestionSchema,
+  QuestionLeftAcceptanceSchema,
+  QuestionNoticeAcceptanceSchema,
+  ReadReplayRoundSchema,
+  ReadRoomReplaySchema,
+  ReplayRoundSchema,
+  RoomQuestionsSchema,
+  RoomReplaySchema,
+  RoomReplayStripSchema,
+  SetQuestionNoticeSchema,
+} from './room-quiet.js';
 import { NewDebateSchema, RoomDebateSchema, RoomNamingSchema, RoomSkySchema, RoomStarSchema } from './room-sky.js';
 import { RecordingGenerationSchema } from './recording.js';
 import { PublicPersonRefSchema } from './sharing.js';
@@ -184,6 +196,11 @@ export const RoomDiscussionSummarySchema = z.strictObject({
   replyCount: Counter,
   /** Who spoke last, when the reader may be told: the name only, and whether it is a resident. Absent when the reader blocked them. */
   lastReplyBy: z.strictObject({ name: z.string().min(1).max(80), ai: z.boolean() }).optional(),
+  /**
+   * Present only on a question (tag `question`) that no person but its starter has spoken in: it is still open for people, whatever a
+   * resident said (D-242). Absent on every other discussion and on an answered question.
+   */
+  waiting: z.literal(true).optional(),
 });
 export type RoomDiscussionSummary = z.infer<typeof RoomDiscussionSummarySchema>;
 
@@ -620,7 +637,7 @@ export const RoomViewSchema = z.discriminatedUnion('status', [
     here: RoomHereSchema,
     /** How many current members the room has, for the room menu. */
     memberTotal: Counter,
-    /** When the newest visible message was sent, anywhere in the room; absent while nobody has written. */
+    /** When the newest visible message **a person** wrote was sent, anywhere in the room; absent while no person has written (D-243). */
     lastMessageAt: z.iso.datetime().optional(),
     /** The bounds on what the room's AI may do, for the room menu. */
     limits: RoomLimitsSchema,
@@ -636,6 +653,10 @@ export const RoomViewSchema = z.discriminatedUnion('status', [
     launch: RoomLaunchStripSchema.optional(),
     /** The newest find a resident posted that this reader may see (v3 R-8). Absent when there is none, or the reader's AI is Off. */
     feed: RoomFeedStripSchema.optional(),
+    /** A finished Launch this member did not play, whose answers are still kept: it can be replayed (v3 R-7). */
+    replay: RoomReplayStripSchema.optional(),
+    /** Questions waiting for a person, and the caller's own that a person answered (v3 R-7). Absent when both are none. */
+    questions: RoomQuestionsSchema.optional(),
   }),
 ]);
 export type RoomView = z.infer<typeof RoomViewSchema>;
@@ -1440,6 +1461,14 @@ export const roomsFeedContract = {
   replaceMemory: roomsPost('/v1/rooms/memory/replace', ReplaceRoomMemorySchema, RoomMemoryReplacementSchema),
 };
 
+/** The quiet room: replay a finished Launch alone, and leave a question for people (v3 R-7). */
+export const roomsQuietContract = {
+  replay: roomsPost('/v1/rooms/replay/read', ReadRoomReplaySchema, RoomReplaySchema),
+  replayRound: roomsPost('/v1/rooms/replay/round', ReadReplayRoundSchema, ReplayRoundSchema),
+  leaveQuestion: roomsPost('/v1/rooms/questions/leave', LeaveQuestionSchema, QuestionLeftAcceptanceSchema),
+  questionNotice: roomsPost('/v1/rooms/questions/notice', SetQuestionNoticeSchema, QuestionNoticeAcceptanceSchema),
+};
+
 /**
  * Served by the API's rooms controller, with Social's problem family and cache policy. The six parts are
  * named so that the declaration the compiler writes for this object stays bounded.
@@ -1449,13 +1478,15 @@ export const roomsContract: typeof roomsRoomContract &
   typeof roomsActivityContract &
   typeof roomsSkyContract &
   typeof roomsLaunchContract &
-  typeof roomsFeedContract = {
+  typeof roomsFeedContract &
+  typeof roomsQuietContract = {
   ...roomsRoomContract,
   ...roomsDiscussionContract,
   ...roomsActivityContract,
   ...roomsSkyContract,
   ...roomsLaunchContract,
   ...roomsFeedContract,
+  ...roomsQuietContract,
 };
 
 /**
@@ -1475,7 +1506,12 @@ export const ROOM_COUNT_AND_ACTIVITY_FIELDS: readonly {
 }[] = [
   { route: 'read', view: 'member', path: 'here', why: 'who has the room open: faces, never an AI' },
   { route: 'read', view: 'member', path: 'here.count', why: 'people here, only from three (D-069)' },
-  { route: 'read', view: 'member', path: 'lastMessageAt', why: 'when the newest visible message was sent' },
+  {
+    route: 'read',
+    view: 'member',
+    path: 'lastMessageAt',
+    why: 'when the newest visible message a person wrote was sent: the words of a resident do not count (D-243)',
+  },
   { route: 'read', view: 'member', path: 'memberTotal', why: 'current members, for the room menu' },
   { route: 'read', view: 'member', path: 'you.noticeSeenAt', why: 'when the caller read the AI notice: their own' },
   {

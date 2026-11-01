@@ -1604,12 +1604,14 @@ export interface RoomsDebateVotes {
 }
 
 export interface RoomsDiscussions {
+  answer_noticed_at: Timestamp | null;
   created_at: Timestamp;
   discussion_id: string;
   kind: Generated<string>;
   last_activity_at: Timestamp;
   last_change_sequence: Generated<Int8>;
   last_sequence: Generated<Int8>;
+  notify_answer: Generated<boolean>;
   origin_message_id: string | null;
   pinned_at: Timestamp | null;
   room_id: string;
@@ -2063,6 +2065,7 @@ export interface SocialMessages {
   asset_revision: number | null;
   author_account_id: string | null;
   body_text: string | null;
+  challenge_stop: string | null;
   change_sequence: Int8;
   command_id: string | null;
   conversation_id: string;

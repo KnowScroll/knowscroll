@@ -6,7 +6,11 @@
 import { randomUUID } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import { expect } from 'vitest';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  fencePersonalRecording,
+  makeWithPersonalScope,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
 import { FENCE_OWN_ACCOUNT } from '@knowscroll/backend/modules/identity';
 import {
   accountAccessUseCases,
@@ -20,7 +24,11 @@ import {
 import { GEOGRAPHY_PORTS, geographyProviders } from '@knowscroll/backend/modules/geography/nest-providers';
 import { visibilityUseCases, refreshVisitPublication } from '@knowscroll/backend/modules/social/nest-providers';
 import { conversationUseCases, socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
-import { makeReadPublicContent, readShareableContent } from '@knowscroll/backend/modules/content/nest-providers';
+import {
+  makeReadPublicContent,
+  readScrollPlayFacts,
+  readShareableContent,
+} from '@knowscroll/backend/modules/content/nest-providers';
 import { buildFromProviders } from './providers.js';
 import type { FixturePerson } from './fixtures.js';
 
@@ -162,6 +170,8 @@ export function visitCases(db: Kysely<Database>, clock: { now: Date } = { now: n
       db,
       readContent: readShareableContent,
       readPublicContent: makeReadPublicContent(db),
+      readCallFacts: readScrollPlayFacts,
+      fenceRecording: fencePersonalRecording,
     }),
   };
 }

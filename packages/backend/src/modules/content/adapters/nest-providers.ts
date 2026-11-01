@@ -236,7 +236,7 @@ export {
   type SpikeLine,
   type SpikeResult,
 } from '../production/spike-v2/run.js';
-export { parseSpikeTopics, SPIKE_TOPICS_V2 } from '../production/spike-v2/topics.js';
+export { parseSpikeBlocks, parseSpikeTopics, SPIKE_TOPICS_V2 } from '../production/spike-v2/topics.js';
 /** The job one `content.produce-scroll` delivery runs, and the operator's enqueue and status reads. */
 export { makeRunScrollProduction } from '../production/job.js';
 export { makeEnqueueScrollProduction } from './enqueue-production.js';

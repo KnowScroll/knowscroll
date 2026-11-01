@@ -18,6 +18,8 @@ import {
   type RoomHere,
   type RoomFeedStrip,
   type RoomLaunchStrip,
+  type RoomQuestions,
+  type RoomReplayStrip,
   type RoomTodayStrip,
   type RoomWelcome,
 } from '@knowscroll/contracts';
@@ -34,6 +36,8 @@ import { titlesFor } from './discussion-titles.js';
 import { feedStrip } from './feed-reads.js';
 import { enterRoom, type EnteredRoom } from './gate.js';
 import { launchStrip } from './launch-view.js';
+import { questionsView } from './questions.js';
+import { replayStrip } from './replay.js';
 import { skyOfRoom } from './sky.js';
 import { todayStrip } from './today.js';
 import {
@@ -121,6 +125,11 @@ async function discussionSummaries(
       lastActivityAt: row.lastActivityAt.toISOString(),
       replyCount: figure?.replyCount ?? 0,
       ...(lastReplyBy === undefined ? {} : { lastReplyBy }),
+      // A question stays open for people whatever a resident said: `answered` counts persons only (D-242).
+      // A question whose asker's account is gone waits for no one, as `QuestionStore.waiting` counts it.
+      ...(row.tag === 'question' && row.startedByAccountId !== null && figure?.answered === false
+        ? { waiting: true as const }
+        : {}),
     };
   });
 }
@@ -199,6 +208,8 @@ const awayFor = (away: RoomAway | undefined) => (away === undefined ? {} : { awa
 const todayFor = (today: RoomTodayStrip | undefined) => (today === undefined ? {} : { today });
 const launchFor = (launch: RoomLaunchStrip | undefined) => (launch === undefined ? {} : { launch });
 const feedFor = (feed: RoomFeedStrip | undefined) => (feed === undefined ? {} : { feed });
+const replayFor = (replay: RoomReplayStrip | undefined) => (replay === undefined ? {} : { replay });
+const questionsFor = (questions: RoomQuestions | undefined) => (questions === undefined ? {} : { questions });
 
 /** A member's view of the room: General, the other discussions, their own settings, who is here and how quiet it is. */
 async function memberView(p: RoomPorts, scope: PersonalScopeTx, entered: EnteredRoom & { member: MemberRow }) {
@@ -239,6 +250,8 @@ async function memberView(p: RoomPorts, scope: PersonalScopeTx, entered: Entered
     ...todayFor(await todayStrip(p, lock, p.now())),
     ...launchFor(await launchStrip(p, lock, p.now())),
     ...feedFor(await feedStrip(p, lock, entered.member, room.cast)),
+    ...replayFor(await replayStrip(p, scope, entered, p.now())),
+    ...questionsFor(await questionsView(p, scope, entered)),
   };
 }
 

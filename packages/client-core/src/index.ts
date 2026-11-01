@@ -89,6 +89,7 @@ export {
   optionLetter,
   revealWords,
 } from './call-words';
+export { challengeNoticeWords, challengeRevealWords, challengeStatusWords } from './challenge-words';
 export {
   createThreadPlaces,
   placeProgress,
@@ -171,6 +172,9 @@ export {
   readRoomStations,
   readRoomTopics,
   type ModerateAction,
+  type QuestionLeft,
+  type QuestionNoticeChange,
+  type QuestionToLeave,
   type RoomController,
   type RoomOptions,
   type RoomPreferencesChange,
@@ -242,6 +246,28 @@ export {
   type RoomLaunchOptions,
   type RoomLaunchState,
 } from './room-launch';
+export {
+  REPLAY_ANSWER_MS,
+  createRoomReplay,
+  replayBanner,
+  replayChip,
+  replayCountLine,
+  replayHostLine,
+  replayScoreLine,
+  type ReplayData,
+  type ReplayStep,
+  type RoomReplayController,
+  type RoomReplayOptions,
+  type RoomReplayState,
+} from './room-replay';
+export {
+  QUESTION_LEFT_WORDS,
+  QUIET_OFFER_AFTER_MS,
+  laterWords,
+  questionReplyLine,
+  questionsChip,
+  quietOffer,
+} from './room-questions';
 export {
   createRoomDiscussion,
   mergeRoomMessages,

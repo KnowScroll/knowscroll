@@ -1,0 +1,203 @@
+{
+  "schemaVersion": "scroll-document.v2",
+  "assetId": "ci-fixture-sort-fork-blocks",
+  "revision": 1,
+  "language": "en",
+  "explanationUnitId": "ci-fixture-sort-fork-blocks-unit",
+  "theme": {
+    "family": "worlds"
+  },
+  "kicker": "CI fixture · not product content",
+  "title": "Orrin’s seasons, with a sort and a fork (a CI fixture)",
+  "dek": "An invented planet, a chain to put in order and two paths to choose between (a CI fixture).",
+  "framing": {
+    "kind": "factual"
+  },
+  "misconception": {
+    "kind": "none"
+  },
+  "stops": [
+    {
+      "kind": "read",
+      "id": "hook",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Orrin leans by 31 degrees, and the lean points the same way all year. So why does it have seasons at all?"
+        }
+      ],
+      "simple": "Orrin leans and has seasons.",
+      "emphasis": "hook"
+    },
+    {
+      "kind": "call_it",
+      "id": "call-guess",
+      "prompt": "What makes a season on Orrin?",
+      "options": ["The lean of its axis", "Its distance from Vael"],
+      "answer": 0,
+      "explain": "The lean changes how steeply sunlight strikes each half through the year.",
+      "twist": "Distance is the natural first guess. On Orrin it hardly changes, so it cannot be the cause.",
+      "simple": "The lean makes the seasons."
+    },
+    {
+      "kind": "read",
+      "id": "chain",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Here is the chain, shuffled. Put the causes in the order they happen, from the lean to the warming of the north."
+        }
+      ],
+      "simple": "Put the chain in order.",
+      "interactive": {
+        "type": "sort",
+        "items": [
+          "The northern half warms",
+          "Sunlight arrives steeply",
+          "The lean points toward Vael",
+          "Days run long"
+        ],
+        "order": [2, 1, 3, 0],
+        "explain": "The lean sets the angle of the light, the angle sets how long and how strong the days are, and that warms the north."
+      }
+    },
+    {
+      "kind": "read",
+      "id": "ray",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "A low sun spreads the same light over more ground, so each patch gets less."
+        }
+      ],
+      "simple": "A low sun spreads light thin.",
+      "guide": {
+        "character": "ray",
+        "pose": "wonder",
+        "line": "Same sunshine, more ground: that is all a low sun is."
+      }
+    },
+    {
+      "kind": "read",
+      "id": "paths",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Orrin has two halves, and you can follow either one through the year. Choose what to read next."
+        }
+      ],
+      "simple": "Follow one half through the year.",
+      "interactive": {
+        "type": "fork",
+        "prompt": "Which half do you want to follow?",
+        "branches": [
+          {
+            "label": "The north",
+            "text": "The north warms while its lean points toward Vael, and its days run long."
+          },
+          {
+            "label": "The south",
+            "text": "The south cools in those same months, because its lean points away and the light is low."
+          }
+        ]
+      }
+    },
+    {
+      "kind": "call_it",
+      "id": "call-tropics",
+      "prompt": "Which place changes least across the year?",
+      "options": ["Near the equator", "Near a pole"],
+      "answer": 0,
+      "explain": "Near the equator the noon sun stays high in every season.",
+      "twist": "The poles feel the biggest swing, so it is easy to look for the calm elsewhere.",
+      "simple": "The equator changes least."
+    },
+    {
+      "kind": "read",
+      "id": "afterwards",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Whichever path you took, the two meet here: the lean is fixed, and the light does the rest."
+        }
+      ],
+      "simple": "The paths meet here.",
+      "guide": {
+        "character": "ray",
+        "pose": "smile",
+        "line": "Fixed lean, moving light. See you at the end."
+      }
+    },
+    {
+      "kind": "final_call",
+      "id": "final-flat",
+      "prompt": "If Orrin did not lean at all, what would happen to its seasons?",
+      "options": ["They would mostly disappear", "They would grow stronger"],
+      "answer": 0,
+      "explain": "Without a lean, the sun would stand at the same height all year, so the seasons would fade.",
+      "twist": "It is tempting to think the lean only adds a little. It is the whole cause.",
+      "simple": "No lean, no seasons."
+    }
+  ],
+  "asides": [
+    {
+      "id": "where-this-stops",
+      "kind": "limits",
+      "title": "Where this stops",
+      "text": "Orrin is invented for this fixture, and a real planet has more going on than one chain of causes.",
+      "anchorStop": "chain",
+      "collapsed": true
+    }
+  ],
+  "recap": {
+    "captions": ["The lean sets the season.", "Steeper light warms.", "Both paths meet again."],
+    "smallPrintAside": "where-this-stops"
+  },
+  "askSuggestions": ["What would change if the numbers were different?", "Where does this picture stop being true?"],
+  "limitsVersion": "scroll-limits.v2",
+  "measures": {
+    "version": "scroll-measures.v2",
+    "readingSeconds": 142,
+    "readingMinutes": 2.4,
+    "totalWeight": 467,
+    "recapWeight": 12,
+    "stops": [
+      {
+        "stopId": "hook",
+        "weight": 22
+      },
+      {
+        "stopId": "call-guess",
+        "weight": 82
+      },
+      {
+        "stopId": "chain",
+        "weight": 83
+      },
+      {
+        "stopId": "ray",
+        "weight": 26
+      },
+      {
+        "stopId": "paths",
+        "weight": 44
+      },
+      {
+        "stopId": "call-tropics",
+        "weight": 78
+      },
+      {
+        "stopId": "afterwards",
+        "weight": 27
+      },
+      {
+        "stopId": "final-flat",
+        "weight": 93
+      }
+    ]
+  },
+  "integrity": {
+    "method": "canonical-json-sha256.v1",
+    "sha256": "cb274cb863e7624248237058bf2c61968825db5d7e57401a7212a34718923cc1"
+  }
+}

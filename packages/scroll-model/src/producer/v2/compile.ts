@@ -29,6 +29,7 @@ function authoredPath(path: string, document: ScrollDocumentV2, map: AssemblyMap
     if (item === undefined) return 'items';
     if (field === undefined) return `items.${item}`;
     if (field === 'answer') return `items.${item}.options`;
+    if (field === 'interactive') return `items.${item}`;
     if (field !== 'blocks') return `items.${item}.${field}`;
     const stop = document.stops[Number(index)];
     const block = stop?.kind === 'read' && blockIndex !== undefined ? stop.blocks[Number(blockIndex)] : undefined;

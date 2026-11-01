@@ -47,6 +47,23 @@ export const V2_REASON_CODES = [
   'stage_state_on_call',
   'earth_axis_sideways',
   'stage_state_unsettled',
+  // The play blocks of a read stop and the guide (D-207).
+  'interactive_budget_exceeded',
+  'sort_order_invalid',
+  'sort_already_ordered',
+  'sort_items_duplicate',
+  'fork_branches_duplicate',
+  'fork_branch_too_long',
+  'scale_values_invalid',
+  'scale_here_invalid',
+  'chart_labels_duplicate',
+  'block_unexpected',
+  'block_missing',
+  'block_value_invalid',
+  'guide_too_long',
+  'guide_budget_exceeded',
+  'guide_too_close',
+  'guide_unexpected',
   // The misconception, decided with the recipe.
   'misconception_source_unreviewed',
 ] as const;

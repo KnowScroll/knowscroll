@@ -1,8 +1,9 @@
-import { useState, type ReactNode, type Ref } from 'react';
+import { useCallback, useRef, useState, type ReactNode, type Ref } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import {
   BottomSheet,
+  Button,
   ReaderDock,
   ReaderTopBar,
   StageReader,
@@ -11,6 +12,8 @@ import {
   type StageReaderHandle,
   type StageReadingObserver,
 } from '@knowscroll/ui';
+import { challengeCallOf } from '../sharing/challenge-call';
+import { ChallengeSheet } from '../sharing/challenge-sheet';
 import type { OpenedStageScroll } from './scroll-session';
 import { useStagePlay } from './use-stage-play';
 
@@ -27,6 +30,17 @@ export interface StageMoves {
   readonly formatSwitch?: ReactNode;
   readonly format?: (() => void) | undefined;
   readonly done?: (() => void) | undefined;
+  /**
+   * Opens Ask from here anchored to a stop, with the words the reader selected as the first draft of the question (D-244).
+   * Absent where there is no Ask (the direct `/scroll/<id>` route).
+   */
+  readonly askAbout?: ((stopId: string, passage: string) => void) | undefined;
+}
+
+/** Hands one value to a ref of either kind. */
+function assign<T>(ref: Ref<T> | undefined, value: T | null): void {
+  if (typeof ref === 'function') ref(value);
+  else if (ref !== undefined && ref !== null) (ref as { current: T | null }).current = value;
 }
 
 /**
@@ -71,6 +85,17 @@ export function StageReaderSurface({
   readonly bottomInset: number;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
+  const [challenging, setChallenging] = useState(false);
+  // The reader's own handle is kept here too, because the ••• menu switches the stop on screen to its plainer words.
+  const reader = useRef<StageReaderHandle | null>(null);
+  const readerRef = useCallback(
+    (instance: StageReaderHandle | null) => {
+      reader.current = instance;
+      assign(handleRef, instance);
+    },
+    [handleRef],
+  );
+  const canChallenge = challengeCallOf(scroll.document) !== undefined;
   const { breakpoint } = useDisplay();
   const { document } = scroll;
   // Play on this Scroll: the person's own calls, sparks and combo, kept unless recording is paused (D-063, D-083).
@@ -82,9 +107,9 @@ export function StageReaderSurface({
         <StageReader
           document={document}
           observer={observer}
-          paused={paused === true || moreOpen}
+          paused={paused === true || moreOpen || challenging}
           initialStopId={initialStopId}
-          handleRef={handleRef}
+          handleRef={readerRef}
           onStopChange={onStopChange}
           nextPart={moves.nextPart}
           related={moves.related}
@@ -98,6 +123,8 @@ export function StageReaderSurface({
             wayOn: wayOn?.onPress,
             previousPart: moves.previousPart,
             nextTopic: moves.nextTopic,
+            challenge: canChallenge ? () => setChallenging(true) : undefined,
+            askAbout: moves.askAbout,
           }}
           header={
             <View style={{ paddingTop: topInset }}>
@@ -126,9 +153,36 @@ export function StageReaderSurface({
       </View>
       {moreBody === undefined ? null : (
         <BottomSheet visible={moreOpen} title="More" onClose={() => setMoreOpen(false)}>
-          {moreBody(() => setMoreOpen(false))}
+          <View style={styles.more}>
+            <Button
+              label="Simpler (this screen)"
+              icon="info"
+              size="sm"
+              onPress={() => {
+                setMoreOpen(false);
+                reader.current?.toggleSimpler();
+              }}
+              testID="more-simpler"
+            />
+            {canChallenge ? (
+              <Button
+                label="Challenge a friend"
+                icon="send"
+                size="sm"
+                onPress={() => {
+                  setMoreOpen(false);
+                  setChallenging(true);
+                }}
+                testID="more-challenge"
+              />
+            ) : null}
+            {moreBody(() => setMoreOpen(false))}
+          </View>
         </BottomSheet>
       )}
+      <BottomSheet visible={challenging} title="Challenge a friend" onClose={() => setChallenging(false)}>
+        <ChallengeSheet scroll={scroll} onClose={() => setChallenging(false)} />
+      </BottomSheet>
     </View>
   );
 }
@@ -137,4 +191,5 @@ const styles = StyleSheet.create({
   page: { flex: 1, minHeight: 0, backgroundColor: content.paper, alignItems: 'center' },
   column: { flex: 1, minHeight: 0, width: '100%' },
   wide: { maxWidth: layout.measureDesktop + 2 * layout.gutter + spacing[8] },
+  more: { gap: spacing[3], alignItems: 'flex-start' },
 });

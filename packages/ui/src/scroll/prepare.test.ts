@@ -173,6 +173,12 @@ describe('the renderer on the device', () => {
       'wavelengthColour',
       'waveStrengthAt',
       'ZONE_STARS',
+      'describeChart',
+      'describePoint',
+      'describeScale',
+      'isSortRight',
+      'sortedItems',
+      'sortPlacedRight',
     ]);
     const model = readFileSync(join(__dirname, 'model.ts'), 'utf8');
     const runtimeExports = [...model.matchAll(/export\s*\{([^}]+)\}\s*from/g)].flatMap((match) =>

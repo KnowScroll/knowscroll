@@ -41,7 +41,7 @@ const overAt = (row: LaunchRow): Date => endsAt(row.startsAt);
  * People as faces for this reader: the reader first, then the others in the order given, never a person the reader blocked (D-160:
  * left out, not drawn as a placeholder, so no count can give them away) and never a person with no public profile.
  */
-async function facesOf(
+export async function facesOf(
   p: RoomPorts,
   scope: PersonalScopeTx,
   readerId: string,

@@ -1,4 +1,5 @@
 import { countWords } from '../text.js';
+import { interactiveWords } from './blocks.js';
 import type { Aside, MeasuresV2, Recap, Stop } from './document.js';
 import { SCROLL_MEASURES_V2_VERSION } from './document.js';
 
@@ -9,6 +10,8 @@ import { SCROLL_MEASURES_V2_VERSION } from './document.js';
  */
 export const WORDS_PER_MINUTE_V2 = 230;
 export const SECONDS_PER_CALL = 10;
+/** A sort, a fork, a scale or a chart takes about as long to play as a call (D-207). */
+export const SECONDS_PER_INTERACTIVE = 10;
 export const READING_SECONDS_V2 = { min: 180, max: 360 } as const;
 
 /** What ten seconds of thinking weighs in word-equivalents. */
@@ -20,7 +23,12 @@ const CALL_WEIGHT = Math.round((WORDS_PER_MINUTE_V2 * SECONDS_PER_CALL) / 60);
  * longer path.
  */
 export function stopWords(stop: Stop): number {
-  if (stop.kind === 'read') return stop.blocks.reduce((total, block) => total + countWords(block.text), 0);
+  if (stop.kind === 'read')
+    return (
+      stop.blocks.reduce((total, block) => total + countWords(block.text), 0) +
+      (stop.interactive === undefined ? 0 : interactiveWords(stop.interactive)) +
+      (stop.guide === undefined ? 0 : countWords(stop.guide.line))
+    );
   return [stop.prompt, ...stop.options, stop.explain, stop.twist].reduce((total, text) => total + countWords(text), 0);
 }
 
@@ -59,7 +67,11 @@ export function computeMeasuresV2(parts: MeasuredParts): MeasuresV2 {
   const recapWeight = parts.recap.captions.reduce((total, caption) => total + countWords(caption), 0);
   const totalWeight = stops.reduce((total, stop) => total + stop.weight, 0) + recapWeight;
   const calls = parts.stops.filter((stop) => stop.kind !== 'read').length;
-  const readingSeconds = Math.round((readingWords(parts) * 60) / WORDS_PER_MINUTE_V2) + calls * SECONDS_PER_CALL;
+  const interactives = parts.stops.filter((stop) => stop.kind === 'read' && stop.interactive !== undefined).length;
+  const readingSeconds =
+    Math.round((readingWords(parts) * 60) / WORDS_PER_MINUTE_V2) +
+    calls * SECONDS_PER_CALL +
+    interactives * SECONDS_PER_INTERACTIVE;
   return {
     version: SCROLL_MEASURES_V2_VERSION,
     readingSeconds: Math.max(1, readingSeconds),

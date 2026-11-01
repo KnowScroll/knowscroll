@@ -8,7 +8,7 @@ and sets how much the AI inhabitants may speak to them. AI inhabitants answer wh
 labelled as AI, and make nothing. Each room has a cast of named residents (an Explainer and a Skeptic): they answer
 when a member asks and, under caps the router keeps, speak on their own when a question goes unanswered or a claim is
 stated very strongly. Blueprint §10, §15 (roles), §16–§17 ("Idea rooms use the same exploration
-model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165, D-166 to D-171, D-174 to D-176, D-178 to D-179, D-219 to D-224.
+model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165, D-166 to D-171, D-174 to D-176, D-178 to D-179, D-219 to D-224, D-241 to D-243.
 
 Status marks: **implemented** means merged with tests against real PostgreSQL and the reasoning
 harness over a CI fixture model. **Runtime-verified** means used on a local system with the real
@@ -30,7 +30,7 @@ A room's residents also post finds: three times a day each looks at the room and
 | Moderator: start a poll or a quiz (R03); members vote in a poll (visible to the room, changeable until it closes) and read a quiz one question at a time; the moderator closes or removes it | Implemented; runtime-verified |
 | The desktop room (D04): the room, the open discussion and the room extras in three panes | Implemented (client); runtime-verified |
 | Land in the room's General (one per room, backfilled for rooms that existed); topics and pins stay in the room menu (v3 R-1) | Implemented (CI-verified) |
-| See the faces of who has the room open (a number only from three, never an AI, a blocked person left out) and an honest "Quiet right now · last message 3 h ago" (v3 R-1, D-069) | Implemented (CI-verified) |
+| See the faces of who has the room open (a number only from three, never an AI, a blocked person left out) and an honest "Quiet right now · last person wrote 3 h ago" (v3 R-1, D-069; people only, D-243) | Implemented (CI-verified) |
 | Read the AI notice once on first opening, then only in the room menu; set AI level Lively / Quieter / Off and "Keep my messages out of what AI reads" (v3 R-1) | Implemented (CI-verified). Keep-out changes what AI reads in every context path; the level decides what a member sees of a resident that spoke on its own (R-2) |
 | The room menu: About, Guidelines, AI here, Members with the total, Pins, Topics (v3 R-1) | Implemented (CI-verified) |
 | Room hints on the socket: a message or a face appearing is read within seconds (v3 R-1) | Implemented (CI-verified) |
@@ -57,7 +57,9 @@ A room's residents also post finds: three times a day each looks at the room and
 | What the residents remember: one text per room of at most 600 characters, written from the newest retained messages, replaced and never added to, erased when a message it read is removed, kept out or deleted, and never carrying a kept-out member's words (v3 R-8, D-247) | Implemented (CI-verified; fixture model). Not yet runtime-verified |
 | A moderator replaces what the residents remember with their own words or clears it; each is audited (v3 R-8, D-249) | Implemented (CI-verified) |
 | A reader's AI level shapes the feed (Lively reads the note, Quieter has it held back, Off is listed no find); agents cannot vote, message or be counted among the people here (v3 R-8, D-249) | Implemented (CI-verified; web smoke at 390 and 1440 with axe) |
-| A replay of last night's Launch against the real recorded answers, today's question as a Launch | Planned (R-7) |
+| Replay the newest finished Launch alone, against the answers of the people who played it, labelled as a replay with the night and how many played; for the seven days the answers are kept; nothing about the person is stored (v3 R-7, D-241) | Implemented (CI-verified). Needs a finished Launch; not yet runtime-verified |
+| Leave a question for the next person: a topic that stays open until a person answers, with a resident's answer now when the asker asks, and a notice to the asker when a person answers (v3 R-7, D-242) | Implemented (CI-verified; fixture model). Not yet runtime-verified; no push, so the notice is in the room only |
+| An honest quiet room: the pill counts people, and a host's offer to replay appears only when there is a real replay (v3 R-7, D-243) | Implemented (CI-verified) |
 | What-if branches inside a room thread, reports, a moderator quiz's results (a quiz keeps none) | Planned (not built) |
 
 ## What the module owns
@@ -70,7 +72,7 @@ A room's residents also post finds: three times a day each looks at the room and
 | `read_positions` | Private: one row per member per room, the last time their device had it open (moved by their own presence beats) and, after a long return, when they left and the window of the summary written for it. Never sent to anyone but its member |
 | `room_presence` | One lease row per member who has the room open: `last_seen_at`, renewed by their own device and read only while it is under a minute old |
 | `invitations` | A member's invitation of a friend; valid while the inviter is still a member |
-| `discussions` | A room thread: `kind` (`general` and `today`, one each per room by partial unique indexes, made with the room; `topic`), title, optional `tag` (question, debate, explainer, share; topics only), `title_derived` (the title is the first words of the origin message, not the starter's typing), optional root (an exact asset revision), origin message (the message a topic began from, or the card a content thread began from), starter, pin, counters |
+| `discussions` | A room thread: `kind` (`general` and `today`, one each per room by partial unique indexes, made with the room; `topic`), title, optional `tag` (question, debate, explainer, share; topics only), `title_derived` (the title is the first words of the origin message, not the starter's typing), optional root (an exact asset revision), origin message (the message a topic began from, or the card a content thread began from), starter, pin, counters, and for a question the starter's notice state (`notify_answer`, `answer_noticed_at`; migration 0089) |
 | `messages` | A person's text or card, a topic card (`topic_discussion_id`: the topic a member started from a message, no words of its own), an AI inhabitant's contribution (with `trigger`, why it spoke, when it spoke on its own), or a tombstone; `hidden_at` is a moderator's removal |
 | `message_useful` | One mark of Useful per member per message (`message_id`, `account_id`, `marked_at`). Never on one's own message; counted only on a topic of the list; the author is never told |
 | `summaries` | A resident's "while you were away" for one room and 12-hour window: the unique key (room, window) is the one-call cap, the words (`ready` only), the span they cover, and the provenance of the call. Erased (`stale`) when what it read is removed |
@@ -86,7 +88,7 @@ A room's residents also post finds: three times a day each looks at the room and
 | `debates`, `debate_votes` | A topic tagged `debate`: two sides, a close time, the result and, once closed, the voters; each member's one vote on a side (D-176) |
 | `launches` | One Launch: its room, the approved deck it was made from (unique: a deck is played once), the five frozen questions with their keys (served one at a time, the key only after the question closes), when its first question opens, `live` or `finished`, and once finished how many people answered and whether the room earned a star. No account: who started it is not kept (D-178) |
 | `launch_players` | A person who is in a Launch: the Launch, the account and when they joined. Deleted by a Clear, leaving, removal, deletion and seven days after the Launch ended, by the first member command after that (D-220) |
-| `launch_answers` | One answer to one question: the round, the option, whether it was right, and how many milliseconds the **server** measured from the question's opening. The first answer to a round stands. Deleted like the players (D-220) |
+| `launch_answers` | One answer to one question: the round, the option, whether it was right, and how many milliseconds the **server** measured from the question's opening. The first answer to a round stands. Deleted like the players (D-220). Read by a replay for the same seven days (D-241) |
 | `room_memory` | What the residents remember: one row per room, `ready` or `stale` (the words erased), derived from the newest retained messages or written by a moderator (`source`), with the window of messages it read (`covers_from`, `covers_through`) and the AI turn that wrote it. Never a name (D-247) |
 | `memory_edits` | The audit of a moderator's replacement or clearing: who, what, when and the SHA-256 of the words. An earlier text is not kept (D-249) |
 | `typing_holds` | Unlogged: one row per discussion, `held_until` a few seconds ahead. No account, no text. Holds back an AI turn and is read by nothing else (D-165) |
@@ -97,7 +99,7 @@ Use cases (`public.ts`, `RoomUseCases`): `feed`, `replaceMemory`, `list`, `read`
 `setPreferences` (AI level, keep-out, notice acknowledged), `setPresence` (`here` or `away`), `create` (a discussion),
 `readDiscussion`, `history`, `changes`, `send` (which asks the resident a text message names, or else queues the resident check for a
 question or a strong claim), `openSnippet`, `pin`, `hideMessage`, `markUseful`, `ask` (a plain ask, or one pointed at a message),
-`topics`, `dismissAway`, `stations`, `today`, `solveFlaw`, `sky`, `nameConstellation`, `voteDebate`, `launch`, `startLaunch`, `joinLaunch`, `answerLaunch`, `finishLaunch`, `activities`, `readActivity`, `createActivity`, `votePoll`, `moderateActivity`. `create` also starts
+`topics`, `dismissAway`, `stations`, `today`, `solveFlaw`, `sky`, `nameConstellation`, `voteDebate`, `launch`, `startLaunch`, `joinLaunch`, `answerLaunch`, `finishLaunch`, `replay`, `replayRound`, `leaveQuestion`, `questionNotice`, `activities`, `readActivity`, `createActivity`, `votePoll`, `moderateActivity`. `create` also starts
 a topic from a message. `setPresence` also moves the member's place and, on a long return, claims the window and queues the summary. The
 worker's `ContributeAsInhabitant` consumes the `rooms.contribute` queue, `DecideCast` the `rooms.cast-due` queue, `RunCastPass` the
 `rooms.cast-pass` queue and `Summarise` the `rooms.summarise` queue (the last three only where `KS_REASONING_ROOM_ENABLED` is on). `HoldCast` is the socket gateway's port for a typing hint.
@@ -463,3 +465,17 @@ A room plays a live quiz together. It is made of rooms-owned pieces and calls no
 - **Where it shows.** `RoomView.launch` (ready, lobby, live, finished; no number) on a member's own view; `RoomStation.live` on a member's or moderator's station on their own map; nothing in a preview, an outsider's station or a friend's visit.
 - **Recording paused.** Start, join and answer are refused with `not_saved` (no row, no receipt) while recording is paused or the generation is stale: a round does not wait and the key is on the server.
 - **Wall.** Answers are play results (D-063). Rooms writes nothing to a personal schema; an import rule and `launch-wall.test.ts` keep the tables inside Rooms.
+
+## The quiet room (v3 R-7, D-241 to D-243)
+
+Status: implemented (CI-verified over real PostgreSQL and labelled fixtures; two people in two browser contexts at 390 and 1440). No model call is added and none can be reached from it. Not runtime-verified on dev.
+
+What a room offers a person who is there alone, made only of things that really happened.
+
+- **The replay** (`replay`, `replayRound`; `application/replay.ts`, `domain/replay.ts`). The newest Launch whose play time has ended and whose answers are still kept (seven days from the end, the purge's own moment), that someone the reader has not blocked answered and the reader did not. The first read gives the five questions without their key, the night (UTC), how many played and the host; each `replayRound` read gives the key, the reason, how many answered and were right, and the faces of those who were, in person order with the cut at twelve taken in that order. A read takes the question and nothing else: no time and no choice, and nothing in the answer comes from a time, because the read is stateless and unlimited and anything about speed could be swept out of it (D-241). Nobody is named as wrong. Nothing about the replaying person is stored: no table, no receipt, no star, no spark, no job. A Scroll withdrawn or corrected since the deck was frozen takes it away. `RoomView.replay` is its strip (the night only).
+- **A left question** (`leaveQuestion`; `application/questions.ts`). One command, one transaction: a topic tagged Question that begins with the words, a card for it in General and, when the asker asks, one asked turn of kind `about` for the Explainer inside the asked bounds (`resting` when they are full, `kept_out` for a member who keeps messages out). It never schedules the unprompted router.
+- **Open is read** (`QuestionStore.waiting`). A question is open while no person but its asker has spoken in it; a resident never closes it. `RoomView.questions.waiting` is a real count (absent when none), and a question's summary carries `waiting`.
+- **The notice** (`QuestionStore.unnoticed`, `questionNotice`). `discussions.notify_answer` (the asker's switch, on by default) and `answer_noticed_at` (migration 0089). The notice is the first shown message of a person other than the asker whom the asker has not blocked, so a removed answer, a blocked person and the AI never make one. `RoomView.questions.replies` holds the caller's own unnoticed answers (at most five). A room hint makes an open room read it; no push exists, and the Talk list does not show it yet.
+- **The quiet pill** counts people: `lastMessageAt` is the newest shown message a person wrote, so an AI answer does not make an empty room look busy.
+- **Lock order.** The replay reads under the room root FOR SHARE and takes nothing else. Leaving a question takes the room root FOR UPDATE (the ask bounds are counts), then the new discussion's rows. The notice switch takes the room root FOR SHARE.
+- **Erasure and export.** A Clear and leaving keep a question and its words as they keep any conversation. The asker's switch (`notify_answer`) and the marker (`answer_noticed_at`) are theirs: a Clear, leaving, removal and account deletion each turn the switch off and clear the marker (`QuestionStore.forgetMember`, `erasure.ts`), and the export lists both for each question they left. A replay holds nothing to erase.
