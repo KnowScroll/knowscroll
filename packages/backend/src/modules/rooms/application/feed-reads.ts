@@ -141,7 +141,7 @@ export function makeFeed(p: RoomPorts) {
             identity: identityOf(entered.standing.room),
             sort: order.sort,
             window: order.window,
-            profiles: await residentProfiles(p, lock, cast, now),
+            profiles: await residentProfiles(p, lock, cast, now, member.aiLevel),
             posts,
             canPost: roomAcceptsPosts(status) && mayPost(postsToday),
             residents: inhabitantsOf(cast),

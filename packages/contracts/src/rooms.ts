@@ -667,7 +667,8 @@ export type RoomFeedPost = z.infer<typeof RoomFeedPostSchema>;
 /**
  * A resident's profile (T3 "Nova's profile", v3 R-8b, D-277): who made it, what it cares about, how long it has lived in the room, when
  * it last spoke and when it may next post, and its latest posts. Every word of it comes from the product's own catalogue or from the
- * room's ledger, so nothing is a model's. `nextAfter` is only a time still ahead; a resident that is free to post has none.
+ * room's ledger, so nothing is a model's. `nextAfter` is only a time still ahead; a resident that is free to post has none. For a
+ * reader whose AI is Off, `lastAt`, `nextAfter` and `recent` are left out (D-249, D-276).
  */
 export const RoomResidentProfileSchema = z.strictObject({
   inhabitant: InhabitantIdSchema,

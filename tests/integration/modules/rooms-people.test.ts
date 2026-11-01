@@ -247,6 +247,29 @@ describe('people and residents in the Feed (real PostgreSQL, CI fixture model)',
       expect(later).not.toHaveProperty('nextAfter');
     });
 
+    it('tells a reader whose AI is Off nothing of what a resident posted or when it will, and keeps who made it and what it cares about', async () => {
+      await libraryScroll(world.db, 'A Scroll an Off reader is not told of', 10);
+      const { roomId, slug, people } = await scene(3);
+      const [moderator, asha, ravi] = people as [Friend, Friend, Friend];
+      await makeModerator(world, slug, moderator);
+      const { look } = feedHeartbeat(world, () => find());
+      expect((await look(slug)).find).toMatchObject({ kind: 'posted' });
+      unwrap(await introduceResident(world, moderator, roomId, 'explainer'));
+      unwrap(await setPreferences(world, asha, roomId, { aiLevel: 'off' }));
+      const profileFor = async (reader: Friend) =>
+        (await readFeed(world, reader, roomId)).profiles.find((entry) => entry.inhabitant === 'explainer')!;
+      const lively = await profileFor(ravi);
+      expect(lively.recent).toHaveLength(1);
+      expect(lively).toHaveProperty('lastAt');
+      expect(lively).toHaveProperty('nextAfter');
+      const off = await profileFor(asha);
+      expect(off).toMatchObject({ madeBy: 'KnowScroll', introduced: true, recent: [] });
+      expect(off.caresAbout.length).toBeGreaterThan(0);
+      expect(off).not.toHaveProperty('lastAt');
+      expect(off).not.toHaveProperty('nextAfter');
+      expect(JSON.stringify(await readFeed(world, asha, roomId))).not.toContain(lively.recent[0]!.messageId);
+    });
+
     it('carries the first message of a find, so it can be reported, and says an introduction was made', async () => {
       await libraryScroll(world.db, 'A Scroll to report', 10);
       const { roomId, slug, people } = await scene(2);

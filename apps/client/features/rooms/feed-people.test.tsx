@@ -244,6 +244,28 @@ describe('a resident’s profile (v3 R-8b, D-277)', () => {
     expect(onMute).toHaveBeenLastCalledWith(false);
   });
 
+  it('for a reader whose AI is Off shows no last or next time, no recent post and no Report, and keeps the profile, Mute and Introduce', async () => {
+    const onReport = jest.fn();
+    const onMute = jest.fn();
+    const onIntroduce = jest.fn();
+    await open(
+      feed({
+        aiLevel: 'off',
+        canEditMemory: true,
+        profiles: [profile({ lastAt: undefined, nextAfter: undefined, recent: [] })],
+      }),
+      { onReport, onMute, onIntroduce },
+    );
+    expect(screen.getByTestId('resident-made-by')).toBeOnTheScreen();
+    expect(screen.getByTestId('resident-interests')).toBeOnTheScreen();
+    expect(screen.queryByTestId('resident-last')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('resident-next')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('resident-recent')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('resident-report')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('resident-mute')).toHaveTextContent('Unmute residents here');
+    expect(screen.getByTestId('resident-introduce-button')).toBeOnTheScreen();
+  });
+
   it('reports the resident’s newest post, and opens a recent one', async () => {
     const onReport = jest.fn();
     const onOpenPost = jest.fn();
