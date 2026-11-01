@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import type { AccountScope } from '@knowscroll/client-core';
-import type { ContentThreadRef, ScenarioCard } from '@knowscroll/contracts';
+import { createApiClient } from '@knowscroll/client-core';
+import { problemDetails, type ContentThreadRef, type ProblemCode, type ScenarioCard } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
 import { ScenarioSheet, type ScenarioStart } from './scenario-sheet';
 
@@ -39,6 +40,10 @@ const start: ScenarioStart = {
   parent: { kind: 'root', assetRevision: 1 },
   premises: [],
 };
+
+/** What the sheet says when the member's draft was used, timed out or changed under them. */
+const STALE =
+  'This idea changed, was already used, or took too long (an idea is kept for two hours). Nothing was made. Close this and start again from the thread.';
 
 type Api = Record<string, (input: never) => Promise<unknown>>;
 function scopeOf(api: Api) {
@@ -155,9 +160,9 @@ describe('the What if… sheet from a direction the member was offered', () => {
     expect(calls.at(-1)?.input['selection']).toEqual({ kind: 'suggestion', optionId: 'o2' });
   });
 
-  it('says plainly when the offer has expired', async () => {
+  it('says plainly when the offer has expired or was used', async () => {
     await open({ readDraft: () => Promise.resolve({ status: 'unavailable' }) }, { start: offer });
-    expect(await screen.findByText(/This isn’t available any more\./)).toBeOnTheScreen();
+    expect(await screen.findByText(STALE, { exact: false })).toBeOnTheScreen();
   });
 });
 
@@ -411,6 +416,85 @@ describe('the What if… sheet', () => {
     expect(await screen.findByText(/We couldn’t think of directions this time\./)).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Write my own version' }));
     expect(screen.getByLabelText('What changes 1')).toBeOnTheScreen();
+  });
+
+  it('says when today’s What-ifs are used up and when they come back', async () => {
+    await open({
+      draft: () => Promise.resolve({ draftId: id(7) }),
+      readDraft: () => Promise.resolve({ status: 'failed', reason: 'budget_unavailable' }),
+    });
+    await ask();
+    expect(await screen.findByText('No suggestions.')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Today’s What-ifs are used up. They come back tomorrow (the day changes at midnight UTC).', {
+        exact: false,
+      }),
+    ).toBeOnTheScreen();
+  });
+
+  describe('a refused version of the member’s own', () => {
+    /** What the API client throws for a problem answer: the real error, made by answering a request with it. */
+    async function problem(code: ProblemCode): Promise<Error> {
+      const details = problemDetails(code);
+      const api = createApiClient({
+        baseUrl: 'https://app.fixture.test',
+        fetch: () =>
+          Promise.resolve(
+            new Response(JSON.stringify(details), {
+              status: details.status,
+              headers: { 'content-type': 'application/problem+json' },
+            }),
+          ),
+      });
+      return api.scenarios
+        .choose({
+          version: 'scenario.v1',
+          commandId: id(30),
+          thread,
+          draftId: id(7),
+          selection: { kind: 'suggestion', optionId: 'o1' },
+        })
+        .then(
+          () => {
+            throw new Error('the fixture answer was not a problem');
+          },
+          (error: unknown) => error as Error,
+        );
+    }
+    async function refused(code: 'SHARING_UNAVAILABLE' | 'SHARING_REVISION_STALE' | 'INTERNAL') {
+      const failure = await problem(code);
+      await open({
+        draft: () => Promise.resolve({ draftId: id(7) }),
+        readDraft: () => Promise.resolve({ status: 'failed', reason: 'could_not_suggest' }),
+        choose: () => Promise.reject(failure),
+      });
+      await ask();
+      await fireEvent.press(await screen.findByRole('button', { name: 'Write my own version' }));
+      await fireEvent.changeText(screen.getByLabelText('What changes 1'), 'Traffic is twenty times higher');
+      await fireEvent.press(screen.getByRole('button', { name: 'Explore' }));
+    }
+
+    it('says the thread or the Scroll is gone, and that nothing was made', async () => {
+      await refused('SHARING_UNAVAILABLE');
+      expect(
+        await screen.findByText('The thread, or the Scroll it is about, isn’t available any more. Nothing was made.', {
+          exact: false,
+        }),
+      ).toBeOnTheScreen();
+    });
+
+    it('says the idea was used or took too long', async () => {
+      await refused('SHARING_REVISION_STALE');
+      expect(await screen.findByText(STALE, { exact: false })).toBeOnTheScreen();
+    });
+
+    it('says it was a fault on our side, and offers Try again', async () => {
+      await refused('INTERNAL');
+      expect(
+        await screen.findByText('Something went wrong on our side. Nothing was made. Try again.', { exact: false }),
+      ).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeOnTheScreen();
+    });
   });
 
   it('says what stopped it, and retries a lost answer', async () => {

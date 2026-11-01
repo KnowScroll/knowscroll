@@ -3444,6 +3444,96 @@ Confirmed by: `feed-people.test.tsx` ("the ring": on every AI label, with its na
 
 Confirmed by: `rooms-posts.test.ts` ("a post a moderator removed, read by a member who has its ID": a source post, an asset post and a resident's find each read as "A removed post" with no source and no card, the replies stay, and the restored post is whole; "with the real account lifecycle": a deleted author's asset post keeps its card and its erased title). Each rule was shown failing by breaking it.
 
+## D-284 · 2026-11-01 · What a person opens while recording is paused stays out of their History and their own reads (v3 dev check fixes, #609)
+
+**Builds on** D-057, D-083 and D-270.
+
+- **The defect.** With recording paused, the export's encounter list (History) grew by one for every item opened. Evidence, plays and the universe did not. Opening an item writes an exposure whether recording is on or not, because the exposure is how the item is served: the document, a Reel's media grants, a call, "Ask from here" and Back all need it. History read every exposure.
+- **The rule.** An exposure carries `made_while_paused`. It is set when recording is paused at the moment the exposure is opened or activated, and it is never taken back: a direct open with recording on and an activation after a pause is marked too. A stale generation is not a pause and does not mark. The mark is written where every exposure is written (`insertExposure`, `markExposureActivated`), from the person's recording state read under the root the caller already holds, so a new way of opening an item cannot skip it. The exposure still exists and still serves its item.
+- **Why a mark, not "do not keep it once the item closes".** The server never learns that an item closed. Dropping it later would need a sweep, and Back or a returning media grant would find nothing. A mark is exact and costs one boolean.
+- **What leaves it out.** The export's encounter list (`experienceExportRead`); the "continue Part 2" prompt (`readRecentExposures`); and the reads that say what the caller has opened (`readVisitedAssets`), which feed the thread's and the idea room's Parts and the What-if branch cards' "opened" marks. These are the person's own history, so a paused person has none of it, as they have none of their evidence.
+- **What keeps counting it.** Anything that serves the item in front of the person: the document, context and media reads, "Ask from here" and a call's gate (`hasActivatedExposure`). They are not a report of History. The Composer is not on this list, because it reads no exposure. Its routing history (`readRoutingHistory`) reads `encounter_lineage` and `recording_segments` only. A paused-time opening writes neither: production skips the legacy lineage write, and a segment is written only inside a recording scope. So repeat avoidance already ignores what was opened while paused, as D-270 already keeps it out of Jev's assessments. `history-paused.test.ts` pins it.
+- **Backfill.** The migration marks the exposures an offer's activation made when its command remembered no recording generation. That cannot tell a pause from a stale generation, so the rare stale one is marked too; it errs toward privacy. A direct open before the migration left no such memory and stays as it was.
+- **Resume.** Items opened after a resume are recorded and appear in History again. Nothing paused is back-filled (D-083).
+- **Not changed.** A Like, a Save or Not interested is the person's own act and stays in "reactions".
+
+Confirmed by: `history-paused.test.ts` on real PostgreSQL (three Explore openings and one address opening while paused add nothing to the export file, to `readVisitedAssets` or to a call's gate; after a resume one opening adds one entry; paused-time openings leave no lineage and no segment, even after the activity job has run, and the routing history is empty until an opening with recording on; a direct open activated after a pause is marked; an item opened with recording on keeps its entry through a pause and a resume) and `universe-resume.test.ts` (a Part read while paused leaves no "continue"). Shown failing when the export, `readVisitedAssets` and `readRecentExposures` each stopped leaving the marked exposure out.
+
+## D-285 · 2026-11-01 · A request being made is read by its session, quickly then slowly, so the sheet always reaches its closed state (v3 dev check fixes, #609)
+
+**Amends** D-262 ("The wait").
+
+- **The defect.** On the Ask sheet, Try again on a closed Ask put the request back to preparing. The session read it twelve times, five seconds apart, then stopped. The order closed "Couldn't prepare" a little later, Your requests said so, and the sheet stayed on "Making it now" until it was closed and reopened. The direct route did not have this: its screen added a slower watch on top of the session (D-262).
+- **The rule.** The session itself reads a request that is still preparing: twelve reads five seconds apart, then up to fifty reads twelve seconds apart (about ten minutes, well past an order's own bound, D-250). A settled request (ready, closed, cancelled) ends the reads. The reads run only while the session is visible, as before: Explore reads while its sheet is open, a Scroll's own address reads while the sheet is open or a notice is waiting.
+- **One place.** The screen-level watch in `useDirectAsk` is gone, because the session now does what it did. Nothing about when the session is visible changed.
+- **Not changed.** The server, the words on the sheet, and the rule that a read never creates work.
+
+Confirmed by: `request-session.test.ts` (twelve quick reads, then slow ones up to the bound, none after it; Try again past the quick reads shows the closed state at the next slow read and then stops reading) and `use-direct-ask.test.tsx` (the ready notice arrives from the session's slow read). Shown failing when the session stopped after twelve reads.
+
+## D-286 · 2026-11-01 · Account and settings in the ••• sheet is a link the router follows, not a page the browser loads (v3 dev check fixes, #609)
+
+**Builds on** J5's Back rules ("Back returns to the Reel you left, as the sheet and Universe-tab detours already do").
+
+- **The defect.** On a Reel paused at 17 to 24 seconds, More, Account and settings and then Back needed two Backs and landed on a different Reel at a stale second. The row was drawn as a link (`<a href="/account">`) with a press handler that asked the router to go to Account. React Native Web does not stop the anchor's own navigation, so the browser also loaded `/account` as a new page. The app restarted, the encounter in memory was lost, and the first Back only left the second `/account` entry.
+- **The rule.** A row in the ••• sheet that is a link takes a plain press over for the router and leaves a modified click (new tab) to the browser, as the account button, the Talk rows and every other link in the app already do (`linkPress`, exported by `@knowscroll/ui` for this). It is one move: one Back returns to Explore, the Reel is the one that was left (D-006 k restores it paused), and nothing is opened, activated or navigated for the return.
+- **Not changed.** The path, the sheet's other rows and what Back does inside an encounter.
+
+Confirmed by: `reader-back-smoke.spec.ts` at 390 and 1440 (after More, Account and settings, one Back is on Explore, no second document was fetched, a marker the page held is still there, and no open, activation or navigation was sent). Shown failing before the change: the click fetched `/account` as a document and the first Back stayed on `/account`.
+
+## D-287 · 2026-11-01 · A Reel's "was playing" is the play the person asked for, so a closed sheet never plays a paused Reel (v3 dev check fixes, #609)
+
+**Builds on** D-006 k ("Playback pauses while a sheet is open and resumes where it was when it closes").
+
+- **The defect.** At 1440, a Reel paused before the Share sheet stayed paused when the sheet closed with Esc, but played on when the sheet was opened a second time and closed with the browser Back. The sheet remembers whether the Reel was playing when it opened. The second time, the player had just been rebuilt after the first close. The web video SDK starts playback itself when a source is replaced, and this player stops it at once, but the SDK still reported "playing" at that moment. That report was stored as "was playing", and the second close resumed it.
+- **The rule.** The player reports a Reel as playing only when the person asked for it to play (its own play intent) and the SDK agrees. The SDK's word alone is not enough. A sheet, a Back, a trail jump and a tab detour therefore return a Reel exactly as the person left it: playing only if they were playing.
+- **Not changed.** What a recorder counts as played (its samples already required the intent), and how a Reel that was playing under a sheet plays on when it closes.
+
+Confirmed by: `reel-player.test.tsx` (a player the SDK calls playing that nobody pressed Play on is captured as not playing; after Play it is, and after a pause it is not) and `reader-back-smoke.spec.ts` at 390 and 1440 (a paused Reel is still paused after the Share sheet closes with Esc and then, a second time, with Back). Shown failing before the change: the second close played the Reel on.
+
+## D-288 · 2026-11-01 · "Copy link" again copies the live link the account already made (v3 dev check fixes, #609)
+
+**Builds on** D-042's share links (a bearer secret the server keeps only as a hash). **Amends** the share session's "Makes a public link and copies it".
+
+- **The defect.** Each press of Copy link, and "Copy link again" in the same sheet, made a new public share. Two taps left two live links to the same Scroll in Privacy's shared links.
+- **The rule.** The account scope remembers the link it made for an exact revision, in memory only (a bearer secret is not stored on the device). Copy link first looks for it: if the server still lists that share as live, it copies the same address and makes nothing. If the person stopped it, here or in Privacy, or it was never made in this app session, a new one is made. A different revision is a different link.
+- **What it cannot do.** The server holds only the token's hash, so a link made before the app was reloaded cannot be copied again. The first Copy link after a reload makes a new share, and the old one stays live until the person stops it in Privacy. This is why the memory is the account scope's and not the sheet's: closing and reopening the sheet reuses the link, reloading does not.
+- **Not changed.** The server, the lifetime of a link, a private link to a conversation, and stopping a link.
+
+Confirmed by: `share-session.test.ts` (three presses make one share and copy one address; a later sheet of the same account reuses it; another revision gets its own; a link stopped in the sheet or in the shared links list is not reused). Shown failing when the remembered link was not looked up.
+
+## D-289 · 2026-11-01 · When a day's What-ifs are used up, the sheet says so and when they come back (v3 dev check fixes, #609)
+
+**Amends** the "No suggestions" step of the What if sheet (X01).
+
+- **The defect.** A draft that the Planner could not take up because the day's budget was spent ended on the same "No suggestions" card as a draft that simply produced nothing, with "Suggestions are used up for now". It did not say that today's What-ifs were used up, or when they would be back.
+- **The rule.** A draft that closes as `budget_unavailable` says: "Today's What-ifs are used up. They come back tomorrow (the day changes at midnight UTC)." (the same words the thread's fifth branch uses, D-158). A draft that closes as `could_not_suggest` still says "We couldn't think of directions this time."
+- **One reason for two causes.** The server closes a draft as `budget_unavailable` both when a daily cap is reached and when the provider's own quota window is out. The first returns at midnight UTC, the second sooner. "Tomorrow" is true for both as an upper bound, so the one sentence is kept and no third reason (which would need a new value in the drafts table) is added.
+- **Not changed.** The caps, the 20 drafts a day (said as "No more branches can be made right now" when a draft cannot be started), and the offer to write one's own version.
+
+Confirmed by: `scenario-sheet.test.tsx` ("says when today's What-ifs are used up and when they come back").
+
+## D-290 · 2026-11-01 · A refused What-if of the member's own says why in plain words (v3 dev check fixes, #609)
+
+**Amends** D-049 (`choose` refused a used draft, a gone thread and a fault of ours alike as "not available").
+
+- **The defect.** Whatever stopped a choice, the sheet said "Can't do that. This isn't available any more." Three different things reached it that way: a draft that was already used or had timed out (the server answered `unavailable`), a thread or Scroll that is gone, and any answer that was not one of the closed refusals (a fault of ours, which the client read as "unavailable").
+- **The server.** `choose` still answers `unavailable` for a draft that is not the caller's or does not exist, because that must say nothing about anyone else's draft. A draft that is the caller's own and was already chosen or has timed out (a draft is kept two hours) now answers `stale_revision`, which they may be told.
+- **The client.** Each reason has its own words, and the blocked state has a seventh, `failed`: "stale" says the idea changed, was already used or took too long, and that nothing was made; "unavailable" says the thread or the Scroll it is about is gone and nothing was made; "failed" (every other answer, such as a server error) says something went wrong on our side, that nothing was made, and offers Try again. A draft that can no longer be read now reads as "stale", since a draft is its owner's alone and a lapsed one is the likely cause.
+- **Not changed.** The caps ("budget"), "unsupported", "invalid" and "offline" and their words.
+
+Confirmed by: `scenarios.test.ts` on real PostgreSQL (a draft already used, and the caller's own timed-out draft, are refused as stale; another member's is still `unavailable`), `scenarios.test.ts` of client-core (a server error is `failed`, a lapsed draft is `stale`) and `scenario-sheet.test.tsx` (the words of each, and Try again for a fault). Shown failing when the closed draft answered `unavailable`.
+
+## D-291 · 2026-11-01 · While a Clear runs, the Privacy panels that cannot load say so and show its progress (v3 dev check fixes, #609)
+
+**Builds on** the Privacy screen (P02) and the selective Clear (#345).
+
+- **The defect.** While Clear exploration runs, the account is fenced and reads of the person's sharing settings and shared links fail. Privacy & history then showed "Couldn't load your settings" and "Couldn't load your links" beside a Clear receipt that said it was working. Two failure notices sat beside a normal operation.
+- **The rule.** A panel that cannot load while a Clear is under way (asked for, accepted, checking or pending, not yet finished) shows "Clearing exploration." with the Clear's own line, and says that its content is back when the Clear is done. It has no Try again then. If nothing is clearing, the panel shows its load failure as before. When the Clear has finished the panel reads again by itself.
+- **How it knows.** The panel is given the Clear's progress by the screen that holds the account (`useClearProgress`); it never reads the Clear itself. When a panel fails to load it tells the screen, which asks the server whether a Clear is running, so a sub-page opened on its own (phones) learns it too. The privacy screen's receipt and the panels use one set of words (`clearProgress`).
+- **Not changed.** The Clear's receipt, its words, and what a Clear removes.
+
+Confirmed by: `shared-links-panel.test.tsx` and `visibility-panel.test.tsx` (while clearing, the load failure is replaced by the Clear's line and then the content appears when it is done; with no Clear the failure and Try again remain), `clear-panel` through `privacy-screen.test.tsx` (the receipt is unchanged). Shown failing when the panel ignored the Clear.
+
 ## D-292 · 2026-11-02 · A moment of a v2 Scroll is one whole read stop, shared as a passage anchor with a hash and no words (v3 dev check fixes, #609)
 
 **Builds on** D-234 ("Not built: sharing a passage of a v2 Scroll back into the thread") and D-153. **Amends** D-135 ("Threads, snippets and everything else still declare v1 only") for the snippet viewer.

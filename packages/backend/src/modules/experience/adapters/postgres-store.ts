@@ -3,6 +3,7 @@ import { sql, type Kysely } from 'kysely';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import { readPersonalRecordingNow } from '../../../infrastructure/postgres/recording-scope.js';
 import type { SavedState } from '../domain/actions.js';
 import type { Exposure, ExposureKind } from '../domain/exposures.js';
 import type { ActionRecord, NewExposure, ReadExposureDocumentPorts } from '../application/ports.js';
@@ -130,8 +131,21 @@ function exposureOf(row: {
   };
 }
 
-/** Inserts one exposure inside the locked scope (with the open command's receipt). */
+/**
+ * Whether recording is not collecting right now, read under the root the caller holds. Every exposure is written through
+ * `insertExposure` and `markExposureActivated`, so the rule that an exposure made while recording is paused is marked
+ * (D-284) lives here and cannot be skipped by a new way of opening an item.
+ */
+async function recordingNotCollecting(scope: PersonalScopeTx): Promise<boolean> {
+  return (await readPersonalRecordingNow(scope)).kind !== 'recording';
+}
+
+/**
+ * Inserts one exposure inside the locked scope (with the open command's receipt). The exposure is marked
+ * `made_while_paused` when recording is paused now: it still serves its item, and History leaves it out.
+ */
 export async function insertExposure(scope: PersonalScopeTx, exposure: NewExposure): Promise<void> {
+  const madeWhilePaused = await recordingNotCollecting(scope);
   await transactionOf(scope)
     .insertInto('experience.exposures')
     .values({
@@ -145,6 +159,7 @@ export async function insertExposure(scope: PersonalScopeTx, exposure: NewExposu
       command_id: exposure.commandId,
       privacy_epoch: scope.authority.privacyEpoch,
       opened_at: exposure.openedAt,
+      made_while_paused: madeWhilePaused,
     })
     .execute();
 }
@@ -160,11 +175,15 @@ export async function readExposure(scope: PersonalScopeTx, exposureId: string): 
   return row === undefined ? undefined : exposureOf(row);
 }
 
-/** Sets the activation time once, inside the locked scope. A second call changes nothing. */
+/**
+ * Sets the activation time once, inside the locked scope. A second call changes nothing. An exposure opened with
+ * recording on but activated while it is paused is marked `made_while_paused`; the mark is never taken back.
+ */
 export async function markExposureActivated(scope: PersonalScopeTx, exposureId: string, at: Date): Promise<void> {
+  const pausedNow = await recordingNotCollecting(scope);
   await transactionOf(scope)
     .updateTable('experience.exposures')
-    .set({ activated_at: at })
+    .set({ activated_at: at, made_while_paused: sql<boolean>`made_while_paused or ${pausedNow}` })
     .where('universe_id', '=', scope.authority.universeId)
     .where('id', '=', exposureId)
     .where('activated_at', 'is', null)

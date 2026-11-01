@@ -7,6 +7,7 @@ import {
   createScenarioBoard,
   createScenarioComposer,
   describeOption,
+  statementsInWords,
   kindedTitle,
   replacedPremises,
   ownSelection,
@@ -55,7 +56,8 @@ const problem = (
     | 'UNPROCESSABLE_REQUEST'
     | 'INVALID_REQUEST'
     | 'SHARING_UNAVAILABLE'
-    | 'SHARING_REVISION_STALE',
+    | 'SHARING_REVISION_STALE'
+    | 'INTERNAL',
 ) => new ORPCError(code, { status: 400, data: problemDetails(code) });
 
 type Api = Record<string, (input: never) => Promise<unknown>>;
@@ -191,11 +193,11 @@ describe('what the member was offered', () => {
     expect(composer.getState()).toMatchObject({ phase: 'chosen' });
   });
 
-  it('says it is not available when the draft is gone', async () => {
+  it('says the draft is gone, used or timed out, when it cannot be read', async () => {
     const api = scopeOf({ readDraft: () => Promise.resolve({ status: 'unavailable' }) });
     const composer = createScenarioComposer({ scope: api, thread, newId });
     await composer.attach(id(7));
-    expect(composer.getState()).toMatchObject({ phase: 'blocked', block: 'unavailable' });
+    expect(composer.getState()).toMatchObject({ phase: 'blocked', block: 'stale' });
   });
 });
 
@@ -276,6 +278,8 @@ describe('the composer', () => {
       ['INVALID_REQUEST', 'invalid'],
       ['SHARING_REVISION_STALE', 'stale'],
       ['SHARING_UNAVAILABLE', 'unavailable'],
+      // Any other answer is a fault of ours, said as one: it is not "not available".
+      ['INTERNAL', 'failed'],
     ] as const) {
       const composer = createScenarioComposer({
         scope: scopeOf({ draft: () => Promise.reject(problem(code)) }),
@@ -318,6 +322,21 @@ describe('words', () => {
     expect(describeOption({ ...option, changes: [], kept: [], lens: 'the operator’s view' })).toBe(
       'Another perspective: the operator’s view.',
     );
+  });
+
+  it('never doubles a full stop when a statement already ends in one', () => {
+    const stated = (statement: string) => ({ subject: 'Orbit', statement });
+    expect(statementsInWords([stated('Its shape stays the same.'), stated('The year stays the same..')])).toBe(
+      'Its shape stays the same. The year stays the same',
+    );
+    expect(chipText('Kept', stated('The year stays the same.'))).toBe('Kept: the year stays the same');
+    expect(
+      describeOption({
+        changes: [stated('Traffic is ten times higher.')],
+        kept: [stated('The model stays.')],
+        lens: undefined,
+      }),
+    ).toBe('Changed: traffic is ten times higher. Kept: the model stays.');
   });
 
   describe('what an option would drop', () => {

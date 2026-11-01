@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Tag, Text } from '@knowscroll/ui';
+import type { ClearProgress } from '../privacy/clear-progress';
 import { useSharedLinks } from './use-share-session';
 
 const dateOf = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
@@ -15,15 +16,32 @@ const dateOf = (iso: string) => new Date(iso).toLocaleDateString(undefined, { da
 export function SharedLinksPanel({
   scope,
   titled = true,
+  clear,
+  onLoadFailed,
 }: {
   readonly scope: AccountScope;
   /** Draws the heading; a page that names itself passes false. */
   readonly titled?: boolean;
+  /** A Clear that is under way: while the account is being cleared the list cannot load, and the panel says why. */
+  readonly clear?: ClearProgress | undefined;
+  /** Called when the list cannot load, so the screen can find out whether a Clear is the reason. */
+  readonly onLoadFailed?: () => void;
 }) {
   const { session, state } = useSharedLinks(scope);
   useEffect(() => {
     void session.refresh();
   }, [session]);
+  const failed = state.status === 'failed';
+  useEffect(() => {
+    if (failed) onLoadFailed?.();
+  }, [failed, onLoadFailed]);
+  // The list is read again once the Clear that stopped it has finished.
+  const clearing = clear !== undefined;
+  const wasClearing = useRef(false);
+  useEffect(() => {
+    if (wasClearing.current && !clearing) void session.refresh();
+    wasClearing.current = clearing;
+  }, [clearing, session]);
   return (
     <View style={styles.panel}>
       {titled ? (
@@ -35,7 +53,14 @@ export function SharedLinksPanel({
         Stopping a link makes it say “no longer available” for everyone. Copies already pasted elsewhere can’t be
         recalled.
       </Text>
-      {state.status === 'failed' ? (
+      {failed && clear !== undefined ? (
+        <Banner
+          kind="info"
+          lead="Clearing exploration."
+          message={`${clear.text} Your links are back when it is done.`}
+        />
+      ) : null}
+      {failed && clear === undefined ? (
         <Banner kind="error" lead="Couldn’t load your links." message="Check your connection and try again." />
       ) : null}
       {state.status === 'ready' && state.items.length === 0 ? (

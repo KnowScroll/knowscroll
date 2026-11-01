@@ -5,6 +5,7 @@ import { content, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { Acknowledge, ConfirmBox, ReceiptCard, SettingsLabel, type ReceiptTone } from '../account/settings-parts';
+import { clearProgress } from './clear-progress';
 import { useAccountScope } from '../../providers/account-scope';
 
 interface Receipt {
@@ -26,11 +27,8 @@ const STAYS = [
 
 /** What the removal is doing, as a receipt line; nothing before a request exists. */
 function receiptFor(state: PrivacyClearState): Receipt | undefined {
-  const preparing = (title: string, text: string): Receipt => ({ tone: 'preparing', title, text });
-  if (state.status === 'sending') return preparing('Sending', 'Sending your clear request…');
-  if (state.status === 'checking') return preparing('Checking', 'Checking the latest removal status…');
-  if (state.status === 'accepted')
-    return preparing('Accepted', 'Your clear request was accepted. Live removal has not been confirmed yet.');
+  const underWay = clearProgress(state);
+  if (underWay) return { tone: 'preparing', ...underWay };
   if (state.status === 'unknown')
     return {
       tone: 'failed',
@@ -57,13 +55,6 @@ function receiptFor(state: PrivacyClearState): Receipt | undefined {
       title: 'Removal not verified',
       text: 'Live removal could not be verified. Check its status again; your request is retained.',
     };
-  if (state.status === 'pending') {
-    if (state.phase === 'waiting_for_accounting')
-      return preparing('Clearing', 'Some earlier activity is still finishing. Your removal request is retained.');
-    if (state.phase === 'verifying_live_removal')
-      return preparing('Clearing', 'Checking that live exploration data has been removed.');
-    return preparing('Clearing', 'Your exploration history and universe are being removed.');
-  }
   if (state.status === 'unavailable')
     return {
       tone: 'failed',

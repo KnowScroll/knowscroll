@@ -116,6 +116,25 @@ describe('a what-if with its short answer', () => {
     expect(screen.queryByText(/\bsources?\b|\bscores?\b|\bmodel\b|prompt|\bclaims?\b|watching|\bseen\b/i)).toBeNull();
   });
 
+  it('never doubles a full stop when statements already end in one', async () => {
+    const stated = (statement: string) => ({ subject: 'Orbit', statement });
+    await show(
+      card({
+        answer,
+        status: 'ready',
+        content: scroll,
+        changes: [stated('The Moon is twice as wide as it is.'), stated('Its pull is stronger.')],
+        kept: [stated('Earth’s orbital shape would remain the same.'), stated('The year would remain the same.')],
+      }),
+    );
+    expect(screen.getByTestId('what-if-changed')).toHaveTextContent(
+      /CHANGED\s*The Moon is twice as wide as it is\. Its pull is stronger$/,
+    );
+    expect(screen.getByTestId('what-if-kept')).toHaveTextContent(
+      /KEPT\s*Earth’s orbital shape would remain the same\. The year would remain the same$/,
+    );
+  });
+
   it('opens the full Scroll once it exists, and branches again from the branch', async () => {
     const { open, next } = await show(card({ answer, status: 'ready', content: scroll }));
     await fireEvent.press(screen.getByText('Open'));

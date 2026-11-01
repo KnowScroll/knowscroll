@@ -10,14 +10,19 @@ const blockMessage: Record<ScenarioBlock, string> = {
     'No more branches can be made right now. A thread can make five a day, and KnowScroll has a limit each day too. Try again tomorrow.',
   unsupported: 'This can’t be explored yet: nothing it rests on can be looked up.',
   invalid: 'That wording isn’t accepted. Keep it to a plain sentence, without web addresses.',
-  stale: 'This changed while you were writing. Close this and start again from it.',
-  unavailable: 'This isn’t available any more.',
+  stale:
+    'This idea changed, was already used, or took too long (an idea is kept for two hours). Nothing was made. Close this and start again from the thread.',
+  unavailable: 'The thread, or the Scroll it is about, isn’t available any more. Nothing was made.',
   offline: 'Couldn’t reach KnowScroll. Nothing was lost; try again.',
+  failed: 'Something went wrong on our side. Nothing was made. Try again.',
 };
 
 /** The sixth branch of a thread's day: said as it is, with when it comes back (the UTC day starts at midnight UTC). */
 const THREAD_FULL_MESSAGE =
   'This thread has made its five branches for today. It can make more tomorrow (the day changes at midnight UTC).';
+
+/** Suggestions are spent for the day (or the provider's own limit): what is true, and when it comes back. */
+const SUGGESTIONS_USED_UP = 'Today’s What-ifs are used up. They come back tomorrow (the day changes at midnight UTC).';
 
 /** The directions are being thought of: wait, or write one's own meanwhile. */
 export function ThinkingStep({ onOwn }: { readonly onOwn: () => void }) {
@@ -50,11 +55,7 @@ export function NoSuggestionsStep({
       <Banner
         kind="info"
         lead="No suggestions."
-        message={
-          reason === 'budget_unavailable'
-            ? 'Suggestions are used up for now.'
-            : 'We couldn’t think of directions this time.'
-        }
+        message={reason === 'budget_unavailable' ? SUGGESTIONS_USED_UP : 'We couldn’t think of directions this time.'}
       />
       <Button label="Write my own version" variant="primary" fullWidth onPress={onOwn} />
       <Button label="Close" variant="ghost" fullWidth onPress={onClose} />
@@ -103,10 +104,10 @@ export function BlockedStep({
     <View style={sheetStyles.step}>
       <Banner
         kind={block === 'offline' ? 'offline' : 'error'}
-        lead={block === 'offline' ? 'Offline.' : 'Can’t do that.'}
+        lead={block === 'offline' ? 'Offline.' : block === 'failed' ? 'Didn’t go through.' : 'Can’t do that.'}
         message={block === 'budget' && threadFull ? THREAD_FULL_MESSAGE : blockMessage[block]}
       />
-      {block === 'offline' ? (
+      {block === 'offline' || block === 'failed' ? (
         <Button label="Try again" variant="primary" fullWidth icon="retry" onPress={onRetry} />
       ) : null}
       <Button label="Close" variant="ghost" fullWidth onPress={onClose} />

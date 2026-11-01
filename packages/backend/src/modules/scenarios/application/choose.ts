@@ -87,7 +87,8 @@ function requestOf(draft: DraftRow, selection: Choice['selection']): Chosen | un
  *
  * Authority: the caller's membership reference under the thread's lock; the draft must be theirs,
  * unchosen and unexpired; the parent must be at the revision they saw. Refused without a receipt: a
- * choice the step rules refuse (`invalid_input`), a stale parent (`stale_revision`), a thread
+ * choice the step rules refuse (`invalid_input`), a stale parent or a draft of theirs that was already
+ * chosen or has expired (`stale_revision`), a thread
  * nothing of which can be researched by code (`unsupported`) and a cap (`budget_unavailable`).
  * Lock order: personal root, account gate, thread, draft and node rows, then Quartermaster's
  * commissioning lock. No model call or network wait happens here.
@@ -182,13 +183,10 @@ export function makeChoose(p: ScenarioPorts) {
       }
 
       const draft = await p.store.lockDraft(scope, command.draftId);
-      if (
-        draft?.threadId !== visit.threadId ||
-        draft.requesterAccountId !== visit.self.accountId ||
-        draft.state === 'chosen' ||
-        draft.expiresAt <= p.now()
-      )
+      // Another member's draft, or none, says nothing. The caller's own draft that was used or timed out says so.
+      if (draft?.threadId !== visit.threadId || draft.requesterAccountId !== visit.self.accountId)
         return refuse('unavailable');
+      if (draft.state === 'chosen' || draft.expiresAt <= p.now()) return refuse('stale_revision');
       const parent = await parentFactsOf(
         p,
         scope,

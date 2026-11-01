@@ -626,6 +626,21 @@ describe('local Reel positions', () => {
     await rendered.unmount();
   });
 
+  it('reports playing only for a play the person asked for, not for the autoplay the SDK starts on a new source', async () => {
+    const f = fixture();
+    const rendered = await renderOn(<ReelPlayer {...f.props} initialPositionMs={2000} />);
+    // Nobody pressed Play, yet the SDK still says so (web replaceAsync starts the video itself, and the player cancels it).
+    f.player.playing = true;
+    expect(f.positionRef.current?.capture()).toEqual({ positionMs: 2000, playing: false, muted: false });
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    expect(f.positionRef.current?.capture()).toMatchObject({ playing: true });
+    await act(() => {
+      f.positionRef.current?.pause();
+    });
+    expect(f.positionRef.current?.capture()).toMatchObject({ playing: false });
+    await rendered.unmount();
+  });
+
   it('waits for SDK readiness before restoring once, paused, after source commit', async () => {
     const f = fixture();
     f.player.status = 'loading';
