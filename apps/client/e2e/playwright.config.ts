@@ -56,6 +56,7 @@ export default defineConfig({
         'rooms-watch-smoke.spec.ts',
         'rooms-feed-smoke.spec.ts',
         'rooms-posts-smoke.spec.ts',
+        'rooms-people-smoke.spec.ts',
         'rooms-scouts-smoke.spec.ts',
         'rooms-quiet-smoke.spec.ts',
         'stage-reader-smoke.spec.ts',

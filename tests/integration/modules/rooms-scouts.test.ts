@@ -818,16 +818,16 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
       expect(blocked.posts).toEqual([]);
       expect(JSON.stringify(blocked)).not.toContain(scene.owner.person.handle);
       const strip = await memberView(world, blocker, scene.roomId);
-      expect(strip.feed).toBeUndefined();
+      expect(strip.live).toBeUndefined();
       const opened = await readDiscussion(world, blocker, scene.roomId, discussionId);
       if (opened.status !== 'ready') throw new Error('expected ready');
       expect(opened.messages[0]).toMatchObject({ status: 'blocked' });
       expect(JSON.stringify(opened)).not.toContain(FIND_NOTE);
       // Nobody else is told, and the owner's own scout is still theirs.
       expect((await readFeed(world, bystander, scene.roomId)).posts).toHaveLength(1);
-      expect((await memberView(world, bystander, scene.roomId)).feed).toMatchObject({
-        by: { kind: 'agent', sentBy: { personId: scene.owner.person.personId } },
-      });
+      expect((await memberView(world, bystander, scene.roomId)).live).toMatchObject([
+        { kind: 'posted', by: { kind: 'agent', sentBy: { personId: scene.owner.person.personId } } },
+      ]);
     });
 
     it('is not something a reader who blocked its owner can ask a resident about', async () => {

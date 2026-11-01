@@ -1,23 +1,15 @@
 import {
-  AI_INHABITANT_LABELS,
   ROOM_FEED_POSTS_MAX,
   ReadRoomFeedSchema,
   ReplaceRoomMemorySchema,
   RoomFeedSchema,
   RoomMemoryReplacementSchema,
-  SCOUT_LABEL,
-  type AiAuthor,
-  type PublicPersonRef,
   type RoomFeedPost,
-  type RoomFeedStrip,
   type RoomFeedWindow,
-  type ScoutAuthor,
   type RoomMemory,
 } from '@knowscroll/contracts';
 import type { z } from 'zod';
-import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
-import { nameOf, type CastMember } from '../domain/cast.js';
-import type { InhabitantId } from '../domain/contribution.js';
+import type { PersonalAuthority } from '../../identity/public.js';
 import type { AiLevel } from '../domain/membership.js';
 import { RANK_RULES, arrange, windowStart, type FeedSort } from '../domain/feed-rank.js';
 import { dayStartOf } from '../domain/feed.js';
@@ -28,92 +20,17 @@ import { enterRoom } from './gate.js';
 import type { MemoryView } from './feed-ports.js';
 import { ok, refuse, roomEnvelope, type ContentCard, type Result, type RoomLock, type RoomPorts } from './ports.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
+import { authorsOf, type Signed } from './feed-authors.js';
+import { residentProfiles } from './resident-profiles.js';
 import { identityOf, inhabitantsOf, limitsOf } from './view.js';
 import { scoutViewOf } from './scout-commands.js';
 import type { FindQuery, FindRow } from './feed-ports.js';
-
-const residentOf = (cast: readonly CastMember[], inhabitant: InhabitantId): AiAuthor => ({
-  kind: 'ai',
-  inhabitant,
-  name: nameOf(cast, inhabitant),
-  label: AI_INHABITANT_LABELS[inhabitant],
-});
-
-type Signed = AiAuthor | ScoutAuthor | Extract<RoomFeedPost, { kind: 'post' }>['author'];
-
-/**
- * Who signs a post, for this reader: the resident, the member whose scout it was, or the member who wrote it, each by their public
- * profile. A scout whose owner the reader blocked, a member the reader blocked and an account that cannot be named are nobody's
- * to show: the reader sees no post from them (D-259). The reader is told nothing of who blocked them.
- */
-async function authorOf(
-  p: RoomPorts,
-  scope: PersonalScopeTx,
-  readerAccountId: string,
-  cast: readonly CastMember[],
-  rows: readonly FindRow[],
-): Promise<(row: FindRow) => Signed | undefined> {
-  const accounts = [
-    ...new Set(
-      rows.flatMap((row) =>
-        row.author.kind === 'scout'
-          ? [row.author.ownerAccountId]
-          : row.author.kind === 'person'
-            ? [row.author.accountId]
-            : [],
-      ),
-    ),
-  ];
-  const people: ReadonlyMap<string, PublicPersonRef> =
-    accounts.length === 0 ? new Map() : await p.people.byAccounts(scope, accounts);
-  const blocked = accounts.length === 0 ? new Set<string>() : await p.blocked(scope, readerAccountId, accounts);
-  return (row) => {
-    if (row.author.kind === 'resident') return residentOf(cast, row.author.inhabitant);
-    const accountId = row.author.kind === 'scout' ? row.author.ownerAccountId : row.author.accountId;
-    const person = people.get(accountId);
-    if (person === undefined || blocked.has(accountId)) return undefined;
-    return row.author.kind === 'scout'
-      ? { kind: 'agent', sentBy: person, label: SCOUT_LABEL }
-      : { kind: 'person', person, you: accountId === readerAccountId };
-  };
-}
 
 /** What a reader is told the residents remember: the words while they stand, nothing once they were erased. */
 const memoryShown = (memory: MemoryView | undefined): RoomMemory =>
   memory?.state === 'ready' && memory.body !== null
     ? { state: 'ready', text: memory.body, by: memory.source === 'moderator' ? 'moderator' : 'residents' }
     : { state: 'none' };
-
-/** How many of the newest finds the Now strip looks through to find one this reader may see. */
-const STRIP_LOOKS = 5;
-
-/**
- * What the Now strip says of the feed: the newest find a reader may see, or nothing. A reader whose AI level is Off is told
- * nothing, because nothing a resident posts on its own reaches them. A find a moderator removed is not listed, so it is not here,
- * and neither is a scout's find whose owner the reader blocked.
- */
-export async function feedStrip(
-  p: RoomPorts,
-  scope: PersonalScopeTx,
-  lock: RoomLock,
-  reader: { readonly aiLevel: AiLevel; readonly accountId: string },
-  cast: readonly CastMember[],
-): Promise<RoomFeedStrip | undefined> {
-  if (reader.aiLevel === 'off') return undefined;
-  const rows = await p.feed.finds(lock, {
-    sort: 'new',
-    since: undefined,
-    limit: STRIP_LOOKS,
-    readerAccountId: reader.accountId,
-    by: 'agents',
-  });
-  const authorOfRow = await authorOf(p, scope, reader.accountId, cast, rows);
-  for (const row of rows) {
-    const by = authorOfRow(row);
-    if (by !== undefined && by.kind !== 'person') return { by, postedAt: row.postedAt.toISOString() };
-  }
-  return undefined;
-}
 
 /** The posts a reader is listed, in the order they asked for: Hot ranked by code, New and Top ordered by the store. */
 async function listedRows(
@@ -159,6 +76,7 @@ function postView(
           : ({ kind: 'content', content: card } as const);
     return link === undefined ? undefined : { kind: 'post', ...base, author, title: row.title, words: row.note, link };
   }
+  if (author.kind === 'ai' && row.introduces !== undefined) return { kind: 'intro', ...base, author, text: row.note };
   if (card === undefined) return undefined;
   return {
     kind: 'find',
@@ -200,7 +118,7 @@ export function makeFeed(p: RoomPorts) {
         const cardOf = new Map(
           cards.map((card) => [`${card.target.assetId}:${String(card.target.assetRevision)}`, card]),
         );
-        const authorOfRow = await authorOf(p, scope, reader.accountId, cast, rows);
+        const authorOfRow = await authorsOf(p, scope, reader.accountId, cast, rows);
         const posts = rows
           .flatMap((row) => {
             const card =
@@ -219,9 +137,11 @@ export function makeFeed(p: RoomPorts) {
             readId: parsed.data.readId,
             status: 'ready',
             roomId: parsed.data.roomId,
+            roomName: entered.standing.room.name,
             identity: identityOf(entered.standing.room),
             sort: order.sort,
             window: order.window,
+            profiles: await residentProfiles(p, lock, cast, now, member.aiLevel),
             posts,
             canPost: roomAcceptsPosts(status) && mayPost(postsToday),
             residents: inhabitantsOf(cast),

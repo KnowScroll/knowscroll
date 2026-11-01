@@ -47,7 +47,7 @@ export function starDecision(input: {
 /** The facts of a Useful mark that decide whether the message it marks is a human answer worth a star. */
 export interface UsefulStarFacts {
   readonly discussion: {
-    readonly kind: 'general' | 'topic' | 'today' | 'find';
+    readonly kind: 'general' | 'topic' | 'today' | 'find' | 'intro';
     readonly tag: 'question' | 'debate' | 'explainer' | 'share' | null;
     readonly startedByAccountId: string | null;
   };

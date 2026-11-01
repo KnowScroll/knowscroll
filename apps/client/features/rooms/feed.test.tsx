@@ -1,11 +1,11 @@
 import type * as React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import type { RoomFeedController, RoomFeedState } from '@knowscroll/client-core';
 import type {
   ConversationContentProjection,
   RoomFeed,
   RoomFeedPost,
-  RoomFeedStrip,
+  RoomLiveEvent,
   RoomLaunchStrip,
 } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
@@ -85,6 +85,8 @@ const feed = (patch: Partial<Extract<RoomFeed, { status: 'ready' }>> = {}): Extr
   scope: { accountId: id(9), privacyEpoch: 1 },
   status: 'ready',
   roomId,
+  roomName: 'Space room',
+  profiles: [],
   identity,
   posts: [],
   residents: [
@@ -340,26 +342,81 @@ describe('a resident’s profile', () => {
   });
 });
 
-describe('the Feed on the Now strip', () => {
-  const strip = (patch: Partial<RoomFeedStrip> = {}): RoomFeedStrip => ({
+describe('the live strip on the Now strip', () => {
+  const event = (patch: Partial<RoomLiveEvent> = {}): RoomLiveEvent => ({
+    kind: 'posted',
     by: nova,
-    postedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+    at: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+    discussionId: id(3),
     ...patch,
   });
   const sky = { lit: 2, of: 7 as const, state: 'forming' as const, finished: 0 };
   const noLaunch: RoomLaunchStrip | undefined = undefined;
 
-  it('shows who found something and how long ago, and opens the feed', async () => {
+  it('shows who posted and who replied and how long ago, each opening its post, and a Feed chip that opens the feed', async () => {
+    const asha = { kind: 'person' as const, personId: id(7), handle: 'asha', displayName: 'Asha' };
     await wrap(
-      <NowStrip scope={{} as never} roomId={roomId} today={undefined} sky={sky} launch={noLaunch} feed={strip()} />,
+      <NowStrip
+        scope={{} as never}
+        roomId={roomId}
+        today={undefined}
+        sky={sky}
+        launch={noLaunch}
+        live={[
+          event({
+            kind: 'replied',
+            by: { kind: 'person', person: asha, you: false },
+            at: new Date(Date.now() - 20 * 60_000).toISOString(),
+            discussionId: id(4),
+          }),
+          event(),
+        ]}
+      />,
     );
-    expect(screen.getByTestId('now-feed')).toHaveTextContent(has('Nova found something · 2 h ago'));
+    expect(screen.getByTestId('now-feed')).toHaveTextContent(has('Ashareplied · 20 min ago'));
+    expect(screen.getByTestId('now-feed')).toHaveProp('accessibilityLabel', 'Feed, Asha replied · 20 min ago');
+    expect(screen.getByTestId('now-feed-1')).toHaveTextContent(has('Novaposted · 2 h ago'));
     await fireEvent.press(screen.getByTestId('now-feed'));
+    expect(mockPush).toHaveBeenCalledWith(`/rooms/${roomId}/t/${id(4)}`);
+    await fireEvent.press(screen.getByTestId('now-feed-open'));
     expect(mockPush).toHaveBeenCalledWith(`/rooms/${roomId}/feed`);
+    expect(screen.queryByText(/online|people here|\d+ (people|members)/i)).not.toBeOnTheScreen();
   });
 
-  it('shows nothing of the feed when no find is there for this reader', async () => {
-    await wrap(<NowStrip scope={{} as never} roomId={roomId} today={undefined} sky={sky} feed={undefined} />);
+  it('draws the agent ring on a resident’s or scout’s chip and reads it as an AI, and draws none on a person’s', async () => {
+    const asha = { kind: 'person' as const, personId: id(7), handle: 'asha', displayName: 'Asha' };
+    const scout = { kind: 'agent' as const, sentBy: asha, label: 'AI · Scout' as const };
+    await wrap(
+      <NowStrip
+        scope={{} as never}
+        roomId={roomId}
+        today={undefined}
+        sky={sky}
+        launch={noLaunch}
+        live={[
+          event({ kind: 'replied', by: { kind: 'person', person: asha, you: false }, discussionId: id(4) }),
+          event({ discussionId: id(5) }),
+          event({ by: scout, discussionId: id(6) }),
+        ]}
+      />,
+    );
+    expect(within(screen.getByTestId('now-feed')).queryByTestId('orbit-ring')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('now-feed')).toHaveProp('accessibilityLabel', 'Feed, Asha replied · 2 h ago');
+    expect(within(screen.getByTestId('now-feed-1')).getByTestId('orbit-ring')).toBeOnTheScreen();
+    expect(screen.getByTestId('now-feed-1')).toHaveProp(
+      'accessibilityLabel',
+      'Feed, AI resident Nova posted · 2 h ago',
+    );
+    expect(within(screen.getByTestId('now-feed-2')).getByTestId('orbit-ring')).toBeOnTheScreen();
+    expect(screen.getByTestId('now-feed-2')).toHaveProp(
+      'accessibilityLabel',
+      'Feed, AI scout, sent by Asha, posted · 2 h ago',
+    );
+  });
+
+  it('shows no event when nothing happened, and still the way into the Feed', async () => {
+    await wrap(<NowStrip scope={{} as never} roomId={roomId} today={undefined} sky={sky} live={undefined} />);
     expect(screen.queryByTestId('now-feed')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('now-feed-open')).toBeOnTheScreen();
   });
 });

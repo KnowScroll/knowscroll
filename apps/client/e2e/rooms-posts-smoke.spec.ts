@@ -6,7 +6,7 @@ import { id } from './encounter-fixture';
 import {
   deviPostId,
   feedRoutes,
-  feedStrip,
+  liveStrip,
   feedWorld,
   findId,
   sourcePostId,
@@ -90,17 +90,13 @@ async function openFeed(page: Page, size: { width: number; height: number }, wor
     others: 1,
     lastMessageMinutesAgo: 5,
     noticeSeen: true,
-    feed: () => feedStrip(world),
+    live: () => liveStrip(world),
   });
   const { calls } = await feedRoutes(page, world, scope);
   await keepOneReel(page);
   await page.goto(address);
-  // The Now strip's chip is the way in on every width; a reader whose AI is Off has no chip and finds the Feed in the room menu.
-  if (feedStrip(world) !== undefined) await page.getByTestId('now-feed').click();
-  else {
-    await page.getByTestId('room-menu-open').click();
-    await page.getByTestId('menu-feed').click();
-  }
+  // The Feed chip is on the Now strip at every width, whatever the strip says of what happened lately.
+  await page.getByTestId('now-feed-open').click();
   await expect(page).toHaveURL(/\/feed$/);
   await expect(page.getByTestId('feed-screen')).toBeVisible();
   return { calls };

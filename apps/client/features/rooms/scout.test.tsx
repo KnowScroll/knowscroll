@@ -90,6 +90,8 @@ const feed = (patch: Partial<Extract<RoomFeed, { status: 'ready' }>> = {}): Extr
   scope: { accountId: id(9), privacyEpoch: 1 },
   status: 'ready',
   roomId,
+  roomName: 'Space room',
+  profiles: [],
   identity,
   posts: [],
   residents: [],

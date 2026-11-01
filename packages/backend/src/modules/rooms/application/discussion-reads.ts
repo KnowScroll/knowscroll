@@ -45,6 +45,22 @@ const viewerOf = (entered: EnteredRoom) => ({
   cast: entered.standing.room.cast,
 });
 
+/**
+ * What people's votes made of a post, for its own page (D-273): only a discussion of the Feed (a find, a member's post or a resident's
+ * introduction) has any. A member cannot vote on their own post, and nobody is told who voted.
+ */
+async function postFigures(
+  p: RoomPorts,
+  lock: RoomLock,
+  discussion: DiscussionRow,
+  readerAccountId: string,
+): Promise<{ votes: number; youVoted: boolean; canVote: boolean } | undefined> {
+  if (discussion.kind !== 'find' && discussion.kind !== 'intro') return undefined;
+  const { votes, voted } = await p.posts.voteView(lock, discussion.discussionId, readerAccountId);
+  const own = discussion.personPost && discussion.startedByAccountId === readerAccountId;
+  return { votes, youVoted: voted, canVote: !own };
+}
+
 /** How long the reader is told about an ask that ended without a contribution. */
 const UNANSWERED_ASK_MEMORY_MS = 10 * 60 * 1000;
 
@@ -87,7 +103,7 @@ async function postStanding(
   lock: RoomLock,
   discussion: Pick<DiscussionRow, 'discussionId' | 'kind' | 'personPost'>,
 ): Promise<PostStanding> {
-  if (discussion.kind !== 'find') return 'shown';
+  if (discussion.kind !== 'find' && discussion.kind !== 'intro') return 'shown';
   const [first] = await p.discussions.messages(lock, discussion.discussionId, { before: 2, limit: 1 });
   if (first === undefined || first.hidden) return 'removed';
   return discussion.personPost && first.text === null ? 'author_deleted' : 'shown';
@@ -228,6 +244,9 @@ export function makeDiscussionReads(p: RoomPorts) {
                 : (await titlesFor(p, scope, lock, entered.owner.accountId, [discussion])).get(
                     discussion.discussionId,
                   )!;
+          // A removed post has no vote to cast or show.
+          const post =
+            standing === 'removed' ? undefined : await postFigures(p, lock, discussion, entered.owner.accountId);
           return DiscussionViewSchema.parse({
             ...roomEnvelope(scope),
             readId: query.readId,
@@ -245,6 +264,7 @@ export function makeDiscussionReads(p: RoomPorts) {
               ...(discussion.source === null || standing !== 'shown'
                 ? {}
                 : { source: { url: discussion.source, host: hostOf(discussion.source) } }),
+              ...(post === undefined ? {} : { post }),
             },
             ...(origin === undefined ? {} : { origin }),
             ...(debate === undefined ? {} : { debate }),

@@ -1608,6 +1608,7 @@ export interface RoomsDiscussions {
   answer_noticed_at: Timestamp | null;
   created_at: Timestamp;
   discussion_id: string;
+  intro_inhabitant: string | null;
   kind: Generated<string>;
   last_activity_at: Timestamp;
   last_change_sequence: Generated<Int8>;

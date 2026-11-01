@@ -98,8 +98,8 @@ export interface RoomFixtureOptions {
   readonly recordingPaused?: boolean;
   /** R-5: today's strip of the room view (the Today discussion, the approved question and whether there is a Spot the flaw). */
   readonly today?: Record<string, unknown>;
-  /** R-8: the Now strip's word for the newest find a resident posted that this reader may see; read afresh each time. Absent says nothing. */
-  readonly feed?: () => Record<string, unknown> | undefined;
+  /** R-8b: the live strip's events (who posted, who replied), newest first; read afresh each time. Absent says nothing. */
+  readonly live?: () => readonly Record<string, unknown>[] | undefined;
   /** R-6: the room view's word for the Launch (ready, lobby, live or finished), read afresh each time; absent says nothing. */
   readonly launch?: () => Record<string, unknown> | undefined;
   /** R-10: the room view's word for Watch together (ready or live), read afresh each time; absent says nothing. */
@@ -299,7 +299,7 @@ export async function roomFixture(
           ...(options.today === undefined ? {} : { today: options.today }),
           ...(options.launch?.() === undefined ? {} : { launch: options.launch() }),
           ...(options.watch?.() === undefined ? {} : { watch: options.watch() }),
-          ...(options.feed?.() === undefined ? {} : { feed: options.feed() }),
+          ...(options.live?.() === undefined ? {} : { live: options.live() }),
           ...(options.replay?.() === undefined ? {} : { replay: options.replay() }),
           ...(options.questions?.() === undefined ? {} : { questions: options.questions() }),
           limits: {

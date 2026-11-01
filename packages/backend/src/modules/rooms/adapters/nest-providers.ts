@@ -52,6 +52,7 @@ import {
 import { makeActivities } from '../application/activities.js';
 import { makeDebateVotes } from '../application/debates.js';
 import { makeFeed } from '../application/feed-reads.js';
+import { makeIntroductionCommands } from '../application/introduction-commands.js';
 import { makePostCommands } from '../application/post-commands.js';
 import { makeScoutCommands } from '../application/scout-commands.js';
 import { makeCastDue, type CastDuePorts } from '../application/cast-due.js';
@@ -281,6 +282,7 @@ export function roomUseCases(deps: RoomsDeps): RoomUseCases {
     ...makeFeed(ports),
     ...makeScoutCommands(ports),
     ...makePostCommands(ports),
+    ...makeIntroductionCommands(ports),
   };
 }
 

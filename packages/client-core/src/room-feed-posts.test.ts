@@ -51,6 +51,8 @@ const ready = (over: object = {}) => ({
   status: 'ready',
   roomId,
   identity: {},
+  roomName: 'Space room',
+  profiles: [],
   sort: 'hot',
   window: 'week',
   posts: [],

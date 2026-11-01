@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { id } from './encounter-fixture';
-import { feedRoutes, feedStrip, feedWorld, scoutFindId, type FeedWorld, type ScoutWorld } from './rooms-feed-fixture';
+import { feedRoutes, liveStrip, feedWorld, scoutFindId, type FeedWorld, type ScoutWorld } from './rooms-feed-fixture';
 import { roomFixture } from './rooms-fixture';
 
 /**
@@ -49,12 +49,12 @@ async function openFeed(page: Page, size: { width: number; height: number }, wor
     others: 1,
     lastMessageMinutesAgo: 5,
     noticeSeen: true,
-    feed: () => feedStrip(world),
+    live: () => liveStrip(world),
   });
   const { calls } = await feedRoutes(page, world, scope);
   await page.goto(address);
   // The Now strip's Feed chip is on the phone and on the desktop workspace alike.
-  await page.getByTestId('now-feed').click();
+  await page.getByTestId('now-feed-open').click();
   await expect(page.getByTestId('feed-screen')).toBeVisible();
   return { calls };
 }

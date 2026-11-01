@@ -6,7 +6,7 @@ import {
   type RoomFeed,
   type RoomFeedPost,
   type RoomFeedSort,
-  type RoomFeedStrip,
+  type RoomLiveEvent,
   type RoomFeedWindow,
   type RoomMemory,
   type RoomScout,
@@ -35,7 +35,13 @@ const metadataOf = (content: ConversationContentProjection | undefined) =>
 
 /** The Reel or Scroll a post is about, as a card; none for a member's post that cites a source. */
 export const postCard = (post: RoomFeedPost): ConversationContentProjection | undefined =>
-  post.kind === 'find' ? post.content : post.link.kind === 'content' ? post.link.content : undefined;
+  post.kind === 'find'
+    ? post.content
+    : post.kind === 'intro'
+      ? undefined
+      : post.link.kind === 'content'
+        ? post.link.content
+        : undefined;
 
 /** What the asset of a find is, in a word: never a score. */
 export const findKindWord = (post: { readonly content: ConversationContentProjection }): string => {
@@ -49,13 +55,18 @@ export const findTitleWords = (post: { readonly content: ConversationContentProj
 
 /** What a post links, in a word: Reel, Scroll, Link (a source), or the plain words for an asset that was withdrawn. */
 export function postKindWord(post: RoomFeedPost): string {
+  if (post.kind === 'intro') return 'introduction';
   const card = postCard(post);
   return card === undefined ? 'Link' : findKindWord({ content: card });
 }
 
 /** What a post is called when it is read aloud or opened: a member's own headline, or the title of the asset a find is about. */
 export const postTitleWords = (post: RoomFeedPost): string =>
-  post.kind === 'post' ? post.title : findTitleWords({ content: post.content });
+  post.kind === 'post'
+    ? post.title
+    : post.kind === 'intro'
+      ? `Meet ${post.author.name}`
+      : findTitleWords({ content: post.content });
 
 type FeedAuthor = RoomFeedPost['author'];
 
@@ -73,11 +84,51 @@ export const feedAuthorName = (author: FeedAuthor): string =>
 export const scoutSignature = (author: FeedAuthor): string | undefined =>
   author.kind === 'agent' ? `Sent by ${author.sentBy.displayName}` : undefined;
 
-/** The Now strip's chip for the feed: who found something, and how long ago. Never a count. */
-export function feedChip(strip: RoomFeedStrip | undefined, now: Date): { label: string; detail: string } | undefined {
-  if (strip === undefined) return undefined;
-  const age = now.getTime() - new Date(strip.postedAt).getTime();
-  return { label: 'Feed', detail: `${feedAuthorName(strip.by)} found something · ${agoWords(age)}` };
+/** A time of day as the member's own clock reads it: "21:12". For a profile's last and next times. */
+export const timeOfDayWords = (iso: string): string =>
+  new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+/** A day as a person says it: "2 Oct". */
+export const dayWords = (iso: string): string =>
+  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
+/**
+ * One chip of the live strip above General: who did what in the Feed, and how long ago. Never a count. `agent` says the chip is an
+ * AI's, so the screen draws the ring; `spoken` is the whole chip in words for a screen reader, which always says what an AI is.
+ */
+export interface LiveChip {
+  readonly key: string;
+  readonly label: string;
+  readonly detail: string;
+  readonly spoken: string;
+  readonly agent?: 'resident' | 'scout';
+  readonly discussionId: string;
+}
+
+/**
+ * The live strip's chips (v3 R-8b, D-276, D-279): "Nova posted · 12 min ago", "Asha replied · 20 min ago". Nothing here is a number of
+ * people. A resident's or scout's chip is marked as an agent and is read as one: "AI resident Nova posted · 12 min ago".
+ */
+export function liveChips(events: readonly RoomLiveEvent[] | undefined, now: Date): LiveChip[] {
+  return (events ?? []).map((event) => {
+    const label = feedAuthorName(event.by);
+    const detail = `${event.kind === 'posted' ? 'posted' : 'replied'} · ${agoWords(now.getTime() - new Date(event.at).getTime())}`;
+    const agent = event.by.kind === 'ai' ? 'resident' : event.by.kind === 'agent' ? 'scout' : undefined;
+    const who =
+      event.by.kind === 'ai'
+        ? `AI resident ${label}`
+        : event.by.kind === 'agent'
+          ? `AI scout, sent by ${event.by.sentBy.displayName},`
+          : label;
+    return {
+      key: `${event.kind}:${event.discussionId}`,
+      label,
+      detail,
+      spoken: `${who} ${detail}`,
+      ...(agent === undefined ? {} : { agent }),
+      discussionId: event.discussionId,
+    };
+  });
 }
 
 // --- Sorts, votes and a member's own post (v3 R-8b) ----------------------------------------------
@@ -257,6 +308,13 @@ export interface RoomFeedController {
   readonly vote: (discussionId: string, voted: boolean) => Promise<boolean>;
   /** Posts a find. The Feed is read again when it posted. */
   readonly post: (draft: PostDraft) => Promise<PostOutcome>;
+  /**
+   * Mutes the room's residents for this member, or lets them speak again: the member's own AI level for the room, Off or Lively
+   * (D-277). It is the one switch there is: residents and scouts are muted together. Returns whether the server accepted.
+   */
+  readonly setMuted: (muted: boolean) => Promise<boolean>;
+  /** Moderator: has a resident introduce itself, once (D-275). Returns whether the server accepted; the Feed is read again. */
+  readonly introduce: (inhabitant: 'explainer' | 'skeptic') => Promise<boolean>;
 }
 
 export interface RoomFeedOptions {
@@ -428,6 +486,14 @@ export function createRoomFeed(options: RoomFeedOptions): RoomFeedController {
       const { discussionId, result } = outcome.value;
       return { kind: result, discussionId };
     },
+    setMuted: (muted) =>
+      change(`ai-level:${muted ? 'off' : 'lively'}`, (commandId) =>
+        scope.api.rooms.preferences({ version: VERSION, commandId, roomId, aiLevel: muted ? 'off' : 'lively' }),
+      ),
+    introduce: (inhabitant) =>
+      change(`introduce:${inhabitant}`, (commandId) =>
+        scope.api.rooms.introduceResident({ version: VERSION, commandId, roomId, inhabitant }),
+      ),
     stopScout: (personId, stopped) =>
       change(`scout-stop:${personId}:${String(stopped)}`, (commandId) =>
         scope.api.rooms.moderate({

@@ -37,7 +37,7 @@ export const postStore: PostStore = {
       from rooms.discussions discussion
       join rooms.messages note on note.discussion_id = discussion.discussion_id and note.sequence = 1
       where discussion.room_id = ${lock.roomId}::uuid and discussion.discussion_id = ${discussionId}::uuid
-        and discussion.kind = 'find' and note.hidden_at is null and note.body_text is not null`.execute(
+        and discussion.kind in ('find', 'intro') and note.hidden_at is null and note.body_text is not null`.execute(
       sharedTransactionOf(lock.shared),
     );
     const found = row.rows[0];
@@ -62,6 +62,22 @@ export const postStore: PostStore = {
       sharedTransactionOf(lock.shared),
     );
     return Number(row.rows[0]?.n ?? 0);
+  },
+
+  async voteView(lock, discussionId, accountId) {
+    const row = await sql<{ votes: string; voted: boolean }>`
+      select count(*) as votes, bool_or(account_id = ${accountId}::uuid) as voted
+      from rooms.post_votes where discussion_id = ${discussionId}::uuid`.execute(sharedTransactionOf(lock.shared));
+    return { votes: Number(row.rows[0]?.votes ?? 0), voted: row.rows[0]?.voted === true };
+  },
+
+  async introductionOf(lock, inhabitant) {
+    const row = await sql<{ discussion_id: string }>`
+      select discussion_id from rooms.discussions
+      where room_id = ${lock.roomId}::uuid and kind = 'intro' and intro_inhabitant = ${inhabitant}`.execute(
+      sharedTransactionOf(lock.shared),
+    );
+    return row.rows[0]?.discussion_id;
   },
 
   async forgetMember(lock, accountId) {

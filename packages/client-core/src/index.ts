@@ -219,10 +219,12 @@ export {
 } from './room-sky';
 export {
   createRoomFeed,
+  dayWords,
   emptyFeedWords,
   emptyPostDraft,
   feedAuthorName,
-  feedChip,
+  liveChips,
+  timeOfDayWords,
   feedSorts,
   feedWindows,
   findKindWord,
@@ -243,6 +245,7 @@ export {
   toggleInterest,
   type PostDraft,
   type PostOutcome,
+  type LiveChip,
   type RoomFeedController,
   type RoomFeedOptions,
   type RoomFeedState,
