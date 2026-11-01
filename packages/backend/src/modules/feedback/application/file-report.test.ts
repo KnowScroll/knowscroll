@@ -25,6 +25,10 @@ interface Options {
   readonly message?: { authorAccountId: string } | undefined;
   readonly roomMessage?: { roomId: string; authorAccountId: string | null } | undefined;
   readonly person?: string | undefined;
+  /** What the person's own Quick answer reads as for a report (the words, or nothing when it is not theirs, kept or about this revision). */
+  readonly quickAnswer?: string | undefined;
+  /** Collects what the Quick answer read was asked for. */
+  readonly askedQuickAnswer?: unknown[];
 }
 
 /** Ports over memory: the target reads answer what the test says, and every write is logged. */
@@ -74,6 +78,10 @@ function fixture(options: Options = {}) {
           ? []
           : [{ accountId: ('person' in options ? options.person : otherPerson)!, person: {} as never }],
       ),
+    readQuickAnswer: (_scope, input) => {
+      options.askedQuickAnswer?.push(input);
+      return Promise.resolve(options.quickAnswer);
+    },
     reports: {
       countSince: vi.fn(() => Promise.resolve(options.sentToday ?? 0)),
       insert: (_scope, report) => {
@@ -122,6 +130,25 @@ describe('a content error report', () => {
         createdAt: now,
       },
     ]);
+  });
+
+  it('keeps the words of the Quick answer it is about, read from their own copy for exactly this revision (D-255)', async () => {
+    const askedQuickAnswer: unknown[] = [];
+    const { cases, inserted } = fixture({ quickAnswer: 'Q: Why?\nA: Because.', askedQuickAnswer });
+    const result = await cases.reportContentError(authority, { ...command, quickAnswerId: id(60) });
+    expect(result.kind).toBe('received');
+    expect(askedQuickAnswer).toEqual([{ quickAnswerId: id(60), assetId: id(10), assetRevision: 2 }]);
+    expect(inserted[0]).toMatchObject({ targetKind: 'asset', quickAnswer: 'Q: Why?\nA: Because.' });
+  });
+
+  it("refuses a Quick answer that is not the reporter's kept copy for this revision, like a missing target", async () => {
+    const { cases, inserted, receipts } = fixture({ quickAnswer: undefined });
+    expect(await cases.reportContentError(authority, { ...command, quickAnswerId: id(60) })).toEqual({
+      kind: 'refused',
+      reason: 'target_unavailable',
+    });
+    expect(inserted).toEqual([]);
+    expect(receipts.size).toBe(0);
   });
 
   it('refuses an asset the caller cannot reach, a withdrawn one, and a revision it never had', async () => {

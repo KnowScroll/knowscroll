@@ -12,6 +12,7 @@ import {
 } from '@knowscroll/backend/modules/rooms';
 import { roomsProviders } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { READ_PUBLIC_PEOPLE, READ_REPORTABLE_MESSAGE } from '@knowscroll/backend/modules/social';
+import type { ReadQuickAnswerForReport } from '@knowscroll/backend/modules/supply';
 import { socialPeopleProviders } from '@knowscroll/backend/modules/social/nest-providers';
 import { openToEveryone } from './audience.js';
 
@@ -22,8 +23,15 @@ function provided<T>(providers: readonly { provide: unknown; useValue?: unknown 
   return found.useValue as T;
 }
 
-/** The report use cases as the API builds them; `now` can be moved to test the daily bound. */
-export function reportCases(db: Kysely<Database>, now: () => Date = () => new Date()) {
+/**
+ * The report use cases as the API builds them; `now` can be moved to test the daily bound. A report about a Quick answer
+ * reads it through `readQuickAnswer`; without one, no Quick answer is ever found.
+ */
+export function reportCases(
+  db: Kysely<Database>,
+  now: () => Date = () => new Date(),
+  readQuickAnswer: ReadQuickAnswerForReport = () => Promise.resolve(undefined),
+) {
   const access = accountAccessUseCases({ db, lockTimeoutMs: 10_000 });
   const people = socialPeopleProviders();
   const rooms = roomsProviders({
@@ -41,6 +49,7 @@ export function reportCases(db: Kysely<Database>, now: () => Date = () => new Da
     readMessage: provided(people, READ_REPORTABLE_MESSAGE),
     readRoomMessage: provided(rooms, READ_REPORTABLE_ROOM_MESSAGE),
     readPeople: provided(people, READ_PUBLIC_PEOPLE),
+    readQuickAnswer,
     now,
   });
 }
