@@ -445,8 +445,10 @@ node dist/operator.js content ask-check --recent 5 --out /var/tmp/ks-v3-spike/as
 
 **Trying a change to the checker's instructions (D-280).** `--checker-instructions <absolute path>` asks the checker with the instructions in that file instead of the production ones, so a
 change can be measured on dev before it is built into a version. Copy the file to the server first (an absolute path, UTF-8 plain text, at most 16 KiB; the text of the version in the
-repository is itself a valid candidate). Everything else is the same: the same role and budget, the same batches, the same rules applied to every reply, nothing stored, and the model must
-still be `MiniMax-M3.1-Flash`. Every line on standard output (and every line in the file) then carries `"candidate": true` and `"candidateSha256"`, the SHA-256 of the file, and the ledger
+repository is itself a valid candidate). Everything else is the same: the same batches, the same rules applied to every reply, nothing stored, and the model must
+still be `MiniMax-M3.1-Flash`. A candidate has a role id of its own (`content.ask-support-check-candidate`), so its daily budget and its failure brake (five failed runs a day)
+are its own: a candidate that keeps failing stops candidates until 00:00 UTC, and never the checks of real asks. It does count against the production scope's daily request cap
+(`KS_REASONING_PRODUCTION_REQUESTS_PER_DAY`), which is shared by every role, so a replay of 20 answers can use up requests that asks and library takes also need. Every line on standard output (and every line in the file) then carries `"candidate": true` and `"candidateSha256"`, the SHA-256 of the file, and the ledger
 records the requests under the role version `ask-support-check.cand-<first 8 characters of the hash>`, so a candidate's runs are never taken for the production checker's. A file that is
 not absolute, under `/etc`, `/proc` or `/root/.ssh`, a link (or reached through one), not a plain file, too big, not UTF-8, blank, not plain text, or not instructions for this checker
 (any `NAME=value` line, or any of `"supported"`, `"unsupported"`, `"no_claim"` missing: a settings file named by mistake is refused) is refused with a one-word code and exit status 2, before anything is touched.

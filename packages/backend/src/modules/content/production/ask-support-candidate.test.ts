@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import type { SentenceUnderCheck } from '../domain/ask-support.js';
 import {
   CANDIDATE_INSTRUCTIONS_MAX_BYTES,
+  CANDIDATE_ROLE_ID,
   candidateCheckerRole,
   readCandidateInstructions,
   type CandidateCheckerInstructions,
@@ -152,15 +153,21 @@ describe('the role built from candidate instructions (D-280)', () => {
   const passages = [{ handle: 'e1', text: 'The lamp turns once a minute, driven by a small motor.' }];
   const candidate = accepted(encode(INSTRUCTIONS));
 
-  it('changes the instructions and the version and nothing else: same role id, budget, ceilings and repair hints', () => {
+  it('changes the instructions, the version and the role id and nothing else: same schema rules, ceilings and repair hints', () => {
     const production = askSupportRole(sentences, passages);
     const role = candidateCheckerRole(candidate, sentences, passages);
     expect(role.instructions).toBe(candidate.text);
     expect(role.instructions).not.toBe(ASK_SUPPORT_INSTRUCTIONS);
     expect(role.version).toBe(candidate.version);
-    expect(role.id).toBe(ASK_SUPPORT_ROLE_ID);
-    expect({ ...role, instructions: '', version: '', outputSchema: undefined }).toEqual({
+    // Its own id, so the ledger's budget and failure brake for the production checker are never the candidate's.
+    expect(role.id).toBe(CANDIDATE_ROLE_ID);
+    expect(role.id).not.toBe(ASK_SUPPORT_ROLE_ID);
+    // The fixture models and the operator find the checker's requests by the production id inside this one.
+    expect(role.id.startsWith(ASK_SUPPORT_ROLE_ID)).toBe(true);
+    expect(role.id).toMatch(/^[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$/u);
+    expect({ ...role, id: '', instructions: '', version: '', outputSchema: undefined }).toEqual({
       ...production,
+      id: '',
       instructions: '',
       version: '',
       outputSchema: undefined,
@@ -188,11 +195,13 @@ const repository = fileURLToPath(new URL('../../../../../../', import.meta.url))
 const SKIPPED_FOLDERS = new Set(['node_modules', 'dist', '.git', 'coverage']);
 const SOURCE = /\.(?:ts|tsx|mjs|cjs|js)$/;
 const CANDIDATE =
-  /ask-support-candidate|candidateCheckerRole|readCandidateInstructions|readCandidateFile|CandidateChecker|CANDIDATE_INSTRUCTIONS|checker-instructions|checkerInstructions/u;
+  /ask-support-candidate|candidateCheckerRole|CANDIDATE_ROLE_ID|readCandidateInstructions|readCandidateFile|CandidateChecker|CANDIDATE_INSTRUCTIONS|checkerRoleOf|CheckerRoleOf|checker-instructions|checkerInstructions/u;
 
 const ALLOWED = [
   /^packages\/backend\/src\/modules\/content\/production\/ask-support-candidate(?:\.test)?\.ts$/,
   /^packages\/backend\/src\/modules\/content\/production\/ask-support-replay\.ts$/,
+  // The step takes the role function the replay hands it; its default is the production role.
+  /^packages\/backend\/src\/modules\/content\/production\/ask-support-step(?:\.test)?\.ts$/,
   /^packages\/backend\/src\/modules\/content\/adapters\/nest-providers\.ts$/,
   /^apps\/worker\/src\/ask-check-operator(?:\.candidate)?(?:\.test)?\.ts$/,
   /^apps\/worker\/src\/operator\.ts$/,
@@ -231,6 +240,8 @@ describe('who can name candidate checker instructions', () => {
         'packages/backend/src/modules/content/production/ask-support-candidate.test.ts',
         'packages/backend/src/modules/content/production/ask-support-candidate.ts',
         'packages/backend/src/modules/content/production/ask-support-replay.ts',
+        'packages/backend/src/modules/content/production/ask-support-step.test.ts',
+        'packages/backend/src/modules/content/production/ask-support-step.ts',
       ].sort(),
     );
     const synthetic = (source: string) => mentioning(['production/writer-stage.ts'], () => source);
@@ -239,6 +250,8 @@ describe('who can name candidate checker instructions', () => {
     ]);
     expect(synthetic('const role = readCandidateInstructions(bytes);')).toEqual(['production/writer-stage.ts']);
     expect(synthetic('const path = args.values["checker-instructions"];')).toEqual(['production/writer-stage.ts']);
+    expect(synthetic('makeAskSupportStep(deps, checkerRoleOf)')).toEqual(['production/writer-stage.ts']);
+    expect(synthetic('const id = CANDIDATE_ROLE_ID;')).toEqual(['production/writer-stage.ts']);
     expect(synthetic('const role = askSupportRole(sentences, passages);')).toEqual([]);
   });
 });

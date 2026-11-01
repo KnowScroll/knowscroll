@@ -9,6 +9,7 @@ import {
   type ReplayResult,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { madeToOrderKey } from '../../../packages/backend/src/modules/content/domain/order-key.js';
+import { CANDIDATE_ROLE_ID } from '../../../packages/backend/src/modules/content/production/ask-support-candidate.js';
 import {
   ASK_SUPPORT_CHECK_VERSION,
   ASK_SUPPORT_INSTRUCTIONS,
@@ -274,6 +275,14 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     if (reading.kind !== 'accepted') throw new Error(`CI: the candidate was refused: ${reading.code}`);
     return reading.candidate;
   };
+  const roleIdsOf = async (runIds: readonly string[]) =>
+    (
+      await database.db
+        .selectFrom('reasoning.production_runs')
+        .select('role_id')
+        .where('id', 'in', [...runIds])
+        .execute()
+    ).map((row) => row.role_id);
   const roleVersionsOf = async (runIds: readonly string[]) =>
     (
       await database.db
@@ -329,11 +338,32 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     expect(only!.detail).toMatchObject(label);
     // One in each of the two batches: the production rules read a candidate's reply too.
     expect(only!.line.codes).toMatchObject({ quote_not_in_cited_passages: 2 });
-    // The ledger names the candidate, never the production version, so nothing it spent reads as the production checker's.
+    // The ledger names the candidate, never the production version or role, so nothing it spent reads as the production checker's.
     expect(new Set(await roleVersionsOf(only!.line.runIds!))).toEqual(new Set([candidate.version]));
+    expect(new Set(await roleIdsOf(only!.line.runIds!))).toEqual(new Set([CANDIDATE_ROLE_ID]));
     expect(candidate.version).not.toBe(ASK_SUPPORT_CHECK_VERSION);
     // Nothing was published, stored or changed.
     expect(await contentRows()).toEqual(before);
+  });
+
+  it('gives a candidate its own failure brake: a candidate that fails every time stops candidates for the day, not the production checker (D-280)', async () => {
+    const answer = await producedOrder('question');
+    const candidate = candidateOf(`${CANDIDATE_TEXT} This one fails.`);
+    support = () => ({ kind: 'rate_limited' });
+    const codes: (string | undefined)[] = [];
+    try {
+      // Five failed runs a day is the brake; each replay of one answer is one failed run (the provider refuses the first batch).
+      for (let replays = 0; replays < 8; replays += 1) {
+        const { results } = await replayed({ kind: 'assets', assetIds: [answer.assetId] }, { candidate });
+        codes.push(results[0]!.line.code);
+      }
+    } finally {
+      support = (_check, call) => supportReply(call);
+    }
+    expect(codes.at(-1)).toBe('refused_failure_brake');
+    // The same answer, checked by the production checker, still goes through.
+    const plain = await replayed({ kind: 'assets', assetIds: [answer.assetId] });
+    expect(plain.results[0]!.line).toMatchObject({ outcome: 'checked' });
   });
 
   it('labels the lines that name no answer too, and still refuses another model before asking anything (D-280)', async () => {

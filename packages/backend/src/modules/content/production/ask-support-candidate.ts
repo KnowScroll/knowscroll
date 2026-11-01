@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { ReasoningRole } from '../../../reasoning/public.js';
 import type { SentenceUnderCheck } from '../domain/ask-support.js';
-import { askSupportRole, type AskSupportAnswer, type SupportPassage } from './ask-support.js';
+import { ASK_SUPPORT_ROLE_ID, askSupportRole, type AskSupportAnswer, type SupportPassage } from './ask-support.js';
 
 /**
  * Candidate instructions for the support checker, for the operator's replay only (D-280). They let the coordinator measure
@@ -75,14 +75,26 @@ export function readCandidateInstructions(bytes: Uint8Array): CandidateReading {
 }
 
 /**
- * The checker's role with the candidate's instructions in place of the production ones: the same id (so the same budget and
- * failure brake), schema, repair hints and ceilings, and a version that names the candidate. Every reply still passes
- * through the production rules of `askSupportSchema`.
+ * The role id a candidate runs under: the checker's id with a suffix. The ledger keeps the daily budget and the failure brake
+ * (five failed runs a day) for each role id, so a candidate that fails stops candidates for the day and never the production
+ * checker. It still counts against the production scope's daily request cap, which is kept for all roles together.
+ */
+export const CANDIDATE_ROLE_ID = `${ASK_SUPPORT_ROLE_ID}-candidate`;
+
+/**
+ * The checker's role with the candidate's instructions in place of the production ones: the schema, repair hints and
+ * ceilings of the production role, and a role id and a version that name the candidate. Every reply still passes through
+ * the production rules of `askSupportSchema`.
  */
 export function candidateCheckerRole(
   candidate: CandidateCheckerInstructions,
   sentences: readonly SentenceUnderCheck[],
   passages: readonly SupportPassage[],
 ): ReasoningRole<AskSupportAnswer> {
-  return { ...askSupportRole(sentences, passages), version: candidate.version, instructions: candidate.text };
+  return {
+    ...askSupportRole(sentences, passages),
+    id: CANDIDATE_ROLE_ID,
+    version: candidate.version,
+    instructions: candidate.text,
+  };
 }
