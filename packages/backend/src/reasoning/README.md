@@ -16,6 +16,7 @@ owns admission, budgets, transport, parsing, limits and attempt tracking. No too
 | Nonpersonal Scroll production scope | Implemented and operator-triggered only: no worker job is registered and both enable switches default off. |
 | Nonpersonal rooms scope and the `ambient` budget class: a room's residents speaking on their own (v3 R-2, D-162) | Implemented. CI exercises the share and the scope's cap against real PostgreSQL with the fixture model (`reasoning-ambient-share.test.ts`, which fails if either ledger's ambient sum is broken). Off until `KS_REASONING_ROOM_ENABLED`; not yet run on dev. |
 | Recording-aware personal roles (Planner, Cartographer) | Implemented in source and CI. The roles are off by default and the path has not run on a live system. |
+| Recording-aware personal runs for Supply (a question's placement and library check, a Quick answer's writer and checks; D-264) | Implemented and CI-verified on real PostgreSQL with labelled fixture models. Not yet run on dev. |
 | Selective Clear accounting and erasure of a person's attempts | Implemented and CI-tested. |
 | Crash sweep and request purge jobs | Implemented, scheduled in the worker and CI-tested. |
 | Idle-run sweep: personal runs left `admitted` for six hours with no live attempt are closed `cancelled` | Implemented, in the five-minute sweep job and CI-tested (D-052). |
@@ -567,7 +568,7 @@ and orphaned marked parent runs may be pruned. The normal ledger still owns sett
 late usage and brakes; Clear neither refunds nor increases caps. A later delivered answer remains
 redacted under the #337 marker checks. No production or pool row is read or changed here.
 
-## Recording-aware personal roles (Planner and Cartographer)
+## Recording-aware personal roles (Planner, Cartographer and Supply)
 
 Status: implemented in source and covered by CI against real PostgreSQL with fixture owners. The
 Planner and Cartographer roles are off by default (`KS_PLANNER_ENABLED=0`,
@@ -586,8 +587,11 @@ root, transport profile, cap, accounting state machine, reservation policy or pa
 
 A strict `PersonalRecordingPurpose` contains version `personal-role-purpose.v1`, actual account,
 universe, privacy epoch, original recording generation, business run, current claim, immutable full
-frozen-context SHA and exact model-context SHA. Its only owner/purpose pairs are
-planner/personal-planner and geography/personal-cartographer. All fields are required; bounded UUID,
+frozen-context SHA and exact model-context SHA. Its owners are planner (purpose personal-planner), geography
+(personal-cartographer) and supply (a step it names, D-264: `ask-scope`, `ask-library`, `quick-answer`,
+`quick-answer-support`). The engine only checks that a Supply step is a lowercase code; the schema
+(`reasoning_personal_recording_proof_shape`, migration 0094) and Supply's owner check hold the list. For Supply, `claimId` is
+the ID of the request or Quick answer the run serves, and both hashes are of the context the model is sent. All fields are required; bounded UUID,
 int32 positive odd generation and lowercase 64 hex parsing has no default/coercion/transform. Own
 undefined, extra/hidden/symbol fields, inherited objects and getters refuse. The facade snapshots
 purpose, authority and exact bounded context items; no mutable input or live capability crosses
@@ -595,8 +599,8 @@ network waits. It hashes the actually supplied `{bundleRef,items}` independently
 
 ### Owner proof
 
-Both `CHECK_PLANNER_RECORDING_RUN` and `CHECK_GEOGRAPHY_RECORDING_RUN` are mandatory real owner
-ports. A closed dispatcher selects the exact pair; missing functions fail construction/DI. Each
+`CHECK_PLANNER_RECORDING_RUN`, `CHECK_GEOGRAPHY_RECORDING_RUN` and `CHECK_SUPPLY_RECORDING_RUN` are mandatory real owner
+ports. A closed dispatcher selects the exact owner; missing functions fail construction/DI. Each
 owner must read its exact account/generation/status/claim/hash HEADER before any frozen body,
 refuse old/malformed provenance, and recompute the complete frozen-context and model-items hashes.
 Prepared status, active business run and unexpired exact current claim remain required. A string
