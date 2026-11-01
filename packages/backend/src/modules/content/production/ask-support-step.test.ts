@@ -10,7 +10,13 @@ import {
   ASK_SUPPORT_MAX_BATCHES,
   type SentenceUnderCheck,
 } from '../domain/ask-support.js';
-import { askSupportRunId, makeAskSupportStep, type SupportCheckOutcome } from './ask-support-step.js';
+import { ASK_SUPPORT_CHECK_VERSION, ASK_SUPPORT_INSTRUCTIONS, askSupportRole } from './ask-support.js';
+import {
+  askSupportRunId,
+  makeAskSupportStep,
+  type CheckerRoleOf,
+  type SupportCheckOutcome,
+} from './ask-support-step.js';
 
 /**
  * The step that asks the support checker about a draft, a batch of sentences at a time (D-267), against a labelled CI
@@ -33,12 +39,24 @@ type Script = (batch: number) => 'ok' | 'ok_after_repair' | Exclude<ProposeOutco
 
 /** A harness that answers each request from `script`, and records the request. */
 function harnessOf(script: Script = () => 'ok') {
-  const requests: { runId: string; allowRepair: boolean | undefined; numbers: number[] }[] = [];
+  const requests: {
+    runId: string;
+    allowRepair: boolean | undefined;
+    numbers: number[];
+    roleVersion: string;
+    instructions: string;
+  }[] = [];
   const harness = {
     proposeProduction: vi.fn((input: Parameters<ProductionReasoningHarness['proposeProduction']>[0]) => {
       const lines = input.context.items.find((item) => item.kind === 'answer_sentences')!.text.split('\n');
       const numbers = lines.map((line) => (JSON.parse(line) as { n: number }).n);
-      requests.push({ runId: input.run.id, allowRepair: input.limits?.allowRepair, numbers });
+      requests.push({
+        runId: input.run.id,
+        allowRepair: input.limits?.allowRepair,
+        numbers,
+        roleVersion: input.role.version,
+        instructions: input.role.instructions,
+      });
       const outcome = script(requests.length - 1);
       if (typeof outcome !== 'string') return Promise.resolve(outcome);
       const reply = { sentences: numbers.map((n) => ({ n, verdict: 'no_claim' })) };
@@ -56,9 +74,9 @@ function harnessOf(script: Script = () => 'ok') {
   return { harness, requests };
 }
 
-async function check(sentences: readonly SentenceUnderCheck[], script?: Script) {
+async function check(sentences: readonly SentenceUnderCheck[], script?: Script, checkerRoleOf?: CheckerRoleOf) {
   const { harness, requests } = harnessOf(script);
-  const step = makeAskSupportStep({ authority, withScope, harness });
+  const step = makeAskSupportStep({ authority, withScope, harness }, checkerRoleOf);
   const outcome = await step.check({
     jobId: 'job-1',
     policyVersion: 'ci',
@@ -73,6 +91,26 @@ const done = (outcome: SupportCheckOutcome) => {
   if (outcome.kind !== 'done') throw new Error(`CI: expected a finished check, got ${outcome.kind}`);
   return outcome;
 };
+
+describe('which instructions ask the checker (D-280)', () => {
+  it('asks with the production instructions and version unless the replay hands the step another role', async () => {
+    const { requests } = await check(questions(25));
+    expect(requests.map((request) => request.roleVersion)).toEqual(Array(3).fill(ASK_SUPPORT_CHECK_VERSION));
+    expect(requests.map((request) => request.instructions)).toEqual(Array(3).fill(ASK_SUPPORT_INSTRUCTIONS));
+  });
+
+  it('asks every batch with the role it is handed, and with that role alone', async () => {
+    const candidateRole: CheckerRoleOf = (sentences, cited) => ({
+      ...askSupportRole(sentences, cited),
+      version: 'ask-support-check.cand-ci',
+      instructions: 'CI candidate instructions',
+    });
+    const { requests, outcome } = await check(questions(25), undefined, candidateRole);
+    expect(requests.map((request) => request.roleVersion)).toEqual(Array(3).fill('ask-support-check.cand-ci'));
+    expect(requests.map((request) => request.instructions)).toEqual(Array(3).fill('CI candidate instructions'));
+    expect(done(outcome).record).toMatchObject({ kind: 'checked', batches: 3 });
+  });
+});
 
 describe('asking the checker about a long draft in batches (D-267)', () => {
   it('sends the sentences in order, ten at most to a request, each batch in a run of its own', async () => {

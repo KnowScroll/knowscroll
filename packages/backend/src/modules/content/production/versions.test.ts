@@ -152,6 +152,7 @@ describe('the answer to a question is written and checked as a pair (D-250)', ()
     'question-writer.v2': 'ask-support-check.v1',
     'question-writer.v3': 'ask-support-check.v2',
     'question-writer.v4': 'ask-support-check.v3',
+    'question-writer.v5': 'ask-support-check.v4',
   };
 
   it('pairs the question writer’s instructions with the support check’s version', () => {

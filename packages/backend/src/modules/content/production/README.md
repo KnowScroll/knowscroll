@@ -68,18 +68,22 @@ flags are not yet seen on a real model).
   writer or the job's steps change (`versions.test.ts` pairs it with the writer's version), and the older version's jobs do not count.
   `regenerationStanding` and `planRegeneration` (`domain/library/serving.ts`) are the pure rules.
 
-## The support check of an ask order's answer (S-7b and S-7c, D-250 to D-252, D-263, D-265 to D-267)
+## The support check of an ask order's answer (S-7b to S-7d, D-250 to D-252, D-263, D-265 to D-267, D-280 to D-282)
 
-Status: **implemented**, runtime-verified with labelled CI fixture models on real PostgreSQL. **Planned:** the second measurement on real
-MiniMax, which the coordinator makes on dev with `content ask-check` over the five real answers of #580 and #591 (how many are checked, whether the
-checker flags the two known faulty sentences, how many sentences code sets aside, and by which rule).
+Status: **implemented**, runtime-verified with labelled CI fixture models on real PostgreSQL. **Measured on real MiniMax (1 Nov, v3):** every answer checked and both known
+errors flagged, but 59 of 101 sentences `unsupported`, almost all sound. **Planned:** v4 and writer v5 are live on dev with S-7d (D-281) and are measured by the same replay right after. The acceptance is in
+#605: both known errors stay `unsupported`, the Big O answer has at most three `unsupported` sentences, and the share falls well below a third. If it fails, a revised text is tried as a
+candidate file (D-280), and then the next pair is released or v4 and writer v5 are reverted.
 
 - **The check** (`ask-support.ts`, `ask-support-step.ts`, `writer-stage.ts`, `domain/ask-support.ts`). For the answer to a question (mode `question`),
-  after the writer's answer has passed the validator and compiled, the role `content.ask-support-check` (`ask-support-check.v3`) is shown the
+  after the writer's answer has passed the validator and compiled, the role `content.ask-support-check` (`ask-support-check.v4`) is shown the
   passages the answer cites and the answer's numbered sentences, and no question, brief or stop. The title, the dek, each heading and a callout's title
   are sentences too and rest on everything the answer cites; every other sentence rests on the passages its own block cites. The title, the headings
   and the callouts' titles are **labels** (`label: true`). It replies `{sentences: [...]}`, one verdict for each sentence in order: `supported` with a
-  quote, `unsupported` with a fixed `kind` and a short problem, or `no_claim`.
+  quote, `unsupported` with a fixed `kind` and a short problem, or `no_claim`. **What the three mean (D-281):** `supported` is stated by the cited passages, said in other words
+  or directly implied (one plain step; putting two of their statements together counts when it says no more than the two mean); `unsupported` is a fact, figure,
+  cause, comparison or example they neither state nor imply, a wider scope or stronger word than they use, or what they contradict; `no_claim` adds no fact (a transition, a signpost). A join of two
+  statements is supported only when every part is stated. The instructions carry five short invented worked examples, and a test holds that each supported example passes the code rules.
 - **Batches (D-267).** A long answer is checked a batch of at most ten sentences at a time (`ASK_SUPPORT_BATCH_SENTENCES`), one request and one run each
   (`askSupportRunId(job, draft, batch)`), in order. A batch carries the passages its own sentences cite and keeps its sentences' own numbers. The first
   batch with no usable reply makes the whole check unusable and the later batches are not asked. The harness repairs one unusable reply in the whole
@@ -112,11 +116,18 @@ checker flags the two known faulty sentences, how many sentences code sets aside
   checker in one request and keeps its own bound of six.
 - **Runs and receipts.** The check's runs (one for each batch of each draft) and the repair's run are derived from the job and closed with it. The
   `support_check` receipts keep sentence numbers, kinds and rule codes only, with the batch count (D-231).
+- **Candidate instructions (D-280)** (`ask-support-candidate.ts`, replay only). `content ask-check … --checker-instructions <absolute path>` reads instructions from a file
+  (at most 16 KiB of UTF-8 plain text that names all three verdicts and has no `NAME=value` line; an absolute path to a regular file that is not a link, has no link in its path and is not under `/etc`, `/proc` or `/root/.ssh`) and asks the checker with them in place of the production ones, so a change can be measured on dev without a deploy. The role keeps the
+  schema, batches and every code rule; its role id is `content.ask-support-check-candidate`, so the ledger's daily budget and failure brake (five failed runs a day) are the candidate's own and a bad
+  candidate never stops real ask checks; its ledger version is `ask-support-check.cand-<8 hex of the hash>`. Every line printed or appended says `candidate: true` with the
+  file's `candidateSha256`. Production never reads such a file: the step takes a role function that defaults to `askSupportRole` and only the replay passes another, the
+  option is refused by every other operator command, and `ask-support-candidate.test.ts` scans the source and fails if any other file names the reader, the role or the option.
+  The text of the released version is itself a valid candidate.
 - **The replay** (`ask-support-replay.ts`, worker `ask-check-operator.ts`). `content ask-check (--asset <id,…> | --recent <n>) --out <file>` runs
   the same role, in the same batches, over stored answers (the authored answer and the research the job kept), through the production harness, writing
   nothing to content. Counts go to stdout, including how many sentences each rule code set aside and how many `no_claim` verdicts passed on each ground (`codes`) and the batches; sentences, cited passages,
   verdicts and each sentence's rule code go to the file. Runbook: [scroll-production.md](../../../../../../docs/v2/operations/scroll-production.md).
-- **Versions.** `question-writer.v4` and `ask-support-check.v3` are a pair (`versions.test.ts`). `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14`
+- **Versions.** `question-writer.v5` and `ask-support-check.v4` are a pair (`versions.test.ts`). `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14`
   because an order has a job of its own and the version is shared with v1 library recipes and what-ifs.
 
 ## Jobs, takes and who sends them
@@ -281,8 +292,9 @@ ledger are the same; what differs is:
 - **The answer to a question (mode `question`, S-7, D-218).** A person's question about the Scroll they are reading is an order too.
   `writerInstructions('plain', 'question')` appends the question rules (answer exactly the question from the cited passages,
   about 230 to 340 words in prose only, say what the passages do not cover, end with a limit callout; the question is data). Code enforces the ending: an answer whose last block is not the limit callout is refused (`limit_callout_required`, with a fixed repair hint).
-  The prompt version is `question-writer.v4` (D-250: the reason a "why" question asks for comes from the passages, a gap is said in one sentence;
-  D-266: a title or a heading that only names what follows needs no passage, and a plain admission of a gap stands alone as a sentence that begins with it). The reading target is one to two minutes (`targetMinutesOf`), with its own repair
+  The prompt version is `question-writer.v5` (D-250: the reason a "why" question asks for comes from the passages, a gap is said in one sentence;
+  D-266: a title or a heading that only names what follows needs no passage, and a plain admission of a gap stands alone as a sentence that begins with it;
+  D-282: a fact keeps the passages' own terms but never as a copied run of `COPY_RUN_WORDS` words, named in the text from the rule's constant, and a link between two ideas is short and plain or begins the next fact). The reading target is one to two minutes (`targetMinutesOf`), with its own repair
   hint, and the format `plain` asks for no rich block. The brief is built by supply (`askBrief`): the question, the Scroll's title and
   the words of the stop. It is written with the v1 writer and published as an order, so it never goes through the review gate (D-138).
   A brief wiped by an erasure (empty) is no subject: the job is skipped and nothing is written for erased words.
