@@ -2,8 +2,18 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeWithProductionScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
-import { makeAskSupportReplay, type ReplayResult } from '@knowscroll/backend/modules/content/nest-providers';
+import {
+  makeAskSupportReplay,
+  readCandidateInstructions,
+  type CandidateCheckerInstructions,
+  type ReplayResult,
+} from '@knowscroll/backend/modules/content/nest-providers';
 import { madeToOrderKey } from '../../../packages/backend/src/modules/content/domain/order-key.js';
+import { CANDIDATE_ROLE_ID } from '../../../packages/backend/src/modules/content/production/ask-support-candidate.js';
+import {
+  ASK_SUPPORT_CHECK_VERSION,
+  ASK_SUPPORT_INSTRUCTIONS,
+} from '../../../packages/backend/src/modules/content/production/ask-support.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
@@ -69,7 +79,7 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     return { recipe, assetId };
   }
 
-  const replay = (overrides: { model?: string } = {}) =>
+  const replay = (overrides: { model?: string; candidate?: CandidateCheckerInstructions } = {}) =>
     makeAskSupportReplay({
       db: database.db,
       harness: worker.harness,
@@ -77,8 +87,12 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
       authority: { scopeId: 'scroll-supply', generation: 1 },
       model: overrides.model ?? 'MiniMax-M3.1-Flash',
       newRunKey: randomUUID,
+      ...(overrides.candidate === undefined ? {} : { candidate: overrides.candidate }),
     });
-  async function replayed(target: Parameters<ReturnType<typeof replay>>[0], overrides: { model?: string } = {}) {
+  async function replayed(
+    target: Parameters<ReturnType<typeof replay>>[0],
+    overrides: { model?: string; candidate?: CandidateCheckerInstructions } = {},
+  ) {
     const results: ReplayResult[] = [];
     const summary = await replay(overrides)(target, signal(), (result) => void results.push(result));
     return { results, summary };
@@ -250,6 +264,133 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     } finally {
       quotaSpent = false;
     }
+  });
+
+  /** A candidate file's text: labelled CI text that names the three verdicts, never product content. */
+  const CANDIDATE_TEXT =
+    'CI candidate instructions: judge each sentence by the passages it cites. Reply "supported", "unsupported" or "no_claim".';
+  /** Candidate instructions as the operator command reads them from a file. */
+  const candidateOf = (text: string): CandidateCheckerInstructions => {
+    const reading = readCandidateInstructions(new TextEncoder().encode(text));
+    if (reading.kind !== 'accepted') throw new Error(`CI: the candidate was refused: ${reading.code}`);
+    return reading.candidate;
+  };
+  const roleIdsOf = async (runIds: readonly string[]) =>
+    (
+      await database.db
+        .selectFrom('reasoning.production_runs')
+        .select('role_id')
+        .where('id', 'in', [...runIds])
+        .execute()
+    ).map((row) => row.role_id);
+  const roleVersionsOf = async (runIds: readonly string[]) =>
+    (
+      await database.db
+        .selectFrom('reasoning.production_runs')
+        .select('role_version')
+        .where('id', 'in', [...runIds])
+        .execute()
+    ).map((row) => row.role_version);
+
+  it('without a candidate, asks the checker with the production instructions and version and labels nothing as a candidate (D-280)', async () => {
+    const answer = await producedOrder('question');
+    const { results } = await replayed({ kind: 'assets', assetIds: [answer.assetId] });
+    const [only] = results;
+    expect(worker.supportCalls.at(-1)!.request.system).toContain(ASK_SUPPORT_INSTRUCTIONS);
+    expect(only!.line).not.toHaveProperty('candidate');
+    expect(only!.line).not.toHaveProperty('candidateSha256');
+    expect(only!.detail).not.toHaveProperty('candidate');
+    expect(new Set(await roleVersionsOf(only!.line.runIds!))).toEqual(new Set([ASK_SUPPORT_CHECK_VERSION]));
+  });
+
+  it('with a candidate, sends its instructions in place of the production ones, labels every line and detail with its hash, and stores nothing (D-280)', async () => {
+    const answer = await producedOrder('question');
+    const candidate = candidateOf(CANDIDATE_TEXT);
+    const before = await contentRows();
+    const callsBefore = worker.supportCalls.length;
+    // A candidate reply goes through the production rules like any other: this one quotes words no passage holds.
+    support = (_check, call) => {
+      const { sentences } = supportRequestOf(call);
+      const first = sentences[0]!;
+      const reply = supportReply(call);
+      if (reply.kind !== 'success') return reply;
+      const parsed = JSON.parse(reply.text) as { sentences: { n: number }[] };
+      return answerWith({
+        sentences: parsed.sentences.map((one) =>
+          one.n === first.n ? { n: one.n, verdict: 'supported', quote: 'words that no passage ever contained' } : one,
+        ),
+      });
+    };
+
+    const { results, summary } = await replayed({ kind: 'assets', assetIds: [answer.assetId] }, { candidate });
+    support = (_check, call) => supportReply(call);
+
+    expect(summary).toEqual({ answers: 1, stopped: false });
+    const requests = worker.supportCalls.slice(callsBefore);
+    expect(requests.length).toBeGreaterThan(0);
+    for (const request of requests) {
+      expect(request.request.system).toContain(candidate.text);
+      expect(request.request.system).not.toContain(ASK_SUPPORT_INSTRUCTIONS);
+    }
+    const [only] = results;
+    const label = { candidate: true, candidateSha256: candidate.sha256 };
+    expect(only!.line).toMatchObject({ outcome: 'checked', ...label });
+    expect(only!.detail).toMatchObject(label);
+    // One in each of the two batches: the production rules read a candidate's reply too.
+    expect(only!.line.codes).toMatchObject({ quote_not_in_cited_passages: 2 });
+    // The ledger names the candidate, never the production version or role, so nothing it spent reads as the production checker's.
+    expect(new Set(await roleVersionsOf(only!.line.runIds!))).toEqual(new Set([candidate.version]));
+    expect(new Set(await roleIdsOf(only!.line.runIds!))).toEqual(new Set([CANDIDATE_ROLE_ID]));
+    expect(candidate.version).not.toBe(ASK_SUPPORT_CHECK_VERSION);
+    // Nothing was published, stored or changed.
+    expect(await contentRows()).toEqual(before);
+  });
+
+  it('gives a candidate its own failure brake: a candidate that fails every time stops candidates for the day, not the production checker (D-280)', async () => {
+    const answer = await producedOrder('question');
+    const candidate = candidateOf(`${CANDIDATE_TEXT} This one fails.`);
+    support = () => ({ kind: 'rate_limited' });
+    const codes: (string | undefined)[] = [];
+    try {
+      // Five failed runs a day is the brake; each replay of one answer is one failed run (the provider refuses the first batch).
+      for (let replays = 0; replays < 8; replays += 1) {
+        const { results } = await replayed({ kind: 'assets', assetIds: [answer.assetId] }, { candidate });
+        codes.push(results[0]!.line.code);
+      }
+    } finally {
+      support = (_check, call) => supportReply(call);
+    }
+    expect(codes.at(-1)).toBe('refused_failure_brake');
+    // The same answer, checked by the production checker, still goes through.
+    const plain = await replayed({ kind: 'assets', assetIds: [answer.assetId] });
+    expect(plain.results[0]!.line).toMatchObject({ outcome: 'checked' });
+  });
+
+  it('labels the lines that name no answer too, and still refuses another model before asking anything (D-280)', async () => {
+    const whatIf = await producedOrder('what_if');
+    const question = await producedOrder('question');
+    const candidate = candidateOf(`${CANDIDATE_TEXT}Lines that carry no verdict are labelled too.`);
+    const callsBefore = worker.supportCalls.length;
+
+    const notReplayable = await replayed({ kind: 'assets', assetIds: [whatIf.assetId] }, { candidate });
+    expect(notReplayable.results[0]!.line).toMatchObject({
+      outcome: 'not_replayable',
+      code: 'not_an_ask_answer',
+      candidate: true,
+      candidateSha256: candidate.sha256,
+    });
+
+    const wrongModel = await replayed(
+      { kind: 'assets', assetIds: [question.assetId] },
+      { candidate, model: 'some-other-model' },
+    );
+    expect(wrongModel.summary).toEqual({ answers: 0, stopped: true });
+    expect(wrongModel.results[0]!.line).toMatchObject({
+      outcome: 'model_mismatch',
+      candidate: true,
+      candidateSha256: candidate.sha256,
+    });
+    expect(worker.supportCalls.length).toBe(callsBefore);
   });
 
   it('refuses to run on a model other than the one the library is written with', async () => {

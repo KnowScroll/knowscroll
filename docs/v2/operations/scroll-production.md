@@ -424,7 +424,7 @@ node dist/operator.js content production-status --only seasons,seasons-hemispher
 
 **Leaving a wave.** Record the yield (recipes held, released, rejected, unchecked), the tokens (sum the `attempts` of `production-status`) and the top findings of `reasoning rejected` in the tracker.
 
-## Checking stored ask answers (S-7b and S-7c, D-250 to D-252, D-263, D-265)
+## Checking stored ask answers (S-7b to S-7d, D-250 to D-252, D-263, D-265, D-280 to D-282)
 
 A person's question from a Scroll becomes a short answer made for them (an ask order, D-218). Nobody reads it first, so its job runs a second model, the **support
 check**, which reads each sentence against the passages the answer cites; an answer with a sentence they do not support is repaired once or refused, and
@@ -437,10 +437,24 @@ production budget (`KS_REASONING_PRODUCTION_ENABLED=1`, `KS_MINIMAX_MODEL=MiniMa
 ```sh
 node dist/operator.js content ask-check --recent 5 --out /var/tmp/ks-v3-spike/ask-check-580.jsonl
 node dist/operator.js content ask-check --asset <asset id>[,<asset id>…] --out /var/tmp/ks-v3-spike/ask-check-580.jsonl
+node dist/operator.js content ask-check --recent 5 --out /var/tmp/ks-v3-spike/ask-check-candidate.jsonl --checker-instructions /var/tmp/ks-v3-spike/checker-candidate.txt
 ```
 
 `--recent <n>` takes the newest published ask answers (1 to 20), `--asset` names them (at most 20; an asset that is not a stored ask answer is reported as
 `not_replayable` and asks the model nothing). `--out` is required.
+
+**Trying a change to the checker's instructions (D-280).** `--checker-instructions <absolute path>` asks the checker with the instructions in that file instead of the production ones, so a
+change can be measured on dev before it is built into a version. Copy the file to the server first (an absolute path, UTF-8 plain text, at most 16 KiB; the text of the version in the
+repository is itself a valid candidate). Everything else is the same: the same batches, the same rules applied to every reply, nothing stored, and the model must
+still be `MiniMax-M3.1-Flash`. A candidate has a role id of its own (`content.ask-support-check-candidate`), so its daily budget and its failure brake (five failed runs a day)
+are its own: a candidate that keeps failing stops candidates until 00:00 UTC, and never the checks of real asks. It does count against the production scope's daily request cap
+(`KS_REASONING_PRODUCTION_REQUESTS_PER_DAY`), which is shared by every role, so a replay of 20 answers can use up requests that asks and library takes also need. Every line on standard output (and every line in the file) then carries `"candidate": true` and `"candidateSha256"`, the SHA-256 of the file, and the ledger
+records the requests under the role version `ask-support-check.cand-<first 8 characters of the hash>`, so a candidate's runs are never taken for the production checker's. A file that is
+not absolute, under `/etc`, `/proc` or `/root/.ssh`, a link (or reached through one), not a plain file, too big, not UTF-8, blank, not plain text, or not instructions for this checker
+(any `NAME=value` line, or any of `"supported"`, `"unsupported"`, `"no_claim"` missing: a settings file named by mistake is refused) is refused with a one-word code and exit status 2, before anything is touched.
+The text goes to the provider and into the request store, so never put a secret in a candidate file. No other operator command
+accepts the option, and the job that serves people never reads such a file. To compare, run the same `--asset` list with the candidate and without it, and read `codes` first: a
+high `quote_not_about_sentence` or `no_claim_without_ground` count is the code's rule deciding, not the checker's judgement.
 
 - **Standard output** is one JSON line for each answer: its asset ID, `outcome` (`checked`, `unchecked` with a `code`, `paused`, `not_replayable`), the counts of
   sentences, supported, unsupported and no-claim, the batches (a long answer is checked ten sentences at a time), the requests sent (one for each batch, and one
