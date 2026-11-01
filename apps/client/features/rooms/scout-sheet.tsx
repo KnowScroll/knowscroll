@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import {
   scoutCadenceWords,
   scoutDraftOf,
@@ -10,6 +10,7 @@ import {
 import { ROOM_SCOUT_INTERESTS_MAX, type RoomScout, type RoomScoutCadence } from '@knowscroll/contracts';
 import { borderWidth, content, elevation, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, BottomSheet, Button, Icon, SwitchRow, Text } from '@knowscroll/ui';
+import { ScoutMark } from './scout-mark';
 
 const CADENCES: readonly RoomScoutCadence[] = ['weekly', 'daily'];
 
@@ -74,10 +75,18 @@ export function ScoutSheet({
   const [draft, setDraft] = useState<ScoutDraft>(() => scoutDraftOf(scout));
   const sent = scout.state === 'on';
   const full = draft.interests.length >= ROOM_SCOUT_INTERESTS_MAX;
+  // The sheet does not scroll by itself and this one is long: its body does, so the title and Close stay in reach.
+  const { height } = useWindowDimensions();
   const save = (next: ScoutDraft | null) => void onSave(next).then((done) => done && next === null && onClose());
   return (
     <BottomSheet visible={visible} title="Send your scout" onClose={onClose} testID="scout-sheet">
-      <View style={styles.body}>
+      <ScrollView style={{ maxHeight: Math.max(280, height * 0.66) }} contentContainerStyle={styles.body}>
+        <View style={styles.who}>
+          <ScoutMark size={40} />
+          <Text variant="monoXs" color={content.ink2}>
+            YOUR SCOUT · AN AI AGENT
+          </Text>
+        </View>
         <Text variant="bodyS">
           Your own agent looks in the library for something that fits what you ask for, and posts a find in this room.
           It always signs with your name.
@@ -133,10 +142,15 @@ export function ScoutSheet({
           <Text variant="monoXs" color={content.ink2}>
             WHAT IT CAN READ
           </Text>
-          <Text variant="bodyS">
-            Only the library’s public Reels and Scrolls. Never your messages, your threads, your private rooms, or
-            anything you watched or read. Every find links a real Reel or Scroll.
-          </Text>
+          <View style={styles.readBox}>
+            <Text variant="bodyS">
+              Only the library’s public Reels and Scrolls. Never your messages, your threads, your private rooms, or
+              anything you watched or read.
+            </Text>
+          </View>
+          <View style={styles.readBox}>
+            <Text variant="bodyS">Every find links a real Reel or a Scroll.</Text>
+          </View>
         </View>
         {sent ? (
           <SwitchRow
@@ -155,31 +169,31 @@ export function ScoutSheet({
         {refused ? (
           <Banner kind="error" lead="Couldn’t change it." message="Something changed. Here is how it stands now." />
         ) : null}
-        <View style={styles.actions}>
+      </ScrollView>
+      <View style={styles.actions}>
+        <Button
+          label={sent ? 'Save changes' : 'Send scout'}
+          variant="primary"
+          disabled={draft.interests.length === 0 || working}
+          busy={working}
+          busyLabel="Saving"
+          onPress={() => save(draft)}
+          testID="scout-save"
+        />
+        <Button label="Not now" variant="ghost" onPress={onClose} testID="scout-close" />
+        {sent ? (
           <Button
-            label={sent ? 'Save changes' : 'Send scout'}
-            variant="primary"
-            disabled={draft.interests.length === 0 || working}
-            busy={working}
-            busyLabel="Saving"
-            onPress={() => save(draft)}
-            testID="scout-save"
+            label="Take my scout back"
+            variant="ghost"
+            disabled={working}
+            onPress={() => save(null)}
+            testID="scout-remove"
           />
-          <Button label="Not now" variant="ghost" onPress={onClose} testID="scout-close" />
-          {sent ? (
-            <Button
-              label="Take my scout back"
-              variant="ghost"
-              disabled={working}
-              onPress={() => save(null)}
-              testID="scout-remove"
-            />
-          ) : null}
-        </View>
-        <Text variant="metaS" color={content.ink2}>
-          You’re responsible for what it posts. Anyone can turn AI down in this room, and moderators can stop a scout.
-        </Text>
+        ) : null}
       </View>
+      <Text variant="metaS" color={content.ink2}>
+        You’re responsible for what it posts. Anyone can turn AI down in this room, and moderators can stop a scout.
+      </Text>
     </BottomSheet>
   );
 }
@@ -187,6 +201,14 @@ export function ScoutSheet({
 const styles = StyleSheet.create({
   body: { gap: spacing[4] },
   section: { gap: spacing[2] },
+  who: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
+  readBox: {
+    padding: spacing[3],
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+    borderRadius: radius.card,
+    backgroundColor: content.paper,
+  },
   topic: {
     minHeight: 48,
     flexDirection: 'row',

@@ -2,22 +2,11 @@ import { StyleSheet, View } from 'react-native';
 import { agoWords, feedAuthorName, findKindWord, findTitleWords, scoutSignature } from '@knowscroll/client-core';
 import type { RoomFeedPost, RoomIdentity } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
-import { Button, Icon, Text } from '@knowscroll/ui';
+import { Button, Text } from '@knowscroll/ui';
 import { ContentCard } from '../conversations/message-views';
 import { AiLabel } from './ai-label';
 import { ResidentMark } from './identity/room-emblem';
-
-/**
- * The mark a member's scout wears: a paper plane on a square tile, the shape an AI is drawn in everywhere, in ink so it is never
- * mistaken for a resident's mark or a person's. Drawn for the eye only; the AI label says what it is.
- */
-function ScoutMark() {
-  return (
-    <View aria-hidden accessibilityElementsHidden style={styles.scoutMark} testID="feed-post-mark">
-      <Icon name="send" size={16} color={content.paper} />
-    </View>
-  );
-}
+import { ScoutMark } from './scout-mark';
 
 /**
  * One find in the room's feed (T3 "A resident's post", "A scout's find"): who posted it, labelled AI, its short note, the library
@@ -60,7 +49,7 @@ export function FeedPost({
     >
       <View style={styles.head} testID="feed-post-head">
         {author.kind === 'agent' ? (
-          <ScoutMark />
+          <ScoutMark testID="feed-post-mark" />
         ) : identity === undefined ? null : (
           <ResidentMark kit={identity.kit} resident={author.inhabitant} testID="feed-post-mark" />
         )}
@@ -120,14 +109,6 @@ const styles = StyleSheet.create({
   },
   head: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing[2] },
   age: { marginLeft: 'auto' },
-  scoutMark: {
-    width: 28,
-    height: 28,
-    borderRadius: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: content.ink,
-  },
   signature: {
     alignSelf: 'flex-start',
     paddingHorizontal: spacing[2],

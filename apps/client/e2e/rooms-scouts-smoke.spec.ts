@@ -53,8 +53,8 @@ async function openFeed(page: Page, size: { width: number; height: number }, wor
   });
   const { calls } = await feedRoutes(page, world, scope);
   await page.goto(address);
-  await page.getByTestId('room-menu-open').click();
-  await page.getByTestId('menu-feed').click();
+  // The Now strip's Feed chip is on the phone and on the desktop workspace alike.
+  await page.getByTestId('now-feed').click();
   await expect(page.getByTestId('feed-screen')).toBeVisible();
   return { calls };
 }
