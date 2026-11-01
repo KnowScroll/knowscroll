@@ -320,7 +320,12 @@ export function challengeWorld(options: { readonly recordingPaused?: Record<Who,
 export type ChallengeWorld = ReturnType<typeof challengeWorld>;
 
 /** Signs the page in as Ravi, who only reads his conversation, and answers it from the shared world. */
-export async function openRavi(page: Page, world: ChallengeWorld, viewport: { width: number; height: number }) {
+export async function openRavi(
+  page: Page,
+  world: ChallengeWorld,
+  viewport: { width: number; height: number },
+  options: { recordingOn?: boolean } = {},
+) {
   await page.setViewportSize(viewport);
   await page.route('**/auth/session', (route) =>
     route.fulfill({ json: { account: accounts.ravi, client: 'web', expiresAt: '2099-10-24T00:00:00.000Z' } }),
@@ -337,7 +342,7 @@ export async function openRavi(page: Page, world: ChallengeWorld, viewport: { wi
           ...body,
           scope: { accountId: accounts.ravi.accountId, privacyEpoch: 1 },
           revision: 0,
-          policy: { on: true, generation: 1 },
+          policy: options.recordingOn === false ? { on: false, generation: 2 } : { on: true, generation: 1 },
         },
       });
     return route.fulfill(answer(path, body) ?? { status: 404, json: {} });

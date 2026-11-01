@@ -4,12 +4,12 @@ import { callsOf, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import type { StagePlay } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useAccountScopeIfPresent } from '../../providers/account-scope';
+import { useRecordingPausedIn } from '../../providers/use-recording-paused';
 import type { OpenedStageScroll } from './scroll-session';
 
 const NO_PLAY: PlaySnapshot = { locks: [], sparks: 0, combo: 0, landmark: undefined };
 const noSubscription = () => () => undefined;
 const noSnapshot = () => NO_PLAY;
-const noPolicy = () => undefined;
 
 /** The calls of a document, the Final call included, as the play session judges them on the device. */
 function playCallsOf(document: ScrollDocumentV2): readonly PlayCall[] {
@@ -50,12 +50,7 @@ export function useStagePlay(scroll: OpenedStageScroll): StagePlay | undefined {
     session?.getSnapshot ?? noSnapshot,
     session?.getSnapshot ?? noSnapshot,
   );
-  const policy = useSyncExternalStore(
-    scope?.recording?.subscribe ?? noSubscription,
-    scope?.recording?.getState ?? noPolicy,
-    scope?.recording?.getState ?? noPolicy,
-  );
-  const paused = policy?.policy !== undefined && !policy.policy.on;
+  const paused = useRecordingPausedIn(scope);
   useEffect(() => {
     void session?.load();
   }, [session]);

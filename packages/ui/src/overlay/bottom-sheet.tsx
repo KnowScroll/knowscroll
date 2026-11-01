@@ -47,6 +47,12 @@ export interface BottomSheetProps {
   readonly closeLabel?: string;
   readonly children?: ReactNode;
   readonly testID?: string;
+  /**
+   * Keep the sheet inside the window: it takes at most 94% of the height and a child that can shrink (a scrolling region
+   * with `flexShrink`) gives way, so the title and the children's fixed parts stay in view whatever the text size. Off by
+   * default: a sheet without a shrinking child would only be clipped.
+   */
+  readonly fit?: boolean;
 }
 
 /**
@@ -56,7 +62,15 @@ export interface BottomSheetProps {
  * transient history entry, `overlay-history.web.ts`). It rises 24 px over 240 ms (ease-out);
  * under reduced motion it fades in over 140 ms.
  */
-export function BottomSheet({ visible, title, onClose, closeLabel = 'Close', children, testID }: BottomSheetProps) {
+export function BottomSheet({
+  visible,
+  title,
+  onClose,
+  closeLabel = 'Close',
+  children,
+  testID,
+  fit = false,
+}: BottomSheetProps) {
   const { reducedMotion, breakpoint } = useDisplay();
   const insets = useSafeAreaInsets();
   const [progress] = useState(() => new Animated.Value(0));
@@ -102,6 +116,7 @@ export function BottomSheet({ visible, title, onClose, closeLabel = 'Close', chi
           style={[
             styles.sheet,
             wide ? styles.sheetWide : null,
+            fit ? styles.sheetFit : null,
             { paddingBottom: spacing[7] + insets.bottom, opacity: progress, transform: [{ translateY }] },
           ]}
         >
@@ -148,6 +163,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,
   },
+  sheetFit: { maxHeight: '94%' },
   sheetWide: {
     alignSelf: 'center',
     width: '100%',
