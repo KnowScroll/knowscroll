@@ -92,13 +92,13 @@ describe('the words of the sky', () => {
 });
 
 describe('a station caption on the map', () => {
-  it('adds Launch live while the room is playing one, keeping the sky line and the name', () => {
-    expect(stationCaption(sky(), true)).toBe('3 of 7 · Launch live');
-    expect(stationCaption(sky(), false)).toBe('3 of 7');
+  it('says what is live, a Launch or a Reel, keeping the sky line and the name', () => {
+    expect(stationCaption(sky(), 'launch')).toBe('3 of 7 · Launch live');
+    expect(stationCaption(sky(), 'reel')).toBe('3 of 7 · Reel live');
     expect(stationCaption(sky(), undefined)).toBe('3 of 7');
-    expect(stationCaption(sky({ lit: 7, state: 'named', finished: 1, constellationName: 'The Lantern' }), true)).toBe(
-      '7 of 7 · The Lantern · Launch live',
-    );
+    expect(
+      stationCaption(sky({ lit: 7, state: 'named', finished: 1, constellationName: 'The Lantern' }), 'reel'),
+    ).toBe('7 of 7 · The Lantern · Reel live');
   });
 });
 

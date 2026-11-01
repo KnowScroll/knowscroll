@@ -14,11 +14,11 @@ jest.mock('@knowscroll/client-core', () => ({ readRoomStations: (...args: unknow
 jest.mock('../../platform/command-id', () => ({ newCommandId: () => 'read-id' }));
 
 /** A labelled fixture station: only the fields the hook passes through. */
-const station = (live: boolean) => ({ room: { roomId: 'room-1' }, ...(live ? { live: true } : {}) }) as RoomStation;
+const station = (live: boolean) => ({ room: { roomId: 'room-1' }, ...(live ? { live: 'launch' } : {}) }) as RoomStation;
 
 function Probe({ scope }: { readonly scope: AccountScope }) {
   const stations = useRoomStationsOnMap(scope);
-  return <Text testID="live">{stations.map((entry) => (entry.live === true ? 'live' : 'quiet')).join(',')}</Text>;
+  return <Text testID="live">{stations.map((entry) => (entry.live !== undefined ? 'live' : 'quiet')).join(',')}</Text>;
 }
 
 describe('the room stations on the Universe map', () => {

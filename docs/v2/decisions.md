@@ -3129,3 +3129,13 @@ Confirmed by: `rooms-watch.test.ts` ("recording paused", "what a person can take
 - **Not changed.** Reels, threads' Scroll view and Talk have no Ask here; the server's caps and the sheet's words are not touched.
 
 Confirmed by: `ask-smoke.spec.ts` (the dock on `/scroll/<id>` opens the sheet at 390 and 1440; the request names the Scroll's exposure and no session; the quiet note after closing). Shown failing before the change: there was no Ask button on the address.
+
+## D-268 · 2026-11-01 · A member's station says whether a Launch or a Reel is on (v3 dev check fixes, #596)
+
+**Amends** D-257, "A member's or moderator's station says `live` while one is on, as for a Launch (D-222), and never which of the two, who or how many."
+
+- **The defect.** While a Reel was watched together, the Universe list read "Launch live", because one flag could not say which. Saying "Launch" for a Reel is wrong, and saying only "live" hides a fact the member already sees in the room's band.
+- **The rule.** `live` on a station is now `launch` or `reel`, for a member or moderator only, and absent for anyone else, as before. The caption reads "Launch live" or "Reel live". It still names no person and no number. A room holds one thing at a time (D-257), so there is one value.
+- **Not changed.** An outsider's or invitee's station says nothing of the room's activity (D-174). The pulse on the 3D station is the same for both.
+
+Confirmed by: `room-sky.test.ts` ("says what is live"), `universe-lists.test.ts`, `room-launch.test.ts` in contracts (a boolean is refused), `rooms-launch.test.ts` and `rooms-watch.test.ts` (the station's kind).

@@ -5,7 +5,7 @@ import { readRoomStations, type AccountScope } from '@knowscroll/client-core';
 import type { RoomStation } from '@knowscroll/contracts';
 import { newCommandId } from '../../platform/command-id';
 
-/** How often the map asks again while it is on screen: a Launch lasts about two minutes and its station says "Launch live" meanwhile. */
+/** How often the map asks again while it is on screen: a Launch lasts about two minutes and its station says "Launch live" (or "Reel live") meanwhile. */
 export const STATION_REFRESH_MS = 20_000;
 
 /**

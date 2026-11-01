@@ -4,6 +4,7 @@ import {
   type RoomSkyView,
   type RoomStar,
   type RoomStarAct,
+  type RoomStation,
   type RoomToday,
 } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
@@ -45,14 +46,21 @@ export function stationSkyLine(sky: Pick<RoomSky, 'lit' | 'state' | 'constellati
   return sky.constellationName === undefined ? base : `${base} · ${sky.constellationName}`;
 }
 
+/** What is on in a room, in the words a station uses: "Launch live" or "Reel live" (D-268). */
+export const liveWords = (live: RoomStation['live']): string | undefined =>
+  live === undefined ? undefined : live === 'launch' ? 'Launch live' : 'Reel live';
+
 /**
- * A station's caption on the map: its sky line, and "Launch live" while the room is playing one (R3 E, D-178). The room's activity is
- * shown to its members only, on their own map; a station that carries no `live` says nothing of it.
+ * A station's caption on the map: its sky line, and what is live while the room is playing a Launch or watching a Reel (R3 E, D-178,
+ * D-268). The room's activity is shown to its members only, on their own map; a station that carries no `live` says nothing of it.
  */
-export const stationCaption = (
+export function stationCaption(
   sky: Pick<RoomSky, 'lit' | 'state' | 'constellationName'>,
-  live: boolean | undefined,
-): string => (live === true ? `${stationSkyLine(sky)} · Launch live` : stationSkyLine(sky));
+  live: RoomStation['live'],
+): string {
+  const words = liveWords(live);
+  return words === undefined ? stationSkyLine(sky) : `${stationSkyLine(sky)} · ${words}`;
+}
 
 /** What a star is, in the act's own words: fixed text, never a message, a title or a person. */
 export const STAR_ACT_WORDS: Record<RoomStarAct, string> = {

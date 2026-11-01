@@ -217,7 +217,7 @@ function buildStation(
     sun,
     station.emblem,
     station.sky,
-    station.live === true,
+    station.live !== undefined,
   );
   built.object.position.set(station.position.x, station.position.y, station.position.z);
   // Stations are small beside a sun: they are a doorway, not a place.

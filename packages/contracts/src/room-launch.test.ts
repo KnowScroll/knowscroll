@@ -177,9 +177,11 @@ describe('where a Launch shows (D-176, D-178)', () => {
     expect(RoomLaunchStripSchema.safeParse({ state: 'paused' }).success).toBe(false);
   });
 
-  it('is on a station and on a member room view only as a flag and a strip', () => {
-    expect(RoomStationSchema.shape.live.safeParse(true).success).toBe(true);
-    expect(RoomStationSchema.shape.live.safeParse(3).success).toBe(false);
+  it('is on a station and on a member room view only as a kind and a strip', () => {
+    expect(RoomStationSchema.shape.live.safeParse('launch').success).toBe(true);
+    expect(RoomStationSchema.shape.live.safeParse('reel').success).toBe(true);
+    expect(RoomStationSchema.shape.live.safeParse(true).success).toBe(false);
+    expect(RoomStationSchema.shape.live.safeParse('a title').success).toBe(false);
   });
 
   it('adds a finished Launch to the acts that earn a star', () => {

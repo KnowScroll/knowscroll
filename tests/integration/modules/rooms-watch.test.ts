@@ -877,7 +877,7 @@ describe('Watch together (real PostgreSQL, labelled CI fixtures)', () => {
         );
       expect(await stationOf(asha)).not.toHaveProperty('live');
       sessionIdOf(await start(asha, earth, reel.assetId));
-      expect((await stationOf(asha))?.live).toBe(true);
+      expect((await stationOf(asha))?.live).toBe('reel');
       expect(await stationOf(outsider)).not.toHaveProperty('live');
       expect((await stationOf(outsider))?.standing).toBe('none');
       at(LEAD_IN_MS + LENGTH, t0);
