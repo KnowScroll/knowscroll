@@ -40,7 +40,6 @@ export const deviPostId = id(550);
 export const sourcePostId = id(551);
 export const introId = id(553);
 const secondIntroId = id(554);
-export const ownPostId = id(552);
 export const devi = { kind: 'person' as const, personId: id(560), handle: 'devi', displayName: 'Devi' };
 export const omar = { kind: 'person' as const, personId: id(561), handle: 'omar', displayName: 'Omar' };
 export const you = { kind: 'person' as const, personId: id(562), handle: 'you', displayName: 'You' };
