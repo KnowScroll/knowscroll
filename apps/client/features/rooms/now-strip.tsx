@@ -2,9 +2,9 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
-import { feedChip, launchChip, questionsChip, replayChip, skyLine, watchChip } from '@knowscroll/client-core';
+import { launchChip, liveChips, questionsChip, replayChip, skyLine, watchChip } from '@knowscroll/client-core';
 import type {
-  RoomFeedStrip,
+  RoomLiveEvent,
   RoomLaunchStrip,
   RoomQuestions,
   RoomReplayStrip,
@@ -14,7 +14,7 @@ import type {
 } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Icon, Text } from '@knowscroll/ui';
-import { feedHref, todayHref } from './room-links';
+import { discussionHref, feedHref, todayHref } from './room-links';
 import { SkySheet } from './sky-sheet';
 
 /** One pill of the strip: at least 44 px tall, with words, never colour alone. */
@@ -69,7 +69,7 @@ export function NowStrip({
   today,
   sky,
   launch,
-  feed,
+  live,
   onLaunch,
   watch,
   onWatch,
@@ -84,8 +84,8 @@ export function NowStrip({
   readonly today: RoomTodayStrip | undefined;
   readonly sky: RoomSky;
   readonly launch?: RoomLaunchStrip | undefined;
-  /** The newest find a resident posted that this reader may see; absent when there is none or the reader's AI is Off. */
-  readonly feed?: RoomFeedStrip | undefined;
+  /** What happened in the Feed lately, newest first, at most three: who posted and who replied (D-276). Absent when nothing did. */
+  readonly live?: readonly RoomLiveEvent[] | undefined;
   readonly onLaunch?: () => void;
   /** A Reel can be watched together (v3 R-10). The chip is not drawn while one is on: the stage above says so. */
   readonly watch?: RoomWatchStrip | undefined;
@@ -100,7 +100,7 @@ export function NowStrip({
 }) {
   const chip = launchChip(launch);
   const watchOf = watchChip(watch);
-  const feedPill = feedChip(feed, new Date());
+  const liveOf = liveChips(live, new Date());
   const replayOf = replayChip(replay);
   const waiting = questionsChip(questions);
   const askChip = waiting ?? (canAsk === true ? { label: 'Ask', detail: 'Leave a question' } : undefined);
@@ -155,15 +155,22 @@ export function NowStrip({
             testID="now-today"
           />
         )}
-        {feedPill === undefined ? null : (
+        {liveOf.map((chip, index) => (
           <Chip
-            label={feedPill.label}
-            detail={feedPill.detail}
-            accessibilityLabel={`Feed, ${feedPill.detail}`}
-            onPress={() => router.push(feedHref(roomId))}
-            testID="now-feed"
+            key={chip.key}
+            label={chip.label}
+            detail={chip.detail}
+            accessibilityLabel={`Feed, ${chip.label} ${chip.detail}`}
+            onPress={() => router.push(discussionHref(roomId, chip.discussionId))}
+            testID={index === 0 ? 'now-feed' : `now-feed-${String(index)}`}
           />
-        )}
+        ))}
+        <Chip
+          label="Feed"
+          accessibilityLabel="Open the Feed"
+          onPress={() => router.push(feedHref(roomId))}
+          testID="now-feed-open"
+        />
         <Chip
           star
           label={skyLine(sky)}

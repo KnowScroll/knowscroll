@@ -11,11 +11,13 @@ import {
   type RoomFeedController,
   type RoomFeedState,
 } from '@knowscroll/client-core';
+import type { FeedbackTarget } from '@knowscroll/client-core';
 import type { RoomIdentity, RoomInhabitant } from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Skeleton, StateBlock, Text } from '@knowscroll/ui';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
+import { FeedbackSheet } from '../feedback/feedback-sheet';
 import { ThreadHeader } from '../threads/thread-chrome';
 import { AiLabel } from './ai-label';
 import { FeedPost } from './feed-post';
@@ -131,6 +133,7 @@ function Body({
   const [open, setOpen] = useState<RoomInhabitant>();
   const [scoutOpen, setScoutOpen] = useState(false);
   const [postOpen, setPostOpen] = useState(false);
+  const [reporting, setReporting] = useState<FeedbackTarget>();
   const view = state.view;
   if (view === undefined) return null;
   const { identity } = view;
@@ -206,7 +209,18 @@ function Body({
         visible={open !== undefined}
         onClose={() => setOpen(undefined)}
         onReplace={(text) => controller.replaceMemory(text)}
+        onMute={(muted) => void controller.setMuted(muted)}
+        onReport={(messageId) => {
+          setOpen(undefined);
+          setReporting({ kind: 'room_message', messageId });
+        }}
+        onIntroduce={(inhabitant) => void controller.introduce(inhabitant)}
+        onOpenPost={(discussionId) => {
+          setOpen(undefined);
+          router.push(discussionHref(roomId, discussionId));
+        }}
       />
+      <FeedbackSheet target={reporting} onClose={() => setReporting(undefined)} />
     </>
   );
 }

@@ -6,7 +6,7 @@ import {
   ReplaceRoomMemorySchema,
   RoomFeedPostSchema,
   RoomFeedSchema,
-  RoomFeedStripSchema,
+  RoomLiveEventSchema,
   RoomMemoryReplacementSchema,
   RoomMemorySchema,
   RoomMessageSchema,
@@ -136,6 +136,8 @@ describe('the feed a member reads', () => {
     memory: { state: 'none' },
     canEditMemory: false,
     aiLevel: 'lively',
+    roomName: 'Space room',
+    profiles: [],
     sort: 'hot',
     window: 'week',
     canPost: true,
@@ -161,11 +163,19 @@ describe('the feed a member reads', () => {
     ).toBe(false);
   });
 
-  it('has a strip that names a resident and a time and nothing about a person', () => {
-    expect(RoomFeedStripSchema.safeParse({ by: NOVA, postedAt: '2026-11-01T09:07:00.000Z' }).success).toBe(true);
-    expect(RoomFeedStripSchema.safeParse({ by: NOVA, postedAt: '2026-11-01T09:07:00.000Z', count: 3 }).success).toBe(
-      false,
-    );
+  it('has live events that say who posted or replied and when, and no count and no presence', () => {
+    const event = { kind: 'posted', by: NOVA, at: '2026-11-01T09:07:00.000Z', discussionId: ID(3) };
+    expect(RoomLiveEventSchema.safeParse(event).success).toBe(true);
+    expect(
+      RoomLiveEventSchema.safeParse({
+        kind: 'replied',
+        by: { kind: 'person', person: PERSON, you: false },
+        at: '2026-11-01T09:07:00.000Z',
+        discussionId: ID(3),
+      }).success,
+    ).toBe(true);
+    for (const extra of [{ count: 3 }, { online: true }, { read: true }, { kind: 'watched' }])
+      expect(RoomLiveEventSchema.safeParse({ ...event, ...extra }).success).toBe(false);
   });
 
   it('is served by the routes of the rooms contract, with a post and a vote of their own', () => {

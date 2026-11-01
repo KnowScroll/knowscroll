@@ -761,6 +761,8 @@ export const RoomFeedSchema = z.discriminatedUnion('status', [
     ...ScopedRead,
     status: z.literal('ready'),
     roomId: UuidSchema,
+    /** The room's name, for a resident's profile ("Lives in Space room since 2 Oct"). */
+    roomName: RoomName,
     /** The room's face, so a post and a profile wear the marks of this room's residents (D-170). */
     identity: RoomIdentitySchema,
     /** How the posts are ordered, as the server applied it: Hot by default, and for Top the window it counted. */

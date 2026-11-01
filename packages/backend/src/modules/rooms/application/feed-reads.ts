@@ -137,6 +137,7 @@ export function makeFeed(p: RoomPorts) {
             readId: parsed.data.readId,
             status: 'ready',
             roomId: parsed.data.roomId,
+            roomName: entered.standing.room.name,
             identity: identityOf(entered.standing.room),
             sort: order.sort,
             window: order.window,

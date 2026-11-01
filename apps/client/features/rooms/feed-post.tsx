@@ -21,13 +21,14 @@ import { ScoutMark } from './scout-mark';
 
 type Find = Extract<RoomFeedPost, { kind: 'find' }>;
 type MemberPost = Extract<RoomFeedPost, { kind: 'post' }>;
+type Introduction = Extract<RoomFeedPost, { kind: 'intro' }>;
 
 /**
  * A source as a plain link (D-272): the site's name and the address, as text. It is never previewed, fetched or opened inside the
  * app: on the web it is a real link that opens in a new tab with no opener and no referrer, so the address is what a member sees
  * before they go, and anyone can copy it.
  */
-function SourceLink({ source }: { readonly source: RoomSource }) {
+export function SourceLink({ source }: { readonly source: RoomSource }) {
   const web =
     Platform.OS === 'web'
       ? ({
@@ -208,6 +209,59 @@ function PersonPost({
 }
 
 /**
+ * A resident's introduction (T3 "A new resident", v3 R-8b, D-275): who it is and when it speaks, in the product's own words, said once
+ * because the room's moderators asked. It is labelled AI like any resident's post, and says it was introduced by the room's mods and
+ * that there is only the one, so nobody expects a welcome from it later.
+ */
+function IntroPost({
+  post,
+  identity,
+  now,
+  href,
+  onOpen,
+  onVote,
+}: {
+  readonly post: Introduction;
+  readonly identity: RoomIdentity | undefined;
+  readonly now: Date;
+  readonly href: string;
+  readonly onOpen: () => void;
+  readonly onVote: (voted: boolean) => void;
+}) {
+  const { author } = post;
+  const age = agoWords(now.getTime() - new Date(post.postedAt).getTime());
+  return (
+    <View
+      style={styles.post}
+      role="article"
+      accessibilityLabel={`${author.name}, ${author.label.replace(/\s·\s/g, ', ')}, introduction`}
+      testID={`feed-post-${post.discussionId}`}
+    >
+      <View style={styles.head} testID="feed-post-head">
+        {identity === undefined ? null : (
+          <ResidentMark kit={identity.kit} resident={author.inhabitant} testID="feed-post-mark" />
+        )}
+        <Text variant="ui">{author.name}</Text>
+        <AiLabel label={author.label} />
+        <Text variant="metaS" color={content.ink2} style={styles.age}>
+          {age}
+        </Text>
+      </View>
+      <Text variant="monoXs" color={content.ink2}>
+        A NEW RESIDENT
+      </Text>
+      <Text variant="body" testID="feed-post-note">
+        {post.text}
+      </Text>
+      <Text variant="metaS" color={content.ink2} testID="feed-post-introduced">
+        Introduced by the room’s mods · one introduction, no follow-up hellos
+      </Text>
+      <PostFoot post={post} href={href} onOpen={onOpen} onVote={onVote} title={`Meet ${author.name}`} />
+    </View>
+  );
+}
+
+/**
  * One post in the room's Feed (T3 "A resident's post", "A scout's find", "People and residents mixed"): a resident's or scout's find, or
  * a member's own post. A find shows who posted it, labelled AI, its short note, the library asset it is about and the way into the
  * discussion; a scout's find is signed "Sent by <owner>" so it is never read as the owner's own words. A member's post shows their
@@ -234,6 +288,8 @@ export function FeedPost({
   /** A moderator's way to stop the scout that sent a find; absent for everyone else (D-261). */
   readonly onStopScout?: ((personId: string) => void) | undefined;
 }) {
+  if (post.kind === 'intro')
+    return <IntroPost post={post} identity={identity} now={now} href={href} onOpen={onOpen} onVote={onVote} />;
   return post.kind === 'find' ? (
     <FindPost
       post={post}
