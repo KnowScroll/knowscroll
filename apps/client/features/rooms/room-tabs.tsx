@@ -201,7 +201,7 @@ export function RoomPanels({
 
 const styles = StyleSheet.create({
   // The bar costs a phone as little height as a 44 px target allows: the room's messages keep their share of the screen (D-140).
-  barFrame: { paddingHorizontal: layout.gutter, paddingTop: spacing['1.5'], paddingBottom: spacing['0.5'] },
+  barFrame: { paddingHorizontal: layout.gutter, paddingTop: spacing[1], paddingBottom: spacing['0.5'] },
   bar: {
     flexDirection: 'row',
     width: '100%',
