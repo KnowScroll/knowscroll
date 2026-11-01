@@ -163,7 +163,7 @@ export function makeWatch(p: RoomPorts) {
               startedBy: owner.accountId,
               startsAt,
             });
-            await p.watches.addViewer(lock, sessionId, owner.accountId, now);
+            await p.watches.addViewer(lock, sessionId, owner.accountId);
             await p.rooms.announce(lock, now);
             return WatchStartedAcceptanceSchema.parse({
               ...receiptBase(scope, now, command.commandId),
@@ -206,7 +206,7 @@ export function makeWatch(p: RoomPorts) {
           const [card] = await p.readContent(scope, [{ assetId: row.assetId, assetRevision: row.assetRevision }]);
           if (card?.status !== 'available') return refuse('unavailable');
           return ok(async () => {
-            if (await p.watches.addViewer(lock, row.sessionId, owner.accountId, now)) await p.rooms.announce(lock, now);
+            if (await p.watches.addViewer(lock, row.sessionId, owner.accountId)) await p.rooms.announce(lock, now);
             return WatchJoinedAcceptanceSchema.parse({
               ...receiptBase(scope, now, command.commandId),
               operation: 'watch.join',

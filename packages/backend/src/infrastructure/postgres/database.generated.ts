@@ -1856,7 +1856,6 @@ export interface RoomsWatchSessions {
 
 export interface RoomsWatchViewers {
   account_id: string;
-  joined_at: Timestamp;
   session_id: string;
 }
 

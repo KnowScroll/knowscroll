@@ -604,7 +604,6 @@ describe('account deletion (real database)', () => {
           .values({
             session_id: watched,
             account_id: erasedAsFriend.accountId,
-            joined_at: new Date('2026-10-24T09:00:01Z'),
           })
           .execute();
       } finally {

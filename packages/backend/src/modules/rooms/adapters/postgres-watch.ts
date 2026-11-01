@@ -83,10 +83,10 @@ export const watchStore: WatchStore = {
       .execute();
   },
 
-  async addViewer(lock, sessionId, accountId, now) {
+  async addViewer(lock, sessionId, accountId) {
     const inserted = await trxOf(lock)
       .insertInto('rooms.watch_viewers')
-      .values({ session_id: sessionId, account_id: accountId, joined_at: now })
+      .values({ session_id: sessionId, account_id: accountId })
       .onConflict((conflict) => conflict.columns(['session_id', 'account_id']).doNothing())
       .executeTakeFirst();
     return (inserted.numInsertedOrUpdatedRows ?? 0n) > 0n;

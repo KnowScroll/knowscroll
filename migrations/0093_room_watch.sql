@@ -44,11 +44,11 @@ create index watch_sessions_room_latest on rooms.watch_sessions(room_id, starts_
 -- squawk-ignore require-concurrent-index-creation
 create index watch_sessions_starter on rooms.watch_sessions(started_by) where started_by is not null;
 
--- A person who joined a session. Joining is explicit and is the only way to be counted; having the room open is not.
+-- A person who joined a session. Joining is explicit and is the only way to be counted; having the room open is not. The row says
+-- that they joined and nothing more: no time of their own, no position.
 create table rooms.watch_viewers (
   session_id uuid not null references rooms.watch_sessions(session_id) on delete restrict,
   account_id uuid not null references identity.accounts(id) on delete restrict,
-  joined_at timestamptz not null,
   primary key (session_id, account_id)
 );
 -- squawk-ignore require-concurrent-index-creation

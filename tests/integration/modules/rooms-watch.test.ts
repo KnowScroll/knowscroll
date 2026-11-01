@@ -487,7 +487,7 @@ describe('Watch together (real PostgreSQL, labelled CI fixtures)', () => {
         'starts_at',
         'stopped_at',
       ]);
-      expect(byTable('watch_viewers')).toEqual(['session_id', 'account_id', 'joined_at']);
+      expect(byTable('watch_viewers')).toEqual(['session_id', 'account_id']);
       expect(columns.rows.map((row) => row.column_name).join(' ')).not.toMatch(
         /position|pause|offset|elapsed|seek|playhead|cursor|progress/i,
       );

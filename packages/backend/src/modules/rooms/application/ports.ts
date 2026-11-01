@@ -868,7 +868,7 @@ export interface WatchStore {
     },
   ): Promise<void>;
   /** Puts a person among the session's viewers; false when they already were. */
-  addViewer(lock: RoomLock, sessionId: string, accountId: string, now: Date): Promise<boolean>;
+  addViewer(lock: RoomLock, sessionId: string, accountId: string): Promise<boolean>;
   /** Takes a person out; false when they were not in. */
   removeViewer(lock: RoomLock, sessionId: string, accountId: string): Promise<boolean>;
   /** Everyone who joined the session, as accounts, in no order a reader could use. */
