@@ -176,6 +176,39 @@ for (const viewport of [phone, desktop]) {
     await ashaContext.close();
     await raviContext.close();
   });
+
+  test(`two people who call the same option: the revealed card keeps that option's words in a readable line, at ${size}`, async ({
+    browser,
+  }) => {
+    const world = challengeWorld();
+    const ashaContext = await browser.newContext({ viewport });
+    const asha = await ashaContext.newPage();
+    await openAsha(asha, world, viewport);
+    const sheet = await openSheet(asha);
+    await sheet.getByRole('radio', { name: 'Ravi fixture' }).click();
+    await sheet.getByTestId(`challenge-pick-${String(FINAL_CALL.answer)}`).click();
+    await sheet.getByRole('button', { name: 'Challenge Ravi fixture' }).click();
+    await expect(sheet.getByText('Challenge sent to Ravi fixture')).toBeVisible();
+
+    const raviContext = await browser.newContext({ viewport });
+    const ravi = await raviContext.newPage();
+    await openRavi(ravi, world, viewport);
+    await ravi.getByTestId(`challenge-option-${String(FINAL_CALL.answer)}`).click();
+    await ravi.getByTestId('challenge-lock').click();
+    await expect(ravi.getByText('CALLED IT! · REVEALED')).toBeVisible();
+
+    // Both tags (YOU and the friend) and the tick sit on the one option; its words must still have most of the row.
+    const row = ravi.getByTestId(`challenge-seen-${String(FINAL_CALL.answer)}`);
+    await expect(row.getByText('YOU')).toBeVisible();
+    const rowBox = (await row.boundingBox())!;
+    const wordsBox = (await row.getByText(FINAL_CALL.options[FINAL_CALL.answer]!, { exact: true }).boundingBox())!;
+    expect(wordsBox.width).toBeGreaterThan(rowBox.width * 0.5);
+    expect(rowBox.height).toBeLessThan(160);
+    await shot(ravi, `challenge-card-same-pick-${name}`);
+    expect(await audit(ravi)).toEqual([]);
+    await ashaContext.close();
+    await raviContext.close();
+  });
 }
 
 test('recording paused: the challenge still goes, the sender’s own call is not saved, and the sheet says so', async ({

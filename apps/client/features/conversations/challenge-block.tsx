@@ -184,19 +184,24 @@ function SeenOption({
           {optionLetter(option)}
         </Text>
       </View>
-      <Text variant="uiS" style={styles.optionText} aria-hidden>
-        {text}
-      </Text>
-      {mine ? (
-        <Text variant="monoXs" color={content.ink2} aria-hidden>
-          YOU
-        </Text>
-      ) : null}
-      {theirs ? (
-        <Text variant="monoXs" color={content.ink2} aria-hidden>
-          {friend.toUpperCase()}
-        </Text>
-      ) : null}
+      <View style={styles.optionBody} aria-hidden>
+        <Text variant="uiS">{text}</Text>
+        {mine || theirs ? (
+          // Under the words, so that two names and a tick cannot squeeze the option into a column one word wide.
+          <View style={styles.calls}>
+            {mine ? (
+              <Text variant="monoXs" color={content.ink2}>
+                YOU
+              </Text>
+            ) : null}
+            {theirs ? (
+              <Text variant="monoXs" color={content.ink2}>
+                {friend.toUpperCase()}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
       {isAnswer ? <Icon name="check" size={18} color={content.ink} /> : null}
     </View>
   );
@@ -248,6 +253,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(20,199,155,0.14)',
   },
   optionText: { flex: 1 },
+  optionBody: { flex: 1, gap: spacing[1] },
+  calls: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing[3] },
   letter: {
     width: 24,
     height: 24,
