@@ -4,7 +4,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react-native
 import { ROOM_SWATCHES, type RoomIdentity, type RoomKit } from '@knowscroll/contracts';
 import { focusHalo, focusRing } from '@knowscroll/design-tokens';
 import { Button, DisplayProvider } from '@knowscroll/ui';
-import { SPACE_TONE, toneOf } from './identity/band-tone';
+import { SPACE_TONE } from './identity/band-tone';
 import { RoomGround, contrastOf, focusHaloFor, useGroundColour, useGroundInk } from './identity/room-ground';
 import { RoomPanels, RoomTabBar, type RoomTab } from './room-tabs';
 
@@ -21,18 +21,6 @@ const dark: RoomIdentity = { kit: kitOf('midnight', 'cream') };
 const pale: RoomIdentity = { kit: kitOf('paper', 'soot') };
 
 jest.mock('expo-router', () => ({ useIsFocused: () => true }));
-
-const luminance = (hex: string) => {
-  const channel = (offset: number) => {
-    const value = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
-    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-  };
-  return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
-};
-const contrast = (first: string, second: string) => {
-  const [light, darker] = [luminance(first), luminance(second)].sort((a, b) => b - a);
-  return (light! + 0.05) / (darker! + 0.05);
-};
 
 /** Stands for what General holds on to: a typed draft, a scroll place. */
 function Held() {
@@ -156,7 +144,7 @@ describe('the room’s ground', () => {
       };
       const colourOf = (testID: string) => {
         const tab = screen.getByTestId(testID);
-        const label = within(tab).getByText(tab.props['aria-label'] ?? tab.props.accessibilityLabel);
+        const label = within(tab).getByText(String(tab.props.accessibilityLabel));
         return (StyleSheet.flatten(label.props.style as object) as { color: string }).color;
       };
       const fillOf = (testID: string) =>
