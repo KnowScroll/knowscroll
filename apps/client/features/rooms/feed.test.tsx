@@ -1,7 +1,13 @@
 import type * as React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { RoomFeedController, RoomFeedState } from '@knowscroll/client-core';
-import type { RoomFeed, RoomFeedPost, RoomFeedStrip, RoomLaunchStrip } from '@knowscroll/contracts';
+import type {
+  ConversationContentProjection,
+  RoomFeed,
+  RoomFeedPost,
+  RoomFeedStrip,
+  RoomLaunchStrip,
+} from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
 import { RoomFeedScreen } from './feed-screen';
 import { FeedPost } from './feed-post';
@@ -15,7 +21,15 @@ jest.mock('expo-router', () => ({
 const mockFeed: { current: { controller: Partial<RoomFeedController>; state: RoomFeedState } } = {
   current: {
     controller: {},
-    state: { phase: 'loading', view: undefined, offline: false, working: false, refused: false },
+    state: {
+      phase: 'loading',
+      view: undefined,
+      sort: 'hot',
+      window: 'week',
+      offline: false,
+      working: false,
+      refused: false,
+    },
   },
 };
 jest.mock('./use-room', () => ({
@@ -41,7 +55,7 @@ const identity = { kit };
 
 const nova = { kind: 'ai' as const, inhabitant: 'explainer' as const, name: 'Nova', label: 'AI · Explainer' };
 const halley = { kind: 'ai' as const, inhabitant: 'skeptic' as const, name: 'Halley', label: 'AI · Skeptic' };
-const card = (kind: 'reel' | 'scroll' = 'reel'): RoomFeedPost['content'] => ({
+const card = (kind: 'reel' | 'scroll' = 'reel'): ConversationContentProjection => ({
   status: 'available',
   target: { assetId: id(40), assetRevision: 1 },
   metadata: {
@@ -51,15 +65,43 @@ const card = (kind: 'reel' | 'scroll' = 'reel'): RoomFeedPost['content'] => ({
     language: 'en',
   },
 });
-const post = (patch: Partial<RoomFeedPost> = {}): RoomFeedPost => ({
+type Find = Extract<RoomFeedPost, { kind: 'find' }>;
+type MemberPost = Extract<RoomFeedPost, { kind: 'post' }>;
+const post = (patch: Partial<Find> = {}): Find => ({
+  kind: 'find',
   discussionId: id(3),
   author: nova,
   postedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
   content: card(),
   note: 'Worth a look: at 0:40 the arc is the far galaxy, stretched by the cluster in front of it.',
   replies: 0,
+  votes: 0,
+  youVoted: false,
+  canVote: true,
   ...patch,
 });
+const asha = { kind: 'person' as const, personId: id(7), handle: 'asha', displayName: 'Asha' };
+const memberPost = (patch: Partial<MemberPost> = {}): MemberPost => ({
+  kind: 'post',
+  discussionId: id(5),
+  author: { kind: 'person', person: asha, you: false },
+  postedAt: new Date(Date.now() - 12 * 60_000).toISOString(),
+  title: 'Found a Reel on gravitational lensing',
+  words: 'At 0:40 the arc isn’t a weird galaxy. It’s a normal one far behind, stretched by mass we mostly can’t see.',
+  link: { kind: 'content', content: card() },
+  replies: 0,
+  votes: 14,
+  youVoted: false,
+  canVote: true,
+  ...patch,
+});
+const sourcePost = (patch: Partial<MemberPost> = {}): MemberPost =>
+  memberPost({
+    discussionId: id(6),
+    title: 'A paper on lensing',
+    link: { kind: 'source', source: { url: 'https://www.nature.com/articles/s41586', host: 'nature.com' } },
+    ...patch,
+  });
 const feed = (patch: Partial<Extract<RoomFeed, { status: 'ready' }>> = {}): Extract<RoomFeed, { status: 'ready' }> => ({
   version: 'rooms.v1',
   readId: id(2),
@@ -75,12 +117,17 @@ const feed = (patch: Partial<Extract<RoomFeed, { status: 'ready' }>> = {}): Extr
   memory: { state: 'none' },
   canEditMemory: false,
   aiLevel: 'lively',
-  limits: { postsPerDay: 3, restHours: 6 },
+  sort: 'hot',
+  window: 'week',
+  canPost: true,
+  limits: { postsPerDay: 3, restHours: 6, memberPostsPerDay: 3 },
   ...patch,
 });
 const state = (patch: Partial<RoomFeedState> = {}): RoomFeedState => ({
   phase: 'ready',
   view: undefined,
+  sort: 'hot',
+  window: 'week',
   offline: false,
   working: false,
   refused: false,
@@ -104,7 +151,16 @@ beforeEach(() => mockPush.mockClear());
 
 describe('a find in the feed', () => {
   it('shows the resident, labelled AI and named first, its note, the asset it is about and the way into the talk', async () => {
-    await wrap(<FeedPost post={post()} identity={identity} now={new Date()} href="/rooms/x/t/y" onOpen={jest.fn()} />);
+    await wrap(
+      <FeedPost
+        post={post()}
+        identity={identity}
+        now={new Date()}
+        href="/rooms/x/t/y"
+        onOpen={jest.fn()}
+        onVote={jest.fn()}
+      />,
+    );
     expect(screen.getByText('Nova')).toBeOnTheScreen();
     // The AI label is read as "AI, Explainer"; the mark beside it is decoration and is hidden from a screen reader.
     expect(screen.getByLabelText('AI, Explainer')).toBeOnTheScreen();
@@ -119,19 +175,61 @@ describe('a find in the feed', () => {
     expect(article.props.accessibilityLabel).toMatch(/^Nova, AI, Explainer, found a Reel: Light that bends/);
   });
 
-  it('has nothing to vote with, no count of people and no way to message the resident', async () => {
+  it('has a vote for people, a count and no list of who, no karma and no way to message the resident', async () => {
     await wrap(
-      <FeedPost post={post({ replies: 3 })} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} />,
+      <FeedPost
+        post={post({ replies: 3, votes: 4 })}
+        identity={identity}
+        now={new Date()}
+        href="/x"
+        onOpen={jest.fn()}
+        onVote={jest.fn()}
+      />,
     );
-    expect(screen.queryByText(/vote|upvote|like|follow|message nova|dm/i)).not.toBeOnTheScreen();
+    expect(screen.getByTestId('feed-vote')).toHaveProp('accessibilityLabel', '4 votes. Vote up');
+    expect(screen.getByTestId('feed-vote-count')).toHaveTextContent('4');
+    expect(screen.queryByText(/karma|leaderboard|rank|score|follow|message nova|dm|downvote/i)).not.toBeOnTheScreen();
     expect(screen.getByText('3 replies')).toBeOnTheScreen();
-    expect(screen.queryByText(/online|here now|\bpeople\b/i)).not.toBeOnTheScreen();
+    expect(screen.queryByText(/online|here now/i)).not.toBeOnTheScreen();
+  });
+
+  it('votes with one tap', async () => {
+    const onVote = jest.fn();
+    await wrap(
+      <FeedPost post={post()} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} onVote={onVote} />,
+    );
+    await fireEvent.press(screen.getByTestId('feed-vote'));
+    expect(onVote).toHaveBeenLastCalledWith(true);
+  });
+
+  it('takes the vote back with a second tap, and the label says which it will do', async () => {
+    const onVote = jest.fn();
+    await wrap(
+      <FeedPost
+        post={post({ votes: 1, youVoted: true })}
+        identity={identity}
+        now={new Date()}
+        href="/x"
+        onOpen={jest.fn()}
+        onVote={onVote}
+      />,
+    );
+    expect(screen.getByTestId('feed-vote')).toHaveProp('accessibilityLabel', '1 vote. You voted. Take your vote back');
+    await fireEvent.press(screen.getByTestId('feed-vote'));
+    expect(onVote).toHaveBeenLastCalledWith(false);
   });
 
   it('holds the note back for a Quieter reader and says where to read it', async () => {
     const { note: _note, ...quiet } = post();
     await wrap(
-      <FeedPost post={{ ...quiet, folded: true }} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} />,
+      <FeedPost
+        post={{ ...quiet, folded: true }}
+        identity={identity}
+        now={new Date()}
+        href="/x"
+        onOpen={jest.fn()}
+        onVote={jest.fn()}
+      />,
     );
     expect(screen.queryByTestId('feed-post-note')).not.toBeOnTheScreen();
     expect(screen.getByTestId('feed-post-folded')).toHaveTextContent(
@@ -148,6 +246,7 @@ describe('a find in the feed', () => {
         now={new Date()}
         href="/rooms/x/t/y"
         onOpen={onOpen}
+        onVote={jest.fn()}
       />,
     );
     expect(screen.getByText('This content is no longer available.')).toBeOnTheScreen();
@@ -157,7 +256,14 @@ describe('a find in the feed', () => {
 
   it('draws a Skeptic’s find with its own name and label', async () => {
     await wrap(
-      <FeedPost post={post({ author: halley })} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} />,
+      <FeedPost
+        post={post({ author: halley })}
+        identity={identity}
+        now={new Date()}
+        href="/x"
+        onOpen={jest.fn()}
+        onVote={jest.fn()}
+      />,
     );
     expect(screen.getByText('Halley')).toBeOnTheScreen();
     expect(screen.getByLabelText('AI, Skeptic')).toBeOnTheScreen();

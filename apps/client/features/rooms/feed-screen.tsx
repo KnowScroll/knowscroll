@@ -74,7 +74,7 @@ function SortBar({
   return (
     <View style={styles.sortBar}>
       <View style={styles.sortRow}>
-        <View role="tablist" accessibilityLabel="Order of the feed" style={styles.tabs}>
+        <View role="group" accessibilityLabel="Order of the feed" style={styles.tabs}>
           {feedSorts.map(({ sort, label }) => (
             <Button
               key={sort}

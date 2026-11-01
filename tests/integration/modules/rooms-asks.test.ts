@@ -377,7 +377,7 @@ describe('asked turns, topics and Useful (real PostgreSQL, CI fixture model)', (
       expect(menu.limits).toEqual({
         asked: { perPersonPerHour: 10, perRoomPerDay: 80 },
         unprompted: { humanMessagesPerTurn: 3, perHour: 8, perDay: 40, explainerPerHour: 4, skepticPerHour: 3 },
-        feed: { postsPerDay: 3, restHours: 6 },
+        feed: { postsPerDay: 3, restHours: 6, memberPostsPerDay: 3 },
       });
       // Ten asks of one person in an hour are allowed; the eleventh is resting, and the ledger says why in its count.
       for (let index = 0; index < 10; index++) {

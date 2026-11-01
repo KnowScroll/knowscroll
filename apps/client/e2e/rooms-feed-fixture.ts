@@ -178,7 +178,7 @@ export async function feedRoutes(page: Page, world: FeedWorld, scope: { accountI
           memory: world.memory,
           canEditMemory: world.canEditMemory,
           aiLevel: world.aiLevel,
-          limits: { postsPerDay: 3, restHours: 6 },
+          limits: { postsPerDay: 3, restHours: 6, memberPostsPerDay: 3 },
           ...(world.scout === undefined ? {} : { scout: scoutView(world.scout) }),
         },
       });
