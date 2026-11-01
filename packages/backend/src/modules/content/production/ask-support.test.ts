@@ -674,9 +674,9 @@ describe('the instructions of ask-support-check.v4 (D-281)', () => {
         quote: 'thermostat switches the heater off once the water reaches boiling',
       },
       {
-        passage: 'The run time equals the number of steps multiplied by the time one step takes.',
-        sentence: 'With the same number of steps, slower steps mean a longer run time.',
-        quote: 'The run time equals the number of steps multiplied by the time one step takes',
+        passage: 'A trout is a kind of fish, and every fish has gills.',
+        sentence: 'A trout has gills.',
+        quote: 'A trout is a kind of fish, and every fish has gills',
       },
     ];
     const verdictFor = (example: (typeof examples)[number]) => {

@@ -161,7 +161,7 @@ export const ASK_SUPPORT_INSTRUCTIONS = [
   '',
   'Examples (invented, to show the judgement; never content to reuse):',
   '- Passage: "A kettle’s thermostat switches the heater off once the water reaches boiling." Sentence: "The thermostat stops the heater when the water boils." Supported, in other words. Quote: "thermostat switches the heater off once the water reaches boiling".',
-  '- Passage: "The run time equals the number of steps multiplied by the time one step takes." Sentence: "With the same number of steps, slower steps mean a longer run time." Supported, directly implied. Quote: "The run time equals the number of steps multiplied by the time one step takes".',
+  '- Passage: "A trout is a kind of fish, and every fish has gills." Sentence: "A trout has gills." Supported, directly implied by the two statements put together; the quote covers both parts. Quote: "A trout is a kind of fish, and every fish has gills".',
   '- Passage: "The pump lifts water from the well to a tank on the roof." Sentence: "The pump spins a blade to push the water upward." Unsupported, "not_stated": how the pump works is a new fact, though many pumps work so.',
   '- Passage: "The bridge is closed in heavy snow." Sentence: "The bridge is closed all winter." Unsupported, "goes_beyond": it claims more than the passage says.',
   '- Passages: "The oven has a fan." and "Bread bakes at 220 degrees." Sentence: "The fan makes the bread bake faster." Unsupported, "not_stated": each statement is true alone, but the join draws a cause that neither gives, and a quote of one part cannot support it.',
