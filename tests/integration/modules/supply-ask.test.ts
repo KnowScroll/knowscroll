@@ -974,10 +974,12 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         (_check: number, call: FixtureCall) => {
           const grounded = supportReply(call);
           if (grounded.kind !== 'success') throw new Error('CI: the fixture reply is a success');
-          const { sentences } = JSON.parse(grounded.text) as { sentences: { n: number }[] };
+          const { sentences } = JSON.parse(grounded.text) as { sentences: { n: number; verdict: string }[] };
+          // Exactly half the sentences state no fact: the old rule (more than half) let that through whatever they were.
+          let spare = Math.floor(sentences.length / 2) - sentences.filter((one) => one.verdict === 'no_claim').length;
           return answerWith({
             sentences: sentences.map((sentence) =>
-              sentence.n % 2 === 0 ? { n: sentence.n, verdict: 'no_claim' } : sentence,
+              sentence.verdict === 'supported' && spare-- > 0 ? { n: sentence.n, verdict: 'no_claim' } : sentence,
             ),
           });
         },
@@ -992,7 +994,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
             sentences: sentences.map((sentence) => ({
               n: sentence.n,
               verdict: 'supported',
-              quote: (passages.get(sentence.cites[0]!) ?? '').split(/s+/u).slice(-4).join(' '),
+              quote: (passages.get(sentence.cites[0]!) ?? '').split(/\s+/u).slice(-4).join(' '),
             })),
           });
         },
