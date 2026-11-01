@@ -1,9 +1,7 @@
-import { canonicalSha256 } from '@knowscroll/scroll-model';
 import type {
   PersonalRecordingPurpose,
   ProposeInput,
   ProposeOutcome,
-  ReasoningContext,
   RecordingReasoningHarness,
 } from '../../../reasoning/public.js';
 import type { FenceOwnAccount, PersonalAuthority, PersonalScopeTx, RecordingScopeTx } from '../../identity/public.js';
@@ -41,7 +39,7 @@ export interface RecordingRuns {
   readonly fenceOwn: FenceOwnAccount;
 }
 
-/** A proposal for one of Supply's runs: its purpose is one the recording harness knows. */
+/** A proposal for one of Supply's steps that run under the recording fence. */
 export type SupplyProposal<T> = ProposeInput<T> & {
   readonly run: { readonly ownerModule: 'supply'; readonly purpose: SupplyRunPurpose };
 };
@@ -56,24 +54,16 @@ export interface StartedRun {
   readonly end?: 'completed' | 'failed' | 'cancelled';
 }
 
-/** The hash the recording harness binds a run to: of exactly the bundle reference and the items it sends. */
-const contextDigest = (context: ReasoningContext): string =>
-  canonicalSha256({
-    bundleRef: context.bundleRef,
-    items: context.items.map(({ ref, kind, text }) => ({ ref, kind, text })),
-  });
-
 /**
  * The whole proof of one run. Supply has no frozen owner context of its own, so the context the model is sent is also the
- * context the proof names. Pure.
+ * context the proof names: `digest` is the harness's digest of it (`contextDigest`) and stands for both hashes. Pure.
  */
 export function purposeOf(
   owner: RunOwner,
   purpose: SupplyRunPurpose,
   runId: string,
-  context: ReasoningContext,
+  digest: string,
 ): PersonalRecordingPurpose {
-  const digest = contextDigest(context);
   return {
     version: 'personal-role-purpose.v1',
     accountId: owner.accountId,
@@ -101,7 +91,7 @@ export async function proposeAtGeneration<T>(
   input: SupplyProposal<T>,
   signal: AbortSignal,
 ): Promise<{ readonly outcome: ProposeOutcome<T>; readonly purpose: PersonalRecordingPurpose }> {
-  const purpose = purposeOf(owner, input.run.purpose, input.run.id, input.context);
+  const purpose = purposeOf(owner, input.run.purpose, input.run.id, harness.contextDigest(input.context));
   const outcome = await harness.proposePersonal({ ...input, recordingPurpose: purpose }, signal);
   return { outcome, purpose };
 }

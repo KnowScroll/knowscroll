@@ -120,6 +120,11 @@ export interface PersonalRecordingProposeInput<T> extends ProposeInput<T> {
   readonly recordingPurpose: PersonalRecordingPurpose;
 }
 export interface RecordingReasoningHarness {
+  /**
+   * The digest `proposePersonal` binds a purpose's `modelContextSha256` to: of exactly the bundle reference and the items it
+   * will send, nothing else of the context. An owner with no frozen context of its own uses it for both hashes of a purpose.
+   */
+  contextDigest(context: ProposeInput<unknown>['context']): string;
   proposePersonal<T>(input: PersonalRecordingProposeInput<T>, signal: AbortSignal): Promise<ProposeOutcome<T>>;
   withPersonalApply<T>(
     authority: PersonalAuthority,
@@ -337,5 +342,10 @@ export function makePersonalRecordingReasoningHarness(ports: PersonalRecordingHa
     },
     readPersonalRunAccounting: (scope, runId, readExpectedBinding) =>
       ports.engine.personalAccess.readAccounting(scope, runId, readExpectedBinding),
+    contextDigest: (context) =>
+      ports.hashContext({
+        bundleRef: context.bundleRef,
+        items: context.items.map(({ ref, kind, text }) => ({ ref, kind, text })),
+      }),
   };
 }

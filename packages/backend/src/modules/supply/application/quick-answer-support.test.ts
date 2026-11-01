@@ -128,7 +128,10 @@ describe('what a check came to', () => {
 describe('asking the checker through the harness', () => {
   function harness(outcome: unknown) {
     const propose = vi.fn((_input: unknown) => Promise.resolve(outcome));
-    return { propose, value: { proposePersonal: propose } as unknown as RecordingReasoningHarness };
+    return {
+      propose,
+      value: { proposePersonal: propose, contextDigest: () => 'b'.repeat(64) } as unknown as RecordingReasoningHarness,
+    };
   }
   const input = (allowRepair: boolean) => ({
     authority,

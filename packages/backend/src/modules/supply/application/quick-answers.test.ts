@@ -307,7 +307,7 @@ const stubPurpose = (runId: string, generation = 1): PersonalRecordingPurpose =>
     { accountId: id(2), universeId: id(1), privacyEpoch: 1, recordId: id(50), recordingGeneration: generation },
     'quick-answer-support',
     runId,
-    { bundleRef: 'ci:support', items: [] },
+    'b'.repeat(64),
   );
 
 /**
@@ -331,7 +331,12 @@ function harness(answer: unknown, fence: { holds: boolean } = { holds: true }) {
         : { kind: 'refused', refusal: { kind: 'scope_refused' } },
   );
   const recording = {
-    harness: { proposePersonal: propose, closePersonalRun: closeRun, withPersonalApply },
+    harness: {
+      proposePersonal: propose,
+      closePersonalRun: closeRun,
+      withPersonalApply,
+      contextDigest: () => 'b'.repeat(64),
+    },
     fenceOwn: () =>
       Promise.resolve({ kind: 'active', owner: { accountId: id(2), universeId: id(1), privacyEpoch: 1 } }),
   } as unknown as RecordingRuns;

@@ -197,6 +197,12 @@ describe('personal recording facade strict protocol (authored source fixtures on
     expect(geography).toHaveBeenCalledOnce();
     expect(supply).toHaveBeenCalledOnce();
   });
+  it('digests a context as proposePersonal does: only the bundle reference and the refs, kinds and texts of its items', () => {
+    const c = denied();
+    const extra = { ...input().context, items: [{ ...context.items[0]!, note: 'not sent' }] };
+    expect(c.harness.contextDigest(extra)).toBe(purpose.modelContextSha256);
+    expect(c.harness.contextDigest({ ...extra, bundleRef: 'other:1' })).not.toBe(purpose.modelContextSha256);
+  });
   it('accepts a Supply step for Supply only, at an odd generation, and nothing else of its', () => {
     for (const supplyPurpose of ['ask-scope', 'step-two'])
       expect(parsePersonalRecordingPurpose({ ...purpose, ownerModule: 'supply', purpose: supplyPurpose })).toEqual({
