@@ -1,4 +1,4 @@
-import type { ReasoningContext, ReasoningHarness } from '../../../reasoning/public.js';
+import type { ReasoningContext, RecordingReasoningHarness } from '../../../reasoning/public.js';
 import type { PersonalAuthority } from '../../identity/public.js';
 import { shownOf, type CitablePassage, type QuickAnswerAsk, type ShownAnswer } from '../domain/quick-answer.js';
 import {
@@ -8,6 +8,7 @@ import {
   quickAnswerVerdict,
   type QuickAnswerVerdict,
 } from './quick-answer-role.js';
+import { proposeAtGeneration, type RunOwner } from './recording-runs.js';
 import { rewriteItems, sentencesOf, type QuickAnswerSupportCheck, type RunEnd } from './quick-answer-support.js';
 
 /** What the model steps of one Quick answer came to, and the runs to close in the transaction that stores it. */
@@ -18,7 +19,7 @@ export type PipelineResult =
   | { readonly kind: 'unavailable'; readonly runs: readonly RunEnd[] };
 
 export interface PipelineDeps {
-  readonly harness: ReasoningHarness;
+  readonly harness: RecordingReasoningHarness;
   readonly support: QuickAnswerSupportCheck;
   /** A UUID derived from a name, so a redelivery names the same runs again. */
   readonly idFor: (name: string) => string;
@@ -26,6 +27,8 @@ export interface PipelineDeps {
 
 export interface PipelineInput {
   readonly authority: PersonalAuthority;
+  /** The account and the recording generation the answer was asked at: every run is stamped with them and fenced to them (D-264). */
+  readonly owner: RunOwner;
   readonly quickAnswerId: string;
   readonly ask: QuickAnswerAsk;
   readonly passages: readonly CitablePassage[];
@@ -90,7 +93,9 @@ async function write(
   context: ReasoningContext,
   allowRepair: boolean,
 ): Promise<{ readonly verdict: QuickAnswerVerdict; readonly run: RunEnd }> {
-  const outcome = await deps.harness.propose(
+  const { outcome, purpose } = await proposeAtGeneration(
+    deps.harness,
+    input.owner,
     {
       run: {
         id: runId,
@@ -106,7 +111,7 @@ async function write(
     input.signal,
   );
   const verdict = quickAnswerVerdict(outcome);
-  return { verdict, run: verdict.end === undefined ? { runId } : { runId, end: verdict.end } };
+  return { verdict, run: verdict.end === undefined ? { runId, purpose } : { runId, purpose, end: verdict.end } };
 }
 
 function check(
@@ -120,6 +125,7 @@ function check(
   // a sentence that rests on a passage the answer does not cite is not supported, and the rewrite is where it gets the citation.
   return deps.support({
     authority: input.authority,
+    owner: input.owner,
     quickAnswerId: input.quickAnswerId,
     runId: deps.idFor(`supply.quick-answer:${input.quickAnswerId}:check:${String(draft)}`),
     draft,
