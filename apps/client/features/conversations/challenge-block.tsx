@@ -17,12 +17,14 @@ type Revealed = Extract<ChallengeCard, { stage: 'revealed' }>;
  * of the two people answers on their own. Nothing here shows the friend's pick or the right answer before the person has
  * called: the card is given only what its stage may show (the contract carries the rest only once both have called). A
  * right call is a spark, a wrong one a plot twist, never a loss, and nothing ranks anyone. A pick is saved only while
- * recording is on (D-083), and the `notice` says why the last one was not.
+ * recording is on (D-083): while it is paused the card says so at once and its Lock stays off, and the `notice` says why
+ * the last attempt did not keep a pick.
  */
 export function ChallengeBlock({
   challenge,
   friend,
   notice,
+  recordingPaused = false,
   locking,
   onLock,
 }: {
@@ -30,6 +32,8 @@ export function ChallengeBlock({
   /** The other person's first name or display name, for the words. */
   readonly friend: string;
   readonly notice: 'paused' | 'failed' | undefined;
+  /** Recording is paused on this device, so no call can be locked in until it is on. */
+  readonly recordingPaused?: boolean;
   readonly locking: boolean;
   readonly onLock: (option: number) => void;
 }) {
@@ -82,7 +86,7 @@ export function ChallengeBlock({
           {challengeStatusWords(challenge, friend)}
         </Text>
         {revealed ? <RevealedWords challenge={challenge} /> : null}
-        {notice === undefined ? null : <LockNotice reason={notice} />}
+        {notice === undefined && !(open && recordingPaused) ? null : <LockNotice reason={notice ?? 'paused'} />}
         {open ? (
           <Button
             label="Lock it in"
@@ -90,7 +94,7 @@ export function ChallengeBlock({
             fullWidth
             busy={locking}
             busyLabel="Locking"
-            disabled={picked === undefined}
+            disabled={picked === undefined || recordingPaused}
             onPress={lock}
             testID="challenge-lock"
           />
@@ -184,19 +188,24 @@ function SeenOption({
           {optionLetter(option)}
         </Text>
       </View>
-      <Text variant="uiS" style={styles.optionText} aria-hidden>
-        {text}
-      </Text>
-      {mine ? (
-        <Text variant="monoXs" color={content.ink2} aria-hidden>
-          YOU
-        </Text>
-      ) : null}
-      {theirs ? (
-        <Text variant="monoXs" color={content.ink2} aria-hidden>
-          {friend.toUpperCase()}
-        </Text>
-      ) : null}
+      <View style={styles.optionBody} aria-hidden>
+        <Text variant="uiS">{text}</Text>
+        {mine || theirs ? (
+          // Under the words, so that two names and a tick cannot squeeze the option into a column one word wide.
+          <View style={styles.calls}>
+            {mine ? (
+              <Text variant="monoXs" color={content.ink2}>
+                YOU
+              </Text>
+            ) : null}
+            {theirs ? (
+              <Text variant="monoXs" color={content.ink2}>
+                {friend.toUpperCase()}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
       {isAnswer ? <Icon name="check" size={18} color={content.ink} /> : null}
     </View>
   );
@@ -248,6 +257,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(20,199,155,0.14)',
   },
   optionText: { flex: 1 },
+  optionBody: { flex: 1, gap: spacing[1] },
+  calls: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing[3] },
   letter: {
     width: 24,
     height: 24,

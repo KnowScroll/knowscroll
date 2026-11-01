@@ -78,6 +78,7 @@ interface MessageColumns {
   recorded_at: Date | string;
   hidden_at: Date | null;
   author_account_id: string | null;
+  agent_owner_account_id: string | null;
   inhabitant: string | null;
   ai_kind: string | null;
   body_text: string | null;
@@ -96,6 +97,7 @@ const MESSAGE_COLUMNS = [
   'recorded_at',
   'hidden_at',
   'author_account_id',
+  'agent_owner_account_id',
   'inhabitant',
   'ai_kind',
   'body_text',
@@ -114,6 +116,7 @@ const messageOf = (row: MessageColumns): MessageRow => ({
   recordedAt: new Date(row.recorded_at),
   hidden: row.hidden_at !== null,
   authorAccountId: row.author_account_id,
+  agentOwnerAccountId: row.agent_owner_account_id,
   inhabitant: row.inhabitant === null ? null : inhabitantOf(row.inhabitant),
   aiKind: row.ai_kind === null ? null : contributionKindOf(row.ai_kind),
   text: row.body_text,
@@ -299,6 +302,7 @@ export const discussionStore: DiscussionStore = {
         'message.recorded_at',
         'message.hidden_at',
         'message.author_account_id',
+        'message.agent_owner_account_id',
         'message.inhabitant',
         'message.ai_kind',
         'message.body_text',
@@ -593,6 +597,7 @@ export const discussionStore: DiscussionStore = {
         'message.recorded_at',
         'message.hidden_at',
         'message.author_account_id',
+        'message.agent_owner_account_id',
         'message.inhabitant',
         'message.ai_kind',
         'message.body_text',

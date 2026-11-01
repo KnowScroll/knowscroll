@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { LAUNCH_QUESTIONS } from '@knowscroll/contracts';
 import {
   REPLAY_ANSWER_MS,
@@ -7,7 +7,6 @@ import {
   replayCountLine,
   replayHostLine,
   replayScoreLine,
-  squaresOf,
   type RoomReplayController,
   type RoomReplayState,
 } from '@knowscroll/client-core';
@@ -137,7 +136,8 @@ export function ReplaySheet({
   };
   const outcome = state.answer === undefined ? undefined : { picked: state.picked, correct: state.answer.correct };
   return (
-    <BottomSheet visible={visible} title="Replay" onClose={close} testID="replay-sheet">
+    // `fit`: the black banner (D-241) and the buttons stay in view and the question scrolls between them, whatever the text size.
+    <BottomSheet visible={visible} title="Replay" onClose={close} testID="replay-sheet" fit>
       <View style={styles.body}>
         {replay === undefined ? (
           <Text variant="bodyS" color={content.ink2} testID="replay-none">
@@ -154,47 +154,54 @@ export function ReplaySheet({
                 {replayBanner(replay)}
               </Text>
             </View>
-            <Host state={state} line={replayHostLine(state.host ?? { name: 'Pixel' }, step, state.index, outcome)} />
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.scrolled}
+              testID="replay-scroll"
+              // A region that scrolls is reachable by keyboard (axe: scrollable-region-focusable).
+              tabIndex={0}
+              role="region"
+              aria-label="Replay"
+              showsVerticalScrollIndicator={false}
+            >
+              <Host state={state} line={replayHostLine(state.host ?? { name: 'Pixel' }, step, state.index, outcome)} />
+              {step === 'idle' ? null : step === 'done' ? (
+                <View style={styles.reveal} testID="replay-done">
+                  <Text variant="title" heading={2}>
+                    {replayScoreLine(state.squares)}
+                  </Text>
+                  <Text variant="metaS" color={content.ink2}>
+                    This replay is just for you. The podium and the room’s star stay as they were.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <Question state={state} controller={controller} />
+                  {state.offline ? (
+                    <Banner kind="offline" lead="Reconnecting…" message="Tap your answer again when you’re back." />
+                  ) : null}
+                </>
+              )}
+            </ScrollView>
             {step === 'idle' ? (
               <Button label="Start the replay" variant="primary" onPress={controller.begin} testID="replay-start" />
             ) : step === 'done' ? (
-              <View style={styles.reveal} testID="replay-done">
-                <Text variant="title" heading={2}>
-                  {replayScoreLine(state.squares)}
-                </Text>
-                <Text
-                  variant="metaS"
-                  color={content.ink2}
-                  accessibilityLabel={`${String(state.squares.filter(Boolean).length)} right`}
-                >
-                  {squaresOf(state.squares)}
-                </Text>
-                <Text variant="metaS" color={content.ink2}>
-                  This replay is just for you. The podium and the room’s star stay as they were.
-                </Text>
-                <View style={styles.actions}>
-                  <Button label="Play it again" variant="default" onPress={controller.begin} testID="replay-again" />
-                  <Button label="Done" variant="primary" onPress={close} testID="replay-done-button" />
-                </View>
+              <View style={styles.actions}>
+                <Button label="Play it again" variant="default" onPress={controller.begin} testID="replay-again" />
+                <Button label="Done" variant="primary" onPress={close} testID="replay-done-button" />
               </View>
             ) : (
-              <>
-                <Question state={state} controller={controller} />
-                {state.offline ? (
-                  <Banner kind="offline" lead="Reconnecting…" message="Tap your answer again when you’re back." />
+              <View style={styles.actions}>
+                <Button label="Leave replay" variant="ghost" onPress={close} testID="replay-leave" />
+                {step === 'revealed' ? (
+                  <Button
+                    label={state.index + 1 >= LAUNCH_QUESTIONS ? 'See how you did' : 'Next question'}
+                    variant="primary"
+                    onPress={controller.next}
+                    testID="replay-next"
+                  />
                 ) : null}
-                <View style={styles.actions}>
-                  <Button label="Leave replay" variant="ghost" onPress={close} testID="replay-leave" />
-                  {step === 'revealed' ? (
-                    <Button
-                      label={state.index + 1 >= LAUNCH_QUESTIONS ? 'See how you did' : 'Next question'}
-                      variant="primary"
-                      onPress={controller.next}
-                      testID="replay-next"
-                    />
-                  ) : null}
-                </View>
-              </>
+              </View>
             )}
           </>
         )}
@@ -204,7 +211,9 @@ export function ReplaySheet({
 }
 
 const styles = StyleSheet.create({
-  body: { gap: spacing[3] },
+  body: { gap: spacing[3], flexShrink: 1, minHeight: 0 },
+  scroll: { flexShrink: 1, flexGrow: 0 },
+  scrolled: { gap: spacing[3], paddingBottom: spacing[2], paddingRight: spacing[2] },
   banner: { padding: spacing[3], borderRadius: radius.md, backgroundColor: content.ink },
   host: { gap: spacing[2] },
   hostHead: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing[2] },

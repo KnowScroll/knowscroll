@@ -132,14 +132,21 @@ export function makeMemoryRefresh(
       turnId,
       roomId: room.roomId,
       kind: 'memory_refresh',
-      inhabitant,
+      author: { kind: 'resident', inhabitant },
       asset: undefined,
       decision: cap === undefined ? { kind: 'allowed' } : { kind: 'refused', cap },
       counts,
       now,
     });
     if (cap !== undefined) return { kind: 'refused', cap };
-    return callOf({ turnId, kind: 'memory_refresh', inhabitant, state: 'queued', asset: undefined, createdAt: now });
+    return callOf({
+      turnId,
+      kind: 'memory_refresh',
+      author: { kind: 'resident', inhabitant },
+      state: 'queued',
+      asset: undefined,
+      createdAt: now,
+    });
   }
 
   /**

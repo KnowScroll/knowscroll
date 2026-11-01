@@ -11,6 +11,8 @@ import {
 import {
   dayKey,
   dayLabel,
+  feedAuthorName,
+  scoutSignature,
   type OutgoingRoomMessage,
   type PointedAsk,
   type RoomDiscussionController,
@@ -191,13 +193,15 @@ function Bubble({
     );
   // An AI contribution is an ordinary message in the conversation (R3 C1): its resident's colour as a thick edge. It is
   // labelled above, in words and for a screen reader, so the edge is never what says it is an AI.
-  if (message.author.kind === 'ai')
+  if (message.author.kind === 'ai' || message.author.kind === 'agent')
     return (
       <View
         style={[
           styles.bubble,
           styles.aiBubble,
-          kit === undefined ? null : { borderLeftColor: residentColourOf(kit, message.author.inhabitant) },
+          kit === undefined || message.author.kind === 'agent'
+            ? null
+            : { borderLeftColor: residentColourOf(kit, message.author.inhabitant) },
           align,
         ]}
         testID="ai-message"
@@ -439,19 +443,23 @@ export function RoomMessages({
               const folded = foldedOf(message);
               return (
                 <View key={message.sequence} role="listitem" style={styles.item}>
-                  {message.status === 'available' && folded && message.author.kind === 'ai' ? (
-                    <FoldedResident name={message.author.name} onShow={() => toggleShown(message.messageId)} />
+                  {message.status === 'available' && folded && message.author.kind !== 'person' ? (
+                    <FoldedResident
+                      name={feedAuthorName(message.author)}
+                      onShow={() => toggleShown(message.messageId)}
+                    />
                   ) : message.status === 'available' && !collapsedOf(message) ? (
-                    message.author.kind === 'ai' ? (
+                    message.author.kind !== 'person' ? (
                       <ResidentHeader
-                        name={message.author.name}
+                        name={feedAuthorName(message.author)}
                         label={message.author.label}
+                        signature={scoutSignature(message.author)}
                         suggestion={message.suggestion}
                         trigger={message.trigger}
                         ask={message.ask}
                         ownPersonId={ownPersonId}
                         kit={state.view?.room.identity?.kit}
-                        inhabitant={message.author.inhabitant}
+                        inhabitant={message.author.kind === 'ai' ? message.author.inhabitant : undefined}
                       />
                     ) : mine ? null : (
                       <Text variant="metaS" color={content.ink2}>
@@ -524,7 +532,7 @@ export function RoomMessages({
                       )}
                     </MessageLine>
                   )}
-                  {message.status === 'available' && message.author.kind === 'ai' && !folded ? (
+                  {message.status === 'available' && message.author.kind !== 'person' && !folded ? (
                     <View style={styles.askRow} testID={`ai-actions-${message.messageId}`}>
                       <Button
                         label="Challenge"

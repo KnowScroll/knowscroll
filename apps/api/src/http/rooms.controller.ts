@@ -399,6 +399,14 @@ export class RoomsController {
   }
 
   @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.setScout)
+  setScoutRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.setScout).handler(async ({ input }) =>
+      value(await this.useCases.setScout(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
   @Implement(apiContract.rooms.replaceMemory)
   replaceMemoryRoute(@Req() request: Request) {
     return implement(apiContract.rooms.replaceMemory).handler(async ({ input }) =>

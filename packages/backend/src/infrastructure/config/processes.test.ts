@@ -229,6 +229,21 @@ describe('process configuration', () => {
       'KS_ROOMS_FEED_ENABLED: not_allowed',
     ]);
   });
+  it('keeps scouts off by default in both processes, and on their own switch (v3 R-9, D-259)', () => {
+    const env = { DATABASE_URL: secretUrl, KS_WORLD: 'local' };
+    expect(readWorkerConfig(env).reasoning.roomScoutsEnabled).toBe(false);
+    expect(readWorkerConfig({ ...env, KS_ROOMS_SCOUTS_ENABLED: '1' }).reasoning).toMatchObject({
+      roomScoutsEnabled: true,
+      roomFeedEnabled: false,
+    });
+    expect(configurationError(() => readWorkerConfig({ ...env, KS_ROOMS_SCOUTS_ENABLED: 'yes' })).problems).toEqual([
+      'KS_ROOMS_SCOUTS_ENABLED: not_allowed',
+    ]);
+    const api = (extra: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', KS_WORLD: 'local', ...extra });
+    expect(api({}).roomScoutsEnabled).toBe(false);
+    expect(api({ KS_ROOMS_SCOUTS_ENABLED: '1' }).roomScoutsEnabled).toBe(true);
+  });
   it('keeps residents off by default, with caps of their own and an ambient share of the global cap (D-162)', () => {
     const env = { DATABASE_URL: secretUrl, KS_WORLD: 'local' };
     const settings = readWorkerConfig(env).reasoning;
@@ -549,6 +564,7 @@ describe('process configuration', () => {
       roomEnabled: false,
       roomGeneration: 1,
       roomFeedEnabled: false,
+      roomScoutsEnabled: false,
       caps: {
         global: { requestsPerDay: 300, tokensPerDay: 3_000_000 },
         scope: { requestsPerDay: 60, tokensPerDay: 600_000 },

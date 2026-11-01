@@ -20,6 +20,7 @@ import {
 import type { ConversationMessage, MessageReactionKind } from '@knowscroll/contracts';
 import { layout, spacing } from '@knowscroll/design-tokens';
 import { Button, DateCapsule, Text, useDisplay, useTalkTheme } from '@knowscroll/ui';
+import { useRecordingPaused } from '../../providers/use-recording-paused';
 import { ChallengeBlock } from './challenge-block';
 import { AwayDivider, ContentCard, firstAwayMessage, OutgoingBubble, RemovedMessage } from './message-views';
 import { rootOfCard, type ThreadRoot } from './start-thread-sheet';
@@ -147,6 +148,7 @@ export function MessageList({
   onWatchTogether,
 }: MessageListProps) {
   const theme = useTalkTheme();
+  const recordingPaused = useRecordingPaused();
   const { reducedMotion } = useDisplay();
   const jumper = useMessageJump(scrollRef, reducedMotion);
   const mineOf = (message: ConversationMessage) =>
@@ -217,7 +219,7 @@ export function MessageList({
                         ownPersonId={ownPersonId}
                         flash={jumper.lit === message.sequence ? jumper.flash : undefined}
                         open={!state.ended}
-                        body={bodyOf(message, onWatchTogether, state, controller)}
+                        body={bodyOf(message, onWatchTogether, state, controller, recordingPaused)}
                         onReply={onReply}
                         onReact={react}
                         onReport={mine ? undefined : () => onReport(message)}
@@ -266,6 +268,7 @@ function bodyOf(
   onWatchTogether: MessageListProps['onWatchTogether'],
   state: ThreadState,
   controller: ThreadController,
+  recordingPaused: boolean,
 ): TalkMessageBody {
   const { body } = message;
   if (body.kind === 'text') return { kind: 'text', text: body.text };
@@ -283,6 +286,7 @@ function bodyOf(
               challenge={challenge}
               friend={state.peer?.displayName ?? 'your friend'}
               notice={state.challengeNotice?.messageId === message.messageId ? state.challengeNotice.reason : undefined}
+              recordingPaused={recordingPaused}
               locking={state.lockingChallenge === message.messageId}
               onLock={(option) => void controller.lockChallenge(message.messageId, option)}
             />

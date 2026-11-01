@@ -42,6 +42,7 @@ import { REFRESH_VISIT_PUBLICATION, type RefreshVisitPublication } from '@knowsc
 import { socialPeopleProviders, visitRefreshProviders } from '@knowscroll/backend/modules/social/nest-providers';
 import {
   roomsFeedProviders,
+  roomsScoutProviders,
   roomsRitualProviders,
   roomsWorkerProviders,
 } from '@knowscroll/backend/modules/rooms/nest-providers';
@@ -51,11 +52,13 @@ import {
   RUN_CAST_PASS,
   RUN_FEED_HEARTBEAT,
   RUN_NIGHTLY_RITUALS,
+  RUN_SCOUT_HEARTBEAT,
   SUMMARISE,
   castDueQueue,
   castPassQueue,
   feedHeartbeatQueue,
   nightlyRitualsQueue,
+  scoutHeartbeatQueue,
   summariseQueue,
   contributeQueue,
   type ContributeAsInhabitant,
@@ -63,6 +66,7 @@ import {
   type RunCastPass,
   type RunFeedHeartbeat,
   type RunNightlyRituals,
+  type RunScoutHeartbeat,
   type Summarise,
 } from '@knowscroll/backend/modules/rooms';
 import {
@@ -222,6 +226,8 @@ export const jobWiring: Provider[] = [
   ...roomsRitualProviders({ database: DATABASE, workerConfig: WORKER_CONFIG }),
   // Residents' finds about library assets and the room's memory, on a heartbeat (v3 R-8, D-248).
   ...roomsFeedProviders({ database: DATABASE, workerConfig: WORKER_CONFIG }),
+  // Members' scouts: one find a day at most, signed by the owner (v3 R-9, D-259).
+  ...roomsScoutProviders({ database: DATABASE, workerConfig: WORKER_CONFIG }),
   ...cartographerWorkerProviders({ workerConfig: WORKER_CONFIG }),
   ...quietSweepProviders({ database: DATABASE, boss: PG_BOSS, workerConfig: WORKER_CONFIG }),
   {
@@ -321,6 +327,7 @@ export const jobWiring: Provider[] = [
       PURGE_REPORTS,
       RUN_NIGHTLY_RITUALS,
       RUN_FEED_HEARTBEAT,
+      RUN_SCOUT_HEARTBEAT,
       PRODUCTION_REASONING_HARNESS,
       WITH_PRODUCTION_SCOPE,
       LOG_EVENT,
@@ -359,6 +366,7 @@ export const jobWiring: Provider[] = [
       purgeReports: PurgeReports,
       runNightlyRituals: RunNightlyRituals,
       runFeedHeartbeat: RunFeedHeartbeat,
+      runScoutHeartbeat: RunScoutHeartbeat,
       productionHarness: ProductionReasoningHarness,
       withProductionScope: WithProductionScope,
       logEvent: LogEvent,
@@ -494,6 +502,16 @@ export const jobWiring: Provider[] = [
             jobConsumer(feedHeartbeatQueue, async (_payload, delivery) => {
               await runFeedHeartbeat(delivery.signal, (slug, error) =>
                 logEvent('rooms.feed_room_failed', { context: slug, error }),
+              );
+            }),
+          ]
+        : []),
+      // Scouts' heartbeat, only where its own switch is on as well (v3 R-9).
+      ...(config.reasoning.roomEnabled && config.reasoning.roomScoutsEnabled
+        ? [
+            jobConsumer(scoutHeartbeatQueue, async (_payload, delivery) => {
+              await runScoutHeartbeat(delivery.signal, (slug, error) =>
+                logEvent('rooms.scout_room_failed', { context: slug, error }),
               );
             }),
           ]

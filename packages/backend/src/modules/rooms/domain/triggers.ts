@@ -8,8 +8,11 @@
 /** What set a resident going. `asked` is a member's ask and is not decided here. */
 export type SpeechTrigger = 'unanswered_question' | 'overstated_claim' | 'answer_overstated';
 
-/** Why a resident's message exists when it was not asked for: a reply the router allowed, or a find the heartbeat posted (v3 R-8). */
-export type MessageTrigger = SpeechTrigger | 'feed_find';
+/**
+ * Why a message exists when nobody asked for it: a reply the router allowed, a find the residents' heartbeat posted (v3 R-8), or a
+ * find a member's scout posted (v3 R-9).
+ */
+export type MessageTrigger = SpeechTrigger | 'feed_find' | 'scout_find';
 
 const wordCount = (text: string): number => text.split(/\s+/u).filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
 
