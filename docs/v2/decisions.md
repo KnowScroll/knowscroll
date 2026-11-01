@@ -3348,3 +3348,14 @@ Confirmed by: `scenario-sheet.test.tsx` ("says when today's What-ifs are used up
 - **Not changed.** The caps ("budget"), "unsupported", "invalid" and "offline" and their words.
 
 Confirmed by: `scenarios.test.ts` on real PostgreSQL (a draft already used, and the caller's own timed-out draft, are refused as stale; another member's is still `unavailable`), `scenarios.test.ts` of client-core (a server error is `failed`, a lapsed draft is `stale`) and `scenario-sheet.test.tsx` (the words of each, and Try again for a fault). Shown failing when the closed draft answered `unavailable`.
+
+## D-291 · 2026-11-01 · While a Clear runs, the Privacy panels that cannot load say so and show its progress (v3 dev check fixes, #609)
+
+**Builds on** the Privacy screen (P02) and the selective Clear (#345).
+
+- **The defect.** While Clear exploration runs, the account is fenced and reads of the person's sharing settings and shared links fail. Privacy & history then showed "Couldn't load your settings" and "Couldn't load your links" beside a Clear receipt that said it was working. Two failure notices sat beside a normal operation.
+- **The rule.** A panel that cannot load while a Clear is under way (asked for, accepted, checking or pending, not yet finished) shows "Clearing exploration." with the Clear's own line, and says that its content is back when the Clear is done. It has no Try again then. If nothing is clearing, the panel shows its load failure as before. When the Clear has finished the panel reads again by itself.
+- **How it knows.** The panel is given the Clear's progress by the screen that holds the account (`useClearProgress`); it never reads the Clear itself. When a panel fails to load it tells the screen, which asks the server whether a Clear is running, so a sub-page opened on its own (phones) learns it too. The privacy screen's receipt and the panels use one set of words (`clearProgress`).
+- **Not changed.** The Clear's receipt, its words, and what a Clear removes.
+
+Confirmed by: `shared-links-panel.test.tsx` and `visibility-panel.test.tsx` (while clearing, the load failure is replaced by the Clear's line and then the content appears when it is done; with no Clear the failure and Try again remain), `clear-panel` through `privacy-screen.test.tsx` (the receipt is unchanged). Shown failing when the panel ignored the Clear.
