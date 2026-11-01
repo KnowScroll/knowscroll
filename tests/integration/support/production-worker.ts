@@ -27,11 +27,13 @@ export function fixtureProductionWorker(
     readonly quota?: QuotaScript;
     /** The checker's verdicts; by default every call is consistent. */
     readonly checker?: Parameters<typeof routedScript>[1];
+    /** The support checker's replies for an ask order's answer; by default every sentence is supported. */
+    readonly support?: Parameters<typeof routedScript>[2];
     /** The research fetch; defaults to the authored fixture pages. */
     readonly research?: (url: string) => Promise<ResearchPage>;
   } = {},
 ) {
-  const routed = routedScript(script, options.checker);
+  const routed = routedScript(script, options.checker, options.support);
   const fixture = fixtureModel(routed.script, {
     label: 'production-worker-CI-fixture',
     ...(options.quota ? { quota: options.quota } : {}),
@@ -59,9 +61,10 @@ export function fixtureProductionWorker(
     });
   return {
     fixture,
-    /** The writer's requests only, and the checker's only (live). `fixture.calls` holds both. */
+    /** The writer's requests only, the answer checker's only and the support checker's only (live). `fixture.calls` holds all. */
     writerCalls: routed.writerCalls,
     checkerCalls: routed.checkerCalls,
+    supportCalls: routed.supportCalls,
     harness,
     producer,
     run: makeRunScrollProduction(producer()),

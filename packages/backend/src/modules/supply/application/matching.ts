@@ -1,4 +1,5 @@
 import type { CreateContentRequest } from '@knowscroll/contracts';
+import type { ReadLibraryPassages } from '../../content/public.js';
 import type { ReasoningHarness } from '../../../reasoning/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { MATCH_POLICY_VERSION, MATCH_ROLE, matchContext, matchVerdict } from './match-role.js';
@@ -11,10 +12,12 @@ import {
   type AskScopeVerdict,
 } from './ask-scope.js';
 import type { ResolveSupplyJob } from '../events.js';
+import { askLibraryRunId, checkLibraryMatch } from './ask-library.js';
+import type { LibraryVerdict } from './ask-library-role.js';
 import { commissionAskOrder } from './ask-orders.js';
 import { commissionSupply, nextPoll } from './commission.js';
-import { catalogueBrief, checkedRevision, inventory, snapshot } from './inventory.js';
-import type { Demand, SupplyPorts } from './ports.js';
+import { catalogueBrief, checkedRevision, inventory, sameRef, snapshot } from './inventory.js';
+import type { CanonicalBrief, Demand, SupplyPorts } from './ports.js';
 
 /**
  * Places one waiting request: matches a free-text ask to the catalogue, or decides where a question asked from a
@@ -73,17 +76,57 @@ async function decideHere(p: SupplyPorts, scope: PersonalScopeTx, d: Demand): Pr
 }
 
 /**
- * What the verdict does to the request: the fields it changes, decided before the revision advances.
- * A matched ask is then handled as a person's own catalogue ask would have been: Reuse, else Join or Create.
- * A question asked from a Scroll never binds to the explanation it was asked from: `inventory` skips it, as it does for the poll and for Try again.
+ * A question asked from a Scroll that the scope step placed on another catalogue subject (D-251). A library Scroll of that
+ * subject is offered only when the checker found that it answers the question and the Scroll is still admitted when the
+ * verdict is applied. Otherwise an order is made for the question, within the caps, or the request closes honestly. The
+ * library is never started for a question: a Scroll made for the subject is not known to answer it.
  */
-async function decide(p: SupplyPorts, scope: PersonalScopeTx, d: Demand, verdict: AskScopeVerdict): Promise<Decided> {
+async function decideAskedLibrary(
+  p: SupplyPorts,
+  scope: PersonalScopeTx,
+  d: Demand,
+  brief: CanonicalBrief,
+  library: LibraryVerdict,
+): Promise<Decided> {
+  if (library.kind === 'unavailable') return { status: 'unavailable', decision: 'refuse', reason: library.reason };
+  if (library.kind === 'pick') {
+    const offered = (await inventory(p, scope, d.command, brief)).servable.find((head) =>
+      sameRef(head.ref, library.ref),
+    );
+    if (offered?.encounter)
+      return {
+        status: 'ready',
+        decision: 'reuse',
+        reason: undefined,
+        brief,
+        content: offered.encounter,
+        contentAvailabilityRevision: offered.availabilityRevision,
+      };
+  }
+  return decideHere(p, scope, d);
+}
+
+/**
+ * What the verdict does to the request: the fields it changes, decided before the revision advances.
+ * A matched free-text ask is then handled as a person's own catalogue ask would have been: Reuse, else Join or Create.
+ * A matched question asked from a Scroll is answered by a library Scroll only if the checker found one that answers it,
+ * and otherwise by an order (`decideAskedLibrary`). It never binds to the explanation it was asked from: `inventory`
+ * skips it, as it does for the poll and for Try again.
+ */
+async function decide(
+  p: SupplyPorts,
+  scope: PersonalScopeTx,
+  d: Demand,
+  verdict: AskScopeVerdict,
+  library: LibraryVerdict | undefined,
+): Promise<Decided> {
   const closed = (reason: NonNullable<Demand['reason']>) =>
     ({ status: 'unavailable', decision: 'refuse', reason }) as const;
   if (verdict.kind === 'no_topic') return closed('unsupported_request');
   if (verdict.kind === 'unavailable') return closed(verdict.reason);
   if (verdict.kind === 'here') return decideHere(p, scope, d);
   const brief = catalogueBrief(d.command, verdict.match, formatOf(d.command));
+  if (d.command.intent.kind === 'ask') return decideAskedLibrary(p, scope, d, brief, library ?? { kind: 'none' });
   const found = (await inventory(p, scope, d.command, brief)).ready;
   if (found?.encounter)
     return {
@@ -116,7 +159,11 @@ async function decide(p: SupplyPorts, scope: PersonalScopeTx, d: Demand, verdict
  * twice, and an attempt of unknown outcome is never resent: the request closes as `could_not_prepare`
  * and the run stays open for an operator.
  */
-export function makeMatchRequest(p: SupplyPorts, harness: ReasoningHarness): MatchStep {
+export function makeMatchRequest(
+  p: SupplyPorts,
+  harness: ReasoningHarness,
+  readLibrary: ReadLibraryPassages,
+): MatchStep {
   return async (job, signal) => {
     const authority = {
       universeId: job.universeId,
@@ -129,13 +176,28 @@ export function makeMatchRequest(p: SupplyPorts, harness: ReasoningHarness): Mat
     });
     if (read.kind !== 'entered' || read.value === undefined) return;
     const verdict = await place(harness, authority, job, read.value, signal);
+    // A question placed on another subject is read against that subject's library Scrolls (a second call, outside every transaction).
+    const library =
+      read.value.kind === 'ask' && verdict.kind === 'matched'
+        ? await checkLibraryMatch(
+            { p, harness, readLibrary },
+            authority,
+            { requestId: job.requestId, question: read.value.facts.question, match: verdict.match },
+            signal,
+          )
+        : undefined;
 
+    // A transaction closes one personal run, so the library check's run closes first, in a transaction of its own. If the
+    // process dies after it, a redelivery finds that run closed and offers no library Scroll (an order is made instead);
+    // the scope step's run is closed with its verdict applied, so its answer is never lost.
+    if (library?.end !== undefined)
+      await p.withScope(authority, (scope) => closeRun(harness, scope, askLibraryRunId(p, job.requestId), library.end));
     await p.withScope(authority, async (scope) => {
-      await closeRun(harness, scope, job, verdict);
+      await closeRun(harness, scope, job.requestId, verdict.end);
       if (!(await p.ownerActive(scope))) return;
       const d = await p.store.read(scope, job.requestId);
       if (!d || d.status !== 'matching') return;
-      const decided = await decide(p, scope, d, verdict);
+      const decided = await decide(p, scope, d, verdict, library);
       const current = await snapshot(p, scope, d);
       const revision = await p.advance(scope);
       const next: Demand = {
@@ -184,16 +246,16 @@ async function place(
   return matchVerdict(outcome);
 }
 
-/** Closes the model run in the transaction that applies its verdict; a run the harness already refused to close stays as it was. */
+/** Closes a model run in the transaction that applies its verdict; a run the harness already refused to close stays as it was. */
 async function closeRun(
   harness: ReasoningHarness,
   scope: PersonalScopeTx,
-  job: ResolveSupplyJob,
-  verdict: AskScopeVerdict,
+  runId: string,
+  end: 'completed' | 'failed' | 'cancelled' | undefined,
 ): Promise<void> {
-  if (verdict.end === undefined) return;
+  if (end === undefined) return;
   try {
-    await harness.closeRun(scope, { runId: job.requestId, state: verdict.end });
+    await harness.closeRun(scope, { runId, state: end });
   } catch (error) {
     if (!(error instanceof Error) || error.message !== HARNESS_REFUSAL) throw error;
   }

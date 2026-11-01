@@ -2233,6 +2233,7 @@ export interface SupplyAskOrders {
   created_at: Generated<Timestamp>;
   order_id: string;
   ready_at: Timestamp | null;
+  support_checked: Generated<boolean>;
 }
 
 export interface SupplyRequests {
