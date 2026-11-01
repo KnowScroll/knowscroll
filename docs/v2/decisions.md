@@ -3295,3 +3295,13 @@ Confirmed by: `history-paused.test.ts` on real PostgreSQL (three Explore opening
 - **Not changed.** The server, the words on the sheet, and the rule that a read never creates work.
 
 Confirmed by: `request-session.test.ts` (twelve quick reads, then slow ones up to the bound, none after it; Try again past the quick reads shows the closed state at the next slow read and then stops reading) and `use-direct-ask.test.tsx` (the ready notice arrives from the session's slow read). Shown failing when the session stopped after twelve reads.
+
+## D-286 · 2026-11-01 · Account and settings in the ••• sheet is a link the router follows, not a page the browser loads (v3 dev check fixes, #609)
+
+**Builds on** J5's Back rules ("Back returns to the Reel you left, as the sheet and Universe-tab detours already do").
+
+- **The defect.** On a Reel paused at 17 to 24 seconds, More, Account and settings and then Back needed two Backs and landed on a different Reel at a stale second. The row was drawn as a link (`<a href="/account">`) with a press handler that asked the router to go to Account. React Native Web does not stop the anchor's own navigation, so the browser also loaded `/account` as a new page. The app restarted, the encounter in memory was lost, and the first Back only left the second `/account` entry.
+- **The rule.** A row in the ••• sheet that is a link takes a plain press over for the router and leaves a modified click (new tab) to the browser, as the account button, the Talk rows and every other link in the app already do (`linkPress`, exported by `@knowscroll/ui` for this). It is one move: one Back returns to Explore, the Reel is the one that was left (D-006 k restores it paused), and nothing is opened, activated or navigated for the return.
+- **Not changed.** The path, the sheet's other rows and what Back does inside an encounter.
+
+Confirmed by: `reader-back-smoke.spec.ts` at 390 and 1440 (after More, Account and settings, one Back is on Explore, no second document was fetched, a marker the page held is still there, and no open, activation or navigation was sent). Shown failing before the change: the click fetched `/account` as a document and the first Back stayed on `/account`.
