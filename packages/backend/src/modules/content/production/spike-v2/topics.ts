@@ -1,4 +1,11 @@
+import { LIMITS_V2 } from '@knowscroll/scroll-model';
 import type { RecipeDataV2 } from '@knowscroll/scroll-model/producer';
+import {
+  GUIDE_CHARACTER_IDS,
+  PLAY_BLOCK_KINDS,
+  type GuideCharacterId,
+  type PlayBlockKind,
+} from '../../domain/library/plan.js';
 import { parseScrollTopic, TOPICS, type ScrollTopic } from '../topics.js';
 
 /**
@@ -104,15 +111,54 @@ export const SPACE_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
 ];
 
 /**
+ * The play blocks and the guide a spike asks the writer for on a recipe, before a person marks the recipe
+ * (D-207). The library plan carries them once the recipe is marked; until then `--blocks` supplies them, so a
+ * spike can measure a block on a recipe without changing the plan.
+ */
+export interface SpikeBlocks {
+  readonly blocks: readonly PlayBlockKind[];
+  readonly guide?: GuideCharacterId;
+}
+
+/**
+ * `--blocks <recipe>=<word>[+<word>…],…`: for each recipe the blocks to ask for (`sort`, `fork`, `scale`,
+ * `chart`) and, as `ray`, the guide. `undefined` when a recipe is not in the library, a word is unknown, a recipe
+ * is named twice, or a recipe asks for more blocks than a Scroll may have.
+ */
+export function parseSpikeBlocks(raw: string): ReadonlyMap<ScrollTopic, SpikeBlocks> | undefined {
+  const found = new Map<ScrollTopic, SpikeBlocks>();
+  for (const entry of raw.split(',')) {
+    const [name, words, ...rest] = entry.trim().split('=');
+    const topic = parseScrollTopic(name?.trim());
+    if (topic === undefined || words === undefined || rest.length > 0 || found.has(topic)) return undefined;
+    const parts = words.split('+').map((word) => word.trim());
+    const blocks = parts.filter((word): word is PlayBlockKind =>
+      (PLAY_BLOCK_KINDS as readonly string[]).includes(word),
+    );
+    const guides = parts.filter((word): word is GuideCharacterId =>
+      (GUIDE_CHARACTER_IDS as readonly string[]).includes(word),
+    );
+    if (blocks.length + guides.length !== parts.length || new Set(blocks).size !== blocks.length || guides.length > 1)
+      return undefined;
+    if (blocks.length > LIMITS_V2.otherInteractives) return undefined;
+    found.set(topic, { blocks, ...(guides[0] === undefined ? {} : { guide: guides[0] }) });
+  }
+  return found;
+}
+
+/**
  * The spike's decisions for a recipe. The picture and its kit come from the recipe's own `stageKit`;
  * a recipe the plan has not marked has no misconception, and the line says so.
  */
-export function spikeRecipeV2(topic: ScrollTopic): SpikeRecipeV2 {
+export function spikeRecipeV2(topic: ScrollTopic, asked?: SpikeBlocks): SpikeRecipeV2 {
   const { scrollV2: planned, stageKit } = TOPICS[topic];
   const kit = stageKit === undefined ? {} : { kit: stageKit };
-  if (planned !== undefined) return { ...planned, ...kit, defaulted: false };
+  // What the operator asks for wins over what the plan holds: the spike is how a recipe's blocks are measured before it is marked.
+  const extra =
+    asked === undefined ? {} : { blocks: asked.blocks, ...(asked.guide === undefined ? {} : { guide: asked.guide }) };
+  if (planned !== undefined) return { ...planned, ...kit, ...extra, defaulted: false };
   const variant = stageKit === undefined ? 'plain' : 'stage';
-  return { variant, ...kit, misconception: { kind: 'none' }, defaulted: true };
+  return { variant, ...kit, ...extra, misconception: { kind: 'none' }, defaulted: true };
 }
 
 /** Recipe keys from `--topics a,b,c`; `undefined` when any name is not a library recipe. Repeats are dropped. */
@@ -120,3 +166,19 @@ export function parseSpikeTopics(raw: string): readonly ScrollTopic[] | undefine
   const keys = raw.split(',').map((key) => parseScrollTopic(key.trim()));
   return keys.length > 0 && keys.every((key): key is ScrollTopic => key !== undefined) ? [...new Set(keys)] : undefined;
 }
+
+/**
+ * The four recipes whose pages support one play block each, to measure with the v20 writer before any is
+ * marked (D-207, D-210): a sort of Timsort's steps, a growing chart of the population figures of the
+ * Industrial Revolution page, a scale of black-hole masses (stellar, intermediate, Sagittarius A*, the largest
+ * known) and a fork between Mars and Uranus with Ray as the guide. Run them with `BLOCK_SPIKE_BLOCKS_V2` as
+ * `--blocks`; the plan marks nothing, and a person marks a recipe's blocks after reading the spike.
+ */
+export const BLOCK_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
+  'hybrid-sorting',
+  'industrial-causes',
+  'black-hole-formation',
+  'seasons-elsewhere',
+];
+export const BLOCK_SPIKE_BLOCKS_V2 =
+  'hybrid-sorting=sort,industrial-causes=chart,black-hole-formation=scale,seasons-elsewhere=fork+ray';

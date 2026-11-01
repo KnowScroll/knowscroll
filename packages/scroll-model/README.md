@@ -508,9 +508,10 @@ The design's block table lists 12 new, 5 kept and 6 changed blocks. *Implemented
 | `call_it` | new | implemented as a stop; locking in, sparks, combo and the Plot twist reveal are play, implemented (S-2: `modules/play`, `packages/client-core/src/play-session.ts`) |
 | `final_call` | new | implemented as the last stop (S-3): judged on the server like a Call it, a combo bonus (`sparksEarned`, D-187), an optional `binding: tilt` that hands the reader Earth's tilt on the stage, and the document's `landmark` it awards (D-188). No `bind_stage` for other kits and no simulation formulas for it: the tilt is the kit's physics in code |
 | `recap` | new | implemented |
-| `scale`, `scene`, `sort`, `fork`, `guide` | new | planned (slice 8) |
+| `sort`, `fork`, `scale`, `chart` (growing), `guide` | new / changed | implemented (S-8d, D-207 to D-210): a read stop's `interactive` (one of the four) and `guide`; at most two interactives and two guide lines a Scroll; figures only from cited passages (D-208); played on the device, nothing reported (D-209); the writer fills them from JSON for a recipe that names them, nothing runtime-verified yet (the spike `blocks-v20` measures them) |
+| `scene` | new | deferred (D-210): hotspots need parts a picture can name |
 | `quote`, `table`, `code`, `media` | kept | planned |
-| `list`, `diagram`, `chart`, `simulation`, `figure` | changed | planned |
+| `list`, `diagram`, `simulation`, `figure` | changed | planned |
 
 The design cuts or merges `sequence`, `comparison`, `callout`, `disclosure`, `timeline` and `subheading`, the "Text version of diagrams" toggle, and "limits as the last block". None of them is built in v2.
 
@@ -589,9 +590,19 @@ Code derives the rest, by `stagePhysics` and `settleStageState`:
 
 Properties tested for every month and view: the pins and Ray agree with the season of each hemisphere (against the noon Sun height computed in the test), the halves mirror six months apart, and no description says the axis is on its side. A call never carries a stage state. Which recipes get a stage is recipe data, not the kit's: see `stageKit` in the content module's library plan (D-125).
 
+### Play blocks and the guide (D-207 to D-210)
+
+Status. **Implemented** (unit tests, the reader in the web export with axe at 390 and 1440 wide): `sort`, `fork`, `scale`, a growing `chart` and a `guide` line. **Not yet run on real MiniMax** (the spike `blocks-v20`, D-210). `scene` is deferred.
+
+- **Shape** (`src/v2/blocks.ts`). A read stop may carry `interactive` (one of the four) and `guide` (`{character, pose, line}`). A sort holds its items as shown and `order` (the index of the item that comes first, second, and so on): the document is the answer key, and `isSortRight` and `sortPlacedRight` are the check. A fork has exactly two paths. A scale and a chart hold labelled non-negative values and a unit; a scale also has an axis (`linear` or `log`) and `here`.
+- **Budget and rules** (`validateDocumentV2`). At most two interactives and two guide lines, a guide with two stops at least between lines and at most 25 words, a sort that has an order to find, a rising scale (no zero on a log one), a fork of two different paths of at most 40 words. A document without them is unchanged.
+- **Reading time.** A block's words count, a fork's longer path; each block adds ten seconds (`SECONDS_PER_INTERACTIVE`).
+- **Text versions.** `describeScale`, `describeChart` and `describeFork` derive them from the data; the reader uses them.
+- **The writer's side.** `scroll-authoring.v2` has the item types `sort`, `fork`, `scale` and `chart` (each a stop with a block) and a `guide` on a `stop`. `RecipeDataV2.blocks` and `.guide` say which a recipe has; code shuffles a sort, sorts a scale and turns "8.3" and "million" into a number. Every figure must be in a passage the item cites, with its word if it has one (D-208).
+
 ### The writer's shape (`./producer`)
 
-`scroll-authoring.v2` is one flat list of `items` (`stop`, `call_it`, `final_call`, `aside`) plus `recap` and `askSuggestions`: no ids, no indexes, the correct option first (and, in the first `call_it` of a myth Scroll, the wrong option that states the myth second: code marks it as the common guess, so there is no number to count, D-126), an aside after the item it belongs to, and a stage patch of the four choices above on stops only.
+`scroll-authoring.v2` is one flat list of `items` (`stop`, the play blocks `sort`, `fork`, `scale` and `chart`, `call_it`, `final_call`, `aside`) plus `recap` and `askSuggestions`: no ids, no indexes, the correct option first (and, in the first `call_it` of a myth Scroll, the wrong option that states the myth second: code marks it as the common guess, so there is no number to count, D-126), an aside after the item it belongs to, and a stage patch of the four choices above on stops only.
 
 - `assembleScrollV2` turns it into the document, deterministically.
 - `compileAuthoredV2` runs the authoring rules (citations and figures, copying, where an aside sits, the stage against the recipe's variant, and that a stage Scroll never calls Earth's axis sideways: `earth_axis_sideways`), assembles, runs `validateDocumentV2`, and returns the document with the claims each part cites, or merged findings located at the writer's items.
@@ -607,6 +618,7 @@ The labelled examples are CI fixtures, not product content (`production.kind: "f
 | `attention-slowly` | Drag-to-target diagram, heatmap chart with an anchored caption number, illustrative slider simulation, disclosure with code, table |
 | `weight-other-worlds` | Non-illustrative simulation with a personal input and cards, value bindings for its range and default, anchored fallback-text numbers, bar chart |
 | `spring-neap-tides` | Step-through diagram on the grid layout, illustrative slider simulation with cards and bands, timeline. Its two claims are the real passages from the frozen v1 library pack `1aca9029bc97`. |
+| `sort-fork-blocks-ci`, `scale-chart-blocks-ci` | Two labelled CI `scroll-document.v2` Scrolls about an invented planet and star that between them hold a sort, a fork, a scale, a growing chart and three guide lines (a Scroll may hold two blocks). They are the fixtures of the play blocks (S-8d): the reader's tests, the axe check and the screenshots. `fixtures/regenerate-blocks-v2.mjs` rewrites them (`pnpm --filter @knowscroll/scroll-model build && node packages/scroll-model/fixtures/regenerate-blocks-v2.mjs && pnpm format`). |
 | `seasons-stage-ci` | A `scroll-document.v2` about the seasons: a stage with seven states, two Call its and a Final call, a tangent and a limits aside, a recap. It is the reader's fixture (S-1c): its title and kicker say it is a CI fixture, its measures and hash are checked by `seasons-fixture.test.ts`, and `fixtures/regenerate-v2.mjs` rewrites it after a deliberate change to the v2 rules (`pnpm --filter @knowscroll/scroll-model build && node packages/scroll-model/fixtures/regenerate-v2.mjs && pnpm format`). |
 
 Layout:

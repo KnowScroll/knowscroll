@@ -12,7 +12,7 @@ function targets(heading: number): { at: KeyTargets; pick: jest.Mock; lock: jest
   const lock = jest.fn(() => true);
   const at: KeyTargets = {
     stops,
-    hasStage: true,
+    hasTextVersion: true,
     commands: {},
     jump: jest.fn(),
     heading: () => heading,

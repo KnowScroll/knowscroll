@@ -5,14 +5,25 @@ import type { Aside, ReadStop } from '@knowscroll/scroll-model';
 import { useFocusRing } from '../../display/focus-ring';
 import { Icon } from '../../icons/icon';
 import { Text } from '../../text/text';
+import { GuideView, PlayBlockView } from '../play-blocks';
 
 /** What an aside is called to the reader: the limits aside is "Small print". */
 export function asideLabel(kind: Aside['kind']): string {
   return kind === 'limits' ? 'Small print' : kind === 'tangent' ? 'Tangent' : 'Definition';
 }
 
-/** One read stop: its heading, its lines and paragraphs, and the same idea in simpler words on request. */
-export function ReadStopView({ stop }: { readonly stop: ReadStop }) {
+/**
+ * One read stop: its heading, its lines and paragraphs, the guide's line and the play block when it has
+ * them (D-207), and the same idea in simpler words on request. `textVersion` is the reader's text
+ * version, which the guide and the play block follow.
+ */
+export function ReadStopView({
+  stop,
+  textVersion = false,
+}: {
+  readonly stop: ReadStop;
+  readonly textVersion?: boolean;
+}) {
   const [simpler, setSimpler] = useState(false);
   const focus = useFocusRing('onLight');
   return (
@@ -35,6 +46,10 @@ export function ReadStopView({ stop }: { readonly stop: ReadStop }) {
             </Text>
           ),
         )
+      )}
+      {stop.guide === undefined ? null : <GuideView guide={stop.guide} asText={textVersion} />}
+      {stop.interactive === undefined ? null : (
+        <PlayBlockView interactive={stop.interactive} readerAsText={textVersion} />
       )}
       <Pressable
         {...focus.props}

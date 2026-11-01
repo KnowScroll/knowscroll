@@ -1,0 +1,212 @@
+{
+  "schemaVersion": "scroll-document.v2",
+  "assetId": "ci-fixture-scale-chart-blocks",
+  "revision": 1,
+  "language": "en",
+  "explanationUnitId": "ci-fixture-scale-chart-blocks-unit",
+  "theme": {
+    "family": "worlds"
+  },
+  "kicker": "CI fixture · not product content",
+  "title": "Vael’s planets, with a scale and a growing chart (a CI fixture)",
+  "dek": "An invented star with three planets on a scale and a count that grows faster than you expect (a CI fixture).",
+  "framing": {
+    "kind": "factual"
+  },
+  "misconception": {
+    "kind": "none"
+  },
+  "stops": [
+    {
+      "kind": "read",
+      "id": "hook",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Vael has three planets, and the gap between them is bigger than it looks. Where would you stand?"
+        }
+      ],
+      "simple": "Vael has three planets.",
+      "emphasis": "hook"
+    },
+    {
+      "kind": "call_it",
+      "id": "call-far",
+      "prompt": "Is the farthest planet about twice as far as the nearest?",
+      "options": ["No, it is about ten times as far", "Yes, about twice as far"],
+      "answer": 0,
+      "explain": "Sarn sits ten times as far from Vael as Orrin does.",
+      "twist": "Planets in drawings are crowded together. The real gaps are far wider.",
+      "simple": "Sarn is about ten times as far."
+    },
+    {
+      "kind": "read",
+      "id": "where",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Orrin is where you live. Zoom out to see how far the others are. Each tick on the line is ten times the one before it."
+        }
+      ],
+      "simple": "Zoom out from Orrin.",
+      "interactive": {
+        "type": "scale",
+        "axis": "log",
+        "unit": "million km",
+        "points": [
+          {
+            "label": "Orrin",
+            "value": 120
+          },
+          {
+            "label": "Pell",
+            "value": 310
+          },
+          {
+            "label": "Sarn",
+            "value": 1200
+          }
+        ],
+        "here": 0
+      }
+    },
+    {
+      "kind": "read",
+      "id": "ray",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Light takes longer to reach a far planet, and it spreads over more ground on the way."
+        }
+      ],
+      "simple": "Far planets get less light.",
+      "guide": {
+        "character": "ray",
+        "pose": "point",
+        "line": "Out here, my light is thin. Look how far it has to go."
+      }
+    },
+    {
+      "kind": "read",
+      "id": "count",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Now a count. On Orrin’s ferries, doubling the crates does much more than double the trips. Step through the counts."
+        }
+      ],
+      "simple": "Step through the counts.",
+      "interactive": {
+        "type": "chart",
+        "shape": "bars",
+        "unit": "trips",
+        "points": [
+          {
+            "label": "10 crates",
+            "value": 100
+          },
+          {
+            "label": "100 crates",
+            "value": 10000
+          },
+          {
+            "label": "1,000 crates",
+            "value": 1000000
+          }
+        ]
+      }
+    },
+    {
+      "kind": "call_it",
+      "id": "call-count",
+      "prompt": "Ten times the crates needs how many times the trips?",
+      "options": ["A hundred times", "Ten times"],
+      "answer": 0,
+      "explain": "Ten times the crates takes a hundred times the trips on Orrin’s ferries.",
+      "twist": "Ten is the natural first guess. Each crate has to meet every other, so the work grows with the square.",
+      "simple": "Ten times the crates, a hundred times the trips."
+    },
+    {
+      "kind": "read",
+      "id": "last",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Distances and counts both grow in steps that surprise us. Keep an eye on the scale of every number."
+        }
+      ],
+      "simple": "Check the scale of a number."
+    },
+    {
+      "kind": "final_call",
+      "id": "final-scale",
+      "prompt": "A new planet is a hundred times Orrin’s distance. How does that sit on the line?",
+      "options": ["Far beyond Sarn", "Between Orrin and Pell"],
+      "answer": 0,
+      "explain": "A hundred times is far beyond Sarn, which is only ten times as far.",
+      "twist": "Planets drawn in a row look evenly spaced, so a hundred times can seem close.",
+      "simple": "A hundred times is far beyond Sarn."
+    }
+  ],
+  "asides": [
+    {
+      "id": "where-this-stops",
+      "kind": "limits",
+      "title": "Where this stops",
+      "text": "The planets and the ferries are invented for this fixture; real distances are not tidy numbers.",
+      "anchorStop": "count",
+      "collapsed": true
+    }
+  ],
+  "recap": {
+    "captions": ["Distances grow fast.", "Counts can grow faster.", "Place yourself, then count."],
+    "smallPrintAside": "where-this-stops"
+  },
+  "askSuggestions": ["What would change if the numbers were different?", "Where does this picture stop being true?"],
+  "limitsVersion": "scroll-limits.v2",
+  "measures": {
+    "version": "scroll-measures.v2",
+    "readingSeconds": 129,
+    "readingMinutes": 2.2,
+    "totalWeight": 416,
+    "recapWeight": 11,
+    "stops": [
+      {
+        "stopId": "hook",
+        "weight": 18
+      },
+      {
+        "stopId": "call-far",
+        "weight": 85
+      },
+      {
+        "stopId": "where",
+        "weight": 31
+      },
+      {
+        "stopId": "ray",
+        "weight": 30
+      },
+      {
+        "stopId": "count",
+        "weight": 46
+      },
+      {
+        "stopId": "call-count",
+        "weight": 86
+      },
+      {
+        "stopId": "last",
+        "weight": 19
+      },
+      {
+        "stopId": "final-scale",
+        "weight": 90
+      }
+    ]
+  },
+  "integrity": {
+    "method": "canonical-json-sha256.v1",
+    "sha256": "3ab4f64fef9ca530e028a2881b90ae0eda7554a7b12e17ae72fc45436915ef2a"
+  }
+}
