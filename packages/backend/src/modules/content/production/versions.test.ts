@@ -139,6 +139,7 @@ describe('the answer to a question is written and checked as a pair (D-250)', ()
   const SUPPORT_CHECK_OF_QUESTION_WRITER: Readonly<Record<string, string>> = {
     'question-writer.v1': 'none',
     'question-writer.v2': 'ask-support-check.v1',
+    'question-writer.v3': 'ask-support-check.v2',
   };
 
   it('pairs the question writer’s instructions with the support check’s version', () => {

@@ -204,6 +204,7 @@ describe('the instructions for the answer to one question (D-218)', () => {
     expect(text).toContain('say in one sentence that the pages do not give the reason');
     expect(text).toContain('If the passages do not hold the answer at all, say so in one sentence');
     expect(text).toContain('A second reader checks each sentence against the passages you cited');
+    expect(text).toContain('the title, the headings and the callout’s title included');
     expect(text).toContain('do not say how a part works unless a passage says it');
     expect(text).not.toContain('THIS IS A WHAT-IF');
     expect(text.length).toBeLessThan(16_000);

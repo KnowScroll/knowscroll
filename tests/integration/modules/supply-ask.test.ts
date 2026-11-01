@@ -842,6 +842,28 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
     });
 
+    it('checks the title like any sentence: an unsupported title is repaired once, and the repaired title is what the person gets (B1.4)', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      const title = 'How a lamp and a prism ring guide sailors';
+      const repairedTitle = 'How a prism ring and a lamp guide sailors';
+      let writes = 0;
+      writer = () => {
+        writes += 1;
+        return answerWith(fixtureAnswer(writes === 1 ? {} : { sentence: [title, repairedTitle] }));
+      };
+      supportScript = (check, call) => (check === 1 ? supportReply(call, flagged(title)) : supportReply(call));
+
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+
+      // The checker was shown the title as the first sentence, resting on everything the answer cites.
+      const { sentences } = supportRequestOf(production.supportCalls[0]!);
+      expect(sentences[0]!.text).toBe(title);
+      expect(sentences[0]!.cites.length).toBeGreaterThan(4);
+      expect(production.writerCalls[1]!.request.user).toContain(`Sentence "${title}"`);
+      expect((await storedAnswer(order.assetId))?.document).toMatchObject({ title: repairedTitle });
+    });
+
     it('refuses when the repaired answer still has an unsupported sentence: nothing is stored and the person gets the honest state', async () => {
       await setup();
       const { person, requestId, order } = await orderedAsk();

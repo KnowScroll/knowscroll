@@ -34,10 +34,10 @@ export const SCENARIO_WRITER_PROMPT_VERSION = 'scenario-writer.v1';
  * The version of the instructions for a Scroll that answers one person's question (an ask order, D-218). It shares
  * the library's contract and adds the question rules, so the other modes keep their instructions and versions.
  * v2 (D-250): the reason a "why" question asks for comes from the passages, a gap is said in one sentence, and the
- * writer is told that each sentence is checked against the passages it cites. `versions.test.ts` pairs it with the
- * support check's version.
+ * writer is told that each sentence is checked against the passages it cites. v3: the title, the headings and the
+ * callout's title are checked too. `versions.test.ts` pairs it with the support check's version.
  */
-export const QUESTION_WRITER_PROMPT_VERSION = 'question-writer.v2';
+export const QUESTION_WRITER_PROMPT_VERSION = 'question-writer.v3';
 
 /** What the Scroll is: a library explanation, a what-if, another perspective, or the answer to one person's question. */
 export type WriterMode = 'library' | 'what_if' | 'perspective' | 'question';
@@ -138,7 +138,7 @@ const QUESTION_RULES: readonly string[] = [
   '- If the passages only partly answer it, answer the part they support and say plainly what they do not cover. Never guess beyond them and never present a guess as a fact.',
   '- When the question asks why, give the reason the passages themselves give, in their terms. If they state what happens but not why, say what they state and then say in one sentence that the pages do not give the reason. Never supply a reason from your own knowledge.',
   '- If the passages do not hold the answer at all, say so in one sentence at the start, then say what they do cover that is closest to the question. Never fill the gap with a guess.',
-  '- Every sentence that states a fact must rest on a passage you cite in that same block. A second reader checks each sentence against the passages you cited, and an answer with a sentence they do not support is refused. Do not join two things the passages say apart into a claim neither makes, and do not say how a part works unless a passage says it.',
+  '- Every sentence that states a fact must rest on a passage you cite in that same block. A second reader checks each sentence against the passages you cited, the title, the headings and the callout’s title included, and an answer with a sentence they do not support is refused. Say nothing in a title or a heading that a cited passage does not say. Do not join two things the passages say apart into a claim neither makes, and do not say how a part works unless a passage says it.',
   '- Do not repeat what the reader just read; use it only to see what they already know. Write for someone who read the stop quoted in the brief.',
   '- End with the callout of kind "limit": what this answer cannot tell us.',
 ];

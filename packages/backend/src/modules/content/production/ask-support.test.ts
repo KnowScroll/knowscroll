@@ -53,38 +53,60 @@ const ANSWER = AuthoredScroll.parse({
 describe('the sentences a support check reads', () => {
   const sentences = sentencesOfAnswer(ANSWER);
 
-  it('are the dek, then each paragraph, list item and callout in reading order, numbered from 1', () => {
+  it('are the title, the dek, each heading, each paragraph and list item, the callout’s title and its text, in reading order, numbered from 1 (B1.4)', () => {
     expect(sentences.map((sentence) => [sentence.number, sentence.text])).toEqual([
-      [1, 'A ring of glass shapes one beam that sweeps the sea.'],
-      [2, 'The keeper winds a clockwork every four hours.'],
-      [3, 'A prism ring gathers the light into one beam.'],
-      [4, 'Fog stops the light quickly.'],
-      [5, 'So a sound signal helps.'],
-      [6, 'This says nothing of radio.'],
+      [1, 'Why a lighthouse beam turns'],
+      [2, 'A ring of glass shapes one beam that sweeps the sea.'],
+      [3, 'The beam'],
+      [4, 'The keeper winds a clockwork every four hours.'],
+      [5, 'A prism ring gathers the light into one beam.'],
+      [6, 'Fog stops the light quickly.'],
+      [7, 'So a sound signal helps.'],
+      [8, 'Where this stops'],
+      [9, 'This says nothing of radio.'],
     ]);
   });
 
-  it('carry the passages their own block cites, and the dek rests on whatever the answer cites; a heading is not checked', () => {
+  it('carry the passages their own block cites; the title, the dek, the headings and the callout’s title rest on whatever the answer cites', () => {
+    const everything = ['e1', 'e2', 'e3', 'e4'];
     expect(sentences.map((sentence) => sentence.cites)).toEqual([
-      ['e1', 'e2', 'e3', 'e4'],
+      everything,
+      everything,
+      everything,
       ['e1', 'e2'],
       ['e1', 'e2'],
       ['e3'],
       ['e3'],
+      everything,
       ['e4'],
     ]);
-    expect(sentences.some((sentence) => sentence.text === 'The beam')).toBe(false);
+  });
+
+  it('leave out the title of a callout that has none', () => {
+    const plain = AuthoredScroll.parse({
+      ...ANSWER,
+      blocks: [
+        { type: 'paragraph', cites: ['e1'], text: 'The keeper winds a clockwork.' },
+        { type: 'callout', cites: ['e4'], kind: 'limit', text: 'This says nothing of radio.' },
+      ],
+    });
+    expect(sentencesOfAnswer(plain).map((sentence) => sentence.text)).toEqual([
+      'Why a lighthouse beam turns',
+      'A ring of glass shapes one beam that sweeps the sea.',
+      'The keeper winds a clockwork.',
+      'This says nothing of radio.',
+    ]);
   });
 
   it('are shown with only the passages the answer cites, and as data the checker reads line by line', () => {
-    const cited = askSupportContext(sentences.slice(3, 5), PASSAGES);
-    expect(citedPassages(sentences.slice(3, 5), PASSAGES).map((one) => one.handle)).toEqual(['e3']);
+    const cited = askSupportContext(sentences.slice(5, 7), PASSAGES);
+    expect(citedPassages(sentences.slice(5, 7), PASSAGES).map((one) => one.handle)).toEqual(['e3']);
     expect(cited.map((item) => item.kind)).toEqual(['cited_passages', 'answer_sentences']);
     expect(cited[0]!.text).toBe(`[e3] ${PASSAGES[2]!.text}`);
     const lines = cited[1]!.text.split('\n').map((line) => JSON.parse(line) as { n: number; cites: string[] });
     expect(lines).toEqual([
-      { n: 4, cites: ['e3'], text: 'Fog stops the light quickly.' },
-      { n: 5, cites: ['e3'], text: 'So a sound signal helps.' },
+      { n: 6, cites: ['e3'], text: 'Fog stops the light quickly.' },
+      { n: 7, cites: ['e3'], text: 'So a sound signal helps.' },
     ]);
   });
 
@@ -357,7 +379,7 @@ describe('the one repair an unsupported sentence earns', () => {
   it('tells the writer the fixed hint of each kind and where the sentence is, with the checker’s note as data, and shows it its draft', () => {
     const items = supportRepairItems(
       sentences,
-      [{ number: 4, verdict: 'unsupported', kind: 'contradicted', problem: 'The passage says the opposite.' }],
+      [{ number: 6, verdict: 'unsupported', kind: 'contradicted', problem: 'The passage says the opposite.' }],
       ANSWER,
     );
     expect(items.map((item) => item.kind)).toEqual(['check_problems', 'previous_draft']);

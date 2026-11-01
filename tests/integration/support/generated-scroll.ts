@@ -160,13 +160,13 @@ export function fixtureAuthored(
 /**
  * The answer to a question, authored about the same invented lighthouse as the sources above: every sentence is written
  * from the passages its block cites, so a support check that reads it finds words of those passages that are about the
- * sentence. It is a labelled CI fixture, never product content. `sentence` replaces one sentence of the answer (the
- * support check's repair).
+ * sentence. It is a labelled CI fixture, never product content. `sentence` replaces one sentence of the answer, the title
+ * included (the support check's repair).
  */
 export function fixtureAnswer(overrides: { readonly sentence?: readonly [string, string] } = {}) {
   const say = (text: string) => (overrides.sentence?.[0] === text ? overrides.sentence[1] : text);
   return AuthoredScroll.parse({
-    title: 'How a lamp and a prism ring guide sailors',
+    title: say('How a lamp and a prism ring guide sailors'),
     dek: 'A ring of glass shapes one beam, and the lamp clockwork turns it so sailors can read the coast.',
     blocks: [
       { type: 'heading', text: 'The beam' },
