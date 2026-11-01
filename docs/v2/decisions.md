@@ -3332,15 +3332,15 @@ Confirmed by: `share-session.test.ts` (three presses make one share and copy one
 **Amends** the "No suggestions" step of the What if sheet (X01).
 
 - **The defect.** A draft that the Planner could not take up because the day's budget was spent ended on the same "No suggestions" card as a draft that simply produced nothing, with "Suggestions are used up for now". It did not say that today's What-ifs were used up, or when they would be back.
-- **The rule.** A draft that closes as `budget_unavailable` says: "Today's What-ifs are used up. They come back tomorrow (the day changes at midnight UTC)." (the same words the thread's fifth branch uses, D-218). A draft that closes as `could_not_suggest` still says "We couldn't think of directions this time."
+- **The rule.** A draft that closes as `budget_unavailable` says: "Today's What-ifs are used up. They come back tomorrow (the day changes at midnight UTC)." (the same words the thread's fifth branch uses, D-158). A draft that closes as `could_not_suggest` still says "We couldn't think of directions this time."
 - **One reason for two causes.** The server closes a draft as `budget_unavailable` both when a daily cap is reached and when the provider's own quota window is out. The first returns at midnight UTC, the second sooner. "Tomorrow" is true for both as an upper bound, so the one sentence is kept and no third reason (which would need a new value in the drafts table) is added.
-- **Not changed.** The caps, the 20 drafts a day (said as "No more branches can be made right now" when a draft cannot be started, D-218), and the offer to write one's own version.
+- **Not changed.** The caps, the 20 drafts a day (said as "No more branches can be made right now" when a draft cannot be started), and the offer to write one's own version.
 
 Confirmed by: `scenario-sheet.test.tsx` ("says when today's What-ifs are used up and when they come back").
 
 ## D-290 · 2026-11-01 · A refused What-if of the member's own says why in plain words (v3 dev check fixes, #609)
 
-**Amends** D-006 i's single "not available" refusal for Choose.
+**Amends** D-049 (`choose` refused a used draft, a gone thread and a fault of ours alike as "not available").
 
 - **The defect.** Whatever stopped a choice, the sheet said "Can't do that. This isn't available any more." Three different things reached it that way: a draft that was already used or had timed out (the server answered `unavailable`), a thread or Scroll that is gone, and any answer that was not one of the closed refusals (a fault of ours, which the client read as "unavailable").
 - **The server.** `choose` still answers `unavailable` for a draft that is not the caller's or does not exist, because that must say nothing about anyone else's draft. A draft that is the caller's own and was already chosen or has timed out (a draft is kept two hours) now answers `stale_revision`, which they may be told.
