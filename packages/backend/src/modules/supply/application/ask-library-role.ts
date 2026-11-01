@@ -3,7 +3,7 @@ import { hasEnoughWords, isAbout, quoteIsIn, type ContentRef } from '../../conte
 import type { ProposeOutcome, ReasoningContext, ReasoningRole } from '../../../reasoning/public.js';
 
 /** Changes with the instructions or the answer schema; recorded on every run and attempt. */
-export const ASK_LIBRARY_ROLE_VERSION = 'ask-library.1';
+export const ASK_LIBRARY_ROLE_VERSION = 'ask-library.2';
 export const ASK_LIBRARY_POLICY_VERSION = 'supply-ask-library.v1';
 
 /** The most library Scrolls one question is read against: the checker is paid for once, whatever the topic holds. */
