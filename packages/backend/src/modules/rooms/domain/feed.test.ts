@@ -4,6 +4,7 @@ import {
   findTitle,
   noteProblem,
   pickFind,
+  repliesShownTo,
   residentToPost,
   routeFeed,
   slotOf,
@@ -182,5 +183,23 @@ describe('the voice of a note: no claimed experience (T3 sample, D-248)', () => 
     expect(noteProblem('x'.repeat(FEED_RULES.noteMaxChars + 1))).toBe('too_long');
     expect(noteProblem('See https://example.org for more.')).toBe('has_link');
     expect(noteProblem('As a student of optics, this is neat.')).toBe('claims_to_be_a_person');
+  });
+});
+
+describe('the replies a reader is told of (D-299)', () => {
+  const groups = [
+    { signer: 'kenji', ownVoice: false, count: 2 },
+    { signer: null, ownVoice: false, count: 1 },
+    { signer: null, ownVoice: true, count: 1 },
+    { signer: 'lena', ownVoice: true, count: 3 },
+  ];
+  it('counts every reply for a reader who blocked nobody and listens to residents', () => {
+    expect(repliesShownTo(groups, { aiOff: false, blocked: new Set() })).toBe(7);
+  });
+  it('leaves out what an Off reader is told nothing of, but keeps an answer someone asked a resident for', () => {
+    expect(repliesShownTo(groups, { aiOff: true, blocked: new Set() })).toBe(3);
+  });
+  it('leaves out a blocked person’s replies and a blocked member’s scout', () => {
+    expect(repliesShownTo(groups, { aiOff: false, blocked: new Set(['kenji', 'lena']) })).toBe(2);
   });
 });

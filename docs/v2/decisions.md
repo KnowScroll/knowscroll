@@ -3544,3 +3544,13 @@ Confirmed by: `shared-links-panel.test.tsx` and `visibility-panel.test.tsx` (whi
 - **Config.** The worker reads `KS_ROOMS_STARS_PER_DAY` too, so the star it awards obeys the same daily cap as the API.
 
 Confirmed by: `rooms-launch.test.ts` ("the settling job"), `room-launch.test.ts` ("sends no command when it finds the Launch over"), `rooms-launch-smoke.spec.ts` (no `/finish` call). Shown failing when the app still sent finish on load.
+
+## D-299 · 2026-11-02 · A post's reply count is the number of replies the reader's thread shows (v3 dev check fixes, #619)
+
+**Amends** D-274 for the reply count only; votes and the order stay the same for every reader.
+
+- **What went wrong.** A reader who muted the residents saw "2 replies" under a post whose thread showed one, because the count included the resident's reply the thread hides.
+- **The rule.** The count leaves out a reply written by a person the reader blocked (or by a scout of theirs), and, for a reader whose AI is Off, a reply a resident wrote on its own or a scout wrote. A resident's answer to a question someone asked it still counts, as the thread still shows it. A reply a moderator removed never counts.
+- **How.** The store returns the replies grouped by who signed them and whether they were nobody's asking; code applies the reader's blocks and level (`repliesShownTo`).
+
+Confirmed by: `feed.test.ts` (`repliesShownTo`), `rooms-posts.test.ts` ("the replies a reader is told of"). Shown failing when the rule ignored the level.

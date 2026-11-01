@@ -9,10 +9,10 @@ import {
   type RoomMemory,
 } from '@knowscroll/contracts';
 import type { z } from 'zod';
-import type { PersonalAuthority } from '../../identity/public.js';
+import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import type { AiLevel } from '../domain/membership.js';
 import { RANK_RULES, arrange, windowStart, type FeedSort } from '../domain/feed-rank.js';
-import { dayStartOf } from '../domain/feed.js';
+import { dayStartOf, repliesShownTo } from '../domain/feed.js';
 import { memoryProblem } from '../domain/memory.js';
 import { hostOf, mayPost } from '../domain/posts.js';
 import { receiptBase, runCommand } from './command.js';
@@ -57,12 +57,13 @@ function postView(
   author: Signed | undefined,
   card: ContentCard | undefined,
   aiLevel: AiLevel,
+  replies: number,
 ): RoomFeedPost | undefined {
   if (author === undefined || row.note === null) return undefined;
   const base = {
     discussionId: row.discussionId,
     postedAt: row.postedAt.toISOString(),
-    replies: row.replies,
+    replies,
     votes: row.votes,
     youVoted: row.votedByReader,
     canVote: author.kind !== 'person' || !author.you,
@@ -85,6 +86,23 @@ function postView(
     content: card,
     ...(aiLevel === 'quieter' ? { folded: true as const } : { note: row.note }),
   };
+}
+
+/**
+ * How many replies each post shows this reader: the replies their thread would show, so a count never promises a reply a block or an
+ * AI level of Off hides (D-299). Blocks are read once for every signer under the listed posts.
+ */
+async function replyCounter(
+  p: RoomPorts,
+  scope: PersonalScopeTx,
+  reader: { readonly aiLevel: AiLevel; readonly accountId: string },
+  rows: readonly FindRow[],
+): Promise<(row: FindRow) => number> {
+  const signers = [
+    ...new Set(rows.flatMap((row) => row.replies.flatMap((group) => (group.signer === null ? [] : [group.signer])))),
+  ];
+  const blocked = signers.length === 0 ? new Set<string>() : await p.blocked(scope, reader.accountId, signers);
+  return (row) => repliesShownTo(row.replies, { aiOff: reader.aiLevel === 'off', blocked });
 }
 
 /**
@@ -119,6 +137,7 @@ export function makeFeed(p: RoomPorts) {
           cards.map((card) => [`${card.target.assetId}:${String(card.target.assetRevision)}`, card]),
         );
         const authorOfRow = await authorsOf(p, scope, reader.accountId, cast, rows);
+        const repliesOf = await replyCounter(p, scope, reader, rows);
         const posts = rows
           .flatMap((row) => {
             const card =
@@ -126,7 +145,7 @@ export function makeFeed(p: RoomPorts) {
                 ? undefined
                 : (cardOf.get(`${row.asset.assetId}:${String(row.asset.assetRevision)}`) ??
                   ({ status: 'unavailable', target: row.asset } satisfies ContentCard));
-            const view = postView(row, authorOfRow(row), card, member.aiLevel);
+            const view = postView(row, authorOfRow(row), card, member.aiLevel, repliesOf(row));
             return view === undefined ? [] : [view];
           })
           .slice(0, ROOM_FEED_POSTS_MAX);

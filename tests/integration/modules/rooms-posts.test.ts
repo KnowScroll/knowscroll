@@ -557,6 +557,33 @@ describe('peopleâ€™s posts and votes in the Feed (real PostgreSQL)', () => {
     });
   });
 
+  describe('the replies a reader is told of', () => {
+    it('counts only the replies the reader’s thread shows: an Off reader is not counted a resident’s own reply, a blocked person’s reply is left out', async () => {
+      const reel = await libraryReel(world.db, 'A post with replies');
+      const { roomId, people } = await scene(4);
+      const [asha, ravi, kenji, lena] = people as [Friend, Friend, Friend, Friend];
+      const discussionId = await posted(asha, roomId, assetLink(reel));
+      unwrap(await say(world, kenji, roomId, discussionId, 'A person replies'));
+      unwrap(await say(world, lena, roomId, discussionId, 'Another person replies'));
+      // A resident speaking on its own, as the router would have left it (labelled fixture row).
+      await sql`
+        insert into rooms.messages (message_id, discussion_id, sequence, change_sequence, author_kind, inhabitant, ai_kind,
+          trigger, body_text, recorded_at)
+        select gen_random_uuid(), ${discussionId}::uuid, last_sequence + 1, last_change_sequence + 1, 'ai', 'skeptic',
+          'counterexample', 'overstated_claim', 'A fixture counterexample', ${world.clock.now}
+        from rooms.discussions where discussion_id = ${discussionId}::uuid`.execute(world.db);
+      await sql`update rooms.discussions set last_sequence = last_sequence + 1, last_change_sequence = last_change_sequence + 1
+        where discussion_id = ${discussionId}::uuid`.execute(world.db);
+      const repliesFor = async (person: Friend) => (await postsOf(roomId, person))[0]!.replies;
+      expect(await repliesFor(asha)).toBe(3);
+      unwrap(await setPreferences(world, ravi, roomId, { aiLevel: 'off' }));
+      expect(await repliesFor(ravi)).toBe(2);
+      unwrap(await friendCommand(world.friends, asha, kenji, 'block'));
+      expect(await repliesFor(asha)).toBe(2);
+      expect(await repliesFor(lena)).toBe(3);
+    });
+  });
+
   describe('the order of the Feed', () => {
     it('is New: the newest first, whoever posted it', async () => {
       await libraryScroll(world.db, 'A residentâ€™s Scroll', 5);
