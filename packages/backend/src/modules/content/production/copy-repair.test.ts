@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { COPY_RUN_WORDS } from '@knowscroll/scroll-model/producer';
 import { MAX_REPAIR_NOTES_CHARS } from '../../../reasoning/public.js';
-import { copyRepairNotes, REPAIR_NOTE_RUN_WORDS, REPAIR_NOTE_RUNS, type CopiedPlace } from './copy-repair.js';
+import {
+  copyRepairNotes,
+  REPAIR_NOTE_PLACES,
+  REPAIR_NOTE_RUN_WORDS,
+  REPAIR_NOTE_RUNS,
+  type CopiedPlace,
+} from './copy-repair.js';
 
 /**
  * Labelled CI fixtures: invented passage sentences, and drafts that repeat some of their words. Nothing here is provider
@@ -87,6 +93,16 @@ describe('the notes that go with a repair after a copy finding (D-294)', () => {
     expect(notes).toContain('Also copying: blocks[6], blocks[7].');
   });
 
+  it('names no more than twelve places it has no room to quote, and counts the rest', () => {
+    const places = Array.from({ length: 30 }, (_unused, index) => place(`blocks[${String(index)}]`, CANAL));
+    const notes = copyRepairNotes(places, SOURCES) ?? '';
+    expect(REPAIR_NOTE_PLACES).toBe(12);
+    // Six are quoted; of the 24 left, twelve are named and twelve counted.
+    const named = Array.from({ length: 12 }, (_unused, index) => `blocks[${String(index + REPAIR_NOTE_RUNS)}]`);
+    expect(notes).toContain(`Also copying: ${named.join(', ')} and 12 more.`);
+    expect(notes).not.toContain('blocks[18]');
+  });
+
   it('says nothing of more runs when every run is shown', () => {
     const notes = copyRepairNotes([place('blocks[0]', CANAL), place('blocks[1]', KETTLE)], SOURCES) ?? '';
     expect(notes).not.toContain('More runs');
@@ -108,6 +124,49 @@ describe('the notes that go with a repair after a copy finding (D-294)', () => {
       REPAIR_NOTE_RUNS,
     );
     expect(notes).toContain('More runs');
+  });
+
+  describe('always fits the limit, whatever the words and however many blocks copy', () => {
+    /** Thirty words, each `word` and a letter, as one passage; every one of `blocks` blocks repeats all of it. */
+    function worstCase(word: string, blocks: number) {
+      const passage = Array.from({ length: 30 }, (_unused, index) => `${word}${String.fromCharCode(97 + index)}`).join(
+        ' ',
+      );
+      return copyRepairNotes(
+        Array.from({ length: blocks }, (_unused, index) => place(`blocks[${String(index)}]`, passage)),
+        [passage],
+      );
+    }
+
+    it('with 80 blocks of 100-character words: one run, cut as the last resort, and the other places counted', () => {
+      const notes = worstCase('y'.repeat(100), 80) ?? '';
+      expect(notes.length).toBeLessThanOrEqual(MAX_REPAIR_NOTES_CHARS);
+      expect(notes.startsWith('Each line names a place in your text')).toBe(true);
+      const quoted = notes.split('\n').filter((line) => line.includes(' copies: '));
+      expect(quoted).toHaveLength(1);
+      expect(quoted[0]).toMatch(/^blocks\[0\] copies: "y+.*…"$/u);
+      const named = Array.from({ length: 12 }, (_unused, index) => `blocks[${String(index + 1)}]`);
+      expect(notes).toContain(`Also copying: ${named.join(', ')} and 67 more.`);
+      expect(notes).toContain('More runs');
+    });
+
+    it.each([40, 100, 400, 3000])('with %i-character words, on 1 block and on 80', (size) => {
+      for (const blocks of [1, 80]) {
+        const notes = worstCase('z'.repeat(size), blocks) ?? '';
+        expect(notes.length).toBeLessThanOrEqual(MAX_REPAIR_NOTES_CHARS);
+        expect(notes).toContain('blocks[0] copies: "z');
+      }
+    });
+
+    it('never cuts between the halves of a character outside the basic plane, whatever the alignment of the words', () => {
+      // Words of pairs (two code units each); a prefix of one to three letters moves where the pairs fall, so that the
+      // cut meets the first half of a pair in at least one of the four alignments.
+      for (const prefix of ['', 'a', 'ab', 'abc']) {
+        const notes = worstCase(`${prefix}${'\u{1d49c}'.repeat(50)}`, 80) ?? '';
+        expect(notes.length).toBeLessThanOrEqual(MAX_REPAIR_NOTES_CHARS);
+        expect(/[\ud800-\udfff]/u.test(notes)).toBe(false);
+      }
+    });
   });
 
   it.each([

@@ -73,8 +73,8 @@ flags are not yet seen on a real model).
 Status: **implemented**, runtime-verified with labelled CI fixture models on real PostgreSQL. **Measured on real MiniMax (1 Nov, v3):** every answer checked and both known
 errors flagged, but 59 of 101 sentences `unsupported`, almost all sound. **Planned:** v4 and writer v5 are live on dev with S-7d (D-281) and are measured by the same replay right after. The acceptance is in
 #605: both known errors stay `unsupported`, the Big O answer has at most three `unsupported` sentences, and the share falls well below a third. If it fails, a revised text is tried as a
-candidate file (D-280), and then the next pair is released or v4 and writer v5 are reverted. **S-7e (D-294):** five real asks on dev then closed on `copied_passage` before the check ran, so the writer is
-`question-writer.v6` (still paired with checker v4): the copy rule has a worked example, and a copy refusal's repair names each copied run. Implemented; runtime-verified on dev is the next check (#615).
+candidate file (D-280), and then the next pair is released or v4 and writer v5 are reverted. **S-7e (D-294, D-297):** five real asks on dev then closed on `copied_passage` (four of the six refusals in the ledger were the revision
+`question-writer.v5.fix`), so the writer is `question-writer.v6` (still paired with checker v4): the copy rule has a worked example, a copy refusal's repair names each copied run, and the revision has a repair of its own for copying. Implemented; runtime-verified on dev is the next check (#615).
 
 - **The check** (`ask-support.ts`, `ask-support-step.ts`, `writer-stage.ts`, `domain/ask-support.ts`). For the answer to a question (mode `question`),
   after the writer's answer has passed the validator and compiled, the role `content.ask-support-check` (`ask-support-check.v4`) is shown the
@@ -196,7 +196,7 @@ operator ─▶ job (research) ─▶ evidence passages ─▶ writer (1 call + 
    for each block the check refused, the passage words it repeats, cut from the research text with the
    same check that refused the answer (never the model's words) and sent in a `<repair-notes>` block
    with the block reference only. At most six runs of twenty words are shown, every block named by its
-   first run before any gets a second, within the harness's `MAX_REPAIR_NOTES_CHARS`, and the repair
+   first run before any gets a second (blocks with no room are named, twelve at most, then counted), always within the harness's `MAX_REPAIR_NOTES_CHARS`, and the repair
    is asked to rebuild those sentences in its own words, keeping the key terms. The nine-word rule
    (`COPY_RUN_WORDS`) is unchanged and is the one number the check, the instructions, the hints and the
    notes read. Implemented; runtime-verified on dev is the next check (#615).
