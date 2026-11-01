@@ -120,7 +120,7 @@ describe('takes are counted per production version, so a writer bump gives new o
     expect(REQUEST_BOUND_PER_TOPIC).toBe(2);
   });
 
-  it('reports the bound of the recipe asked about: six for a v2 recipe, twelve for the answer to a question, two for every other', () => {
+  it('reports the bound of the recipe asked about: six for a v2 recipe, fourteen for the answer to a question, two for every other', () => {
     expect(requestBoundOf('seasons')).toBe(REQUEST_BOUND_V2_PER_TOPIC);
     expect(requestBoundOf('exoplanet-kinds')).toBe(REQUEST_BOUND_PER_TOPIC);
     const order = `order-${'a'.repeat(32)}` as const;
@@ -131,11 +131,11 @@ describe('takes are counted per production version, so a writer bump gives new o
     expect(requestBoundOf(order, 'question')).toBe(REQUEST_BOUND_ASK_ORDER);
   });
 
-  it('counts the support check inside an ask order’s bound: the writer and its one repair, and for each of the two drafts its batches of sentences and one repair of an unusable reply in the check (D-250, D-267)', () => {
+  it('counts the support check inside an ask order’s bound: the writer and its repair, the revision a support check earns and its repair for a copied passage, and for each of the two drafts its batches of sentences and one repair of an unusable reply in the check (D-250, D-267, D-297)', () => {
     expect(ASK_SUPPORT_BATCH_SENTENCES).toBe(10);
     expect(ASK_SUPPORT_MAX_BATCHES).toBe(4);
-    expect(REQUEST_BOUND_ASK_ORDER).toBe(2 + 2 * (ASK_SUPPORT_MAX_BATCHES + 1));
-    expect(REQUEST_BOUND_ASK_ORDER).toBe(12);
+    expect(REQUEST_BOUND_ASK_ORDER).toBe(2 + 1 + 1 + 2 * (ASK_SUPPORT_MAX_BATCHES + 1));
+    expect(REQUEST_BOUND_ASK_ORDER).toBe(14);
     // The longest answer a take checks is four batches of ten sentences; the real answers of the 1 Nov check had 21.
     expect(Math.ceil(21 / ASK_SUPPORT_BATCH_SENTENCES)).toBeLessThanOrEqual(ASK_SUPPORT_MAX_BATCHES);
   });
@@ -153,6 +153,7 @@ describe('the answer to a question is written and checked as a pair (D-250)', ()
     'question-writer.v3': 'ask-support-check.v2',
     'question-writer.v4': 'ask-support-check.v3',
     'question-writer.v5': 'ask-support-check.v4',
+    'question-writer.v6': 'ask-support-check.v4',
   };
 
   it('pairs the question writer’s instructions with the support check’s version', () => {
@@ -164,7 +165,7 @@ describe('the answer to a question is written and checked as a pair (D-250)', ()
   });
 });
 
-describe('how long a production delivery may hold its claim (D-198, D-267)', () => {
+describe('how long a production delivery may hold its claim (D-198, D-267, D-297)', () => {
   /**
    * The reasoning README's rule for a job that calls `propose`: each request waits 10 s for the quota preflight, up to
    * its deadline and 10 s for the two scope locks. Written out again, so the queues cannot drift from it by editing the
@@ -181,11 +182,11 @@ describe('how long a production delivery may hold its claim (D-198, D-267)', () 
     expect(produceScrollQueue.policy.expireInSeconds).toBe(2100);
   });
 
-  it('gives the answer to a question, on a queue of its own, the claim of its twelve requests', () => {
+  it('gives the answer to a question, on a queue of its own, the claim of its fourteen requests', () => {
     expect(produceAnswerQueue.name).toBe('content.produce-answer');
-    expect(PRODUCE_ANSWER_CLAIM_SECONDS).toBe(claimNeeded(12, deadlineSeconds));
-    expect(PRODUCE_ANSWER_CLAIM_SECONDS).toBe(4020);
-    expect(produceAnswerQueue.policy.expireInSeconds).toBe(4020);
+    expect(PRODUCE_ANSWER_CLAIM_SECONDS).toBe(claimNeeded(14, deadlineSeconds));
+    expect(PRODUCE_ANSWER_CLAIM_SECONDS).toBe(4660);
+    expect(produceAnswerQueue.policy.expireInSeconds).toBe(4660);
   });
 
   it('keeps the two queues alike in everything but the claim, so the same consumer serves both', () => {

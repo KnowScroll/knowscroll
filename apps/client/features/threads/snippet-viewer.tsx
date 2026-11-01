@@ -17,7 +17,7 @@ import { newCommandId } from '../../platform/command-id';
 import { useAccountScope } from '../../providers/account-scope';
 import { writeResume } from '../encounter/encounter-history';
 import { ReelEncounter } from './reel-encounter';
-import { OpenScroll, ThreadScrollArticle } from './scroll-open';
+import { OpenScroll, ThreadScrollArticle, ThreadStageScroll } from './scroll-open';
 import { threadHref, threadRefFromParams } from './thread-links';
 
 type Opening = Extract<ThreadSnippetOpening, { status: 'ready' }>;
@@ -169,7 +169,15 @@ function ScrollSnippet({
       </View>
     );
   return (
-    <OpenScroll scope={scope} assetId={opening.content.assetId} onBack={onBack}>
+    <OpenScroll
+      scope={scope}
+      assetId={opening.content.assetId}
+      onBack={onBack}
+      stage={(scroll) => (
+        // A moment of a v2 Scroll: its passage anchor names a stop, and the reader opens there (D-292).
+        <ThreadStageScroll scope={scope} scroll={scroll} onBack={onBack} initialStopId={anchor.blockId} />
+      )}
+    >
       {(scroll) => (
         <ThreadScrollArticle
           scope={scope}

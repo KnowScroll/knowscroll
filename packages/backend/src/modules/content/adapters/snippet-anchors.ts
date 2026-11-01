@@ -1,10 +1,15 @@
 import { ReelDocumentSchema, MIN_SNIPPET_RANGE_MS } from '@knowscroll/contracts';
 import {
+  anchorIsMoment,
   deriveAnchorMap,
   describeBlockState,
+  momentOf,
   repointLocator,
+  SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  validateDocumentV2,
   validateLocator,
   type ScrollDocument,
+  type ScrollDocumentV2,
   type ScrollLocator,
 } from '@knowscroll/scroll-model';
 import { admitDocument } from '@knowscroll/scroll-model/admission';
@@ -75,6 +80,40 @@ async function readScrollDocument(trx: Transaction<Database>, ref: ContentRef): 
     document.integrity.sha256 === row.document_sha256
     ? document
     : undefined;
+}
+
+/**
+ * An exact v2 Scroll revision, admitted again from its stored bytes. A v2 Scroll has stops, not blocks, so a snippet of one
+ * is a moment (D-292); `undefined` for a v1 Scroll, a document that no longer admits or one that is not this revision.
+ */
+async function readStageDocument(trx: Transaction<Database>, ref: ContentRef): Promise<ScrollDocumentV2 | undefined> {
+  const row = await trx
+    .selectFrom('content.asset_revisions')
+    .select(['document', 'document_sha256'])
+    .where('asset_id', '=', ref.assetId)
+    .where('revision', '=', ref.assetRevision)
+    .where('document_version', '=', SCROLL_DOCUMENT_V2_SCHEMA_VERSION)
+    .executeTakeFirst();
+  if (row === undefined) return undefined;
+  const result = validateDocumentV2(row.document);
+  if (result.kind !== 'valid') return undefined;
+  const document = result.document;
+  return document.assetId.toLowerCase() === ref.assetId &&
+    document.revision === ref.assetRevision &&
+    document.integrity.sha256 === row.document_sha256
+    ? document
+    : undefined;
+}
+
+/** A moment of a v2 Scroll: exactly one whole read stop, with the hash of the words the sender saw. */
+function validateMoment(
+  document: ScrollDocumentV2,
+  anchor: Exclude<SnippetAnchorInput, { kind: 'reel_range' }>,
+): StoredSnippetAnchor | undefined {
+  if (anchor.kind !== 'scroll_passage') return undefined;
+  const moment = momentOf(document, anchor.blockId);
+  if (moment === undefined || !anchorIsMoment(moment, anchor)) return undefined;
+  return { ...anchor, quote: moment.quote };
 }
 
 /** The scroll-model locator of a stored Scroll anchor on an exact revision. */
@@ -153,6 +192,11 @@ export const validateSnippetAnchor: ValidateSnippetAnchor = async (scope, target
       : { status: 'invalid' };
   }
   if (head.kind !== 'scroll') return { status: 'invalid' };
+  const stage = await readStageDocument(trx, ref);
+  if (stage !== undefined) {
+    const moment = validateMoment(stage, anchor);
+    return moment === undefined ? { status: 'invalid' } : { status: 'valid', anchor: moment };
+  }
   const document = await readScrollDocument(trx, ref);
   if (document === undefined) return { status: 'unavailable' };
   const checked = validateScrollAnchor(document, ref, anchor);
