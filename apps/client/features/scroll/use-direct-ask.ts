@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { AccountScope } from '@knowscroll/client-core';
 import { newCommandId } from '../../platform/command-id';
 import { createRequestSession } from '../requests/request-session';
@@ -20,9 +20,6 @@ const WATCH_READS = 50;
  */
 export function useDirectAsk(scope: AccountScope, scroll: OpenedStageScroll, currentStop: () => string | undefined) {
   const router = useRouter();
-  // The session outlives a render, so it reaches the router through a ref: a new router object must not replace it.
-  const routerRef = useRef(router);
-  routerRef.current = router;
   const [open, setOpen] = useState(false);
   const { exposureId, assetId, assetRevision } = scroll;
   const source = useMemo(() => ({ exposureId, assetId, assetRevision }), [exposureId, assetId, assetRevision]);
@@ -34,11 +31,11 @@ export function useDirectAsk(scope: AccountScope, scroll: OpenedStageScroll, cur
         () => source,
         (target) => {
           setOpen(false);
-          routerRef.current.push(`/scroll/${target.assetId}`);
+          router.push(`/scroll/${target.assetId}`);
           return true;
         },
       ),
-    [scope, source],
+    [scope, source, router],
   );
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   // While a question is outstanding the session keeps reading it, so the ready notice is true even with the sheet shut.

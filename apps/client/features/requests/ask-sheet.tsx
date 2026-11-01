@@ -31,7 +31,6 @@ import { COUNTER_FROM, PAUSED_COPY, aboutTitle, usuallyPhrase } from './ask-copy
 import { unavailableCopy } from './request-copy';
 import type { RequestSession } from './request-session';
 
-
 /** One suggested question: the whole row is the button, and its number is the key that picks it (D1: 1 to 3). */
 function Suggestion({
   number,

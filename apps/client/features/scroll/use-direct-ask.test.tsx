@@ -9,13 +9,13 @@ import type { OpenedStageScroll } from './scroll-session';
 import { WATCH_EVERY_MS, useDirectAsk } from './use-direct-ask';
 
 const mockPush = jest.fn();
-jest.mock('expo-router', () => ({
-  useRouter: () => ({
-    push: (path: string): void => {
-      mockPush(path);
-    },
-  }),
-}));
+// One router object for every render, as expo-router's is: a new one would replace the session.
+const mockRouter = {
+  push: (path: string): void => {
+    mockPush(path);
+  },
+};
+jest.mock('expo-router', () => ({ useRouter: () => mockRouter }));
 let mockCounter = 5000;
 jest.mock('../../platform/command-id', () => ({
   newCommandId: () => `0199a000-0000-7000-8000-${String(++mockCounter).padStart(12, '0')}`,
