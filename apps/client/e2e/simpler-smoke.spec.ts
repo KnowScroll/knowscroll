@@ -10,7 +10,7 @@ const playableVideo = readFileSync(join(__dirname, 'fixtures', 'blue-60s.webm'))
 /**
  * Simpler, the selection menu and the Reels top bar (v3 S-9, D-244, D-246) in the production export over labelled HTTP fixtures.
  * Simpler swaps a stop for its own authored plainer words, in place, with Undo. Selecting words in a read stop offers
- * Simpler and Ask; Ask opens Ask from here (D-218) at that stop with the words as a draft, and sends nothing until Send.
+ * Simpler and Ask; Ask asks for a Quick answer under the stop (D-253, `quick-answer-smoke.spec.ts`) and sends no request for a Scroll.
  * A Reel has the same two top buttons a Scroll has: Your Universe and Next topic. The document is the labelled CI fixture
  * `seasons-stage-ci`. Screenshots are written only when `KS_SIMPLER_SHOTS` names a
  * folder (outside the repository).
@@ -73,16 +73,6 @@ async function select(page: Page, stopId: string, words: string) {
   );
 }
 
-/** Every request the page made to the server, so a test can show what a tap did not send. */
-function watchRequests(page: Page) {
-  const seen: string[] = [];
-  page.on('request', (request) => {
-    const path = new URL(request.url()).pathname;
-    if (path.startsWith('/v1/')) seen.push(path);
-  });
-  return seen;
-}
-
 for (const viewport of [phone, desktop]) {
   const size = `${String(viewport.width)} × ${String(viewport.height)}`;
   const name = `${String(viewport.width)}x${String(viewport.height)}`;
@@ -108,24 +98,21 @@ for (const viewport of [phone, desktop]) {
     await expect(stop.getByText(first.simple)).toBeVisible();
   });
 
-  test(`selecting words offers Simpler and Ask; Ask opens Ask from here with the words as a draft and sends nothing until Send, at ${size}`, async ({
+  test(`selecting words offers Simpler and Ask; Ask puts a Quick answer under the stop and asks for no Scroll, at ${size}`, async ({
     page,
   }) => {
     const served = await openScroll(page, viewport);
-    const requests = watchRequests(page);
     await select(page, first.id, 'Earth');
     const menu = page.getByRole('toolbar', { name: 'Selected text' });
     await expect(menu.getByRole('button')).toHaveText(['Simpler', 'Ask']);
     await shot(page, `selection-menu-${name}`);
     await menu.getByRole('button', { name: 'Ask' }).click();
-    const sheet = page.getByRole('dialog', { name: 'Ask for something' });
-    await expect(sheet.getByRole('heading', { name: 'Ask' })).toBeVisible();
-    await expect(sheet.getByRole('textbox')).toHaveValue('Tell me more about “Earth”');
-    await shot(page, `ask-from-selection-${name}`);
-    expect(await audit(page)).toEqual([]);
-    await page.waitForTimeout(300);
+    const card = page.locator(`[data-ks-stop="${first.id}"]`).getByTestId('quick-answer-card');
+    await expect(card).toBeVisible();
+    await expect(card.getByTestId('quick-answer-label')).toHaveText('QUICK ANSWER · NOT A CHECKED SCROLL');
+    // Nothing asked for a Scroll: a Quick answer is its own, capped request (D-253).
     expect(served.commands.filter((command) => command.path === '/v1/content/requests')).toEqual([]);
-    expect(requests.filter((path) => path.includes('quick') || path.includes('answer'))).toEqual([]);
+    expect(served.commands.filter((command) => command.path === '/v1/quick-answers')).toHaveLength(1);
   });
 
   test(`words of a call are never offered Simpler or Ask, at ${size}`, async ({ page }) => {

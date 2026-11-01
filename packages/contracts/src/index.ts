@@ -15,6 +15,7 @@ export * from './media.js';
 
 export * from './navigation.js';
 
+export * from './quick-answers.js';
 export * from './supply.js';
 
 export * from './geography.js';

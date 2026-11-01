@@ -1,6 +1,6 @@
 import { backfillLooksQueue, projectSceneQueue } from '@knowscroll/backend/modules/scenes';
 import { cartographyQueue, publishDeltaQueue, settleQuietQueue } from '@knowscroll/backend/modules/geography';
-import { resolveSupplyQueue } from '@knowscroll/backend/modules/supply';
+import { answerQuickAnswerQueue, resolveSupplyQueue } from '@knowscroll/backend/modules/supply';
 import { produceScrollQueue } from '@knowscroll/backend/modules/content';
 import { plannerQueue } from '@knowscroll/backend/modules/planner';
 import { prepareBufferQueue } from '@knowscroll/backend/modules/composer';
@@ -57,6 +57,7 @@ export const testQueues = queueRegistry([
   publishDeltaQueue,
   settleQuietQueue,
   resolveSupplyQueue,
+  answerQuickAnswerQueue,
   produceScrollQueue,
   suggestDraftQueue,
   writeAnswerQueue,

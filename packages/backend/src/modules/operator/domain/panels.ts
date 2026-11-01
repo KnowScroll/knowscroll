@@ -193,6 +193,7 @@ export const RETENTION_QUEUES: readonly string[] = [
   'reasoning.purge-expired-requests',
   'reasoning.sweep-dispatched-attempts',
   'feedback.purge-reports',
+  'supply.purge-quick-answers',
   'scenes.expire-formation',
   'scenes.recover-formation',
 ];

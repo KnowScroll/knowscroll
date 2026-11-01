@@ -385,6 +385,10 @@ routes. Each handler calls `SCENARIO_USE_CASES` and maps a refusal to the closed
 cases; no handler waits for a model. The API also reads `KS_SUPPLY_ASK_DAILY_CAP` and `KS_SUPPLY_ASK_PERSON_DAILY_CAP` (a question the Scroll itself suggests makes its ask order in the create transaction, D-218), serves `READ_ASK_ORDER_AUDIENCE` beside the branch audience (an ask order's Scroll opens for the person who asked), and maps `recording_paused` and `recording_stale` on a create to `RECORDING_PAUSED` and `RECORDING_POLICY_STALE` (409). It also reads `KS_SUPPLY_SCENARIO_DAILY_CAP` and `KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP` (five a day per thread, D-158).
 Tests: `tests/integration/modules/scenarios.test.ts`. *Implemented. Not yet run on dev.*
 
+### Quick answers (v3 S-9b, D-253 to D-255)
+
+`QuickAnswersController` mounts `POST /v1/quick-answers` (ask: stores the words, one ledger row and one worker job in one transaction; answers a receipt or an honest `unavailable` outcome for a full day, a person's limit or a full queue, with no receipt), `GET /v1/quick-answers/{id}` (the person's own answer: waiting, answered with its label, or unavailable; a dismissed, expired or foreign one is `NOT_FOUND`) and `POST /v1/quick-answers/dismiss` (clears the words now; quiet about what exists). Refusals map `recording_paused` to `RECORDING_PAUSED` and `recording_stale` to `RECORDING_POLICY_STALE` (409), a Scroll, stop or words the person has not opened to `ASSET_NOT_FOUND`. No handler waits for a model: a worker writes the answer. The API reads `KS_SUPPLY_QUICK_ANSWER_DAILY_CAP` and `KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP`. Tests: `tests/integration/modules/quick-answers.test.ts`. *Implemented. Not yet run on dev.*
+
 ### Play (#473, D-180)
 
 `PlayController` mounts two private POSTs under `/v1/play/`: `calls/lock` (`call.lock`: lock a pick on a Call it of an
