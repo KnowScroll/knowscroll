@@ -7,7 +7,10 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Database } from '@knowscroll/backend/infrastructure/postgres';
+import { eraseCurrentAccount, exportCurrentPerson } from '@knowscroll/backend/erasure-registry';
+import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
+import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { importEditorialScrollUseCase } from '@knowscroll/backend/modules/content/nest-providers';
 import {
   ANSWER_MS,
@@ -16,6 +19,7 @@ import {
   RESULTS_KEPT_DAYS,
   ROUND_MS,
 } from '../../../packages/backend/src/modules/rooms/domain/launch.js';
+import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureHarness, fixtureModel } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
@@ -33,6 +37,7 @@ import {
   seedRoom,
   setPreferences,
   setPresence,
+  topicsOf,
   unwrap,
   type RoomWorld,
 } from '../support/rooms.js';
@@ -55,6 +60,7 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
   let database: TestDatabase<Database>;
   let world: RoomWorld;
   let scrollId: string;
+  let boss: ReturnType<typeof createBoss>;
 
   beforeAll(async () => {
     database = await createTestDatabase<Database>('rooms_quiet');
@@ -63,6 +69,8 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
       { now: START },
       { residentsEnabled: true, starsPerDay: 3, launchGapMinutes: 120 },
     );
+    boss = createBoss(database.settings, 'producer', { onError: () => undefined, onWarning: () => undefined });
+    await boss.start();
     const source = starterSource() as unknown as {
       assetId: string;
       publication: { explanationUnitId: string };
@@ -75,6 +83,7 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
     expect((await importEditorialScrollUseCase(database.db)(source)).kind).toBe('imported');
   });
   afterAll(async () => {
+    await boss.stop({ graceful: false });
     await world.close();
     await database.drop();
   });
@@ -497,7 +506,7 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
         kind: 'topic',
         tag: 'question',
         title: 'How do astronomers know how far away a star is?',
-        title_derived: false,
+        title_derived: true,
         started_by_account_id: asha.accountId,
         notify_answer: true,
         answer_noticed_at: null,
@@ -610,6 +619,10 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
       const { harness } = fixtureHarness(database.db, { model });
       await world.contribute(harness)(world.queued.at(-1)!);
       expect(model.calls).toHaveLength(1);
+      // The resident reads the question once: its first message is the topic's origin and is also in the newest messages, and its title is
+      // those same words.
+      const sent = model.calls[0]!.request.user;
+      expect(sent.split('How do astronomers know how far away a star is?')).toHaveLength(2);
       const read = await readDiscussion(world, ravi, roomId, left.discussionId);
       if (read.status !== 'ready') throw new Error('expected ready');
       expect(read.messages.at(-1)).toMatchObject({ author: { kind: 'ai', inhabitant: 'explainer' } });
@@ -747,6 +760,126 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
       unwrap(await notice(asha, roomId, left.discussionId, { noticed: true }));
       await memberView(world, asha, roomId);
       expect(await rowsIn(world.db, PERSONAL_UNIVERSE_SCHEMAS)).toBe(personal);
+    });
+  });
+
+  describe('the words of a left question', () => {
+    const NEUTRAL = 'A topic from a message';
+    const WORDS = 'QUESTION-WORDS how do astronomers weigh a faraway star?';
+
+    /** Every place the title is read: the room's list, the topics list, the discussion itself and the card in General. */
+    async function titlesSeenBy(person: Friend, roomId: string, discussionId: string): Promise<string[]> {
+      const view = await memberView(world, person, roomId);
+      const stream = await readDiscussion(world, person, roomId, view.general.discussionId);
+      if (stream.status !== 'ready') throw new Error('expected ready');
+      const own = await readDiscussion(world, person, roomId, discussionId);
+      if (own.status !== 'ready') throw new Error('expected ready');
+      const cards = stream.messages.flatMap((message) =>
+        message.status === 'available' &&
+        message.body.kind === 'topic' &&
+        message.body.topic.discussionId === discussionId
+          ? [message.body.topic.title]
+          : [],
+      );
+      return [
+        view.discussions.find((item) => item.discussionId === discussionId)?.title ?? '(absent)',
+        (await topicsOf(world, person, roomId, 'new', 'question')).find((item) => item.discussionId === discussionId)
+          ?.title ?? '(absent)',
+        own.discussion.title,
+        ...cards,
+      ];
+    }
+    const everywhere = (title: string) => [title, title, title, title];
+
+    async function leftQuestion() {
+      const t0 = begin();
+      const { roomId, slug } = await seedRoom(world);
+      const [asha, ravi, omar, mod] = (await joined(world, roomId, 4)) as [Friend, Friend, Friend, Friend];
+      await makeModerator(world, slug, mod);
+      const left = unwrap(await leave(asha, roomId, { text: WORDS, askNow: false }));
+      return { t0, roomId, asha, ravi, omar, mod, discussionId: left.discussionId };
+    }
+
+    it('is a title made from its first message, as any topic begun from a message is', async () => {
+      const { discussionId, asha, roomId } = await leftQuestion();
+      const row = await world.db
+        .selectFrom('rooms.discussions')
+        .select(['title', 'title_derived', 'origin_message_id'])
+        .where('discussion_id', '=', discussionId)
+        .executeTakeFirstOrThrow();
+      const first = await world.db
+        .selectFrom('rooms.messages')
+        .select('message_id')
+        .where('discussion_id', '=', discussionId)
+        .where('sequence', '=', '1')
+        .executeTakeFirstOrThrow();
+      expect(row).toEqual({ title: WORDS, title_derived: true, origin_message_id: first.message_id });
+      // Its asker reads their own words, and so does anyone who may read the message.
+      expect(await titlesSeenBy(asha, roomId, discussionId)).toEqual(everywhere(WORDS));
+    });
+
+    it('reads as the neutral title for everyone while a moderator has removed its first message, and the words return when it is restored', async () => {
+      const { roomId, asha, ravi, mod, discussionId } = await leftQuestion();
+      const first = await world.db
+        .selectFrom('rooms.messages')
+        .select('message_id')
+        .where('discussion_id', '=', discussionId)
+        .where('sequence', '=', '1')
+        .executeTakeFirstOrThrow();
+      unwrap(await hideMessage(world, mod, roomId, discussionId, first.message_id));
+      for (const person of [asha, ravi, mod])
+        expect(await titlesSeenBy(person, roomId, discussionId), 'removed').toEqual(everywhere(NEUTRAL));
+      unwrap(await hideMessage(world, mod, roomId, discussionId, first.message_id, false));
+      expect(await titlesSeenBy(ravi, roomId, discussionId)).toEqual(everywhere(WORDS));
+    });
+
+    it('reads as the neutral title for a reader who blocked the asker, and as the words for everyone else', async () => {
+      const { roomId, asha, ravi, omar, discussionId } = await leftQuestion();
+      unwrap(await friendCommand(world.friends, ravi, asha, 'block'));
+      // The blocked asker's card in General is collapsed for the blocker, so it is not a place the title is read.
+      expect(await titlesSeenBy(ravi, roomId, discussionId)).toEqual([NEUTRAL, NEUTRAL, NEUTRAL]);
+      expect(await titlesSeenBy(omar, roomId, discussionId)).toEqual(everywhere(WORDS));
+      expect(await titlesSeenBy(asha, roomId, discussionId)).toEqual(everywhere(WORDS));
+    });
+
+    it('is the neutral title, stored, once its asker deletes their account, and the asker’s own file held the words until then', async () => {
+      const { roomId, asha, ravi, discussionId } = await leftQuestion();
+      const exported = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(asha.authority, (scope) =>
+        exportCurrentPerson(scope, { accountId: asha.accountId }, openToEveryone),
+      );
+      if (exported.kind !== 'entered') throw new Error('export refused');
+      expect(JSON.stringify(exported.value.sections['rooms'])).toContain('QUESTION-WORDS');
+
+      const receiptId = randomUUID();
+      const deleting = deleteAccountFor(database.db, boss, {
+        eraseAccountData: eraseCurrentAccount,
+        lockTimeoutMs: 5_000,
+      });
+      expect((await deleting.request(asha.authority, { receiptId })).kind).toBe('accepted');
+      expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
+
+      // The words are gone from the stored title and from every message, not merely hidden when served.
+      expect(
+        (
+          await world.db
+            .selectFrom('rooms.discussions')
+            .select('title')
+            .where('discussion_id', '=', discussionId)
+            .executeTakeFirstOrThrow()
+        ).title,
+      ).toBe(NEUTRAL);
+      expect(
+        (
+          await sql<{ n: string }>`
+            select (select count(*) from rooms.discussions where room_id = ${roomId}::uuid and title like '%QUESTION-WORDS%')
+              + (select count(*) from rooms.messages message join rooms.discussions discussion using (discussion_id)
+                  where discussion.room_id = ${roomId}::uuid and message.body_text like '%QUESTION-WORDS%') as n`.execute(
+            world.db,
+          )
+        ).rows[0]!.n,
+      ).toBe('0');
+      // The card the asker left in General went with their account; the topic stays, under the neutral title.
+      expect(await titlesSeenBy(ravi, roomId, discussionId)).toEqual([NEUTRAL, NEUTRAL, NEUTRAL]);
     });
   });
 

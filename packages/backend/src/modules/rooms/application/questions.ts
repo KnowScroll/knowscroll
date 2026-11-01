@@ -14,6 +14,7 @@ import { roomAcceptsPosts } from '../domain/membership.js';
 import { titleFrom } from '../domain/titles.js';
 import { askDecisionFor, queueAsk } from './ask-turn.js';
 import { receiptBase, runCommand } from './command.js';
+import { titlesFor } from './discussion-titles.js';
 import type { EnteredRoom } from './gate.js';
 import { hasResident, ok, refuse, type Result, type RoomPorts } from './ports.js';
 
@@ -43,6 +44,8 @@ export async function questionsView(
     candidates.length === 0
       ? [new Set<string>(), new Map<string, PublicPersonRef>()]
       : await Promise.all([p.blocked(scope, owner.accountId, candidates), p.people.byAccounts(scope, candidates)]);
+  // The title is the asker's first words, so it is read through the same protections as any title made from a message (D-168).
+  const titles = await titlesFor(p, scope, lock, owner.accountId, unnoticed);
   const replies = unnoticed.flatMap((question): QuestionReply[] => {
     const first = question.answerers.find((answer) => !blocked.has(answer.accountId) && people.has(answer.accountId));
     return first === undefined
@@ -50,7 +53,7 @@ export async function questionsView(
       : [
           {
             discussionId: question.discussionId,
-            title: question.title,
+            title: titles.get(question.discussionId)!,
             by: people.get(first.accountId)!,
             askedAt: question.askedAt.toISOString(),
             at: first.recordedAt.toISOString(),
@@ -126,6 +129,10 @@ export function makeQuestions(p: RoomPorts) {
               recordedAt: now,
               text: command.text,
             });
+            // The title is the first words of that message, so it is the asker's words with the protections of any such title: it is
+            // read only while the message is shown and not blocked by the reader, and it becomes the neutral title when its author's
+            // account is deleted (D-168). The message exists now, so it can be the origin.
+            await p.discussions.setOrigin(lock, discussionId, messageId);
             // The card where the room talks: the question is findable from General, and keeps up as people answer.
             await p.discussions.append(lock, general.discussionId, {
               kind: 'person',

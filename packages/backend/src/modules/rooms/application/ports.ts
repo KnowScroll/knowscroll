@@ -335,6 +335,12 @@ export interface DiscussionStore {
   ): Promise<ReadonlyMap<string, { readonly shown: boolean; readonly authorAccountId: string | null }>>;
   create(lock: RoomLock, discussion: NewDiscussion): Promise<void>;
   setPinned(lock: RoomLock, discussionId: string, pinnedAt: Date | null): Promise<void>;
+  /**
+   * Makes a discussion's first words its own: the message becomes its origin and its title is marked as made from that message
+   * (`title_derived`), so the title is read only while the message is (D-168). It is a second step because the origin is a foreign key
+   * to a message that cannot exist before the discussion does, and the title check needs the origin.
+   */
+  setOrigin(lock: RoomLock, discussionId: string, messageId: string): Promise<void>;
   append(lock: RoomLock, discussionId: string, message: NewMessage): Promise<Counters>;
   messages(
     lock: RoomLock,

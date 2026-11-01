@@ -452,6 +452,15 @@ export const discussionStore: DiscussionStore = {
       .execute();
   },
 
+  async setOrigin(lock, discussionId, messageId) {
+    await trxOf(lock)
+      .updateTable('rooms.discussions')
+      .set({ origin_message_id: messageId, title_derived: true })
+      .where('discussion_id', '=', discussionId)
+      .where('room_id', '=', lock.roomId)
+      .execute();
+  },
+
   async setPinned(lock, discussionId, pinnedAt) {
     await trxOf(lock)
       .updateTable('rooms.discussions')

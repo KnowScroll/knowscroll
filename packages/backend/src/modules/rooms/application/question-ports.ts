@@ -8,6 +8,8 @@
 export interface UnnoticedQuestion {
   readonly discussionId: string;
   readonly title: string;
+  /** The title is the first words of its first message, so it is read only as `titlesFor` allows (D-168). */
+  readonly titleDerived: boolean;
   /** When the question was left. */
   readonly askedAt: Date;
   /** Persons other than the asker whose shown messages are in it, oldest first (at most three). Their accounts, not yet checked against blocks. */

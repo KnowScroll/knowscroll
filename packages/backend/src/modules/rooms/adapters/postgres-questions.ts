@@ -31,14 +31,17 @@ export const questionStore: QuestionStore = {
     const found = await sql<{
       discussion_id: string;
       title: string;
+      title_derived: boolean;
       asked_at: Date | string;
       author_account_id: string;
       recorded_at: Date | string;
     }>`
-      select question.discussion_id, question.title, question.created_at as asked_at, answer.author_account_id,
+      select question.discussion_id, question.title, question.title_derived, question.created_at as asked_at,
+        answer.author_account_id,
         answer.recorded_at
       from (
-        select asked.discussion_id, asked.title, asked.created_at, asked.last_activity_at, asked.started_by_account_id
+        select asked.discussion_id, asked.title, asked.title_derived, asked.created_at, asked.last_activity_at,
+          asked.started_by_account_id
         from rooms.discussions asked
         where asked.room_id = ${lock.roomId}::uuid and asked.tag = 'question'
           and asked.started_by_account_id = ${accountId}::uuid
@@ -58,11 +61,12 @@ export const questionStore: QuestionStore = {
       order by question.last_activity_at desc, question.discussion_id desc, answer.sequence`.execute(trxOf(lock));
     const byQuestion = new Map<
       string,
-      { title: string; askedAt: Date; answerers: UnnoticedQuestion['answerers'][number][] }
+      { title: string; titleDerived: boolean; askedAt: Date; answerers: UnnoticedQuestion['answerers'][number][] }
     >();
     for (const row of found.rows) {
       const entry = byQuestion.get(row.discussion_id) ?? {
         title: row.title,
+        titleDerived: row.title_derived,
         askedAt: new Date(row.asked_at),
         answerers: [],
       };
