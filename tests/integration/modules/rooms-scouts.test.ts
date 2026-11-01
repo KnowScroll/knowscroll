@@ -23,6 +23,7 @@ import {
   libraryReel,
   libraryScroll,
   moderateScout,
+  never,
   NOTHING,
   readFeed,
   requestText,
@@ -33,6 +34,7 @@ import {
 } from '../support/rooms-feed.js';
 import {
   PERSONAL_UNIVERSE_SCHEMAS,
+  askAbout,
   hideMessage,
   joined,
   makeModerator,
@@ -574,6 +576,21 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
       expect((await look(scene.slug, scene.owner)).find.kind).toBe('posted');
     });
 
+    it('for topics its owner changed after the library was read: that look is dropped, and the next one is for the new topics', async () => {
+      await libraryScroll(world.db, 'A Scroll in the topic it left', 10, ASTRO);
+      const wanted = await libraryScroll(world.db, 'A Scroll in the topic it moved to', 20, OTHER);
+      const scene = await sent();
+      const { heartbeat, model } = scoutBeat(world);
+      const planned = (await heartbeat.scoutIn(scene.slug, scene.owner.person.handle))!;
+      unwrap(await setScout(world, scene.owner, scene.roomId, { interests: [OTHER] }));
+      expect((await heartbeat.lookAt(planned, never)).find).toEqual({ kind: 'dropped', reason: 'changed' });
+      expect(model.calls).toHaveLength(0);
+      expect(await scoutTurns(world.db, scene.roomId)).toEqual([]);
+      const current = (await heartbeat.scoutIn(scene.slug, scene.owner.person.handle))!;
+      expect((await heartbeat.lookAt(current, never)).find.kind).toBe('posted');
+      expect((await finds(scene.roomId))[0]).toMatchObject({ root_asset_id: wanted });
+    });
+
     it('when the room is paused or closed', async () => {
       expect(
         await silentLook(async (scene) => {
@@ -721,6 +738,23 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
       expect((await memberView(world, bystander, scene.roomId)).feed).toMatchObject({
         by: { kind: 'agent', sentBy: { personId: scene.owner.person.personId } },
       });
+    });
+
+    it('is not something a reader who blocked its owner can ask a resident about', async () => {
+      await libraryScroll(world.db, 'A Scroll for the ask check', 10, ASTRO);
+      const scene = await sent(3);
+      const [blocker, other] = scene.listeners as [Friend, Friend, Friend];
+      await scoutBeat(world).look(scene.slug, scene.owner);
+      const discussionId = (await readFeed(world, other, scene.roomId)).posts[0]!.discussionId;
+      const opened = await readDiscussion(world, other, scene.roomId, discussionId);
+      if (opened.status !== 'ready') throw new Error('expected ready');
+      const noteId = opened.messages[0]!.messageId;
+      unwrap(await friendCommand(world.friends, blocker, scene.owner, 'block'));
+      expect(await askAbout(world, blocker, scene.roomId, discussionId, 'challenge', noteId)).toEqual({
+        kind: 'refused',
+        code: 'unavailable',
+      });
+      unwrap(await askAbout(world, other, scene.roomId, discussionId, 'challenge', noteId));
     });
 
     it('is removed with the note when a moderator removes the note, and the stop is a moderator’s alone', async () => {

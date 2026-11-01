@@ -11,7 +11,8 @@ import type { ContentRef } from '../../content/public.js';
  * for it and none is its actor, so it runs under the nonpersonal `rooms` reasoning scope, never a personal one. Every method
  * that takes a scope runs inside that scope's transaction (the one that also holds the harness's room root), so a decision,
  * its ledger row and a post commit together. No method reads a person: a member is only ever a count of listeners, a flag that
- * says whose words are left out, or text read after that flag was applied.
+ * says whose words are left out, or text read after that flag was applied. The scouts' methods (v3 R-9) read one more thing of the
+ * member who sent a scout: whether they are still in the room and whether their recording is on, never anything they did.
  */
 
 /** A room the heartbeat may look at: where it is in the library. */

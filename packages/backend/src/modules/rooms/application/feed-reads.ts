@@ -13,7 +13,7 @@ import {
   type RoomMemory,
 } from '@knowscroll/contracts';
 import type { z } from 'zod';
-import type { PersonalAuthority } from '../../identity/public.js';
+import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { nameOf, type CastMember } from '../domain/cast.js';
 import type { InhabitantId } from '../domain/contribution.js';
 import type { AiLevel } from '../domain/membership.js';
@@ -39,7 +39,7 @@ const residentOf = (cast: readonly CastMember[], inhabitant: InhabitantId): AiAu
  */
 async function authorOf(
   p: RoomPorts,
-  scope: Parameters<RoomPorts['people']['byAccounts']>[0],
+  scope: PersonalScopeTx,
   readerAccountId: string,
   cast: readonly CastMember[],
   rows: readonly FindRow[],
@@ -73,7 +73,7 @@ const STRIP_LOOKS = 5;
  */
 export async function feedStrip(
   p: RoomPorts,
-  scope: Parameters<RoomPorts['people']['byAccounts']>[0],
+  scope: PersonalScopeTx,
   lock: RoomLock,
   reader: { readonly aiLevel: AiLevel; readonly accountId: string },
   cast: readonly CastMember[],
