@@ -108,7 +108,7 @@ export async function checkLibraryMatch(
         purpose: 'ask-library',
         policyVersion: ASK_LIBRARY_POLICY_VERSION,
       },
-      role: askLibraryRole(choices),
+      role: askLibraryRole(choices, input.question),
       context: askLibraryContext(input.requestId, input.question, choices),
       limits: { allowRepair: true },
     },

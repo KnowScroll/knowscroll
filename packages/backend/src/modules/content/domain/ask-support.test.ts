@@ -3,9 +3,12 @@ import {
   UNSUPPORTED_HINTS,
   UNSUPPORTED_KINDS,
   checkedRecord,
+  contentStems,
+  isAbout,
   passes,
   quoteIsIn,
   splitSentences,
+  sharedStems,
   statesFigure,
   tooManyNoClaims,
   uncheckedRecord,
@@ -99,5 +102,28 @@ describe('what a check decides', () => {
 
   it('has a fixed hint for every kind, in code', () => {
     for (const kind of UNSUPPORTED_KINDS) expect(UNSUPPORTED_HINTS[kind].length).toBeGreaterThan(20);
+  });
+});
+
+describe('the key words that tie a quote to a sentence (B1.2)', () => {
+  it('are the uncommon words of three letters or more, cut to five letters, once each, with numbers and spelled numbers left out', () => {
+    expect(
+      [...contentStems('The tower stands twenty-one metres tall, and the tower is 21 metres tall.')].sort(),
+    ).toEqual(['metre', 'stand', 'tall', 'tower']);
+    expect([...contentStems('It is a 3 or so, in the end.')]).toEqual(['end']);
+  });
+
+  it('count a word and its endings as one', () => {
+    expect(sharedStems('The tower begins here', 'Beginning with towers')).toBe(2);
+    expect(sharedStems('The beam', 'a prism ring around the flame')).toBe(0);
+  });
+
+  it('are shared at least twice, or all of them when the text has fewer', () => {
+    const passage = 'Near the poles the Sun is never directly overhead';
+    expect(isAbout('the Sun is', 'The Sun is nearly overhead at the pole in summer.')).toBe(false);
+    expect(isAbout(passage, 'The Sun is nearly overhead at the pole in summer.')).toBe(true);
+    // A heading of one key word needs that one; a text with no key word needs none.
+    expect(isAbout('light into a single beam', 'The beam')).toBe(true);
+    expect(isAbout('light into a single beam', 'Why?')).toBe(true);
   });
 });

@@ -43,7 +43,8 @@ describe('the choices a question is read against', () => {
 });
 
 describe('the checker’s answer is validated by code (D-251)', () => {
-  const schema = askLibraryAnswerSchema(choices);
+  const question = 'How does fog stop a lighthouse beam, and why a horn?';
+  const schema = askLibraryAnswerSchema(choices, question);
   const codes = (value: unknown) => {
     const result = schema.safeParse(value);
     return result.success
@@ -75,10 +76,23 @@ describe('the checker’s answer is validated by code (D-251)', () => {
     expect(codes({ scroll: 's1', quote: 'single — beam' })).toEqual(['quote_too_short']);
   });
 
+  it('refuses a quote that is real but not about the question, so a Scroll is not offered for words that answer nothing', () => {
+    // The words are in the Scroll, and nothing in them is about fog, a beam or a horn.
+    expect(codes({ scroll: 's1', quote: 'The clockwork turns the ring once' })).toEqual(['quote_not_about_question']);
+    expect(codes({ scroll: 's2', quote: 'Fog scatters light, so a lighthouse also' })).toEqual([]);
+  });
+
+  it('asks only for the key words a question has', () => {
+    const short = askLibraryAnswerSchema(choices, 'Why a horn?');
+    expect(short.safeParse({ scroll: 's2', quote: 'a horn that carries' }).success).toBe(true);
+    expect(short.safeParse({ scroll: 's2', quote: 'Fog scatters light, so' }).success).toBe(false);
+  });
+
   it('has fixed hints for each refusal and the instructions say that choosing none is a good answer', () => {
-    const role = askLibraryRole(choices);
+    const role = askLibraryRole(choices, question);
     expect(role).toMatchObject({ id: 'supply.ask-library', version: ASK_LIBRARY_ROLE_VERSION });
     expect(Object.keys(role.safeCustomIssues ?? {}).sort()).toEqual([
+      'quote_not_about_question',
       'quote_not_in_scroll',
       'quote_required',
       'quote_too_short',

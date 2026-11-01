@@ -156,6 +156,58 @@ describe('the checker’s reply is validated by code', () => {
     expect(codes(lazy)).toContain('too_many_no_claim');
   });
 
+  describe('ties the quote to the sentence it is given for (B1.2)', () => {
+    const sun: readonly SentenceUnderCheck[] = [
+      { number: 1, text: 'The Sun is nearly overhead at the pole in summer.', cites: ['e5'] },
+    ];
+    const sunReply = (quote: string) =>
+      askSupportSchema(sun, PASSAGES).safeParse({ sentences: [{ n: 1, verdict: 'supported', quote }] });
+
+    it('refuses the false sentence of the dev run marked supported with the three words "the Sun is"', () => {
+      // The words are in the passage, and they say nothing about "nearly overhead", the pole or the summer.
+      expect(codes(sunReply('the Sun is'))).toEqual(['quote_not_about_sentence']);
+      expect(codes(sunReply('Sun is never directly'))).toEqual(['quote_not_about_sentence']);
+    });
+
+    it('accepts words that carry two of the sentence’s own key words, even when the passage says the opposite: that is the checker’s judgement', () => {
+      expect(sunReply('the Sun is never directly overhead').success).toBe(true);
+    });
+
+    it('refuses one unrelated quote given for every sentence of an answer', () => {
+      // Every sentence cites the prism passage too, so the quote is a real quote of a cited passage each time.
+      const answer: readonly SentenceUnderCheck[] = [
+        { number: 1, text: 'A prism ring gathers the light into one beam.', cites: ['e1', 'e2'] },
+        { number: 2, text: 'The keeper winds the lamp clockwork every four hours.', cites: ['e1', 'e2'] },
+        { number: 3, text: 'The tower is tall enough to clear distant waves.', cites: ['e2', 'e4'] },
+        { number: 4, text: 'Fog stops the light quickly.', cites: ['e2', 'e3'] },
+      ];
+      const unrelated = answer.map((sentence) => ({
+        n: sentence.number,
+        verdict: 'supported',
+        quote: 'prism ring around the flame',
+      }));
+      const result = askSupportSchema(answer, PASSAGES).safeParse({ sentences: unrelated });
+      // The first sentence is about the prism ring, so it passes; the other three are refused one by one.
+      expect(codes(result)).toEqual([
+        'quote_not_about_sentence',
+        'quote_not_about_sentence',
+        'quote_not_about_sentence',
+      ]);
+    });
+
+    it('asks only for the key words a sentence has: a heading of one key word needs one', () => {
+      const heading: readonly SentenceUnderCheck[] = [{ number: 1, text: 'The beam', cites: ['e2'] }];
+      const reply = (quote: string) =>
+        askSupportSchema(heading, PASSAGES).safeParse({ sentences: [{ n: 1, verdict: 'supported', quote }] });
+      expect(reply('gathers the light into a single beam').success).toBe(true);
+      expect(codes(reply('a prism ring around the flame'))).toEqual(['quote_not_about_sentence']);
+    });
+
+    it('gives the checker a fixed hint for it', () => {
+      expect(askSupportRole(sun, PASSAGES).safeCustomIssues).toHaveProperty('quote_not_about_sentence');
+    });
+  });
+
   describe('counts the words of a quote, not the pieces between spaces (B1.1)', () => {
     // The false sentence of the dev run: the passage says the Sun is never overhead near a pole.
     const sun: readonly SentenceUnderCheck[] = [
@@ -170,7 +222,7 @@ describe('the checker’s reply is validated by code', () => {
     });
 
     it('accepts three words of the passage, whatever stands between them', () => {
-      expect(sunReply('is never directly overhead').success).toBe(true);
+      expect(sunReply('the Sun is never directly overhead').success).toBe(true);
     });
   });
 
@@ -210,6 +262,7 @@ describe('the role', () => {
     expect(role).toMatchObject({ id: 'content.ask-support-check', version: ASK_SUPPORT_CHECK_VERSION });
     expect(Object.keys(role.safeCustomIssues ?? {}).sort()).toEqual([
       'figure_marked_no_claim',
+      'quote_not_about_sentence',
       'quote_not_in_cited_passages',
       'quote_too_short',
       'sentences_not_in_order',

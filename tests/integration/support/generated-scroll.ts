@@ -11,6 +11,11 @@ import {
 } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { makeProduceScroll } from '../../../packages/backend/src/modules/content/production/produce.js';
+import {
+  hasEnoughWords,
+  isAbout,
+  sharedStems,
+} from '../../../packages/backend/src/modules/content/domain/ask-support.js';
 import type { WriterFormat } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { fixtureModel, fixtureSettings, silent } from './fixture-model.js';
 import type { FixtureCall, FixtureScenario } from './fixture-model-port.js';
@@ -151,6 +156,68 @@ export function fixtureAuthored(
   });
 }
 
+/**
+ * The answer to a question, authored about the same invented lighthouse as the sources above: every sentence is written
+ * from the passages its block cites, so a support check that reads it finds words of those passages that are about the
+ * sentence. It is a labelled CI fixture, never product content. `sentence` replaces one sentence of the answer (the
+ * support check's repair).
+ */
+export function fixtureAnswer(overrides: { readonly sentence?: readonly [string, string] } = {}) {
+  const say = (text: string) => (overrides.sentence?.[0] === text ? overrides.sentence[1] : text);
+  return AuthoredScroll.parse({
+    title: 'How a lamp and a prism ring guide sailors',
+    dek: 'A ring of glass shapes one beam, and the lamp clockwork turns it so sailors can read the coast.',
+    blocks: [
+      { type: 'heading', text: 'The beam' },
+      {
+        type: 'paragraph',
+        cites: ['e2', 'e3'],
+        text: [
+          'A ring of prisms around the flame bends the light into one narrow beam.',
+          say('Because the beam turns, sailors see it only as a flash, once each turn.'),
+          'By counting the seconds between flashes, sailors learn which lighthouse they are near.',
+          'Each tower repeats its own rhythm, so a pattern of flashes cannot be mistaken for the next coast along.',
+        ].join(' '),
+      },
+      { type: 'heading', text: 'The upkeep' },
+      {
+        type: 'paragraph',
+        cites: ['e1', 'e6'],
+        text: [
+          'Someone had to keep that turning going, and the keeper once wound the lamp clockwork by hand every few hours.',
+          'Today a small motor does that work, though the glass prisms are the original ones.',
+          'So the keeper no longer winds the clockwork every few hours.',
+        ].join(' '),
+      },
+      {
+        type: 'paragraph',
+        cites: ['e4'],
+        text: [
+          'Thick fog scatters light in every direction, so the beam fades after a short distance.',
+          'That is why a lighthouse also needs a sound signal, which fog does not stop.',
+        ].join(' '),
+      },
+      { type: 'heading', text: 'Putting it together' },
+      {
+        type: 'paragraph',
+        cites: ['e5', 'e6'],
+        text: [
+          'Height helps too, because a lamp set high above the sea can clear distant waves.',
+          'The tower in this story is twenty-one metres tall.',
+          'Each part solves a different problem, and the whole is only as reliable as its weakest piece.',
+        ].join(' '),
+      },
+      {
+        type: 'callout',
+        cites: ['e4'],
+        kind: 'limit',
+        title: 'Where this stops',
+        text: 'This picture ignores radio and satellite navigation, which now do most of the work.',
+      },
+    ],
+  });
+}
+
 export const answerWith = (value: unknown): FixtureScenario => ({ kind: 'success', text: JSON.stringify(value) });
 
 /** Whether a request is the answer checker's (a v2 library Scroll's second role, D-198). */
@@ -212,9 +279,30 @@ export interface SupportScript {
 }
 
 /**
- * A support checker's reply: every sentence supported with a quote copied from the first passage it cites, except the
- * ones named. The quote is real text of the request, so the reply passes the schema's check that a quote is in a
- * cited passage.
+ * The words of the cited passages that are about a sentence: the window of at most twenty-five words with the most key
+ * words in common with it (the shortest of those), or nothing when no window of any cited passage is about it. A quote
+ * that is real but about something else would not pass the schema, so a fixture reply must choose words that are.
+ */
+export function quoteAbout(sentence: string, passages: readonly string[]): string | undefined {
+  let best: { readonly quote: string; readonly shared: number; readonly length: number } | undefined;
+  for (const passage of passages) {
+    const words = passage.split(/\s+/u);
+    for (let from = 0; from < words.length; from += 1)
+      for (let to = from + 2; to < Math.min(words.length, from + 25); to += 1) {
+        const quote = words.slice(from, to + 1).join(' ');
+        if (!hasEnoughWords(quote) || !isAbout(quote, sentence)) continue;
+        const shared = sharedStems(quote, sentence);
+        if (best === undefined || shared > best.shared || (shared === best.shared && to - from < best.length))
+          best = { quote, shared, length: to - from };
+      }
+  }
+  return best?.quote;
+}
+
+/**
+ * A support checker's reply: every sentence supported with words of a passage it cites that are about it, except the
+ * ones named, and a sentence no cited passage is about is marked as stating no fact. The quote is real text of the
+ * request and about the sentence, so the reply passes the schema's checks; an unrelated quote would not.
  */
 export function supportReply(call: FixtureCall, script: SupportScript = {}): FixtureScenario {
   const { sentences, passages } = supportRequestOf(call);
@@ -223,8 +311,11 @@ export function supportReply(call: FixtureCall, script: SupportScript = {}): Fix
       const flagged = script.unsupported?.[sentence.n];
       if (flagged !== undefined) return { n: sentence.n, verdict: 'unsupported', ...flagged };
       if (script.noClaim?.includes(sentence.n) === true) return { n: sentence.n, verdict: 'no_claim' };
-      const text = sentence.cites.map((handle) => passages.get(handle)).find((passage) => passage !== undefined) ?? '';
-      return { n: sentence.n, verdict: 'supported', quote: text.split(/\s+/u).slice(0, 5).join(' ') };
+      const cited = sentence.cites.flatMap((handle) => passages.get(handle) ?? []);
+      const quote = quoteAbout(sentence.text, cited);
+      return quote === undefined
+        ? { n: sentence.n, verdict: 'no_claim' }
+        : { n: sentence.n, verdict: 'supported', quote };
     }),
   });
 }

@@ -135,6 +135,54 @@ export const MIN_QUOTE_WORDS = 3;
  */
 export const hasEnoughWords = (quote: string): boolean => wordsOf(quote).length >= MIN_QUOTE_WORDS;
 
+/** Words too common to show that two texts are about the same thing, and the spelled numbers (figures have their own rule). */
+const STOP_WORDS: ReadonlySet<string> = new Set(
+  (
+    'about above across after again against all almost along also although always among and any are around because been before being below ' +
+    'between both but can could did does doing down during each either else enough even ever every few for from further had has have having ' +
+    'her here hers him his how however into its itself just least less like made make many may might more most much must near neither nor ' +
+    'not now off often once only onto other others our ours out over own per quite rather same shall she should since some such than that ' +
+    'the their theirs them then there these they this those though through thus too under until upon very was were what when whenever where ' +
+    'whereas whether which while who whom whose why will with within without would yet you your yours ' +
+    'one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty ' +
+    'thirty forty fifty sixty seventy eighty ninety hundred thousand million billion trillion'
+  ).split(' '),
+);
+
+/** How many letters of a word stand for it: "begins" and "beginning" are the same key word. */
+const STEM_LETTERS = 5;
+
+/**
+ * The key words of a text: its words (letters and numbers) of three or more letters that are not common, each cut to its
+ * first five letters, without repeats. Two texts that share key words are about the same thing; a text that shares none
+ * with another says nothing about it.
+ */
+export function contentStems(text: string): ReadonlySet<string> {
+  const stems = new Set<string>();
+  for (const word of wordsOf(text)) {
+    if (word.length >= 3 && !STOP_WORDS.has(word) && /\p{L}/u.test(word)) stems.add(word.slice(0, STEM_LETTERS));
+  }
+  return stems;
+}
+
+/** How many key words two texts share. */
+export function sharedStems(first: string, second: string): number {
+  const other = contentStems(second);
+  return [...contentStems(first)].filter((stem) => other.has(stem)).length;
+}
+
+/** The key words a quote must share with the text it is given for. */
+export const MIN_SHARED_WORDS = 2;
+
+/**
+ * Whether a quote is about a text: it carries at least {@link MIN_SHARED_WORDS} of the text's key words, or all of them when
+ * the text has fewer (a heading of one key word needs one). This is what ties a verdict's quote to the sentence (or the
+ * question) it was given for; whether the quote then supports the sentence is for the checker to say.
+ */
+export function isAbout(quote: string, text: string): boolean {
+  return sharedStems(quote, text) >= Math.min(MIN_SHARED_WORDS, contentStems(text).size);
+}
+
 /** Whether a sentence states a figure. A sentence with a number is a claim, whatever the checker thinks. */
 export const statesFigure = (text: string): boolean => /\p{N}/u.test(text);
 

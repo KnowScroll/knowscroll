@@ -277,7 +277,7 @@ export type { ScrollTopic } from './production/topics.js';
  * The words of a quote compared with a text, for a model's claim that a text says something (D-250, D-251): a claim
  * is accepted only when the quote is in the text. Pure.
  */
-export { hasEnoughWords, quoteIsIn } from './domain/ask-support.js';
+export { hasEnoughWords, isAbout, quoteIsIn } from './domain/ask-support.js';
 export type { ProduceScrollResult } from './production/types.js';
 export {
   validateTopics,

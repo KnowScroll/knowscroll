@@ -11,6 +11,7 @@ import type { FixtureCall, FixtureScenario } from '../support/fixture-model-port
 import {
   answerWith,
   enableProductionScope,
+  fixtureAnswer,
   fixtureAuthored,
   fixtureResearchPage,
   supportReply,
@@ -39,7 +40,7 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     worker = fixtureProductionWorker(
       database,
       (_sequence, call) =>
-        answerWith(fixtureAuthored(call.request.user.includes('KIND: a CI what-if') ? 'comparison' : 'plain')),
+        answerWith(call.request.user.includes('KIND: a CI what-if') ? fixtureAuthored('comparison') : fixtureAnswer()),
       {
         support: (check, call) => support(check, call),
         quota: () => ({
@@ -98,10 +99,10 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     const answer = await producedOrder('question');
     const before = await contentRows();
     const callsBefore = worker.supportCalls.length;
-    // The checker now finds the sentence that starts "Because the ribbon turns" unsupported.
+    // The checker now finds the sentence that starts "Because the beam turns" unsupported.
     support = (_check, call) => {
       const { sentences } = supportRequestOf(call);
-      const flagged = sentences.find((sentence) => sentence.text.startsWith('Because the ribbon turns'))!;
+      const flagged = sentences.find((sentence) => sentence.text.startsWith('Because the beam turns'))!;
       return supportReply(call, {
         unsupported: { [flagged.n]: { kind: 'contradicted', problem: 'A passage says otherwise.' } },
       });
@@ -121,14 +122,14 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     expect(only!.line.supported + only!.line.unsupported + only!.line.noClaim).toBe(only!.line.sentences);
     // What the operator sees on the line holds counts and codes: no sentence, no title and no question.
     const line = JSON.stringify(only!.line);
-    expect(line).not.toContain('Because the ribbon turns');
-    expect(line).not.toContain('How a lighthouse');
+    expect(line).not.toContain('Because the beam turns');
+    expect(line).not.toContain('How a lamp');
     // The file's detail has every sentence with the passages it cites and the checker's verdict, flagged one included.
     expect(only!.detail!.sentences).toHaveLength(only!.line.sentences);
     const flaggedSentences = only!.detail!.sentences.filter((sentence) => sentence.verdict === 'unsupported');
     expect(flaggedSentences).toHaveLength(1);
     expect(flaggedSentences[0]).toMatchObject({ kind: 'contradicted', problem: 'A passage says otherwise.' });
-    expect(flaggedSentences[0]!.text.startsWith('Because the ribbon turns')).toBe(true);
+    expect(flaggedSentences[0]!.text.startsWith('Because the beam turns')).toBe(true);
     expect(only!.detail!.sentences.find((sentence) => sentence.verdict === 'supported')?.quote).toBeTruthy();
     // The checker was never shown the question, because the check does not use it.
     expect(worker.supportCalls.at(-1)!.request.user).not.toContain('a CI question');

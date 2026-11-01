@@ -60,6 +60,7 @@ import type { FixtureCall, FixtureScenario } from '../support/fixture-model-port
 import {
   answerWith,
   enableProductionScope,
+  fixtureAnswer,
   fixtureAuthored,
   fixtureProduction,
   fixtureResearchFor,
@@ -214,7 +215,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     await database.drop();
   });
   afterEach(() => {
-    writer = () => answerWith(fixtureAuthored('plain'));
+    writer = () => answerWith(fixtureAnswer());
     scopeScript = () => scopeAnswer('here');
     libraryScript = () => libraryReply(null, null);
     supportScript = (_check, call) => supportReply(call);
@@ -225,7 +226,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     await sql`delete from pgboss.job where name = 'content.produce-scroll'`.execute(database.db);
     await sql`delete from supply.requests`.execute(database.db);
     await sql`delete from supply.ask_orders`.execute(database.db);
-    writer = () => answerWith(fixtureAuthored('plain'));
+    writer = () => answerWith(fixtureAnswer());
     scopeScript = () => scopeAnswer('here');
     libraryScript = () => libraryReply(null, null);
     supportScript = (_check, call) => supportReply(call);
@@ -390,7 +391,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
 
     describe('a question that names another subject the catalogue covers (D-251)', () => {
       /** A typed question the scope step places on a catalogue subject, resolved by the worker. */
-      async function placed(topicId: string, question = 'Why does the sea rise and fall twice a day?') {
+      async function placed(topicId: string, question = 'How do ships know where the land begins?') {
         const { person, exposure } = await reader();
         scopeScript = () => scopeAnswer('catalogue', topicId);
         const requestId = await ask(person, askCommand(exposure, question));
@@ -418,7 +419,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         // The checker read the question with the words of the library Scroll, and not the Scroll being read.
         const checks = libraryCalls();
         expect(checks).toHaveLength(1);
-        expect(checks[0]!.request.user).toContain('Why does the sea rise and fall twice a day?');
+        expect(checks[0]!.request.user).toContain('How do ships know where the land begins?');
         expect(checks[0]!.request.user).toContain(LIBRARY_QUOTE);
         // Nothing was ordered, queued or counted: the library answered.
         expect(await database.db.selectFrom('supply.ask_orders').select('order_id').execute()).toEqual([]);
@@ -445,6 +446,10 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
 
       it.each([
         ['a quote that is not in the Scroll', () => libraryReply('s1', 'words the Scroll never wrote at all')],
+        [
+          'a quote of the Scroll that is not about the question',
+          () => libraryReply('s1', 'In earlier times a keeper climbed the stairs'),
+        ],
         ['a Scroll that is not a candidate', () => libraryReply('s7', LIBRARY_QUOTE)],
         ['a Scroll without a quote', () => libraryReply('s1', null)],
         [
@@ -730,12 +735,11 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         .executeTakeFirst();
     /** The number of the first sentence of the answer that starts with these words, as the checker is shown it. */
     const numberOf = (start: string) =>
-      sentencesOfAnswer(AuthoredScroll.parse(fixtureAuthored('plain'))).find((sentence) =>
-        sentence.text.startsWith(start),
-      )!.number;
-    const BEFORE = 'Because the ribbon turns';
-    const REPAIRED =
-      'Because the ribbon turns, a faraway watcher catches it for an instant each time it comes round. Every tower keeps its own rhythm, which is how a navigator who times the gaps tells one marker on the coast from the next.';
+      sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer())).find((sentence) => sentence.text.startsWith(start))!
+        .number;
+    const BEFORE = 'Because the beam turns';
+    const BEFORE_SENTENCE = 'Because the beam turns, sailors see it only as a flash, once each turn.';
+    const REPAIRED = 'Because the beam turns, sailors catch only a brief flash of it on each pass.';
     const flagged = (start: string) => ({
       unsupported: {
         [numberOf(start)]: { kind: 'goes_beyond', problem: 'The passage says something narrower than that.' },
@@ -779,7 +783,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       let writes = 0;
       writer = () => {
         writes += 1;
-        return answerWith(fixtureAuthored('plain', writes === 1 ? {} : { paragraph: REPAIRED }));
+        return answerWith(fixtureAnswer(writes === 1 ? {} : { sentence: [BEFORE_SENTENCE, REPAIRED] }));
       };
       supportScript = (check, call) => (check === 1 ? supportReply(call, flagged(BEFORE)) : supportReply(call));
 
@@ -797,8 +801,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(repair.user).toContain('Note: The passage says something narrower than that.');
       expect(repair.user).toContain('kind="previous_draft"');
       // The second check read the repaired sentence, and it is what the person gets.
-      expect(production.supportCalls[1]!.request.user).toContain('a faraway watcher');
-      expect(JSON.stringify((await storedAnswer(order.assetId))?.document)).toContain('a faraway watcher');
+      expect(production.supportCalls[1]!.request.user).toContain('a brief flash of it');
+      expect(JSON.stringify((await storedAnswer(order.assetId))?.document)).toContain('a brief flash of it');
 
       const [row] = await jobsOf(order.recipe);
       expect(row!.writer_run_id).toBe(askSupportRepairRunId(row!.id));
@@ -888,7 +892,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       let writes = 0;
       writer = () => {
         writes += 1;
-        return writes === 1 ? answerWith({ title: 'not a Scroll' }) : answerWith(fixtureAuthored('plain'));
+        return writes === 1 ? answerWith({ title: 'not a Scroll' }) : answerWith(fixtureAnswer());
       };
       supportScript = (_check, call) => supportReply(call, flagged(BEFORE));
 
@@ -906,7 +910,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       let writes = 0;
       writer = () => {
         writes += 1;
-        return writes === 1 ? answerWith(fixtureAuthored('plain')) : { kind: 'malformed' };
+        return writes === 1 ? answerWith(fixtureAnswer()) : { kind: 'malformed' };
       };
       supportScript = (_check, call) => supportReply(call, flagged(BEFORE));
 
@@ -940,6 +944,21 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
               quote: 'words that no passage ever contained',
             })),
           }),
+        'invalid_output',
+        2,
+      ],
+      [
+        'a quote of a cited passage that is about something else, given for every sentence',
+        (_check: number, call: FixtureCall) => {
+          const { sentences, passages } = supportRequestOf(call);
+          return answerWith({
+            sentences: sentences.map((sentence) => ({
+              n: sentence.n,
+              verdict: 'supported',
+              quote: (passages.get(sentence.cites[0]!) ?? '').split(/s+/u).slice(-4).join(' '),
+            })),
+          });
+        },
         'invalid_output',
         2,
       ],
@@ -1062,7 +1081,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       // Nothing is sent on its own after a refusal: the person decides.
       expect((await queuedProduction()).filter((queued) => queued.take === 2)).toEqual([]);
 
-      writer = () => answerWith(fixtureAuthored('plain'));
+      writer = () => answerWith(fixtureAnswer());
       const tried = await retry(person.authority, {
         version: 'content-request-retry.v1',
         commandId: randomUUID(),
