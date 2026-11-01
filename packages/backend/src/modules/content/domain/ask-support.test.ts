@@ -89,6 +89,40 @@ describe('a quote must be words of the passage it claims to come from', () => {
     expect(quoteIsIn('its tilted axis … never points anywhere', real)).toBe(false);
   });
 
+  it('needs every part of an ellipsis quote in one sentence of the passage: two distant sentences are not stitched together (D-263)', () => {
+    const two =
+      'At the equator the days are about as long as the nights all year. Near the poles the Sun is never directly overhead.';
+    expect(quoteIsIn('At the equator … never directly overhead', two)).toBe(false);
+    expect(quoteIsIn('At the equator the days … about as long as the nights', two)).toBe(true);
+    expect(quoteIsIn('Near the poles … never directly overhead', two)).toBe(true);
+    // A quote without an ellipsis is the passage's own words in a row, as before.
+    expect(quoteIsIn('all year. Near the poles', two)).toBe(true);
+  });
+
+  it('refuses an ellipsis quote that leaves out a negation, so it cannot say what the passage does not (D-263)', () => {
+    const not = 'The Sun is not directly overhead near the poles in summer.';
+    expect(quoteIsIn('The Sun is … directly overhead near the poles', not)).toBe(false);
+    expect(quoteIsIn('The Sun is not directly … near the poles in summer', not)).toBe(true);
+    const never = 'Near the poles the Sun is never directly overhead, because the planet’s axis is tilted a little.';
+    expect(quoteIsIn('Near the poles the Sun is … directly overhead, because the planet’s axis', never)).toBe(false);
+    for (const [passage, quote] of [
+      ['The beam isn’t visible through fog on the coast.', 'The beam … visible through fog on the coast'],
+      ['The lamp turns without any motor at the tower.', 'The lamp turns … any motor at the tower'],
+      ['There is no light in the tower at midday.', 'There is … light in the tower at midday'],
+    ] as const)
+      expect(quoteIsIn(quote, passage)).toBe(false);
+    // Words that are not negations may be left out, and a negation inside a part is the passage's own.
+    expect(quoteIsIn('The lamp turns … at the tower', 'The lamp turns slowly and steadily at the tower.')).toBe(true);
+    expect(quoteIsIn('Sun is not directly … in summer', not)).toBe(true);
+    // A later place where the parts stand without the negation is enough.
+    expect(
+      quoteIsIn(
+        'The Sun is … directly overhead',
+        'The Sun is not directly overhead here. The Sun is often directly overhead there.',
+      ),
+    ).toBe(true);
+  });
+
   it('reads the separators of a figure as part of it: "4,096" and "4096" are one word', () => {
     expect(wordsOf('It holds 4,096 values and 1,000,000 more, (1,2,3).')).toEqual([
       'it',

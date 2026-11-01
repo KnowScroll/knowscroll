@@ -90,7 +90,7 @@ checker flags the two known faulty sentences, how many sentences code sets aside
   breaks a rule makes *that sentence* `unsupported` (kind `not_stated`, a fixed note, the rule's code kept) while every other verdict stands:
   `quote_too_short` (fewer than three words, letters and numbers count, a dash does not; with an ellipsis, two words in each part),
   `quote_not_in_cited_passages` (the quote is not, word for word, in a passage that sentence cites: curly or straight quotes, any dash, non-breaking or
-  repeated spaces, case, an ellipsis for words left out and `4,096` for `4096` make no difference), `quote_not_about_sentence` (it must carry at least
+  repeated spaces, case, an ellipsis for words left out and `4,096` for `4096` make no difference; with an ellipsis every part must stand in one sentence of the passage and the words left out must hold no negation), `quote_not_about_sentence` (it must carry at least
   two of the sentence's key words: uncommon words of three letters or more, compared by their first five letters, or all of them when there are fewer),
   `no_claim_without_ground` and `too_many_no_claim`. `no_claim` has a ground code can see: a question; a title, heading or callout title of at most four words with no figure (a longer one states something and is judged), or the title of a limits callout ("What this does not explain"); a
   plain admission of a gap that is the *whole sentence* (`namesTheGap`, a small fixed list: "The pages do not say...", "This answer cannot tell...", "That detail

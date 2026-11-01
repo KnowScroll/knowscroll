@@ -502,6 +502,15 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
       expect(outcomes(sunReply('Sun is never directly'))).toEqual(['quote_not_about_sentence']);
     });
 
+    it('sets aside a quote that leaves the "never" out with an ellipsis, so it cannot turn the passage round (D-263)', () => {
+      expect(outcomes(sunReply('Near the poles the Sun is … directly overhead, because the planet’s axis'))).toEqual([
+        'quote_not_in_cited_passages',
+      ]);
+      expect(outcomes(sunReply('Near the poles the Sun is never … overhead, because the planet’s axis'))).toEqual([
+        'supported',
+      ]);
+    });
+
     it('accepts words that carry two of the sentence’s own key words, even when the passage says the opposite: that is the checker’s judgement', () => {
       expect(outcomes(sunReply('the Sun is never directly overhead'))).toEqual(['supported']);
     });

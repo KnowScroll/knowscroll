@@ -183,21 +183,45 @@ function indexOfRun(words: readonly string[], run: readonly string[], from: numb
   return -1;
 }
 
+/** Words that turn a sentence round: a quote must not leave one out between its parts. */
+const NEGATIONS: ReadonlySet<string> = new Set([
+  'not',
+  'never',
+  'no',
+  'nor',
+  'neither',
+  'none',
+  'nothing',
+  'without',
+  'cannot',
+]);
+const isNegation = (word: string): boolean => NEGATIONS.has(word) || word.endsWith("n't");
+
+/**
+ * Whether the parts of a quote stand in `words` in order, from `parts[index]` on, with no negation in the words left out
+ * between two parts. Tries every place a part stands, so a first match that leaves a "not" out does not hide a later one.
+ */
+function partsStandIn(parts: readonly (readonly string[])[], words: readonly string[], index = 0, from = 0): boolean {
+  const part = parts[index];
+  if (part === undefined) return true;
+  for (let at = indexOfRun(words, part, from); at >= 0; at = indexOfRun(words, part, at + 1)) {
+    if (index > 0 && words.slice(from, at).some(isNegation)) continue;
+    if (partsStandIn(parts, words, index + 1, at + part.length)) return true;
+  }
+  return false;
+}
+
 /**
  * Whether the words of `quote` stand together, in order, in `text`. A quote that marks words it leaves out ("the Sun ... never
- * overhead") needs each part in the text, in that order. A quote that is not in the passage proves nothing.
+ * overhead") needs every part in one sentence of the text, in that order, and no negation (not, never, no, n't, without...)
+ * in the words left out: two sentences stitched together, or a quote that drops a "not", say what the passage does not
+ * (D-263). A quote that is not in the passage proves nothing.
  */
 export function quoteIsIn(quote: string, text: string): boolean {
   const parts = quoteParts(quote);
   if (parts.length === 0) return false;
-  const have = wordsOf(text);
-  let from = 0;
-  for (const part of parts) {
-    const at = indexOfRun(have, part, from);
-    if (at < 0) return false;
-    from = at + part.length;
-  }
-  return true;
+  if (parts.length === 1) return indexOfRun(wordsOf(text), parts[0]!, 0) >= 0;
+  return splitSentences(text).some((sentence) => partsStandIn(parts, wordsOf(sentence)));
 }
 
 /** The fewest words a quote may have: a single word proves nothing about a sentence. */
