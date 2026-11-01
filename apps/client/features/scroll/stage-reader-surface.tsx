@@ -8,6 +8,7 @@ import {
   ReaderDock,
   ReaderTopBar,
   StageReader,
+  Text,
   useDisplay,
   type NextPartPeek,
   type StageReaderHandle,
@@ -16,8 +17,10 @@ import {
 import { QUICK_ANSWER_LABEL, QUICK_ANSWER_QUESTION_MAX } from '@knowscroll/contracts';
 import type { FeedbackTarget } from '@knowscroll/client-core';
 import { FeedbackSheetBody } from '../feedback/feedback-sheet';
+import { whyNoMoment } from '@knowscroll/scroll-model';
 import { challengeCallOf } from '../sharing/challenge-call';
 import { ChallengeSheet } from '../sharing/challenge-sheet';
+import { noMomentWords, ShareStopSheet, type MomentThread } from '../threads/share-stop-sheet';
 import type { OpenedStageScroll } from './scroll-session';
 import { quickAnswerViewOf } from './quick-answer-copy';
 import { useQuickAnswers } from './use-quick-answers';
@@ -70,6 +73,7 @@ export function StageReaderSurface({
   moreBody,
   headerNote,
   endSlot,
+  momentThread,
   topInset,
   bottomInset,
 }: {
@@ -88,11 +92,16 @@ export function StageReaderSurface({
   readonly headerNote?: ReactNode;
   /** Drawn at the end of the Scroll, before the ways on (a thread's "I've finished this part"). */
   readonly endSlot?: ReactNode;
+  /** The thread this Scroll is read in, so "Share a moment" sends into it; elsewhere the person chooses one of theirs. */
+  readonly momentThread?: MomentThread | undefined;
   readonly topInset: number;
   readonly bottomInset: number;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [challenging, setChallenging] = useState(false);
+  // Share a moment (D-292): the stop on screen when the person opened More, shared as a snippet.
+  const [momentStop, setMomentStop] = useState<string | undefined>();
+  const [sharingMoment, setSharingMoment] = useState(false);
   const [reporting, setReporting] = useState<FeedbackTarget>();
   // Quick answers on this Scroll: asked from the selection menu, drawn under the stop, never part of the Scroll (D-253).
   const quick = useQuickAnswers(scroll);
@@ -108,6 +117,7 @@ export function StageReaderSurface({
   const canChallenge = challengeCallOf(scroll.document) !== undefined;
   const { breakpoint } = useDisplay();
   const { document } = scroll;
+  const noMoment = whyNoMoment(document, momentStop);
   // Play on this Scroll: the person's own calls, sparks and combo, kept unless recording is paused (D-063, D-083).
   const play = useStagePlay(scroll);
   const wayOn = moves.nextPart ?? moves.related;
@@ -117,7 +127,7 @@ export function StageReaderSurface({
         <StageReader
           document={document}
           observer={observer}
-          paused={paused === true || moreOpen || challenging || reporting !== undefined}
+          paused={paused === true || moreOpen || challenging || sharingMoment || reporting !== undefined}
           initialStopId={initialStopId}
           handleRef={readerRef}
           onStopChange={onStopChange}
@@ -183,42 +193,68 @@ export function StageReaderSurface({
               <ReaderDock
                 onAsk={moves.ask}
                 sparks={play?.sparks}
-                onMore={moreBody === undefined ? undefined : () => setMoreOpen(true)}
+                onMore={() => {
+                  setMomentStop(reader.current?.capture()?.stopId);
+                  setMoreOpen(true);
+                }}
                 nextPart={wayOn}
               />
             </View>
           }
         />
       </View>
-      {moreBody === undefined ? null : (
-        <BottomSheet visible={moreOpen} title="More" onClose={() => setMoreOpen(false)}>
-          <View style={styles.more}>
+      <BottomSheet visible={moreOpen} title="More" onClose={() => setMoreOpen(false)}>
+        <View style={styles.more}>
+          <Button
+            label="Simpler (this screen)"
+            icon="info"
+            size="sm"
+            onPress={() => {
+              setMoreOpen(false);
+              reader.current?.toggleSimpler();
+            }}
+            testID="more-simpler"
+          />
+          {canChallenge ? (
             <Button
-              label="Simpler (this screen)"
-              icon="info"
+              label="Challenge a friend"
+              icon="send"
               size="sm"
               onPress={() => {
                 setMoreOpen(false);
-                reader.current?.toggleSimpler();
+                setChallenging(true);
               }}
-              testID="more-simpler"
+              testID="more-challenge"
             />
-            {canChallenge ? (
-              <Button
-                label="Challenge a friend"
-                icon="send"
-                size="sm"
-                onPress={() => {
-                  setMoreOpen(false);
-                  setChallenging(true);
-                }}
-                testID="more-challenge"
-              />
-            ) : null}
-            {moreBody(() => setMoreOpen(false))}
-          </View>
-        </BottomSheet>
-      )}
+          ) : null}
+          <Button
+            label="Share a moment"
+            icon="share"
+            size="sm"
+            disabled={noMoment !== undefined}
+            accessibilityHint={noMoment === undefined ? undefined : noMomentWords(noMoment)}
+            onPress={() => {
+              setMoreOpen(false);
+              setSharingMoment(true);
+            }}
+            testID="more-share-moment"
+          />
+          {noMoment === undefined ? null : (
+            <Text variant="meta" color={content.ink2} testID="more-share-moment-reason">
+              {noMomentWords(noMoment)}
+            </Text>
+          )}
+          {moreBody?.(() => setMoreOpen(false))}
+        </View>
+      </BottomSheet>
+      <BottomSheet visible={sharingMoment} title="Share a moment" onClose={() => setSharingMoment(false)}>
+        <ShareStopSheet
+          scroll={scroll}
+          stopId={momentStop}
+          thread={momentThread}
+          onClose={() => setSharingMoment(false)}
+        />
+      </BottomSheet>
       <BottomSheet visible={reporting !== undefined} title="Report" onClose={() => setReporting(undefined)}>
         {reporting === undefined ? null : (
           <FeedbackSheetBody target={reporting} start="content_error" onClose={() => setReporting(undefined)} />
