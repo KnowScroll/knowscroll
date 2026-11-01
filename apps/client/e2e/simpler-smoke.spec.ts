@@ -198,6 +198,8 @@ test('a desktop Reel card has Your Universe beside Previous subject, and Next su
   await page.goto('/explore');
   await expect(page.getByTestId('explore-desktop-frame')).toBeVisible();
   const frame = page.getByTestId('explore-desktop-frame');
+  // The fixture label is drawn once on the desktop card, not in the top row and again on the caption.
+  await expect(page.getByText('Fixture video')).toHaveCount(1);
   const universe = frame.getByRole('button', { name: 'Your Universe' });
   await expect(universe).toBeVisible();
   const [u, previous] = await Promise.all([
