@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { appendFile, open } from 'node:fs/promises';
+import { appendFile, open, stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { ConfigurationError, readScrollProductionOperatorConfig } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
@@ -52,8 +52,8 @@ type CandidateFileRefusal = Extract<CandidateReading, { kind: 'refused' }>['code
 
 /**
  * Reads candidate checker instructions from a file on the server. The path must be absolute and name a regular file of at
- * most {@link CANDIDATE_INSTRUCTIONS_MAX_BYTES} bytes, which is checked before it is read, so a device or a huge file is
- * never slurped. The file's text must be UTF-8 plain text (`readCandidateInstructions`). The refusal says why and never
+ * most {@link CANDIDATE_INSTRUCTIONS_MAX_BYTES} bytes, which is checked before it is opened, so a pipe, a device or a huge file
+ * is never opened or slurped. The file's text must be UTF-8 plain text (`readCandidateInstructions`). The refusal says why and never
  * quotes the file.
  */
 export async function readCandidateFile(
@@ -63,23 +63,25 @@ export async function readCandidateFile(
   | { readonly kind: 'refused'; readonly code: CandidateFileRefusal }
 > {
   if (!isAbsolute(path)) return { kind: 'refused', code: 'path_not_absolute' };
-  let handle;
+  // Looked at before it is opened, so a named pipe (which blocks an open) or a device is never opened or read.
   try {
-    handle = await open(path, 'r');
+    const info = await stat(path);
+    if (!info.isFile()) return { kind: 'refused', code: 'unreadable' };
+    if (info.size > CANDIDATE_INSTRUCTIONS_MAX_BYTES) return { kind: 'refused', code: 'too_large' };
   } catch {
     return { kind: 'refused', code: 'unreadable' };
   }
+  let handle;
   try {
-    const info = await handle.stat();
-    if (!info.isFile()) return { kind: 'refused', code: 'unreadable' };
-    if (info.size > CANDIDATE_INSTRUCTIONS_MAX_BYTES) return { kind: 'refused', code: 'too_large' };
+    handle = await open(path, 'r');
+    // One byte more than the limit, so a file that grew since it was looked at is refused as too large.
     const buffer = Buffer.alloc(CANDIDATE_INSTRUCTIONS_MAX_BYTES + 1);
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
     return readCandidateInstructions(buffer.subarray(0, bytesRead));
   } catch {
     return { kind: 'refused', code: 'unreadable' };
   } finally {
-    await handle.close();
+    await handle?.close();
   }
 }
 
