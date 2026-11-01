@@ -45,7 +45,13 @@ import {
 } from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { madeToOrderKey } from '../../../packages/backend/src/modules/content/domain/order-key.js';
-import { UNSUPPORTED_HINTS } from '../../../packages/backend/src/modules/content/domain/ask-support.js';
+import {
+  MAX_LABEL_WORDS,
+  RULE_PROBLEMS,
+  UNSUPPORTED_HINTS,
+  batchesOf,
+  wordsOf,
+} from '../../../packages/backend/src/modules/content/domain/ask-support.js';
 import {
   askSupportRepairRunId,
   askSupportRunId,
@@ -242,7 +248,9 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
 
   async function setup(caps?: Parameters<typeof build>[0]) {
     // Each test starts with no queued production, no ledger and no earlier asks: the caps count a day's rows.
-    await sql`delete from pgboss.job where name = 'content.produce-scroll'`.execute(database.db);
+    await sql`delete from pgboss.job where name in ('content.produce-scroll', 'content.produce-answer')`.execute(
+      database.db,
+    );
     await sql`delete from supply.requests`.execute(database.db);
     await sql`delete from supply.ask_orders`.execute(database.db);
     writer = () => answerWith(fixtureAnswer());
@@ -305,11 +313,14 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     if (row.ask_order_id === null || row.ask_asset_id === null) throw new Error('CI: the request made no ask order');
     return { orderId: row.ask_order_id, assetId: row.ask_asset_id, recipe: madeToOrderKey(row.ask_order_id) };
   };
-  const queuedProduction = async () =>
+  /** The production jobs waiting, on either queue: an ask order's answer is on its own, never on the library's (D-267). */
+  const queuedProductionRows = async () =>
     (
-      await sql<{ data: { recipe: string; take: number } }>`select data from pgboss.job
-        where name = 'content.produce-scroll' and state = 'created' order by created_on`.execute(database.db)
-    ).rows.map((row) => row.data);
+      await sql<{ name: string; data: { recipe: string; take: number } }>`select name, data from pgboss.job
+        where name in ('content.produce-scroll', 'content.produce-answer') and state = 'created'
+        order by created_on`.execute(database.db)
+    ).rows;
+  const queuedProduction = async () => (await queuedProductionRows()).map((row) => row.data);
   const count = async (
     table: 'experience.exposures' | 'evidence.observations' | 'evidence.action_events',
     universe: string,
@@ -351,6 +362,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         { order_id: order.orderId },
       ]);
       expect(await queuedProduction()).toEqual([expect.objectContaining({ recipe: order.recipe, take: 1 })]);
+      // The answer to a question is on the queue whose claim covers its twelve requests, not the library's (D-267).
+      expect((await queuedProductionRows()).map((row) => row.name)).toEqual(['content.produce-answer']);
       expect(scopeModel.calls).toHaveLength(0);
       // An ask is never consumption evidence: nothing was opened, observed or acted on because of it.
       expect({
@@ -667,7 +680,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(ready.status === 'ready' ? ready.content.metadata.title : '').not.toBe('');
       // The writer and the support check ran for the order; the question's scope was never asked for a suggested question.
       expect(production.writerCalls).toHaveLength(1);
-      expect(production.supportCalls).toHaveLength(1);
+      // The answer has 19 sentences: the check is two requests (D-267).
+      expect(production.supportCalls).toHaveLength(2);
       expect(scopeModel.calls).toHaveLength(0);
       expect(
         (await database.db.selectFrom('supply.ask_orders').select('ready_at').executeTakeFirstOrThrow()).ready_at,
@@ -757,6 +771,13 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     const numberOf = (start: string) =>
       sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer())).find((sentence) => sentence.text.startsWith(start))!
         .number;
+    /** The default fixture answer has 19 sentences, so a check of it is two requests (10 + 9 sentences, D-267). */
+    const BATCHES = batchesOf(sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer()))).length;
+    /** The ids of the runs of the checks of a draft: one for each batch. */
+    const checkRuns = (jobId: string, draft: 1 | 2) =>
+      Array.from({ length: BATCHES }, (_unused, batch) => askSupportRunId(jobId, draft, batch));
+    /** Whether the checker's request number `check`, counted over the whole job from 1, is about the first draft. */
+    const firstDraft = (check: number) => check <= BATCHES;
     const BEFORE = 'Because the beam turns';
     const BEFORE_SENTENCE = 'Because the beam turns, sailors see it only as a flash, once each turn.';
     const REPAIRED = 'Because the beam turns, sailors catch only a brief flash of it on each pass.';
@@ -766,32 +787,46 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       },
     });
 
-    it('serves an answer after one writer request and one check when every sentence is supported', async () => {
+    it('serves an answer after one writer request and one check, in batches, when every sentence is supported', async () => {
       await setup();
       const { person, requestId, order, question } = await orderedAsk();
 
       const done = await publish(order.recipe);
 
-      // The check is inside the order's request bound of six, and in the same job as the writer.
-      expect(done).toMatchObject({ kind: 'finished', result: { outcome: 'published', requestBound: 6, take: 1 } });
+      // The check is inside the order's request bound of twelve, and in the same job as the writer.
+      expect(BATCHES).toBe(2);
+      expect(done).toMatchObject({ kind: 'finished', result: { outcome: 'published', requestBound: 12, take: 1 } });
       expect(production.writerCalls).toHaveLength(1);
-      expect(production.supportCalls).toHaveLength(1);
+      expect(production.supportCalls).toHaveLength(BATCHES);
       const [row] = await jobsOf(order.recipe);
       expect(row).toMatchObject({ state: 'published' });
       expect(row!.outcomes).toContainEqual(
-        expect.objectContaining({ role: 'support_check', kind: 'checked', draft: 1, unsupported: [] }),
+        expect.objectContaining({
+          role: 'support_check',
+          kind: 'checked',
+          draft: 1,
+          batches: BATCHES,
+          unsupported: [],
+        }),
       );
-      // The check is one more attempt in the ledger, in a run of its own, and the job closed it.
-      expect(await runStates([askSupportRunId(row!.id, 1)])).toEqual([
-        { id: askSupportRunId(row!.id, 1), state: 'completed', closed: true },
-      ]);
+      // Each batch is one more attempt in the ledger, in a run of its own, and the job closed them.
+      expect(await runStates(checkRuns(row!.id, 1))).toEqual(
+        checkRuns(row!.id, 1)
+          .map((id) => ({ id, state: 'completed', closed: true }))
+          .sort((a, b) => a.id.localeCompare(b.id)),
+      );
       // The checker read the answer’s sentences against the passages they cite, and never the person's question.
-      const request = production.supportCalls[0]!.request;
-      expect(request.system).toContain('content.ask-support-check');
-      expect(request.user).toContain('kind="answer_sentences"');
-      expect(request.user).toContain('kind="cited_passages"');
-      expect(request.user).not.toContain(question);
-      expect(request.user).not.toContain('THE QUESTION');
+      for (const call of production.supportCalls) {
+        expect(call.request.system).toContain('content.ask-support-check');
+        expect(call.request.user).toContain('kind="answer_sentences"');
+        expect(call.request.user).toContain('kind="cited_passages"');
+        expect(call.request.user).not.toContain(question);
+        expect(call.request.user).not.toContain('THE QUESTION');
+      }
+      // Together the batches carry every sentence of the answer once, in order, ten at most to a request.
+      const asked = production.supportCalls.map((call) => supportRequestOf(call).sentences.map((one) => one.n));
+      expect(asked.map((numbers) => numbers.length)).toEqual([10, 9]);
+      expect(asked.flat()).toEqual(Array.from({ length: 19 }, (_unused, index) => index + 1));
 
       await resolve(job(person, requestId));
       expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
@@ -805,13 +840,13 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         writes += 1;
         return answerWith(fixtureAnswer(writes === 1 ? {} : { sentence: [BEFORE_SENTENCE, REPAIRED] }));
       };
-      supportScript = (check, call) => (check === 1 ? supportReply(call, flagged(BEFORE)) : supportReply(call));
+      supportScript = (check, call) => (firstDraft(check) ? supportReply(call, flagged(BEFORE)) : supportReply(call));
 
       const done = await publish(order.recipe);
 
       expect(done).toMatchObject({ kind: 'finished', result: { outcome: 'published' } });
       expect(production.writerCalls).toHaveLength(2);
-      expect(production.supportCalls).toHaveLength(2);
+      expect(production.supportCalls).toHaveLength(2 * BATCHES);
       // The repair is the writer's second request and its only one: the revision notice, the fixed hint of the kind, the checker's
       // note as data and the draft it refers to. The harness gives it no repair of its own.
       const repair = production.writerCalls[1]!.request;
@@ -821,7 +856,9 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(repair.user).toContain('Note: The passage says something narrower than that.');
       expect(repair.user).toContain('kind="previous_draft"');
       // The second check read the repaired sentence, and it is what the person gets.
-      expect(production.supportCalls[1]!.request.user).toContain('a brief flash of it');
+      expect(production.supportCalls.slice(BATCHES).map((call) => call.request.user)).toContainEqual(
+        expect.stringContaining('a brief flash of it'),
+      );
       expect(JSON.stringify((await storedAnswer(order.assetId))?.document)).toContain('a brief flash of it');
 
       const [row] = await jobsOf(order.recipe);
@@ -845,16 +882,11 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       const text = JSON.stringify(receipts);
       expect(text).not.toContain(BEFORE);
       expect(text).not.toContain('narrower than that');
-      // All four runs closed: the first writer's, both checks and the repair.
+      // Every run closed: the first writer's, the batches of both checks and the repair.
       const superseded = receipts.find((receipt) => receipt.kind === 'draft_unsupported')!.runId!;
-      const ids = [
-        superseded,
-        askSupportRunId(row!.id, 1),
-        askSupportRunId(row!.id, 2),
-        askSupportRepairRunId(row!.id),
-      ];
+      const ids = [superseded, ...checkRuns(row!.id, 1), ...checkRuns(row!.id, 2), askSupportRepairRunId(row!.id)];
       const runs = await runStates(ids);
-      expect(runs).toHaveLength(4);
+      expect(runs).toHaveLength(2 + 2 * BATCHES);
       expect(runs.every((run) => run.closed)).toBe(true);
       expect(runs.find((run) => run.id === superseded)?.state).toBe('failed');
 
@@ -872,7 +904,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         writes += 1;
         return answerWith(fixtureAnswer(writes === 1 ? {} : { sentence: [title, repairedTitle] }));
       };
-      supportScript = (check, call) => (check === 1 ? supportReply(call, flagged(title)) : supportReply(call));
+      supportScript = (check, call) => (firstDraft(check) ? supportReply(call, flagged(title)) : supportReply(call));
 
       expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
 
@@ -895,9 +927,9 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         kind: 'finished',
         result: { outcome: 'rejected', codes: ['support_check_failed'] },
       });
-      // One repair and no more: two writer requests and two checks, inside the bound of six.
+      // One repair and no more: two writer requests and two checks of two batches each, inside the bound of twelve.
       expect(production.writerCalls).toHaveLength(2);
-      expect(production.supportCalls).toHaveLength(2);
+      expect(production.supportCalls).toHaveLength(2 * BATCHES);
       expect(await storedAnswer(order.assetId)).toBeUndefined();
       expect(
         await database.db.selectFrom('content.assets').select('id').where('id', '=', order.assetId).execute(),
@@ -906,7 +938,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       await resolve(job(person, requestId));
       expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
       const [row] = await jobsOf(order.recipe);
-      const ids = [askSupportRunId(row!.id, 1), askSupportRunId(row!.id, 2), askSupportRepairRunId(row!.id)];
+      const ids = [...checkRuns(row!.id, 1), ...checkRuns(row!.id, 2), askSupportRepairRunId(row!.id)];
       expect((await runStates(ids)).every((run) => run.closed)).toBe(true);
     });
 
@@ -943,7 +975,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       });
       // The draft and the validator's repair were two writer requests already, so one check only.
       expect(production.writerCalls).toHaveLength(2);
-      expect(production.supportCalls).toHaveLength(1);
+      expect(production.supportCalls).toHaveLength(BATCHES);
     });
 
     it('ends the job when the repair an unsupported sentence earned is refused by the validator, with no second repair', async () => {
@@ -960,7 +992,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         result: { outcome: 'rejected', codes: ['support_repair_invalid_output'] },
       });
       expect(production.writerCalls).toHaveLength(2);
-      expect(production.supportCalls).toHaveLength(1);
+      expect(production.supportCalls).toHaveLength(BATCHES);
       expect(await storedAnswer(order.assetId)).toBeUndefined();
     });
 
@@ -968,56 +1000,13 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       ['malformed', () => ({ kind: 'malformed' }) as FixtureScenario, 'invalid_output', 2],
       ['a provider failure', () => ({ kind: 'rate_limited' }) as FixtureScenario, 'provider_failed', 1],
       [
-        'a reply that marks most sentences as stating no fact',
+        'a reply that skips a sentence',
         (_check: number, call: FixtureCall) =>
           answerWith({
-            sentences: supportRequestOf(call).sentences.map((sentence) => ({ n: sentence.n, verdict: 'no_claim' })),
+            sentences: supportRequestOf(call)
+              .sentences.slice(1)
+              .map((sentence) => ({ n: sentence.n, verdict: 'no_claim' })),
           }),
-        'invalid_output',
-        2,
-      ],
-      [
-        'a supported sentence with a quote that no cited passage contains',
-        (_check: number, call: FixtureCall) =>
-          answerWith({
-            sentences: supportRequestOf(call).sentences.map((sentence) => ({
-              n: sentence.n,
-              verdict: 'supported',
-              quote: 'words that no passage ever contained',
-            })),
-          }),
-        'invalid_output',
-        2,
-      ],
-      [
-        'half the sentences marked as stating no fact with nothing to show for it',
-        (_check: number, call: FixtureCall) => {
-          const grounded = supportReply(call);
-          if (grounded.kind !== 'success') throw new Error('CI: the fixture reply is a success');
-          const { sentences } = JSON.parse(grounded.text) as { sentences: { n: number; verdict: string }[] };
-          // Exactly half the sentences state no fact: the old rule (more than half) let that through whatever they were.
-          let spare = Math.floor(sentences.length / 2) - sentences.filter((one) => one.verdict === 'no_claim').length;
-          return answerWith({
-            sentences: sentences.map((sentence) =>
-              sentence.verdict === 'supported' && spare-- > 0 ? { n: sentence.n, verdict: 'no_claim' } : sentence,
-            ),
-          });
-        },
-        'invalid_output',
-        2,
-      ],
-      [
-        'a quote of a cited passage that is about something else, given for every sentence',
-        (_check: number, call: FixtureCall) => {
-          const { sentences, passages } = supportRequestOf(call);
-          return answerWith({
-            sentences: sentences.map((sentence) => ({
-              n: sentence.n,
-              verdict: 'supported',
-              quote: (passages.get(sentence.cites[0]!) ?? '').split(/\s+/u).slice(-4).join(' '),
-            })),
-          });
-        },
         'invalid_output',
         2,
       ],
@@ -1029,7 +1018,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await publish(order.recipe)).toMatchObject({
         result: { outcome: 'rejected', codes: [`support_check_${code}`] },
       });
-      // The checker is asked once, and once more when its reply is unusable (the harness's single repair).
+      // The first batch is asked once, and once more when its reply is unusable (the harness's single repair); the
+      // second batch is never asked, because none of the answer is known.
       expect(production.supportCalls).toHaveLength(requests);
       expect(production.writerCalls).toHaveLength(1);
       expect(await storedAnswer(order.assetId)).toBeUndefined();
@@ -1037,6 +1027,220 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(row!.outcomes).toContainEqual(expect.objectContaining({ role: 'support_check', kind: 'unchecked', code }));
       await resolve(job(person, requestId));
       expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+    });
+
+    /** The reply the fixture gives, with the verdict of sentence `n` replaced. */
+    function withVerdict(reply: FixtureScenario, n: number, verdict: object): FixtureScenario {
+      if (reply.kind !== 'success') throw new Error('CI: the fixture reply is a success');
+      const parsed = JSON.parse(reply.text) as { sentences: { n: number }[] };
+      return answerWith({
+        sentences: parsed.sentences.map((sentence) => (sentence.n === n ? { n, ...verdict } : sentence)),
+      });
+    }
+    const codesOfFirstCheck = async (recipe: string) => {
+      const [row] = await jobsOf(recipe);
+      const receipt = (row!.outcomes as { role: string; draft?: number; unsupported?: { code?: string }[] }[]).find(
+        (one) => one.role === 'support_check' && one.draft === 1,
+      );
+      return (receipt?.unsupported ?? []).map((one) => one.code);
+    };
+
+    it('sets aside only the sentence whose quote is not in its passages: the others keep their verdicts, the writer repairs it once, and the repair is served (D-265)', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      const bad = numberOf(BEFORE);
+      let writes = 0;
+      writer = () => {
+        writes += 1;
+        return answerWith(fixtureAnswer(writes === 1 ? {} : { sentence: [BEFORE_SENTENCE, REPAIRED] }));
+      };
+      supportScript = (check, call) =>
+        firstDraft(check)
+          ? withVerdict(supportReply(call), bad, {
+              verdict: 'supported',
+              quote: 'words that no passage ever contained',
+            })
+          : supportReply(call);
+
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+
+      // No reply was refused whole, so no harness repair was paid for: two checks of two batches, and the writer's one repair.
+      expect(production.supportCalls).toHaveLength(2 * BATCHES);
+      expect(production.writerCalls).toHaveLength(2);
+      const [row] = await jobsOf(order.recipe);
+      const receipts = row!.outcomes as { role: string; draft?: number; unsupported?: unknown }[];
+      // Exactly that sentence is unsupported, with the rule its verdict broke; the second check finds nothing.
+      expect(receipts.filter((receipt) => receipt.role === 'support_check')).toEqual([
+        expect.objectContaining({
+          draft: 1,
+          kind: 'checked',
+          unsupported: [{ number: bad, kind: 'not_stated', code: 'quote_not_in_cited_passages' }],
+        }),
+        expect.objectContaining({ draft: 2, kind: 'checked', unsupported: [] }),
+      ]);
+      // The writer is told the fixed hint of the kind and the fixed note of the rule, never the checker's quote.
+      const repair = production.writerCalls[1]!.request.user;
+      expect(repair).toContain(`Sentence "${BEFORE}`);
+      expect(repair).toContain(UNSUPPORTED_HINTS.not_stated);
+      expect(repair).toContain(`Note: ${RULE_PROBLEMS.quote_not_in_cited_passages}`);
+      expect(repair).not.toContain('words that no passage ever contained');
+      expect(JSON.stringify((await storedAnswer(order.assetId))?.document)).toContain('a brief flash of it');
+    });
+
+    it.each([
+      [
+        'every sentence marked as stating no fact',
+        (_check: number, call: FixtureCall) =>
+          answerWith({ sentences: supportRequestOf(call).sentences.map((one) => ({ n: one.n, verdict: 'no_claim' })) }),
+        'no_claim_without_ground',
+      ],
+      [
+        'a supported sentence with a quote that no cited passage contains',
+        (_check: number, call: FixtureCall) =>
+          answerWith({
+            sentences: supportRequestOf(call).sentences.map((one) => ({
+              n: one.n,
+              verdict: 'supported',
+              quote: 'words that no passage ever contained',
+            })),
+          }),
+        'quote_not_in_cited_passages',
+      ],
+      [
+        'a quote of a cited passage that is about something else, given for every sentence',
+        (_check: number, call: FixtureCall) => {
+          const { sentences, passages } = supportRequestOf(call);
+          return answerWith({
+            sentences: sentences.map((one) => ({
+              n: one.n,
+              verdict: 'supported',
+              quote: (passages.get(one.cites[0]!) ?? '').split(/\s+/u).slice(-4).join(' '),
+            })),
+          });
+        },
+        'quote_not_about_sentence',
+      ],
+    ] as const)(
+      'does not serve an answer whose sentences the rules set aside, and does not call the check unusable: %s',
+      async (_name, reply, code) => {
+        await setup();
+        const { person, requestId, order } = await orderedAsk();
+        supportScript = reply;
+
+        expect(await publish(order.recipe)).toMatchObject({
+          result: { outcome: 'rejected', codes: ['support_check_failed'] },
+        });
+        // Every reply had the shape: no harness repair was paid for. One writer repair, then the same finding again.
+        expect(production.supportCalls).toHaveLength(2 * BATCHES);
+        expect(production.writerCalls).toHaveLength(2);
+        expect(await codesOfFirstCheck(order.recipe)).toContain(code);
+        expect(await storedAnswer(order.assetId)).toBeUndefined();
+        await resolve(job(person, requestId));
+        expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+      },
+    );
+
+    it('accepts the short headings and a limits line as stating no fact, and serves the answer when the rest is supported', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      const numbers = sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer()));
+      const short = numbers
+        .filter((one) => one.label === true && wordsOf(one.text).length <= MAX_LABEL_WORDS)
+        .map((one) => one.number);
+      const limits = numbers.find((one) => one.text.startsWith('This picture ignores'))!.number;
+      // The headings and the callout's title are short; the title is not and is judged by a quote like a sentence.
+      expect(short).toHaveLength(4);
+      supportScript = (_check, call) => {
+        let reply = supportReply(call);
+        for (const n of [...short, limits])
+          if (supportRequestOf(call).sentences.some((one) => one.n === n))
+            reply = withVerdict(reply, n, { verdict: 'no_claim' });
+        return reply;
+      };
+
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+      expect(production.supportCalls).toHaveLength(BATCHES);
+    });
+
+    it('does not take the title for a label that states no fact: marked so, it is unsupported, and the writer repairs it once (D-266)', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      const title = 'How a lamp and a prism ring guide sailors';
+      const repairedTitle = 'How a prism ring and a lamp guide sailors';
+      let writes = 0;
+      writer = () => {
+        writes += 1;
+        return answerWith(fixtureAnswer(writes === 1 ? {} : { sentence: [title, repairedTitle] }));
+      };
+      supportScript = (check, call) =>
+        firstDraft(check) ? withVerdict(supportReply(call), 1, { verdict: 'no_claim' }) : supportReply(call);
+
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+
+      expect(production.writerCalls).toHaveLength(2);
+      expect(await codesOfFirstCheck(order.recipe)).toEqual(['no_claim_without_ground']);
+      expect((await storedAnswer(order.assetId))?.document).toMatchObject({ title: repairedTitle });
+    });
+
+    it('checks an answer of 23 sentences in three requests of at most ten, each with the passages of its own sentences, and closes every run', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      const base = fixtureAnswer();
+      const longAnswer = AuthoredScroll.parse({
+        ...base,
+        blocks: [
+          ...base.blocks.slice(0, -1),
+          {
+            type: 'paragraph',
+            cites: ['e1', 'e6'],
+            text: [
+              'Winter nights are long, so the keeper tends the lamp clockwork often.',
+              'A small motor now does the winding that the keeper once did.',
+              'The glass prisms were kept when the clockwork was replaced.',
+              'The old clockwork has been replaced, but the original prisms remain.',
+            ].join(' '),
+          },
+          base.blocks.at(-1)!,
+        ],
+      });
+      writer = () => answerWith(longAnswer);
+
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published', requestBound: 12 } });
+
+      expect(sentencesOfAnswer(longAnswer)).toHaveLength(23);
+      expect(production.supportCalls).toHaveLength(3);
+      const asked = production.supportCalls.map((call) => supportRequestOf(call));
+      expect(asked.map((request) => request.sentences.length)).toEqual([10, 10, 3]);
+      expect(asked.flatMap((request) => request.sentences.map((one) => one.n))).toEqual(
+        Array.from({ length: 23 }, (_unused, index) => index + 1),
+      );
+      // A request carries the passages its own sentences cite, and no other.
+      for (const request of asked)
+        expect([...request.passages.keys()].sort()).toEqual(
+          [...new Set(request.sentences.flatMap((one) => one.cites))].sort(),
+        );
+      const [row] = await jobsOf(order.recipe);
+      const ids = Array.from({ length: 3 }, (_unused, batch) => askSupportRunId(row!.id, 1, batch));
+      expect(await runStates(ids)).toEqual(
+        ids.map((id) => ({ id, state: 'completed', closed: true })).sort((a, b) => a.id.localeCompare(b.id)),
+      );
+      expect(row!.outcomes).toContainEqual(
+        expect.objectContaining({ role: 'support_check', kind: 'checked', draft: 1, sentences: 23, batches: 3 }),
+      );
+    });
+
+    it('repairs one unusable reply in the whole check, wherever it happens: a second unusable reply in a later batch refuses the answer', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      // Request 1 (batch one) is malformed and its repair is good; request 3 (batch two) is malformed and has no repair left.
+      supportScript = (check, call) => (check === 1 || check === 3 ? { kind: 'malformed' } : supportReply(call));
+
+      expect(await publish(order.recipe)).toMatchObject({
+        result: { outcome: 'rejected', codes: ['support_check_invalid_output'] },
+      });
+      expect(production.supportCalls).toHaveLength(3);
+      expect(production.writerCalls).toHaveLength(1);
+      expect(await storedAnswer(order.assetId)).toBeUndefined();
     });
 
     it('never resends a check of unknown outcome: the job waits for an operator and Try again starts nothing', async () => {
@@ -1091,7 +1295,35 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await produce(order.recipe, false, signal(), true, 1)).toMatchObject({ outcome: 'published' });
       // The writer's kept answer was read from the ledger: no second writer request was paid for.
       expect(worker.writerCalls).toHaveLength(1);
+      expect(worker.supportCalls).toHaveLength(BATCHES);
+    });
+
+    it('pauses between two batches of a check, and finishes later without paying for the first batch again', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      let released = false;
+      const worker = fixtureProductionWorker(database, () => writer(), {
+        // The writer and the first batch are allowed; the quota is spent when the second batch would be asked.
+        quota: () => ({
+          verdict: released || worker.supportCalls.length === 0 ? 'not_applicable' : 'unavailable',
+          intervalRemainingPercent: null,
+          weeklyRemainingPercent: null,
+        }),
+      });
+      const produce = worker.producer();
+
+      expect(await produce(order.recipe, false, signal(), true, 1)).toMatchObject({
+        outcome: 'paused',
+        codes: ['quota_unavailable'],
+      });
       expect(worker.supportCalls).toHaveLength(1);
+      expect(await storedAnswer(order.assetId)).toBeUndefined();
+
+      released = true;
+      expect(await produce(order.recipe, false, signal(), true, 1)).toMatchObject({ outcome: 'published' });
+      // The first batch's reply was read from the ledger: only the second batch was asked in all.
+      expect(worker.writerCalls).toHaveLength(1);
+      expect(worker.supportCalls).toHaveLength(BATCHES);
     });
   });
 

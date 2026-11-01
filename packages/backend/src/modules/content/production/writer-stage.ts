@@ -253,12 +253,8 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     if (checked.kind === 'advanced') return ops.replayCurrent(row);
     if (checked.kind === 'paused') return paused(row, checked.code);
 
-    const checkRun: ClosingRun = {
-      runId: checked.runId,
-      state: checked.record.kind === 'checked' ? 'completed' : 'failed',
-    };
     const receipts = [draft.receipt, ...history.receipts, checked.receipt];
-    const closing = [...history.closing, { runId: draft.runId, state: 'failed' as const }, checkRun];
+    const closing = [...history.closing, { runId: draft.runId, state: 'failed' as const }, ...checked.runs];
     if (checked.record.kind === 'unchecked') {
       const code = `support_check_${checked.record.code ?? 'unchecked'}`;
       return ops.end(
@@ -272,7 +268,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     if (passes(checked.record))
       return ops.publish(stage.subject, row, receipts, draft.authored, draft.compiled, draft.runId, [
         ...history.closing,
-        checkRun,
+        ...checked.runs,
       ]);
     if (draft.number === 2 || draft.repaired)
       return ops.end(row, 'rejected', ['support_check_failed'], receipts, closing);

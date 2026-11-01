@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
-import { UNSUPPORTED_HINTS, type SentenceUnderCheck } from '../domain/ask-support.js';
+import { RULE_PROBLEMS, UNSUPPORTED_HINTS, type SentenceUnderCheck } from '../domain/ask-support.js';
 import {
   ASK_SUPPORT_CHECK_VERSION,
   ASK_SUPPORT_INSTRUCTIONS,
@@ -82,6 +82,17 @@ describe('the sentences a support check reads', () => {
     ]);
   });
 
+  it('mark the title, the headings and the callouts’ titles as labels, and no other sentence (D-266)', () => {
+    expect(sentences.filter((sentence) => sentence.label === true).map((sentence) => sentence.number)).toEqual([
+      1, 3, 8,
+    ]);
+    // The checker is told which lines are labels, and only those.
+    const lines = askSupportContext(sentences, PASSAGES)[1]!
+      .text.split('\n')
+      .map((line) => JSON.parse(line) as object);
+    expect(lines.map((line) => 'label' in line)).toEqual([true, false, true, false, false, false, false, true, false]);
+  });
+
   it('leave out the title of a callout that has none', () => {
     const plain = AuthoredScroll.parse({
       ...ANSWER,
@@ -116,7 +127,7 @@ describe('the sentences a support check reads', () => {
   });
 });
 
-describe('the checker’s reply is validated by code', () => {
+describe('the checker’s reply: its shape is refused whole, each verdict is judged on its own sentence (D-265)', () => {
   const sentences: readonly SentenceUnderCheck[] = [
     { number: 1, text: 'A prism ring gathers the light into one beam.', cites: ['e2'] },
     { number: 2, text: 'The tower is 21 metres tall.', cites: ['e4'] },
@@ -136,9 +147,17 @@ describe('the checker’s reply is validated by code', () => {
       : result.error.issues.map(
           (issue) => (issue as { params?: { safeCode?: string } }).params?.safeCode ?? issue.code,
         );
+  /** What each verdict came to for the sentences given: the code of one code set aside, else the verdict. */
+  const outcomes = (result: ReturnType<typeof parse>) =>
+    result.success
+      ? verdictsOf(result.data).map((verdict) =>
+          verdict.verdict === 'unsupported' && verdict.code !== undefined ? verdict.code : verdict.verdict,
+        )
+      : codes(result);
 
   it('accepts one verdict for every sentence, in order, with a quote from a passage it cites', () => {
     expect(parse(good).success).toBe(true);
+    expect(outcomes(parse(good))).toEqual(['supported', 'supported', 'no_claim']);
   });
 
   it('refuses a reply that skips, repeats, reorders or adds a sentence', () => {
@@ -147,35 +166,191 @@ describe('the checker’s reply is validated by code', () => {
     expect(codes(parse([...good, { n: 4, verdict: 'no_claim' }]))).not.toEqual([]);
   });
 
-  it('refuses a supported sentence whose quote is not in a passage that sentence cites, even if it is in another passage', () => {
-    // The words are real, but they come from e3, which sentence 1 does not cite.
-    expect(codes(parse([supported(1, 'light cannot cross a thick bank'), good[1], good[2]]))).toContain(
-      'quote_not_in_cited_passages',
-    );
-    expect(codes(parse([supported(1, 'a single invented beam'), good[1], good[2]]))).toContain(
-      'quote_not_in_cited_passages',
-    );
-    // Too short to prove anything.
-    expect(codes(parse([supported(1, 'prism ring'), good[1], good[2]]))).toContain('quote_too_short');
-  });
-
-  it('refuses a sentence with a number marked as stating no fact', () => {
-    expect(codes(parse([good[0], { n: 2, verdict: 'no_claim' }, { n: 3, verdict: 'no_claim' }]))).toContain(
-      'no_claim_without_ground',
-    );
-  });
-
-  it('refuses a reply that marks most sentences as stating no fact', () => {
-    // Three questions are each allowed to state no fact, but an answer made only of them is not credible.
-    const questions: readonly SentenceUnderCheck[] = [
-      { number: 1, text: 'Does a sound signal help?', cites: ['e3'] },
-      { number: 2, text: 'Is the tower tall?', cites: ['e4'] },
-      { number: 3, text: 'Why does the beam turn?', cites: ['e2'] },
-    ];
-    const lazy = askSupportSchema(questions, PASSAGES).safeParse({
-      sentences: questions.map((_question, index) => ({ n: index + 1, verdict: 'no_claim' })),
+  it('numbers a batch by the numbers of its sentences, not from 1', () => {
+    const batch = sentences.map((sentence, index) => ({ ...sentence, number: index + 11 }));
+    const batchSchema = askSupportSchema(batch, PASSAGES);
+    const numbered = (first: number) => ({
+      sentences: good.map((verdict, index) => ({ ...verdict, n: first + index })),
     });
-    expect(codes(lazy)).toContain('too_many_no_claim');
+    expect(batchSchema.safeParse(numbered(11)).success).toBe(true);
+    expect(batchSchema.safeParse(numbered(1)).success).toBe(false);
+  });
+
+  it('turns a supported sentence whose quote is not in a passage that sentence cites into unsupported for that sentence alone, even if the words are in another passage', () => {
+    // The words are real, but they come from e3, which sentence 1 does not cite; the reply is not refused, the other verdicts stand.
+    const result = parse([supported(1, 'light cannot cross a thick bank'), good[1], good[2]]);
+    expect(outcomes(result)).toEqual(['quote_not_in_cited_passages', 'supported', 'no_claim']);
+    expect(outcomes(parse([supported(1, 'a single invented beam'), good[1], good[2]]))).toEqual([
+      'quote_not_in_cited_passages',
+      'supported',
+      'no_claim',
+    ]);
+    // Too short to prove anything.
+    expect(outcomes(parse([supported(1, 'prism ring'), good[1], good[2]]))).toEqual([
+      'quote_too_short',
+      'supported',
+      'no_claim',
+    ]);
+  });
+
+  it('turns a sentence with a number marked as stating no fact into unsupported for that sentence', () => {
+    expect(outcomes(parse([good[0], { n: 2, verdict: 'no_claim' }, { n: 3, verdict: 'no_claim' }]))).toEqual([
+      'supported',
+      'no_claim_without_ground',
+      'no_claim',
+    ]);
+  });
+
+  it('records the code on the sentence it set aside, with the fixed kind and note, and nothing the checker wrote', () => {
+    const result = parse([supported(1, 'a single invented beam'), good[1], good[2]]);
+    expect(result.success && verdictsOf(result.data)[0]).toEqual({
+      number: 1,
+      verdict: 'unsupported',
+      kind: 'not_stated',
+      problem: RULE_PROBLEMS.quote_not_in_cited_passages,
+      code: 'quote_not_in_cited_passages',
+    });
+  });
+
+  describe('on the sentences of a real dev answer (the equator answer of the 1 Nov check, labelled CI text)', () => {
+    // The passages are the words the checker quoted in that check, with their neighbouring sentences.
+    const real = [
+      passage(
+        2,
+        'Earth’s tilted axis creates seasons. As Earth orbits the Sun, its tilted axis always points in the same direction.',
+      ),
+      passage(
+        6,
+        'It is summer in June in the Northern Hemisphere because the Sun’s rays hit that part of Earth more directly. It is winter in December in the Northern Hemisphere, because that is when it is the South Pole’s turn to be tilted toward the Sun.',
+      ),
+      passage(
+        7,
+        'Many people believe that Earth is closer to the Sun in the summer and that is why it is hotter. However, in the Northern Hemisphere, we are having winter when Earth is closest to the Sun and summer when it is farthest away! Compared with how far away the Sun is, this change in Earth’s distance throughout the year does not make much difference to our weather.',
+      ),
+    ];
+    const answer: readonly SentenceUnderCheck[] = [
+      { number: 1, text: 'Why the Equator Barely Notices Earth’s Tilt', cites: ['e2', 'e6', 'e7'], label: true },
+      {
+        number: 2,
+        text: 'Earth does not give each place its own tilt: the whole planet rotates around the same slanted axis.',
+        cites: ['e2'],
+      },
+      {
+        number: 3,
+        text: 'A place near a pole can swing dramatically between sunlight aimed nearly overhead and sunlight arriving at a steep angle.',
+        cites: ['e6'],
+      },
+      {
+        number: 4,
+        text: 'When the North Pole leans toward the Sun, around June, the northern half receives more direct rays and experiences summer.',
+        cites: ['e6'],
+      },
+      {
+        number: 5,
+        text: 'A common mistake is to treat Earth’s changing distance from the Sun as the explanation.',
+        cites: ['e7'],
+      },
+      { number: 6, text: 'What this does not explain', cites: ['e2', 'e6', 'e7'], label: true },
+      {
+        number: 7,
+        text: 'This explanation cannot tell you why equatorial regions still have wet and dry seasons, or how terrain, oceans, and local circulation shape particular climates.',
+        cites: ['e2'],
+      },
+    ];
+    const realSchema = askSupportSchema(answer, real);
+    const flaggedPole = {
+      n: 3,
+      verdict: 'unsupported',
+      kind: 'goes_beyond',
+      problem:
+        'The passages discuss poles tilting toward the Sun but not sunlight shifting between overhead and steep angles.',
+    };
+    // The real checker judged the title ("Why the Equator Barely Notices Earth’s Tilt") as going beyond the passages.
+    const flaggedTitle = {
+      n: 1,
+      verdict: 'unsupported',
+      kind: 'goes_beyond',
+      problem: 'The title claims the equator barely notices the tilt, but the passages do not describe the equator.',
+    };
+    /** The reply a checker gave to the answer, with the changes given for some sentences (by number) applied. */
+    const reply = (changes: Readonly<Record<number, object>> = {}) =>
+      realSchema.safeParse({
+        sentences: [
+          flaggedTitle,
+          supported(2, 'As Earth orbits the Sun, its tilted axis always points in the same direction.'),
+          flaggedPole,
+          supported(
+            4,
+            "It is summer in June in the Northern Hemisphere because the Sun's rays hit that part of Earth more directly",
+          ),
+          supported(5, 'Many people believe that Earth is closer to the Sun in the summer'),
+          { n: 6, verdict: 'no_claim' },
+          { n: 7, verdict: 'no_claim' },
+        ].map((verdict) => {
+          const change = changes[verdict.n];
+          if (change === undefined) return verdict;
+          // A change that names a verdict replaces the checker's whole entry; any other adds to it.
+          return 'verdict' in change ? { n: verdict.n, ...change } : { ...verdict, ...change };
+        }),
+      });
+
+    it('accepts the callout’s title and the limits line as stating no fact, and keeps the title and the false sentence the checker flagged', () => {
+      expect(outcomes(reply())).toEqual([
+        'unsupported',
+        'supported',
+        'unsupported',
+        'supported',
+        'supported',
+        'no_claim',
+        'no_claim',
+      ]);
+    });
+
+    it('does not take the title for a label that states no fact: it has seven words and states a fact, so "no fact" is set aside (D-266)', () => {
+      const result = reply({ 1: { verdict: 'no_claim' } });
+      expect(outcomes(result)).toEqual([
+        'no_claim_without_ground',
+        'supported',
+        'unsupported',
+        'supported',
+        'supported',
+        'no_claim',
+        'no_claim',
+      ]);
+      expect(result.success && verdictsOf(result.data)[0]).toMatchObject({ kind: 'not_stated' });
+    });
+
+    it('keeps the sentences that follow the rules when one verdict quotes words nobody wrote', () => {
+      const result = reply({ 4: { quote: 'the Sun’s rays hit the equator directly all year round' } });
+      expect(outcomes(result)).toEqual([
+        'unsupported',
+        'supported',
+        'unsupported',
+        'quote_not_in_cited_passages',
+        'supported',
+        'no_claim',
+        'no_claim',
+      ]);
+    });
+
+    it('accepts a quote that leaves the middle out with an ellipsis, and one that writes the apostrophe and dash its own way', () => {
+      const result = reply({
+        2: { quote: 'As Earth orbits the Sun, its tilted axis … in the same direction.' },
+        4: {
+          quote:
+            "It is summer in June in the Northern Hemisphere — because the Sun's rays hit that part of Earth more directly.",
+        },
+      });
+      expect(outcomes(result)).toEqual([
+        'unsupported',
+        'supported',
+        'unsupported',
+        'supported',
+        'supported',
+        'no_claim',
+        'no_claim',
+      ]);
+    });
   });
 
   describe('lets a sentence state no fact only on grounds code can see (B1.3)', () => {
@@ -204,16 +379,20 @@ describe('the checker’s reply is validated by code', () => {
       ).safeParse({ sentences: verdicts.map((verdict, index) => ({ n: index + 1, ...verdict })) });
     const noClaim = { verdict: 'no_claim' };
 
-    it('refuses exactly half the sentences marked as stating no fact when nothing shows that they state none', () => {
+    it('sets aside exactly half the sentences marked as stating no fact when nothing shows that they state none', () => {
       const answer: readonly SentenceUnderCheck[] = [
         prism,
         { number: 0, text: 'The beam sweeps across the water.', cites: ['e2'] },
         tower,
         { number: 0, text: 'Fog stops the light quickly.', cites: ['e3'] },
       ];
-      // Two of four is not "more than half", so the old rule let this through with no evidence at all.
       const result = reply(answer, [supportedPair[0]!, noClaim, supportedPair[1]!, noClaim]);
-      expect(codes(result)).toEqual(['no_claim_without_ground', 'no_claim_without_ground']);
+      expect(outcomes(result)).toEqual([
+        'supported',
+        'no_claim_without_ground',
+        'supported',
+        'no_claim_without_ground',
+      ]);
     });
 
     it.each([
@@ -223,7 +402,7 @@ describe('the checker’s reply is validated by code', () => {
       ['a label that shares no key word with its passages', 'Putting it together', 'e2'],
     ])('allows %s to state no fact', (_name, text, cite) => {
       const answer: readonly SentenceUnderCheck[] = [{ number: 0, text, cites: [cite] }, prism, tower];
-      expect(reply(answer, [noClaim, ...supportedPair]).success).toBe(true);
+      expect(outcomes(reply(answer, [noClaim, ...supportedPair]))).toEqual(['no_claim', 'supported', 'supported']);
     });
 
     it.each([
@@ -231,9 +410,60 @@ describe('the checker’s reply is validated by code', () => {
       ['a figure written in words', 'Twenty-one crows nested there.', 'e1'],
       ['a figure written in words, larger', 'A hundred crows nested there.', 'e1'],
       ['a figure in digits', '21 crows nested there.', 'e1'],
-    ])('refuses %s marked as stating no fact', (_name, text, cite) => {
+      [
+        'a sentence that states a fact after an admission',
+        'This explains the beam, but it does not give the height.',
+        'e2',
+      ],
+      [
+        'a gap line that goes on to state a fact',
+        'The pages do not say why, but the beam is brighter than the Sun.',
+        'e2',
+      ],
+      [
+        'a gap line with a second clause after a semicolon',
+        'Nothing in the pages explains it; the beam turns once a minute.',
+        'e2',
+      ],
+    ])('sets aside %s marked as stating no fact', (_name, text, cite) => {
       const answer: readonly SentenceUnderCheck[] = [{ number: 0, text, cites: [cite] }, prism, tower];
-      expect(codes(reply(answer, [noClaim, ...supportedPair]))).toEqual(['no_claim_without_ground']);
+      expect(outcomes(reply(answer, [noClaim, ...supportedPair]))).toEqual([
+        'no_claim_without_ground',
+        'supported',
+        'supported',
+      ]);
+    });
+
+    it('allows a title or a heading that shares key words with its passages to state no fact, and not one with a figure', () => {
+      const label = (text: string): SentenceUnderCheck => ({ number: 0, text, cites: ['e2'], label: true });
+      expect(outcomes(reply([label('How the beam turns'), prism, tower], [noClaim, ...supportedPair]))).toEqual([
+        'no_claim',
+        'supported',
+        'supported',
+      ]);
+      expect(outcomes(reply([label('Three beams'), prism, tower], [noClaim, ...supportedPair]))).toEqual([
+        'no_claim_without_ground',
+        'supported',
+        'supported',
+      ]);
+      // A label of more than four words states something: it is judged like a sentence, supported by a quote or not.
+      const long = label('How the beam turns across the water');
+      expect(outcomes(reply([long, prism, tower], [noClaim, ...supportedPair]))).toEqual([
+        'no_claim_without_ground',
+        'supported',
+        'supported',
+      ]);
+      expect(
+        outcomes(
+          reply(
+            [long, prism, tower],
+            [
+              { verdict: 'supported', quote: 'gathers the light into a single beam that sweeps across the water' },
+              ...supportedPair,
+            ],
+          ),
+        ),
+      ).toEqual(['supported', 'supported', 'supported']);
     });
 
     it('allows the same words without a figure when they share nothing with the passages', () => {
@@ -242,16 +472,20 @@ describe('the checker’s reply is validated by code', () => {
         prism,
         tower,
       ];
-      expect(reply(answer, [noClaim, ...supportedPair]).success).toBe(true);
+      expect(outcomes(reply(answer, [noClaim, ...supportedPair]))).toEqual(['no_claim', 'supported', 'supported']);
     });
 
-    it('still refuses a reply in which more than half the sentences state no fact, even when each is allowed', () => {
+    it('sets aside the unrelated transitions of a reply in which more than half the sentences state no fact', () => {
       const answer: readonly SentenceUnderCheck[] = [
-        { number: 0, text: 'Why does the beam turn?', cites: ['e2'] },
-        { number: 0, text: 'Is it bright?', cites: ['e2'] },
+        { number: 0, text: 'Putting it together', cites: ['e2'] },
+        { number: 0, text: 'Moving along now', cites: ['e2'] },
         prism,
       ];
-      expect(codes(reply(answer, [noClaim, noClaim, supportedPair[0]!]))).toEqual(['too_many_no_claim']);
+      expect(outcomes(reply(answer, [noClaim, noClaim, supportedPair[0]!]))).toEqual([
+        'too_many_no_claim',
+        'too_many_no_claim',
+        'supported',
+      ]);
     });
   });
 
@@ -262,17 +496,26 @@ describe('the checker’s reply is validated by code', () => {
     const sunReply = (quote: string) =>
       askSupportSchema(sun, PASSAGES).safeParse({ sentences: [{ n: 1, verdict: 'supported', quote }] });
 
-    it('refuses the false sentence of the dev run marked supported with the three words "the Sun is"', () => {
+    it('sets aside the false sentence of the dev run marked supported with the three words "the Sun is"', () => {
       // The words are in the passage, and they say nothing about "nearly overhead", the pole or the summer.
-      expect(codes(sunReply('the Sun is'))).toEqual(['quote_not_about_sentence']);
-      expect(codes(sunReply('Sun is never directly'))).toEqual(['quote_not_about_sentence']);
+      expect(outcomes(sunReply('the Sun is'))).toEqual(['quote_not_about_sentence']);
+      expect(outcomes(sunReply('Sun is never directly'))).toEqual(['quote_not_about_sentence']);
+    });
+
+    it('sets aside a quote that leaves the "never" out with an ellipsis, so it cannot turn the passage round (D-263)', () => {
+      expect(outcomes(sunReply('Near the poles the Sun is … directly overhead, because the planet’s axis'))).toEqual([
+        'quote_not_in_cited_passages',
+      ]);
+      expect(outcomes(sunReply('Near the poles the Sun is never … overhead, because the planet’s axis'))).toEqual([
+        'supported',
+      ]);
     });
 
     it('accepts words that carry two of the sentence’s own key words, even when the passage says the opposite: that is the checker’s judgement', () => {
-      expect(sunReply('the Sun is never directly overhead').success).toBe(true);
+      expect(outcomes(sunReply('the Sun is never directly overhead'))).toEqual(['supported']);
     });
 
-    it('refuses one unrelated quote given for every sentence of an answer', () => {
+    it('sets aside one unrelated quote given for every sentence of an answer, one sentence at a time', () => {
       // Every sentence cites the prism passage too, so the quote is a real quote of a cited passage each time.
       const answer: readonly SentenceUnderCheck[] = [
         { number: 1, text: 'A prism ring gathers the light into one beam.', cites: ['e1', 'e2'] },
@@ -285,9 +528,9 @@ describe('the checker’s reply is validated by code', () => {
         verdict: 'supported',
         quote: 'prism ring around the flame',
       }));
-      const result = askSupportSchema(answer, PASSAGES).safeParse({ sentences: unrelated });
-      // The first sentence is about the prism ring, so it passes; the other three are refused one by one.
-      expect(codes(result)).toEqual([
+      // The first sentence is about the prism ring, so it stands; the other three are set aside one by one.
+      expect(outcomes(askSupportSchema(answer, PASSAGES).safeParse({ sentences: unrelated }))).toEqual([
+        'supported',
         'quote_not_about_sentence',
         'quote_not_about_sentence',
         'quote_not_about_sentence',
@@ -298,12 +541,8 @@ describe('the checker’s reply is validated by code', () => {
       const heading: readonly SentenceUnderCheck[] = [{ number: 1, text: 'The beam', cites: ['e2'] }];
       const reply = (quote: string) =>
         askSupportSchema(heading, PASSAGES).safeParse({ sentences: [{ n: 1, verdict: 'supported', quote }] });
-      expect(reply('gathers the light into a single beam').success).toBe(true);
-      expect(codes(reply('a prism ring around the flame'))).toEqual(['quote_not_about_sentence']);
-    });
-
-    it('gives the checker a fixed hint for it', () => {
-      expect(askSupportRole(sun, PASSAGES).safeCustomIssues).toHaveProperty('quote_not_about_sentence');
+      expect(outcomes(reply('gathers the light into a single beam'))).toEqual(['supported']);
+      expect(outcomes(reply('a prism ring around the flame'))).toEqual(['quote_not_about_sentence']);
     });
   });
 
@@ -315,13 +554,13 @@ describe('the checker’s reply is validated by code', () => {
     const sunReply = (quote: string) =>
       askSupportSchema(sun, PASSAGES).safeParse({ sentences: [{ n: 1, verdict: 'supported', quote }] });
 
-    it('refuses a quote of two words and a dash, which has three pieces between spaces', () => {
-      expect(codes(sunReply('Sun — is'))).toEqual(['quote_too_short']);
-      expect(codes(sunReply('the - Sun'))).toEqual(['quote_too_short']);
+    it('sets aside a quote of two words and a dash, which has three pieces between spaces', () => {
+      expect(outcomes(sunReply('Sun — is'))).toEqual(['quote_too_short']);
+      expect(outcomes(sunReply('the - Sun'))).toEqual(['quote_too_short']);
     });
 
     it('accepts three words of the passage, whatever stands between them', () => {
-      expect(sunReply('the Sun is never directly overhead').success).toBe(true);
+      expect(outcomes(sunReply('the Sun is never directly overhead'))).toEqual(['supported']);
     });
   });
 
@@ -359,14 +598,8 @@ describe('the role', () => {
   it('is a role of its own with fixed repair hints and the passages-only rule in its instructions', () => {
     const role = askSupportRole(sentences, PASSAGES);
     expect(role).toMatchObject({ id: 'content.ask-support-check', version: ASK_SUPPORT_CHECK_VERSION });
-    expect(Object.keys(role.safeCustomIssues ?? {}).sort()).toEqual([
-      'no_claim_without_ground',
-      'quote_not_about_sentence',
-      'quote_not_in_cited_passages',
-      'quote_too_short',
-      'sentences_not_in_order',
-      'too_many_no_claim',
-    ]);
+    // Only the shape of a reply is worth a repair: every other rule is applied to one sentence by code (D-265).
+    expect(Object.keys(role.safeCustomIssues ?? {})).toEqual(['sentences_not_in_order']);
     expect(ASK_SUPPORT_INSTRUCTIONS).toContain('Judge against the cited passages alone');
     expect(ASK_SUPPORT_INSTRUCTIONS).toContain('Do not fill a gap with what you know');
     expect(ASK_SUPPORT_INSTRUCTIONS.length).toBeLessThan(8000);
