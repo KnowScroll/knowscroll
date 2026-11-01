@@ -6,7 +6,8 @@ import { RequestNotice } from '../encounter/encounter-notices';
 import { id } from '../encounter/encounter-session.fixture';
 import { requestHarness } from '../requests/request-session.fixture';
 import type { OpenedStageScroll } from './scroll-session';
-import { WATCH_EVERY_MS, useDirectAsk } from './use-direct-ask';
+import { SLOW_READ_EVERY_MS } from '../requests/request-session';
+import { useDirectAsk } from './use-direct-ask';
 
 const mockPush = jest.fn();
 // One router object for every render, as expo-router's is: a new one would replace the session.
@@ -98,7 +99,7 @@ describe('Ask on a Scroll’s own address (D-262)', () => {
     await act(() => jest.advanceTimersByTimeAsync(5 * 60_000));
     expect(latest.session.getState().status?.status).toBe('preparing');
     harness.setStatus(ready());
-    await act(() => jest.advanceTimersByTimeAsync(WATCH_EVERY_MS + 100));
+    await act(() => jest.advanceTimersByTimeAsync(SLOW_READ_EVERY_MS + 100));
     expect(screen.getByText(/Your answer is ready: “Ready fixture”/)).toBeOnTheScreen();
     await fireEvent.press(screen.getByText('Open'));
     await act(() => jest.advanceTimersByTimeAsync(10));
