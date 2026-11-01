@@ -99,6 +99,24 @@ describe('personal recording Reasoning prerequisite (PostgreSQL hosted fixtures 
     claimId: randomUUID(),
   });
 
+  it('reads where recording is now for a step that is about to start a run (D-270): on at its generation, paused, on again at the next', async () => {
+    const p = await seedPerson(db());
+    const { harness } = recording();
+    const now = async () => {
+      const entered = await withScope()(p.authority, async (scope) => ({
+        owner: await harness.currentOwner(scope),
+        generation: await harness.currentGeneration(scope),
+      }));
+      if (entered.kind !== 'entered') throw new Error('CI scope refused');
+      return entered.value;
+    };
+    expect(await now()).toEqual({ owner: { accountId: p.accountId, generation: 1 }, generation: 1 });
+    await toggle(p, 1, false);
+    expect(await now()).toEqual({ owner: undefined, generation: undefined });
+    await toggle(p, 2, true);
+    expect(await now()).toEqual({ owner: { accountId: p.accountId, generation: 3 }, generation: 3 });
+  });
+
   it('never reads a kept initial1 output/issues after off2/on3, and never upgrades that old run', async () => {
     const p = await seedPerson(db()),
       model = fixtureModel(),

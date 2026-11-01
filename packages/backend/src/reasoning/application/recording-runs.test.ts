@@ -10,6 +10,7 @@ import {
   proposeAtGeneration,
   proposeWhenRecording,
   purposeOf,
+  runOwnerOf,
   runToClose,
   startRunOwner,
   type RunOwner,
@@ -44,6 +45,7 @@ function harnessWith(over: Partial<RecordingReasoningHarness> = {}) {
   const harness = {
     contextDigest: () => 'd'.repeat(64),
     currentOwner: () => Promise.resolve({ accountId: owner.accountId, generation: 5 }),
+    currentGeneration: () => Promise.resolve(5),
     proposePersonal: (input: unknown) => {
       calls.proposePersonal(input);
       return Promise.resolve(failed);
@@ -75,6 +77,15 @@ describe('the recording runs of a module’s personal steps (D-270)', () => {
   it('starts nothing while recording is paused or the owner is not active', async () => {
     const { harness } = harnessWith({ currentOwner: () => Promise.resolve(undefined) });
     expect(await startRunOwner(harness, scope, id(3))).toBeUndefined();
+  });
+
+  it('starts a run from the record’s own account when the scope has taken the account gate already, reading only the generation', async () => {
+    const { harness } = harnessWith({
+      currentOwner: () => Promise.reject(new Error('the account gate is taken once')),
+    });
+    expect(await runOwnerOf(harness, scope, id(3), id(1))).toEqual(owner);
+    const paused = harnessWith({ currentGeneration: () => Promise.resolve(undefined) });
+    expect(await runOwnerOf(paused.harness, scope, id(3), id(1))).toBeUndefined();
   });
 
   it('stamps the proof with the account, the generation, the record and the digest of what the model is sent, for both hashes', () => {
