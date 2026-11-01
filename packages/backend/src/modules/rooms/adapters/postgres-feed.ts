@@ -493,7 +493,7 @@ export const feedReadStore: FeedReadStore = {
     const room = await sql<{ since: Date | string }>`
       select created_at as since from rooms.rooms where room_id = ${lock.roomId}::uuid`.execute(trx);
     const turns = await sql<{ last_at: Date | string | null; last_find_at: Date | string | null }>`
-      select max(turn.created_at) filter (where turn.state = 'completed') as last_at,
+      select max(turn.created_at) filter (where turn.state = 'completed' and turn.trigger <> 'memory_refresh') as last_at,
         max(turn.created_at) filter (where turn.trigger = 'feed_find' and ${COUNTED}) as last_find_at
       from rooms.ai_turns turn
       where turn.room_id = ${lock.roomId}::uuid and turn.inhabitant = ${inhabitant}`.execute(trx);

@@ -270,6 +270,18 @@ describe('people and residents in the Feed (real PostgreSQL, CI fixture model)',
       expect(JSON.stringify(await readFeed(world, asha, roomId))).not.toContain(lively.recent[0]!.messageId);
     });
 
+    it('does not count a rewrite of the room’s memory as the resident speaking', async () => {
+      const { roomId, people } = await scene(2);
+      const [asha] = people as [Friend];
+      const skeptic = async () =>
+        (await readFeed(world, asha, roomId)).profiles.find((entry) => entry.inhabitant === 'skeptic')!;
+      await sql`insert into rooms.ai_turns (turn_id, room_id, inhabitant, trigger, state, decided_by, created_at, settled_at, dispatched, role_version, prompt_version, model)
+        values (${randomUUID()}::uuid, ${roomId}::uuid, 'skeptic', 'memory_refresh', 'completed', 'caps_clear', ${START}, ${START}, true, 'memory.1', 'p', 'm')`.execute(
+        world.db,
+      );
+      expect(await skeptic()).not.toHaveProperty('lastAt');
+    });
+
     it('carries the first message of a find, so it can be reported, and says an introduction was made', async () => {
       await libraryScroll(world.db, 'A Scroll to report', 10);
       const { roomId, slug, people } = await scene(2);
