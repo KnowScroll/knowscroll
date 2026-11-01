@@ -79,6 +79,12 @@ describe('the stage a member reads', () => {
       last: { kind: 'launch', at: '2026-10-31T21:30:00.000Z' },
     });
     expect(idle.status === 'ready' && idle.last?.kind).toBe('launch');
+    // A Reel names itself; a Launch has no title; neither names a person.
+    const last = (value: unknown) =>
+      RoomWatchSchema.safeParse({ ...read, start: { allowed: true }, last: value }).success;
+    expect(last({ kind: 'reel', at: '2026-10-31T21:30:00.000Z', title: 'A blanket made of gas' })).toBe(true);
+    expect(last({ kind: 'reel', at: '2026-10-31T21:30:00.000Z' })).toBe(false);
+    expect(last({ kind: 'launch', at: '2026-10-31T21:30:00.000Z', title: 'A blanket made of gas' })).toBe(false);
     expect(RoomWatchSchema.safeParse({ ...read, start: { allowed: false, reason: 'stage_busy' } }).success).toBe(true);
     expect(RoomWatchSchema.safeParse({ ...read, start: { allowed: false, reason: 'no_such_reason' } }).success).toBe(
       false,

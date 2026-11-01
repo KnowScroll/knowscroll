@@ -423,7 +423,11 @@ describe('Watch together (real PostgreSQL, labelled CI fixtures)', () => {
       at(LEAD_IN_MS + LENGTH, t0);
       const over = await stage(ravi, roomId);
       expect(over.session).toBeUndefined();
-      expect(over.last).toEqual({ kind: 'reel', at: new Date(t0.getTime() + LEAD_IN_MS).toISOString() });
+      expect(over.last).toEqual({
+        kind: 'reel',
+        at: new Date(t0.getTime() + LEAD_IN_MS).toISOString(),
+        title: reel.title,
+      });
       expect(over.start).toEqual({ allowed: false, reason: 'few_here' });
       expect((await memberView(world, ravi, roomId)).watch).toEqual({ state: 'ready' });
       // Stopping a Reel that has run out is refused: it is already over, and the settlement below still says when it ended.

@@ -96,12 +96,13 @@ export function watchChip(
 }
 
 /**
- * "Last on stage: the Launch, yesterday at 21:30" (R3 A2 "Nothing live"). The day is read against `now` in `timeZone` (the device's
+ * "Last on stage: the Launch, yesterday at 21:30" or, for a Reel, "Last on stage: the Reel “Tilt, not distance”, today at 21:05" (R3 A2
+ * "Nothing live"). The day is read against `now` in `timeZone` (the device's
  * own by default) so it says "today" or "yesterday" when it can.
  */
 export function lastOnStageWords(last: WatchLastOnStage | undefined, now: Date, timeZone?: string): string | undefined {
   if (last === undefined) return undefined;
-  const what = last.kind === 'launch' ? 'the Launch' : 'a Reel together';
+  const what = last.kind === 'launch' ? 'the Launch' : `the Reel “${last.title}”`;
   const at = new Date(last.at);
   const zone = timeZone === undefined ? {} : { timeZone };
   const dayKey = (date: Date) => date.toLocaleDateString('en-CA', zone);
