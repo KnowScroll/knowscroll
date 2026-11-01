@@ -177,6 +177,33 @@ for (const viewport of [phone, desktop]) {
     await raviContext.close();
   });
 
+  test(`a friend who has paused recording is told so on the card before any pick, and cannot lock, at ${size}`, async ({
+    browser,
+  }) => {
+    const world = challengeWorld();
+    const ashaContext = await browser.newContext({ viewport });
+    const asha = await ashaContext.newPage();
+    await openAsha(asha, world, viewport);
+    const sheet = await openSheet(asha);
+    await sheet.getByRole('radio', { name: 'Ravi fixture' }).click();
+    await sheet.getByTestId('challenge-pick-1').click();
+    await sheet.getByRole('button', { name: 'Challenge Ravi fixture' }).click();
+    await expect(sheet.getByText('Challenge sent to Ravi fixture')).toBeVisible();
+
+    const raviContext = await browser.newContext({ viewport });
+    const ravi = await raviContext.newPage();
+    await openRavi(ravi, world, viewport, { recordingOn: false });
+    await expect(ravi.getByTestId('challenge-prompt')).toHaveText(FINAL_CALL.prompt);
+    await expect(ravi.getByTestId('challenge-notice')).toContainText('Recording is paused.');
+    await ravi.getByTestId('challenge-option-0').click();
+    await expect(ravi.getByTestId('challenge-lock')).toBeDisabled();
+    await shot(ravi, `challenge-card-paused-${name}`);
+    expect(await audit(ravi)).toEqual([]);
+    expect(locks(world, 'ravi')).toEqual([]);
+    await ashaContext.close();
+    await raviContext.close();
+  });
+
   test(`two people who call the same option: the revealed card keeps that option's words in a readable line, at ${size}`, async ({
     browser,
   }) => {
