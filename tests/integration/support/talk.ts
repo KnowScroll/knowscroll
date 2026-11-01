@@ -88,8 +88,12 @@ export function afterInboxRows(action: () => Promise<void>): KyselyPlugin {
 }
 
 /** A person with a claimed public profile. */
-export async function seedFriend(db: Kysely<Database>, friends: Friends): Promise<Friend> {
-  const person = await seedPerson(db);
+export async function seedFriend(
+  db: Kysely<Database>,
+  friends: Friends,
+  options: { readonly person?: FixturePerson } = {},
+): Promise<Friend> {
+  const person = options.person ?? (await seedPerson(db));
   const handle = `ci.${person.accountId.replaceAll('-', '').slice(0, 14)}`;
   const set = await friends.setProfile(person.authority, {
     version: 'sharing.v1',

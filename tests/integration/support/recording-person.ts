@@ -4,7 +4,11 @@ import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { PgBoss } from 'pg-boss';
 import { applyQueueDeclarations } from '@knowscroll/backend/infrastructure/jobs';
 import { clearExplorationQueue, recoverClearOperationsQueue } from '@knowscroll/backend/modules/identity';
-import { clearExplorationFor, operatorSignInUseCase } from '@knowscroll/backend/modules/identity/nest-providers';
+import {
+  clearExplorationFor,
+  operatorSignInUseCase,
+  recordingPolicyFor,
+} from '@knowscroll/backend/modules/identity/nest-providers';
 import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
 import type { TestDatabase } from './database.js';
 import type { FixturePerson } from './fixtures.js';
@@ -40,4 +44,27 @@ export async function clearRecordingPerson(database: TestDatabase<Database>, bos
   );
   if (started.kind !== 'entered' || started.value.kind !== 'ok') throw new Error('CI_RECORDING_CLEAR_REFUSED');
   await use.process({ v: 1, accountId: person.accountId, commandId });
+}
+
+/** Pauses or resumes recording through the real policy command, from the generation the person is at. */
+export async function setRecording(
+  database: Pick<TestDatabase<Database>, 'db'>,
+  person: FixturePerson,
+  generation: number,
+  on: boolean,
+) {
+  const result = await recordingPolicyFor(database.db, { lockTimeoutMs: 5000 }).set(person.authority, {
+    version: 'recording-policy.v1',
+    commandId: randomUUID(),
+    expectedPrivacyEpoch: person.authority.privacyEpoch,
+    expectedRecordingGeneration: generation,
+    on,
+  });
+  if (result.kind !== 'ok') throw new Error('CI_RECORDING_POLICY_REFUSED');
+}
+
+/** Pause then resume through the real policy command: generation 1 is on, 2 is off, and 3 is on again. */
+export async function pauseAndResume(database: Pick<TestDatabase<Database>, 'db'>, person: FixturePerson) {
+  await setRecording(database, person, 1, false);
+  await setRecording(database, person, 2, true);
 }

@@ -51,7 +51,11 @@ import {
   readPublicPeople,
 } from '@knowscroll/backend/modules/social/nest-providers';
 import { makeCheckAssetAudience } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
-import type { ProductionReasoningHarness, ReasoningHarness, WithProductionScope } from '@knowscroll/backend/reasoning';
+import type {
+  ProductionReasoningHarness,
+  RecordingReasoningHarness,
+  WithProductionScope,
+} from '@knowscroll/backend/reasoning';
 import {
   makeProductionReasoningHarness,
   postgresProductionHarnessPorts,
@@ -84,8 +88,8 @@ export interface RoomWorld {
   /** The model calls that write a window's "while you were away", as queued, in order. */
   readonly summaries: SummariseJob[];
   readonly boss: PgBoss;
-  /** The worker's consumer over a harness (a fixture model in tests). */
-  contribute(harness: ReasoningHarness): (job: ContributeJob, signal?: AbortSignal) => Promise<void>;
+  /** The worker's consumer over the recording-aware harness (a fixture model in tests). */
+  contribute(harness: RecordingReasoningHarness): (job: ContributeJob, signal?: AbortSignal) => Promise<void>;
   /** The worker's check of whether a resident answers a message (no model, no harness). */
   decide(): (job: CastDueJob) => Promise<void>;
   /** The worker's model call of an allowed unprompted turn, over a rooms-scope harness. */

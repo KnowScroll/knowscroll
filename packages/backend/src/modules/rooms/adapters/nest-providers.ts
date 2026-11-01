@@ -6,12 +6,14 @@ import { uuidv7, stableUuid } from '../../../infrastructure/ids/index.js';
 import type { EnqueueJob } from '../../../infrastructure/jobs/index.js';
 import { requestHash, type CanonicalJson } from '../../../infrastructure/receipts/index.js';
 import {
-  REASONING_HARNESS,
+  CHECK_ROOMS_RECORDING_RUN,
+  RECORDING_REASONING_HARNESS,
   ROOM_REASONING_HARNESS,
   WITH_ROOM_SCOPE,
+  type CheckPersonalRecordingRun,
   type ImagePort,
   type ProductionReasoningHarness,
-  type ReasoningHarness,
+  type RecordingReasoningHarness,
   type WithProductionScope,
 } from '../../../reasoning/public.js';
 import {
@@ -53,6 +55,7 @@ import { makeFeed } from '../application/feed-reads.js';
 import { makeScoutCommands } from '../application/scout-commands.js';
 import { makeCastDue, type CastDuePorts } from '../application/cast-due.js';
 import { makeCastPass, type CastPassPorts } from '../application/cast-pass.js';
+import { makeCheckRoomsRecordingRun } from '../application/check-recording-run.js';
 import { makeContribute, type ContributePorts } from '../application/contribute.js';
 import { makeDiscussionCommands } from '../application/discussion-commands.js';
 import { makeDiscussionReads } from '../application/discussion-reads.js';
@@ -277,10 +280,13 @@ export function roomUseCases(deps: RoomsDeps): RoomUseCases {
   };
 }
 
-/** The worker's consumer of `rooms.contribute`, with the harness, the owner check and the configured model. */
+/**
+ * The worker's consumer of `rooms.contribute`, with the recording-aware harness, the owner check and the configured model. The
+ * asker's own recording generation governs the run (D-270); a resident's turn of its own runs in the room's scope instead.
+ */
 export function contributeAsInhabitant(
   deps: RoomsDeps & {
-    readonly harness: ReasoningHarness;
+    readonly harness: RecordingReasoningHarness;
     readonly ownerActive: CheckPersonalOwnerActive;
     readonly model: string;
   },
@@ -480,6 +486,21 @@ export function roomsProviders(tokens: {
   ];
 }
 
+/**
+ * The owner check the recording-aware harness runs for Rooms' personal runs (D-270): the ask an AI inhabitant answers must
+ * still be queued for the person. Installed wherever the recording harness is (the worker), because the harness cannot be built
+ * without it.
+ */
+export function roomsRecordingOwnerProviders() {
+  return [
+    {
+      provide: CHECK_ROOMS_RECORDING_RUN,
+      inject: [],
+      useFactory: (): CheckPersonalRecordingRun => makeCheckRoomsRecordingRun({ ai: aiStore }),
+    },
+  ];
+}
+
 /** The worker's inhabitant consumer. The harness refuses every call while no model provider is configured. */
 export function roomsWorkerProviders(tokens: {
   readonly withPersonalScope: symbol;
@@ -670,7 +691,7 @@ export function roomsWorkerProviders(tokens: {
         RESOLVE_SNIPPET_ANCHOR,
         CHECK_ASSET_AUDIENCE,
         READ_BLOCKED_AMONG,
-        REASONING_HARNESS,
+        RECORDING_REASONING_HARNESS,
         CHECK_PERSONAL_OWNER_ACTIVE,
         tokens.workerConfig,
       ],
@@ -686,7 +707,7 @@ export function roomsWorkerProviders(tokens: {
         resolveSnippet: ResolveSnippetAnchor,
         checkAudience: CheckAssetAudience,
         readBlocked: ReadBlockedAmong,
-        harness: ReasoningHarness,
+        harness: RecordingReasoningHarness,
         ownerActive: CheckPersonalOwnerActive,
         config: WorkerConfig,
       ) =>

@@ -23,7 +23,7 @@ import {
 import { SUPPLY_PORTS, supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { createTestDatabase, type TestDatabase } from './database.js';
 import { fixtureAuthored } from './generated-scroll.js';
-import { fixtureHarness, fixtureModel } from './fixture-model.js';
+import { fixtureModel } from './fixture-model.js';
 import { recordingEntries } from './recording-harness.js';
 import type { FixtureScenario } from './fixture-model-port.js';
 import { fixtureProductionWorker } from './production-worker.js';
@@ -56,13 +56,11 @@ export async function supplyWorld(purpose: string) {
   const SCOPE = Symbol('scope');
   const ENQUEUE = Symbol('enqueue');
   const CONFIG = Symbol('config');
-  const HARNESS = Symbol('harness');
   const RECORDING = Symbol('recording-harness');
   const providers = supplyProviders({
     withPersonalScope: SCOPE,
     enqueueJob: ENQUEUE,
     config: CONFIG,
-    harness: HARNESS,
     recordingHarness: RECORDING,
   });
   const values = new Map<symbol, unknown>([
@@ -74,7 +72,6 @@ export async function supplyWorld(purpose: string) {
     ],
     [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
     [READ_EXPLORATION_SNAPSHOT, content.readExploration],
-    [HARNESS, fixtureHarness(database.db, { model: matchModel }).harness],
     ...recordingEntries(database.db, matchModel, RECORDING),
     [READ_LIBRARY_PASSAGES, makeReadLibraryPassages(database.db)],
     ...identityScopeOwnerProviders().map((provider) => [provider.provide, provider.useValue] as const),

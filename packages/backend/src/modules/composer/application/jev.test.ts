@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { ProposeInput, ProposeOutcome, ReasoningHarness } from '../../../reasoning/public.js';
+import type {
+  PersonalRecordingProposeInput,
+  ProposeOutcome,
+  RecordingReasoningHarness,
+  RunOwner,
+} from '../../../reasoning/public.js';
 import type { EncounterSnapshot } from '../../content/public.js';
 import { JEV_SHORTLIST_LIMIT, semanticFitOf } from '../domain/jev.js';
 import {
@@ -161,16 +166,33 @@ describe('Jev (labelled CI fixtures; no provider output)', () => {
   });
 
   const authority = { universeId: 'u', privacyEpoch: 1, actor: { kind: 'system', purpose: 'test' } } as const;
-  const harnessReturning = (outcome: ProposeOutcome<unknown>): ReasoningHarness => ({
-    propose: <T>(_input: ProposeInput<T>) => Promise.resolve(outcome as ProposeOutcome<T>),
-    closeRun: () => Promise.resolve('closed' as const),
-  });
-  const assess = (outcome: ProposeOutcome<unknown>) =>
-    makeAssessShortlist(harnessReturning(outcome))({
+  const owner: RunOwner = {
+    accountId: '00000000-0000-4000-8000-0000000000a1',
+    universeId: '00000000-0000-4000-8000-0000000000a2',
+    privacyEpoch: 1,
+    recordId: '00000000-0000-4000-8000-0000000000a3',
+    recordingGeneration: 3,
+  };
+  /** A stand-in for the recording-aware harness: records what it was asked and answers `outcome`. */
+  const harnessReturning = (outcome: ProposeOutcome<unknown>, seen: PersonalRecordingProposeInput<unknown>[] = []) =>
+    ({
+      contextDigest: () => 'c'.repeat(64),
+      proposePersonal: <T>(input: PersonalRecordingProposeInput<T>) => {
+        seen.push(input);
+        return Promise.resolve(outcome as ProposeOutcome<T>);
+      },
+    }) as unknown as RecordingReasoningHarness;
+  const assess = (
+    outcome: ProposeOutcome<unknown>,
+    runFor: RunOwner | null = owner,
+    seen: PersonalRecordingProposeInput<unknown>[] = [],
+  ) =>
+    makeAssessShortlist(harnessReturning(outcome, seen))({
       runId: '00000000-0000-4000-8000-000000000001',
       authority,
       source: encounter(99),
       shortlist: [encounter(1)],
+      owner: runFor ?? undefined,
       signal: new AbortController().signal,
     });
 
@@ -185,7 +207,7 @@ describe('Jev (labelled CI fixtures; no provider output)', () => {
       reconciled: false,
     });
     expect(proposed).toMatchObject({ kind: 'assessed', end: 'completed' });
-    expect(await assess({ kind: 'invalid_output', attemptId: 'a', reason: 'x' })).toEqual({
+    expect(await assess({ kind: 'invalid_output', attemptId: 'a', reason: 'x' })).toMatchObject({
       kind: 'absent',
       reason: 'invalid_output',
       end: 'failed',
@@ -194,8 +216,11 @@ describe('Jev (labelled CI fixtures; no provider output)', () => {
       kind: 'absent',
       end: 'failed',
     });
-    expect(await assess({ kind: 'unknown', attemptId: 'a' })).toEqual({ kind: 'absent', reason: 'unknown_outcome' });
-    expect(await assess({ kind: 'refused', reason: 'provider_unavailable' })).toEqual({
+    const unknown = await assess({ kind: 'unknown', attemptId: 'a' });
+    // May have reached the provider: the run stays open, so the result names no end.
+    expect(unknown).toMatchObject({ kind: 'absent', reason: 'unknown_outcome' });
+    expect(unknown).not.toHaveProperty('end');
+    expect(await assess({ kind: 'refused', reason: 'provider_unavailable' })).toMatchObject({
       kind: 'absent',
       reason: 'refused_provider_unavailable',
     });
@@ -203,5 +228,31 @@ describe('Jev (labelled CI fixtures; no provider output)', () => {
       kind: 'absent',
       end: 'cancelled',
     });
+  });
+
+  it('stamps the run with the owner’s generation and the digest of what the model is sent, and returns the proof', async () => {
+    const seen: PersonalRecordingProposeInput<unknown>[] = [];
+    const result = await assess({ kind: 'failed', attemptId: 'a', code: 'HTTP_500' }, owner, seen);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.run).toMatchObject({ ownerModule: 'composer', purpose: 'jev-assessment' });
+    const proof = {
+      ownerModule: 'composer',
+      purpose: 'jev-assessment',
+      accountId: owner.accountId,
+      recordingGeneration: 3,
+      claimId: owner.recordId,
+      businessRunId: '00000000-0000-4000-8000-000000000001',
+      contextSha256: 'c'.repeat(64),
+      modelContextSha256: 'c'.repeat(64),
+    };
+    expect(seen[0]?.recordingPurpose).toMatchObject(proof);
+    expect(result).toMatchObject({ kind: 'absent', end: 'failed', purpose: proof });
+  });
+
+  it('makes no call and starts no run while recording is paused: there is no owner', async () => {
+    const seen: PersonalRecordingProposeInput<unknown>[] = [];
+    const result = await assess({ kind: 'failed', attemptId: 'a', code: 'HTTP_500' }, null, seen);
+    expect(seen).toEqual([]);
+    expect(result).toEqual({ kind: 'absent', reason: 'refused_scope_refused' });
   });
 });

@@ -41,8 +41,9 @@ import { TOPICS } from '../../../packages/backend/src/modules/content/production
 import { buildFromProviders } from '../support/providers.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureAuthored } from '../support/generated-scroll.js';
-import { fixtureHarness, fixtureModel, receiptClassesOf } from '../support/fixture-model.js';
+import { fixtureModel, receiptClassesOf } from '../support/fixture-model.js';
 import { recordingEntries } from '../support/recording-harness.js';
+import { clearRecordingPerson, pauseAndResume, recordingPerson, setRecording } from '../support/recording-person.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
@@ -73,12 +74,19 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
   let production: ReturnType<typeof fixtureProductionWorker>;
   let matchModel: ReturnType<typeof fixtureModel>;
   let matchScript: (sequence: number) => FixtureScenario | Promise<FixtureScenario>;
+  /** What runs once, just before the worker enters its transaction to store a verdict: a pause or a Clear in that gap. */
+  let beforeApply: () => Promise<void> = () => Promise.resolve();
+  const once = (action: () => Promise<void>) => () => {
+    beforeApply = () => Promise.resolve();
+    return action();
+  };
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
 
   /** Builds the use cases with the given Create cap and production script. */
   async function build(
     options: { cap?: number; plannerCap?: number; writer?: () => FixtureScenario; quota?: QuotaScript } = {},
   ) {
+    beforeApply = () => Promise.resolve();
     database = await createTestDatabase<Database>('supply_create');
     await sql`update reasoning.production_scopes set enabled=true where id='scroll-supply'`.execute(database.db);
     content = await scrollUseCases(database);
@@ -90,13 +98,11 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     const SCOPE = Symbol('scope'),
       ENQUEUE = Symbol('enqueue'),
       CONFIG = Symbol('config'),
-      HARNESS = Symbol('harness'),
       RECORDING = Symbol('recording-harness');
     const providers = supplyProviders({
       withPersonalScope: SCOPE,
       enqueueJob: ENQUEUE,
       config: CONFIG,
-      harness: HARNESS,
       recordingHarness: RECORDING,
     });
     const values = new Map<symbol, unknown>([
@@ -113,8 +119,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       ],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [READ_EXPLORATION_SNAPSHOT, content.readExploration],
-      [HARNESS, fixtureHarness(database.db, { model: matchModel }).harness],
-      ...recordingEntries(database.db, matchModel, RECORDING),
+      ...recordingEntries(database.db, matchModel, RECORDING, () => beforeApply()),
       [READ_LIBRARY_PASSAGES, makeReadLibraryPassages(database.db)],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),
@@ -1214,6 +1219,126 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       await resolving;
       expect((await status(person, requestId)).status).toBe('cancelled');
       expect(await produceJobs()).toHaveLength(0);
+    });
+
+    /**
+     * A free-text ask carries no recording generation of its own, so its match runs at the generation recording is at when the
+     * step starts (D-270). Generation 1 is on, 2 is off, and 3 is on again after a pause and a resume.
+     */
+    describe('for a person who paused and resumed recording (D-270)', () => {
+      const runsOf = async (requestId: string) =>
+        (
+          await database.db
+            .selectFrom('reasoning.business_runs')
+            .select(['purpose', 'state', 'recording_generation'])
+            .where('id', '=', requestId)
+            .execute()
+        ).map((run) => ({ ...run }));
+      const writtenForTheNewEpoch = async (person: FixturePerson) =>
+        (
+          await sql<{
+            n: string;
+          }>`select count(*) as n from reasoning.business_runs where universe_id = ${person.universeId}::uuid and privacy_epoch > 1`.execute(
+            database.db,
+          )
+        ).rows[0]!.n;
+
+      it('matches the words and has the run stamped with the generation it started at', async () => {
+        await build();
+        const person = await recordingPerson(database);
+        await pauseAndResume(database, person);
+        matchScript = () => matchAnswer('earth.tides', 'earth.tides.forcing');
+        const requestId = await ask(person, freeText('why does the sea go in and out'));
+        await resolve(job(person, requestId));
+        expect(matchModel.calls).toHaveLength(1);
+        expect(await status(person, requestId)).toMatchObject({ status: 'preparing', phase: 'preparing' });
+        expect((await workOf(requestId)).production_recipe).toBe('tides');
+        expect(await runsOf(requestId)).toEqual([
+          { purpose: 'match-request', state: 'completed', recording_generation: 3 },
+        ]);
+      });
+
+      it('answers a redelivery from the ledger and calls the model once', async () => {
+        await build();
+        const person = await recordingPerson(database);
+        await pauseAndResume(database, person);
+        matchScript = () => matchAnswer('earth.tides');
+        const requestId = await ask(person, freeText('tides'));
+        await resolve(job(person, requestId));
+        await resolve(job(person, requestId));
+        expect(matchModel.calls).toHaveLength(1);
+        expect(await produceJobs()).toHaveLength(1);
+      });
+
+      it('drops a match reached across a pause and a resume: nothing is created and the new generation holds no run', async () => {
+        await build();
+        const person = await recordingPerson(database);
+        matchScript = async () => {
+          await pauseAndResume(database, person);
+          return matchAnswer('earth.tides');
+        };
+        const requestId = await ask(person, freeText('why does the sea go in and out'));
+        await resolve(job(person, requestId));
+        expect(matchModel.calls).toHaveLength(1);
+        expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+        expect(await produceJobs()).toHaveLength(0);
+        expect(await database.db.selectFrom('supply.work').select('id').execute()).toEqual([]);
+        expect(
+          await database.db
+            .selectFrom('reasoning.business_runs')
+            .select('id')
+            .where('universe_id', '=', person.universeId)
+            .where('recording_generation', '=', 3)
+            .execute(),
+        ).toEqual([]);
+        // They ask again at the new generation and are answered: only the old match was dropped.
+        matchScript = () => matchAnswer('earth.tides');
+        const again = await ask(person, freeText('why does the sea go in and out'));
+        await resolve(job(person, again));
+        expect(await status(person, again)).toMatchObject({ status: 'preparing', phase: 'preparing' });
+      });
+
+      it('applies nothing when recording is paused between the match and the store', async () => {
+        await build();
+        const person = await recordingPerson(database);
+        matchScript = () => matchAnswer('earth.tides');
+        const requestId = await ask(person, freeText('tides'));
+        beforeApply = once(() => setRecording(database, person, 1, false));
+        await resolve(job(person, requestId));
+        expect(matchModel.calls).toHaveLength(1);
+        expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+        expect(await produceJobs()).toHaveLength(0);
+        expect((await runsOf(requestId)).map((run) => run.state)).toEqual(['admitted']);
+      });
+
+      it('applies nothing for a match in flight across Clear: no work, no job and nothing written for the new epoch', async () => {
+        await build();
+        const person = await recordingPerson(database);
+        matchScript = async () => {
+          await clearRecordingPerson(database, content.boss, person);
+          return matchAnswer('earth.tides');
+        };
+        const requestId = await ask(person, freeText('tides'));
+        await resolve(job(person, requestId));
+        expect(matchModel.calls).toHaveLength(1);
+        expect(await produceJobs()).toHaveLength(0);
+        expect(await database.db.selectFrom('supply.work').select('id').execute()).toEqual([]);
+        expect(await writtenForTheNewEpoch(person)).toBe('0');
+      });
+
+      it('is refused without a model call while recording is paused, as before', async () => {
+        await build();
+        const person = await recordingPerson(database);
+        await pauseAndResume(database, person);
+        await setRecording(database, person, 3, false);
+        matchScript = () => matchAnswer('earth.tides');
+        const requestId = await ask(person, freeText('tides'));
+        await resolve(job(person, requestId));
+        expect(matchModel.calls).toHaveLength(0);
+        expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+        expect(await runsOf(requestId)).toEqual([]);
+        expect(await produceJobs()).toHaveLength(0);
+      });
     });
   });
 });

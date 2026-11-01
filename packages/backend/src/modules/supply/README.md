@@ -119,7 +119,7 @@ A question's placement (`ask-scope`, `ask-library`) and a Quick answer's writer,
 | The generation is the request's own (`command.intent.recordingGeneration`) or the card's (`supply.quick_answers.recording_generation`, migration 0096), both checked against the person's root by the create transaction. | `application/requests.ts`, `application/quick-answers.ts` | implemented |
 | Supply's owner check finds the record still current: the request still `matching`, or the card not dismissed, and asked at that generation. | `application/check-recording-run.ts`, installed by `supplyRecordingOwnerProviders` | implemented |
 | A verdict or an answer is stored in the transaction that closes its run, under the fence. When the fence refuses, the question closes as `could_not_prepare` and the card as unavailable, and the model's reply is dropped. After a Clear nothing is written. | `applyQuestionVerdict` in `application/matching.ts`, `apply` in `application/answer-quick-answer.ts` | implemented |
-| A free-text ask, Jev, What-if and a room's contribution still use the compatibility harness and run only at the first generation. | | planned, each with its own owner check |
+| A free-text ask (`match-request`, E04) runs on the same harness (D-270). Its request records no generation (the command names none), so the run is stamped with the generation recording is at when the match step starts, and the owner check finds the request still `matching` and free text. While recording is paused it is refused without a model call or a run and closes as `could_not_prepare`. A request that waits across a pause and a resume is matched at the later generation. | `matchText` in `application/matching.ts`, `application/check-recording-run.ts` | implemented, CI-verified |
 
 Failure and recovery: a pause, a resume or a Clear while a run is in flight ends it. A reply that arrives late is paid for and dropped,
 and a reservation not yet sent is released. A run the fence will not close stays open until the ledger's idle sweep closes it (six
@@ -182,9 +182,9 @@ and must be an exact catalogue member (the schema refuses anything else; one rep
 is then handled like a person's own catalogue ask. A cancel that arrives while the model thinks wins.
 An attempt of unknown outcome is never resent: the request closes as `could_not_prepare` and the run is
 left for an operator. A context-bearing text ask ("about this encounter") is not matched and closes as
-unsupported. A free-text ask runs on the compatibility personal harness, which works only while recording is at its
-initial generation, so a person who used Pause gets `could_not_prepare` for a free-text ask until it moves to the
-recording-aware harness (its request records no generation yet; D-264 names it as not changed).
+unsupported. A free-text ask runs on the recording-aware personal harness at the generation recording is at when the match
+starts (D-270); the verdict is applied under that generation's fence, so a pause, a resume or a Clear while the model thinks
+drops it and the request closes as `could_not_prepare`.
 
 ## Entry points
 

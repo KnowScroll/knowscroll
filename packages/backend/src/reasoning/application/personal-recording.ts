@@ -15,9 +15,10 @@ const Counter = z.number().int().min(1).max(2_147_483_647);
 const Digest = z.string().regex(/^[a-f0-9]{64}$/u);
 
 /**
- * The closed set of owners, and what each may stamp on a run. The Planner and the Cartographer have one purpose each. Supply
- * names its steps itself: this engine does not name them, so a code is only checked to be one, and the schema
- * (`reasoning_personal_recording_proof_shape`, migration 0096) and Supply's owner check hold the list.
+ * The closed set of owners, and what each may stamp on a run. The Planner and the Cartographer have one purpose each. Supply,
+ * Scenarios, Rooms and the Composer name their steps themselves: this engine does not name them, so a code is only checked to
+ * be one, and the schema (`reasoning_personal_recording_proof_shape`, migrations 0096 and 0097) and each owner's check hold
+ * the list.
  */
 const PURPOSE_CODE = /^[a-z][a-z0-9-]{0,63}$/u;
 /** The same pairing the type states, checked at run time for a value that arrives as data. */
@@ -28,6 +29,9 @@ function purposeFitsOwner(p: PurposeFields): p is PurposeFields & PersonalRecord
     case 'geography':
       return p.purpose === 'personal-cartographer';
     case 'supply':
+    case 'scenarios':
+    case 'rooms':
+    case 'composer':
       return PURPOSE_CODE.test(p.purpose);
     default:
       return false;
@@ -39,7 +43,7 @@ const Purpose = z.strictObject({
   accountId: z.uuid(),
   universeId: z.uuid(),
   privacyEpoch: Counter,
-  ownerModule: z.enum(['planner', 'geography', 'supply']),
+  ownerModule: z.enum(['planner', 'geography', 'supply', 'scenarios', 'rooms', 'composer']),
   purpose: z.string().max(64),
   businessRunId: z.uuid(),
   recordingGeneration: Counter.refine((g) => g % 2 === 1),
@@ -111,6 +115,7 @@ export function parsePersonalRecordingPurpose(value: unknown): PersonalRecording
 }
 export type {
   PersonalRecordingPurpose,
+  StepOwnerModule,
   CheckPersonalRecordingRun,
   PersonalRunAccounting,
   PersonalRunAccountingBinding,
@@ -120,6 +125,20 @@ export interface PersonalRecordingProposeInput<T> extends ProposeInput<T> {
   readonly recordingPurpose: PersonalRecordingPurpose;
 }
 export interface RecordingReasoningHarness {
+  /**
+   * The person a scope belongs to and the generation their recording is at now: where a step that serves one of their records
+   * starts its run. Nothing when recording is paused or the owner is not active, and then no run may start. Takes the scope's
+   * one account gate, so call it once per scope.
+   */
+  currentOwner(
+    scope: PersonalScopeTx,
+  ): Promise<{ readonly accountId: string; readonly generation: number } | undefined>;
+  /**
+   * The generation the scope's recording is at now, with no account gate: for a step whose scope has already taken that gate
+   * (a thread or a room is entered through it) and which knows the account from its own record. The run's own fence checks
+   * the account again. Nothing when recording is paused or the scope is not usable.
+   */
+  currentGeneration(scope: PersonalScopeTx): Promise<number | undefined>;
   /**
    * The digest `proposePersonal` binds a purpose's `modelContextSha256` to: of exactly the bundle reference and the items it
    * will send, nothing else of the context. An owner with no frozen context of its own uses it for both hashes of a purpose.
@@ -155,18 +174,27 @@ export interface PersonalRecordingHarnessPorts {
   readonly checkPlanner: CheckPersonalRecordingRun;
   readonly checkGeography: CheckPersonalRecordingRun;
   readonly checkSupply: CheckPersonalRecordingRun;
+  readonly checkScenarios: CheckPersonalRecordingRun;
+  readonly checkRooms: CheckPersonalRecordingRun;
+  readonly checkComposer: CheckPersonalRecordingRun;
   readonly hashContext: (context: ProposeInput<unknown>['context']) => string;
 }
 
 const sameId = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
-/** Required, closed three-owner dispatch. No string-selected registry or absent-success fallback. */
-export function recordingOwnerDispatcher(
-  ports: Pick<PersonalRecordingHarnessPorts, 'checkPlanner' | 'checkGeography' | 'checkSupply'>,
-): CheckPersonalRecordingRun {
+/** The owner checks the harness needs, one per module that stamps runs. */
+type OwnerChecks = Pick<
+  PersonalRecordingHarnessPorts,
+  'checkPlanner' | 'checkGeography' | 'checkSupply' | 'checkScenarios' | 'checkRooms' | 'checkComposer'
+>;
+/** Required, closed six-owner dispatch. No string-selected registry or absent-success fallback. */
+export function recordingOwnerDispatcher(ports: OwnerChecks): CheckPersonalRecordingRun {
   if (
     typeof ports.checkPlanner !== 'function' ||
     typeof ports.checkGeography !== 'function' ||
-    typeof ports.checkSupply !== 'function'
+    typeof ports.checkSupply !== 'function' ||
+    typeof ports.checkScenarios !== 'function' ||
+    typeof ports.checkRooms !== 'function' ||
+    typeof ports.checkComposer !== 'function'
   )
     throw new Error('PERSONAL_RECORDING_OWNERS_REQUIRED');
   return (scope, value) => {
@@ -179,6 +207,12 @@ export function recordingOwnerDispatcher(
         return ports.checkGeography(scope, p);
       case 'supply':
         return ports.checkSupply(scope, p);
+      case 'scenarios':
+        return ports.checkScenarios(scope, p);
+      case 'rooms':
+        return ports.checkRooms(scope, p);
+      case 'composer':
+        return ports.checkComposer(scope, p);
     }
   };
 }
@@ -342,6 +376,8 @@ export function makePersonalRecordingReasoningHarness(ports: PersonalRecordingHa
     },
     readPersonalRunAccounting: (scope, runId, readExpectedBinding) =>
       ports.engine.personalAccess.readAccounting(scope, runId, readExpectedBinding),
+    currentOwner: (scope) => ports.engine.personalAccess.currentOwner(scope),
+    currentGeneration: (scope) => ports.engine.personalAccess.currentGeneration(scope),
     contextDigest: (context) =>
       ports.hashContext({
         bundleRef: context.bundleRef,

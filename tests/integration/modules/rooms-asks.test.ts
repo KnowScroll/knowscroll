@@ -10,7 +10,8 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureHarness, fixtureModel, receiptClassesOf } from '../support/fixture-model.js';
+import { fixtureModel, receiptClassesOf } from '../support/fixture-model.js';
+import { fixtureRecordingHarness } from '../support/recording-harness.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import {
   ask,
@@ -89,7 +90,7 @@ describe('asked turns, topics and Useful (real PostgreSQL, CI fixture model)', (
 
   const modelFor = (script: (sequence: number) => FixtureScenario) => {
     const model = fixtureModel(script, { label: 'rooms-asks' });
-    const { harness } = fixtureHarness(database.db, { model });
+    const { harness } = fixtureRecordingHarness(database.db, { model });
     return { model, contribute: world.contribute(harness) };
   };
 
@@ -335,7 +336,7 @@ describe('asked turns, topics and Useful (real PostgreSQL, CI fixture model)', (
       const model = fixtureModel(() => answer('assumption', 'Is the Sun’s pull small enough to ignore?'), {
         label: 'rooms-asks-personal',
       });
-      const { harness } = fixtureHarness(database.db, { model });
+      const { harness } = fixtureRecordingHarness(database.db, { model });
       const spentBefore = await roomScopeSpent();
       await world.contribute(harness)(world.queued.at(-1)!);
       expect(model.calls).toHaveLength(1);

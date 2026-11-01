@@ -11,7 +11,8 @@ import { ROOM_PRESENCE_LEASE_MS, type RoomView } from '@knowscroll/contracts';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { seedRooms } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureHarness, fixtureModel, protectedRequestsOf } from '../support/fixture-model.js';
+import { fixtureModel, protectedRequestsOf } from '../support/fixture-model.js';
+import { fixtureRecordingHarness } from '../support/recording-harness.js';
 import {
   ask,
   befriend,
@@ -364,7 +365,7 @@ describe('the room as a place (real PostgreSQL)', () => {
         }),
         { label: 'rooms-hint' },
       );
-      const { harness } = fixtureHarness(database.db, { model });
+      const { harness } = fixtureRecordingHarness(database.db, { model });
 
       const listener = new pg.Client({ connectionString: database.settings.url });
       await listener.connect();
@@ -475,7 +476,7 @@ describe('the room as a place (real PostgreSQL)', () => {
 
     async function askAndRun(person: Friend, roomId: string, discussionId: string) {
       const model = fixtureModel(() => ({ kind: 'success', text: answer }), { label: 'rooms-keep-out' });
-      const { harness } = fixtureHarness(database.db, { model });
+      const { harness } = fixtureRecordingHarness(database.db, { model });
       const before = world.queued.length;
       unwrap(await ask(world, person, roomId, discussionId, 'explainer'));
       await world.contribute(harness)(world.queued[before]!);
