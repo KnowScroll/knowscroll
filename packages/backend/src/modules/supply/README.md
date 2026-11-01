@@ -67,8 +67,8 @@ It is the same request row, the same states (E07), polling, cancel and retry; on
    `here` makes an ask order; `catalogue` runs the library check below; `none` closes `unsupported_request`; a failure or an unknown outcome closes `could_not_prepare` and is never resent.
    **The library check** (D-251, `application/ask-library.ts`, `ask-library-role.ts`): a library Scroll is offered for a question only when a checker finds that it answers it.
    Code lists up to three admitted library Scrolls of the matched subject (never the Scroll being read), reads their prose (`READ_LIBRARY_PASSAGES`), and the personal harness runs
-   `supply.ask-library` (`ask-library.1`, one call and one repair, outside every transaction). The reply is a handle and words copied from that Scroll; code accepts a Scroll only if
-   the words are in its text. A Scroll that answers is bound (`ready`, `reuse`) and costs no order. Otherwise (none answers, the subject has none, the reply stayed unusable) an
+   `supply.ask-library` (`ask-library.2`, one call and one repair, outside every transaction). The reply is a handle and a quote copied from that Scroll; code accepts a Scroll only if
+   the quote has three words or more, is in its text and is about the question (it carries at least two of the question's key words). Whether it answers is the checker's judgement (measured with the replay, D-252). A Scroll that answers is bound (`ready`, `reuse`) and costs no order. Otherwise (none answers, the subject has none, the reply stayed unusable) an
    ask order is made for the question within the caps (step 4), or the request closes `budget_unavailable`. **The library is never started for a question** (no Join, no Create).
    A spent personal budget closes it `budget_unavailable`; an attempt of unknown outcome closes it `could_not_prepare` and is never resent. One personal transaction closes one personal run, so
    the library check's run closes in its own transaction first; a redelivery after that offers no Scroll and makes an order.
@@ -226,7 +226,7 @@ catch-up watermark.
 - `tests/integration/release/requests-http.test.ts`: the installed API.
 - `application/scenario-orders.test.ts`, `tests/integration/modules/scenarios.test.ts`: the order, both caps and idempotence.
 - `tests/integration/modules/supply-ask.test.ts`: ask from here on real PostgreSQL with labelled fixture models: a suggested question orders at once with no model call; a typed question placed here, in the catalogue or nowhere; the order, brief, pages and ledger; produced, bound and opened by the asker alone; both caps and zero; a refused take, Try again, three takes; cancel; paused and stale refused; a stop that is not in the Scroll; export, erasure and Clear; no exposure, observation or action written.
-- `tests/integration/modules/supply-ask.test.ts` also covers the library check (D-251): a Scroll offered only with words of it that answer, none answers, a quote not in the Scroll or an unknown handle, no candidate, no shared work, the Scroll being read never a candidate, the cap, an unknown outcome) and the support check of the order's answer (D-250: supported, repaired once, refused, unusable, unknown, paused).
+- `tests/integration/modules/supply-ask.test.ts` also covers the library check (D-251): a Scroll offered only with words of it that are about the question, none answers, a quote not in the Scroll, a quote that is not about the question, or an unknown handle, no candidate, no shared work, the Scroll being read never a candidate, the cap, an unknown outcome) and the support check of the order's answer (D-250: supported, repaired once, refused, unusable, unknown, paused).
 - `domain/ask-order.test.ts`, `application/ask-scope.test.ts`, `application/ask-library-role.test.ts`: the brief, the suggestion rule, the median, the scope answer, and the library check's reply and outcomes.
 
 CI fixtures only; real-provider runs are summarised in the pull request for #239.

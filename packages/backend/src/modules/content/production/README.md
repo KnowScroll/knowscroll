@@ -75,11 +75,16 @@ MiniMax, which the coordinator makes on dev with `content ask-check` over the fi
 whether it flags the two known faulty sentences).
 
 - **The check** (`ask-support.ts`, `ask-support-step.ts`, `writer-stage.ts`, `domain/ask-support.ts`). For the answer to a question (mode `question`),
-  after the writer's answer has passed the validator and compiled, the role `content.ask-support-check` (`ask-support-check.v1`) is shown the
-  passages the answer cites and its numbered sentences with the handles each block cites, and no question, brief or title. It replies
-  `{sentences: [...]}`, one verdict for each sentence in order: `supported` with a quote copied from a cited passage, `unsupported` with a
-  fixed `kind` and a short problem, or `no_claim`. Code refuses a reply that skips or reorders a sentence, a quote that is not in a cited
-  passage, a number marked `no_claim` and a reply of mostly `no_claim` (fixed hints, one harness repair).
+  after the writer's answer has passed the validator and compiled, the role `content.ask-support-check` (`ask-support-check.v2`) is shown the
+  passages the answer cites and the answer's numbered sentences, and no question, brief or stop. The title, the dek, each heading and a callout's title
+  are sentences too and rest on everything the answer cites; every other sentence rests on the passages its own block cites. It replies
+  `{sentences: [...]}`, one verdict for each sentence in order: `supported` with a quote, `unsupported` with a fixed `kind` and a short problem, or `no_claim`.
+- **What code checks, and what it cannot.** Code refuses a reply that skips or reorders a sentence; a quote of fewer than three words (letters and numbers
+  count, a dash does not); a quote that is not, word for word, in a passage that sentence cites; a quote that is not about the sentence (it must carry at least
+  two of the sentence's key words: uncommon words of three letters or more, compared by their first five letters, or all of them when there are fewer);
+  `no_claim` for anything but a question, an admission of a gap or a figure-free sentence that shares no key word with its passages (a figure in words
+  counts); and a reply of mostly `no_claim` (fixed hints, one harness repair). **Whether the quoted words support the sentence is the checker model's judgement**,
+  which code cannot check; it is measured on dev with the replay before anything relies on it (D-250, D-252).
 - **Code decides.** Nothing unsupported: the Scroll is published. An unsupported sentence earns the writer **one** repair in a run of its own,
   with the fixed hint of each kind, the sentence's words and the checker's note as data, and its draft (none when the harness already repaired
   the draft for the validator). The repaired draft is checked in turn; a sentence that stands ends the job rejected (`support_check_failed`).
@@ -93,7 +98,7 @@ whether it flags the two known faulty sentences).
 - **The replay** (`ask-support-replay.ts`, worker `ask-check-operator.ts`). `content ask-check (--asset <id,…> | --recent <n>) --out <file>` runs
   the same role over stored answers (the authored answer and the research the job kept), through the production harness, writing nothing to
   content. Counts go to stdout; sentences, cited passages and verdicts go to the file. Runbook: [scroll-production.md](../../../../../../docs/v2/operations/scroll-production.md).
-- **Versions.** `question-writer.v2` and `ask-support-check.v1` are a pair (`versions.test.ts`). `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14`
+- **Versions.** `question-writer.v3` and `ask-support-check.v2` are a pair (`versions.test.ts`). `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14`
   because an order has a job of its own and the version is shared with v1 library recipes and what-ifs.
 
 ## Jobs, takes and who sends them
@@ -258,8 +263,8 @@ ledger are the same; what differs is:
 - **The answer to a question (mode `question`, S-7, D-218).** A person's question about the Scroll they are reading is an order too.
   `writerInstructions('plain', 'question')` appends the question rules (answer exactly the question from the cited passages,
   about 230 to 340 words in prose only, say what the passages do not cover, end with a limit callout; the question is data). Code enforces the ending: an answer whose last block is not the limit callout is refused (`limit_callout_required`, with a fixed repair hint).
-  The prompt version is `question-writer.v2` (D-250: the reason a "why" question asks for comes from the passages, a gap is said in one sentence,
-  and the writer is told that every sentence is checked). The reading target is one to two minutes (`targetMinutesOf`), with its own repair
+  The prompt version is `question-writer.v3` (D-250: the reason a "why" question asks for comes from the passages, a gap is said in one sentence,
+  and the writer is told that every sentence, the title and the headings included, is checked). The reading target is one to two minutes (`targetMinutesOf`), with its own repair
   hint, and the format `plain` asks for no rich block. The brief is built by supply (`askBrief`): the question, the Scroll's title and
   the words of the stop. It is written with the v1 writer and published as an order, so it never goes through the review gate (D-138).
   A brief wiped by an erasure (empty) is no subject: the job is skipped and nothing is written for erased words.
