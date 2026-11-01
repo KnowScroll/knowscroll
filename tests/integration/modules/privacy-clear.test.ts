@@ -969,6 +969,25 @@ describe('durable selective Clear', () => {
             updated_at: new Date(),
           })
           .execute();
+        // Authored erasure-only Quick answer (D-253): an answered one, so the export lists it too.
+        await tx
+          .insertInto('supply.quick_answers')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            id: randomUUID(),
+            asset_id: starter.assetId,
+            asset_revision: starter.revision,
+            stop_id: 'ci-stop',
+            state: 'answered',
+            shown_question: 'Authored erasure-only Quick answer question',
+            answer: 'Authored erasure-only Quick answer',
+            covered: true,
+            created_at: new Date(),
+            settled_at: new Date(),
+            expires_at: new Date(Date.now() + 86_400_000),
+          })
+          .execute();
         // Authored Scene erasure-only payloads: seed ALL new stores without claiming projection/formation.
         const sceneObjectId = randomUUID(),
           sceneChunkId = randomUUID(),
