@@ -446,6 +446,7 @@ export const feedReadStore: FeedReadStore = {
       root_asset_id: string | null;
       root_asset_revision: number | null;
       source_url: string | null;
+      intro_inhabitant: string | null;
       title: string;
       created_at: Date | string;
       inhabitant: string | null;
@@ -457,7 +458,7 @@ export const feedReadStore: FeedReadStore = {
       voted: boolean;
     }>`
       select discussion.discussion_id, discussion.root_asset_id, discussion.root_asset_revision, discussion.source_url,
-        discussion.title, discussion.created_at, note.inhabitant, note.agent_owner_account_id, note.author_account_id, note.body_text,
+        discussion.intro_inhabitant, discussion.title, discussion.created_at, note.inhabitant, note.agent_owner_account_id, note.author_account_id, note.body_text,
         (select count(*) from rooms.messages reply
           where reply.discussion_id = discussion.discussion_id and reply.sequence > 1 and reply.hidden_at is null
             and (reply.author_account_id is not null or reply.author_kind in ('ai', 'agent'))) as replies,
@@ -466,7 +467,7 @@ export const feedReadStore: FeedReadStore = {
           where mine.discussion_id = discussion.discussion_id and mine.account_id = ${query.readerAccountId}::uuid) as voted
       from rooms.discussions discussion
       join rooms.messages note on note.discussion_id = discussion.discussion_id and note.sequence = 1
-      where discussion.room_id = ${lock.roomId}::uuid and discussion.kind = 'find'
+      where discussion.room_id = ${lock.roomId}::uuid and discussion.kind in ('find', 'intro')
         and note.hidden_at is null and note.body_text is not null and ${who} and ${since}
       order by ${order} limit ${query.limit}`.execute(sharedTransactionOf(lock.shared));
     return rows.rows.map((row) => ({
@@ -477,12 +478,84 @@ export const feedReadStore: FeedReadStore = {
           ? undefined
           : { assetId: row.root_asset_id, assetRevision: row.root_asset_revision },
       source: row.source_url ?? undefined,
+      introduces: row.intro_inhabitant === null ? undefined : inhabitantOf(row.intro_inhabitant),
       title: row.title,
       postedAt: new Date(row.created_at),
       note: row.body_text,
       replies: Number(row.replies),
       votes: Number(row.votes),
       votedByReader: row.voted,
+    }));
+  },
+
+  async residentFacts(lock, inhabitant) {
+    const trx = sharedTransactionOf(lock.shared);
+    const room = await sql<{ since: Date | string }>`
+      select created_at as since from rooms.rooms where room_id = ${lock.roomId}::uuid`.execute(trx);
+    const turns = await sql<{ last_at: Date | string | null; last_find_at: Date | string | null }>`
+      select max(turn.created_at) filter (where turn.state = 'completed') as last_at,
+        max(turn.created_at) filter (where turn.trigger = 'feed_find' and ${COUNTED}) as last_find_at
+      from rooms.ai_turns turn
+      where turn.room_id = ${lock.roomId}::uuid and turn.inhabitant = ${inhabitant}`.execute(trx);
+    const introduced = await sql<{ found: boolean }>`
+      select exists (select 1 from rooms.discussions
+        where room_id = ${lock.roomId}::uuid and kind = 'intro' and intro_inhabitant = ${inhabitant}) as found`.execute(
+      trx,
+    );
+    const recent = await sql<{ discussion_id: string; message_id: string; title: string; created_at: Date | string }>`
+      select discussion.discussion_id, note.message_id, discussion.title, discussion.created_at
+      from rooms.discussions discussion
+      join rooms.messages note on note.discussion_id = discussion.discussion_id and note.sequence = 1
+      where discussion.room_id = ${lock.roomId}::uuid and discussion.kind = 'find' and note.author_kind = 'ai'
+        and note.inhabitant = ${inhabitant} and note.hidden_at is null
+      order by discussion.created_at desc, discussion.discussion_id desc limit 3`.execute(trx);
+    const at = (value: Date | string | null | undefined) =>
+      value === null || value === undefined ? undefined : new Date(value);
+    return {
+      roomSince: new Date(room.rows[0]!.since),
+      lastAt: at(turns.rows[0]?.last_at),
+      lastFindAt: at(turns.rows[0]?.last_find_at),
+      introduced: introduced.rows[0]?.found === true,
+      recent: recent.rows.map((row) => ({
+        discussionId: row.discussion_id,
+        messageId: row.message_id,
+        title: row.title,
+        postedAt: new Date(row.created_at),
+      })),
+    };
+  },
+
+  async liveEvents(lock, since, limit) {
+    const rows = await sql<{
+      kind: 'posted' | 'replied';
+      discussion_id: string;
+      at: Date | string;
+      author_account_id: string | null;
+      agent_owner_account_id: string | null;
+      inhabitant: string | null;
+    }>`
+      select events.kind, events.discussion_id, events.at, events.author_account_id, events.agent_owner_account_id, events.inhabitant
+      from (
+        select 'posted' as kind, discussion.discussion_id, discussion.created_at as at, first.author_account_id,
+          first.agent_owner_account_id, first.inhabitant
+        from rooms.discussions discussion
+        join rooms.messages first on first.discussion_id = discussion.discussion_id and first.sequence = 1
+        where discussion.room_id = ${lock.roomId}::uuid and discussion.kind in ('find', 'intro')
+          and first.hidden_at is null and first.body_text is not null and discussion.created_at >= ${since}
+        union all
+        select 'replied', discussion.discussion_id, reply.recorded_at, reply.author_account_id, null::uuid, null::text
+        from rooms.messages reply
+        join rooms.discussions discussion on discussion.discussion_id = reply.discussion_id
+        where discussion.room_id = ${lock.roomId}::uuid and discussion.kind in ('find', 'intro')
+          and reply.sequence > 1 and reply.author_account_id is not null and reply.hidden_at is null
+          and reply.recorded_at >= ${since}
+      ) events
+      order by events.at desc limit ${limit}`.execute(sharedTransactionOf(lock.shared));
+    return rows.rows.map((row) => ({
+      kind: row.kind,
+      discussionId: row.discussion_id,
+      at: new Date(row.at),
+      author: authorOf(row),
     }));
   },
 

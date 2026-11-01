@@ -9,6 +9,7 @@ import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.j
 import { dayStartOf } from '../domain/feed.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
 import { POST_RULES, checkSource, mayPost, postTextProblem } from '../domain/posts.js';
+import { scheduleCastCheck } from './cast-schedule.js';
 import { receiptBase, runCommand } from './command.js';
 import { ok, refuse, type ContentRef, type Result, type RoomPorts } from './ports.js';
 
@@ -97,13 +98,24 @@ export function makePostCommands(p: RoomPorts) {
               post: { sourceUrl: link.value.kind === 'source' ? link.value.url : undefined },
               now,
             });
+            const messageId = p.newId();
             await p.discussions.append(lock, discussionId, {
               kind: 'person',
-              messageId: p.newId(),
+              messageId,
               commandId: command.commandId,
               authorAccountId: owner.accountId,
               recordedAt: now,
               text: command.words,
+            });
+            // The post's words may be a question or a strong claim, like any message: the room's router decides, later and within its
+            // caps and ledger, whether a resident answers or corrects (D-278). Nothing is called here.
+            await scheduleCastCheck(p, scope, lock, {
+              room: standing.room,
+              discussionId,
+              messageId,
+              authorAccountId: owner.accountId,
+              text: command.words,
+              now,
             });
             await p.rooms.announce(lock, now);
             return accepted(discussionId, 'posted');

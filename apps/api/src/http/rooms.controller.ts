@@ -407,6 +407,14 @@ export class RoomsController {
   }
 
   @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.introduceResident)
+  introduceResidentRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.introduceResident).handler(async ({ input }) =>
+      value(await this.useCases.introduceResident(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
   @Implement(apiContract.rooms.postFind)
   postFindRoute(@Req() request: Request) {
     return implement(apiContract.rooms.postFind).handler(async ({ input }) =>

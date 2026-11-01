@@ -20,6 +20,7 @@ import type {
   LaunchStartedAcceptanceSchema,
   PollVoteAcceptanceSchema,
   RoomFeedSchema,
+  ResidentIntroducedAcceptanceSchema,
   RoomFindPostedAcceptanceSchema,
   RoomPostVoteAcceptanceSchema,
   QuestionLeftAcceptanceSchema,
@@ -110,6 +111,14 @@ export interface RoomUseCases {
     authority: PersonalAuthority,
     input: unknown,
   ): Promise<Result<z.infer<typeof RoomFindPostedAcceptanceSchema>>>;
+  /**
+   * A moderator has a resident introduce itself, once: a post in the Feed of the resident's fixed words, not a model's (v3 R-8b,
+   * D-275). One per resident per room; asking again changes nothing.
+   */
+  introduceResident(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof ResidentIntroducedAcceptanceSchema>>>;
   /** A member votes up on a post or takes the vote back (D-273). People only; a count and never who. */
   votePost(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomPostVoteAcceptanceSchema>>>;
   /**

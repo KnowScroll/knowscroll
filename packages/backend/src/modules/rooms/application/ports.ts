@@ -28,7 +28,7 @@ import type { CapCounts, RefusalCap } from '../domain/router.js';
 import type { StarAct } from '../domain/sky.js';
 import type { MessageTrigger, SpeechTrigger } from '../domain/triggers.js';
 import type { CastDueJob, CastPassJob, SummariseJob } from '../events.js';
-import type { FindQuery, FindRow, MemoryStaleCause, MemoryView } from './feed-ports.js';
+import type { FindQuery, FindRow, LiveEventRow, MemoryStaleCause, MemoryView, ResidentFacts } from './feed-ports.js';
 import type { ScoutCadence } from '../domain/scout.js';
 
 export type RoomRefusal = 'invalid_input' | 'unavailable' | 'command_key_reused' | 'rate_limited';
@@ -183,7 +183,7 @@ export interface DiscussionRow {
   readonly discussionId: string;
   readonly roomId: string;
   /** `general` is the room's own place to talk (one per room); `topic` is any other. */
-  readonly kind: 'general' | 'topic' | 'today' | 'find';
+  readonly kind: 'general' | 'topic' | 'today' | 'find' | 'intro';
   readonly title: string;
   /**
    * The title is the first words of the message the topic began from, not what the starter typed. It is then another
@@ -197,6 +197,8 @@ export interface DiscussionRow {
   readonly source: string | null;
   /** A person wrote this find (a post, not a resident's or a scout's find). It stays true when the account is gone. */
   readonly personPost: boolean;
+  /** The resident this discussion introduces (kind `intro`, v3 R-8b); none for every other discussion. */
+  readonly introInhabitant: InhabitantId | null;
   readonly originMessageId: string | null;
   /** Null once the starter's account was deleted. */
   readonly startedByAccountId: string | null;
@@ -223,6 +225,8 @@ export interface NewDiscussion {
    * Makes this a member's post to the Feed (v3 R-8b): a find started by a person, rooted at `root` or citing `sourceUrl`, never both.
    */
   readonly post?: { readonly sourceUrl: string | undefined };
+  /** Makes this a resident's introduction (v3 R-8b): a discussion of kind `intro`, started by the moderator who set it up. */
+  readonly intro?: { readonly inhabitant: InhabitantId };
   readonly now: Date;
 }
 
@@ -294,7 +298,7 @@ export interface DiscussionFigures {
 /** A shown message of the room's recent window, and the kind of discussion it sits in (never that discussion's title). */
 export interface WindowMessage {
   readonly message: MessageRow;
-  readonly discussionKind: 'general' | 'topic' | 'today' | 'find';
+  readonly discussionKind: 'general' | 'topic' | 'today' | 'find' | 'intro';
 }
 
 /**
@@ -979,6 +983,10 @@ export interface FeedReadStore {
    * left out.
    */
   finds(lock: RoomLock, query: FindQuery): Promise<readonly FindRow[]>;
+  /** One resident's facts for its profile (v3 R-8b). */
+  residentFacts(lock: RoomLock, inhabitant: InhabitantId): Promise<ResidentFacts>;
+  /** The posts and the replies under them made since `since`, newest first, at most `limit`: what the live strip chooses among. */
+  liveEvents(lock: RoomLock, since: Date, limit: number): Promise<readonly LiveEventRow[]>;
   memory(lock: RoomLock): Promise<MemoryView | undefined>;
   /** A moderator's own words become the memory, and the replacement is audited. */
   replaceMemory(
@@ -1029,6 +1037,14 @@ export interface PostStore {
   setVote(lock: RoomLock, discussionId: string, accountId: string, voted: boolean, now: Date): Promise<void>;
   /** The votes a post has now. */
   votesOf(lock: RoomLock, discussionId: string): Promise<number>;
+  /** A post's votes and whether this member voted, for the post's own page. */
+  voteView(
+    lock: RoomLock,
+    discussionId: string,
+    accountId: string,
+  ): Promise<{ readonly votes: number; readonly voted: boolean }>;
+  /** The introduction a resident has in this room, if it has one. */
+  introductionOf(lock: RoomLock, inhabitant: InhabitantId): Promise<string | undefined>;
   /** Deletes the member's votes in this room (leaving, removal). What they posted stays. */
   forgetMember(lock: RoomLock, accountId: string): Promise<void>;
 }

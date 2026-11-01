@@ -257,3 +257,11 @@ export const scoutRow = (db: Kysely<Database>, roomId: string, owner: Friend) =>
     .where('room_id', '=', roomId)
     .where('owner_account_id', '=', owner.accountId)
     .executeTakeFirst();
+
+/** A moderator has a resident introduce itself, under a fresh command ID. */
+export const introduceResident = (
+  world: RoomWorld,
+  moderator: Friend,
+  roomId: string,
+  inhabitant: 'explainer' | 'skeptic' = 'explainer',
+) => world.rooms.introduceResident(moderator.authority, { version, commandId: randomUUID(), roomId, inhabitant });

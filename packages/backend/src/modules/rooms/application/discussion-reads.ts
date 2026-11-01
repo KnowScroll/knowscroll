@@ -22,7 +22,16 @@ import { debateViewOf } from './debates.js';
 import { titlesFor } from './discussion-titles.js';
 import { discussionEpisodes, viewRoomMessages } from './discussion-view.js';
 import { enterRoom, type EnteredRoom } from './gate.js';
-import { ok, refuse, roomEnvelope, type ContentRef, type Result, type RoomLock, type RoomPorts } from './ports.js';
+import {
+  ok,
+  refuse,
+  roomEnvelope,
+  type ContentRef,
+  type DiscussionRow,
+  type Result,
+  type RoomLock,
+  type RoomPorts,
+} from './ports.js';
 import { roomSummary } from './view.js';
 
 /**
@@ -35,6 +44,22 @@ const viewerOf = (entered: EnteredRoom) => ({
   aiLevel: entered.member?.aiLevel ?? 'lively',
   cast: entered.standing.room.cast,
 });
+
+/**
+ * What people's votes made of a post, for its own page (D-273): only a discussion of the Feed (a find, a member's post or a resident's
+ * introduction) has any. A member cannot vote on their own post, and nobody is told who voted.
+ */
+async function postFigures(
+  p: RoomPorts,
+  lock: RoomLock,
+  discussion: DiscussionRow,
+  readerAccountId: string,
+): Promise<{ votes: number; youVoted: boolean; canVote: boolean } | undefined> {
+  if (discussion.kind !== 'find' && discussion.kind !== 'intro') return undefined;
+  const { votes, voted } = await p.posts.voteView(lock, discussion.discussionId, readerAccountId);
+  const own = discussion.personPost && discussion.startedByAccountId === readerAccountId;
+  return { votes, youVoted: voted, canVote: !own };
+}
 
 /** How long the reader is told about an ask that ended without a contribution. */
 const UNANSWERED_ASK_MEMORY_MS = 10 * 60 * 1000;
@@ -193,6 +218,7 @@ export function makeDiscussionReads(p: RoomPorts) {
           const title = (await titlesFor(p, scope, lock, entered.owner.accountId, [discussion])).get(
             discussion.discussionId,
           )!;
+          const post = await postFigures(p, lock, discussion, entered.owner.accountId);
           return DiscussionViewSchema.parse({
             ...roomEnvelope(scope),
             readId: query.readId,
@@ -210,6 +236,7 @@ export function makeDiscussionReads(p: RoomPorts) {
               ...(discussion.source === null
                 ? {}
                 : { source: { url: discussion.source, host: hostOf(discussion.source) } }),
+              ...(post === undefined ? {} : { post }),
             },
             ...(origin === undefined ? {} : { origin }),
             ...(debate === undefined ? {} : { debate }),
