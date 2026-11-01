@@ -6,13 +6,14 @@ import type { DraftRow, NodeRow } from './ports.js';
 
 const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 const UNIVERSE = id(1);
+const ACCOUNT = id(2);
 const DRAFT = id(40);
 const NODE = id(50);
 
 /** A Scenarios proof, with fields overridden: some tests build pairs the type would not allow, to see them refused. */
 const purpose = (over: Record<string, unknown> = {}): PersonalRecordingPurpose => ({
   version: 'personal-role-purpose.v1',
-  accountId: id(2),
+  accountId: ACCOUNT,
   universeId: UNIVERSE,
   privacyEpoch: 1,
   ownerModule: 'scenarios',
@@ -31,9 +32,22 @@ const scopeAt = (generation: number, universeId = UNIVERSE, privacyEpoch = 1) =>
   }) as unknown as RecordingScopeTx;
 
 const draft = (over: Partial<DraftRow> = {}): DraftRow =>
-  ({ draftId: DRAFT, state: 'thinking', requesterUniverseId: UNIVERSE, ...over }) as unknown as DraftRow;
+  ({
+    draftId: DRAFT,
+    state: 'thinking',
+    requesterUniverseId: UNIVERSE,
+    requesterAccountId: ACCOUNT,
+    ...over,
+  }) as unknown as DraftRow;
 const node = (over: Partial<NodeRow> = {}): NodeRow =>
-  ({ nodeId: NODE, kind: 'what_if', status: 'preparing', answer: { state: 'making' }, ...over }) as unknown as NodeRow;
+  ({
+    nodeId: NODE,
+    kind: 'what_if',
+    status: 'preparing',
+    answer: { state: 'making' },
+    startedByAccountId: ACCOUNT,
+    ...over,
+  }) as unknown as NodeRow;
 
 function checkWith(draftRow: DraftRow | undefined, nodeRow: NodeRow | undefined) {
   return makeCheckScenariosRecordingRun({
@@ -56,6 +70,16 @@ describe('the owner check of Scenarios’ recording runs (D-270)', () => {
     expect(await checkWith(draft({ requesterUniverseId: id(9) }), undefined)(scopeAt(3), purpose())).toBe(
       'unavailable',
     );
+  });
+
+  it('finds the planner’s run unavailable for a draft another account asked', async () => {
+    expect(await checkWith(draft({ requesterAccountId: id(9) }), undefined)(scopeAt(3), purpose())).toBe('unavailable');
+  });
+
+  it('finds the writer’s run unavailable for a branch another member started, or one whose starter is gone', async () => {
+    const run = purpose({ purpose: 'answer', businessRunId: NODE, claimId: NODE });
+    expect(await checkWith(undefined, node({ startedByAccountId: id(9) }))(scopeAt(3), run)).toBe('unavailable');
+    expect(await checkWith(undefined, node({ startedByAccountId: undefined }))(scopeAt(3), run)).toBe('unavailable');
   });
 
   it('finds the writer’s run current while its what-if branch stands and the short answer is being written', async () => {
