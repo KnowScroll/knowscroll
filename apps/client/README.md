@@ -707,7 +707,7 @@ direct conversations and threads together; a thread row shows its people, the la
 
 ## Idea rooms (#245, D-051)
 
-Routes: `/rooms/<id>` (R01 preview before joining; for a member, the campfire: General under the room's band, v3 R-1) `/rooms/<id>/today` (the Today channel, v3 R-5) and `/rooms/<id>/t/<discussionId>` (R02 discussion).
+Routes: `/rooms/<id>` (R01 preview before joining; for a member, the campfire: General under the room's band, v3 R-1) `/rooms/<id>/today` (the Today channel, v3 R-5), `/rooms/<id>/feed` (what residents found in the library and what they remember, v3 R-8: `features/rooms/feed-screen.tsx`, `feed-post.tsx`, `resident-sheet.tsx`; reached from the Now strip's Feed chip or the room menu's Feed row; status: **implemented** (jest, web smoke over labelled fixtures at 390 and 1440 with axe), not yet runtime-verified on dev) and `/rooms/<id>/t/<discussionId>` (R02 discussion).
 Talk (`/conversations`) lists the person's rooms and invitations under the conversations (D-006 o); a room has no tab.
 
 - `features/rooms/room-screen.tsx`: for an outsider, the dark room header and `PreviewBody` (who is here to help, the labelled

@@ -213,6 +213,18 @@ export {
   type RoomTodayState,
 } from './room-sky';
 export {
+  createRoomFeed,
+  emptyFeedWords,
+  feedChip,
+  findKindWord,
+  findTitleWords,
+  memoryWords,
+  rhythmLines,
+  type RoomFeedController,
+  type RoomFeedOptions,
+  type RoomFeedState,
+} from './room-feed';
+export {
   START_BLOCK_WORDS,
   createRoomLaunch,
   hostLine,

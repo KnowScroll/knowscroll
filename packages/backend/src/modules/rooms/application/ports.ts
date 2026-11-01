@@ -23,8 +23,9 @@ import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
 import type { AiLevel, EarlierPlace, JoinRule, RoomRole, RoomStatus } from '../domain/membership.js';
 import type { CapCounts, RefusalCap } from '../domain/router.js';
 import type { StarAct } from '../domain/sky.js';
-import type { SpeechTrigger } from '../domain/triggers.js';
+import type { MessageTrigger, SpeechTrigger } from '../domain/triggers.js';
 import type { CastDueJob, CastPassJob, SummariseJob } from '../events.js';
+import type { FindRow, MemoryStaleCause, MemoryView } from './feed-ports.js';
 
 export type RoomRefusal = 'invalid_input' | 'unavailable' | 'command_key_reused' | 'rate_limited';
 export type Result<T> =
@@ -178,7 +179,7 @@ export interface DiscussionRow {
   readonly discussionId: string;
   readonly roomId: string;
   /** `general` is the room's own place to talk (one per room); `topic` is any other. */
-  readonly kind: 'general' | 'topic' | 'today';
+  readonly kind: 'general' | 'topic' | 'today' | 'find';
   readonly title: string;
   /**
    * The title is the first words of the message the topic began from, not what the starter typed. It is then another
@@ -228,7 +229,7 @@ export interface MessageRow {
   readonly content: ContentRef | null;
   readonly note: string | null;
   /** Why a resident spoke on its own; none for a person's message and for an asked contribution. */
-  readonly trigger: SpeechTrigger | null;
+  readonly trigger: MessageTrigger | null;
   /** The topic a card names; set only on the card a topic started from a message leaves (D-167). */
   readonly topicDiscussionId: string | null;
 }
@@ -277,7 +278,7 @@ export interface DiscussionFigures {
 /** A shown message of the room's recent window, and the kind of discussion it sits in (never that discussion's title). */
 export interface WindowMessage {
   readonly message: MessageRow;
-  readonly discussionKind: 'general' | 'topic' | 'today';
+  readonly discussionKind: 'general' | 'topic' | 'today' | 'find';
 }
 
 /**
@@ -848,6 +849,36 @@ export interface FriendLookup {
 
 export type ReadContent = (scope: PersonalScopeTx, refs: readonly ContentRef[]) => Promise<readonly ContentCard[]>;
 
+// --- The residents' feed and the room's memory (migration 0091) -----------------------------------
+
+/**
+ * The feed and the memory as a member's own use cases read them, inside the personal scope and the room's lock. The heartbeat's own
+ * store, which has no person and no lock of a personal scope, is `FeedStore` in `feed-ports.ts`.
+ */
+export interface FeedReadStore {
+  /** The room's finds, newest first, at most `limit`; a find whose note was removed is left out. */
+  finds(lock: RoomLock, limit: number): Promise<readonly FindRow[]>;
+  memory(lock: RoomLock): Promise<MemoryView | undefined>;
+  /** A moderator's own words become the memory, and the replacement is audited. */
+  replaceMemory(
+    lock: RoomLock,
+    input: {
+      readonly byAccountId: string;
+      readonly text: string;
+      readonly now: Date;
+      readonly editId: string;
+      readonly sha256: string;
+    },
+  ): Promise<void>;
+  /** A moderator clears the memory: it is written again from what members said, and the clearing is audited. */
+  clearMemory(
+    lock: RoomLock,
+    input: { readonly byAccountId: string; readonly now: Date; readonly editId: string },
+  ): Promise<void>;
+  /** Erases the words of a derived memory that read what was just removed, kept out or deleted. A moderator's text is not touched. */
+  markMemoryStale(lock: RoomLock, cause: MemoryStaleCause): Promise<void>;
+}
+
 /** Everything the room use cases need. Built once by the composition root; nothing here is global. */
 /** One message of a room that people have reported, as its moderators may see it: why, how many times and when. */
 export interface RoomReportRow {
@@ -886,6 +917,8 @@ export interface RoomPorts {
   readonly today: TodayStore;
   /** The Launch's rows (migration 0088). */
   readonly launches: LaunchStore;
+  /** The residents' feed and the room's memory, as a member reads and a moderator changes them (migration 0091). */
+  readonly feed: FeedReadStore;
   readonly people: PersonLookup;
   readonly friends: FriendLookup;
   readonly blocked: BlockedLookup;

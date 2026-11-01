@@ -40,21 +40,28 @@ import type { PlannerMaterialChange } from '@knowscroll/backend/modules/planner'
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { REFRESH_VISIT_PUBLICATION, type RefreshVisitPublication } from '@knowscroll/backend/modules/social';
 import { socialPeopleProviders, visitRefreshProviders } from '@knowscroll/backend/modules/social/nest-providers';
-import { roomsRitualProviders, roomsWorkerProviders } from '@knowscroll/backend/modules/rooms/nest-providers';
+import {
+  roomsFeedProviders,
+  roomsRitualProviders,
+  roomsWorkerProviders,
+} from '@knowscroll/backend/modules/rooms/nest-providers';
 import {
   CONTRIBUTE_AS_INHABITANT,
   DECIDE_CAST,
   RUN_CAST_PASS,
+  RUN_FEED_HEARTBEAT,
   RUN_NIGHTLY_RITUALS,
   SUMMARISE,
   castDueQueue,
   castPassQueue,
+  feedHeartbeatQueue,
   nightlyRitualsQueue,
   summariseQueue,
   contributeQueue,
   type ContributeAsInhabitant,
   type DecideCast,
   type RunCastPass,
+  type RunFeedHeartbeat,
   type RunNightlyRituals,
   type Summarise,
 } from '@knowscroll/backend/modules/rooms';
@@ -196,6 +203,8 @@ export const jobWiring: Provider[] = [
   // The night's daily items for each room, drafted from the library's prose for an operator to approve (D-176).
   ...libraryPassageProviders({ database: DATABASE }),
   ...roomsRitualProviders({ database: DATABASE, workerConfig: WORKER_CONFIG }),
+  // Residents' finds about library assets and the room's memory, on a heartbeat (v3 R-8, D-248).
+  ...roomsFeedProviders({ database: DATABASE, workerConfig: WORKER_CONFIG }),
   ...cartographerWorkerProviders({ workerConfig: WORKER_CONFIG }),
   ...quietSweepProviders({ database: DATABASE, boss: PG_BOSS, workerConfig: WORKER_CONFIG }),
   {
@@ -281,6 +290,7 @@ export const jobWiring: Provider[] = [
       SWEEP_DISPATCHED_ATTEMPTS,
       PURGE_REPORTS,
       RUN_NIGHTLY_RITUALS,
+      RUN_FEED_HEARTBEAT,
       PRODUCTION_REASONING_HARNESS,
       WITH_PRODUCTION_SCOPE,
       LOG_EVENT,
@@ -316,6 +326,7 @@ export const jobWiring: Provider[] = [
       sweepDispatchedAttempts: SweepDispatchedAttempts,
       purgeReports: PurgeReports,
       runNightlyRituals: RunNightlyRituals,
+      runFeedHeartbeat: RunFeedHeartbeat,
       productionHarness: ProductionReasoningHarness,
       withProductionScope: WithProductionScope,
       logEvent: LogEvent,
@@ -433,6 +444,16 @@ export const jobWiring: Provider[] = [
             jobConsumer(nightlyRitualsQueue, async (_payload, delivery) => {
               await runNightlyRituals(delivery.signal, (slug, error) =>
                 logEvent('rooms.rituals_room_failed', { context: slug, error }),
+              );
+            }),
+          ]
+        : []),
+      // Residents' heartbeat: finds and the room's memory, three times a day, only where its own switch is on as well (v3 R-8).
+      ...(config.reasoning.roomEnabled && config.reasoning.roomFeedEnabled
+        ? [
+            jobConsumer(feedHeartbeatQueue, async (_payload, delivery) => {
+              await runFeedHeartbeat(delivery.signal, (slug, error) =>
+                logEvent('rooms.feed_room_failed', { context: slug, error }),
               );
             }),
           ]

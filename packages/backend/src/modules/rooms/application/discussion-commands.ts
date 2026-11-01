@@ -455,7 +455,13 @@ export function makeDiscussionCommands(p: RoomPorts) {
           return ok(async () => {
             await p.discussions.setHidden(lock, command.discussionId, command.messageId, command.hidden ? now : null);
             // A summary that read this message may carry its words: erase it (D-169).
-            if (command.hidden) await p.summaries.markStale(lock, { coveringAt: message.recordedAt });
+            if (command.hidden) {
+              await p.summaries.markStale(lock, { coveringAt: message.recordedAt });
+              // So does what the room remembers (D-247): it is erased and written again from what is left. It reads only
+              // people's text, so a removed resident's note or card changes nothing in it.
+              if (message.authorAccountId !== null && message.text !== null)
+                await p.feed.markMemoryStale(lock, { coveringAt: message.recordedAt });
+            }
             return RoomMessageHidingAcceptanceSchema.parse({
               ...receiptBase(scope, now, command.commandId),
               operation: 'discussion.hide',

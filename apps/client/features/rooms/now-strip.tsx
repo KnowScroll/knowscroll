@@ -2,11 +2,11 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
-import { launchChip, skyLine } from '@knowscroll/client-core';
-import type { RoomLaunchStrip, RoomSky, RoomTodayStrip } from '@knowscroll/contracts';
+import { feedChip, launchChip, skyLine } from '@knowscroll/client-core';
+import type { RoomFeedStrip, RoomLaunchStrip, RoomSky, RoomTodayStrip } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Icon, Text } from '@knowscroll/ui';
-import { todayHref } from './room-links';
+import { feedHref, todayHref } from './room-links';
 import { SkySheet } from './sky-sheet';
 
 /** One pill of the strip: at least 44 px tall, with words, never colour alone. */
@@ -50,7 +50,7 @@ function Chip({
 
 /**
  * The Now strip under the room's band (R3 A): the Launch when one can start, is on or just finished, Today, with its question when an
- * operator approved one, and the room's sky. None is a count of people. The Launch opens its start sheet or its podium, Today the daily
+ * operator approved one, the Feed when a resident has posted a find, and the room's sky. None is a count of people. The Launch opens its start sheet or its podium, Today the daily
  * channel, the sky the constellation and its name vote.
  */
 export function NowStrip({
@@ -59,6 +59,7 @@ export function NowStrip({
   today,
   sky,
   launch,
+  feed,
   onLaunch,
 }: {
   readonly scope: AccountScope;
@@ -66,9 +67,12 @@ export function NowStrip({
   readonly today: RoomTodayStrip | undefined;
   readonly sky: RoomSky;
   readonly launch?: RoomLaunchStrip | undefined;
+  /** The newest find a resident posted that this reader may see; absent when there is none or the reader's AI is Off. */
+  readonly feed?: RoomFeedStrip | undefined;
   readonly onLaunch?: () => void;
 }) {
   const chip = launchChip(launch);
+  const feedPill = feedChip(feed, new Date());
   const router = useRouter();
   const [open, setOpen] = useState(false);
   return (
@@ -91,6 +95,15 @@ export function NowStrip({
             accessibilityLabel={`Today${today.prompt === undefined ? '' : `, ${today.prompt}`}`}
             onPress={() => router.push(todayHref(roomId))}
             testID="now-today"
+          />
+        )}
+        {feedPill === undefined ? null : (
+          <Chip
+            label={feedPill.label}
+            detail={feedPill.detail}
+            accessibilityLabel={`Feed, ${feedPill.detail}`}
+            onPress={() => router.push(feedHref(roomId))}
+            testID="now-feed"
           />
         )}
         <Chip

@@ -47,6 +47,7 @@ import {
 } from '../../social/public.js';
 import { makeActivities } from '../application/activities.js';
 import { makeDebateVotes } from '../application/debates.js';
+import { makeFeed } from '../application/feed-reads.js';
 import { makeCastDue, type CastDuePorts } from '../application/cast-due.js';
 import { makeCastPass, type CastPassPorts } from '../application/cast-pass.js';
 import { makeContribute, type ContributePorts } from '../application/contribute.js';
@@ -97,6 +98,7 @@ import { presenceStore } from './postgres-presence.js';
 import { readRoomMembership } from './membership-reads.js';
 import { discussionStore } from './postgres-discussions.js';
 import { roomStore } from './postgres-rooms.js';
+import { feedReadStore } from './postgres-feed.js';
 import { launchStore } from './postgres-launch.js';
 import { debateStore, skyStore, todayStore } from './postgres-sky.js';
 import { summaryStore } from './postgres-summaries.js';
@@ -157,6 +159,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     debates: debateStore,
     today: todayStore,
     launches: launchStore,
+    feed: feedReadStore,
     people: {
       async byAccounts(scope, accountIds) {
         const people = await deps.readPeople(scope, { accountIds });
@@ -248,6 +251,7 @@ export function roomUseCases(deps: RoomsDeps): RoomUseCases {
     ...makeToday(ports),
     ...makeLaunch(ports),
     ...makeDebateVotes(ports),
+    ...makeFeed(ports),
   };
 }
 
@@ -356,6 +360,7 @@ export { seedRooms, setRoomModerator, type ModeratorOutcome } from './seed.js';
 export { holdCast } from './typing-holds.js';
 export { readApprovedBackdrop } from './postgres-face.js';
 export { composeRitualOperator, roomsRitualProviders } from './ritual-providers.js';
+export { composeFeedHeartbeat, roomsFeedProviders } from './feed-providers.js';
 
 /** The API's room use cases, and the room read the report use cases ask for. */
 export function roomsProviders(tokens: {

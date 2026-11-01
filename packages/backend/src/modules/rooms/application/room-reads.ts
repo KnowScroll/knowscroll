@@ -16,6 +16,7 @@ import {
   type RoomAway,
   type RoomDiscussionSummary,
   type RoomHere,
+  type RoomFeedStrip,
   type RoomLaunchStrip,
   type RoomTodayStrip,
   type RoomWelcome,
@@ -30,6 +31,7 @@ import { COUNT_FROM, hereOf } from '../domain/presence.js';
 import { reportedOnDay } from '../domain/reports.js';
 import { orderTopics } from '../domain/topics.js';
 import { titlesFor } from './discussion-titles.js';
+import { feedStrip } from './feed-reads.js';
 import { enterRoom, type EnteredRoom } from './gate.js';
 import { launchStrip } from './launch-view.js';
 import { skyOfRoom } from './sky.js';
@@ -196,6 +198,7 @@ async function awayOf(p: RoomPorts, entered: EnteredRoom, member: MemberRow): Pr
 const awayFor = (away: RoomAway | undefined) => (away === undefined ? {} : { away });
 const todayFor = (today: RoomTodayStrip | undefined) => (today === undefined ? {} : { today });
 const launchFor = (launch: RoomLaunchStrip | undefined) => (launch === undefined ? {} : { launch });
+const feedFor = (feed: RoomFeedStrip | undefined) => (feed === undefined ? {} : { feed });
 
 /** A member's view of the room: General, the other discussions, their own settings, who is here and how quiet it is. */
 async function memberView(p: RoomPorts, scope: PersonalScopeTx, entered: EnteredRoom & { member: MemberRow }) {
@@ -235,6 +238,7 @@ async function memberView(p: RoomPorts, scope: PersonalScopeTx, entered: Entered
     sky: await skyOfRoom(p, lock),
     ...todayFor(await todayStrip(p, lock, p.now())),
     ...launchFor(await launchStrip(p, lock, p.now())),
+    ...feedFor(await feedStrip(p, lock, entered.member, room.cast)),
   };
 }
 

@@ -10,6 +10,7 @@ import {
   createRoomActivities,
   createRoomActivity,
   createRoomDiscussion,
+  createRoomFeed,
   createRoomSky,
   createRoomToday,
   readRoomList,
@@ -22,6 +23,8 @@ import {
   type RoomController,
   type RoomDiscussionController,
   type RoomDiscussionState,
+  type RoomFeedController,
+  type RoomFeedState,
   type RoomSkyController,
   type RoomSkyState,
   type RoomState,
@@ -263,6 +266,27 @@ export function useRoomToday(
   const state = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
   useQuery({
     queryKey: scope.queryKey(TALK_QUERY_KEY, 'room-today', roomId),
+    queryFn: async () => {
+      await controller.load();
+      return Date.now();
+    },
+    staleTime: 0,
+    refetchInterval: POLL_MS,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  });
+  return { controller, state };
+}
+
+/** The room's feed and what the residents remember: read on mount, on focus and by the slow poll, so a new find arrives. */
+export function useRoomFeed(
+  scope: AccountScope,
+  roomId: string,
+): { controller: RoomFeedController; state: RoomFeedState } {
+  const [controller] = useState(() => createRoomFeed({ scope, roomId, newId: newCommandId }));
+  const state = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
+  useQuery({
+    queryKey: scope.queryKey(TALK_QUERY_KEY, 'room-feed', roomId),
     queryFn: async () => {
       await controller.load();
       return Date.now();

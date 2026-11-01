@@ -188,6 +188,11 @@ export interface ReasoningSettings {
   readonly roomEnabled: boolean;
   /** The generation of the `rooms` root this worker's resident jobs run under. */
   readonly roomGeneration: number;
+  /**
+   * `KS_ROOMS_FEED_ENABLED`: residents post finds about library assets and keep the room's memory current on their own
+   * rhythm (v3 R-8, D-248). Off by default, and it needs `roomEnabled`: the heartbeat's calls are paid by the rooms scope.
+   */
+  readonly roomFeedEnabled: boolean;
   readonly minimax?: {
     readonly apiKey: string;
     readonly model: (typeof MINIMAX_MODELS)[number];
@@ -606,6 +611,7 @@ const reasoningVariables = z.object({
   KS_REASONING_PRODUCTION_ENABLED: z.enum(['0', '1']).default('0'),
   KS_REASONING_ROOM_ENABLED: z.enum(['0', '1']).default('0'),
   KS_REASONING_ROOM_GENERATION: positiveInteger(1, 2_147_483_647),
+  KS_ROOMS_FEED_ENABLED: z.enum(['0', '1']).default('0'),
   KS_REASONING_PROVIDER: z.enum(['none', 'minimax']).default('none'),
   MINIMAX_API_KEY: z.string().optional(),
   KS_MINIMAX_MODEL: z.enum(MINIMAX_MODELS).default('MiniMax-M3.1-Flash'),
@@ -664,6 +670,7 @@ function reasoningSettings(parsed: z.infer<typeof reasoningVariables>): Reasonin
     productionEnabled: parsed.KS_REASONING_PRODUCTION_ENABLED === '1',
     roomEnabled: parsed.KS_REASONING_ROOM_ENABLED === '1',
     roomGeneration: parsed.KS_REASONING_ROOM_GENERATION,
+    roomFeedEnabled: parsed.KS_ROOMS_FEED_ENABLED === '1',
     ...(parsed.KS_REASONING_PROVIDER === 'minimax' && key !== undefined
       ? {
           minimax: {

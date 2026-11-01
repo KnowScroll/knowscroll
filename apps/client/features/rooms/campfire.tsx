@@ -222,6 +222,7 @@ export function GeneralStage({
             today={view.today}
             sky={view.sky}
             launch={strip}
+            feed={view.feed}
             onLaunch={onLaunch}
           />
         }
