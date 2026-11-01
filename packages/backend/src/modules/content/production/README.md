@@ -93,8 +93,8 @@ checker flags the two known faulty sentences, how many sentences code sets aside
   repeated spaces, case, an ellipsis for words left out and `4,096` for `4096` make no difference), `quote_not_about_sentence` (it must carry at least
   two of the sentence's key words: uncommon words of three letters or more, compared by their first five letters, or all of them when there are fewer),
   `no_claim_without_ground` and `too_many_no_claim`. `no_claim` has a ground code can see: a question; a title, heading or callout title with no figure; a
-  plain admission of a gap that *begins* with it (`namesTheGap`, a small fixed list: "The pages do not say...", "This answer cannot tell...", "That detail
-  remains unspecified here"; a sentence that states something besides the gap is judged); or a figure-free sentence that shares no key word with its
+  plain admission of a gap that is the *whole sentence* (`namesTheGap`, a small fixed list: "The pages do not say...", "This answer cannot tell...", "That detail
+  remains unspecified here"; a sentence with a number, or one that goes on after the admission with a semicolon, "but" or a second clause, is judged); or a figure-free sentence that shares no key word with its
   passages. When more than half the sentences of a request are marked `no_claim` on that last, weakest ground, those sentences are set aside.
   **Whether the quoted words support the sentence is the checker model's judgement**, which code cannot check; it is measured on dev with the replay
   before anything relies on it (D-250, D-252, D-263 to D-267).

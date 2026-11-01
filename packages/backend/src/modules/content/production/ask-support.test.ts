@@ -389,6 +389,16 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
         'This explains the beam, but it does not give the height.',
         'e2',
       ],
+      [
+        'a gap line that goes on to state a fact',
+        'The pages do not say why, but the beam is brighter than the Sun.',
+        'e2',
+      ],
+      [
+        'a gap line with a second clause after a semicolon',
+        'Nothing in the pages explains it; the beam turns once a minute.',
+        'e2',
+      ],
     ])('sets aside %s marked as stating no fact', (_name, text, cite) => {
       const answer: readonly SentenceUnderCheck[] = [{ number: 0, text, cites: [cite] }, prism, tower];
       expect(outcomes(reply(answer, [noClaim, ...supportedPair]))).toEqual([

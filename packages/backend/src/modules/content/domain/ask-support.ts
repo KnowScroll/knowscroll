@@ -287,10 +287,13 @@ const GAP_VERBS =
 
 const gapPattern = (body: string): RegExp => new RegExp(`^${LEAD_IN}${body}`, 'iu');
 
+/** The few words, before a verb, that name what a short admission is about: "that detail", "the source-position detail". */
+const SHORT_SUBJECT = String.raw`(?:that|this|the)\s+(?:[\p{L}\p{N}'’-]+\s+){1,3}?`;
+
 /**
- * Plain admissions of what the pages or the answer do not hold. A sentence that begins with one asserts nothing about the
- * subject; one that only ends in one ("...but it does not give the height") also states something, so it is judged. A small
- * fixed list, not a reading of the sentence.
+ * Plain admissions of what the pages or the answer do not hold, each anchored at the start of the sentence. The list is
+ * small and fixed, and it is not a reading of the sentence: {@link continuesBeyondTheGap} then refuses a sentence that goes
+ * on to say something else.
  */
 const GAP_PATTERNS: readonly RegExp[] = [
   gapPattern(String.raw`${PAGES_SUBJECT}\s+${HEDGE}(?:${NOT}|says?\s+nothing|are\s+silent|leaves?\s+out)\b`),
@@ -298,12 +301,47 @@ const GAP_PATTERNS: readonly RegExp[] = [
   gapPattern(String.raw`${ANSWER_SUBJECT}\s+(?:ignores|leaves\s+out|omits|skips|says\s+nothing|leaves\s+aside)\b`),
   gapPattern(String.raw`nothing\s+in\s+(?:the|these|those)\s+(?:pages?|passages?|sources?)\b`),
   gapPattern(
-    String.raw`[^.?!;:]{0,60}\b(?:remains?|stays?|is|are)\s+(?:unspecified|unstated|unexplained|not\s+(?:given|stated|covered|specified))\b[^.?!;]{0,40}\b(?:here|in\s+(?:this|the)\s+(?:answer|explanation|account|story|picture|pages?|passages?|sources?|material|text))\b`,
+    String.raw`${SHORT_SUBJECT}(?:remains?|stays?|is|are)\s+(?:unspecified|unstated|unexplained|not\s+(?:given|stated|covered|specified))\b[^.?!;:]{0,40}?\b(?:here|in\s+(?:this|the)\s+(?:answer|explanation|account|story|picture|pages?|passages?|sources?|material|text))\b`,
   ),
 ];
 
-/** Whether a sentence names a gap ("the pages do not say...", "this cannot tell us...") instead of stating a fact. */
-export const namesTheGap = (text: string): boolean => GAP_PATTERNS.some((pattern) => pattern.test(text.trim()));
+const SUBJECT_WORDS = String.raw`(?:the|a|an|this|that|these|those|it|its|they|their|he|she|we|there|then|no|nothing|every|everything|all|some|most|each)`;
+const AUXILIARY_WORDS = String.raw`(?:is|are|was|were|has|have|had|does|do|did|will|would|can|could|may|might|must|should|remains?|stays?)`;
+
+/**
+ * What turns an admission into a sentence that says more (the whole sentence has to be the admission): a semicolon, colon,
+ * dash or bracket; a word that opens a second clause (but, though, because, so...); a relative clause after a comma; and a
+ * second clause after a comma or "and", seen as a new subject (a determiner, a pronoun or a capital) or, after "and", a
+ * short phrase that ends in an auxiliary verb. "terrain, oceans, and local circulation" and "a partial update and a
+ * broader redraw" continue the object of the admission; "and the Sun is overhead at the pole" does not.
+ */
+const CONTINUATIONS: readonly RegExp[] = [
+  /[;:—–()]/u,
+  /\s[-‑]\s/u,
+  /\b(?:but|though|although|while|whereas|yet|because|since|so)\b/iu,
+  /,\s*(?:which|who|whom|whose|where|when)\b/iu,
+  new RegExp(String.raw`,\s*(?:and\s+)?${SUBJECT_WORDS}\b`, 'iu'),
+  /,\s*(?:and\s+)?\p{Lu}/u,
+  new RegExp(String.raw`\band\s+${SUBJECT_WORDS}\b(?:\s+\S+){0,3}?\s+${AUXILIARY_WORDS}\b`, 'iu'),
+  new RegExp(String.raw`\band\s+\p{Lu}\p{L}*(?:\s+\S+){0,3}?\s+${AUXILIARY_WORDS}\b`, 'u'),
+];
+
+/** Whether the sentence goes on to say something besides an admission (the words that open it do not count). */
+const continuesBeyondTheGap = (text: string): boolean => {
+  const body = text.replace(new RegExp(`^${LEAD_IN}`, 'iu'), '');
+  return CONTINUATIONS.some((pattern) => pattern.test(body));
+};
+
+/**
+ * Whether a sentence names a gap ("the pages do not say...", "this cannot tell us...") and nothing else. It must begin with
+ * one of a small fixed list of admissions and not go on to say anything more (D-266): "This explains the pattern, but it
+ * does not give the height" and "The pages do not say why, but the Sun is overhead at the pole" state something, so they
+ * are judged.
+ */
+export const namesTheGap = (text: string): boolean => {
+  const trimmed = text.trim();
+  return GAP_PATTERNS.some((pattern) => pattern.test(trimmed)) && !continuesBeyondTheGap(trimmed);
+};
 
 /** What shows, to code, that a sentence states no fact. */
 export type NoClaimGround =
@@ -325,8 +363,8 @@ export function noClaimGround(
   citedTexts: readonly string[],
 ): NoClaimGround | undefined {
   if (isQuestion(sentence.text)) return 'question';
-  if (namesTheGap(sentence.text)) return 'gap';
   if (statesFigure(sentence.text)) return undefined;
+  if (namesTheGap(sentence.text)) return 'gap';
   if (sentence.label === true) return 'label';
   const cited = new Set(citedTexts.flatMap((text) => [...contentStems(text)]));
   return [...contentStems(sentence.text)].some((stem) => cited.has(stem)) ? undefined : 'unshared';

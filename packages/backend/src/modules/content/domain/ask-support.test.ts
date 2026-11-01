@@ -230,6 +230,42 @@ describe('which sentences may state no fact (B1.3, D-266)', () => {
       expect(namesTheGap(text)).toBe(false);
   });
 
+  it('takes the whole sentence for the admission: one that goes on to state a fact is judged (D-266)', () => {
+    const smuggled = [
+      'The pages do not say why, but sunlight is aimed nearly overhead at the pole.',
+      'The pages do not say why, but the Earth orbits the Sun at 30 km per second.',
+      'This answer cannot tell you the height, and the Sun is overhead at the pole.',
+      'This answer cannot tell you the height and the Sun is overhead at the pole.',
+      'Nothing in the pages explains it; the Sun is directly overhead at the poles.',
+      'The Sun is directly overhead at the pole, but the reason is unexplained here.',
+      'This answer cannot tell you why: sunlight is aimed nearly overhead at the pole.',
+      'The pages do not say why (the Sun is overhead at the pole).',
+      'The pages do not say why, although the Sun is overhead at the pole.',
+      'The pages do not say why, and Earth orbits the Sun.',
+      'The pages do not say why, which is a pity since the Sun is overhead.',
+    ];
+    for (const text of smuggled) {
+      expect(namesTheGap(text)).toBe(false);
+      expect(noClaimGround({ text }, ['The Sun is directly overhead at the pole in summer.'])).toBeUndefined();
+    }
+    // The same admissions without the second clause are gaps, and a lead-in word does not count against them.
+    for (const text of [
+      'The pages do not say why.',
+      'But the pages do not say why.',
+      'This answer cannot tell you the height.',
+      'Nothing in the pages explains it.',
+      'That reason is unexplained here.',
+    ])
+      expect(namesTheGap(text)).toBe(true);
+  });
+
+  it('tests for a figure before it takes a sentence for a gap', () => {
+    const cited = ['The tower stands twenty-one metres tall.'];
+    expect(noClaimGround({ text: 'The pages do not give the 23.4 degree figure.' }, cited)).toBeUndefined();
+    expect(noClaimGround({ text: 'This answer cannot tell you why it is twenty-one metres.' }, cited)).toBeUndefined();
+    expect(noClaimGround({ text: 'The pages do not give the figure.' }, cited)).toBe('gap');
+  });
+
   it('gives a ground for no fact to a question, a gap or a transition that shares no key word with its passages, and to nothing else', () => {
     expect(noClaimGround({ text: 'Why does the beam turn?' }, cited)).toBe('question');
     expect(noClaimGround({ text: 'The pages do not say how.' }, cited)).toBe('gap');
