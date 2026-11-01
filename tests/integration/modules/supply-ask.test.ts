@@ -20,7 +20,7 @@ import {
   makeReviewGate,
   readScrollAskFacts,
 } from '@knowscroll/backend/modules/content/nest-providers';
-import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
+import { identityScopeOwnerProviders, recordingPolicyFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
 import { READ_LIBRARY_PASSAGES, produceScrollJob } from '@knowscroll/backend/modules/content';
 import { READ_EXPLORATION_SNAPSHOT } from '@knowscroll/backend/modules/personal-context';
@@ -62,6 +62,7 @@ import { makeReadAskOrderAudience } from '../../../packages/backend/src/modules/
 import { makeCheckAssetAudience } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal, fixtureHarness, fixtureModel } from '../support/fixture-model.js';
+import { recordingEntries } from '../support/recording-harness.js';
 import type { FixtureCall, FixtureScenario } from '../support/fixture-model-port.js';
 import {
   answerWith,
@@ -117,8 +118,14 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
   let writer: () => FixtureScenario;
   /** The support checker's replies for an ask order's answer; by default every sentence is supported. */
   let supportScript: NonNullable<NonNullable<Parameters<typeof fixtureProductionWorker>[2]>['support']>;
-  let scopeScript: () => FixtureScenario;
-  let libraryScript: (call: FixtureCall) => FixtureScenario;
+  /** What runs once, just before the worker enters its transaction to store a verdict: a pause or a Clear in that gap. */
+  let beforeApply: () => Promise<void> = () => Promise.resolve();
+  const once = (action: () => Promise<void>) => () => {
+    beforeApply = () => Promise.resolve();
+    return action();
+  };
+  let scopeScript: () => FixtureScenario | Promise<FixtureScenario>;
+  let libraryScript: (call: FixtureCall) => FixtureScenario | Promise<FixtureScenario>;
   let scopeModel: ReturnType<typeof fixtureModel>;
   /** The library Scroll a question about tides may be answered by: a labelled CI v1 Scroll under `earth.tides`. */
   let library: { readonly assetId: string; readonly revision: number };
@@ -127,6 +134,18 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
   let stopId: string;
   let suggestions: readonly string[];
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
+  /** Pauses or resumes recording through the real policy command, from the generation the person is at. */
+  async function toggleRecording(person: FixturePerson, generation: number, on: boolean) {
+    expect(
+      await recordingPolicyFor(database.db, { lockTimeoutMs: 5000 }).set(person.authority, {
+        version: 'recording-policy.v1',
+        commandId: randomUUID(),
+        expectedPrivacyEpoch: person.authority.privacyEpoch,
+        expectedRecordingGeneration: generation,
+        on,
+      }),
+    ).toMatchObject({ kind: 'ok' });
+  }
 
   /** Composes the use cases with the given daily caps, the way the worker's providers do. */
   function build(caps: { perDay: number; perPerson: number } = { perDay: 20, perPerson: 5 }) {
@@ -134,11 +153,13 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     const ENQUEUE = Symbol('enqueue');
     const CONFIG = Symbol('config');
     const HARNESS = Symbol('harness');
+    const RECORDING = Symbol('recording-harness');
     const providers = supplyProviders({
       withPersonalScope: SCOPE,
       enqueueJob: ENQUEUE,
       config: CONFIG,
       harness: HARNESS,
+      recordingHarness: RECORDING,
     });
     const values = new Map<symbol, unknown>([
       [SCOPE, withScope()],
@@ -155,6 +176,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [READ_EXPLORATION_SNAPSHOT, content.readExploration],
       [HARNESS, fixtureHarness(database.db, { model: scopeModel }).harness],
+      ...recordingEntries(database.db, scopeModel, RECORDING, () => beforeApply()),
       [READ_LIBRARY_PASSAGES, makeReadLibraryPassages(database.db)],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),
@@ -238,6 +260,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     scopeScript = () => scopeAnswer('here');
     libraryScript = () => libraryReply(null, null);
     supportScript = (_check, call) => supportReply(call);
+    beforeApply = () => Promise.resolve();
     scopeModel = fixtureModel((_sequence, call) => (isLibraryCall(call) ? libraryScript(call) : scopeScript()), {
       label: 'supply-ask-scope-CI-fixture',
     });
@@ -1429,6 +1452,193 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await status(person, requestId)).toMatchObject({ status: 'cancelled' });
       const audience = makeCheckAssetAudience(database.db, [makeReadAskOrderAudience(database.db)]);
       expect((await audience({ pool: true }, person.authority, [order.assetId])).has(order.assetId)).toBe(false);
+    });
+  });
+
+  describe('a person who paused and resumed recording (D-264)', () => {
+    /** Pause then resume through the real policy command: generation 1 on, 2 off, 3 on. */
+    async function pauseAndResume(person: FixturePerson) {
+      await toggleRecording(person, 1, false);
+      await toggleRecording(person, 2, true);
+    }
+    /** A typed question asked after the pause and resume, at the person's current generation. */
+    async function askedAfterResume(question = 'How do ships know where the land begins?') {
+      const { person, exposure } = await reader();
+      await pauseAndResume(person);
+      const requestId = await ask(person, askCommand(exposure, question, { recordingGeneration: 3 }));
+      return { person, exposure, requestId };
+    }
+    const runsOf = async (requestId: string) =>
+      (
+        await database.db
+          .selectFrom('reasoning.business_runs')
+          .select(['purpose', 'state', 'recording_generation'])
+          .where('id', 'in', [requestId, stableUuid(`supply.ask-library:${requestId}`)])
+          .orderBy('purpose')
+          .execute()
+      ).map((run) => ({ ...run }));
+    const askOrders = () => database.db.selectFrom('supply.ask_orders').select('order_id').execute();
+
+    it('has the question placed and an ask order made, and every run is stamped with the generation it was asked at', async () => {
+      await setup();
+      const { person, requestId } = await askedAfterResume();
+      await resolve(job(person, requestId));
+      expect(scopeModel.calls).toHaveLength(1);
+      expect((await requestRow(requestId)).ask_order_id).not.toBeNull();
+      expect(await status(person, requestId)).toMatchObject({ status: 'preparing', phase: 'preparing' });
+      expect(await runsOf(requestId)).toEqual([{ purpose: 'ask-scope', state: 'completed', recording_generation: 3 }]);
+    });
+
+    it('has a library Scroll offered when the checker finds that it answers, under the same generation', async () => {
+      await setup();
+      scopeScript = () => scopeAnswer('catalogue', 'earth.tides');
+      libraryScript = () => libraryReply('s1', LIBRARY_QUOTE);
+      const { person, requestId } = await askedAfterResume();
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: library.assetId } });
+      expect(await askOrders()).toEqual([]);
+      expect(await runsOf(requestId)).toEqual([
+        { purpose: 'ask-library', state: 'completed', recording_generation: 3 },
+        { purpose: 'ask-scope', state: 'completed', recording_generation: 3 },
+      ]);
+    });
+
+    it('does not place a question asked at an earlier generation: it closes as could-not-prepare, calls no model and makes no order', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      const requestId = await ask(person, askCommand(exposure, 'How do ships know where the land begins?'));
+      await pauseAndResume(person);
+      await resolve(job(person, requestId));
+      expect(scopeModel.calls).toHaveLength(0);
+      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+      expect(await askOrders()).toEqual([]);
+      expect(await queuedProduction()).toEqual([]);
+      expect(await runsOf(requestId)).toEqual([]);
+    });
+
+    it('drops a verdict reached across a pause and a resume: no order is made, and no run is stamped with the new generation', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      const requestId = await ask(person, askCommand(exposure, 'How do ships know where the land begins?'));
+      scopeScript = async () => {
+        await pauseAndResume(person);
+        return scopeAnswer('here');
+      };
+      await resolve(job(person, requestId));
+      expect(scopeModel.calls).toHaveLength(1);
+      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+      expect(await askOrders()).toEqual([]);
+      expect(await queuedProduction()).toEqual([]);
+      expect(
+        await database.db
+          .selectFrom('reasoning.business_runs')
+          .select('id')
+          .where('universe_id', '=', person.universeId)
+          .where('recording_generation', '=', 3)
+          .execute(),
+      ).toEqual([]);
+      // The same person asks again at the new generation and is answered: only the old question was dropped.
+      scopeScript = () => scopeAnswer('here');
+      const again = await ask(person, askCommand(exposure, 'Why is it so cold there?', { recordingGeneration: 3 }));
+      await resolve(job(person, again));
+      expect(await status(person, again)).toMatchObject({ status: 'preparing', phase: 'preparing' });
+    });
+
+    it('applies nothing when recording is paused between the scope step and the store: no order is made', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      const requestId = await ask(person, askCommand(exposure, 'How do ships know where the land begins?'));
+      beforeApply = once(() => toggleRecording(person, 1, false));
+      await resolve(job(person, requestId));
+      expect(scopeModel.calls).toHaveLength(1);
+      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+      expect(await askOrders()).toEqual([]);
+      expect(await queuedProduction()).toEqual([]);
+      expect((await runsOf(requestId)).map((run) => run.state)).toEqual(['admitted']);
+    });
+
+    it('applies nothing when recording is cleared between the scope step and the store', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      const requestId = await ask(person, askCommand(exposure, 'How do ships know where the land begins?'));
+      beforeApply = once(() => clearRecordingPerson(database, content.boss, person));
+      await resolve(job(person, requestId));
+      expect(await askOrders()).toEqual([]);
+      expect(await queuedProduction()).toEqual([]);
+    });
+
+    it('drops a library check reached across a pause: no Scroll is offered and no order is made', async () => {
+      await setup();
+      scopeScript = () => scopeAnswer('catalogue', 'earth.tides');
+      const { person, exposure } = await reader();
+      libraryScript = async () => {
+        await toggleRecording(person, 1, false);
+        return libraryReply('s1', LIBRARY_QUOTE);
+      };
+      const requestId = await ask(person, askCommand(exposure, 'How do ships know where the land begins?'));
+      await resolve(job(person, requestId));
+      expect(libraryCalls()).toHaveLength(1);
+      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+      expect(await askOrders()).toEqual([]);
+    });
+
+    it('stores nothing for a question in flight across Clear: no order, no job and nothing written for the new epoch', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      const requestId = await ask(person, askCommand(exposure, 'How do ships know where the land begins?'));
+      scopeScript = async () => {
+        await clearRecordingPerson(database, content.boss, person);
+        return scopeAnswer('here');
+      };
+      await resolve(job(person, requestId));
+      expect(scopeModel.calls).toHaveLength(1);
+      expect(await askOrders()).toEqual([]);
+      expect(await queuedProduction()).toEqual([]);
+      for (const table of ['reasoning.business_runs', 'supply.requests'] as const)
+        expect(
+          (
+            await sql<{
+              n: string;
+            }>`select count(*) as n from ${sql.table(table)} where universe_id = ${person.universeId}::uuid and privacy_epoch > 1`.execute(
+              database.db,
+            )
+          ).rows[0]!.n,
+        ).toBe('0');
+    });
+
+    it('lets a cancel that arrives while the question is placed win: no order is made, and the run is left open for the ledger’s sweep', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      const requestId = await ask(person, askCommand(exposure, 'How do ships know where the land begins?'));
+      scopeScript = async () => {
+        const cancelled = await cancel(person.authority, {
+          version: 'content-request-cancel.v1',
+          commandId: randomUUID(),
+          requestId,
+        });
+        expect(cancelled).toMatchObject({ kind: 'ok', value: { outcome: 'cancelled' } });
+        return scopeAnswer('here');
+      };
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'cancelled' });
+      expect(await askOrders()).toEqual([]);
+      expect(await queuedProduction()).toEqual([]);
+      expect((await runsOf(requestId)).map((run) => run.state)).toEqual(['admitted']);
+    });
+
+    it('is still refused while recording is paused, as before', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      await pauseAndResume(person);
+      await toggleRecording(person, 3, false);
+      for (const generation of [3, 4])
+        expect(
+          await create(
+            person.authority,
+            askCommand(exposure, 'How do ships know where the land begins?', { recordingGeneration: generation }),
+          ),
+        ).toEqual({ kind: 'refused', reason: 'recording_paused' });
+      expect(scopeModel.calls).toHaveLength(0);
     });
   });
 

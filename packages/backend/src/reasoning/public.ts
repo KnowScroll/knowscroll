@@ -93,4 +93,5 @@ export type {
 export const RECORDING_REASONING_HARNESS = Symbol('reasoning.recording-harness');
 export const CHECK_PLANNER_RECORDING_RUN = Symbol('planner.check-recording-run');
 export const CHECK_GEOGRAPHY_RECORDING_RUN = Symbol('geography.check-recording-run');
+export const CHECK_SUPPLY_RECORDING_RUN = Symbol('supply.check-recording-run');
 export { parsePersonalRecordingPurpose } from './application/personal-recording.js';

@@ -11,13 +11,13 @@ import {
   makeWithPersonalScope,
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
-import { FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
+import { FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
 import {
   contentProviders,
   makeReviewGate,
   readScrollQuickAnswerFacts,
 } from '@knowscroll/backend/modules/content/nest-providers';
-import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
+import { identityScopeOwnerProviders, recordingPolicyFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
 import {
   ANSWER_QUICK_ANSWER,
@@ -47,7 +47,8 @@ import {
 } from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureHarness, fixtureModel, signal } from '../support/fixture-model.js';
+import { fixtureModel, signal } from '../support/fixture-model.js';
+import { fixtureRecordingHarness } from '../support/recording-harness.js';
 import type { FixtureModelPort, FixtureScenario } from '../support/fixture-model-port.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
 import { reportCases } from '../support/feedback.js';
@@ -84,24 +85,55 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
   let readForReport: ReadQuickAnswerForReport;
   let model: FixtureModelPort;
   /** What each model step answers: the writer (and its rewrite) and the support check, by the number of that kind of call so far. */
-  let script: (stage: Stage, n: number) => FixtureScenario;
+  let script: (stage: Stage, n: number) => FixtureScenario | Promise<FixtureScenario>;
   const calledBefore: Record<Stage, number> = { write: 0, check: 0, rewrite: 0 };
   let scroll: { readonly assetId: string; readonly revision: number };
   let document: ScrollDocumentV2;
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
+  /** Pauses or resumes recording through the real policy command, from the generation the person is at. */
+  async function toggleRecording(person: FixturePerson, generation: number, on: boolean) {
+    expect(
+      await recordingPolicyFor(database.db, { lockTimeoutMs: 5000 }).set(person.authority, {
+        version: 'recording-policy.v1',
+        commandId: randomUUID(),
+        expectedPrivacyEpoch: person.authority.privacyEpoch,
+        expectedRecordingGeneration: generation,
+        on,
+      }),
+    ).toMatchObject({ kind: 'ok' });
+  }
   /** The worker's own entries into the personal scope so far, and the one (if any) on which it stops, as a crash would. */
+  /** What runs once, just before the worker enters its transaction to store a result: a pause or a Clear in that gap. */
+  let beforeApply: () => Promise<void> = () => Promise.resolve();
+  const once = (action: () => Promise<void>) => () => {
+    beforeApply = () => Promise.resolve();
+    return action();
+  };
   let workerEntries = 0;
   let workerStopsAtEntry: number | undefined;
+  const workerStopped = () => new Error('CI: the worker stopped before it stored the answer');
   /** The real scope, except that a worker (a system actor) can be made to stop on a chosen entry. */
   function workerScope(): ReturnType<typeof withScope> {
     const real = withScope();
     return (authority, work) => {
       if (authority.actor.kind === 'system') {
         workerEntries += 1;
-        if (workerEntries === workerStopsAtEntry)
-          return Promise.reject(new Error('CI: the worker stopped before it stored the answer'));
+        if (workerEntries === workerStopsAtEntry) return Promise.reject(workerStopped());
       }
       return real(authority, work);
+    };
+  }
+  /** The recording harness, except that the worker's entry to store its answer counts as one of its entries, as a crash would see it. */
+  function countedHarness(harness: ReturnType<typeof fixtureRecordingHarness>['harness']) {
+    return {
+      ...harness,
+      withPersonalApply: ((authority, purpose, work) => {
+        if (authority.actor.kind === 'system') {
+          workerEntries += 1;
+          if (workerEntries === workerStopsAtEntry) return Promise.reject(workerStopped());
+        }
+        return harness.withPersonalApply(authority, purpose, work);
+      }) as typeof harness.withPersonalApply,
     };
   }
 
@@ -111,6 +143,7 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
     const ENQUEUE = Symbol('enqueue');
     const CONFIG = Symbol('config');
     const HARNESS = Symbol('harness');
+    const recording = fixtureRecordingHarness(database.db, { model, beforeApply: () => beforeApply() });
     const providers = quickAnswerProviders({
       withPersonalScope: SCOPE,
       enqueueJob: ENQUEUE,
@@ -122,7 +155,8 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
       [ENQUEUE, makeEnqueueJob(content.boss)],
       [CONFIG, { supplyQuickAnswerDailyCap: caps.perDay, supplyQuickAnswerPersonDailyCap: caps.perPerson }],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
-      [HARNESS, fixtureHarness(database.db, { model }).harness],
+      [HARNESS, countedHarness(recording.harness)],
+      [FENCE_OWN_ACCOUNT, recording.fenceOwn],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),
       ...experienceEvidenceReadProviders().map((p) => [p.provide, p.useValue] as const),
@@ -218,6 +252,7 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
     await sql`delete from supply.quick_answer_ledger`.execute(database.db);
     script = standard;
     calledBefore.write = calledBefore.check = calledBefore.rewrite = 0;
+    beforeApply = () => Promise.resolve();
     model = fixtureModel(
       (_sequence, call) => {
         const stage = stageOf(JSON.stringify(call.request));
@@ -530,21 +565,6 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
       expect(Number(attempts.rows[0]!.n)).toBe(2);
     });
 
-    it('says it could not answer, calling no model, for a person who paused and resumed recording: the personal harness runs only at the first generation', async () => {
-      await setup();
-      const person = await reader();
-      await sql`update identity.universes set recording_on = false, recording_generation = 2 where id = ${person.universeId}::uuid`.execute(
-        database.db,
-      );
-      await sql`update identity.universes set recording_on = true, recording_generation = 3 where id = ${person.universeId}::uuid`.execute(
-        database.db,
-      );
-      const quickAnswerId = await accept(person, askCommand({ recordingGeneration: 3 }));
-      await answer(job(person, quickAnswerId), signal());
-      expect(model.calls).toHaveLength(0);
-      expect(await status(person, quickAnswerId)).toMatchObject({ status: 'unavailable', reason: 'could_not_answer' });
-    });
-
     it('drops an answer that arrives after the card was dismissed, and a dismissed card stores nothing', async () => {
       await setup();
       const person = await reader();
@@ -585,6 +605,184 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
       expect((await facts(read[1]!.id))?.passages.map((passage) => passage.stopId)).toEqual([read[0]!.id, read[1]!.id]);
       expect(await facts(document.stops.find((stop) => stop.kind !== 'read')!.id)).toBeUndefined();
       expect(await facts('no-such-stop')).toBeUndefined();
+    });
+  });
+
+  describe('a person who paused and resumed recording (D-264)', () => {
+    /** Pause then resume through the real policy command: generation 1 on, 2 off, 3 on. */
+    async function pauseAndResume(person: FixturePerson) {
+      await toggleRecording(person, 1, false);
+      await toggleRecording(person, 2, true);
+    }
+    const runsOf = async (universeId: string) =>
+      (
+        await sql<{
+          purpose: string;
+          state: string;
+          recording_generation: number | null;
+        }>`select purpose, state, recording_generation from reasoning.business_runs
+        where universe_id = ${universeId}::uuid and owner_module = 'supply' order by purpose`.execute(database.db)
+      ).rows;
+
+    it('gets an answer at their current generation: the writer and the check run, and every run is stamped with it', async () => {
+      await setup();
+      const person = await reader();
+      await pauseAndResume(person);
+      const quickAnswerId = await accept(person, askCommand({ recordingGeneration: 3 }));
+      expect(await row(quickAnswerId)).toMatchObject({ recording_generation: 3 });
+      await answer(job(person, quickAnswerId), signal());
+      expect(model.calls).toHaveLength(2);
+      expect(await status(person, quickAnswerId)).toMatchObject({ status: 'answered', covered: true });
+      expect(await runsOf(person.universeId)).toEqual([
+        { purpose: 'quick-answer', state: 'completed', recording_generation: 3 },
+        { purpose: 'quick-answer-support', state: 'completed', recording_generation: 3 },
+      ]);
+    });
+
+    it('keeps the generation of a card odd, in the row itself', async () => {
+      await setup();
+      const person = await reader();
+      const quickAnswerId = await accept(person);
+      expect(await row(quickAnswerId)).toMatchObject({ recording_generation: 1 });
+      await expect(
+        sql`update supply.quick_answers set recording_generation = 2 where id = ${quickAnswerId}::uuid`.execute(
+          database.db,
+        ),
+      ).rejects.toThrow('recording_generation');
+    });
+
+    it('is still refused while recording is paused, with nothing stored', async () => {
+      await setup();
+      const person = await reader();
+      await pauseAndResume(person);
+      await toggleRecording(person, 3, false);
+      expect(await ask(person.authority, askCommand({ recordingGeneration: 3 }))).toEqual({
+        kind: 'refused',
+        reason: 'recording_paused',
+      });
+      expect(await ask(person.authority, askCommand({ recordingGeneration: 4 }))).toEqual({
+        kind: 'refused',
+        reason: 'recording_paused',
+      });
+      expect(await database.db.selectFrom('supply.quick_answers').select('id').execute()).toEqual([]);
+      expect(model.calls).toHaveLength(0);
+    });
+
+    it('never answers a card asked at an earlier generation: it closes as unavailable and no model is called', async () => {
+      await setup();
+      const person = await reader();
+      const quickAnswerId = await accept(person);
+      await pauseAndResume(person);
+      await answer(job(person, quickAnswerId), signal());
+      expect(model.calls).toHaveLength(0);
+      expect(await status(person, quickAnswerId)).toMatchObject({ status: 'unavailable', reason: 'could_not_answer' });
+      expect(await runsOf(person.universeId)).toEqual([]);
+    });
+
+    it('drops an answer whose writer was in flight across a pause and a resume: nothing is stored, no run is stamped with the new generation', async () => {
+      await setup();
+      const person = await reader();
+      const quickAnswerId = await accept(person);
+      script = async (stage) => {
+        if (stage === 'write') await pauseAndResume(person);
+        return stage === 'check' ? clears() : writerReply();
+      };
+      await answer(job(person, quickAnswerId), signal());
+      // The writer's one reply came back after the pause: it was paid for, and it is dropped. The check is never asked.
+      expect(model.calls).toHaveLength(1);
+      expect(await status(person, quickAnswerId)).toMatchObject({ status: 'unavailable', reason: 'could_not_answer' });
+      expect(await row(quickAnswerId)).toMatchObject({ state: 'unavailable', answer: null, shown_question: null });
+      expect(
+        await database.db
+          .selectFrom('reasoning.business_runs')
+          .select('id')
+          .where('universe_id', '=', person.universeId)
+          .where('recording_generation', '=', 3)
+          .execute(),
+      ).toEqual([]);
+      // The person's next question, at the new generation, is answered: only the old card was dropped.
+      const next = await accept(person, askCommand({ recordingGeneration: 3 }));
+      script = standard;
+      await answer(job(person, next), signal());
+      expect(await status(person, next)).toMatchObject({ status: 'answered' });
+    });
+
+    it('stores nothing when recording is paused between the last model step and the store: the answer was paid for and is dropped', async () => {
+      await setup();
+      const person = await reader();
+      const quickAnswerId = await accept(person);
+      beforeApply = once(() => toggleRecording(person, 1, false));
+      await answer(job(person, quickAnswerId), signal());
+      expect(model.calls).toHaveLength(2);
+      expect(await status(person, quickAnswerId)).toMatchObject({ status: 'unavailable', reason: 'could_not_answer' });
+      expect(await row(quickAnswerId)).toMatchObject({ state: 'unavailable', answer: null, shown_question: null });
+      // Neither run was closed under a generation that had gone: the ledger's idle sweep closes them.
+      expect((await runsOf(person.universeId)).map((run) => run.state)).toEqual(['admitted', 'admitted']);
+    });
+
+    it('stores nothing when recording is cleared between the last model step and the store', async () => {
+      await setup();
+      const person = await reader();
+      const quickAnswerId = await accept(person);
+      beforeApply = once(() => clearRecordingPerson(database, content.boss, person));
+      await answer(job(person, quickAnswerId), signal());
+      expect(model.calls).toHaveLength(2);
+      expect(
+        await database.db
+          .selectFrom('supply.quick_answers')
+          .select('id')
+          .where('universe_id', '=', person.universeId)
+          .execute(),
+      ).toEqual([]);
+    });
+
+    it('drops an answer whose check was in flight across a pause: the card is not shown', async () => {
+      await setup();
+      const person = await reader();
+      const quickAnswerId = await accept(person);
+      script = async (stage) => {
+        if (stage === 'check') await toggleRecording(person, 1, false);
+        return stage === 'check' ? clears() : writerReply();
+      };
+      await answer(job(person, quickAnswerId), signal());
+      expect(model.calls).toHaveLength(2);
+      expect(await status(person, quickAnswerId)).toMatchObject({ status: 'unavailable', reason: 'could_not_answer' });
+      expect(await row(quickAnswerId)).toMatchObject({ state: 'unavailable', answer: null });
+    });
+
+    it('stores nothing for a run in flight across Clear: the card is gone, and nothing is written for the new epoch', async () => {
+      await setup();
+      const person = await reader();
+      const quickAnswerId = await accept(person);
+      script = async (stage) => {
+        if (stage === 'write') await clearRecordingPerson(database, content.boss, person);
+        return stage === 'check' ? clears() : writerReply();
+      };
+      await answer(job(person, quickAnswerId), signal());
+      expect(model.calls).toHaveLength(1);
+      expect(
+        await database.db
+          .selectFrom('supply.quick_answers')
+          .select('id')
+          .where('universe_id', '=', person.universeId)
+          .execute(),
+      ).toEqual([]);
+      for (const table of ['reasoning.business_runs', 'supply.quick_answers'] as const)
+        expect(
+          (
+            await sql<{
+              n: string;
+            }>`select count(*) as n from ${sql.table(table)} where universe_id = ${person.universeId}::uuid and privacy_epoch > 1`.execute(
+              database.db,
+            )
+          ).rows[0]!.n,
+        ).toBe('0');
+      // The old epoch's authority is refused, and the new epoch knows no such card.
+      expect(await status(person, quickAnswerId)).toEqual({ kind: 'refused', reason: 'scope_refused' });
+      expect(await read({ ...person.authority, privacyEpoch: 2 }, { quickAnswerId })).toEqual({
+        kind: 'refused',
+        reason: 'not_found',
+      });
     });
   });
 

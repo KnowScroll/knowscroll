@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ProposeOutcome, ReasoningContext, ReasoningHarness } from '../../../reasoning/public.js';
+import type { ProposeOutcome, ReasoningContext, RecordingReasoningHarness } from '../../../reasoning/public.js';
 import type { PersonalAuthority } from '../../identity/public.js';
 import type { CitablePassage, QuickAnswerDraft } from '../domain/quick-answer.js';
 import { answerAndCheck, type PipelineInput } from './quick-answer-pipeline.js';
+import { purposeOf, type RunOwner } from './recording-runs.js';
 import type { QuickAnswerSupportCheck, SupportFinding } from './quick-answer-support.js';
 
 /**
@@ -28,6 +29,13 @@ const authority: PersonalAuthority = {
   privacyEpoch: 1,
   actor: { kind: 'system', purpose: 'supply.quick-answer' },
 };
+const owner: RunOwner = {
+  accountId: 'account-1',
+  universeId: 'u',
+  privacyEpoch: 1,
+  recordId: 'qa-1',
+  recordingGeneration: 1,
+};
 const waitEndsAt = new Date('2026-11-01T10:04:00.000Z');
 const context: ReasoningContext = {
   bundleRef: 'ci',
@@ -48,13 +56,14 @@ function pipeline(onStep: (step: string, clock: { now: Date }) => void = () => u
       reconciled: false,
     }) as never;
   const harness = {
-    propose: vi.fn(() => {
+    contextDigest: () => 'a'.repeat(64),
+    proposePersonal: vi.fn(() => {
       const step = steps.some((one) => one.startsWith('write')) ? 'rewrite' : 'write';
       steps.push(`write:${step}`);
       onStep(step, clock);
       return Promise.resolve(written());
     }),
-  } as unknown as ReasoningHarness;
+  } as unknown as RecordingReasoningHarness;
   let checks = 0;
   const findings: SupportFinding[] = [
     {
@@ -68,10 +77,18 @@ function pipeline(onStep: (step: string, clock: { now: Date }) => void = () => u
     onStep(`check:${String(input.draft)}`, clock);
     const finding = findings[checks] ?? { kind: 'supported' };
     checks += 1;
-    return Promise.resolve({ finding, run: { runId: input.runId, end: 'completed' } });
+    return Promise.resolve({
+      finding,
+      run: {
+        runId: input.runId,
+        purpose: purposeOf(owner, 'quick-answer-support', input.runId, 'a'.repeat(64)),
+        end: 'completed',
+      },
+    });
   };
   const input: PipelineInput = {
     authority,
+    owner,
     quickAnswerId: 'qa-1',
     ask: { passage: 'keeps pointing', question: undefined },
     passages,
@@ -105,7 +122,8 @@ describe('the model steps of a Quick answer and the person’s wait', () => {
     });
     const result = await run();
     expect(steps).toEqual(['write:write']);
-    expect(result).toEqual({ kind: 'unavailable', runs: [{ runId: 'qa-1', end: 'completed' }] });
+    expect(result).toMatchObject({ kind: 'unavailable', runs: [{ runId: 'qa-1', end: 'completed' }] });
+    expect(result.runs).toHaveLength(1);
   });
 
   it('asks for no rewrite once the wait is over after the first check, and closes the runs it paid for', async () => {

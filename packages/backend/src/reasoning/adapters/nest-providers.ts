@@ -26,6 +26,7 @@ import {
   RECORDING_REASONING_HARNESS,
   CHECK_PLANNER_RECORDING_RUN,
   CHECK_GEOGRAPHY_RECORDING_RUN,
+  CHECK_SUPPLY_RECORDING_RUN,
   PRODUCTION_REASONING_HARNESS,
   ROOM_REASONING_HARNESS,
   WITH_PRODUCTION_SCOPE,
@@ -201,10 +202,10 @@ export function postgresHarnessPorts(options: {
   };
 }
 
-/** Explicit unmounted recording boundary: both actual role owners are required. */
+/** The recording boundary: all three actual role owners are required. */
 export function personalRecordingReasoningHarnessFor(
   options: Parameters<typeof postgresHarnessPorts>[0] &
-    Pick<PersonalRecordingHarnessPorts, 'checkPlanner' | 'checkGeography'>,
+    Pick<PersonalRecordingHarnessPorts, 'checkPlanner' | 'checkGeography' | 'checkSupply'>,
 ) {
   const engine = postgresHarnessPorts(options);
   const checkOwner = recordingOwnerDispatcher(options);
@@ -221,6 +222,7 @@ export function personalRecordingReasoningHarnessFor(
     },
     checkPlanner: options.checkPlanner,
     checkGeography: options.checkGeography,
+    checkSupply: options.checkSupply,
     hashContext: canonicalSha256,
   });
 }
@@ -242,6 +244,7 @@ export function personalRecordingReasoningProviders(
         FENCE_OWN_ACCOUNT,
         CHECK_PLANNER_RECORDING_RUN,
         CHECK_GEOGRAPHY_RECORDING_RUN,
+        CHECK_SUPPLY_RECORDING_RUN,
       ],
       useFactory: (
         db: Kysely<Database>,
@@ -250,6 +253,7 @@ export function personalRecordingReasoningProviders(
         fenceOwn: FenceOwnAccount,
         checkPlanner: PersonalRecordingHarnessPorts['checkPlanner'],
         checkGeography: PersonalRecordingHarnessPorts['checkGeography'],
+        checkSupply: PersonalRecordingHarnessPorts['checkSupply'],
       ) =>
         personalRecordingReasoningHarnessFor({
           db,
@@ -258,6 +262,7 @@ export function personalRecordingReasoningProviders(
           fenceOwn,
           checkPlanner,
           checkGeography,
+          checkSupply,
           model: configuredModelPort(settings),
           settings: harnessSettings(settings, `worker:${process.pid}`),
         }),
