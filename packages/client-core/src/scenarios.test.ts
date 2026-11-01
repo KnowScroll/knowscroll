@@ -56,7 +56,8 @@ const problem = (
     | 'UNPROCESSABLE_REQUEST'
     | 'INVALID_REQUEST'
     | 'SHARING_UNAVAILABLE'
-    | 'SHARING_REVISION_STALE',
+    | 'SHARING_REVISION_STALE'
+    | 'INTERNAL',
 ) => new ORPCError(code, { status: 400, data: problemDetails(code) });
 
 type Api = Record<string, (input: never) => Promise<unknown>>;
@@ -192,11 +193,11 @@ describe('what the member was offered', () => {
     expect(composer.getState()).toMatchObject({ phase: 'chosen' });
   });
 
-  it('says it is not available when the draft is gone', async () => {
+  it('says the draft is gone, used or timed out, when it cannot be read', async () => {
     const api = scopeOf({ readDraft: () => Promise.resolve({ status: 'unavailable' }) });
     const composer = createScenarioComposer({ scope: api, thread, newId });
     await composer.attach(id(7));
-    expect(composer.getState()).toMatchObject({ phase: 'blocked', block: 'unavailable' });
+    expect(composer.getState()).toMatchObject({ phase: 'blocked', block: 'stale' });
   });
 });
 
@@ -277,6 +278,8 @@ describe('the composer', () => {
       ['INVALID_REQUEST', 'invalid'],
       ['SHARING_REVISION_STALE', 'stale'],
       ['SHARING_UNAVAILABLE', 'unavailable'],
+      // Any other answer is a fault of ours, said as one: it is not "not available".
+      ['INTERNAL', 'failed'],
     ] as const) {
       const composer = createScenarioComposer({
         scope: scopeOf({ draft: () => Promise.reject(problem(code)) }),

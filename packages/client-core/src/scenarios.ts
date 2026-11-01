@@ -138,7 +138,7 @@ export interface ScenarioAsk {
  */
 export type ScenarioComposerPhase =
   'idle' | 'sending' | 'thinking' | 'ready' | 'failed' | 'choosing' | 'chosen' | 'blocked';
-export type ScenarioBlock = 'budget' | 'unsupported' | 'invalid' | 'stale' | 'unavailable' | 'offline';
+export type ScenarioBlock = 'budget' | 'unsupported' | 'invalid' | 'stale' | 'unavailable' | 'offline' | 'failed';
 
 export interface ScenarioComposerState {
   readonly phase: ScenarioComposerPhase;
@@ -186,7 +186,8 @@ function blockOf(error: unknown): ScenarioBlock | 'ended' {
   if (code === 'TOO_MANY_REQUESTS') return 'budget';
   if (code === 'UNPROCESSABLE_REQUEST') return 'unsupported';
   if (code === 'INVALID_REQUEST') return 'invalid';
-  return 'unavailable';
+  // Only a refusal that says the thread or Scroll is gone reads that way; any other answer is a fault of ours.
+  return kind === 'unavailable' ? 'unavailable' : 'failed';
 }
 
 /**
@@ -225,7 +226,8 @@ export function createScenarioComposer(options: {
       if (state.phase !== 'thinking') return;
       if (view.status === 'ready') publish({ phase: 'ready', mode: view.mode, options: view.options });
       else if (view.status === 'failed') publish({ phase: 'failed', failure: view.reason });
-      else if (view.status === 'unavailable') publish({ phase: 'blocked', block: 'unavailable' });
+      // A draft that cannot be read is one that was used or timed out (a draft lives two hours, and is its owner's alone).
+      else if (view.status === 'unavailable') publish({ phase: 'blocked', block: 'stale' });
     } catch (error) {
       // A poll that gets no answer simply asks again; a refusal ends the draft.
       if (blockOf(error) !== 'offline') block(error);
