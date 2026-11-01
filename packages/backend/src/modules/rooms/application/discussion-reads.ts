@@ -17,7 +17,7 @@ import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.j
 import { askDecision, hourBefore, utcDayStart, type InhabitantId } from '../domain/contribution.js';
 import { changesCursor, historyCursor } from '../domain/cursors.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
-import { hostOf } from '../domain/posts.js';
+import { hostOf, NEUTRAL_POST_TITLE } from '../domain/posts.js';
 import { debateViewOf } from './debates.js';
 import { titlesFor } from './discussion-titles.js';
 import { discussionEpisodes, viewRoomMessages } from './discussion-view.js';
@@ -63,6 +63,20 @@ function openedAnchor(
 async function currentTitle(p: RoomPorts, scope: PersonalScopeTx, location: ContentRef): Promise<string | undefined> {
   const [card] = await p.readContent(scope, [location]);
   return card?.status === 'available' ? card.metadata.title : undefined;
+}
+
+/**
+ * Whether a person's post has lost its first message: a moderator removed it, or its author's account is gone.
+ * Such a post is no longer called what it said and shows no source link, however the reader got its ID.
+ */
+async function postIsGone(
+  p: RoomPorts,
+  lock: RoomLock,
+  discussion: { readonly discussionId: string; readonly personPost: boolean },
+): Promise<boolean> {
+  if (!discussion.personPost) return false;
+  const [first] = await p.discussions.messages(lock, discussion.discussionId, { before: 2, limit: 1 });
+  return first === undefined || first.hidden || first.text === null;
 }
 
 /**
@@ -190,9 +204,10 @@ export function makeDiscussionReads(p: RoomPorts) {
             discussion.tag === 'debate'
               ? await debateViewOf(p, lock, discussion.discussionId, entered.owner.accountId, p.now())
               : undefined;
-          const title = (await titlesFor(p, scope, lock, entered.owner.accountId, [discussion])).get(
-            discussion.discussionId,
-          )!;
+          const gone = await postIsGone(p, lock, discussion);
+          const title = gone
+            ? NEUTRAL_POST_TITLE
+            : (await titlesFor(p, scope, lock, entered.owner.accountId, [discussion])).get(discussion.discussionId)!;
           return DiscussionViewSchema.parse({
             ...roomEnvelope(scope),
             readId: query.readId,
@@ -207,7 +222,7 @@ export function makeDiscussionReads(p: RoomPorts) {
               ...(discussion.tag === null ? {} : { tag: discussion.tag }),
               pinned: discussion.pinned,
               ...(starter === undefined ? {} : { startedBy: starter }),
-              ...(discussion.source === null
+              ...(discussion.source === null || gone
                 ? {}
                 : { source: { url: discussion.source, host: hostOf(discussion.source) } }),
             },
