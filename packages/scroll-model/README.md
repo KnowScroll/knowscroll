@@ -76,7 +76,7 @@ Dependency direction, enforced by dependency-cruiser and proved by `pnpm boundar
    - `createPassageLocator` and `validateLocator` handle `scroll_passage`.
    - `buildBlockStateSnapshot` handles `scroll_block`. It leaves personal values out unless they are explicitly included.
    - `describeBlockState` gives the server-rendered card text.
-   - A v2 Scroll is shared as a *moment* (D-292): `momentOf` (one whole read stop; never a call), `momentAnchorOf` (the v1 passage anchor of it, with the hash and no words) and `anchorIsMoment` (the server's check).
+   - A v2 Scroll is shared as a *moment* (D-292): `momentOf` (one whole read stop; never a call), `momentAnchorOf` (the v1 passage anchor of it, with the hash and no words) and `anchorIsMoment` (the server's check) and `whyNoMoment` (why a stop is not one: no stop, a call, too long).
 7. **Evidence.**
    - The recorder reports visible block ids and deliberate interactions (`blockInteractionPayload`, which never carries values).
    - The server computes weighted coverage with `coverageOf`, from the stored measures.

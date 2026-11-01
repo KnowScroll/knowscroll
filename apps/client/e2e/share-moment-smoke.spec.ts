@@ -40,6 +40,80 @@ async function seriousViolations(page: Page) {
     }));
 }
 
+/** Two joined threads of the person: one whose series holds the Scroll Explore is on (`id(300)`), one about something else. */
+const THREAD_WITH = { threadId: id(1), name: 'Seasons with Ravi' };
+const THREAD_WITHOUT = { threadId: id(3), name: 'The Moon, with Asha' };
+const peer = { kind: 'person', personId: id(11), handle: 'ci.ravi', displayName: 'Ravi fixture' };
+
+/**
+ * Explore on the labelled v2 Scroll, with the thread routes the sheet reads: the inbox lists both joined threads, and each
+ * thread's own view lists the episodes of its series, which is how the sheet knows which one can take a moment.
+ */
+async function openExploreWithThreads(
+  page: Page,
+  viewport: { readonly width: number; readonly height: number },
+  options: { readonly holding: readonly { readonly threadId: string }[] },
+) {
+  await encounterFixture(page, 'scroll', { viewport, scrollDocument: seasons as unknown as Record<string, unknown> });
+  const scope = { accountId: id(1), privacyEpoch: 1 };
+  const ref = (threadId: string) => ({ threadId, membershipId: id(2), membershipRevision: 1 });
+  await page.route('**/v1/social/threads/inbox', (route) =>
+    route.fulfill({
+      json: {
+        version: 'content-thread.v1',
+        readId: (route.request().postDataJSON() as { readId: string }).readId,
+        scope,
+        status: 'ready',
+        limit: 50,
+        viewRevision: 1,
+        items: [THREAD_WITH, THREAD_WITHOUT].map((thread) => ({
+          thread: ref(thread.threadId),
+          name: thread.name,
+          root: { status: 'unavailable' },
+          state: 'joined',
+          ownPersonId: id(10),
+          people: [peer],
+          latestMessageSequence: 0,
+          own: { readThroughSequence: 0 },
+          lastActivityAt: '2026-11-01T10:00:00.000Z',
+        })),
+      },
+    }),
+  );
+  await page.route('**/v1/social/threads/read', (route) => {
+    const body = route.request().postDataJSON() as { readId: string; thread: { threadId: string } };
+    const holds = options.holding.some((thread) => thread.threadId === body.thread.threadId);
+    return route.fulfill({
+      json: {
+        version: 'content-thread.v1',
+        readId: body.readId,
+        scope,
+        status: 'ready',
+        thread: ref(body.thread.threadId),
+        episodes: [
+          {
+            assetId: holds ? id(300) : id(990),
+            assetRevision: 1,
+            kind: 'scroll',
+            title: 'A Scroll',
+            state: 'ready',
+            visited: false,
+          },
+        ],
+      },
+    });
+  });
+  await page.goto('/explore');
+  await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+  await page.getByRole('button', { name: 'Got it' }).click();
+}
+
+async function openMomentSheet(page: Page) {
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByTestId('more-share-moment').click();
+  await expect(page.getByRole('dialog', { name: 'Share a moment' })).toBeVisible();
+}
+
 for (const viewport of viewports) {
   test(`in a thread, Share a moment sends the stop on screen into that thread and the sheet says so, at ${viewport.name}`, async ({
     page,
@@ -115,33 +189,43 @@ for (const viewport of viewports) {
     expect(JSON.stringify(sent[0])).not.toContain(moment.quote.slice(0, 20));
   });
 
-  test(`in Explore, Share a moment asks which thread when the person is in none, at ${viewport.name}`, async ({
+  test(`in Explore, Share a moment offers only the threads that hold the Scroll, at ${viewport.name}`, async ({
     page,
   }) => {
-    await encounterFixture(page, 'scroll', {
-      viewport,
-      scrollDocument: seasons as unknown as Record<string, unknown>,
-    });
-    await page.route('**/v1/social/threads/inbox', (route) =>
-      route.fulfill({
-        json: {
-          version: 'content-thread.v1',
-          readId: (route.request().postDataJSON() as { readId: string }).readId,
-          scope: { accountId: id(1), privacyEpoch: 1 },
-          status: 'ready',
-          limit: 50,
-          viewRevision: 1,
-          items: [],
-        },
-      }),
-    );
-    await page.goto('/explore');
-    await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
-    await page.getByRole('button', { name: 'Got it' }).click();
-    await page.getByRole('button', { name: 'More', exact: true }).click();
-    await page.getByTestId('more-share-moment').click();
+    await openExploreWithThreads(page, viewport, { holding: [THREAD_WITH] });
+    await openMomentSheet(page);
     const sheet = page.getByRole('dialog', { name: 'Share a moment' });
-    await expect(sheet.getByTestId('moment-no-threads')).toContainText('You have no threads yet');
-    await shot(page, `moment-explore-no-threads-${viewport.name}`);
+    // Only the thread whose series holds this Scroll is offered: the other would refuse it.
+    await expect(sheet.getByText('Share into a thread')).toBeVisible();
+    await expect(sheet.getByTestId('moment-thread')).toHaveCount(1);
+    await expect(sheet.getByRole('button', { name: 'Seasons with Ravi' })).toBeVisible();
+    await expect(sheet.getByText('The Moon, with Asha')).toHaveCount(0);
+    await shot(page, `moment-explore-threads-${viewport.name}`);
+    expect(await seriousViolations(page)).toEqual([]);
+    await sheet.getByRole('button', { name: 'Seasons with Ravi' }).click();
+    await expect(sheet.getByText('To · Seasons with Ravi')).toBeVisible();
+  });
+
+  test(`in Explore, Share a moment says plainly when no thread holds the Scroll, at ${viewport.name}`, async ({
+    page,
+  }) => {
+    await openExploreWithThreads(page, viewport, { holding: [] });
+    await openMomentSheet(page);
+    const sheet = page.getByRole('dialog', { name: 'Share a moment' });
+    await expect(sheet.getByTestId('moment-no-threads')).toContainText('None of your threads holds this Scroll');
+    await expect(sheet.getByTestId('moment-thread')).toHaveCount(0);
+    await shot(page, `moment-explore-none-hold-${viewport.name}`);
+  });
+
+  test(`on a call stop, Share a moment is disabled and says why next to the row, at ${viewport.name}`, async ({
+    page,
+  }) => {
+    await openExploreWithThreads(page, viewport, { holding: [] });
+    // The third stop of the fixture is its first Call it.
+    await page.getByRole('button', { name: 'Call it 1 of 3', exact: true }).click();
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await expect(page.getByTestId('more-share-moment')).toBeDisabled();
+    await expect(page.getByTestId('more-share-moment-reason')).toContainText('A call would give its answer away');
+    await shot(page, `moment-more-call-${viewport.name}`);
   });
 }

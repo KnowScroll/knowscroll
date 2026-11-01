@@ -8,6 +8,7 @@ import {
   ReaderDock,
   ReaderTopBar,
   StageReader,
+  Text,
   useDisplay,
   type NextPartPeek,
   type StageReaderHandle,
@@ -16,10 +17,10 @@ import {
 import { QUICK_ANSWER_LABEL, QUICK_ANSWER_QUESTION_MAX } from '@knowscroll/contracts';
 import type { FeedbackTarget } from '@knowscroll/client-core';
 import { FeedbackSheetBody } from '../feedback/feedback-sheet';
-import { momentOf } from '@knowscroll/scroll-model';
+import { whyNoMoment } from '@knowscroll/scroll-model';
 import { challengeCallOf } from '../sharing/challenge-call';
 import { ChallengeSheet } from '../sharing/challenge-sheet';
-import { ShareStopSheet, type MomentThread } from '../threads/share-stop-sheet';
+import { noMomentWords, ShareStopSheet, type MomentThread } from '../threads/share-stop-sheet';
 import type { OpenedStageScroll } from './scroll-session';
 import { quickAnswerViewOf } from './quick-answer-copy';
 import { useQuickAnswers } from './use-quick-answers';
@@ -116,6 +117,7 @@ export function StageReaderSurface({
   const canChallenge = challengeCallOf(scroll.document) !== undefined;
   const { breakpoint } = useDisplay();
   const { document } = scroll;
+  const noMoment = whyNoMoment(document, momentStop);
   // Play on this Scroll: the person's own calls, sparks and combo, kept unless recording is paused (D-063, D-083).
   const play = useStagePlay(scroll);
   const wayOn = moves.nextPart ?? moves.related;
@@ -229,13 +231,19 @@ export function StageReaderSurface({
             label="Share a moment"
             icon="share"
             size="sm"
-            disabled={momentStop === undefined || momentOf(document, momentStop) === undefined}
+            disabled={noMoment !== undefined}
+            accessibilityHint={noMoment === undefined ? undefined : noMomentWords(noMoment)}
             onPress={() => {
               setMoreOpen(false);
               setSharingMoment(true);
             }}
             testID="more-share-moment"
           />
+          {noMoment === undefined ? null : (
+            <Text variant="meta" color={content.ink2} testID="more-share-moment-reason">
+              {noMomentWords(noMoment)}
+            </Text>
+          )}
           {moreBody?.(() => setMoreOpen(false))}
         </View>
       </BottomSheet>

@@ -342,7 +342,7 @@ export {
   stopWords,
   WORDS_PER_MINUTE_V2,
 } from './measures.js';
-export { anchorIsMoment, momentAnchorOf, momentOf, type Moment } from './moment.js';
+export { anchorIsMoment, momentAnchorOf, momentOf, whyNoMoment, type Moment, type NoMoment } from './moment.js';
 export { computeIntegrityV2, validateDocumentV2, type DocumentV2Outcome, type ValidateV2Options } from './validate.js';
 export { negotiateV2, parseDocumentV2, type NegotiationV2Outcome } from './delivery.js';
 export { CALL_READ_INTERACTIONS, INTERACTION_KINDS_V2 } from './interactions.js';

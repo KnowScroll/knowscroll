@@ -24,6 +24,45 @@ export async function findThread(
   return (await readThreadSummaries(scope, newId)).find((item) => item.thread.threadId === threadId)?.thread;
 }
 
+/** Most threads asked at once which Scrolls they hold; the inbox lists the 50 newest and a person rarely has this many open. */
+const HOLDING_CHECKS = 20;
+
+/** The joined threads a snippet of this Scroll can go into, and how many threads could not be asked. */
+export interface ThreadsHolding {
+  readonly threads: readonly ThreadSummary[];
+  readonly unchecked: number;
+}
+
+/**
+ * The person's joined threads whose own sequence holds this Scroll: a snippet may only point into the root of its thread or
+ * the series the root belongs to, so a thread about something else cannot take one. The inbox does not carry a thread's
+ * episodes, so this reads each of the newest joined threads once (one message, no change to anything read). A thread that
+ * cannot be read is counted in `unchecked`, never offered.
+ */
+export async function threadsHolding(
+  scope: AccountScope,
+  newId: () => string,
+  items: readonly ThreadSummary[],
+  assetId: string,
+): Promise<ThreadsHolding> {
+  const joined = items.filter((item) => item.state === 'joined');
+  const asked = joined.slice(0, HOLDING_CHECKS);
+  const answers = await Promise.allSettled(
+    asked.map((item) => scope.api.threads.read({ version: VERSION, readId: newId(), thread: item.thread, limit: 1 })),
+  );
+  const wanted = assetId.toLowerCase();
+  const holding = asked.filter((_, index) => {
+    const answer = answers[index];
+    return (
+      answer?.status === 'fulfilled' &&
+      answer.value.status === 'ready' &&
+      answer.value.episodes.some((episode) => episode.assetId.toLowerCase() === wanted)
+    );
+  });
+  const failed = answers.filter((answer) => answer.status === 'rejected').length;
+  return { threads: holding, unchecked: failed + (joined.length - asked.length) };
+}
+
 const kindWord = (kind: 'reel' | 'scroll') => (kind === 'reel' ? 'Reel' : 'Scroll');
 
 /** A snippet as one line of words: "a moment of a Reel · 0:18–0:31", "a passage of a Scroll". */

@@ -178,6 +178,27 @@ describe('a moment of a v2 Scroll in a thread (real PostgreSQL, labelled CI fixt
     expect(anchorIsMoment(moment, anchor)).toBe(true);
   });
 
+  it('is refused by a thread whose series does not hold the Scroll, which the thread view says by its episodes', async () => {
+    const { a, b, aRef, scroll } = await momentThread();
+    const elsewhere = await seedStageScroll();
+    const other = unwrap(
+      await cases.threads.create(a.authority, {
+        version,
+        commandId: randomUUID(),
+        root: { assetId: elsewhere.assetId, assetRevision: 1 },
+        friendPersonIds: [b.person.personId],
+      }),
+    );
+    const anchor = momentAnchorOf(readStop(scroll.document));
+    // The anchor is a valid moment of this Scroll, yet a thread about another Scroll is not a place to post it.
+    expect(await send(a, other.thread, scroll.assetId, anchor)).toEqual(refused('invalid_input'));
+    expect((await ready(a, other.thread)).latestMessageSequence).toBe(0);
+    // What the client reads to offer only threads that hold the Scroll: each thread's own episodes.
+    expect((await ready(a, aRef)).episodes.map((episode) => episode.assetId)).toContain(scroll.assetId);
+    expect((await ready(a, other.thread)).episodes.map((episode) => episode.assetId)).not.toContain(scroll.assetId);
+    unwrap(await send(a, aRef, scroll.assetId, anchor));
+  });
+
   it('stops showing the quote when the Scroll is withdrawn, while the card stays', async () => {
     const { a, b, aRef, bRef, scroll } = await momentThread();
     const moment = readStop(scroll.document);

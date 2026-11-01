@@ -1,14 +1,27 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { threadRowView, type AccountScope } from '@knowscroll/client-core';
-import type { ContentThreadRef } from '@knowscroll/contracts';
+import { threadRowView, threadsHolding, type AccountScope, type ThreadsHolding } from '@knowscroll/client-core';
+import type { ContentThreadRef, ThreadSummary } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Skeleton, Text, useFocusRing, useTypeStyle } from '@knowscroll/ui';
-import { momentAnchorOf, momentOf } from '@knowscroll/scroll-model';
+import { momentAnchorOf, momentOf, whyNoMoment, type NoMoment } from '@knowscroll/scroll-model';
+import { newCommandId } from '../../platform/command-id';
 import { useAccountScope } from '../../providers/account-scope';
 import type { OpenedStageScroll } from '../scroll/scroll-session';
 import { useSnippetSend } from './use-snippet-send';
 import { useThreadInbox } from './use-thread-inbox';
+
+/** Why a stop is not offered as a moment, in the words shown next to the disabled row and in the sheet. */
+export function noMomentWords(reason: NoMoment): string {
+  switch (reason) {
+    case 'call':
+      return 'A call would give its answer away, so it can’t be shared as a moment. Challenge a friend sends it without one.';
+    case 'too_long':
+      return 'This stop is too long to share as a moment.';
+    case 'no_stop':
+      return 'A moment is one stop. Go to a stop to share it.';
+  }
+}
 
 /** A thread a moment is shared into: the person's own reference to it and the name they know it by. */
 export interface MomentThread {
@@ -16,17 +29,47 @@ export interface MomentThread {
   readonly name: string;
 }
 
+/**
+ * Which of the person's joined threads hold this Scroll. A snippet may only point into its own thread's series, so a thread
+ * about something else cannot take a moment; the inbox does not say what a thread holds, so each is asked once.
+ */
+function useHolding(scope: AccountScope, items: readonly ThreadSummary[], assetId: string, ready: boolean) {
+  const [holding, setHolding] = useState<ThreadsHolding | undefined>();
+  const latest = useRef(items);
+  useEffect(() => {
+    latest.current = items;
+  });
+  const joinedKey = items
+    .filter((item) => item.state === 'joined')
+    .map((item) => item.thread.threadId)
+    .join(',');
+  useEffect(() => {
+    if (!ready) return undefined;
+    let stopped = false;
+    void threadsHolding(scope, newCommandId, latest.current, assetId).then((found) => {
+      if (!stopped) setHolding(found);
+    });
+    return () => {
+      stopped = true;
+    };
+  }, [scope, assetId, ready, joinedKey]);
+  return holding;
+}
+
 function ThreadChoice({
   scope,
+  assetId,
   onChoose,
 }: {
   readonly scope: AccountScope;
+  readonly assetId: string;
   readonly onChoose: (thread: MomentThread) => void;
 }) {
   const inbox = useThreadInbox(scope);
   const focus = useFocusRing('onLight');
-  const joined = inbox.items.filter((item) => item.state !== 'invited');
-  if (inbox.loading) return <Skeleton rows={2} label="Loading your threads" />;
+  const holding = useHolding(scope, inbox.items, assetId, !inbox.loading && !inbox.failed);
+  if (inbox.loading || (!inbox.failed && holding === undefined))
+    return <Skeleton rows={2} label="Looking for your threads about this Scroll" />;
   if (inbox.failed)
     return (
       <View style={styles.step}>
@@ -34,16 +77,27 @@ function ThreadChoice({
         <Button label="Try again" size="sm" variant="ghost" onPress={inbox.retry} />
       </View>
     );
-  if (joined.length === 0)
+  const threads = holding?.threads ?? [];
+  if (threads.length === 0)
     return (
-      <Text variant="bodyS" testID="moment-no-threads">
-        You have no threads yet. Start one from Share, Explore with friends, and share a moment into it.
-      </Text>
+      <View style={styles.step} testID="moment-no-threads">
+        <Text variant="bodyS">
+          None of your threads holds this Scroll. A moment can only go into a thread about this Scroll or its series.
+          Start one from Share, Explore with friends.
+        </Text>
+        {holding !== undefined && holding.unchecked > 0 ? (
+          <Text variant="meta" color={content.ink2}>
+            {holding.unchecked === 1
+              ? 'One of your threads could not be checked.'
+              : `${String(holding.unchecked)} of your threads could not be checked.`}
+          </Text>
+        ) : null}
+      </View>
     );
   return (
     <View style={styles.step}>
       <Text variant="uiS">Share into a thread</Text>
-      {joined.map((item) => {
+      {threads.map((item) => {
         const row = threadRowView(item);
         return (
           <Pressable
@@ -123,12 +177,22 @@ function SendMoment({
           message="Sharing again sends the same message, so it can’t arrive twice."
         />
       ) : null}
-      {send.status === 'unavailable' || send.status === 'invalid' || send.status === 'failed' ? (
+      {send.status === 'invalid' ? (
+        <Banner
+          kind="error"
+          lead="This thread can’t take it."
+          message="Nothing was sent. It doesn’t hold this Scroll, or this stop can’t be shared as a moment."
+        />
+      ) : null}
+      {send.status === 'unavailable' ? (
         <Banner
           kind="error"
           lead="Couldn’t share this."
           message="Nothing was sent. The Scroll may have been updated."
         />
+      ) : null}
+      {send.status === 'failed' ? (
+        <Banner kind="error" lead="Couldn’t share this right now." message="Nothing was sent. Try again in a moment." />
       ) : null}
       <Button
         label={send.status === 'unconfirmed' ? 'Share again' : 'Share this moment'}
@@ -174,15 +238,18 @@ export function ShareStopSheet({
   const { state } = useAccountScope();
   const [chosen, setChosen] = useState<MomentThread | undefined>(thread);
   if (state.status !== 'signed_in') return null;
-  if (stopId === undefined || momentOf(scroll.document, stopId) === undefined)
+  const reason = whyNoMoment(scroll.document, stopId);
+  if (stopId === undefined || reason !== undefined)
     return (
       <View style={styles.step}>
-        <Text variant="bodyS">Only a reading stop can be shared as a moment. A call can be sent as a challenge.</Text>
+        <Text variant="bodyS" testID="moment-not-shareable">
+          {noMomentWords(reason ?? 'no_stop')}
+        </Text>
         <Button label="Close" variant="ghost" fullWidth onPress={onClose} />
       </View>
     );
   return chosen === undefined ? (
-    <ThreadChoice scope={state.scope} onChoose={setChosen} />
+    <ThreadChoice scope={state.scope} assetId={scroll.assetId} onChoose={setChosen} />
   ) : (
     <SendMoment scope={state.scope} scroll={scroll} stopId={stopId} thread={chosen} onClose={onClose} />
   );

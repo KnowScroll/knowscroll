@@ -160,6 +160,8 @@ export {
   findThread,
   invitationCardView,
   readThreadSummaries,
+  threadsHolding,
+  type ThreadsHolding,
   threadRowView,
   type InvitationAnswer,
   type InvitationCardView,

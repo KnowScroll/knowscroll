@@ -12,12 +12,26 @@ export interface Moment {
   readonly quote: string;
 }
 
+/** Why a stop is not a moment: there is no stop on screen, it is a call, or its words run past one passage. */
+export type NoMoment = 'no_stop' | 'call' | 'too_long';
+
 /** The moment a stop is, or nothing for a call, an unknown stop or a stop whose words run past one passage. */
 export function momentOf(document: Pick<ScrollDocumentV2, 'stops'>, stopId: string): Moment | undefined {
   const stop = document.stops.find((candidate) => candidate.id === stopId);
   if (stop?.kind !== 'read') return undefined;
   const quote = stop.blocks.map((block) => block.text).join('\n');
   return quote.length >= 1 && quote.length <= LIMITS.passageChars ? { stopId, quote } : undefined;
+}
+
+/** Why a stop cannot be shared as a moment, or `undefined` when it can. */
+export function whyNoMoment(
+  document: Pick<ScrollDocumentV2, 'stops'>,
+  stopId: string | undefined,
+): NoMoment | undefined {
+  const stop = stopId === undefined ? undefined : document.stops.find((candidate) => candidate.id === stopId);
+  if (stop === undefined) return 'no_stop';
+  if (stop.kind !== 'read') return 'call';
+  return momentOf(document, stop.id) === undefined ? 'too_long' : undefined;
 }
 
 /**

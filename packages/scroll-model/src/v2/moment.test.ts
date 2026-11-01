@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ScrollDocumentV2 } from './document.js';
-import { anchorIsMoment, momentAnchorOf, momentOf } from './moment.js';
+import { anchorIsMoment, momentAnchorOf, momentOf, whyNoMoment } from './moment.js';
 
 /** Authored fixture stops: two read stops and a call, never product content. */
 const stops = [
@@ -50,6 +50,17 @@ describe('a moment of a v2 Scroll', () => {
       { kind: 'read', id: 's9', blocks: [{ type: 'paragraph', text: 'x'.repeat(601) }], simple: 'x' },
     ] as unknown as ScrollDocumentV2['stops'];
     expect(momentOf({ stops: long }, 's9')).toBeUndefined();
+  });
+
+  it('says why a stop is not a moment', () => {
+    const long = [
+      { kind: 'read', id: 's9', blocks: [{ type: 'paragraph', text: 'x'.repeat(601) }], simple: 'x' },
+    ] as unknown as ScrollDocumentV2['stops'];
+    expect(whyNoMoment({ stops }, 's1')).toBeUndefined();
+    expect(whyNoMoment({ stops }, 's3')).toBe('call');
+    expect(whyNoMoment({ stops: long }, 's9')).toBe('too_long');
+    expect(whyNoMoment({ stops }, 'nope')).toBe('no_stop');
+    expect(whyNoMoment({ stops }, undefined)).toBe('no_stop');
   });
 
   it('is anchored as a v1 passage that carries a hash and no words, and only that exact anchor is the moment', () => {
