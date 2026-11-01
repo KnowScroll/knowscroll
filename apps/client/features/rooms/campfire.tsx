@@ -57,7 +57,7 @@ export function CampfireHeader({
   return (
     <RoomBand
       identity={identity}
-      style={[styles.band, { paddingTop: insets.top + spacing[1] }]}
+      style={[styles.band, { paddingTop: insets.top + spacing['0.5'] }]}
       testID="campfire-header"
     >
       {(tone) => (
@@ -409,9 +409,9 @@ const styles = StyleSheet.create({
     backgroundColor: status.danger.fill,
   },
   band: {
-    gap: spacing['1.5'],
+    gap: spacing[1],
     paddingHorizontal: layout.gutter,
-    paddingBottom: spacing['1.5'],
+    paddingBottom: spacing[1],
     overflow: 'hidden',
   },
   top: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
