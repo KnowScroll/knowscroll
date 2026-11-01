@@ -14,7 +14,7 @@ import type { InhabitantAnswer } from './inhabitant-role.js';
 
 /**
  * The pieces of a resident's support check (D-298, D-299): the sentences of an answer, the figure rule, the checker's roles and what a
- * rewrite is told. The checker is the shared one an ask order's answer and a Quick answer go through (D-250, D-253); a room gives
+ * rewrite is told. The checker is the shared one the answer to an ask order goes through (D-250); a room gives
  * it roles of its own, so its failure brake and its budget never touch an ask order's, and the unprompted one is `ambient`.
  */
 
