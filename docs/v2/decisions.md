@@ -3284,3 +3284,14 @@ Confirmed by: `supply-create.test.ts`, `scenario-answers.test.ts`, `composer-buf
 - **Not changed.** A Like, a Save or Not interested is the person's own act and stays in "reactions".
 
 Confirmed by: `history-paused.test.ts` on real PostgreSQL (three Explore openings and one address opening while paused add nothing to the export file, to `readVisitedAssets` or to a call's gate; after a resume one opening adds one entry; a direct open activated after a pause is marked; an item opened with recording on keeps its entry through a pause and a resume) and `universe-resume.test.ts` (a Part read while paused leaves no "continue"). Shown failing when the export, `readVisitedAssets` and `readRecentExposures` each stopped leaving the marked exposure out.
+
+## D-285 · 2026-11-01 · A request being made is read by its session, quickly then slowly, so the sheet always reaches its closed state (v3 dev check fixes, #609)
+
+**Amends** D-262 ("The wait").
+
+- **The defect.** On the Ask sheet, Try again on a closed Ask put the request back to preparing. The session read it twelve times, five seconds apart, then stopped. The order closed "Couldn't prepare" a little later, Your requests said so, and the sheet stayed on "Making it now" until it was closed and reopened. The direct route did not have this: its screen added a slower watch on top of the session (D-262).
+- **The rule.** The session itself reads a request that is still preparing: twelve reads five seconds apart, then up to fifty reads twelve seconds apart (about ten minutes, well past an order's own bound, D-250). A settled request (ready, closed, cancelled) ends the reads. The reads run only while the session is visible, as before: Explore reads while its sheet is open, a Scroll's own address reads while the sheet is open or a notice is waiting.
+- **One place.** The screen-level watch in `useDirectAsk` is gone, because the session now does what it did. Nothing about when the session is visible changed.
+- **Not changed.** The server, the words on the sheet, and the rule that a read never creates work.
+
+Confirmed by: `request-session.test.ts` (twelve quick reads, then slow ones up to the bound, none after it; Try again past the quick reads shows the closed state at the next slow read and then stops reading) and `use-direct-ask.test.tsx` (the ready notice arrives from the session's slow read). Shown failing when the session stopped after twelve reads.

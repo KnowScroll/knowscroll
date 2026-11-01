@@ -63,6 +63,13 @@ const initialAsk = (anchor: AskAnchor | undefined): RequestState => ({
 });
 const sameSource = (a: Source | undefined, b: Source | undefined) => JSON.stringify(a) === JSON.stringify(b);
 
+/** A request still being made is read quickly at first (twelve reads, about a minute) ... */
+const QUICK_READS = 12;
+const QUICK_READ_EVERY_MS = 5000;
+/** ... then slowly: fifty more, ten minutes, well past an order's own bound (D-250). A request that settles ends the reads. */
+const SLOW_READS = 50;
+export const SLOW_READ_EVERY_MS = 12_000;
+
 /** Private memory belongs to this AccountScope. No draft, command, receipt or request list is persisted. */
 export function createRequestSession(
   scope: AccountScope,
@@ -99,12 +106,15 @@ export function createRequestSession(
       state.phase === 'accepted' &&
       !state.error &&
       state.status?.status === 'preparing' &&
-      polls < 12
+      polls < QUICK_READS + SLOW_READS
     ) {
-      timer = setTimeout(() => {
-        polls += 1;
-        void read();
-      }, 5000);
+      timer = setTimeout(
+        () => {
+          polls += 1;
+          void read();
+        },
+        polls < QUICK_READS ? QUICK_READ_EVERY_MS : SLOW_READ_EVERY_MS,
+      );
     }
   };
   async function read(): Promise<ContentRequestStatus | undefined> {
