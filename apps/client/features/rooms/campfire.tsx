@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { AccountScope, RoomController, RoomState } from '@knowscroll/client-core';
 import { hereView, launchStripOf } from '@knowscroll/client-core';
-import type { RoomView } from '@knowscroll/contracts';
+import { LAUNCH_HOST, type RoomView } from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Icon, IconButton, Text } from '@knowscroll/ui';
 import { afterPendingBack } from '../../platform/after-pending-back';
@@ -18,11 +18,15 @@ import { LaunchPodium } from './launch-podium';
 import { LaunchStage } from './launch-stage';
 import { LaunchStartSheet } from './launch-start-sheet';
 import { NowStrip } from './now-strip';
+import { QuestionReplyCard, QuietOfferCard } from './quiet-cards';
+import { QuestionsSheet } from './questions-sheet';
+import { ReplaySheet } from './replay-sheet';
 import { discussionHref } from './room-links';
 import { RoomMenu } from './room-menu';
 import { RULE_WORDS } from './room-parts';
 import { ShareIntoRoomSheet } from './share-into-room-sheet';
 import { useRoomLaunch } from './use-launch';
+import { useQuietRoom } from './use-quiet-room';
 
 type Member = Extract<RoomView, { status: 'member' }>;
 
@@ -164,6 +168,7 @@ export function GeneralStage({
   readonly header: ReactNode;
 }) {
   const roomId = view.room.roomId;
+  const quiet = useQuietRoom(scope, view);
   // The Launch is read only while the room says there is one to read: a room with no deck and no Launch asks nothing.
   const { controller: launchController, state: launchState } = useRoomLaunch(scope, roomId, view.launch !== undefined);
   const launch = launchState.view?.launch;
@@ -207,6 +212,19 @@ export function GeneralStage({
           onDismiss={() => void controller.dismissAway()}
         />
       )}
+      {(view.questions?.replies ?? []).map((reply) => (
+        <QuestionReplyCard
+          key={reply.discussionId}
+          reply={reply}
+          busy={state.working}
+          onRead={() =>
+            void controller
+              .setQuestionNotice(reply.discussionId, { noticed: true })
+              .then(() => quiet.openQuestion(reply.discussionId))
+          }
+          onDismiss={() => void controller.setQuestionNotice(reply.discussionId, { noticed: true })}
+        />
+      ))}
       <OpenDiscussion
         key={view.general.discussionId}
         scope={scope}
@@ -223,9 +241,43 @@ export function GeneralStage({
             sky={view.sky}
             launch={strip}
             onLaunch={onLaunch}
+            replay={view.replay}
+            onReplay={() => quiet.replay.setOpen(true)}
+            questions={view.questions}
+            canAsk={view.canPost}
+            onQuestions={() => quiet.questions.setOpen(true)}
           />
         }
+        // The offer is the newest thing in the room, as R3 F draws it, so it is what a room that opens at its end shows first.
+        listFooter={
+          quiet.offer === undefined ? undefined : (
+            <QuietOfferCard
+              host={LAUNCH_HOST}
+              line={quiet.offer.line}
+              onReplay={() => {
+                quiet.putOfferAway(quiet.offer!.key);
+                quiet.replay.setOpen(true);
+              }}
+              onDismiss={() => quiet.putOfferAway(quiet.offer!.key)}
+            />
+          )
+        }
         startAtEnd
+      />
+      <ReplaySheet
+        visible={quiet.replay.open}
+        state={quiet.replay.state}
+        controller={quiet.replay.controller}
+        onClose={() => quiet.replay.setOpen(false)}
+      />
+      <QuestionsSheet
+        scope={scope}
+        view={view}
+        controller={controller}
+        state={state}
+        visible={quiet.questions.open}
+        onClose={() => quiet.questions.setOpen(false)}
+        onOpen={quiet.openQuestion}
       />
       {launchState.view === undefined ? null : (
         <LaunchStartSheet

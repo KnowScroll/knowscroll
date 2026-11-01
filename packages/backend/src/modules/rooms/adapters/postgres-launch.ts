@@ -74,6 +74,19 @@ export const launchStore: LaunchStore = {
     return found === undefined ? undefined : rowOf(found);
   },
 
+  async replayable(lock, window) {
+    const found = await trxOf(lock)
+      .selectFrom('rooms.launches')
+      .select(COLUMNS)
+      .where('room_id', '=', lock.roomId)
+      .where('starts_at', '<=', window.startedBefore)
+      .where('starts_at', '>=', window.startedAfter)
+      .orderBy('starts_at', 'desc')
+      .limit(1)
+      .executeTakeFirst();
+    return found === undefined ? undefined : rowOf(found);
+  },
+
   async readyDeck(lock, fromDay, toDay) {
     const found = await sql<{ ritual_id: string; payload: unknown }>`
       select ritual.ritual_id, ritual.payload from rooms.rituals ritual
