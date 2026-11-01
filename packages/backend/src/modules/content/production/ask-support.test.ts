@@ -265,11 +265,18 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
       problem:
         'The passages discuss poles tilting toward the Sun but not sunlight shifting between overhead and steep angles.',
     };
+    // The real checker judged the title ("Why the Equator Barely Notices Earth’s Tilt") as going beyond the passages.
+    const flaggedTitle = {
+      n: 1,
+      verdict: 'unsupported',
+      kind: 'goes_beyond',
+      problem: 'The title claims the equator barely notices the tilt, but the passages do not describe the equator.',
+    };
     /** The reply a checker gave to the answer, with the changes given for some sentences (by number) applied. */
     const reply = (changes: Readonly<Record<number, object>> = {}) =>
       realSchema.safeParse({
         sentences: [
-          { n: 1, verdict: 'no_claim' },
+          flaggedTitle,
           supported(2, 'As Earth orbits the Sun, its tilted axis always points in the same direction.'),
           flaggedPole,
           supported(
@@ -279,12 +286,17 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
           supported(5, 'Many people believe that Earth is closer to the Sun in the summer'),
           { n: 6, verdict: 'no_claim' },
           { n: 7, verdict: 'no_claim' },
-        ].map((verdict) => ({ ...verdict, ...changes[verdict.n] })),
+        ].map((verdict) => {
+          const change = changes[verdict.n];
+          if (change === undefined) return verdict;
+          // A change that names a verdict replaces the checker's whole entry; any other adds to it.
+          return 'verdict' in change ? { n: verdict.n, ...change } : { ...verdict, ...change };
+        }),
       });
 
-    it('accepts the title, a callout’s title and the limits line as stating no fact, and flags the false sentence the checker found', () => {
+    it('accepts the callout’s title and the limits line as stating no fact, and keeps the title and the false sentence the checker flagged', () => {
       expect(outcomes(reply())).toEqual([
-        'no_claim',
+        'unsupported',
         'supported',
         'unsupported',
         'supported',
@@ -294,10 +306,24 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
       ]);
     });
 
+    it('does not take the title for a label that states no fact: it has seven words and states a fact, so "no fact" is set aside (D-266)', () => {
+      const result = reply({ 1: { verdict: 'no_claim' } });
+      expect(outcomes(result)).toEqual([
+        'no_claim_without_ground',
+        'supported',
+        'unsupported',
+        'supported',
+        'supported',
+        'no_claim',
+        'no_claim',
+      ]);
+      expect(result.success && verdictsOf(result.data)[0]).toMatchObject({ kind: 'not_stated' });
+    });
+
     it('keeps the sentences that follow the rules when one verdict quotes words nobody wrote', () => {
       const result = reply({ 4: { quote: 'the Sun’s rays hit the equator directly all year round' } });
       expect(outcomes(result)).toEqual([
-        'no_claim',
+        'unsupported',
         'supported',
         'unsupported',
         'quote_not_in_cited_passages',
@@ -316,7 +342,7 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
         },
       });
       expect(outcomes(result)).toEqual([
-        'no_claim',
+        'unsupported',
         'supported',
         'unsupported',
         'supported',
@@ -420,6 +446,24 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
         'supported',
         'supported',
       ]);
+      // A label of more than four words states something: it is judged like a sentence, supported by a quote or not.
+      const long = label('How the beam turns across the water');
+      expect(outcomes(reply([long, prism, tower], [noClaim, ...supportedPair]))).toEqual([
+        'no_claim_without_ground',
+        'supported',
+        'supported',
+      ]);
+      expect(
+        outcomes(
+          reply(
+            [long, prism, tower],
+            [
+              { verdict: 'supported', quote: 'gathers the light into a single beam that sweeps across the water' },
+              ...supportedPair,
+            ],
+          ),
+        ),
+      ).toEqual(['supported', 'supported', 'supported']);
     });
 
     it('allows the same words without a figure when they share nothing with the passages', () => {

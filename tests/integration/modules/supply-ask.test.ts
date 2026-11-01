@@ -46,9 +46,11 @@ import {
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { madeToOrderKey } from '../../../packages/backend/src/modules/content/domain/order-key.js';
 import {
+  MAX_LABEL_WORDS,
   RULE_PROBLEMS,
   UNSUPPORTED_HINTS,
   batchesOf,
+  wordsOf,
 } from '../../../packages/backend/src/modules/content/domain/ask-support.js';
 import {
   askSupportRepairRunId,
@@ -1111,16 +1113,19 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       },
     );
 
-    it('accepts a title, a heading and a limits line as stating no fact, and serves the answer when the rest is supported', async () => {
+    it('accepts the short headings and a limits line as stating no fact, and serves the answer when the rest is supported', async () => {
       await setup();
       const { order } = await orderedAsk();
       const numbers = sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer()));
-      const labels = numbers.filter((one) => one.label === true).map((one) => one.number);
+      const short = numbers
+        .filter((one) => one.label === true && wordsOf(one.text).length <= MAX_LABEL_WORDS)
+        .map((one) => one.number);
       const limits = numbers.find((one) => one.text.startsWith('This picture ignores'))!.number;
-      expect(labels.length).toBeGreaterThanOrEqual(5);
+      // The headings and the callout's title are short; the title is not and is judged by a quote like a sentence.
+      expect(short).toHaveLength(4);
       supportScript = (_check, call) => {
         let reply = supportReply(call);
-        for (const n of [...labels, limits])
+        for (const n of [...short, limits])
           if (supportRequestOf(call).sentences.some((one) => one.n === n))
             reply = withVerdict(reply, n, { verdict: 'no_claim' });
         return reply;
@@ -1128,6 +1133,26 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
 
       expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
       expect(production.supportCalls).toHaveLength(BATCHES);
+    });
+
+    it('does not take the title for a label that states no fact: marked so, it is unsupported, and the writer repairs it once (D-266)', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      const title = 'How a lamp and a prism ring guide sailors';
+      const repairedTitle = 'How a prism ring and a lamp guide sailors';
+      let writes = 0;
+      writer = () => {
+        writes += 1;
+        return answerWith(fixtureAnswer(writes === 1 ? {} : { sentence: [title, repairedTitle] }));
+      };
+      supportScript = (check, call) =>
+        firstDraft(check) ? withVerdict(supportReply(call), 1, { verdict: 'no_claim' }) : supportReply(call);
+
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+
+      expect(production.writerCalls).toHaveLength(2);
+      expect(await codesOfFirstCheck(order.recipe)).toEqual(['no_claim_without_ground']);
+      expect((await storedAnswer(order.assetId))?.document).toMatchObject({ title: repairedTitle });
     });
 
     it('checks an answer of 23 sentences in three requests of at most ten, each with the passages of its own sentences, and closes every run', async () => {

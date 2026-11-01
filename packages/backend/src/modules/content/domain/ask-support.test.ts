@@ -8,6 +8,7 @@ import {
   batchesOf,
   checkedRecord,
   contentStems,
+  MAX_LABEL_WORDS,
   hasEnoughWords,
   isAbout,
   isQuestion,
@@ -275,15 +276,42 @@ describe('which sentences may state no fact (B1.3, D-266)', () => {
     expect(noClaimGround({ text: '7 crows nested.' }, cited)).toBeUndefined();
   });
 
-  it('gives a ground to a title, a heading or a callout’s title even when it shares key words with its passages, unless it has a figure', () => {
-    // A heading of the dev answers: it names what follows and shares key words with the passages it rests on.
+  it('gives a ground to a label of at most four words even when it shares key words with its passages, unless it has a figure', () => {
+    // Headings of the dev answers: each names what follows and shares key words with the passages it rests on.
     const passages = [
       'The browser combines the document object model and the CSS object model into a render tree, then runs layout and paint.',
     ];
-    expect(noClaimGround({ text: 'How the render tree spreads' }, passages)).toBeUndefined();
-    expect(noClaimGround({ text: 'How the render tree spreads', label: true }, passages)).toBe('label');
+    expect(MAX_LABEL_WORDS).toBe(4);
+    expect(noClaimGround({ text: 'How the render tree' }, passages)).toBeUndefined();
+    for (const heading of ['How the Update Spreads', 'The Missing Position Detail', 'The render tree'])
+      expect(noClaimGround({ text: heading, label: true }, passages)).toBe('label');
     expect(noClaimGround({ text: 'Twenty layout passes', label: true }, passages)).toBeUndefined();
     expect(noClaimGround({ text: 'Layout in 3 passes', label: true }, passages)).toBeUndefined();
+  });
+
+  it('judges a label of more than four words, or one that states a fact, like any sentence (D-266)', () => {
+    const passages = [
+      'Near the poles the Sun is never directly overhead, because the planet’s axis is tilted a little.',
+    ];
+    // The real title of the 1 Nov equator answer, which the checker flagged as going beyond the passages.
+    expect(
+      noClaimGround({ text: 'Why the Equator Barely Notices Earth’s Tilt', label: true }, passages),
+    ).toBeUndefined();
+    expect(noClaimGround({ text: 'How one tilt creates different seasons', label: true }, passages)).toBeUndefined();
+    expect(noClaimGround({ text: 'The Sun is overhead at the pole', label: true }, passages)).toBeUndefined();
+  });
+
+  it('gives the gap ground to the title of a limits callout, whatever its length, and not to one that goes on', () => {
+    for (const title of [
+      'What this does not explain',
+      'What This Cannot Explain',
+      'What the label omits',
+      'What this answer cannot establish',
+      'What remains unknown',
+    ])
+      expect(noClaimGround({ text: title, label: true }, ['A prism ring gathers the light.'])).toBe('gap');
+    for (const title of ['What this does not explain is the height of the tower', 'What the pages say about the Sun'])
+      expect(noClaimGround({ text: title, label: true }, ['A prism ring gathers the light.'])).toBeUndefined();
   });
 });
 
@@ -390,6 +418,13 @@ describe('what a verdict that breaks a rule does to its own sentence (D-265)', (
       'no_claim_without_ground',
       'supported',
     ]);
+    // A long label states something: "no fact" is not accepted for it, and it is judged like a sentence.
+    const long = judgeVerdicts(
+      [noClaim(1)],
+      numbered([sentence(1, 'Why the beam turns once every minute of the night', ['e2'], true)]),
+      texts,
+    );
+    expect(outcomes(long)).toEqual(['no_claim_without_ground']);
   });
 
   it('sets aside the transitions of a reply that marks more than half of the answer as stating no fact, and nothing else', () => {

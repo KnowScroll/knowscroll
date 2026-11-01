@@ -17,8 +17,9 @@ export interface SentenceUnderCheck {
   /** The handles (`e1`) of the passages the sentence's block cites. */
   readonly cites: readonly string[];
   /**
-   * The sentence is a title, a heading or the title of a callout: a label that names what follows. A label with no figure may
-   * be marked as stating no fact without any other ground (D-266). A label that states a fact is judged like any sentence.
+   * The sentence is a title, a heading or the title of a callout: a label that names what follows. A label of at most
+   * {@link MAX_LABEL_WORDS} words with no figure, or one that names a gap, may be marked as stating no fact (D-266). Any
+   * other label states something and is judged like any sentence.
    */
   readonly label?: boolean;
 }
@@ -300,6 +301,11 @@ const GAP_PATTERNS: readonly RegExp[] = [
   gapPattern(String.raw`${ANSWER_SUBJECT}\s+${HEDGE}${NOT}\s+(?:${GAP_VERBS})\b`),
   gapPattern(String.raw`${ANSWER_SUBJECT}\s+(?:ignores|leaves\s+out|omits|skips|says\s+nothing|leaves\s+aside)\b`),
   gapPattern(String.raw`nothing\s+in\s+(?:the|these|those)\s+(?:pages?|passages?|sources?)\b`),
+  // The title of a limits callout: "What this does not explain", "What the label omits", "What remains unknown".
+  gapPattern(
+    String.raw`(?:what|where)\s+(?:this|the|these|those)\s+(?:[\p{L}\p{N}'’-]+\s+){0,3}?(?:cannot|can\s+not|can['’]t|does\s+not|do\s+not|doesn['’]t|omits|leaves\s+out|ignores|skips)\b(?:\s+[\p{L}'’-]+){0,2}\s*$`,
+  ),
+  gapPattern(String.raw`what\s+remains?\s+(?:unknown|unspecified|unstated|unexplained|open)\s*$`),
   gapPattern(
     String.raw`${SHORT_SUBJECT}(?:remains?|stays?|is|are)\s+(?:unspecified|unstated|unexplained|not\s+(?:given|stated|covered|specified))\b[^.?!;:]{0,40}?\b(?:here|in\s+(?:this|the)\s+(?:answer|explanation|account|story|picture|pages?|passages?|sources?|material|text))\b`,
   ),
@@ -349,14 +355,19 @@ export type NoClaimGround =
   | 'question'
   /** A plain admission of a gap. */
   | 'gap'
-  /** A title, a heading or a callout's title that names what follows and has no figure. */
+  /** A title, a heading or a callout's title of a few words that names what follows and has no figure. */
   | 'label'
   /** A sentence with no figure that shares no key word with the passages it cites: a transition, nothing a passage could support. */
   | 'unshared';
 
+/** The most words a label may have and still be marked as stating no fact on its place in the document alone (D-266). */
+export const MAX_LABEL_WORDS = 4;
+
 /**
  * Why a sentence may be marked as stating no fact, from what code can see, or `undefined` when it may not: any other
- * sentence states something and must be judged. A figure makes a label or a transition a claim, in digits or in words.
+ * sentence states something and must be judged. A figure makes a label or a transition a claim, in digits or in words. A
+ * label (title, heading, callout title) of more than {@link MAX_LABEL_WORDS} words that does not name a gap is a statement
+ * ("Why the Equator Barely Notices Earth's Tilt"), so it is judged like any sentence.
  */
 export function noClaimGround(
   sentence: Pick<SentenceUnderCheck, 'text' | 'label'>,
@@ -365,7 +376,7 @@ export function noClaimGround(
   if (isQuestion(sentence.text)) return 'question';
   if (statesFigure(sentence.text)) return undefined;
   if (namesTheGap(sentence.text)) return 'gap';
-  if (sentence.label === true) return 'label';
+  if (sentence.label === true) return wordsOf(sentence.text).length <= MAX_LABEL_WORDS ? 'label' : undefined;
   const cited = new Set(citedTexts.flatMap((text) => [...contentStems(text)]));
   return [...contentStems(sentence.text)].some((stem) => cited.has(stem)) ? undefined : 'unshared';
 }
