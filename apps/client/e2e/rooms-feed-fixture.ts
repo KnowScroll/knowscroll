@@ -38,6 +38,8 @@ export interface ScoutWorld {
 /** Members' posts (v3 R-8b): authored examples, never product data. */
 export const deviPostId = id(550);
 export const sourcePostId = id(551);
+export const introId = id(553);
+const secondIntroId = id(554);
 export const ownPostId = id(552);
 export const devi = { kind: 'person' as const, personId: id(560), handle: 'devi', displayName: 'Devi' };
 export const omar = { kind: 'person' as const, personId: id(561), handle: 'omar', displayName: 'Omar' };
@@ -68,6 +70,8 @@ export interface FeedWorld {
   canPost: boolean;
   /** The next post the reader makes is one the room already has (`already_there`), or is refused as too many. */
   nextPost?: 'already_there' | 'rate_limited';
+  /** The reader is a moderator and each resident's introduction (v3 R-8b): made or not yet. */
+  introduced: { explainer: boolean; skeptic: boolean };
   /** The reader's scout; absent while scouts are not switched on. */
   scout?: ScoutWorld;
   /** A find a scout posted, signed by Asha, is in the feed. */
@@ -81,6 +85,7 @@ export interface FeedWorld {
 
 export const feedWorld = (patch: Partial<FeedWorld> = {}): FeedWorld => ({
   memberPosts: false,
+  introduced: { explainer: false, skeptic: false },
   votes: {},
   made: [],
   sort: 'hot',
@@ -108,13 +113,38 @@ const scoutView = (scout: ScoutWorld) =>
 
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
 
-/** The Now strip's word for the newest find, for a reader who can see one. */
-export const feedStrip = (world: FeedWorld) =>
-  world.aiLevel === 'off' || !world.posts
-    ? undefined
-    : world.scoutPost
-      ? { by: scoutAuthor, postedAt: hoursAgo(1) }
-      : { by: nova, postedAt: hoursAgo(2) };
+/**
+ * The live strip's events for this reader (v3 R-8b): who posted and who replied, newest first, at most three. A reader whose AI is Off
+ * is told only of people.
+ */
+export const liveStrip = (world: FeedWorld) => {
+  const agents =
+    world.aiLevel === 'off' || !world.posts
+      ? []
+      : [
+          world.scoutPost
+            ? { kind: 'posted', by: scoutAuthor, at: hoursAgo(1), discussionId: scoutFindId }
+            : { kind: 'posted', by: nova, at: hoursAgo(2), discussionId: findId },
+        ];
+  const people = world.memberPosts
+    ? [
+        {
+          kind: 'replied',
+          by: { kind: 'person', person: omar, you: false },
+          at: hoursAgo(0.1),
+          discussionId: deviPostId,
+        },
+        {
+          kind: 'posted',
+          by: { kind: 'person', person: devi, you: false },
+          at: hoursAgo(0.2),
+          discussionId: deviPostId,
+        },
+      ]
+    : [];
+  const events = [...people, ...agents].slice(0, 3);
+  return events.length === 0 ? undefined : events;
+};
 
 const REEL = {
   status: 'available' as const,
@@ -262,7 +292,23 @@ function postsOf(world: FeedWorld) {
         ),
       ]
     : [];
-  const all = [...finds, ...people];
+  const intros = (['explainer', 'skeptic'] as const).flatMap((inhabitant) =>
+    world.introduced[inhabitant] && world.aiLevel !== 'off'
+      ? [
+          {
+            kind: 'intro' as const,
+            discussionId: inhabitant === 'explainer' ? introId : secondIntroId,
+            author: inhabitant === 'explainer' ? nova : halley,
+            postedAt: hoursAgo(0.5),
+            text: `Hi, I'm ${inhabitant === 'explainer' ? 'Nova' : 'Halley'}. I say what I do once, and then I only speak when there is something to add.`,
+            replies: 0,
+            ...counted(inhabitant === 'explainer' ? introId : secondIntroId, 0),
+            canVote: true,
+          },
+        ]
+      : [],
+  );
+  const all = [...finds, ...people, ...intros];
   const time = (post: { postedAt: string }) => new Date(post.postedAt).getTime();
   if (world.sort === 'new') return all.sort((x, y) => time(y) - time(x));
   if (world.sort === 'top') return all.sort((x, y) => y.votes - x.votes || time(y) - time(x));
@@ -271,6 +317,39 @@ function postsOf(world: FeedWorld) {
     (x, y) =>
       (y.votes + 1) / (1 + (Date.now() - time(y)) / 3_600_000) ** 1.5 -
       (x.votes + 1) / (1 + (Date.now() - time(x)) / 3_600_000) ** 1.5,
+  );
+}
+
+/** Each resident's profile as the server would build it from the room's own rows (v3 R-8b). */
+function profilesOf(world: FeedWorld) {
+  const profile = (
+    inhabitant: 'explainer' | 'skeptic',
+    interests: string[],
+    last: number | undefined,
+    recent: { discussionId: string; messageId: string; title: string; postedAt: string }[],
+  ) => ({
+    inhabitant,
+    madeBy: 'KnowScroll' as const,
+    interests,
+    livesHereSince: '2026-10-02T10:00:00.000Z',
+    ...(last === undefined ? {} : { lastAt: hoursAgo(last), nextAfter: hoursAgo(last - 6) }),
+    introduced: world.introduced[inhabitant],
+    recent,
+  });
+  return [
+    profile(
+      'explainer',
+      ['Plain explanations', 'Finds from the library', 'Where an idea comes from'],
+      world.posts && world.aiLevel !== 'off' ? 2 : undefined,
+      world.posts && world.aiLevel !== 'off'
+        ? [{ discussionId: findId, messageId: id(580), title: REEL.metadata.title, postedAt: hoursAgo(2) }]
+        : [],
+    ),
+    profile('skeptic', ['Strong claims', 'What the evidence says', 'Myths that stick'], undefined, []),
+  ].map((entry) =>
+    entry.nextAfter !== undefined && new Date(entry.nextAfter).getTime() < Date.now()
+      ? { ...entry, nextAfter: undefined }
+      : entry,
   );
 }
 
@@ -314,6 +393,38 @@ export async function feedRoutes(page: Page, world: FeedWorld, scope: { accountI
           discussionId,
           voted,
           votes: world.votes[discussionId].votes,
+        },
+      });
+    }
+    if (path === '/v1/rooms/preferences') {
+      world.aiLevel = body['aiLevel'] === 'off' ? 'off' : 'lively';
+      return route.fulfill({
+        json: {
+          ...base,
+          commandId: body['commandId'],
+          recordedAt: new Date().toISOString(),
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'room.preferences',
+          roomId: room.roomId,
+          you: { aiLevel: world.aiLevel, keepOut: false },
+        },
+      });
+    }
+    if (path === '/v1/rooms/feed/introduce') {
+      const inhabitant = body['inhabitant'] as 'explainer' | 'skeptic';
+      world.introduced[inhabitant] = true;
+      return route.fulfill({
+        json: {
+          ...base,
+          commandId: body['commandId'],
+          recordedAt: new Date().toISOString(),
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'room.resident-introduce',
+          roomId: room.roomId,
+          discussionId: inhabitant === 'explainer' ? introId : secondIntroId,
+          result: 'introduced',
         },
       });
     }
@@ -368,6 +479,8 @@ export async function feedRoutes(page: Page, world: FeedWorld, scope: { accountI
           },
           sort: world.sort,
           window: world.window,
+          roomName: room.name,
+          profiles: profilesOf(world),
           posts: postsOf(world),
           canPost: world.canPost,
           residents: [
@@ -433,6 +546,7 @@ export async function feedRoutes(page: Page, world: FeedWorld, scope: { accountI
     return route.fulfill({ status: 404, json: {} });
   };
   await page.route('**/v1/rooms/{feed,memory,scout}/**', answer);
+  await page.route('**/v1/rooms/preferences', answer);
   await page.route('**/v1/rooms/moderate', answer);
   return { calls };
 }

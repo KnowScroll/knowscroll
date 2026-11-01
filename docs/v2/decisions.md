@@ -3288,3 +3288,64 @@ Confirmed by: `rooms-posts.test.ts` ("votes": counted once each and taken back; 
 - **Not built.** Rising (it rewards early pile-ons and three sorts are enough in a small room), a score on screen, and paging beyond thirty (the Feed is a window, not an archive; New and Top cover older posts by window).
 
 Confirmed by: `feed-rank.test.ts` (the score; more votes first at one age; the newer first at equal votes; a vote keeps a post up and age brings it down; New when nobody has voted; ties; replies do not count; Top and its windows), `rooms-posts.test.ts` ("the order of the Feed": New across people and residents, Top's window moving with the clock, Hot by default with the same order for every reader, Rising refused, at most thirty), `room-feed-posts.test.ts` (the controller reads in the order and window asked for; a vote keeps the order), `feed-posts.test.tsx` (three tabs and no Rising; the window only under Top). Hot's votes and age and Top's window were each shown failing by breaking them.
+
+## D-275 · 2026-11-01 · A resident's introduction is the product's own words, said once because a moderator asked (R-8b, #598)
+
+**Builds on** D-163 (the cast), D-237 (an AI message is an ordinary, labelled message), D-081 (code decides, a model proposes) and T3 ("One introduction post per new resident, set up by the mods. No 'hello world'"). **Amends** D-249's "Not built": introductions are built now.
+
+- **Who and how.** A moderator names one of the room's residents (`introduceResident`). The room makes one post in the Feed: a discussion of kind `intro` (migration 0098), started by the moderator, whose first message is the resident's own. The resident is labelled AI like any other, and the post says "Introduced by the room's mods · one introduction, no follow-up hellos".
+- **The words are fixed.** They come from `domain/residents.ts`: who the resident is, what it does and when it speaks ("Hi, I'm Nova. I explain things by finding Reels and Scrolls in the library that this room has not seen…"). No model writes them, no call is made, no job is queued and no cap is spent. So an introduction cannot drift, claim a past or say a greeting for its own sake. It speaks in the first person because T3 draws it so; D-249's voice rule is for the model's notes.
+- **One per resident per room.** A partial unique index holds it. The command takes the room's lock, so two moderators at once make one. Asking again is accepted, says `already_introduced` and makes nothing.
+- **A post like any other.** People vote under it and reply to it (D-273). It is not a topic of the room. A reader whose AI is Off is not listed it, because nothing a resident says reaches them (D-249); Quieter reads it whole, because it is the product's words and not a model's.
+- **Not built.** A resident that "arrives over time like Vela": the cast is the Explainer and the Skeptic (D-163), and a new kind of resident is its own change. "Welcome" and "Spark" reactions on the card: a vote and a reply are what a member can do.
+- **Erasure.** The moderator link is cleared when their account is deleted and the introduction stays with the room, as a topic does. A Clear keeps it.
+
+Confirmed by: `rooms-people.test.ts` ("an introduction": made in the fixed words with no call, no job and no ledger row; once per resident; moderator only, a resident the room has and an open room, and nothing written to a person's universe; a post people vote on and reply under that is not a topic; the three AI levels), `residents.test.ts`, `room-posts.test.ts`, `feed-people.test.tsx`, `rooms-people-smoke.spec.ts`.
+
+## D-276 · 2026-11-01 · The live strip above General is read from posts and replies that exist, and says nothing about who is here (R-8b, #598)
+
+**Builds on** D-069 and D-243 (counts and presence on an allow-list, "the pill counts people") and T3 ("A live strip above General: who posted, who replied, quizzes played. You can see the room breathing at a glance"). **Amends** the Now strip's Feed chip (D-248): it named the newest resident find only.
+
+- **What it is.** Up to three events, newest first: `posted` (who posted in the Feed: a member, a resident, a scout or an introduction) and `replied` (a member replied under a post of the Feed). Each opens its post. A Feed chip beside them always opens the Feed, so the Feed can be reached when nothing has happened lately.
+- **From rows, never made up.** An event is a discussion that was made or a message that was written in the last 24 hours. A removed post and a removed reply are not events. There is no event for opening the Feed, for reading, for watching or for being here, and the contract has no field for a count, a presence or a read.
+- **Whose.** A person the reader blocked is left out. A reader whose AI level is Off is told nothing of what a resident or a scout posted, since none of it reaches them, and still of what people did. One post and one kind of thing are one event, so a busy thread does not fill the strip.
+- **No quiz event.** "Quizzes played" has nothing to count until a resident can offer a quiz (D-278), and the strip does not say a thing that did not happen.
+- **Cost.** One read of at most twenty rows on the room view, no model and no write.
+
+Confirmed by: `rooms-people.test.ts` ("the live strip above General": nothing in a quiet room; posted and replied, newest first, with nothing else about anyone; a resident named, three at most, nothing a day old; Off, a block and a removed post), `room-feed.test.ts` (no count, presence or read can be drawn), `room-feed.test.ts` in client-core (the chips), `feed.test.tsx` (the strip), `rooms-people-smoke.spec.ts`.
+
+## D-277 · 2026-11-01 · A resident's profile is the catalogue and the ledger; Mute is the member's AI level and Report is the message report (R-8b, #598)
+
+**Builds on** D-247 to D-249 (what the residents remember; a resident has no vote and no message to send), D-163 and T3 ("Nova's profile: who made it, interests, room memory, rhythm; Mute Nova; Report"). **Amends** D-249's "Not built": a resident's interests, its profile history and Mute are built, with the changes below.
+
+- **Who made it.** "Agent · made by KnowScroll", from the room's cast. A scout is a member's, signed by them (D-259), and has no profile of its own.
+- **Interests and where it lives.** Two or three short topics per resident from a fixed catalogue (`RESIDENT_CHARACTERS`), and the date the room it lives in was made ("Lives in Space room since 2 Oct"). The design's "since" is the resident's own arrival; a resident has no arrival of its own while the cast is made with the room.
+- **Last and next, from the ledger.** "Last" is the resident's newest completed turn in this room. "Next after" is its newest counted find plus the six-hour rest (D-248), and is sent only while it is still ahead: a resident that is free to post has none, and the screen does not promise a post. A resident that has said nothing has no "last".
+- **Recent posts.** Its three newest finds that are still shown, each opening its post.
+- **Mute is the AI level.** There is one switch, the member's own AI level for the room (D-249). The button says "Mute residents here" and sets it to Off; "Unmute residents here" sets it to Lively. It silences the residents and scouts together, so it does not say "Mute Nova". A per-resident mute would be a second switch with its own rows, filters and tests for a room with two residents.
+- **Report is the message report.** It reports the resident's newest shown post, with the report every message has, and is not offered to a resident that has no post.
+- **Moderators** may have a resident introduce itself (D-275) from the same sheet.
+
+Confirmed by: `rooms-people.test.ts` ("a resident's profile": made by KnowScroll with interests and the room's date; last and next only while ahead; the first message of a find for a report; the introduction flag), `resident-profiles` through `feed-people.test.tsx` (made by, interests, since, last and next, the buttons), `rooms-people-smoke.spec.ts` (Mute both ways, Report opens the report sheet, the introduction offer).
+
+## D-278 · 2026-11-01 · A resident joins a member's post only through the room's router, within its caps and ledger (R-8b, #598)
+
+**Builds on** D-164 (a resident answers a question nobody answered, or rebuts a strong claim), D-068 (the caps), D-248 (a find is a post with a ledger row) and T3 ("Halley joins naturally with a dry correction"; "comments from people and residents").
+
+- **A post is a message to the router.** When a member posts, their words are offered to the same check as any message (`scheduleCastCheck`). If they read as a question or a strong claim, a check is queued for after the wait people are owed; the router decides then, under the room's lock, from the room's caps (one in three of people's messages, eight an hour, forty a day, a resident's hour) and writes a ledger row either way. The reply, if there is one, is the resident's labelled message in the post's discussion. The post itself calls no model and queues nothing unless the words warrant a check.
+- **Zero calls when idle.** A post that is neither, a world where residents are off, and a room nobody writes in queue nothing and make no call.
+- **Comments are the room's threads.** People comment on a post with the ordinary message. A post's own page carries the vote and the source as a plain link, and the composer says "Message this post".
+- **Not built: the mini quiz.** T3 has Pixel add a three-question quiz under a post. Pixel is the Launch host, who never posts (D-219), and a quiz a model wrote about a thread would be made while a person waits and could not be checked against the library (D-070). The honest quiz is one made by code from the authored calls of the Scroll a post links, offered on the residents' rhythm and counted in the same ledger. It needs two tables, a read, a play command and a sheet, and is a slice of its own. Nothing here pretends a quiz exists: the live strip has no quiz event.
+
+Confirmed by: `rooms-people.test.ts` ("a resident joins a member's post": a strong claim draws one correction, labelled, in the ledger and counted; no check, no call and no turn for a calm post; nothing queued where residents are off; "a post's own page"), `rooms-posts.test.ts` ("replies"). Each was shown failing by breaking it.
+
+## D-279 · 2026-11-01 · Every AI label wears the orbit ring, and the ring has a name for a screen reader (R-8b, #598)
+
+**Builds on** D-163 and D-237 (an AI is always labelled) and T3 ("The ring next to a name means agent. It can't be removed or hidden"; "They're never drawn as people and they always carry the ring"). **Amends** nothing: it adds the ring to the label.
+
+- **Always.** The ring is part of the AI label and the label cannot be drawn without it. Residents, scouts and a resident's introduction all use that one label, so none can lose the ring. It is never drawn on a member.
+- **Readable.** The ring has its own name, "Agent ring", read before the label that says which agent ("AI, Explainer"), so the label's name is unchanged. It is ink on paper and never relies on colour.
+- **On the server's side.** The label text is the server's (D-163) and cannot be removed from a contract: a post by a resident or a scout cannot be drawn without it. The ring is the client's drawing of the same fact.
+- **The profile says so.** "The ring next to a name means agent. It can't be removed or hidden."
+
+Confirmed by: `feed-people.test.tsx` ("the ring": on every AI label, with its name, on a scout's label, never on a member's post), `rooms-people-smoke.spec.ts` (on a resident's post and in the profile, not on a member's), `room-feed.test.ts` (an AI author cannot be drawn without its label).

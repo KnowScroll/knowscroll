@@ -52,7 +52,8 @@ export function ResidentSheet({
 }) {
   const remembered = memoryWords(feed.memory);
   const rhythm = rhythmLines(feed.limits);
-  const profile = resident === undefined ? undefined : feed.profiles.find((entry) => entry.inhabitant === resident.inhabitant);
+  const profile =
+    resident === undefined ? undefined : feed.profiles.find((entry) => entry.inhabitant === resident.inhabitant);
   const muted = feed.aiLevel === 'off';
   const newest = profile?.recent[0];
   return (

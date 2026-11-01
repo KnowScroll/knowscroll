@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { id } from './encounter-fixture';
-import { feedRoutes, feedStrip, feedWorld, findId, type FeedWorld } from './rooms-feed-fixture';
+import { feedRoutes, liveStrip, feedWorld, findId, type FeedWorld } from './rooms-feed-fixture';
 import { roomFixture } from './rooms-fixture';
 
 /**
@@ -49,7 +49,7 @@ async function open(page: Page, size: { width: number; height: number }, world: 
     others: 1,
     lastMessageMinutesAgo: 5,
     noticeSeen: true,
-    feed: () => feedStrip(world),
+    live: () => liveStrip(world),
   });
   const { calls } = await feedRoutes(page, world, scope);
   await page.goto(address);
@@ -64,12 +64,13 @@ for (const { name, size } of VIEWPORTS) {
     const { calls } = await open(page, size, world);
 
     // The Now strip: the Feed beside the sky, with who found something and how long ago. No number of people.
-    await expect(page.getByTestId('now-feed')).toContainText('Nova found something · 2 h ago');
+    await expect(page.getByTestId('now-feed')).toContainText('Nova');
+    await expect(page.getByTestId('now-feed')).toContainText('posted · 2 h ago');
     await expect(page.getByTestId('now-strip').getByText(/online/i)).toHaveCount(0);
     await shoot(page, `${name}-room-now-strip`);
     expect(await seriousViolations(page)).toEqual([]);
 
-    await page.getByTestId('now-feed').click();
+    await page.getByTestId('now-feed-open').click();
     await expect(page).toHaveURL(/\/feed$/);
     await expect(page.getByTestId('feed-screen')).toBeVisible();
     // Each find: a labelled resident, a note, a real asset to open, the way into the talk, and a count of people's votes.
@@ -123,7 +124,7 @@ for (const { name, size } of VIEWPORTS) {
 
 test('phone: a Quieter reader’s notes are held back and say where to read them', async ({ page }) => {
   await open(page, VIEWPORTS[0].size, feedWorld({ aiLevel: 'quieter' }));
-  await page.getByTestId('now-feed').click();
+  await page.getByTestId('now-feed-open').click();
   const first = page.getByTestId(`feed-post-${findId}`);
   await expect(first).toContainText('Nova found something. Open it to read the note.');
   await expect(first).not.toContainText('Worth a look');
@@ -164,7 +165,7 @@ test('phone: a member who is not a moderator sees what the residents remember an
     VIEWPORTS[0].size,
     feedWorld({ memory: { state: 'ready', text: 'People compared lensing with modified gravity.', by: 'residents' } }),
   );
-  await page.getByTestId('now-feed').click();
+  await page.getByTestId('now-feed-open').click();
   await page.getByTestId('feed-resident-skeptic').click();
   await expect(page.getByTestId('resident-memory-text')).toContainText('People compared lensing');
   await expect(page.getByTestId('resident-memory')).toContainText('It never has a name');
