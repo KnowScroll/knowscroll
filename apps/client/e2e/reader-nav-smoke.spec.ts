@@ -327,9 +327,9 @@ test.describe('the top bar', () => {
         expect(box?.width ?? 0).toBeGreaterThan(40);
         expect(await option.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
       }
-      // The state stays in the name; the bar draws only the two formats.
-      // Its name keeps the state; the bar draws only "Reel".
-      await expect(page.getByRole('radio', { name: 'Reel · unavailable' })).toHaveText('Reel');
+      // A Reel that does not exist can be asked for (D-269): it is named "Reel", never "unavailable", at every width.
+      await expect(page.getByRole('radio', { name: 'Reel', exact: true })).toHaveText('Reel');
+      await expect(page.getByRole('radio', { name: /unavailable/ })).toHaveCount(0);
       const next = await page.getByRole('button', { name: 'Next topic' }).boundingBox();
       expect((next?.x ?? 0) + (next?.width ?? 0)).toBeLessThanOrEqual(width);
 
