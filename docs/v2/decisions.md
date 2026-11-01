@@ -3318,7 +3318,7 @@ Confirmed by: `reel-player.test.tsx` (a player the SDK calls playing that nobody
 
 ## D-288 · 2026-11-01 · "Copy link" again copies the live link the account already made (v3 dev check fixes, #609)
 
-**Builds on** D-186's public link (a bearer secret the server keeps only as a hash). **Amends** the share session's "Makes a public link and copies it".
+**Builds on** D-042's share links (a bearer secret the server keeps only as a hash). **Amends** the share session's "Makes a public link and copies it".
 
 - **The defect.** Each press of Copy link, and "Copy link again" in the same sheet, made a new public share. Two taps left two live links to the same Scroll in Privacy's shared links.
 - **The rule.** The account scope remembers the link it made for an exact revision, in memory only (a bearer secret is not stored on the device). Copy link first looks for it: if the server still lists that share as live, it copies the same address and makes nothing. If the person stopped it, here or in Privacy, or it was never made in this app session, a new one is made. A different revision is a different link.
