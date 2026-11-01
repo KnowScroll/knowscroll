@@ -12,12 +12,21 @@ import {
   type AskScopeVerdict,
 } from './ask-scope.js';
 import type { ResolveSupplyJob } from '../events.js';
-import { askLibraryRunId, checkLibraryMatch } from './ask-library.js';
+import { checkLibraryMatch } from './ask-library.js';
 import type { LibraryVerdict } from './ask-library-role.js';
 import { commissionAskOrder } from './ask-orders.js';
 import { commissionSupply, nextPoll } from './commission.js';
 import { catalogueBrief, checkedRevision, inventory, sameRef, snapshot } from './inventory.js';
 import type { CanonicalBrief, Demand, SupplyPorts } from './ports.js';
+import {
+  accountOf,
+  closeStartedRun,
+  closeStartedRunAlone,
+  proposeAtGeneration,
+  type RecordingRuns,
+  type RunOwner,
+  type StartedRun,
+} from './recording-runs.js';
 
 /**
  * Places one waiting request: matches a free-text ask to the catalogue, or decides where a question asked from a
@@ -31,10 +40,13 @@ const HARNESS_REFUSAL = 'PERSONAL_REASONING_AUTHORITY_REFUSED';
 const formatOf = (command: CreateContentRequest): 'reel' | 'scroll' | 'either' =>
   command.intent.kind === 'topic' ? command.intent.format : 'scroll';
 
+type Authority = Parameters<SupplyPorts['withScope']>[0];
+
 /** What a waiting request needs a model to place: free text to match, or a question with the place it was asked from. */
 type Asked =
   | { readonly kind: 'text'; readonly text: string }
-  | { readonly kind: 'ask'; readonly facts: AskScopeFacts }
+  /** `owner` names the account and the recording generation the question was asked at (D-264). */
+  | { readonly kind: 'ask'; readonly facts: AskScopeFacts; readonly owner: RunOwner }
   /** The Scroll the question was asked from can no longer be read: there is nothing to place it by. */
   | { readonly kind: 'source_gone' };
 
@@ -45,14 +57,30 @@ type Decided = Pick<
 >;
 
 /** Reads what the request needs placed, inside the caller's transaction; nothing when it is no longer waiting. */
-async function askedOf(p: SupplyPorts, scope: PersonalScopeTx, d: Demand | undefined): Promise<Asked | undefined> {
+async function askedOf(
+  p: SupplyPorts,
+  recording: RecordingRuns,
+  scope: PersonalScopeTx,
+  d: Demand | undefined,
+): Promise<Asked | undefined> {
   if (d?.status !== 'matching') return undefined;
   const { intent } = d.command;
   if (intent.kind === 'ask') {
     const facts = await p.readAskFacts(scope, intent.source, intent.anchor.stopId);
-    return facts === undefined
-      ? { kind: 'source_gone' }
-      : { kind: 'ask', facts: { question: intent.question, title: facts.title, stopText: facts.stopText } };
+    if (facts === undefined) return { kind: 'source_gone' };
+    const accountId = await accountOf(recording.fenceOwn, scope);
+    if (accountId === undefined) return undefined;
+    return {
+      kind: 'ask',
+      facts: { question: intent.question, title: facts.title, stopText: facts.stopText },
+      owner: {
+        accountId,
+        universeId: scope.authority.universeId,
+        privacyEpoch: scope.authority.privacyEpoch,
+        recordId: d.id,
+        recordingGeneration: intent.recordingGeneration,
+      },
+    };
   }
   return intent.kind === 'topic' && intent.subject.kind === 'text'
     ? { kind: 'text', text: intent.subject.text }
@@ -150,11 +178,14 @@ async function decide(
  * then makes an ask order. No place closes the request honestly as unsupported.
  *
  * Authority: a `system` actor for the job's universe and epoch, rechecked under the personal lock in
- * both transactions. Steps: (1) one transaction reads the still-waiting ask; (2) outside any
+ * every transaction. Steps: (1) one transaction reads the still-waiting ask; (2) outside any
  * transaction the harness makes one model call (plus at most one repair) on the request's own run;
  * (3) one transaction rechecks the ask is still waiting (a cancel wins), applies the verdict, and
  * closes the run. The person's words go to the provider only through the personal harness, whose
  * protected request bytes are erased with the person.
+ * A question asked from a Scroll runs on the recording-aware harness, at the recording generation it was asked at (D-264): a
+ * person who paused and resumed gets answers, and a verdict reached before a pause or a Clear is not applied. A free-text ask
+ * runs on the compatibility harness and so only at the first generation.
  * Failure/retry: the run ID is the request ID, so a redelivery answers from the ledger and never pays
  * twice, and an attempt of unknown outcome is never resent: the request closes as `could_not_prepare`
  * and the run stays open for an operator.
@@ -162,6 +193,7 @@ async function decide(
 export function makeMatchRequest(
   p: SupplyPorts,
   harness: ReasoningHarness,
+  recording: RecordingRuns,
   readLibrary: ReadLibraryPassages,
 ): MatchStep {
   return async (job, signal) => {
@@ -172,81 +204,174 @@ export function makeMatchRequest(
     } as const;
     const read = await p.withScope(authority, async (scope) => {
       if (!(await p.ownerActive(scope))) return undefined;
-      return askedOf(p, scope, await p.store.read(scope, job.requestId));
+      return askedOf(p, recording, scope, await p.store.read(scope, job.requestId));
     });
     if (read.kind !== 'entered' || read.value === undefined) return;
-    const verdict = await place(harness, authority, job, read.value, signal);
-    // A question placed on another subject is read against that subject's library Scrolls (a second call, outside every transaction).
-    const library =
-      read.value.kind === 'ask' && verdict.kind === 'matched'
-        ? await checkLibraryMatch(
-            { p, harness, readLibrary },
-            authority,
-            { requestId: job.requestId, question: read.value.facts.question, match: verdict.match },
-            signal,
-          )
-        : undefined;
-
-    // A transaction closes one personal run, so the library check's run closes first, in a transaction of its own. If the
-    // process dies after it, a redelivery finds that run closed and offers no library Scroll (an order is made instead);
-    // the scope step's run is closed with its verdict applied, so its answer is never lost.
-    if (library?.end !== undefined)
-      await p.withScope(authority, (scope) => closeRun(harness, scope, askLibraryRunId(p, job.requestId), library.end));
-    await p.withScope(authority, async (scope) => {
-      await closeRun(harness, scope, job.requestId, verdict.end);
-      if (!(await p.ownerActive(scope))) return;
-      const d = await p.store.read(scope, job.requestId);
-      if (!d || d.status !== 'matching') return;
-      const decided = await decide(p, scope, d, verdict, library);
-      const current = await snapshot(p, scope, d);
-      const revision = await p.advance(scope);
-      const next: Demand = {
-        ...d,
-        ...decided,
-        revision,
-        requestRevision: checkedRevision(current.requestRevision + 1),
-        updatedAt: p.now().toISOString(),
-      };
-      await p.store.finish(scope, next);
-      if (next.status === 'requested') await p.enqueue(scope, d.id, nextPoll(d, p.now()));
-      await p.notify(scope, revision, d.id);
-    });
+    const asked = read.value;
+    if (asked.kind === 'text') await matchText(p, harness, authority, job, asked.text, signal);
+    else await placeQuestion({ p, recording, readLibrary }, authority, job, asked, signal);
   };
 }
 
-/** The one model call (and its one repair) that places the request, outside every transaction. */
-async function place(
+/** The one model call (and its one repair) that matches free text to the catalogue, outside every transaction. */
+async function matchText(
+  p: SupplyPorts,
   harness: ReasoningHarness,
-  authority: Parameters<ReasoningHarness['propose']>[0]['run']['authority'],
+  authority: Authority,
   job: ResolveSupplyJob,
-  asked: Asked,
+  text: string,
   signal: AbortSignal,
-): Promise<AskScopeVerdict> {
-  if (asked.kind === 'source_gone') return { kind: 'unavailable', reason: 'source_unavailable' };
-  const ask = asked.kind === 'ask';
-  const run = {
-    id: job.requestId,
-    authority,
-    ownerModule: 'supply',
-    purpose: ask ? 'ask-scope' : 'match-request',
-    policyVersion: ask ? ASK_SCOPE_POLICY_VERSION : MATCH_POLICY_VERSION,
-  } as const;
-  const limits = { allowRepair: true };
-  if (asked.kind === 'ask') {
-    const outcome = await harness.propose(
-      { run, role: ASK_SCOPE_ROLE, context: askScopeContext(job.requestId, asked.facts), limits },
-      signal,
-    );
-    return askScopeVerdict(outcome);
-  }
+): Promise<void> {
   const outcome = await harness.propose(
-    { run, role: MATCH_ROLE, context: matchContext(job.requestId, asked.text), limits },
+    {
+      run: {
+        id: job.requestId,
+        authority,
+        ownerModule: 'supply',
+        purpose: 'match-request',
+        policyVersion: MATCH_POLICY_VERSION,
+      },
+      role: MATCH_ROLE,
+      context: matchContext(job.requestId, text),
+      limits: { allowRepair: true },
+    },
     signal,
   );
-  return matchVerdict(outcome);
+  const verdict = matchVerdict(outcome);
+  await p.withScope(authority, async (scope) => {
+    await closeRun(harness, scope, job.requestId, verdict.end);
+    if (!(await p.ownerActive(scope))) return;
+    await applyVerdict(p, scope, job.requestId, verdict, undefined);
+  });
 }
 
-/** Closes a model run in the transaction that applies its verdict; a run the harness already refused to close stays as it was. */
+/** What placing a question needs: the ports, the recording-aware harness and the shared read of a library Scroll's prose. */
+interface QuestionDeps {
+  readonly p: SupplyPorts;
+  readonly recording: RecordingRuns;
+  readonly readLibrary: ReadLibraryPassages;
+}
+
+/**
+ * Places a question asked from a Scroll: the scope step, then, for a question placed on another subject, the library check.
+ * Both are model calls outside every transaction, stamped with the generation the question was asked at. The verdict is
+ * applied under that generation's fence, or the question closes as `could_not_prepare` and the verdict is dropped.
+ */
+async function placeQuestion(
+  deps: QuestionDeps,
+  authority: Authority,
+  job: ResolveSupplyJob,
+  asked: Extract<Asked, { readonly kind: 'ask' | 'source_gone' }>,
+  signal: AbortSignal,
+): Promise<void> {
+  const { p, recording, readLibrary } = deps;
+  if (asked.kind === 'source_gone') return closeUnplaced(p, authority, job.requestId, 'source_unavailable');
+  const { outcome, purpose } = await proposeAtGeneration(
+    recording.harness,
+    asked.owner,
+    {
+      run: {
+        id: job.requestId,
+        authority,
+        ownerModule: 'supply',
+        purpose: 'ask-scope',
+        policyVersion: ASK_SCOPE_POLICY_VERSION,
+      },
+      role: ASK_SCOPE_ROLE,
+      context: askScopeContext(job.requestId, asked.facts),
+      limits: { allowRepair: true },
+    },
+    signal,
+  );
+  const verdict = askScopeVerdict(outcome);
+  const scopeRun: StartedRun = {
+    runId: job.requestId,
+    purpose,
+    ...(verdict.end === undefined ? {} : { end: verdict.end }),
+  };
+  // A question placed on another subject is read against that subject's library Scrolls (a second call, outside every transaction).
+  const library =
+    verdict.kind === 'matched'
+      ? await checkLibraryMatch(
+          { p, harness: recording.harness, readLibrary },
+          authority,
+          { requestId: job.requestId, question: asked.facts.question, match: verdict.match, owner: asked.owner },
+          signal,
+        )
+      : undefined;
+  // A transaction closes one personal run, so the library check's run closes first, in a transaction of its own. If the process
+  // dies after it, a redelivery finds that run closed and offers no library Scroll (an order is made instead); the scope step's
+  // run is closed with its verdict applied, so its answer is never lost.
+  if (library?.run !== undefined) await closeStartedRunAlone(recording.harness, authority, library.run);
+  await applyQuestionVerdict(deps, authority, job.requestId, scopeRun, verdict, library?.verdict);
+}
+
+/**
+ * Applies the scope step's verdict and closes its run in one transaction under the recording fence. When the fence no longer
+ * holds (the person paused, resumed or cleared, or the request is no longer waiting) nothing of the verdict is applied and the
+ * request closes as `could_not_prepare`, which writes only the end of the request that was asked. A verdict with no run to
+ * close is a failure to place, which needs no fence.
+ */
+async function applyQuestionVerdict(
+  deps: QuestionDeps,
+  authority: Authority,
+  requestId: string,
+  scopeRun: StartedRun,
+  verdict: AskScopeVerdict,
+  library: LibraryVerdict | undefined,
+): Promise<void> {
+  const { p, recording } = deps;
+  if (scopeRun.end !== undefined) {
+    const applied = await recording.harness.withPersonalApply(authority, scopeRun.purpose, async (cap) => {
+      await closeStartedRun(recording.harness, cap, scopeRun);
+      await applyVerdict(p, cap.personal, requestId, verdict, library);
+    });
+    if (applied.kind === 'entered') return;
+    return closeUnplaced(p, authority, requestId, 'could_not_prepare');
+  }
+  await p.withScope(authority, async (scope) => {
+    if (await p.ownerActive(scope)) await applyVerdict(p, scope, requestId, verdict, library);
+  });
+}
+
+/** Closes a waiting request that could not be placed, in a transaction of its own. */
+async function closeUnplaced(
+  p: SupplyPorts,
+  authority: Authority,
+  requestId: string,
+  reason: 'source_unavailable' | 'could_not_prepare',
+): Promise<void> {
+  await p.withScope(authority, async (scope) => {
+    if (await p.ownerActive(scope)) await applyVerdict(p, scope, requestId, { kind: 'unavailable', reason }, undefined);
+  });
+}
+
+/** Applies a verdict to the request if it still waits, inside the caller's transaction (a cancel that came meanwhile wins). */
+async function applyVerdict(
+  p: SupplyPorts,
+  scope: PersonalScopeTx,
+  requestId: string,
+  verdict: AskScopeVerdict,
+  library: LibraryVerdict | undefined,
+): Promise<void> {
+  const d = await p.store.read(scope, requestId);
+  if (!d || d.status !== 'matching') return;
+  const decided = await decide(p, scope, d, verdict, library);
+  const current = await snapshot(p, scope, d);
+  const revision = await p.advance(scope);
+  const next: Demand = {
+    ...d,
+    ...decided,
+    revision,
+    requestRevision: checkedRevision(current.requestRevision + 1),
+    updatedAt: p.now().toISOString(),
+  };
+  await p.store.finish(scope, next);
+  if (next.status === 'requested') await p.enqueue(scope, d.id, nextPoll(d, p.now()));
+  await p.notify(scope, revision, d.id);
+}
+
+/** Closes a free-text match's run in the transaction that applies its verdict; a run the harness already refused to close stays as it was. */
 async function closeRun(
   harness: ReasoningHarness,
   scope: PersonalScopeTx,

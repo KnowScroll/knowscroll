@@ -10,7 +10,7 @@ import {
 } from '@knowscroll/client-core';
 import type { RoomIdentity, RoomInhabitant } from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, spacing } from '@knowscroll/design-tokens';
-import { Banner, Skeleton, StateBlock, Text } from '@knowscroll/ui';
+import { Banner, Button, Skeleton, StateBlock, Text } from '@knowscroll/ui';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { ThreadHeader } from '../threads/thread-chrome';
@@ -18,6 +18,7 @@ import { AiLabel } from './ai-label';
 import { FeedPost } from './feed-post';
 import { ResidentMark } from './identity/room-emblem';
 import { ResidentSheet } from './resident-sheet';
+import { ScoutSheet } from './scout-sheet';
 import { discussionHref, isRoomId, roomHref } from './room-links';
 import { useRoomFeed } from './use-room';
 
@@ -62,6 +63,7 @@ function Body({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<RoomInhabitant>();
+  const [scoutOpen, setScoutOpen] = useState(false);
   const view = state.view;
   if (view === undefined) return null;
   const { identity } = view;
@@ -71,6 +73,16 @@ function Body({
     <>
       {state.offline ? <Banner kind="offline" lead="Offline." message="This may be out of date." /> : null}
       <Residents residents={view.residents} identity={identity} onOpen={setOpen} />
+      {view.scout === undefined ? null : (
+        <Button
+          label={view.scout.state === 'on' ? 'Your scout' : 'Send your scout'}
+          variant="default"
+          size="sm"
+          onPress={() => setScoutOpen(true)}
+          accessibilityHint="Choose which of this room’s topics your own agent looks in"
+          testID="feed-scout-open"
+        />
+      )}
       {view.posts.length === 0 ? (
         <View style={styles.empty} accessibilityLiveRegion="polite" testID="feed-empty">
           <Text variant="title" heading={2}>
@@ -90,11 +102,23 @@ function Body({
                 now={now}
                 href={discussionHref(roomId, post.discussionId)}
                 onOpen={() => router.push(discussionHref(roomId, post.discussionId))}
+                onStopScout={view.canEditMemory ? (personId) => void controller.stopScout(personId, true) : undefined}
               />
             </View>
           ))}
         </View>
       )}
+      {scoutOpen && view.scout !== undefined ? (
+        <ScoutSheet
+          scout={view.scout}
+          working={state.working}
+          refused={state.refused}
+          visible
+          now={now}
+          onSave={(draft) => controller.setScout(draft)}
+          onClose={() => setScoutOpen(false)}
+        />
+      ) : null}
       <ResidentSheet
         resident={open}
         feed={view}
@@ -140,7 +164,7 @@ function FeedRoom({ scope, roomId }: { readonly scope: AccountScope; readonly ro
     <ScrollView contentContainerStyle={styles.scroll} testID="feed-screen">
       <ThreadHeader
         title="Feed"
-        people="Finds from the library, by this room’s residents"
+        people="Finds from the library, by this room’s residents and scouts"
         onBack={back}
         onMenu={undefined}
       />

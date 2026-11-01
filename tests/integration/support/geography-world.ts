@@ -312,6 +312,7 @@ export async function geographyWorld(name: string) {
       overrides: fixture.ports,
       checkPlanner: makeCheckPlannerRecordingRun({ store: plannerStore, now }),
       checkGeography: makeCheckGeographyRecordingRun({ store: geographyStore, now }),
+      checkSupply: () => Promise.resolve('unavailable' as const),
     });
     const ports: CartographerPorts = {
       ...base,

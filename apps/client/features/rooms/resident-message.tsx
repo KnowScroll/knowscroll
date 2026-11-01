@@ -30,6 +30,7 @@ export const WHY_WORDS = {
   overstated_claim: 'Asking about something said very strongly',
   answer_overstated: 'Replying to something said very strongly above',
   feed_find: 'Found something in the library that this room has not seen',
+  scout_find: 'Found in the library, in the topics its sender chose',
 } as const satisfies Record<RoomSpeechTrigger, string>;
 
 /**
@@ -46,6 +47,7 @@ export function ResidentHeader({
   ownPersonId,
   kit,
   inhabitant,
+  signature,
 }: {
   readonly name: string;
   readonly label: string;
@@ -56,6 +58,8 @@ export function ResidentHeader({
   /** The room's kit and which resident this is: the mark it wears in this room (D-170). Absent, no mark is drawn. */
   readonly kit?: RoomKit | undefined;
   readonly inhabitant?: InhabitantId | undefined;
+  /** "Sent by Asha": who a scout's note is signed by (D-259). A resident has none. */
+  readonly signature?: string | undefined;
 }) {
   return (
     <View style={styles.head} testID="resident-header">
@@ -71,6 +75,11 @@ export function ResidentHeader({
           </Text>
         )}
       </View>
+      {signature === undefined ? null : (
+        <Text variant="metaS" testID="scout-signature">
+          {signature}
+        </Text>
+      )}
       {trigger === undefined ? null : (
         <Text variant="metaS" color={content.ink2} testID="resident-why">
           {WHY_WORDS[trigger]}

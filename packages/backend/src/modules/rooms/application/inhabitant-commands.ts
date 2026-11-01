@@ -45,10 +45,9 @@ export function makeInhabitantCommands(p: RoomPorts) {
             const target = await p.discussions.messageById(lock, command.discussionId, command.about.messageId);
             if (target === undefined || target.hidden || (target.text === null && target.content === null))
               return refuse('unavailable');
-            if (
-              target.authorAccountId !== null &&
-              (await p.blocked(scope, owner.accountId, [target.authorAccountId])).has(target.authorAccountId)
-            )
+            // A scout's note is signed by its owner: someone the asker blocked is no more theirs to ask about for it.
+            const signer = target.authorAccountId ?? target.agentOwnerAccountId;
+            if (signer !== null && (await p.blocked(scope, owner.accountId, [signer])).has(signer))
               return refuse('unavailable');
           }
           const decision = await askDecisionFor(p, lock, owner.accountId, command.discussionId, now);

@@ -30,6 +30,7 @@ export async function roomsCommand(args: readonly string[], print: Print, logEve
       options: {
         'dry-run': { type: 'boolean', default: false },
         room: { type: 'string' },
+        owner: { type: 'string' },
         account: { type: 'string' },
         remove: { type: 'boolean', default: false },
         revision: { type: 'string' },
@@ -91,7 +92,12 @@ export async function roomsCommand(args: readonly string[], print: Print, logEve
     );
   const feedCommand = FEED_COMMANDS.find((candidate) => candidate === command);
   if (feedCommand !== undefined && parsed.positionals.length === 1)
-    return roomsFeedCommand(feedCommand, { room: values.room, dryRun: values['dry-run'] }, print, logEvent);
+    return roomsFeedCommand(
+      feedCommand,
+      { room: values.room, owner: values.owner, dryRun: values['dry-run'] },
+      print,
+      logEvent,
+    );
   const isSeed = command === 'seed' && parsed.positionals.length === 1;
   const isModerator =
     command === 'moderator' &&
