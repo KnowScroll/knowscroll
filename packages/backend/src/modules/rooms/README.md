@@ -216,7 +216,7 @@ A scout is a member's own agent in one room. It is the residents' find pass (`ap
 - **No evidence.** Nothing in a scout's path reads or writes a personal schema. The owner's recording state is one unlocked read of their universe row (a personal lock after the room's would invert the lock order), taken when the look begins and again before the note is stored. Pause recording stops a scout; a Clear does not (it holds no reading) and ends only a call in flight.
 - **Blocks and levels.** A reader who blocked the owner is listed none of its finds, the Now strip skips them and the opened note is the blocked marker; the heartbeat never reads blocks. A reader's AI level folds or hides a scout's note as it does a resident's.
 - **Reports.** A member reports a scout's find with the message report (`readReportableRoomMessage`): it is filed against the member who sent the scout, so their own moderators' list leaves it out and they cannot report their own scout.
-- **A moderator's stop.** The `stop_scout` and `allow_scout` actions of `moderate` name the person who sent it; the owner is told, can still change or take it back, and cannot lift it.
+- **A moderator's stop.** The `stop_scout` and `allow_scout` actions of `moderate` name the person who sent it; the owner is told, can still change it, and cannot lift it. Taking a stopped scout back keeps it, paused, with the stop (`takeBack`), so sending it again is still stopped; leaving, removal and deleting an account delete it (`forgetMember`).
 - **Operator** (`rooms scout --room <slug> --owner <handle> [--dry-run]`): one look for one scout exactly as the heartbeat makes it, or the assets code would choose from; one JSON line, no topics and no words.
 
 ## Today and the sky (v3 R-5, D-174 to D-176)
@@ -400,7 +400,7 @@ API provides it, and the worker's inhabitant consumer never asks. *Implemented; 
 | poll_votes | kept | the person's votes are deleted |
 | room_memory | kept (derived from messages Clear does not touch) | the words are erased (`stale`) if they read the person's messages, before the messages become tombstones; the moderator link is cleared and a moderator's text stays with the room |
 | memory_edits | kept | the moderator link is cleared; the edit stays as a fact about the room |
-| scouts | kept: the setting holds no reading (D-259); a Clear ends only a scout's call in flight | the person's scouts are deleted (and when they leave or are removed); the moderator link of a stop is cleared and the stop stands; the notes they posted become tombstones |
+| scouts | kept: the setting holds no reading (D-259); a Clear ends only a scout's call in flight | the person's scouts are deleted (and when they leave or are removed); the moderator link of a stop is cleared and the stop stands; the notes they posted become tombstones. Taking a scout back deletes it, except one a moderator stopped: that is kept, paused, with the stop (D-261) |
 | pg-boss `rooms.contribute`, `rooms.cast-due`, `rooms.cast-pass`, `rooms.summarise` | the universe's job payloads are deleted (the turns they named are settled first) | the same (universe erasure runs first) |
 
 Clear never removes messages, cards, discussions or memberships: they are explicit communication (D-042).

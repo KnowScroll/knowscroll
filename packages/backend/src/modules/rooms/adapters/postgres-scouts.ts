@@ -182,6 +182,24 @@ export const scoutReadStore: ScoutReadStore = {
       .execute();
   },
 
+  async takeBack(lock, accountId, now) {
+    const trx = sharedTransactionOf(lock.shared);
+    // A scout nobody stopped is simply gone. One a moderator stopped stays, paused, so that sending it again is still stopped.
+    await trx
+      .deleteFrom('rooms.scouts')
+      .where('room_id', '=', lock.roomId)
+      .where('owner_account_id', '=', accountId)
+      .where('stopped_at', 'is', null)
+      .execute();
+    await trx
+      .updateTable('rooms.scouts')
+      .set({ paused: true, updated_at: now })
+      .where('room_id', '=', lock.roomId)
+      .where('owner_account_id', '=', accountId)
+      .where('stopped_at', 'is not', null)
+      .execute();
+  },
+
   async setStopped(lock, input) {
     const updated = await sharedTransactionOf(lock.shared)
       .updateTable('rooms.scouts')

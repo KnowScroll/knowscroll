@@ -970,8 +970,16 @@ export interface ScoutReadStore {
       readonly now: Date;
     },
   ): Promise<void>;
-  /** Takes the member's scout back, or ends it with their membership. It posts nothing more; what it posted stays. */
+  /**
+   * Ends the member's scout with their membership (leaving, removal): the row goes, a moderator's stop with it. It posts nothing
+   * more; what it posted stays.
+   */
   forgetMember(lock: RoomLock, accountId: string): Promise<void>;
+  /**
+   * The member takes their scout back. It posts nothing more; what it posted stays. A scout a moderator stopped is not deleted but
+   * paused, with the stop kept, so sending it again cannot undo a moderator's stop (D-261).
+   */
+  takeBack(lock: RoomLock, accountId: string, now: Date): Promise<void>;
   /** A moderator stops a member's scout, or lets it post again. False when the member has none. */
   setStopped(
     lock: RoomLock,

@@ -579,6 +579,34 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
       expect((await look(scene.slug, scene.owner)).find.kind).toBe('posted');
     });
 
+    it('when a moderator stopped it and its owner took it back and sent it again: the stop stands', async () => {
+      const scene = await sent();
+      await libraryScroll(world.db, 'A Scroll for the stop that stands', 10, ASTRO);
+      const { look, model } = scoutBeat(world);
+      unwrap(await moderateScout(world, scene.moderator, scene.roomId, scene.owner, 'stop_scout'));
+      unwrap(await setScout(world, scene.owner, scene.roomId, null));
+      // Taking it back does not delete a stopped scout: it is paused, the stop is kept and the owner is still told.
+      expect(await scoutRow(world.db, scene.roomId, scene.owner)).toMatchObject({ paused: true });
+      expect((await scoutRow(world.db, scene.roomId, scene.owner))?.stopped_at).not.toBeNull();
+      expect(await scoutFeed(scene, scene.owner)).toMatchObject({ state: 'on', stopped: true, paused: true });
+      unwrap(await setScout(world, scene.owner, scene.roomId, { interests: [ASTRO] }));
+      expect(await scoutFeed(scene, scene.owner)).toMatchObject({ state: 'on', stopped: true, paused: false });
+      expect((await look(scene.slug, scene.owner)).find).toEqual({ kind: 'dropped', reason: 'stopped' });
+      expect(model.calls).toHaveLength(0);
+      // Only a moderator lifts it; then it posts.
+      unwrap(await moderateScout(world, scene.moderator, scene.roomId, scene.owner, 'allow_scout'));
+      expect((await look(scene.slug, scene.owner)).find.kind).toBe('posted');
+    });
+
+    it('is deleted with the stop when its owner leaves, even a scout a moderator had stopped', async () => {
+      const scene = await sent();
+      unwrap(await moderateScout(world, scene.moderator, scene.roomId, scene.owner, 'stop_scout'));
+      unwrap(
+        await world.rooms.leave(scene.owner.authority, { version, commandId: randomUUID(), roomId: scene.roomId }),
+      );
+      expect(await scoutRow(world.db, scene.roomId, scene.owner)).toBeUndefined();
+    });
+
     it('for topics its owner changed after the library was read: that look is dropped, and the next one is for the new topics', async () => {
       await libraryScroll(world.db, 'A Scroll in the topic it left', 10, ASTRO);
       const wanted = await libraryScroll(world.db, 'A Scroll in the topic it moved to', 20, OTHER);

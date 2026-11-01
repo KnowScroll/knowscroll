@@ -87,7 +87,7 @@ export function makeScoutCommands(p: RoomPorts) {
             return Promise.resolve(refuse('invalid_input'));
           return Promise.resolve(
             ok(async () => {
-              if (chosen === null) await p.scouts.forgetMember(lock, owner.accountId);
+              if (chosen === null) await p.scouts.takeBack(lock, owner.accountId, now);
               else
                 await p.scouts.save(lock, {
                   scoutId: p.newId(),
