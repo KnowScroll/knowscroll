@@ -1,8 +1,8 @@
 import {
   applyClosingRun,
   proposeWhenRecording,
+  runOwnerOf,
   runToClose,
-  startRunOwner,
   type RecordingReasoningHarness,
   type RunOwner,
 } from '../../../reasoning/public.js';
@@ -58,8 +58,6 @@ type Prepared =
  */
 export function makeSuggestDraft(p: DraftWorkerPorts, harness: RecordingReasoningHarness): SuggestStep {
   async function prepare(scope: PersonalScopeTx, draftId: string): Promise<Prepared> {
-    // The account gate comes before any thread row is read or locked.
-    const owner = await startRunOwner(harness, scope, draftId);
     const draft = await p.store.readDraft(scope, draftId);
     if (
       draft?.state !== 'thinking' ||
@@ -90,7 +88,8 @@ export function makeSuggestDraft(p: DraftWorkerPorts, harness: RecordingReasonin
         origin: draft.origin,
         window,
       }),
-      owner,
+      // Entering the thread took the account gate, so the account is the draft's own and only the generation is read.
+      owner: await runOwnerOf(harness, scope, draftId, draft.requesterAccountId),
     };
   }
 

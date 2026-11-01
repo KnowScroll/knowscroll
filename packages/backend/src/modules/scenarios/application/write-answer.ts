@@ -1,8 +1,8 @@
 import {
   applyClosingRun,
   proposeWhenRecording,
+  runOwnerOf,
   runToClose,
-  startRunOwner,
   type PersonalRecordingPurpose,
   type RecordingReasoningHarness,
   type RunOwner,
@@ -60,8 +60,6 @@ type Prepared =
  */
 export function makeWriteAnswer(p: AnswerWorkerPorts, harness: RecordingReasoningHarness): WriteAnswerStep {
   async function prepare(scope: PersonalScopeTx, nodeId: string): Promise<Prepared> {
-    // The account gate comes before any thread row is read or locked.
-    const owner = await startRunOwner(harness, scope, nodeId);
     const node = await p.store.readNode(scope, nodeId);
     if (node?.kind !== 'what_if' || node.status === 'removed' || node.answer?.state !== 'making')
       return { kind: 'skip' };
@@ -91,7 +89,8 @@ export function makeWriteAnswer(p: AnswerWorkerPorts, harness: RecordingReasonin
         subject: { title: subject.metadata.title, summary: subject.metadata.summary },
         passages,
       }),
-      owner,
+      // Entering the thread took the account gate, so the account is the starter's and only the generation is read.
+      owner: await runOwnerOf(harness, scope, nodeId, visit.self.accountId),
     };
   }
 

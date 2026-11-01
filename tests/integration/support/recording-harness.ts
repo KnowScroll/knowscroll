@@ -23,8 +23,8 @@ function realComposerCheck(): CheckPersonalRecordingRun {
   const activated = experienceBufferSourceProviders().find(
     (provider) => (provider.provide as symbol).description === 'composer.checkActivatedExposure',
   );
-  const [owner] = composerRecordingOwnerProviders();
-  return owner!.useFactory(activated!.useValue as Parameters<typeof owner.useFactory>[0]);
+  const owner = composerRecordingOwnerProviders()[0]!;
+  return owner.useFactory(activated!.useValue as Parameters<typeof owner.useFactory>[0]);
 }
 
 /**

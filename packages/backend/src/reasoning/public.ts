@@ -98,6 +98,7 @@ export {
   proposeAtGeneration,
   proposeWhenRecording,
   purposeOf,
+  runOwnerOf,
   runToClose,
   startRunOwner,
   type RunOwner,

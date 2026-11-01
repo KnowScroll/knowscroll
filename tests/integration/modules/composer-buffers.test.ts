@@ -22,7 +22,7 @@ import {
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceBufferSourceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
 import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
-import { REASONING_HARNESS } from '@knowscroll/backend/reasoning';
+import { RECORDING_REASONING_HARNESS } from '@knowscroll/backend/reasoning';
 import { guardedModelPort, type HarnessSettings } from '@knowscroll/backend/reasoning/nest-providers';
 import type { NavigationOutcome } from '@knowscroll/contracts';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
@@ -38,6 +38,8 @@ import {
   systemAuthority,
 } from '../support/fixture-model.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
+import { fixtureRecordingHarness } from '../support/recording-harness.js';
+import { clearRecordingPerson, pauseAndResume, recordingPerson, setRecording } from '../support/recording-person.js';
 import { buildFromProviders } from '../support/providers.js';
 import { scrollUseCases, starterSource, textCapabilities } from '../support/scroll.js';
 
@@ -57,6 +59,12 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
   let database: TestDatabase<Database>;
   let cases: Cases;
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+  /** What runs once, just before the worker enters its transaction to store what Jev bought: a pause or a Clear in that gap. */
+  let beforeApply: () => Promise<void> = () => Promise.resolve();
+  const once = (action: () => Promise<void>) => () => {
+    beforeApply = () => Promise.resolve();
+    return action();
+  };
 
   beforeAll(async () => {
     database = await createTestDatabase<Database>('composer_buffers');
@@ -78,16 +86,24 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
     return { assetId: imported.assetId, assetRevision: imported.revision, unit: source.publication.explanationUnitId };
   }
 
-  /** The worker side, built from the real providers over the real harness; only the model is a fixture. */
+  /**
+   * The worker side, built from the real providers over the real recording-aware harness; only the model is a fixture. The
+   * compatibility `harness` it also returns lets a test spend the background share through a run of its own.
+   */
   function workerFor(
     jev?: { readonly model: FixtureModelPort },
     settings?: HarnessSettings,
   ): { prepare: PrepareBuffer; calls: () => number; harness: ReturnType<typeof fixtureHarness>['harness'] } {
     const { harness } = fixtureHarness(database.db, { model: jev?.model, ...(settings ? { settings } : {}) });
+    const recording = fixtureRecordingHarness(database.db, {
+      model: jev?.model,
+      ...(settings ? { settings } : {}),
+      beforeApply: () => beforeApply(),
+    }).harness;
     const values = new Map<symbol, unknown>([
       [WITH_SCOPE, withScope()],
       [WORKER_CONFIG, { jevEnabled: jev !== undefined, reasoning: { minimax: { model: 'fixture-model-v1' } } }],
-      [REASONING_HARNESS, harness],
+      [RECORDING_REASONING_HARNESS, recording],
       [READ_COMPOSER_CONTEXT, cases.readComposerContext],
       ...[
         ...experienceBufferSourceProviders(),
@@ -126,18 +142,18 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
     });
 
   /** Opens Explore and activates the first offer, like the client does. */
-  async function openAndActivate(person: FixturePerson) {
+  async function openAndActivate(person: FixturePerson, using: Cases = cases) {
     const open = ready(
-      await cases.navigate(person.authority, {
+      await using.navigate(person.authority, {
         commandId: randomUUID(),
         target: { kind: 'discover' },
         capabilities: textCapabilities,
       }),
     );
-    return { open, ...(await activate(person, open)) };
+    return { open, ...(await activate(person, open, using)) };
   }
-  async function activate(person: FixturePerson, outcome: Ready) {
-    const activated = await cases.activateOffer(person.authority, {
+  async function activate(person: FixturePerson, outcome: Ready, using: Cases = cases) {
+    const activated = await using.activateOffer(person.authority, {
       commandId: randomUUID(),
       target: {
         kind: 'offer',
@@ -1057,6 +1073,151 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
       const entered = await withScope()(person.authority, (scope) => eraseUniverse(scope, personalStores));
       expect(entered.kind).toBe('entered');
       expect(await poolOf(person.universeId)).toBeUndefined();
+    });
+
+    /**
+     * A buffer job carries no recording generation of its own, so Jev runs at the generation recording is at when the job
+     * starts (D-270). Generation 1 is on, 2 is off, and 3 is on again after a pause and a resume.
+     */
+    describe('for a person who paused and resumed recording (D-270)', () => {
+      const runsOf = async (jobId: string) =>
+        (
+          await sql<{
+            purpose: string;
+            state: string;
+            recording_generation: number;
+          }>`select purpose, state, recording_generation from reasoning.business_runs where id=${jobId}::uuid`.execute(
+            database.db,
+          )
+        ).rows;
+      const bufferCount = async (universeId: string) =>
+        count(sql`select count(*) as n from composer.buffers where universe_id=${universeId}::uuid`);
+      const writtenForTheNewEpoch = async (universeId: string) =>
+        count(
+          sql`select (select count(*) from reasoning.business_runs where universe_id=${universeId}::uuid and privacy_epoch > 1)
+                    + (select count(*) from composer.buffers where universe_id=${universeId}::uuid and privacy_epoch > 1) as n`,
+        );
+      // People who can pause and clear recording meet Explore through the recording-aware Experience composition.
+      let recorded: Cases;
+      beforeAll(async () => {
+        recorded = await scrollUseCases(database, { buffers: true, recording: true });
+      });
+      afterAll(async () => {
+        await recorded.close();
+      });
+      /** A person who can pause and clear recording, already on an activated offer. */
+      async function watching() {
+        const person = await recordingPerson(database);
+        await openAndActivate(person, recorded);
+        return person;
+      }
+
+      it('assesses the shortlist, stores what it bought and stamps the run with the generation it started at', async () => {
+        const person = await watching();
+        await pauseAndResume(database, person);
+        const model = jevModel(fitting);
+        const worker = workerFor({ model });
+        const jobId = randomUUID();
+        const result = await worker.prepare(await latestJob(person.universeId), {
+          jobId,
+          signal: new AbortController().signal,
+        });
+        expect(result).toMatchObject({ kind: 'prepared', jev: 'assessed' });
+        expect(worker.calls()).toBe(1);
+        expect((await poolOf(person.universeId))!.entries.length).toBeGreaterThan(1);
+        expect(await runsOf(jobId)).toEqual([
+          { purpose: 'jev-assessment', state: 'completed', recording_generation: 3 },
+        ]);
+      });
+
+      it('drops a reply reached across a pause and a resume: the buffer is ranked without it, nothing of it is stored and the run is left open', async () => {
+        const person = await watching();
+        const jobId = randomUUID();
+        const model = guardedModelPort(
+          fixtureModelPort({
+            label: 'composer-buffers',
+            model: 'fixture-model-v1',
+            script: async (call) => {
+              await pauseAndResume(database, person);
+              return fitting([...call.request.user.matchAll(/ref="(c\d+)"/g)].map((match) => match[1]!));
+            },
+          }),
+        );
+        const worker = workerFor({ model });
+        const result = await worker.prepare(await latestJob(person.universeId), {
+          jobId,
+          signal: new AbortController().signal,
+        });
+        // The engine refuses to hand back an answer made under a generation that has ended.
+        expect(result).toMatchObject({ kind: 'prepared', jev: 'absent', jevReason: 'refused_output_ineligible' });
+        expect(worker.calls()).toBe(1);
+        expect(await poolOf(person.universeId)).toBeUndefined();
+        expect((await bufferOf(person.universeId))!.assessments).toBeNull();
+        expect((await runsOf(jobId)).map((row) => row.state)).toEqual(['admitted']);
+        expect(
+          await database.db
+            .selectFrom('reasoning.business_runs')
+            .select('id')
+            .where('universe_id', '=', person.universeId)
+            .where('recording_generation', '=', 3)
+            .execute(),
+        ).toEqual([]);
+        // The next preparation, at the new generation, is answered.
+        await expireBuffer(person.universeId);
+        const again = workerFor({ model: jevModel(fitting) });
+        expect(await run(again, await latestJob(person.universeId))).toMatchObject({ kind: 'prepared', jev: 'assessed' });
+      });
+
+      it('stores nothing when recording is paused between the reply and the store', async () => {
+        const person = await watching();
+        const worker = workerFor({ model: jevModel(fitting) });
+        beforeApply = once(() => setRecording(database, person, 1, false));
+        const jobId = randomUUID();
+        expect(
+          await worker.prepare(await latestJob(person.universeId), { jobId, signal: new AbortController().signal }),
+        ).toEqual({ kind: 'skipped', reason: 'recording_changed' });
+        expect(worker.calls()).toBe(1);
+        expect(await poolOf(person.universeId)).toBeUndefined();
+        expect(await bufferCount(person.universeId)).toBe(0);
+      });
+
+      it('stores nothing for a reply in flight across Clear: nothing is written for the new epoch', async () => {
+        const person = await watching();
+        const model = guardedModelPort(
+          fixtureModelPort({
+            label: 'composer-buffers',
+            model: 'fixture-model-v1',
+            script: async (call) => {
+              await clearRecordingPerson(database, recorded.boss, person);
+              return fitting([...call.request.user.matchAll(/ref="(c\d+)"/g)].map((match) => match[1]!));
+            },
+          }),
+        );
+        const worker = workerFor({ model });
+        const result = await worker.prepare(await latestJob(person.universeId), {
+          jobId: randomUUID(),
+          signal: new AbortController().signal,
+        });
+        expect(result.kind).toBe('skipped');
+        expect(worker.calls()).toBe(1);
+        expect(await poolOf(person.universeId)).toBeUndefined();
+        expect(await writtenForTheNewEpoch(person.universeId)).toBe(0);
+      });
+
+      it('prepares the buffer without a call or a run while recording is paused, as before', async () => {
+        const person = await watching();
+        await pauseAndResume(database, person);
+        await setRecording(database, person, 3, false);
+        const worker = workerFor({ model: jevModel(fitting) });
+        const jobId = randomUUID();
+        expect(
+          await worker.prepare(await latestJob(person.universeId), { jobId, signal: new AbortController().signal }),
+        ).toMatchObject({ kind: 'prepared', jev: 'absent', jevReason: 'refused_scope_refused' });
+        expect(worker.calls()).toBe(0);
+        expect(await runsOf(jobId)).toEqual([]);
+        expect(await bufferCount(person.universeId)).toBe(1);
+        expect(await poolOf(person.universeId)).toBeUndefined();
+      });
     });
   });
 });

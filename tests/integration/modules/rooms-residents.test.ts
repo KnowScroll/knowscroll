@@ -11,7 +11,8 @@ import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { holdCast } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { readOperatorPanelsFor } from '@knowscroll/backend/modules/operator/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureHarness, fixtureModel, fixtureSettings } from '../support/fixture-model.js';
+import { fixtureModel, fixtureSettings } from '../support/fixture-model.js';
+import { fixtureRecordingHarness } from '../support/recording-harness.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import {
   ask,
@@ -703,7 +704,7 @@ describe('residents speak on their own (real PostgreSQL, CI fixture model)', () 
       });
 
       // Asked turns always show, whatever the level.
-      const asked = fixtureHarness(world.db, { model: fixtureModel(() => pushesBack(), { label: 'asked' }) }).harness;
+      const asked = fixtureRecordingHarness(world.db, { model: fixtureModel(() => pushesBack(), { label: 'asked' }) }).harness;
       unwrap(await ask(world, room.kenji, room.roomId, room.general, 'skeptic'));
       await world.contribute(asked)(world.queued.at(-1)!);
       expect((await view(room.kenji, room)).messages.at(-1)).toMatchObject({
@@ -802,7 +803,7 @@ describe('residents speak on their own (real PostgreSQL, CI fixture model)', () 
       // A person asking is on their own scope and works as ever.
       const model = fixtureModel(() => pushesBack(), { label: 'asked-still-works' });
       unwrap(await ask(world, room.ravi, room.roomId, room.general, 'skeptic'));
-      await world.contribute(fixtureHarness(world.db, { model }).harness)(world.queued.at(-1)!);
+      await world.contribute(fixtureRecordingHarness(world.db, { model }).harness)(world.queued.at(-1)!);
       expect(model.calls).toHaveLength(1);
       expect(spokenBy((await view(room.asha, room)).messages)).toEqual(['Nova', 'Halley']);
     });
@@ -818,7 +819,7 @@ describe('residents speak on their own (real PostgreSQL, CI fixture model)', () 
       // The same day, an ask still goes through.
       const asked = fixtureModel(() => pushesBack(), { label: 'asked' });
       unwrap(await ask(world, room.kenji, room.roomId, room.general, 'skeptic'));
-      await world.contribute(fixtureHarness(world.db, { model: asked }).harness)(world.queued.at(-1)!);
+      await world.contribute(fixtureRecordingHarness(world.db, { model: asked }).harness)(world.queued.at(-1)!);
       expect(asked.calls).toHaveLength(1);
     });
   });

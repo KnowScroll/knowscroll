@@ -2,8 +2,8 @@ import {
   HARNESS_PROMPT_VERSION,
   applyClosingRun,
   proposeWhenRecording,
+  runOwnerOf,
   runToClose,
-  startRunOwner,
   type PersonalRecordingPurpose,
   type RecordingReasoningHarness,
 } from '../../../reasoning/public.js';
@@ -79,8 +79,6 @@ export function makeContribute(p: ContributePorts, harness: RecordingReasoningHa
     };
     const prepared = await p.withScope(authority, async (scope) => {
       if (!(await p.ownerActive(scope))) return undefined;
-      // The account gate comes before any room row is locked.
-      const owner = await startRunOwner(harness, scope, job.requestId);
       const found = await standingAsk(p, scope, job.requestId);
       if (found === undefined) return undefined;
       if (!found.allowed || found.discussion === undefined) {
@@ -100,6 +98,9 @@ export function makeContribute(p: ContributePorts, harness: RecordingReasoningHa
         await p.ai.settle(found.lock, job.requestId, { state: 'failed', at: p.now(), dispatched: false });
         return undefined;
       }
+      // The asker is the ask's own account (the job names their universe), so only the generation is read.
+      const askerId = found.request.requestedByAccountId;
+      const owner = askerId === null ? undefined : await runOwnerOf(harness, scope, found.request.turnId, askerId);
       return { request: found.request, context: contributionContext(material), owner };
     });
     if (prepared.kind !== 'entered' || prepared.value === undefined) return;

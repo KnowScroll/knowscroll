@@ -59,6 +59,27 @@ export async function startRunOwner(
 }
 
 /**
+ * Like {@link startRunOwner}, for a step whose scope has taken the account gate already (entering a thread or a room does) and
+ * which knows the account from its own record: only the generation is read. A wrong account is refused by the run's own fence.
+ */
+export async function runOwnerOf(
+  harness: RecordingReasoningHarness,
+  scope: PersonalScopeTx,
+  recordId: string,
+  accountId: string,
+): Promise<RunOwner | undefined> {
+  const generation = await harness.currentGeneration(scope);
+  if (generation === undefined) return undefined;
+  return {
+    accountId,
+    universeId: scope.authority.universeId,
+    privacyEpoch: scope.authority.privacyEpoch,
+    recordId,
+    recordingGeneration: generation,
+  };
+}
+
+/**
  * The whole proof of one run. A module has no frozen owner context of its own here, so the context the model is sent is also
  * the context the proof names: `digest` is the harness's digest of it (`contextDigest`) and stands for both hashes. Pure.
  */

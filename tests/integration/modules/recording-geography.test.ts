@@ -78,6 +78,7 @@ describe('Geography original generation and exact wake ownership (Actions only)'
       harness: {
         contextDigest: never,
         currentOwner: never,
+        currentGeneration: never,
         proposePersonal: never,
         withPersonalApply: never,
         closePersonalRun: never,

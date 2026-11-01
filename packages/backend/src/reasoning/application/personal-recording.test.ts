@@ -70,6 +70,7 @@ function denied() {
     closeLegacy: vi.fn(),
     readAccounting: vi.fn(),
     currentOwner: vi.fn(),
+    currentGeneration: vi.fn(),
   };
   const ports = {
     personalAccess: access,

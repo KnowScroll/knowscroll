@@ -12,7 +12,8 @@ import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infras
 import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureHarness, fixtureModel } from '../support/fixture-model.js';
+import { fixtureModel } from '../support/fixture-model.js';
+import { fixtureRecordingHarness } from '../support/recording-harness.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import {
   ask,
@@ -119,7 +120,7 @@ describe('idea rooms and erasure (real PostgreSQL)', () => {
       kind: 'success',
       text: JSON.stringify({ kind: 'explanation', text: 'A tokenizer splits text into pieces a model can count.' }),
     }));
-    const { harness } = fixtureHarness(database.db, { model });
+    const { harness } = fixtureRecordingHarness(database.db, { model });
     const before = world.queued.length;
     unwrap(await ask(world, erased, roomId, discussionId, 'explainer'));
     await world.contribute(harness)(world.queued[before]!);

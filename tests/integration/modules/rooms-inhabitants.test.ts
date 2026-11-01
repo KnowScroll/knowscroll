@@ -8,7 +8,8 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureHarness, fixtureModel, attemptsOf, receiptClassesOf } from '../support/fixture-model.js';
+import { fixtureModel, attemptsOf, receiptClassesOf } from '../support/fixture-model.js';
+import { fixtureRecordingHarness } from '../support/recording-harness.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import {
   ask,
@@ -53,7 +54,7 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     unwrap(await say(world, asha, roomId, discussionId, 'More traffic means a bigger bill, linearly?'));
     unwrap(await say(world, ravi, roomId, discussionId, 'I think batching makes it cheaper.'));
     const model = fixtureModel(script, { label: 'rooms-inhabitants' });
-    const { harness } = fixtureHarness(database.db, { model });
+    const { harness } = fixtureRecordingHarness(database.db, { model });
     return { roomId, slug, asha, ravi, discussionId, model, contribute: world.contribute(harness) };
   }
 
@@ -373,7 +374,7 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     let release: (scenario: FixtureScenario) => void = () => undefined;
     const held = new Promise<FixtureScenario>((resolve) => (release = resolve));
     const model = fixtureModel(() => ({ kind: 'hold', until: held }), { label: 'rooms-bound' });
-    const { harness } = fixtureHarness(database.db, { model });
+    const { harness } = fixtureRecordingHarness(database.db, { model });
     const job = await askAndTake(person, roomId, discussionId);
     const running = world.contribute(harness)(job);
     await expect.poll(() => model.calls.length).toBe(1);

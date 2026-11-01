@@ -274,6 +274,11 @@ export function makePersonalReasoningAccess(p: {
         throw new PersonalReasoningRefused('run_mismatch');
       return p.ledger.closeRun(scope.personal, run);
     },
+    async currentGeneration(scope) {
+      transactionOf(scope);
+      const now = await p.readRecording(scope);
+      return now.kind === 'recording' ? now.generation : undefined;
+    },
     async currentOwner(scope) {
       transactionOf(scope);
       const own = await p.fenceOwn(scope);

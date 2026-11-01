@@ -132,6 +132,12 @@ export interface RecordingReasoningHarness {
    */
   currentOwner(scope: PersonalScopeTx): Promise<{ readonly accountId: string; readonly generation: number } | undefined>;
   /**
+   * The generation the scope's recording is at now, with no account gate: for a step whose scope has already taken that gate
+   * (a thread or a room is entered through it) and which knows the account from its own record. The run's own fence checks
+   * the account again. Nothing when recording is paused or the scope is not usable.
+   */
+  currentGeneration(scope: PersonalScopeTx): Promise<number | undefined>;
+  /**
    * The digest `proposePersonal` binds a purpose's `modelContextSha256` to: of exactly the bundle reference and the items it
    * will send, nothing else of the context. An owner with no frozen context of its own uses it for both hashes of a purpose.
    */
@@ -369,6 +375,7 @@ export function makePersonalRecordingReasoningHarness(ports: PersonalRecordingHa
     readPersonalRunAccounting: (scope, runId, readExpectedBinding) =>
       ports.engine.personalAccess.readAccounting(scope, runId, readExpectedBinding),
     currentOwner: (scope) => ports.engine.personalAccess.currentOwner(scope),
+    currentGeneration: (scope) => ports.engine.personalAccess.currentGeneration(scope),
     contextDigest: (context) =>
       ports.hashContext({
         bundleRef: context.bundleRef,
