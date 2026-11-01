@@ -125,7 +125,7 @@ export function RoomTabBar({ tab, onSelect }: { readonly tab: RoomTab; readonly 
 /** A panel that is not open stays mounted, so its scroll is still there; the web hides it without losing its box. */
 const hiddenPanel: ViewStyle =
   Platform.OS === 'web'
-    ? ({ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, visibility: 'hidden' } as ViewStyle)
+    ? { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, visibility: 'hidden' }
     : { display: 'none' };
 
 function Panel({
