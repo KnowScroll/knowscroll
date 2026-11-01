@@ -76,7 +76,7 @@ const memberPost = (over: object = {}): RoomFeedPost =>
     words: 'The arc is a far galaxy.',
     link: { kind: 'content', content: card('reel') },
     ...over,
-  }) as RoomFeedPost;
+  });
 const sent = (scope: ReturnType<typeof scopeOf>, name: string) => scope.calls.filter((call) => call.name === name);
 
 describe('the words of a member’s post (v3 R-8b)', () => {
@@ -193,7 +193,7 @@ describe('sorts, votes and posting in one room’s feed (v3 R-8b)', () => {
 
   it('tells a post that was refused from one that waits for tomorrow, and sends nothing without a link', async () => {
     const tooMany = new ORPCError('TOO_MANY_REQUESTS', { status: 429, data: problemDetails('TOO_MANY_REQUESTS') });
-    let failure: unknown = tooMany;
+    let failure: Error = tooMany;
     const scope = scopeOf({ feed: () => Promise.resolve(ready()), postFind: () => Promise.reject(failure) });
     const feed = createRoomFeed({ scope, roomId, newId });
     await feed.load();

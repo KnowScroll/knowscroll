@@ -258,7 +258,7 @@ describe('the post sheet (v3 R-8b)', () => {
         visible
         working={false}
         postsPerDay={3}
-        onPost={onPost as never}
+        onPost={onPost}
         onOpenExisting={onOpenExisting}
         onClose={onClose}
       />,

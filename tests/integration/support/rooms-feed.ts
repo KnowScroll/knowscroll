@@ -136,7 +136,8 @@ export const readFeed = async (
 export interface PostInput {
   readonly title?: string;
   readonly words?: string;
-  readonly link: { kind: 'content'; target: { assetId: string; assetRevision: number } } | { kind: 'source'; url: string };
+  readonly link:
+    { kind: 'content'; target: { assetId: string; assetRevision: number } } | { kind: 'source'; url: string };
 }
 
 /** A member posts a find to the Feed, under a fresh command ID. */
@@ -151,8 +152,7 @@ export const postFind = (world: RoomWorld, person: Friend, roomId: string, input
   });
 
 /** A link to a library asset at its first revision. */
-export const assetLink = (assetId: string) =>
-  ({ kind: 'content', target: { assetId, assetRevision: 1 } }) as const;
+export const assetLink = (assetId: string) => ({ kind: 'content', target: { assetId, assetRevision: 1 } }) as const;
 
 /** A link to a source. */
 export const sourceLink = (url: string) => ({ kind: 'source', url }) as const;

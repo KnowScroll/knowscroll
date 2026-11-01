@@ -23,8 +23,10 @@ export type PostTextProblem = 'empty' | 'too_long' | 'has_link' | 'has_control';
 
 /** A link belongs in the source, where it is checked; the headline and the words carry none. */
 const LINK_IN_TEXT = /https?:\/\/|www\./iu;
-/** Controls other than a line break in the words, and every control in the headline. */
-const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/u;
+/** A control character other than a tab or a line break: the C0 and C1 controls and DEL. */
+const isControl = (point: number): boolean =>
+  (point < 32 && point !== 9 && point !== 10 && point !== 13) || (point >= 127 && point <= 159);
+const hasControl = (text: string): boolean => [...text].some((character) => isControl(character.codePointAt(0)!));
 
 /**
  * What is wrong with the headline or the words of a post, if anything. Both are the member's own: they are trimmed by the contract,
@@ -34,7 +36,7 @@ export function postTextProblem(text: string, maxChars: number, multiline: boole
   if (text.trim() === '') return 'empty';
   if ([...text].length > maxChars) return 'too_long';
   if (LINK_IN_TEXT.test(text)) return 'has_link';
-  if (CONTROL.test(text) || (!multiline && /[\n\r]/u.test(text))) return 'has_control';
+  if (hasControl(text) || (!multiline && /[\n\r]/u.test(text))) return 'has_control';
   return undefined;
 }
 
@@ -91,7 +93,7 @@ export function checkSource(
   const text = input.trim();
   if (text === '') return { kind: 'refused', problem: 'empty' };
   if ([...text].length > POST_RULES.sourceMaxChars) return { kind: 'refused', problem: 'too_long' };
-  if (/\s/u.test(text) || CONTROL.test(text)) return { kind: 'refused', problem: 'not_an_address' };
+  if (/\s/u.test(text) || hasControl(text)) return { kind: 'refused', problem: 'not_an_address' };
   let url: URL;
   try {
     url = new URL(text);

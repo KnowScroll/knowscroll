@@ -66,7 +66,6 @@ const card = (kind: 'reel' | 'scroll' = 'reel'): ConversationContentProjection =
   },
 });
 type Find = Extract<RoomFeedPost, { kind: 'find' }>;
-type MemberPost = Extract<RoomFeedPost, { kind: 'post' }>;
 const post = (patch: Partial<Find> = {}): Find => ({
   kind: 'find',
   discussionId: id(3),
@@ -80,28 +79,6 @@ const post = (patch: Partial<Find> = {}): Find => ({
   canVote: true,
   ...patch,
 });
-const asha = { kind: 'person' as const, personId: id(7), handle: 'asha', displayName: 'Asha' };
-const memberPost = (patch: Partial<MemberPost> = {}): MemberPost => ({
-  kind: 'post',
-  discussionId: id(5),
-  author: { kind: 'person', person: asha, you: false },
-  postedAt: new Date(Date.now() - 12 * 60_000).toISOString(),
-  title: 'Found a Reel on gravitational lensing',
-  words: 'At 0:40 the arc isn’t a weird galaxy. It’s a normal one far behind, stretched by mass we mostly can’t see.',
-  link: { kind: 'content', content: card() },
-  replies: 0,
-  votes: 14,
-  youVoted: false,
-  canVote: true,
-  ...patch,
-});
-const sourcePost = (patch: Partial<MemberPost> = {}): MemberPost =>
-  memberPost({
-    discussionId: id(6),
-    title: 'A paper on lensing',
-    link: { kind: 'source', source: { url: 'https://www.nature.com/articles/s41586', host: 'nature.com' } },
-    ...patch,
-  });
 const feed = (patch: Partial<Extract<RoomFeed, { status: 'ready' }>> = {}): Extract<RoomFeed, { status: 'ready' }> => ({
   version: 'rooms.v1',
   readId: id(2),

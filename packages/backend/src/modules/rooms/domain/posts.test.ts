@@ -1,8 +1,4 @@
-import {
-  ROOM_POST_TITLE_MAX_CHARS,
-  ROOM_POST_WORDS_MAX_CHARS,
-  ROOM_SOURCE_MAX_CHARS,
-} from '@knowscroll/contracts';
+import { ROOM_POST_TITLE_MAX_CHARS, ROOM_POST_WORDS_MAX_CHARS, ROOM_SOURCE_MAX_CHARS } from '@knowscroll/contracts';
 import { describe, expect, it } from 'vitest';
 import { POST_RULES, checkSource, hostOf, mayPost, postTextProblem } from './posts.js';
 
@@ -57,7 +53,9 @@ describe('a source (checked as text, never fetched)', () => {
   });
 
   it('makes one page one source: the fragment and tracking parameters go, the host is lower case', () => {
-    expect(ok('HTTPS://Example.ORG/page?utm_source=x&id=7&fbclid=abc#section').url).toBe('https://example.org/page?id=7');
+    expect(ok('HTTPS://Example.ORG/page?utm_source=x&id=7&fbclid=abc#section').url).toBe(
+      'https://example.org/page?id=7',
+    );
     expect(ok('https://example.org/page?utm_medium=x').url).toBe('https://example.org/page');
     expect(ok('https://example.org/page').url).toBe(ok('https://example.org/page#top').url);
   });

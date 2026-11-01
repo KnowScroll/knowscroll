@@ -7,8 +7,16 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { eraseCurrentAccount, exportCurrentPerson } from '@knowscroll/backend/erasure-registry';
-import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
+import {
+  eraseCurrentAccount,
+  eraseCurrentExploration,
+  exportCurrentPerson,
+  personalStores,
+} from '@knowscroll/backend/erasure-registry';
+import { applyQueueDeclarations, createBoss } from '@knowscroll/backend/infrastructure/jobs';
+import { clearExplorationQueue, recoverClearOperationsQueue } from '@knowscroll/backend/modules/identity';
+import { clearExplorationFor } from '@knowscroll/backend/modules/identity/nest-providers';
+import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { openToEveryone } from '../support/audience.js';
@@ -42,6 +50,7 @@ import {
 } from '../support/rooms.js';
 import { friendCommand, seedFriend, type Friend } from '../support/talk.js';
 
+const roomsErasure = personalStores.find((declaration) => declaration.module === 'rooms')!;
 const HOUR = 3_600_000;
 const START = new Date('2026-11-01T07:59:00Z');
 const version = 'rooms.v1' as const;
@@ -73,7 +82,12 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
     const people = await joined(world, roomId, members);
     return { roomId, slug, people };
   };
-  const posted = async (author: Friend, roomId: string, link: Parameters<typeof postFind>[3]['link'], title?: string) => {
+  const posted = async (
+    author: Friend,
+    roomId: string,
+    link: Parameters<typeof postFind>[3]['link'],
+    title?: string,
+  ) => {
     const accepted = unwrap(await postFind(world, author, roomId, { link, ...(title === undefined ? {} : { title }) }));
     expect(accepted.result).toBe('posted');
     return accepted.discussionId;
@@ -107,7 +121,10 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
         votes: 0,
         youVoted: false,
         canVote: true,
-        link: { kind: 'content', content: { status: 'available', metadata: { kind: 'reel', title: 'Light that bends' } } },
+        link: {
+          kind: 'content',
+          content: { status: 'available', metadata: { kind: 'reel', title: 'Light that bends' } },
+        },
       });
       expect(post).toHaveProperty('words');
       // The author reads their own post as theirs, and cannot vote on it.
@@ -138,7 +155,11 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
         .execute();
       expect(rows).toEqual([
         expect.objectContaining({ source_url: null, person_post: true, root_asset_id: scroll }),
-        expect.objectContaining({ source_url: 'https://www.nature.com/articles/s41586', person_post: true, root_asset_id: null }),
+        expect.objectContaining({
+          source_url: 'https://www.nature.com/articles/s41586',
+          person_post: true,
+          root_asset_id: null,
+        }),
       ]);
     });
 
@@ -151,7 +172,9 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
         checks: world.castChecks.length,
         passes: world.castPasses.length,
         summaries: world.summaries.length,
-        turns: Number((await sql<{ n: string }>`select count(*)::text as n from rooms.ai_turns`.execute(world.db)).rows[0]!.n),
+        turns: Number(
+          (await sql<{ n: string }>`select count(*)::text as n from rooms.ai_turns`.execute(world.db)).rows[0]!.n,
+        ),
       };
       const discussionId = await posted(asha, roomId, assetLink(reel));
       unwrap(await votePost(world, ravi, roomId, discussionId));
@@ -161,7 +184,9 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
         checks: world.castChecks.length,
         passes: world.castPasses.length,
         summaries: world.summaries.length,
-        turns: Number((await sql<{ n: string }>`select count(*)::text as n from rooms.ai_turns`.execute(world.db)).rows[0]!.n),
+        turns: Number(
+          (await sql<{ n: string }>`select count(*)::text as n from rooms.ai_turns`.execute(world.db)).rows[0]!.n,
+        ),
       }).toEqual(before);
     });
 
@@ -219,7 +244,9 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
       expect(await refusal({ link: assetLink(gone) })).toBe('unavailable');
       expect(await refusal({ link: assetLink(randomUUID()) })).toBe('unavailable');
       // A revision that is not the current one is not what a post may link.
-      expect(await refusal({ link: { kind: 'content', target: { assetId: reel, assetRevision: 7 } } })).toBe('unavailable');
+      expect(await refusal({ link: { kind: 'content', target: { assetId: reel, assetRevision: 7 } } })).toBe(
+        'unavailable',
+      );
       expect(await personPosts(roomId, asha)).toEqual([]);
     });
 
@@ -255,7 +282,9 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
       const again = unwrap(await postFind(world, ravi, roomId, { link: assetLink(reel) }));
       expect(again).toMatchObject({ result: 'already_there', discussionId: first });
       const source = await posted(asha, roomId, sourceLink('https://example.org/a?utm_campaign=x'));
-      const sameSource = unwrap(await postFind(world, ravi, roomId, { link: sourceLink('https://EXAMPLE.org/a#frag') }));
+      const sameSource = unwrap(
+        await postFind(world, ravi, roomId, { link: sourceLink('https://EXAMPLE.org/a#frag') }),
+      );
       expect(sameSource).toMatchObject({ result: 'already_there', discussionId: source });
       expect(await personPosts(roomId, ravi)).toHaveLength(2);
       // Nothing was made for the repeat, so it did not use up the day.
@@ -321,8 +350,14 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
       expect(unwrap(await votePost(world, lena, roomId, discussionId))).toMatchObject({ votes: 3 });
       expect((await postsOf(roomId, ravi))[0]).toMatchObject({ votes: 3, youVoted: true, canVote: true });
       expect((await postsOf(roomId, asha))[0]).toMatchObject({ votes: 3, youVoted: false, canVote: false });
-      expect(unwrap(await votePost(world, ravi, roomId, discussionId, false))).toMatchObject({ voted: false, votes: 2 });
-      expect(unwrap(await votePost(world, ravi, roomId, discussionId, false))).toMatchObject({ voted: false, votes: 2 });
+      expect(unwrap(await votePost(world, ravi, roomId, discussionId, false))).toMatchObject({
+        voted: false,
+        votes: 2,
+      });
+      expect(unwrap(await votePost(world, ravi, roomId, discussionId, false))).toMatchObject({
+        voted: false,
+        votes: 2,
+      });
       expect((await postsOf(roomId, ravi))[0]).toMatchObject({ votes: 2, youVoted: false });
     });
 
@@ -347,7 +382,9 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
         [ravi, kenji, await told(ravi, raviAnswer)],
       ];
       for (const [reader, voter, text] of seen) {
-        expect(text, `${reader.person.handle} is not told who ${voter.person.handle} is`).not.toContain(voter.accountId);
+        expect(text, `${reader.person.handle} is not told who ${voter.person.handle} is`).not.toContain(
+          voter.accountId,
+        );
         expect(text).not.toContain(voter.person.personId);
         expect(text).not.toContain(voter.person.handle);
       }
@@ -370,7 +407,10 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
         .where('kind', '=', 'general')
         .executeTakeFirstOrThrow();
       const [, ravi] = people as [Friend, Friend];
-      expect(await votePost(world, ravi, roomId, general.discussion_id)).toEqual({ kind: 'refused', code: 'unavailable' });
+      expect(await votePost(world, ravi, roomId, general.discussion_id)).toEqual({
+        kind: 'refused',
+        code: 'unavailable',
+      });
       expect(await votesIn(roomId)).toEqual([]);
     });
 
@@ -391,9 +431,13 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
         where table_schema = 'rooms' and table_name = 'post_votes' order by ordinal_position`.execute(world.db);
       expect(columns.rows.map((row) => row.column_name)).toEqual(['discussion_id', 'account_id', 'voted_at']);
       // A vote earns nobody a star and nobody a mark of Useful.
-      expect(Number((await sql<{ n: string }>`select count(*)::text as n from rooms.stars`.execute(world.db)).rows[0]!.n)).toBe(0);
       expect(
-        Number((await sql<{ n: string }>`select count(*)::text as n from rooms.message_useful`.execute(world.db)).rows[0]!.n),
+        Number((await sql<{ n: string }>`select count(*)::text as n from rooms.stars`.execute(world.db)).rows[0]!.n),
+      ).toBe(0);
+      expect(
+        Number(
+          (await sql<{ n: string }>`select count(*)::text as n from rooms.message_useful`.execute(world.db)).rows[0]!.n,
+        ),
       ).toBe(0);
     });
 
@@ -453,7 +497,11 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
     });
 
     it('is Top: the most votes among the posts of a window, and a post outside the window is not counted', async () => {
-      const reels = [await libraryReel(world.db, 'Old'), await libraryReel(world.db, 'Middle'), await libraryReel(world.db, 'Recent')];
+      const reels = [
+        await libraryReel(world.db, 'Old'),
+        await libraryReel(world.db, 'Middle'),
+        await libraryReel(world.db, 'Recent'),
+      ];
       const { roomId, people } = await scene(4);
       const [asha, ravi, kenji, lena] = people as [Friend, Friend, Friend, Friend];
       const old = await posted(asha, roomId, assetLink(reels[0]!), 'Old');
@@ -478,7 +526,11 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
     });
 
     it('is Hot by default: votes decayed by age, so a voted post stays up and a fresh one is seen', async () => {
-      const reels = [await libraryReel(world.db, 'Voted'), await libraryReel(world.db, 'Fresh'), await libraryReel(world.db, 'Stale')];
+      const reels = [
+        await libraryReel(world.db, 'Voted'),
+        await libraryReel(world.db, 'Fresh'),
+        await libraryReel(world.db, 'Stale'),
+      ];
       const { roomId, people } = await scene(4);
       const [asha, ravi, kenji, lena] = people as [Friend, Friend, Friend, Friend];
       const stale = await posted(asha, roomId, assetLink(reels[2]!), 'Stale');
@@ -491,7 +543,11 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
       expect((await readFeed(world, asha, roomId)).sort).toBe('hot');
       // Three votes at two and a half hours keep a post above one just made with none; the day-old post with none is last.
       expect(hot).toEqual([voted, fresh, stale]);
-      expect((await postsOf(roomId, asha, { sort: 'new' })).map((post) => post.discussionId)).toEqual([fresh, voted, stale]);
+      expect((await postsOf(roomId, asha, { sort: 'new' })).map((post) => post.discussionId)).toEqual([
+        fresh,
+        voted,
+        stale,
+      ]);
       // The same posts, a week later: age has brought the voted post below one that is new.
       world.clock.now = new Date(START.getTime() + 8 * 24 * HOUR);
       const newest = await posted(kenji, roomId, assetLink(await libraryReel(world.db, 'Newest')), 'Newest');
@@ -615,10 +671,67 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
       }
       const deleteAccount = async (person: Friend) => {
         const receiptId = randomUUID();
-        const deleting = deleteAccountFor(database.db, boss, { eraseAccountData: eraseCurrentAccount, lockTimeoutMs: 5_000 });
+        const deleting = deleteAccountFor(database.db, boss, {
+          eraseAccountData: eraseCurrentAccount,
+          lockTimeoutMs: 5_000,
+        });
         expect((await deleting.request(person.authority, { receiptId })).kind).toBe('accepted');
         expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
       };
+
+      /** The person's real, sealed Clear of exploration history (epoch 1 to 2). */
+      async function clearExploration(person: Friend) {
+        const installer = createBoss(database.settings, 'install', {
+          onError: () => undefined,
+          onWarning: () => undefined,
+        });
+        await installer.start();
+        try {
+          await applyQueueDeclarations(installer, [clearExplorationQueue, recoverClearOperationsQueue]);
+          const use = clearExplorationFor(database.db, installer, {
+            reasoning: clearReasoning,
+            eraseCore: eraseCurrentExploration,
+          });
+          const commandId = randomUUID();
+          expect(
+            await use.start(
+              { accountId: person.accountId, universeId: person.universeId, privacyEpoch: 1 },
+              {
+                version: 'clear-exploration.v1',
+                commandId,
+                expectedPrivacyEpoch: 1,
+                confirmation: 'clear-exploration-preserve-keep-and-social',
+              },
+            ),
+          ).toMatchObject({ kind: 'entered', value: { kind: 'ok' } });
+          await use.process({ v: 1, accountId: person.accountId, commandId });
+        } finally {
+          await installer.stop({ graceful: false });
+        }
+      }
+
+      it('keeps a member’s posts and votes through a Clear of exploration history: they are conversation and hold no reading', async () => {
+        const author = await namedPerson();
+        const voter = await namedPerson();
+        const { roomId } = await seedRoom(world);
+        for (const person of [author, voter]) unwrap(await joinRoom(world, person, roomId));
+        const mine = await posted(voter, roomId, sourceLink('https://example.org/clear-mine'), 'A post the voter made');
+        const theirs = await posted(
+          author,
+          roomId,
+          sourceLink('https://example.org/clear-theirs'),
+          'A post the voter voted on',
+        );
+        unwrap(await votePost(world, voter, roomId, theirs));
+        await clearExploration(voter);
+        expect(roomsErasure.clearExploration?.dispositions['rooms.post_votes']).toBe('preserve');
+        expect(roomsErasure.clearExploration?.dispositions['rooms.discussions']).toBe('preserve');
+        expect((await votesIn(roomId)).map((row) => [row.discussion_id, row.account_id])).toEqual([
+          [theirs, voter.accountId],
+        ]);
+        const listed = (await personPosts(roomId, author, { sort: 'new' })).map((post) => post.discussionId);
+        expect([...listed].sort()).toEqual([theirs, mine].sort());
+      });
 
       it('exports a member’s own posts and votes, and in no one else’s file', async () => {
         const author = await namedPerson();
@@ -628,8 +741,9 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
         const discussionId = await posted(author, roomId, sourceLink('https://example.org/exported'), 'Exported words');
         unwrap(await votePost(world, voter, roomId, discussionId));
         const exportOf = async (person: Friend) => {
-          const exported = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(person.authority, (scope) =>
-            exportCurrentPerson(scope, { accountId: person.accountId }, openToEveryone),
+          const exported = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(
+            person.authority,
+            (scope) => exportCurrentPerson(scope, { accountId: person.accountId }, openToEveryone),
           );
           if (exported.kind !== 'entered') throw new Error('export refused');
           return JSON.stringify(exported.value.sections['rooms']);
@@ -652,7 +766,12 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
         const { roomId } = await seedRoom(world);
         for (const person of [author, voter, staying]) unwrap(await joinRoom(world, person, roomId));
         const reel = await libraryReel(world.db, 'Deleted author');
-        const sourced = await posted(author, roomId, sourceLink('https://example.org/deleted-author'), 'Words that will go');
+        const sourced = await posted(
+          author,
+          roomId,
+          sourceLink('https://example.org/deleted-author'),
+          'Words that will go',
+        );
         const asset = await posted(author, roomId, assetLink(reel), 'Another headline that will go');
         const others = await posted(staying, roomId, sourceLink('https://example.org/staying'), 'Words that stay');
         for (const discussionId of [sourced, asset, others]) unwrap(await votePost(world, voter, roomId, discussionId));
@@ -667,11 +786,18 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
           .where('discussion_id', 'in', [sourced, asset])
           .execute();
         for (const row of rows) {
-          expect(row).toMatchObject({ title: 'A post from a deleted account', source_url: null, started_by_account_id: null, person_post: true });
+          expect(row).toMatchObject({
+            title: 'A post from a deleted account',
+            source_url: null,
+            started_by_account_id: null,
+            person_post: true,
+          });
         }
         expect(JSON.stringify(rows)).not.toContain('will go');
         // Votes on the deleted author's posts went with them; the staying voter's vote on the other post is the voter's own.
-        expect((await votesIn(roomId)).map((row) => [row.discussion_id, row.account_id])).toEqual([[others, voter.accountId]]);
+        expect((await votesIn(roomId)).map((row) => [row.discussion_id, row.account_id])).toEqual([
+          [others, voter.accountId],
+        ]);
         // What others wrote under the post stays, with the post's first message gone.
         const view = await readDiscussion(world, staying, roomId, sourced);
         if (view.status !== 'ready') throw new Error('expected ready');
