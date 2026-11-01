@@ -23,6 +23,8 @@ interface DiscussionColumns {
   tag: string | null;
   root_asset_id: string | null;
   root_asset_revision: number | null;
+  source_url: string | null;
+  person_post: boolean;
   origin_message_id: string | null;
   started_by_account_id: string | null;
   pinned_at: Date | null;
@@ -41,6 +43,8 @@ const DISCUSSION_COLUMNS = [
   'tag',
   'root_asset_id',
   'root_asset_revision',
+  'source_url',
+  'person_post',
   'origin_message_id',
   'started_by_account_id',
   'pinned_at',
@@ -61,6 +65,8 @@ const discussionOf = (row: DiscussionColumns): DiscussionRow => ({
     row.root_asset_id === null || row.root_asset_revision === null
       ? null
       : { assetId: row.root_asset_id, assetRevision: row.root_asset_revision },
+  source: row.source_url,
+  personPost: row.person_post,
   originMessageId: row.origin_message_id,
   startedByAccountId: row.started_by_account_id,
   pinned: row.pinned_at !== null,
@@ -444,6 +450,9 @@ export const discussionStore: DiscussionStore = {
         room_id: lock.roomId,
         title: discussion.title,
         title_derived: discussion.titleDerived,
+        ...(discussion.post === undefined
+          ? {}
+          : { kind: 'find', person_post: true, source_url: discussion.post.sourceUrl ?? null }),
         tag: discussion.tag ?? null,
         root_asset_id: discussion.root?.assetId ?? null,
         root_asset_revision: discussion.root?.assetRevision ?? null,

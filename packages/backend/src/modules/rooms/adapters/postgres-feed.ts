@@ -4,7 +4,7 @@ import { notifyRoomChanged } from '../../../infrastructure/notices/index.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { sharedTransactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { productionTransactionOf } from '../../../infrastructure/postgres/production-scope.js';
-import type { FeedStore, FeedTurn, MemoryMessage } from '../application/feed-ports.js';
+import type { FeedStore, FeedTurn, MemoryMessage, PostAuthor } from '../application/feed-ports.js';
 import type { FeedReadStore } from '../application/ports.js';
 import { dayStartOf } from '../domain/feed.js';
 import { inhabitantOf, statusOf, topicKindOf } from './columns.js';
@@ -416,41 +416,73 @@ export const staleMemoryOf = (
           where discussion.room_id = memory.room_id and message.author_account_id = ${cause.byAccount}::uuid
             and message.recorded_at >= memory.covers_from and message.recorded_at <= memory.covers_through)`;
 
+/** Who wrote a post's first message: a resident, a member's scout, or the member. */
+function authorOf(row: {
+  readonly inhabitant: string | null;
+  readonly agent_owner_account_id: string | null;
+  readonly author_account_id: string | null;
+}): PostAuthor {
+  if (row.author_account_id !== null) return { kind: 'person', accountId: row.author_account_id };
+  if (row.agent_owner_account_id !== null) return { kind: 'scout', ownerAccountId: row.agent_owner_account_id };
+  return { kind: 'resident', inhabitant: inhabitantOf(row.inhabitant) };
+}
+
 /** The feed and the memory as a member's own use cases read them, inside the personal scope and the room's lock. */
 export const feedReadStore: FeedReadStore = {
-  async finds(lock, limit) {
+  async finds(lock, query) {
+    const who =
+      query.by === 'people'
+        ? sql`note.author_kind = 'person' and note.author_account_id is not null`
+        : query.by === 'agents'
+          ? sql`note.author_kind in ('ai', 'agent')`
+          : sql`(note.author_kind in ('ai', 'agent') or note.author_account_id is not null)`;
+    const since = query.since === undefined ? sql`true` : sql`discussion.created_at >= ${query.since}`;
+    const order =
+      query.sort === 'top'
+        ? sql`votes desc, discussion.created_at desc, discussion.discussion_id desc`
+        : sql`discussion.created_at desc, discussion.discussion_id desc`;
     const rows = await sql<{
       discussion_id: string;
-      root_asset_id: string;
-      root_asset_revision: number;
+      root_asset_id: string | null;
+      root_asset_revision: number | null;
+      source_url: string | null;
+      title: string;
       created_at: Date | string;
       inhabitant: string | null;
       agent_owner_account_id: string | null;
+      author_account_id: string | null;
       body_text: string;
       replies: string;
+      votes: string;
+      voted: boolean;
     }>`
-      select discussion.discussion_id, discussion.root_asset_id, discussion.root_asset_revision, discussion.created_at,
-        note.inhabitant, note.agent_owner_account_id, note.body_text,
+      select discussion.discussion_id, discussion.root_asset_id, discussion.root_asset_revision, discussion.source_url,
+        discussion.title, discussion.created_at, note.inhabitant, note.agent_owner_account_id, note.author_account_id, note.body_text,
         (select count(*) from rooms.messages reply
           where reply.discussion_id = discussion.discussion_id and reply.sequence > 1 and reply.hidden_at is null
-            and (reply.author_account_id is not null or reply.author_kind in ('ai', 'agent'))) as replies
+            and (reply.author_account_id is not null or reply.author_kind in ('ai', 'agent'))) as replies,
+        (select count(*) from rooms.post_votes vote where vote.discussion_id = discussion.discussion_id) as votes,
+        exists (select 1 from rooms.post_votes mine
+          where mine.discussion_id = discussion.discussion_id and mine.account_id = ${query.readerAccountId}::uuid) as voted
       from rooms.discussions discussion
       join rooms.messages note on note.discussion_id = discussion.discussion_id and note.sequence = 1
       where discussion.room_id = ${lock.roomId}::uuid and discussion.kind = 'find'
-        and note.author_kind in ('ai', 'agent') and note.hidden_at is null
-      order by discussion.created_at desc, discussion.discussion_id limit ${limit}`.execute(
-      sharedTransactionOf(lock.shared),
-    );
+        and note.hidden_at is null and note.body_text is not null and ${who} and ${since}
+      order by ${order} limit ${query.limit}`.execute(sharedTransactionOf(lock.shared));
     return rows.rows.map((row) => ({
       discussionId: row.discussion_id,
-      author:
-        row.agent_owner_account_id === null
-          ? ({ kind: 'resident', inhabitant: inhabitantOf(row.inhabitant) } as const)
-          : ({ kind: 'scout', ownerAccountId: row.agent_owner_account_id } as const),
-      asset: { assetId: row.root_asset_id, assetRevision: row.root_asset_revision },
+      author: authorOf(row),
+      asset:
+        row.root_asset_id === null || row.root_asset_revision === null
+          ? undefined
+          : { assetId: row.root_asset_id, assetRevision: row.root_asset_revision },
+      source: row.source_url ?? undefined,
+      title: row.title,
       postedAt: new Date(row.created_at),
       note: row.body_text,
       replies: Number(row.replies),
+      votes: Number(row.votes),
+      votedByReader: row.voted,
     }));
   },
 

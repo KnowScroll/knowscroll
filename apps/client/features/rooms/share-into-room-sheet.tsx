@@ -1,39 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
-import { talkFailure, type AccountScope, type StartDiscussion } from '@knowscroll/client-core';
-import { SavedPageResponseSchema, type SavedPageResponse } from '@knowscroll/contracts';
+import type { AccountScope, StartDiscussion } from '@knowscroll/client-core';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { BottomSheet, Button, Skeleton, Text, useTypeStyle } from '@knowscroll/ui';
+import { useKept } from './use-kept';
 
-type SavedItem = SavedPageResponse['items'][number];
 const TITLE_MAX = 80;
-
-/** The kept Reels and Scrolls a person can bring into a room: the current, admitted revisions only. */
-function useKept(scope: AccountScope, enabled: boolean) {
-  const [state, setState] = useState<
-    | { readonly status: 'loading' }
-    | { readonly status: 'failed' }
-    | { readonly status: 'ready'; readonly items: readonly SavedItem[] }
-  >({ status: 'loading' });
-  useEffect(() => {
-    if (!enabled) return;
-    let current = true;
-    scope.api.experience
-      .listSaved({ pagination: 'saved-page.v1', filter: 'all', limit: '20' })
-      .then((page) => {
-        if (!current) return;
-        const parsed = SavedPageResponseSchema.parse(page);
-        setState({ status: 'ready', items: parsed.items.filter((item) => item.availability === 'available') });
-      })
-      .catch((error: unknown) => {
-        if (current && talkFailure(error) !== 'ended') setState({ status: 'failed' });
-      });
-    return () => {
-      current = false;
-    };
-  }, [scope, enabled]);
-  return state;
-}
 
 /**
  * R02 "Share into room": start a discussion in words, or bring in something the person kept, which

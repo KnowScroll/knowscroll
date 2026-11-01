@@ -17,6 +17,7 @@ import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.j
 import { askDecision, hourBefore, utcDayStart, type InhabitantId } from '../domain/contribution.js';
 import { changesCursor, historyCursor } from '../domain/cursors.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
+import { hostOf } from '../domain/posts.js';
 import { debateViewOf } from './debates.js';
 import { titlesFor } from './discussion-titles.js';
 import { discussionEpisodes, viewRoomMessages } from './discussion-view.js';
@@ -206,6 +207,9 @@ export function makeDiscussionReads(p: RoomPorts) {
               ...(discussion.tag === null ? {} : { tag: discussion.tag }),
               pinned: discussion.pinned,
               ...(starter === undefined ? {} : { startedBy: starter }),
+              ...(discussion.source === null
+                ? {}
+                : { source: { url: discussion.source, host: hostOf(discussion.source) } }),
             },
             ...(origin === undefined ? {} : { origin }),
             ...(debate === undefined ? {} : { debate }),

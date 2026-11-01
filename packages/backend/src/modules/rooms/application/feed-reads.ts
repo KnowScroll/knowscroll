@@ -8,7 +8,9 @@ import {
   SCOUT_LABEL,
   type AiAuthor,
   type PublicPersonRef,
+  type RoomFeedPost,
   type RoomFeedStrip,
+  type RoomFeedWindow,
   type ScoutAuthor,
   type RoomMemory,
 } from '@knowscroll/contracts';
@@ -17,14 +19,18 @@ import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.j
 import { nameOf, type CastMember } from '../domain/cast.js';
 import type { InhabitantId } from '../domain/contribution.js';
 import type { AiLevel } from '../domain/membership.js';
+import { RANK_RULES, arrange, windowStart, type FeedSort } from '../domain/feed-rank.js';
+import { dayStartOf } from '../domain/feed.js';
 import { memoryProblem } from '../domain/memory.js';
+import { hostOf, mayPost } from '../domain/posts.js';
 import { receiptBase, runCommand } from './command.js';
 import { enterRoom } from './gate.js';
 import type { MemoryView } from './feed-ports.js';
 import { ok, refuse, roomEnvelope, type ContentCard, type Result, type RoomLock, type RoomPorts } from './ports.js';
+import { roomAcceptsPosts } from '../domain/membership.js';
 import { identityOf, inhabitantsOf, limitsOf } from './view.js';
 import { scoutViewOf } from './scout-commands.js';
-import type { FindRow } from './feed-ports.js';
+import type { FindQuery, FindRow } from './feed-ports.js';
 
 const residentOf = (cast: readonly CastMember[], inhabitant: InhabitantId): AiAuthor => ({
   kind: 'ai',
@@ -33,9 +39,12 @@ const residentOf = (cast: readonly CastMember[], inhabitant: InhabitantId): AiAu
   label: AI_INHABITANT_LABELS[inhabitant],
 });
 
+type Signed = AiAuthor | ScoutAuthor | Extract<RoomFeedPost, { kind: 'post' }>['author'];
+
 /**
- * Who signs a find, for this reader: the resident, or the member whose scout it was, by their public profile. A scout whose owner
- * the reader blocked, or whose owner cannot be named, is nobody's to show: the reader sees no scout post from them (D-259).
+ * Who signs a post, for this reader: the resident, the member whose scout it was, or the member who wrote it, each by their public
+ * profile. A scout whose owner the reader blocked, a member the reader blocked and an account that cannot be named are nobody's
+ * to show: the reader sees no post from them (D-259). The reader is told nothing of who blocked them.
  */
 async function authorOf(
   p: RoomPorts,
@@ -43,17 +52,29 @@ async function authorOf(
   readerAccountId: string,
   cast: readonly CastMember[],
   rows: readonly FindRow[],
-): Promise<(row: FindRow) => AiAuthor | ScoutAuthor | undefined> {
-  const owners = [...new Set(rows.flatMap((row) => (row.author.kind === 'scout' ? [row.author.ownerAccountId] : [])))];
+): Promise<(row: FindRow) => Signed | undefined> {
+  const accounts = [
+    ...new Set(
+      rows.flatMap((row) =>
+        row.author.kind === 'scout'
+          ? [row.author.ownerAccountId]
+          : row.author.kind === 'person'
+            ? [row.author.accountId]
+            : [],
+      ),
+    ),
+  ];
   const people: ReadonlyMap<string, PublicPersonRef> =
-    owners.length === 0 ? new Map() : await p.people.byAccounts(scope, owners);
-  const blocked = owners.length === 0 ? new Set<string>() : await p.blocked(scope, readerAccountId, owners);
+    accounts.length === 0 ? new Map() : await p.people.byAccounts(scope, accounts);
+  const blocked = accounts.length === 0 ? new Set<string>() : await p.blocked(scope, readerAccountId, accounts);
   return (row) => {
     if (row.author.kind === 'resident') return residentOf(cast, row.author.inhabitant);
-    const owner = people.get(row.author.ownerAccountId);
-    return owner === undefined || blocked.has(row.author.ownerAccountId)
-      ? undefined
-      : { kind: 'agent', sentBy: owner, label: SCOUT_LABEL };
+    const accountId = row.author.kind === 'scout' ? row.author.ownerAccountId : row.author.accountId;
+    const person = people.get(accountId);
+    if (person === undefined || blocked.has(accountId)) return undefined;
+    return row.author.kind === 'scout'
+      ? { kind: 'agent', sentBy: person, label: SCOUT_LABEL }
+      : { kind: 'person', person, you: accountId === readerAccountId };
   };
 }
 
@@ -79,64 +100,119 @@ export async function feedStrip(
   cast: readonly CastMember[],
 ): Promise<RoomFeedStrip | undefined> {
   if (reader.aiLevel === 'off') return undefined;
-  const rows = await p.feed.finds(lock, STRIP_LOOKS);
+  const rows = await p.feed.finds(lock, {
+    sort: 'new',
+    since: undefined,
+    limit: STRIP_LOOKS,
+    readerAccountId: reader.accountId,
+    by: 'agents',
+  });
   const authorOfRow = await authorOf(p, scope, reader.accountId, cast, rows);
   for (const row of rows) {
     const by = authorOfRow(row);
-    if (by !== undefined) return { by, postedAt: row.postedAt.toISOString() };
+    if (by !== undefined && by.kind !== 'person') return { by, postedAt: row.postedAt.toISOString() };
   }
   return undefined;
 }
 
+/** The posts a reader is listed, in the order they asked for: Hot ranked by code, New and Top ordered by the store. */
+async function listedRows(
+  p: RoomPorts,
+  lock: RoomLock,
+  reader: { readonly aiLevel: AiLevel; readonly accountId: string },
+  order: { readonly sort: FeedSort; readonly window: RoomFeedWindow },
+  now: Date,
+): Promise<readonly FindRow[]> {
+  // A reader whose AI is Off is listed no find a resident or a scout posted, and still every post a member made.
+  const query: FindQuery = {
+    sort: order.sort,
+    since: order.sort === 'top' ? windowStart(order.window, now) : undefined,
+    limit: order.sort === 'hot' ? RANK_RULES.hotCandidates : ROOM_FEED_POSTS_MAX,
+    readerAccountId: reader.accountId,
+    by: reader.aiLevel === 'off' ? 'people' : 'all',
+  };
+  return arrange(await p.feed.finds(lock, query), order.sort, now);
+}
+
+/** A post as the contract draws it, or nothing when its author cannot be shown to this reader. */
+function postView(
+  row: FindRow,
+  author: Signed | undefined,
+  card: ContentCard | undefined,
+  aiLevel: AiLevel,
+): RoomFeedPost | undefined {
+  if (author === undefined || row.note === null) return undefined;
+  const base = {
+    discussionId: row.discussionId,
+    postedAt: row.postedAt.toISOString(),
+    replies: row.replies,
+    votes: row.votes,
+    youVoted: row.votedByReader,
+    canVote: author.kind !== 'person' || !author.you,
+  };
+  if (author.kind === 'person') {
+    const link =
+      row.source !== undefined
+        ? ({ kind: 'source', source: { url: row.source, host: hostOf(row.source) } } as const)
+        : card === undefined
+          ? undefined
+          : ({ kind: 'content', content: card } as const);
+    return link === undefined ? undefined : { kind: 'post', ...base, author, title: row.title, words: row.note, link };
+  }
+  if (card === undefined) return undefined;
+  return {
+    kind: 'find',
+    ...base,
+    author,
+    content: card,
+    ...(aiLevel === 'quieter' ? { folded: true as const } : { note: row.note }),
+  };
+}
+
 /**
- * The residents' feed and what they remember. Reading creates nothing and no evidence; the one command is a moderator's, and
- * it is audited.
+ * The room's Feed and what the residents remember. Reading creates nothing and no evidence; the commands are a moderator's
+ * (audited) and a member's own post and vote (`post-commands.ts`).
  */
 export function makeFeed(p: RoomPorts) {
   return {
     /**
-     * The room's feed for a member: the newest finds (at most `ROOM_FEED_POSTS_MAX`), each with the library asset it is about as
-     * a card, the resident that posted it and its note, and what the residents remember. A reader whose AI level is Off is listed
-     * no find; for Quieter the note is held back until they ask for it. A stranger, a person who left and a room that is not
-     * there all get the same refusal.
+     * The room's Feed for a member: at most `ROOM_FEED_POSTS_MAX` posts in the order they asked for (Hot unless they say
+     * otherwise; Top counts a window), residents' and scouts' finds and members' own posts side by side, each with the library
+     * asset it is about as a card or its source, its words, its replies and its votes as a number, and what the residents remember.
+     * A reader whose AI level is Off is listed no find; for Quieter the note of a find is held back until they ask for it. A
+     * post by someone the reader blocked is left out, and the order and the counts are the same for every reader. A stranger, a
+     * person who left and a room that is not there all get the same refusal.
      */
     async feed(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomFeedSchema>>> {
       const parsed = ReadRoomFeedSchema.safeParse(input);
       if (!parsed.success) return refuse('invalid_input');
+      const order = { sort: parsed.data.sort ?? 'hot', window: parsed.data.window ?? RANK_RULES.defaultWindow };
       const result = await p.withScope(authority, async (scope): Promise<Result<z.infer<typeof RoomFeedSchema>>> => {
         const entered = await enterRoom(p, scope, parsed.data.roomId, 'read');
         if (entered?.member === undefined) return refuse('unavailable');
         const { lock, member } = entered;
-        const { cast } = entered.standing.room;
-        const rows = member.aiLevel === 'off' ? [] : await p.feed.finds(lock, ROOM_FEED_POSTS_MAX);
-        const cards =
-          rows.length === 0
-            ? []
-            : await p.readContent(
-                scope,
-                rows.map((row) => row.asset),
-              );
+        const { cast, status } = entered.standing.room;
+        const reader = { aiLevel: member.aiLevel, accountId: entered.owner.accountId };
+        const now = p.now();
+        const rows = await listedRows(p, lock, reader, order, now);
+        const assets = rows.flatMap((row) => (row.asset === undefined ? [] : [row.asset]));
+        const cards = assets.length === 0 ? [] : await p.readContent(scope, assets);
         const cardOf = new Map(
           cards.map((card) => [`${card.target.assetId}:${String(card.target.assetRevision)}`, card]),
         );
-        const authorOfRow = await authorOf(p, scope, entered.owner.accountId, cast, rows);
-        const posts = rows.flatMap((row) => {
-          const key = `${row.asset.assetId}:${String(row.asset.assetRevision)}`;
-          const card: ContentCard = cardOf.get(key) ?? { status: 'unavailable', target: row.asset };
-          const author = authorOfRow(row);
-          return row.note === null || author === undefined
-            ? []
-            : [
-                {
-                  discussionId: row.discussionId,
-                  author,
-                  postedAt: row.postedAt.toISOString(),
-                  content: card,
-                  ...(member.aiLevel === 'quieter' ? { folded: true as const } : { note: row.note }),
-                  replies: row.replies,
-                },
-              ];
-        });
+        const authorOfRow = await authorOf(p, scope, reader.accountId, cast, rows);
+        const posts = rows
+          .flatMap((row) => {
+            const card =
+              row.asset === undefined
+                ? undefined
+                : (cardOf.get(`${row.asset.assetId}:${String(row.asset.assetRevision)}`) ??
+                  ({ status: 'unavailable', target: row.asset } satisfies ContentCard));
+            const view = postView(row, authorOfRow(row), card, member.aiLevel);
+            return view === undefined ? [] : [view];
+          })
+          .slice(0, ROOM_FEED_POSTS_MAX);
+        const postsToday = await p.posts.postsSince(lock, reader.accountId, dayStartOf(now));
         return ok(
           RoomFeedSchema.parse({
             ...roomEnvelope(scope),
@@ -144,7 +220,10 @@ export function makeFeed(p: RoomPorts) {
             status: 'ready',
             roomId: parsed.data.roomId,
             identity: identityOf(entered.standing.room),
+            sort: order.sort,
+            window: order.window,
             posts,
+            canPost: roomAcceptsPosts(status) && mayPost(postsToday),
             residents: inhabitantsOf(cast),
             memory: memoryShown(await p.feed.memory(lock)),
             canEditMemory: member.role === 'moderator',
