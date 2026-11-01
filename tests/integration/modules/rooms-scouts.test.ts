@@ -7,10 +7,17 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { eraseCurrentAccount, exportCurrentPerson } from '@knowscroll/backend/erasure-registry';
-import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
+import {
+  eraseCurrentAccount,
+  eraseCurrentExploration,
+  exportCurrentPerson,
+  personalStores,
+} from '@knowscroll/backend/erasure-registry';
+import { applyQueueDeclarations, createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
-import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
+import { clearExplorationQueue, recoverClearOperationsQueue } from '@knowscroll/backend/modules/identity';
+import { clearExplorationFor, deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
+import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
 import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { reportCases } from '../support/feedback.js';
@@ -55,6 +62,7 @@ import { friendCommand, seedFriend, type Friend } from '../support/talk.js';
 const START = new Date('2026-11-04T07:59:00Z');
 const version = 'rooms.v1' as const;
 const [ASTRO, OTHER] = [PLANETS[0]!, PLANETS[1]!];
+const roomsErasure = personalStores.find((declaration) => declaration.module === 'rooms')!;
 
 describe('scouts (real PostgreSQL, CI fixture model)', () => {
   let database: TestDatabase<Database>;
@@ -904,6 +912,63 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
       if (read.kind !== 'ok' || read.value.status !== 'claimed') throw new Error('profile unreadable');
       return { ...person, person: read.value.person };
     }
+
+    /** The person's real, sealed Clear of exploration history (epoch 1 to 2). */
+    async function clearExploration(person: Friend) {
+      const installer = createBoss(database.settings, 'install', {
+        onError: () => undefined,
+        onWarning: () => undefined,
+      });
+      await installer.start();
+      try {
+        await applyQueueDeclarations(installer, [clearExplorationQueue, recoverClearOperationsQueue]);
+        const use = clearExplorationFor(database.db, installer, {
+          reasoning: clearReasoning,
+          eraseCore: eraseCurrentExploration,
+        });
+        const commandId = randomUUID();
+        expect(
+          await use.start(
+            { accountId: person.accountId, universeId: person.universeId, privacyEpoch: 1 },
+            {
+              version: 'clear-exploration.v1',
+              commandId,
+              expectedPrivacyEpoch: 1,
+              confirmation: 'clear-exploration-preserve-keep-and-social',
+            },
+          ),
+        ).toMatchObject({ kind: 'entered', value: { kind: 'ok' } });
+        await use.process({ v: 1, accountId: person.accountId, commandId });
+      } finally {
+        await installer.stop({ graceful: false });
+      }
+    }
+
+    it('keeps a scout through a Clear of exploration history, and ends only a call in flight (counted, never handed back)', async () => {
+      const posted = await libraryScroll(world.db, 'A Scroll the scout already found', 10, ASTRO);
+      const inFlight = await libraryScroll(world.db, 'A Scroll its next call is about', 20, ASTRO);
+      const scene = await sent();
+      await scoutBeat(world).look(scene.slug, scene.owner);
+      expect((await finds(scene.roomId))[0]).toMatchObject({ root_asset_id: posted });
+      // A call that was in flight when the person cleared: a labelled fixture row, as a scout's turn is while its model is called.
+      const turnId = randomUUID();
+      await sql`insert into rooms.ai_turns (turn_id, room_id, trigger, state, decided_by, created_at, find_asset_id, find_asset_revision, requested_by_account_id)
+        values (${turnId}::uuid, ${scene.roomId}::uuid, 'scout_find', 'queued', 'caps_clear', now(), ${inFlight}::uuid, 1, ${scene.owner.accountId}::uuid)`.execute(
+        world.db,
+      );
+      await clearExploration(scene.owner);
+      // The setting holds no reading, so it stays, as does what the scout already posted.
+      expect(await scoutRow(world.db, scene.roomId, scene.owner)).toMatchObject({ interests: [ASTRO], paused: false });
+      expect(await finds(scene.roomId)).toHaveLength(1);
+      expect(roomsErasure.clearExploration?.dispositions['rooms.scouts']).toBe('preserve');
+      // The call in flight ended, and stays counted: a Clear does not give a paid call back.
+      const turn = await database.db
+        .selectFrom('rooms.ai_turns')
+        .selectAll()
+        .where('turn_id', '=', turnId)
+        .executeTakeFirst();
+      expect(turn).toMatchObject({ state: 'failed', dispatched: true });
+    });
 
     it('exports the scouts a person sent and what they posted in their name, and deletes all of it with their account: the notes become tombstones and the others’ replies stay', async () => {
       await libraryScroll(world.db, 'A Scroll for the export and the deletion', 10, ASTRO);
