@@ -115,7 +115,7 @@ for (const viewport of viewports) {
     expect(JSON.stringify(sent[0])).not.toContain(moment.quote.slice(0, 20));
   });
 
-  test(`in Explore, Share a moment asks which thread, and a call cannot be shared, at ${viewport.name}`, async ({
+  test(`in Explore, Share a moment asks which thread when the person is in none, at ${viewport.name}`, async ({
     page,
   }) => {
     await encounterFixture(page, 'scroll', {
