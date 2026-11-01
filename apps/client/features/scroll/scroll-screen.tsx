@@ -28,8 +28,12 @@ import { ShareSheetBody } from '../sharing/share-sheet-body';
 import { EvidencePanel } from '../diagnostics/evidence-panel';
 import { combineObservers, createAnchorKeeper } from './anchor-keeper';
 import type { OpenedScroll, OpenedStageScroll } from './scroll-session';
+import { RequestNotice } from '../encounter/encounter-notices';
+import { EncounterOverlay } from '../encounter/encounter-overlay';
+import { RequestPanel } from '../requests/request-panel';
 import { StageReaderSurface } from './stage-reader-surface';
 import { useAddressMoves } from './use-address-moves';
+import { useDirectAsk } from './use-direct-ask';
 import { useScrollSession } from './use-scroll-session';
 import { ActivatedScrollView } from './activated-scroll-view';
 import { readResume, writeResume } from '../encounter/encounter-history';
@@ -243,8 +247,9 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
 /**
  * A v2 Scroll on its own address: the Stage + Spine reader with the same recorder and the same
  * remembered place as the article, by stop (a stop id is the position's block id). The Parts and the
- * related move are the ones the server admitted for this Scroll, opened by address (D-184); there is
- * no encounter, so no Ask. Next ↑ goes to Explore for a new topic.
+ * related move are the ones the server admitted for this Scroll, opened by address (D-184). Ask from
+ * here is the same as in Explore (D1): there is no encounter, so its source is this Scroll's own
+ * exposure. Next ↑ goes to Explore for a new topic.
  */
 function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; readonly scroll: OpenedStageScroll }) {
   const insets = useSafeAreaInsets();
@@ -289,6 +294,8 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
     kept.state.place.snapshot?.status === 'available' || kept.state.place.snapshot?.status === 'saved_unavailable';
   const [resume] = useState(() => readResume(scope, scroll.assetId, scroll.assetRevision));
   const [sharing, setSharing] = useState(false);
+  const currentStop = useCallback(() => reader.current?.capture()?.stopId, []);
+  const ask = useDirectAsk(scope, scroll, currentStop);
   useLayoutEffect(() => {
     recorder.start();
     return () => recorder.end();
@@ -303,7 +310,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
       <StageReaderSurface
         scroll={scroll}
         observer={recorder.observer}
-        paused={!focused || sharing}
+        paused={!focused || sharing || ask.open}
         initialStopId={initialStopId}
         handleRef={reader}
         onStopChange={(stopId) => {
@@ -326,6 +333,8 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
             />
           ),
           format: () => siblings.select('reel'),
+          ask: ask.openAsk,
+          askAbout: ask.openAbout,
           done: back,
         }}
         moreBody={(close) => (
@@ -346,6 +355,20 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
       <BottomSheet visible={sharing} title="Share" onClose={() => setSharing(false)}>
         <ShareSheetBody target={target} title={scroll.document.title} kind="scroll" onClose={() => setSharing(false)} />
       </BottomSheet>
+      <View style={[styles.askNotices, { top: insets.top + spacing[3] + 72 }]} pointerEvents="box-none">
+        <RequestNotice
+          requests={ask.session}
+          exposureId={scroll.exposureId}
+          onOpen={() => {
+            void ask.session.openReady();
+          }}
+        />
+      </View>
+      {ask.open ? (
+        <EncounterOverlay label="Ask" presentation="sheet" onClose={ask.close}>
+          <RequestPanel session={ask.session} onClose={ask.close} ask={{ scroll }} />
+        </EncounterOverlay>
+      ) : null}
       <EvidencePanel scope={scope} exposureId={scroll.exposureId} />
     </>
   );
@@ -486,4 +509,5 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[2],
   },
   spacer: { flex: 1 },
+  askNotices: { position: 'absolute', left: spacing[4], right: spacing[4] },
 });

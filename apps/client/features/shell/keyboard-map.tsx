@@ -60,7 +60,7 @@ export const KEYBOARD_MAP: readonly ShortcutGroup[] = [
       { keys: ['←'], spoken: 'Left arrow', action: 'Back to the Part before' },
       { keys: ['N'], spoken: 'N', action: 'A new topic in the same format' },
       { keys: ['U'], spoken: 'U', action: 'Your Universe' },
-      { keys: ['A', '?'], spoken: 'A or question mark', action: 'Ask about this (in Explore)' },
+      { keys: ['A', '?'], spoken: 'A or question mark', action: 'Ask about this (while reading a Scroll)' },
       { keys: ['1', '2', '3'], spoken: '1, 2 or 3', action: 'In the Ask sheet: pick a suggested question' },
       { keys: ['T'], spoken: 'T', action: 'Text version of the picture' },
       { keys: ['F'], spoken: 'F', action: 'Switch between Reel and Scroll' },
