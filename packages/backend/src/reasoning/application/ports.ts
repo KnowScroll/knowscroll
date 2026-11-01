@@ -163,25 +163,31 @@ export interface RecordingRunProof {
   readonly modelContextSha256: string;
 }
 
-/**
- * Immutable private proof; claim is checked by the owner, never stored as run identity.
- * The Planner and the Cartographer have one purpose each. Supply names the step a run is (a lowercase code): its owner check
- * knows which exist, and the schema repeats them (migration 0096). `claimId` is whatever the owner's own record is called: the
- * Planner's current claim, or the ID of the request or answer a Supply run serves.
- */
-export interface PersonalRecordingPurpose {
+/** What every owner's proof holds. `claimId` is whatever the owner's own record is called: the Planner's current claim, or the ID of the request or answer a Supply run serves. */
+interface PersonalRecordingProof {
   readonly version: 'personal-role-purpose.v1';
   readonly accountId: string;
   readonly universeId: string;
   readonly privacyEpoch: number;
-  readonly ownerModule: 'planner' | 'geography' | 'supply';
-  readonly purpose: string;
   readonly businessRunId: string;
   readonly recordingGeneration: number;
   readonly contextSha256: string;
   readonly modelContextSha256: string;
   readonly claimId: string;
 }
+
+/**
+ * Immutable private proof; claim is checked by the owner, never stored as run identity. The owner decides the purpose: the
+ * Planner and the Cartographer have one each, so a wrong literal does not compile. Supply names the step a run is (a lowercase
+ * code, `string` here because this engine does not name Supply's steps): its owner check knows which exist, and the schema
+ * repeats them (migration 0096).
+ */
+export type PersonalRecordingPurpose = PersonalRecordingProof &
+  (
+    | { readonly ownerModule: 'planner'; readonly purpose: 'personal-planner' }
+    | { readonly ownerModule: 'geography'; readonly purpose: 'personal-cartographer' }
+    | { readonly ownerModule: 'supply'; readonly purpose: string }
+  );
 export type CheckPersonalRecordingRun = (
   scope: RecordingScopeTx,
   purpose: PersonalRecordingPurpose,

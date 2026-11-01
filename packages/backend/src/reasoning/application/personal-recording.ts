@@ -20,7 +20,8 @@ const Digest = z.string().regex(/^[a-f0-9]{64}$/u);
  * (`reasoning_personal_recording_proof_shape`, migration 0096) and Supply's owner check hold the list.
  */
 const PURPOSE_CODE = /^[a-z][a-z0-9-]{0,63}$/u;
-function purposeFitsOwner(p: { readonly ownerModule: string; readonly purpose: string }): boolean {
+/** The same pairing the type states, checked at run time for a value that arrives as data. */
+function purposeFitsOwner(p: PurposeFields): p is PurposeFields & PersonalRecordingPurpose {
   switch (p.ownerModule) {
     case 'planner':
       return p.purpose === 'personal-planner';
@@ -33,21 +34,20 @@ function purposeFitsOwner(p: { readonly ownerModule: string; readonly purpose: s
   }
 }
 
-const Purpose = z
-  .strictObject({
-    version: z.literal('personal-role-purpose.v1'),
-    accountId: z.uuid(),
-    universeId: z.uuid(),
-    privacyEpoch: Counter,
-    ownerModule: z.enum(['planner', 'geography', 'supply']),
-    purpose: z.string().max(64),
-    businessRunId: z.uuid(),
-    recordingGeneration: Counter.refine((g) => g % 2 === 1),
-    contextSha256: Digest,
-    modelContextSha256: Digest,
-    claimId: z.uuid(),
-  })
-  .refine(purposeFitsOwner);
+const Purpose = z.strictObject({
+  version: z.literal('personal-role-purpose.v1'),
+  accountId: z.uuid(),
+  universeId: z.uuid(),
+  privacyEpoch: Counter,
+  ownerModule: z.enum(['planner', 'geography', 'supply']),
+  purpose: z.string().max(64),
+  businessRunId: z.uuid(),
+  recordingGeneration: Counter.refine((g) => g % 2 === 1),
+  contextSha256: Digest,
+  modelContextSha256: Digest,
+  claimId: z.uuid(),
+});
+type PurposeFields = z.infer<typeof Purpose>;
 
 /** Public data is inspected without invoking getters, including symbols/nonenumerable extras. */
 function data(value: unknown, keys: readonly string[]): Record<string, unknown> | undefined {
@@ -107,7 +107,7 @@ export function parsePersonalRecordingPurpose(value: unknown): PersonalRecording
   const d = data(value, purposeKeys);
   if (!d) return undefined;
   const parsed = Purpose.safeParse(d);
-  return parsed.success ? Object.freeze(parsed.data) : undefined;
+  return parsed.success && purposeFitsOwner(parsed.data) ? Object.freeze(parsed.data) : undefined;
 }
 export type {
   PersonalRecordingPurpose,

@@ -10,7 +10,8 @@ const UNIVERSE = id(1);
 const REQUEST = id(40);
 const ANSWER = id(50);
 
-const purpose = (over: Partial<PersonalRecordingPurpose> = {}): PersonalRecordingPurpose => ({
+/** A Supply proof, with fields overridden: some tests build pairs the type would not allow, to see them refused. */
+const purpose = (over: Record<string, unknown> = {}): PersonalRecordingPurpose => ({
   version: 'personal-role-purpose.v1',
   accountId: id(2),
   universeId: UNIVERSE,

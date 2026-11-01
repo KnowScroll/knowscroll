@@ -190,9 +190,11 @@ describe('personal recording facade strict protocol (authored source fixtures on
     expect(supply).not.toHaveBeenCalled();
     expect(await dispatch(scope, { ...purpose, ownerModule: 'supply', purpose: 'ask-scope' })).toBe('unavailable');
     expect(supply).toHaveBeenCalledOnce();
-    // A pair that is not one of the closed set reaches no owner at all.
-    expect(await dispatch(scope, { ...purpose, purpose: 'personal-cartographer' })).toBe('unavailable');
-    expect(await dispatch(scope, { ...purpose, ownerModule: 'planner', purpose: 'ask-scope' })).toBe('unavailable');
+    // A pair that is not one of the closed set reaches no owner at all, though the type would not let code build one.
+    const mismatched = (over: Record<string, unknown>) =>
+      ({ ...purpose, ...over }) as unknown as PersonalRecordingPurpose;
+    expect(await dispatch(scope, mismatched({ purpose: 'personal-cartographer' }))).toBe('unavailable');
+    expect(await dispatch(scope, mismatched({ ownerModule: 'planner', purpose: 'ask-scope' }))).toBe('unavailable');
     expect(planner).toHaveBeenCalledOnce();
     expect(geography).toHaveBeenCalledOnce();
     expect(supply).toHaveBeenCalledOnce();
