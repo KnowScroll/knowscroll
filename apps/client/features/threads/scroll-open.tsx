@@ -10,6 +10,7 @@ import { recorderFor } from '../scroll/reading-recorder';
 import type { OpenedScroll, OpenedStageScroll } from '../scroll/scroll-session';
 import { StageReaderSurface } from '../scroll/stage-reader-surface';
 import { useScrollSession } from '../scroll/use-scroll-session';
+import type { MomentThread } from './share-stop-sheet';
 
 /** One quiet screen for every state that is not the article itself. */
 function Frame({ children, onBack }: { readonly children: ReactNode; readonly onBack: () => void }) {
@@ -175,11 +176,17 @@ export function ThreadStageScroll({
   scroll,
   onBack,
   endSlot,
+  thread,
+  initialStopId,
 }: {
   readonly scope: AccountScope;
   readonly scroll: OpenedStageScroll;
   readonly onBack: () => void;
   readonly endSlot?: ReactNode;
+  /** The thread this is read in: "Share a moment" sends into it. */
+  readonly thread?: MomentThread | undefined;
+  /** A shared moment opens at its stop. */
+  readonly initialStopId?: string | undefined;
 }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -196,6 +203,8 @@ export function ThreadStageScroll({
       scroll={scroll}
       observer={recorder.observer}
       paused={!focused}
+      initialStopId={initialStopId}
+      momentThread={thread}
       moves={{ universe: () => router.navigate('/universe'), done: onBack }}
       headerNote={
         <View style={styles.back}>
