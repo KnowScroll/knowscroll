@@ -55,7 +55,12 @@ export interface FeedWorld {
   /** The votes on each post and whether the reader voted, by discussion ID. */
   votes: Record<string, PostState>;
   /** Posts the reader made during the test. */
-  made: { discussionId: string; title: string; words: string; link: { kind: string; url?: string; assetId?: string } }[];
+  made: {
+    discussionId: string;
+    title: string;
+    words: string;
+    link: { kind: string; url?: string; assetId?: string };
+  }[];
   /** The order and window the reader asked for last. */
   sort: 'hot' | 'new' | 'top';
   window: 'day' | 'week' | 'month' | 'all';
@@ -246,7 +251,10 @@ function postsOf(world: FeedWorld) {
             made.title,
             made.words,
             made.link.kind === 'source'
-              ? { kind: 'source', source: { url: made.link.url ?? '', host: new URL(made.link.url ?? 'https://x.org').hostname } }
+              ? {
+                  kind: 'source',
+                  source: { url: made.link.url ?? '', host: new URL(made.link.url ?? 'https://x.org').hostname },
+                }
               : { kind: 'content', content: REEL },
             0,
             0,
@@ -259,7 +267,11 @@ function postsOf(world: FeedWorld) {
   if (world.sort === 'new') return all.sort((x, y) => time(y) - time(x));
   if (world.sort === 'top') return all.sort((x, y) => y.votes - x.votes || time(y) - time(x));
   // Hot: the fixture's own order is the one the server would give: the most recent voted post first.
-  return all.sort((x, y) => (y.votes + 1) / (1 + (Date.now() - time(y)) / 3_600_000) ** 1.5 - (x.votes + 1) / (1 + (Date.now() - time(x)) / 3_600_000) ** 1.5);
+  return all.sort(
+    (x, y) =>
+      (y.votes + 1) / (1 + (Date.now() - time(y)) / 3_600_000) ** 1.5 -
+      (x.votes + 1) / (1 + (Date.now() - time(x)) / 3_600_000) ** 1.5,
+  );
 }
 
 /** The calls a person's screen made to the feed routes, so a test can see what was sent. */
@@ -307,7 +319,10 @@ export async function feedRoutes(page: Page, world: FeedWorld, scope: { accountI
     }
     if (path === '/v1/rooms/feed/post') {
       if (world.nextPost === 'rate_limited')
-        return route.fulfill({ status: 429, json: { type: 'about:blank', title: 'Too many', status: 429, code: 'TOO_MANY_REQUESTS' } });
+        return route.fulfill({
+          status: 429,
+          json: { type: 'about:blank', title: 'Too many', status: 429, code: 'TOO_MANY_REQUESTS' },
+        });
       const link = body['link'] as { kind: string; url?: string; target?: { assetId: string } };
       const discussionId = world.nextPost === 'already_there' ? deviPostId : id(570 + world.made.length);
       if (world.nextPost !== 'already_there')
@@ -315,7 +330,11 @@ export async function feedRoutes(page: Page, world: FeedWorld, scope: { accountI
           discussionId,
           title: body['title'] as string,
           words: body['words'] as string,
-          link: { kind: link.kind, ...(link.url === undefined ? {} : { url: link.url }), ...(link.target === undefined ? {} : { assetId: link.target.assetId }) },
+          link: {
+            kind: link.kind,
+            ...(link.url === undefined ? {} : { url: link.url }),
+            ...(link.target === undefined ? {} : { assetId: link.target.assetId }),
+          },
         });
       return route.fulfill({
         json: {

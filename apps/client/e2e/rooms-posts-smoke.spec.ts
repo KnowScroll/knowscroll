@@ -3,7 +3,15 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { id } from './encounter-fixture';
-import { deviPostId, feedRoutes, feedStrip, feedWorld, findId, sourcePostId, type FeedWorld } from './rooms-feed-fixture';
+import {
+  deviPostId,
+  feedRoutes,
+  feedStrip,
+  feedWorld,
+  findId,
+  sourcePostId,
+  type FeedWorld,
+} from './rooms-feed-fixture';
 import { roomFixture } from './rooms-fixture';
 
 /**
@@ -87,8 +95,12 @@ async function openFeed(page: Page, size: { width: number; height: number }, wor
   const { calls } = await feedRoutes(page, world, scope);
   await keepOneReel(page);
   await page.goto(address);
-  await page.getByTestId('room-menu-open').click();
-  await page.getByTestId('menu-feed').click();
+  // The Now strip's chip is the way in on every width; a reader whose AI is Off has no chip and finds the Feed in the room menu.
+  if (feedStrip(world) !== undefined) await page.getByTestId('now-feed').click();
+  else {
+    await page.getByTestId('room-menu-open').click();
+    await page.getByTestId('menu-feed').click();
+  }
   await expect(page).toHaveURL(/\/feed$/);
   await expect(page.getByTestId('feed-screen')).toBeVisible();
   return { calls };
@@ -158,16 +170,20 @@ for (const { name, size } of VIEWPORTS) {
     await expect(page.getByTestId('feed-window-week')).toBeVisible();
     await expect.poll(async () => (await order(page))[0]).toBe(findId);
     await page.getByTestId('feed-window-month').click();
-    await expect.poll(() => calls.filter((call) => call.path === '/v1/rooms/feed/read').at(-1)?.body).toMatchObject({
-      sort: 'top',
-      window: 'month',
-    });
+    await expect
+      .poll(() => calls.filter((call) => call.path === '/v1/rooms/feed/read').at(-1)?.body)
+      .toMatchObject({
+        sort: 'top',
+        window: 'month',
+      });
     await shoot(page, `${name}-feed-top`);
     expect(await seriousViolations(page)).toEqual([]);
   });
 }
 
-test('phone: a member posts a find with a source, sees it in the Feed as theirs, and cannot vote on it', async ({ page }) => {
+test('phone: a member posts a find with a source, sees it in the Feed as theirs, and cannot vote on it', async ({
+  page,
+}) => {
   const world = feedWorld({ memberPosts: true });
   const { calls } = await openFeed(page, VIEWPORTS[0].size, world);
   await page.getByTestId('feed-post-open').click();
@@ -177,7 +193,9 @@ test('phone: a member posts a find with a source, sees it in the Feed as theirs,
   await expect(page.getByTestId('post-send')).toBeDisabled();
   await expect(sheet).toContainText('no AI writes or changes them');
   await page.getByTestId('post-title').fill('The arc at the edge');
-  await page.getByTestId('post-words').fill('The arc near the middle is a far galaxy, stretched by mass in front of it.');
+  await page
+    .getByTestId('post-words')
+    .fill('The arc near the middle is a far galaxy, stretched by mass in front of it.');
   // A link in the words is not allowed: the one link is the checked source.
   await page.getByTestId('post-mode-source').click();
   await page.getByTestId('post-source').fill('https://example.org/lensing');
@@ -199,7 +217,9 @@ test('phone: a member posts a find with a source, sees it in the Feed as theirs,
   expect(await seriousViolations(page)).toEqual([]);
 });
 
-test('phone: a post the room already has opens that post, and a fourth post of the day says to wait', async ({ page }) => {
+test('phone: a post the room already has opens that post, and a fourth post of the day says to wait', async ({
+  page,
+}) => {
   const world = feedWorld({ memberPosts: true, nextPost: 'already_there' });
   await openFeed(page, VIEWPORTS[0].size, world);
   const fill = async () => {

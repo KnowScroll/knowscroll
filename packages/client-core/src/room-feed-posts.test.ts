@@ -62,21 +62,20 @@ const ready = (over: object = {}) => ({
   limits: { postsPerDay: 3, restHours: 6, memberPostsPerDay: 3 },
   ...over,
 });
-const memberPost = (over: object = {}): RoomFeedPost =>
-  ({
-    kind: 'post',
-    discussionId: id(30),
-    postedAt: '2026-11-01T09:07:00.000Z',
-    replies: 0,
-    votes: 2,
-    youVoted: false,
-    canVote: true,
-    author: { kind: 'person', person: ASHA, you: false },
-    title: 'Found a Reel on lensing',
-    words: 'The arc is a far galaxy.',
-    link: { kind: 'content', content: card('reel') },
-    ...over,
-  });
+const memberPost = (over: object = {}): RoomFeedPost => ({
+  kind: 'post',
+  discussionId: id(30),
+  postedAt: '2026-11-01T09:07:00.000Z',
+  replies: 0,
+  votes: 2,
+  youVoted: false,
+  canVote: true,
+  author: { kind: 'person', person: ASHA, you: false },
+  title: 'Found a Reel on lensing',
+  words: 'The arc is a far galaxy.',
+  link: { kind: 'content', content: card('reel') },
+  ...over,
+});
 const sent = (scope: ReturnType<typeof scopeOf>, name: string) => scope.calls.filter((call) => call.name === name);
 
 describe('the words of a member’s post (v3 R-8b)', () => {
