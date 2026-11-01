@@ -38,6 +38,11 @@ describe('reading candidate checker instructions (D-280)', () => {
     expect(candidate.version).not.toBe(ASK_SUPPORT_CHECK_VERSION);
   });
 
+  it('accepts the production instructions themselves, so the text of a version can be replayed as a candidate before it is released', () => {
+    const candidate = accepted(encode(ASK_SUPPORT_INSTRUCTIONS));
+    expect(candidate.text).toBe(ASK_SUPPORT_INSTRUCTIONS);
+  });
+
   it('gives different text a different hash and version', () => {
     const first = accepted(encode(TEXT));
     const second = accepted(encode(`${TEXT}One more rule.\n`));

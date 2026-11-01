@@ -2,7 +2,6 @@ import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AskSupportReplayDeps } from '@knowscroll/backend/modules/content/nest-providers';
 import { askCheckCommand } from './ask-check-operator.js';
 
 /**
@@ -11,10 +10,14 @@ import { askCheckCommand } from './ask-check-operator.js';
  * the replay, the start and end lines carry its label, a plain run carries none), not what a model says. The replay's own
  * labels and the requests it sends are proved against real PostgreSQL in `tests/integration/modules/ask-support-replay.test.ts`.
  */
-const replayDeps: AskSupportReplayDeps[] = [];
+/** What the command hands the replay: the part of its dependencies this test reads. */
+interface ReplayDepsSeen {
+  readonly candidate?: { readonly text: string; readonly sha256: string };
+}
+const replayDeps: ReplayDepsSeen[] = [];
 
 vi.mock('@knowscroll/backend/infrastructure/config', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@knowscroll/backend/infrastructure/config')>()),
+  ...(await importOriginal<Record<string, unknown>>()),
   readScrollProductionOperatorConfig: () => ({
     database: {},
     reasoning: { productionEnabled: true },
@@ -23,20 +26,20 @@ vi.mock('@knowscroll/backend/infrastructure/config', async (importOriginal) => (
   }),
 }));
 vi.mock('@knowscroll/backend/infrastructure/postgres', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@knowscroll/backend/infrastructure/postgres')>()),
+  ...(await importOriginal<Record<string, unknown>>()),
   createDatabase: () => ({ db: {}, close: () => Promise.resolve() }),
   makeWithProductionScope: () => () => Promise.reject(new Error('CI: the scope is not used by this double')),
 }));
 vi.mock('@knowscroll/backend/reasoning/nest-providers', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@knowscroll/backend/reasoning/nest-providers')>()),
+  ...(await importOriginal<Record<string, unknown>>()),
   configuredModelPort: () => ({ model: 'MiniMax-M3.1-Flash' }),
   makeProductionReasoningHarness: () => ({}),
   postgresProductionHarnessPorts: () => ({}),
   productionHarnessSettings: () => ({}),
 }));
 vi.mock('@knowscroll/backend/modules/content/nest-providers', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@knowscroll/backend/modules/content/nest-providers')>()),
-  makeAskSupportReplay: (deps: AskSupportReplayDeps) => {
+  ...(await importOriginal<Record<string, unknown>>()),
+  makeAskSupportReplay: (deps: ReplayDepsSeen) => {
     replayDeps.push(deps);
     return (
       _target: unknown,
