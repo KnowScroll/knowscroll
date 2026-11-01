@@ -11,7 +11,7 @@ export const WATCH_EVERY_MS = 12_000;
 const WATCH_READS = 50;
 
 /**
- * Ask from here on a Scroll's own address (`/scroll/<id>`), where there is no encounter. It is the same Ask as Explore's
+ * Ask from here, and ask for the other format, on a Scroll's own address (`/scroll/<id>`), where there is no encounter. It is the same Ask as Explore's
  * (D-218, D-231, D-262): the same request session, sheet, caps and rules. The source of the question is the Scroll's own
  * exposure (a direct encounter has no experience session), which the server checks like any other. The session lives as
  * long as this reader, so a question that is still being made is announced here when it is ready.
@@ -23,20 +23,25 @@ export function useDirectAsk(scope: AccountScope, scroll: OpenedStageScroll, cur
   const [open, setOpen] = useState(false);
   const { exposureId, assetId, assetRevision } = scroll;
   const source = useMemo(() => ({ exposureId, assetId, assetRevision }), [exposureId, assetId, assetRevision]);
-  const session = useMemo(
-    () =>
-      createRequestSession(
-        scope,
-        newCommandId,
-        () => source,
-        (target) => {
-          setOpen(false);
-          router.push(`/scroll/${target.assetId}`);
-          return true;
-        },
-      ),
-    [scope, source, router],
-  );
+  const session = useMemo(() => {
+    const created = createRequestSession(
+      scope,
+      newCommandId,
+      () => source,
+      (target) => {
+        setOpen(false);
+        // A question or a Scroll twin opens as a Scroll; a Reel twin that was asked for opens as a Reel.
+        const status = created.getState().status;
+        const kind =
+          status?.status === 'ready' && status.content.assetId === target.assetId
+            ? status.content.metadata.kind
+            : 'scroll';
+        router.push(`/${kind}/${target.assetId}`);
+        return true;
+      },
+    );
+    return created;
+  }, [scope, source, router]);
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   // While a question is outstanding the session keeps reading it, so the ready notice is true even with the sheet shut.
   const watching =
@@ -78,6 +83,13 @@ export function useDirectAsk(scope: AccountScope, scroll: OpenedStageScroll, cur
     }, [session]),
     /** Ask from the stop on screen. */
     openAsk: useCallback(() => ask(currentStop()), [ask, currentStop]),
+    /** Asks for the other format of this explanation (the format switch of a twin that does not exist yet), on the same sheet. */
+    openFormat: useCallback(
+      (format: 'reel' | 'scroll') => {
+        if (session.show(format)) setOpen(true);
+      },
+      [session],
+    ),
     /**
      * "Make it a full Scroll" under a Quick answer: Ask from here at the stop, with the answer's question (or the selected
      * words) as the first draft the person may change (D-244, D-253).

@@ -255,7 +255,6 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const back = useBack();
-  const siblings = useFormatSiblings(scope, scroll.exposureId, 'scroll');
   const params = useLocalSearchParams<{ anchor?: string | string[] }>();
   const { breakpoint } = useDisplay();
   const narrow = breakpoint === 'compact' || breakpoint === 'phone';
@@ -296,6 +295,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
   const [sharing, setSharing] = useState(false);
   const currentStop = useCallback(() => reader.current?.capture()?.stopId, []);
   const ask = useDirectAsk(scope, scroll, currentStop);
+  const siblings = useFormatSiblings(scope, scroll.exposureId, 'scroll', ask.openFormat);
   useLayoutEffect(() => {
     recorder.start();
     return () => recorder.end();
