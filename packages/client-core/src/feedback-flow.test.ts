@@ -70,6 +70,29 @@ describe('a content error', () => {
     expect(flow.getState()).toMatchObject({ step: 'received', receipt });
   });
 
+  it('names the Quick answer it is about, so the server can keep its words (D-255)', async () => {
+    const { flow, sendReport } = flowFor(
+      { ...reel, format: 'scroll', anchor: { kind: 'scroll', blockId: 'the-lean' }, quickAnswerId: id(60) },
+      'content_error',
+    );
+    await flow.send();
+    expect(sendReport).toHaveBeenCalledWith({
+      kind: 'content_error',
+      request: {
+        commandId: expect.any(String) as string,
+        target: { assetId: id(1), assetRevision: 2 },
+        category: 'wrong',
+        anchor: { kind: 'scroll', blockId: 'the-lean' },
+        quickAnswerId: id(60),
+      },
+    });
+    // A report about a Scroll alone names no Quick answer.
+    const plain = flowFor({ ...reel, format: 'scroll', anchor: undefined }, 'content_error');
+    await plain.flow.send();
+    expect(plain.sendReport.mock.calls[0]![0]).toMatchObject({ kind: 'content_error' });
+    expect(JSON.stringify(plain.sendReport.mock.calls[0]![0])).not.toContain('quickAnswerId');
+  });
+
   it('takes a reason and a note, trims the note, drops a note of spaces and can leave the moment out', async () => {
     const { flow, sendReport } = flowFor(reel, 'content_error');
     flow.setContentCategory('out_of_date');

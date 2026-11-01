@@ -20,9 +20,11 @@ screen; a room's moderators read the reports on their room's messages (`POST /v1
 
 | Operation | Route | Authority, effects, failure |
 |---|---|---|
-| `reportContentError(authority, {commandId, target, category, anchor?, note?})` | `POST /v1/feedback/content-errors` | Personal root, then the caller's own account. The asset must be admitted, reachable by the caller (audience gate) and have the named revision, one the review gate did not hold or reject (D-138). |
+| `reportContentError(authority, {commandId, target, category, anchor?, note?, quickAnswerId?})` | `POST /v1/feedback/content-errors` | Personal root, then the caller's own account. The asset must be admitted, reachable by the caller (audience gate) and have the named revision, one the review gate did not hold or reject (D-138). |
 | `reportAbuse(authority, {commandId, target, category, note?})` | `POST /v1/feedback/abuse-reports` | Same locks. A message must be one the caller can see as a current member (Social's `READ_REPORTABLE_MESSAGE`, Rooms' `READ_REPORTABLE_ROOM_MESSAGE`); a person must have a claimed profile (`READ_PUBLIC_PEOPLE`). Not the caller's own message or profile. |
 | `READ_ROOM_REPORTS` | Rooms' `reports` use case | One row per reported message of one room: reasons, how many different people reported it, the newest time (Rooms shows only its day). Leaves out reports on the asking moderator's own words; never the sender, the note or the author. |
+
+A content error may be about a Quick answer (D-255): `quickAnswerId` names the person's own answered, still-kept answer about that Scroll revision (Supply's `READ_QUICK_ANSWER_FOR_REPORT`), and its question and answer are copied into `feedback.reports.quick_answer` when the report is sent, because the answer is erased a day later. Anything else (another person's answer, a dismissed or expired one, another revision) is `NOT_FOUND`, like a missing target. A report keeps the question and answer until the reporter's account is deleted, and Clear keeps it; the form says so before it is sent. The reporter's export lists the words with their report. *Implemented.*
 
 Both commands share one skeleton: gate, receipt lookup (identical retry answers the first receipt; another body under
 the key is `COMMAND_KEY_REUSED`), target access, the bound (25 per account per 24 hours,
@@ -38,7 +40,7 @@ so one person reporting twice does not raise what moderators see.
 
 | Item | Detail |
 |---|---|
-| Table | `feedback.reports` (0068): account-keyed; reporter, kind, reason, target (asset and revision, message ID, room ID, reported account), anchor, note, time, `retain_until`. Message IDs are soft references. |
+| Table | `feedback.reports` (0068, 0093): account-keyed; reporter, kind, reason, target (asset and revision, message ID, room ID, reported account), anchor, note, the Quick answer's words (a content error about one), time, `retain_until`. Message IDs are soft references. |
 | View | `ops.feedback_reports` (operator): ids, kind, reason, target kind, whether a note exists, time. No note, no accounts. |
 | Jobs | `feedback.purge-reports` (`events.ts`, scheduled daily at 03:17 UTC, worker): deletes reports whose `retain_until` has passed, 500 per transaction, at most 20 batches a run, skipping rows another transaction holds. Logs `feedback.reports_purged` with a count. Listed under the Operator's retention jobs. |
 | Notices | none |

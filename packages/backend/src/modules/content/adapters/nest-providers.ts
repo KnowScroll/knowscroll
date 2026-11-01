@@ -27,6 +27,7 @@ import {
   READ_SCROLL_READING_FACTS,
   READ_SCROLL_PLAY_FACTS,
   READ_SCROLL_ASK_FACTS,
+  READ_SCROLL_QUICK_ANSWER_FACTS,
   READ_ADMITTED_COVERAGE_MAPPING,
   LOCK_CURRENT_COVERAGE_AUTHORITIES,
   READ_REGION_ENCOUNTER_CANDIDATES,
@@ -66,6 +67,7 @@ import {
 import { makeRenderScroll } from './render-scroll.js';
 import { readScrollPlayFacts } from './scroll-play-facts.js';
 import { readScrollAskFacts } from './scroll-ask-facts.js';
+import { readScrollQuickAnswerFacts } from './scroll-quick-answer-facts.js';
 import { makeReadPublicContent, readShareableContent } from './shareable-content.js';
 import { compileEditorialSource, parseEditorialSource } from './scroll-compiler.js';
 import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollReadingFacts } from './postgres-store.js';
@@ -118,6 +120,7 @@ export function contentProviders() {
     { provide: READ_SCROLL_READING_FACTS, useValue: readScrollReadingFacts },
     { provide: READ_SCROLL_PLAY_FACTS, useValue: readScrollPlayFacts },
     { provide: READ_SCROLL_ASK_FACTS, useValue: readScrollAskFacts },
+    { provide: READ_SCROLL_QUICK_ANSWER_FACTS, useValue: readScrollQuickAnswerFacts },
     { provide: READ_ADMITTED_COVERAGE_MAPPING, useValue: readAdmittedCoverageMapping },
     { provide: LOCK_CURRENT_COVERAGE_AUTHORITIES, useValue: lockCurrentCoverageAuthorities },
     { provide: CHOOSE_SCROLL_RECIPE, useValue: chooseScrollRecipe },
@@ -299,6 +302,7 @@ export { makeReadPublicContent, readShareableContent } from './shareable-content
 export { readContentSequence } from './content-sequence.js';
 export { readScrollPlayFacts } from './scroll-play-facts.js';
 export { readScrollAskFacts } from './scroll-ask-facts.js';
+export { readScrollQuickAnswerFacts } from './scroll-quick-answer-facts.js';
 export { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.js';
 
 /** The operator's Reel commands over real adapters (#240, D-041). */

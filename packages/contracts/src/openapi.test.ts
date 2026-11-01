@@ -105,6 +105,7 @@ describe('the API contract', () => {
       apiContract.supply.read,
       apiContract.supply.cancel,
       apiContract.supply.retry,
+      ...Object.values(apiContract.quickAnswers),
       apiContract.identity.requestSignIn,
       apiContract.identity.peekSignIn,
       apiContract.identity.redeemSignIn,

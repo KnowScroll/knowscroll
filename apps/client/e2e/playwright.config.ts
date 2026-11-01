@@ -64,6 +64,7 @@ export default defineConfig({
         'ask-smoke.spec.ts',
         'challenge-smoke.spec.ts',
         'simpler-smoke.spec.ts',
+        'quick-answer-smoke.spec.ts',
       ],
       use: { baseURL: `http://127.0.0.1:${production}` },
     },

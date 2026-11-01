@@ -15,12 +15,12 @@ export const reportStore: ReportStore = {
   async insert(scope, report) {
     await sql`
       insert into feedback.reports (report_id, reporter_account_id, kind, category, target_kind, asset_id,
-        asset_revision, message_id, room_id, reported_account_id, anchor, note, created_at)
+        asset_revision, message_id, room_id, reported_account_id, anchor, note, quick_answer, created_at)
       values (${report.reportId}::uuid, ${report.reporterAccountId}::uuid, ${report.kind}, ${report.category},
         ${report.targetKind}, ${report.assetId ?? null}::uuid, ${report.assetRevision ?? null}::int,
         ${report.messageId ?? null}::uuid, ${report.roomId ?? null}::uuid, ${report.reportedAccountId ?? null}::uuid,
         ${report.anchor === undefined ? null : JSON.stringify(report.anchor)}::jsonb, ${report.note ?? null},
-        ${report.createdAt})`.execute(transactionOf(scope));
+        ${report.quickAnswer ?? null}, ${report.createdAt})`.execute(transactionOf(scope));
   },
 };
 

@@ -84,7 +84,27 @@ It is the same request row, the same states (E07), polling, cancel and retry; on
 9. **The brief is one quoted line.** `askBrief` collapses the person's words (and the Scroll's title and stop) to one line, dropping control and format characters, so typed text cannot start a line of the brief of its own.
 10. **Never the Scroll being read.** `inventory` skips the source's explanation for every ask, so placing, polling and Try again can all not return the Scroll the question was asked from (D-230).
 
-*Implemented.* Not built: Reel asks (no production path), a v2 ask order (the review gate, D-138, would have to be skipped for a private audience), asking from a passage (D2) and as a wager (D3), and research pages chosen from the matched subject for an order whose question belongs to another subject (D-251).
+*Implemented.* Not built: Reel asks (no production path), a v2 ask order (the review gate, D-138, would have to be skipped for a private audience) and asking as a wager (D3). Asking from selected words (D2) is the Quick answer below.
+
+## Quick answer (D-086, D-253 to D-255; v3 S-9b)
+
+A person who selects words in a read stop of a v2 Scroll and chooses Ask gets a short answer under the stop, labelled "Quick answer · not a checked Scroll". It is not a Scroll, not evidence and never part of the Universe. It is a different request from an ask: its own table, its own caps and no production behind it.
+
+| Capability | Where | Status |
+|---|---|---|
+| Ask: `POST /v1/quick-answers` stores the row, one ledger row and one job in one transaction (`application/quick-answers.ts`). No model call. | `AskQuickAnswerUseCase` | implemented |
+| Answer: a worker asks the writer (one repair) on the personal harness, role `supply.quick-answer`, then the support check below, outside any transaction, then settles the row (`application/answer-quick-answer.ts`, `quick-answer-pipeline.ts`). At most six paid attempts. | `supply.answer-quick-answer` | implemented, CI-verified with labelled fixture models; real-model run is the coordinator's on dev |
+| Read and dismiss: `GET /v1/quick-answers/{id}`, `POST /v1/quick-answers/dismiss` (clears the words now). | `ReadQuickAnswerUseCase`, `DismissQuickAnswerUseCase` | implemented |
+| What the model is offered: the read stops up to and including the reader's and the plainer words of that stop, nothing after, no call (`READ_SCROLL_QUICK_ANSWER_FACTS`, Content). Whether the answer stays within them is what the checks below decide. | `domain/quick-answer.ts` | implemented |
+| What code checks of a draft: every citation is an offered passage, a digit only where a cited passage, the selected words or the question states it, plain text, and a question about the selected words and the cited passages. It cannot see whether a sentence without a digit says what its passage says. | `quickAnswerRefusals` | implemented |
+| What the checker model judges: S-7b's support check (D-250) reads each sentence against the passages the answer cites, under its own role `supply.quick-answer-support`; code validates its reply (a quote in a cited passage and about the sentence). Not cleared: one rewrite with fixed hints and a second check; not cleared again, or no usable check at all: no card. The answering step cannot be built without a checker. A model's judgement, not a proof. | `quick-answer-support.ts`, `quick-answer-pipeline.ts` | implemented; real-model accuracy is the coordinator's on dev |
+| A question the passages do not cover: the card shows a sentence code owns, under the person's own words, and none of the model's. | `shownOf` | implemented |
+| Caps: the world's day (`KS_SUPPLY_QUICK_ANSWER_DAILY_CAP`, from the ledger; 0 is off), the person's day (`KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP`, from their rows) and three waiting at once. A full cap is an honest `unavailable` outcome with no row and no receipt. | `refusalReason` | implemented |
+| Refused while recording is paused (D-254). Stored, then "could not answer", for a person who paused and resumed: the personal harness runs only at the first generation, as for an ask's scope step. | `fenceRecording` | implemented; the resumed case is a known limit |
+| Retention (D-255): the selected words and the typed question are cleared when the answer settles or the card is dismissed, when a job arrives after the wait limit, or when `supply.purge-quick-answers` (every ten minutes) finds the answer still waiting after it; the answer is kept one day, then the purge deletes it; an expired answer reads as not found at once. The three-at-once limit counts only answers younger than the wait limit. | `adapters/postgres-quick-answers.ts` | implemented |
+| A report keeps the answer's words (`READ_QUICK_ANSWER_FOR_REPORT`, read by Feedback). | `makeReadQuickAnswerForReport` | implemented |
+
+A wait is four minutes at most. A status read past it says "could not answer" even if no worker ever closed the row, and a late answer finds the wait ended and is dropped. A redelivered job answers from the ledger (the run is the answer's ID), and an attempt of unknown outcome is never resent: the card ends as unavailable and the run stays open for an operator. The files that may name a Quick answer are allow-listed by `quick-answer-wall.test.ts`: nothing that ranks, plans, remembers or forms places can.
 
 ## Waiting for production
 
@@ -189,6 +209,10 @@ transaction that makes the branch, so a retry never gets here twice. The scenari
 | `pgboss/supply.resolve-request` | IDs only (`universeId`, `privacyEpoch`, `requestId`). Four at a time, 360 s expiry, three retries. A recovery job uses the same payload. | The eraser removes every queued, active, retained and dead-lettered payload of the owner. |
 | `pgboss/content.produce-scroll` | Owned by Content; names a recipe, never a person. | Nothing personal to erase. |
 | `supply.scenario_orders` | The ledger of a thread's branch orders that the scenario caps count: order ID, thread ID, time. | Names no person; survives erasure. |
+| `supply.quick_answers` | A person's Quick answer (0093): the Scroll revision and stop, the words they selected and the question they typed (only while it waits), then the question the card shows and the answer. One day (`expires_at`). | Erased with the person (full erasure and Clear), at once; the export lists the answers still kept. |
+| `supply.quick_answer_ledger` | The ledger of Quick answers: an ID and a time, no person and no words. The world's day cap reads it. | Names no person and no words; survives erasure. |
+| `pgboss/supply.answer-quick-answer` | IDs only (`universeId`, `privacyEpoch`, `quickAnswerId`). Four at a time, 1,950 s expiry (six paid attempts at the largest request deadline, as the reasoning README counts it), one retry. | The eraser removes every queued, active, retained and dead-lettered payload of the owner. |
+| `pgboss/supply.purge-quick-answers` | Cron, every ten minutes: first closes the Quick answers still waiting after the wait limit and clears their words, then deletes the ones whose day is over, 500 per transaction, at most ten batches a run. Logs `supply.quick_answers_given_up` and `supply.quick_answers_purged` with counts. | Nothing personal. |
 | `supply.ask_orders` | The ledger of ask orders: order ID, when it was made, when its Scroll was first seen admitted, and whether it was made under the support check (`support_checked`, D-252). The world's cap and the "usually" time read it (D-218). | Names no person and no words; survives erasure. |
 | `supply.requests.ask_order_id`, `ask_asset_id` | The link from a person's ask to the order and the Scroll made for it. It is also the audience of that Scroll. | Erased with the request; the order's brief is set empty first. |
 
@@ -200,7 +224,7 @@ States of `supply.requests`: `matching`, `requested`, `deferred` (Planner), `rea
 `cancelled`.
 
 Lock order: personal root, owned demand, Content asset SHARE locks in UUID order, the commissioning
-advisory lock, the shared group row. A resolver handles one recipient per transaction and never holds
+advisory lock, the shared group row. A Quick answer's ask takes the personal root and then its own advisory lock (`supply.quick-answers`), last; no other path takes it. A resolver handles one recipient per transaction and never holds
 shared work while acquiring another personal root. No model call or network wait happens inside a
 transaction or on the HTTP path.
 

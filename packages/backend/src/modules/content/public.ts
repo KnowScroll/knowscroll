@@ -164,6 +164,35 @@ export type ReadScrollAskFacts = (
 
 export const READ_SCROLL_ASK_FACTS = Symbol('content.readScrollAskFacts');
 
+/** One passage a Quick answer may rest on: a read stop of the Scroll, under its own ID. */
+export interface QuickAnswerPassage {
+  readonly stopId: string;
+  readonly text: string;
+}
+
+/** What a Quick answer (D-253) may rest on: the Scroll's title and the words the reader has reached, no more. */
+export interface ScrollQuickAnswerFacts {
+  readonly title: string;
+  /** The words of the read stops up to and including the anchored one, in reading order; the last is the anchor. */
+  readonly passages: readonly QuickAnswerPassage[];
+  /** The anchored stop's plainer words (D-085): a reader may select inside them, so they count as the stop's own. */
+  readonly anchorSimple: string;
+}
+
+/**
+ * Port: the passages a Quick answer asked from one stop of an exact Scroll revision may rest on, read from its
+ * immutable document inside the caller's personal transaction. Never a stop after the anchor and never a call, so the
+ * answer cannot spoil what the person has not reached. `undefined` when the revision does not exist, is not a
+ * `scroll-document.v2`, is held or rejected by the review gate (D-138), or the anchor is not a read stop of it.
+ */
+export type ReadScrollQuickAnswerFacts = (
+  scope: PersonalScopeTx,
+  ref: ContentRef,
+  stopId: string,
+) => Promise<ScrollQuickAnswerFacts | undefined>;
+
+export const READ_SCROLL_QUICK_ANSWER_FACTS = Symbol('content.readScrollQuickAnswerFacts');
+
 /** Shared semantic catalogue and exact-revision sidecars; no wire or personal coverage consumer. */
 export { CONCEPT_CATALOGUE_VERSION, CONCEPTS, conceptLabel } from './domain/concepts.js';
 /** Which Scene family draws a system, star or planet, and a system's haze family; defined by the library plan. */
@@ -278,6 +307,19 @@ export type { ScrollTopic } from './production/topics.js';
  * is accepted only when the quote is in the text. Pure.
  */
 export { hasEnoughWords, isAbout, quoteIsIn } from './domain/ask-support.js';
+/**
+ * The support check of an answer to a question (D-250), for the Quick answer's own use of it (D-253): the sentences of an answer, the
+ * checker's role, its context and how its reply reads. Pure; the caller makes the model call, under its own role ID, run and caps.
+ */
+export {
+  UNSUPPORTED_HINTS,
+  splitSentences,
+  unsupportedOf,
+  type SentenceUnderCheck,
+  type SentenceVerdict,
+  type UnsupportedVerdict,
+} from './domain/ask-support.js';
+export { askSupportContext, askSupportRole, verdictsOf, type SupportPassage } from './production/ask-support.js';
 export type { ProduceScrollResult } from './production/types.js';
 export {
   validateTopics,
