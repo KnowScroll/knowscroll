@@ -98,6 +98,79 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
     world.clock.now = new Date(iso);
   };
 
+  /** A person with a public profile and a recording lifecycle, as an account deletion needs. */
+  async function namedPerson(): Promise<Friend> {
+    const person = await recordingPerson(database);
+    const set = await world.friends.setProfile(person.authority, {
+      version: 'sharing.v1',
+      commandId: randomUUID(),
+      expectedProfileRevision: 0,
+      handle: `ci.${person.accountId.replaceAll('-', '').slice(0, 14)}`,
+      displayName: 'Fixture owner',
+    });
+    if (set.kind !== 'ok') throw new Error('profile refused');
+    const read = await world.friends.readProfile(person.authority);
+    if (read.kind !== 'ok' || read.value.status !== 'claimed') throw new Error('profile unreadable');
+    return { ...person, person: read.value.person };
+  }
+
+  /** The person's real, sealed Clear of exploration history (epoch 1 to 2). */
+  async function clearExploration(person: Friend) {
+    const installer = createBoss(database.settings, 'install', {
+      onError: () => undefined,
+      onWarning: () => undefined,
+    });
+    await installer.start();
+    try {
+      await applyQueueDeclarations(installer, [clearExplorationQueue, recoverClearOperationsQueue]);
+      const use = clearExplorationFor(database.db, installer, {
+        reasoning: clearReasoning,
+        eraseCore: eraseCurrentExploration,
+      });
+      const commandId = randomUUID();
+      expect(
+        await use.start(
+          { accountId: person.accountId, universeId: person.universeId, privacyEpoch: 1 },
+          {
+            version: 'clear-exploration.v1',
+            commandId,
+            expectedPrivacyEpoch: 1,
+            confirmation: 'clear-exploration-preserve-keep-and-social',
+          },
+        ),
+      ).toMatchObject({ kind: 'entered', value: { kind: 'ok' } });
+      await use.process({ v: 1, accountId: person.accountId, commandId });
+    } finally {
+      await installer.stop({ graceful: false });
+    }
+  }
+
+  it('keeps a scout through a Clear of exploration history, and ends only a call in flight (counted, never handed back)', async () => {
+    const posted = await libraryScroll(world.db, 'A Scroll the scout already found', 10, ASTRO);
+    const inFlight = await libraryScroll(world.db, 'A Scroll its next call is about', 20, ASTRO);
+    const scene = await sent();
+    await scoutBeat(world).look(scene.slug, scene.owner);
+    expect((await finds(scene.roomId))[0]).toMatchObject({ root_asset_id: posted });
+    // A call that was in flight when the person cleared: a labelled fixture row, as a scout's turn is while its model is called.
+    const turnId = randomUUID();
+    await sql`insert into rooms.ai_turns (turn_id, room_id, trigger, state, decided_by, created_at, find_asset_id, find_asset_revision, requested_by_account_id)
+      values (${turnId}::uuid, ${scene.roomId}::uuid, 'scout_find', 'queued', 'caps_clear', now(), ${inFlight}::uuid, 1, ${scene.owner.accountId}::uuid)`.execute(
+      world.db,
+    );
+    await clearExploration(scene.owner);
+    // The setting holds no reading, so it stays, as does what the scout already posted.
+    expect(await scoutRow(world.db, scene.roomId, scene.owner)).toMatchObject({ interests: [ASTRO], paused: false });
+    expect(await finds(scene.roomId)).toHaveLength(1);
+    expect(roomsErasure.clearExploration?.dispositions['rooms.scouts']).toBe('preserve');
+    // The call in flight ended, and stays counted: a Clear does not give a paid call back.
+    const turn = await database.db
+      .selectFrom('rooms.ai_turns')
+      .selectAll()
+      .where('turn_id', '=', turnId)
+      .executeTakeFirst();
+    expect(turn).toMatchObject({ state: 'failed', dispatched: true });
+  });
+
   /** A room with a moderator, an owner who will send a scout and `others` members who listen. */
   async function room(others = 2) {
     const { roomId, slug } = await seedRoom(world);
@@ -645,18 +718,54 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
       ).toEqual({ kind: 'dropped', reason: 'room_closed' });
     });
 
-    it('when its owner left, was removed or deleted their account, even if a stale setting is still there', async () => {
-      const scene = await sent();
-      await libraryScroll(world.db, 'A Scroll for the one who left', 10, ASTRO);
-      const { look, model } = scoutBeat(world);
-      const ref = (await scoutBeat(world).heartbeat.scoutIn(scene.slug, scene.owner.person.handle))!;
-      // Everything the pass reads under the lock says the owner is gone; the setting itself is out of its way.
-      await sql`update rooms.members set ended_at = now(), ended_by = 'left'
-        where room_id = ${scene.roomId}::uuid and account_id = ${scene.owner.accountId}::uuid`.execute(world.db);
-      const result = await scoutBeat(world).heartbeat.lookAt(ref, new AbortController().signal);
-      expect(result.find).toEqual({ kind: 'dropped', reason: 'owner_gone' });
-      expect(model.calls).toHaveLength(0);
-      expect(look).toBeDefined();
+    it('when its owner left, was removed or deleted their account, even if the model would be called: the look ends before it', async () => {
+      const ends: readonly [string, (roomId: string, owner: Friend) => Promise<unknown>, string][] = [
+        // A stale setting is left in place on purpose: only what the pass reads under the room's lock says the owner is gone.
+        [
+          'left',
+          (roomId, owner) =>
+            sql`update rooms.members set ended_at = now(), ended_by = 'left'
+              where room_id = ${roomId}::uuid and account_id = ${owner.accountId}::uuid`.execute(world.db),
+          'owner_gone',
+        ],
+        [
+          'was removed',
+          (roomId, owner) =>
+            sql`update rooms.members set ended_at = now(), ended_by = 'removed'
+              where room_id = ${roomId}::uuid and account_id = ${owner.accountId}::uuid`.execute(world.db),
+          'owner_gone',
+        ],
+        [
+          'deleted their account',
+          async (_roomId, owner) => {
+            const receiptId = randomUUID();
+            const deleting = deleteAccountFor(database.db, boss, {
+              eraseAccountData: eraseCurrentAccount,
+              lockTimeoutMs: 5_000,
+            });
+            expect((await deleting.request(owner.authority, { receiptId })).kind).toBe('accepted');
+            expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
+          },
+          'no_scout',
+        ],
+      ];
+      for (const [name, end, reason] of ends) {
+        await database.db.updateTable('content.assets').set({ status: 'withdrawn' }).execute();
+        await libraryScroll(world.db, 'A Scroll for an owner who is gone', 10, ASTRO);
+        const { roomId, slug } = await seedRoom(world);
+        await joined(world, roomId, 2);
+        const owner = await namedPerson();
+        unwrap(await world.rooms.join(owner.authority, { version, commandId: randomUUID(), roomId }));
+        unwrap(await setScout(world, owner, roomId, { interests: [ASTRO] }));
+        const { heartbeat, model } = scoutBeat(world);
+        // The look was planned while the owner was still here; a model would have been called for it.
+        const planned = (await heartbeat.scoutIn(slug, owner.person.handle))!;
+        await end(roomId, owner);
+        expect((await heartbeat.lookAt(planned, never)).find, name).toEqual({ kind: 'dropped', reason });
+        expect(model.calls, name).toHaveLength(0);
+        expect(await scoutTurns(world.db, roomId), name).toEqual([]);
+        expect(await finds(roomId), name).toEqual([]);
+      }
     });
 
     it('when its owner leaves, is removed or pauses recording while the model is being called: the call is paid, nothing is posted', async () => {
@@ -898,78 +1007,6 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
   });
 
   describe('what a person takes back', () => {
-    async function namedPerson(): Promise<Friend> {
-      const person = await recordingPerson(database);
-      const set = await world.friends.setProfile(person.authority, {
-        version: 'sharing.v1',
-        commandId: randomUUID(),
-        expectedProfileRevision: 0,
-        handle: `ci.${person.accountId.replaceAll('-', '').slice(0, 14)}`,
-        displayName: 'Fixture owner',
-      });
-      if (set.kind !== 'ok') throw new Error('profile refused');
-      const read = await world.friends.readProfile(person.authority);
-      if (read.kind !== 'ok' || read.value.status !== 'claimed') throw new Error('profile unreadable');
-      return { ...person, person: read.value.person };
-    }
-
-    /** The person's real, sealed Clear of exploration history (epoch 1 to 2). */
-    async function clearExploration(person: Friend) {
-      const installer = createBoss(database.settings, 'install', {
-        onError: () => undefined,
-        onWarning: () => undefined,
-      });
-      await installer.start();
-      try {
-        await applyQueueDeclarations(installer, [clearExplorationQueue, recoverClearOperationsQueue]);
-        const use = clearExplorationFor(database.db, installer, {
-          reasoning: clearReasoning,
-          eraseCore: eraseCurrentExploration,
-        });
-        const commandId = randomUUID();
-        expect(
-          await use.start(
-            { accountId: person.accountId, universeId: person.universeId, privacyEpoch: 1 },
-            {
-              version: 'clear-exploration.v1',
-              commandId,
-              expectedPrivacyEpoch: 1,
-              confirmation: 'clear-exploration-preserve-keep-and-social',
-            },
-          ),
-        ).toMatchObject({ kind: 'entered', value: { kind: 'ok' } });
-        await use.process({ v: 1, accountId: person.accountId, commandId });
-      } finally {
-        await installer.stop({ graceful: false });
-      }
-    }
-
-    it('keeps a scout through a Clear of exploration history, and ends only a call in flight (counted, never handed back)', async () => {
-      const posted = await libraryScroll(world.db, 'A Scroll the scout already found', 10, ASTRO);
-      const inFlight = await libraryScroll(world.db, 'A Scroll its next call is about', 20, ASTRO);
-      const scene = await sent();
-      await scoutBeat(world).look(scene.slug, scene.owner);
-      expect((await finds(scene.roomId))[0]).toMatchObject({ root_asset_id: posted });
-      // A call that was in flight when the person cleared: a labelled fixture row, as a scout's turn is while its model is called.
-      const turnId = randomUUID();
-      await sql`insert into rooms.ai_turns (turn_id, room_id, trigger, state, decided_by, created_at, find_asset_id, find_asset_revision, requested_by_account_id)
-        values (${turnId}::uuid, ${scene.roomId}::uuid, 'scout_find', 'queued', 'caps_clear', now(), ${inFlight}::uuid, 1, ${scene.owner.accountId}::uuid)`.execute(
-        world.db,
-      );
-      await clearExploration(scene.owner);
-      // The setting holds no reading, so it stays, as does what the scout already posted.
-      expect(await scoutRow(world.db, scene.roomId, scene.owner)).toMatchObject({ interests: [ASTRO], paused: false });
-      expect(await finds(scene.roomId)).toHaveLength(1);
-      expect(roomsErasure.clearExploration?.dispositions['rooms.scouts']).toBe('preserve');
-      // The call in flight ended, and stays counted: a Clear does not give a paid call back.
-      const turn = await database.db
-        .selectFrom('rooms.ai_turns')
-        .selectAll()
-        .where('turn_id', '=', turnId)
-        .executeTakeFirst();
-      expect(turn).toMatchObject({ state: 'failed', dispatched: true });
-    });
-
     it('exports the scouts a person sent and what they posted in their name, and deletes all of it with their account: the notes become tombstones and the others’ replies stay', async () => {
       await libraryScroll(world.db, 'A Scroll for the export and the deletion', 10, ASTRO);
       const { roomId, slug } = await seedRoom(world);
