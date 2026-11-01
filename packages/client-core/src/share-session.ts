@@ -19,7 +19,11 @@ const MAX_NOTE = 500;
  * a hash, so the only copy is the one the creating response carried: held here, in memory and with the scope, so that
  * "Copy link" a second time copies the link that is already live instead of making another share.
  */
-const madeLinks = new WeakMap<AccountScope, Map<string, { readonly url: string; readonly shareId: string }>>();
+interface MadeLink {
+  readonly url: string;
+  readonly shareId: string;
+}
+const madeLinks = new WeakMap<AccountScope, Map<string, MadeLink>>();
 const linkKey = (target: ConversationContentRef) => `${target.assetId}:${String(target.assetRevision)}`;
 
 /** A friend the person can send to, with the open conversation when there is one. */
@@ -256,7 +260,7 @@ export function createShareSession(options: ShareSessionOptions): ShareSession {
   }
 
   /** The link this scope already made for this revision, if the server still answers for it. */
-  async function liveLink(): Promise<{ readonly url: string; readonly shareId: string } | undefined> {
+  async function liveLink(): Promise<MadeLink | undefined> {
     const made = madeLinks.get(scope)?.get(linkKey(target));
     if (made === undefined) return undefined;
     const own = await scope.api.contentShares.list({ version: SHARE_VERSION, readId: newId() });
@@ -265,8 +269,8 @@ export function createShareSession(options: ShareSessionOptions): ShareSession {
     return undefined;
   }
 
-  function rememberLink(link: { readonly url: string; readonly shareId: string }): void {
-    const links = madeLinks.get(scope) ?? new Map();
+  function rememberLink(link: MadeLink): void {
+    const links = madeLinks.get(scope) ?? new Map<string, MadeLink>();
     links.set(linkKey(target), link);
     madeLinks.set(scope, links);
   }

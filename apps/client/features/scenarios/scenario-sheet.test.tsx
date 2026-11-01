@@ -434,7 +434,7 @@ describe('the What if… sheet', () => {
 
   describe('a refused version of the member’s own', () => {
     /** What the API client throws for a problem answer: the real error, made by answering a request with it. */
-    async function problem(code: ProblemCode): Promise<unknown> {
+    async function problem(code: ProblemCode): Promise<Error> {
       const details = problemDetails(code);
       const api = createApiClient({
         baseUrl: 'https://app.fixture.test',
@@ -458,7 +458,7 @@ describe('the What if… sheet', () => {
           () => {
             throw new Error('the fixture answer was not a problem');
           },
-          (error: unknown) => error,
+          (error: unknown) => error as Error,
         );
     }
     async function refused(code: 'SHARING_UNAVAILABLE' | 'SHARING_REVISION_STALE' | 'INTERNAL') {
