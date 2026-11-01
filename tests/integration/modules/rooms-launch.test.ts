@@ -510,6 +510,41 @@ describe('the Launch (real PostgreSQL, labelled CI fixtures)', () => {
     });
   });
 
+  describe('the settling job', () => {
+    it('is queued at the start to run at the end, and settles a Launch nobody opened and no device finished', async () => {
+      const t0 = begin();
+      const { roomId, people } = await readyRoom(2);
+      const [asha, ravi] = people as [Friend, Friend];
+      const queuedBefore = world.launchSettles.length;
+      const started = unwrap(await start(asha, roomId));
+      if (started.outcome !== 'accepted') throw new Error('expected accepted');
+      const open = opensAt(t0).getTime() - t0.getTime();
+      const queued = world.launchSettles.slice(queuedBefore);
+      expect(queued).toHaveLength(1);
+      expect(queued[0]!.job).toMatchObject({ roomId, launchId: started.launchId });
+      expect(queued[0]!.startAfter!.getTime()).toBeGreaterThanOrEqual(t0.getTime() + open + PLAY_MS);
+      at(open + 500, t0);
+      unwrap(await answer(asha, roomId, started.launchId, 1, KEY[0]));
+      unwrap(await answer(ravi, roomId, started.launchId, 1, KEY[0]));
+      const settle = world.settle();
+      // Run early, the job leaves the Launch alone.
+      at(open + PLAY_MS - 1_000, t0);
+      await settle(queued[0]!.job);
+      expect(await starCount(roomId)).toBe(0);
+      // Run at its time, with no presence beat, no finish and no read, it settles the Launch once, and again does nothing more.
+      at(open + PLAY_MS + 1_500, t0);
+      await settle(queued[0]!.job);
+      await settle(queued[0]!.job);
+      expect(await starCount(roomId)).toBe(1);
+      const row = await world.db
+        .selectFrom('rooms.launches')
+        .select(['state', 'played', 'star'])
+        .where('launch_id', '=', started.launchId)
+        .executeTakeFirstOrThrow();
+      expect(row).toEqual({ state: 'finished', played: 2, star: true });
+    });
+  });
+
   describe('the star', () => {
     it('is one star for a Launch two people played, none for a Launch one person played, and none from a deck played twice', async () => {
       const t0 = begin();

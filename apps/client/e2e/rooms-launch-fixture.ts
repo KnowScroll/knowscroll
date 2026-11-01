@@ -160,6 +160,8 @@ export class LaunchWorld {
         youIn,
       };
     if (phase.kind === 'over') {
+      // The server settles a Launch by itself when its time ends (D-298): the first read after the end finds it settled.
+      this.finish();
       const results = this.results();
       const podium = results
         .filter((result) => result.score > 0)
@@ -286,10 +288,6 @@ export async function launchRoutes(
           json: { type: 'about:blank', title: 'Unavailable', status: 403, code: 'SHARING_UNAVAILABLE' },
         });
       return route.fulfill({ json: { ...receipt(body, scope, 'launch.answer'), launchId, round: body['round'] } });
-    }
-    if (path.endsWith('/finish')) {
-      world.finish();
-      return route.fulfill({ json: { ...receipt(body, scope, 'launch.finish'), launchId } });
     }
     return route.fulfill({ status: 404, json: { code: 'NOT_FOUND' } });
   });

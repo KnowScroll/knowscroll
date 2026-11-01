@@ -28,11 +28,13 @@ import {
   DEFAULT_CAST,
   castPassQueue,
   contributeQueue,
+  launchSettleQueue,
   libraryRoomSeeds,
   summariseQueue,
   type CastDueJob,
   type CastPassJob,
   type ContributeJob,
+  type LaunchSettleJob,
   type RoomSeed,
   type SummariseJob,
 } from '@knowscroll/backend/modules/rooms';
@@ -43,6 +45,7 @@ import {
   runCastPass,
   runSummarise,
   seedRooms,
+  settleLaunch,
   setRoomModerator,
 } from '@knowscroll/backend/modules/rooms/nest-providers';
 import {
@@ -87,9 +90,13 @@ export interface RoomWorld {
   readonly castPasses: { readonly job: CastPassJob; readonly startAfter: Date | undefined }[];
   /** The model calls that write a window's "while you were away", as queued, in order. */
   readonly summaries: SummariseJob[];
+  /** The settlements of Launches, as queued (with when they were asked to run), in order. */
+  readonly launchSettles: { readonly job: LaunchSettleJob; readonly startAfter: Date | undefined }[];
   readonly boss: PgBoss;
   /** The worker's consumer over the recording-aware harness (a fixture model in tests). */
   contribute(harness: RecordingReasoningHarness): (job: ContributeJob, signal?: AbortSignal) => Promise<void>;
+  /** The worker's settlement of a Launch whose play time ended (no model, no harness). */
+  settle(): (job: LaunchSettleJob) => Promise<void>;
   /** The worker's check of whether a resident answers a message (no model, no harness). */
   decide(): (job: CastDueJob) => Promise<void>;
   /** The worker's model call of an allowed unprompted turn, over a rooms-scope harness. */
@@ -128,6 +135,7 @@ export async function roomWorld(
   const castChecks: RoomWorld['castChecks'] = [];
   const castPasses: RoomWorld['castPasses'] = [];
   const summaries: SummariseJob[] = [];
+  const launchSettles: RoomWorld['launchSettles'] = [];
   const enqueue: EnqueueJob = async (scope, queue, payload, enqueueOptions) => {
     if (queue.name === contributeQueue.name) queued.push(payload as ContributeJob);
     if (queue.name === castDueQueue.name)
@@ -135,7 +143,15 @@ export async function roomWorld(
     if (queue.name === castPassQueue.name)
       castPasses.push({ job: payload as CastPassJob, startAfter: enqueueOptions?.startAfter });
     if (queue.name === summariseQueue.name) summaries.push(payload as SummariseJob);
-    await forwarding(scope, queue, payload, enqueueOptions);
+    if (queue.name === launchSettleQueue.name)
+      launchSettles.push({ job: payload as LaunchSettleJob, startAfter: enqueueOptions?.startAfter });
+    // The test clock runs ahead of the real one; the queue refuses a start more than a day past the real time, and nothing consumes these jobs here.
+    const startAfter = enqueueOptions?.startAfter;
+    const forwarded =
+      startAfter !== undefined && startAfter.getTime() > Date.now()
+        ? { ...enqueueOptions, startAfter: new Date() }
+        : enqueueOptions;
+    await forwarding(scope, queue, payload, forwarded);
   };
   const access = accountAccessUseCases({ db: database.db, lockTimeoutMs: 10_000 });
   const deps = {
@@ -172,8 +188,13 @@ export async function roomWorld(
     queued,
     castChecks,
     castPasses,
+    launchSettles,
     summaries,
     boss,
+    settle() {
+      const run = settleLaunch({ ...deps, enqueue, ownerActive });
+      return (job) => run(job);
+    },
     decide() {
       const decision = decideCast({ ...deps, enqueue, ownerActive, residentsEnabled: true });
       return (job) => decision(job);

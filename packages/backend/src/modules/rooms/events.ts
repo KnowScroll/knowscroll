@@ -139,6 +139,38 @@ export const summariseQueue = defineQueue({
 });
 
 /**
+ * The settlement of one Launch, queued when it starts to run at the end of its play time (D-178, D-224). IDs only. The worker acts
+ * for the universe of the member who started it, only to take the room lock in order and to stop when that person is gone; a Launch
+ * it cannot settle is settled by the room's next member command, as before, and counts from its end either way. A redelivery or a
+ * Launch already settled changes nothing.
+ */
+export const LaunchSettleJobSchema = z.strictObject({
+  v: z.literal(1),
+  universeId: z.uuid(),
+  privacyEpoch: z.number().int().positive(),
+  roomId: z.uuid(),
+  launchId: z.uuid(),
+});
+export type LaunchSettleJob = z.infer<typeof LaunchSettleJobSchema>;
+
+export const launchSettleQueue = defineQueue({
+  name: 'rooms.launch-settle',
+  purpose:
+    "Mark a Launch finished and award the room's star when its play time has ended, with no one's device asking.",
+  payload: LaunchSettleJobSchema,
+  policy: {
+    expireInSeconds: 120,
+    retryLimit: 3,
+    retryDelaySeconds: 10,
+    retryBackoff: true,
+    retentionSeconds: 3 * 86400,
+    deleteAfterSeconds: 86400,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 2, pollingIntervalSeconds: 2 },
+});
+
+/**
  * Once a night: drafts the day's question and Spot the flaw for every open room that has a member (D-176). No payload but
  * its version: the rooms and the day are read when it runs. A room's items are unique by (room, day, kind) and the model run
  * is fixed by the room and day, so a late, repeated or retried delivery changes nothing and pays for nothing twice. What it

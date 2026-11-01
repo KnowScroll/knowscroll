@@ -27,7 +27,7 @@ import type { AiLevel, EarlierPlace, JoinRule, RoomRole, RoomStatus } from '../d
 import type { CapCounts, RefusalCap } from '../domain/router.js';
 import type { StarAct } from '../domain/sky.js';
 import type { MessageTrigger, SpeechTrigger } from '../domain/triggers.js';
-import type { CastDueJob, CastPassJob, SummariseJob } from '../events.js';
+import type { CastDueJob, CastPassJob, LaunchSettleJob, SummariseJob } from '../events.js';
 import type { FindQuery, FindRow, LiveEventRow, MemoryStaleCause, MemoryView, ResidentFacts } from './feed-ports.js';
 import type { ScoutCadence } from '../domain/scout.js';
 
@@ -1165,6 +1165,8 @@ export interface RoomPorts {
   readonly launchGapMs: number;
   /** Queues the check that decides whether a resident answers a message, to run at `startAfter`. */
   enqueueCastDue(scope: PersonalScopeTx, job: CastDueJob, startAfter: Date): Promise<void>;
+  /** Queues the settlement of a Launch to run at `startAfter`, its end, in the caller's open transaction. */
+  enqueueLaunchSettle(scope: PersonalScopeTx, job: LaunchSettleJob, startAfter: Date): Promise<void>;
   /** Queues the model call of an allowed unprompted turn, now or at `startAfter`. */
   enqueueCastPass(scope: PersonalScopeTx, job: CastPassJob, startAfter?: Date): Promise<void>;
   /** Queues the model call that writes one window's "while you were away", in the caller's open transaction. */

@@ -3533,3 +3533,14 @@ Confirmed by: `scenarios.test.ts` on real PostgreSQL (a draft already used, and 
 - **Not changed.** The Clear's receipt, its words, and what a Clear removes.
 
 Confirmed by: `shared-links-panel.test.tsx` and `visibility-panel.test.tsx` (while clearing, the load failure is replaced by the Clear's line and then the content appears when it is done; with no Clear the failure and Try again remain), `clear-panel` through `privacy-screen.test.tsx` (the receipt is unchanged). Shown failing when the panel ignored the Clear.
+
+## D-298 · 2026-11-02 · A Launch is settled by a job at its end, not by a device that opens the room (v3 dev check fixes, #619)
+
+**Amends** D-178 ("no job"), D-224's settlement at the end and the client rule that a device says it saw the end.
+
+- **What went wrong.** Every room page view sent `rooms/launch/finish` for a Launch that had ended hours before, with a new command ID each time. A screen view wrote.
+- **The rule.** Starting a Launch queues one job, `rooms.launch-settle`, to run a second after its play time ends. The worker marks the Launch finished at that end, awards the room's star when two people answered, and tells the room, exactly as the first member command after the end did. The job acts for the starter's universe only to take the room lock in order, and does nothing if that person is gone. Then the room's next member command still settles it, counted from the end either way.
+- **The app** reads the Launch and sends no command when it finds it over. `finishLaunch` stays on the server for now but nothing in the app calls it.
+- **Config.** The worker reads `KS_ROOMS_STARS_PER_DAY` too, so the star it awards obeys the same daily cap as the API.
+
+Confirmed by: `rooms-launch.test.ts` ("the settling job"), `room-launch.test.ts` ("sends no command when it finds the Launch over"), `rooms-launch-smoke.spec.ts` (no `/finish` call). Shown failing when the app still sent finish on load.

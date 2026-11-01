@@ -56,6 +56,7 @@ import { makeIntroductionCommands } from '../application/introduction-commands.j
 import { makePostCommands } from '../application/post-commands.js';
 import { makeScoutCommands } from '../application/scout-commands.js';
 import { makeCastDue, type CastDuePorts } from '../application/cast-due.js';
+import { makeLaunchSettle, type LaunchSettlePorts } from '../application/launch-settle.js';
 import { makeCastPass, type CastPassPorts } from '../application/cast-pass.js';
 import { makeCheckRoomsRecordingRun } from '../application/check-recording-run.js';
 import { makeContribute, type ContributePorts } from '../application/contribute.js';
@@ -78,7 +79,7 @@ import { makeReplay } from '../application/replay.js';
 import { makeToday } from '../application/today.js';
 import { LAUNCH_GAP_MINUTES_DEFAULT } from '../domain/launch.js';
 import { STARS_PER_DAY_DEFAULT } from '../domain/sky.js';
-import { castDueQueue, castPassQueue, contributeQueue, summariseQueue } from '../events.js';
+import { castDueQueue, castPassQueue, contributeQueue, launchSettleQueue, summariseQueue } from '../events.js';
 import {
   CONTRIBUTE_AS_INHABITANT,
   DECIDE_CAST,
@@ -89,6 +90,7 @@ import {
   READ_ROOM_REPORTS,
   ROOM_USE_CASES,
   RUN_CAST_PASS,
+  SETTLE_LAUNCH,
   SUMMARISE,
   type ContributeAsInhabitant,
   type DecideCast,
@@ -96,6 +98,7 @@ import {
   type ReadRoomReports,
   type RoomUseCases,
   type RunCastPass,
+  type SettleLaunch,
   type Summarise,
 } from '../public.js';
 import { localBackdropMedia } from './backdrop-media.js';
@@ -241,6 +244,14 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
         startAfter,
       });
     },
+    enqueueLaunchSettle: async (scope, job, startAfter) => {
+      if (deps.enqueue === undefined) throw new Error('ROOMS_ENQUEUE_NOT_CONFIGURED');
+      await deps.enqueue(scope, launchSettleQueue, job, {
+        jobId: stableUuid(`rooms-launch-settle:${job.launchId}`),
+        duplicate: 'ignore',
+        startAfter,
+      });
+    },
     enqueueSummary: async (scope, job) => {
       if (deps.enqueue === undefined) throw new Error('ROOMS_ENQUEUE_NOT_CONFIGURED');
       await deps.enqueue(scope, summariseQueue, job, {
@@ -305,6 +316,12 @@ export function contributeAsInhabitant(
 export function decideCast(deps: RoomsDeps & { readonly ownerActive: CheckPersonalOwnerActive }): DecideCast {
   const ports: CastDuePorts = { ...roomPorts(deps), ownerActive: deps.ownerActive };
   return makeCastDue(ports);
+}
+
+/** The worker's settlement of a Launch whose play time has ended: no model, no harness. */
+export function settleLaunch(deps: RoomsDeps & { readonly ownerActive: CheckPersonalOwnerActive }): SettleLaunch {
+  const ports: LaunchSettlePorts = { ...roomPorts(deps), ownerActive: deps.ownerActive };
+  return makeLaunchSettle(ports);
 }
 
 /** The worker's model call of an allowed unprompted turn, under the room scope. */
@@ -563,6 +580,58 @@ export function roomsWorkerProviders(tokens: {
           ownerActive,
           enqueue,
           residentsEnabled: config.reasoning.roomEnabled,
+        }),
+    },
+    {
+      provide: SETTLE_LAUNCH,
+      inject: [
+        tokens.withPersonalScope,
+        FENCE_OWN_ACCOUNT,
+        READ_PUBLIC_PEOPLE,
+        READ_FRIEND_ACCOUNTS,
+        READ_SHAREABLE_CONTENT,
+        READ_CONTENT_SEQUENCE,
+        READ_VISITED_ASSETS,
+        VALIDATE_SNIPPET_ANCHOR,
+        RESOLVE_SNIPPET_ANCHOR,
+        CHECK_ASSET_AUDIENCE,
+        READ_BLOCKED_AMONG,
+        CHECK_PERSONAL_OWNER_ACTIVE,
+        tokens.enqueueJob,
+        tokens.workerConfig,
+      ],
+      useFactory: (
+        withScope: WithPersonalScope,
+        fenceOwn: FenceOwnAccount,
+        readPeople: ReadPublicPeople,
+        readFriends: ReadFriendAccounts,
+        readContent: ReadShareableContent,
+        readSequence: ReadContentSequence,
+        readVisited: ReadVisitedAssets,
+        validateSnippet: ValidateSnippetAnchor,
+        resolveSnippet: ResolveSnippetAnchor,
+        checkAudience: CheckAssetAudience,
+        readBlocked: ReadBlockedAmong,
+        ownerActive: CheckPersonalOwnerActive,
+        enqueue: EnqueueJob,
+        config: WorkerConfig,
+      ) =>
+        settleLaunch({
+          withScope,
+          fenceOwn,
+          readPeople,
+          readFriends,
+          readContent,
+          readSequence,
+          readVisited,
+          validateSnippet,
+          resolveSnippet,
+          checkAudience,
+          readBlocked,
+          ownerActive,
+          enqueue,
+          residentsEnabled: config.reasoning.roomEnabled,
+          starsPerDay: config.roomStarsPerDay,
         }),
     },
     {
