@@ -1,0 +1,220 @@
+import AxeBuilder from '@axe-core/playwright';
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { expect, test, type Page } from '@playwright/test';
+import { id } from './encounter-fixture';
+import { feedRoutes, feedWorld, liveStrip, type FeedWorld } from './rooms-feed-fixture';
+import { roomFixture } from './rooms-fixture';
+
+/**
+ * The room's General / Feed / Topics bar and ground (v3 R-8c) in the production export over labelled HTTP fixtures. The bar sits
+ * under the room header at 390 and 1440, switches in place (no address change, no history entry), keeps each tab's scroll, opens
+ * on Feed from `/rooms/<id>/feed`, is driven by the arrow keys, and stands on the room's own ground in the kit's ink (a dark
+ * kit and a pale one), with axe clean on each. The live strip's chips keep their time when a name is long. With `KS_ROOM_SHOTS`
+ * set to a folder, each step also saves a screenshot there (never inside the repository).
+ */
+const shotsFolder = process.env['KS_ROOM_SHOTS'];
+async function shoot(page: Page, name: string) {
+  if (shotsFolder === undefined) return;
+  mkdirSync(shotsFolder, { recursive: true });
+  await page.screenshot({ path: join(shotsFolder, `${name}.png`) });
+}
+
+async function seriousViolations(page: Page) {
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
+    .analyze();
+  return results.violations
+    .filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
+    .map((violation) => ({
+      rule: violation.id,
+      targets: violation.nodes.slice(0, 4).map((node) => `${node.target.join(' ')}  ${node.html.slice(0, 100)}`),
+    }));
+}
+
+const VIEWPORTS = [
+  { name: 'phone', size: { width: 390, height: 844 } },
+  { name: 'desktop', size: { width: 1440, height: 900 } },
+] as const;
+const scope = { accountId: id(1), privacyEpoch: 1 };
+
+test.beforeEach(async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+});
+
+async function open(
+  page: Page,
+  size: { width: number; height: number },
+  options: {
+    face?: 'space' | 'history';
+    world?: FeedWorld;
+    path?: string;
+    live?: () => Record<string, unknown>[];
+  } = {},
+) {
+  const world = options.world ?? feedWorld({ memberPosts: true });
+  const { address } = await roomFixture(page, size, {
+    others: 1,
+    lastMessageMinutesAgo: 5,
+    noticeSeen: true,
+    topics: true,
+    face: options.face ?? 'space',
+    live: options.live ?? (() => liveStrip(world)),
+  });
+  await feedRoutes(page, world, scope);
+  await page.goto(`${address}${options.path ?? ''}`);
+  return { address };
+}
+
+const selected = (page: Page, tab: 'general' | 'feed' | 'topics') =>
+  expect(page.getByTestId(`room-tab-${tab}`)).toHaveAttribute('aria-selected', 'true');
+
+for (const { name, size } of VIEWPORTS) {
+  for (const face of ['space', 'history'] as const) {
+    test(`${name}, ${face} room: the bar switches in place on the room's own ground, and axe finds nothing`, async ({
+      page,
+    }) => {
+      await open(page, size, { face });
+      const tabs = page.getByTestId('room-tabs');
+      await expect(tabs).toBeVisible();
+      await expect(tabs.getByRole('tab')).toHaveText(['General', 'Feed', 'Topics']);
+      await selected(page, 'general');
+      // The ground is the kit's: dark midnight for the Space room, paper for the History room.
+      await expect(page.getByTestId('room-ground')).toHaveCSS(
+        'background-color',
+        face === 'space' ? 'rgb(4, 10, 23)' : 'rgb(244, 237, 216)',
+      );
+      await shoot(page, `${name}-${face}-general`);
+      expect(await seriousViolations(page)).toEqual([]);
+
+      const url = page.url();
+      const entries = await page.evaluate(() => history.length);
+      await page.getByTestId('room-tab-feed').click();
+      await selected(page, 'feed');
+      await expect(page.getByTestId('feed-screen')).toBeVisible();
+      await expect(page.getByTestId('room-messages')).toBeHidden();
+      await shoot(page, `${name}-${face}-feed`);
+      expect(await seriousViolations(page)).toEqual([]);
+
+      await page.getByTestId('room-tab-topics').click();
+      await selected(page, 'topics');
+      await expect(page.getByTestId('topics-screen')).toBeVisible();
+      await expect(page.getByTestId('feed-screen')).toBeHidden();
+      await expect(page.getByTestId('topics-screen').getByTestId('new-topic')).toBeVisible();
+      await shoot(page, `${name}-${face}-topics`);
+      expect(await seriousViolations(page)).toEqual([]);
+
+      await page.getByTestId('room-tab-general').click();
+      await selected(page, 'general');
+      await expect(page.getByTestId('room-messages')).toBeVisible();
+      // Nothing was navigated: the same address and no new entry in the history.
+      expect(page.url()).toBe(url);
+      expect(await page.evaluate(() => history.length)).toBe(entries);
+    });
+  }
+
+  test(`${name}: Back leaves the room, not the tab`, async ({ page }) => {
+    await page.goto('about:blank');
+    await open(page, size);
+    await page.getByTestId('room-tab-feed').click();
+    await selected(page, 'feed');
+    await page.getByTestId('room-tab-topics').click();
+    await selected(page, 'topics');
+    await page.goBack();
+    await expect(page).toHaveURL('about:blank');
+  });
+
+  test(`${name}: a deep link to the feed opens on the Feed tab`, async ({ page }) => {
+    await open(page, size, { path: '/feed' });
+    await selected(page, 'feed');
+    await expect(page.getByTestId('feed-screen')).toBeVisible();
+    await expect(page.getByTestId('feed-list')).toBeVisible();
+    // General is one tab away, and the Now strip's Feed chip opens the same tab without leaving.
+    await page.getByTestId('room-tab-general').click();
+    await expect(page.getByTestId('now-feed-open')).toBeVisible();
+    await page.getByTestId('now-feed-open').click();
+    await selected(page, 'feed');
+    expect(await seriousViolations(page)).toEqual([]);
+  });
+
+  test(`${name}: the arrow keys, Home and End move between the tabs`, async ({ page }) => {
+    await open(page, size);
+    await page.getByTestId('room-tab-general').focus();
+    await page.keyboard.press('ArrowRight');
+    await selected(page, 'feed');
+    await expect(page.getByTestId('room-tab-feed')).toBeFocused();
+    await page.keyboard.press('End');
+    await selected(page, 'topics');
+    await page.keyboard.press('ArrowRight');
+    await selected(page, 'general');
+    await page.keyboard.press('ArrowLeft');
+    await selected(page, 'topics');
+    await page.keyboard.press('Home');
+    await selected(page, 'general');
+    // One Tab stop for the bar: the open tab.
+    await expect(page.getByTestId('room-tab-general')).toHaveAttribute('tabindex', '0');
+    await expect(page.getByTestId('room-tab-feed')).toHaveAttribute('tabindex', '-1');
+  });
+}
+
+test('phone: each tab keeps its scroll when another is opened and the first is opened again', async ({ page }) => {
+  // A short window, so that General and the Feed both have more than a screen to scroll.
+  await open(page, { width: 390, height: 520 });
+  const scrollOf = (testID: string) => page.getByTestId(testID).evaluate((node) => node.scrollTop);
+  const scrollTo = (testID: string, top: number) =>
+    page.getByTestId(testID).evaluate((node, value) => {
+      node.scrollTop = value;
+    }, top);
+
+  await page.getByTestId('room-tab-feed').click();
+  await expect(page.getByTestId('feed-list')).toBeVisible();
+  const room = await page.getByTestId('feed-screen').evaluate((node) => node.scrollHeight - node.clientHeight);
+  expect(room).toBeGreaterThan(80);
+  await scrollTo('feed-screen', 80);
+  await expect.poll(() => scrollOf('feed-screen')).toBe(80);
+
+  await page.getByTestId('room-tab-general').click();
+  await expect(page.getByTestId('room-messages')).toBeVisible();
+  const before = await scrollOf('room-messages');
+  await scrollTo('room-messages', Math.max(0, before - 40));
+  const general = await scrollOf('room-messages');
+
+  await page.getByTestId('room-tab-topics').click();
+  await page.getByTestId('room-tab-feed').click();
+  await expect.poll(() => scrollOf('feed-screen')).toBe(80);
+  await page.getByTestId('room-tab-general').click();
+  expect(await scrollOf('room-messages')).toBe(general);
+});
+
+test('phone: the live strip keeps the time when a name is long, and says all of it to a screen reader', async ({
+  page,
+}) => {
+  const longName = 'Bartholomew-Alexander Featherstonehaugh';
+  const world = feedWorld({ memberPosts: true });
+  await open(page, VIEWPORTS[0].size, {
+    world,
+    live: () => [
+      {
+        kind: 'replied',
+        by: {
+          kind: 'person',
+          person: { kind: 'person', personId: id(570), handle: 'long', displayName: longName },
+          you: false,
+        },
+        at: new Date(Date.now() - 6 * 60_000).toISOString(),
+        discussionId: id(571),
+      },
+    ],
+  });
+  const chip = page.getByTestId('now-feed');
+  await expect(chip).toBeVisible();
+  await expect(chip).toHaveAttribute('aria-label', `Feed, ${longName} replied · 6 min ago`);
+  // The name gives way; "replied · 6 min ago" is whole.
+  const detail = chip.getByText('replied · 6 min ago');
+  await expect(detail).toBeVisible();
+  expect(await detail.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  const box = await chip.boundingBox();
+  expect(box!.width).toBeLessThanOrEqual(281);
+  await shoot(page, 'phone-live-strip-long-name');
+  expect(await seriousViolations(page)).toEqual([]);
+});

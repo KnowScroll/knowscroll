@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { AccountScope, RoomController, RoomState } from '@knowscroll/client-core';
@@ -9,8 +9,10 @@ import { borderWidth, content, layout, radius, spacing, status } from '@knowscro
 import { Icon, IconButton, Text } from '@knowscroll/ui';
 import { afterPendingBack } from '../../platform/after-pending-back';
 import { AiNoticeCard } from './ai-notice';
+import { RoomFeedPanel } from './feed-screen';
 import { RoomEmblem } from './identity/room-emblem';
 import { RoomBand } from './identity/room-band';
+import { RoomGround } from './identity/room-ground';
 import { AwayCard } from './away-card';
 import { OpenDiscussion } from './discussion-screen';
 import { HereStrip } from './here-strip';
@@ -24,11 +26,13 @@ import { ReplaySheet } from './replay-sheet';
 import { discussionHref } from './room-links';
 import { RoomMenu } from './room-menu';
 import { RULE_WORDS } from './room-parts';
+import { RoomPanels, RoomTabBar, type RoomTab } from './room-tabs';
 import { ShareIntoRoomSheet } from './share-into-room-sheet';
 import { useRoomLaunch } from './use-launch';
 import { useRoomWatch } from './use-watch';
 import { WatchSheet } from './watch-sheet';
 import { WatchStage } from './watch-stage';
+import { RoomTopicsPanel } from './topics-list';
 import { useQuietRoom } from './use-quiet-room';
 
 type Member = Extract<RoomView, { status: 'member' }>;
@@ -108,9 +112,49 @@ export function CampfireHeader({
 }
 
 /**
- * A member's room on a phone: the campfire band, the AI notice until it has been read, and General, the room's
- * place to talk, under them. Everything else (about, guidelines, AI level, members, pins, topics, sharing, activity,
- * moderation, leaving) is behind the room's name.
+ * What stands under a member's room header (T3 "Rooms with residents"): the General / Feed / Topics bar on the room's own
+ * ground, and the tab that is open. The bar switches in place, so a tab keeps its scroll and Back leaves the room, not the tab.
+ */
+export function MemberTabs({
+  scope,
+  view,
+  controller,
+  state,
+  tab,
+  onTab,
+}: {
+  readonly scope: AccountScope;
+  readonly view: Member;
+  readonly controller: RoomController;
+  readonly state: RoomState;
+  readonly tab: RoomTab;
+  readonly onTab: (tab: RoomTab) => void;
+}) {
+  return (
+    <RoomGround identity={view.room.identity} testID="room-ground">
+      <RoomTabBar tab={tab} onSelect={onTab} />
+      <RoomPanels
+        tab={tab}
+        general={
+          <GeneralStage
+            scope={scope}
+            view={view}
+            controller={controller}
+            state={state}
+            onOpenFeed={() => onTab('feed')}
+          />
+        }
+        feed={<RoomFeedPanel scope={scope} roomId={view.room.roomId} />}
+        topics={<RoomTopicsPanel scope={scope} view={view} controller={controller} state={state} />}
+      />
+    </RoomGround>
+  );
+}
+
+/**
+ * A member's room on a phone: the campfire band, then the General / Feed / Topics bar and the tab that is open. General
+ * is where the room talks (with the AI notice until it has been read); Feed and Topics are the room's other two places.
+ * Everything else (about, guidelines, AI level, members, pins, sharing, activity, moderation, leaving) is behind the room's name.
  */
 export function PhoneRoom({
   scope,
@@ -118,25 +162,24 @@ export function PhoneRoom({
   controller,
   state,
   onBack,
+  initialTab = 'general',
 }: {
   readonly scope: AccountScope;
   readonly view: Member;
   readonly controller: RoomController;
   readonly state: RoomState;
   readonly onBack: () => void;
+  /** The tab the address asked for: `/rooms/<id>/feed` opens on Feed. */
+  readonly initialTab?: RoomTab;
 }) {
   const router = useRouter();
   const [menu, setMenu] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [tab, setTab] = useState<RoomTab>(initialTab);
   return (
     <View style={styles.stage} testID="room-screen">
-      <GeneralStage
-        scope={scope}
-        view={view}
-        controller={controller}
-        state={state}
-        header={<CampfireHeader view={view} onBack={onBack} onMenu={() => setMenu(true)} />}
-      />
+      <CampfireHeader view={view} onBack={onBack} onMenu={() => setMenu(true)} />
+      <MemberTabs scope={scope} view={view} controller={controller} state={state} tab={tab} onTab={setTab} />
       <RoomMenu
         scope={scope}
         view={view}
@@ -145,6 +188,7 @@ export function PhoneRoom({
         visible={menu}
         onClose={() => setMenu(false)}
         onShare={() => setSharing(true)}
+        onOpenFeed={() => setTab('feed')}
       />
       <ShareIntoRoomSheet
         scope={scope}
@@ -165,21 +209,22 @@ export function PhoneRoom({
 }
 
 /**
- * General under whatever stands above it (the campfire band on a phone, nothing beside D04's rail). The AI notice
- * is shown here once, until the member says they have read it; afterwards the same words are in the room menu.
+ * The General tab: the room's place to talk, with the Now strip first in its list. The AI notice is shown here once,
+ * until the member says they have read it; afterwards the same words are in the room menu.
  */
 export function GeneralStage({
   scope,
   view,
   controller,
   state,
-  header,
+  onOpenFeed,
 }: {
   readonly scope: AccountScope;
   readonly view: Member;
   readonly controller: RoomController;
   readonly state: RoomState;
-  readonly header: ReactNode;
+  /** The Now strip's Feed chip: the Feed tab opens in place. */
+  readonly onOpenFeed?: () => void;
 }) {
   const roomId = view.room.roomId;
   const quiet = useQuietRoom(scope, view);
@@ -222,7 +267,6 @@ export function GeneralStage({
   };
   return (
     <View style={styles.stage}>
-      {header}
       {launch === undefined || launch.phase === 'finished' || launchState.view === undefined ? null : (
         <LaunchStage launch={launch} host={launchState.view.host} state={launchState} controller={launchController} />
       )}
@@ -274,6 +318,7 @@ export function GeneralStage({
             launch={strip}
             live={view.live}
             onLaunch={onLaunch}
+            onOpenFeed={onOpenFeed}
             watch={watching === undefined ? view.watch : { state: 'live' }}
             onWatch={onWatch}
             replay={view.replay}

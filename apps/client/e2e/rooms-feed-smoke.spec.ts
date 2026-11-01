@@ -74,7 +74,7 @@ for (const { name, size } of VIEWPORTS) {
     expect(await seriousViolations(page)).toEqual([]);
 
     await page.getByTestId('now-feed-open').click();
-    await expect(page).toHaveURL(/\/feed$/);
+    await expect(page.getByTestId('room-tab-feed')).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByTestId('feed-screen')).toBeVisible();
     // Each find: a labelled resident, a note, a real asset to open, the way into the talk, and a count of people's votes.
     const first = page.getByTestId(`feed-post-${findId}`);
@@ -147,7 +147,7 @@ test('phone: for a reader whose AI is Off the strip says nothing, the feed lists
   // The room menu still has the way to the feed, where the reason is told.
   await page.getByTestId('room-menu-open').click();
   await page.getByTestId('menu-feed').click();
-  await expect(page).toHaveURL(/\/feed$/);
+  await expect(page.getByTestId('room-tab-feed')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('feed-empty')).toContainText('Residents are off for you');
   await expect(page.getByTestId('feed-list')).toHaveCount(0);
   await shoot(page, 'phone-feed-off');

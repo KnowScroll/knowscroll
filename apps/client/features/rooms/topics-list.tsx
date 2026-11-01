@@ -14,7 +14,9 @@ import { Button, Icon, Tag, Text } from '@knowscroll/ui';
 import { afterPendingBack } from '../../platform/after-pending-back';
 import { closeThen } from '../../platform/close-then';
 import { TAGS, TAG_WORDS } from './ask-words';
+import { useGroundInk } from './identity/room-ground';
 import { discussionHref, roomHref, todayHref } from './room-links';
+import { PanelScroll } from './room-tabs';
 import { ShareIntoRoomSheet } from './share-into-room-sheet';
 import { StartTopicSheet } from './start-topic-sheet';
 import { topicFigures } from './topic-card';
@@ -219,6 +221,7 @@ export function TopicsList({
   readonly closeSheet?: () => void;
 }) {
   const router = useRouter();
+  const ink = useGroundInk(content.ink2);
   const [sharing, setSharing] = useState(false);
   const [starting, setStarting] = useState(false);
   const [sort, setSort] = useState<RoomTopicSort>('hot');
@@ -237,7 +240,7 @@ export function TopicsList({
   return (
     <>
       <View style={styles.listHeader}>
-        <Text variant="monoXs" color={content.ink2}>
+        <Text variant="monoXs" color={ink}>
           {pinned ? 'Pins' : 'Topics'}
         </Text>
         <View style={styles.actions}>
@@ -348,6 +351,25 @@ export function TopicsList({
         />
       ) : null}
     </>
+  );
+}
+
+/** The room's Topics tab: the forum list on the room's ground, with the ways to start one. */
+export function RoomTopicsPanel({
+  scope,
+  view,
+  controller,
+  state,
+}: {
+  readonly scope: AccountScope;
+  readonly view: Member;
+  readonly controller: RoomController;
+  readonly state: RoomState;
+}) {
+  return (
+    <PanelScroll testID="topics-screen">
+      <TopicsList scope={scope} view={view} controller={controller} state={state} />
+    </PanelScroll>
   );
 }
 
