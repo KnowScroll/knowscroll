@@ -53,10 +53,10 @@ export class WorkerModule {
         },
         ...accountAccessProviders({ useCases: ACCOUNT_ACCESS }),
         { provide: FENCE_PERSONAL_RECORDING, useValue: fencePersonalRecording },
-        // Retain the separate generic compatibility and nonpersonal production harnesses.
-        // Planner/Geography require RECORDING_REASONING_HARNESS and BOTH actual owner proofs.
+        // The nonpersonal production and room harnesses. Every personal model step uses
+        // RECORDING_REASONING_HARNESS and the actual owner proofs.
         ...reasoningProviders(
-          { database: DATABASE, withPersonalScope: WITH_PERSONAL_SCOPE, logEvent: LOG_EVENT },
+          { database: DATABASE, logEvent: LOG_EVENT },
           resources.config.reasoning,
           resources.config.scopeLockTimeoutMs,
         ),
