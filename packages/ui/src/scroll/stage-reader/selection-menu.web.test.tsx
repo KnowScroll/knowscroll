@@ -73,6 +73,21 @@ describe('the selection menu (web)', () => {
     expect(window.getSelection()?.isCollapsed).toBe(true);
   });
 
+  it('draws its buttons in the app’s UI font, not the browser’s default face', () => {
+    const root = createRoot();
+    act(() => {
+      root.render(<SelectionMenu onSimpler={jest.fn()} onAsk={jest.fn()} />);
+    });
+    selectWordsIn('read', 'the-lean', 'Earth is tilted');
+    act(() => {
+      document.dispatchEvent(new Event('selectionchange'));
+    });
+    for (const button of buttons(root)) {
+      const style = (button.props as { style: { fontFamily?: string } }).style;
+      expect(style.fontFamily).toMatch(/^InstrumentSans,/);
+    }
+  });
+
   it('offers Simpler alone where the screen has no Ask', () => {
     const root = createRoot();
     act(() => {

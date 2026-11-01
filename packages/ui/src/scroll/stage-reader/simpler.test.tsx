@@ -19,6 +19,9 @@ function inReader(handle?: React.Ref<StageReaderHandle>) {
   );
 }
 
+/** The page height the reader gives a stop before it has measured its window. */
+const PAGE = 320;
+
 describe('Simpler, in place with Undo (V3 D2)', () => {
   it('swaps the stop for its own plainer words, names them, and puts the full text back on Undo', async () => {
     await inReader();
@@ -30,6 +33,16 @@ describe('Simpler, in place with Undo (V3 D2)', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Undo simpler version' }));
     expect(screen.getByText('It leans.')).toBeOnTheScreen();
     expect(screen.queryByText('SIMPLER VERSION')).not.toBeOnTheScreen();
+  });
+
+  it('does not pad a stop in its plainer words to a page, so no blank gap is left under it', async () => {
+    await inReader();
+    const section = () => screen.getByTestId(`stop-${first.id}`);
+    expect(section()).toHaveStyle({ minHeight: PAGE });
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Say it simpler' })[0]!);
+    expect(section()).not.toHaveStyle({ minHeight: PAGE });
+    await fireEvent.press(screen.getByRole('button', { name: 'Undo simpler version' }));
+    expect(section()).toHaveStyle({ minHeight: PAGE });
   });
 
   it('is switched by the ••• menu through the reader, for the stop on screen only', async () => {
