@@ -26,6 +26,9 @@ import { RoomMenu } from './room-menu';
 import { RULE_WORDS } from './room-parts';
 import { ShareIntoRoomSheet } from './share-into-room-sheet';
 import { useRoomLaunch } from './use-launch';
+import { useRoomWatch } from './use-watch';
+import { WatchSheet } from './watch-sheet';
+import { WatchStage } from './watch-stage';
 import { useQuietRoom } from './use-quiet-room';
 
 type Member = Extract<RoomView, { status: 'member' }>;
@@ -82,6 +85,17 @@ export function CampfireHeader({
               <View style={styles.live} accessible accessibilityLabel="A Launch is live" testID="band-live">
                 <Text variant="monoXs" color={content.paper}>
                   LIVE · LAUNCH
+                </Text>
+              </View>
+            ) : view.watch?.state === 'live' ? (
+              <View
+                style={styles.live}
+                accessible
+                accessibilityLabel="A Reel is being watched together"
+                testID="band-live"
+              >
+                <Text variant="monoXs" color={content.paper}>
+                  LIVE · REEL
                 </Text>
               </View>
             ) : null}
@@ -173,6 +187,17 @@ export function GeneralStage({
   const { controller: launchController, state: launchState } = useRoomLaunch(scope, roomId, view.launch !== undefined);
   const launch = launchState.view?.launch;
   const [starting, setStarting] = useState(false);
+  // Watch together is read while the room says a Reel can be watched or one is on, as the Launch is.
+  const { controller: watchController, state: watchState } = useRoomWatch(scope, roomId, view.watch !== undefined);
+  const watching = watchState.view?.session;
+  const [staging, setStaging] = useState(false);
+  // A session that begins while the sheet is open is on the stage itself now: the sheet has nothing left to say, and does not come back
+  // when the session is over. (State adjusted while rendering, as React's guide for state that follows a prop.)
+  const [onStage, setOnStage] = useState(false);
+  if ((watching !== undefined) !== onStage) {
+    setOnStage(watching !== undefined);
+    if (watching !== undefined) setStaging(false);
+  }
   const [podiumFor, setPodiumFor] = useState<string>();
   const sawLive = useRef(new Set<string>());
   // The podium opens by itself only for a person who watched this Launch go by: coming back to a room hours later does not.
@@ -191,11 +216,18 @@ export function GeneralStage({
       setStarting(true);
     } else if (strip?.state === 'finished' && launch?.phase === 'finished') setPodiumFor(launch.launchId);
   };
+  const onWatch = () => {
+    void watchController.load();
+    setStaging(true);
+  };
   return (
     <View style={styles.stage}>
       {header}
       {launch === undefined || launch.phase === 'finished' || launchState.view === undefined ? null : (
         <LaunchStage launch={launch} host={launchState.view.host} state={launchState} controller={launchController} />
+      )}
+      {watching === undefined ? null : (
+        <WatchStage scope={scope} session={watching} state={watchState} controller={watchController} />
       )}
       {view.you.noticeSeenAt === undefined ? (
         <AiNoticeCard
@@ -242,6 +274,8 @@ export function GeneralStage({
             launch={strip}
             feed={view.feed}
             onLaunch={onLaunch}
+            watch={watching === undefined ? view.watch : { state: 'live' }}
+            onWatch={onWatch}
             replay={view.replay}
             onReplay={() => quiet.replay.setOpen(true)}
             questions={view.questions}
@@ -279,6 +313,18 @@ export function GeneralStage({
         visible={quiet.questions.open}
         onClose={() => quiet.questions.setOpen(false)}
         onOpen={quiet.openQuestion}
+      />
+      <WatchSheet
+        visible={staging && watching === undefined}
+        state={watchState}
+        controller={watchController}
+        canStartQuiz={strip?.state === 'ready'}
+        onStartQuiz={() => {
+          setStaging(false);
+          void launchController.load();
+          setStarting(true);
+        }}
+        onClose={() => setStaging(false)}
       />
       {launchState.view === undefined ? null : (
         <LaunchStartSheet

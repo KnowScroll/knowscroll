@@ -1868,6 +1868,23 @@ export interface RoomsTypingHolds {
   held_until: Timestamp;
 }
 
+export interface RoomsWatchSessions {
+  asset_id: string;
+  asset_revision: number;
+  duration_ms: number;
+  room_id: string;
+  session_id: string;
+  started_by: string | null;
+  starts_at: Timestamp;
+  stopped_at: Timestamp | null;
+  title: string;
+}
+
+export interface RoomsWatchViewers {
+  account_id: string;
+  session_id: string;
+}
+
 export interface ScenariosDrafts {
   created_at: Timestamp;
   draft_id: string;
@@ -2428,6 +2445,8 @@ export interface DB {
   "rooms.stars": RoomsStars;
   "rooms.summaries": RoomsSummaries;
   "rooms.typing_holds": RoomsTypingHolds;
+  "rooms.watch_sessions": RoomsWatchSessions;
+  "rooms.watch_viewers": RoomsWatchViewers;
   "scenarios.drafts": ScenariosDrafts;
   "scenarios.nodes": ScenariosNodes;
   "scenes.chunks": ScenesChunks;

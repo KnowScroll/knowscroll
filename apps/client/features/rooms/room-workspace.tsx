@@ -94,6 +94,8 @@ function Panes({
                 {member.hasModerator ? <BandTag label="Moderated" /> : null}
                 {member.launch?.state === 'lobby' || member.launch?.state === 'live' ? (
                   <BandTag label="Launch live" testID="band-live" />
+                ) : member.watch?.state === 'live' ? (
+                  <BandTag label="Reel live" testID="band-live" />
                 ) : null}
               </View>
               <HereStrip here={member.here} lastMessageAt={member.lastMessageAt} />

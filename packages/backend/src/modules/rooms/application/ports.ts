@@ -2,6 +2,7 @@ import type { ConversationContentProjectionSchema, PublicPersonRef } from '@know
 import type { z } from 'zod';
 import type {
   ReadContentSequence,
+  ReadLibraryReels,
   ResolveSnippetAnchor,
   StoredSnippetAnchor,
   ValidateSnippetAnchor,
@@ -17,6 +18,7 @@ import type {
 } from '../../identity/public.js';
 import type { ActivityKind, ActivityState, StoredDefinition } from '../domain/activities.js';
 import type { LaunchRow, ReadyDeck, StoredAnswer } from './launch-ports.js';
+import type { WatchSessionRow } from './watch-ports.js';
 import type { UnnoticedQuestion } from './question-ports.js';
 import type { AskKind } from '../domain/asks.js';
 import type { CastMember } from '../domain/cast.js';
@@ -842,6 +844,50 @@ export interface LaunchStore {
   liveRooms(scope: PersonalScopeTx, roomIds: readonly string[], now: Date): Promise<ReadonlySet<string>>;
 }
 
+// --- Watch together (migration 0094) ---------------------------------------------------------
+
+/**
+ * The rows of Watch together. Every method is one explicit query inside the room's lock; none decides access or a count. The use case
+ * takes the room root first and then the session row (`share` to join or leave, `update` to settle or stop). Nothing here reads or
+ * writes a playback position: there is none to keep (D-256).
+ */
+export interface WatchStore {
+  /** The room's session that has not been stopped, if any. It may be past its end until a member command settles it. */
+  live(lock: RoomLock, rowLock: 'none' | 'share' | 'update'): Promise<WatchSessionRow | undefined>;
+  /** The room's newest session, stopped or not. */
+  latest(lock: RoomLock): Promise<WatchSessionRow | undefined>;
+  insert(
+    lock: RoomLock,
+    session: {
+      readonly sessionId: string;
+      readonly assetId: string;
+      readonly assetRevision: number;
+      readonly title: string;
+      readonly durationMs: number;
+      readonly startedBy: string;
+      readonly startsAt: Date;
+    },
+  ): Promise<void>;
+  /** Puts a person among the session's viewers; false when they already were. */
+  addViewer(lock: RoomLock, sessionId: string, accountId: string): Promise<boolean>;
+  /** Takes a person out; false when they were not in. */
+  removeViewer(lock: RoomLock, sessionId: string, accountId: string): Promise<boolean>;
+  /** Everyone who joined the session, as accounts, in no order a reader could use. */
+  viewers(lock: RoomLock, sessionId: string): Promise<readonly string[]>;
+  /** Marks an unstopped session stopped at `at`, once. False when another command stopped it first. */
+  stop(lock: RoomLock, sessionId: string, at: Date): Promise<boolean>;
+  /** Deletes the viewers of a session. */
+  clearViewers(lock: RoomLock, sessionId: string): Promise<void>;
+  /** How many sessions the room started at or after `since`. */
+  startedSince(lock: RoomLock, since: Date): Promise<number>;
+  /** Deletes this room's sessions that were stopped before `before` (their viewers went when they stopped). */
+  purge(lock: RoomLock, before: Date): Promise<void>;
+  /** Deletes what this person has in the room's sessions and empties the link that says they shared one (leaving, removal). */
+  forgetMember(lock: RoomLock, accountId: string): Promise<void>;
+  /** Which of these rooms have a session that has not been stopped and whose Reel has not run out at `now`, for a station on a map. */
+  liveRooms(scope: PersonalScopeTx, roomIds: readonly string[], now: Date): Promise<ReadonlySet<string>>;
+}
+
 // --- Questions left for people (migration 0089) -------------------------------------------
 
 /**
@@ -977,6 +1023,8 @@ export interface RoomPorts {
   readonly today: TodayStore;
   /** The Launch's rows (migration 0088). */
   readonly launches: LaunchStore;
+  /** The rows of Watch together (migration 0094). */
+  readonly watches: WatchStore;
   /** The residents' feed and the room's memory, as a member reads and a moderator changes them (migration 0091). */
   readonly feed: FeedReadStore;
   /** The notice state of the questions left for people (migration 0089). */
@@ -985,6 +1033,8 @@ export interface RoomPorts {
   readonly friends: FriendLookup;
   readonly blocked: BlockedLookup;
   readonly readContent: ReadContent;
+  /** The library Reels under a topic, for Watch together (v3 R-10). */
+  readonly readReels: ReadLibraryReels;
   readonly readSequence: ReadContentSequence;
   readonly readVisited: ReadVisitedAssets;
   /** Reports on the room's messages, for its moderators (D-055). */

@@ -110,6 +110,7 @@ export const START_BLOCK_WORDS: Record<LaunchStartBlock, string> = {
   few_here: 'A Launch needs two people with the room open.',
   resting: 'This room just had a Launch. Another one can start a little later.',
   room_paused: 'This room is paused.',
+  stage_busy: 'A Reel is being watched together right now. A Launch can start once it is over.',
 };
 
 /**
