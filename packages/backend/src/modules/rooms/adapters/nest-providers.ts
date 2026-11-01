@@ -52,6 +52,8 @@ import {
 import { makeActivities } from '../application/activities.js';
 import { makeDebateVotes } from '../application/debates.js';
 import { makeFeed } from '../application/feed-reads.js';
+import { makeIntroductionCommands } from '../application/introduction-commands.js';
+import { makePostCommands } from '../application/post-commands.js';
 import { makeScoutCommands } from '../application/scout-commands.js';
 import { makeCastDue, type CastDuePorts } from '../application/cast-due.js';
 import { makeCastPass, type CastPassPorts } from '../application/cast-pass.js';
@@ -108,6 +110,7 @@ import { readRoomMembership } from './membership-reads.js';
 import { discussionStore } from './postgres-discussions.js';
 import { roomStore } from './postgres-rooms.js';
 import { feedReadStore } from './postgres-feed.js';
+import { postStore } from './postgres-posts.js';
 import { scoutReadStore } from './postgres-scouts.js';
 import { launchStore } from './postgres-launch.js';
 import { watchStore } from './postgres-watch.js';
@@ -178,6 +181,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     watches: watchStore,
     feed: feedReadStore,
     scouts: scoutReadStore,
+    posts: postStore,
     questions: questionStore,
     people: {
       async byAccounts(scope, accountIds) {
@@ -277,6 +281,8 @@ export function roomUseCases(deps: RoomsDeps): RoomUseCases {
     ...makeDebateVotes(ports),
     ...makeFeed(ports),
     ...makeScoutCommands(ports),
+    ...makePostCommands(ports),
+    ...makeIntroductionCommands(ports),
   };
 }
 

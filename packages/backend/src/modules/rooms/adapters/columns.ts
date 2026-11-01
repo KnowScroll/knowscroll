@@ -29,11 +29,12 @@ export const contributionKindOf = closed<ContributionKind>('ai_kind', [
 ]);
 export const roleOf = closed<RoomRole>('role', ['member', 'moderator']);
 export const aiLevelOf = closed<AiLevel>('ai_level', ['lively', 'quieter', 'off']);
-export const discussionKindOf = closed<'general' | 'topic' | 'today' | 'find'>('kind', [
+export const discussionKindOf = closed<'general' | 'topic' | 'today' | 'find' | 'intro'>('kind', [
   'general',
   'topic',
   'today',
   'find',
+  'intro',
 ]);
 export const joinRuleOf = closed<JoinRule>('join_rule', ['open', 'friends_of_members', 'invite_only']);
 export const statusOf = closed<RoomStatus>('status', ['open', 'paused', 'closed']);

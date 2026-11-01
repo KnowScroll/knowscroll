@@ -1609,16 +1609,19 @@ export interface RoomsDiscussions {
   answer_noticed_at: Timestamp | null;
   created_at: Timestamp;
   discussion_id: string;
+  intro_inhabitant: string | null;
   kind: Generated<string>;
   last_activity_at: Timestamp;
   last_change_sequence: Generated<Int8>;
   last_sequence: Generated<Int8>;
   notify_answer: Generated<boolean>;
   origin_message_id: string | null;
+  person_post: Generated<boolean>;
   pinned_at: Timestamp | null;
   room_id: string;
   root_asset_id: string | null;
   root_asset_revision: number | null;
+  source_url: string | null;
   started_by_account_id: string | null;
   tag: string | null;
   title: string;
@@ -1730,6 +1733,12 @@ export interface RoomsPollVotes {
   account_id: string;
   activity_id: string;
   option_id: string;
+  voted_at: Timestamp;
+}
+
+export interface RoomsPostVotes {
+  account_id: string;
+  discussion_id: string;
   voted_at: Timestamp;
 }
 
@@ -2449,6 +2458,7 @@ export interface DB {
   "rooms.message_useful": RoomsMessageUseful;
   "rooms.messages": RoomsMessages;
   "rooms.poll_votes": RoomsPollVotes;
+  "rooms.post_votes": RoomsPostVotes;
   "rooms.read_positions": RoomsReadPositions;
   "rooms.ritual_solves": RoomsRitualSolves;
   "rooms.rituals": RoomsRituals;

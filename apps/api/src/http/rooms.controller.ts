@@ -407,6 +407,30 @@ export class RoomsController {
   }
 
   @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.introduceResident)
+  introduceResidentRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.introduceResident).handler(async ({ input }) =>
+      value(await this.useCases.introduceResident(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.postFind)
+  postFindRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.postFind).handler(async ({ input }) =>
+      value(await this.useCases.postFind(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.votePost)
+  votePostRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.votePost).handler(async ({ input }) =>
+      value(await this.useCases.votePost(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
   @Implement(apiContract.rooms.replaceMemory)
   replaceMemoryRoute(@Req() request: Request) {
     return implement(apiContract.rooms.replaceMemory).handler(async ({ input }) =>

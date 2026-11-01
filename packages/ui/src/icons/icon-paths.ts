@@ -97,6 +97,8 @@ export const iconShapes = {
   // Talk (T3): answering a message, and reporting one.
   reply: [path('M9 6L4 11l5 5'), path('M4 11h9a7 7 0 0 1 7 7v1')],
   flag: [path('M5 21V4'), path('M5 4h12l-2.5 4.5L17 13H5')],
+  // The Feed's vote (v3 R-8b): up only.
+  up: [path('M12 19V6'), path('M6 11.5l6-6 6 6')],
 } as const satisfies Record<string, readonly IconShape[]>;
 
 export type IconName = keyof typeof iconShapes;

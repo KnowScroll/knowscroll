@@ -45,6 +45,7 @@ import { AiLabel } from './ai-label';
 import { DebateCard } from './debate-card';
 import { topicTitleFrom } from './ask-words';
 import { InhabitantBar } from './inhabitant-bar';
+import { PostBar } from './post-bar';
 import { FeedbackSheet } from '../feedback/feedback-sheet';
 import { MessageOptionsSheet } from './message-options-sheet';
 import { discussionHref, isRoomId, roomHref } from './room-links';
@@ -360,9 +361,20 @@ function ReadyDiscussion({
         onAskAbout={askAbout}
         footer={listFooter}
         header={
-          listHeader === undefined && view.debate === undefined && view.origin === undefined ? undefined : (
+          listHeader === undefined &&
+          view.debate === undefined &&
+          view.origin === undefined &&
+          view.discussion.post === undefined ? undefined : (
             <>
               {listHeader}
+              {view.discussion.post === undefined ? null : (
+                <PostBar
+                  discussionId={discussionId}
+                  post={view.discussion.post}
+                  source={view.discussion.source}
+                  onVote={(voted) => void controller.votePost(voted)}
+                />
+              )}
               {view.debate === undefined ? null : (
                 <DebateCard
                   debate={view.debate}
@@ -395,7 +407,9 @@ function ReadyDiscussion({
                 ? 'General'
                 : view.discussion.kind === 'today'
                   ? 'Today'
-                  : 'this discussion'
+                  : view.discussion.post === undefined
+                    ? 'this discussion'
+                    : 'this post'
             }
             value={draft}
             onChange={typeDraft}
