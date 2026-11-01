@@ -341,14 +341,9 @@ describe('the instructions for the answer to one question (D-218)', () => {
       prose(`${SOURCE[3]} Its own tail has quite different words.`, ['e4']),
       limit,
     ]);
-    expect(compileGeneratedScroll(answer, questionProvenance, passages, 'plain')).toMatchObject({
-      kind: 'refused',
-      issues: expect.arrayContaining([
-        { code: 'copied_passage', path: 'blocks.1' },
-        { code: 'copied_passage', path: 'blocks.3' },
-        { code: 'copied_passage', path: 'blocks.5' },
-      ]),
-    });
+    const refused = compileGeneratedScroll(answer, questionProvenance, passages, 'plain');
+    for (const path of ['blocks.1', 'blocks.3', 'blocks.5'])
+      expect(refused.kind === 'refused' && refused.issues).toContainEqual({ code: 'copied_passage', path });
     const notes = role.repairNotes?.(JSON.stringify(answer)) ?? '';
     for (const [block, source] of [
       [1, SOURCE[0]],

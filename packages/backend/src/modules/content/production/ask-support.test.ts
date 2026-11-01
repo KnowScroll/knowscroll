@@ -848,15 +848,15 @@ describe('a paraphrase that keeps the passages’ key terms passes the copy rule
 
   it('holds for the writer’s own worked example too: the rebuilt sentence has a quote that carries its key words, and the copy has no such luck with the copy rule (D-294)', () => {
     const { passage: exampleText, copied, rebuilt } = COPY_RULE_EXAMPLE;
-    const quote = 'letting water into a closed chamber until the water level inside matches the higher stretch of the canal';
+    const quote =
+      'letting water into a closed chamber until the water level inside matches the higher stretch of the canal';
     expect(exampleText).toContain(quote);
     expect(copiedRuns(rebuilt, [exampleText], COPY_RUN_WORDS)).toEqual([]);
     expect(copiedRuns(copied, [exampleText], COPY_RUN_WORDS).length).toBeGreaterThan(0);
     expect(sharedStems(quote, rebuilt)).toBeGreaterThanOrEqual(2);
-    const verdicts = askSupportSchema(
-      [{ number: 1, text: rebuilt, cites: ['e1'] }],
-      [passage(1, exampleText)],
-    ).parse({ sentences: [{ n: 1, verdict: 'supported', quote }] }).sentences;
+    const verdicts = askSupportSchema([{ number: 1, text: rebuilt, cites: ['e1'] }], [passage(1, exampleText)]).parse({
+      sentences: [{ n: 1, verdict: 'supported', quote }],
+    }).sentences;
     expect(verdicts.map((verdict) => verdict.verdict)).toEqual(['supported']);
   });
 });

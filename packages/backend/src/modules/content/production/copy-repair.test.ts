@@ -39,10 +39,7 @@ describe('the notes that go with a repair after a copy finding (D-294)', () => {
   });
 
   it('shows two separate runs of one place, and a run once however many strings repeat it', () => {
-    const notes = copyRepairNotes(
-      [place('blocks[2]', `${CANAL} ${ownWords('mid')} ${BRIDGE}`, CANAL)],
-      SOURCES,
-    );
+    const notes = copyRepairNotes([place('blocks[2]', `${CANAL} ${ownWords('mid')} ${BRIDGE}`, CANAL)], SOURCES);
     expect(notes).toContain(`blocks[2] copies: "${plain(CANAL)}" | "${plain(BRIDGE)}"`);
     expect(notes?.split(plain(CANAL))).toHaveLength(2);
   });
@@ -74,7 +71,8 @@ describe('the notes that go with a repair after a copy finding (D-294)', () => {
     const shownRuns = [...notes.matchAll(/ copies: (.+)$/gmu)].flatMap((line) => line[1]!.split(' | '));
     expect(shownRuns).toHaveLength(REPAIR_NOTE_RUNS);
     // Each of the four places is named by its first run; the two runs left go to the first two places.
-    const linesOf = (block: string) => new RegExp(`${block.replace(/[[\]]/gu, '\\$&')} copies: (.+)$`, 'mu').exec(notes)?.[1];
+    const linesOf = (block: string) =>
+      new RegExp(`${block.replace(/[[\]]/gu, '\\$&')} copies: (.+)$`, 'mu').exec(notes)?.[1];
     expect(linesOf('blocks[0]')?.split(' | ')).toHaveLength(2);
     expect(linesOf('blocks[1]')?.split(' | ')).toHaveLength(2);
     expect(linesOf('blocks[2]')?.split(' | ')).toHaveLength(1);
@@ -97,12 +95,14 @@ describe('the notes that go with a repair after a copy finding (D-294)', () => {
 
   it('fits the limit the harness cuts at, even for the longest words, without cutting a line', () => {
     const longWord = 'x'.repeat(40);
-    const words = (tag: string) => Array.from({ length: 30 }, (_unused, index) => `${tag}${longWord}${String(index)}`).join(' ');
+    const words = (tag: string) =>
+      Array.from({ length: 30 }, (_unused, index) => `${tag}${longWord}${String(index)}`).join(' ');
     const sources = [0, 1, 2, 3, 4, 5].map((index) => words(`s${String(index)}`));
     const places = sources.map((text, index) => place(`blocks[${String(index)}]`, text));
     const notes = copyRepairNotes(places, sources) ?? '';
     expect(notes.length).toBeLessThanOrEqual(MAX_REPAIR_NOTES_CHARS);
-    for (const line of notes.split('\n').filter((one) => one.includes(' copies: '))) expect(line.endsWith('"')).toBe(true);
+    for (const line of notes.split('\n').filter((one) => one.includes(' copies: ')))
+      expect(line.endsWith('"')).toBe(true);
     // Fewer runs than the cap are shown here, because six would not fit, and the notes say that more remain.
     expect([...notes.matchAll(/ copies: (.+)$/gmu)].flatMap((line) => line[1]!.split(' | ')).length).toBeLessThan(
       REPAIR_NOTE_RUNS,
@@ -113,7 +113,17 @@ describe('the notes that go with a repair after a copy finding (D-294)', () => {
   it.each([
     ['no place', []],
     ['a place whose text copies nothing', [place('blocks[0]', ownWords('plain'))]],
-    ['a run one word short of the rule', [place('blocks[0]', CANAL.split(' ').slice(0, COPY_RUN_WORDS - 1).join(' '))]],
+    [
+      'a run one word short of the rule',
+      [
+        place(
+          'blocks[0]',
+          CANAL.split(' ')
+            .slice(0, COPY_RUN_WORDS - 1)
+            .join(' '),
+        ),
+      ],
+    ],
   ])('has no notes for %s', (_label, places) => {
     expect(copyRepairNotes(places, SOURCES)).toBeUndefined();
   });

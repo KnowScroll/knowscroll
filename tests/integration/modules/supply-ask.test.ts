@@ -898,8 +898,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       /** A passage sentence of the labelled lighthouse fixture, word for word: more than nine words in a row. */
       const COPIED = 'A prism ring around the flame gathers the light into a single beam that sweeps across the water.';
       const OWN_TAIL = 'This tail is the writer’s own sentence and the notes never repeat it.';
-      const copiedDraft = () =>
-        answerWith(fixtureAnswer({ sentence: [BEFORE_SENTENCE, `${COPIED} ${OWN_TAIL}`] }));
+      const copiedDraft = () => answerWith(fixtureAnswer({ sentence: [BEFORE_SENTENCE, `${COPIED} ${OWN_TAIL}`] }));
       /** The `<repair-notes>` data of a writer request, as the model would read it. */
       const notesOf = (call: FixtureCall) =>
         /<repair-notes>\n([\s\S]*?)\n<\/repair-notes>/u.exec(call.request.user)?.[1] ?? '';

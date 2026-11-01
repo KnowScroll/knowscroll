@@ -51,7 +51,9 @@ function render(found: readonly Found[], limit: number): string {
     ...lines,
     ...(unnamed.length === 0 ? [] : [`Also copying: ${unnamed.map((place) => place.where).join(', ')}.`]),
     ...(total > picks.length
-      ? [`More runs of ${String(COPY_RUN_WORDS)} or more words are copied than are shown: rebuild every sentence there that repeats a passage.`]
+      ? [
+          `More runs of ${String(COPY_RUN_WORDS)} or more words are copied than are shown: rebuild every sentence there that repeats a passage.`,
+        ]
       : []),
   ].join('\n');
 }
