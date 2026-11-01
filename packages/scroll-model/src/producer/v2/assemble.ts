@@ -1,4 +1,12 @@
 import { INTEGRITY_METHOD, type Framing } from '../../document.js';
+import {
+  MAGNITUDES,
+  type GuideCharacter,
+  type Interactive,
+  type InteractiveKind,
+  type Magnitude,
+  type SeriesPoint,
+} from '../../v2/blocks.js';
 import { truncateText } from '../../text.js';
 import {
   SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
@@ -47,6 +55,10 @@ export interface RecipeDataV2 {
   readonly landmark?: Landmark;
   /** The control the Final call hands the reader on the stage. Absent: the Final call is a plain call (D-187). */
   readonly finalCall?: FinalCallBinding;
+  /** The play blocks this Scroll has, each used once. Absent or empty: none (D-207). Chosen by a person; the writer never adds one. */
+  readonly blocks?: readonly InteractiveKind[];
+  /** The character that speaks the Scroll's guide lines. Absent: no guide (D-207). */
+  readonly guide?: GuideCharacter;
 }
 
 /** The kit a stage Scroll of this recipe is drawn with. */
@@ -156,7 +168,91 @@ function callStop(
   return { kind: 'call_it', ...shared, ...guess };
 }
 
-function readStop(item: Extract<AuthoredItemV2, { type: 'stop' }>, id: string): ReadStop {
+/** A stable pseudo-random permutation of `count` places that is never the identity, so a sort is always a task. */
+export function shuffledPlaces(count: number, seed: string): number[] {
+  const places = Array.from({ length: count }, (_, index) => index);
+  const random = generator(seedOf(seed));
+  for (let at = count - 1; at > 0; at -= 1) {
+    const other = Math.floor(random() * (at + 1));
+    [places[at], places[other]] = [places[other] ?? 0, places[at] ?? 0];
+  }
+  return places.every((place, index) => place === index) ? places.map((_, index) => (index + 1) % count) : places;
+}
+
+/** The number a figure stands for: `4,096` is 4096. A text that is not a figure is 0, and the authoring rules refuse it. */
+export function figureValue(figure: string | number): number {
+  const value = typeof figure === 'number' ? figure : Number(figure.trim().replaceAll(',', ''));
+  return Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+/** Whether a figure is written the way a passage writes one: digits, optional thousands commas, optional decimals. */
+export const isFigure = (figure: string | number): boolean =>
+  typeof figure === 'number' ? isFigure(String(figure)) : /^\d+(?:,\d{3})*(?:\.\d+)?$/u.test(figure.trim());
+
+/** A figure and the word after it as one number: "8.3" and "million" are 8,300,000 (kept free of floating-point dust). */
+export const valueOf = (figure: string | number, magnitude: Magnitude | undefined): number =>
+  Number((figureValue(figure) * (magnitude === undefined ? 1 : MAGNITUDES[magnitude])).toPrecision(12));
+
+const pointsOf = (
+  points: readonly { label: string; value: string | number; magnitude?: Magnitude | undefined }[],
+  maxChars: number,
+): SeriesPoint[] =>
+  points.map((point) => ({ label: fit(point.label, maxChars), value: valueOf(point.value, point.magnitude) }));
+
+type PlayItem = Extract<AuthoredItemV2, { type: 'sort' | 'fork' | 'scale' | 'chart' }>;
+
+/** The block a play item carries. Its text is the writer's, its order and its geometry are code's. */
+function interactiveOf(item: PlayItem, seed: string): Interactive {
+  switch (item.type) {
+    case 'sort': {
+      // The writer lists the items in the right order; the reader sees them shuffled, and the answer is the order.
+      const shown = shuffledPlaces(item.items.length, seed);
+      return {
+        type: 'sort',
+        items: shown.map((index) => fit(item.items[index] ?? '', F.sortItemChars)),
+        order: item.items.map((_, place) => shown.indexOf(place)),
+        explain: oneLine(item.explain),
+      };
+    }
+    case 'fork':
+      return {
+        type: 'fork',
+        prompt: oneLine(item.prompt),
+        branches: item.branches.map((branch) => ({
+          label: fit(branch.label, F.branchLabelChars),
+          text: oneLine(branch.text),
+        })),
+      };
+    case 'scale': {
+      const points = pointsOf(item.points, F.pointLabelChars).sort((first, second) => first.value - second.value);
+      const here =
+        item.here === undefined
+          ? -1
+          : points.findIndex((point) => point.label === fit(item.here ?? '', F.pointLabelChars));
+      return {
+        type: 'scale',
+        axis: item.axis,
+        unit: fit(item.unit, F.unitChars),
+        points,
+        ...(here < 0 ? {} : { here }),
+      };
+    }
+    case 'chart':
+      return {
+        type: 'chart',
+        shape: item.shape,
+        unit: fit(item.unit, F.unitChars),
+        points: pointsOf(item.points, F.pointLabelChars),
+      };
+  }
+}
+
+function readStop(
+  item: Extract<AuthoredItemV2, { type: 'stop' | 'sort' | 'fork' | 'scale' | 'chart' }>,
+  id: string,
+  seed: string,
+  recipe: RecipeDataV2,
+): ReadStop {
   return {
     kind: 'read',
     id,
@@ -169,6 +265,11 @@ function readStop(item: Extract<AuthoredItemV2, { type: 'stop' }>, id: string): 
     ],
     ...(item.emphasis === undefined ? {} : { emphasis: item.emphasis }),
     simple: oneLine(item.simple),
+    ...(item.type === 'stop' ? {} : { interactive: interactiveOf(item, `${seed}:${item.type}`) }),
+    // The character is the recipe's: an item that asks for a guide where the recipe has none keeps no guide, and the rules report it.
+    ...(item.type !== 'stop' || item.guide === undefined || recipe.guide === undefined
+      ? {}
+      : { guide: { character: recipe.guide, pose: item.guide.pose, line: oneLine(item.guide.line) } }),
   };
 }
 
@@ -234,17 +335,10 @@ export function assembleScrollV2(
       return;
     }
     const id = `s${stops.length + 1}`;
-    if (item.type === 'stop') stops.push(readStop(item, id));
+    const seed = `${publication.assetId}:${publication.revision}:${id}`;
+    if (item.type !== 'call_it' && item.type !== 'final_call') stops.push(readStop(item, id, seed, recipe));
     else {
-      stops.push(
-        callStop(
-          item,
-          id,
-          `${publication.assetId}:${publication.revision}:${id}`,
-          recipe,
-          firstCall && item.type === 'call_it',
-        ),
-      );
+      stops.push(callStop(item, id, seed, recipe, firstCall && item.type === 'call_it'));
       if (item.type === 'call_it') firstCall = false;
     }
     patches.push(item.stage);

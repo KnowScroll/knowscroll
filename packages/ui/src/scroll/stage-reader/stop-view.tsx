@@ -4,6 +4,7 @@ import type { Aside, ReadStop } from '@knowscroll/scroll-model';
 import { useFocusRing } from '../../display/focus-ring';
 import { Icon } from '../../icons/icon';
 import { Text } from '../../text/text';
+import { GuideView, PlayBlockView } from '../play-blocks';
 
 /** What an aside is called to the reader: the limits aside is "Small print". */
 export function asideLabel(kind: Aside['kind']): string {
@@ -11,15 +12,20 @@ export function asideLabel(kind: Aside['kind']): string {
 }
 
 /**
- * One read stop: its heading, its lines and paragraphs, and the same idea in simpler words on request, applied in place
- * with Undo (V3 D2). The simpler words are the stop's own authored text (D-085), so showing them calls no model (D-244).
+ * One read stop: its heading, its lines and paragraphs, the guide's line and the play block when it has
+ * them (D-207), and the same idea in simpler words on request, applied in place with Undo (V3 D2). `textVersion` is the
+ * reader's text version, which the guide and the play block follow. Simpler swaps only the stop's own text: the guide's
+ * line and the play block stay. The simpler words are the stop's authored text (D-085), so showing them calls no model
+ * (D-244).
  */
 export function ReadStopView({
   stop,
+  textVersion = false,
   simpler,
   onToggleSimpler,
 }: {
   readonly stop: ReadStop;
+  readonly textVersion?: boolean;
   readonly simpler: boolean;
   readonly onToggleSimpler: () => void;
 }) {
@@ -46,6 +52,10 @@ export function ReadStopView({
             </Text>
           ),
         )
+      )}
+      {stop.guide === undefined ? null : <GuideView guide={stop.guide} asText={textVersion} />}
+      {stop.interactive === undefined ? null : (
+        <PlayBlockView interactive={stop.interactive} readerAsText={textVersion} />
       )}
       <View style={styles.simplerRow}>
         {simpler ? (

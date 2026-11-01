@@ -13,9 +13,10 @@ export const SCROLL_PRODUCTION_VERSION = 'scroll-production.v14';
  * every recipe fresh takes. v17: the answer check joined the job (D-198) and the writer moved to `scroll-writer.v17` (D-196).
  * v18: the writer moved to `scroll-writer.v18`, with the guides of the heart and nerve kits (D-203).
  * v19: the writer moved to `scroll-writer.v19`, with the guides of the Space kits and two rules for every recipe (D-206).
+ * v20: the writer moved to `scroll-writer.v20`, with the sort, fork, scale, growing chart and guide of a recipe that names them (D-207).
  * `versions.test.ts` pins the pair, so a writer bump cannot go in without this one.
  */
-export const SCROLL_PRODUCTION_V2_VERSION = 'scroll-production.v19';
+export const SCROLL_PRODUCTION_V2_VERSION = 'scroll-production.v20';
 /** One writer call and at most one repair, per take. */
 export const REQUEST_BOUND_PER_TOPIC = 2;
 /**

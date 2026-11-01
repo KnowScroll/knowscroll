@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { validateDocumentV2 } from '@knowscroll/scroll-model';
 import { evidencePassages } from '../production/evidence.js';
@@ -126,5 +127,33 @@ describe('what an operator is told about the answer check before reading the cal
     const lines = answerCheckLines({ outcome: 'flagged', flags: [flag], firstDraftFlags: [] });
     expect(lines[0]).toContain('FLAGGED');
     expect(lines[1]).toContain('[c2]');
+  });
+});
+
+describe('the play blocks and the guide in the text an operator reads (labelled CI fixtures)', () => {
+  const read = (name: string): string => {
+    const raw = JSON.parse(
+      readFileSync(new URL(`../../../../../scroll-model/fixtures/documents/${name}-ci.json`, import.meta.url), 'utf8'),
+    ) as unknown;
+    const checked = validateDocumentV2(raw, { verify: false });
+    if (checked.kind !== 'valid') throw new Error('CI expected a valid fixture');
+    return reviewTextOf(checked.document);
+  };
+
+  it('shows the answer key of a sort, both paths of a fork and the guide line', () => {
+    const text = read('sort-fork-blocks');
+    expect(text).toContain('SORT, correct order: 1. The lean points toward Vael 2. Sunlight arrives steeply');
+    expect(text).toContain('SORT, why:');
+    expect(text).toContain('FORK: Which half do you want to follow? The north:');
+    expect(text).toContain('The south: The south cools');
+    expect(text).toContain('GUIDE (ray, wonder): Same sunshine, more ground');
+  });
+
+  it('shows every figure of a scale and of a chart, so each can be checked against its source', () => {
+    const text = read('scale-chart-blocks');
+    expect(text).toContain('SCALE: A logarithmic scale in million km');
+    expect(text).toContain('Sarn: 1,200 million km');
+    expect(text).toContain('CHART: A bar chart in trips');
+    expect(text).toContain('1,000 crates: 1,000,000 trips');
   });
 });

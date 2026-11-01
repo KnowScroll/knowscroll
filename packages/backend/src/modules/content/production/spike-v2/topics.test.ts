@@ -2,8 +2,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { TOPICS, type ScrollTopic } from '../topics.js';
 import {
+  parseSpikeBlocks,
   parseSpikeTopics,
   SEASONS_SPIKE_TOPICS_V2,
+  BLOCK_SPIKE_BLOCKS_V2,
+  BLOCK_SPIKE_TOPICS_V2,
   BODY_SPIKE_TOPICS_V2,
   SKY_SPIKE_TOPICS_V2,
   SPACE_SPIKE_TOPICS_V2,
@@ -192,5 +195,49 @@ describe('the twenty topics of the writer spike', () => {
     expect(parseSpikeTopics('seasons, tides ,seasons')).toEqual(['seasons', 'tides']);
     expect(parseSpikeTopics('seasons,nope')).toBeUndefined();
     expect(parseSpikeTopics('')).toBeUndefined();
+  });
+});
+
+describe('--blocks: the play blocks a spike asks for before a recipe is marked (D-207)', () => {
+  it('reads a recipe with blocks and a guide, and puts them in the recipe the spike runs', () => {
+    const parsed = parseSpikeBlocks('hybrid-sorting=sort+ray,big-o-growth=chart');
+    expect(parsed?.get('hybrid-sorting')).toEqual({ blocks: ['sort'], guide: 'ray' });
+    expect(parsed?.get('big-o-growth')).toEqual({ blocks: ['chart'] });
+    const recipe = spikeRecipeV2('hybrid-sorting', parsed?.get('hybrid-sorting'));
+    expect(recipe).toMatchObject({ variant: 'plain', blocks: ['sort'], guide: 'ray' });
+    expect(spikeRecipeV2('hybrid-sorting')).not.toHaveProperty('blocks');
+  });
+
+  it('refuses a recipe that is not in the library, an unknown word, a repeat, and more blocks than a Scroll may have', () => {
+    expect(parseSpikeBlocks('no-such-recipe=sort')).toBeUndefined();
+    expect(parseSpikeBlocks('hybrid-sorting=sorting')).toBeUndefined();
+    expect(parseSpikeBlocks('hybrid-sorting=sort,hybrid-sorting=chart')).toBeUndefined();
+    expect(parseSpikeBlocks('hybrid-sorting=sort+sort')).toBeUndefined();
+    expect(parseSpikeBlocks('hybrid-sorting=sort+fork+chart')).toBeUndefined();
+    expect(parseSpikeBlocks('hybrid-sorting')).toBeUndefined();
+  });
+});
+
+describe('the four recipes of the play-block spike (D-207, D-210)', () => {
+  it('are library recipes, one block each (the fork with Ray), and ask for the blocks they are named with', () => {
+    expect(BLOCK_SPIKE_TOPICS_V2).toHaveLength(4);
+    const parsed = parseSpikeBlocks(BLOCK_SPIKE_BLOCKS_V2);
+    expect([...(parsed?.keys() ?? [])]).toEqual([...BLOCK_SPIKE_TOPICS_V2]);
+    expect([...(parsed?.values() ?? [])].map((asked) => asked.blocks)).toEqual([
+      ['sort'],
+      ['chart'],
+      ['scale'],
+      ['fork'],
+    ]);
+    expect(parsed?.get('seasons-elsewhere')?.guide).toBe('ray');
+    for (const topic of BLOCK_SPIKE_TOPICS_V2) expect(Object.hasOwn(TOPICS, topic)).toBe(true);
+  });
+
+  it('are marked by nobody: the plan still names no block and no guide on any recipe', () => {
+    for (const topic of BLOCK_SPIKE_TOPICS_V2) {
+      const plan = TOPICS[topic].scrollV2 as { blocks?: unknown; guide?: unknown } | undefined;
+      expect(plan?.blocks).toBeUndefined();
+      expect(plan?.guide).toBeUndefined();
+    }
   });
 });
