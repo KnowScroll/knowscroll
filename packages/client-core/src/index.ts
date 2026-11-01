@@ -142,6 +142,7 @@ export {
   kindedTitle,
   kindWord,
   ownSelection,
+  statementsInWords,
   subjectOfStatement,
   type OwnRow,
   type ScenarioAsk,

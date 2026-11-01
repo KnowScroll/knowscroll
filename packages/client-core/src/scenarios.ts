@@ -362,9 +362,21 @@ export function ownSelection(request: {
   return changes.length === 0 ? undefined : { kind: 'own', changes, kept: assumptions(request.kept), ...from };
 }
 
+/**
+ * A statement without the full stops it already ends with, so statements joined with ". " never read "same..". A
+ * statement is stored as the planner wrote it, and some end in a full stop and some do not.
+ */
+export const withoutFinalStop = (statement: string): string => statement.replace(/[.\s]+$/u, '');
+
+/** Statements as one line of a card ("ASSUMED", "CHANGED", "KEPT"): each one's closing stop dropped, joined with ". ". */
+export const statementsInWords = (assumptions: readonly Pick<Assumption, 'statement'>[]): string =>
+  assumptions.map((assumption) => withoutFinalStop(assumption.statement)).join('. ');
+
 /** One assumption the way a chip says it: "Changed: traffic is ten times higher". */
-export const chipText = (prefix: 'Changed' | 'Kept' | 'Replaces', assumption: Assumption): string =>
-  `${prefix}: ${assumption.statement.charAt(0).toLowerCase()}${assumption.statement.slice(1)}`;
+export const chipText = (prefix: 'Changed' | 'Kept' | 'Replaces', assumption: Assumption): string => {
+  const statement = withoutFinalStop(assumption.statement);
+  return `${prefix}: ${statement.charAt(0).toLowerCase()}${statement.slice(1)}`;
+};
 
 const subjectKey = (subject: string): string => subject.normalize('NFKC').toLowerCase().replaceAll(/\s+/gu, ' ').trim();
 

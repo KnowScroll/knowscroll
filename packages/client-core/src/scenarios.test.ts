@@ -7,6 +7,7 @@ import {
   createScenarioBoard,
   createScenarioComposer,
   describeOption,
+  statementsInWords,
   kindedTitle,
   replacedPremises,
   ownSelection,
@@ -318,6 +319,21 @@ describe('words', () => {
     expect(describeOption({ ...option, changes: [], kept: [], lens: 'the operator’s view' })).toBe(
       'Another perspective: the operator’s view.',
     );
+  });
+
+  it('never doubles a full stop when a statement already ends in one', () => {
+    const stated = (statement: string) => ({ subject: 'Orbit', statement });
+    expect(statementsInWords([stated('Its shape stays the same.'), stated('The year stays the same..')])).toBe(
+      'Its shape stays the same. The year stays the same',
+    );
+    expect(chipText('Kept', stated('The year stays the same.'))).toBe('Kept: the year stays the same');
+    expect(
+      describeOption({
+        changes: [stated('Traffic is ten times higher.')],
+        kept: [stated('The model stays.')],
+        lens: undefined,
+      }),
+    ).toBe('Changed: traffic is ten times higher. Kept: the model stays.');
   });
 
   describe('what an option would drop', () => {
