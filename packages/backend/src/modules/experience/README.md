@@ -467,8 +467,9 @@ Context and the Planner are given); `readNotInterested` returns the marked, unla
 `readWithheld(…, namesTarget)` (`navigation-support.ts`) wherever Composer picks for the person: the ranking input of a
 navigation, the commit recheck, the region pin's first pick, and the buffer worker (`buffer-source.ts`: a buffer is a
 subject move). A prepared buffer that holds a marked asset drifts and is ranked again. The buffer worker's other read of
-Experience is `CHECK_ACTIVATED_EXPOSURE` (`buffer-source.ts`): whether an exposure exists in the epoch and was activated, which is
-all Jev's owner check needs of it (D-270). **A move that names its target is
+Experience is `CHECK_RECORDED_ACTIVATION` (`buffer-source.ts`, `activatedWhileRecording` in `recording-store.ts`): whether the offer's
+activation that created an exposure remembered a generation recording was eligible at, so an exposure activated while recording was
+paused (or at a generation the device did not hold) has none. That is all Jev's owner check needs of it (D-270). **A move that names its target is
 never blocked by a mark**: Saved, a finished request's open, a `return` (with or without a session), a variant, a series or
 related link, and a pin opened on an encounter the person chose. Activating an offer that was issued rechecks Hide only.
 No action row, no observation, no job and no hint; Personal Context, the Planner and the Cartographer never read the

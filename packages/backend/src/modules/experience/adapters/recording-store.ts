@@ -51,6 +51,20 @@ export async function rememberRecordingOrigin(
     transactionOf(scope),
   );
 }
+/**
+ * Whether an exposure was activated by an offer's activation made while recording was on: the command that created it
+ * remembered a generation recording was eligible at. An exposure activated while recording was paused, or at a generation the
+ * device did not hold, has none. Reads the person's own rows by exact key.
+ */
+export async function activatedWhileRecording(scope: PersonalScopeTx, exposureId: string): Promise<boolean> {
+  const r = await sql<{
+    eligible_generation: number | null;
+  }>`select o.eligible_generation from experience.exposures x
+    join experience.recording_command_origins o on o.universe_id=x.universe_id and o.privacy_epoch=x.privacy_epoch and o.command_id=x.command_id
+    where x.universe_id=${scope.authority.universeId}::uuid and x.privacy_epoch=${scope.authority.privacyEpoch} and x.id=${exposureId}::uuid
+      and x.activated_at is not null and o.operation='experience.activate-offer-v0'`.execute(transactionOf(scope));
+  return r.rows[0] !== undefined && r.rows[0].eligible_generation !== null;
+}
 export async function readRecordingOrigin(
   scope: PersonalScopeTx,
   commandId: string,

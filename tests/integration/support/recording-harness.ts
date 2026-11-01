@@ -21,7 +21,7 @@ const deny: CheckPersonalRecordingRun = () => Promise.resolve('unavailable');
 /** Jev's real owner check, over Experience's real answer to whether an exposure was activated. */
 function realComposerCheck(): CheckPersonalRecordingRun {
   const activated = experienceBufferSourceProviders().find(
-    (provider) => provider.provide.description === 'composer.checkActivatedExposure',
+    (provider) => provider.provide.description === 'composer.checkRecordedActivation',
   );
   const owner = composerRecordingOwnerProviders()[0]!;
   return owner.useFactory(activated!.useValue as Parameters<typeof owner.useFactory>[0]);

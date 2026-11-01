@@ -1,9 +1,9 @@
 import { parsePersonalRecordingPurpose, type CheckPersonalRecordingRun } from '../../../reasoning/public.js';
-import type { CheckActivatedExposure } from './ports.js';
+import type { CheckRecordedActivation } from './ports.js';
 
-/** What the owner check reads: whether an exposure was activated, asked of Experience by its ID. */
+/** What the owner check reads: whether an exposure was activated while recording was on, asked of Experience by its ID. */
 export interface ComposerRecordingOwner {
-  readonly exposureActivated: CheckActivatedExposure;
+  readonly activationRecorded: CheckRecordedActivation;
 }
 
 /**
@@ -12,7 +12,8 @@ export interface ComposerRecordingOwner {
  * nothing else, and adds what only the Composer knows.
  *
  * Jev's assessment (`jev-assessment`) is made for one buffer job, which is made for the exposure the person activated: the run
- * is current while that exposure exists in this epoch and was activated. The job carries no generation: the run is stamped with
+ * is current while that exposure exists in this epoch and was activated while recording was on. An exposure activated while
+ * recording was paused is never assessed, even when its job waits across a resume. The job carries no generation: the run is stamped with
  * the generation recording was at when the job started, and the harness holds every read and write to it. Whether the session
  * has moved on is not asked here: a superseded job still settles its run and keeps what it bought. Anything else, including a
  * purpose that is not the Composer's, is `unavailable`.
@@ -29,6 +30,6 @@ export function makeCheckComposerRecordingRun(owner: ComposerRecordingOwner): Ch
       purpose.recordingGeneration !== cap.generation
     )
       return 'unavailable';
-    return (await owner.exposureActivated(scope, purpose.claimId)) ? 'current' : 'unavailable';
+    return (await owner.activationRecorded(scope, purpose.claimId)) ? 'current' : 'unavailable';
   };
 }

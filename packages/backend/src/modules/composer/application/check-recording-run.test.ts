@@ -31,17 +31,17 @@ const scopeAt = (generation: number, universeId = UNIVERSE, privacyEpoch = 1) =>
   }) as unknown as RecordingScopeTx;
 
 const checkWith = (activated: boolean) => {
-  const exposureActivated = vi.fn((_scope: unknown, exposureId: string) =>
+  const activationRecorded = vi.fn((_scope: unknown, exposureId: string) =>
     Promise.resolve(activated && exposureId === EXPOSURE),
   );
-  return { check: makeCheckComposerRecordingRun({ exposureActivated }), exposureActivated };
+  return { check: makeCheckComposerRecordingRun({ activationRecorded }), activationRecorded };
 };
 
 describe('the owner check of the Composer’s recording runs (D-270)', () => {
   it('finds Jev’s run current while the exposure its buffer job was made for is activated', async () => {
-    const { check, exposureActivated } = checkWith(true);
+    const { check, activationRecorded } = checkWith(true);
     expect(await check(scopeAt(3), purpose())).toBe('current');
-    expect(exposureActivated).toHaveBeenCalledWith(expect.anything(), EXPOSURE);
+    expect(activationRecorded).toHaveBeenCalledWith(expect.anything(), EXPOSURE);
   });
 
   it('finds it unavailable once the exposure is gone or was never activated, or names another exposure', async () => {
@@ -50,7 +50,7 @@ describe('the owner check of the Composer’s recording runs (D-270)', () => {
   });
 
   it('finds a run unavailable for a step it does not list, another owner’s purpose, another universe, epoch or generation, and asks Experience nothing', async () => {
-    const { check, exposureActivated } = checkWith(true);
+    const { check, activationRecorded } = checkWith(true);
     expect(await check(scopeAt(3), purpose({ purpose: 'not-a-step' }))).toBe('unavailable');
     expect(await check(scopeAt(3), purpose({ ownerModule: 'supply', purpose: 'ask-scope' }))).toBe('unavailable');
     expect(await check(scopeAt(3, id(9)), purpose())).toBe('unavailable');
@@ -60,6 +60,6 @@ describe('the owner check of the Composer’s recording runs (D-270)', () => {
     expect(await check(scopeAt(3), { ...purpose(), extra: true } as unknown as PersonalRecordingPurpose)).toBe(
       'unavailable',
     );
-    expect(exposureActivated).not.toHaveBeenCalled();
+    expect(activationRecorded).not.toHaveBeenCalled();
   });
 });

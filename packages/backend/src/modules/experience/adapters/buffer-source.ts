@@ -1,24 +1,17 @@
 import {
-  CHECK_ACTIVATED_EXPOSURE,
+  CHECK_RECORDED_ACTIVATION,
   READ_BUFFER_SOURCE,
   READ_HIDDEN_ASSETS,
-  type CheckActivatedExposure,
+  type CheckRecordedActivation,
   type ReadBufferSource,
   type ReadHiddenAssets,
 } from '../../composer/public.js';
 import { readHidden, readMember, readSession } from './navigation-store.js';
 import { readNotInterested } from './not-interested-store.js';
-import { readExposure } from './postgres-store.js';
+import { activatedWhileRecording } from './recording-store.js';
 
-/** Whether the exposure exists in the scope's epoch and was activated: what Jev's owner check needs to know of a buffer job. */
-const checkActivatedExposure: CheckActivatedExposure = async (scope, exposureId) => {
-  const exposure = await readExposure(scope, exposureId);
-  return (
-    exposure !== undefined &&
-    exposure.activatedAt !== undefined &&
-    exposure.privacyEpoch === scope.authority.privacyEpoch
-  );
-};
+/** See `CheckRecordedActivation`: what Jev's owner check needs to know of the exposure a buffer job was made for. */
+const checkRecordedActivation: CheckRecordedActivation = activatedWhileRecording;
 
 /** Tells the Composer buffer worker about an offer, only if it was really activated at this exposure. */
 const readBufferSource: ReadBufferSource = async (scope, { sessionId, offerId, exposureId }) => {
@@ -43,6 +36,6 @@ export function experienceBufferSourceProviders() {
   return [
     { provide: READ_BUFFER_SOURCE, useValue: readBufferSource },
     { provide: READ_HIDDEN_ASSETS, useValue: readHiddenAssets },
-    { provide: CHECK_ACTIVATED_EXPOSURE, useValue: checkActivatedExposure },
+    { provide: CHECK_RECORDED_ACTIVATION, useValue: checkRecordedActivation },
   ];
 }

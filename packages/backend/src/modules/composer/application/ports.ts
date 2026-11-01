@@ -63,10 +63,11 @@ export type ReadBufferSource = (
   query: { readonly sessionId: string; readonly offerId: string; readonly exposureId: string },
 ) => Promise<BufferSourceFacts | undefined>;
 /**
- * Whether the person has an activated exposure with this ID in the current epoch: the encounter a buffer job was made for.
- * Jev's owner check finds the record its run serves by it (D-270). A read in the caller's transaction; it decides nothing.
+ * Whether the person activated this exposure in the current epoch while recording was on: the encounter a buffer job was made
+ * for. An exposure activated while recording was paused is an encounter the person asked the server not to keep, so Jev never
+ * assesses it, however long its job waits (D-270). A read in the caller's transaction; it decides nothing.
  */
-export type CheckActivatedExposure = (scope: PersonalScopeTx, exposureId: string) => Promise<boolean>;
+export type CheckRecordedActivation = (scope: PersonalScopeTx, exposureId: string) => Promise<boolean>;
 /** The subset of `assetIds` the person has hidden or marked "Not interested" (at most 100 per call). */
 export type ReadHiddenAssets = (scope: PersonalScopeTx, assetIds: readonly string[]) => Promise<readonly string[]>;
 

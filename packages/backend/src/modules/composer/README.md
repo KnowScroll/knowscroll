@@ -250,8 +250,9 @@ from the baseline as before. When a run was made, the second transaction (the pa
 the run's close) is one transaction under the recording fence (`commitUnderFence` in `application/prepare-buffer.ts`), so a
 pause, a resume or a Clear while the model worked stores none of it (`recording_changed`; the run is left for the ledger's idle
 sweep) and the next navigation ranks for itself. Jev's owner check (`application/check-recording-run.ts`) asks Experience
-whether the exposure was activated (`CHECK_ACTIVATED_EXPOSURE`); it does not ask whether the session has moved on, because a
-superseded job still keeps what it paid for. Status: implemented, CI-verified on real PostgreSQL.
+whether the exposure was activated while recording was on (`CHECK_RECORDED_ACTIVATION`), so an exposure activated while recording
+was paused is never assessed, even when its job runs after a resume (the buffer is still ranked from the baseline). It does not
+ask whether the session has moved on, because a superseded job still keeps what it paid for. Status: implemented, CI-verified on real PostgreSQL.
 
 **Jev reuses what it paid for (D-058).** A buffer is prepared on every activation, so a person who swipes
 all day would otherwise pay for a call per swipe. Each judgement is therefore kept for 30 minutes in the

@@ -142,7 +142,7 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
     });
 
   /** Opens Explore and activates the first offer, like the client does. */
-  async function openAndActivate(person: FixturePerson, using: Cases = cases) {
+  async function openAndActivate(person: FixturePerson, using: Cases = cases, recordingGeneration?: number) {
     const open = ready(
       await using.navigate(person.authority, {
         commandId: randomUUID(),
@@ -150,9 +150,10 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
         capabilities: textCapabilities,
       }),
     );
-    return { open, ...(await activate(person, open, using)) };
+    return { open, ...(await activate(person, open, using, recordingGeneration)) };
   }
-  async function activate(person: FixturePerson, outcome: Ready, using: Cases = cases) {
+  /** `recordingGeneration` is what a client sends with an activation: the generation of the policy it holds. */
+  async function activate(person: FixturePerson, outcome: Ready, using: Cases = cases, recordingGeneration?: number) {
     const activated = await using.activateOffer(person.authority, {
       commandId: randomUUID(),
       target: {
@@ -161,6 +162,7 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
         offerId: outcome.offer.offerId,
         expectedIntentRevision: outcome.intentRevision,
       },
+      ...(recordingGeneration === undefined ? {} : { recordingGeneration }),
     });
     if (activated.kind !== 'accepted') throw new Error('fixture activation refused');
     return {
@@ -1105,12 +1107,43 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
       afterAll(async () => {
         await recorded.close();
       });
-      /** A person who can pause and clear recording, already on an activated offer. */
+      /** A person who can pause and clear recording, already on an activated offer (activated while recording was on). */
       async function watching() {
         const person = await recordingPerson(database);
         await openAndActivate(person, recorded);
         return person;
       }
+
+      it('assesses an offer activated after a resume, which the client activates at the generation it holds', async () => {
+        const person = await recordingPerson(database);
+        await pauseAndResume(database, person);
+        await openAndActivate(person, recorded, 3);
+        const worker = workerFor({ model: jevModel(fitting) });
+        const jobId = randomUUID();
+        expect(
+          await worker.prepare(await latestJob(person.universeId), { jobId, signal: new AbortController().signal }),
+        ).toMatchObject({ kind: 'prepared', jev: 'assessed' });
+        expect(await runsOf(jobId)).toEqual([
+          { purpose: 'jev-assessment', state: 'completed', recording_generation: 3 },
+        ]);
+      });
+
+      it('never assesses an offer activated while recording was paused, even when its job runs after a resume', async () => {
+        const person = await recordingPerson(database);
+        await setRecording(database, person, 1, false);
+        await openAndActivate(person, recorded, 2);
+        await setRecording(database, person, 2, true);
+        const worker = workerFor({ model: jevModel(fitting) });
+        const jobId = randomUUID();
+        // The buffer is still ranked from the baseline: it is derived from the session and is no evidence. Jev asks no one.
+        expect(
+          await worker.prepare(await latestJob(person.universeId), { jobId, signal: new AbortController().signal }),
+        ).toMatchObject({ kind: 'prepared', jev: 'absent', jevReason: 'refused_scope_refused' });
+        expect(worker.calls()).toBe(0);
+        expect(await runsOf(jobId)).toEqual([]);
+        expect(await poolOf(person.universeId)).toBeUndefined();
+        expect((await bufferOf(person.universeId))!.assessments).toBeNull();
+      });
 
       it('assesses the shortlist, stores what it bought and stamps the run with the generation it started at', async () => {
         const person = await watching();

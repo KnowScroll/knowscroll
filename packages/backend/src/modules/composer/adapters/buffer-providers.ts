@@ -22,7 +22,7 @@ import { makeCheckComposerRecordingRun } from '../application/check-recording-ru
 import { makeAssessShortlist } from '../application/jev.js';
 import { makePrepareBuffer, type PrepareBuffer } from '../application/prepare-buffer.js';
 import type {
-  CheckActivatedExposure,
+  CheckRecordedActivation,
   ComposeEncounter,
   PersistComposerDecision,
   ReadBufferSource,
@@ -32,7 +32,7 @@ import type {
 } from '../application/ports.js';
 import { prepareBufferQueue } from '../events.js';
 import {
-  CHECK_ACTIVATED_EXPOSURE,
+  CHECK_RECORDED_ACTIVATION,
   COMPOSE_ENCOUNTER,
   PERSIST_COMPOSER_DECISION,
   PREPARE_COMPOSER_BUFFER,
@@ -74,15 +74,15 @@ export function composerBufferProviders(t: { readonly enqueueJob: symbol }) {
 /**
  * The owner check the recording-aware harness runs for Jev's personal runs (D-270): the exposure a buffer job was made for must
  * still be an activated one. Installed wherever the recording harness is (the worker), because the harness cannot be built without
- * it; it needs Experience's `CHECK_ACTIVATED_EXPOSURE`.
+ * it; it needs Experience's `CHECK_RECORDED_ACTIVATION`.
  */
 export function composerRecordingOwnerProviders() {
   return [
     {
       provide: CHECK_COMPOSER_RECORDING_RUN,
-      inject: [CHECK_ACTIVATED_EXPOSURE],
-      useFactory: (exposureActivated: CheckActivatedExposure): CheckPersonalRecordingRun =>
-        makeCheckComposerRecordingRun({ exposureActivated }),
+      inject: [CHECK_RECORDED_ACTIVATION],
+      useFactory: (activationRecorded: CheckRecordedActivation): CheckPersonalRecordingRun =>
+        makeCheckComposerRecordingRun({ activationRecorded }),
     },
   ];
 }
