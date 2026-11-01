@@ -3141,12 +3141,13 @@ Confirmed by: `ask-smoke.spec.ts` (the dock on `/scroll/<id>` opens the sheet at
 
 Confirmed by: `room-sky.test.ts` ("says what is live", the map label), `space-overlay.test.tsx` (the label under the station), `universe-lists.test.ts`, `room-launch.test.ts` in contracts (a boolean is refused), `rooms-launch.test.ts` and `rooms-watch.test.ts` (the station's kind).
 
-## D-269 · 2026-11-01 · On a Scroll's own address a Reel that does not exist can be asked for, and the switch reads the same at every width (v3 dev check fixes, #596)
+## D-269 · 2026-11-01 · A missing Reel or Scroll twin on an address reads "unavailable" at every width and cannot be pressed (v3 dev check fixes, #596)
 
-**Amends** the note in `use-format-siblings.ts`, "A missing twin stays unavailable here: a direct route has no request flow". **Builds on** D-006 (Reel and Scroll have equal status), D-184 and D-262.
+**Builds on** D-006 (Reel and Scroll have equal status), D-184 and D-262. Keeps the note in `use-format-siblings.ts` that a direct route has no request flow.
 
-- **The defect.** The same Scroll showed "Reel · unavailable" at 1440 and a dimmed "Reel" at 390 for the same account. The data was the same: no Reel twin. The phone's bar draws no state words, so the reason was dropped, and in both cases the Reel could not be pressed. Explore offers a missing twin as something to ask for; only the address route did not.
-- **The rule.** A twin that exists and is admitted opens as itself. One being made is "preparing". One that does not exist is **requestable**: the switch reads "Reel" with no state word, and pressing it opens the request sheet as a variant of this Scroll, the same sheet and caps as Explore's (D-218). "Unavailable" is left for a route with no request to make and for a read that has not yet arrived. A Reel that was asked for opens as a Reel when it is ready, not as a Scroll.
-- **Scope.** The Scroll's own address has it. A Reel's own address still has no request sheet, so its missing Scroll twin reads unavailable; that is left for a later slice.
+- **The question.** The same Scroll showed "Reel · unavailable" at 1440 and "Reel" at 390 for the same account. The data was the same: no Reel twin. The phone bar draws only "Reel" and "Scroll" because it has no room for state words, and an unavailable option is dimmed and disabled.
+- **The rule.** A twin that exists and is admitted opens as itself. One being made is "preparing". One that does not exist is "unavailable": not pressable, and named "Reel · unavailable" (or "Scroll · unavailable") to a screen reader at every width, because the phone bar keeps the state in the name. It is the same on a Reel's own address, so Reel and Scroll are treated alike.
+- **Why not offer to ask for it.** A pressable "Reel" would always dead-end. Reel supply is closed: `commissionSupply` answers `budget_unavailable` for every Reel, because no Cutroom or fal spend is made without the owner's approval. A request path is offered only where the server can fulfil it, so it comes back when the owner opens Reel supply.
+- **Not changed.** Explore's switch and menu keep their own request paths.
 
-Confirmed by: `use-format-siblings.test.ts` (the states), `use-direct-format.test.tsx` (the variant request names this Scroll's exposure; a ready Reel opens at `/reel/…`), `ask-smoke.spec.ts` (the Reel is enabled, not marked unavailable, and opens the sheet at 390 and 1440).
+Confirmed by: `reader-nav-smoke.spec.ts` (the name "Reel · unavailable" and the text "Reel" at 320, 360 and 390 px), `ask-smoke.spec.ts` (disabled and named the same at 390 and 1440, no request sent).

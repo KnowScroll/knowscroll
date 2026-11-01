@@ -83,7 +83,7 @@ for (const viewport of [phone, desktop]) {
     await expect(page.getByText("We'll let you know when your answer is ready")).toBeVisible();
   });
 
-  test(`on a Scroll's own address a Reel that does not exist is asked for from the format switch, the same at ${size}`, async ({
+  test(`on a Scroll's own address a missing Reel twin is named "Reel · unavailable" and cannot be pressed, the same at ${size}`, async ({
     page,
   }) => {
     const served = await encounterFixture(page, 'scroll', {
@@ -93,16 +93,13 @@ for (const viewport of [phone, desktop]) {
     });
     await page.goto(`/scroll/${id(300)}`);
     await expect(page.getByTestId('scroll-reader')).toBeVisible();
-    // The switch is the same at every width: the Reel is there to ask for, not dimmed and not disabled.
-    const reel = page.getByRole('radio', { name: 'Reel' });
+    // The phone bar draws no state words, so the state stays in the name: both widths read the same to a screen reader.
+    const reel = page.getByRole('radio', { name: 'Reel · unavailable', exact: true });
     await expect(reel).toBeVisible();
-    await expect(reel).toBeEnabled();
-    await expect(page.getByRole('radio', { name: /unavailable/ })).toHaveCount(0);
+    await expect(reel).toBeDisabled();
     await shot(page, `format-switch-${String(viewport.width)}`);
-    await reel.click();
-    const sheet = page.getByRole('dialog');
-    await expect(sheet).toBeVisible();
-    await shot(page, `format-request-${String(viewport.width)}`);
+    await reel.click({ force: true });
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     expect(asked(served)).toEqual([]);
   });
 
