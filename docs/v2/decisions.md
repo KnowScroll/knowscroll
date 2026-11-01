@@ -3444,3 +3444,28 @@ Confirmed by: `feed-people.test.tsx` ("the ring": on every AI label, with its na
 
 Confirmed by: `rooms-posts.test.ts` ("a post a moderator removed, read by a member who has its ID": a source post, an asset post and a resident's find each read as "A removed post" with no source and no card, the replies stay, and the restored post is whole; "with the real account lifecycle": a deleted author's asset post keeps its card and its erased title). Each rule was shown failing by breaking it.
 
+## D-295 · 2026-11-02 · General, Feed and Topics are tabs of the room: chosen in place, never an address change (R-8c, #606)
+
+**Builds on** D-248 (the Feed from the Now strip and the room menu), D-276 (the live strip and its Feed chip) and T3 ("a General / Feed / Topics segmented bar under the room header"). **Amends** R-8, where the Feed was a screen of its own that the Now strip's Feed chip and the room menu's Feed row pushed.
+
+- **In place.** A member's room has a bar of three tabs under its header, at every width. Choosing one changes what the room shows and nothing else: the address stays, no entry is added to the history, and Back leaves the room, not the tab.
+- **Where it stands.** On a phone the bar is under the band. From 1024 px the room's header is in the left pane (D04), so the bar stands at the top of the centre pane, over the same three tabs.
+- **Kept.** Feed and Topics are read the first time they are opened. A tab that has been opened stays mounted, so its scroll and what was typed in it are still there when it is opened again. A tab that is not open is hidden from a screen reader and cannot be reached with Tab.
+- **The old ways in.** The Now strip's Feed chip and the room menu's Feed row open the Feed tab. The room menu's Topics page stays, as the place for Pins and for a phone's short list.
+- **The address.** `/rooms/<id>/feed` is the room opened on its Feed tab. It stays so a link to the Feed lands on the Feed; the tabs do not rewrite it, so a reload of a room on its Feed opens General.
+- **Keys.** Tab reaches the open tab; the left and right arrows move to the neighbouring tab, wrapping, and Home and End to the first and last. The keyboard map lists them under "Room tabs".
+- **Not changed.** No server call, contract or migration; the Feed, its sorts, votes and posts are as D-271 to D-279 made them.
+
+Confirmed by: `room-tabs.test.tsx` (the open tab, opening on the Feed, a tab keeping what it held, a tab read once), `rooms-tabs-smoke.spec.ts` (no address or history change, Back leaving the room, the deep link, the arrow keys, Home and End, and each tab's scroll kept, at 390 and 1440).
+
+## D-296 · 2026-11-02 · A member's room stands on its own kit's ground, with cream cards on it (R-8c, #606)
+
+**Builds on** D-170 (a kit's ink is checked against its ground), D-173 and D-177 (the band's backdrop) and T3 ("a dark space ground with cream cards"). **Amends** R-1, which gave only the band a face and left the rest of the room on paper.
+
+- **The ground.** Under the band, the bar and the three tabs stand on the kit's ground colour; a room with no face keeps the dark space ground. The painted backdrop stays on the band only.
+- **Ink and cards.** Words that sit straight on the ground (a day label, a name over a bubble, a list's title, the line under the sorts) are drawn in the kit's ink, whose contrast with the ground was checked before the kit could be shown (4.5 to 1). Anything with its own fill (a message, a post, a topic row, a chip, a button) keeps it, so a card is cream on a dark kit and on a pale one.
+- **A quiet button.** A ghost button has no fill, so on the ground it is drawn with its card.
+- **Not a theme.** Only a member's room is on the ground. A discussion opened from it, the preview before joining and every other screen keep paper.
+
+Confirmed by: `room-tabs.test.tsx` ("the room's ground": the kit's ground and ink, the default, a plain page, AA contrast of the kit tones, the focus ring on a dark and a pale ground), `rooms-tabs-smoke.spec.ts` (the ground of a dark and a pale room, and axe over each tab at 390 and 1440).
+
