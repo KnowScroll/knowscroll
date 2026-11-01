@@ -212,7 +212,9 @@ describe('the instructions for the answer to one question (D-218)', () => {
     expect(text).toContain('do not say how a part works unless a passage says it');
     // D-282: a fact keeps the passages' own terms, and a link between two ideas is short and plain or part of the next fact.
     expect(text).toContain('State each fact in the passages’ own terms');
-    expect(text).toContain('add no cause, mechanism, comparison, example, figure or condition that the passages do not give');
+    expect(text).toContain(
+      'add no cause, mechanism, comparison, example, figure or condition that the passages do not give',
+    );
     expect(text).toContain('Keep a link between two ideas short and plain');
     expect(text).toContain('begin the next fact with the link');
     expect(text).toContain('A sentence that only links states no fact and uses none of the passages’ terms');

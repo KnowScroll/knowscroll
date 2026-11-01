@@ -630,7 +630,9 @@ describe('the instructions of ask-support-check.v4 (D-281)', () => {
       '"unsupported": the sentence gives a fact, a figure, a cause, a comparison or an example that the cited passages neither state nor imply, or one that a cited passage contradicts.',
     );
     expect(ASK_SUPPORT_INSTRUCTIONS).toContain('Do not fill a gap with what you know');
-    expect(ASK_SUPPORT_INSTRUCTIONS).toContain('A new cause, mechanism, figure, comparison, example, direction or condition');
+    expect(ASK_SUPPORT_INSTRUCTIONS).toContain(
+      'A new cause, mechanism, figure, comparison, example, direction or condition',
+    );
   });
 
   it('says no_claim is for sentences that add no fact, and names the grounds code accepts it on', () => {

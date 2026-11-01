@@ -46,9 +46,9 @@ describe('reading candidate checker instructions (D-280)', () => {
   });
 
   it('accepts tabs, Windows line breaks and letters of any script', () => {
-    expect(readCandidateInstructions(encode('Rule:\tjudge “each” sentence.\r\nÉcrivez en français — 判断。\r\n')).kind).toBe(
-      'accepted',
-    );
+    expect(
+      readCandidateInstructions(encode('Rule:\tjudge “each” sentence.\r\nÉcrivez en français — 判断。\r\n')).kind,
+    ).toBe('accepted');
   });
 
   it('accepts exactly the largest size and refuses one byte more', () => {
@@ -96,7 +96,9 @@ describe('reading candidate checker instructions (D-280)', () => {
 });
 
 describe('the role built from candidate instructions (D-280)', () => {
-  const sentences: readonly SentenceUnderCheck[] = [{ number: 1, text: 'The lamp turns once a minute.', cites: ['e1'] }];
+  const sentences: readonly SentenceUnderCheck[] = [
+    { number: 1, text: 'The lamp turns once a minute.', cites: ['e1'] },
+  ];
   const passages = [{ handle: 'e1', text: 'The lamp turns once a minute, driven by a small motor.' }];
   const candidate = accepted(encode('CI candidate instructions: judge each sentence.'));
 
