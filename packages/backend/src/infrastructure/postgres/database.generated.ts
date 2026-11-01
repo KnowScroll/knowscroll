@@ -478,6 +478,7 @@ export interface ExperienceExposures {
   command_id: string;
   id: string;
   kind: string;
+  made_while_paused: Generated<boolean>;
   opened_at: Generated<Timestamp>;
   origin: string;
   privacy_epoch: number;

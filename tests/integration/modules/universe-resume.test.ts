@@ -64,12 +64,18 @@ describe('Resume on the Universe (real PostgreSQL, labelled CI fixtures)', () =>
   });
 
   /** Opens the exact Scroll as the person's own reading, and activates it: they have been on it. */
-  async function readPart(person: FixturePerson, target: { assetId: string; assetRevision: number }) {
+  async function readPart(
+    person: FixturePerson,
+    target: { assetId: string; assetRevision: number },
+    recordingGeneration?: number,
+  ) {
+    const generation = recordingGeneration === undefined ? {} : { recordingGeneration };
     const open = ready(
       await cases.navigate(person.authority, {
         commandId: randomUUID(),
         target: { kind: 'return', ...target },
         capabilities: textCapabilities,
+        ...generation,
       }),
     );
     const activated = await cases.activateOffer(person.authority, {
@@ -80,6 +86,7 @@ describe('Resume on the Universe (real PostgreSQL, labelled CI fixtures)', () =>
         offerId: open.offer.offerId,
         expectedIntentRevision: open.intentRevision,
       },
+      ...generation,
     });
     expect(activated.kind).toBe('accepted');
   }
@@ -107,6 +114,27 @@ describe('Resume on the Universe (real PostgreSQL, labelled CI fixtures)', () =>
     // The last Part has no next one, and a Part the person has opened is not offered again.
     await readPart(person, parts.three);
     expect(await resumeOf(person)).toBeNull();
+  });
+
+  it('offers nothing for a Part read while recording was paused (D-284), and the next Part for one read after a resume', async () => {
+    const person = await seedPerson(database.db);
+    await sql`update identity.universes set recording_on = false, recording_generation = 2
+      where id = ${person.universeId}::uuid`.execute(database.db);
+    await readPart(person, parts.one, 2);
+    // The exposure exists, because it served the Part, but a paused person has no record of reading to pick up from.
+    expect(
+      await database.db
+        .selectFrom('experience.exposures')
+        .select('made_while_paused')
+        .where('universe_id', '=', person.universeId)
+        .execute(),
+    ).toEqual([{ made_while_paused: true }]);
+    expect(await resumeOf(person)).toBeNull();
+    await sql`update identity.universes set recording_on = true, recording_generation = 3
+      where id = ${person.universeId}::uuid`.execute(database.db);
+    expect(await resumeOf(person)).toBeNull();
+    await readPart(person, parts.one, 3);
+    expect(await resumeOf(person)).toMatchObject({ assetId: parts.two.assetId, part: 2, total: 3 });
   });
 
   it("is the person's own reading only: another person reading on never moves it or makes one", async () => {
