@@ -7,7 +7,7 @@ import { borderWidth, content, spacing } from '@knowscroll/design-tokens';
 import { BottomSheet, Button, Icon, Text } from '@knowscroll/ui';
 import { afterPendingBack, notePendingBack } from '../../platform/after-pending-back';
 import { AiHere } from './ai-here';
-import { activitiesHref, todayHref } from './room-links';
+import { activitiesHref, feedHref, todayHref } from './room-links';
 import { ModeratorTools, RULE_WORDS, WhoIsHere } from './room-parts';
 import { SkyContent } from './sky-sheet';
 import { TopicsList } from './topics-list';
@@ -133,6 +133,15 @@ export function RoomMenu({
               testID="menu-today"
             />
           )}
+          <MenuRow
+            label="Feed"
+            onPress={() => {
+              notePendingBack();
+              close();
+              afterPendingBack(() => router.push(feedHref(view.room.roomId)));
+            }}
+            testID="menu-feed"
+          />
           <MenuRow
             label="Room sky"
             value={`${String(view.sky.lit)} of ${String(view.sky.of)}`}

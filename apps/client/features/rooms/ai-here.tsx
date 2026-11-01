@@ -98,6 +98,9 @@ export function LimitsNote({ limits }: { readonly limits: RoomLimits }) {
       <Text variant="meta" color={content.ink2} testID="limits-asked">
         {`Asking: up to ${String(limits.asked.perPersonPerHour)} asks an hour each, and ${String(limits.asked.perRoomPerDay)} a day for the room. Asking never uses up what AI may say on its own.`}
       </Text>
+      <Text variant="meta" color={content.ink2} testID="limits-feed">
+        {`Finds: residents look at the room about ${String(limits.feed.postsPerDay)} times a day and post a real Reel or Scroll from the library only when the room has not seen it. Each resident posts at most once every ${String(limits.feed.restHours)} hours.`}
+      </Text>
       <Text variant="meta" color={content.ink2} testID="limits-unprompted">
         {`On its own: at most one turn for every ${String(limits.unprompted.humanMessagesPerTurn)} messages people write, ${String(limits.unprompted.perHour)} an hour and ${String(limits.unprompted.perDay)} a day. The Explainer up to ${String(limits.unprompted.explainerPerHour)} an hour, the Skeptic ${String(limits.unprompted.skepticPerHour)}.`}
       </Text>

@@ -2,8 +2,9 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
-import { launchChip, questionsChip, replayChip, skyLine, watchChip } from '@knowscroll/client-core';
+import { feedChip, launchChip, questionsChip, replayChip, skyLine, watchChip } from '@knowscroll/client-core';
 import type {
+  RoomFeedStrip,
   RoomLaunchStrip,
   RoomQuestions,
   RoomReplayStrip,
@@ -13,7 +14,7 @@ import type {
 } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Icon, Text } from '@knowscroll/ui';
-import { todayHref } from './room-links';
+import { feedHref, todayHref } from './room-links';
 import { SkySheet } from './sky-sheet';
 
 /** One pill of the strip: at least 44 px tall, with words, never colour alone. */
@@ -57,9 +58,10 @@ function Chip({
 
 /**
  * The Now strip under the room's band (R3 A): the Launch when one can start, is on or just finished, Watch together when a Reel can be
- * started on the stage, a replay of a finished Launch the member did not play, the questions that wait for a person, Today, with its question when an operator approved one, and the room's sky.
- * None is a count of people. The Launch opens its start sheet or its podium, the replay its sheet, the questions their shelf, Today the
- * daily channel, the sky the constellation and its name vote.
+ * started on the stage, a replay of a finished Launch the member did not play, the questions that wait for a person, Today, with its
+ * question when an operator approved one, the Feed when a resident has posted a find, and the room's sky. None is a count of people.
+ * The Launch opens its start sheet or its podium, Watch together the stage sheet, the replay its sheet, the questions their shelf, Today
+ * the daily channel, the Feed the residents' finds, the sky the constellation and its name vote.
  */
 export function NowStrip({
   scope,
@@ -67,6 +69,7 @@ export function NowStrip({
   today,
   sky,
   launch,
+  feed,
   onLaunch,
   watch,
   onWatch,
@@ -81,6 +84,8 @@ export function NowStrip({
   readonly today: RoomTodayStrip | undefined;
   readonly sky: RoomSky;
   readonly launch?: RoomLaunchStrip | undefined;
+  /** The newest find a resident posted that this reader may see; absent when there is none or the reader's AI is Off. */
+  readonly feed?: RoomFeedStrip | undefined;
   readonly onLaunch?: () => void;
   /** A Reel can be watched together (v3 R-10). The chip is not drawn while one is on: the stage above says so. */
   readonly watch?: RoomWatchStrip | undefined;
@@ -95,6 +100,7 @@ export function NowStrip({
 }) {
   const chip = launchChip(launch);
   const watchOf = watchChip(watch);
+  const feedPill = feedChip(feed, new Date());
   const replayOf = replayChip(replay);
   const waiting = questionsChip(questions);
   const askChip = waiting ?? (canAsk === true ? { label: 'Ask', detail: 'Leave a question' } : undefined);
@@ -147,6 +153,15 @@ export function NowStrip({
             accessibilityLabel={`Today${today.prompt === undefined ? '' : `, ${today.prompt}`}`}
             onPress={() => router.push(todayHref(roomId))}
             testID="now-today"
+          />
+        )}
+        {feedPill === undefined ? null : (
+          <Chip
+            label={feedPill.label}
+            detail={feedPill.detail}
+            accessibilityLabel={`Feed, ${feedPill.detail}`}
+            onPress={() => router.push(feedHref(roomId))}
+            testID="now-feed"
           />
         )}
         <Chip

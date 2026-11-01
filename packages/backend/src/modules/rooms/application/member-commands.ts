@@ -60,8 +60,11 @@ export function makeMemberCommands(p: RoomPorts) {
                 now,
               );
               // A summary that already read their words must not keep them (D-169): it is erased, and not written again.
-              if (command.keepOut === true)
+              if (command.keepOut === true) {
                 await p.summaries.markStale(entered.lock, { byAccount: entered.owner.accountId });
+                // What the room remembers must not keep them either (D-247): it is erased and written again without them.
+                await p.feed.markMemoryStale(entered.lock, { byAccount: entered.owner.accountId });
+              }
               return RoomPreferencesAcceptanceSchema.parse({
                 ...receiptBase(scope, now, command.commandId),
                 operation: 'room.preferences',

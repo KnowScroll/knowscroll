@@ -606,6 +606,31 @@ describe('account deletion (real database)', () => {
             account_id: erasedAsFriend.accountId,
           })
           .execute();
+        // What the room remembers, in words the person chose as its moderator, and the audit of that edit (D-247): labelled
+        // fixture rows; `rooms-memory.test.ts` proves the real path and that the edit stays when the account goes.
+        await rooms.db
+          .insertInto('rooms.room_memory')
+          .values({
+            room_id: room.roomId,
+            state: 'ready',
+            source: 'moderator',
+            body: 'A fixture memory a moderator wrote.',
+            edited_by_account_id: erased.accountId,
+            edited_at: rooms.clock.now,
+            updated_at: rooms.clock.now,
+          })
+          .execute();
+        await rooms.db
+          .insertInto('rooms.memory_edits')
+          .values({
+            edit_id: randomUUID(),
+            room_id: room.roomId,
+            by_account_id: erased.accountId,
+            action: 'replace',
+            body_sha256: 'a'.repeat(64),
+            at: rooms.clock.now,
+          })
+          .execute();
       } finally {
         await rooms.close();
       }

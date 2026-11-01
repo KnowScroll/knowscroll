@@ -46,6 +46,7 @@ import {
   READ_LIBRARY_PASSAGE_TEXT,
   READ_LIBRARY_CALLS,
   READ_LIBRARY_REELS,
+  READ_LIBRARY_FINDS,
   type CheckAssetAudience,
   type EnqueueScrollProduction,
   type ReadMadeToOrderProduction,
@@ -84,6 +85,7 @@ import { chooseScrollRecipe, readScrollProduction } from './production-state.js'
 import { readRegionEncounterCandidates, lockRegionEncounterCandidates } from './region-candidates.js';
 import { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
 import { readLibraryReels } from './library-reels.js';
+import { makeReadLibraryFinds } from './library-finds.js';
 
 /**
  * Reusable outer wiring (blueprint §22): content's scope-bound read ports, used inside a personal
@@ -172,6 +174,11 @@ export function libraryPassageProviders(tokens: { readonly database: symbol }) {
       inject: [tokens.database],
       useFactory: (db: Kysely<Database>) => makeReadLibraryCalls(db),
     },
+    {
+      provide: READ_LIBRARY_FINDS,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => makeReadLibraryFinds(db),
+    },
   ];
 }
 
@@ -217,6 +224,7 @@ export function importEditorialScrollUseCase(db: Kysely<Database>) {
 
 export { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
 export { readLibraryReels } from './library-reels.js';
+export { makeReadLibraryFinds } from './library-finds.js';
 export { makeCutroomReelImporter, type CutroomImportSettings } from './import-cutroom-reel.js';
 export { makeMediaAccess } from './media-access.js';
 

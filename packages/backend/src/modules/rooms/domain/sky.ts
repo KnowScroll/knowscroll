@@ -47,7 +47,7 @@ export function starDecision(input: {
 /** The facts of a Useful mark that decide whether the message it marks is a human answer worth a star. */
 export interface UsefulStarFacts {
   readonly discussion: {
-    readonly kind: 'general' | 'topic' | 'today';
+    readonly kind: 'general' | 'topic' | 'today' | 'find';
     readonly tag: 'question' | 'debate' | 'explainer' | 'share' | null;
     readonly startedByAccountId: string | null;
   };
@@ -61,7 +61,7 @@ export interface UsefulStarFacts {
 /**
  * A human answer marked Useful by someone else. The answer is a person's words in today's channel, or in a topic tagged a
  * question by someone other than the person who asked it. A resident's words never earn (an AI is not a person who
- * answered), nor does a mark on one's own message, a card, General chat or a debate.
+ * answered), nor does a mark on one's own message, a card, General chat, a debate or a find (a resident's post about a library asset).
  */
 export function usefulEarnsStar(facts: UsefulStarFacts): boolean {
   if (facts.authorAccountId === null || !facts.hasWords) return false;

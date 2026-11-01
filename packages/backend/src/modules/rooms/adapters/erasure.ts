@@ -7,6 +7,7 @@ import { transactionOf } from '../../../infrastructure/postgres/personal-scope.j
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { NEUTRAL_TOPIC_TITLE } from '../domain/titles.js';
 import { castDueQueue, castPassQueue, contributeQueue, summariseQueue } from '../events.js';
+import { staleMemoryOf } from './postgres-feed.js';
 
 /**
  * The queues whose payloads name a universe: the ask, the check whether a resident answers, the call it may lead to and the
@@ -60,6 +61,9 @@ const LIFECYCLE = {
     'the link that says the account shared a session is emptied, by a Clear too, and when they leave, are removed or delete the account; the session stays with the room (a Reel and a start time, no position) and goes seven days after it ended',
   'rooms.watch_viewers':
     'the account place among the people watching is deleted, by a Clear too (D-258); it also goes when they leave or are removed, and when the session ends or is stopped',
+  'rooms.room_memory':
+    'the words of a derived memory that read what the account wrote are erased (stale) before their messages become tombstones; the moderator link is cleared; a moderator text stays with the room',
+  'rooms.memory_edits': 'the moderator link of an edit is cleared; the edit stays as a fact about the room',
 } as const;
 
 /**
@@ -90,6 +94,21 @@ async function failQueuedTurns(trx: ReturnType<typeof transactionOf>, universeId
   return (
     Number(asks.numAffectedRows ?? 0) + Number(residents.numAffectedRows ?? 0) + Number(summaries.numAffectedRows ?? 0)
   );
+}
+
+/**
+ * Takes the row of every room the account wrote in, shared and in id order, before anything else of theirs is touched. A
+ * hide and a keep-out take it shared, and the residents' memory takes it exclusively before it stores words: so a memory
+ * that read this person's messages is either written before this deletion starts (and erased below) or after it commits
+ * (and cannot read them), never in between (D-247). Shared locks do not wait for each other, so deletions and sends are
+ * not slowed down.
+ */
+async function lockRoomsOf(trx: ReturnType<typeof transactionOf>, account: string): Promise<void> {
+  await sql`select room_id from rooms.rooms
+    where room_id in (select discussion.room_id from rooms.messages message
+      join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
+      where message.author_account_id = ${account}::uuid)
+    order by room_id for share`.execute(trx);
 }
 
 /**
@@ -148,6 +167,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'launch_answers', ownerColumn: 'account_id' },
     { schema: 'rooms', table: 'watch_sessions', ownerColumn: 'started_by' },
     { schema: 'rooms', table: 'watch_viewers', ownerColumn: 'account_id' },
+    { schema: 'rooms', table: 'room_memory', ownerColumn: 'edited_by_account_id' },
+    { schema: 'rooms', table: 'memory_edits', ownerColumn: 'by_account_id' },
   ],
   accountColumns: [
     { schema: 'rooms', table: 'members', column: 'account_id' },
@@ -168,6 +189,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'launch_answers', column: 'account_id' },
     { schema: 'rooms', table: 'watch_sessions', column: 'started_by' },
     { schema: 'rooms', table: 'watch_viewers', column: 'account_id' },
+    { schema: 'rooms', table: 'room_memory', column: 'edited_by_account_id' },
+    { schema: 'rooms', table: 'memory_edits', column: 'by_account_id' },
   ],
 
   /** Full erasure of one universe: the queued ask jobs and the asks waiting on them. */
@@ -180,12 +203,14 @@ export const roomsErasure: ModuleErasure = declareErasure({
 
   /**
    * Account deletion, after every universe eraser (D-043). Idempotent: a second run finds nothing to
-   * change. Only rows keyed by this account, and the discussions' atomic counters, are touched, so
-   * no room lock is needed and it is safe beside a concurrent send.
+   * change. Only rows keyed by this account, and the discussions' atomic counters, are touched. The rooms the
+   * person wrote in are held shared first (the memory's writer takes them exclusively); that does not wait for
+   * a send or a hide, so it is safe beside them.
    */
   async eraseAccount(scope) {
     const trx = transactionOf(scope.personal);
     const account = scope.accountId;
+    await lockRoomsOf(trx, account);
     await lockDiscussionsOf(trx, account);
     let removed = 0;
     const count = (result: { numAffectedRows?: bigint | undefined }) => Number(result.numAffectedRows ?? 0);
@@ -201,6 +226,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
         trx,
       ),
     );
+    // What the residents remember must not outlive it either (D-247): erased now, written again from what is left.
+    removed += count(await staleMemoryOf({ byAccount: account }).execute(trx));
     removed += count(
       await sql`delete from rooms.message_useful where account_id = ${account}::uuid
         or message_id in (select message_id from rooms.messages where author_account_id = ${account}::uuid)`.execute(
@@ -263,6 +290,13 @@ export const roomsErasure: ModuleErasure = declareErasure({
           state = case when state = 'queued' then 'failed' else state end,
           settled_at = case when state = 'queued' then now() else settled_at end
         where requested_by_account_id = ${account}::uuid`.execute(trx),
+    );
+    removed += count(
+      await sql`update rooms.room_memory set edited_by_account_id = null
+        where edited_by_account_id = ${account}::uuid`.execute(trx),
+    );
+    removed += count(
+      await sql`update rooms.memory_edits set by_account_id = null where by_account_id = ${account}::uuid`.execute(trx),
     );
     removed += count(await sql`delete from rooms.poll_votes where account_id = ${account}::uuid`.execute(trx));
     removed += count(await sql`delete from rooms.room_presence where account_id = ${account}::uuid`.execute(trx));
@@ -353,8 +387,9 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
       'rooms.launch_answers',
       'rooms.watch_sessions',
       'rooms.watch_viewers',
+      'rooms.memory_edits',
     ],
-    'An invitation is a notice between two members and holds no words of the person; a presence lease lasts a minute and records only that the room was open; the place where they left off is private bookkeeping that holds no words; a summary holds a window of the room and no one of its own; the job queue is delivery bookkeeping.',
+    'What the residents remember belongs to the room and is derived from many people; an invitation is a notice between two members and holds no words of the person; a presence lease lasts a minute and records only that the room was open; the place where they left off is private bookkeeping that holds no words; a summary holds a window of the room and no one of its own; the job queue is delivery bookkeeping.',
     async (scope, person) => {
       const trx = transactionOf(scope);
       const rooms = await sql<{
@@ -479,6 +514,11 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         join rooms.rooms room on room.room_id = session.room_id
         where viewer.account_id = ${person.accountId}::uuid
         order by day desc limit 500`.execute(trx);
+      const memoryEdits = await sql<{ room: string; action: string; at: Date }>`
+        select room.name as room, edit.action, edit.at
+        from rooms.memory_edits edit join rooms.rooms room on room.room_id = edit.room_id
+        where edit.by_account_id = ${person.accountId}::uuid
+        order by edit.at desc limit 500`.execute(trx);
       const messageCount = Number(written.rows[0]?.n ?? 0);
       const askCount = Number(asks.rows[0]?.n ?? 0);
       // A person who never took part in a room has no section: the file does not name the module.
@@ -494,6 +534,7 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         taps.rows.length === 0 &&
         launches.rows.length === 0 &&
         watching.rows.length === 0 &&
+        memoryEdits.rows.length === 0 &&
         startedActivities.rows.length === 0
       )
         return {};
@@ -565,6 +606,12 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
           questionsAnswered: Number(row.answered),
         })),
         watchTogether: watching.rows.map((row) => ({ room: row.room, day: row.day, you: row.role })),
+        // The person's own changes to what a room's residents remember: the room, what they did and when, never the words.
+        memoryEdits: memoryEdits.rows.map((row) => ({
+          room: row.room,
+          action: row.action === 'clear' ? 'cleared' : 'replaced',
+          at: row.at.toISOString(),
+        })),
         activitiesStarted: startedActivities.rows.map((row) => ({
           room: row.room,
           title: row.title,

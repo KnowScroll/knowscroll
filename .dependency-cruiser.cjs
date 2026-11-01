@@ -44,6 +44,8 @@ const compositionRoots = [
   '^apps/worker/src/rooms-face-operator\\.ts$',
   // The ritual commands compose the rooms scope's harness and the library's prose reads (R-5, D-176).
   '^apps/worker/src/rooms-ritual-operator\\.ts$',
+  // The feed command composes the rooms scope's harness and the library's finds read for one look by a room's residents (R-8, D-248).
+  '^apps/worker/src/rooms-feed-operator\\.ts$',
   // The scenes operator sends the look backfill jobs (U-1, D-102).
   '^apps/worker/src/scenes-operator\\.ts$',
   // The writer spike composes the production harness and the v2 writer for one operator command (S-0, D-120).

@@ -79,6 +79,10 @@ ks_v2_reasoning_background_share_percent: { dev: 50 }
 # world's cap, so they can never take what a person asked for. Dev raises the world's cap first (D-068): a room of three
 # people and a real model make about 20 calls on a busy day, and Jev alone used 200 of the old 300.
 ks_v2_room_residents_worlds: [dev]
+# Worlds where the residents post finds about library assets and keep each room's memory current on a heartbeat
+# (KS_ROOMS_FEED_ENABLED=1, v3 R-8, D-248). It needs the residents above. Listed nowhere by default: an operator adds a world
+# once its caps are set, because each look can make a model call (a room with nothing new, nothing due or nobody listening makes none).
+ks_v2_room_feed_worlds: []
 ks_v2_reasoning_room_requests_per_day: { dev: 150 }
 ks_v2_reasoning_room_tokens_per_day: { dev: 1500000 }
 ks_v2_reasoning_ambient_share_percent: { dev: 30 }

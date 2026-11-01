@@ -19,6 +19,7 @@ import type {
   LaunchJoinedAcceptanceSchema,
   LaunchStartedAcceptanceSchema,
   PollVoteAcceptanceSchema,
+  RoomFeedSchema,
   QuestionLeftAcceptanceSchema,
   QuestionNoticeAcceptanceSchema,
   RoomInviteAcceptanceSchema,
@@ -29,6 +30,7 @@ import type {
   RoomLeaveAcceptanceSchema,
   RoomListSchema,
   RoomMessageAcceptanceSchema,
+  RoomMemoryReplacementSchema,
   RoomMessageHidingAcceptanceSchema,
   RoomModerationAcceptanceSchema,
   RoomPreferencesAcceptanceSchema,
@@ -59,16 +61,19 @@ export {
   ContributeJobSchema,
   SummariseJobSchema,
   NightlyRitualsJobSchema,
+  FeedHeartbeatJobSchema,
   castDueQueue,
   castPassQueue,
   contributeQueue,
   summariseQueue,
   nightlyRitualsQueue,
+  feedHeartbeatQueue,
   type CastDueJob,
   type CastPassJob,
   type ContributeJob,
   type SummariseJob,
   type NightlyRitualsJob,
+  type FeedHeartbeatJob,
 } from './events.js';
 export { libraryRoomSeeds } from './application/library-rooms.js';
 export { DEFAULT_CAST, type CastMember } from './domain/cast.js';
@@ -85,6 +90,16 @@ export type { RoomSeed } from './application/seeds.js';
  * of a room names who is here (a number only from three), the member total and the last message (D-069).
  */
 export interface RoomUseCases {
+  /**
+   * The room's feed for a member (v3 R-8, D-248): the newest finds residents posted, each about a library asset, and what the
+   * residents remember. Off lists no find; Quieter holds the note back. Writes nothing.
+   */
+  feed(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomFeedSchema>>>;
+  /** A moderator replaces what the residents remember with their own words, or clears it; audited (D-247). */
+  replaceMemory(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof RoomMemoryReplacementSchema>>>;
   /** Today for a member: the day's approved question and Spot the flaw, the messages in Today so far and the days before (v3 R-5). */
   today(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomTodaySchema>>>;
   /** The member's one, final tap on today's Spot the flaw; a right first tap earns the room a star (D-174). */
@@ -300,3 +315,17 @@ export type RunNightlyRituals = (
   onRoomFailed: (slug: string, error: unknown) => void,
 ) => Promise<void>;
 export const RUN_NIGHTLY_RITUALS = Symbol('rooms.runNightlyRituals');
+
+/**
+ * The worker's consumer of `rooms.feed-heartbeat` (v3 R-8, D-248): three times a day each open room with someone listening gets
+ * a look from its residents. A look writes the room's memory again when due (one call, as an `ambient` role) and posts a find about
+ * a library asset the room has not seen (one call, the model writing only the note; code chose the asset). Both run under the
+ * nonpersonal `rooms` scope and make no call when there is nothing to do. Registered only where the worker holds the rooms grant
+ * and `KS_ROOMS_FEED_ENABLED` is on. It throws when a room could not be looked at, so the job retries; everything it stores
+ * is idempotent by (room, kind, slot).
+ */
+export type RunFeedHeartbeat = (
+  signal: AbortSignal,
+  onRoomFailed: (slug: string, error: unknown) => void,
+) => Promise<void>;
+export const RUN_FEED_HEARTBEAT = Symbol('rooms.runFeedHeartbeat');
