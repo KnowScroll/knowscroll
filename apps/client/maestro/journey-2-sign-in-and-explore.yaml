@@ -39,31 +39,28 @@ tags:
     id: encounter-reel-caption
 - assertVisible: .*A blanket made of gas.*
 - takeScreenshot: journey-2-02-reel
-# The hint and the move buttons sit below the video. The hint is dismissed once and stays
-# dismissed (journey 3 checks it after a restart).
-- runFlow: scroll-down.yaml
+# The hint sits over the video. It is dismissed once and stays dismissed (journey 3 checks it
+# after a restart).
 - assertVisible: Got it
 - tapOn: Got it
 - assertNotVisible: Got it
-# Next subject: the starter Scroll.
+# Next subject is a row of the More sheet on a phone (a swipe up on the video is the same move).
+- tapOn: More options
 - tapOn: Next subject
 - extendedWaitUntil:
     visible: Why the sky is blue
     timeout: 90000
 - takeScreenshot: journey-2-03-scroll
-# Save puts the Scroll in Keep; Keep this place then holds where the person is in it.
+# Save puts the Scroll in Keep; Keep this place (in the More sheet, once the Scroll is saved) then
+# holds where the person is in it. Keep reads its list when it opens.
 - tapOn: Save
+- tapOn: More options
 - extendedWaitUntil:
     visible: Keep this place
     timeout: 30000
 - tapOn: Keep this place
-- extendedWaitUntil:
-    visible: Latest saved place loaded.
-    timeout: 60000
-    optional: true
 - tapOn:
     id: destination-saved
-- tapOn: Refresh Keep
 - extendedWaitUntil:
     visible: Why the sky is blue
     timeout: 60000

@@ -1,5 +1,6 @@
 import {
   AI_INHABITANT_LABELS,
+  SCOUT_LABEL,
   type PublicPersonRef,
   type RoomMessage,
   type ThreadEpisode,
@@ -26,6 +27,7 @@ const keyOf = (ref: ContentRef) => `${ref.assetId}:${String(ref.assetRevision)}`
 /** A message nobody can read any more: a deleted account's, kept so the numbering stays whole. */
 const isTombstone = (row: MessageRow): boolean =>
   row.authorAccountId === null &&
+  row.agentOwnerAccountId === null &&
   row.inhabitant === null &&
   row.text === null &&
   row.content === null &&
@@ -74,7 +76,8 @@ export function viewRoomMessage(row: MessageRow, lookups: ViewLookups, reader: R
   if (isTombstone(row)) return { ...identity, status: 'unavailable' };
   // A person the reader has blocked: their words are collapsed for this reader and for no one else. A
   // moderator still has to be able to moderate them, so they get the words, flagged for the client to keep collapsed.
-  const blockedAuthor = row.authorAccountId !== null && blocked.has(row.authorAccountId);
+  const signer = row.authorAccountId ?? row.agentOwnerAccountId;
+  const blockedAuthor = signer !== null && blocked.has(signer);
   if (blockedAuthor && !reader.moderator) return { ...identity, status: 'blocked' };
   const base = {
     ...identity,
@@ -112,6 +115,7 @@ export function viewRoomMessage(row: MessageRow, lookups: ViewLookups, reader: R
       ...(row.trigger !== null && reader.aiLevel === 'quieter' ? { folded: true as const } : {}),
     };
   }
+  if (row.agentOwnerAccountId !== null) return viewScoutNote(row, base, identity, lookups, reader);
   const author = row.authorAccountId === null ? undefined : authors.get(row.authorAccountId);
   if (author === undefined) return { ...identity, status: 'unavailable' };
   if (row.text !== null) return { ...base, author, body: { kind: 'text', text: row.text } };
@@ -141,6 +145,34 @@ export function viewRoomMessage(row: MessageRow, lookups: ViewLookups, reader: R
     : { ...base, author, body: { kind: 'snippet', snippet: snippetCard(anchor, content), ...note } };
 }
 
+/**
+ * A scout's note (v3 R-9, D-259): AI-written words signed by the member who sent it. A reader whose AI level is Off is told
+ * nothing, as for a resident that spoke on its own, and a Quieter reader gets the line folded. The reader who blocked the owner
+ * never reaches here (a block collapses the note before), and a note whose owner cannot be named reads as unavailable.
+ */
+function viewScoutNote(
+  row: MessageRow,
+  base: object,
+  identity: { readonly messageId: string; readonly sequence: number },
+  lookups: ViewLookups,
+  reader: Reader,
+): RoomMessage {
+  const owner = row.agentOwnerAccountId === null ? undefined : lookups.authors.get(row.agentOwnerAccountId);
+  if (owner === undefined || row.text === null || row.aiKind === null) return { ...identity, status: 'unavailable' };
+  if (reader.aiLevel === 'off') return { ...identity, status: 'muted' };
+  return {
+    ...identity,
+    ...base,
+    status: 'available',
+    recordedAt: row.recordedAt.toISOString(),
+    author: { kind: 'agent', sentBy: owner, label: SCOUT_LABEL },
+    body: { kind: 'text', text: row.text },
+    suggestion: row.aiKind,
+    trigger: 'scout_find',
+    ...(reader.aiLevel === 'quieter' ? { folded: true as const } : {}),
+  };
+}
+
 /** Views a page of messages, reading every distinct author, card, snippet anchor, ask and topic once. */
 export async function viewRoomMessages(
   p: RoomPorts,
@@ -163,7 +195,10 @@ export async function viewRoomMessages(
   );
   const authorIds = [
     ...new Set([
-      ...shown.flatMap((row) => (row.authorAccountId === null ? [] : [row.authorAccountId])),
+      ...shown.flatMap((row) => {
+        const signer = row.authorAccountId ?? row.agentOwnerAccountId;
+        return signer === null ? [] : [signer];
+      }),
       ...[...asks.values()].flatMap((asked) => (asked.byAccountId === null ? [] : [asked.byAccountId])),
     ]),
   ];

@@ -18,6 +18,7 @@ import {
 import { makeAttemptLedger } from '@knowscroll/backend/reasoning/nest-providers';
 import { heartbeatRecorder, socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
 import { openToEveryone } from '../support/audience.js';
+import { PLANETS, setScout } from '../support/rooms-feed.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { reportCases } from '../support/feedback.js';
 import { everyStoreSeeder } from '../support/every-store.js';
@@ -424,7 +425,11 @@ describe('account deletion (real database)', () => {
         .execute();
       await seedScenarioRows(erased, scenarioThreadId);
       // A room: the person joined, started a discussion, wrote in it, invited their friend and asked an inhabitant.
-      const rooms = await roomWorld(database, { now: new Date('2026-10-24T08:00:00Z') }, { starsPerDay: 20 });
+      const rooms = await roomWorld(
+        database,
+        { now: new Date('2026-10-24T08:00:00Z') },
+        { starsPerDay: 20, scoutsEnabled: true },
+      );
       try {
         const room = await seedRoom(rooms);
         unwrap(await joinRoom(rooms, erasedAsFriend, room.roomId));
@@ -620,6 +625,8 @@ describe('account deletion (real database)', () => {
             updated_at: rooms.clock.now,
           })
           .execute();
+        // A scout the person sent into the room, by their own choice of the room's topics (D-259, D-260).
+        unwrap(await setScout(rooms, erasedAsFriend, room.roomId, { interests: [PLANETS[0]!] }));
         await rooms.db
           .insertInto('rooms.memory_edits')
           .values({

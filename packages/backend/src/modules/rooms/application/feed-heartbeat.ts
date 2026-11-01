@@ -45,7 +45,7 @@ export function makeFeedHeartbeat(
 
   async function lookAt(room: FeedRoomRef, signal: AbortSignal): Promise<RoomLook> {
     const memory = await refreshMemory(room, signal);
-    const find = await lookForFind(room, signal);
+    const find = await lookForFind(room, { kind: 'residents' }, signal);
     return { room: room.slug, memory, find };
   }
 

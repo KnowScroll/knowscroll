@@ -88,7 +88,12 @@ export async function reduceMessages(
   const messages = shown.map((row): ReducedMessage => {
     const speaker = speakerOf(
       row.authorAccountId,
-      row.inhabitant === null ? undefined : AI_INHABITANT_LABELS[row.inhabitant],
+      // A scout's note is an AI's words, and a resident reading it knows that.
+      row.agentOwnerAccountId !== null
+        ? 'AI scout'
+        : row.inhabitant === null
+          ? undefined
+          : AI_INHABITANT_LABELS[row.inhabitant],
     );
     if (isKeptOut(row)) return { row, message: { speaker, text: KEPT_OUT_MESSAGE }, keptOut: true };
     if (row.text !== null) return { row, message: { speaker, text: row.text }, keptOut: false };

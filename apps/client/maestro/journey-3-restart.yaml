@@ -14,12 +14,14 @@ tags:
 # Explore opens a fresh encounter (a Reel or the Scroll, whichever Composer offers now); once one is
 # on screen, the hint that step 2 dismissed must not come back.
 - extendedWaitUntil:
-    visible: Keep this place
+    visible: More options
     timeout: 90000
-- runFlow: scroll-down.yaml
+- assertNotVisible: Got it
+- tapOn: More options
 - assertVisible: Next subject
 - assertNotVisible: Got it
 - takeScreenshot: journey-3-01-after-restart
+- pressKey: back
 - tapOn:
     id: destination-saved
 - extendedWaitUntil:

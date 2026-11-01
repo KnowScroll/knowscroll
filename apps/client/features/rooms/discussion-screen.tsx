@@ -4,6 +4,7 @@ import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'reac
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   createRoom,
+  feedAuthorName,
   type AccountScope,
   type AskOutcome,
   type FeedbackTarget,
@@ -169,8 +170,10 @@ function TopicOrigin({ origin }: { readonly origin: RoomMessage }) {
       </Text>
       {origin.status === 'available' ? (
         <View style={styles.originWho}>
-          <Text variant="ui">{origin.author.kind === 'ai' ? origin.author.name : origin.author.displayName}</Text>
-          {origin.author.kind === 'ai' ? <AiLabel label={origin.author.label} /> : null}
+          <Text variant="ui">
+            {origin.author.kind === 'person' ? origin.author.displayName : feedAuthorName(origin.author)}
+          </Text>
+          {origin.author.kind === 'person' ? null : <AiLabel label={origin.author.label} />}
         </View>
       ) : null}
       <Text variant="bodyS" color={origin.status === 'available' ? content.ink : content.ink2}>

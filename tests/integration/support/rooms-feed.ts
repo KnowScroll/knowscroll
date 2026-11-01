@@ -4,7 +4,7 @@ import { sql, type Kysely } from 'kysely';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { importEditorialScrollUseCase, makeReadLibraryFinds } from '@knowscroll/backend/modules/content/nest-providers';
 import { CONCEPTS, type ReadLibraryFinds } from '@knowscroll/backend/modules/content';
-import { composeFeedHeartbeat } from '@knowscroll/backend/modules/rooms/nest-providers';
+import { composeFeedHeartbeat, composeScoutHeartbeat } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { fixtureModel } from './fixture-model.js';
 import type { FixtureCall, FixtureModelPort, FixtureScenario } from './fixture-model-port.js';
 import { roomScope, unwrap, type RoomWorld } from './rooms.js';
@@ -15,8 +15,9 @@ import { seedReel } from './thread-fixtures.js';
 const version = 'rooms.v1' as const;
 export const never = new AbortController().signal;
 
-/** A planet of the Machine learning system: an asset whose primary topic it is belongs to that system's rooms. */
-export const PLANET = CONCEPTS.find((concept) => concept.parent === 'machine-learning')!.id;
+/** The planets of the Machine learning system: an asset whose primary topic is one of them belongs to that system's rooms. */
+export const PLANETS = CONCEPTS.filter((concept) => concept.parent === 'machine-learning').map((concept) => concept.id);
+export const PLANET = PLANETS[0]!;
 
 type StarterSource = {
   assetId: string;
@@ -34,25 +35,35 @@ function scrollSource(assetId: string, unit: string, title: string): StarterSour
 }
 
 /** Admits a CI Scroll as a library asset of the Machine learning system, `minutesAgo` minutes old. Returns its ID. */
-export async function libraryScroll(db: Kysely<Database>, title: string, minutesAgo = 0): Promise<string> {
+export async function libraryScroll(
+  db: Kysely<Database>,
+  title: string,
+  minutesAgo = 0,
+  topic = PLANET,
+): Promise<string> {
   const assetId = randomUUID();
   const result = await importEditorialScrollUseCase(db)(scrollSource(assetId, `ci-feed-${assetId.slice(0, 8)}`, title));
   if (result.kind !== 'imported') throw new Error('the CI Scroll must import: ' + JSON.stringify(result));
-  await underTopic(db, assetId, minutesAgo);
+  await underTopic(db, assetId, minutesAgo, topic);
   return assetId;
 }
 
 /** Admits a CI Reel as a library asset of the Machine learning system. Returns its ID. */
-export async function libraryReel(db: Kysely<Database>, title: string, minutesAgo = 0): Promise<string> {
+export async function libraryReel(
+  db: Kysely<Database>,
+  title: string,
+  minutesAgo = 0,
+  topic = PLANET,
+): Promise<string> {
   const reel = await seedReel(db, { title });
-  await underTopic(db, reel.assetId, minutesAgo);
+  await underTopic(db, reel.assetId, minutesAgo, topic);
   return reel.assetId;
 }
 
-async function underTopic(db: Kysely<Database>, assetId: string, minutesAgo: number): Promise<void> {
+async function underTopic(db: Kysely<Database>, assetId: string, minutesAgo: number, topic: string): Promise<void> {
   await db
     .insertInto('content.encounter_topics')
-    .values({ asset_id: assetId, asset_revision: 1, topic_id: PLANET, role: 'primary', weight: 0.8 })
+    .values({ asset_id: assetId, asset_revision: 1, topic_id: topic, role: 'primary', weight: 0.8 })
     .execute();
   // Newest first is how finds are offered, so a test says how old each asset is.
   await sql`update content.assets set created_at = now() - (${minutesAgo} * interval '1 minute') where id = ${assetId}::uuid`.execute(
@@ -132,3 +143,83 @@ export const feedTurns = (db: Kysely<Database>, roomId: string) =>
 
 export const memoryRow = (db: Kysely<Database>, roomId: string) =>
   db.selectFrom('rooms.room_memory').selectAll().where('room_id', '=', roomId).executeTakeFirst();
+
+/**
+ * The scouts' heartbeat over a fixture model (v3 R-9): what the worker's job and the operator command build, with the clock the test
+ * moves. `look` is one look for the scout a person sent into a room; `script` plays every call (a find, by default).
+ */
+export function scoutBeat(
+  world: RoomWorld,
+  script: (sequence: number, call: FixtureCall) => FixtureScenario | Promise<FixtureScenario> = () => find(),
+) {
+  const model: FixtureModelPort = fixtureModel(script, { label: 'rooms-scout' });
+  const { harness, withScope } = roomScope(world.db, model);
+  const heartbeat = composeScoutHeartbeat({
+    db: world.db,
+    harness,
+    withRoomScope: withScope,
+    readFinds: makeReadLibraryFinds(world.db),
+    model: model.model,
+    generation: 1,
+    now: () => world.clock.now,
+  });
+  return {
+    heartbeat,
+    model,
+    look: async (slug: string, owner: Friend) =>
+      heartbeat.lookAt((await heartbeat.scoutIn(slug, owner.person.handle))!, never),
+  };
+}
+
+/** What a member chooses for a scout. */
+export interface ScoutChoice {
+  readonly interests: readonly string[];
+  readonly cadence?: 'daily' | 'weekly';
+  readonly paused?: boolean;
+}
+
+/** Sends the person's scout into a room, changes it, or (`null`) takes it back, under a fresh command ID. */
+export const setScout = (world: RoomWorld, person: Friend, roomId: string, choice: ScoutChoice | null) =>
+  world.rooms.setScout(person.authority, {
+    version,
+    commandId: randomUUID(),
+    roomId,
+    scout:
+      choice === null
+        ? null
+        : { interests: [...choice.interests], cadence: choice.cadence ?? 'daily', paused: choice.paused ?? false },
+  });
+
+/** A moderator stops (or lets go again) the scout of a member of the room. */
+export const moderateScout = (
+  world: RoomWorld,
+  moderator: Friend,
+  roomId: string,
+  owner: Friend,
+  action: 'stop_scout' | 'allow_scout',
+) =>
+  world.rooms.moderate(moderator.authority, {
+    version,
+    commandId: randomUUID(),
+    roomId,
+    action: { kind: action, personId: owner.person.personId },
+  });
+
+/** The room's ledger rows of scouts' own finds, oldest first. */
+export const scoutTurns = (db: Kysely<Database>, roomId: string) =>
+  db
+    .selectFrom('rooms.ai_turns')
+    .selectAll()
+    .where('room_id', '=', roomId)
+    .where('trigger', '=', 'scout_find')
+    .orderBy('created_at')
+    .execute();
+
+/** The scout of this person in a room, as stored. */
+export const scoutRow = (db: Kysely<Database>, roomId: string, owner: Friend) =>
+  db
+    .selectFrom('rooms.scouts')
+    .selectAll()
+    .where('room_id', '=', roomId)
+    .where('owner_account_id', '=', owner.accountId)
+    .executeTakeFirst();
