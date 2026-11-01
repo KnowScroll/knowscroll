@@ -82,8 +82,8 @@ candidate file (D-280), and then the next pair is released or v4 and writer v5 a
   and the callouts' titles are **labels** (`label: true`). It replies `{sentences: [...]}`, one verdict for each sentence in order: `supported` with a
   quote, `unsupported` with a fixed `kind` and a short problem, or `no_claim`. **What the three mean (D-281):** `supported` is stated by the cited passages, said in other words
   or directly implied (one plain step; putting two of their statements together counts when it says no more than the two mean); `unsupported` is a fact, figure,
-  cause, comparison or example they neither state nor imply, or one they contradict; `no_claim` adds no fact (a transition, a signpost). The instructions carry four short
-  invented worked examples, and a test holds that each supported example passes the code rules.
+  cause, comparison or example they neither state nor imply, a wider scope or stronger word than they use, or what they contradict; `no_claim` adds no fact (a transition, a signpost). A join of two
+  statements is supported only when every part is stated. The instructions carry five short invented worked examples, and a test holds that each supported example passes the code rules.
 - **Batches (D-267).** A long answer is checked a batch of at most ten sentences at a time (`ASK_SUPPORT_BATCH_SENTENCES`), one request and one run each
   (`askSupportRunId(job, draft, batch)`), in order. A batch carries the passages its own sentences cite and keeps its sentences' own numbers. The first
   batch with no usable reply makes the whole check unusable and the later batches are not asked. The harness repairs one unusable reply in the whole

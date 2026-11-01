@@ -627,7 +627,7 @@ describe('the instructions of ask-support-check.v4 (D-281)', () => {
 
   it('says unsupported is a fact, figure, cause, comparison or example the passages neither state nor imply, or one they contradict', () => {
     expect(ASK_SUPPORT_INSTRUCTIONS).toContain(
-      '"unsupported": the sentence gives a fact, a figure, a cause, a comparison or an example that the cited passages neither state nor imply, or one that a cited passage contradicts.',
+      '"unsupported": the sentence gives a fact, a figure, a cause, a comparison or an example that the cited passages neither state nor imply; or says it with a wider scope or a stronger word than they do; or says it differently in a way that changes the meaning; or a cited passage contradicts it.',
     );
     expect(ASK_SUPPORT_INSTRUCTIONS).toContain('Do not fill a gap with what you know');
     expect(ASK_SUPPORT_INSTRUCTIONS).toContain(
@@ -701,13 +701,26 @@ describe('the instructions of ask-support-check.v4 (D-281)', () => {
       expect(verdict).toMatchObject({ verdict: 'unsupported', code: 'quote_not_about_sentence' });
     });
 
-    it('shows the two unsupported kinds', () => {
+    it('shows the unsupported kinds, and a join of two true statements that is unsupported', () => {
       expect(ASK_SUPPORT_INSTRUCTIONS).toContain(
         'Passage: "The pump lifts water from the well to a tank on the roof." Sentence: "The pump spins a blade to push the water upward." Unsupported, "not_stated"',
       );
       expect(ASK_SUPPORT_INSTRUCTIONS).toContain(
         'Passage: "The bridge is closed in heavy snow." Sentence: "The bridge is closed all winter." Unsupported, "goes_beyond"',
       );
+      expect(ASK_SUPPORT_INSTRUCTIONS).toContain(
+        'Passages: "The oven has a fan." and "Bread bakes at 220 degrees." Sentence: "The fan makes the bread bake faster." Unsupported, "not_stated": each statement is true alone, but the join draws a cause that neither gives',
+      );
+    });
+
+    it('says a join is supported only when every part of it is stated, and what a quote can cover', () => {
+      for (const rule of [
+        'When the sentence joins two statements, every part of the join must be stated.',
+        'If one passage states both, quote words that cover both parts.',
+        'a quote cannot join two passages',
+        'each part being true alone does not make the join stated',
+      ])
+        expect(ASK_SUPPORT_INSTRUCTIONS).toContain(rule);
     });
 
     it('names as no_claim only signposts that code accepts as stating no fact, because they share no key word with a passage', () => {
