@@ -51,7 +51,7 @@ export function FeedPost({
       </View>
       {post.note === undefined ? (
         <Text variant="bodyS" color={content.ink2} testID="feed-post-folded">
-          {`${author.name} found something. Open it to read the note.`}
+          {`${author.name} found something. The note is in the talk.`}
         </Text>
       ) : (
         <Text variant="body" testID="feed-post-note">

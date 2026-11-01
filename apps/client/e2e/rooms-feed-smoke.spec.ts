@@ -124,7 +124,7 @@ test('phone: a Quieter reader’s notes are held back and say where to read them
   await open(page, VIEWPORTS[0].size, feedWorld({ aiLevel: 'quieter' }));
   await page.getByTestId('now-feed').click();
   const first = page.getByTestId(`feed-post-${findId}`);
-  await expect(first).toContainText('Nova found something. Open it to read the note.');
+  await expect(first).toContainText('Nova found something. The note is in the talk.');
   await expect(first).not.toContainText('Worth a look');
   await expect(first.getByLabel('AI, Explainer')).toBeVisible();
   expect(await seriousViolations(page)).toEqual([]);
