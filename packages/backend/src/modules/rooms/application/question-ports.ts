@@ -4,7 +4,7 @@
  * starter's notice state.
  */
 
-/** One of the caller's own questions that a person has answered and the caller has not noticed, with the first people who spoke in it. */
+/** One of the caller's own questions that a person has answered and the caller has not noticed, with the first person who spoke in it. */
 export interface UnnoticedQuestion {
   readonly discussionId: string;
   readonly title: string;
@@ -12,6 +12,6 @@ export interface UnnoticedQuestion {
   readonly titleDerived: boolean;
   /** When the question was left. */
   readonly askedAt: Date;
-  /** Persons other than the asker whose shown messages are in it, oldest first (at most three). Their accounts, not yet checked against blocks. */
-  readonly answerers: readonly { readonly accountId: string; readonly recordedAt: Date }[];
+  /** The first person other than the asker, and not among the accounts the query was told to skip, whose shown message is in it. */
+  readonly answerer: { readonly accountId: string; readonly recordedAt: Date };
 }

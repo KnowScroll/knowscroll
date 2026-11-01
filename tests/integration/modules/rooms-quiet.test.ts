@@ -750,6 +750,41 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
       expect((await leave(asha, roomId)).kind).toBe('refused');
     });
 
+    it('tells the asker of the first answer they can name, however many people they blocked spoke before', async () => {
+      begin();
+      const { roomId } = await seedRoom(world);
+      const [asha, ...answerers] = (await joined(world, roomId, 7)) as [Friend, ...Friend[]];
+      const left = unwrap(await leave(asha, roomId, { askNow: false }));
+      for (const [index, person] of answerers.entries())
+        unwrap(await say(world, person, roomId, left.discussionId, `Answer number ${index + 1}`));
+      // The asker blocked the first five; the sixth is the first they can name.
+      for (const person of answerers.slice(0, 5)) unwrap(await friendCommand(world.friends, asha, person, 'block'));
+      const view = await memberView(world, asha, roomId);
+      expect(view.questions?.replies.map((reply) => reply.by.personId)).toEqual([answerers[5]!.person.personId]);
+      // With all of them blocked there is nobody to name, and the question is not waiting either: people did answer.
+      unwrap(await friendCommand(world.friends, asha, answerers[5]!, 'block'));
+      expect((await memberView(world, asha, roomId)).questions).toBeUndefined();
+    });
+
+    it('is left, answered and noticed while recording is paused: a question is conversation, not something recorded', async () => {
+      begin();
+      const { roomId } = await seedRoom(world);
+      const [asha, lena] = (await joined(world, roomId, 2)) as [Friend, Friend];
+      await world.db
+        .updateTable('identity.universes')
+        .set({ recording_on: false, recording_generation: 2 })
+        .where('account_id', '=', asha.accountId)
+        .execute();
+      const left = unwrap(await leave(asha, roomId, { askNow: false }));
+      expect(left).toMatchObject({ operation: 'question.leave', replayed: false });
+      unwrap(await say(world, lena, roomId, left.discussionId, 'Parallax.'));
+      expect((await memberView(world, asha, roomId)).questions?.replies).toHaveLength(1);
+      expect(unwrap(await notice(asha, roomId, left.discussionId, { noticed: true }))).toMatchObject({
+        operation: 'question.notice',
+      });
+      expect((await memberView(world, asha, roomId)).questions).toBeUndefined();
+    });
+
     it('writes nothing to a person’s own universe', async () => {
       begin();
       const { roomId } = await seedRoom(world);

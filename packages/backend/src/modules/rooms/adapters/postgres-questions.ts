@@ -5,9 +5,6 @@ import type { QuestionStore } from '../application/ports.js';
 
 const trxOf = (lock: Parameters<QuestionStore['waiting']>[0]) => sharedTransactionOf(lock.shared);
 
-/** The most people's messages one question looks at to find who answered it first: a few, in case the first are people the asker blocked. */
-const ANSWERERS_LOOKED_AT = 3;
-
 /**
  * The notice state of the questions left for people (migration 0089). Every method is one explicit query inside the room's lock; none
  * decides access. Whether a question is still open is read from its messages, never stored: an answer that is removed, or whose
@@ -27,7 +24,8 @@ export const questionStore: QuestionStore = {
     return Number(found.rows[0]?.waiting ?? 0);
   },
 
-  async unnoticed(lock, accountId, limit) {
+  async unnoticed(lock, accountId, limit, skipping) {
+    const skipped = [...skipping];
     const found = await sql<{
       discussion_id: string;
       title: string;
@@ -49,31 +47,35 @@ export const questionStore: QuestionStore = {
           and exists (
             select 1 from rooms.messages other
             where other.discussion_id = asked.discussion_id and other.hidden_at is null
-              and other.author_account_id is not null and other.author_account_id <> asked.started_by_account_id)
+              and other.author_account_id is not null and other.author_account_id <> asked.started_by_account_id
+              and other.author_account_id <> all(${skipped}::uuid[]))
         order by asked.last_activity_at desc, asked.discussion_id desc limit ${limit}
       ) question
       cross join lateral (
         select message.author_account_id, message.recorded_at, message.sequence from rooms.messages message
         where message.discussion_id = question.discussion_id and message.hidden_at is null
           and message.author_account_id is not null and message.author_account_id <> question.started_by_account_id
-        order by message.sequence limit ${ANSWERERS_LOOKED_AT}
+          and message.author_account_id <> all(${skipped}::uuid[])
+        order by message.sequence limit 1
       ) answer
-      order by question.last_activity_at desc, question.discussion_id desc, answer.sequence`.execute(trxOf(lock));
-    const byQuestion = new Map<
-      string,
-      { title: string; titleDerived: boolean; askedAt: Date; answerers: UnnoticedQuestion['answerers'][number][] }
-    >();
-    for (const row of found.rows) {
-      const entry = byQuestion.get(row.discussion_id) ?? {
-        title: row.title,
-        titleDerived: row.title_derived,
-        askedAt: new Date(row.asked_at),
-        answerers: [],
-      };
-      entry.answerers.push({ accountId: row.author_account_id, recordedAt: new Date(row.recorded_at) });
-      byQuestion.set(row.discussion_id, entry);
-    }
-    return [...byQuestion].map(([discussionId, entry]) => ({ discussionId, ...entry }));
+      order by question.last_activity_at desc, question.discussion_id desc`.execute(trxOf(lock));
+    return found.rows.map((row): UnnoticedQuestion => ({
+      discussionId: row.discussion_id,
+      title: row.title,
+      titleDerived: row.title_derived,
+      askedAt: new Date(row.asked_at),
+      answerer: { accountId: row.author_account_id, recordedAt: new Date(row.recorded_at) },
+    }));
+  },
+
+  async forgetMember(lock, accountId) {
+    await trxOf(lock)
+      .updateTable('rooms.discussions')
+      .set({ notify_answer: false, answer_noticed_at: null })
+      .where('room_id', '=', lock.roomId)
+      .where('tag', '=', 'question')
+      .where('started_by_account_id', '=', accountId)
+      .execute();
   },
 
   async setNotice(lock, input) {

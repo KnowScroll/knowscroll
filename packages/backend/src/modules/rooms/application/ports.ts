@@ -850,8 +850,22 @@ export interface LaunchStore {
 export interface QuestionStore {
   /** How many of the room's questions no person but their starter has spoken in. A question whose starter's account is gone is not waiting for anyone. */
   waiting(lock: RoomLock): Promise<number>;
-  /** The caller's own questions they asked to be told about, have not noticed, and another person has spoken in; newest first, at most `limit`. */
-  unnoticed(lock: RoomLock, accountId: string, limit: number): Promise<readonly UnnoticedQuestion[]>;
+  /**
+   * The caller's own questions they asked to be told about, have not noticed, and a person other than `skipping` has spoken in; newest
+   * first, at most `limit`, each with its first such person. The caller skips the people they blocked and the people with no profile to name,
+   * so a question is told by the first person it can name, however many others spoke before them.
+   */
+  unnoticed(
+    lock: RoomLock,
+    accountId: string,
+    limit: number,
+    skipping: ReadonlySet<string>,
+  ): Promise<readonly UnnoticedQuestion[]>;
+  /**
+   * Ends the starter's notice on their questions in this room: the switch is turned off and the marker is cleared. Done when they leave
+   * or are removed, as their place and votes are, because both are theirs and mean nothing without the membership.
+   */
+  forgetMember(lock: RoomLock, accountId: string): Promise<void>;
   /**
    * Sets whether the starter is told and/or records that they noticed an answer. Undefined when the discussion is not a question in this
    * room that this account started, so a refusal never says which.

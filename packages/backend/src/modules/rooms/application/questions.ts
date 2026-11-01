@@ -33,34 +33,52 @@ export async function questionsView(
   entered: EnteredRoom,
 ): Promise<RoomQuestions | undefined> {
   const { lock, owner } = entered;
-  const [waiting, unnoticed] = await Promise.all([
-    p.questions.waiting(lock),
-    p.questions.unnoticed(lock, owner.accountId, QUESTION_REPLIES_MAX),
-  ]);
-  const candidates = [
-    ...new Set(unnoticed.flatMap((question) => question.answerers.map((answer) => answer.accountId))),
-  ];
-  const [blocked, people] =
-    candidates.length === 0
-      ? [new Set<string>(), new Map<string, PublicPersonRef>()]
-      : await Promise.all([p.blocked(scope, owner.accountId, candidates), p.people.byAccounts(scope, candidates)]);
+  const waiting = await p.questions.waiting(lock);
+  const { unnoticed, people } = await nameableAnswers(p, scope, entered);
   // The title is the asker's first words, so it is read through the same protections as any title made from a message (D-168).
   const titles = await titlesFor(p, scope, lock, owner.accountId, unnoticed);
-  const replies = unnoticed.flatMap((question): QuestionReply[] => {
-    const first = question.answerers.find((answer) => !blocked.has(answer.accountId) && people.has(answer.accountId));
-    return first === undefined
-      ? []
-      : [
-          {
-            discussionId: question.discussionId,
-            title: titles.get(question.discussionId)!,
-            by: people.get(first.accountId)!,
-            askedAt: question.askedAt.toISOString(),
-            at: first.recordedAt.toISOString(),
-          },
-        ];
-  });
+  const replies = unnoticed.map((question): QuestionReply => ({
+    discussionId: question.discussionId,
+    title: titles.get(question.discussionId)!,
+    by: people.get(question.answerer.accountId)!,
+    askedAt: question.askedAt.toISOString(),
+    at: question.answerer.recordedAt.toISOString(),
+  }));
   return waiting === 0 && replies.length === 0 ? undefined : { waiting, replies };
+}
+
+/** The most times the answers are asked for again after some first answerer could not be named; each time skips at least one more person. */
+const NAMING_PASSES_MAX = 8;
+
+/**
+ * The asker's unnoticed answers, each by a person the asker has not blocked and who has a profile to name. A question whose first
+ * answerer cannot be named is told by the next person who can, so a blocked first answer does not hide a later one, however many people
+ * spoke before. The store is asked again with the unnameable people skipped until every first answerer can be named.
+ */
+async function nameableAnswers(p: RoomPorts, scope: PersonalScopeTx, entered: EnteredRoom) {
+  const { lock, owner } = entered;
+  const skipping = new Set<string>();
+  const people = new Map<string, PublicPersonRef>();
+  for (let pass = 0; ; pass += 1) {
+    const unnoticed = await p.questions.unnoticed(lock, owner.accountId, QUESTION_REPLIES_MAX, skipping);
+    const unchecked = [...new Set(unnoticed.map((question) => question.answerer.accountId))].filter(
+      (accountId) => !people.has(accountId),
+    );
+    if (unchecked.length > 0) {
+      const [blocked, named] = await Promise.all([
+        p.blocked(scope, owner.accountId, unchecked),
+        p.people.byAccounts(scope, unchecked),
+      ]);
+      for (const accountId of unchecked) {
+        const person = named.get(accountId);
+        if (blocked.has(accountId) || person === undefined) skipping.add(accountId);
+        else people.set(accountId, person);
+      }
+    }
+    const allNamed = unnoticed.every((question) => people.has(question.answerer.accountId));
+    if (allNamed || pass >= NAMING_PASSES_MAX)
+      return { unnoticed: unnoticed.filter((question) => people.has(question.answerer.accountId)), people };
+  }
 }
 
 /**

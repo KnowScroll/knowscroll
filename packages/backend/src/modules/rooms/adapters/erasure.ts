@@ -36,7 +36,8 @@ const LIFECYCLE = {
   'rooms.members': 'the account membership is removed, with its AI level, keep-out choice and notice mark',
   'rooms.room_presence': 'the lease is deleted with the membership; it also ends by itself after a minute',
   'rooms.invitations': 'invitations made to or by the account are removed',
-  'rooms.discussions': 'the starter link is cleared; the discussion stays for the others',
+  'rooms.discussions':
+    'the starter link is cleared; the discussion stays for the others; the starter\'s "tell me when a person answers" switch and the marker of the answer they noticed are cleared by a Clear too, and when they leave or are removed',
   'rooms.messages': 'the account authored messages become tombstones',
   'rooms.message_snippets': 'deleted with the author tombstoned message',
   'rooms.ai_turns': 'the asker link is cleared; a turn and its contribution stay with the room',
@@ -236,6 +237,12 @@ export const roomsErasure: ModuleErasure = declareErasure({
         where m.discussion_id = mine.discussion_id and m.sequence = mine.sequence`.execute(trx),
     );
     removed += count(
+      await sql`update rooms.discussions set notify_answer = false, answer_noticed_at = null
+        where started_by_account_id = ${account}::uuid and (notify_answer or answer_noticed_at is not null)`.execute(
+        trx,
+      ),
+    );
+    removed += count(
       await sql`update rooms.discussions set started_by_account_id = null
         where started_by_account_id = ${account}::uuid`.execute(trx),
     );
@@ -279,7 +286,19 @@ export const roomsErasure: ModuleErasure = declareErasure({
       const players = await sql`delete from rooms.launch_players where account_id = ${owner}`.execute(trx);
       const played =
         Number(taps.numAffectedRows ?? 0) + Number(answers.numAffectedRows ?? 0) + Number(players.numAffectedRows ?? 0);
-      return { module: 'rooms', status: 'completed', removed: asks + jobs + played };
+      // The topics stay with the room; the starter's switch and the answer they noticed are their own and go. Rows are taken in id order,
+      // as account deletion takes them, so this waits on a send in flight in the same order.
+      const notices = await sql`
+        update rooms.discussions set notify_answer = false, answer_noticed_at = null
+        where discussion_id in (
+          select discussion_id from rooms.discussions
+          where started_by_account_id = ${owner} and (notify_answer or answer_noticed_at is not null)
+          order by discussion_id for update)`.execute(trx);
+      return {
+        module: 'rooms',
+        status: 'completed',
+        removed: asks + jobs + played + Number(notices.numAffectedRows ?? 0),
+      };
     },
   },
 
@@ -329,10 +348,17 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         where member.account_id = ${person.accountId}::uuid
         order by member.joined_at desc limit 500`.execute(trx);
       // A title made from someone else's message is their words, not this person's: the file says so neutrally.
-      const started = await sql<{ title: string; room: string; created_at: Date }>`
+      const started = await sql<{
+        title: string;
+        room: string;
+        created_at: Date;
+        tag: string | null;
+        notify_answer: boolean;
+        answer_noticed_at: Date | null;
+      }>`
         select case when discussion.title_derived and origin.author_account_id is distinct from ${person.accountId}::uuid
             then ${NEUTRAL_TOPIC_TITLE} else discussion.title end as title,
-          room.name as room, discussion.created_at
+          room.name as room, discussion.created_at, discussion.tag, discussion.notify_answer, discussion.answer_noticed_at
         from rooms.discussions discussion join rooms.rooms room on room.room_id = discussion.room_id
         left join rooms.messages origin on origin.message_id = discussion.origin_message_id
         where discussion.started_by_account_id = ${person.accountId}::uuid
@@ -447,6 +473,13 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
           title: row.title,
           room: row.room,
           startedAt: row.created_at.toISOString(),
+          // The person's own switch and the answer they last noticed, for a question they left.
+          ...(row.tag === 'question'
+            ? {
+                tellMeWhenAPersonAnswers: row.notify_answer,
+                ...(row.answer_noticed_at === null ? {} : { answerNoticedAt: row.answer_noticed_at.toISOString() }),
+              }
+            : {}),
         })),
         messagesWritten: messageCount,
         truncated: messageCount > messages.rows.length,
