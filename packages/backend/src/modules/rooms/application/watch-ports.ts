@@ -1,5 +1,5 @@
 /**
- * The rows of Watch together (migration 0093, D-256) as the use cases read them. The store that reads and writes them is `WatchStore`
+ * The rows of Watch together (migration 0094, D-256) as the use cases read them. The store that reads and writes them is `WatchStore`
  * in `ports.ts`, with the room's other stores. No row holds a playback position, and none can: the tables have no such column.
  */
 

@@ -39,7 +39,7 @@ const rowOf = (row: Columns): WatchSessionRow => ({
 });
 
 /**
- * The room's Watch together sessions and their viewers (migration 0093). Every method is one explicit query inside the room's lock;
+ * The room's Watch together sessions and their viewers (migration 0094). Every method is one explicit query inside the room's lock;
  * none decides access or a count. At most one session per room has not been stopped (a partial unique index), so two starts at once
  * cannot make a second. There is no column for a position, a pause or a time of anyone's own.
  */

@@ -844,7 +844,7 @@ export interface LaunchStore {
   liveRooms(scope: PersonalScopeTx, roomIds: readonly string[], now: Date): Promise<ReadonlySet<string>>;
 }
 
-// --- Watch together (migration 0093) ---------------------------------------------------------
+// --- Watch together (migration 0094) ---------------------------------------------------------
 
 /**
  * The rows of Watch together. Every method is one explicit query inside the room's lock; none decides access or a count. The use case
@@ -1023,7 +1023,7 @@ export interface RoomPorts {
   readonly today: TodayStore;
   /** The Launch's rows (migration 0088). */
   readonly launches: LaunchStore;
-  /** The rows of Watch together (migration 0093). */
+  /** The rows of Watch together (migration 0094). */
   readonly watches: WatchStore;
   /** The residents' feed and the room's memory, as a member reads and a moderator changes them (migration 0091). */
   readonly feed: FeedReadStore;
