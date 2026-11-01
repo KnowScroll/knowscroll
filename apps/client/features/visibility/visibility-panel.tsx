@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { AccountScope, PresencePreference, VisibilitySave } from '@knowscroll/client-core';
 import { content, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Skeleton, Text } from '@knowscroll/ui';
+import type { ClearProgress } from '../privacy/clear-progress';
 import { RadioRow, SegmentedChoice, SwitchRow } from './choice-rows';
 import { useVisibilitySession } from './use-visibility-session';
 
@@ -58,15 +59,32 @@ function SaveNote({ save, onRetry }: { readonly save: VisibilitySave; readonly o
 export function VisibilityPanel({
   scope,
   titled = true,
+  clear,
+  onLoadFailed,
 }: {
   readonly scope: AccountScope;
   /** Draws the heading; a page that names itself passes false. */
   readonly titled?: boolean;
+  /** A Clear that is under way: while the account is being cleared the settings cannot load, and the panel says why. */
+  readonly clear?: ClearProgress | undefined;
+  /** Called when the settings cannot load, so the screen can find out whether a Clear is the reason. */
+  readonly onLoadFailed?: () => void;
 }) {
   const { session, state } = useVisibilitySession(scope);
   useEffect(() => {
     void session.load();
   }, [session]);
+  const failed = state.load === 'unavailable';
+  useEffect(() => {
+    if (failed) onLoadFailed?.();
+  }, [failed, onLoadFailed]);
+  // The settings are read again once the Clear that stopped them has finished.
+  const clearing = clear !== undefined;
+  const wasClearing = useRef(false);
+  useEffect(() => {
+    if (wasClearing.current && !clearing) void session.load();
+    wasClearing.current = clearing;
+  }, [clearing, session]);
   const { draft, confirmed, presence, readReceipts } = state;
   const busy = state.save.status === 'saving';
   return (
@@ -77,7 +95,14 @@ export function VisibilityPanel({
         </Text>
       ) : null}
       {state.load === 'loading' ? <Skeleton rows={3} label="Loading your sharing settings" /> : null}
-      {state.load === 'unavailable' ? (
+      {failed && clear !== undefined ? (
+        <Banner
+          kind="info"
+          lead="Clearing exploration."
+          message={`${clear.text} Your sharing settings are back when it is done. Nothing is shared until you choose.`}
+        />
+      ) : null}
+      {failed && clear === undefined ? (
         <>
           <Banner kind="offline" lead="Couldn’t load your settings." message="Nothing is shared until you choose." />
           <Button label="Try again" size="sm" variant="ghost" onPress={() => void session.load()} />

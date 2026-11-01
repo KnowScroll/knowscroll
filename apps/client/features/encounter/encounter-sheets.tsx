@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { borderWidth, content, dimension, layout, opacity, radius, spacing } from '@knowscroll/design-tokens';
-import { IconButton, Icon, Tag, Text, type IconName } from '@knowscroll/ui';
+import { IconButton, Icon, Tag, Text, linkPress, type IconName } from '@knowscroll/ui';
 import { afterPendingBack } from '../../platform/after-pending-back';
 import type { ContentErrorAnchor } from '@knowscroll/contracts';
 import type { FeedbackTarget } from '@knowscroll/client-core';
@@ -73,6 +73,10 @@ function SheetPanel({
   );
 }
 
+/**
+ * A row of the ••• sheet. With an `href` it is a real link on the web (open in a new tab), but a plain press goes by the
+ * router only: the browser must not also load the address, which would restart the app and lose the Reel that was left.
+ */
 function MenuRow({
   icon,
   label,
@@ -92,8 +96,7 @@ function MenuRow({
       accessibilityLabel={label}
       disabled={disabled}
       aria-disabled={disabled}
-      onPress={onPress}
-      {...(href === undefined ? {} : { href })}
+      {...linkPress({ href, onNavigate: onPress })}
       style={[styles.menuRow, disabled ? styles.disabled : null]}
     >
       <View style={styles.menuIcon}>

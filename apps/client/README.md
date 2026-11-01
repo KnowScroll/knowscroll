@@ -272,8 +272,8 @@ asset revision and latest authorised matching session revision; changed sources 
 
 A deliberate send/cancel gets a fresh command ID. Unknown transport outcomes freeze the entire
 command for exact retry; read refreshes never submit work. Immutable acceptance is separate from
-current availability, fenced by scope/epoch/request revision. Polling runs at most twelve five-second
-reads while the request panel is foreground, stops on terminal/close/scope end, and can be refreshed
+current availability, fenced by scope/epoch/request revision. Polling runs twelve five-second reads, then at most fifty reads
+12 seconds apart (about ten minutes, D-285), while the request panel is foreground; it stops on terminal/close/scope end, and can be refreshed
 explicitly. Reopening reads current status. Ready never interrupts playback: Open rechecks status,
 then uses the existing exact-revision return/open/activation flow. Cancel affects only the caller's
 waiter according to server authority; closing is not cancellation. Try again after "Couldn't prepare" is

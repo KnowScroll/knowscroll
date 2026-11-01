@@ -1,5 +1,6 @@
 import { StateBlock } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
+import { useClearProgress } from '../privacy/clear-progress';
 import { VisibilityPanel } from './visibility-panel';
 
 /**
@@ -8,7 +9,8 @@ import { VisibilityPanel } from './visibility-panel';
  */
 export function VisibilitySection({ titled = true }: { readonly titled?: boolean }) {
   const { state } = useAccountScope();
+  const clear = useClearProgress();
   if (state.status !== 'signed_in')
     return <StateBlock title="Sign in to choose what friends see" body="Sharing settings belong to your account." />;
-  return <VisibilityPanel scope={state.scope} titled={titled} />;
+  return <VisibilityPanel scope={state.scope} titled={titled} clear={clear.progress} onLoadFailed={clear.check} />;
 }

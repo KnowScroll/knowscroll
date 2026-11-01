@@ -125,6 +125,27 @@ describe('sharing and visibility settings (labelled in-memory server)', () => {
     server.scope.end();
   });
 
+  it('says the account is being cleared, not that the settings could not load, and loads them when it is done', async () => {
+    const server = visitServer();
+    server.failNext('/v1/social/visibility', 'network');
+    const clear = { title: 'Clearing', text: 'Your exploration history and universe are being removed.' };
+    const view = (progress: typeof clear | undefined) => (
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <VisibilityPanel scope={server.scope} clear={progress} />
+      </DisplayProvider>
+    );
+    const rendered = await render(view(clear));
+    await screen.findByText('Clearing exploration.');
+    expect(screen.getByText(/Your sharing settings are back when it is done./)).toBeOnTheScreen();
+    expect(screen.queryByText('Couldn’t load your settings.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    await rendered.rerender(view(undefined));
+    await screen.findByRole('radio', { name: 'Nobody' });
+    expect(screen.queryByText('Clearing exploration.')).toBeNull();
+    await rendered.unmount();
+    server.scope.end();
+  });
+
   it('says it could not load rather than showing switches that are not there', async () => {
     const server = visitServer();
     server.failNext('/v1/social/visibility', 'network');

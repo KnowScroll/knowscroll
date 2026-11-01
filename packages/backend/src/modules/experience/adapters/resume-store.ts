@@ -3,7 +3,8 @@ import type { ResumePorts } from '../application/read-resume.js';
 
 /**
  * The caller's own activated Scroll exposures at their current epoch, newest first. One row per
- * opening, so the same Scroll may appear twice; the use case stops at the first that answers.
+ * opening, so the same Scroll may appear twice; the use case stops at the first that answers. An opening made while
+ * recording was paused is not here (D-284), so reading while paused leaves no prompt to continue.
  */
 export const readRecentExposures: ResumePorts['readRecentExposures'] = async (scope, query) => {
   const since = new Date(Date.now() - query.days * 86_400_000);
@@ -13,6 +14,7 @@ export const readRecentExposures: ResumePorts['readRecentExposures'] = async (sc
     .where('universe_id', '=', scope.authority.universeId)
     .where('privacy_epoch', '=', scope.authority.privacyEpoch)
     .where('kind', '=', 'scroll')
+    .where('made_while_paused', '=', false)
     .where('activated_at', '>=', since)
     .orderBy('activated_at', 'desc')
     .orderBy('id', 'desc')
