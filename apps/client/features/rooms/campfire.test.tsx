@@ -60,6 +60,38 @@ const mockLaunch: { current: { controller: object; state: RoomLaunchState } } = 
   },
 };
 jest.mock('./use-launch', () => ({ useRoomLaunch: () => mockLaunch.current, useSteadyNow: () => 0 }));
+// The stage itself is drawn in watch.test.tsx; General here only needs to know whether a session is on, and to open the sheet.
+const mockWatch: { current: { controller: object; state: object } } = {
+  current: {
+    controller: {
+      load: jest.fn(),
+      loadReels: jest.fn(),
+      start: jest.fn(),
+      join: jest.fn(),
+      leave: jest.fn(),
+      stop: jest.fn(),
+    },
+    state: {
+      phase: 'ready',
+      view: undefined,
+      receivedAt: 0,
+      reels: undefined,
+      reelsFailed: false,
+      offline: false,
+      working: false,
+      refused: false,
+      recordingPaused: false,
+      notSaved: undefined,
+    },
+  },
+};
+jest.mock('./use-watch', () => ({ useRoomWatch: () => mockWatch.current }));
+jest.mock('./watch-stage', () => {
+  const { Text } = jest.requireActual<{ Text: React.ComponentType<{ testID: string; children: string }> }>(
+    'react-native',
+  );
+  return { WatchStage: () => <Text testID="watch-stage">on stage</Text> };
+});
 // The replay is read when its sheet opens (quiet-room.test.tsx plays it); General here only needs to open and close the sheet.
 const mockReplay: { current: { controller: object; state: object } } = {
   current: {
@@ -645,5 +677,82 @@ describe('the quiet room', () => {
     expect(screen.getByTestId('now-questions')).toHaveTextContent(/3 questions waiting/);
     await fireEvent.press(screen.getByTestId('now-questions'));
     expect(screen.getByTestId('questions-sheet')).toBeOnTheScreen();
+  });
+});
+
+describe('Watch together in the room', () => {
+  const reel = { assetId: id(80), assetRevision: 1, title: 'How big is the universe?', durationMs: 70_000 };
+  const session = {
+    phase: 'playing' as const,
+    sessionId: id(81),
+    reel,
+    youIn: false,
+    canStop: false,
+    elapsedMs: 5_000,
+  };
+  const serve = (view: object | undefined, actions: object = {}) => {
+    mockWatch.current = {
+      controller: { load: jest.fn(), loadReels: jest.fn(), start: jest.fn(), ...actions },
+      state: {
+        phase: 'ready',
+        view: view === undefined ? undefined : { status: 'ready', readId: id(9), ...view },
+        receivedAt: 0,
+        reels: undefined,
+        reelsFailed: false,
+        offline: false,
+        working: false,
+        refused: false,
+        recordingPaused: false,
+        notSaved: undefined,
+      },
+    };
+  };
+  const stage = (view: Member) => (
+    <GeneralStage scope={scope} view={view} controller={controller()} state={roomState()} header={null} />
+  );
+  const seen = { you: { aiLevel: 'lively' as const, keepOut: false, noticeSeenAt: '2026-10-24T08:00:00.000Z' } };
+
+  it('puts the stage above General while a Reel is on, with the conversation still there as the crowd, and a mark on the band', async () => {
+    serve({ session });
+    const view = member({ ...seen, watch: { state: 'live' } });
+    await wrap(stage(view));
+    expect(screen.getByTestId('watch-stage')).toBeOnTheScreen();
+    expect(screen.getByTestId('general-discussion')).toHaveTextContent(id(5));
+    await wrap(<CampfireHeader view={view} onBack={jest.fn()} onMenu={jest.fn()} />);
+    expect(screen.getByTestId('band-live')).toBeOnTheScreen();
+    expect(screen.getByLabelText('A Reel is being watched together')).toBeOnTheScreen();
+    expect(screen.getByText('LIVE · REEL')).toBeOnTheScreen();
+  });
+
+  it('shows no stage and no mark when nothing is on, and offers the chip only while a Reel can be started', async () => {
+    serve({ start: { allowed: true } });
+    await wrap(stage(member({ ...seen, watch: { state: 'ready' } })));
+    expect(screen.queryByTestId('watch-stage')).not.toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Watch together, Start a Reel' })).toBeOnTheScreen();
+    await wrap(<CampfireHeader view={member({ watch: { state: 'ready' } })} onBack={jest.fn()} onMenu={jest.fn()} />);
+    expect(screen.queryByTestId('band-live')).not.toBeOnTheScreen();
+  });
+
+  it('draws no chip in a room whose topic has no Reel, and none while one is on (the stage says so)', async () => {
+    serve(undefined);
+    await wrap(stage(member(seen)));
+    expect(screen.queryByTestId('now-watch')).not.toBeOnTheScreen();
+    serve({ session });
+    await wrap(stage(member({ ...seen, watch: { state: 'live' } })));
+    expect(screen.queryByTestId('now-watch')).not.toBeOnTheScreen();
+  });
+
+  it('says "Nothing on stage right now" from the chip, reads the Reels when asked, and starts one from there', async () => {
+    const actions = { start: jest.fn(() => Promise.resolve(true)), loadReels: jest.fn() };
+    serve({ start: { allowed: true }, last: { kind: 'launch', at: '2026-10-25T21:30:00.000Z' } }, actions);
+    mockWatch.current.state = { ...mockWatch.current.state, reels: [reel] };
+    await wrap(stage(member({ ...seen, watch: { state: 'ready' } })));
+    await fireEvent.press(screen.getByTestId('now-watch'));
+    expect(screen.getByText('Nothing on stage right now')).toBeOnTheScreen();
+    expect(screen.getByTestId('watch-last')).toHaveTextContent(/^Last on stage: the Launch, /);
+    await fireEvent.press(screen.getByTestId('watch-choose'));
+    expect(actions.loadReels).toHaveBeenCalled();
+    await fireEvent.press(screen.getByTestId(`watch-reel-${reel.assetId}`));
+    expect(actions.start).toHaveBeenCalledWith(reel.assetId);
   });
 });

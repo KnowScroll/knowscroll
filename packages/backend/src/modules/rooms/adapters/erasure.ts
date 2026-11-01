@@ -57,6 +57,10 @@ const LIFECYCLE = {
     'the account place in a Launch is deleted, by a Clear too (a play result); it also goes when they leave or are removed, and seven days after the Launch',
   'rooms.launch_answers':
     'the account answers in a Launch are deleted, by a Clear too (a play result); they also go when they leave or are removed, and seven days after the Launch',
+  'rooms.watch_sessions':
+    'the link that says the account shared a session is emptied, by a Clear too, and when they leave, are removed or delete the account; the session stays with the room (a Reel and a start time, no position) and goes seven days after it ended',
+  'rooms.watch_viewers':
+    'the account place among the people watching is deleted, by a Clear too (D-258); it also goes when they leave or are removed, and when the session ends or is stopped',
   'rooms.room_memory':
     'the words of a derived memory that read what the account wrote are erased (stale) before their messages become tombstones; the moderator link is cleared; a moderator text stays with the room',
   'rooms.memory_edits': 'the moderator link of an edit is cleared; the edit stays as a fact about the room',
@@ -161,6 +165,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'ritual_solves', ownerColumn: 'account_id' },
     { schema: 'rooms', table: 'launch_players', ownerColumn: 'account_id' },
     { schema: 'rooms', table: 'launch_answers', ownerColumn: 'account_id' },
+    { schema: 'rooms', table: 'watch_sessions', ownerColumn: 'started_by' },
+    { schema: 'rooms', table: 'watch_viewers', ownerColumn: 'account_id' },
     { schema: 'rooms', table: 'room_memory', ownerColumn: 'edited_by_account_id' },
     { schema: 'rooms', table: 'memory_edits', ownerColumn: 'by_account_id' },
   ],
@@ -181,6 +187,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'ritual_solves', column: 'account_id' },
     { schema: 'rooms', table: 'launch_players', column: 'account_id' },
     { schema: 'rooms', table: 'launch_answers', column: 'account_id' },
+    { schema: 'rooms', table: 'watch_sessions', column: 'started_by' },
+    { schema: 'rooms', table: 'watch_viewers', column: 'account_id' },
     { schema: 'rooms', table: 'room_memory', column: 'edited_by_account_id' },
     { schema: 'rooms', table: 'memory_edits', column: 'by_account_id' },
   ],
@@ -232,6 +240,10 @@ export const roomsErasure: ModuleErasure = declareErasure({
     removed += count(await sql`delete from rooms.ritual_solves where account_id = ${account}::uuid`.execute(trx));
     removed += count(await sql`delete from rooms.launch_answers where account_id = ${account}::uuid`.execute(trx));
     removed += count(await sql`delete from rooms.launch_players where account_id = ${account}::uuid`.execute(trx));
+    removed += count(await sql`delete from rooms.watch_viewers where account_id = ${account}::uuid`.execute(trx));
+    removed += count(
+      await sql`update rooms.watch_sessions set started_by = null where started_by = ${account}::uuid`.execute(trx),
+    );
     // A topic named from this person's message is called what it says, so the name is theirs too: before the message is a
     // tombstone, it becomes the neutral title for everyone (D-168).
     removed += count(
@@ -308,6 +320,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
       // Answers and places in a Launch are play results too (D-082, D-220); the star a Launch earned has no account.
       'rooms.launch_answers': 'erase' as const,
       'rooms.launch_players': 'erase' as const,
+      // Who is watching is the person's own and a Clear erases it; the link that says they shared a session is emptied too (D-258).
+      'rooms.watch_viewers': 'erase' as const,
       ...Object.fromEntries(QUEUES.map((name) => [`store:pgboss/${name}`, 'erase' as const])),
     },
     async erase(scope) {
@@ -318,8 +332,16 @@ export const roomsErasure: ModuleErasure = declareErasure({
       const taps = await sql`delete from rooms.ritual_solves where account_id = ${owner}`.execute(trx);
       const answers = await sql`delete from rooms.launch_answers where account_id = ${owner}`.execute(trx);
       const players = await sql`delete from rooms.launch_players where account_id = ${owner}`.execute(trx);
+      const watching = await sql`delete from rooms.watch_viewers where account_id = ${owner}`.execute(trx);
+      const shared = await sql`update rooms.watch_sessions set started_by = null where started_by = ${owner}`.execute(
+        trx,
+      );
       const played =
-        Number(taps.numAffectedRows ?? 0) + Number(answers.numAffectedRows ?? 0) + Number(players.numAffectedRows ?? 0);
+        Number(taps.numAffectedRows ?? 0) +
+        Number(answers.numAffectedRows ?? 0) +
+        Number(players.numAffectedRows ?? 0) +
+        Number(watching.numAffectedRows ?? 0) +
+        Number(shared.numAffectedRows ?? 0);
       // The topics stay with the room; the starter's switch and the answer they noticed are their own and go. Rows are taken in id order,
       // as account deletion takes them, so this waits on a send in flight in the same order.
       const notices = await sql`
@@ -363,6 +385,8 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
       'rooms.ritual_solves',
       'rooms.launch_players',
       'rooms.launch_answers',
+      'rooms.watch_sessions',
+      'rooms.watch_viewers',
       'rooms.memory_edits',
     ],
     'What the residents remember belongs to the room and is derived from many people; an invitation is a notice between two members and holds no words of the person; a presence lease lasts a minute and records only that the room was open; the place where they left off is private bookkeeping that holds no words; a summary holds a window of the room and no one of its own; the job queue is delivery bookkeeping.',
@@ -477,6 +501,19 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         where player.account_id = ${person.accountId}::uuid and launch.state = 'finished'
         group by room.name, launch.launch_id, launch.starts_at
         order by launch.starts_at desc limit 500`.execute(trx);
+      // What the person still has in Watch together: a session they shared, and a session they joined that is still on. Which room and
+      // day, never a position (there is none) and never another person.
+      const watching = await sql<{ room: string; day: string; role: string }>`
+        select room.name as room, to_char(session.starts_at at time zone 'UTC', 'YYYY-MM-DD') as day, 'shared' as role
+        from rooms.watch_sessions session join rooms.rooms room on room.room_id = session.room_id
+        where session.started_by = ${person.accountId}::uuid
+        union all
+        select room.name, to_char(session.starts_at at time zone 'UTC', 'YYYY-MM-DD'), 'joined'
+        from rooms.watch_viewers viewer
+        join rooms.watch_sessions session on session.session_id = viewer.session_id
+        join rooms.rooms room on room.room_id = session.room_id
+        where viewer.account_id = ${person.accountId}::uuid
+        order by day desc limit 500`.execute(trx);
       const memoryEdits = await sql<{ room: string; action: string; at: Date }>`
         select room.name as room, edit.action, edit.at
         from rooms.memory_edits edit join rooms.rooms room on room.room_id = edit.room_id
@@ -496,6 +533,7 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         debateVotes.rows.length === 0 &&
         taps.rows.length === 0 &&
         launches.rows.length === 0 &&
+        watching.rows.length === 0 &&
         memoryEdits.rows.length === 0 &&
         startedActivities.rows.length === 0
       )
@@ -567,6 +605,7 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
           questionsRight: Number(row.right),
           questionsAnswered: Number(row.answered),
         })),
+        watchTogether: watching.rows.map((row) => ({ room: row.room, day: row.day, you: row.role })),
         // The person's own changes to what a room's residents remember: the room, what they did and when, never the words.
         memoryEdits: memoryEdits.rows.map((row) => ({
           room: row.room,

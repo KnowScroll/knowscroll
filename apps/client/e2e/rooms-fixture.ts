@@ -102,6 +102,8 @@ export interface RoomFixtureOptions {
   readonly feed?: () => Record<string, unknown> | undefined;
   /** R-6: the room view's word for the Launch (ready, lobby, live or finished), read afresh each time; absent says nothing. */
   readonly launch?: () => Record<string, unknown> | undefined;
+  /** R-10: the room view's word for Watch together (ready or live), read afresh each time; absent says nothing. */
+  readonly watch?: () => Record<string, unknown> | undefined;
   /** R-7: the member view's replay strip and its questions, read afresh each time; absent says nothing. */
   readonly replay?: () => Record<string, unknown> | undefined;
   readonly questions?: () => Record<string, unknown> | undefined;
@@ -296,6 +298,7 @@ export async function roomFixture(
           sky: options.sky?.() ?? { lit: 0, of: 7, state: 'forming', finished: 0 },
           ...(options.today === undefined ? {} : { today: options.today }),
           ...(options.launch?.() === undefined ? {} : { launch: options.launch() }),
+          ...(options.watch?.() === undefined ? {} : { watch: options.watch() }),
           ...(options.feed?.() === undefined ? {} : { feed: options.feed() }),
           ...(options.replay?.() === undefined ? {} : { replay: options.replay() }),
           ...(options.questions?.() === undefined ? {} : { questions: options.questions() }),
