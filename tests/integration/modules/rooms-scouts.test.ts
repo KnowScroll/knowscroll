@@ -13,6 +13,7 @@ import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infras
 import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
+import { reportCases } from '../support/feedback.js';
 import { recordingPerson } from '../support/recording-person.js';
 import {
   FIND_NOTE,
@@ -60,6 +61,7 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
   let world: RoomWorld;
   let off: RoomWorld;
   let boss: ReturnType<typeof createBoss>;
+  let reports: ReturnType<typeof reportCases>;
 
   beforeAll(async () => {
     database = await createTestDatabase<Database>('rooms_scouts');
@@ -68,6 +70,7 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
     off = await roomWorld(database, { now: START }, { residentsEnabled: true });
     boss = createBoss(database.settings, 'producer', { onError: () => undefined, onWarning: () => undefined });
     await boss.start();
+    reports = reportCases(database.db, () => world.clock.now);
   });
   afterAll(async () => {
     await boss.stop({ graceful: false });
@@ -777,6 +780,81 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
       if (opened.status !== 'ready') throw new Error('expected ready');
       unwrap(await hideMessage(world, scene.moderator, scene.roomId, discussionId, opened.messages[0]!.messageId));
       expect((await readFeed(world, scene.listeners[1]!, scene.roomId)).posts).toEqual([]);
+    });
+  });
+
+  describe('a report about a scout’s find (D-261)', () => {
+    const abuse = (messageId: string) => ({
+      commandId: randomUUID(),
+      target: { kind: 'room_message', messageId } as const,
+      category: 'spam' as const,
+    });
+    const noteOf = async (scene: Scene, reader: Friend) => {
+      const feed = await readFeed(world, reader, scene.roomId);
+      const discussionId = feed.posts[0]!.discussionId;
+      const opened = await readDiscussion(world, reader, scene.roomId, discussionId);
+      if (opened.status !== 'ready') throw new Error('expected ready');
+      return { discussionId, messageId: opened.messages[0]!.messageId };
+    };
+    const reportsOf = (person: Friend, roomId: string) =>
+      world.rooms.reports(person.authority, { version, readId: randomUUID(), roomId });
+
+    it('is received from a reader, filed against the member who sent the scout, and shown to the moderators; the owner cannot report their own scout', async () => {
+      await libraryScroll(world.db, 'A Scroll for the report check', 10, ASTRO);
+      const scene = await sent();
+      await scoutBeat(world).look(scene.slug, scene.owner);
+      const { messageId } = await noteOf(scene, scene.listeners[0]!);
+      expect(await reports.reportAbuse(scene.owner.authority, abuse(messageId))).toEqual({
+        kind: 'refused',
+        reason: 'target_unavailable',
+      });
+      expect(await reports.reportAbuse(scene.listeners[0]!.authority, abuse(messageId))).toMatchObject({
+        kind: 'received',
+      });
+      const [filed] = await database.db
+        .selectFrom('feedback.reports')
+        .selectAll()
+        .where('reporter_account_id', '=', scene.listeners[0]!.accountId)
+        .execute();
+      expect(filed).toMatchObject({
+        target_kind: 'room_message',
+        message_id: messageId,
+        room_id: scene.roomId,
+        reported_account_id: scene.owner.accountId,
+      });
+      const shown = unwrap(await reportsOf(scene.moderator, scene.roomId));
+      expect(shown.reports.map((report) => report.messageId)).toEqual([messageId]);
+      // Nobody else in the room reads the list, and it names neither reporter nor owner.
+      expect(await reportsOf(scene.listeners[1]!, scene.roomId)).toEqual({ kind: 'refused', code: 'unavailable' });
+      expect(JSON.stringify(shown)).not.toContain(scene.owner.accountId);
+    });
+
+    it('is left out of the list of a moderator whose own scout it is, and is not reportable once a moderator removed the note', async () => {
+      await libraryScroll(world.db, 'A Scroll for the moderator’s own scout', 10, ASTRO);
+      const { roomId, slug } = await seedRoom(world);
+      const [reader, other] = await joined(world, roomId, 2);
+      const moderator = await seedFriend(world.db, world.friends);
+      unwrap(await world.rooms.join(moderator.authority, { version, commandId: randomUUID(), roomId }));
+      await makeModerator(world, slug, moderator);
+      const second = await seedFriend(world.db, world.friends);
+      unwrap(await world.rooms.join(second.authority, { version, commandId: randomUUID(), roomId }));
+      await makeModerator(world, slug, second);
+      unwrap(await setScout(world, moderator, roomId, { interests: [ASTRO] }));
+      await scoutBeat(world).look(slug, moderator);
+      const discussionId = (await readFeed(world, reader!, roomId)).posts[0]!.discussionId;
+      const opened = await readDiscussion(world, reader!, roomId, discussionId);
+      if (opened.status !== 'ready') throw new Error('expected ready');
+      const messageId = opened.messages[0]!.messageId;
+      expect(await reports.reportAbuse(reader!.authority, abuse(messageId))).toMatchObject({ kind: 'received' });
+      // The scout is the first moderator's own: not for them to read. The other moderator reads it.
+      expect(unwrap(await reportsOf(moderator, roomId)).reports).toEqual([]);
+      expect(unwrap(await reportsOf(second, roomId)).reports.map((report) => report.messageId)).toEqual([messageId]);
+      // A moderator removes the note: nobody can report it any more.
+      unwrap(await hideMessage(world, second, roomId, discussionId, messageId));
+      expect(await reports.reportAbuse(other!.authority, abuse(messageId))).toEqual({
+        kind: 'refused',
+        reason: 'target_unavailable',
+      });
     });
   });
 
