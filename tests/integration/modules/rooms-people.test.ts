@@ -120,7 +120,7 @@ describe('people and residents in the Feed (real PostgreSQL, CI fixture model)',
         discussionId: made.discussionId,
         author: { kind: 'ai', inhabitant: 'explainer', name: 'Nova', label: 'AI · Explainer' },
         votes: 0,
-        canVote: true,
+        canVote: false,
       });
       expect(intro).toHaveProperty('text', expect.stringContaining("Hi, I'm Nova."));
       expect(intro).not.toHaveProperty('title');
@@ -144,7 +144,7 @@ describe('people and residents in the Feed (real PostgreSQL, CI fixture model)',
       };
       const before = await read();
       expect(before.discussion.title).not.toBe('A removed post');
-      expect(before.discussion.post).toMatchObject({ canVote: true });
+      expect(before.discussion).not.toHaveProperty('post');
       unwrap(await hideMessage(world, moderator, roomId, discussionId, before.messages[0]!.messageId));
       const removed = await read();
       expect(removed.discussion.title).toBe('A removed post');
@@ -194,21 +194,23 @@ describe('people and residents in the Feed (real PostgreSQL, CI fixture model)',
       expect(await rowsIn(world.db, PERSONAL_UNIVERSE_SCHEMAS)).toBe(universe);
     });
 
-    it('is a post people vote on and reply under, and not a topic of the room', async () => {
+    it('takes no vote, can be replied under, and is not a topic of the room', async () => {
       const { roomId, slug, people } = await scene(3);
       const [moderator, asha, ravi] = people as [Friend, Friend, Friend];
       await makeModerator(world, slug, moderator);
       const { discussionId } = unwrap(await introduceResident(world, moderator, roomId, 'skeptic'));
-      expect(unwrap(await votePost(world, asha, roomId, discussionId))).toMatchObject({ votes: 1 });
+      expect(await votePost(world, asha, roomId, discussionId)).toEqual({ kind: 'refused', code: 'unavailable' });
       unwrap(await say(world, ravi, roomId, discussionId, 'Welcome, Halley.'));
-      expect((await readFeed(world, ravi, roomId)).posts[0]).toMatchObject({ kind: 'intro', votes: 1, replies: 1 });
+      expect((await readFeed(world, ravi, roomId)).posts[0]).toMatchObject({
+        kind: 'intro',
+        votes: 0,
+        canVote: false,
+        replies: 1,
+      });
       const view = await readDiscussion(world, asha, roomId, discussionId);
       if (view.status !== 'ready') throw new Error('expected ready');
-      expect(view.discussion).toMatchObject({
-        kind: 'intro',
-        title: 'Meet Halley',
-        post: { votes: 1, youVoted: true, canVote: true },
-      });
+      expect(view.discussion).toMatchObject({ kind: 'intro', title: 'Meet Halley' });
+      expect(view.discussion).not.toHaveProperty('post');
       expect(view.messages[0]).toMatchObject({ author: { kind: 'ai', name: 'Halley', label: 'AI · Skeptic' } });
       const room = await memberView(world, asha, roomId);
       expect(room.discussions.map((entry) => entry.discussionId)).not.toContain(discussionId);

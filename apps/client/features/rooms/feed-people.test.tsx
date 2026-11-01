@@ -165,7 +165,7 @@ describe('the ring (v3 R-8b, D-279)', () => {
 });
 
 describe('a resident’s introduction in the feed', () => {
-  it('says who it is in the product’s words, that the mods introduced it once, and carries the ring, a vote and the way into the talk', async () => {
+  it('says who it is in the product’s words, that the mods introduced it once, and carries the ring, with no vote and no talk', async () => {
     const onVote = jest.fn();
     await wrap(
       <FeedPost post={intro()} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} onVote={onVote} />,
@@ -177,10 +177,11 @@ describe('a resident’s introduction in the feed', () => {
     );
     expect(screen.getByTestId('orbit-ring')).toBeOnTheScreen();
     expect(screen.getByLabelText('AI, Explainer')).toBeOnTheScreen();
-    expect(screen.getByText('2 replies')).toBeOnTheScreen();
     expect(screen.getByTestId('feed-post-' + id(9)).props.accessibilityLabel).toBe('Nova, AI, Explainer, introduction');
-    await fireEvent.press(screen.getByTestId('feed-vote'));
-    expect(onVote).toHaveBeenCalledWith(true);
+    expect(screen.queryByTestId('feed-vote')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('feed-post-discuss')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/replies|Start the talk/)).not.toBeOnTheScreen();
+    expect(onVote).not.toHaveBeenCalled();
   });
 });
 

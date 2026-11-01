@@ -3554,3 +3554,13 @@ Confirmed by: `rooms-launch.test.ts` ("the settling job"), `room-launch.test.ts`
 - **How.** The store returns the replies grouped by who signed them and whether they were nobody's asking; code applies the reader's blocks and level (`repliesShownTo`).
 
 Confirmed by: `feed.test.ts` (`repliesShownTo`), `rooms-posts.test.ts` ("the replies a reader is told of"). Shown failing when the rule ignored the level.
+
+## D-300 · 2026-11-02 · A resident's introduction takes no votes and has no "Start the talk" (v3 dev check fixes, #619)
+
+**Amends** D-275 ("A post like any other. People vote under it and reply to it").
+
+- **Why.** An introduction is the product's fixed words, said once. A vote on it ranks nothing worth ranking, and "Start the talk" invites a conversation with words nobody wrote to be answered.
+- **The rule.** The Feed draws an introduction with its words and "Introduced by the room's mods" and nothing under it: no vote, no reply count, no way into a talk. A vote on one is refused as for a post that is not there (`unavailable`), and its own page carries no vote figures.
+- **Not changed.** A reply written under it by any other way still shows in its thread; the live strip still opens it.
+
+Confirmed by: `rooms-people.test.ts` ("takes no vote, can be replied under"), `feed-people.test.tsx` (an introduction in the feed carries no vote and no talk). Shown failing while the vote was accepted and drawn.

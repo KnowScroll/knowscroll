@@ -66,7 +66,7 @@ function postView(
     replies,
     votes: row.votes,
     youVoted: row.votedByReader,
-    canVote: author.kind !== 'person' || !author.you,
+    canVote: row.introduces === undefined && (author.kind !== 'person' || !author.you),
   };
   if (author.kind === 'person') {
     const link =

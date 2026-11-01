@@ -1029,7 +1029,7 @@ export interface PostStore {
     link: { readonly kind: 'content'; readonly assetId: string } | { readonly kind: 'source'; readonly url: string },
   ): Promise<string | undefined>;
   /**
-   * A post that people may vote on: a find of this room whose first message is shown. Its author is the member who wrote it, or
+   * A post that people may vote on: a find of this room whose first message is shown (a resident's introduction takes no votes, D-300). Its author is the member who wrote it, or
    * none for a resident's or a scout's find.
    */
   votable(lock: RoomLock, discussionId: string): Promise<{ readonly authorAccountId: string | null } | undefined>;
