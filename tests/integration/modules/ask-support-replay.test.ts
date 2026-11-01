@@ -99,51 +99,105 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     const answer = await producedOrder('question');
     const before = await contentRows();
     const callsBefore = worker.supportCalls.length;
-    // The checker now finds the sentence that starts "Because the beam turns" unsupported.
+    // The checker now finds the sentence that starts "Because the beam turns" unsupported, and quotes words nobody wrote for
+    // the one that starts "Today a small motor": code sets that one aside (D-265).
     support = (_check, call) => {
       const { sentences } = supportRequestOf(call);
-      const flagged = sentences.find((sentence) => sentence.text.startsWith('Because the beam turns'))!;
-      return supportReply(call, {
-        unsupported: { [flagged.n]: { kind: 'contradicted', problem: 'A passage says otherwise.' } },
+      const flagged = sentences.find((sentence) => sentence.text.startsWith('Because the beam turns'));
+      const quoted = sentences.find((sentence) => sentence.text.startsWith('Today a small motor'));
+      const reply = supportReply(call, {
+        unsupported:
+          flagged === undefined ? {} : { [flagged.n]: { kind: 'contradicted', problem: 'A passage says otherwise.' } },
+      });
+      if (quoted === undefined || reply.kind !== 'success') return reply;
+      const parsed = JSON.parse(reply.text) as { sentences: { n: number }[] };
+      return answerWith({
+        sentences: parsed.sentences.map((one) =>
+          one.n === quoted.n ? { n: one.n, verdict: 'supported', quote: 'words that no passage ever contained' } : one,
+        ),
       });
     };
 
     const { results, summary } = await replayed({ kind: 'assets', assetIds: [answer.assetId] });
 
     expect(summary).toEqual({ answers: 1, stopped: false });
-    expect(worker.supportCalls.length - callsBefore).toBe(1);
+    // The answer has 19 sentences: two requests, ten sentences and nine (D-267).
+    expect(worker.supportCalls.length - callsBefore).toBe(2);
     const [only] = results;
     expect(only!.line).toMatchObject({
       assetId: answer.assetId,
       outcome: 'checked',
-      unsupported: 1,
-      requests: 1,
+      unsupported: 2,
+      batches: 2,
+      requests: 2,
+      // The per-sentence codes are counted on the line; the sentences they belong to are only in the file.
+      codes: { quote_not_in_cited_passages: 1 },
     });
+    expect(only!.line.runIds).toHaveLength(2);
     expect(only!.line.supported + only!.line.unsupported + only!.line.noClaim).toBe(only!.line.sentences);
     // What the operator sees on the line holds counts and codes: no sentence, no title and no question.
     const line = JSON.stringify(only!.line);
     expect(line).not.toContain('Because the beam turns');
     expect(line).not.toContain('How a lamp');
+    expect(line).not.toContain('Today a small motor');
     // The file's detail has every sentence with the passages it cites and the checker's verdict, flagged one included.
     expect(only!.detail!.sentences).toHaveLength(only!.line.sentences);
     const flaggedSentences = only!.detail!.sentences.filter((sentence) => sentence.verdict === 'unsupported');
-    expect(flaggedSentences).toHaveLength(1);
+    expect(flaggedSentences).toHaveLength(2);
     expect(flaggedSentences[0]).toMatchObject({ kind: 'contradicted', problem: 'A passage says otherwise.' });
     expect(flaggedSentences[0]!.text.startsWith('Because the beam turns')).toBe(true);
+    expect(flaggedSentences[0]!.code).toBeUndefined();
+    expect(flaggedSentences[1]).toMatchObject({ kind: 'not_stated', code: 'quote_not_in_cited_passages' });
+    expect(flaggedSentences[1]!.text.startsWith('Today a small motor')).toBe(true);
     expect(only!.detail!.sentences.find((sentence) => sentence.verdict === 'supported')?.quote).toBeTruthy();
     // The checker was never shown the question, because the check does not use it.
     expect(worker.supportCalls.at(-1)!.request.user).not.toContain('a CI question');
     // Nothing was published, stored or changed: the answer, its job and its Scroll are as they were.
     expect(await contentRows()).toEqual(before);
-    // The replay's own run is in the ledger and closed.
+    // The replay's own runs, one for each batch, are in the ledger and closed.
     const ledgered = await database.db
       .selectFrom('reasoning.production_runs')
       .select(['state', 'closed_at'])
-      .where('id', '=', only!.line.runId!)
-      .executeTakeFirstOrThrow();
-    expect(ledgered).toMatchObject({ state: 'completed' });
-    expect(ledgered.closed_at).not.toBeNull();
+      .where('id', 'in', [...only!.line.runIds!])
+      .execute();
+    expect(ledgered).toHaveLength(2);
+    for (const run of ledgered) {
+      expect(run).toMatchObject({ state: 'completed' });
+      expect(run.closed_at).not.toBeNull();
+    }
     support = (_check, call) => supportReply(call);
+  });
+
+  it('counts the no_claim verdicts by the ground they passed on, so the replay shows how many pass on a label or a gap line (D-266)', async () => {
+    const answer = await producedOrder('question');
+    // The checker marks the three short headings and the limits line as stating no fact.
+    support = (_check, call) => {
+      const { sentences } = supportRequestOf(call);
+      const noClaim = sentences
+        .filter((one) =>
+          ['The beam', 'The upkeep', 'Putting it together', 'This picture ignores'].some((start) =>
+            one.text.startsWith(start),
+          ),
+        )
+        .map((one) => one.n);
+      return supportReply(call, { noClaim });
+    };
+
+    const { results } = await replayed({ kind: 'assets', assetIds: [answer.assetId] });
+    support = (_check, call) => supportReply(call);
+
+    const [only] = results;
+    // Every no_claim verdict of the line is counted on exactly one of the four grounds, and no rule code was needed.
+    const grounds = Object.entries(only!.line.codes);
+    expect(grounds.map(([key]) => key).filter((key) => !key.startsWith('no_claim_'))).toEqual([]);
+    expect(
+      grounds.every(([key]) => ['label', 'gap', 'question', 'unshared'].includes(key.slice('no_claim_'.length))),
+    ).toBe(true);
+    expect(grounds.reduce((total, [, n]) => total + n, 0)).toBe(only!.line.noClaim);
+    // The three short headings passed on their label ground (a callout's title, which the fixture also leaves unquoted, is a fourth).
+    expect(only!.line.codes.no_claim_label).toBeGreaterThanOrEqual(3);
+    // Counts only: no sentence is printed.
+    expect(JSON.stringify(only!.line)).not.toContain('The upkeep');
   });
 
   it('names an asset that is not a stored ask answer, and asks the model nothing for it', async () => {
@@ -175,7 +229,14 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     support = () => ({ kind: 'malformed' });
     const { results } = await replayed({ kind: 'assets', assetIds: [answer.assetId] });
     support = (_check, call) => supportReply(call);
-    expect(results[0]!.line).toMatchObject({ outcome: 'unchecked', code: 'invalid_output', requests: 2 });
+    // The first batch is asked and repaired once; the second is never asked, because none of the answer is known.
+    expect(results[0]!.line).toMatchObject({
+      outcome: 'unchecked',
+      code: 'invalid_output',
+      batches: 2,
+      requests: 2,
+      codes: {},
+    });
     expect(results[0]!.detail).toBeUndefined();
   });
 

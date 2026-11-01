@@ -844,11 +844,9 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
       expect(await status(person, quickAnswerId)).toMatchObject({ status: 'unavailable', reason: 'could_not_answer' });
     });
 
-    it('is no card at all when the check fails, or answers with a quote that is not in the passage: no checker, no card', async () => {
+    it('is no card at all when the check fails or its reply is unusable: no checker, no card, and no rewrite', async () => {
       for (const check of [
         (): FixtureScenario => ({ kind: 'server_error' }),
-        (): FixtureScenario =>
-          checkerReply({ n: 1, verdict: 'supported', quote: 'sunlight arrives steeper and the days run longer' }),
         (): FixtureScenario => ({ kind: 'malformed' }),
       ]) {
         const { person, quickAnswerId } = await asked();
@@ -857,6 +855,31 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
         expect(await row(quickAnswerId)).toMatchObject({ state: 'unavailable', answer: null, shown_question: null });
         expect(calledBefore.rewrite).toBe(0);
       }
+    });
+
+    it('treats a quote that is not in the passage as that sentence unsupported (D-265): one rewrite, and no card unless its own check clears it', async () => {
+      const unquoted = (): FixtureScenario =>
+        checkerReply({ n: 1, verdict: 'supported', quote: 'sunlight arrives steeper and the days run longer' });
+      // Still the same finding on the rewrite: no card, nothing of the answer stored.
+      const refused = await asked();
+      script = (stage) => (stage === 'check' ? unquoted() : writerReply());
+      await answer(job(refused.person, refused.quickAnswerId), signal());
+      expect([calledBefore.write, calledBefore.check, calledBefore.rewrite]).toEqual([1, 2, 1]);
+      expect(await row(refused.quickAnswerId)).toMatchObject({
+        state: 'unavailable',
+        answer: null,
+        shown_question: null,
+      });
+      // The rewrite is told which sentence to fix by a fixed hint and a fixed note, never by the checker's quote.
+      const rewrite = JSON.stringify(model.calls[2]!.request);
+      expect(rewrite).toContain('No passage you cite states this');
+      expect(rewrite).not.toContain('sunlight arrives steeper');
+      // A rewrite that its own check clears is shown.
+      const cleared = await asked();
+      script = (stage, n) => (stage === 'check' ? (n === 1 ? unquoted() : clears()) : writerReply());
+      await answer(job(cleared.person, cleared.quickAnswerId), signal());
+      expect([calledBefore.write, calledBefore.check, calledBefore.rewrite]).toEqual([1, 2, 1]);
+      expect(await row(cleared.quickAnswerId)).toMatchObject({ state: 'answered' });
     });
 
     it('shows a sentence code owns, and none of the writer’s words, for a question the passages do not cover, and checks nothing', async () => {

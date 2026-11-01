@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { askSupportRole } from '../../content/public.js';
+import { ASK_SUPPORT_BATCH_SENTENCES, askSupportRole } from '../../content/public.js';
 import type { ProposeOutcome, RecordingReasoningHarness } from '../../../reasoning/public.js';
 import type { PersonalAuthority } from '../../identity/public.js';
 import type { CitablePassage, QuickAnswerDraft } from '../domain/quick-answer.js';
@@ -68,27 +68,38 @@ describe('the checker’s role for a Quick answer', () => {
     expect(QUICK_ANSWER_SUPPORT_ROLE_ID).not.toBe(role.id);
   });
 
-  it('accepts a reply whose quotes are in a cited passage and about the sentence, and refuses what code can see is made up', () => {
+  it('accepts a reply whose quotes are in a cited passage and about the sentence, and sets aside the sentence whose verdict code can see is made up', () => {
     const good = reply(
       supported(1, 'The axis leans twenty-three degrees and keeps pointing the same way all year long'),
       supported(2, 'keeps pointing the same way all year long'),
     );
+    const judged = (...verdicts: unknown[]) => role.outputSchema.parse(reply(...verdicts)).sentences;
     expect(role.outputSchema.safeParse(good).success).toBe(true);
-    // A quote that is not in any passage the sentence cites proves nothing.
+    expect(judged(...good.sentences).map((verdict) => verdict.verdict)).toEqual(['supported', 'supported']);
+    // A quote that is not in any passage the sentence cites proves nothing: that sentence is unsupported, the other stands (D-265).
     expect(
-      role.outputSchema.safeParse(
-        reply(supported(1, 'sunlight arrives steeper and the days run longer'), good.sentences[1]),
-      ).success,
-    ).toBe(false);
-    // A reply that skips a sentence, or gives them out of order, is refused.
+      judged(supported(1, 'sunlight arrives steeper and the days run longer'), good.sentences[1]).map((verdict) =>
+        verdict.verdict === 'unsupported' ? verdict.code : verdict.verdict,
+      ),
+    ).toEqual(['quote_not_in_cited_passages', 'supported']);
+    // A reply that skips a sentence, or gives them out of order, is refused whole.
     expect(role.outputSchema.safeParse(reply(good.sentences[0])).success).toBe(false);
     expect(role.outputSchema.safeParse(reply(good.sentences[1], good.sentences[0])).success).toBe(false);
     // "States no fact" is accepted only where code can see the sentence states none: this one has a subject in the passage.
-    expect(role.outputSchema.safeParse(reply({ n: 1, verdict: 'no_claim' }, good.sentences[1])).success).toBe(false);
+    expect(
+      judged({ n: 1, verdict: 'no_claim' }, good.sentences[1]).map((verdict) =>
+        verdict.verdict === 'unsupported' ? verdict.code : verdict.verdict,
+      ),
+    ).toEqual(['no_claim_without_ground', 'supported']);
+  });
+
+  it('is asked about no more sentences than one request carries, because a Quick answer is checked in one request', () => {
+    expect(ASK_SUPPORT_BATCH_SENTENCES).toBe(10);
   });
 });
 
 describe('what a check came to', () => {
+  const role = askSupportRole(sentencesOf(draft), passages);
   const unsupported = {
     n: 1,
     verdict: 'unsupported',
@@ -100,15 +111,40 @@ describe('what a check came to', () => {
     expect(
       findingOf(
         proposed(
-          reply(supported(1, 'The axis leans twenty-three degrees and keeps pointing the same way all year long')),
+          role.outputSchema.parse(
+            reply(
+              supported(1, 'The axis leans twenty-three degrees and keeps pointing the same way all year long'),
+              supported(2, 'keeps pointing the same way all year long'),
+            ),
+          ),
         ),
       ),
     ).toEqual({
       finding: { kind: 'supported' },
       end: 'completed',
     });
-    const found = findingOf(proposed(reply(unsupported)));
+    const found = findingOf(
+      proposed(role.outputSchema.parse(reply(unsupported, supported(2, 'keeps pointing the same way all year long')))),
+    );
     expect(found.finding).toMatchObject({ kind: 'unsupported', unsupported: [{ number: 1, kind: 'goes_beyond' }] });
+    expect(found.end).toBe('completed');
+  });
+
+  it('finds a sentence unsupported when code set its verdict aside, and does not call the check unusable', () => {
+    const found = findingOf(
+      proposed(
+        role.outputSchema.parse(
+          reply(
+            supported(1, 'words that no passage ever contained'),
+            supported(2, 'keeps pointing the same way all year long'),
+          ),
+        ),
+      ),
+    );
+    expect(found.finding).toMatchObject({
+      kind: 'unsupported',
+      unsupported: [{ number: 1, kind: 'not_stated', code: 'quote_not_in_cited_passages' }],
+    });
     expect(found.end).toBe('completed');
   });
 
@@ -149,6 +185,20 @@ describe('asking the checker through the harness', () => {
     passages,
     allowRepair,
     signal: new AbortController().signal,
+  });
+
+  it('asks nothing about an answer of more sentences than one request carries, and says nothing is known (D-267)', async () => {
+    const model = harness(proposed(reply()));
+    const long = Array.from({ length: ASK_SUPPORT_BATCH_SENTENCES + 1 }, (_unused, index) => ({
+      number: index + 1,
+      text: `Sentence ${String(index + 1)} of an answer that ran on.`,
+      cites: ['e1'],
+    }));
+    const result = await makeSupportCheck(model.value)({ ...input(true), sentences: long });
+    expect(model.propose).not.toHaveBeenCalled();
+    // No run was started, so none is closed: the result has no end.
+    expect(result).toMatchObject({ finding: { kind: 'unchecked' }, run: { runId: 'run-1' } });
+    expect(result.run.end).toBeUndefined();
   });
 
   it('makes one proposal on its own run and role, shows it only the passages the answer cites, and says how the run ended', async () => {

@@ -14,7 +14,7 @@ import { makeProduceScroll } from '../../../packages/backend/src/modules/content
 import {
   hasEnoughWords,
   isAbout,
-  mayStateNoFact,
+  noClaimGround,
   sharedStems,
 } from '../../../packages/backend/src/modules/content/domain/ask-support.js';
 import type { WriterFormat } from '../../../packages/backend/src/modules/content/production/writer.js';
@@ -255,13 +255,18 @@ function itemText(call: FixtureCall, ref: string): string {
 
 /** A support check request as the fixture reads it: the sentences listed, and the text of each passage by handle. */
 export function supportRequestOf(call: FixtureCall): {
-  readonly sentences: readonly { readonly n: number; readonly cites: readonly string[]; readonly text: string }[];
+  readonly sentences: readonly {
+    readonly n: number;
+    readonly cites: readonly string[];
+    readonly text: string;
+    readonly label?: boolean;
+  }[];
   readonly passages: ReadonlyMap<string, string>;
 } {
   const sentences = itemText(call, 'support:sentences')
     .split('\n')
     .filter((line) => line !== '')
-    .map((line) => JSON.parse(line) as { n: number; cites: string[]; text: string });
+    .map((line) => JSON.parse(line) as { n: number; cites: string[]; text: string; label?: boolean });
   const passages = new Map(
     itemText(call, 'support:passages')
       .split('\n')
@@ -316,7 +321,9 @@ export function supportReply(call: FixtureCall, script: SupportScript = {}): Fix
       const quote = quoteAbout(sentence.text, cited);
       if (quote !== undefined) return { n: sentence.n, verdict: 'supported', quote };
       // A sentence no passage is about may state no fact only where code can see it; a fixture answer must not need more.
-      if (!mayStateNoFact(sentence.text, cited))
+      if (
+        noClaimGround({ text: sentence.text, ...(sentence.label === true ? { label: true } : {}) }, cited) === undefined
+      )
         throw new Error(`CI fixture: sentence ${String(sentence.n)} has no words of its passages about it`);
       return { n: sentence.n, verdict: 'no_claim' };
     }),

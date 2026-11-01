@@ -46,7 +46,7 @@ export async function reopenedAskOrder(
         };
   }
   if (reading.take === undefined) return undefined;
-  await p.enqueueProduction(scope, recipe, reading.take);
+  await p.enqueueAnswerProduction(scope, recipe, reading.take);
   return {
     ...reopened,
     status: 'requested',

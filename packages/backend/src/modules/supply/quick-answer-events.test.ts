@@ -20,9 +20,8 @@ describe('the answering job’s claim', () => {
     expect(answerQuickAnswerQueue.policy.expireInSeconds).toBe(ANSWER_QUICK_ANSWER_CLAIM_SECONDS);
   });
 
-  it('can fail: one attempt more than the claim was sized for would not fit, and the old 240 s never did', () => {
+  it('can fail: one attempt more than the claim was sized for would not fit', () => {
     expect(claimNeeded(MAX_PAID_ATTEMPTS + 1, 300)).toBeGreaterThan(answerQuickAnswerQueue.policy.expireInSeconds);
-    expect(240).toBeLessThan(claimNeeded(2, 300));
   });
 
   it('is far longer than the wait the person is given, which is the limit they see', () => {

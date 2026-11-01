@@ -1,4 +1,5 @@
 import { RECIPES, type RecipeKey } from '../domain/library/index.js';
+import { ASK_SUPPORT_MAX_BATCHES } from '../domain/ask-support.js';
 import type { ScrollV2Plan } from '../domain/library/plan.js';
 
 /** The current production recipe. A topic has one job per version; a new recipe is a new version. */
@@ -26,11 +27,12 @@ export const REQUEST_BOUND_PER_TOPIC = 2;
  */
 export const REQUEST_BOUND_V2_PER_TOPIC = 6;
 /**
- * The answer to a person's question sends at most six paid requests a take, as a v2 library recipe does: the writer
- * once and at most one repair (the validator's or the support check's), and the support check once for each of the two
- * drafts, each with at most one repair of an unusable reply (D-250).
+ * The answer to a person's question sends at most twelve paid requests a take: the writer once and at most one repair (the
+ * validator's or the support check's), and the support check for each of the two drafts. A draft is checked in at most
+ * `ASK_SUPPORT_MAX_BATCHES` batches of sentences, one request each, and the harness repairs one unusable reply in the whole
+ * check, so a draft costs its batches plus one (D-250, D-267).
  */
-export const REQUEST_BOUND_ASK_ORDER = 2 + 2 * 2;
+export const REQUEST_BOUND_ASK_ORDER = 2 + 2 * (ASK_SUPPORT_MAX_BATCHES + 1);
 export { MAX_TAKES_PER_RECIPE } from '../domain/library/serving.js';
 /**
  * The explanation recipes the generator runs, by operator key. The plan itself (systems, planets,

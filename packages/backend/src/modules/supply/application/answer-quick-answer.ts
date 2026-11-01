@@ -34,6 +34,8 @@ type Prepared =
       readonly ask: QuickAnswerAsk;
       readonly passages: readonly CitablePassage[];
       readonly title: string;
+      /** When the person asked: their wait ends a fixed time after it. */
+      readonly createdAt: Date;
     };
 
 /**
@@ -94,6 +96,7 @@ export function makeAnswerQuickAnswer(
       ask: { passage: row.passage, question: row.question },
       passages,
       title: facts.title,
+      createdAt: row.createdAt,
     };
   }
 
@@ -147,7 +150,7 @@ export function makeAnswerQuickAnswer(
       value.kind === 'unavailable'
         ? { kind: 'unavailable', runs: [] }
         : await answerAndCheck(
-            { harness: recording.harness, support, idFor: p.idFor },
+            { harness: recording.harness, support, idFor: p.idFor, now: p.now },
             {
               authority,
               owner: value.owner,
@@ -160,6 +163,7 @@ export function makeAnswerQuickAnswer(
                 ask: value.ask,
                 passages: value.passages,
               }),
+              waitEndsAt: new Date(value.createdAt.getTime() + QUICK_ANSWER_WAIT_LIMIT_MS),
               signal,
             },
           );
