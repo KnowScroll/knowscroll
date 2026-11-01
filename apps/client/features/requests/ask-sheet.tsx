@@ -23,15 +23,13 @@ import {
 } from '@knowscroll/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAccountScopeIfPresent } from '../../providers/account-scope';
+import { useRecordingPausedIn } from '../../providers/use-recording-paused';
 import type { OpenedStageScroll } from '../scroll/scroll-session';
 import { useStagePlay } from '../scroll/use-stage-play';
 import { AskPuzzle } from './ask-puzzle';
 import { COUNTER_FROM, PAUSED_COPY, aboutTitle, usuallyPhrase } from './ask-copy';
 import { unavailableCopy } from './request-copy';
 import type { RequestSession } from './request-session';
-
-const noSubscription = () => () => undefined;
-const noPolicy = () => undefined;
 
 /** One suggested question: the whole row is the button, and its number is the key that picks it (D1: 1 to 3). */
 function Suggestion({
@@ -86,13 +84,7 @@ export function AskSheet({
   const type = useTypeStyle('body');
   const [focused, setFocused] = useState(false);
   const { state: account } = useAccountScopeIfPresent();
-  const recording = account.status === 'signed_in' ? account.scope.recording : undefined;
-  const policy = useSyncExternalStore(
-    recording?.subscribe ?? noSubscription,
-    recording?.getState ?? noPolicy,
-    recording?.getState ?? noPolicy,
-  );
-  const paused = policy?.policy !== undefined && !policy.policy.on;
+  const paused = useRecordingPausedIn(account.status === 'signed_in' ? account.scope : undefined);
   const play = useStagePlay(scroll);
   const editing = state.phase === 'draft';
   const status = state.status;

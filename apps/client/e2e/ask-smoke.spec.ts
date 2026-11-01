@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import { encounterFixture, type EncounterFixtureOptions } from './encounter-fixture';
+import { encounterFixture, id, type EncounterFixtureOptions } from './encounter-fixture';
 
 /**
  * Ask from here (D1, D-218) in the production export: the sheet over a Scroll that has stops, the questions the Scroll
@@ -42,6 +42,35 @@ async function audit(page: Page) {
 
 for (const viewport of [phone, desktop]) {
   const size = `${String(viewport.width)} × ${String(viewport.height)}`;
+
+  test(`on a Scroll's own address the dock offers the same Ask, sourced from that Scroll's exposure with no session, at ${size}`, async ({
+    page,
+  }) => {
+    const served = await encounterFixture(page, 'scroll', {
+      viewport,
+      direct: { parts: 1 },
+      scrollDocument: seasons as unknown as Record<string, unknown>,
+    });
+    await page.goto(`/scroll/${id(300)}`);
+    await expect(page.getByTestId('scroll-reader')).toBeVisible();
+    await askButton(page).click();
+    const sheet = page.getByRole('dialog', { name: 'Ask' });
+    await expect(sheet.getByRole('heading', { name: 'Ask' })).toBeVisible();
+    await expect(sheet.getByText('FROM WHAT YOU JUST READ')).toBeVisible();
+    expect(asked(served)).toEqual([]);
+    await sheet.getByRole('button', { name: `Ask: ${suggestions[0]}` }).click();
+    await expect(page.getByTestId('ask-making')).toBeVisible();
+    expect(asked(served)).toHaveLength(1);
+    const { intent } = asked(served)[0]!.body as { intent: { kind: string; source: Record<string, unknown> } };
+    expect(intent.kind).toBe('ask');
+    // A Scroll opened by its address has no experience session to name.
+    expect(Object.keys(intent.source).sort()).toEqual(['assetId', 'assetRevision', 'exposureId']);
+    expect(await audit(page)).toEqual([]);
+    // Closing the sheet leaves the reader with a quiet note that the answer is on its way.
+    await page.getByTestId('ask-making').getByRole('button', { name: 'Keep reading' }).click();
+    await expect(sheet).toHaveCount(0);
+    await expect(page.getByText("We'll let you know when your answer is ready")).toBeVisible();
+  });
 
   test(`the sheet starts from what was just read, says what will be made and sends nothing yet, at ${size}`, async ({
     page,

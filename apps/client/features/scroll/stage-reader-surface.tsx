@@ -38,8 +38,8 @@ export interface StageMoves {
   readonly done?: (() => void) | undefined;
   /**
    * "Make it a full Scroll" under a Quick answer: opens Ask from here anchored to a stop, with the words the reader selected as
-   * the first draft of the question (D-244, D-253). Absent where there is no Ask (the direct `/scroll/<id>` route): the
-   * Quick answer is still offered there, without that way on.
+   * the first draft of the question (D-244, D-253). Absent where a screen offers no Ask; the Explore encounter
+   * and the direct `/scroll/<id>` route both offer it (D-262).
    */
   readonly makeScroll?: ((stopId: string, passage: string, question?: string) => void) | undefined;
 }

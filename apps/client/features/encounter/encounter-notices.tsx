@@ -5,6 +5,7 @@ import { Banner, Button, Icon, PendingStripe, Text } from '@knowscroll/ui';
 import { NotInterestedNotice } from '../feedback/not-interested-notice';
 import { useDevicePreferences } from '../../providers/device-preferences';
 import { unavailableCopy } from '../requests/request-copy';
+import type { RequestSession } from '../requests/request-session';
 import { RemovalNotice } from '../saved/removal-notice';
 import type { EncounterEntry } from './encounter-history';
 import type { EncounterSession, EncounterState } from './encounter-session';
@@ -21,11 +22,20 @@ const FORMAT_WORD = { reel: 'Reel', scroll: 'Scroll' } as const;
  * What a person asked for from this encounter (E06): a quiet chip while it is prepared, and a
  * ready notice that never interrupts and never switches anything by itself.
  */
-function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; readonly session: EncounterSession }) {
-  const state = useSyncExternalStore(session.requests.subscribe, session.requests.getState, session.requests.getState);
+export function RequestNotice({
+  requests,
+  exposureId,
+  onOpen,
+}: {
+  readonly requests: RequestSession;
+  /** The exposure the person is reading: a request made from another one is not announced here. */
+  readonly exposureId: string;
+  readonly onOpen: () => void;
+}) {
+  const state = useSyncExternalStore(requests.subscribe, requests.getState, requests.getState);
   const { preferences } = useDevicePreferences();
   if (
-    state.source?.exposureId !== entry.exposureId ||
+    state.source?.exposureId !== exposureId ||
     state.phase === 'draft' ||
     state.phase === 'ended' ||
     state.status?.status === 'cancelled'
@@ -49,15 +59,8 @@ function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; rea
               : `Ready: your ${what} of “${state.status.content.metadata.title}”.`}
           </Text>
           <View style={styles.row}>
-            <Button label="Later" size="sm" onPress={() => session.requests.dismissNotice()} />
-            <Button
-              label="Open"
-              size="sm"
-              variant="primary"
-              onPress={() => {
-                void session.openReadyRequest();
-              }}
-            />
+            <Button label="Later" size="sm" onPress={() => requests.dismissNotice()} />
+            <Button label="Open" size="sm" variant="primary" onPress={onOpen} />
           </View>
         </View>
       </View>
@@ -70,7 +73,7 @@ function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; rea
         <Text variant="uiS" style={styles.chipText}>
           {unavailableCopy[state.status.reason]}
         </Text>
-        <Button label="Dismiss" size="sm" variant="ghost" onPress={() => session.requests.dismissNotice()} />
+        <Button label="Dismiss" size="sm" variant="ghost" onPress={() => requests.dismissNotice()} />
       </View>
     );
   }
@@ -85,7 +88,7 @@ function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; rea
           : 'Sending your request'}
       </Text>
       {state.phase === 'accepted' && state.status?.status === 'preparing' ? (
-        <Button label="Cancel request" size="sm" variant="ghost" onPress={() => session.requests.cancel()} />
+        <Button label="Cancel request" size="sm" variant="ghost" onPress={() => requests.cancel()} />
       ) : null}
     </View>
   );
@@ -154,7 +157,13 @@ export function EncounterNotices(props: Props) {
         onUndo={() => void props.session.undoNotInterested()}
         onRetry={() => void props.session.retryNotInterested()}
       />
-      <RequestNotice entry={props.entry} session={props.session} />
+      <RequestNotice
+        requests={props.session.requests}
+        exposureId={props.entry.exposureId}
+        onOpen={() => {
+          void props.session.openReadyRequest();
+        }}
+      />
       <AskedForNotice entry={props.entry} state={props.state} />
       <ActionNotices {...props} />
     </View>

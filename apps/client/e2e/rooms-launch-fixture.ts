@@ -30,10 +30,16 @@ export const DECK = [
     explain: 'Light takes about eight minutes to cross the gap.',
   },
   {
-    prompt: 'Which is bigger, the Sun or Betelgeuse?',
-    options: ['The Sun', 'Betelgeuse'],
+    // Long on purpose: a real question runs to four lines and a reason to four more, and the replay sheet must still fit a phone.
+    prompt:
+      'Two bodies shine with about the same light as seen from Earth, but one is a distant red supergiant and the other a nearby dwarf. Which is bigger, the Sun or Betelgeuse, and by how much?',
+    options: [
+      'The Sun, because it is the one we orbit and the one that is the closest to us',
+      'Betelgeuse, a red supergiant hundreds of times wider than the Sun',
+    ],
     answer: 1,
-    explain: 'Betelgeuse is a red supergiant, hundreds of times wider.',
+    explain:
+      'Betelgeuse is a red supergiant, hundreds of times wider than the Sun. It looks small only because it is so far away, and the light we see from it left long before we were here to see it.',
   },
   {
     prompt: 'What makes the seasons?',

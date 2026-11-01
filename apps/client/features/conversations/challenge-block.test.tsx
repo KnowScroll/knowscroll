@@ -109,6 +109,25 @@ describe('a challenge card in Talk (D-245)', () => {
     expect(screen.getByText('Couldn’t lock it in.')).toBeOnTheScreen();
   });
 
+  it('says on the card, before any pick, that recording is paused, and does not let a call be locked', async () => {
+    const { element, onLock } = block(open, { recordingPaused: true });
+    await render(element);
+    expect(screen.getByTestId('challenge-notice')).toHaveTextContent(/Recording is paused./);
+    await fireEvent.press(screen.getByRole('radio', { name: 'Option B. Half moon' }));
+    expect(screen.getByTestId('challenge-lock')).toBeDisabled();
+    await fireEvent.press(screen.getByTestId('challenge-lock'));
+    expect(onLock).not.toHaveBeenCalled();
+  });
+
+  it('says nothing about recording once the person has called, or when it is on', async () => {
+    const waiting = block({ ...base, stage: 'locked', option: 2 }, { recordingPaused: true });
+    await render(waiting.element);
+    expect(screen.queryByTestId('challenge-notice')).not.toBeOnTheScreen();
+    await screen.unmount();
+    await render(block(open).element);
+    expect(screen.queryByTestId('challenge-notice')).not.toBeOnTheScreen();
+  });
+
   it('cannot be locked again while a pick is on its way', async () => {
     const { element, onLock } = block(open, { locking: true });
     await render(element);
