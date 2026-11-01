@@ -174,7 +174,8 @@ describe('Share a moment', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Share again' }));
     expect(await screen.findByText('Shared.')).toBeOnTheScreen();
     expect(mockSends).toHaveLength(2);
-    expect(new Set(mockSends.map((input) => JSON.stringify(input.body))).size).toBe(1);
+    // The command, not the body: the bodies of two different commands are equal too.
+    expect(new Set(mockSends.map((input) => input.commandId)).size).toBe(1);
   });
 
   it('says the thread cannot take it when the server refuses the anchor, and not that the Scroll was updated', async () => {
