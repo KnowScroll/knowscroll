@@ -19,6 +19,8 @@ const kitOf = (ground: keyof typeof ROOM_SWATCHES, ink: keyof typeof ROOM_SWATCH
 const dark: RoomIdentity = { kit: kitOf('midnight', 'cream') };
 const pale: RoomIdentity = { kit: kitOf('paper', 'soot') };
 
+jest.mock('expo-router', () => ({ useIsFocused: () => true }));
+
 const luminance = (hex: string) => {
   const channel = (offset: number) => {
     const value = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;

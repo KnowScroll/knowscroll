@@ -1,3 +1,4 @@
+import { useIsFocused } from 'expo-router';
 import { useRef, useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
 import { layout, radius, spacing, target } from '@knowscroll/design-tokens';
@@ -5,6 +6,7 @@ import { Text, useFocusRing } from '@knowscroll/ui';
 import { episodeKeys } from '../threads/episode-navigator';
 import { useBandTone } from './identity/band-tone';
 import { groundIsDark } from './identity/room-ground';
+import { RoomTabOpenProvider } from './room-tab-open';
 
 /** The three places a member's room has under its header (T3 "Rooms with residents"). */
 export type RoomTab = 'general' | 'feed' | 'topics';
@@ -137,6 +139,8 @@ function Panel({
   readonly open: boolean;
   readonly children: ReactNode;
 }) {
+  // Open means seen: a tab behind another, or a room behind a discussion pushed over it, plays, polls and records nothing.
+  const focused = useIsFocused();
   return (
     <View
       role="tabpanel"
@@ -149,7 +153,7 @@ function Panel({
       style={open ? styles.panel : hiddenPanel}
       testID={`room-panel-${tab}`}
     >
-      {children}
+      <RoomTabOpenProvider value={open && focused}>{children}</RoomTabOpenProvider>
     </View>
   );
 }
