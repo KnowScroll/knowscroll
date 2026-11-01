@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MIN_QUOTE_WORDS, quoteIsIn, type ContentRef } from '../../content/public.js';
+import { hasEnoughWords, quoteIsIn, type ContentRef } from '../../content/public.js';
 import type { ProposeOutcome, ReasoningContext, ReasoningRole } from '../../../reasoning/public.js';
 
 /** Changes with the instructions or the answer schema; recorded on every run and attempt. */
@@ -28,6 +28,8 @@ const SAFE_HINTS = {
   unknown_scroll: 'Copy the handle exactly from the library_scroll items, or answer null for both fields.',
   quote_without_scroll: 'Answer null for quote when scroll is null.',
   quote_required: 'When you choose a Scroll, give quote: words copied exactly from that Scroll’s text.',
+  quote_too_short:
+    'A quote is at least three words of the Scroll. Letters and numbers count as words; a dash or a mark does not.',
   quote_not_in_scroll: 'Copy the quote exactly, word for word, from the text of the Scroll you chose.',
 } as const;
 
@@ -52,8 +54,8 @@ export function askLibraryAnswerSchema(choices: readonly LibraryChoice[]) {
       const chosen = choices.find((choice) => choice.handle === answer.scroll);
       if (chosen === undefined) return issue('unknown_scroll');
       if (answer.quote === null) return issue('quote_required');
-      if (answer.quote.split(/\s+/u).length < MIN_QUOTE_WORDS || !quoteIsIn(answer.quote, chosen.text))
-        issue('quote_not_in_scroll');
+      if (!hasEnoughWords(answer.quote)) return issue('quote_too_short');
+      if (!quoteIsIn(answer.quote, chosen.text)) issue('quote_not_in_scroll');
     });
 }
 export type AskLibraryAnswer = z.infer<ReturnType<typeof askLibraryAnswerSchema>>;

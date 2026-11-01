@@ -1,5 +1,5 @@
-import { z } from 'zod'
-import { ContractVersion } from './version.ts'
+import { z } from 'zod';
+import { ContractVersion } from './version.ts';
 
 // Asking the engine to make a failed run again, keeping every piece already checked
 // (docs/features/resume-failed.md, Gate 2 "What the caller sees"; S-161, S-162). Version 1, amended
@@ -16,7 +16,7 @@ export const Piece = z.strictObject({
     .string()
     .regex(/^shot-(0|[1-9]\d*)$/, 'a shot is named shot-<n>, as the record names it')
     .optional(),
-})
+});
 
 /**
  * `POST /v1/runs/:runId/resume`. `remake` names the pieces made again; absent or empty keeps every
@@ -27,11 +27,11 @@ export const ResumeRequest = z.strictObject({
   contractVersion: ContractVersion,
   remake: z.array(Piece).optional(),
   preview: z.literal(true).optional(),
-})
+});
 
-const runId = z.string().min(1)
-const cents = z.number().int().nonnegative()
-const limit = z.enum(['reel', 'ceiling'])
+const runId = z.string().min(1);
+const cents = z.number().int().nonnegative();
+const limit = z.enum(['reel', 'ceiling']);
 
 /**
  * The figures a resume is admitted on (D-097, D-100). `estimateCents` is, as everywhere in this
@@ -44,7 +44,7 @@ const figures = {
   spentCents: cents,
   capCents: z.number().int().positive(),
   ceilingCents: z.number().int().positive(),
-}
+};
 
 export const ResumeResponse = z.union([
   /** 200: what the resume would make again, in shot order, and what it would cost. */
@@ -88,8 +88,8 @@ export const ResumeResponse = z.union([
     limit,
     ...figures,
   }),
-])
+]);
 
-export type Piece = z.infer<typeof Piece>
-export type ResumeRequest = z.infer<typeof ResumeRequest>
-export type ResumeResponse = z.infer<typeof ResumeResponse>
+export type Piece = z.infer<typeof Piece>;
+export type ResumeRequest = z.infer<typeof ResumeRequest>;
+export type ResumeResponse = z.infer<typeof ResumeResponse>;

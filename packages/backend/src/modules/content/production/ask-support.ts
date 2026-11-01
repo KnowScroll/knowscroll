@@ -2,10 +2,10 @@ import { z } from 'zod';
 import type { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import type { ContextItem, ReasoningRole } from '../../../reasoning/public.js';
 import {
-  MIN_QUOTE_WORDS,
   UNSUPPORTED_HINTS,
   UNSUPPORTED_KINDS,
   checkedRecord,
+  hasEnoughWords,
   quoteIsIn,
   splitSentences,
   statesFigure,
@@ -118,6 +118,8 @@ export const ASK_SUPPORT_INSTRUCTIONS = [
 /** Fixed hints for the harness's one repair of an unusable reply. They never echo what the checker wrote. */
 const SAFE_HINTS = {
   sentences_not_in_order: 'Give exactly one entry for every sentence, in the order given, with its number "n".',
+  quote_too_short:
+    'A quote is at least three words of the passage. Letters and numbers count as words; a dash or a mark does not.',
   quote_not_in_cited_passages:
     'For a "supported" sentence, copy the quote exactly, word for word, from one passage that the sentence cites.',
   figure_marked_no_claim: 'A sentence with a number states a fact: judge it "supported" or "unsupported".',
@@ -162,9 +164,9 @@ export function askSupportSchema(sentences: readonly SentenceUnderCheck[], passa
           issue('figure_marked_no_claim', ['sentences', index]);
         if (verdict.verdict !== 'supported') return;
         const cited = sentence.cites.flatMap((handle) => textOf.get(handle) ?? []);
-        const quoted =
-          verdict.quote.split(/\s+/u).length >= MIN_QUOTE_WORDS && cited.some((text) => quoteIsIn(verdict.quote, text));
-        if (!quoted) issue('quote_not_in_cited_passages', ['sentences', index, 'quote']);
+        if (!hasEnoughWords(verdict.quote)) return issue('quote_too_short', ['sentences', index, 'quote']);
+        if (!cited.some((text) => quoteIsIn(verdict.quote, text)))
+          issue('quote_not_in_cited_passages', ['sentences', index, 'quote']);
       });
       if (tooManyNoClaims(reply.sentences)) issue('too_many_no_claim', ['sentences']);
     });

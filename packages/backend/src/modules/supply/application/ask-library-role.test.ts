@@ -70,7 +70,9 @@ describe('the checker’s answer is validated by code (D-251)', () => {
   it('refuses a quote that is not in the text of the Scroll chosen, even when another candidate has it', () => {
     expect(codes({ scroll: 's1', quote: 'a horn that carries through the fog' })).toEqual(['quote_not_in_scroll']);
     expect(codes({ scroll: 's1', quote: 'the beam is made of invented words' })).toEqual(['quote_not_in_scroll']);
-    expect(codes({ scroll: 's1', quote: 'single beam' })).toEqual(['quote_not_in_scroll']);
+    // Two words and a dash are three pieces between spaces, and still two words.
+    expect(codes({ scroll: 's1', quote: 'single beam' })).toEqual(['quote_too_short']);
+    expect(codes({ scroll: 's1', quote: 'single — beam' })).toEqual(['quote_too_short']);
   });
 
   it('has fixed hints for each refusal and the instructions say that choosing none is a good answer', () => {
@@ -79,6 +81,7 @@ describe('the checker’s answer is validated by code (D-251)', () => {
     expect(Object.keys(role.safeCustomIssues ?? {}).sort()).toEqual([
       'quote_not_in_scroll',
       'quote_required',
+      'quote_too_short',
       'quote_without_scroll',
       'unknown_scroll',
     ]);

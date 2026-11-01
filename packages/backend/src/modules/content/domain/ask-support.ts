@@ -129,6 +129,12 @@ export function quoteIsIn(quote: string, text: string): boolean {
 /** The fewest words a quote may have: a single word proves nothing about a sentence. */
 export const MIN_QUOTE_WORDS = 3;
 
+/**
+ * Whether a quote has enough words. Words are letters and numbers (`wordsOf`): the pieces between spaces are not words, so a
+ * dash or a mark standing alone adds nothing.
+ */
+export const hasEnoughWords = (quote: string): boolean => wordsOf(quote).length >= MIN_QUOTE_WORDS;
+
 /** Whether a sentence states a figure. A sentence with a number is a claim, whatever the checker thinks. */
 export const statesFigure = (text: string): boolean => /\p{N}/u.test(text);
 

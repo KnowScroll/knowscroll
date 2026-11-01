@@ -32,6 +32,7 @@ const PASSAGES = [
     'Fog signals complement the beam, because light cannot cross a thick bank of fog for any useful distance.',
   ),
   passage(4, 'The tower stands twenty-one metres tall, which places the lamp high enough to clear distant waves.'),
+  passage(5, 'Near the poles the Sun is never directly overhead, because the planet’s axis is tilted a little.'),
 ];
 
 const ANSWER = AuthoredScroll.parse({
@@ -97,7 +98,7 @@ describe('the checker’s reply is validated by code', () => {
   const sentences: readonly SentenceUnderCheck[] = [
     { number: 1, text: 'A prism ring gathers the light into one beam.', cites: ['e2'] },
     { number: 2, text: 'The tower is 21 metres tall.', cites: ['e4'] },
-    { number: 3, text: 'So a sound signal helps.', cites: ['e3'] },
+    { number: 3, text: 'Does a sound signal help?', cites: ['e3'] },
   ];
   const schema = askSupportSchema(sentences, PASSAGES);
   const supported = (n: number, quote: string) => ({ n, verdict: 'supported', quote });
@@ -133,24 +134,44 @@ describe('the checker’s reply is validated by code', () => {
       'quote_not_in_cited_passages',
     );
     // Too short to prove anything.
-    expect(codes(parse([supported(1, 'prism ring'), good[1], good[2]]))).toContain('quote_not_in_cited_passages');
+    expect(codes(parse([supported(1, 'prism ring'), good[1], good[2]]))).toContain('quote_too_short');
   });
 
   it('refuses a sentence with a number marked as stating no fact', () => {
-    expect(
-      codes(
-        parse([good[0], { n: 2, verdict: 'no_claim' }, { n: 3, verdict: 'supported', quote: 'sound signal helps' }]),
-      ),
-    ).toContain('figure_marked_no_claim');
+    expect(codes(parse([good[0], { n: 2, verdict: 'no_claim' }, { n: 3, verdict: 'no_claim' }]))).toContain(
+      'figure_marked_no_claim',
+    );
   });
 
   it('refuses a reply that marks most sentences as stating no fact', () => {
-    const lazy = [
-      { n: 1, verdict: 'no_claim' },
-      { n: 2, verdict: 'supported', quote: 'stands twenty-one metres tall' },
-      { n: 3, verdict: 'no_claim' },
+    // Three questions are each allowed to state no fact, but an answer made only of them is not credible.
+    const questions: readonly SentenceUnderCheck[] = [
+      { number: 1, text: 'Does a sound signal help?', cites: ['e3'] },
+      { number: 2, text: 'Is the tower tall?', cites: ['e4'] },
+      { number: 3, text: 'Why does the beam turn?', cites: ['e2'] },
     ];
-    expect(codes(parse(lazy))).toContain('too_many_no_claim');
+    const lazy = askSupportSchema(questions, PASSAGES).safeParse({
+      sentences: questions.map((_question, index) => ({ n: index + 1, verdict: 'no_claim' })),
+    });
+    expect(codes(lazy)).toContain('too_many_no_claim');
+  });
+
+  describe('counts the words of a quote, not the pieces between spaces (B1.1)', () => {
+    // The false sentence of the dev run: the passage says the Sun is never overhead near a pole.
+    const sun: readonly SentenceUnderCheck[] = [
+      { number: 1, text: 'The Sun is nearly overhead at the pole in summer.', cites: ['e5'] },
+    ];
+    const sunReply = (quote: string) =>
+      askSupportSchema(sun, PASSAGES).safeParse({ sentences: [{ n: 1, verdict: 'supported', quote }] });
+
+    it('refuses a quote of two words and a dash, which has three pieces between spaces', () => {
+      expect(codes(sunReply('Sun — is'))).toEqual(['quote_too_short']);
+      expect(codes(sunReply('the - Sun'))).toEqual(['quote_too_short']);
+    });
+
+    it('accepts three words of the passage, whatever stands between them', () => {
+      expect(sunReply('is never directly overhead').success).toBe(true);
+    });
   });
 
   it('needs a kind from the fixed list and a problem for an unsupported sentence, and refuses anything else in the reply', () => {
@@ -190,6 +211,7 @@ describe('the role', () => {
     expect(Object.keys(role.safeCustomIssues ?? {}).sort()).toEqual([
       'figure_marked_no_claim',
       'quote_not_in_cited_passages',
+      'quote_too_short',
       'sentences_not_in_order',
       'too_many_no_claim',
     ]);
