@@ -132,6 +132,28 @@ describe('people and residents in the Feed (real PostgreSQL, CI fixture model)',
       }).toEqual(before);
     });
 
+    it('is called "A removed post" and shows nothing of the resident’s words once a moderator removes it', async () => {
+      const { roomId, slug, people } = await scene(2);
+      const [moderator, asha] = people as [Friend, Friend];
+      await makeModerator(world, slug, moderator);
+      const { discussionId } = unwrap(await introduceResident(world, moderator, roomId, 'skeptic'));
+      const read = async () => {
+        const view = await readDiscussion(world, asha, roomId, discussionId);
+        if (view.status !== 'ready') throw new Error('expected ready');
+        return view;
+      };
+      const before = await read();
+      expect(before.discussion.title).not.toBe('A removed post');
+      expect(before.discussion.post).toMatchObject({ canVote: true });
+      unwrap(await hideMessage(world, moderator, roomId, discussionId, before.messages[0]!.messageId));
+      const removed = await read();
+      expect(removed.discussion.title).toBe('A removed post');
+      expect(removed.discussion).not.toHaveProperty('post');
+      expect(
+        await readFeed(world, asha, roomId).then((feed) => feed.posts.map((post) => post.discussionId)),
+      ).not.toContain(discussionId);
+    });
+
     it('is one per resident: asking again is accepted, says so, and makes nothing', async () => {
       const { roomId, slug, people } = await scene(2);
       const [moderator] = people as [Friend];
