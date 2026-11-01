@@ -558,7 +558,7 @@ describe('peopleâ€™s posts and votes in the Feed (real PostgreSQL)', () => {
   });
 
   describe('the replies a reader is told of', () => {
-    it('counts only the replies the reader’s thread shows: an Off reader is not counted a resident’s own reply, a blocked person’s reply is left out', async () => {
+    it('counts only the replies the readerâ€™s thread shows: an Off reader is not counted a residentâ€™s own reply, a blocked personâ€™s reply is left out', async () => {
       const reel = await libraryReel(world.db, 'A post with replies');
       const { roomId, people } = await scene(4);
       const [asha, ravi, kenji, lena] = people as [Friend, Friend, Friend, Friend];

@@ -199,7 +199,7 @@ describe('the replies a reader is told of (D-299)', () => {
   it('leaves out what an Off reader is told nothing of, but keeps an answer someone asked a resident for', () => {
     expect(repliesShownTo(groups, { aiOff: true, blocked: new Set() })).toBe(3);
   });
-  it('leaves out a blocked person’s replies and a blocked member’s scout', () => {
+  it('leaves out a blocked personâ€™s replies and a blocked memberâ€™s scout', () => {
     expect(repliesShownTo(groups, { aiOff: false, blocked: new Set(['kenji', 'lena']) })).toBe(2);
   });
 });

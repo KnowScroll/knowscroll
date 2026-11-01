@@ -3534,7 +3534,7 @@ Confirmed by: `scenarios.test.ts` on real PostgreSQL (a draft already used, and 
 
 Confirmed by: `shared-links-panel.test.tsx` and `visibility-panel.test.tsx` (while clearing, the load failure is replaced by the Clear's line and then the content appears when it is done; with no Clear the failure and Try again remain), `clear-panel` through `privacy-screen.test.tsx` (the receipt is unchanged). Shown failing when the panel ignored the Clear.
 
-## D-298 · 2026-11-02 · A Launch is settled by a job at its end, not by a device that opens the room (v3 dev check fixes, #619)
+## D-298 Â· 2026-11-02 Â· A Launch is settled by a job at its end, not by a device that opens the room (v3 dev check fixes, #619)
 
 **Amends** D-178 ("no job"), D-224's settlement at the end and the client rule that a device says it saw the end.
 
@@ -3545,7 +3545,7 @@ Confirmed by: `shared-links-panel.test.tsx` and `visibility-panel.test.tsx` (whi
 
 Confirmed by: `rooms-launch.test.ts` ("the settling job"), `room-launch.test.ts` ("sends no command when it finds the Launch over"), `rooms-launch-smoke.spec.ts` (no `/finish` call). Shown failing when the app still sent finish on load.
 
-## D-299 · 2026-11-02 · A post's reply count is the number of replies the reader's thread shows (v3 dev check fixes, #619)
+## D-299 Â· 2026-11-02 Â· A post's reply count is the number of replies the reader's thread shows (v3 dev check fixes, #619)
 
 **Amends** D-274 for the reply count only; votes and the order stay the same for every reader.
 
