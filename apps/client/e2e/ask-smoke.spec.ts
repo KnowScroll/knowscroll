@@ -1,4 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import { encounterFixture, id, type EncounterFixtureOptions } from './encounter-fixture';
@@ -30,6 +32,15 @@ async function open(page: Page, viewport = phone, options: Pick<EncounterFixture
 const askButton = (page: Page) => page.getByRole('button', { name: /^Ask/ }).first();
 const asked = (served: Awaited<ReturnType<typeof open>>) =>
   served.commands.filter((command) => command.path === '/v1/content/requests');
+
+/** Screenshots are written only when `KS_ASK_SHOTS` names a folder (outside the repository). */
+async function shot(page: Page, name: string) {
+  const folder = process.env['KS_ASK_SHOTS'];
+  if (folder === undefined) return;
+  mkdirSync(folder, { recursive: true });
+  await page.waitForTimeout(450);
+  await page.screenshot({ path: join(folder, `${name}.png`) });
+}
 
 async function audit(page: Page) {
   const results = await new AxeBuilder({ page })
@@ -70,6 +81,29 @@ for (const viewport of [phone, desktop]) {
     await page.getByTestId('ask-making').getByRole('button', { name: 'Keep reading' }).click();
     await expect(sheet).toHaveCount(0);
     await expect(page.getByText("We'll let you know when your answer is ready")).toBeVisible();
+  });
+
+  test(`on a Scroll's own address a Reel that does not exist is asked for from the format switch, the same at ${size}`, async ({
+    page,
+  }) => {
+    const served = await encounterFixture(page, 'scroll', {
+      viewport,
+      direct: { parts: 1 },
+      scrollDocument: seasons as unknown as Record<string, unknown>,
+    });
+    await page.goto(`/scroll/${id(300)}`);
+    await expect(page.getByTestId('scroll-reader')).toBeVisible();
+    // The switch is the same at every width: the Reel is there to ask for, not dimmed and not disabled.
+    const reel = page.getByRole('radio', { name: 'Reel' });
+    await expect(reel).toBeVisible();
+    await expect(reel).toBeEnabled();
+    await expect(page.getByRole('radio', { name: /unavailable/ })).toHaveCount(0);
+    await shot(page, `format-switch-${String(viewport.width)}`);
+    await reel.click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet).toBeVisible();
+    await shot(page, `format-request-${String(viewport.width)}`);
+    expect(asked(served)).toEqual([]);
   });
 
   test(`the sheet starts from what was just read, says what will be made and sends nothing yet, at ${size}`, async ({
