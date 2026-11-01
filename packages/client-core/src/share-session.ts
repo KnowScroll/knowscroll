@@ -14,6 +14,14 @@ const FRIENDS_PAGE = 50;
 const MAX_FRIEND_PAGES = 4;
 const MAX_NOTE = 500;
 
+/**
+ * The public links an account scope has made, by exact revision. A link's token is a bearer secret the server keeps only as
+ * a hash, so the only copy is the one the creating response carried: held here, in memory and with the scope, so that
+ * "Copy link" a second time copies the link that is already live instead of making another share.
+ */
+const madeLinks = new WeakMap<AccountScope, Map<string, { readonly url: string; readonly shareId: string }>>();
+const linkKey = (target: ConversationContentRef) => `${target.assetId}:${String(target.assetRevision)}`;
+
 /** A friend the person can send to, with the open conversation when there is one. */
 export interface ShareTarget {
   readonly person: PublicPersonRef;
@@ -70,7 +78,10 @@ export interface ShareSession {
   readonly setPick: (option: number | undefined) => void;
   /** Starts the conversation if needed, then sends the card. Calling it again retries the same command. */
   readonly send: () => Promise<void>;
-  /** Makes a public link and copies it; the link is a bearer secret held only in memory. */
+  /**
+   * Copies the person's live public link to this exact revision, making one only when there is none. The link is a bearer
+   * secret held only in memory, so a link made before the app was reloaded cannot be copied again and a new one is made.
+   */
   readonly copyLink: () => Promise<void>;
   /** Revokes the link just made. */
   readonly stopLink: () => Promise<void>;
@@ -244,10 +255,35 @@ export function createShareSession(options: ShareSessionOptions): ShareSession {
     }
   }
 
+  /** The link this scope already made for this revision, if the server still answers for it. */
+  async function liveLink(): Promise<{ readonly url: string; readonly shareId: string } | undefined> {
+    const made = madeLinks.get(scope)?.get(linkKey(target));
+    if (made === undefined) return undefined;
+    const own = await scope.api.contentShares.list({ version: SHARE_VERSION, readId: newId() });
+    if (own.items.some((item) => item.shareId === made.shareId)) return made;
+    madeLinks.get(scope)?.delete(linkKey(target));
+    return undefined;
+  }
+
+  function rememberLink(link: { readonly url: string; readonly shareId: string }): void {
+    const links = madeLinks.get(scope) ?? new Map();
+    links.set(linkKey(target), link);
+    madeLinks.set(scope, links);
+  }
+
   async function createLink(): Promise<void> {
     if (state.link.status === 'creating' || state.link.status === 'stopping') return;
     publish({ link: { status: 'creating' } });
     try {
+      const live = await liveLink();
+      if (live !== undefined) {
+        const copied = await copyText(live.url).then(
+          () => true,
+          () => false,
+        );
+        publish({ link: { status: 'ready', url: live.url, shareId: live.shareId, copied } });
+        return;
+      }
       let attempts = 0;
       for (;;) {
         const commandId = (linkIntent ??= newId());
@@ -264,6 +300,7 @@ export function createShareSession(options: ShareSessionOptions): ShareSession {
             () => false,
           );
           linkIntent = undefined;
+          rememberLink({ url, shareId: made.acceptance.shareId });
           publish({ link: { status: 'ready', url, shareId: made.acceptance.shareId, copied } });
           return;
         }
@@ -288,6 +325,7 @@ export function createShareSession(options: ShareSessionOptions): ShareSession {
     publish({ link: { status: 'stopping' } });
     try {
       await scope.api.contentShares.revoke({ version: SHARE_VERSION, commandId: newId(), shareId: current.shareId });
+      madeLinks.get(scope)?.delete(linkKey(target));
       publish({ link: { status: 'stopped' } });
     } catch (error) {
       if (talkFailure(error) !== 'ended') publish({ link: current });

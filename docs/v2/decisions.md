@@ -3315,3 +3315,14 @@ Confirmed by: `reader-back-smoke.spec.ts` at 390 and 1440 (after More, Account a
 - **Not changed.** What a recorder counts as played (its samples already required the intent), and how a Reel that was playing under a sheet plays on when it closes.
 
 Confirmed by: `reel-player.test.tsx` (a player the SDK calls playing that nobody pressed Play on is captured as not playing; after Play it is, and after a pause it is not) and `reader-back-smoke.spec.ts` at 390 and 1440 (a paused Reel is still paused after the Share sheet closes with Esc and then, a second time, with Back). Shown failing before the change: the second close played the Reel on.
+
+## D-288 · 2026-11-01 · "Copy link" again copies the live link the account already made (v3 dev check fixes, #609)
+
+**Builds on** D-186's public link (a bearer secret the server keeps only as a hash). **Amends** the share session's "Makes a public link and copies it".
+
+- **The defect.** Each press of Copy link, and "Copy link again" in the same sheet, made a new public share. Two taps left two live links to the same Scroll in Privacy's shared links.
+- **The rule.** The account scope remembers the link it made for an exact revision, in memory only (a bearer secret is not stored on the device). Copy link first looks for it: if the server still lists that share as live, it copies the same address and makes nothing. If the person stopped it, here or in Privacy, or it was never made in this app session, a new one is made. A different revision is a different link.
+- **What it cannot do.** The server holds only the token's hash, so a link made before the app was reloaded cannot be copied again. The first Copy link after a reload makes a new share, and the old one stays live until the person stops it in Privacy. This is why the memory is the account scope's and not the sheet's: closing and reopening the sheet reuses the link, reloading does not.
+- **Not changed.** The server, the lifetime of a link, a private link to a conversation, and stopping a link.
+
+Confirmed by: `share-session.test.ts` (three presses make one share and copy one address; a later sheet of the same account reuses it; another revision gets its own; a link stopped in the sheet or in the shared links list is not reused). Shown failing when the remembered link was not looked up.
