@@ -29,6 +29,8 @@ export type FeedbackTarget =
       readonly format: 'reel' | 'scroll';
       /** Where the person was: the moment of a Reel or the block of a Scroll. */
       readonly anchor?: ContentErrorAnchor;
+      /** The Quick answer the report is about: the server keeps its words with the report (D-255). */
+      readonly quickAnswerId?: string;
     }
   | { readonly kind: 'message'; readonly messageId: string; readonly author?: ReportedPerson }
   | { readonly kind: 'room_message'; readonly messageId: string; readonly author?: ReportedPerson }
@@ -167,6 +169,7 @@ export function createReportFlow(options: ReportFlowOptions): ReportFlow {
         category: form.contentCategory,
         ...(form.anchored && target.anchor !== undefined ? { anchor: target.anchor } : {}),
         ...(note === undefined ? {} : { note }),
+        ...(target.quickAnswerId === undefined ? {} : { quickAnswerId: target.quickAnswerId }),
       };
       return { kind: 'content_error', request };
     }

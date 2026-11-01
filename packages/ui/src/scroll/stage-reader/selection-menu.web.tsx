@@ -21,6 +21,8 @@ export function selectedInReadStop(): Selected | undefined {
   const range = selection.getRangeAt(0);
   const anchor = range.commonAncestorContainer;
   const element = anchor instanceof Element ? anchor : anchor.parentElement;
+  // A Quick answer sits inside its stop, and words in it are not the Scroll's: no Simpler and no Ask on them.
+  if (element?.closest('[data-ks-no-ask]')) return undefined;
   const stop = element?.closest('[data-ks-stop]') ?? null;
   const stopId = stop?.getAttribute('data-ks-stop');
   if (stop === null || stopId === undefined || stopId === null || stop.getAttribute('data-ks-kind') !== 'read')

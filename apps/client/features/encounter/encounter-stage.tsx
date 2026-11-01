@@ -94,11 +94,11 @@ export function StageEncounter({
             if (stopId === undefined) session.openRequest();
             else session.openRequest('ask', { stopId });
           },
-          // "Ask" on selected words opens Ask from here at the stop, with the words as the first draft of the question the
-          // person may change (D-244). Quick answer itself is S-9b (D-086).
-          askAbout: (stopId, passage) => {
+          // "Make it a full Scroll" under a Quick answer opens Ask from here at the stop, with the selected words as the first
+          // draft of the question the person may change (D-244, D-253).
+          makeScroll: (stopId, passage, question) => {
             session.openRequest('ask', { stopId });
-            session.requests.edit({ about: true, text: `Tell me more about “${passage}”`.slice(0, 280) });
+            session.requests.edit({ about: true, text: (question ?? `Tell me more about “${passage}”`).slice(0, 280) });
           },
           formatSwitch: <EncounterFormatSwitch entry={entry} session={session} showIcons={!narrow} terse={narrow} />,
           format: () =>

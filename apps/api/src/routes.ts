@@ -17,6 +17,7 @@ import { RegionEncounterController } from './http/region-encounter.controller.js
 import { KeepController } from './http/keep.controller.js';
 import { PrivacyController } from './http/privacy.controller.js';
 import { ScenesController } from './http/scenes.controller.js';
+import { QuickAnswersController } from './http/quick-answers.controller.js';
 import { SupplyController } from './http/supply.controller.js';
 import { GeographyController } from './http/geography.controller.js';
 import { MediaController } from './http/media.controller.js';
@@ -42,6 +43,7 @@ export const apiControllers = [
   MediaController,
   RoomBackdropController,
   SupplyController,
+  QuickAnswersController,
   GeographyController,
   ScenesController,
   KeepController,

@@ -4,6 +4,7 @@ import { content, layout, spacing } from '@knowscroll/design-tokens';
 import {
   BottomSheet,
   Button,
+  QuickAnswerCard,
   ReaderDock,
   ReaderTopBar,
   StageReader,
@@ -12,9 +13,14 @@ import {
   type StageReaderHandle,
   type StageReadingObserver,
 } from '@knowscroll/ui';
+import { QUICK_ANSWER_LABEL, QUICK_ANSWER_QUESTION_MAX } from '@knowscroll/contracts';
+import type { FeedbackTarget } from '@knowscroll/client-core';
+import { FeedbackSheetBody } from '../feedback/feedback-sheet';
 import { challengeCallOf } from '../sharing/challenge-call';
 import { ChallengeSheet } from '../sharing/challenge-sheet';
 import type { OpenedStageScroll } from './scroll-session';
+import { quickAnswerViewOf } from './quick-answer-copy';
+import { useQuickAnswers } from './use-quick-answers';
 import { useStagePlay } from './use-stage-play';
 
 /** What the surface needs from the screen it is on: where each move goes. Each is also a gesture and a key in the reader. */
@@ -31,11 +37,11 @@ export interface StageMoves {
   readonly format?: (() => void) | undefined;
   readonly done?: (() => void) | undefined;
   /**
-   * Opens Ask from here anchored to a stop, with the words the reader selected as the first draft of the question (D-244).
-   * Absent where a screen offers no Ask (the selection toolbar then holds Simpler alone). The Explore encounter and the
-   * direct `/scroll/<id>` route both offer it (D-262).
+   * "Make it a full Scroll" under a Quick answer: opens Ask from here anchored to a stop, with the words the reader selected as
+   * the first draft of the question (D-244, D-253). Absent where a screen offers no Ask; the Explore encounter
+   * and the direct `/scroll/<id>` route both offer it (D-262).
    */
-  readonly askAbout?: ((stopId: string, passage: string) => void) | undefined;
+  readonly makeScroll?: ((stopId: string, passage: string, question?: string) => void) | undefined;
 }
 
 /** Hands one value to a ref of either kind. */
@@ -87,6 +93,9 @@ export function StageReaderSurface({
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [challenging, setChallenging] = useState(false);
+  const [reporting, setReporting] = useState<FeedbackTarget>();
+  // Quick answers on this Scroll: asked from the selection menu, drawn under the stop, never part of the Scroll (D-253).
+  const quick = useQuickAnswers(scroll);
   // The reader's own handle is kept here too, because the ••• menu switches the stop on screen to its plainer words.
   const reader = useRef<StageReaderHandle | null>(null);
   const readerRef = useCallback(
@@ -108,7 +117,7 @@ export function StageReaderSurface({
         <StageReader
           document={document}
           observer={observer}
-          paused={paused === true || moreOpen || challenging}
+          paused={paused === true || moreOpen || challenging || reporting !== undefined}
           initialStopId={initialStopId}
           handleRef={readerRef}
           onStopChange={onStopChange}
@@ -125,7 +134,36 @@ export function StageReaderSurface({
             previousPart: moves.previousPart,
             nextTopic: moves.nextTopic,
             challenge: canChallenge ? () => setChallenging(true) : undefined,
-            askAbout: moves.askAbout,
+            askAbout:
+              quick === undefined ? undefined : (stopId, passage) => void quick.session.ask({ stopId, passage }),
+          }}
+          stopFooter={(stopId) => {
+            const card = quick?.snapshot.cards[stopId];
+            if (quick === undefined || card === undefined) return null;
+            return (
+              <QuickAnswerCard
+                view={quickAnswerViewOf(card, moves.makeScroll !== undefined)}
+                label={card.phase === 'answered' ? card.label : QUICK_ANSWER_LABEL}
+                followUpMax={QUICK_ANSWER_QUESTION_MAX}
+                onMakeScroll={() =>
+                  moves.makeScroll?.(stopId, card.passage, card.phase === 'answered' ? card.question : undefined)
+                }
+                onReport={() => {
+                  if (card.phase !== 'answered') return;
+                  setReporting({
+                    kind: 'asset',
+                    assetId: scroll.assetId,
+                    assetRevision: scroll.assetRevision,
+                    title: document.title,
+                    format: 'scroll',
+                    anchor: { kind: 'scroll', blockId: stopId },
+                    quickAnswerId: card.id,
+                  });
+                }}
+                onFollowUp={(question) => void quick.session.ask({ stopId, passage: card.passage, question })}
+                onClose={() => quick.session.dismiss(stopId)}
+              />
+            );
           }}
           header={
             <View style={{ paddingTop: topInset }}>
@@ -181,6 +219,11 @@ export function StageReaderSurface({
           </View>
         </BottomSheet>
       )}
+      <BottomSheet visible={reporting !== undefined} title="Report" onClose={() => setReporting(undefined)}>
+        {reporting === undefined ? null : (
+          <FeedbackSheetBody target={reporting} start="content_error" onClose={() => setReporting(undefined)} />
+        )}
+      </BottomSheet>
       <BottomSheet visible={challenging} title="Challenge a friend" onClose={() => setChallenging(false)}>
         <ChallengeSheet scroll={scroll} onClose={() => setChallenging(false)} />
       </BottomSheet>

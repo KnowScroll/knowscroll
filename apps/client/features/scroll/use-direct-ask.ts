@@ -81,10 +81,14 @@ export function useDirectAsk(scope: AccountScope, scroll: OpenedStageScroll, cur
     }, [session]),
     /** Ask from the stop on screen. */
     openAsk: useCallback(() => ask(currentStop()), [ask, currentStop]),
-    /** Ask about the words the reader selected, which become the first draft of the question (D-244). */
+    /**
+     * "Make it a full Scroll" under a Quick answer: Ask from here at the stop, with the answer's question (or the selected
+     * words) as the first draft the person may change (D-244, D-253).
+     */
     openAbout: useCallback(
-      (stopId: string, passage: string) => {
-        if (ask(stopId)) session.edit({ about: true, text: `Tell me more about “${passage}”`.slice(0, 280) });
+      (stopId: string, passage: string, question?: string) => {
+        if (ask(stopId))
+          session.edit({ about: true, text: (question ?? `Tell me more about “${passage}”`).slice(0, 280) });
       },
       [ask, session],
     ),
