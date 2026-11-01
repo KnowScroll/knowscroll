@@ -492,6 +492,31 @@ export type ReadLibraryCalls = (
 export const READ_LIBRARY_CALLS = Symbol('content.readLibraryCalls');
 
 /**
+ * One admitted library asset a room's resident may post about (v3 R-8, D-248): a Reel or a Scroll that is the current revision of
+ * its asset, that anyone may be served (not held by the review gate, not made for a thread), with the title and summary its
+ * authors wrote. Shared public content: no person, no scope. Nothing here says who watched or read it.
+ */
+export interface LibraryFindSource {
+  readonly assetId: string;
+  readonly assetRevision: number;
+  readonly kind: 'reel' | 'scroll';
+  readonly title: string;
+  readonly summary: string;
+}
+
+/**
+ * The admitted library assets under a topic, newest first: a system covers every planet of it, a planet is its own. At most `limit`
+ * (1 to 100). With `only` the read is for that one exact revision, found only while it is still a served asset under the topic, so the
+ * check that a post's asset still stands never depends on how many others the topic has.
+ */
+export type ReadLibraryFinds = (
+  topic: { readonly kind: 'system' | 'planet'; readonly id: string },
+  limit: number,
+  only?: { readonly assetId: string; readonly assetRevision: number },
+) => Promise<readonly LibraryFindSource[]>;
+export const READ_LIBRARY_FINDS = Symbol('content.readLibraryFinds');
+
+/**
  * Scrolls ordered from code (D-049). A module that holds shared work (a scenario branch) builds a
  * brief, a framing and the research pages itself and orders a Scroll. Content stores the order,
  * researches the pages, writes the Scroll through the same production job and admits it, and adds

@@ -218,6 +218,17 @@ describe('process configuration', () => {
       readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: '0' }),
     ).toThrow();
   });
+  it('keeps the residents’ feed off by default, apart from residents themselves (v3 R-8, D-248)', () => {
+    const env = { DATABASE_URL: secretUrl, KS_WORLD: 'local' };
+    expect(readWorkerConfig(env).reasoning.roomFeedEnabled).toBe(false);
+    expect(readWorkerConfig({ ...env, KS_ROOMS_FEED_ENABLED: '1' }).reasoning).toMatchObject({
+      roomFeedEnabled: true,
+      roomEnabled: false,
+    });
+    expect(configurationError(() => readWorkerConfig({ ...env, KS_ROOMS_FEED_ENABLED: 'yes' })).problems).toEqual([
+      'KS_ROOMS_FEED_ENABLED: not_allowed',
+    ]);
+  });
   it('keeps residents off by default, with caps of their own and an ambient share of the global cap (D-162)', () => {
     const env = { DATABASE_URL: secretUrl, KS_WORLD: 'local' };
     const settings = readWorkerConfig(env).reasoning;
@@ -537,6 +548,7 @@ describe('process configuration', () => {
       productionEnabled: false,
       roomEnabled: false,
       roomGeneration: 1,
+      roomFeedEnabled: false,
       caps: {
         global: { requestsPerDay: 300, tokensPerDay: 3_000_000 },
         scope: { requestsPerDay: 60, tokensPerDay: 600_000 },

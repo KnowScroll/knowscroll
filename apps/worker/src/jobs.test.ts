@@ -2,7 +2,12 @@ import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { releaseQueues } from '@knowscroll/backend/job-queues';
 import { COMPOSE_ENCOUNTER, type ComposeEncounter, type ComposerSnapshot } from '@knowscroll/backend/modules/composer';
-import { RUN_NIGHTLY_RITUALS, nightlyRitualsQueue } from '@knowscroll/backend/modules/rooms';
+import {
+  RUN_FEED_HEARTBEAT,
+  RUN_NIGHTLY_RITUALS,
+  feedHeartbeatQueue,
+  nightlyRitualsQueue,
+} from '@knowscroll/backend/modules/rooms';
 import { jobWiring } from './jobs.js';
 import { WORKER_CONFIG } from './tokens.js';
 
@@ -53,6 +58,24 @@ describe('the night’s ritual batch (rooms.nightly-rituals, D-176)', () => {
   it('has its consumer built from the worker wiring', () => {
     const provided = jobWiring.filter(
       (provider) => typeof provider === 'object' && 'provide' in provider && provider.provide === RUN_NIGHTLY_RITUALS,
+    );
+    expect(provided).toHaveLength(1);
+  });
+});
+
+describe('the residents’ heartbeat (rooms.feed-heartbeat, v3 R-8, D-248)', () => {
+  it('is a declared release queue that looks three times a day, at the start of each 8-hour slot, with a payload of its version only', () => {
+    const declared = releaseQueues.find((queue) => queue.name === feedHeartbeatQueue.name);
+    expect(declared?.schedule).toEqual({ cron: '7 0,8,16 * * *', payload: { v: 1 } });
+    expect(feedHeartbeatQueue.payload.safeParse({ v: 1 }).success).toBe(true);
+    // It names no person and no universe: its work is the room's own.
+    expect(feedHeartbeatQueue.payload.safeParse({ v: 1, universeId: 'x' }).success).toBe(false);
+    expect(feedHeartbeatQueue.payload.safeParse({ v: 1, roomId: 'x' }).success).toBe(false);
+  });
+
+  it('has its consumer built from the worker wiring', () => {
+    const provided = jobWiring.filter(
+      (provider) => typeof provider === 'object' && 'provide' in provider && provider.provide === RUN_FEED_HEARTBEAT,
     );
     expect(provided).toHaveLength(1);
   });
