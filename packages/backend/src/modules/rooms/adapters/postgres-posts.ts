@@ -3,7 +3,7 @@ import { sharedTransactionOf } from '../../../infrastructure/postgres/personal-s
 import type { PostStore } from '../application/ports.js';
 
 /**
- * A member's posts to the Feed and the votes on every post (migration 0097). Every method is one explicit query inside the room's
+ * A member's posts to the Feed and the votes on every post (migration 0098). Every method is one explicit query inside the room's
  * lock and the caller's personal transaction; none decides access. A vote is a row of its voter, and nothing here reads one back as
  * a list: the Feed counts rows and asks only whether the reader's own is among them.
  */

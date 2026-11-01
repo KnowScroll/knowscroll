@@ -77,6 +77,9 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
         checkPlanner: makeCheckPlannerRecordingRun({ store: plannerStore, now: base.now }),
         checkGeography: makeCheckGeographyRecordingRun({ store: geographyStore, now: base.now }),
         checkSupply: () => Promise.resolve('unavailable' as const),
+        checkScenarios: () => Promise.resolve('unavailable' as const),
+        checkRooms: () => Promise.resolve('unavailable' as const),
+        checkComposer: () => Promise.resolve('unavailable' as const),
       });
       const forbidden = () => {
         throw new Error('CI unadmitted run has no ledger run to apply under or close');

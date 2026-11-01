@@ -472,6 +472,14 @@ export type FencePersonalRecording = (
   | { readonly kind: 'paused' | 'stale'; readonly currentGeneration: number }
   | { readonly kind: 'generation_required' | 'unavailable' }
 >;
+/**
+ * Where the person's recording is right now, for work that will run later under the generation it started at. `recording` names
+ * the generation; `paused` means no run may start. It authorises nothing by itself: the run's own fence (`FencePersonalRecording`)
+ * still holds the root and checks the generation again at every private read and write.
+ */
+export type ReadPersonalRecordingNow = (
+  scope: PersonalScopeTx,
+) => Promise<{ readonly kind: 'recording'; readonly generation: number } | { readonly kind: 'paused' | 'unavailable' }>;
 export const RECORDING_POLICY_USE_CASES = Symbol('identity.recordingPolicy');
 export const FENCE_PERSONAL_RECORDING = Symbol('identity.fencePersonalRecording');
 

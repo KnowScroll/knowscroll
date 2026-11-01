@@ -4,6 +4,7 @@ import type {
   FenceOwnAccount,
   FencePersonalRecording,
   PersonalScopeTx,
+  ReadPersonalRecordingNow,
   RecordingScopeTx,
   WithPersonalScope,
 } from '../../modules/identity/public.js';
@@ -83,6 +84,7 @@ export function makePersonalReasoningAccess(p: {
   readonly withScope: WithPersonalScope;
   readonly fenceOwn: FenceOwnAccount;
   readonly fenceRecording: FencePersonalRecording;
+  readonly readRecording: ReadPersonalRecordingNow;
   readonly ledger: AttemptLedger;
   readonly checkOwner?: CheckPersonalRecordingRun;
 }): PersonalHarnessAccess {
@@ -271,6 +273,18 @@ export function makePersonalReasoningAccess(p: {
       )
         throw new PersonalReasoningRefused('run_mismatch');
       return p.ledger.closeRun(scope.personal, run);
+    },
+    async currentGeneration(scope) {
+      transactionOf(scope);
+      const now = await p.readRecording(scope);
+      return now.kind === 'recording' ? now.generation : undefined;
+    },
+    async currentOwner(scope) {
+      transactionOf(scope);
+      const own = await p.fenceOwn(scope);
+      if (own.kind !== 'active') return undefined;
+      const now = await p.readRecording(scope);
+      return now.kind === 'recording' ? { accountId: own.owner.accountId, generation: now.generation } : undefined;
     },
     async closeLegacy(scope, run) {
       transactionOf(scope);

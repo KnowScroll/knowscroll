@@ -229,8 +229,8 @@ has moved on does nothing (`session_superseded`), so a newer activation supersed
 The primary key (universe, mode) keeps one buffer per person: preparing replaces the previous one and
 deletes its decision. A redelivery finds the buffer already prepared and does nothing.
 
-**Jev.** `composer.jev` (role version `jev.2`, D-193) runs on the shared reasoning harness (`REASONING_HARNESS`)
-inside the buffer job, outside any transaction. For up to 20 of the best eligible candidates by the
+**Jev.** `composer.jev` (role version `jev.2`, D-193) runs on the recording-aware personal harness
+(`RECORDING_REASONING_HARNESS`, D-270) inside the buffer job, outside any transaction. For up to 20 of the best eligible candidates by the
 deterministic baseline it returns three criteria per candidate, each in [0,1]: relevance to the current
 step, appropriateness as a next explanation and redundancy with the current step. Code combines them:
 `SemanticFit = 0.4 relevance + 0.4 appropriateness + 0.2 (1 - redundancy)`. Entries naming an unknown or
@@ -241,9 +241,22 @@ request is never resent. `jev.2` describes each item by public facts of its cont
 has, its reading minutes, `Series: part n of m` and the common myth it corrects (so two Scrolls that bust the same myth
 are seen as redundant), with the summary cut to fit 900 characters before any of that is. Which option anyone picked,
 whether it was right, sparks and tiers are not in the context and have no field in it (D-063). A stored assessment
-made under `jev.1` is not reused. `KS_JEV_ENABLED` defaults to 0 and is meant to be 1 on dev. Limit: the generic
-personal harness only runs while recording is at its initial generation (a person who has used Pause has no
-Jev until the recording-aware harness accepts a Composer purpose).
+made under `jev.1` is not reused. `KS_JEV_ENABLED` defaults to 0 and is meant to be 1 on dev.
+
+**Jev follows the recording generation (D-270).** The buffer job names no generation, so the first transaction reads the
+generation recording is at (`startRunOwner`) and Jev's run is stamped with it (`purpose` `jev-assessment`, claim the exposure
+the job is for). While recording is paused Jev is absent (`refused_scope_refused`): no run, no call, and the buffer is ranked
+from the baseline as before. When a run was made, the second transaction (the paid assessments, the decision, the buffer and
+the run's close) is one transaction under the recording fence (`commitUnderFence` in `application/prepare-buffer.ts`). A reply
+that comes back after a pause or a resume is refused by the engine (`refused_output_ineligible`): there is no run to close, Jev
+is absent, and the plain commit stores the baseline decision and buffer at the new generation (a ranking derived from earlier
+data, not evidence; nothing of the late reply is in it). After a Clear the root refuses the plain commit too, so nothing is
+stored. A change only in the gap between accepting the reply and
+storing it refuses that whole transaction: nothing is stored (`recording_changed`; the run is left for the ledger's idle sweep)
+and the next navigation ranks for itself. Jev's owner check (`application/check-recording-run.ts`) asks Experience
+whether the exposure was activated while recording was on (`CHECK_RECORDED_ACTIVATION`), so an exposure activated while recording
+was paused is never assessed, even when its job runs after a resume (the buffer is still ranked from the baseline). It does not
+ask whether the session has moved on, because a superseded job still keeps what it paid for. Status: implemented, CI-verified on real PostgreSQL.
 
 **Jev reuses what it paid for (D-058).** A buffer is prepared on every activation, so a person who swipes
 all day would otherwise pay for a call per swipe. Each judgement is therefore kept for 30 minutes in the
