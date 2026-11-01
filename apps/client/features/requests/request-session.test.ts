@@ -237,15 +237,47 @@ describe('request consumer over actual scoped HTTP fixture transport', () => {
       h.scope.end();
     }
   });
-  it('stops after twelve automatic reads without creating another command', async () => {
+  it('reads twelve times quickly, then every twelve seconds for ten minutes, and stops without creating another command', async () => {
+    jest.useFakeTimers();
+    const h = requestHarness();
+    const reads = () => h.calls.filter((call) => call.method === 'GET').length;
+    try {
+      ask(h);
+      await jest.advanceTimersByTimeAsync(0);
+      await jest.advanceTimersByTimeAsync(60_000);
+      expect(reads()).toBe(13);
+      await jest.advanceTimersByTimeAsync(12_000);
+      expect(reads()).toBe(14);
+      await jest.advanceTimersByTimeAsync(12 * 60_000);
+      expect(reads()).toBe(63);
+      expect(posts(h)).toHaveLength(1);
+    } finally {
+      h.scope.end();
+      jest.useRealTimers();
+    }
+  });
+
+  it('keeps reading after Try again until the request settles, then shows it closed', async () => {
     jest.useFakeTimers();
     const h = requestHarness();
     try {
       ask(h);
       await jest.advanceTimersByTimeAsync(0);
-      await jest.advanceTimersByTimeAsync(120000);
-      expect(h.calls.filter((call) => call.method === 'GET')).toHaveLength(13);
-      expect(posts(h)).toHaveLength(1);
+      h.setStatus({ ...h.fields, requestRevision: 2, status: 'unavailable', reason: 'could_not_prepare' });
+      await h.session.refresh();
+      h.session.tryAgain();
+      await jest.advanceTimersByTimeAsync(0);
+      expect(h.session.getState().status?.status).toBe('preparing');
+      // Past the quick reads (about a minute): the reopened request is still being made.
+      await jest.advanceTimersByTimeAsync(2 * 60_000);
+      expect(h.session.getState().status?.status).toBe('preparing');
+      // The server closes it a while later; the next slow read shows that.
+      h.setStatus({ ...h.fields, requestRevision: 9, status: 'unavailable', reason: 'could_not_prepare' });
+      await jest.advanceTimersByTimeAsync(12_000);
+      expect(h.session.getState().status).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+      const settled = h.calls.length;
+      await jest.advanceTimersByTimeAsync(60_000);
+      expect(h.calls).toHaveLength(settled);
     } finally {
       h.scope.end();
       jest.useRealTimers();

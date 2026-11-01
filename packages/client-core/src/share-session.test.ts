@@ -113,6 +113,84 @@ describe('share sheet session (labelled in-memory server)', () => {
     expect(server.sharesOf().every(([, share]) => share.revoked)).toBe(true);
   });
 
+  it('copies the link it already made again instead of making another share', async () => {
+    const copied: string[] = [];
+    const { server, session } = setup((text) => {
+      copied.push(text);
+      return Promise.resolve();
+    });
+    await session.copyLink();
+    await session.copyLink();
+    await session.copyLink();
+    expect(server.sharesOf()).toHaveLength(1);
+    expect(new Set(copied).size).toBe(1);
+    expect(copied).toHaveLength(3);
+    expect(session.getState().link).toMatchObject({ status: 'ready', url: copied[0], copied: true });
+  });
+
+  it('reuses the live link in a later sheet of the same account, and makes a new one only after it was stopped', async () => {
+    const copied: string[] = [];
+    const { server, session } = setup((text) => {
+      copied.push(text);
+      return Promise.resolve();
+    });
+    await session.copyLink();
+    const again = createShareSession({
+      scope: server.scope,
+      target,
+      origin: 'https://app.fixture.test',
+      newId,
+      copyText: (text) => {
+        copied.push(text);
+        return Promise.resolve();
+      },
+    });
+    await again.copyLink();
+    expect(server.sharesOf()).toHaveLength(1);
+    expect(copied[1]).toBe(copied[0]);
+    // Another revision is another link.
+    const other = createShareSession({
+      scope: server.scope,
+      target: { ...target, assetRevision: target.assetRevision + 1 },
+      origin: 'https://app.fixture.test',
+      newId,
+      copyText: () => Promise.resolve(),
+    });
+    await other.copyLink();
+    expect(server.sharesOf()).toHaveLength(2);
+    // Stopped in this sheet: the next sheet makes a fresh one.
+    await again.stopLink();
+    const third = createShareSession({
+      scope: server.scope,
+      target,
+      origin: 'https://app.fixture.test',
+      newId,
+      copyText: () => Promise.resolve(),
+    });
+    await third.copyLink();
+    expect(server.sharesOf()).toHaveLength(3);
+    expect(third.getState().link).toMatchObject({ status: 'ready' });
+    expect(third.getState().link).not.toMatchObject({ url: copied[0] });
+  });
+
+  it('makes a new link when the one it made was stopped somewhere else, such as the shared links list', async () => {
+    const { server, session } = setup();
+    await session.copyLink();
+    const links = createSharedLinksSession({ scope: server.scope, newId });
+    await links.refresh();
+    await links.stop(links.getState().items[0]!.shareId);
+    const later = createShareSession({
+      scope: server.scope,
+      target,
+      origin: 'https://app.fixture.test',
+      newId,
+      copyText: () => Promise.resolve(),
+    });
+    await later.copyLink();
+    expect(server.sharesOf().filter(([, share]) => !share.revoked)).toHaveLength(1);
+    expect(server.sharesOf()).toHaveLength(2);
+  });
+
   it('recovers from a lost answer by stopping the unrecoverable link and making a new one', async () => {
     const { server, session } = setup();
     server.failNext('/v1/social/content-shares/create', 'lost_response');

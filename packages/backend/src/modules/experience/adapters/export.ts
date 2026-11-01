@@ -37,7 +37,10 @@ export function readablePlace(row: Pick<SavedRow, 'place_kind' | 'position_ms' |
   return null;
 }
 
-/** What the person did with content, in words they know: titles and times, never IDs or revisions. */
+/**
+ * What the person did with content, in words they know: titles and times, never IDs or revisions. The encounter list
+ * leaves out what was opened while recording was paused (D-284), as every other read of the person's own History does.
+ */
 export const experienceExportRead: ModuleExport['read'] = async (scope, person) => {
   const trx = transactionOf(scope);
   const universeId = scope.authority.universeId;
@@ -72,7 +75,7 @@ export const experienceExportRead: ModuleExport['read'] = async (scope, person) 
     from experience.exposures exposure
     join content.asset_revisions revision
       on revision.asset_id = exposure.asset_id and revision.revision = exposure.asset_revision
-    where exposure.universe_id = ${universeId}::uuid
+    where exposure.universe_id = ${universeId}::uuid and not exposure.made_while_paused
     order by exposure.opened_at desc, exposure.id
     limit ${limit}`.execute(trx);
   const reactions = await sql<{ asset_id: string; title: string; action: string; created_at: Date }>`

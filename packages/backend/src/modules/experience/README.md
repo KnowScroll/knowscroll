@@ -476,3 +476,15 @@ No action row, no observation, no job and no hint; Personal Context, the Planner
 table. Clear and full erasure delete the rows; the export lists the title and when it lapses.
 *Implemented; CI-verified against PostgreSQL; not yet run on dev.*
 
+
+## What was opened while recording is paused (D-284)
+
+Opening an item always writes an exposure, because the exposure serves the item (document, media grants, a call, Ask from here,
+Back). While recording is paused the exposure is marked `made_while_paused` (migration 0100). It is set where every exposure is
+written (`insertExposure`, `markExposureActivated`), from the recording state read under the root the caller holds, and is never
+taken back. The reads that tell a person what they opened leave a marked exposure out: the export's `encounters` list, the
+"continue" prompt (`readRecentExposures`) and the "opened" marks of a thread's Parts, a room's Parts and a branch's card
+(`readVisitedAssets`). The gates that serve the open item (`hasActivatedExposure`, the document and media reads) still count it. The
+Composer reads no exposure: its routing history reads `encounter_lineage` and `recording_segments`, and a paused-time
+opening writes neither, so repeat avoidance already ignores it.
+*Implemented; CI-verified against PostgreSQL; not yet run on dev.*
