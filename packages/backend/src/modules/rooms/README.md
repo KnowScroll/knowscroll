@@ -356,7 +356,14 @@ one call (plus at most one repair) as the `ambient` role `rooms.ambient-away`, o
 the words (`ready`), or settles it `declined` or `failed`, announces the room, and the run is closed. A summary made stale during the
 call is never stored but stays counted.
 
-`rooms.contribute` (IDs only: universe, epoch, request). A pointed ask or a mention reads the message it is about as the turn's
+`rooms.contribute` (IDs only: universe, epoch, request) runs in the asker's own personal scope, on the recording-aware personal
+harness (D-270): a member who paused and resumed recording is answered. The ask records no generation, so the first transaction
+reads the generation the asker's recording is at, the run is stamped with it (`inhabitant-contribution`, claim the ask's turn ID)
+and stored under that generation's fence, and Rooms' owner check (`application/check-recording-run.ts`, installed by
+`roomsRecordingOwnerProviders`) finds the ask still queued for that person. A reply that comes back after a pause, a resume or a
+Clear is dropped and the ask ends as failed; while the asker's recording is paused no call is made and the ask ends as failed and
+is not counted. A resident speaking on its own (`rooms.cast-pass`) runs in the room's scope and is not governed by this.
+Status: implemented, CI-verified. A pointed ask or a mention reads the message it is about as the turn's
 focus, and ends without a call when that message is gone or its author keeps messages out. Steps: (1) one transaction rechecks the
 asker's authority and reads the room's own discussion into the bounded context; (2) the harness makes
 one model call (plus at most one repair) outside any transaction, on a run whose ID is the request ID,

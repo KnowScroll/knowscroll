@@ -385,6 +385,12 @@ or closed objects. This capability must be freshly checked at each later persona
 never relabel delayed work with the latest generation. Necessary explicit commands retain their
 existing PersonalScopeTx authority while recording is off.
 
+`readPersonalRecordingNow(scope)` (D-270, `infrastructure/postgres/recording-scope.ts`) reads where the person's recording is under
+the root the caller already holds: on at a generation, paused, or not usable. It authorises nothing. A personal model step that
+carries no generation of its own (a free-text ask, Jev, What-if, a room's answer) reads it in its first transaction and stamps its
+run with that generation; the run's fence then checks the generation again at every private read and write. The reasoning
+facade exposes it as `currentOwner` and `currentGeneration`.
+
 recording_commands is an immutable account-lifetime receipt store in Identity's account-deletion
 inventory. Selective Clear preserves it and root policy. No account deletion/export executor,
 authentication bypass, shared-production suspension or provider/accounting permission follows.
