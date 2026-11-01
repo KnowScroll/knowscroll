@@ -28,7 +28,7 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | Moderator: start a poll or a quiz (R03); members vote in a poll (visible to the room, changeable until it closes) and read a quiz one question at a time; the moderator closes or removes it | Implemented; runtime-verified |
 | The desktop room (D04): the room, the open discussion and the room extras in three panes | Implemented (client); runtime-verified |
 | Land in the room's General (one per room, backfilled for rooms that existed); topics and pins stay in the room menu (v3 R-1) | Implemented (CI-verified) |
-| See the faces of who has the room open (a number only from three, never an AI, a blocked person left out) and an honest "Quiet right now · last message 3 h ago" (v3 R-1, D-069) | Implemented (CI-verified) |
+| See the faces of who has the room open (a number only from three, never an AI, a blocked person left out) and an honest "Quiet right now · last person wrote 3 h ago" (v3 R-1, D-069; people only, D-243) | Implemented (CI-verified) |
 | Read the AI notice once on first opening, then only in the room menu; set AI level Lively / Quieter / Off and "Keep my messages out of what AI reads" (v3 R-1) | Implemented (CI-verified). Keep-out changes what AI reads in every context path; the level decides what a member sees of a resident that spoke on its own (R-2) |
 | The room menu: About, Guidelines, AI here, Members with the total, Pins, Topics (v3 R-1) | Implemented (CI-verified) |
 | Room hints on the socket: a message or a face appearing is read within seconds (v3 R-1) | Implemented (CI-verified) |

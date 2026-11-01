@@ -217,13 +217,13 @@ describe('who is here, on the room’s band', () => {
   it('is honest when it is quiet: says so and when the last message was', async () => {
     const threeHoursAgo = new Date(Date.now() - 3 * 3_600_000).toISOString();
     await wrap(<HereStrip here={{ faces: [face(10, 'Ravi', true)] }} lastMessageAt={threeHoursAgo} />);
-    expect(screen.getByText('Quiet right now · last message 3 h ago')).toBeOnTheScreen();
+    expect(screen.getByText('Quiet right now · last person wrote 3 h ago')).toBeOnTheScreen();
     expect(screen.queryByText(/online/i)).not.toBeOnTheScreen();
   });
 
   it('says a room nobody has written in is quiet, and invents no time', async () => {
     await wrap(<HereStrip here={{ faces: [face(10, 'Ravi', true)] }} lastMessageAt={undefined} />);
-    expect(screen.getByText('Quiet right now · no messages yet')).toBeOnTheScreen();
+    expect(screen.getByText('Quiet right now · no one has written yet')).toBeOnTheScreen();
   });
 
   it('lists the names in D04’s Here now, with a number in the heading only from three', async () => {

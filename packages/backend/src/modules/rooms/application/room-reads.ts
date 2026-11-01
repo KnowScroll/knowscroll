@@ -124,7 +124,10 @@ async function discussionSummaries(
       replyCount: figure?.replyCount ?? 0,
       ...(lastReplyBy === undefined ? {} : { lastReplyBy }),
       // A question stays open for people whatever a resident said: `answered` counts persons only (D-242).
-      ...(row.tag === 'question' && figure?.answered === false ? { waiting: true as const } : {}),
+      // A question whose asker's account is gone waits for no one, as `QuestionStore.waiting` counts it.
+      ...(row.tag === 'question' && row.startedByAccountId !== null && figure?.answered === false
+        ? { waiting: true as const }
+        : {}),
     };
   });
 }

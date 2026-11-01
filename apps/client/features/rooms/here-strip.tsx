@@ -38,7 +38,7 @@ function Face({ face }: { readonly face: HereFaceView }) {
 /**
  * Who has the room open (D-069), on the room's dark band: the faces, in words when there are two, a number only
  * from three, and nothing at all about how many are "online" below that. Under it, when nothing has been said for a
- * while, the honest quiet pill with when the last message was. Nothing here is an AI inhabitant or a guess.
+ * while, the honest quiet pill with when a person last wrote. Nothing here is an AI inhabitant or a guess.
  */
 export function HereStrip({
   here,

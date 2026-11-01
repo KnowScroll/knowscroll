@@ -880,6 +880,10 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
       ).toBe('0');
       // The card the asker left in General went with their account; the topic stays, under the neutral title.
       expect(await titlesSeenBy(ravi, roomId, discussionId)).toEqual([NEUTRAL, NEUTRAL, NEUTRAL]);
+      // A question whose asker is gone waits for no one: the room's count and the topic's flag say the same.
+      const after = await memberView(world, ravi, roomId);
+      expect(after.questions).toBeUndefined();
+      expect(after.discussions.find((item) => item.discussionId === discussionId)?.waiting).toBeUndefined();
     });
   });
 

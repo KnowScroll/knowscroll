@@ -214,7 +214,7 @@ R3 page p-11 (F, "The quiet room": frames 1 to 4). 390 × 844 and 1440 × 900, p
 
 | Frame | What | Status | Why |
 |---|---|---|---|
-| F 1, the band | "QUIET · LAST MESSAGE 3 H AGO" and "JUST YOU" beside the faces | differs | The pill is the same words. Faces are people only (D-069): the AI cast is not drawn among them, and "just you" is the caption for a room where only the reader is here. |
+| F 1, the band | "QUIET · LAST MESSAGE 3 H AGO" and "JUST YOU" beside the faces | differs | The pill says "last person wrote 3 h ago": it counts people only, so a resident's answer cannot make an empty room look busy (D-243). Faces are people only (D-069): the AI cast is not drawn among them, and "just you" is the caption for a room where only the reader is here. |
 | F 1, the strip | A Today chip and a "REPLAY Last night's Launch" chip | matches | The chip names the night ("Launch of 31 Oct"), never "last night": the night is the server's UTC day. |
 | F 1, today's question | A card in the stream with "2 people answered today · yesterday's had 4" | differs | Today's question is in the Today channel (R-5); the stream carries no card for it. |
 | F 1, the sky | A card "The room's sky · 5 of 7" with the last star | differs | The sky is the chip and its sheet (R-5). |

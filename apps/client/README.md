@@ -714,7 +714,7 @@ Talk (`/conversations`) lists the person's rooms and invitations under the conve
   AI inhabitants, the pinned question, guidelines and Join, or the plain reason the person cannot join); no member, activity
   or online count is drawn there. For a member on a phone it is `campfire.tsx` (v3 R-1, D-062, D-069, D-160, D-161): the dark
   band (`CampfireHeader`: Back, the room's name that opens the room menu, "A room · 4 here" only from three people, the
-  faces of who has the room open in `here-strip.tsx`, and an honest "Quiet right now · last message 3 h ago" worked out on
+  faces of who has the room open in `here-strip.tsx`, and an honest "Quiet right now · last person wrote 3 h ago" worked out on
   the device), the AI notice (`ai-notice.tsx`) until the member taps "Got it", and General (`OpenDiscussion` of
   `discussion-screen.tsx` with the band as its header). Everything else is behind the name in `room-menu.tsx`: About,
   Guidelines, AI here (`ai-here.tsx`: Lively / Quieter / Off and "Keep my messages out of what AI reads"), Members with the

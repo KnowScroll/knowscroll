@@ -66,13 +66,13 @@ export function agoWords(ageMs: number): string {
 }
 
 /**
- * The honest quiet pill: present only when nothing has been said for a while, and it says when the last message
- * was. A room nobody has written in says so. It reads the device clock against the server's time of the last
+ * The honest quiet pill: present only when no person has written for a while, and it says when the last person
+ * did (a resident's words are not counted, D-243). A room nobody has written in says so. It reads the device clock against the server's time of the last
  * message, so a clock that runs behind never makes a busy room look quiet: a message in the future is not quiet.
  */
 export function quietPill(lastMessageAt: string | undefined, now: Date): string | undefined {
-  if (lastMessageAt === undefined) return 'Quiet right now · no messages yet';
+  if (lastMessageAt === undefined) return 'Quiet right now · no one has written yet';
   const age = now.getTime() - new Date(lastMessageAt).getTime();
   if (age < QUIET_AFTER_MS) return undefined;
-  return `Quiet right now · last message ${agoWords(age)}`;
+  return `Quiet right now · last person wrote ${agoWords(age)}`;
 }

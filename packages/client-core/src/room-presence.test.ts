@@ -59,14 +59,14 @@ describe('the honest quiet pill', () => {
   });
 
   it('says when the last message was, once it has been quiet for a while', () => {
-    expect(quietPill(ago(QUIET_AFTER_MS), now)).toBe('Quiet right now · last message 10 min ago');
-    expect(quietPill(ago(3 * 3_600_000), now)).toBe('Quiet right now · last message 3 h ago');
-    expect(quietPill(ago(3 * 86_400_000), now)).toBe('Quiet right now · last message 3 d ago');
-    expect(quietPill(ago(60 * 3_600_000), now)).toBe('Quiet right now · last message 2 d ago');
+    expect(quietPill(ago(QUIET_AFTER_MS), now)).toBe('Quiet right now · last person wrote 10 min ago');
+    expect(quietPill(ago(3 * 3_600_000), now)).toBe('Quiet right now · last person wrote 3 h ago');
+    expect(quietPill(ago(3 * 86_400_000), now)).toBe('Quiet right now · last person wrote 3 d ago');
+    expect(quietPill(ago(60 * 3_600_000), now)).toBe('Quiet right now · last person wrote 2 d ago');
   });
 
   it('says so when nothing has ever been said, and never invents a time', () => {
-    expect(quietPill(undefined, now)).toBe('Quiet right now · no messages yet');
+    expect(quietPill(undefined, now)).toBe('Quiet right now · no one has written yet');
   });
 
   it('does not call a room quiet because the device clock runs behind', () => {

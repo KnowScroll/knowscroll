@@ -72,7 +72,7 @@ for (const { name, size } of VIEWPORTS) {
     const address = await openRoom(page, world, 'ravi', size);
 
     // The room says it is quiet, and offers things that really happened: a Launch to replay, from the host, labelled AI.
-    await expect(page.locator('body')).toContainText(/Quiet right now · last message 3 h ago/i);
+    await expect(page.locator('body')).toContainText(/Quiet right now · last person wrote 3 h ago/i);
     await expect(page.getByTestId('now-replay')).toContainText('Launch of 31 Oct');
     await expect(page.getByTestId('now-questions')).toContainText('Leave a question');
     await expect(page.getByTestId('quiet-offer')).toBeVisible();
