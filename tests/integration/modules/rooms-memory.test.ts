@@ -527,6 +527,35 @@ describe('what the residents remember (real PostgreSQL, CI fixture model)', () =
       expect(await memoryRow(world.db, r.roomId)).toBeUndefined();
       expect((await feedTurns(world.db, r.roomId))[0]).toMatchObject({ state: 'failed', dispatched: true });
     });
+
+    it('names no member: not a handle or a word of a display name, and the one repair says so', async () => {
+      const r = await room(3);
+      await talk(r, 12);
+      const handle = r.members[0]!.person.handle;
+      const { look, model } = feedHeartbeat(world, (sequence) =>
+        sequence === 1 ? memory(`${handle} asked about batching.`) : memory('People thanked Fixture for the link.'),
+      );
+      at('2026-11-01T01:00:00Z');
+      // The first answer names a handle and the repair names a word of a display name: nothing is stored.
+      expect((await look(r.slug)).memory).toEqual({ kind: 'not_written', reason: 'call_failed' });
+      expect(model.calls).toHaveLength(2);
+      expect(bytesOf(model.calls[1]!)).toContain('Name no one');
+      expect(await memoryRow(world.db, r.roomId)).toBeUndefined();
+    });
+
+    it('is checked again against the names at the time it is stored: a member renamed while the call ran', async () => {
+      const r = await room(3);
+      await talk(r, 12);
+      const { look } = feedHeartbeat(world, async () => {
+        await sql`update social.profiles set display_name = 'Batching' where account_id = ${r.members[0]!.accountId}::uuid`.execute(
+          world.db,
+        );
+        return memory();
+      });
+      at('2026-11-01T01:00:00Z');
+      expect((await look(r.slug)).memory).toEqual({ kind: 'not_written', reason: 'not_stored' });
+      expect(await memoryRow(world.db, r.roomId)).toBeUndefined();
+    });
   });
 
   describe('a moderator’s own words', () => {

@@ -55,12 +55,41 @@ const hasControl = (text: string): boolean =>
     return (point < 32 && point !== 10) || (point >= 127 && point <= 159);
   });
 
+/** The shortest word of a display name that is checked on its own: shorter ones are only checked as part of the whole name. */
+const NAME_WORD_MIN = 3;
+const WORD_EDGE_BEFORE = String.raw`(?<![\p{L}\p{N}_])`;
+const WORD_EDGE_AFTER = String.raw`(?![\p{L}\p{N}_])`;
+
+/**
+ * Whether the words name a member of the room: a display name as a whole, any word of it of three letters or more, or a
+ * handle, in any case and only as a whole word ("Sam" is found in "ask Sam" and not in "Samuel's"). `names` are the display
+ * names and handles of the room's members, read at the time of the check. A word of someone's name that is also a common
+ * word ("Will") makes a text that uses it unwritable; nothing is stored then, which costs a refresh and never a name.
+ */
+export function namesAMember(text: string, names: readonly string[]): boolean {
+  const terms = new Set<string>();
+  for (const name of names) {
+    const whole = name.trim();
+    if (whole.length >= 2) terms.add(whole);
+    for (const word of whole.split(/[^\p{L}\p{N}_]+/u)) if ([...word].length >= NAME_WORD_MIN) terms.add(word);
+  }
+  return [...terms].some((term) => {
+    const spaced = term.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&').replaceAll(/\s+/gu, '\\s+');
+    return new RegExp(WORD_EDGE_BEFORE + spaced + WORD_EDGE_AFTER, 'iu').test(text);
+  });
+}
+
 /**
  * What is wrong with a memory text, if anything. Whoever wrote it: bounded, plain text, no link. Written by a resident it
- * also never claims to be a person or to have lived anything (the same voice guard as a find's note) and names no one
- * (speakers are numbers in what it reads). A moderator's own words are theirs to choose, so only the bounds and the link apply.
+ * also never claims to be a person or to have lived anything (the same voice guard as a find's note) and names no one:
+ * not a speaker number, and not any of `memberNames`. A moderator's own words are theirs to choose, so only the bounds and
+ * the link apply.
  */
-export function memoryProblem(text: string, by: 'residents' | 'moderator'): MemoryProblem | undefined {
+export function memoryProblem(
+  text: string,
+  by: 'residents' | 'moderator',
+  memberNames: readonly string[] = [],
+): MemoryProblem | undefined {
   if (hasControl(text)) return 'control';
   if (by === 'moderator') {
     const trimmed = text.trim();
@@ -71,6 +100,6 @@ export function memoryProblem(text: string, by: 'residents' | 'moderator'): Memo
   return (
     textProblem(text, MEMORY_RULES.maxChars) ??
     voiceProblem(text) ??
-    (SPEAKER_NUMBER.test(text) ? 'names_a_member' : undefined)
+    (SPEAKER_NUMBER.test(text) || namesAMember(text, memberNames) ? 'names_a_member' : undefined)
   );
 }

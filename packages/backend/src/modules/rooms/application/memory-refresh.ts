@@ -37,6 +37,8 @@ interface Call {
   readonly turn: FeedTurn;
   readonly room: FeedRoom;
   readonly window: readonly MemoryMessage[];
+  /** The members' display names and handles when the call was made: a memory that names one is refused. */
+  readonly memberNames: readonly string[];
 }
 
 type Claim =
@@ -92,11 +94,13 @@ export function makeMemoryRefresh(
     if (locked === undefined) return { kind: 'dropped', reason: 'room_closed' };
     await store.lapseLost(scope, room.roomId, new Date(now.getTime() - FEED_RULES.lapsesAfterMs), now);
     const window = await store.memoryWindow(scope, room.roomId, MEMORY_RULES.windowMessages);
+    const callOf = async (turn: FeedTurn): Promise<Claim> => ({
+      kind: 'call',
+      call: { turn, room: locked, window, memberNames: await store.memberNames(scope, room.roomId) },
+    });
     const earlier = await store.turn(scope, turnId);
     if (earlier !== undefined)
-      return earlier.state === 'queued'
-        ? { kind: 'call', call: { turn: earlier, room: locked, window } }
-        : { kind: 'dropped', reason: 'already_looked' };
+      return earlier.state === 'queued' ? callOf(earlier) : { kind: 'dropped', reason: 'already_looked' };
     if (!roomAcceptsPosts(locked.status) || locked.listeners === 0)
       return { kind: 'dropped', reason: locked.listeners === 0 ? 'nobody_listening' : 'room_closed' };
     const memory = await store.memory(scope, room.roomId);
@@ -135,21 +139,14 @@ export function makeMemoryRefresh(
       now,
     });
     if (cap !== undefined) return { kind: 'refused', cap };
-    return {
-      kind: 'call',
-      call: {
-        turn: { turnId, kind: 'memory_refresh', inhabitant, state: 'queued', asset: undefined, createdAt: now },
-        room: locked,
-        window,
-      },
-    };
+    return callOf({ turnId, kind: 'memory_refresh', inhabitant, state: 'queued', asset: undefined, createdAt: now });
   }
 
   /**
    * Step 3: store the words if everything the call read is still retained and the words still pass, and settle the turn
    * either way. The room's row is taken exclusively first: a removal, a keep-out and a deletion each take it shared before
    * they touch a message, so one that has not committed is waited for, and one that comes later waits for this transaction
-   * and then erases what is stored here (D-247).
+   * and then erases what is stored here (D-247). The members' names are read again, as they are now.
    */
   async function apply(call: Call, text: string, attemptId: string): Promise<MemoryLook> {
     const { turn, window } = call;
@@ -166,7 +163,9 @@ export function makeMemoryRefresh(
             );
       // A message it read was removed, kept out or deleted while the call ran: the words are never stored. The call was made.
       const words =
-        locked !== undefined && retained === window.length && memoryProblem(text, 'residents') === undefined;
+        locked !== undefined &&
+        retained === window.length &&
+        memoryProblem(text, 'residents', await store.memberNames(scope, call.room.roomId)) === undefined;
       if (words)
         await store.storeMemory(scope, {
           roomId: call.room.roomId,
@@ -220,7 +219,7 @@ export function makeMemoryRefresh(
             purpose: 'memory-refresh',
             policyVersion: MEMORY_POLICY_VERSION,
           },
-          role: memoryRole(),
+          role: memoryRole(outcome.call.memberNames),
           context: memoryContext(memoryMaterial({ turnId, room: outcome.call.room }, outcome.call.window)),
           limits: { allowRepair: true },
         },

@@ -523,9 +523,10 @@ export const RoomFeedPostSchema = z
 export type RoomFeedPost = z.infer<typeof RoomFeedPostSchema>;
 
 /**
- * What the room's residents remember about it: a few short lines derived from what members discussed, never with a name and
- * never from a member who keeps their messages out of what AI reads. `moderator` says a moderator wrote it. It goes (`none`)
- * when a message it read is removed, kept out or deleted, and is written again from what is left.
+ * What the room's residents remember about it: a few short lines derived from what members discussed, naming no member (code
+ * refuses a text with a member's name or handle in it) and never from a member who keeps their messages out of what AI reads.
+ * `moderator` says a moderator wrote it, in words of their own choosing. It goes (`none`) when a message it read is removed,
+ * kept out or deleted, and is written again from what is left.
  */
 export const RoomMemorySchema = z.discriminatedUnion('state', [
   z.strictObject({ state: z.literal('none') }),

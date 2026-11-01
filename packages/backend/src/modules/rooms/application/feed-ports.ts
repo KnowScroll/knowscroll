@@ -148,6 +148,11 @@ export interface FeedStore {
    * a keep-out or a deletion in flight is waited for and its committed result is what is counted.
    */
   stillReadable(scope: ProductionScopeTx, roomId: string, messageIds: readonly string[]): Promise<number>;
+  /**
+   * The display names and handles of the room's members, current and past: the words a memory may not contain. Read for
+   * that check only; they never reach a model.
+   */
+  memberNames(scope: ProductionScopeTx, roomId: string): Promise<readonly string[]>;
   /** When the room's last refresh that made a call and wrote nothing ended, if one did lately. */
   lastUnwrittenRefreshAt(scope: ProductionScopeTx, roomId: string, since: Date): Promise<Date | undefined>;
   /** Stores the derived text, unless a moderator's text stands. */

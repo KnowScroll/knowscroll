@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MEMORY_RULES, memoryDue, memoryProblem, type MemoryFacts } from './memory.js';
+import { MEMORY_RULES, memoryDue, memoryProblem, namesAMember, type MemoryFacts } from './memory.js';
 
 const facts = (over: Partial<MemoryFacts> = {}): MemoryFacts => ({
   state: 'none',
@@ -62,6 +62,28 @@ describe('what a memory may say', () => {
     // A Roman numeral is not the pronoun, and a moderator's own words are theirs.
     expect(memoryProblem('People compared Type I and Type II supernovae.', 'residents')).toBeUndefined();
     expect(memoryProblem('I started this room to talk about tides.', 'moderator')).toBeUndefined();
+  });
+
+  it('names no member: not their display name, any word of it, or their handle, in any case', () => {
+    const names = ['Priya Raman', 'priya_r', 'Li Wu'];
+    expect(memoryProblem('Someone asked Priya about tides.', 'residents', names)).toBe('names_a_member');
+    expect(memoryProblem('Raman had a question about tides.', 'residents', names)).toBe('names_a_member');
+    expect(memoryProblem('PRIYA_R asked about tides.', 'residents', names)).toBe('names_a_member');
+    expect(memoryProblem('People thanked li wu for the link.', 'residents', names)).toBe('names_a_member');
+    expect(memoryProblem('People compared tides and an open question remains.', 'residents', names)).toBeUndefined();
+    // Whole words only, and a name's short parts are checked only as part of the whole name.
+    expect(memoryProblem('The Ramanujan sums came up.', 'residents', names)).toBeUndefined();
+    expect(memoryProblem('People like Li-ion batteries.', 'residents', names)).toBeUndefined();
+    // A moderator's words are theirs to choose.
+    expect(memoryProblem('Welcome, Priya.', 'moderator', names)).toBeUndefined();
+  });
+
+  it('finds a name beside punctuation, in other scripts, and with regular-expression characters in it', () => {
+    expect(namesAMember('Ask Ünal, please', ['Ünal Kaya'])).toBe(true);
+    expect(namesAMember('thanks (sam.k)!', ['sam.k'])).toBe(true);
+    expect(namesAMember('thanks samxk', ['sam.k'])).toBe(false);
+    expect(namesAMember('anything', [''])).toBe(false);
+    expect(namesAMember('anything', [])).toBe(false);
   });
 
   it('leaves a moderator’s own words theirs, within the bounds', () => {

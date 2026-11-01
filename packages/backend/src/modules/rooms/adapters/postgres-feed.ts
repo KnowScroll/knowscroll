@@ -335,6 +335,14 @@ export function feedStore(db: Kysely<Database>): FeedStore {
       return Number(rows.rows[0]?.n ?? 0);
     },
 
+    async memberNames(scope, roomId) {
+      const rows = await sql<{ display_name: string; handle: string }>`
+        select profile.display_name, profile.handle from rooms.members member
+        join social.profiles profile on profile.account_id = member.account_id
+        where member.room_id = ${roomId}::uuid limit 1000`.execute(productionTransactionOf(scope));
+      return rows.rows.flatMap((row) => [row.display_name, row.handle]);
+    },
+
     async lastUnwrittenRefreshAt(scope, roomId, since) {
       const row = await sql<{ at: Date | string | null }>`
         select max(turn.settled_at) as at from rooms.ai_turns turn

@@ -19,7 +19,8 @@ const HINTS: Record<MemoryProblem, string> = {
   has_link: 'Do not include links or web addresses.',
   claims_to_be_a_person:
     'You are an AI resident. Never describe yourself as a person, student or engineer; write about the room.',
-  names_a_member: 'Do not mention speaker numbers such as "Member 2". Say "someone" or "a member".',
+  names_a_member:
+    'Name no one: no speaker numbers such as "Member 2" and no names or handles. Say "people", "someone" or "a member".',
   first_person:
     'Write about the room, never about yourselves: do not use "I", "me" or "my". Say what members discussed, in the third person.',
   claims_experience:
@@ -27,13 +28,17 @@ const HINTS: Record<MemoryProblem, string> = {
   control: 'Write plain text, one line after another, with no control characters.',
 };
 
-/** The answer schema of a memory. The text rules refuse with a fixed hint for the one repair instead of reaching a room. */
-export function memoryAnswerSchema(): z.ZodType<MemoryAnswer> {
+/**
+ * The answer schema of a memory. The text rules refuse with a fixed hint for the one repair instead of reaching a room.
+ * `memberNames` are the display names and handles of the room's members when the call was made: a memory that names one is
+ * refused like one that claims an experience.
+ */
+export function memoryAnswerSchema(memberNames: readonly string[]): z.ZodType<MemoryAnswer> {
   return z
     .strictObject({ kind: z.enum(['memory', 'nothing_to_add']), text: z.string().max(4000) })
     .superRefine((answer, context) => {
       if (answer.kind === 'nothing_to_add') return;
-      const problem = memoryProblem(answer.text, 'residents');
+      const problem = memoryProblem(answer.text, 'residents', memberNames);
       if (problem !== undefined)
         context.addIssue({ code: 'custom', path: ['text'], message: 'Invalid text', params: { safeCode: problem } });
     });
@@ -51,12 +56,12 @@ const INSTRUCTIONS = [
  * residents' share of the global cap and the room scope's caps and it can never take what a person asked for. One call and at
  * most one repair, no tool loop.
  */
-export function memoryRole(): ReasoningRole<MemoryAnswer> {
+export function memoryRole(memberNames: readonly string[]): ReasoningRole<MemoryAnswer> {
   return {
     id: 'rooms.ambient-memory',
     version: MEMORY_ROLE_VERSION,
     instructions: INSTRUCTIONS,
-    outputSchema: memoryAnswerSchema(),
+    outputSchema: memoryAnswerSchema(memberNames),
     safeCustomIssues: HINTS,
     maxOutputTokens: 2048,
     effort: 'low',
