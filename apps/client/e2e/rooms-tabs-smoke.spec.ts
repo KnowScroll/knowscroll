@@ -218,3 +218,43 @@ test('phone: the live strip keeps the time when a name is long, and says all of 
   await shoot(page, 'phone-live-strip-long-name');
   expect(await seriousViolations(page)).toEqual([]);
 });
+
+for (const { name, size } of VIEWPORTS) {
+  test(`${name}: keyboard focus on a dark kit’s ground is cobalt between two bands of white, and the bar does not clip it`, async ({
+    page,
+  }) => {
+    await open(page, size);
+    const ringOf = (testID: string) =>
+      page.getByTestId(testID).evaluate((node) => {
+        const style = getComputedStyle(node);
+        return { outline: style.outlineColor, width: style.outlineWidth, shadow: style.boxShadow };
+      });
+    await page.getByTestId('room-tab-general').focus();
+    await page.keyboard.press('ArrowRight');
+    await selected(page, 'feed');
+    const tab = await ringOf('room-tab-feed');
+    expect(tab.outline).toBe('rgb(44, 70, 232)');
+    expect(tab.width).toBe('3px');
+    expect(tab.shadow).toContain('rgb(255, 255, 255)');
+    // The bar and its frame leave the ring room to be drawn.
+    expect(await page.getByTestId('room-tabs').evaluate((node) => getComputedStyle(node).overflow)).toBe('visible');
+    await shoot(page, `${name}-tab-focus`);
+
+    // A control on the ground itself (the Feed's sort) and a button in the panel draw the same ring.
+    await page.getByTestId('feed-sort-new').focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    const sort = await ringOf('feed-sort-new');
+    expect(sort.outline).toBe('rgb(44, 70, 232)');
+    expect(sort.shadow).toContain('rgb(255, 255, 255)');
+    await shoot(page, `${name}-sort-focus`);
+  });
+}
+
+test('a pale kit’s ground draws the plain cobalt ring', async ({ page }) => {
+  await open(page, VIEWPORTS[0].size, { face: 'history' });
+  await page.getByTestId('room-tab-general').focus();
+  await page.keyboard.press('ArrowRight');
+  const shadow = await page.getByTestId('room-tab-feed').evaluate((node) => getComputedStyle(node).boxShadow);
+  expect(shadow).toBe('none');
+});

@@ -2,9 +2,10 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text as NativeText } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { ROOM_SWATCHES, type RoomIdentity, type RoomKit } from '@knowscroll/contracts';
-import { DisplayProvider } from '@knowscroll/ui';
+import { focusHalo, focusRing } from '@knowscroll/design-tokens';
+import { Button, DisplayProvider } from '@knowscroll/ui';
 import { SPACE_TONE, toneOf } from './identity/band-tone';
-import { RoomGround, groundIsDark, useGroundColour, useGroundInk } from './identity/room-ground';
+import { RoomGround, contrastOf, focusHaloFor, useGroundColour, useGroundInk } from './identity/room-ground';
 import { RoomPanels, RoomTabBar, type RoomTab } from './room-tabs';
 
 /** Labelled fixture kits: a dark one and a pale one, words from the closed vocabulary. */
@@ -143,10 +144,46 @@ describe('the room’s ground', () => {
     }
   });
 
-  it('tells a dark ground from a pale one, for the colour of the focus ring', () => {
-    expect(groundIsDark(ROOM_SWATCHES.midnight)).toBe(true);
-    expect(groundIsDark(ROOM_SWATCHES.forest)).toBe(true);
-    expect(groundIsDark(ROOM_SWATCHES.paper)).toBe(false);
-    expect(groundIsDark(ROOM_SWATCHES.mist)).toBe(false);
+  it('gives the cobalt focus ring a halo on every ground it cannot be seen on alone, so no ground leaves it under 3:1', () => {
+    for (const ground of Object.values(ROOM_SWATCHES)) {
+      const halo = focusHaloFor(ground);
+      const seen =
+        halo === undefined
+          ? contrastOf(focusRing.onLight.color, ground)
+          : Math.min(contrastOf(focusHalo[halo], ground), contrastOf(focusRing.onLight.color, focusHalo[halo]));
+      expect(seen).toBeGreaterThanOrEqual(3);
+    }
+    expect(focusHaloFor(ROOM_SWATCHES.midnight)).toBe('light');
+    expect(focusHaloFor(ROOM_SWATCHES.paper)).toBeUndefined();
+  });
+
+  it('draws a control’s focus ring on a dark kit’s ground with the halo, and on a pale one and a plain page without it', async () => {
+    const ringOf = async (node: ReactNode) => {
+      await wrap(node);
+      await fireEvent(screen.getByTestId('control'), 'focus');
+      return StyleSheet.flatten(screen.getByTestId('control').props.style as object) as {
+        outlineColor?: string;
+        boxShadow?: { color: string; spreadDistance: number }[];
+      };
+    };
+    const control = <Button label="Post" testID="control" />;
+    const onDark = await ringOf(<RoomGround identity={dark}>{control}</RoomGround>);
+    expect(onDark.outlineColor).toBe(focusRing.onLight.color);
+    expect(onDark.boxShadow?.[0]).toMatchObject({ color: focusHalo.light, spreadDistance: 8 });
+  });
+
+  it('draws no halo on a pale kit’s ground', async () => {
+    await wrap(
+      <RoomGround identity={pale}>
+        <Button label="Post" testID="control" />
+      </RoomGround>,
+    );
+    await fireEvent(screen.getByTestId('control'), 'focus');
+    const ring = StyleSheet.flatten(screen.getByTestId('control').props.style as object) as {
+      outlineColor?: string;
+      boxShadow?: unknown;
+    };
+    expect(ring.outlineColor).toBe(focusRing.onLight.color);
+    expect(JSON.stringify(ring.boxShadow ?? null)).not.toContain(focusHalo.light);
   });
 });

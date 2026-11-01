@@ -5,7 +5,6 @@ import { layout, radius, spacing, target } from '@knowscroll/design-tokens';
 import { Text, useFocusRing } from '@knowscroll/ui';
 import { episodeKeys } from '../threads/episode-navigator';
 import { useBandTone } from './identity/band-tone';
-import { groundIsDark } from './identity/room-ground';
 import { RoomTabOpenProvider } from './room-tab-open';
 
 /** The three places a member's room has under its header (T3 "Rooms with residents"). */
@@ -42,7 +41,7 @@ function Segment({
   readonly register: (tab: RoomTab, node: Focusable | null) => void;
 }) {
   const tone = useBandTone();
-  const focus = useFocusRing(groundIsDark(tone.ground) ? 'onDark' : 'onLight');
+  const focus = useFocusRing('onLight');
   const arrows = episodeKeys((by) => onStep(tab, by));
   // One Tab stop for the bar, on the open tab; the arrows, Home and End move between tabs (WAI-ARIA tabs).
   const keyboard =
@@ -205,14 +204,13 @@ export function RoomPanels({
 
 const styles = StyleSheet.create({
   // The bar costs a phone as little height as a 44 px target allows: the room's messages keep their share of the screen (D-140).
-  barFrame: { paddingHorizontal: layout.gutter, paddingTop: spacing[1], paddingBottom: spacing['0.5'] },
+  barFrame: { zIndex: 1, paddingHorizontal: layout.gutter, paddingTop: spacing[1], paddingBottom: spacing['0.5'] },
   bar: {
     flexDirection: 'row',
     width: '100%',
     maxWidth: layout.measureDesktop,
     alignSelf: 'center',
     borderRadius: radius.pill,
-    overflow: 'hidden',
   },
   segment: {
     flex: 1,
