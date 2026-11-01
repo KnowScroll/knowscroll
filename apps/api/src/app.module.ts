@@ -1,5 +1,5 @@
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
-import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
+import { quickAnswerProviders, supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { mediaWiring } from './modules/media.js';
 import { Module, type DynamicModule } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
@@ -122,6 +122,12 @@ export class AppModule {
         ...playWiring,
         ...scenarioWiring,
         ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB, config: API_CONFIG }),
+        // Quick answers: the API stores the ask and reads its state; a worker writes the answer (D-253).
+        ...quickAnswerProviders({
+          withPersonalScope: WITH_PERSONAL_SCOPE,
+          enqueueJob: ENQUEUE_JOB,
+          config: API_CONFIG,
+        }),
         ...evidenceWiring,
         ...sceneWiring,
         ScopeGateway,

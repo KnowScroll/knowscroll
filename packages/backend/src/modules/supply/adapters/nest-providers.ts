@@ -287,6 +287,12 @@ export {
   makeRetryRequest,
   makeRecordPlannedDemand,
 } from '../application/requests.js';
+export {
+  QUICK_ANSWER_PORTS,
+  quickAnswerProviders,
+  quickAnswerPurgeProviders,
+  type QuickAnswerSettings,
+} from './quick-answer-providers.js';
 export { makeResolveRequest } from '../application/resolve.js';
 export { makeMatchRequest } from '../application/matching.js';
 export { makeListRequests } from '../application/list.js';

@@ -68,6 +68,8 @@ export interface StageReaderProps {
   readonly play?: StagePlay | undefined;
   /** Drawn at the end of the Scroll, before the ways on: what the screen it is read on adds (a thread's finish). */
   readonly endSlot?: ReactNode;
+  /** What the screen draws under a read stop's words: the Quick answer asked about them (V3 D2). */
+  readonly stopFooter?: ((stopId: string) => ReactNode) | undefined;
 }
 
 const MIN_STAGE = 176;
@@ -126,6 +128,7 @@ export function StageReader({
   onDone,
   play: appPlay,
   endSlot,
+  stopFooter,
 }: StageReaderProps) {
   const { reducedMotion, breakpoint } = useDisplay();
   const { height: windowHeight } = useWindowDimensions();
@@ -276,6 +279,12 @@ export function StageReader({
               payoff={payoffOf(calls, play)}
               smallPrint={smallPrint}
               endSlot={endSlot}
+              stopFooter={stopFooter}
+              onStopFooterLayout={(index, height) => {
+                // A card that appears or grows under a stop is brought on screen, never scrolling the reader back up.
+                text.revealIn(index);
+                text.reportReveal(index, height);
+              }}
               nextPart={nextPart}
               related={related}
               onDone={onDone}

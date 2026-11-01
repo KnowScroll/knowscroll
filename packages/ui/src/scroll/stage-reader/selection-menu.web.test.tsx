@@ -26,6 +26,19 @@ describe('what the selection menu acts on (web)', () => {
     expect(selectedInReadStop()).toMatchObject({ stopId: 'the-lean', text: 'Earth is tilted' });
   });
 
+  it('is nothing for the words of a Quick answer under the stop: they are not the Scroll’s', () => {
+    document.body.innerHTML =
+      '<div data-ks-stop="the-lean" data-ks-kind="read"><div data-ks-no-ask="true"><p id="words">Nothing turns the axis</p></div></div>';
+    const text = document.getElementById('words')!.firstChild!;
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, 7);
+    range.getBoundingClientRect = () => ({ left: 100, top: 200, width: 80, height: 20 }) as DOMRect;
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    expect(selectedInReadStop()).toBeUndefined();
+  });
+
   it('is nothing for the words of a call, the end, or no selection', () => {
     selectWordsIn('call', 'call-delhi', 'Why is June hot in Delhi?');
     expect(selectedInReadStop()).toBeUndefined();

@@ -119,6 +119,8 @@ production or for an ask order, binding) with the personal reasoning harness. `K
 productions Create may start per UTC day for people's asks (default 20 in `local`, 0 elsewhere);
 `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP` (default 5) caps the Planner's demand apart from it.
 
+Two consumers belong to Quick answers (v3 S-9b, D-253 to D-255). `supply.answer-quick-answer` writes one answer through the personal reasoning harness, role `supply.quick-answer`, and settles the row; it is on the same switch as the personal harness and its caps are `KS_SUPPLY_QUICK_ANSWER_DAILY_CAP` (default 20 in `local`, 0 elsewhere; 0 is off) and `KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP` (default 10), the same values as the API. `supply.purge-quick-answers` is a cron every ten minutes that deletes the answers whose day is over and logs `supply.quick_answers_purged`.
+
 Three consumers belong to What if and Another perspective (#244, D-049, D-211). `scenarios.write-answer` writes the short answer card of
 one what-if (IDs only in the payload; the run is the branch ID; the asker's own scope pays; no model is asked with fewer than two
 claims to cite) and stores it only after the card's own checks. `scenarios.suggest-draft` asks the Scenario Planner

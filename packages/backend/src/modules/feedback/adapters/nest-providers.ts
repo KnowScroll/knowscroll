@@ -13,6 +13,7 @@ import {
   type ReadPublicPeople,
   type ReadReportableMessage,
 } from '../../social/public.js';
+import { READ_QUICK_ANSWER_FOR_REPORT, type ReadQuickAnswerForReport } from '../../supply/public.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import type { LogEvent } from '../../../infrastructure/observability/index.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
@@ -39,6 +40,7 @@ export interface FeedbackDeps {
   readonly readMessage: ReadReportableMessage;
   readonly readRoomMessage: ReadReportableRoomMessage;
   readonly readPeople: ReadPublicPeople;
+  readonly readQuickAnswer: ReadQuickAnswerForReport;
   readonly now?: () => Date;
   readonly newId?: () => string;
 }
@@ -60,6 +62,7 @@ export function reportUseCases(deps: FeedbackDeps): ReportUseCases {
     readMessage: deps.readMessage,
     readRoomMessage: deps.readRoomMessage,
     readPeople: deps.readPeople,
+    readQuickAnswer: deps.readQuickAnswer,
     reports: reportStore,
     newId: deps.newId ?? uuidv7,
     now: deps.now ?? (() => new Date()),
@@ -80,6 +83,7 @@ export function feedbackProviders(tokens: { readonly withPersonalScope: symbol }
         READ_REPORTABLE_MESSAGE,
         READ_REPORTABLE_ROOM_MESSAGE,
         READ_PUBLIC_PEOPLE,
+        READ_QUICK_ANSWER_FOR_REPORT,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -89,7 +93,18 @@ export function feedbackProviders(tokens: { readonly withPersonalScope: symbol }
         readMessage: ReadReportableMessage,
         readRoomMessage: ReadReportableRoomMessage,
         readPeople: ReadPublicPeople,
-      ) => reportUseCases({ withScope, fenceOwn, findAsset, checkAudience, readMessage, readRoomMessage, readPeople }),
+        readQuickAnswer: ReadQuickAnswerForReport,
+      ) =>
+        reportUseCases({
+          withScope,
+          fenceOwn,
+          findAsset,
+          checkAudience,
+          readMessage,
+          readRoomMessage,
+          readPeople,
+          readQuickAnswer,
+        }),
     },
   ];
 }

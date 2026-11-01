@@ -65,10 +65,15 @@ function AboutCard({
   return (
     <View style={styles.about}>
       <View style={styles.aboutText}>
+        {target.quickAnswerId === undefined ? null : (
+          <Text variant="metaS" color={content.ink2}>
+            The Quick answer you asked for, about
+          </Text>
+        )}
         <Text variant="uiS" numberOfLines={3}>
           {target.title}
         </Text>
-        {moment === undefined ? null : (
+        {moment === undefined || target.quickAnswerId !== undefined ? null : (
           <View style={styles.moment}>
             <Text variant="metaS" color={content.ink2}>
               {state.anchored ? moment : 'The whole thing'}

@@ -501,3 +501,14 @@ export {
   type PlaySessionOptions,
   type PlaySnapshot,
 } from './play-session';
+export {
+  NO_QUICK_ANSWERS,
+  QUICK_ANSWER_POLL_MS,
+  createQuickAnswerSession,
+  quickAnswerSessionFor,
+  type QuickAnswerCard,
+  type QuickAnswerSession,
+  type QuickAnswerSessionOptions,
+  type QuickAnswerSnapshot,
+  type QuickAnswerUnavailable,
+} from './quick-answer-session';

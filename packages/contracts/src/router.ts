@@ -30,6 +30,7 @@ import {
   listContentRequestsContract,
   readContentRequestContract,
 } from './supply.js';
+import { askQuickAnswerContract, dismissQuickAnswerContract, readQuickAnswerContract } from './quick-answers.js';
 import { exposureContextContract, navigateExperienceContract, readResumeContract } from './navigation.js';
 import { previewRegionEncounterContract, openRegionEncounterContract } from './region-encounter.js';
 import {
@@ -85,6 +86,11 @@ export const apiContract: {
     list: typeof listContentRequestsContract;
     cancel: typeof cancelContentRequestContract;
     retry: typeof retryContentRequestContract;
+  };
+  quickAnswers: {
+    ask: typeof askQuickAnswerContract;
+    read: typeof readQuickAnswerContract;
+    dismiss: typeof dismissQuickAnswerContract;
   };
   identity: {
     requestSignIn: typeof requestSignInContract;
@@ -143,6 +149,7 @@ export const apiContract: {
     cancel: cancelContentRequestContract,
     retry: retryContentRequestContract,
   },
+  quickAnswers: { ask: askQuickAnswerContract, read: readQuickAnswerContract, dismiss: dismissQuickAnswerContract },
   identity: {
     requestSignIn: requestSignInContract,
     peekSignIn: peekSignInContract,

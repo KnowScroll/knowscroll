@@ -5,6 +5,7 @@ import { EXPORT_LIST_LIMIT, boundedSection, exportReading } from '../../../infra
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { deleteJobPayloads, deleteClearJobPayloads } from '../../../infrastructure/jobs/erasure.js';
 import { resolveSupplyQueue } from '../events.js';
+import { answerQuickAnswerQueue } from '../quick-answer-events.js';
 
 /**
  * Wipes the words a person typed from the orders made for their questions, before their requests (and so the link to
@@ -23,11 +24,19 @@ async function scrubQuestionOrders(trx: ReturnType<typeof transactionOf>, univer
 /** Shared work contains public briefs only; erase private asks/waiters and every retained job ID. */
 export const supplyErasure = declareErasure({
   module: 'supply',
-  tables: [{ schema: 'supply', table: 'requests', ownerColumn: 'universe_id' }],
+  tables: [
+    { schema: 'supply', table: 'requests', ownerColumn: 'universe_id' },
+    // A Quick answer: the words the person asked and what the card shows, erased with them (D-253).
+    { schema: 'supply', table: 'quick_answers', ownerColumn: 'universe_id' },
+  ],
   nonRowStores: [
     {
       name: `pgboss/${resolveSupplyQueue.name}`,
       description: 'Queued, active, retained and dead-lettered private request IDs.',
+    },
+    {
+      name: `pgboss/${answerQuickAnswerQueue.name}`,
+      description: 'Queued, active, retained and dead-lettered Quick answer IDs.',
     },
   ],
   async erase(scope) {
@@ -36,10 +45,17 @@ export const supplyErasure = declareErasure({
       .deleteFrom('supply.requests')
       .where('universe_id', '=', scope.authority.universeId)
       .executeTakeFirst();
+    const answers = await transactionOf(scope)
+      .deleteFrom('supply.quick_answers')
+      .where('universe_id', '=', scope.authority.universeId)
+      .executeTakeFirst();
     return {
       module: 'supply',
       status: 'completed',
-      removed: Number(removed.numDeletedRows) + (await deleteJobPayloads(scope, [resolveSupplyQueue.name])),
+      removed:
+        Number(removed.numDeletedRows) +
+        Number(answers.numDeletedRows) +
+        (await deleteJobPayloads(scope, [resolveSupplyQueue.name, answerQuickAnswerQueue.name])),
     };
   },
   clear: {
@@ -50,10 +66,17 @@ export const supplyErasure = declareErasure({
         .deleteFrom('supply.requests')
         .where('universe_id', '=', scope.binding.universeId)
         .executeTakeFirst();
+      const answers = await clearCoreTransactionOf(scope)
+        .deleteFrom('supply.quick_answers')
+        .where('universe_id', '=', scope.binding.universeId)
+        .executeTakeFirst();
       return {
         module: 'supply',
         status: 'completed',
-        removed: Number(removed.numDeletedRows) + (await deleteClearJobPayloads(scope, [resolveSupplyQueue.name])),
+        removed:
+          Number(removed.numDeletedRows) +
+          Number(answers.numDeletedRows) +
+          (await deleteClearJobPayloads(scope, [resolveSupplyQueue.name, answerQuickAnswerQueue.name])),
       };
     },
   },
@@ -61,8 +84,8 @@ export const supplyErasure = declareErasure({
   export: (declaration) =>
     exportReading(
       declaration,
-      ['supply.requests'],
-      'Queue jobs are delivery bookkeeping for the requests listed.',
+      ['supply.requests', 'supply.quick_answers'],
+      'Queue jobs are delivery bookkeeping for the requests and Quick answers listed.',
       async (scope) => {
         const rows = await sql<{
           created_at: Date;
@@ -83,7 +106,20 @@ export const supplyErasure = declareErasure({
             and command #>> '{intent,kind}' is not null
           order by created_at desc, id
           limit ${EXPORT_LIST_LIMIT + 1}`.execute(transactionOf(scope));
+        const answers = await sql<{ created_at: Date; question: string; answer: string }>`
+          select created_at, shown_question as question, answer
+          from supply.quick_answers
+          where universe_id = ${scope.authority.universeId}::uuid and state = 'answered' and expires_at > now()
+          order by created_at desc, id
+          limit ${EXPORT_LIST_LIMIT + 1}`.execute(transactionOf(scope));
         return {
+          quickAnswers: boundedSection(
+            answers.rows.map((row) => ({
+              askedAt: row.created_at.toISOString(),
+              question: row.question,
+              answer: row.answer,
+            })),
+          ),
           requests: boundedSection(
             rows.rows.map((row) => ({
               askedAt: row.created_at.toISOString(),

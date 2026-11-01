@@ -34,6 +34,7 @@ interface ExportRow {
   readonly asset_id: string | null;
   readonly title: string | null;
   readonly note: string | null;
+  readonly quick_answer: string | null;
   readonly retain_until: Date | null;
   readonly created_at: Date;
 }
@@ -90,7 +91,7 @@ export const feedbackErasure = declareErasure({
     exportReading(declaration, [LIFECYCLE], 'Nothing else is declared.', async (scope, person) => {
       const rows = await sql<ExportRow>`
         select report.kind, report.category, report.target_kind, report.asset_id, revision.title, report.note,
-          report.retain_until, report.created_at
+          report.quick_answer, report.retain_until, report.created_at
         from feedback.reports report
         left join content.asset_revisions revision
           on revision.asset_id = report.asset_id and revision.revision = report.asset_revision
@@ -109,6 +110,7 @@ export const feedbackErasure = declareErasure({
             about: ABOUT_WORDS[row.target_kind],
             ...(row.asset_id !== null && row.title !== null && reachable.has(row.asset_id) ? { title: row.title } : {}),
             ...(row.note === null ? {} : { note: row.note }),
+            ...(row.quick_answer === null ? {} : { quickAnswer: row.quick_answer }),
             ...(row.retain_until === null ? {} : { keptUntil: row.retain_until.toISOString() }),
             sentAt: row.created_at.toISOString(),
           })),

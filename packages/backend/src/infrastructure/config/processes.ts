@@ -100,6 +100,10 @@ export interface ApiConfig extends ReleaseIdentity {
   readonly supplyAskDailyCap: number;
   /** Ask orders one person may have made per UTC day. */
   readonly supplyAskPersonDailyCap: number;
+  /** Quick answers (a short unchecked answer about selected words, D-253) the world may have per UTC day; 0 turns them off. */
+  readonly supplyQuickAnswerDailyCap: number;
+  /** Quick answers one person may ask per UTC day. */
+  readonly supplyQuickAnswerPersonDailyCap: number;
   /** Branches of threads Quartermaster may order per UTC day (D-049); 0 turns scenario Create off. */
   readonly supplyScenarioDailyCap: number;
   /** Branches one thread may have ordered per UTC day (D-076, T3 Q8). */
@@ -153,6 +157,10 @@ export interface WorkerConfig extends ReleaseIdentity {
   readonly supplyAskDailyCap: number;
   /** Ask orders one person may have made per UTC day. */
   readonly supplyAskPersonDailyCap: number;
+  /** Quick answers (a short unchecked answer about selected words, D-253) the world may have per UTC day; 0 turns them off. */
+  readonly supplyQuickAnswerDailyCap: number;
+  /** Quick answers one person may ask per UTC day. */
+  readonly supplyQuickAnswerPersonDailyCap: number;
   /** The production scope generation the `content.produce-scroll` consumer works under. */
   readonly scrollProductionGeneration: number;
   readonly database: DatabaseSettings;
@@ -260,6 +268,15 @@ const supplyAskDailyCapVariable = z.coerce.number().int().min(0).max(500).option
 const supplyAskPersonCapVariable = z.coerce.number().int().min(1).max(100).default(5);
 
 /**
+ * `KS_SUPPLY_QUICK_ANSWER_DAILY_CAP`: how many Quick answers (one writer call and at most one repair each) the whole world may
+ * have per UTC day, counted from a ledger that names no person. 0 turns them off, and a person then sees an honest "not
+ * available". Default 20 in `local`, 0 in every other world (D-253).
+ */
+const supplyQuickAnswerDailyCapVariable = z.coerce.number().int().min(0).max(5000).optional();
+/** `KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP`: the Quick answers one person may ask per UTC day. Default 10 (D-253). */
+const supplyQuickAnswerPersonCapVariable = z.coerce.number().int().min(1).max(100).default(10);
+
+/**
  * `KS_SUPPLY_SCENARIO_DAILY_CAP`: how many branches of content threads (a what-if or another perspective,
  * each one writer call and at most one repair) Quartermaster may order per UTC day. It is counted apart
  * from every other Create cap. 0 turns scenario Create off. Default 20 in `local`, 0 in every other
@@ -333,6 +350,8 @@ export function readApiConfig(env: Environment): ApiConfig {
       KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: supplyPlannerCapVariable,
       KS_SUPPLY_ASK_DAILY_CAP: supplyAskDailyCapVariable,
       KS_SUPPLY_ASK_PERSON_DAILY_CAP: supplyAskPersonCapVariable,
+      KS_SUPPLY_QUICK_ANSWER_DAILY_CAP: supplyQuickAnswerDailyCapVariable,
+      KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP: supplyQuickAnswerPersonCapVariable,
       KS_SUPPLY_SCENARIO_DAILY_CAP: supplyScenarioDailyCapVariable,
       KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP: supplyScenarioThreadCapVariable,
       KS_REASONING_ROOM_ENABLED: z.enum(['0', '1']).default('0'),
@@ -356,6 +375,8 @@ export function readApiConfig(env: Environment): ApiConfig {
       'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
       'KS_SUPPLY_ASK_DAILY_CAP',
       'KS_SUPPLY_ASK_PERSON_DAILY_CAP',
+      'KS_SUPPLY_QUICK_ANSWER_DAILY_CAP',
+      'KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP',
       'KS_SUPPLY_SCENARIO_DAILY_CAP',
       'KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP',
       'KS_REASONING_ROOM_ENABLED',
@@ -400,6 +421,8 @@ export function readApiConfig(env: Environment): ApiConfig {
     supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
     supplyAskDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_ASK_DAILY_CAP, release.world),
     supplyAskPersonDailyCap: parsed.KS_SUPPLY_ASK_PERSON_DAILY_CAP,
+    supplyQuickAnswerDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_QUICK_ANSWER_DAILY_CAP, release.world),
+    supplyQuickAnswerPersonDailyCap: parsed.KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP,
     supplyScenarioDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_SCENARIO_DAILY_CAP, release.world),
     supplyScenarioThreadDailyCap: parsed.KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP,
     roomResidentsEnabled: parsed.KS_REASONING_ROOM_ENABLED === '1',
@@ -745,6 +768,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: supplyPlannerCapVariable,
         KS_SUPPLY_ASK_DAILY_CAP: supplyAskDailyCapVariable,
         KS_SUPPLY_ASK_PERSON_DAILY_CAP: supplyAskPersonCapVariable,
+        KS_SUPPLY_QUICK_ANSWER_DAILY_CAP: supplyQuickAnswerDailyCapVariable,
+        KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP: supplyQuickAnswerPersonCapVariable,
         KS_SCROLL_PRODUCTION_GENERATION: positiveInteger(1, 2_147_483_647),
         KS_DB_POOL_MAX: positiveInteger(5, 100),
         KS_SHUTDOWN_GRACE_SECONDS: positiveInteger(20, 300),
@@ -759,6 +784,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
         'KS_SUPPLY_ASK_DAILY_CAP',
         'KS_SUPPLY_ASK_PERSON_DAILY_CAP',
+        'KS_SUPPLY_QUICK_ANSWER_DAILY_CAP',
+        'KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP',
         'KS_SCROLL_PRODUCTION_GENERATION',
         'DATABASE_URL',
         'KS_DB_STATEMENT_TIMEOUT_MS',
@@ -785,6 +812,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
     supplyAskDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_ASK_DAILY_CAP, release.world),
     supplyAskPersonDailyCap: parsed.KS_SUPPLY_ASK_PERSON_DAILY_CAP,
+    supplyQuickAnswerDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_QUICK_ANSWER_DAILY_CAP, release.world),
+    supplyQuickAnswerPersonDailyCap: parsed.KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP,
     scrollProductionGeneration: parsed.KS_SCROLL_PRODUCTION_GENERATION,
     database: databaseSettings(parsed, `knowscroll-worker-${release.world}`, parsed.KS_DB_POOL_MAX),
     shutdownGraceMs: parsed.KS_SHUTDOWN_GRACE_SECONDS * 1000,
