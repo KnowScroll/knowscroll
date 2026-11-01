@@ -651,7 +651,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(ready.status === 'ready' ? ready.content.metadata.title : '').not.toBe('');
       // The writer and the support check ran for the order; the question's scope was never asked for a suggested question.
       expect(production.writerCalls).toHaveLength(1);
-      // The answer has 19 sentences: the check is two requests (D-263).
+      // The answer has 19 sentences: the check is two requests (D-267).
       expect(production.supportCalls).toHaveLength(2);
       expect(scopeModel.calls).toHaveLength(0);
       expect(
@@ -742,7 +742,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     const numberOf = (start: string) =>
       sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer())).find((sentence) => sentence.text.startsWith(start))!
         .number;
-    /** The default fixture answer has 19 sentences, so a check of it is two requests (10 + 9 sentences, D-263). */
+    /** The default fixture answer has 19 sentences, so a check of it is two requests (10 + 9 sentences, D-267). */
     const BATCHES = batchesOf(sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer()))).length;
     /** The ids of the runs of the checks of a draft: one for each batch. */
     const checkRuns = (jobId: string, draft: 1 | 2) =>
@@ -1016,7 +1016,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       return (receipt?.unsupported ?? []).map((one) => one.code);
     };
 
-    it('sets aside only the sentence whose quote is not in its passages: the others keep their verdicts, the writer repairs it once, and the repair is served (D-263)', async () => {
+    it('sets aside only the sentence whose quote is not in its passages: the others keep their verdicts, the writer repairs it once, and the repair is served (D-265)', async () => {
       await setup();
       const { order } = await orderedAsk();
       const bad = numberOf(BEFORE);

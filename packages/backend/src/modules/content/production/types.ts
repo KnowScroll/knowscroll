@@ -18,9 +18,9 @@ export interface RoleReceipt {
   readonly verdicts?: readonly CallVerdict[];
   /** For a `support_check` receipt: how many sentences were checked and which were found unsupported. Numbers and kinds only, never the sentences (D-231). */
   readonly sentences?: number;
-  /** For a `support_check` receipt: how many requests' worth of sentences the answer was split into (D-263). */
+  /** For a `support_check` receipt: how many requests' worth of sentences the answer was split into (D-267). */
   readonly batches?: number;
-  /** `code` is present when code, not the checker, found the sentence unsupported: the rule its verdict broke (D-263). */
+  /** `code` is present when code, not the checker, found the sentence unsupported: the rule its verdict broke (D-265). */
   readonly unsupported?: readonly {
     readonly number: number;
     readonly kind: UnsupportedKind;

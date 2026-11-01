@@ -100,7 +100,7 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     const before = await contentRows();
     const callsBefore = worker.supportCalls.length;
     // The checker now finds the sentence that starts "Because the beam turns" unsupported, and quotes words nobody wrote for
-    // the one that starts "Today a small motor": code sets that one aside (D-263).
+    // the one that starts "Today a small motor": code sets that one aside (D-265).
     support = (_check, call) => {
       const { sentences } = supportRequestOf(call);
       const flagged = sentences.find((sentence) => sentence.text.startsWith('Because the beam turns'));
@@ -121,7 +121,7 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     const { results, summary } = await replayed({ kind: 'assets', assetIds: [answer.assetId] });
 
     expect(summary).toEqual({ answers: 1, stopped: false });
-    // The answer has 19 sentences: two requests, ten sentences and nine (D-263).
+    // The answer has 19 sentences: two requests, ten sentences and nine (D-267).
     expect(worker.supportCalls.length - callsBefore).toBe(2);
     const [only] = results;
     expect(only!.line).toMatchObject({

@@ -125,7 +125,7 @@ describe('takes are counted per production version, so a writer bump gives new o
     expect(requestBoundOf(order, 'question')).toBe(REQUEST_BOUND_ASK_ORDER);
   });
 
-  it('counts the support check inside an ask order’s bound: the writer and its one repair, and for each of the two drafts its batches of sentences and one repair of an unusable reply in the check (D-250, D-263)', () => {
+  it('counts the support check inside an ask order’s bound: the writer and its one repair, and for each of the two drafts its batches of sentences and one repair of an unusable reply in the check (D-250, D-267)', () => {
     expect(ASK_SUPPORT_BATCH_SENTENCES).toBe(10);
     expect(ASK_SUPPORT_MAX_BATCHES).toBe(4);
     expect(REQUEST_BOUND_ASK_ORDER).toBe(2 + 2 * (ASK_SUPPORT_MAX_BATCHES + 1));
@@ -157,7 +157,7 @@ describe('the answer to a question is written and checked as a pair (D-250)', ()
   });
 });
 
-describe('how long a production delivery may hold its claim (D-198, D-263)', () => {
+describe('how long a production delivery may hold its claim (D-198, D-267)', () => {
   /**
    * The reasoning README's rule for a job that calls `propose`: each request waits 10 s for the quota preflight, up to
    * its deadline and 10 s for the two scope locks. Written out again, so the queue cannot drift from it by editing the

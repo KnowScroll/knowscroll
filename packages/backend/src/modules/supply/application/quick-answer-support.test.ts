@@ -74,7 +74,7 @@ describe('the checker’s role for a Quick answer', () => {
     const judged = (...verdicts: unknown[]) => role.outputSchema.parse(reply(...verdicts)).sentences;
     expect(role.outputSchema.safeParse(good).success).toBe(true);
     expect(judged(...good.sentences).map((verdict) => verdict.verdict)).toEqual(['supported', 'supported']);
-    // A quote that is not in any passage the sentence cites proves nothing: that sentence is unsupported, the other stands (D-263).
+    // A quote that is not in any passage the sentence cites proves nothing: that sentence is unsupported, the other stands (D-265).
     expect(
       judged(supported(1, 'sunlight arrives steeper and the days run longer'), good.sentences[1]).map((verdict) =>
         verdict.verdict === 'unsupported' ? verdict.code : verdict.verdict,

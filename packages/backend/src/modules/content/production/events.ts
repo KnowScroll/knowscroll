@@ -32,7 +32,7 @@ const REQUEST_OVERHEAD_SECONDS = 20;
 /** Time for the research fetch and the short database steps of a take, besides its model requests. */
 const TAKE_MARGIN_SECONDS = 180;
 
-/** The most paid requests any take sends: a v2 library recipe's, or the answer to a question with its support check (D-263). */
+/** The most paid requests any take sends: a v2 library recipe's, or the answer to a question with its support check (D-267). */
 const WORST_CASE_REQUESTS = Math.max(REQUEST_BOUND_V2_PER_TOPIC, REQUEST_BOUND_ASK_ORDER);
 
 /**
@@ -47,7 +47,7 @@ export const PRODUCE_SCROLL_CLAIM_SECONDS =
 
 /**
  * Shared, nonpersonal work. A take chains up to twelve model requests (a writer, its repair and the support check of
- * an answer in batches, D-198, D-263) and also fetches research, so a claim runs as long as the worst case before pg-boss
+ * an answer in batches, D-198, D-267) and also fetches research, so a claim runs as long as the worst case before pg-boss
  * treats it as lost. Retries cover an unavailable database or a lost claim; every delivery resumes the
  * same business run, and an attempt whose outcome is unknown is never resent.
  */

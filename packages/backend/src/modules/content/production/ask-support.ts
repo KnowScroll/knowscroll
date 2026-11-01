@@ -13,7 +13,7 @@ import {
 import type { ProductionSubject } from './subject.js';
 
 /**
- * The support check of an ask order's answer (D-250, D-263): a second model role that reads each sentence of the answer
+ * The support check of an ask order's answer (D-250, D-263, D-265 to D-267): a second model role that reads each sentence of the answer
  * against the passages its own block cites and says which sentences those passages do not support. The writer's
  * validator cannot see that: it proves that digits come from a cited passage and that nine words are not copied, not
  * that a sentence about a cause or a direction says what the passage says. The checker only proposes. Code validates
@@ -46,7 +46,7 @@ interface Statement {
 /**
  * The texts of a block that state things. A paragraph, a list item and a callout's text rest on the passages the block
  * cites. A heading and a callout's title cite nothing of their own, so they rest on whatever the answer cites; they are
- * labels (D-263).
+ * labels (D-266).
  */
 function statementsOf(block: AnswerBlock, answerCites: readonly string[]): readonly Statement[] {
   if (block.type === 'heading') return [{ text: block.text, cites: answerCites, label: true }];
@@ -64,7 +64,7 @@ function statementsOf(block: AnswerBlock, answerCites: readonly string[]): reado
  * The sentences of an answer in reading order, each with the passages it rests on: the title, the dek, each heading, each
  * sentence of a paragraph or list item, and a callout's title and text. A title or a heading can state a fact as well as
  * a sentence can ("Why the equator barely notices the tilt"), so none is left unchecked (B1.4). The title, the headings and
- * the callouts' titles are marked as labels: one that only names what follows may be marked as stating no fact (D-263).
+ * the callouts' titles are marked as labels: one that only names what follows may be marked as stating no fact (D-266).
  */
 export function sentencesOfAnswer(answer: AuthoredScroll): readonly SentenceUnderCheck[] {
   const allCites = [...new Set(answer.blocks.flatMap((block) => ('cites' in block ? block.cites : [])))];
@@ -159,7 +159,7 @@ export const ASK_SUPPORT_INSTRUCTIONS = [
 
 /**
  * The only fixed hint of the harness's one repair of an unusable reply: the shape. Every other rule is applied to a
- * sentence by code (D-263), so the checker is never asked to redo a reply for it.
+ * sentence by code (D-265), so the checker is never asked to redo a reply for it.
  */
 const SAFE_HINTS = {
   sentences_not_in_order:
@@ -182,7 +182,7 @@ const NoClaim = z.strictObject({ n: z.number().int(), verdict: z.literal('no_cla
 /**
  * The checker's reply for these sentences, read into the verdicts that count. The reply must have the shape: one entry for
  * every sentence, in order, each a well-formed verdict. A reply without it is refused as an invalid reply (one repair).
- * Every other rule is code's judgement of one sentence (D-263): a supported verdict needs a quote of enough words that is
+ * Every other rule is code's judgement of one sentence (D-265): a supported verdict needs a quote of enough words that is
  * in a passage the sentence cites and is about it, and "no fact" needs a ground code can see (`judgeVerdicts`). A verdict
  * that fails a rule makes that sentence unsupported with the rule's code; the other sentences keep their verdicts. Whether
  * the quoted words support the sentence is not a rule code can check: it is the checker's judgement.

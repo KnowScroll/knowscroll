@@ -659,7 +659,7 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
       }
     });
 
-    it('treats a quote that is not in the passage as that sentence unsupported (D-263): one rewrite, and no card unless its own check clears it', async () => {
+    it('treats a quote that is not in the passage as that sentence unsupported (D-265): one rewrite, and no card unless its own check clears it', async () => {
       const unquoted = (): FixtureScenario =>
         checkerReply({ n: 1, verdict: 'supported', quote: 'sunlight arrives steeper and the days run longer' });
       // Still the same finding on the rewrite: no card, nothing of the answer stored.

@@ -183,7 +183,7 @@ export function makeAskSupportStep(deps: AskSupportStepDependencies) {
   }
 
   /**
-   * Asks the checker about a draft, a batch of sentences at a time (D-263), one after the other. The first batch with no
+   * Asks the checker about a draft, a batch of sentences at a time (D-267), one after the other. The first batch with no
    * usable reply makes the whole check unusable and the later batches are not asked. The harness repairs one unusable
    * reply in the whole check, wherever it happens, so a draft costs its batches plus one.
    */

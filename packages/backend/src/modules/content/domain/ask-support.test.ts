@@ -181,7 +181,7 @@ describe('the key words that tie a quote to a sentence (B1.2)', () => {
   });
 });
 
-describe('which sentences may state no fact (B1.3, D-263)', () => {
+describe('which sentences may state no fact (B1.3, D-266)', () => {
   const cited = ['A prism ring around the flame gathers the light into a single beam that sweeps across the water.'];
 
   it('reads a figure written in words as a figure', () => {
@@ -251,7 +251,7 @@ describe('which sentences may state no fact (B1.3, D-263)', () => {
   });
 });
 
-describe('what a verdict that breaks a rule does to its own sentence (D-263)', () => {
+describe('what a verdict that breaks a rule does to its own sentence (D-265)', () => {
   const texts = new Map([
     ['e1', 'The Skerry lighthouse keeper winds the lamp clockwork every four hours through the long winter nights.'],
     ['e2', 'A prism ring around the flame gathers the light into a single beam that sweeps across the water.'],
@@ -397,7 +397,7 @@ describe('what a verdict that breaks a rule does to its own sentence (D-263)', (
   });
 });
 
-describe('a long answer is checked in batches of sentences (D-263)', () => {
+describe('a long answer is checked in batches of sentences (D-267)', () => {
   const sentences = (count: number): SentenceUnderCheck[] =>
     Array.from({ length: count }, (_unused, index) => ({
       number: index + 1,

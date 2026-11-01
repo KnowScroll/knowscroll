@@ -13,7 +13,7 @@ import {
 import { askSupportRunId, makeAskSupportStep, type SupportCheckOutcome } from './ask-support-step.js';
 
 /**
- * The step that asks the support checker about a draft, a batch of sentences at a time (D-263), against a labelled CI
+ * The step that asks the support checker about a draft, a batch of sentences at a time (D-267), against a labelled CI
  * harness that records each request and answers from a script. The sentences are questions put to the reader, which
  * the checker may always mark as stating no fact, so a reply is valid without any passage.
  */
@@ -74,7 +74,7 @@ const done = (outcome: SupportCheckOutcome) => {
   return outcome;
 };
 
-describe('asking the checker about a long draft in batches (D-263)', () => {
+describe('asking the checker about a long draft in batches (D-267)', () => {
   it('sends the sentences in order, ten at most to a request, each batch in a run of its own', async () => {
     const { outcome, requests } = await check(questions(25));
     expect(requests.map((request) => request.numbers.length)).toEqual([10, 10, 5]);

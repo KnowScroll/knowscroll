@@ -90,7 +90,7 @@ itself fails `schema-structure.test.ts`, instead of silently masking every path.
   (550 s with the defaults, 670 s at the 300 s maximum). A job that makes several proposals counts
   every request it may send at `10 + 300 + 10` s each: the Scroll production job twelve for the answer
   to a question plus 180 s for research and database steps (`PRODUCE_SCROLL_CLAIM_SECONDS`, 4,020 s,
-  D-263), and the Quick answer job its six paid attempts (1,950 s). Below that, pg-boss expires a
+  D-267), and the Quick answer job its six paid attempts (1,950 s). Below that, pg-boss expires a
   delivery that is still waiting on the provider; the next delivery finds the attempt `dispatched`, marks it
   `unknown` (never resent) and the operator has to write it off.
 - **Aborts.** A graceful stop (the delivery's signal) before the request leaves records a failure

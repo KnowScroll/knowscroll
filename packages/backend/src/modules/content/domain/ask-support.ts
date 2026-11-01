@@ -1,5 +1,5 @@
 /**
- * The support check of an ask order's answer (D-250, D-263): after the writer, a second model reads each sentence of the
+ * The support check of an ask order's answer (D-250, D-263, D-265 to D-267): after the writer, a second model reads each sentence of the
  * answer against the passages its block cites and says which sentences those passages do not support. It only proposes.
  * Code validates the shape of its reply, judges each verdict on its own sentence, decides what a verdict changes and never
  * edits an answer. Pure; the production job asks the model.
@@ -18,14 +18,14 @@ export interface SentenceUnderCheck {
   readonly cites: readonly string[];
   /**
    * The sentence is a title, a heading or the title of a callout: a label that names what follows. A label with no figure may
-   * be marked as stating no fact without any other ground (D-263). A label that states a fact is judged like any sentence.
+   * be marked as stating no fact without any other ground (D-266). A label that states a fact is judged like any sentence.
    */
   readonly label?: boolean;
 }
 
 /**
  * The rules code applies to one sentence's verdict. A verdict that breaks one is set aside and the sentence counts as
- * unsupported, because nothing shows that a cited passage states it (D-263). The code is kept; the checker's words are not.
+ * unsupported, because nothing shows that a cited passage states it (D-265). The code is kept; the checker's words are not.
  */
 export const RULE_CODES = [
   'quote_too_short',
@@ -55,7 +55,7 @@ export type SentenceVerdict =
       readonly kind: UnsupportedKind;
       /** One or two plain sentences: which words are not supported. An operator note and a hint's data, never shown to a reader. */
       readonly problem: string;
-      /** Present when code, not the checker, found the sentence unsupported: the rule its verdict broke (D-263). */
+      /** Present when code, not the checker, found the sentence unsupported: the rule its verdict broke (D-265). */
       readonly code?: RuleCode;
     }
   | { readonly number: number; readonly verdict: 'no_claim' };
@@ -73,7 +73,7 @@ export interface SupportRecord {
   readonly draft: 1 | 2;
   readonly kind: 'checked' | 'unchecked';
   readonly sentences: number;
-  /** How many requests' worth of sentences the answer was split into (D-263). */
+  /** How many requests' worth of sentences the answer was split into (D-267). */
   readonly batches: number;
   readonly unsupported: readonly {
     readonly number: number;
@@ -148,7 +148,7 @@ export function splitSentences(text: string): string[] {
 }
 
 /**
- * The words of a text, lower case, with punctuation and typographic variants set aside, so a quote compares by its words:
+ * The words of a text (D-263), lower case, with punctuation and typographic variants set aside, so a quote compares by its words:
  * curly and straight quotes and apostrophes, every dash, non-breaking and repeated spaces, case and the separators of a
  * figure ("4,096" is "4096") do not make two texts differ.
  */
@@ -362,7 +362,7 @@ const setAside = (number: number, code: RuleCode): SentenceVerdict => ({
 /**
  * The verdicts that count, from the verdicts the checker gave: each is judged on its own sentence. One that breaks a rule
  * (a quote that is too short, not in a cited passage or about something else; "no fact" where nothing shows it) becomes
- * unsupported for that sentence with its code, and the others stand. The reply is never refused whole for it (D-263).
+ * unsupported for that sentence with its code, and the others stand. The reply is never refused whole for it (D-265).
  *
  * A reply in which more than half of the answer's sentences are marked "no fact" on the weakest ground (sharing no key word
  * with their passages, which is not a title, a question or an admission code can see) is not credible: those sentences
@@ -398,7 +398,7 @@ export function judgeVerdicts(
 /** The most sentences one request to the checker carries. A long answer is checked in batches, so no reply is cut short. */
 export const ASK_SUPPORT_BATCH_SENTENCES = 10;
 
-/** The most batches one draft may need. An answer with more sentences than this holds is not checked (D-263). */
+/** The most batches one draft may need. An answer with more sentences than this holds is not checked (D-267). */
 export const ASK_SUPPORT_MAX_BATCHES = 4;
 
 /** The sentences split into runs of at most {@link ASK_SUPPORT_BATCH_SENTENCES}, in order. An empty answer has none. */

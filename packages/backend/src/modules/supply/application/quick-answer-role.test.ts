@@ -62,7 +62,7 @@ describe('the Quick answer writer', () => {
     );
   });
 
-  it('refuses an answer of more sentences than one request of the support check carries, with a fixed hint (D-263)', () => {
+  it('refuses an answer of more sentences than one request of the support check carries, with a fixed hint (D-267)', () => {
     const role = quickAnswerRole(passages, ask);
     const sentences = (count: number) => Array.from({ length: count }, () => 'Nothing turns it.').join(' ');
     expect(QUICK_ANSWER_ROLE_VERSION).toBe('quick-answer.2');

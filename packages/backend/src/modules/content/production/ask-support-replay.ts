@@ -43,11 +43,11 @@ export interface ReplayLine {
   readonly supported: number;
   readonly unsupported: number;
   readonly noClaim: number;
-  /** How many requests' worth of sentences the answer was split into (D-263). */
+  /** How many requests' worth of sentences the answer was split into (D-267). */
   readonly batches: number;
   /** Paid requests the replay sent: one for each batch, and one more when the harness repaired an unusable reply. */
   readonly requests: number;
-  /** For each rule code, how many sentences code set aside as unsupported; the sentences' words are never here (D-263). */
+  /** For each rule code, how many sentences code set aside as unsupported; the sentences' words are never here (D-265). */
   readonly codes: Readonly<Record<string, number>>;
   /** Why the check gave no usable answer, when it did not. */
   readonly code?: string;
@@ -59,7 +59,7 @@ export interface ReplaySentence extends SentenceUnderCheck {
   readonly verdict: SentenceVerdict['verdict'];
   readonly kind?: string;
   readonly problem?: string;
-  /** The rule code, when code set the sentence aside as unsupported (D-263). */
+  /** The rule code, when code set the sentence aside as unsupported (D-265). */
   readonly code?: string;
   readonly quote?: string;
 }

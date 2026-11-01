@@ -82,7 +82,7 @@ describe('the sentences a support check reads', () => {
     ]);
   });
 
-  it('mark the title, the headings and the callouts’ titles as labels, and no other sentence (D-263)', () => {
+  it('mark the title, the headings and the callouts’ titles as labels, and no other sentence (D-266)', () => {
     expect(sentences.filter((sentence) => sentence.label === true).map((sentence) => sentence.number)).toEqual([
       1, 3, 8,
     ]);
@@ -127,7 +127,7 @@ describe('the sentences a support check reads', () => {
   });
 });
 
-describe('the checker’s reply: its shape is refused whole, each verdict is judged on its own sentence (D-263)', () => {
+describe('the checker’s reply: its shape is refused whole, each verdict is judged on its own sentence (D-265)', () => {
   const sentences: readonly SentenceUnderCheck[] = [
     { number: 1, text: 'A prism ring gathers the light into one beam.', cites: ['e2'] },
     { number: 2, text: 'The tower is 21 metres tall.', cites: ['e4'] },
@@ -535,7 +535,7 @@ describe('the role', () => {
   it('is a role of its own with fixed repair hints and the passages-only rule in its instructions', () => {
     const role = askSupportRole(sentences, PASSAGES);
     expect(role).toMatchObject({ id: 'content.ask-support-check', version: ASK_SUPPORT_CHECK_VERSION });
-    // Only the shape of a reply is worth a repair: every other rule is applied to one sentence by code (D-263).
+    // Only the shape of a reply is worth a repair: every other rule is applied to one sentence by code (D-265).
     expect(Object.keys(role.safeCustomIssues ?? {})).toEqual(['sentences_not_in_order']);
     expect(ASK_SUPPORT_INSTRUCTIONS).toContain('Judge against the cited passages alone');
     expect(ASK_SUPPORT_INSTRUCTIONS).toContain('Do not fill a gap with what you know');

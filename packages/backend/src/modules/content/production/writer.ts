@@ -35,7 +35,7 @@ export const SCENARIO_WRITER_PROMPT_VERSION = 'scenario-writer.v1';
  * the library's contract and adds the question rules, so the other modes keep their instructions and versions.
  * v2 (D-250): the reason a "why" question asks for comes from the passages, a gap is said in one sentence, and the
  * writer is told that each sentence is checked against the passages it cites. v3: the title, the headings and the
- * callout's title are checked too. v4 (D-263): a title or a heading that only names what follows needs no passage, and a
+ * callout's title are checked too. v4 (D-266): a title or a heading that only names what follows needs no passage, and a
  * plain admission of a gap stands alone as its own sentence. `versions.test.ts` pairs it with the support check's version.
  */
 export const QUESTION_WRITER_PROMPT_VERSION = 'question-writer.v4';

@@ -45,7 +45,7 @@ export function quickAnswerRewriteRole(role: ReasoningRole<QuickAnswerDraft>): R
 }
 
 /**
- * The most sentences an answer may have: what one request of the support check carries (D-263). The writer is asked for two to
+ * The most sentences an answer may have: what one request of the support check carries (D-267). The writer is asked for two to
  * four, so this only refuses an answer that ran on, and it keeps the check to one request.
  */
 const MAX_ANSWER_SENTENCES = ASK_SUPPORT_BATCH_SENTENCES;
