@@ -129,7 +129,7 @@ candidate file (D-280), and then the next pair is released or v4 and writer v5 a
   the same role, in the same batches, over stored answers (the authored answer and the research the job kept), through the production harness, writing
   nothing to content. Counts go to stdout, including how many sentences each rule code set aside and how many `no_claim` verdicts passed on each ground (`codes`) and the batches; sentences, cited passages,
   verdicts and each sentence's rule code go to the file. Runbook: [scroll-production.md](../../../../../../docs/v2/operations/scroll-production.md).
-- **Versions.** `question-writer.v5` and `ask-support-check.v4` are a pair (`versions.test.ts`). `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14`
+- **Versions.** `question-writer.v6` and `ask-support-check.v4` are a pair (`versions.test.ts`). `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14`
   because an order has a job of its own and the version is shared with v1 library recipes and what-ifs.
 
 ## Jobs, takes and who sends them
