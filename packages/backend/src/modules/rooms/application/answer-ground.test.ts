@@ -47,7 +47,10 @@ describe('the words a question is matched against', () => {
     const about = aboutText({
       discussionTitle: KEPT_OUT_TOPIC,
       content: undefined,
-      messages: [{ speaker: 'Member 1', text: KEPT_OUT_MESSAGE }, { speaker: 'Member 2', text: QUESTION }],
+      messages: [
+        { speaker: 'Member 1', text: KEPT_OUT_MESSAGE },
+        { speaker: 'Member 2', text: QUESTION },
+      ],
       focus: 2,
     });
     expect(about).toBe(QUESTION);
@@ -60,7 +63,10 @@ describe('the stretch of a stop a question is shown', () => {
   });
 
   it('takes consecutive sentences of a long stop around the one that fits the question best, within the limit', () => {
-    const filler = Array.from({ length: 12 }, (_, index) => `Sentence number ${String(index + 1)} says nothing of interest here at all.`);
+    const filler = Array.from(
+      { length: 12 },
+      (_, index) => `Sentence number ${String(index + 1)} says nothing of interest here at all.`,
+    );
     const stop = [...filler, 'Scientists measure the drift of the moon with lasers.', ...filler].join(' ');
     expect(stop.length).toBeGreaterThan(GROUND_PASSAGE_CHARS);
     const window = windowOf(stop, QUESTION);

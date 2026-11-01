@@ -38,7 +38,9 @@ const isPlaceholder = (text: string): boolean => text === KEPT_OUT_MESSAGE || te
  * answered and the few before it (or the newest few when the ask points at no message). Keep-out has already replaced a kept-out
  * member's words by a placeholder, and a placeholder says nothing about a subject, so it is left out.
  */
-export function aboutText(material: Pick<ContributionMaterial, 'discussionTitle' | 'content' | 'messages' | 'focus'>): string {
+export function aboutText(
+  material: Pick<ContributionMaterial, 'discussionTitle' | 'content' | 'messages' | 'focus'>,
+): string {
   const focusAt = material.focus === undefined ? undefined : material.focus - 1;
   const read =
     focusAt === undefined
@@ -70,7 +72,7 @@ export function windowOf(stop: string, about: string): string {
   let from = best;
   let to = best;
   let length = sentences[best]!.length;
-  for (let grow = true; grow; ) {
+  for (let grow = true; grow;) {
     grow = false;
     for (const next of [to + 1, from - 1]) {
       const sentence = sentences[next];

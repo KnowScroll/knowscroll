@@ -100,7 +100,11 @@ async function prepare(
 }
 
 /** One call on the recording-aware harness, stamped with the generation the asker's recording was at (D-270). */
-function recordingModel(harness: RecordingReasoningHarness, owner: RunOwner, authority: PersonalAuthority): AnswerModel {
+function recordingModel(
+  harness: RecordingReasoningHarness,
+  owner: RunOwner,
+  authority: PersonalAuthority,
+): AnswerModel {
   return async (call, signal) => {
     const { outcome, purpose } = await proposeWhenRecording(
       harness,

@@ -39,7 +39,8 @@ export const ANSWER_HINTS: Readonly<Record<ContributionProblem | GroundingProble
   cites_missing:
     'List the handles of the passages the answer rests on in "cites", for example ["e1"], or answer {"kind":"not_covered","text":"","cites":[]} when they do not cover it.',
   too_many_cites: `Cite at most ${String(ANSWER_MAX_CITES)} passages, each handle once.`,
-  unknown_citation: 'Cite only the handles of the passages offered (e1, e2, …), written as in the list. Never invent one.',
+  unknown_citation:
+    'Cite only the handles of the passages offered (e1, e2, …), written as in the list. Never invent one.',
 };
 
 /**

@@ -1,5 +1,9 @@
 import { HARNESS_PROMPT_VERSION } from '../../../reasoning/public.js';
-import type { ProductionAuthority, ProductionReasoningHarness, WithProductionScope } from '../../../reasoning/public.js';
+import type {
+  ProductionAuthority,
+  ProductionReasoningHarness,
+  WithProductionScope,
+} from '../../../reasoning/public.js';
 import type { CheckPersonalOwnerActive, PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { ANSWER_SUPPORT_POLICY } from '../domain/answer-support.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
@@ -272,8 +276,8 @@ async function closeSteps(
  * twice; (3) one transaction stores the message and settles the turn, and the runs are closed.
  *
  * What a resident posts on its own passed the figure rule and the shared support check. A resident whose answer the library does
- * not support, or whose draft is flagged again after its one rewrite, says nothing: the turn is declined and counted, and the
- * fixed line a member who asked is given is not posted unasked.
+ * not support, or whose draft is flagged again after its one rewrite, says nothing (D-301): the turn is declined and counted, and
+ * the fixed line a member who asked is given is not posted unasked.
  *
  * Failure/retry: a turn that stopped being wanted (the room paused, a person answered, the message was removed,
  * its author now keeps messages out) is handed back without a call; one answered after the call is settled `failed`

@@ -106,10 +106,7 @@ const input = (origin: 'asked' | 'unprompted' = 'asked'): PipelineInput => ({
   turnId: 'turn-1',
   material: MATERIAL,
   ground: GROUND,
-  writer:
-    origin === 'asked'
-      ? inhabitantRole('explainer', ['e1', 'e2'])
-      : residentRole('explainer', ['e1', 'e2']),
+  writer: origin === 'asked' ? inhabitantRole('explainer', ['e1', 'e2']) : residentRole('explainer', ['e1', 'e2']),
   idFor: (name) => `id(${name})`,
 });
 
@@ -180,7 +177,9 @@ describe('a flagged sentence earns one rewrite', () => {
     expect(calls[2]!.version).toBe(`${calls[0]!.version}.fix`);
     expect(calls[2]!.runId).toBe('id(rooms-answer:turn-1:rewrite)');
     const problems = calls[2]!.context.items.find((item) => item.ref === 'check:problems')!.text;
-    expect(problems).toBe(`Sentence "${ANOTHER_CLAIM}": No passage you cite states this. Remove the sentence, or say only what a cited passage states.`);
+    expect(problems).toBe(
+      `Sentence "${ANOTHER_CLAIM}": No passage you cite states this. Remove the sentence, or say only what a cited passage states.`,
+    );
     expect(problems).not.toContain('checker');
     // Neither the rewrite nor the second check is repaired: the bound counts on it.
     expect(calls.map((call) => call.allowRepair)).toEqual([true, true, false, false]);
@@ -188,10 +187,20 @@ describe('a flagged sentence earns one rewrite', () => {
 
   it('never posts the first draft when it was flagged, however the rewrite ends', async () => {
     const draft = `${SUPPORTED} ${ANOTHER_CLAIM}`;
-    const { model } = scripted(writes('explanation', draft), checks(2, [2]), writes('explanation', draft), checks(2, [2]));
+    const { model } = scripted(
+      writes('explanation', draft),
+      checks(2, [2]),
+      writes('explanation', draft),
+      checks(2, [2]),
+    );
     const result = await run(model);
     expect(result.verdict).toEqual({ kind: 'not_covered', attemptId: 'attempt' });
-    expect(result.support).toEqual({ policy: 'rooms-answer-support.v1', result: 'not_covered', cited: [], flagged: [1, 1] });
+    expect(result.support).toEqual({
+      policy: 'rooms-answer-support.v1',
+      result: 'not_covered',
+      cited: [],
+      flagged: [1, 1],
+    });
   });
 
   it('is not covered when the rewrite finds nothing supported left to say, or is no usable answer', async () => {
@@ -211,7 +220,11 @@ describe('a flagged sentence earns one rewrite', () => {
 
   it('fails, rather than says the library does not cover it, when the rewrite could not be made', async () => {
     const draft = `${SUPPORTED} ${ANOTHER_CLAIM}`;
-    const { model } = scripted(writes('explanation', draft), checks(2, [2]), { kind: 'failed', attemptId: 'x', code: 'HTTP_500' });
+    const { model } = scripted(writes('explanation', draft), checks(2, [2]), {
+      kind: 'failed',
+      attemptId: 'x',
+      code: 'HTTP_500',
+    });
     expect((await run(model)).verdict).toEqual({ kind: 'failed', dispatched: true, end: 'failed' });
   });
 });
@@ -269,21 +282,31 @@ describe('what ends a turn without a post', () => {
 
   it('fails closed when the second check gives no usable reply', async () => {
     const draft = `${SUPPORTED} ${ANOTHER_CLAIM}`;
-    const { model } = scripted(
-      writes('explanation', draft),
-      checks(2, [2]),
-      writes('explanation', SUPPORTED),
-      { kind: 'unknown', attemptId: 'x' },
-    );
+    const { model } = scripted(writes('explanation', draft), checks(2, [2]), writes('explanation', SUPPORTED), {
+      kind: 'unknown',
+      attemptId: 'x',
+    });
     expect((await run(model)).verdict).toEqual({ kind: 'failed', dispatched: true });
   });
 
   it('counts a writer that failed as the harness does, and never goes on to a check', async () => {
     const cases = [
-      [{ kind: 'unknown', attemptId: 'x' }, { kind: 'failed', dispatched: true }],
-      [{ kind: 'failed', attemptId: 'x', code: 'HTTP_500' }, { kind: 'failed', dispatched: true, end: 'failed' }],
-      [{ kind: 'budget_exhausted', dimension: 'role', limit: 'requests' }, { kind: 'failed', dispatched: false, end: 'cancelled' }],
-      [{ kind: 'invalid_output', attemptId: 'x', reason: 'schema' }, { kind: 'failed', dispatched: true, end: 'failed' }],
+      [
+        { kind: 'unknown', attemptId: 'x' },
+        { kind: 'failed', dispatched: true },
+      ],
+      [
+        { kind: 'failed', attemptId: 'x', code: 'HTTP_500' },
+        { kind: 'failed', dispatched: true, end: 'failed' },
+      ],
+      [
+        { kind: 'budget_exhausted', dimension: 'role', limit: 'requests' },
+        { kind: 'failed', dispatched: false, end: 'cancelled' },
+      ],
+      [
+        { kind: 'invalid_output', attemptId: 'x', reason: 'schema' },
+        { kind: 'failed', dispatched: true, end: 'failed' },
+      ],
     ] as const;
     for (const [reply, verdict] of cases) {
       const { model, calls } = scripted(reply);

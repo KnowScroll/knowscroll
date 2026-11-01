@@ -13,7 +13,7 @@ import type { GroundPassage } from '../domain/answer-support.js';
 import type { InhabitantAnswer } from './inhabitant-role.js';
 
 /**
- * The pieces of a resident's support check (D-298): the sentences of an answer, the figure rule, the checker's roles and what a
+ * The pieces of a resident's support check (D-298, D-299): the sentences of an answer, the figure rule, the checker's roles and what a
  * rewrite is told. The checker is the shared one an ask order's answer and a Quick answer go through (D-250, D-253); a room gives
  * it roles of its own, so its failure brake and its budget never touch an ask order's, and the unprompted one is `ambient`.
  */
@@ -47,7 +47,10 @@ export function supportContext(
   sentences: readonly SentenceUnderCheck[],
   passages: readonly SupportPassage[],
 ): ReasoningContext {
-  return { bundleRef: `rooms-answer-support:${turnId}:${String(draft)}`, items: askSupportContext(sentences, passages) };
+  return {
+    bundleRef: `rooms-answer-support:${turnId}:${String(draft)}`,
+    items: askSupportContext(sentences, passages),
+  };
 }
 
 /** The sentences of an answer in reading order, each resting on the passages the whole answer cites. */
@@ -63,9 +66,9 @@ export interface FlaggedSentence {
 
 /** The hint for a figure no cited passage writes the way the sentence does. */
 export const FIGURE_HINT =
-  'A figure may appear only where a passage you cite writes that same number the same way. Use the passage\'s own figure, or say it without a number.';
+  "A figure may appear only where a passage you cite writes that same number the same way. Use the passage's own figure, or say it without a number.";
 
-/** The sentences whose figures a cited passage does not state (D-208). Pure; no model. */
+/** The sentences whose figures a cited passage does not state (D-208, D-299). Pure; no model. */
 export function figureFlags(
   sentences: readonly SentenceUnderCheck[],
   passages: readonly SupportPassage[],
@@ -73,7 +76,9 @@ export function figureFlags(
   const textOf = new Map(passages.map((passage) => [passage.handle, passage.text]));
   return sentences.flatMap((sentence) => {
     const cited = sentence.cites.flatMap((handle) => textOf.get(handle) ?? []);
-    return unstatedFigures(sentence.text, cited).length === 0 ? [] : [{ number: sentence.number, hints: [FIGURE_HINT] }];
+    return unstatedFigures(sentence.text, cited).length === 0
+      ? []
+      : [{ number: sentence.number, hints: [FIGURE_HINT] }];
   });
 }
 
@@ -84,8 +89,11 @@ export function mergeFlags(
 ): readonly FlaggedSentence[] {
   const hints = new Map<number, string[]>();
   for (const flag of figures) hints.set(flag.number, [...flag.hints]);
-  for (const verdict of unsupported) hints.set(verdict.number, [...(hints.get(verdict.number) ?? []), UNSUPPORTED_HINTS[verdict.kind]]);
-  return [...hints.entries()].sort(([first], [second]) => first - second).map(([number, list]) => ({ number, hints: list }));
+  for (const verdict of unsupported)
+    hints.set(verdict.number, [...(hints.get(verdict.number) ?? []), UNSUPPORTED_HINTS[verdict.kind]]);
+  return [...hints.entries()]
+    .sort(([first], [second]) => first - second)
+    .map(([number, list]) => ({ number, hints: list }));
 }
 
 const REWRITE_INSTRUCTIONS = [

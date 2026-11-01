@@ -3,7 +3,8 @@ import { unstatedFigures } from './figures.js';
 
 /** CI fixtures: invented passages, never library text. */
 const DRIFT = 'The satellite drifts away from its planet by about 3.8 centimetres every year.';
-const DISTANCE = 'At its closest the satellite is 361,000 kilometres from the planet, and 8.3 million people watch it rise.';
+const DISTANCE =
+  'At its closest the satellite is 361,000 kilometres from the planet, and 8.3 million people watch it rise.';
 
 describe('the figures of a text that the passages do not state (D-208)', () => {
   it('finds nothing when every figure is a passage’s own', () => {
@@ -12,9 +13,9 @@ describe('the figures of a text that the passages do not state (D-208)', () => {
   });
 
   it('finds a figure that no passage holds', () => {
-    expect(
-      unstatedFigures('The satellite moves away by 1.25 million metres each second.', [DRIFT, DISTANCE]),
-    ).toEqual(['1.25']);
+    expect(unstatedFigures('The satellite moves away by 1.25 million metres each second.', [DRIFT, DISTANCE])).toEqual([
+      '1.25',
+    ]);
   });
 
   it('reads a figure the way a person does: thousands separators are dropped on both sides', () => {
@@ -33,7 +34,10 @@ describe('the figures of a text that the passages do not state (D-208)', () => {
   it('refuses a scaler the passage did not write, and a range whose other end differs', () => {
     expect(unstatedFigures('About 8.3m people watch it.', [DISTANCE])).toEqual(['8.3']);
     expect(unstatedFigures('Between 8 to 10 million people.', ['Between 8 to 10 million people.'])).toEqual([]);
-    expect(unstatedFigures('Between 8 to 12 million people.', ['Between 8 to 10 million people.'])).toEqual(['8', '12']);
+    expect(unstatedFigures('Between 8 to 12 million people.', ['Between 8 to 10 million people.'])).toEqual([
+      '8',
+      '12',
+    ]);
   });
 
   it('lists each unstated figure once, in the order of the text', () => {

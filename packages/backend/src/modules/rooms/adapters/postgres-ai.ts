@@ -87,7 +87,6 @@ const turnOf = (row: TurnColumns): AiTurnRow => ({
         },
 });
 
-
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 /** A room whose newest unprompted turn is older than this has no ratio to keep: the first turn after a long quiet is allowed. */

@@ -131,15 +131,15 @@ const recordOf = (
 ): AnswerSupportRecord => ({ policy: ANSWER_SUPPORT_POLICY, result, cited, flagged });
 
 /**
- * The model steps of one resident's answer, outside any transaction, at most `ANSWER_PAID_ATTEMPTS` paid attempts in all (D-298):
- * the writer's draft, the support check of it, and, when a sentence is flagged, the one rewrite and the check of that.
+ * The model steps of one resident's answer, outside any transaction, at most `ANSWER_PAID_ATTEMPTS` paid attempts in all (D-298,
+ * D-300): the writer's draft, the support check of it, and, when a sentence is flagged, the one rewrite and the check of that.
  *
- * A draft is posted only when it cleared both of code's and the checker's judgement: every figure in a sentence is one a passage it
- * cites writes the same way (D-208), and the shared support check (D-250) found every sentence supported by the passages the answer
- * cites. A flagged sentence earns one rewrite, told which sentence and what to do by fixed hints, never the checker's words. A draft
- * that is still flagged, a writer that says the passages do not cover the question and a rewrite that has nothing supported left to
- * say all end `not_covered`. A step that failed, was refused or ran out of budget, or a checker that gave no usable reply, ends the
- * turn `failed`: nothing unchecked is ever posted, and an attempt of unknown outcome is never resent.
+ * A draft is posted only when it cleared both code's and the checker's judgement: every figure in a sentence is one a passage it
+ * cites writes the same way (D-208, D-299), and the shared support check (D-250) found every sentence supported by the passages
+ * the answer cites. A flagged sentence earns one rewrite, told which sentence and what to do by fixed hints, never the checker's
+ * words. A draft that is still flagged, a writer that says the passages do not cover the question and a rewrite that has nothing
+ * supported left to say all end `not_covered`. A step that failed, was refused or ran out of budget, or a checker that gave no
+ * usable reply, ends the turn `failed`: nothing unchecked is ever posted, and an attempt of unknown outcome is never resent.
  */
 export async function answerAndCheck(
   model: AnswerModel,
@@ -238,7 +238,8 @@ async function examine(
     signal,
   );
   runs.push(run);
-  if (outcome.kind !== 'proposed') return byCode.length > 0 ? { kind: 'flagged', flagged: byCode } : { kind: 'unchecked' };
+  if (outcome.kind !== 'proposed')
+    return byCode.length > 0 ? { kind: 'flagged', flagged: byCode } : { kind: 'unchecked' };
   const flagged = mergeFlags(byCode, unsupportedOf(verdictsOf(outcome.output)));
   return flagged.length === 0 ? { kind: 'cleared' } : { kind: 'flagged', flagged };
 }

@@ -21,7 +21,7 @@ export const contributeQueue = defineQueue({
   payload: ContributeJobSchema,
   policy: {
     // Every paid attempt of an answer at the largest provider deadline (300 s) plus quota and lock waits, one after the other
-    // (reasoning/README: 6 x (10 + 300 + 10) + 30, D-298).
+    // (reasoning/README: 6 x (10 + 300 + 10) + 30, D-300).
     expireInSeconds: ANSWER_CLAIM_SECONDS,
     retryLimit: 2,
     retryDelaySeconds: 15,

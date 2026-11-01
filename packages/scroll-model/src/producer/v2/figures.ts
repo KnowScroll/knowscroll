@@ -120,7 +120,7 @@ const OTHER_NUMERALS = /\p{N}/gu;
 const ASCII_DIGITS = /[0-9]/u;
 
 /**
- * The figures of a text that the passages do not state the way the text writes them (D-208), in order and without
+ * The figures of a text that the passages do not state the way the text writes them (D-208, D-299), in order and without
  * repeats. This is the rule for a figure in prose, as `pointAgrees` is for a point of a scale or a chart: a figure is
  * the number as a person reads it (thousands separators dropped, the decimal part kept), and it is stated when some
  * passage writes that same figure the same way: with the same word after it ("1.25 million" is not "1.25"), the same

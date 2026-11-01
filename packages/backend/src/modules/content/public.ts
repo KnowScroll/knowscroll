@@ -312,7 +312,7 @@ export { hasEnoughWords, isAbout, quoteIsIn, sharedStems } from './domain/ask-su
 /**
  * The figures of a text that no passage states the way the text writes them (D-208's reading of a figure, for prose): a figure
  * the passages do not hold, or hold with another word after it. A room's resident may state no figure the passages it cites
- * do not (D-298). Pure.
+ * do not (D-299). Pure.
  */
 export { unstatedFigures } from '@knowscroll/scroll-model/producer';
 /**

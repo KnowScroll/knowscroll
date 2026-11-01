@@ -465,7 +465,11 @@ describe('the room as a place (real PostgreSQL)', () => {
   });
 
   describe('keeping messages out of what AI reads', () => {
-    const answer = JSON.stringify({ kind: 'explanation', text: 'Batching groups requests so hardware stays busy.', cites: ['e1'] });
+    const answer = JSON.stringify({
+      kind: 'explanation',
+      text: 'Batching groups requests so hardware stays busy.',
+      cites: ['e1'],
+    });
 
     async function conversation() {
       const { roomId } = await seedRoom(world);

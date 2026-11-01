@@ -11,7 +11,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { LibraryPassageSource, ReadLibraryPassages } from '@knowscroll/backend/modules/content';
 import { CONCEPTS } from '@knowscroll/backend/modules/content';
-import { importEditorialScrollUseCase, makeReadLibraryPassages } from '@knowscroll/backend/modules/content/nest-providers';
+import {
+  importEditorialScrollUseCase,
+  makeReadLibraryPassages,
+} from '@knowscroll/backend/modules/content/nest-providers';
 import { holdCast, makeReadGround } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { attemptsOf, fixtureModel, receiptClassesOf } from '../support/fixture-model.js';
@@ -90,7 +93,8 @@ const isCheck = (call: FixtureCall) => call.request.system.includes('You check o
 const isRewrite = (call: FixtureCall) => call.request.system.includes('REVISION AFTER A SUPPORT CHECK');
 
 const itemOf = (call: FixtureCall, ref: string): string =>
-  new RegExp(`<context-item ref="${ref}"[^>]*>\\n([\\s\\S]*?)\\n</context-item>`, 'u').exec(call.request.user)?.[1] ?? '';
+  new RegExp(`<context-item ref="${ref}"[^>]*>\\n([\\s\\S]*?)\\n</context-item>`, 'u').exec(call.request.user)?.[1] ??
+  '';
 
 /** The sentence of the cited passages that shares the most words with `sentence`: a quote that is really there. */
 function quoteFor(sentence: string, passages: string): string {
@@ -99,7 +103,8 @@ function quoteFor(sentence: string, passages: string): string {
     .split('\n')
     .flatMap((line) => line.replace(/^\[e\d\] /u, '').split(/(?<=\.)\s+/u))
     .filter((candidate) => candidate.length > 0);
-  const score = (candidate: string) => (candidate.toLowerCase().match(/[a-z]{4,}/gu) ?? []).filter((w) => words.has(w)).length;
+  const score = (candidate: string) =>
+    (candidate.toLowerCase().match(/[a-z]{4,}/gu) ?? []).filter((w) => words.has(w)).length;
   return candidates.reduce((best, next) => (score(next) > score(best) ? next : best));
 }
 
@@ -115,25 +120,34 @@ interface Playbook {
 /** A fixture model that plays the writer from a list and the checker from a rule, and tells them apart by their instructions. */
 function playbook(options: Playbook, label: string): FixtureModelPort {
   let drafts = 0;
-  return fixtureModel((_sequence, call) => {
-    if (!isCheck(call)) {
-      const reply = options.writer[drafts];
-      drafts += 1;
-      if (reply === undefined) throw new Error(`the writer was asked for draft ${String(drafts)}, which the test did not script`);
-      return reply;
-    }
-    if (options.checker !== undefined) return options.checker;
-    const passages = itemOf(call, 'support:passages');
-    const verdicts = itemOf(call, 'support:sentences')
-      .split('\n')
-      .map((line) => JSON.parse(line) as { n: number; text: string })
-      .map(({ n, text }) =>
-        options.flags?.(text) === true
-          ? { n, verdict: 'unsupported', kind: 'not_stated', problem: 'CI fixture: the checker finds this sentence unsupported.' }
-          : { n, verdict: 'supported', quote: quoteFor(text, passages) },
-      );
-    return { kind: 'success', text: JSON.stringify({ sentences: verdicts }) };
-  }, { label });
+  return fixtureModel(
+    (_sequence, call) => {
+      if (!isCheck(call)) {
+        const reply = options.writer[drafts];
+        drafts += 1;
+        if (reply === undefined)
+          throw new Error(`the writer was asked for draft ${String(drafts)}, which the test did not script`);
+        return reply;
+      }
+      if (options.checker !== undefined) return options.checker;
+      const passages = itemOf(call, 'support:passages');
+      const verdicts = itemOf(call, 'support:sentences')
+        .split('\n')
+        .map((line) => JSON.parse(line) as { n: number; text: string })
+        .map(({ n, text }) =>
+          options.flags?.(text) === true
+            ? {
+                n,
+                verdict: 'unsupported',
+                kind: 'not_stated',
+                problem: 'CI fixture: the checker finds this sentence unsupported.',
+              }
+            : { n, verdict: 'supported', quote: quoteFor(text, passages) },
+        );
+      return { kind: 'success', text: JSON.stringify({ sentences: verdicts }) };
+    },
+    { label },
+  );
 }
 
 describe('a resident’s answer passes the support check (real PostgreSQL, CI fixture model)', () => {
@@ -225,7 +239,10 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
         { role_id: 'rooms.explainer', background: false },
         { role_id: 'rooms.inhabitant-support', background: false },
       ]);
-      expect((await attemptsOf(world.db, asha.universeId)).map((attempt) => attempt.state)).toEqual(['succeeded', 'succeeded']);
+      expect((await attemptsOf(world.db, asha.universeId)).map((attempt) => attempt.state)).toEqual([
+        'succeeded',
+        'succeeded',
+      ]);
     });
 
     it('catches a figure no passage writes, even when the checker lets it pass, and posts the one rewrite', async () => {
@@ -270,7 +287,9 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       expect(said.map((entry) => entry.text).join(' ')).not.toContain('Sun pulls');
       const view = await readDiscussion(world, asha, roomId, discussionId);
       if (view.status !== 'ready') throw new Error('expected ready');
-      expect(view.messages.at(-1)).toMatchObject({ author: { kind: 'ai', inhabitant: 'explainer', label: 'AI · Explainer' } });
+      expect(view.messages.at(-1)).toMatchObject({
+        author: { kind: 'ai', inhabitant: 'explainer', label: 'AI · Explainer' },
+      });
       const turn = await turnOf(job.requestId);
       expect(turn).toMatchObject({ state: 'completed', dispatched: true });
       expect(turn.answer_support).toEqual({
@@ -282,7 +301,10 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
     });
 
     it('says the library does not cover it, with no model asked, when no passage fits the question', async () => {
-      const { roomId, asha, discussionId, job } = await askNova('How do volcanoes make obsidian glass?', 'Volcano glass');
+      const { roomId, asha, discussionId, job } = await askNova(
+        'How do volcanoes make obsidian glass?',
+        'Volcano glass',
+      );
       const model = playbook({ writer: [] }, 'no-ground');
       await consumer(model)(job);
       expect(model.calls).toHaveLength(0);
@@ -299,9 +321,30 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       expect(await receiptClassesOf(world.db, asha.universeId)).toEqual([]);
     });
 
+    it('gives a Skeptic that was asked the same line when the library has nothing, labelled as the Skeptic', async () => {
+      const { roomId } = await seedRoom(world);
+      const [asha] = (await joined(world, roomId, 1)) as [Friend];
+      const discussionId = await startTopic(world, asha, roomId, 'Volcano glass');
+      unwrap(await say(world, asha, roomId, discussionId, 'Obsidian forms because lava cools slowly.'));
+      const before = world.queued.length;
+      unwrap(await ask(world, asha, roomId, discussionId, 'skeptic'));
+      const model = playbook({ writer: [] }, 'skeptic-no-ground');
+      await consumer(model)(world.queued[before]!);
+      expect(model.calls).toHaveLength(0);
+      const view = await readDiscussion(world, asha, roomId, discussionId);
+      if (view.status !== 'ready') throw new Error('expected ready');
+      expect(view.messages.at(-1)).toMatchObject({
+        author: { kind: 'ai', inhabitant: 'skeptic', label: 'AI · Skeptic' },
+        body: { kind: 'text', text: NOT_COVERED },
+      });
+    });
+
     it('says the library does not cover it when the writer itself says the passages do not', async () => {
       const { roomId, asha, discussionId, job } = await askNova(MOON_QUESTION);
-      const model = playbook({ writer: [{ kind: 'success', text: JSON.stringify({ kind: 'not_covered', text: '', cites: [] }) }] }, 'writer-uncovered');
+      const model = playbook(
+        { writer: [{ kind: 'success', text: JSON.stringify({ kind: 'not_covered', text: '', cites: [] }) }] },
+        'writer-uncovered',
+      );
       await consumer(model)(job);
       expect(model.calls).toHaveLength(1);
       expect((await textsOf(asha, roomId, discussionId)).at(-1)).toMatchObject({ ai: true, text: NOT_COVERED });
@@ -321,7 +364,10 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
 
     it('does not resend a check whose outcome is unknown, and posts nothing', async () => {
       const { roomId, asha, discussionId, job } = await askNova(MOON_QUESTION);
-      const model = playbook({ writer: [writes(SUPPORTED_ANSWER)], checker: { kind: 'timeout_after_dispatch' } }, 'unknown');
+      const model = playbook(
+        { writer: [writes(SUPPORTED_ANSWER)], checker: { kind: 'timeout_after_dispatch' } },
+        'unknown',
+      );
       const run = consumer(model);
       await run(job);
       expect(model.calls).toHaveLength(2);
@@ -454,7 +500,12 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       const model = playbook({ writer: [writes(INVENTED_FIGURE), writes(SUPPORTED_ANSWER)] }, 'unprompted-figure');
       const room = await unanswered(model);
       expect((await spoken(room)).map((entry) => entry.text)).toEqual([SUPPORTED_ANSWER]);
-      expect(model.calls.map((call) => (isCheck(call) ? 'check' : 'write'))).toEqual(['write', 'check', 'write', 'check']);
+      expect(model.calls.map((call) => (isCheck(call) ? 'check' : 'write'))).toEqual([
+        'write',
+        'check',
+        'write',
+        'check',
+      ]);
     });
 
     it('makes no call, and hands the turn back, when no passage fits what was asked', async () => {
@@ -481,7 +532,10 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       // Someone is typing while the model works: the checked answer is held on the turn, with how it came out.
       const model = playbook({ writer: [writes(SUPPORTED_ANSWER)] }, 'held');
       const scope = roomScope(world.db, model);
-      await holdCast(world.db, () => world.clock.now)({
+      await holdCast(
+        world.db,
+        () => world.clock.now,
+      )({
         accountId: room.people[2].accountId,
         roomId: room.roomId,
         discussionId: room.general,
@@ -489,7 +543,12 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       await world.pass(scope.harness, scope.withScope)(delivery.job);
       expect(model.calls).toHaveLength(2);
       const [held] = await turnsOf(room.roomId);
-      expect(held).toMatchObject({ state: 'queued', dispatched: true, held_kind: 'explanation', held_text: SUPPORTED_ANSWER });
+      expect(held).toMatchObject({
+        state: 'queued',
+        dispatched: true,
+        held_kind: 'explanation',
+        held_text: SUPPORTED_ANSWER,
+      });
       expect(held!.answer_support).toMatchObject({ result: 'cleared' });
 
       const again = world.castPasses.at(-1)!;
@@ -539,9 +598,12 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
         const { roomId } = await seedRoom(real);
         const [asha] = (await joined(real, roomId, 1)) as [Friend];
         const discussionId = await startTopic(real, asha, roomId, 'Colours of the sky');
-        unwrap(await say(real, asha, roomId, discussionId, 'Why does air scatter the short colours of sunlight so much?'));
+        unwrap(
+          await say(real, asha, roomId, discussionId, 'Why does air scatter the short colours of sunlight so much?'),
+        );
         unwrap(await ask(real, asha, roomId, discussionId, 'explainer'));
-        const answerText = 'Sunlight holds every colour, and air scatters the short colours far more than the long ones.';
+        const answerText =
+          'Sunlight holds every colour, and air scatters the short colours far more than the long ones.';
         const model = playbook({ writer: [writes(answerText)] }, 'real-library');
         const { harness } = fixtureRecordingHarness(database.db, { model });
         await real.contribute(harness)(real.queued.at(-1)!);
