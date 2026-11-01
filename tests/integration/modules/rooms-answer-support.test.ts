@@ -493,7 +493,7 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       const [turn] = await turnsOf(room.roomId);
       expect(turn).toMatchObject({ state: 'declined', dispatched: true });
       expect(turn!.answer_support).toMatchObject({ result: 'not_covered', flagged: [1, 1] });
-      expect(JSON.stringify(await textsOf(room.people[0]!, room.roomId, room.general))).not.toContain(NOT_COVERED);
+      expect(JSON.stringify(await textsOf(room.people[0], room.roomId, room.general))).not.toContain(NOT_COVERED);
     });
 
     it('catches a figure no passage writes and posts only the rewrite', async () => {
