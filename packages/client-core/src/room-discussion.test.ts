@@ -295,6 +295,34 @@ describe('a room discussion on the client', () => {
     expect(controller.getState().messages.map((message) => message.status)).toEqual(['available', 'removed']);
   });
 
+  it('reads the discussion again after a moderator’s hide and restore, so the header follows the message', async () => {
+    const stored = [text(1, 'a post about tides'), text(2, 'a reply')];
+    let title = 'Tides are only about the Moon';
+    const scope = scopeOf({
+      readDiscussion: () => Promise.resolve(readyView(stored, { discussion: { discussionId, title, pinned: false } })),
+      hideMessage: (input: { hidden: boolean }) => {
+        stored[0] = input.hidden ? removed(1) : text(1, 'a post about tides');
+        title = input.hidden ? 'A removed post' : 'Tides are only about the Moon';
+        return Promise.resolve({ hidden: input.hidden });
+      },
+      changes: () =>
+        Promise.resolve({
+          status: 'ready',
+          changes: [{ changeSequence: 3, message: stored[0] }],
+          continuation: { kind: 'caught_up', cursor: cursor(3) },
+        }),
+    });
+    const controller = createRoomDiscussion({ scope, roomId, discussionId, newId });
+    await controller.load();
+    expect(controller.getState().view?.discussion.title).toBe('Tides are only about the Moon');
+    expect(await controller.hide(stored[0]!.messageId, true)).toBe(true);
+    expect(controller.getState().view?.discussion.title).toBe('A removed post');
+    expect(controller.getState().messages.map((message) => message.status)).toEqual(['removed', 'available']);
+    expect(await controller.hide(stored[0]!.messageId, false)).toBe(true);
+    expect(controller.getState().view?.discussion.title).toBe('Tides are only about the Moon');
+    expect(controller.getState().messages.map((message) => message.status)).toEqual(['available', 'available']);
+  });
+
   it('takes a fresh snapshot after a block or unblock: it replaces what was loaded, older pages too', async () => {
     const blocked = (sequence: number): RoomMessage => ({ messageId: id(100 + sequence), sequence, status: 'blocked' });
     let current: RoomMessage[] = [text(31, 'newest'), text(32, 'newer')];
