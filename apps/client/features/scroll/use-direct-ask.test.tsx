@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { Text } from 'react-native';
+import { useEffect } from 'react';
 import type { ContentRequestStatus } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
 import { RequestNotice } from '../encounter/encounter-notices';
@@ -9,7 +9,13 @@ import type { OpenedStageScroll } from './scroll-session';
 import { WATCH_EVERY_MS, useDirectAsk } from './use-direct-ask';
 
 const mockPush = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: (path: string) => mockPush(path) }) }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({
+    push: (path: string): void => {
+      mockPush(path);
+    },
+  }),
+}));
 let mockCounter = 5000;
 jest.mock('../../platform/command-id', () => ({
   newCommandId: () => `0199a000-0000-7000-8000-${String(++mockCounter).padStart(12, '0')}`,
@@ -27,15 +33,17 @@ const harness = requestHarness();
 let latest: ReturnType<typeof useDirectAsk>;
 
 function Probe() {
-  latest = useDirectAsk(harness.scope, scroll, () => 'stop-one');
+  const direct = useDirectAsk(harness.scope, scroll, () => 'stop-one');
+  useEffect(() => {
+    latest = direct;
+  });
   return (
     <>
-      <Text testID="open">{String(latest.open)}</Text>
       <RequestNotice
-        requests={latest.session}
+        requests={direct.session}
         exposureId={scroll.exposureId}
         onOpen={() => {
-          void latest.openReady();
+          void direct.openReady();
         }}
       />
     </>
@@ -61,10 +69,10 @@ async function mounted() {
       <Probe />
     </DisplayProvider>,
   );
-  await act(async () => {
+  await act(() => {
     latest.openAsk();
   });
-  await act(async () => {
+  await act(() => {
     latest.session.edit({ text: 'Why is the far side cold?' });
     latest.session.submit();
   });
@@ -82,7 +90,7 @@ describe('Ask on a Scroll’s own address (D-262)', () => {
 
   it('goes on reading a slow order with the sheet shut, shows the ready notice, and Open goes to the answer and puts the notice away', async () => {
     await mounted();
-    await act(async () => {
+    await act(() => {
       latest.close();
     });
     expect(screen.getByText(/We'll let you know when your answer is ready/)).toBeOnTheScreen();
@@ -100,7 +108,7 @@ describe('Ask on a Scroll’s own address (D-262)', () => {
 
   it('stops every read when the screen is left', async () => {
     const view = await mounted();
-    await act(async () => {
+    await act(() => {
       latest.close();
     });
     await view.unmount();
