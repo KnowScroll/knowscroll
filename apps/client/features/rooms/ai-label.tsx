@@ -1,25 +1,30 @@
 import { StyleSheet, View } from 'react-native';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Icon, Text } from '@knowscroll/ui';
+import { OrbitRing } from './orbit-ring';
 
 /**
  * The label an AI inhabitant always carries ("AI · Skeptic"). It is a dark pill with words, so it
  * never relies on colour alone, and the screen-reader name says "AI, Skeptic" before any content.
  * The text comes from the server (the role's fixed label); a client cannot show an inhabitant
- * without it.
+ * without it. It always wears the orbit ring beside it (v3 R-8b, D-279): there is no way to draw this label without the ring, and the
+ * ring has a name of its own for a screen reader.
  */
 export function AiLabel({ label, testID }: { readonly label: string; readonly testID?: string }) {
   return (
-    <View
-      testID={testID}
-      accessible
-      accessibilityRole="text"
-      accessibilityLabel={label.replace(/\s·\s/g, ', ')}
-      style={styles.pill}
-    >
-      <Text variant="label" color={content.paper}>
-        {label}
-      </Text>
+    <View style={styles.row}>
+      <OrbitRing />
+      <View
+        testID={testID}
+        accessible
+        accessibilityRole="text"
+        accessibilityLabel={label.replace(/\s·\s/g, ', ')}
+        style={styles.pill}
+      >
+        <Text variant="label" color={content.paper}>
+          {label}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -37,6 +42,7 @@ export function ModeratorLabel() {
 }
 
 const styles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: spacing['1.5'] },
   pill: {
     alignSelf: 'flex-start',
     minHeight: 26,

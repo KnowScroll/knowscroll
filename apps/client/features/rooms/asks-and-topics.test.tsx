@@ -359,7 +359,7 @@ describe('the limits in the room menu', () => {
         limits={{
           asked: { perPersonPerHour: 10, perRoomPerDay: 80 },
           unprompted: { humanMessagesPerTurn: 3, perHour: 8, perDay: 40, explainerPerHour: 4, skepticPerHour: 3 },
-          feed: { postsPerDay: 3, restHours: 6 },
+          feed: { postsPerDay: 3, restHours: 6, memberPostsPerDay: 3 },
         }}
         onChange={jest.fn()}
       />,

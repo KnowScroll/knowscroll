@@ -28,7 +28,7 @@ import type { CapCounts, RefusalCap } from '../domain/router.js';
 import type { StarAct } from '../domain/sky.js';
 import type { MessageTrigger, SpeechTrigger } from '../domain/triggers.js';
 import type { CastDueJob, CastPassJob, SummariseJob } from '../events.js';
-import type { FindRow, MemoryStaleCause, MemoryView } from './feed-ports.js';
+import type { FindQuery, FindRow, LiveEventRow, MemoryStaleCause, MemoryView, ResidentFacts } from './feed-ports.js';
 import type { ScoutCadence } from '../domain/scout.js';
 
 export type RoomRefusal = 'invalid_input' | 'unavailable' | 'command_key_reused' | 'rate_limited';
@@ -183,7 +183,7 @@ export interface DiscussionRow {
   readonly discussionId: string;
   readonly roomId: string;
   /** `general` is the room's own place to talk (one per room); `topic` is any other. */
-  readonly kind: 'general' | 'topic' | 'today' | 'find';
+  readonly kind: 'general' | 'topic' | 'today' | 'find' | 'intro';
   readonly title: string;
   /**
    * The title is the first words of the message the topic began from, not what the starter typed. It is then another
@@ -193,6 +193,12 @@ export interface DiscussionRow {
   /** A label the starter picked from a closed list; none for General and for a topic started without one. */
   readonly tag: TopicTag | null;
   readonly root: ContentRef | null;
+  /** The address a person's post cites instead of a library asset (v3 R-8b); erased with the account that wrote it. */
+  readonly source: string | null;
+  /** A person wrote this find (a post, not a resident's or a scout's find). It stays true when the account is gone. */
+  readonly personPost: boolean;
+  /** The resident this discussion introduces (kind `intro`, v3 R-8b); none for every other discussion. */
+  readonly introInhabitant: InhabitantId | null;
   readonly originMessageId: string | null;
   /** Null once the starter's account was deleted. */
   readonly startedByAccountId: string | null;
@@ -215,6 +221,12 @@ export interface NewDiscussion {
   readonly startedByAccountId: string;
   /** The starter is told when a person answers: true only for a question (migration 0089). */
   readonly notifyAnswer?: boolean;
+  /**
+   * Makes this a member's post to the Feed (v3 R-8b): a find started by a person, rooted at `root` or citing `sourceUrl`, never both.
+   */
+  readonly post?: { readonly sourceUrl: string | undefined };
+  /** Makes this a resident's introduction (v3 R-8b): a discussion of kind `intro`, started by the moderator who set it up. */
+  readonly intro?: { readonly inhabitant: InhabitantId };
   readonly now: Date;
 }
 
@@ -286,7 +298,7 @@ export interface DiscussionFigures {
 /** A shown message of the room's recent window, and the kind of discussion it sits in (never that discussion's title). */
 export interface WindowMessage {
   readonly message: MessageRow;
-  readonly discussionKind: 'general' | 'topic' | 'today' | 'find';
+  readonly discussionKind: 'general' | 'topic' | 'today' | 'find' | 'intro';
 }
 
 /**
@@ -965,8 +977,16 @@ export type ReadContent = (scope: PersonalScopeTx, refs: readonly ContentRef[]) 
  * store, which has no person and no lock of a personal scope, is `FeedStore` in `feed-ports.ts`.
  */
 export interface FeedReadStore {
-  /** The room's finds, newest first, at most `limit`; a find whose note was removed is left out. */
-  finds(lock: RoomLock, limit: number): Promise<readonly FindRow[]>;
+  /**
+   * The room's posts, at most `query.limit`: `new` newest first, `top` the posts of the window with the most votes first, `hot` the
+   * newest hundred in the order of `new` for code to rank. A post whose first message was removed, or whose account is gone, is
+   * left out.
+   */
+  finds(lock: RoomLock, query: FindQuery): Promise<readonly FindRow[]>;
+  /** One resident's facts for its profile (v3 R-8b). */
+  residentFacts(lock: RoomLock, inhabitant: InhabitantId): Promise<ResidentFacts>;
+  /** The posts and the replies under them made since `since`, newest first, at most `limit`: what the live strip chooses among. */
+  liveEvents(lock: RoomLock, since: Date, limit: number): Promise<readonly LiveEventRow[]>;
   memory(lock: RoomLock): Promise<MemoryView | undefined>;
   /** A moderator's own words become the memory, and the replacement is audited. */
   replaceMemory(
@@ -997,6 +1017,36 @@ export interface ScoutRow {
   readonly cadence: ScoutCadence;
   readonly paused: boolean;
   readonly stopped: boolean;
+}
+
+/** A person's posts to the Feed and the votes on every post (migration 0098), inside the personal scope and the room's lock. */
+export interface PostStore {
+  /** How many posts this member has made in this room since `since`. */
+  postsSince(lock: RoomLock, accountId: string, since: Date): Promise<number>;
+  /** The room's find about this asset or source, whoever posted it. */
+  existing(
+    lock: RoomLock,
+    link: { readonly kind: 'content'; readonly assetId: string } | { readonly kind: 'source'; readonly url: string },
+  ): Promise<string | undefined>;
+  /**
+   * A post that people may vote on: a find of this room whose first message is shown. Its author is the member who wrote it, or
+   * none for a resident's or a scout's find.
+   */
+  votable(lock: RoomLock, discussionId: string): Promise<{ readonly authorAccountId: string | null } | undefined>;
+  /** Records or takes back this member's vote on a post. One per member per post; the same value again changes nothing. */
+  setVote(lock: RoomLock, discussionId: string, accountId: string, voted: boolean, now: Date): Promise<void>;
+  /** The votes a post has now. */
+  votesOf(lock: RoomLock, discussionId: string): Promise<number>;
+  /** A post's votes and whether this member voted, for the post's own page. */
+  voteView(
+    lock: RoomLock,
+    discussionId: string,
+    accountId: string,
+  ): Promise<{ readonly votes: number; readonly voted: boolean }>;
+  /** The introduction a resident has in this room, if it has one. */
+  introductionOf(lock: RoomLock, inhabitant: InhabitantId): Promise<string | undefined>;
+  /** Deletes the member's votes in this room (leaving, removal). What they posted stays. */
+  forgetMember(lock: RoomLock, accountId: string): Promise<void>;
 }
 
 export interface ScoutReadStore {
@@ -1079,6 +1129,8 @@ export interface RoomPorts {
   readonly feed: FeedReadStore;
   /** A member's own scout in a room (migration 0095). */
   readonly scouts: ScoutReadStore;
+  /** A member's posts to the Feed and the votes on posts (migration 0098). */
+  readonly posts: PostStore;
   /** The notice state of the questions left for people (migration 0089). */
   readonly questions: QuestionStore;
   readonly people: PersonLookup;

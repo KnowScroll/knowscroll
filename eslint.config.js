@@ -23,7 +23,7 @@ const networkImportPaths = [
   [name, `node:${name}`].map((path) => ({
     name: path,
     message:
-      'Network clients live in infrastructure/ or reasoning/adapters/. Call a model through the reasoning harness (REASONING_HARNESS).',
+      'Network clients live in infrastructure/ or reasoning/adapters/. Call a model through the reasoning harness (RECORDING_REASONING_HARNESS).',
   })),
 );
 
@@ -138,7 +138,7 @@ export default defineConfig(
         ...['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource'].map((name) => ({
           name,
           message:
-            'Network clients live in infrastructure/ or reasoning/adapters/. Call a model through the reasoning harness (REASONING_HARNESS).',
+            'Network clients live in infrastructure/ or reasoning/adapters/. Call a model through the reasoning harness (RECORDING_REASONING_HARNESS).',
         })),
       ],
       'no-restricted-imports': [

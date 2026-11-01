@@ -5,6 +5,7 @@ import { deleteClearJobPayloads, deleteJobPayloads } from '../../../infrastructu
 import { JOB_SCHEMA, deadLetterQueueName } from '../../../infrastructure/jobs/index.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
+import { NEUTRAL_POST_TITLE } from '../domain/posts.js';
 import { NEUTRAL_TOPIC_TITLE } from '../domain/titles.js';
 import { castDueQueue, castPassQueue, contributeQueue, summariseQueue } from '../events.js';
 import { staleMemoryOf } from './postgres-feed.js';
@@ -65,6 +66,8 @@ const LIFECYCLE = {
   'rooms.room_memory':
     'the words of a derived memory that read what the account wrote are erased (stale) before their messages become tombstones; the moderator link is cleared; a moderator text stays with the room',
   'rooms.memory_edits': 'the moderator link of an edit is cleared; the edit stays as a fact about the room',
+  'rooms.post_votes':
+    'the account votes on posts are deleted, and so are the votes on posts of theirs that become tombstones; they also go when they leave or are removed; a Clear keeps them (a vote holds no reading)',
   'rooms.scouts':
     'the account scouts are deleted, by leaving or removal from the room too; a Clear keeps them (they hold no reading); the moderator link of a stop is cleared and the stop stands',
 } as const;
@@ -174,6 +177,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'room_memory', ownerColumn: 'edited_by_account_id' },
     { schema: 'rooms', table: 'memory_edits', ownerColumn: 'by_account_id' },
     { schema: 'rooms', table: 'scouts', ownerColumn: 'owner_account_id,stopped_by_account_id' },
+    { schema: 'rooms', table: 'post_votes', ownerColumn: 'account_id' },
   ],
   accountColumns: [
     { schema: 'rooms', table: 'members', column: 'account_id' },
@@ -199,6 +203,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'memory_edits', column: 'by_account_id' },
     { schema: 'rooms', table: 'scouts', column: 'owner_account_id' },
     { schema: 'rooms', table: 'scouts', column: 'stopped_by_account_id' },
+    { schema: 'rooms', table: 'post_votes', column: 'account_id' },
   ],
 
   /** Full erasure of one universe: the queued ask jobs and the asks waiting on them. */
@@ -240,6 +245,12 @@ export const roomsErasure: ModuleErasure = declareErasure({
       await sql`delete from rooms.message_useful where account_id = ${account}::uuid
         or message_id in (select message_id from rooms.messages
           where author_account_id = ${account}::uuid or agent_owner_account_id = ${account}::uuid)`.execute(trx),
+    );
+    // A post of theirs is a tombstone once its words go: its votes go with it, and so do the votes they cast.
+    removed += count(
+      await sql`delete from rooms.post_votes where account_id = ${account}::uuid
+        or discussion_id in (select discussion_id from rooms.discussions where started_by_account_id = ${account}::uuid
+          and person_post)`.execute(trx),
     );
     removed += count(await sql`delete from rooms.read_positions where account_id = ${account}::uuid`.execute(trx));
     removed += count(await sql`delete from rooms.constellation_votes where account_id = ${account}::uuid`.execute(trx));
@@ -288,6 +299,11 @@ export const roomsErasure: ModuleErasure = declareErasure({
         where started_by_account_id = ${account}::uuid and (notify_answer or answer_noticed_at is not null)`.execute(
         trx,
       ),
+    );
+    // The headline and the source of a post were the person's own words: they go before the link to the account does.
+    removed += count(
+      await sql`update rooms.discussions set title = ${NEUTRAL_POST_TITLE}, source_url = null
+        where person_post and started_by_account_id = ${account}::uuid`.execute(trx),
     );
     removed += count(
       await sql`update rooms.discussions set started_by_account_id = null
@@ -403,6 +419,7 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
       'rooms.watch_viewers',
       'rooms.memory_edits',
       'rooms.scouts',
+      'rooms.post_votes',
     ],
     'What the residents remember belongs to the room and is derived from many people; an invitation is a notice between two members and holds no words of the person; a presence lease lasts a minute and records only that the room was open; the place where they left off is private bookkeeping that holds no words; a summary holds a window of the room and no one of its own; the job queue is delivery bookkeeping.',
     async (scope, person) => {
@@ -429,10 +446,12 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         tag: string | null;
         notify_answer: boolean;
         answer_noticed_at: Date | null;
+        source_url: string | null;
       }>`
         select case when discussion.title_derived and origin.author_account_id is distinct from ${person.accountId}::uuid
             then ${NEUTRAL_TOPIC_TITLE} else discussion.title end as title,
-          room.name as room, discussion.created_at, discussion.tag, discussion.notify_answer, discussion.answer_noticed_at
+          room.name as room, discussion.created_at, discussion.tag, discussion.notify_answer, discussion.answer_noticed_at,
+          discussion.source_url
         from rooms.discussions discussion join rooms.rooms room on room.room_id = discussion.room_id
         left join rooms.messages origin on origin.message_id = discussion.origin_message_id
         where discussion.started_by_account_id = ${person.accountId}::uuid
@@ -459,6 +478,14 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
       const asks = await sql<{ n: string }>`
         select count(*) as n from rooms.ai_turns
         where requested_by_account_id = ${person.accountId}::uuid and trigger = 'asked'`.execute(trx);
+      // Which room and when, never whose post: a vote is the voter's own, and the post belongs to its author.
+      const postVotes = await sql<{ room: string; voted_at: Date }>`
+        select room.name as room, vote.voted_at
+        from rooms.post_votes vote
+        join rooms.discussions discussion on discussion.discussion_id = vote.discussion_id
+        join rooms.rooms room on room.room_id = discussion.room_id
+        where vote.account_id = ${person.accountId}::uuid
+        order by vote.voted_at desc limit 500`.execute(trx);
       const votes = await sql<{ room: string; question: string; choice: string | null; voted_at: Date }>`
         select room.name as room, activity.title as question, vote.voted_at,
           (select option ->> 'text' from jsonb_array_elements(activity.definition -> 'options') option
@@ -571,6 +598,7 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         memoryEdits.rows.length === 0 &&
         scouts.rows.length === 0 &&
         scoutNotes.rows.length === 0 &&
+        postVotes.rows.length === 0 &&
         startedActivities.rows.length === 0
       )
         return {};
@@ -588,6 +616,8 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
           title: row.title,
           room: row.room,
           startedAt: row.created_at.toISOString(),
+          // The address of a post the person made, as they pasted it: theirs, so the file has it.
+          ...(row.source_url === null ? {} : { source: row.source_url }),
           // The person's own switch and the answer they last noticed, for a question they left.
           ...(row.tag === 'question'
             ? {
@@ -618,6 +648,7 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
           votedAt: row.voted_at.toISOString(),
         })),
         // Which room and when, never whose message or what it said: the message belongs to its author.
+        postVotes: postVotes.rows.map((row) => ({ room: row.room, votedAt: row.voted_at.toISOString() })),
         usefulMarks: marks.rows.map((row) => ({ room: row.room, markedAt: row.marked_at.toISOString() })),
         constellationNameVotes: skyVotes.rows.map((row) => ({
           room: row.room,

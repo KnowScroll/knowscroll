@@ -6,7 +6,7 @@ import {
   ReplaceRoomMemorySchema,
   RoomFeedPostSchema,
   RoomFeedSchema,
-  RoomFeedStripSchema,
+  RoomLiveEventSchema,
   RoomMemoryReplacementSchema,
   RoomMemorySchema,
   RoomMessageSchema,
@@ -35,8 +35,13 @@ const card = {
     language: 'en',
   },
 } as const;
+const PERSON = { kind: 'person', personId: ID(1), displayName: 'Asha', handle: 'asha' } as const;
 const post = {
+  kind: 'find',
   discussionId: ID(3),
+  votes: 14,
+  youVoted: false,
+  canVote: true,
   author: NOVA,
   postedAt: '2026-11-01T09:07:00.000Z',
   content: card,
@@ -54,7 +59,7 @@ describe('a resident’s find in the feed (v3 R-8, D-248)', () => {
     expect(
       RoomFeedPostSchema.safeParse({
         ...post,
-        author: { kind: 'person', personId: ID(1), displayName: 'Asha', handle: 'asha' },
+        author: { kind: 'person', person: PERSON, you: false },
       }).success,
     ).toBe(false);
   });
@@ -131,7 +136,12 @@ describe('the feed a member reads', () => {
     memory: { state: 'none' },
     canEditMemory: false,
     aiLevel: 'lively',
-    limits: { postsPerDay: 3, restHours: 6 },
+    roomName: 'Space room',
+    profiles: [],
+    sort: 'hot',
+    window: 'week',
+    canPost: true,
+    limits: { postsPerDay: 3, restHours: 6, memberPostsPerDay: 3 },
   };
 
   it('is a bounded window of finds with the rules residents post by', () => {
@@ -140,7 +150,7 @@ describe('the feed a member reads', () => {
       RoomFeedSchema.safeParse({ ...ready, posts: Array.from({ length: ROOM_FEED_POSTS_MAX + 1 }, () => post) })
         .success,
     ).toBe(false);
-    expect(RoomFeedSchema.safeParse({ ...ready, limits: { postsPerDay: 3 } }).success).toBe(false);
+    expect(RoomFeedSchema.safeParse({ ...ready, limits: { postsPerDay: 3, restHours: 6 } }).success).toBe(false);
   });
 
   it('answers a stranger with the one shape of a room that is not there', () => {
@@ -153,15 +163,25 @@ describe('the feed a member reads', () => {
     ).toBe(false);
   });
 
-  it('has a strip that names a resident and a time and nothing about a person', () => {
-    expect(RoomFeedStripSchema.safeParse({ by: NOVA, postedAt: '2026-11-01T09:07:00.000Z' }).success).toBe(true);
-    expect(RoomFeedStripSchema.safeParse({ by: NOVA, postedAt: '2026-11-01T09:07:00.000Z', count: 3 }).success).toBe(
-      false,
-    );
+  it('has live events that say who posted or replied and when, and no count and no presence', () => {
+    const event = { kind: 'posted', by: NOVA, at: '2026-11-01T09:07:00.000Z', discussionId: ID(3) };
+    expect(RoomLiveEventSchema.safeParse(event).success).toBe(true);
+    expect(
+      RoomLiveEventSchema.safeParse({
+        kind: 'replied',
+        by: { kind: 'person', person: PERSON, you: false },
+        at: '2026-11-01T09:07:00.000Z',
+        discussionId: ID(3),
+      }).success,
+    ).toBe(true);
+    for (const extra of [{ count: 3 }, { online: true }, { read: true }, { kind: 'watched' }])
+      expect(RoomLiveEventSchema.safeParse({ ...event, ...extra }).success).toBe(false);
   });
 
-  it('is served by two routes of the rooms contract', () => {
-    expect(Object.keys(roomsContract)).toEqual(expect.arrayContaining(['feed', 'replaceMemory']));
+  it('is served by the routes of the rooms contract, with a post and a vote of their own', () => {
+    expect(Object.keys(roomsContract)).toEqual(
+      expect.arrayContaining(['feed', 'replaceMemory', 'postFind', 'votePost']),
+    );
   });
 
   it('lets a find note be a message of its own kind that a reader’s level can fold', () => {

@@ -213,17 +213,71 @@ export interface ScoutStanding {
 
 // --- What a member's own use cases need, inside the personal scope and the room's lock ----------------------
 
-/** One find as the feed lists it: the discussion, who posted, what it is about and the note. */
+/** Who wrote a post as the feed lists it: a resident, a member's scout, or a member (v3 R-8b). */
+export type PostAuthor = FindAuthor | { readonly kind: 'person'; readonly accountId: string };
+
+/**
+ * One post as the feed lists it: the discussion, who posted, what it is about, the words and what people's votes made of it. A
+ * resident's or scout's find always has an asset; a person's post has an asset or a source, and a headline of its own.
+ */
 export interface FindRow {
   readonly discussionId: string;
-  /** The resident that posted it, or the member whose scout did. */
-  readonly author: FindAuthor;
-  readonly asset: ContentRef;
+  readonly author: PostAuthor;
+  /** The library asset it is about; none for a person's post that cites a source. */
+  readonly asset: ContentRef | undefined;
+  /** The address a person's post cites; none for every other post. */
+  readonly source: string | undefined;
+  /** The discussion's title: a person's own headline, or the asset's title for a find. */
+  readonly title: string;
+  /** The resident this post introduces (v3 R-8b); none for every other post. */
+  readonly introduces: InhabitantId | undefined;
   readonly postedAt: Date;
-  /** The resident's note; none when a moderator removed it, and then the find is not listed. */
+  /** The note or the words; none when a moderator removed them or their account is gone, and then the post is not listed. */
   readonly note: string | null;
-  /** Messages shown after the note. */
+  /** Messages shown after the first. */
   readonly replies: number;
+  /** People's votes. A count only: nothing here says who. */
+  readonly votes: number;
+  /** Whether the reader voted. */
+  readonly votedByReader: boolean;
+}
+
+/** What the feed read asks of storage: which posts, in what order, from what window, and whose votes to mark as the reader's. */
+export interface FindQuery {
+  readonly sort: 'hot' | 'new' | 'top';
+  /** Only for `top`: the posts made at or after this time. */
+  readonly since: Date | undefined;
+  readonly limit: number;
+  readonly readerAccountId: string;
+  /** `people`: only members' posts (a reader whose AI is Off); `agents`: only residents' and scouts' finds; `all`: every post. */
+  readonly by: 'all' | 'people' | 'agents';
+}
+
+/** One resident's facts for its profile, read from the room's rows and ledger (v3 R-8b, D-277). */
+export interface ResidentFacts {
+  /** When the room it lives in was made. */
+  readonly roomSince: Date;
+  /** The last time it spoke in this room: its newest completed turn. */
+  readonly lastAt: Date | undefined;
+  /** When it last had a find counted (the start of its rest). */
+  readonly lastFindAt: Date | undefined;
+  /** Its introduction has been made. */
+  readonly introduced: boolean;
+  /** Its newest finds, newest first. */
+  readonly recent: readonly {
+    readonly discussionId: string;
+    readonly messageId: string;
+    readonly title: string;
+    readonly postedAt: Date;
+  }[];
+}
+
+/** One event of the live strip before it is checked for the reader: a post or a reply, and who wrote it. */
+export interface LiveEventRow {
+  readonly kind: 'posted' | 'replied';
+  readonly discussionId: string;
+  readonly at: Date;
+  readonly author: PostAuthor;
 }
 
 export interface MemoryView {

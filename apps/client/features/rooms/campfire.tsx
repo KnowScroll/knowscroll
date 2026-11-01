@@ -272,7 +272,7 @@ export function GeneralStage({
             today={view.today}
             sky={view.sky}
             launch={strip}
-            feed={view.feed}
+            live={view.live}
             onLaunch={onLaunch}
             watch={watching === undefined ? view.watch : { state: 'live' }}
             onWatch={onWatch}

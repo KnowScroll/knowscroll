@@ -92,6 +92,7 @@ export function makeRoomCommands(p: RoomPorts) {
               await p.presence.clear(entered.lock, entered.owner.accountId);
               await p.positions.forget(entered.lock, entered.owner.accountId);
               await p.scouts.forgetMember(entered.lock, entered.owner.accountId);
+              await p.posts.forgetMember(entered.lock, entered.owner.accountId);
               await p.sky.forgetMember(entered.lock, entered.owner.accountId);
               await p.launches.forgetMember(entered.lock, entered.owner.accountId);
               await p.watches.forgetMember(entered.lock, entered.owner.accountId);
@@ -186,6 +187,7 @@ export function makeRoomCommands(p: RoomPorts) {
               await p.presence.clear(lock, targetAccountId);
               await p.positions.forget(lock, targetAccountId);
               await p.scouts.forgetMember(lock, targetAccountId);
+              await p.posts.forgetMember(lock, targetAccountId);
               await p.sky.forgetMember(lock, targetAccountId);
               await p.launches.forgetMember(lock, targetAccountId);
               await p.watches.forgetMember(lock, targetAccountId);

@@ -17,11 +17,21 @@ import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.j
 import { askDecision, hourBefore, utcDayStart, type InhabitantId } from '../domain/contribution.js';
 import { changesCursor, historyCursor } from '../domain/cursors.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
+import { hostOf, NEUTRAL_POST_TITLE, REMOVED_POST_TITLE } from '../domain/posts.js';
 import { debateViewOf } from './debates.js';
 import { titlesFor } from './discussion-titles.js';
 import { discussionEpisodes, viewRoomMessages } from './discussion-view.js';
 import { enterRoom, type EnteredRoom } from './gate.js';
-import { ok, refuse, roomEnvelope, type ContentRef, type Result, type RoomLock, type RoomPorts } from './ports.js';
+import {
+  ok,
+  refuse,
+  roomEnvelope,
+  type ContentRef,
+  type DiscussionRow,
+  type Result,
+  type RoomLock,
+  type RoomPorts,
+} from './ports.js';
 import { roomSummary } from './view.js';
 
 /**
@@ -34,6 +44,22 @@ const viewerOf = (entered: EnteredRoom) => ({
   aiLevel: entered.member?.aiLevel ?? 'lively',
   cast: entered.standing.room.cast,
 });
+
+/**
+ * What people's votes made of a post, for its own page (D-273): only a discussion of the Feed (a find, a member's post or a resident's
+ * introduction) has any. A member cannot vote on their own post, and nobody is told who voted.
+ */
+async function postFigures(
+  p: RoomPorts,
+  lock: RoomLock,
+  discussion: DiscussionRow,
+  readerAccountId: string,
+): Promise<{ votes: number; youVoted: boolean; canVote: boolean } | undefined> {
+  if (discussion.kind !== 'find' && discussion.kind !== 'intro') return undefined;
+  const { votes, voted } = await p.posts.voteView(lock, discussion.discussionId, readerAccountId);
+  const own = discussion.personPost && discussion.startedByAccountId === readerAccountId;
+  return { votes, youVoted: voted, canVote: !own };
+}
 
 /** How long the reader is told about an ask that ended without a contribution. */
 const UNANSWERED_ASK_MEMORY_MS = 10 * 60 * 1000;
@@ -62,6 +88,25 @@ function openedAnchor(
 async function currentTitle(p: RoomPorts, scope: PersonalScopeTx, location: ContentRef): Promise<string | undefined> {
   const [card] = await p.readContent(scope, [location]);
   return card?.status === 'available' ? card.metadata.title : undefined;
+}
+
+/** What became of a post's first message, which decides how much of the post its page may still say. */
+type PostStanding = 'shown' | 'removed' | 'author_deleted';
+
+/**
+ * A post of the Feed (a find, by a person or a resident) whose first message a moderator removed is a removed post: its page keeps
+ * the replies others wrote and nothing of the post, neither its headline, its source nor its asset. A person's post whose author's
+ * account is gone keeps its asset and is called what erasure left (D-271). Any other discussion is shown as it is. Reads one row.
+ */
+async function postStanding(
+  p: RoomPorts,
+  lock: RoomLock,
+  discussion: Pick<DiscussionRow, 'discussionId' | 'kind' | 'personPost'>,
+): Promise<PostStanding> {
+  if (discussion.kind !== 'find' && discussion.kind !== 'intro') return 'shown';
+  const [first] = await p.discussions.messages(lock, discussion.discussionId, { before: 2, limit: 1 });
+  if (first === undefined || first.hidden) return 'removed';
+  return discussion.personPost && first.text === null ? 'author_deleted' : 'shown';
 }
 
 /**
@@ -164,8 +209,10 @@ export function makeDiscussionReads(p: RoomPorts) {
             ...(discussion.lastSequence > 0 ? { before: discussion.lastSequence + 1 } : {}),
           });
           const oldest = rows[0];
-          const content = discussion.root === null ? undefined : await discussionEpisodes(p, scope, discussion.root);
-          const [root] = discussion.root === null ? [] : await p.readContent(scope, [discussion.root]);
+          const standing = await postStanding(p, lock, discussion);
+          const rootShown = discussion.root !== null && standing !== 'removed' ? discussion.root : null;
+          const content = rootShown === null ? undefined : await discussionEpisodes(p, scope, rootShown);
+          const [root] = rootShown === null ? [] : await p.readContent(scope, [rootShown]);
           const asks = await inhabitantStatuses(p, entered, discussion.discussionId, p.now());
           const wanted = [
             entered.owner.accountId,
@@ -189,9 +236,17 @@ export function makeDiscussionReads(p: RoomPorts) {
             discussion.tag === 'debate'
               ? await debateViewOf(p, lock, discussion.discussionId, entered.owner.accountId, p.now())
               : undefined;
-          const title = (await titlesFor(p, scope, lock, entered.owner.accountId, [discussion])).get(
-            discussion.discussionId,
-          )!;
+          const title =
+            standing === 'removed'
+              ? REMOVED_POST_TITLE
+              : standing === 'author_deleted'
+                ? NEUTRAL_POST_TITLE
+                : (await titlesFor(p, scope, lock, entered.owner.accountId, [discussion])).get(
+                    discussion.discussionId,
+                  )!;
+          // A removed post has no vote to cast or show.
+          const post =
+            standing === 'removed' ? undefined : await postFigures(p, lock, discussion, entered.owner.accountId);
           return DiscussionViewSchema.parse({
             ...roomEnvelope(scope),
             readId: query.readId,
@@ -206,14 +261,18 @@ export function makeDiscussionReads(p: RoomPorts) {
               ...(discussion.tag === null ? {} : { tag: discussion.tag }),
               pinned: discussion.pinned,
               ...(starter === undefined ? {} : { startedBy: starter }),
+              ...(discussion.source === null || standing !== 'shown'
+                ? {}
+                : { source: { url: discussion.source, host: hostOf(discussion.source) } }),
+              ...(post === undefined ? {} : { post }),
             },
             ...(origin === undefined ? {} : { origin }),
             ...(debate === undefined ? {} : { debate }),
-            ...(content === undefined || discussion.root === null
+            ...(content === undefined || rootShown === null
               ? {}
               : {
                   content: {
-                    root: root ?? { status: 'unavailable', target: discussion.root },
+                    root: root ?? { status: 'unavailable', target: rootShown },
                     sequence: content.sequence,
                     episodes: content.episodes,
                   },
