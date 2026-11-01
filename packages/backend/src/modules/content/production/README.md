@@ -294,7 +294,7 @@ ledger are the same; what differs is:
   about 230 to 340 words in prose only, say what the passages do not cover, end with a limit callout; the question is data). Code enforces the ending: an answer whose last block is not the limit callout is refused (`limit_callout_required`, with a fixed repair hint).
   The prompt version is `question-writer.v5` (D-250: the reason a "why" question asks for comes from the passages, a gap is said in one sentence;
   D-266: a title or a heading that only names what follows needs no passage, and a plain admission of a gap stands alone as a sentence that begins with it;
-  D-282: a fact keeps the passages' own terms, and a link between two ideas is short and plain or begins the next fact). The reading target is one to two minutes (`targetMinutesOf`), with its own repair
+  D-282: a fact keeps the passages' own terms but never as a copied run of `COPY_RUN_WORDS` words, named in the text from the rule's constant, and a link between two ideas is short and plain or begins the next fact). The reading target is one to two minutes (`targetMinutesOf`), with its own repair
   hint, and the format `plain` asks for no rich block. The brief is built by supply (`askBrief`): the question, the Scroll's title and
   the words of the stop. It is written with the v1 writer and published as an order, so it never goes through the review gate (D-138).
   A brief wiped by an erasure (empty) is no subject: the job is skipped and nothing is written for erased words.

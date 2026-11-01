@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
-import { RULE_PROBLEMS, UNSUPPORTED_HINTS, type SentenceUnderCheck } from '../domain/ask-support.js';
+import { AuthoredScroll, COPY_RUN_WORDS, copiedRuns } from '@knowscroll/scroll-model/producer';
+import { RULE_PROBLEMS, UNSUPPORTED_HINTS, sharedStems, type SentenceUnderCheck } from '../domain/ask-support.js';
 import {
   ASK_SUPPORT_CHECK_VERSION,
   ASK_SUPPORT_INSTRUCTIONS,
@@ -778,5 +778,57 @@ describe('the one repair an unsupported sentence earns', () => {
     expect(repair.version.length).toBeLessThanOrEqual(32);
     expect(repair.instructions.startsWith('WRITER RULES\n\nREVISION AFTER A SUPPORT CHECK')).toBe(true);
     expect(repair.outputSchema).toBe(writer.outputSchema);
+  });
+});
+
+/**
+ * The copy rule refuses an answer that copies a run of `COPY_RUN_WORDS` words from a passage (before the checker runs), and the
+ * quote rule asks a supported verdict to carry two of the sentence's key words. A writer that is told to keep the passages'
+ * terms must be able to meet both without copying, or every answer would fail one or the other (D-282). These are labelled CI
+ * paraphrases of the invented lighthouse passages above, each with the quote a checker would give for it.
+ */
+describe('a paraphrase that keeps the passages’ key terms passes the copy rule and has a valid quote (D-282)', () => {
+  const sources = PASSAGES.map((one) => one.text);
+  const paraphrases = [
+    {
+      cites: ['e1'],
+      sentence: 'Someone must wind the clockwork of the lamp every four hours, even through the winter nights.',
+      quote: 'keeper winds the lamp clockwork every four hours',
+    },
+    {
+      cites: ['e2'],
+      sentence: 'The glass ring bends the glow of the flame into one beam that sweeps over the sea.',
+      quote: 'prism ring around the flame gathers the light into a single beam that sweeps',
+    },
+    {
+      cites: ['e3'],
+      sentence: 'Thick fog stops a beam of light within a short distance.',
+      quote: 'light cannot cross a thick bank of fog for any useful distance',
+    },
+    {
+      cites: ['e4'],
+      sentence: 'A tall tower lets the lamp clear the far waves.',
+      quote: 'places the lamp high enough to clear distant waves',
+    },
+  ];
+
+  it.each(paraphrases)('passes the copy rule with no shared run even of four words: $sentence', ({ sentence }) => {
+    expect(copiedRuns(sentence, sources, COPY_RUN_WORDS)).toEqual([]);
+    // Not a near copy either: no stretch of four words is shared with any passage.
+    expect(copiedRuns(sentence, sources, 4)).toEqual([]);
+  });
+
+  it('is judged supported on a quote that is real, in a cited passage and carries the sentence’s key words', () => {
+    const sentences = paraphrases.map(({ sentence, cites }, index) => ({ number: index + 1, text: sentence, cites }));
+    const schema = askSupportSchema(sentences, PASSAGES);
+    const verdicts = schema.parse({
+      sentences: paraphrases.map(({ quote }, index) => ({ n: index + 1, verdict: 'supported', quote })),
+    }).sentences;
+    expect(verdicts.map((verdict) => verdict.verdict)).toEqual(Array(paraphrases.length).fill('supported'));
+    for (const { sentence, quote } of paraphrases) expect(sharedStems(quote, sentence)).toBeGreaterThanOrEqual(2);
+  });
+
+  it('can fail: a sentence copied from a passage trips the copy rule, so passing it is a real property of the paraphrases', () => {
+    expect(copiedRuns(PASSAGES[1]!.text, sources, COPY_RUN_WORDS).length).toBeGreaterThan(0);
   });
 });

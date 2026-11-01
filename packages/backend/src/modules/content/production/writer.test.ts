@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
+import { AuthoredScroll, COPY_RUN_WORDS } from '@knowscroll/scroll-model/producer';
 import { extractResearch } from '../../../infrastructure/research/public-pages.js';
 import { evidencePassages } from './evidence.js';
 import {
@@ -253,6 +253,24 @@ describe('the instructions for the answer to one question (D-218)', () => {
     title: 'Where this stops',
     text: 'This answer ignores radio and satellite navigation, which now do most of the work.',
   };
+
+  it('names the copy rule’s own number, and the rule refuses a run of exactly that many words and accepts one fewer (D-282)', () => {
+    const text = writerInstructions('plain', 'question');
+    expect(text).toContain(`never copy a run of ${String(COPY_RUN_WORDS)} or more words in a row from a passage`);
+    expect(text).toContain('Keep the key terms and build your own sentence around them');
+    // The library’s words for the same number, written out. This fails, on purpose, when the constant changes and the words do not.
+    const numberWords: Readonly<Record<number, string>> = { 9: 'nine' };
+    expect(text).toContain(`any run of ${numberWords[COPY_RUN_WORDS] ?? 'CI: add the number in words'} words in a row`);
+    // And the rule itself is where the number comes from: the same run, one word shorter, passes.
+    const sourceWords = SOURCE[1]!.split(' ');
+    const codesWith = (run: string) => {
+      const answer = scroll([...BODY, prose(`Beyond that, ${run} and no more.`, ['e2', 'e3']), limit]);
+      const outcome = compileGeneratedScroll(answer, questionProvenance, passages, 'plain');
+      return outcome.kind === 'refused' ? outcome.issues.map((issue) => issue.code) : [];
+    };
+    expect(codesWith(sourceWords.slice(0, COPY_RUN_WORDS).join(' '))).toContain('copied_passage');
+    expect(codesWith(sourceWords.slice(0, COPY_RUN_WORDS - 1).join(' '))).not.toContain('copied_passage');
+  });
 
   it('accept a short prose answer with no rich block, which the library would refuse as too short', () => {
     const short = scroll([...BODY, limit]);
