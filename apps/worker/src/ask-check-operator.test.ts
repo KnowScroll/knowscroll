@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -83,6 +84,39 @@ describe('--checker-instructions belongs to content ask-check alone (D-280)', ()
     [[], '/var/tmp/candidate.txt', true],
   ])('for %j with %j, misplaced is %s', (positionals, option, misplaced) => {
     expect(isCheckerInstructionsMisplaced(positionals, option)).toBe(misplaced);
+  });
+});
+
+/**
+ * `operator.ts` parses its arguments and runs at once, so it cannot be imported by a test. What it must do with the option is
+ * therefore held in its source text, with the guard's own rule (`isCheckerInstructionsMisplaced`) tested above: the option is
+ * declared, every other command is refused it before the first command runs, and only `content ask-check` passes it on.
+ */
+describe('operator.ts refuses --checker-instructions for every command but content ask-check (D-280)', () => {
+  const source = readFileSync(new URL('./operator.ts', import.meta.url), 'utf8');
+  const option = "args.values['checker-instructions']";
+  const guard = source.indexOf(`if (isCheckerInstructionsMisplaced(args.positionals, ${option})) {`);
+  const firstCommand = source.indexOf("if (area === 'content' && command === 'produce-scroll'");
+  const askCheck = source.indexOf("command === 'ask-check'");
+
+  it('declares the option as a string', () => {
+    expect(source).toContain("'checker-instructions': { type: 'string' }");
+  });
+
+  it('asks the guard before the first command is chosen, and a refusal prints the usage and exits with status 2', () => {
+    expect(guard).toBeGreaterThan(0);
+    expect(firstCommand).toBeGreaterThan(guard);
+    expect(source.slice(guard, firstCommand)).toMatch(/print\(\{ result: 'usage', usage \}\);\s*return 2;/u);
+  });
+
+  it('reads the option in two places only, the guard and the call of content ask-check', () => {
+    expect(source.split(option)).toHaveLength(3);
+    const passed = source.indexOf(`checkerInstructions: ${option}`);
+    expect(askCheck).toBeGreaterThan(guard);
+    expect(passed).toBeGreaterThan(askCheck);
+    expect(source.slice(askCheck, passed)).toContain('askCheckCommand(');
+    // Nothing between the start of the ask-check branch and the option names another command.
+    expect(source.slice(askCheck, passed)).not.toMatch(/command === '(?!ask-check)/u);
   });
 });
 

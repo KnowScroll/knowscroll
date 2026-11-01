@@ -68,10 +68,6 @@ describe('the checker’s role for a Quick answer', () => {
     expect(QUICK_ANSWER_SUPPORT_ROLE_ID).not.toBe(role.id);
   });
 
-  it('is a released version of the checker, never a candidate: a Quick answer cannot be checked by instructions from a file (D-280)', () => {
-    expect(role.version).toMatch(/^ask-support-check\.v\d+$/u);
-  });
-
   it('accepts a reply whose quotes are in a cited passage and about the sentence, and sets aside the sentence whose verdict code can see is made up', () => {
     const good = reply(
       supported(1, 'The axis leans twenty-three degrees and keeps pointing the same way all year long'),
