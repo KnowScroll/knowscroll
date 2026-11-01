@@ -174,7 +174,10 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
         [ENQUEUE, makeEnqueueJob(content.boss)],
         [DATABASE, database.db],
         [CONFIG, { supplyScenarioDailyCap: caps.perDay, supplyScenarioThreadDailyCap: caps.perThreadPerDay }],
-        [HARNESS, fixtureRecordingHarness(database.db, { model: harnessModel, beforeApply: () => beforeApply() }).harness],
+        [
+          HARNESS,
+          fixtureRecordingHarness(database.db, { model: harnessModel, beforeApply: () => beforeApply() }).harness,
+        ],
         [THREAD_GUEST, cases.guest],
         [READ_THREAD_STANDING, standing],
         [READ_VISITED_ASSETS, readVisitedAssets],
@@ -249,15 +252,8 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
   }
 
   /** Asha started a thread on a generated Scroll; Ravi joined. `asha` is a person who can pause and clear recording. */
-  async function begun(
-    claims = FIXTURE_CLAIMS,
-    options: { readonly asha?: FixturePerson } = {},
-  ): Promise<Begun> {
-    const a = await seedFriend(
-      database.db,
-      friends,
-      options.asha === undefined ? {} : { person: options.asha },
-    );
+  async function begun(claims = FIXTURE_CLAIMS, options: { readonly asha?: FixturePerson } = {}): Promise<Begun> {
+    const a = await seedFriend(database.db, friends, options.asha === undefined ? {} : { person: options.asha });
     const b = await seedFriend(database.db, friends);
     await befriend(friends, a, b);
     const root = await seedRoot(claims);
@@ -942,9 +938,7 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
       await write(a, node.nodeId);
       expect(answerCalls()).toBeGreaterThan(0);
       expect(await answerRow(node.nodeId)).toMatchObject({ answer_state: 'unavailable', answer: null });
-      expect(
-        (await runsOf(node.nodeId)).filter((run) => run.recording_generation === 3),
-      ).toEqual([]);
+      expect((await runsOf(node.nodeId)).filter((run) => run.recording_generation === 3)).toEqual([]);
     });
 
     it('applies nothing when recording is paused between the planner’s reply and the store', async () => {

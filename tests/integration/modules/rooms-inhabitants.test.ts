@@ -620,7 +620,9 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
         database.db,
       );
       expect(written.rows[0]!.n).toBe('0');
-      expect(JSON.stringify(await world.db.selectFrom('rooms.messages').selectAll().execute())).not.toContain('too late');
+      expect(JSON.stringify(await world.db.selectFrom('rooms.messages').selectAll().execute())).not.toContain(
+        'too late',
+      );
     });
 
     it('is refused without a model call while recording is paused: the ask ends as failed and is not counted', async () => {

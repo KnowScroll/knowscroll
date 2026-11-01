@@ -72,7 +72,11 @@ async function requestWaits(
   );
 }
 
-async function textRequestWaits(owner: SupplyRecordingOwner, scope: PersonalScopeTx, requestId: string): Promise<boolean> {
+async function textRequestWaits(
+  owner: SupplyRecordingOwner,
+  scope: PersonalScopeTx,
+  requestId: string,
+): Promise<boolean> {
   const request = await owner.requests.read(scope, requestId);
   const { intent } = request?.command ?? {};
   return request?.status === 'matching' && intent?.kind === 'topic' && intent.subject.kind === 'text';

@@ -479,10 +479,7 @@ export type FencePersonalRecording = (
  */
 export type ReadPersonalRecordingNow = (
   scope: PersonalScopeTx,
-) => Promise<
-  | { readonly kind: 'recording'; readonly generation: number }
-  | { readonly kind: 'paused' | 'unavailable' }
->;
+) => Promise<{ readonly kind: 'recording'; readonly generation: number } | { readonly kind: 'paused' | 'unavailable' }>;
 export const RECORDING_POLICY_USE_CASES = Symbol('identity.recordingPolicy');
 export const FENCE_PERSONAL_RECORDING = Symbol('identity.fencePersonalRecording');
 

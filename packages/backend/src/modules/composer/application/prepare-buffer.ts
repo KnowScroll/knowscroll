@@ -360,9 +360,7 @@ async function commitUnderFence(ports: PrepareBufferPorts, authority: PersonalAu
   const closing = runToClose(input.delivery.jobId, input.jev.result?.purpose, input.jev.result?.end);
   if (ports.jev === undefined || closing === undefined)
     return ports.withPersonalScope(authority, (scope) => commit(ports, scope, input));
-  const applied = await applyClosingRun(ports.jev.harness, authority, closing, (scope) =>
-    commit(ports, scope, input),
-  );
+  const applied = await applyClosingRun(ports.jev.harness, authority, closing, (scope) => commit(ports, scope, input));
   return applied.kind === 'applied' ? ({ kind: 'entered', value: applied.value } as const) : applied;
 }
 

@@ -130,7 +130,9 @@ export interface RecordingReasoningHarness {
    * starts its run. Nothing when recording is paused or the owner is not active, and then no run may start. Takes the scope's
    * one account gate, so call it once per scope.
    */
-  currentOwner(scope: PersonalScopeTx): Promise<{ readonly accountId: string; readonly generation: number } | undefined>;
+  currentOwner(
+    scope: PersonalScopeTx,
+  ): Promise<{ readonly accountId: string; readonly generation: number } | undefined>;
   /**
    * The generation the scope's recording is at now, with no account gate: for a step whose scope has already taken that gate
    * (a thread or a room is entered through it) and which knows the account from its own record. The run's own fence checks

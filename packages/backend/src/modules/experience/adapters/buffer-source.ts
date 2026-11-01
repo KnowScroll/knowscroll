@@ -13,7 +13,11 @@ import { readExposure } from './postgres-store.js';
 /** Whether the exposure exists in the scope's epoch and was activated: what Jev's owner check needs to know of a buffer job. */
 const checkActivatedExposure: CheckActivatedExposure = async (scope, exposureId) => {
   const exposure = await readExposure(scope, exposureId);
-  return exposure !== undefined && exposure.activatedAt !== undefined && exposure.privacyEpoch === scope.authority.privacyEpoch;
+  return (
+    exposure !== undefined &&
+    exposure.activatedAt !== undefined &&
+    exposure.privacyEpoch === scope.authority.privacyEpoch
+  );
 };
 
 /** Tells the Composer buffer worker about an offer, only if it was really activated at this exposure. */

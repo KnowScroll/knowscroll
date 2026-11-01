@@ -1165,7 +1165,10 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
         // The next preparation, at the new generation, is answered.
         await expireBuffer(person.universeId);
         const again = workerFor({ model: jevModel(fitting) });
-        expect(await run(again, await latestJob(person.universeId))).toMatchObject({ kind: 'prepared', jev: 'assessed' });
+        expect(await run(again, await latestJob(person.universeId))).toMatchObject({
+          kind: 'prepared',
+          jev: 'assessed',
+        });
       });
 
       it('stores nothing when recording is paused between the reply and the store', async () => {

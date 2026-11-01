@@ -25,7 +25,9 @@ const purpose = (over: Record<string, unknown> = {}): PersonalRecordingPurpose =
 const scopeAt = (generation: number, universeId = UNIVERSE, privacyEpoch = 1) =>
   ({
     generation,
-    personal: { authority: { universeId, privacyEpoch, actor: { kind: 'system', purpose: 'composer.prepare-buffer' } } },
+    personal: {
+      authority: { universeId, privacyEpoch, actor: { kind: 'system', purpose: 'composer.prepare-buffer' } },
+    },
   }) as unknown as RecordingScopeTx;
 
 const checkWith = (activated: boolean) => {

@@ -167,6 +167,8 @@ export function makeSuggestDraft(p: DraftWorkerPorts, harness: RecordingReasonin
     const applied = await applyClosingRun(harness, authority, closing, (scope) => apply(scope, job.draftId, verdict));
     // The fence no longer holds: only the end of what was asked is written, and after a Clear nothing is.
     if (applied.kind === 'dropped')
-      await p.withScope(authority, (scope) => apply(scope, job.draftId, { kind: 'failed', failure: 'could_not_suggest' }));
+      await p.withScope(authority, (scope) =>
+        apply(scope, job.draftId, { kind: 'failed', failure: 'could_not_suggest' }),
+      );
   };
 }

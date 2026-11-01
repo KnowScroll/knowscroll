@@ -27,7 +27,13 @@ const owner: RunOwner = {
 const authority: PersonalAuthority = { universeId: id(2), privacyEpoch: 4, actor: { kind: 'system', purpose: 'test' } };
 const proposal: StepProposal<{ ok: true }> = {
   run: { id: id(6), authority, ownerModule: 'scenarios', purpose: 'suggest', policyVersion: 'test.v1' },
-  role: { id: 'test.role', version: 'v1', instructions: 'x', outputSchema: z.strictObject({ ok: z.literal(true) }), maxOutputTokens: 8 },
+  role: {
+    id: 'test.role',
+    version: 'v1',
+    instructions: 'x',
+    outputSchema: z.strictObject({ ok: z.literal(true) }),
+    maxOutputTokens: 8,
+  },
   context: { bundleRef: 'test:1', items: [] },
 };
 const failed: ProposeOutcome<{ ok: true }> = { kind: 'failed', attemptId: id(7), code: 'HTTP_500' };
@@ -42,7 +48,11 @@ function harnessWith(over: Partial<RecordingReasoningHarness> = {}) {
       calls.proposePersonal(input);
       return Promise.resolve(failed);
     },
-    withPersonalApply: async (_authority: unknown, purpose: unknown, work: (scope: RecordingScopeTx) => Promise<unknown>) => {
+    withPersonalApply: async (
+      _authority: unknown,
+      purpose: unknown,
+      work: (scope: RecordingScopeTx) => Promise<unknown>,
+    ) => {
       calls.withPersonalApply(purpose);
       return { kind: 'entered', value: await work({ personal: { tag: 'personal' } } as unknown as RecordingScopeTx) };
     },
@@ -115,7 +125,11 @@ describe('the recording runs of a module’s personal steps (D-270)', () => {
     await closeStartedRun(harness, rec, { runId: id(6), purpose });
     expect(calls.closePersonalRun).not.toHaveBeenCalled();
     await closeStartedRun(harness, rec, { runId: id(6), purpose, end: 'completed' });
-    expect(calls.closePersonalRun).toHaveBeenCalledWith(rec, { runId: id(6), state: 'completed', recordingPurpose: purpose });
+    expect(calls.closePersonalRun).toHaveBeenCalledWith(rec, {
+      runId: id(6),
+      state: 'completed',
+      recordingPurpose: purpose,
+    });
     await closeStartedRunAlone(harness, authority, { runId: id(6), purpose });
     expect(calls.withPersonalApply).not.toHaveBeenCalled();
     await closeStartedRunAlone(harness, authority, { runId: id(6), purpose, end: 'failed' });

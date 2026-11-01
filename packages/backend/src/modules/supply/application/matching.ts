@@ -188,7 +188,11 @@ async function decide(
  * twice, and an attempt of unknown outcome is never resent: the request closes as `could_not_prepare`
  * and the run stays open for an operator.
  */
-export function makeMatchRequest(p: SupplyPorts, recording: RecordingRuns, readLibrary: ReadLibraryPassages): MatchStep {
+export function makeMatchRequest(
+  p: SupplyPorts,
+  recording: RecordingRuns,
+  readLibrary: ReadLibraryPassages,
+): MatchStep {
   return async (job, signal) => {
     const authority = {
       universeId: job.universeId,
@@ -236,7 +240,14 @@ async function matchText(
     signal,
   );
   const verdict = matchVerdict(outcome);
-  await applyQuestionVerdict(deps, authority, job.requestId, runToClose(job.requestId, purpose, verdict.end), verdict, undefined);
+  await applyQuestionVerdict(
+    deps,
+    authority,
+    job.requestId,
+    runToClose(job.requestId, purpose, verdict.end),
+    verdict,
+    undefined,
+  );
 }
 
 /** What placing a question needs: the ports, the recording-aware harness and the shared read of a library Scroll's prose. */

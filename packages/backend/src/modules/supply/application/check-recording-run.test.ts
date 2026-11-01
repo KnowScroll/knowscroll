@@ -79,9 +79,12 @@ describe('the owner check of Supply’s recording runs (D-264, D-270)', () => {
     const run = purpose({ purpose: 'match-request' });
     expect(await checkWith(textDemand(), undefined)(scopeAt(3), run)).toBe('current');
     // The request carries no generation: the harness has held the run to the one it started at.
-    expect(await checkWith(textDemand(), undefined)(scopeAt(5), purpose({ purpose: 'match-request', recordingGeneration: 5 }))).toBe(
-      'current',
-    );
+    expect(
+      await checkWith(textDemand(), undefined)(
+        scopeAt(5),
+        purpose({ purpose: 'match-request', recordingGeneration: 5 }),
+      ),
+    ).toBe('current');
   });
 
   it('finds a free-text match unavailable once the request is not waiting, is not free text or does not exist', async () => {

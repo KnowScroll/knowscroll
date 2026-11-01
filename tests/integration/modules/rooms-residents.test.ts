@@ -704,7 +704,9 @@ describe('residents speak on their own (real PostgreSQL, CI fixture model)', () 
       });
 
       // Asked turns always show, whatever the level.
-      const asked = fixtureRecordingHarness(world.db, { model: fixtureModel(() => pushesBack(), { label: 'asked' }) }).harness;
+      const asked = fixtureRecordingHarness(world.db, {
+        model: fixtureModel(() => pushesBack(), { label: 'asked' }),
+      }).harness;
       unwrap(await ask(world, room.kenji, room.roomId, room.general, 'skeptic'));
       await world.contribute(asked)(world.queued.at(-1)!);
       expect((await view(room.kenji, room)).messages.at(-1)).toMatchObject({

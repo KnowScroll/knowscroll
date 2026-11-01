@@ -66,9 +66,9 @@ describe('the owner check of Scenarios’ recording runs (D-270)', () => {
 
   it('finds the writer’s run unavailable once the answer is settled, the branch is removed, gone or not a what-if', async () => {
     const run = purpose({ purpose: 'answer', businessRunId: NODE, claimId: NODE });
-    expect(await checkWith(undefined, node({ answer: { state: 'unavailable', settledAt: new Date() } }))(scopeAt(3), run)).toBe(
-      'unavailable',
-    );
+    expect(
+      await checkWith(undefined, node({ answer: { state: 'unavailable', settledAt: new Date() } }))(scopeAt(3), run),
+    ).toBe('unavailable');
     expect(await checkWith(undefined, node({ answer: undefined }))(scopeAt(3), run)).toBe('unavailable');
     expect(await checkWith(undefined, node({ status: 'removed' }))(scopeAt(3), run)).toBe('unavailable');
     expect(await checkWith(undefined, node({ kind: 'perspective' }))(scopeAt(3), run)).toBe('unavailable');

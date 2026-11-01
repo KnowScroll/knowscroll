@@ -281,7 +281,9 @@ export interface PersonalHarnessAccess {
    * The person a scope belongs to and the generation their recording is at now, for a step about to start a run for one of
    * their records. Takes the scope's one account gate. Nothing when recording is paused or the owner is not active.
    */
-  currentOwner(scope: PersonalScopeTx): Promise<{ readonly accountId: string; readonly generation: number } | undefined>;
+  currentOwner(
+    scope: PersonalScopeTx,
+  ): Promise<{ readonly accountId: string; readonly generation: number } | undefined>;
   /**
    * The generation the scope's recording is at now, with no account gate: for a step whose scope has taken that gate already
    * (a thread or a room is entered through it) and which knows the account from its own record. The run's own fence checks the
