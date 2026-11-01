@@ -1,8 +1,15 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { isReadingInteractionAllowed } from '../public.js';
-import { produceScrollJob, produceScrollQueue, PRODUCE_SCROLL_CLAIM_SECONDS } from './events.js';
+import {
+  produceAnswerQueue,
+  produceScrollJob,
+  produceScrollQueue,
+  PRODUCE_ANSWER_CLAIM_SECONDS,
+  PRODUCE_SCROLL_CLAIM_SECONDS,
+} from './events.js';
 import { MINIMAX_REQUEST_TIMEOUT_MAX_MS } from '../../../infrastructure/config/index.js';
 import { makeRunScrollProduction } from './job.js';
+import { ASK_SUPPORT_BATCH_SENTENCES, ASK_SUPPORT_MAX_BATCHES } from '../domain/ask-support.js';
 import { ASK_SUPPORT_CHECK_VERSION } from './ask-support.js';
 import {
   MAX_TAKES_PER_RECIPE,
@@ -113,7 +120,7 @@ describe('takes are counted per production version, so a writer bump gives new o
     expect(REQUEST_BOUND_PER_TOPIC).toBe(2);
   });
 
-  it('reports the bound of the recipe asked about: six for a v2 recipe and for the answer to a question, two for every other', () => {
+  it('reports the bound of the recipe asked about: six for a v2 recipe, twelve for the answer to a question, two for every other', () => {
     expect(requestBoundOf('seasons')).toBe(REQUEST_BOUND_V2_PER_TOPIC);
     expect(requestBoundOf('exoplanet-kinds')).toBe(REQUEST_BOUND_PER_TOPIC);
     const order = `order-${'a'.repeat(32)}` as const;
@@ -124,9 +131,13 @@ describe('takes are counted per production version, so a writer bump gives new o
     expect(requestBoundOf(order, 'question')).toBe(REQUEST_BOUND_ASK_ORDER);
   });
 
-  it('counts the support check inside an ask order’s bound: the writer and its one repair, and the check once for each draft with one repair each (D-250)', () => {
-    expect(REQUEST_BOUND_ASK_ORDER).toBe(2 + 2 * 2);
-    expect(REQUEST_BOUND_ASK_ORDER).toBeLessThanOrEqual(REQUEST_BOUND_V2_PER_TOPIC);
+  it('counts the support check inside an ask order’s bound: the writer and its one repair, and for each of the two drafts its batches of sentences and one repair of an unusable reply in the check (D-250, D-267)', () => {
+    expect(ASK_SUPPORT_BATCH_SENTENCES).toBe(10);
+    expect(ASK_SUPPORT_MAX_BATCHES).toBe(4);
+    expect(REQUEST_BOUND_ASK_ORDER).toBe(2 + 2 * (ASK_SUPPORT_MAX_BATCHES + 1));
+    expect(REQUEST_BOUND_ASK_ORDER).toBe(12);
+    // The longest answer a take checks is four batches of ten sentences; the real answers of the 1 Nov check had 21.
+    expect(Math.ceil(21 / ASK_SUPPORT_BATCH_SENTENCES)).toBeLessThanOrEqual(ASK_SUPPORT_MAX_BATCHES);
   });
 });
 
@@ -140,6 +151,7 @@ describe('the answer to a question is written and checked as a pair (D-250)', ()
     'question-writer.v1': 'none',
     'question-writer.v2': 'ask-support-check.v1',
     'question-writer.v3': 'ask-support-check.v2',
+    'question-writer.v4': 'ask-support-check.v3',
   };
 
   it('pairs the question writer’s instructions with the support check’s version', () => {
@@ -151,12 +163,36 @@ describe('the answer to a question is written and checked as a pair (D-250)', ()
   });
 });
 
-describe('how long a production delivery may hold its claim (D-198)', () => {
-  it('outlasts the worst case of a take: every request it may send, one after the other, at the largest timeout, plus a margin', () => {
-    const worstCaseRequestsSeconds = (REQUEST_BOUND_V2_PER_TOPIC * MINIMAX_REQUEST_TIMEOUT_MAX_MS) / 1000;
-    expect(worstCaseRequestsSeconds).toBe(1800);
-    expect(PRODUCE_SCROLL_CLAIM_SECONDS).toBeGreaterThan(worstCaseRequestsSeconds);
+describe('how long a production delivery may hold its claim (D-198, D-267)', () => {
+  /**
+   * The reasoning README's rule for a job that calls `propose`: each request waits 10 s for the quota preflight, up to
+   * its deadline and 10 s for the two scope locks. Written out again, so the queues cannot drift from it by editing the
+   * constants they are derived from; 180 s is the margin for the research and the database steps of a take.
+   */
+  const claimNeeded = (requests: number, deadlineSeconds: number): number =>
+    requests * (10 + deadlineSeconds + 10) + 180;
+  const deadlineSeconds = MINIMAX_REQUEST_TIMEOUT_MAX_MS / 1000;
+
+  it('gives a library recipe the claim of its six requests, at the largest timeout', () => {
+    expect(deadlineSeconds).toBe(300);
+    expect(PRODUCE_SCROLL_CLAIM_SECONDS).toBe(claimNeeded(6, deadlineSeconds));
     expect(PRODUCE_SCROLL_CLAIM_SECONDS).toBe(2100);
-    expect(produceScrollQueue.policy.expireInSeconds).toBe(PRODUCE_SCROLL_CLAIM_SECONDS);
+    expect(produceScrollQueue.policy.expireInSeconds).toBe(2100);
+  });
+
+  it('gives the answer to a question, on a queue of its own, the claim of its twelve requests', () => {
+    expect(produceAnswerQueue.name).toBe('content.produce-answer');
+    expect(PRODUCE_ANSWER_CLAIM_SECONDS).toBe(claimNeeded(12, deadlineSeconds));
+    expect(PRODUCE_ANSWER_CLAIM_SECONDS).toBe(4020);
+    expect(produceAnswerQueue.policy.expireInSeconds).toBe(4020);
+  });
+
+  it('keeps the two queues alike in everything but the claim, so the same consumer serves both', () => {
+    const { expireInSeconds: scrollClaim, ...scrollPolicy } = produceScrollQueue.policy;
+    const { expireInSeconds: answerClaim, ...answerPolicy } = produceAnswerQueue.policy;
+    expect(answerPolicy).toEqual(scrollPolicy);
+    expect(answerClaim).toBeGreaterThan(scrollClaim);
+    expect(produceAnswerQueue.payload).toBe(produceScrollQueue.payload);
+    expect(produceAnswerQueue.exclusive).toBe(produceScrollQueue.exclusive);
   });
 });

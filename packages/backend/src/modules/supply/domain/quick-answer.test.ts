@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_PAID_ATTEMPTS,
   NOT_COVERED_ANSWER,
   NOT_COVERED_QUESTION_CHARS,
   QUICK_ANSWER_RETENTION_HOURS,
@@ -25,6 +26,15 @@ const good: QuickAnswerDraft = {
   covered: true,
   cites: ['e1'],
 };
+describe('how many paid attempts one Quick answer may cost', () => {
+  it('is six: the writer and its one repair, the check and its one repair, the one rewrite, and the check of the rewrite', () => {
+    // The check is one request for each answer because the writer's answer is held to one request's worth of
+    // sentences (`quick-answer-role.ts`); the claim of the answering job and the caps are sized from this number.
+    expect(MAX_PAID_ATTEMPTS).toBe(2 + 2 + 1 + 1);
+    expect(MAX_PAID_ATTEMPTS).toBe(6);
+  });
+});
+
 const codes = (draft: QuickAnswerDraft, from: QuickAnswerAsk = ask) =>
   quickAnswerRefusals(draft, passages, from).map((refusal) => refusal.code);
 
