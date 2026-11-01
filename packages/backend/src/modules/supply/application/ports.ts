@@ -242,6 +242,11 @@ export interface SupplyPorts {
   readonly readProduction: ReadScrollProduction;
   /** Sends the production job of one take of a recipe in the caller's transaction (idempotent per recipe, version and take). */
   readonly enqueueProduction: (scope: PersonalScopeTx, recipe: string, take: number) => Promise<void>;
+  /**
+   * The same for the answer to a person's question (an ask order), on the queue of its own whose claim covers its twelve
+   * requests (D-267). A library recipe and a what-if never use it.
+   */
+  readonly enqueueAnswerProduction: (scope: PersonalScopeTx, recipe: string, take: number) => Promise<void>;
   /** Shared Scroll productions Create may start per UTC day, by who asks; 0 turns Create off for that origin. */
   readonly createDailyCaps: Readonly<Record<CommissionOrigin, number>>;
   /**

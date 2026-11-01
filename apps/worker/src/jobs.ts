@@ -437,7 +437,7 @@ export const jobWiring: Provider[] = [
       jobConsumer(resolveSupplyQueue, async (payload, delivery) => {
         await resolveRequest(payload, delivery);
       }),
-      // A Quick answer: one model call on the person's own harness, then a hint (D-253).
+      // A Quick answer: the writer, its support check and at most one rewrite on the person's own harness, then a hint (D-253).
       jobConsumer(answerQuickAnswerQueue, async (payload, delivery) => {
         await answerQuickAnswer(payload, delivery.signal);
       }),

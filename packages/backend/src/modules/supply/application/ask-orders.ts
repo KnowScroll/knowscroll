@@ -54,6 +54,6 @@ export async function commissionAskOrder(
     framing: { kind: 'factual' },
   });
   await p.askLedger.insert(scope, order.orderId);
-  await p.enqueueProduction(scope, recipe, 1);
+  await p.enqueueAnswerProduction(scope, recipe, 1);
   return { kind: 'commissioned', order };
 }

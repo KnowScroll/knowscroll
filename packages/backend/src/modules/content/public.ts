@@ -264,6 +264,7 @@ export function isReadingInteractionAllowed(blockType: string, interactionKind: 
  */
 export {
   produceScrollQueue,
+  produceAnswerQueue,
   produceScrollJob,
   produceScrollSingletonKey,
   ProduceScrollJobSchema,
@@ -312,6 +313,7 @@ export { hasEnoughWords, isAbout, quoteIsIn } from './domain/ask-support.js';
  * checker's role, its context and how its reply reads. Pure; the caller makes the model call, under its own role ID, run and caps.
  */
 export {
+  ASK_SUPPORT_BATCH_SENTENCES,
   UNSUPPORTED_HINTS,
   splitSentences,
   unsupportedOf,
