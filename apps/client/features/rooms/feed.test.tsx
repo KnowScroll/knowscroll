@@ -385,7 +385,7 @@ describe('the live strip on the Now strip', () => {
 
   it('draws the agent ring on a resident’s or scout’s chip and reads it as an AI, and draws none on a person’s', async () => {
     const asha = { kind: 'person' as const, personId: id(7), handle: 'asha', displayName: 'Asha' };
-    const scout = { kind: 'agent' as const, sentBy: asha, label: 'AI · Scout' };
+    const scout = { kind: 'agent' as const, sentBy: asha, label: 'AI · Scout' as const };
     await wrap(
       <NowStrip
         scope={{} as never}
