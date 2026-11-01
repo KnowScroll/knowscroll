@@ -11,6 +11,12 @@ export const MAX_OPEN_QUICK_ANSWERS = 3;
 /** The longest the question the card shows and the answer may be (the contract's limits). */
 export const QUESTION_MAX_CHARS = 200;
 export const ANSWER_MAX_CHARS = 640;
+/**
+ * The most paid model attempts one delivery of the answering job may make: the writer's answer and the harness's one repair
+ * of an invalid reply. The job's claim (`answerQuickAnswerQueue`) is sized from it, so a delivery that is still waiting on
+ * the provider is never expired from under itself.
+ */
+export const MAX_PAID_ATTEMPTS = 2;
 /** An answer rests on this many passages at most. */
 export const MAX_CITATIONS = 3;
 
