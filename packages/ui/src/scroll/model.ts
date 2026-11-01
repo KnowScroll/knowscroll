@@ -115,9 +115,22 @@ export {
   ZONE_STARS,
   TILT_RANGE,
   walkBlocks,
+  describeChart,
+  describePoint,
+  describeScale,
+  isSortRight,
+  sortedItems,
+  sortPlacedRight,
 } from '@knowscroll/scroll-model';
 
 export type {
+  GrowingChart,
+  ForkBlock,
+  Guide,
+  Interactive,
+  ScaleBlock,
+  SeriesPoint,
+  SortBlock,
   CirculationPart,
   CirculationState,
   BlackHolePart,

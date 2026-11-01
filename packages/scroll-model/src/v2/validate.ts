@@ -2,6 +2,7 @@ import { canonicalJson, canonicalSha256, canonicalSize } from '../canonical.js';
 import { INTEGRITY_METHOD } from '../document.js';
 import { issueFromSchema } from '../issues.js';
 import { countWords } from '../text.js';
+import { type Interactive, type ScaleBlock, type SortBlock } from './blocks.js';
 import { callsOf, ScrollDocumentV2, type CallItStop, type FinalCallStop, type Stop } from './document.js';
 import { uniqueIssuesV2, type IssueV2 } from './issues.js';
 import { EARTH_SKY_KIT, tiltMatters } from './kit.js';
@@ -69,6 +70,99 @@ function stopTextIssues(stop: Stop, index: number): IssueV2[] {
       issues.push({ code: 'line_too_long', path: `${path}.blocks.${blockIndex}` });
   });
   if (spoken > LIMITS_V2.stopWords) issues.push({ code: 'stop_too_long', path });
+  return issues;
+}
+
+const distinct = (texts: readonly string[]): boolean =>
+  new Set(texts.map((text) => text.trim().toLowerCase())).size === texts.length;
+
+function sortIssues(sort: SortBlock, path: string): IssueV2[] {
+  const issues: IssueV2[] = [];
+  const isPermutation =
+    sort.order.length === sort.items.length &&
+    new Set(sort.order).size === sort.order.length &&
+    sort.order.every((index) => index < sort.items.length);
+  if (!isPermutation) issues.push({ code: 'sort_order_invalid', path: `${path}.order` });
+  // A sort whose items are already shown in the right order asks nothing of the reader.
+  else if (sort.order.every((index, place) => index === place))
+    issues.push({ code: 'sort_already_ordered', path: `${path}.items` });
+  if (!distinct(sort.items)) issues.push({ code: 'sort_items_duplicate', path: `${path}.items` });
+  if (countWords(sort.explain) > LIMITS_V2.stopWords) issues.push({ code: 'stop_too_long', path: `${path}.explain` });
+  return issues;
+}
+
+function scaleIssues(scale: ScaleBlock, path: string): IssueV2[] {
+  const issues: IssueV2[] = [];
+  const values = scale.points.map((point) => point.value);
+  // Rising and strictly so: two points at one value are one point, and a log axis has no zero.
+  const rising = values.every((value, index) => index === 0 || value > (values[index - 1] ?? Infinity));
+  if (!rising || (scale.axis === 'log' && values.some((value) => value <= 0)))
+    issues.push({ code: 'scale_values_invalid', path: `${path}.points` });
+  if (!distinct(scale.points.map((point) => point.label)))
+    issues.push({ code: 'chart_labels_duplicate', path: `${path}.points` });
+  if (scale.here !== undefined && scale.here >= scale.points.length)
+    issues.push({ code: 'scale_here_invalid', path: `${path}.here` });
+  return issues;
+}
+
+function interactiveIssues(interactive: Interactive, path: string): IssueV2[] {
+  switch (interactive.type) {
+    case 'sort':
+      return sortIssues(interactive, path);
+    case 'scale':
+      return scaleIssues(interactive, path);
+    case 'chart':
+      return distinct(interactive.points.map((point) => point.label))
+        ? []
+        : [{ code: 'chart_labels_duplicate', path: `${path}.points` }];
+    case 'fork': {
+      const issues: IssueV2[] = [];
+      if (!distinct(interactive.branches.map((branch) => branch.label)))
+        issues.push({ code: 'fork_branches_duplicate', path: `${path}.branches` });
+      interactive.branches.forEach((branch, index) => {
+        if (countWords(branch.text) > LIMITS_V2.branchWords)
+          issues.push({ code: 'fork_branch_too_long', path: `${path}.branches.${index}` });
+      });
+      return issues;
+    }
+  }
+}
+
+/** A guide speaks rarely: two stops at least between one line and the next (D-207). */
+const GUIDE_GAP = 3;
+
+/**
+ * The play blocks and the guide of the read stops (D-207): at most two interactives and two guide
+ * lines, none on the opening stop (it hooks), a guide that speaks rarely (two stops at least between
+ * lines) and in few words, and each block's own structure: a sort that has an order to find, a scale that
+ * rises, a fork whose branches differ. Only data is checked here; that a chart's figures come from the
+ * cited passages is the authoring rules'.
+ */
+function blockIssues(document: ScrollDocumentV2): IssueV2[] {
+  const issues: IssueV2[] = [];
+  let interactives = 0;
+  let guides = 0;
+  let lastGuide = -GUIDE_GAP;
+  document.stops.forEach((stop, index) => {
+    if (stop.kind !== 'read') return;
+    const path = `stops.${index}`;
+    if (index === 0 && stop.interactive !== undefined)
+      issues.push({ code: 'block_unexpected', path: `${path}.interactive` });
+    if (index === 0 && stop.guide !== undefined) issues.push({ code: 'guide_unexpected', path: `${path}.guide` });
+    if (stop.interactive !== undefined) {
+      interactives += 1;
+      if (interactives === LIMITS_V2.otherInteractives + 1)
+        issues.push({ code: 'interactive_budget_exceeded', path: `${path}.interactive` });
+      issues.push(...interactiveIssues(stop.interactive, `${path}.interactive`));
+    }
+    if (stop.guide === undefined) return;
+    guides += 1;
+    if (guides === LIMITS_V2.guides + 1) issues.push({ code: 'guide_budget_exceeded', path: `${path}.guide` });
+    if (index < lastGuide + GUIDE_GAP) issues.push({ code: 'guide_too_close', path: `${path}.guide` });
+    lastGuide = index;
+    if (countWords(stop.guide.line) > LIMITS_V2.guideWords)
+      issues.push({ code: 'guide_too_long', path: `${path}.guide.line` });
+  });
   return issues;
 }
 
@@ -249,6 +343,7 @@ export function validateDocumentV2(input: unknown, options: ValidateV2Options = 
       ? [{ code: 'read_stops_too_few', path: 'stops' } as const]
       : []),
     ...document.stops.flatMap(stopTextIssues),
+    ...blockIssues(document),
     ...callIssues(document),
     ...restatementIssues(document),
     ...bindingIssues(document),

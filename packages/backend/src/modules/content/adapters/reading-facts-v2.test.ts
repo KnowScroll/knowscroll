@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { stopWords, WORDS_PER_MINUTE_V2 } from '@knowscroll/scroll-model';
+import { stopWords, validateDocumentV2, WORDS_PER_MINUTE_V2, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { evidencePassages } from '../production/evidence.js';
 import { fixtureAuthoredV2, fixtureResearchPageV2 } from '../production/spike-v2/writer-v2.fixture.js';
 import { compileGeneratedScrollV2, publicationV2 } from '../production/writer-v2.js';
@@ -59,5 +60,45 @@ describe('reading facts v3 of the labelled Orrin fixture', () => {
     );
     const { seen: _seen, ...bare } = facts.blocks[0]!;
     expect(ReadingFactsSchema.safeParse({ ...facts, blocks: [bare] }).success).toBe(false);
+  });
+});
+
+describe('reading facts of a Scroll with play blocks (labelled CI fixtures, D-063, D-209)', () => {
+  const blocksFixture = (name: string): ScrollDocumentV2 => {
+    const raw = JSON.parse(
+      readFileSync(new URL(`../../../../../scroll-model/fixtures/documents/${name}-ci.json`, import.meta.url), 'utf8'),
+    ) as unknown;
+    const checked = validateDocumentV2(raw, { verify: false });
+    if (checked.kind !== 'valid') throw new Error('CI expected a valid fixture');
+    return checked.document;
+  };
+
+  it.each(['sort-fork-blocks', 'scale-chart-blocks'])(
+    'counts a stop with a block by being read, like any stop: no interaction of a block is accepted, so nothing it records can reach evidence (%s)',
+    (name) => {
+      const withBlocks = blocksFixture(name);
+      const facts = readingFactsOfV2(withBlocks);
+      expect(withBlocks.stops.some((stop) => stop.kind === 'read' && stop.interactive !== undefined)).toBe(true);
+      for (const [index, stop] of withBlocks.stops.entries()) {
+        const rule = facts.blocks[index]?.seen;
+        if (stop.kind !== 'read') continue;
+        expect(rule).toEqual({ kind: 'visible', minVisibleMs: minVisibleMsOf(stop) });
+        expect(facts.blocks[index]?.type).toBe('stop');
+      }
+      // The only interactions evidence accepts are those of calls, and only by kind.
+      const accepted = facts.blocks.flatMap(
+        (block) => (block.seen as { readonly interactions?: readonly string[] }).interactions ?? [],
+      );
+      expect(new Set(accepted)).toEqual(new Set(['locked', 'revealed']));
+      expect(new Set(facts.blocks.map((block) => block.type))).toEqual(new Set(['stop', 'call_it', 'final_call']));
+    },
+  );
+
+  it('asks a stop with a block for the time its words, the block’s included, take to read', () => {
+    const withBlocks = blocksFixture('sort-fork-blocks');
+    const chain = withBlocks.stops.find((stop) => stop.id === 'chain');
+    if (chain?.kind !== 'read' || chain.interactive === undefined) throw new Error('CI expected the sort stop');
+    const own = chain.blocks.reduce((total, block) => total + block.text.split(/\s+/u).length, 0);
+    expect(stopWords(chain)).toBeGreaterThan(own);
   });
 });

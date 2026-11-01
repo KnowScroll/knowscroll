@@ -1,4 +1,12 @@
-import { readingWords, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import {
+  describeChart,
+  describeFork,
+  describeScale,
+  readingWords,
+  sortedItems,
+  type Interactive,
+  type ScrollDocumentV2,
+} from '@knowscroll/scroll-model';
 import type { AnswerCheckSummary, CallVerdict } from '../domain/answer-check.js';
 
 /**
@@ -33,6 +41,25 @@ function callLines(stop: Extract<ScrollDocumentV2['stops'][number], { kind: 'cal
   });
   lines.push(`  Explanation: ${stop.explain}`, `  After a wrong pick: ${stop.twist}`, `  Simpler: ${stop.simple}`);
   return lines;
+}
+
+/** The play block of a read stop as an operator checks it: the answer key of a sort, both paths of a fork, every figure of a scale or a chart. */
+function interactiveLines(interactive: Interactive): string[] {
+  switch (interactive.type) {
+    case 'sort':
+      return [
+        `  SORT, correct order: ${sortedItems(interactive)
+          .map((item, index) => `${String(index + 1)}. ${item}`)
+          .join(' ')}`,
+        `  SORT, why: ${interactive.explain}`,
+      ];
+    case 'fork':
+      return [`  FORK: ${describeFork(interactive)}`];
+    case 'scale':
+      return [`  SCALE: ${describeScale(interactive)}`];
+    case 'chart':
+      return [`  CHART: ${describeChart(interactive)}`];
+  }
 }
 
 function quoteLines(evidence: ReviewEvidence | undefined, part: string): string[] {
@@ -109,6 +136,9 @@ export function reviewTextOf(
       lines.push(`[${stop.id}]${stop.emphasis === undefined ? '' : ` (${stop.emphasis})`}`);
       for (const block of stop.blocks) lines.push(`  ${block.type === 'heading' ? '# ' : ''}${block.text}`);
       lines.push(`  Simpler: ${stop.simple}`);
+      if (stop.guide !== undefined)
+        lines.push(`  GUIDE (${stop.guide.character}, ${stop.guide.pose}): ${stop.guide.line}`);
+      if (stop.interactive !== undefined) lines.push(...interactiveLines(stop.interactive));
       const picture = pictures.get(stop.id);
       if (picture !== undefined) lines.push(`  PICTURE: ${picture}`);
       lines.push(...quoteLines(evidence, stop.id));

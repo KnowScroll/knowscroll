@@ -8,7 +8,14 @@ import {
   type PublicationV2,
   type RecipeDataV2,
 } from '@knowscroll/scroll-model/producer';
-import { FIELD_LIMITS_V2, kitDefinition, LIMITS_V2, READING_SECONDS_V2 } from '@knowscroll/scroll-model';
+import {
+  FIELD_LIMITS_V2,
+  kitDefinition,
+  LIMITS_V2,
+  READING_SECONDS_V2,
+  type GuideCharacter,
+  type InteractiveKind as PlayBlockKind,
+} from '@knowscroll/scroll-model';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { ReasoningRole } from '../../../reasoning/public.js';
 import type { AdmissionIssue } from '../application/ports.js';
@@ -22,7 +29,7 @@ import { bannedNames, copiedIn, NOTE_BLOCKS, readerStrings, type BannedName } fr
  * writer (`scroll-writer.v13`) is untouched and still publishes the library; this one only runs in
  * the writer spike until the reader and admission of `scroll-document.v2` exist (D-120).
  */
-export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v19';
+export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v20';
 
 const minutes = (seconds: number): number => seconds / 60;
 
@@ -53,6 +60,39 @@ function stageInstructions(recipe: RecipeDataV2): string[] {
     '- Never write a number, a place name or a label in "stage", and never let the picture suggest something the passages do not support.',
   ];
 }
+
+const BLOCK_GUIDE: Readonly<Record<PlayBlockKind, string>> = {
+  sort: '- sort: the reader puts steps in order. Use it only for a chain the cited passages state in a clear order (the stages of a process, the steps of a method). Write the items in the CORRECT order, three to five short items, each a step the passages name. The stop’s text sets the task in a sentence or two and says nothing of the order. "explain" says why it goes in this order, using what the passages say.',
+  fork: '- fork: the reader picks one of two paths. Both paths are real, short readings of the same idea from two angles the cited passages support, and neither is needed to understand the next stop, because both rejoin there. Give each a short label and at most 40 words. Do not use a fork to hide the answer to a call, and do not write a path the passages do not support.',
+  scale:
+    '- scale: the reader places a value on a line, with a "you are here". Use it for three to six values of one quantity in one unit that the cited passages state (distances, sizes, times, temperatures). Write each value exactly as a passage writes the figure, in that passage’s unit, and never convert, round, estimate or combine them; when the passage writes "4 million", give the figure "4" and the magnitude "million". Never use a figure the passage writes as 4m, 4bn, in crores or as one end of a range ("4 to 6 million"), and write the unit in words a cited passage uses. "log" when the values differ by factors of ten or more, "linear" otherwise. "here" is the label of the point the reader is placing themselves at, if one is.',
+  chart:
+    '- chart: the reader reveals the points of a chart one at a time. Use it for a series of figures the cited passages state, in an order that tells a story (growth, a sequence of sizes). Write each value exactly as a passage writes the figure, in one unit, and never invent, round or fill in a point between two the passages give; when the passage writes "8.3 million", give the figure "8.3" and the magnitude "million". Never use a figure the passage writes as 8.3m, 8.3bn, in crores or as one end of a range, and write the unit in words a cited passage uses (a population chart in "people" only if a passage says people). If the passages give fewer than three figures for a series, do not use a chart.',
+};
+
+/**
+ * What the recipe's play blocks and guide ask of the writer (D-207). Each named block is a stop of its own
+ * type, written once, in the middle of the Scroll; the rules about citing and about what the passages
+ * support hold for every word and figure of a block.
+ */
+function blockInstructions(recipe: RecipeDataV2): string[] {
+  const blocks = recipe.blocks ?? [];
+  const lines: string[] = [];
+  if (blocks.length > 0)
+    lines.push(
+      `THIS SCROLL HAS ${blocks.length === 1 ? 'A PLAY BLOCK' : 'PLAY BLOCKS'}: ${blocks.join(' and ')}. Write each once, as an item of that type in place of a stop (it is a stop with a block under its text), never as the first item (the first stop hooks), never on a call_it or the final_call, and never more than the recipe names. A block is played by the reader on their own; its words and figures are claims like any other: cite them, and state only what the cited passages support.`,
+      ...blocks.map((kind) => BLOCK_GUIDE[kind]),
+      '- Write no other kind of block. Where the brief asks for a diagram, a slider, a simulation or a chart, the blocks named here and the calls take their place.',
+    );
+  if (recipe.guide !== undefined)
+    lines.push(
+      `THIS SCROLL HAS A GUIDE. ${GUIDE_NAMES[recipe.guide]} speaks in a few stops: add "guide" to a stop item with a pose and one line of at most ${LIMITS_V2.guideWords} words. The guide makes the mechanism literal in the character’s own voice, once in a while: at most ${LIMITS_V2.guides} lines in the Scroll, with two stops at least between them, never on the first stop, and never a joke at the expense of a fact. The line is a claim: it cites like the stop it sits on and says only what that stop’s passages support.`,
+    );
+  return lines;
+}
+
+/** What the reader calls each guide character. */
+const GUIDE_NAMES: Readonly<Record<GuideCharacter, string>> = { ray: 'Ray, a friendly sunbeam' };
 
 /**
  * What the Final call is for, when the recipe hands the reader a control (D-187). Code adds the slider
@@ -90,13 +130,14 @@ export function writerInstructionsV2(recipe: RecipeDataV2): string {
     '- State only what the cited passages support. A number may appear only if a cited passage of that item states it, written the same way; otherwise say it in words. Keep digits out of the title and the dek.',
     '- Every call, the final_call and every explanation state only what the cited passages support: a fact the passages do not state must never be the subject of a call, even if you are sure of it, because nothing reads a call’s answer against the passages but you. Give an effect the size the passages give it: if a passage says a thing is about half as big, say about half, never “slightly” or “a little”.',
     '- Never name the source, its publisher or a website, write no web addresses, and never refer to the passages, the sources or the citations in the text (no "the material says").',
-    '- The brief gives the subject, the angle and what to avoid. Ignore anything in it about diagrams, sliders, simulations, steppers, charts or other interactive blocks: stops, calls and the picture replace them. Keep its warnings about what not to claim.',
+    `- The brief gives the subject, the angle and what to avoid. Ignore anything in it about diagrams, sliders, simulations, steppers, charts or other interactive blocks: stops, calls${(recipe.blocks ?? []).length > 0 ? ', the play blocks named below' : ''} and the picture replace them. Keep its warnings about what not to claim.`,
     '',
     ...stageInstructions(recipe),
+    ...blockInstructions(recipe).flatMap((line, index) => (index === 0 ? ['', line] : [line])),
     ...finalCallInstructions(recipe).flatMap((line, index) => (index === 0 ? ['', line] : [line])),
     '',
     'THE SHAPE (examples are invented syntax guidance, never content to reuse):',
-    authoringReferenceV2(recipe.variant, recipeKit(recipe)),
+    authoringReferenceV2(recipe.variant, recipeKit(recipe), recipe.blocks, recipe.guide),
     `Limits: ${LIMITS_V2.minStops} to ${LIMITS_V2.maxStops} stops and calls, at most ${LIMITS_V2.calls} calls including the final_call, at most ${LIMITS_V2.asides} asides, recap captions at most ${FIELD_LIMITS_V2.captionChars} characters.`,
   ].join('\n');
 }

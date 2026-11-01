@@ -1,6 +1,7 @@
 import { z } from '../zod.js';
 import { Framing, Integrity, SeriesRef, THEME_FAMILIES } from '../document.js';
 import { LanguageTag, LocalId, OpaqueId, plainText, Revision } from '../primitives.js';
+import { Guide, Interactive } from './blocks.js';
 import { EARTH_SKY_KIT, StageStateSchema } from './kit.js';
 import {
   CIRCULATION_KIT,
@@ -25,9 +26,10 @@ import { FIELD_LIMITS_V2 as F, LIMITS_V2 as L, SCROLL_LIMITS_V2_VERSION } from '
 /**
  * `scroll-document.v2`: a Scroll as a spine of stops under one pinned stage (D-120). This file holds
  * the blocks and the document the writer fills in the first slice: stop (with line, paragraph and
- * heading), aside, stage, call it, Final call, recap and the ask suggestions. The other blocks of the
- * design (scale, scene, sort, fork, guide, quote, list, table, code, media, diagram, chart,
- * simulation, figure) are planned and listed in the package README.
+ * heading), aside, stage, call it, Final call, recap and the ask suggestions, and, on a read stop, the
+ * guide's line and one play block: a sort, a fork, a scale or a growing chart (D-207). The other blocks
+ * of the design (scene, quote, list, table, code, media, diagram, simulation, figure) are planned
+ * or deferred and listed in the package README.
  *
  * v1 documents are untouched and keep their own schema. A v2 document is stored beside them under
  * its own `schemaVersion`; no reader of v1 can mistake one for the other.
@@ -76,6 +78,10 @@ export const ReadStop = z.strictObject({
   emphasis: z.enum(STOP_EMPHASES).optional(),
   /** The same idea in simpler words: shown on request, never required. */
   simple: plainText(1, F.simpleChars),
+  /** One play block under the text: a sort, a fork, a scale or a growing chart. At most two a Scroll (D-207). */
+  interactive: Interactive.optional(),
+  /** A line from the Scroll's guide character, in its own bubble. At most two a Scroll. */
+  guide: Guide.optional(),
 });
 export type ReadStop = z.infer<typeof ReadStop>;
 

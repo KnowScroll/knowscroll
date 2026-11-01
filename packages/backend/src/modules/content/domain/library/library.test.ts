@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { researchUrl } from '../../../../infrastructure/research/public-pages.js';
 import { CONCEPTS, conceptMeaning } from '../concepts.js';
-import { EARTH_SKY_KIT, STAGE_KIT_IDS as SCROLL_MODEL_KIT_IDS } from '@knowscroll/scroll-model';
+import {
+  EARTH_SKY_KIT,
+  GUIDE_CHARACTERS,
+  INTERACTIVE_KINDS as SCROLL_MODEL_PLAY_KINDS,
+  LIMITS_V2,
+  STAGE_KIT_IDS as SCROLL_MODEL_KIT_IDS,
+} from '@knowscroll/scroll-model';
 import { LIBRARY_SERIES } from './continuity.js';
-import { INTERACTIVE_KINDS, STAGE_KIT_IDS } from './plan.js';
+import { GUIDE_CHARACTER_IDS, INTERACTIVE_KINDS, PLAY_BLOCK_KINDS, STAGE_KIT_IDS } from './plan.js';
 import { LIBRARY_SYSTEMS, RECIPES, RECIPE_KEYS, RECIPE_SETS, hazeFamilyOf, sceneFamilyOf } from './index.js';
 
 const recipes = RECIPE_KEYS.map((key) => ({ key, ...RECIPES[key] }));
@@ -413,5 +419,27 @@ describe('landmarks and the Final call control (D-187, D-188)', () => {
     expect(bound).toEqual(['seasons']);
     for (const recipe of v2.filter((candidate) => candidate.scrollV2?.finalCall !== undefined))
       expect(recipe.stageKit, recipe.key).toBe('earth-sky.v1');
+  });
+});
+
+describe('the play blocks and the guide of a recipe (D-207)', () => {
+  it('names only blocks and characters that exist, and keeps the plan’s lists in step with scroll-model', () => {
+    expect([...PLAY_BLOCK_KINDS]).toEqual([...SCROLL_MODEL_PLAY_KINDS]);
+    expect([...GUIDE_CHARACTER_IDS]).toEqual([...GUIDE_CHARACTERS]);
+  });
+
+  it('gives a Scroll each block at most once and no more than its interactive budget', () => {
+    for (const recipe of recipes) {
+      const blocks = recipe.scrollV2?.blocks ?? [];
+      expect(new Set(blocks).size, recipe.key).toBe(blocks.length);
+      expect(blocks.length, recipe.key).toBeLessThanOrEqual(LIMITS_V2.otherInteractives);
+    }
+  });
+
+  it('puts blocks and a guide only on a recipe that is a v2 Scroll', () => {
+    for (const recipe of recipes) {
+      const plan = recipe as { readonly scrollV2?: unknown; readonly blocks?: unknown; readonly guide?: unknown };
+      if (plan.scrollV2 === undefined) expect([plan.blocks, plan.guide], recipe.key).toEqual([undefined, undefined]);
+    }
   });
 });

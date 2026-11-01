@@ -22,7 +22,8 @@ export function run(command: (() => void) | undefined): boolean {
 /** What a key can reach: where the reader is, how to move, the calls and the app's commands. */
 export interface KeyTargets {
   readonly stops: ScrollDocumentV2['stops'];
-  readonly hasStage: boolean;
+  /** There is a picture or a play block that has a text version: the T key has something to swap. */
+  readonly hasTextVersion: boolean;
   readonly commands: ReaderCommands;
   readonly jump: (index: number, animated: boolean) => void;
   /**
@@ -60,7 +61,7 @@ export function actOnKey(key: ReaderKey, at: KeyTargets): boolean {
     case 'format':
       return run(at.commands.format);
     case 'text-version':
-      if (!at.hasStage) return false;
+      if (!at.hasTextVersion) return false;
       at.toggleTextVersion();
       return true;
     case 'pick':

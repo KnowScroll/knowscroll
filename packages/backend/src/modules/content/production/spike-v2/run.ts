@@ -20,7 +20,7 @@ import {
   type GeneratedScrollV2,
   type WriterV2Context,
 } from '../writer-v2.js';
-import { spikeRecipeV2 } from './topics.js';
+import { spikeRecipeV2, type SpikeBlocks } from './topics.js';
 import type { AuthoredScrollV2 } from '@knowscroll/scroll-model/producer';
 
 /** The only model the spike accepts (D-031): a reply from any other model is an error, never data. */
@@ -73,6 +73,9 @@ export interface SpikeLine {
   readonly misconception: 'myth' | 'none';
   /** True when the table of the spike did not list the recipe and the defaults applied. */
   readonly recipeDefaulted: boolean;
+  /** The play blocks and guide the writer was asked for (D-207), and the ones the accepted Scroll holds. */
+  readonly blocksAsked: readonly string[];
+  readonly blocksWritten: readonly string[] | null;
   readonly promptVersion: string;
   /** Paid requests sent: 1 for a first take, 2 when a repair was needed. */
   readonly requests: number;
@@ -121,6 +124,8 @@ export interface WriterSpikeDeps {
   readonly now?: () => number;
   /** Names this spike in every line, so a rerun's lines are told apart. */
   readonly spikeId: string;
+  /** The play blocks and guide to ask the writer for, by recipe (`--blocks`), before the plan marks them. */
+  readonly blocks?: ReadonlyMap<ScrollTopic, SpikeBlocks>;
 }
 
 const emptyTokens = { input: null, output: null, thinking: null, complete: false } as const;
@@ -146,6 +151,17 @@ const toSpikeAttempt = (attempt: ProductionAttemptAccounting): SpikeAttempt => (
   outputTokens: attempt.usage.outputTokens,
   thinkingTokens: attempt.usage.reasoningTokens,
 });
+
+/** The play blocks and the guide a document holds, in reading order: `sort`, `fork`, `scale`, `chart`, and `ray` for a guide line. */
+function blocksIn(document: ScrollDocumentV2): string[] {
+  const names: string[] = [];
+  for (const stop of document.stops) {
+    if (stop.kind !== 'read') continue;
+    if (stop.interactive !== undefined) names.push(stop.interactive.type);
+    if (stop.guide !== undefined) names.push(stop.guide.character);
+  }
+  return names;
+}
 
 /** The outcome a harness result stands for, before the answer is compiled. */
 function classify(result: ProposeOutcome<AuthoredScrollV2>): { outcome: SpikeOutcome; code?: string } {
@@ -183,7 +199,7 @@ export function makeWriterSpikeV2(deps: WriterSpikeDeps) {
   const research = deps.research ?? fetchResearchPage;
 
   const baseLine = (key: ScrollTopic, runId: string, started: number): SpikeLine => {
-    const recipe = spikeRecipeV2(key);
+    const recipe = spikeRecipeV2(key, deps.blocks?.get(key));
     return {
       key,
       spikeId: deps.spikeId,
@@ -191,6 +207,8 @@ export function makeWriterSpikeV2(deps: WriterSpikeDeps) {
       variant: recipe.variant,
       misconception: recipe.misconception.kind,
       recipeDefaulted: recipe.defaulted,
+      blocksAsked: [...(recipe.blocks ?? []), ...(recipe.guide === undefined ? [] : [recipe.guide])],
+      blocksWritten: null,
       promptVersion: WRITER_V2_PROMPT_VERSION,
       requests: 0,
       findings: [],
@@ -261,7 +279,7 @@ export function makeWriterSpikeV2(deps: WriterSpikeDeps) {
       const code = error instanceof EvidenceRefusal ? error.code : 'evidence_failed';
       return { line: { ...line, outcome: 'evidence_insufficient', code, wallMs: beforeWriter } };
     }
-    const recipe = spikeRecipeV2(key);
+    const recipe = spikeRecipeV2(key, deps.blocks?.get(key));
     const context: WriterV2Context = { publication: publicationV2(key), recipe, passages, pages };
     const proposed = await deps.harness.proposeProduction(
       {
@@ -330,6 +348,7 @@ export function makeWriterSpikeV2(deps: WriterSpikeDeps) {
         calls: measured === undefined ? null : measured.stops.filter((stop) => stop.kind !== 'read').length,
         stageStates: measured === undefined ? null : (measured.stage?.states.length ?? 0),
         asides: measured?.asides.length ?? null,
+        blocksWritten: measured === undefined ? null : blocksIn(measured),
         tokens: tokensOf(paid),
         attempts: paid,
         models,
