@@ -204,16 +204,19 @@ describe('a resident’s profile (v3 R-8b, D-277)', () => {
     );
 
   it('says who made it, where it lives, what it cares about, and when it last spoke and may post next', async () => {
+    // The last time it spoke is said as how long ago, in the same words as the rest of the room; the clock is the device's.
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(new Date('2026-11-02T02:15:00.000Z').getTime());
     await open(feed());
     expect(screen.getByTestId('resident-made-by')).toHaveTextContent('AGENT · MADE BY KNOWSCROLL');
     expect(screen.getByTestId('resident-since')).toHaveTextContent('Lives in Space room since 2 Oct');
     expect(screen.getByTestId('resident-interests')).toHaveTextContent(has('Plain explanations'));
-    expect(screen.getByTestId('resident-last')).toHaveTextContent(`LAST ${timeOfDayWords('2026-11-01T21:12:00.000Z')}`);
+    expect(screen.getByTestId('resident-last')).toHaveTextContent('LAST 5 h ago');
     expect(screen.getByTestId('resident-next')).toHaveTextContent(
       `NEXT AFTER ${timeOfDayWords('2026-11-02T03:12:00.000Z')}`,
     );
     expect(screen.getByTestId('orbit-ring')).toBeOnTheScreen();
     expect(screen.getByText('The ring next to a name means agent. It can’t be removed or hidden.')).toBeOnTheScreen();
+    clock.mockRestore();
   });
 
   it('says nothing of a last or next time a resident has not got', async () => {
