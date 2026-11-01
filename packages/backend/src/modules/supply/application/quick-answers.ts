@@ -22,10 +22,11 @@ import type {
 } from './quick-answer-ports.js';
 
 /**
- * How long a worker has to answer before the card gives up. A Quick answer that takes longer is no use to a person who
- * is reading on, so a late answer is dropped, not shown (D-253).
+ * How long a worker has to answer before the card gives up: four minutes, for the writer, the support check of its answer and,
+ * when a sentence is not supported, one rewrite and its check. A Quick answer that takes longer is no use to a person who is
+ * reading on, so a late answer is dropped, not shown (D-253). The job's claim is far longer (it covers every paid attempt).
  */
-export const QUICK_ANSWER_WAIT_LIMIT_MS = 180_000;
+export const QUICK_ANSWER_WAIT_LIMIT_MS = 240_000;
 
 /** Whether a row may still be read by its owner: not dismissed and not past its day. */
 const readable = (row: QuickAnswerRow | undefined, now: Date): row is QuickAnswerRow =>

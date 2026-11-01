@@ -307,6 +307,19 @@ export type { ScrollTopic } from './production/topics.js';
  * is accepted only when the quote is in the text. Pure.
  */
 export { hasEnoughWords, isAbout, quoteIsIn } from './domain/ask-support.js';
+/**
+ * The support check of an answer to a question (D-250), for the Quick answer's own use of it (D-253): the sentences of an answer, the
+ * checker's role, its context and how its reply reads. Pure; the caller makes the model call, under its own role ID, run and caps.
+ */
+export {
+  UNSUPPORTED_HINTS,
+  splitSentences,
+  unsupportedOf,
+  type SentenceUnderCheck,
+  type SentenceVerdict,
+  type UnsupportedVerdict,
+} from './domain/ask-support.js';
+export { askSupportContext, askSupportRole, verdictsOf, type SupportPassage } from './production/ask-support.js';
 export type { ProduceScrollResult } from './production/types.js';
 export {
   validateTopics,

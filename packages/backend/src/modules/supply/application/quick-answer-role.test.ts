@@ -9,7 +9,7 @@ const passages: readonly CitablePassage[] = [
 ];
 const ask = { passage: 'keeps pointing', question: undefined } as const;
 const draft: QuickAnswerDraft = {
-  question: 'Why does it keep pointing?',
+  question: 'Why does the axis keep pointing the same way?',
   answer: 'Nothing turns it.',
   covered: true,
   cites: ['e2'],
@@ -55,6 +55,22 @@ describe('the Quick answer writer', () => {
     expect(Object.keys(role.safeCustomIssues ?? {})).toEqual(
       expect.arrayContaining(['unknown_citation', 'figure_unstated', 'not_plain_text']),
     );
+  });
+
+  it('refuses a question that is not about the selected words and the cited passages, so the heading cannot bring a subject of its own', () => {
+    const role = quickAnswerRole(passages, ask);
+    expect(role.outputSchema.safeParse(draft).success).toBe(true);
+    for (const question of ['Who first measured the tilt of the Moon?', 'What happened next?'])
+      expect(role.outputSchema.safeParse({ ...draft, question }).success).toBe(false);
+    // The reader's own typed words count: a question that restates them is about the passage.
+    const typed = { passage: ask.passage, question: 'Is the lean of the axis the reason for the year?' } as const;
+    expect(
+      quickAnswerRole(passages, typed).outputSchema.safeParse({ ...draft, question: typed.question }).success,
+    ).toBe(true);
+    // A draft that says the passages do not cover the question shows none of its words: its question is not judged.
+    expect(
+      role.outputSchema.safeParse({ ...draft, covered: false, cites: [], question: 'Who first measured it?' }).success,
+    ).toBe(true);
   });
 
   it('turns only a proposed answer into a card, and never resends an attempt of unknown outcome', () => {

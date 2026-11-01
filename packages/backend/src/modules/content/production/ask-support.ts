@@ -17,7 +17,6 @@ import {
   type SupportRecord,
   type UnsupportedVerdict,
 } from '../domain/ask-support.js';
-import type { EvidencePassage } from './evidence.js';
 import type { ProductionSubject } from './subject.js';
 
 /**
@@ -81,11 +80,20 @@ export function sentencesOfAnswer(answer: AuthoredScroll): readonly SentenceUnde
     .map((sentence, index) => ({ number: index + 1, ...sentence }));
 }
 
+/**
+ * What the checker needs of a passage: the handle a sentence cites it by and its words. An ask order's evidence passage and a
+ * Quick answer's passage of the Scroll being read both have them (D-253).
+ */
+export interface SupportPassage {
+  readonly handle: string;
+  readonly text: string;
+}
+
 /** The passages an answer's sentences cite, in the order the evidence lists them. */
-export function citedPassages(
+export function citedPassages<Passage extends SupportPassage>(
   sentences: readonly SentenceUnderCheck[],
-  passages: readonly EvidencePassage[],
-): readonly EvidencePassage[] {
+  passages: readonly Passage[],
+): readonly Passage[] {
   const cited = new Set(sentences.flatMap((sentence) => sentence.cites));
   return passages.filter((passage) => cited.has(passage.handle));
 }
@@ -93,7 +101,7 @@ export function citedPassages(
 /** The two items the checker is shown: the passages the answer cites, and its sentences with the handles each cites. */
 export function askSupportContext(
   sentences: readonly SentenceUnderCheck[],
-  passages: readonly EvidencePassage[],
+  passages: readonly SupportPassage[],
 ): readonly ContextItem[] {
   return [
     {
@@ -169,7 +177,7 @@ const NoClaim = z.strictObject({ n: z.number().int(), verdict: z.literal('no_cla
  * here, so a lazy or invented reply is refused as an invalid reply. Whether the quoted words support the sentence is not a
  * rule code can check: it is the checker's judgement.
  */
-export function askSupportSchema(sentences: readonly SentenceUnderCheck[], passages: readonly EvidencePassage[]) {
+export function askSupportSchema(sentences: readonly SentenceUnderCheck[], passages: readonly SupportPassage[]) {
   const textOf = new Map(passages.map((passage) => [passage.handle, passage.text]));
   return z
     .strictObject({
@@ -202,7 +210,7 @@ export type AskSupportAnswer = z.infer<ReturnType<typeof askSupportSchema>>;
 /** The checker role for an answer with these sentences. Interactive budget class: a production job waits on it. */
 export function askSupportRole(
   sentences: readonly SentenceUnderCheck[],
-  passages: readonly EvidencePassage[],
+  passages: readonly SupportPassage[],
 ): ReasoningRole<AskSupportAnswer> {
   return {
     id: ASK_SUPPORT_ROLE_ID,

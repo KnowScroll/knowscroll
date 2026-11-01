@@ -13,7 +13,6 @@ import type {
 } from '../../identity/public.js';
 import type { ReadScrollQuickAnswerFacts } from '../../content/public.js';
 import type { HasActivatedExposure } from '../../experience/public.js';
-import type { CitablePassage, QuickAnswerDraft } from '../domain/quick-answer.js';
 
 export type QuickAnswerState = 'waiting' | 'answered' | 'unavailable' | 'dismissed';
 
@@ -74,18 +73,6 @@ export interface QuickAnswerLedger {
   countSince(scope: PersonalScopeTx, since: Date): Promise<number>;
   insert(scope: PersonalScopeTx, id: string): Promise<void>;
 }
-
-/**
- * The seam where a support check of the answer plugs in (D-250 is the checker that reads an ask order's answer against the
- * passages it cites). It runs in the worker after the draft passed the code rules and before it is stored, outside any
- * transaction, so it may call a model. `unsupported` closes the card as unavailable and shows nothing. The default accepts
- * what the code rules accepted.
- */
-export type QuickAnswerSupportCheck = (input: {
-  readonly draft: QuickAnswerDraft;
-  readonly passages: readonly CitablePassage[];
-  readonly signal: AbortSignal;
-}) => Promise<'supported' | 'unsupported'>;
 
 export type QuickAnswerRefusal =
   | 'scope_refused'
@@ -159,7 +146,8 @@ export interface QuickAnswerPorts {
   readonly enqueue: (scope: PersonalScopeTx, quickAnswerId: string) => Promise<void>;
   readonly advance: (scope: PersonalScopeTx) => Promise<number>;
   readonly notify: (scope: PersonalScopeTx, revision: number, eventId: string) => Promise<void>;
-  readonly supportCheck: QuickAnswerSupportCheck;
   readonly newId: () => string;
+  /** A UUID derived from a name: the same name is the same ID, so a redelivery names the runs it already made. */
+  readonly idFor: (name: string) => string;
   readonly now: () => Date;
 }

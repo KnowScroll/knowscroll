@@ -23,7 +23,8 @@ import {
   requestHash,
 } from '../../../infrastructure/receipts/index.js';
 import { makeAnswerQuickAnswer } from '../application/answer-quick-answer.js';
-import type { QuickAnswerPorts, QuickAnswerSupportCheck } from '../application/quick-answer-ports.js';
+import type { QuickAnswerPorts } from '../application/quick-answer-ports.js';
+import { makeSupportCheck } from '../application/quick-answer-support.js';
 import { makePurgeQuickAnswers } from '../application/purge-quick-answers.js';
 import {
   makeAskQuickAnswer,
@@ -59,21 +60,15 @@ export interface QuickAnswerSettings {
 }
 
 /**
- * The default support seam: a draft that passed the code rules is supported. The checker that reads an answer against the
- * passages it cites (an ask order's, D-250) plugs in here as a `QuickAnswerSupportCheck`.
- */
-export const acceptCodeCheckedDraft: QuickAnswerSupportCheck = () => Promise.resolve('supported');
-
-/**
  * Quick answer's use cases for the API and the worker. The API asks, reads and dismisses; the worker also passes `harness`,
- * the personal reasoning harness, which lets it answer.
+ * the personal reasoning harness, which lets it answer. The worker's answering step is always built with the support check on
+ * that same harness: there is no way to wire it without one.
  */
 export function quickAnswerProviders(t: {
   readonly withPersonalScope: symbol;
   readonly enqueueJob: symbol;
   readonly config: symbol;
   readonly harness?: symbol;
-  readonly supportCheck?: QuickAnswerSupportCheck;
 }) {
   return [
     {
@@ -141,8 +136,8 @@ export function quickAnswerProviders(t: {
           ),
         advance: advanceScopeRevision,
         notify: (scope, revision, eventId) => notifyScopeChanged(scope, { revision, eventId }),
-        supportCheck: t.supportCheck ?? acceptCodeCheckedDraft,
         newId: () => uuidv7(),
+        idFor: stableUuid,
         now: () => new Date(),
       }),
     },
@@ -172,7 +167,8 @@ export function quickAnswerProviders(t: {
           {
             provide: ANSWER_QUICK_ANSWER,
             inject: [QUICK_ANSWER_PORTS, t.harness],
-            useFactory: (p: QuickAnswerPorts, harness: ReasoningHarness) => makeAnswerQuickAnswer(p, harness),
+            useFactory: (p: QuickAnswerPorts, harness: ReasoningHarness) =>
+              makeAnswerQuickAnswer(p, harness, makeSupportCheck(harness)),
           },
         ]),
   ];

@@ -273,7 +273,7 @@ const supplyAskDailyCapVariable = z.coerce.number().int().min(0).max(500).option
 const supplyAskPersonCapVariable = z.coerce.number().int().min(1).max(100).default(5);
 
 /**
- * `KS_SUPPLY_QUICK_ANSWER_DAILY_CAP`: how many Quick answers (one writer call and at most one repair each) the whole world may
+ * `KS_SUPPLY_QUICK_ANSWER_DAILY_CAP`: how many Quick answers (at most six paid model attempts each: the writer, its support check, one rewrite and its check) the whole world may
  * have per UTC day, counted from a ledger that names no person. 0 turns them off, and a person then sees an honest "not
  * available". Default 20 in `local`, 0 in every other world (D-253).
  */

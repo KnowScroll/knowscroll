@@ -33,8 +33,8 @@ export type {
   ReadQuickAnswerForReport,
   QuickAnswerRefusal,
   QuickAnswerResult,
-  QuickAnswerSupportCheck,
 } from './application/quick-answer-ports.js';
+export type { QuickAnswerSupportCheck } from './application/quick-answer-support.js';
 export type { PurgeQuickAnswers } from './application/purge-quick-answers.js';
 export {
   answerQuickAnswerQueue,

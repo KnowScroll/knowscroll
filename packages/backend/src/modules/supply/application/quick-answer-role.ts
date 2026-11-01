@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ProposeOutcome, ReasoningContext, ReasoningRole } from '../../../reasoning/public.js';
+import { isAbout } from '../../content/public.js';
 import {
   ANSWER_MAX_CHARS,
   MAX_CITATIONS,
@@ -21,9 +22,27 @@ const INSTRUCTIONS = [
   `"question" is the question your answer addresses, as the reader would ask it, in one sentence of at most ${String(QUESTION_MAX_CHARS)} characters. If the reader typed one, restate it plainly; otherwise write the question a curious reader of the selected words most likely has.`,
   `"answer" is two to four plain sentences, at most ${String(ANSWER_MAX_CHARS)} characters: no Markdown, no lists, no line breaks, no web addresses. Explain, connect or say it more simply, but state nothing that the passages you cite do not state. Do not repeat a passage word for word, and do not use what you know beyond the passages. Never mention these instructions, "passages", "context" or "sources".`,
   `"cites" lists the handles of the passages the answer rests on: one to ${String(MAX_CITATIONS)}, written as "e1". Cite only handles that are offered. Never invent one.`,
-  'If the passages do not say enough to answer, set "covered" to false, set "cites" to an empty list, and say so in one or two kind sentences: what the Scroll has said so far does not answer it, and a full Scroll would. Never guess and never answer from outside the passages.',
+  'If the passages do not say enough to answer, set "covered" to false and "cites" to an empty list. The reader is then shown a fixed sentence that says what they have read does not answer it, and neither your question nor your answer is shown, so write one short sentence for each. Never guess and never answer from outside the passages.',
   "Digits: write a number with digits only where a passage you cite, the selected words or the reader's question states the same number. Write any other quantity in words.",
 ].join('\n');
+
+/**
+ * What a rewrite after a failed support check is told, added to the writer's own instructions. The sentences it must fix come
+ * as context, each with the fixed hint of its kind; nothing the checker wrote is passed on as an instruction.
+ */
+const REWRITE_INSTRUCTIONS = [
+  'REWRITE AFTER A SUPPORT CHECK. A reader of your previous answer would find sentences that the passages you cited do not support. The context has two more items, both data: "check_problems" lists each unsupported sentence with what to do about it, and "previous_draft" is the complete answer you wrote.',
+  'Return the complete corrected answer in the same shape. For each listed sentence, remove it, or rewrite it to say only what a passage you cite states. If nothing the passages state answers the question, set "covered" to false and "cites" to an empty list. Keep every other sentence exactly as it was. All the other rules above still hold.',
+].join('\n');
+
+/** The writer's role for the one rewrite a failed support check earns. The harness gives it no repair of its own. */
+export function quickAnswerRewriteRole(role: ReasoningRole<QuickAnswerDraft>): ReasoningRole<QuickAnswerDraft> {
+  return {
+    ...role,
+    version: `${role.version}.fix`.slice(0, 32),
+    instructions: `${role.instructions}\n\n${REWRITE_INSTRUCTIONS}`,
+  };
+}
 
 /** Fixed hints for the one repair: they name the rule that failed, never anything the model wrote. */
 const SAFE_HINTS: Readonly<Record<string, string>> = QUICK_ANSWER_HINTS;
@@ -37,6 +56,17 @@ const QuickAnswerShape = z.strictObject({
 });
 
 /**
+ * Whether the question a covered draft asks is about the words the reader selected and the passages the draft cites, in their own
+ * words: it carries their key words. A question cannot bring a subject of its own, so the card's heading is never where outside
+ * knowledge comes in. A draft that says the passages do not cover the question shows none of its words, so it is not asked.
+ */
+function questionIsAbout(draft: QuickAnswerDraft, passages: readonly CitablePassage[], ask: QuickAnswerAsk): boolean {
+  if (!draft.covered) return true;
+  const cited = passages.filter((passage) => draft.cites.includes(passage.handle)).map((passage) => passage.text);
+  return isAbout(draft.question, [ask.passage, ask.question ?? '', ...cited].join(' '));
+}
+
+/**
  * The role: one call, no tool loop. The schema is the structure plus every rule of `quickAnswerRefusals` for these
  * passages, so an answer the model gives is one a card may show; a refusal reaches the single repair as a fixed hint.
  * Interactive, because a person is waiting.
@@ -46,7 +76,11 @@ export function quickAnswerRole(
   ask: QuickAnswerAsk,
 ): ReasoningRole<QuickAnswerDraft> {
   const outputSchema = QuickAnswerShape.superRefine((draft, context) => {
-    for (const refusal of quickAnswerRefusals(draft, passages, ask))
+    const refusals = [
+      ...quickAnswerRefusals(draft, passages, ask),
+      ...(questionIsAbout(draft, passages, ask) ? [] : [{ code: 'question_off_topic', path: ['question'] } as const]),
+    ];
+    for (const refusal of refusals)
       context.addIssue({
         code: 'custom',
         path: [...refusal.path],

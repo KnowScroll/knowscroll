@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  NOT_COVERED_ANSWER,
+  NOT_COVERED_QUESTION_CHARS,
   QUICK_ANSWER_RETENTION_HOURS,
   expiryOf,
   handleOf,
   isFromStop,
   quickAnswerRefusals,
+  shownOf,
   utcDayStart,
   type CitablePassage,
   type QuickAnswerAsk,
@@ -17,7 +20,7 @@ const passages: readonly CitablePassage[] = [
 ];
 const ask = { passage: 'keeps pointing the same way', question: undefined } as const;
 const good: QuickAnswerDraft = {
-  question: 'Why does the axis keep its direction?',
+  question: 'Why does the axis keep pointing the same way?',
   answer: 'The Scroll says the axis leans and keeps pointing the same way through the year.',
   covered: true,
   cites: ['e1'],
@@ -55,7 +58,9 @@ describe('the rules a Quick answer must satisfy before it is shown', () => {
         { passage: ask.passage, question: 'Does 26000 matter?' },
       ),
     ).toEqual([]);
-    expect(codes({ ...good, question: 'Is it 90 degrees?' })).toEqual(['figure_unstated']);
+    expect(codes({ ...good, question: 'Why does the axis keep pointing the same way 90 times?' })).toEqual([
+      'figure_unstated',
+    ]);
   });
 
   it('refuses anything but plain sentences', () => {
@@ -69,6 +74,38 @@ describe('the rules a Quick answer must satisfy before it is shown', () => {
     ])
       expect(codes({ ...good, answer })).toContain('not_plain_text');
     expect(codes({ ...good, question: 'Why `this`?' })).toContain('not_plain_text');
+  });
+});
+
+describe('the card of a question the passages do not cover (D-253)', () => {
+  it('checks only the citations of a draft that says the passages do not cover it: none of its words is shown, so none is judged', () => {
+    const notCovered: QuickAnswerDraft = {
+      question: 'Who measured it in 1612?',
+      answer: '**Greek astronomers** did, see https://example.com',
+      covered: false,
+      cites: [],
+    };
+    expect(codes(notCovered)).toEqual([]);
+    expect(codes({ ...notCovered, cites: ['e1'] })).toEqual(['citation_without_cover']);
+  });
+
+  it('shows the model’s question and answer for a covered draft, and for any other only the person’s own words and a sentence code owns', () => {
+    expect(shownOf(good, ask)).toEqual({ question: good.question, answer: good.answer, covered: true });
+    const outside = { ...good, covered: false, cites: [], answer: 'Greek astronomers measured it.' };
+    expect(shownOf(outside, ask)).toEqual({
+      question: 'About “keeps pointing the same way”',
+      answer: NOT_COVERED_ANSWER,
+      covered: false,
+    });
+    expect(shownOf(outside, { passage: ask.passage, question: 'Who measured the tilt?' })).toEqual({
+      question: 'Who measured the tilt?',
+      answer: NOT_COVERED_ANSWER,
+      covered: false,
+    });
+    const long = shownOf(outside, { passage: 'word '.repeat(60), question: undefined });
+    expect(long.question.length).toBeLessThanOrEqual(NOT_COVERED_QUESTION_CHARS + 'About “…”'.length);
+    expect(long.question).toContain('…');
+    expect(JSON.stringify(shownOf(outside, ask))).not.toContain('Greek');
   });
 });
 

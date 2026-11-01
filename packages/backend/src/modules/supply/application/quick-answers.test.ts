@@ -3,13 +3,9 @@ import type { AskQuickAnswer } from '@knowscroll/contracts';
 import type { ReasoningHarness } from '../../../reasoning/public.js';
 import type { PersonalAuthority, PersonalScopeTx, WithPersonalScope } from '../../identity/public.js';
 import { makeAnswerQuickAnswer } from './answer-quick-answer.js';
-import type {
-  NewQuickAnswer,
-  QuickAnswerPorts,
-  QuickAnswerRow,
-  QuickAnswerSettlement,
-  QuickAnswerSupportCheck,
-} from './quick-answer-ports.js';
+import { NOT_COVERED_ANSWER } from '../domain/quick-answer.js';
+import type { NewQuickAnswer, QuickAnswerPorts, QuickAnswerRow, QuickAnswerSettlement } from './quick-answer-ports.js';
+import type { QuickAnswerSupportCheck, SupportFinding } from './quick-answer-support.js';
 import {
   QUICK_ANSWER_WAIT_LIMIT_MS,
   makeAskQuickAnswer,
@@ -49,7 +45,6 @@ interface Options {
   readonly ledger?: number;
   readonly person?: number;
   readonly waiting?: number;
-  readonly supportCheck?: QuickAnswerSupportCheck;
 }
 
 /** Ports over memory: every write is logged and the clock is the test's. */
@@ -63,6 +58,7 @@ function fixture(options: Options = {}) {
   };
   let clock = start;
   let issued = 0;
+  const named = new Map<string, string>();
   const withScope: WithPersonalScope = (_authority, work) => work(scope).then((value) => ({ kind: 'entered', value }));
   const ports: QuickAnswerPorts = {
     withScope,
@@ -165,8 +161,11 @@ function fixture(options: Options = {}) {
       log.notified.push(eventId);
       return Promise.resolve();
     },
-    supportCheck: options.supportCheck ?? (() => Promise.resolve('supported')),
     newId: () => id(50 + issued++),
+    idFor: (name) => {
+      if (!named.has(name)) named.set(name, id(600 + named.size));
+      return named.get(name)!;
+    },
     now: () => clock,
   };
   return {
@@ -300,9 +299,17 @@ describe('reading and dismissing a Quick answer', () => {
   });
 });
 
-/** A harness that answers with what the test says and records what it was asked. */
-function harness(outcome: unknown) {
-  const propose = vi.fn(() => Promise.resolve(outcome));
+/**
+ * A harness that answers what the test says, and records every request. `answer` is one outcome for every request, or a function of
+ * the request and its number (the writer's first request is number 1, its rewrite after a failed check number 2).
+ */
+function harness(answer: unknown) {
+  let calls = 0;
+  const propose = vi.fn((input: unknown) =>
+    Promise.resolve(
+      typeof answer === 'function' ? (answer as (input: unknown, call: number) => unknown)(input, ++calls) : answer,
+    ),
+  );
   const closeRun = vi.fn(() => Promise.resolve('closed'));
   return { propose, closeRun, value: { propose, closeRun } as unknown as ReasoningHarness };
 }
@@ -314,22 +321,40 @@ const proposed = (output: unknown) => ({
   repaired: false,
   reconciled: false,
 });
+/**
+ * A labelled fixture support check: it answers each check with the next finding (the last one again after that), and records
+ * every request. It judges nothing: it is what the worker does with a finding that is proved here.
+ */
+function checker(...findings: SupportFinding[]) {
+  let calls = 0;
+  return vi.fn<QuickAnswerSupportCheck>((input) =>
+    Promise.resolve({
+      finding: findings[Math.min(calls++, findings.length - 1)] ?? { kind: 'supported' },
+      run: { runId: input.runId, end: 'completed' },
+    }),
+  );
+}
+const unsupportedSentence: SupportFinding = {
+  kind: 'unsupported',
+  unsupported: [{ number: 1, verdict: 'unsupported', kind: 'not_stated', problem: 'No cited passage says this.' }],
+};
 const job = { universeId: id(1), privacyEpoch: 1, quickAnswerId: id(50) };
 const signal = new AbortController().signal;
 const good = {
-  question: 'Why does it keep pointing?',
+  question: 'Why does the axis keep pointing the same way all year?',
   answer: 'Nothing turns the axis during a year.',
   covered: true,
   cites: ['e2'],
 };
 
 describe('answering a Quick answer in the worker', () => {
-  it('asks the model once with only the stops up to the reader’s, then stores the answer, clears the words and sends a hint', async () => {
+  it('asks the writer with only the stops up to the reader’s, checks the answer, then stores it, clears the words and sends a hint', async () => {
     const { ports, rows, log } = fixture();
     await makeAskQuickAnswer(ports)(authority, command);
     log.notified.length = 0;
     const model = harness(proposed(good));
-    await makeAnswerQuickAnswer(ports, model.value)(job, signal);
+    const check = checker({ kind: 'supported' });
+    await makeAnswerQuickAnswer(ports, model.value, check)(job, signal);
     expect(model.propose).toHaveBeenCalledTimes(1);
     const input = (
       model.propose.mock.calls[0] as unknown as [
@@ -337,9 +362,16 @@ describe('answering a Quick answer in the worker', () => {
       ]
     )[0];
     expect(input.run).toMatchObject({ id: id(50), purpose: 'quick-answer' });
+    // The two stops up to the reader's, then the plainer words of the reader's own stop; nothing after.
     expect(input.context.items.find((item) => item.kind === 'scroll_passages')?.text).toBe(
-      `[e1] ${STOPS[0]!.text}\n[e2] ${STOPS[1]!.text}`,
+      `[e1] ${STOPS[0]!.text}\n[e2] ${STOPS[1]!.text}\n[e3] The plainer words.`,
     );
+    expect(check).toHaveBeenCalledTimes(1);
+    expect(check.mock.calls[0]![0]).toMatchObject({
+      draft: 1,
+      allowRepair: true,
+      sentences: [{ number: 1, text: good.answer, cites: ['e2'] }],
+    });
     expect(rows.get(id(50))).toMatchObject({
       state: 'answered',
       shownQuestion: good.question,
@@ -352,7 +384,104 @@ describe('answering a Quick answer in the worker', () => {
     expect(log.notified).toEqual([id(50)]);
   });
 
-  it('shows nothing and says it could not answer when the model fails, and never fakes an answer', async () => {
+  it('is built only with a support check, and stores nothing when the check throws: no checker, no card', async () => {
+    const { ports, rows } = fixture();
+    expect(() =>
+      makeAnswerQuickAnswer(ports, harness(proposed(good)).value, undefined as unknown as QuickAnswerSupportCheck),
+    ).toThrow('QUICK_ANSWER_SUPPORT_CHECK_REQUIRED');
+    await makeAskQuickAnswer(ports)(authority, command);
+    const broken = vi.fn<QuickAnswerSupportCheck>(() => Promise.reject(new Error('the database is down')));
+    await expect(makeAnswerQuickAnswer(ports, harness(proposed(good)).value, broken)(job, signal)).rejects.toThrow();
+    expect(rows.get(id(50))).toMatchObject({ state: 'waiting' });
+  });
+
+  it('shows nothing when the check gave no usable answer, whatever the writer wrote', async () => {
+    const { ports, rows } = fixture();
+    await makeAskQuickAnswer(ports)(authority, command);
+    await makeAnswerQuickAnswer(ports, harness(proposed(good)).value, checker({ kind: 'unchecked' }))(job, signal);
+    expect(rows.get(id(50))).toMatchObject({ state: 'unavailable', answer: undefined, shownQuestion: undefined });
+  });
+
+  it('rewrites once an answer with an unsupported sentence, with fixed hints and no checker words, and shows the rewrite only if its check clears it', async () => {
+    const rewrite = { ...good, answer: 'The axis keeps pointing the same way all year.' };
+    const written = harness((_input: unknown, call: number) => proposed(call === 1 ? good : rewrite));
+    const ledger = fixture();
+    await makeAskQuickAnswer(ledger.ports)(authority, command);
+    const check = checker(unsupportedSentence, { kind: 'supported' });
+    await makeAnswerQuickAnswer(ledger.ports, written.value, check)(job, signal);
+    expect(written.propose).toHaveBeenCalledTimes(2);
+    const second = (
+      written.propose.mock.calls[1] as unknown as [
+        {
+          run: { id: string };
+          limits: { allowRepair: boolean };
+          context: { items: { kind: string; text: string }[] };
+        },
+      ]
+    )[0];
+    expect(second.run.id).not.toBe(id(50));
+    // The rewrite has no repair of its own, and its second check has none either: six paid attempts in all, never more.
+    expect(second.limits).toEqual({ allowRepair: false });
+    expect(check.mock.calls.map((call) => [call[0].draft, call[0].allowRepair])).toEqual([
+      [1, true],
+      [2, false],
+    ]);
+    const problems = second.context.items.find((item) => item.kind === 'check_problems')!.text;
+    expect(problems).toContain(`Sentence "${good.answer}"`);
+    expect(problems).toContain('No passage you cite states this');
+    expect(problems).not.toContain('No cited passage says this');
+    expect(ledger.rows.get(id(50))).toMatchObject({ state: 'answered', answer: rewrite.answer });
+  });
+
+  it('shows nothing when the rewrite is not cleared either, or cannot be written', async () => {
+    for (const failing of [
+      { writer: harness(proposed(good)), check: checker(unsupportedSentence, unsupportedSentence) },
+      { writer: harness(proposed(good)), check: checker(unsupportedSentence, { kind: 'unchecked' }) },
+      {
+        writer: harness((_input: unknown, call: number) =>
+          call === 1 ? proposed(good) : { kind: 'failed', code: 'server_error' },
+        ),
+        check: checker(unsupportedSentence),
+      },
+    ]) {
+      const { ports, rows } = fixture();
+      await makeAskQuickAnswer(ports)(authority, command);
+      await makeAnswerQuickAnswer(ports, failing.writer.value, failing.check)(job, signal);
+      expect(rows.get(id(50))).toMatchObject({ state: 'unavailable', answer: undefined, passage: undefined });
+    }
+  });
+
+  it('shows a sentence code owns, never the model’s words, for a question the passages do not cover, and checks nothing', async () => {
+    const outside = {
+      question: 'Who first measured the tilt of the Earth?',
+      answer: 'Greek astronomers measured it long before telescopes.',
+      covered: false,
+      cites: [],
+    };
+    const { ports, rows } = fixture();
+    await makeAskQuickAnswer(ports)(authority, { ...command, question: 'Who measured the tilt?', commandId: id(11) });
+    const check = checker({ kind: 'supported' });
+    await makeAnswerQuickAnswer(ports, harness(proposed(outside)).value, check)(job, signal);
+    expect(check).not.toHaveBeenCalled();
+    expect(rows.get(id(50))).toMatchObject({
+      state: 'answered',
+      covered: false,
+      shownQuestion: 'Who measured the tilt?',
+      answer: NOT_COVERED_ANSWER,
+    });
+    const row = rows.get(id(50))!;
+    expect(JSON.stringify(row)).not.toContain('Greek');
+    // With no typed question the line is the person's own selected words, not a model's question.
+    const plain = fixture();
+    await makeAskQuickAnswer(plain.ports)(authority, command);
+    await makeAnswerQuickAnswer(plain.ports, harness(proposed(outside)).value, check)(job, signal);
+    expect(plain.rows.get(id(50))).toMatchObject({
+      shownQuestion: 'About “keeps pointing the same way”',
+      answer: NOT_COVERED_ANSWER,
+    });
+  });
+
+  it('shows nothing and says it could not answer when the writer fails, and never fakes an answer', async () => {
     for (const outcome of [
       { kind: 'failed', code: 'server_error' },
       { kind: 'unknown' },
@@ -360,7 +489,9 @@ describe('answering a Quick answer in the worker', () => {
     ]) {
       const { ports, rows } = fixture();
       await makeAskQuickAnswer(ports)(authority, command);
-      await makeAnswerQuickAnswer(ports, harness(outcome).value)(job, signal);
+      const check = checker({ kind: 'supported' });
+      await makeAnswerQuickAnswer(ports, harness(outcome).value, check)(job, signal);
+      expect(check).not.toHaveBeenCalled();
       expect(rows.get(id(50))).toMatchObject({ state: 'unavailable', answer: undefined, passage: undefined });
     }
   });
@@ -369,7 +500,7 @@ describe('answering a Quick answer in the worker', () => {
     const { ports } = fixture();
     await makeAskQuickAnswer(ports)(authority, command);
     const model = harness({ kind: 'unknown' });
-    await makeAnswerQuickAnswer(ports, model.value)(job, signal);
+    await makeAnswerQuickAnswer(ports, model.value, checker())(job, signal);
     expect(model.closeRun).not.toHaveBeenCalled();
   });
 
@@ -381,7 +512,7 @@ describe('answering a Quick answer in the worker', () => {
       await makeDismissQuickAnswer(dismissed.ports)(authority, { quickAnswerId: id(50) });
       return proposed(good);
     });
-    await makeAnswerQuickAnswer(dismissed.ports, slow.value)(job, signal);
+    await makeAnswerQuickAnswer(dismissed.ports, slow.value, checker())(job, signal);
     expect(dismissed.rows.get(id(50))).toMatchObject({ state: 'dismissed', answer: undefined });
     expect(dismissed.log.notified).toEqual([id(50)]);
 
@@ -392,7 +523,7 @@ describe('answering a Quick answer in the worker', () => {
       late.tick(QUICK_ANSWER_WAIT_LIMIT_MS + 1);
       return Promise.resolve(proposed(good));
     });
-    await makeAnswerQuickAnswer(late.ports, waiting.value)(job, signal);
+    await makeAnswerQuickAnswer(late.ports, waiting.value, checker())(job, signal);
     expect(late.rows.get(id(50))).toMatchObject({ state: 'unavailable', answer: undefined });
   });
 
@@ -403,7 +534,7 @@ describe('answering a Quick answer in the worker', () => {
       log.notified.length = 0;
       tick(lateBy);
       const model = harness(proposed(good));
-      await makeAnswerQuickAnswer(ports, model.value)(job, signal);
+      await makeAnswerQuickAnswer(ports, model.value, checker())(job, signal);
       expect(model.propose).not.toHaveBeenCalled();
       expect(rows.get(id(50))).toMatchObject({ state: 'unavailable', passage: undefined, question: undefined });
       expect(log.notified).toEqual([id(50)]);
@@ -439,25 +570,15 @@ describe('answering a Quick answer in the worker', () => {
       expiresAt: new Date(start.getTime() + 86_400_000),
     });
     const model = harness(proposed(good));
-    await makeAnswerQuickAnswer(gone.ports, model.value)(job, signal);
+    await makeAnswerQuickAnswer(gone.ports, model.value, checker())(job, signal);
     expect(model.propose).not.toHaveBeenCalled();
     expect(gone.rows.get(id(50))).toMatchObject({ state: 'unavailable' });
 
     const done = fixture();
     await makeAskQuickAnswer(done.ports)(authority, command);
     await makeDismissQuickAnswer(done.ports)(authority, { quickAnswerId: id(50) });
-    await makeAnswerQuickAnswer(done.ports, model.value)(job, signal);
+    await makeAnswerQuickAnswer(done.ports, model.value, checker())(job, signal);
     expect(model.propose).not.toHaveBeenCalled();
-  });
-
-  it('shows a draft the support seam does not support to nobody (the seam S-7b’s checker plugs into)', async () => {
-    const supportCheck = vi.fn<QuickAnswerSupportCheck>(() => Promise.resolve('unsupported'));
-    const { ports, rows } = fixture({ supportCheck });
-    await makeAskQuickAnswer(ports)(authority, command);
-    await makeAnswerQuickAnswer(ports, harness(proposed(good)).value)(job, signal);
-    expect(supportCheck).toHaveBeenCalledTimes(1);
-    expect(supportCheck.mock.calls[0]![0].passages.map((passage) => passage.handle)).toEqual(['e1', 'e2']);
-    expect(rows.get(id(50))).toMatchObject({ state: 'unavailable', answer: undefined });
   });
 });
 
@@ -465,7 +586,7 @@ describe('what a report keeps of a Quick answer', () => {
   it('is the question and answer of the person’s own kept answer for exactly this revision, and nothing else', async () => {
     const { ports } = fixture();
     await makeAskQuickAnswer(ports)(authority, command);
-    await makeAnswerQuickAnswer(ports, harness(proposed(good)).value)(job, signal);
+    await makeAnswerQuickAnswer(ports, harness(proposed(good)).value, checker())(job, signal);
     const forReport = makeReadQuickAnswerForReport(ports);
     const input = { quickAnswerId: id(50), assetId: id(20), assetRevision: 3 };
     expect(await forReport(scope, input)).toBe(`Q: ${good.question}\nA: ${good.answer}`);

@@ -72,10 +72,10 @@ export interface QuickAnswerSessionOptions {
   readonly maxPolls?: number;
 }
 
-/** A poll every three seconds, the first after a second and a half: a little past the server's own three-minute wait limit. */
+/** A poll every three seconds, the first after a second and a half: a little past the server's own four-minute wait limit. */
 export const QUICK_ANSWER_POLL_MS = 3_000;
 const FIRST_POLL_MS = 1_500;
-const MAX_POLLS = 65;
+const MAX_POLLS = 90;
 const EMPTY: QuickAnswerSnapshot = { cards: {} };
 
 /** Problems no retry can fix: the server does not know this Scroll, stop or words. */

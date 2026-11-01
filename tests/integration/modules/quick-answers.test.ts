@@ -38,13 +38,17 @@ import {
 } from '../../../packages/backend/src/modules/supply/adapters/postgres-quick-answers.js';
 import { QUICK_ANSWER_WAIT_LIMIT_MS } from '../../../packages/backend/src/modules/supply/application/quick-answers.js';
 import {
+  MAX_PAID_ATTEMPTS,
+  NOT_COVERED_ANSWER,
+} from '../../../packages/backend/src/modules/supply/domain/quick-answer.js';
+import {
   fixtureAuthoredV2,
   fixtureResearchPageV2,
 } from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureHarness, fixtureModel, signal } from '../support/fixture-model.js';
-import type { FixtureModelPort } from '../support/fixture-model-port.js';
+import type { FixtureModelPort, FixtureScenario } from '../support/fixture-model-port.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
 import { reportCases } from '../support/feedback.js';
 import { openActive } from '../support/observations.js';
@@ -61,6 +65,15 @@ import type { FixturePerson } from '../support/fixtures.js';
  */
 const JOB = 'supply.answer-quick-answer';
 
+type Stage = 'write' | 'check' | 'rewrite';
+/** Which model step a request is, by what its instructions say: the rewrite, the support check, or the writer. */
+const stageOf = (request: string): Stage =>
+  request.includes('REWRITE AFTER A SUPPORT CHECK')
+    ? 'rewrite'
+    : request.includes('You check one thing in a short answer')
+      ? 'check'
+      : 'write';
+
 describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
   let database: TestDatabase<Database>;
   let content: Awaited<ReturnType<typeof scrollUseCases>>;
@@ -70,7 +83,9 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
   let answer: AnswerQuickAnswerUseCase;
   let readForReport: ReadQuickAnswerForReport;
   let model: FixtureModelPort;
-  let script: (sequence: number) => { kind: 'success'; text: string } | { kind: 'server_error' };
+  /** What each model step answers: the writer (and its rewrite) and the support check, by the number of that kind of call so far. */
+  let script: (stage: Stage, n: number) => FixtureScenario;
+  const calledBefore: Record<Stage, number> = { write: 0, check: 0, rewrite: 0 };
   let scroll: { readonly assetId: string; readonly revision: number };
   let document: ScrollDocumentV2;
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
@@ -154,7 +169,7 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
     await database.drop();
   });
   afterEach(() => {
-    script = () => ({ kind: 'success', text: cited('e1') });
+    script = standard;
   });
 
   const readStops = () => document.stops.filter((stop) => stop.kind === 'read');
@@ -162,20 +177,55 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
   const anchor = () => readStops()[1]!;
   const wordsOf = (stop: ScrollDocumentV2['stops'][number]) =>
     stop.kind === 'read' ? stop.blocks.map((block) => block.text).join(' ') : stop.prompt;
-  const cited = (...cites: string[]) =>
-    JSON.stringify({
-      question: 'What does this passage mean?',
-      answer: 'The Scroll says it plainly, and this is the short version of it.',
-      covered: true,
-      cites,
-    });
+  /** The first run of words of the anchor stop with no digit: a quote that is really in the passage, to answer with and to check. */
+  const tokensOf = (text: string): string[] =>
+    text
+      .normalize('NFKC')
+      .toLowerCase()
+      .replaceAll(/[‘’ʼ]/gu, "'")
+      .split(/[^\p{L}\p{N}']+/u)
+      .map((word) => word.replaceAll(/^'+|'+$/gu, ''))
+      .filter((word) => word !== '');
+  const quoteWords = (): string[] => {
+    const tokens = tokensOf(wordsOf(anchor()));
+    for (const size of [8, 6, 5, 4, 3])
+      for (let at = 0; at + size <= tokens.length; at += 1) {
+        const window = tokens.slice(at, at + size);
+        if (window.every((word) => !/\p{N}/u.test(word))) return window;
+      }
+    throw new Error('the CI fixture has no run of words without a digit');
+  };
+  /** The question the writer asks of the passage, in the passage's own words, and the answer's one sentence. */
+  const questionOf = () => `What does ${quoteWords().slice(0, 5).join(' ')} mean?`;
+  const sentenceOf = () => `${quoteWords().join(' ')}.`;
+  const writerReply = (over: Record<string, unknown> = {}): FixtureScenario => ({
+    kind: 'success',
+    text: JSON.stringify({ question: questionOf(), answer: sentenceOf(), covered: true, cites: ['e2'], ...over }),
+  });
+  const checkerReply = (...verdicts: Record<string, unknown>[]): FixtureScenario => ({
+    kind: 'success',
+    text: JSON.stringify({ sentences: verdicts }),
+  });
+  const clears = (): FixtureScenario => checkerReply({ n: 1, verdict: 'supported', quote: quoteWords().join(' ') });
+  const finds = (): FixtureScenario =>
+    checkerReply({ n: 1, verdict: 'unsupported', kind: 'goes_beyond', problem: 'The passage says less than this.' });
+  /** The usual run: the writer answers from the passage and the check clears it. */
+  const standard = (stage: Stage): FixtureScenario => (stage === 'check' ? clears() : writerReply());
 
   async function setup(caps = { perDay: 20, perPerson: 10 }) {
     await sql`delete from pgboss.job where name = ${JOB}`.execute(database.db);
     await sql`delete from supply.quick_answers`.execute(database.db);
     await sql`delete from supply.quick_answer_ledger`.execute(database.db);
-    script = () => ({ kind: 'success', text: cited('e1') });
-    model = fixtureModel((sequence) => script(sequence), { label: 'quick-answer-CI-fixture' });
+    script = standard;
+    calledBefore.write = calledBefore.check = calledBefore.rewrite = 0;
+    model = fixtureModel(
+      (_sequence, call) => {
+        const stage = stageOf(JSON.stringify(call.request));
+        calledBefore[stage] += 1;
+        return script(stage, calledBefore[stage]);
+      },
+      { label: 'quick-answer-CI-fixture' },
+    );
     build(caps);
   }
 
@@ -375,37 +425,47 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
   });
 
   describe('answering on the worker', () => {
-    it('shows the model only the stops up to the reader’s, answers, clears the words and keeps the answer a day', async () => {
+    it('shows the model only the stops up to the reader’s, answers after a support check, clears the words and keeps the answer a day', async () => {
       await setup();
       const person = await reader();
       const quickAnswerId = await accept(person);
       await answer(job(person, quickAnswerId), signal());
 
-      expect(model.calls).toHaveLength(1);
-      const seen = JSON.stringify(model.calls[0]!.request);
+      // The writer and the support check: two paid attempts, neither of them shown anything past the reader's stop.
+      expect(model.calls).toHaveLength(2);
+      const seen = model.calls.map((call) => JSON.stringify(call.request)).join('\n');
       const read = readStops();
-      // The first read stop and the anchor are offered; no stop after the anchor, and no call, is.
-      expect(seen).toContain(wordsOf(read[0]!).slice(0, 25));
-      expect(seen).toContain(wordsOf(read[1]!).slice(0, 25));
+      expect(JSON.stringify(model.calls[0]!.request)).toContain(wordsOf(read[0]!).slice(0, 25));
+      expect(JSON.stringify(model.calls[0]!.request)).toContain(wordsOf(read[1]!).slice(0, 25));
       for (const later of read.slice(2)) expect(seen).not.toContain(wordsOf(later).slice(0, 25));
       for (const stop of document.stops.filter((candidate) => candidate.kind !== 'read'))
         expect(seen).not.toContain(wordsOf(stop).slice(0, 25));
+      // The checker is shown the passage the answer cites and its sentence, not the whole Scroll so far.
+      expect(JSON.stringify(model.calls[1]!.request)).not.toContain(wordsOf(read[0]!).slice(0, 25));
 
       expect(await row(quickAnswerId)).toMatchObject({
         state: 'answered',
         passage: null,
         question: null,
-        shown_question: 'What does this passage mean?',
+        shown_question: questionOf(),
+        answer: sentenceOf(),
         covered: true,
       });
       expect(await status(person, quickAnswerId)).toMatchObject({
         status: 'answered',
         label: 'Quick answer · not a checked Scroll',
-        question: 'What does this passage mean?',
+        question: questionOf(),
         covered: true,
       });
       const stored = await row(quickAnswerId);
       expect(stored.expires_at.getTime() - stored.created_at.getTime()).toBe(24 * 3_600_000);
+      // Every run was closed in the transaction that stored the card.
+      const runs = await sql<{
+        state: string;
+      }>`select state from reasoning.business_runs where universe_id = ${person.universeId}::uuid and owner_module = 'supply'`.execute(
+        database.db,
+      );
+      expect(runs.rows.map((run) => run.state)).toEqual(['completed', 'completed']);
     });
 
     it('writes no evidence: no exposure, observation or action, from the ask or from the answer', async () => {
@@ -422,14 +482,15 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
       expect(await evidenceCounts(other.universeId)).not.toEqual(untouched);
     });
 
-    it('cites only a passage it was offered: an invented one is repaired once, then closes as unavailable, never shown', async () => {
+    it('cites only a passage it was offered: an invented one is repaired once, then closes as unavailable, never shown or checked', async () => {
       await setup();
       const person = await reader();
-      script = () => ({ kind: 'success', text: cited('e9') });
+      script = (stage) => (stage === 'check' ? clears() : writerReply({ cites: ['e9'] }));
       const quickAnswerId = await accept(person);
       await answer(job(person, quickAnswerId), signal());
-      // One answer and one repair, both refused.
+      // One answer and one repair, both refused: the checker is never asked.
       expect(model.calls).toHaveLength(2);
+      expect(calledBefore.check).toBe(0);
       expect(await status(person, quickAnswerId)).toMatchObject({ status: 'unavailable', reason: 'could_not_answer' });
       expect(await row(quickAnswerId)).toMatchObject({ state: 'unavailable', answer: null, passage: null });
     });
@@ -449,24 +510,24 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
       await setup();
       const person = await reader();
       const quickAnswerId = await accept(person);
-      // The first delivery enters the scope to read (entry 1), asks the model, and stops before it enters to store (entry 2).
+      // The first delivery enters the scope to read (entry 1), asks the writer and the checker, and stops before it enters to store (entry 2).
       workerEntries = 0;
       workerStopsAtEntry = 2;
       await expect(answer(job(person, quickAnswerId), signal())).rejects.toThrow('the worker stopped');
       workerStopsAtEntry = undefined;
-      expect(model.calls).toHaveLength(1);
+      expect(model.calls).toHaveLength(2);
       expect(await row(quickAnswerId)).toMatchObject({ state: 'waiting' });
       // The redelivery reads the same row, reaches the ledger through the harness, and stores the answer the first one paid for.
       await answer(job(person, quickAnswerId), signal());
-      expect(model.calls).toHaveLength(1);
+      expect(model.calls).toHaveLength(2);
       expect(await row(quickAnswerId)).toMatchObject({ state: 'answered', passage: null, question: null });
-      // The ledger holds the one attempt, settled.
+      // The ledger holds the two attempts, the writer's and the checker's, each once.
       const attempts = await sql<{
         n: string;
-      }>`select count(*) as n from reasoning.external_attempts where run_id = ${quickAnswerId}::uuid`.execute(
+      }>`select count(*) as n from reasoning.external_attempts where universe_id = ${person.universeId}::uuid`.execute(
         database.db,
       );
-      expect(Number(attempts.rows[0]!.n)).toBe(1);
+      expect(Number(attempts.rows[0]!.n)).toBe(2);
     });
 
     it('says it could not answer, calling no model, for a person who paused and resumed recording: the personal harness runs only at the first generation', async () => {
@@ -524,6 +585,117 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
       expect((await facts(read[1]!.id))?.passages.map((passage) => passage.stopId)).toEqual([read[0]!.id, read[1]!.id]);
       expect(await facts(document.stops.find((stop) => stop.kind !== 'read')!.id)).toBeUndefined();
       expect(await facts('no-such-stop')).toBeUndefined();
+    });
+  });
+
+  describe('the support check and what code owns of a card (D-253)', () => {
+    async function asked() {
+      await setup();
+      const person = await reader();
+      return { person, quickAnswerId: await accept(person) };
+    }
+    const attemptsOf = async (universeId: string) =>
+      Number(
+        (
+          await sql<{
+            n: string;
+          }>`select count(*) as n from reasoning.external_attempts where universe_id = ${universeId}::uuid`.execute(
+            database.db,
+          )
+        ).rows[0]!.n,
+      );
+
+    it('shows an answer after the check clears it, and the check is shown only the passage the answer cites', async () => {
+      const { person, quickAnswerId } = await asked();
+      await answer(job(person, quickAnswerId), signal());
+      const request = JSON.stringify(model.calls[1]!.request);
+      expect(request).toContain(sentenceOf());
+      expect(request).toContain('[e2]');
+      expect(request).not.toContain(wordsOf(readStops()[0]!).slice(0, 25));
+      expect(await status(person, quickAnswerId)).toMatchObject({ status: 'answered' });
+    });
+
+    it('rewrites once an answer with an unsupported sentence, and shows the rewrite only after its own check clears it', async () => {
+      const { person, quickAnswerId } = await asked();
+      script = (stage, n) =>
+        stage === 'check'
+          ? n === 1
+            ? finds()
+            : clears()
+          : writerReply(stage === 'rewrite' ? {} : { answer: 'Greek astronomers measured it long before telescopes.' });
+      await answer(job(person, quickAnswerId), signal());
+      expect([calledBefore.write, calledBefore.check, calledBefore.rewrite]).toEqual([1, 2, 1]);
+      expect(await row(quickAnswerId)).toMatchObject({ state: 'answered', answer: sentenceOf() });
+      // The rewrite was told which sentence to fix by a fixed hint, not by the checker's words.
+      const rewrite = JSON.stringify(model.calls[2]!.request);
+      expect(rewrite).toContain('says something narrower or different');
+      expect(rewrite).toContain('Greek astronomers');
+      expect(rewrite).not.toContain('The passage says less than this.');
+      expect(await attemptsOf(person.universeId)).toBe(4);
+    });
+
+    it('shows nothing when an outside-knowledge answer, with no digit and in plain words, is not cleared twice: no card, and nothing of it stored', async () => {
+      const { person, quickAnswerId } = await asked();
+      script = (stage) =>
+        stage === 'check' ? finds() : writerReply({ answer: 'Greek astronomers measured it long before telescopes.' });
+      await answer(job(person, quickAnswerId), signal());
+      expect(model.calls).toHaveLength(4);
+      const stored = await row(quickAnswerId);
+      expect(stored).toMatchObject({ state: 'unavailable', answer: null, shown_question: null, passage: null });
+      expect(JSON.stringify(stored)).not.toContain('Greek');
+      expect(await status(person, quickAnswerId)).toMatchObject({ status: 'unavailable', reason: 'could_not_answer' });
+    });
+
+    it('is no card at all when the check fails, or answers with a quote that is not in the passage: no checker, no card', async () => {
+      for (const check of [
+        (): FixtureScenario => ({ kind: 'server_error' }),
+        (): FixtureScenario =>
+          checkerReply({ n: 1, verdict: 'supported', quote: 'sunlight arrives steeper and the days run longer' }),
+        (): FixtureScenario => ({ kind: 'malformed' }),
+      ]) {
+        const { person, quickAnswerId } = await asked();
+        script = (stage) => (stage === 'check' ? check() : writerReply());
+        await answer(job(person, quickAnswerId), signal());
+        expect(await row(quickAnswerId)).toMatchObject({ state: 'unavailable', answer: null, shown_question: null });
+        expect(calledBefore.rewrite).toBe(0);
+      }
+    });
+
+    it('shows a sentence code owns, and none of the writer’s words, for a question the passages do not cover, and checks nothing', async () => {
+      const { person, quickAnswerId } = await asked();
+      script = (stage) =>
+        stage === 'check'
+          ? clears()
+          : writerReply({
+              covered: false,
+              cites: [],
+              question: 'Who measured it?',
+              answer: 'Greek astronomers measured it long before telescopes.',
+            });
+      await answer(job(person, quickAnswerId), signal());
+      expect(model.calls).toHaveLength(1);
+      const stored = await row(quickAnswerId);
+      expect(stored).toMatchObject({ state: 'answered', covered: false, answer: NOT_COVERED_ANSWER });
+      expect(stored.shown_question).toMatch(/^About “/u);
+      expect(JSON.stringify(stored)).not.toContain('Greek');
+      expect(await status(person, quickAnswerId)).toMatchObject({
+        status: 'answered',
+        covered: false,
+        answer: NOT_COVERED_ANSWER,
+      });
+    });
+
+    it('keeps to six paid attempts in the worst case: an invalid answer and its repair, an invalid check and its repair, one rewrite and its check', async () => {
+      const { person, quickAnswerId } = await asked();
+      script = (stage, n) => {
+        if (stage === 'write') return n === 1 ? { kind: 'malformed' } : writerReply();
+        if (stage === 'check') return n === 1 ? { kind: 'malformed' } : n === 2 ? finds() : clears();
+        return writerReply();
+      };
+      await answer(job(person, quickAnswerId), signal());
+      expect(model.calls).toHaveLength(MAX_PAID_ATTEMPTS);
+      expect(await attemptsOf(person.universeId)).toBe(MAX_PAID_ATTEMPTS);
+      expect(await row(quickAnswerId)).toMatchObject({ state: 'answered' });
     });
   });
 
@@ -615,7 +787,7 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
         exportCurrentPerson(tx, { accountId: person.accountId }, () => Promise.resolve(new Set<string>())),
       );
       const text = JSON.stringify(exported);
-      expect(text).toContain('What does this passage mean?');
+      expect(text).toContain(questionOf());
       expect(text).toContain('quickAnswers');
 
       const erased = await withScope()(person.authority, (tx) => eraseUniverse(tx, personalStores));
@@ -668,9 +840,7 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
       });
       expect(sent).toMatchObject({ kind: 'received' });
       const stored = await database.db.selectFrom('feedback.reports').select('quick_answer').executeTakeFirstOrThrow();
-      expect(stored.quick_answer).toBe(
-        'Q: What does this passage mean?\nA: The Scroll says it plainly, and this is the short version of it.',
-      );
+      expect(stored.quick_answer).toBe(`Q: ${questionOf()}\nA: ${sentenceOf()}`);
       // Another person cannot report it, and a dismissed answer cannot be reported: a missing target.
       const stranger = await reader();
       expect(
