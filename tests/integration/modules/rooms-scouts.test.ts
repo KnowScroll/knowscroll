@@ -54,6 +54,7 @@ import {
   say,
   seedRoom,
   setPreferences,
+  setPresence,
   unwrap,
   type RoomWorld,
 } from '../support/rooms.js';
@@ -113,63 +114,6 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
     if (read.kind !== 'ok' || read.value.status !== 'claimed') throw new Error('profile unreadable');
     return { ...person, person: read.value.person };
   }
-
-  /** The person's real, sealed Clear of exploration history (epoch 1 to 2). */
-  async function clearExploration(person: Friend) {
-    const installer = createBoss(database.settings, 'install', {
-      onError: () => undefined,
-      onWarning: () => undefined,
-    });
-    await installer.start();
-    try {
-      await applyQueueDeclarations(installer, [clearExplorationQueue, recoverClearOperationsQueue]);
-      const use = clearExplorationFor(database.db, installer, {
-        reasoning: clearReasoning,
-        eraseCore: eraseCurrentExploration,
-      });
-      const commandId = randomUUID();
-      expect(
-        await use.start(
-          { accountId: person.accountId, universeId: person.universeId, privacyEpoch: 1 },
-          {
-            version: 'clear-exploration.v1',
-            commandId,
-            expectedPrivacyEpoch: 1,
-            confirmation: 'clear-exploration-preserve-keep-and-social',
-          },
-        ),
-      ).toMatchObject({ kind: 'entered', value: { kind: 'ok' } });
-      await use.process({ v: 1, accountId: person.accountId, commandId });
-    } finally {
-      await installer.stop({ graceful: false });
-    }
-  }
-
-  it('keeps a scout through a Clear of exploration history, and ends only a call in flight (counted, never handed back)', async () => {
-    const posted = await libraryScroll(world.db, 'A Scroll the scout already found', 10, ASTRO);
-    const inFlight = await libraryScroll(world.db, 'A Scroll its next call is about', 20, ASTRO);
-    const scene = await sent();
-    await scoutBeat(world).look(scene.slug, scene.owner);
-    expect((await finds(scene.roomId))[0]).toMatchObject({ root_asset_id: posted });
-    // A call that was in flight when the person cleared: a labelled fixture row, as a scout's turn is while its model is called.
-    const turnId = randomUUID();
-    await sql`insert into rooms.ai_turns (turn_id, room_id, trigger, state, decided_by, created_at, find_asset_id, find_asset_revision, requested_by_account_id)
-      values (${turnId}::uuid, ${scene.roomId}::uuid, 'scout_find', 'queued', 'caps_clear', now(), ${inFlight}::uuid, 1, ${scene.owner.accountId}::uuid)`.execute(
-      world.db,
-    );
-    await clearExploration(scene.owner);
-    // The setting holds no reading, so it stays, as does what the scout already posted.
-    expect(await scoutRow(world.db, scene.roomId, scene.owner)).toMatchObject({ interests: [ASTRO], paused: false });
-    expect(await finds(scene.roomId)).toHaveLength(1);
-    expect(roomsErasure.clearExploration?.dispositions['rooms.scouts']).toBe('preserve');
-    // The call in flight ended, and stays counted: a Clear does not give a paid call back.
-    const turn = await database.db
-      .selectFrom('rooms.ai_turns')
-      .selectAll()
-      .where('turn_id', '=', turnId)
-      .executeTakeFirst();
-    expect(turn).toMatchObject({ state: 'failed', dispatched: true });
-  });
 
   /** A room with a moderator, an owner who will send a scout and `others` members who listen. */
   async function room(others = 2) {
@@ -821,27 +765,23 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
       );
     });
 
-    it('cannot vote, earn a star or be counted as a person: a Useful mark on its note earns nothing and it is nobody’s lease', async () => {
-      await libraryScroll(world.db, 'A Scroll for the star check', 10, ASTRO);
+    it('is nobody’s lease and no one of the people here: it has no account, so it is never a member, a face or a count', async () => {
+      await libraryScroll(world.db, 'A Scroll for the presence check', 10, ASTRO);
       const scene = await sent();
-      const { look } = scoutBeat(world);
-      await look(scene.slug, scene.owner);
-      const feed = await readFeed(world, scene.listeners[0]!, scene.roomId);
-      const discussionId = feed.posts[0]!.discussionId;
-      const opened = await readDiscussion(world, scene.listeners[1]!, scene.roomId, discussionId);
-      if (opened.status !== 'ready') throw new Error('expected ready');
-      const stars = await database.db
-        .selectFrom('rooms.stars')
-        .select('star_id')
-        .where('room_id', '=', scene.roomId)
-        .execute();
-      unwrap(await markUseful(world, scene.listeners[1]!, scene.roomId, discussionId, opened.messages[0]!.messageId));
-      expect(
-        await database.db.selectFrom('rooms.stars').select('star_id').where('room_id', '=', scene.roomId).execute(),
-      ).toEqual(stars);
+      await scoutBeat(world).look(scene.slug, scene.owner);
+      for (const person of [scene.owner, ...scene.listeners]) unwrap(await setPresence(world, person, scene.roomId));
       const view = await memberView(world, scene.listeners[0]!, scene.roomId);
       expect(view.memberTotal).toBe(4);
+      expect(view.here.count).toBe(3);
+      expect(view.here.faces).toHaveLength(3);
       expect(JSON.stringify(view.here)).not.toContain('"kind":"agent"');
+      // Its note is written by no account: the rows that name one never name the scout.
+      const [note] = await database.db
+        .selectFrom('rooms.messages')
+        .select(['author_account_id', 'command_id'])
+        .where('author_kind', '=', 'agent')
+        .execute();
+      expect(note).toEqual({ author_account_id: null, command_id: null });
     });
   });
 
@@ -1007,6 +947,63 @@ describe('scouts (real PostgreSQL, CI fixture model)', () => {
   });
 
   describe('what a person takes back', () => {
+    /** The person's real, sealed Clear of exploration history (epoch 1 to 2). */
+    async function clearExploration(person: Friend) {
+      const installer = createBoss(database.settings, 'install', {
+        onError: () => undefined,
+        onWarning: () => undefined,
+      });
+      await installer.start();
+      try {
+        await applyQueueDeclarations(installer, [clearExplorationQueue, recoverClearOperationsQueue]);
+        const use = clearExplorationFor(database.db, installer, {
+          reasoning: clearReasoning,
+          eraseCore: eraseCurrentExploration,
+        });
+        const commandId = randomUUID();
+        expect(
+          await use.start(
+            { accountId: person.accountId, universeId: person.universeId, privacyEpoch: 1 },
+            {
+              version: 'clear-exploration.v1',
+              commandId,
+              expectedPrivacyEpoch: 1,
+              confirmation: 'clear-exploration-preserve-keep-and-social',
+            },
+          ),
+        ).toMatchObject({ kind: 'entered', value: { kind: 'ok' } });
+        await use.process({ v: 1, accountId: person.accountId, commandId });
+      } finally {
+        await installer.stop({ graceful: false });
+      }
+    }
+
+    it('keeps a scout through a Clear of exploration history, and ends only a call in flight (counted, never handed back)', async () => {
+      const posted = await libraryScroll(world.db, 'A Scroll the scout already found', 10, ASTRO);
+      const inFlight = await libraryScroll(world.db, 'A Scroll its next call is about', 20, ASTRO);
+      const scene = await sent();
+      await scoutBeat(world).look(scene.slug, scene.owner);
+      expect((await finds(scene.roomId))[0]).toMatchObject({ root_asset_id: posted });
+      // A call that was in flight when the person cleared: a labelled fixture row, as a scout's turn is while its model is called.
+      const turnId = randomUUID();
+      await sql`insert into rooms.ai_turns (turn_id, room_id, trigger, state, decided_by, created_at, find_asset_id, find_asset_revision, requested_by_account_id)
+        values (${turnId}::uuid, ${scene.roomId}::uuid, 'scout_find', 'queued', 'caps_clear', now(), ${inFlight}::uuid, 1, ${scene.owner.accountId}::uuid)`.execute(
+        world.db,
+      );
+      await clearExploration(scene.owner);
+      // The setting holds no reading, so it stays, as does what the scout already posted.
+      expect(await scoutRow(world.db, scene.roomId, scene.owner)).toMatchObject({ interests: [ASTRO], paused: false });
+      expect(await finds(scene.roomId)).toHaveLength(1);
+      expect(roomsErasure.clearExploration?.dispositions['rooms.scouts']).toBe('preserve');
+      // The call in flight ended, and stays counted: a Clear does not give a paid call back.
+      const turn = await database.db
+        .selectFrom('rooms.ai_turns')
+        .selectAll()
+        .where('turn_id', '=', turnId)
+        .executeTakeFirst();
+      expect(turn).toMatchObject({ state: 'failed', dispatched: true });
+    });
+
     it('exports the scouts a person sent and what they posted in their name, and deletes all of it with their account: the notes become tombstones and the others’ replies stay', async () => {
       await libraryScroll(world.db, 'A Scroll for the export and the deletion', 10, ASTRO);
       const { roomId, slug } = await seedRoom(world);
