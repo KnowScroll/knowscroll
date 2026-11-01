@@ -183,9 +183,16 @@ describe('a scout’s find in the feed', () => {
 });
 
 describe('the feed screen’s scout button', () => {
-  it('is not there while scouts are off in this world', async () => {
+  it('is not there while scouts are off in this world, and the subtitle names no scouts', async () => {
     await show(feed());
     expect(screen.queryByTestId('feed-scout-open')).not.toBeOnTheScreen();
+    expect(screen.getByText('Posts from this room’s people and residents')).toBeOnTheScreen();
+    expect(screen.queryByText(/scouts/)).not.toBeOnTheScreen();
+  });
+
+  it('names scouts in the subtitle once they are on in this world', async () => {
+    await show(feed({ scout: none }));
+    expect(screen.getByText('Posts from this room’s people, residents and scouts')).toBeOnTheScreen();
   });
 
   it('offers to send one, then opens the sheet', async () => {

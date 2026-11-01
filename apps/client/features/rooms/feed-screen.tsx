@@ -257,7 +257,11 @@ function FeedRoom({ scope, roomId }: { readonly scope: AccountScope; readonly ro
     <ScrollView contentContainerStyle={styles.scroll} testID="feed-screen">
       <ThreadHeader
         title="Feed"
-        people="Posts from this room’s people, residents and scouts"
+        people={
+          view.scout === undefined
+            ? 'Posts from this room’s people and residents'
+            : 'Posts from this room’s people, residents and scouts'
+        }
         onBack={back}
         onMenu={undefined}
       />
