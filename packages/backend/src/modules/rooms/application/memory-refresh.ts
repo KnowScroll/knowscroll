@@ -145,18 +145,28 @@ export function makeMemoryRefresh(
     };
   }
 
-  /** Step 3: store the words if everything the call read is still retained, and settle the turn either way. */
+  /**
+   * Step 3: store the words if everything the call read is still retained and the words still pass, and settle the turn
+   * either way. The room's row is taken exclusively first: a removal, a keep-out and a deletion each take it shared before
+   * they touch a message, so one that has not committed is waited for, and one that comes later waits for this transaction
+   * and then erases what is stored here (D-247).
+   */
   async function apply(call: Call, text: string, attemptId: string): Promise<MemoryLook> {
     const { turn, window } = call;
     const stored = await withRoomScope(authority, async (scope) => {
       const at = p.now();
-      const retained = await store.stillReadable(
-        scope,
-        call.room.roomId,
-        window.map((message) => message.messageId),
-      );
+      const locked = await store.lockRoom(scope, call.room.roomId);
+      const retained =
+        locked === undefined
+          ? 0
+          : await store.stillReadable(
+              scope,
+              call.room.roomId,
+              window.map((message) => message.messageId),
+            );
       // A message it read was removed, kept out or deleted while the call ran: the words are never stored. The call was made.
-      const words = retained === window.length && memoryProblem(text, 'residents') === undefined;
+      const words =
+        locked !== undefined && retained === window.length && memoryProblem(text, 'residents') === undefined;
       if (words)
         await store.storeMemory(scope, {
           roomId: call.room.roomId,

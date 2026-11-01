@@ -322,13 +322,16 @@ export function feedStore(db: Kysely<Database>): FeedStore {
 
     async stillReadable(scope, roomId, messageIds) {
       if (messageIds.length === 0) return 0;
+      // FOR SHARE: a removal, a keep-out or a deletion that has changed one of these rows and not yet committed is waited for,
+      // and the row is read again as committed. The count in the outer query cannot take a lock itself.
       const rows = await sql<{ n: string }>`
-        select count(*) as n from rooms.messages message
-        join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
-        join rooms.members member on member.room_id = discussion.room_id and member.account_id = message.author_account_id
-        where discussion.room_id = ${roomId}::uuid and message.message_id = any(${[...messageIds]}::uuid[]) and ${READABLE}`.execute(
-        productionTransactionOf(scope),
-      );
+        select count(*) as n from (
+          select message.message_id from rooms.messages message
+          join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
+          join rooms.members member on member.room_id = discussion.room_id and member.account_id = message.author_account_id
+          where discussion.room_id = ${roomId}::uuid and message.message_id = any(${[...messageIds]}::uuid[]) and ${READABLE}
+          for share of message, member
+        ) readable`.execute(productionTransactionOf(scope));
       return Number(rows.rows[0]?.n ?? 0);
     },
 

@@ -92,6 +92,21 @@ async function failQueuedTurns(trx: ReturnType<typeof transactionOf>, universeId
 }
 
 /**
+ * Takes the row of every room the account wrote in, shared and in id order, before anything else of theirs is touched. A
+ * hide and a keep-out take it shared, and the residents' memory takes it exclusively before it stores words: so a memory
+ * that read this person's messages is either written before this deletion starts (and erased below) or after it commits
+ * (and cannot read them), never in between (D-247). Shared locks do not wait for each other, so deletions and sends are
+ * not slowed down.
+ */
+async function lockRoomsOf(trx: ReturnType<typeof transactionOf>, account: string): Promise<void> {
+  await sql`select room_id from rooms.rooms
+    where room_id in (select discussion.room_id from rooms.messages message
+      join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
+      where message.author_account_id = ${account}::uuid)
+    order by room_id for share`.execute(trx);
+}
+
+/**
  * Takes the row of every discussion the account wrote in or started, in id order, before anything else of
  * theirs is touched. A send in flight holds its discussion's row; waiting here first, in one order, means
  * two deletions that touch the same discussions never wait on each other in opposite orders.
@@ -179,12 +194,14 @@ export const roomsErasure: ModuleErasure = declareErasure({
 
   /**
    * Account deletion, after every universe eraser (D-043). Idempotent: a second run finds nothing to
-   * change. Only rows keyed by this account, and the discussions' atomic counters, are touched, so
-   * no room lock is needed and it is safe beside a concurrent send.
+   * change. Only rows keyed by this account, and the discussions' atomic counters, are touched. The rooms the
+   * person wrote in are held shared first (the memory's writer takes them exclusively); that does not wait for
+   * a send or a hide, so it is safe beside them.
    */
   async eraseAccount(scope) {
     const trx = transactionOf(scope.personal);
     const account = scope.accountId;
+    await lockRoomsOf(trx, account);
     await lockDiscussionsOf(trx, account);
     let removed = 0;
     const count = (result: { numAffectedRows?: bigint | undefined }) => Number(result.numAffectedRows ?? 0);

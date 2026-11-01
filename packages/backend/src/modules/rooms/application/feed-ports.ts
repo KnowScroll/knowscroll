@@ -142,7 +142,11 @@ export interface FeedStore {
    * does not keep theirs out, in every discussion of the room, oldest first. No topic title, no card, no resident's words.
    */
   memoryWindow(scope: ProductionScopeTx, roomId: string, limit: number): Promise<readonly MemoryMessage[]>;
-  /** How many of these messages are still retained and readable now: they are what a refresh read, checked again before its words are stored. */
+  /**
+   * How many of these messages are still retained and readable now: they are what a refresh read, checked again before its
+   * words are stored. The messages and their authors' member rows are locked shared while they are counted, so a removal,
+   * a keep-out or a deletion in flight is waited for and its committed result is what is counted.
+   */
   stillReadable(scope: ProductionScopeTx, roomId: string, messageIds: readonly string[]): Promise<number>;
   /** When the room's last refresh that made a call and wrote nothing ended, if one did lately. */
   lastUnwrittenRefreshAt(scope: ProductionScopeTx, roomId: string, since: Date): Promise<Date | undefined>;

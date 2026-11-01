@@ -4,7 +4,7 @@
  * removed, kept out or deleted, and never carrying a kept-out member’s words; replaced by a moderator, with an audit row.
  */
 import { randomUUID } from 'node:crypto';
-import { sql } from 'kysely';
+import { sql, type Transaction } from 'kysely';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eraseCurrentAccount, exportCurrentPerson } from '@knowscroll/backend/erasure-registry';
 import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
@@ -12,6 +12,7 @@ import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infras
 import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
+import { gate } from '../support/fixture-model.js';
 import {
   feedHeartbeat,
   feedTurns,
@@ -338,6 +339,167 @@ describe('what the residents remember (real PostgreSQL, CI fixture model)', () =
       expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
       expect(await memoryRow(world.db, r.roomId)).toMatchObject({ state: 'stale', body: null });
       expect(await seen(r, r.members[0]!)).toEqual({ state: 'none' });
+    });
+  });
+
+  describe('a removal that commits just after the check', () => {
+    /** How many backends of this database are waiting for a lock right now. */
+    const waiting = async () =>
+      Number(
+        (
+          await sql<{ n: string }>`select count(*) as n from pg_stat_activity
+            where datname = current_database() and wait_event_type = 'Lock'`.execute(world.db)
+        ).rows[0]!.n,
+      );
+    /** Resolves when something is waiting for a lock, or after five seconds (nothing was going to wait). */
+    const somethingWaits = () =>
+      expect
+        .poll(waiting, { timeout: 5_000 })
+        .toBeGreaterThan(0)
+        .catch(() => undefined);
+
+    /**
+     * One refresh whose call is in flight while a removal is open in a second transaction: `before` is what it has done
+     * when the call returns, `after` what it does once the store step has run into it (it waits for it or, with nothing to
+     * wait for, finishes). Only then does the removal commit, so what is left is what a real concurrent removal would have
+     * left behind.
+     */
+    async function refreshWhileOpen(
+      r: Room,
+      removal: { before(trx: Transaction<Database>): Promise<void>; after?(trx: Transaction<Database>): Promise<void> },
+    ) {
+      const holding = gate();
+      const commit = gate();
+      let removing: Promise<void> | undefined;
+      const { look } = feedHeartbeat(world, async () => {
+        removing = world.db.transaction().execute(async (trx) => {
+          try {
+            await removal.before(trx);
+          } finally {
+            holding.open();
+          }
+          await commit.promise;
+          await removal.after?.(trx);
+        });
+        await holding.promise;
+        return memory();
+      });
+      at('2026-11-01T01:00:00Z');
+      const looking = look(r.slug);
+      await Promise.race([looking, somethingWaits()]);
+      commit.open();
+      await removing;
+      return looking;
+    }
+
+    /** A deletion's change to the first message of a person: it becomes a tombstone. */
+    const tombstoneOneOf = async (trx: Transaction<Database>, r: Room, person: Friend): Promise<void> => {
+      await sql`with bumped as (
+          update rooms.discussions set last_change_sequence = last_change_sequence + 1
+          where discussion_id = ${r.general}::uuid returning last_change_sequence)
+        update rooms.messages set author_account_id = null, command_id = null, body_text = null, asset_id = null,
+          asset_revision = null, note = null, topic_discussion_id = null,
+          change_sequence = (select last_change_sequence from bumped)
+        where message_id = (select message_id from rooms.messages
+          where discussion_id = ${r.general}::uuid and author_account_id = ${person.accountId}::uuid
+          order by sequence limit 1)`.execute(trx);
+    };
+
+    it('is not stored with the words a hide took out, when the hide commits just after the check', async () => {
+      const r = await room(3);
+      const sent = await talk(r, 12);
+      const result = await refreshWhileOpen(r, {
+        // What hiding does: the room shared, then the message. Its hook finds no memory yet, so it has nothing to erase.
+        async before(trx) {
+          await sql`select room_id from rooms.rooms where room_id = ${r.roomId}::uuid for share`.execute(trx);
+          await sql`with bumped as (
+              update rooms.discussions set last_change_sequence = last_change_sequence + 1
+              where discussion_id = ${r.general}::uuid returning last_change_sequence)
+            update rooms.messages set hidden_at = now(), change_sequence = (select last_change_sequence from bumped)
+            where message_id = ${sent[5]!}::uuid`.execute(trx);
+        },
+      });
+      expect(result.memory).toEqual({ kind: 'not_written', reason: 'not_stored' });
+      expect(await memoryRow(world.db, r.roomId)).toBeUndefined();
+      expect((await feedTurns(world.db, r.roomId))[0]).toMatchObject({ state: 'failed', dispatched: true });
+    });
+
+    it('is not stored with the words of a deletion that has changed the messages and not yet committed', async () => {
+      const r = await room(2);
+      const leaving = await namedPerson();
+      unwrap(await joinRoom(world, leaving, r.roomId));
+      await talk({ ...r, members: [r.members[0]!, leaving, r.members[1]!] }, 12);
+      const result = await refreshWhileOpen(r, {
+        // The deletion's own change to a message, with no room lock of its own: the check has to wait for the row.
+        before: (trx) => tombstoneOneOf(trx, r, leaving),
+      });
+      expect(result.memory).toEqual({ kind: 'not_written', reason: 'not_stored' });
+      expect(await memoryRow(world.db, r.roomId)).toBeUndefined();
+    });
+
+    it('waits for a deletion that holds the room and changes the messages only after the check began', async () => {
+      const r = await room(2);
+      const leaving = await namedPerson();
+      unwrap(await joinRoom(world, leaving, r.roomId));
+      await talk({ ...r, members: [r.members[0]!, leaving, r.members[1]!] }, 12);
+      const result = await refreshWhileOpen(r, {
+        // What a deletion does first: the room shared. Its hook finds no memory yet; the tombstones come later.
+        async before(trx) {
+          await sql`select room_id from rooms.rooms where room_id = ${r.roomId}::uuid for share`.execute(trx);
+        },
+        after: (trx) => tombstoneOneOf(trx, r, leaving),
+      });
+      expect(result.memory).toEqual({ kind: 'not_written', reason: 'not_stored' });
+      expect(await memoryRow(world.db, r.roomId)).toBeUndefined();
+    });
+
+    it('is not stored with the words of a member who keeps theirs out just after the check', async () => {
+      const r = await room(3);
+      await talk(r, 12);
+      const result = await refreshWhileOpen(r, {
+        // What keeping out does: the room shared, then the member's row.
+        async before(trx) {
+          await sql`select room_id from rooms.rooms where room_id = ${r.roomId}::uuid for share`.execute(trx);
+          await sql`update rooms.members set keep_out = true
+            where room_id = ${r.roomId}::uuid and account_id = ${r.members[1]!.accountId}::uuid`.execute(trx);
+        },
+      });
+      expect(result.memory).toEqual({ kind: 'not_written', reason: 'not_stored' });
+      expect(await memoryRow(world.db, r.roomId)).toBeUndefined();
+    });
+
+    it('is erased by a deletion that begins while the memory is being stored, however the two interleave', async () => {
+      const r = await room(2);
+      const leaving = await namedPerson();
+      unwrap(await joinRoom(world, leaving, r.roomId));
+      await talk({ ...r, members: [r.members[0]!, leaving, r.members[1]!] }, 12);
+      const holding = gate();
+      const commit = gate();
+      // The store step as the refresh runs it: the room's row exclusively, then the words it read the person's messages for.
+      const storing = world.db.transaction().execute(async (trx) => {
+        await sql`select room_id from rooms.rooms where room_id = ${r.roomId}::uuid for update`.execute(trx);
+        holding.open();
+        await commit.promise;
+        await sql`insert into rooms.room_memory (room_id, state, source, body, covers_from, covers_through, messages_read, updated_at)
+          select ${r.roomId}::uuid, 'ready', 'derived', ${MEMORY_TEXT}, min(message.recorded_at), max(message.recorded_at),
+            count(*), now()
+          from rooms.messages message join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
+          where discussion.room_id = ${r.roomId}::uuid`.execute(trx);
+      });
+      await holding.promise;
+      const receiptId = randomUUID();
+      const deleting = deleteAccountFor(database.db, boss, {
+        eraseAccountData: eraseCurrentAccount,
+        lockTimeoutMs: 20_000,
+      });
+      expect((await deleting.request(leaving.authority, { receiptId })).kind).toBe('accepted');
+      const processing = deleting.process({ v: 1, deletionId: receiptId });
+      // The deletion waits for the room. With nothing to wait for it finishes first, and the check below catches that.
+      await Promise.race([processing, somethingWaits()]);
+      commit.open();
+      await storing;
+      expect(await processing).toBe('completed');
+      expect(await memoryRow(world.db, r.roomId)).toMatchObject({ state: 'stale', body: null });
     });
   });
 
