@@ -1,37 +1,46 @@
 import { stableUuid } from '../../../infrastructure/ids/index.js';
 import type {
   ContextItem,
+  ProductionAttemptAccounting,
   ProductionAuthority,
   ProductionReasoningHarness,
   ProposeOutcome,
   ReasoningRole,
   WithProductionScope,
 } from '../../../reasoning/public.js';
-import type { SentenceUnderCheck, SupportRecord, UnsupportedVerdict } from '../domain/ask-support.js';
-import { pauseCode, uncheckedCode } from './answer-check-step.js';
 import {
-  askSupportContext,
-  askSupportRole,
-  recordOfNothing,
-  recordOfReply,
-  supportRepairItems,
-  supportRepairRole,
-  verdictsOf,
-} from './ask-support.js';
+  ASK_SUPPORT_MAX_BATCHES,
+  batchesOf,
+  checkedRecord,
+  uncheckedRecord,
+  type SentenceUnderCheck,
+  type SentenceVerdict,
+  type SupportRecord,
+  type UnsupportedVerdict,
+} from '../domain/ask-support.js';
+import { pauseCode, uncheckedCode } from './answer-check-step.js';
+import { askSupportContext, askSupportRole, supportRepairItems, supportRepairRole, verdictsOf } from './ask-support.js';
 import type { EvidencePassage } from './evidence.js';
 import { withAccounting, writerReceipt } from './receipts.js';
-import type { RoleReceipt } from './types.js';
-import type { SentenceVerdict } from '../domain/ask-support.js';
+import type { ClosingRun, RoleReceipt } from './types.js';
 
 /**
- * The run of the checker for one draft, derived from the job: a redelivery asks the ledger for the answer it already
- * holds instead of paying for the question again. Each draft has a run of its own.
+ * The run of the checker for one batch of one draft, derived from the job: a redelivery asks the ledger for the answer
+ * it already holds instead of paying for the question again. Each draft, and each batch of a long answer, has a run of
+ * its own.
  */
-export const askSupportRunId = (jobId: string, draft: 1 | 2): string =>
-  stableUuid(`content.ask-support-check:${jobId}:${String(draft)}`);
+export const askSupportRunId = (jobId: string, draft: 1 | 2, batch: number): string =>
+  stableUuid(`content.ask-support-check:${jobId}:${String(draft)}:${String(batch)}`);
 
 /** The run of the one writer repair an unsupported sentence earns, derived from the job for the same reason. */
 export const askSupportRepairRunId = (jobId: string): string => stableUuid(`content.ask-support-repair:${jobId}`);
+
+/** What asking the checker about one batch came to. */
+type BatchOutcome =
+  | { readonly kind: 'verdicts'; readonly verdicts: readonly SentenceVerdict[]; readonly repaired: boolean }
+  | { readonly kind: 'nothing'; readonly code: string }
+  | { readonly kind: 'paused'; readonly code: string }
+  | { readonly kind: 'advanced' };
 
 export interface AskSupportStepDependencies {
   readonly authority: ProductionAuthority;
@@ -41,13 +50,16 @@ export interface AskSupportStepDependencies {
 
 /** What asking the checker about one draft came to. */
 export type SupportCheckOutcome =
-  /** The checker answered (`record.kind` `checked`) or gave nothing usable (`unchecked`). The run is finished either way. */
+  /**
+   * The checker answered for every batch (`record.kind` `checked`) or gave nothing usable (`unchecked`: one batch had no
+   * usable reply, so none of the answer is known). The runs are finished either way; `runs` are those the check opened.
+   */
   | {
       readonly kind: 'done';
       readonly record: SupportRecord;
       readonly verdicts: readonly SentenceVerdict[];
       readonly receipt: RoleReceipt;
-      readonly runId: string;
+      readonly runs: readonly ClosingRun[];
     }
   /** A daily budget or the provider's quota is used up: nothing was sent and the job stays open. */
   | { readonly kind: 'paused'; readonly code: string }
@@ -110,45 +122,92 @@ export function makeAskSupportStep(deps: AskSupportStepDependencies) {
     return accounted.kind === 'entered' && accounted.value.kind === 'accounted' ? accounted.value.attempts : [];
   }
 
-  async function check(input: SupportCheckInput): Promise<SupportCheckOutcome> {
-    const runId = askSupportRunId(input.jobId, input.draft);
+  /** One request about one batch of sentences, in the batch's own run. */
+  async function askBatch(
+    input: SupportCheckInput,
+    batch: readonly SentenceUnderCheck[],
+    batchIndex: number,
+    repairAllowed: boolean,
+  ): Promise<BatchOutcome> {
     const result = await deps.harness.proposeProduction(
       {
         run: {
-          id: runId,
+          id: askSupportRunId(input.jobId, input.draft, batchIndex),
           authority: deps.authority,
           ownerModule: 'content',
           purpose: 'ask-support-check',
           policyVersion: input.policyVersion,
         },
-        role: askSupportRole(input.sentences, input.passages),
+        role: askSupportRole(batch, input.passages),
         context: {
-          bundleRef: `scroll:${input.jobId}:ask-support:${String(input.draft)}`,
-          items: askSupportContext(input.sentences, input.passages),
+          bundleRef: `scroll:${input.jobId}:ask-support:${String(input.draft)}:${String(batchIndex)}`,
+          items: askSupportContext(batch, input.passages),
         },
+        limits: { allowRepair: repairAllowed },
       },
       input.signal,
     );
     if (result.kind === 'refused' && result.reason === 'run_closed') return { kind: 'advanced' };
     if (result.kind === 'budget_exhausted' || result.kind === 'quota_unavailable')
       return { kind: 'paused', code: pauseCode(result) };
-    const verdicts = result.kind === 'proposed' ? verdictsOf(result.output) : [];
+    if (result.kind !== 'proposed') return { kind: 'nothing', code: uncheckedCode(result) };
+    return { kind: 'verdicts', verdicts: verdictsOf(result.output), repaired: result.repaired };
+  }
+
+  /** The outcome of a check that is over: the record, the receipt with every paid attempt, and the runs to close. */
+  function finished(
+    input: SupportCheckInput,
+    batches: number,
+    verdicts: readonly SentenceVerdict[],
+    unusableCode: string | undefined,
+    runs: readonly ClosingRun[],
+    attempts: readonly ProductionAttemptAccounting[],
+  ): SupportCheckOutcome {
     const record =
-      result.kind === 'proposed'
-        ? recordOfReply(input.draft, result.output)
-        : recordOfNothing(input.draft, input.sentences.length, uncheckedCode(result));
-    const receipt: RoleReceipt = withAccounting(
+      unusableCode === undefined
+        ? checkedRecord(input.draft, verdicts, batches)
+        : uncheckedRecord(input.draft, input.sentences.length, batches, unusableCode);
+    const receipt = withAccounting(
       {
         role: 'support_check',
         kind: record.kind,
         draft: input.draft,
         sentences: record.sentences,
+        batches: record.batches,
         unsupported: record.unsupported,
         ...(record.code === undefined ? {} : { code: record.code }),
       },
-      await attemptsOf(runId),
+      attempts,
     );
-    return { kind: 'done', record, verdicts, receipt, runId };
+    return { kind: 'done', record, verdicts: unusableCode === undefined ? verdicts : [], receipt, runs };
+  }
+
+  /**
+   * Asks the checker about a draft, a batch of sentences at a time (D-263), one after the other. The first batch with no
+   * usable reply makes the whole check unusable and the later batches are not asked. The harness repairs one unusable
+   * reply in the whole check, wherever it happens, so a draft costs its batches plus one.
+   */
+  async function check(input: SupportCheckInput): Promise<SupportCheckOutcome> {
+    const batches = batchesOf(input.sentences);
+    if (batches.length > ASK_SUPPORT_MAX_BATCHES) return finished(input, batches.length, [], 'answer_too_long', [], []);
+    const verdicts: SentenceVerdict[] = [];
+    const runs: ClosingRun[] = [];
+    const attempts: ProductionAttemptAccounting[] = [];
+    let repairAllowed = true;
+    for (const [index, batch] of batches.entries()) {
+      const outcome = await askBatch(input, batch, index, repairAllowed);
+      if (outcome.kind === 'advanced' || outcome.kind === 'paused') return outcome;
+      const runId = askSupportRunId(input.jobId, input.draft, index);
+      attempts.push(...(await attemptsOf(runId)));
+      if (outcome.kind === 'nothing') {
+        runs.push({ runId, state: 'failed' });
+        return finished(input, batches.length, [], outcome.code, runs, attempts);
+      }
+      runs.push({ runId, state: 'completed' });
+      verdicts.push(...outcome.verdicts);
+      repairAllowed = repairAllowed && !outcome.repaired;
+    }
+    return finished(input, batches.length, verdicts, undefined, runs, attempts);
   }
 
   async function repair(input: SupportRepairInput): Promise<SupportRepairOutcome> {
