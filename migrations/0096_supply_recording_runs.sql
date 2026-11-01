@@ -18,6 +18,8 @@
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';
 
+-- Only widens the allowed owners; the replacement immediately enforces everything the old shape did, plus Supply.
+-- squawk-ignore ban-drop-constraint
 alter table reasoning.business_runs drop constraint reasoning_personal_recording_proof_shape;
 alter table reasoning.business_runs
   add constraint reasoning_personal_recording_proof_shape check (
