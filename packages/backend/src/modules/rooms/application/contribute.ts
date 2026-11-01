@@ -58,7 +58,7 @@ async function standingAsk(p: ContributePorts, scope: PersonalScopeTx, requestId
  *
  * Steps: (1) one transaction rechecks authority, reads this room's own discussion and reduces it to
  * the bounded context, and learns the generation the asker's recording is at; (2) outside any transaction the
- * recording-aware harness makes one model call (plus at most one repair) on the ask's own run, at that generation (D-268);
+ * recording-aware harness makes one model call (plus at most one repair) on the ask's own run, at that generation (D-270);
  * (3) one transaction under the recording fence rechecks the asker is still a member of an open room, stores the message with
  * its provenance (role and prompt versions, model, attempt) and closes the run. Nothing is stored when authority is gone: a
  * member who left or was removed, a paused room, or an asker who paused, resumed or cleared their recording cancels the

@@ -69,6 +69,7 @@ function denied() {
     close: vi.fn(),
     closeLegacy: vi.fn(),
     readAccounting: vi.fn(),
+    currentOwner: vi.fn(),
   };
   const ports = {
     personalAccess: access,
@@ -91,15 +92,35 @@ function denied() {
   } as unknown as HarnessPorts;
   const checkPlanner = vi.fn(() => Promise.resolve('unavailable' as const)),
     checkGeography = vi.fn(() => Promise.resolve('unavailable' as const)),
-    checkSupply = vi.fn(() => Promise.resolve('unavailable' as const));
+    checkSupply = vi.fn(() => Promise.resolve('unavailable' as const)),
+    checkScenarios = vi.fn(() => Promise.resolve('unavailable' as const)),
+    checkRooms = vi.fn(() => Promise.resolve('unavailable' as const)),
+    checkComposer = vi.fn(() => Promise.resolve('unavailable' as const));
   const harness = makePersonalRecordingReasoningHarness({
     engine: ports,
     checkPlanner,
     checkGeography,
     checkSupply,
+    checkScenarios,
+    checkRooms,
+    checkComposer,
     hashContext: canonicalSha256,
   });
-  return { harness, enter, read, model, quota, send, ports, checkPlanner, checkGeography, checkSupply };
+  return {
+    harness,
+    enter,
+    read,
+    model,
+    quota,
+    send,
+    ports,
+    checkPlanner,
+    checkGeography,
+    checkSupply,
+    checkScenarios,
+    checkRooms,
+    checkComposer,
+  };
 }
 
 describe('personal recording facade strict protocol (authored source fixtures only)', () => {
@@ -165,19 +186,35 @@ describe('personal recording facade strict protocol (authored source fixtures on
   });
   it('requires every real owner port at construction and selects only its exact closed pair', async () => {
     expect(() =>
-      recordingOwnerDispatcher({ checkPlanner: undefined, checkGeography: undefined, checkSupply: undefined } as never),
+      recordingOwnerDispatcher({
+        checkPlanner: undefined,
+        checkGeography: undefined,
+        checkSupply: undefined,
+        checkScenarios: undefined,
+        checkRooms: undefined,
+        checkComposer: undefined,
+      } as never),
     ).toThrow('PERSONAL_RECORDING_OWNERS_REQUIRED');
     const planner = vi.fn(() => Promise.resolve('unavailable' as const)),
       geography = vi.fn(() => Promise.resolve('unavailable' as const)),
-      supply = vi.fn(() => Promise.resolve('unavailable' as const));
-    expect(() => recordingOwnerDispatcher({ checkPlanner: planner, checkGeography: geography } as never)).toThrow(
-      'PERSONAL_RECORDING_OWNERS_REQUIRED',
-    );
-    const dispatch = recordingOwnerDispatcher({
+      supply = vi.fn(() => Promise.resolve('unavailable' as const)),
+      scenarios = vi.fn(() => Promise.resolve('unavailable' as const)),
+      rooms = vi.fn(() => Promise.resolve('unavailable' as const)),
+      composer = vi.fn(() => Promise.resolve('unavailable' as const));
+    const all = {
       checkPlanner: planner,
       checkGeography: geography,
       checkSupply: supply,
-    });
+      checkScenarios: scenarios,
+      checkRooms: rooms,
+      checkComposer: composer,
+    };
+    // Each owner is required on its own: leaving any one out is refused at construction.
+    for (const left of Object.keys(all))
+      expect(() => recordingOwnerDispatcher({ ...all, [left]: undefined } as never)).toThrow(
+        'PERSONAL_RECORDING_OWNERS_REQUIRED',
+      );
+    const dispatch = recordingOwnerDispatcher(all);
     // This object tests dispatch selection only; the real adapter validates capability provenance first.
     const scope = {} as RecordingScopeTx;
     expect(await dispatch(scope, purpose)).toBe('unavailable');
@@ -189,6 +226,16 @@ describe('personal recording facade strict protocol (authored source fixtures on
     expect(geography).toHaveBeenCalledOnce();
     expect(supply).not.toHaveBeenCalled();
     expect(await dispatch(scope, { ...purpose, ownerModule: 'supply', purpose: 'ask-scope' })).toBe('unavailable');
+    expect(supply).toHaveBeenCalledOnce();
+    // Each other owner's purposes reach that owner's check and no other.
+    expect(await dispatch(scope, { ...purpose, ownerModule: 'scenarios', purpose: 'suggest' })).toBe('unavailable');
+    expect(await dispatch(scope, { ...purpose, ownerModule: 'rooms', purpose: 'inhabitant-contribution' })).toBe(
+      'unavailable',
+    );
+    expect(await dispatch(scope, { ...purpose, ownerModule: 'composer', purpose: 'jev-assessment' })).toBe(
+      'unavailable',
+    );
+    for (const check of [scenarios, rooms, composer]) expect(check).toHaveBeenCalledOnce();
     expect(supply).toHaveBeenCalledOnce();
     // A pair that is not one of the closed set reaches no owner at all, though the type would not let code build one.
     const mismatched = (over: Record<string, unknown>) =>
@@ -205,28 +252,29 @@ describe('personal recording facade strict protocol (authored source fixtures on
     expect(c.harness.contextDigest(extra)).toBe(purpose.modelContextSha256);
     expect(c.harness.contextDigest({ ...extra, bundleRef: 'other:1' })).not.toBe(purpose.modelContextSha256);
   });
-  it('accepts a Supply step for Supply only, at an odd generation, and nothing else of its', () => {
-    for (const supplyPurpose of ['ask-scope', 'step-two'])
-      expect(parsePersonalRecordingPurpose({ ...purpose, ownerModule: 'supply', purpose: supplyPurpose })).toEqual({
-        ...purpose,
-        ownerModule: 'supply',
-        purpose: supplyPurpose,
-      });
-    // The engine only checks that a Supply step is named by a code; the schema and Supply's owner hold the list.
-    expect(parsePersonalRecordingPurpose({ ...purpose, ownerModule: 'supply', purpose: 'Ask Scope' })).toBeUndefined();
-    expect(parsePersonalRecordingPurpose({ ...purpose, ownerModule: 'supply', purpose: '' })).toBeUndefined();
+  it.each(['supply', 'scenarios', 'rooms', 'composer'] as const)(
+    'accepts a %s step for that owner only, at an odd generation, and nothing else of its',
+    (owner) => {
+      for (const step of ['ask-scope', 'step-two'])
+        expect(parsePersonalRecordingPurpose({ ...purpose, ownerModule: owner, purpose: step })).toEqual({
+          ...purpose,
+          ownerModule: owner,
+          purpose: step,
+        });
+      // The engine only checks that a step is named by a code; the schema and the owner's check hold the list.
+      expect(parsePersonalRecordingPurpose({ ...purpose, ownerModule: owner, purpose: 'Ask Scope' })).toBeUndefined();
+      expect(parsePersonalRecordingPurpose({ ...purpose, ownerModule: owner, purpose: '' })).toBeUndefined();
+      expect(
+        parsePersonalRecordingPurpose({ ...purpose, ownerModule: owner, purpose: 'ask-scope', recordingGeneration: 4 }),
+      ).toBeUndefined();
+    },
+  );
+  it('keeps the Planner and the Cartographer to their one purpose each, and knows no other owner', () => {
+    expect(parsePersonalRecordingPurpose({ ...purpose, ownerModule: 'content', purpose: 'ask-scope' })).toBeUndefined();
     expect(
       parsePersonalRecordingPurpose({ ...purpose, ownerModule: 'geography', purpose: 'ask-scope' }),
     ).toBeUndefined();
     expect(parsePersonalRecordingPurpose({ ...purpose, ownerModule: 'planner', purpose: 'ask-scope' })).toBeUndefined();
-    expect(
-      parsePersonalRecordingPurpose({
-        ...purpose,
-        ownerModule: 'supply',
-        purpose: 'ask-scope',
-        recordingGeneration: 4,
-      }),
-    ).toBeUndefined();
   });
   it('lets a role set its effort, and refuses one that is not a known effort, before any scope work', async () => {
     const accepted = denied();

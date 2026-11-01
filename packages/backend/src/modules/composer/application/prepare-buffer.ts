@@ -44,7 +44,7 @@ import { readVerticalCandidates, renderableFormats } from './vertical-candidates
 /** Jev, when it is switched on: the assessor, the recording-aware harness it runs on, the model and the person's pool. */
 export interface JevPorts {
   readonly assess: AssessShortlist;
-  /** Learns the generation recording is at, and closes Jev's run under that generation's fence (D-268). */
+  /** Learns the generation recording is at, and closes Jev's run under that generation's fence (D-270). */
   readonly harness: RecordingReasoningHarness;
   /** The configured model name, stored beside the assessments. */
   readonly model: string;
@@ -128,7 +128,7 @@ const skipped = (reason: PrepareBufferSkip): PrepareBufferResult => ({ kind: 'sk
  * person's stored Jev assessments, learns the generation recording is at, and builds the ranking input; (2) outside any
  * transaction, when Jev is on, it assesses only the best baseline candidates that have no usable stored assessment
  * (and none at all when there are none, or the subject was assessed minutes ago), on the recording-aware harness at that
- * generation (D-268); (3) the ranking runs with the stored and new assessments; (4) one transaction rechecks the session, adds
+ * generation (D-270); (3) the ranking runs with the stored and new assessments; (4) one transaction rechecks the session, adds
  * what was paid for to the person's pool, persists the decision, replaces the buffer and closes Jev's run. When Jev's run
  * was made it is that whole transaction that runs under the recording fence: a person who paused, resumed or cleared recording
  * meanwhile gets nothing stored (`recording_changed`) and the next navigation ranks for itself.

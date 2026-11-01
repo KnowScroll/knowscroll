@@ -64,7 +64,7 @@ export type ReadBufferSource = (
 ) => Promise<BufferSourceFacts | undefined>;
 /**
  * Whether the person has an activated exposure with this ID in the current epoch: the encounter a buffer job was made for.
- * Jev's owner check finds the record its run serves by it (D-268). A read in the caller's transaction; it decides nothing.
+ * Jev's owner check finds the record its run serves by it (D-270). A read in the caller's transaction; it decides nothing.
  */
 export type CheckActivatedExposure = (scope: PersonalScopeTx, exposureId: string) => Promise<boolean>;
 /** The subset of `assetIds` the person has hidden or marked "Not interested" (at most 100 per call). */

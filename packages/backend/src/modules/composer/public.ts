@@ -66,7 +66,7 @@ export const READ_PREPARED_EVIDENCE_INPUT = Symbol('composer.readPreparedEvidenc
 /** Served by Experience's wiring: what the buffer worker may know about an activated offer. */
 export const READ_BUFFER_SOURCE = Symbol('composer.readBufferSource');
 export const READ_HIDDEN_ASSETS = Symbol('composer.readHiddenAssets');
-/** Served by Experience's wiring: whether an exposure was activated, for Jev's owner check (D-268). */
+/** Served by Experience's wiring: whether an exposure was activated, for Jev's owner check (D-270). */
 export const CHECK_ACTIVATED_EXPOSURE = Symbol('composer.checkActivatedExposure');
 export const READ_COMPOSER_BUFFER = Symbol('composer.readBuffer');
 export const RELEASE_COMPOSER_BUFFER = Symbol('composer.releaseBuffer');

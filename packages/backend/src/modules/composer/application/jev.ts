@@ -173,7 +173,7 @@ export interface AssessShortlist {
 /**
  * Jev: a fast optional semantic assessment of a shortlist (blueprint §9). It runs only in the
  * buffer worker and never inside a database transaction, on the recording-aware harness at the generation recording was at
- * when the buffer job started (D-268). Provider failure, refusal or an unusable answer is the absence of an assessment, never a
+ * when the buffer job started (D-270). Provider failure, refusal or an unusable answer is the absence of an assessment, never a
  * negative judgement, and so is a paused recording: no run is started and no model is called.
  */
 export function makeAssessShortlist(harness: RecordingReasoningHarness): AssessShortlist {

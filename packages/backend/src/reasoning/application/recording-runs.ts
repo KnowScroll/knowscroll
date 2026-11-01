@@ -4,7 +4,7 @@ import type { PersonalRecordingPurpose, StepOwnerModule } from './ports.js';
 import type { ProposeInput, ProposeOutcome } from './propose.js';
 
 /**
- * What a module needs to run a model step for one of a person's records under their recording generation (D-264, D-268).
+ * What a module needs to run a model step for one of a person's records under their recording generation (D-264, D-270).
  *
  * A step stamps its run with the generation the person is at when it starts, runs the model outside every transaction, and
  * stores its result in the transaction that closes the run, under the same fence. A pause, a resume or a Clear while the model

@@ -34,7 +34,7 @@ type Prepared =
       readonly draftKind: ScenarioKind;
       readonly parent: ParentFacts;
       readonly context: ReturnType<typeof plannerContext>;
-      /** Absent while recording is paused: the draft is then refused without a run (D-268). */
+      /** Absent while recording is paused: the draft is then refused without a run (D-270). */
       readonly owner: RunOwner | undefined;
     };
 
@@ -47,7 +47,7 @@ type Prepared =
  * Authority: a `system` actor for the requester's universe and epoch, rechecked under the personal
  * lock in both transactions. Steps: (1) one transaction reads the still-waiting draft, the
  * requester's place in the thread, the context and the generation recording is at; (2) outside any transaction the
- * recording-aware harness makes one model call (plus at most one repair) on the draft's own run, at that generation (D-268);
+ * recording-aware harness makes one model call (plus at most one repair) on the draft's own run, at that generation (D-270);
  * (3) one transaction under the recording fence closes the run, rechecks the draft is still waiting and the member still takes
  * part, and stores the outcome. A member who left meanwhile gets nothing stored: the late answer is dropped. So is a
  * reply that comes back after the person paused, resumed or cleared recording: the draft then closes as `could_not_suggest`

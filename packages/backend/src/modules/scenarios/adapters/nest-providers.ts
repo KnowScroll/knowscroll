@@ -168,7 +168,7 @@ export function orderAudienceProviders(tokens: { readonly database: symbol }) {
 }
 
 /**
- * The owner check the recording-aware harness runs for Scenarios' personal runs (D-268): the draft or branch a run serves must
+ * The owner check the recording-aware harness runs for Scenarios' personal runs (D-270): the draft or branch a run serves must
  * still be waiting for it. Installed wherever the recording harness is (the worker), because the harness cannot be built without it.
  */
 export function scenariosRecordingOwnerProviders() {
@@ -183,7 +183,7 @@ export function scenariosRecordingOwnerProviders() {
 
 /**
  * The worker's scenarios: the planner step that answers a draft and the step that writes a what-if's short answer
- * (both run on the recording-aware personal harness, at the person's recording generation, D-268), and the sweep that
+ * (both run on the recording-aware personal harness, at the person's recording generation, D-270), and the sweep that
  * settles preparing branches and ends a short answer's wait (it needs the process's pg-boss to send a production job outside
  * a transaction).
  */

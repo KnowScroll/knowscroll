@@ -127,7 +127,7 @@ const sendProduction =
 /**
  * Supply's use cases for the API and the worker. `config` names the token of the process's
  * configuration (`SupplySettings`). The worker also passes `recordingHarness`, the recording-aware personal harness
- * (D-264, D-268), which lets its resolver match a free-text ask to the catalogue and place a question asked from a Scroll and
+ * (D-264, D-270), which lets its resolver match a free-text ask to the catalogue and place a question asked from a Scroll and
  * read it against the library Scrolls of its subject, each at the person's recording generation (it then needs content's
  * `READ_LIBRARY_PASSAGES`, the `FENCE_OWN_ACCOUNT` provider and `supplyRecordingOwnerProviders`); without them (the API,
  * tests) a waiting ask simply waits for a worker.
@@ -294,7 +294,7 @@ export function supplyProviders(t: {
   ];
 }
 /**
- * The owner check the recording-aware harness runs for Supply's personal runs (D-264, D-268): the request or the Quick answer
+ * The owner check the recording-aware harness runs for Supply's personal runs (D-264, D-270): the request or the Quick answer
  * a run serves must still be the one it was made for. Installed wherever the recording harness is
  * (the worker), because the harness cannot be built without it.
  */

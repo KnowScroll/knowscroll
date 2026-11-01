@@ -1,4 +1,4 @@
--- #595 (v3) The free-text match, Jev, the scenario steps and a room's contribution follow the person's recording generation (D-268).
+-- #595 (v3) The free-text match, Jev, the scenario steps and a room's contribution follow the person's recording generation (D-270).
 --
 -- Owner: reasoning (`reasoning.business_runs`, the recording proof of a run).
 -- Before: only the Planner, the Cartographer and Supply's four question and Quick answer steps could stamp a run with the

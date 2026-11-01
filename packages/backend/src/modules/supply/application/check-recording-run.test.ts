@@ -51,7 +51,7 @@ function checkWith(request: Demand | undefined, quickAnswer: QuickAnswerRow | un
   });
 }
 
-describe('the owner check of Supply’s recording runs (D-264)', () => {
+describe('the owner check of Supply’s recording runs (D-264, D-270)', () => {
   it('finds a question’s runs current while the request waits, at the generation it was asked at', async () => {
     const check = checkWith(askDemand(), undefined);
     for (const step of ['ask-scope', 'ask-library'])
@@ -65,6 +65,36 @@ describe('the owner check of Supply’s recording runs (D-264)', () => {
     expect(await checkWith(undefined, undefined)(scopeAt(3), purpose())).toBe('unavailable');
     const notAnAsk = { ...askDemand(), command: { intent: { kind: 'topic' } } } as unknown as Demand;
     expect(await checkWith(notAnAsk, undefined)(scopeAt(3), purpose())).toBe('unavailable');
+  });
+
+  const textDemand = (over: Partial<Demand> = {}): Demand =>
+    ({
+      id: REQUEST,
+      status: 'matching',
+      command: { intent: { kind: 'topic', subject: { kind: 'text', text: 'why is the sky blue' } } },
+      ...over,
+    }) as unknown as Demand;
+
+  it('finds a free-text match current while its request waits to be matched, at whatever generation it started', async () => {
+    const run = purpose({ purpose: 'match-request' });
+    expect(await checkWith(textDemand(), undefined)(scopeAt(3), run)).toBe('current');
+    // The request carries no generation: the harness has held the run to the one it started at.
+    expect(await checkWith(textDemand(), undefined)(scopeAt(5), purpose({ purpose: 'match-request', recordingGeneration: 5 }))).toBe(
+      'current',
+    );
+  });
+
+  it('finds a free-text match unavailable once the request is not waiting, is not free text or does not exist', async () => {
+    const run = purpose({ purpose: 'match-request' });
+    for (const status of ['requested', 'ready', 'unavailable', 'cancelled', 'deferred'] as const)
+      expect(await checkWith(textDemand({ status }), undefined)(scopeAt(3), run)).toBe('unavailable');
+    expect(await checkWith(undefined, undefined)(scopeAt(3), run)).toBe('unavailable');
+    // A question asked from a Scroll is placed by the other steps, not matched.
+    expect(await checkWith(askDemand(), undefined)(scopeAt(3), run)).toBe('unavailable');
+    const catalogue = textDemand({
+      command: { intent: { kind: 'topic', subject: { kind: 'catalogue' } } },
+    } as unknown as Partial<Demand>);
+    expect(await checkWith(catalogue, undefined)(scopeAt(3), run)).toBe('unavailable');
   });
 
   it('finds a Quick answer’s runs current while its card exists, settled or not, at the generation it was asked at', async () => {
@@ -90,7 +120,7 @@ describe('the owner check of Supply’s recording runs (D-264)', () => {
     expect(await check(scopeAt(3), purpose({ ownerModule: 'planner', purpose: 'personal-planner' }))).toBe(
       'unavailable',
     );
-    expect(await check(scopeAt(3), purpose({ purpose: 'match-request' }))).toBe('unavailable');
+    expect(await check(scopeAt(3), purpose({ purpose: 'not-a-step' }))).toBe('unavailable');
     expect(await check(scopeAt(3, id(9)), purpose())).toBe('unavailable');
     expect(await check(scopeAt(3, UNIVERSE, 2), purpose())).toBe('unavailable');
     expect(await check(scopeAt(5), purpose())).toBe('unavailable');

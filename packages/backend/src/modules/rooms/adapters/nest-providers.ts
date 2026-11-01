@@ -282,7 +282,7 @@ export function roomUseCases(deps: RoomsDeps): RoomUseCases {
 
 /**
  * The worker's consumer of `rooms.contribute`, with the recording-aware harness, the owner check and the configured model. The
- * asker's own recording generation governs the run (D-268); a resident's turn of its own runs in the room's scope instead.
+ * asker's own recording generation governs the run (D-270); a resident's turn of its own runs in the room's scope instead.
  */
 export function contributeAsInhabitant(
   deps: RoomsDeps & {
@@ -487,7 +487,7 @@ export function roomsProviders(tokens: {
 }
 
 /**
- * The owner check the recording-aware harness runs for Rooms' personal runs (D-268): the ask an AI inhabitant answers must
+ * The owner check the recording-aware harness runs for Rooms' personal runs (D-270): the ask an AI inhabitant answers must
  * still be queued for the person. Installed wherever the recording harness is (the worker), because the harness cannot be built
  * without it.
  */

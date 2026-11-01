@@ -72,7 +72,7 @@ export function composerBufferProviders(t: { readonly enqueueJob: symbol }) {
 }
 
 /**
- * The owner check the recording-aware harness runs for Jev's personal runs (D-268): the exposure a buffer job was made for must
+ * The owner check the recording-aware harness runs for Jev's personal runs (D-270): the exposure a buffer job was made for must
  * still be an activated one. Installed wherever the recording harness is (the worker), because the harness cannot be built without
  * it; it needs Experience's `CHECK_ACTIVATED_EXPOSURE`.
  */
@@ -89,7 +89,7 @@ export function composerRecordingOwnerProviders() {
 
 /**
  * The worker's side: the `composer.prepare-buffer` use case. Jev is built only when `KS_JEV_ENABLED=1`, and runs on the
- * recording-aware harness (D-268).
+ * recording-aware harness (D-270).
  */
 export function composerBufferWorkerProviders(t: {
   readonly withPersonalScope: symbol;

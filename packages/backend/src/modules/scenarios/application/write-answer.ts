@@ -35,7 +35,7 @@ type Prepared =
       readonly passages: readonly CardPassage[];
       readonly premiseTexts: readonly string[];
       readonly context: ReturnType<typeof answerContext>;
-      /** Absent while recording is paused: the answer is then refused without a run (D-268). */
+      /** Absent while recording is paused: the answer is then refused without a run (D-270). */
       readonly owner: RunOwner | undefined;
     };
 
@@ -49,7 +49,7 @@ type Prepared =
  * transactions; the starter must still take part in the thread, because their allowance pays. Steps: (1) one
  * transaction reads the still-waiting branch, the starter's place, the context and the generation recording is at; (2)
  * outside any transaction the recording-aware harness makes one model call (plus at most one repair) on the branch's own run,
- * at that generation (D-268); (3) one transaction under the recording fence closes the run, rechecks the branch still stands
+ * at that generation (D-270); (3) one transaction under the recording fence closes the run, rechecks the branch still stands
  * and its answer is still waited for, and stores the outcome. A branch removed meanwhile, or whose wait the sweep already
  * ended, gets nothing stored: the late answer is dropped. So is a reply that comes back after the person paused, resumed or
  * cleared recording: the card then ends as unavailable (a Clear leaves nothing to end), and while recording is paused the

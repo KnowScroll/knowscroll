@@ -41,7 +41,7 @@ type Authority = Parameters<SupplyPorts['withScope']>[0];
 
 /** What a waiting request needs a model to place: free text to match, or a question with the place it was asked from. */
 type Asked =
-  /** `owner` is absent while recording is paused: the match is then refused without a run (D-268). */
+  /** `owner` is absent while recording is paused: the match is then refused without a run (D-270). */
   | { readonly kind: 'text'; readonly text: string; readonly owner: RunOwner | undefined }
   /** `owner` names the account and the recording generation the question was asked at (D-264). */
   | { readonly kind: 'ask'; readonly facts: AskScopeFacts; readonly owner: RunOwner }
@@ -180,7 +180,7 @@ async function decide(
  * (3) one transaction rechecks the ask is still waiting (a cancel wins), applies the verdict, and
  * closes the run. The person's words go to the provider only through the personal harness, whose
  * protected request bytes are erased with the person.
- * Both run on the recording-aware harness (D-264, D-268). A question asked from a Scroll runs at the recording generation it was
+ * Both run on the recording-aware harness (D-264, D-270). A question asked from a Scroll runs at the recording generation it was
  * asked at. A free-text ask carries none, so it runs at the generation recording is at when this step starts, and is refused
  * without a model call while recording is paused. A person who paused and resumed gets answers, and a verdict reached before
  * a pause or a Clear is not applied.

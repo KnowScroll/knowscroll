@@ -55,7 +55,7 @@ import { writerFormatOf } from '../../../packages/backend/src/modules/content/pr
 import { makeReadAskOrderAudience } from '../../../packages/backend/src/modules/supply/adapters/postgres-ask-orders.js';
 import { makeCheckAssetAudience } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { signal, fixtureHarness, fixtureModel } from '../support/fixture-model.js';
+import { signal, fixtureModel } from '../support/fixture-model.js';
 import { recordingEntries } from '../support/recording-harness.js';
 import type { FixtureCall, FixtureScenario } from '../support/fixture-model-port.js';
 import {
@@ -146,13 +146,11 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     const SCOPE = Symbol('scope');
     const ENQUEUE = Symbol('enqueue');
     const CONFIG = Symbol('config');
-    const HARNESS = Symbol('harness');
     const RECORDING = Symbol('recording-harness');
     const providers = supplyProviders({
       withPersonalScope: SCOPE,
       enqueueJob: ENQUEUE,
       config: CONFIG,
-      harness: HARNESS,
       recordingHarness: RECORDING,
     });
     const values = new Map<symbol, unknown>([
@@ -169,7 +167,6 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       ],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [READ_EXPLORATION_SNAPSHOT, content.readExploration],
-      [HARNESS, fixtureHarness(database.db, { model: scopeModel }).harness],
       ...recordingEntries(database.db, scopeModel, RECORDING, () => beforeApply()),
       [READ_LIBRARY_PASSAGES, makeReadLibraryPassages(database.db)],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),

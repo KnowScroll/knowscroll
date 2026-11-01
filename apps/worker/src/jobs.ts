@@ -219,7 +219,7 @@ export const jobWiring: Provider[] = [
   ...formationProviders({ database: DATABASE, boss: PG_BOSS, withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...geographyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...visitRefreshProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
-  // An AI inhabitant answers a member's ask through the recording-aware personal harness (D-268); it reads people and content only.
+  // An AI inhabitant answers a member's ask through the recording-aware personal harness (D-270); it reads people and content only.
   ...socialPeopleProviders(),
   ...roomsRecordingOwnerProviders(),
   ...roomsWorkerProviders({
@@ -249,7 +249,7 @@ export const jobWiring: Provider[] = [
   },
   ...identityScopeOwnerProviders(),
   // The worker's resolver matches free-text asks and places a question asked from a Scroll through the recording-aware
-  // harness, at the person's recording generation (D-264, D-268).
+  // harness, at the person's recording generation (D-264, D-270).
   ...supplyProviders({
     withPersonalScope: WITH_PERSONAL_SCOPE,
     enqueueJob: ENQUEUE_JOB,
@@ -273,7 +273,7 @@ export const jobWiring: Provider[] = [
   // The worker persists decisions and ranks; it exposes no operator read of them.
   ...composerConfiguredProviders({ isOperator: () => false }, WORKER_CONFIG),
   ...composerBufferWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
-  // Jev runs on the recording-aware harness; its owner check asks Experience whether the exposure was activated (D-268).
+  // Jev runs on the recording-aware harness; its owner check asks Experience whether the exposure was activated (D-270).
   ...composerRecordingOwnerProviders(),
   ...contentProviders(),
   ...madeToOrderProviders({ database: DATABASE, orderAudiences: [READ_ORDER_AUDIENCE, READ_ASK_ORDER_AUDIENCE] }),
@@ -283,7 +283,7 @@ export const jobWiring: Provider[] = [
   // Who may reach a branch's Scroll, so the data export keeps a title only for those still in its thread.
   ...orderAudienceProviders({ database: DATABASE }),
   ...askOrderAudienceProviders({ database: DATABASE }),
-  // The planner step and the short-answer writer run on the recording-aware harness (D-268).
+  // The planner step and the short-answer writer run on the recording-aware harness (D-270).
   ...scenarioWorkerProviders({
     withPersonalScope: WITH_PERSONAL_SCOPE,
     database: DATABASE,

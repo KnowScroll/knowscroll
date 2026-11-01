@@ -7,7 +7,7 @@ export interface ComposerRecordingOwner {
 }
 
 /**
- * Whether the encounter a Composer run serves is still the one it was made for (D-268). The recording harness calls it, inside
+ * Whether the encounter a Composer run serves is still the one it was made for (D-270). The recording harness calls it, inside
  * the transaction it holds, after the root, the account and the recording generation are fenced; it reads one row by key and
  * nothing else, and adds what only the Composer knows.
  *
