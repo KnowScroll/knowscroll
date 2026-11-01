@@ -429,6 +429,53 @@ describe('residents’ finds (real PostgreSQL, CI fixture model)', () => {
       expect((await look(slug)).find.kind).toBe('posted');
       expect((await finds(roomId))[0]).toMatchObject({ root_asset_id: fresh });
     });
+
+    /** Makes `second` a twin of `first`: the same explanation, as a Reel and the Scroll made from it are. */
+    const makeTwins = (first: string, second: string) =>
+      sql`update content.asset_revisions set explanation_unit_id =
+          (select explanation_unit_id from content.asset_revisions where asset_id = ${first}::uuid limit 1)
+        where asset_id = ${second}::uuid`.execute(database.db);
+
+    it('counts a Reel and the Scroll of its explanation as one find: the twin of a find is not a second find', async () => {
+      const scroll = await libraryScroll(world.db, 'One explanation as a Scroll', 5);
+      const reel = await libraryReel(world.db, 'One explanation as a Reel', 20);
+      const other = await libraryScroll(world.db, 'A different explanation entirely', 60);
+      await makeTwins(scroll, reel);
+      const { roomId, slug } = await listening();
+      const { look, model } = feedHeartbeat(world);
+      at('2026-11-01T08:00:00Z');
+      expect((await look(slug)).find.kind).toBe('posted');
+      at('2026-11-01T16:00:00Z');
+      expect((await look(slug)).find.kind).toBe('posted');
+      at('2026-11-02T00:00:00Z');
+      // The Reel is not offered after the Scroll it twins: the library is dry, though it holds an asset the room never saw by ID.
+      expect((await look(slug)).find).toEqual({ kind: 'dropped', reason: 'nothing_new' });
+      expect(model.calls).toHaveLength(2);
+      expect((await finds(roomId)).map((discussion) => discussion.root_asset_id).sort()).toEqual(
+        [scroll, other].sort(),
+      );
+    });
+
+    it('counts the twin of a card a member shared as seen', async () => {
+      const shared = await libraryReel(world.db, 'A Reel a member shared', 30);
+      const twin = await libraryScroll(world.db, 'Its Scroll, the newest in the library', 1);
+      const fresh = await libraryScroll(world.db, 'Something the room has not seen', 80);
+      await makeTwins(shared, twin);
+      const { roomId, slug, people } = await listening();
+      const general = (await memberView(world, people[0]!, roomId)).general.discussionId;
+      unwrap(
+        await world.rooms.send(people[0]!.authority, {
+          version,
+          commandId: randomUUID(),
+          roomId,
+          discussionId: general,
+          body: { kind: 'content', target: { assetId: shared, assetRevision: 1 } },
+        }),
+      );
+      const { look } = feedHeartbeat(world);
+      expect((await look(slug)).find.kind).toBe('posted');
+      expect((await finds(roomId))[0]).toMatchObject({ root_asset_id: fresh });
+    });
   });
 
   describe('caps', () => {

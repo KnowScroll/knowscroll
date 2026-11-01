@@ -21,7 +21,9 @@ const listenersOf = (room: RawBuilder<unknown>) =>
 
 /**
  * Which of `assetIds` this room has seen: a find about it, a find turn that was made or is being made, or a card of it that
- * a member shared or started a thread from. One rule for the pool read and for the read under the lock.
+ * a member shared or started a thread from. An asset counts as seen when any asset of the same explanation (`explanation_unit_id`:
+ * a Reel and the Scroll made from one explanation) has been seen, so a twin is never a second find. One rule for the pool
+ * read and for the read under the lock. The unit is the only column read of the library's tables.
  */
 async function seenIn(
   trx: Kysely<Database> | Transaction<Database>,
@@ -31,16 +33,23 @@ async function seenIn(
   if (assetIds.length === 0) return new Set();
   const ids = [...assetIds];
   const result = await sql<{ asset_id: string }>`
-    select discussion.root_asset_id as asset_id from rooms.discussions discussion
-      where discussion.room_id = ${roomId}::uuid and discussion.root_asset_id = any(${ids}::uuid[])
-    union
-    select message.asset_id from rooms.messages message
-      join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
-      where discussion.room_id = ${roomId}::uuid and message.asset_id = any(${ids}::uuid[]) and message.hidden_at is null
-    union
-    select turn.find_asset_id as asset_id from rooms.ai_turns turn
-      where turn.room_id = ${roomId}::uuid and turn.trigger = 'feed_find' and turn.find_asset_id = any(${ids}::uuid[])
-        and ${COUNTED}`.execute(trx);
+    with seen as (
+      select discussion.root_asset_id as asset_id from rooms.discussions discussion
+        where discussion.room_id = ${roomId}::uuid and discussion.root_asset_id is not null
+      union
+      select message.asset_id from rooms.messages message
+        join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
+        where discussion.room_id = ${roomId}::uuid and message.asset_id is not null and message.hidden_at is null
+      union
+      select turn.find_asset_id as asset_id from rooms.ai_turns turn
+        where turn.room_id = ${roomId}::uuid and turn.trigger = 'feed_find' and turn.find_asset_id is not null and ${COUNTED}
+    )
+    select candidate.asset_id from unnest(${ids}::uuid[]) as candidate(asset_id)
+      where candidate.asset_id in (select asset_id from seen)
+        or exists (
+          select 1 from content.asset_revisions unit
+          join content.asset_revisions twin on twin.explanation_unit_id = unit.explanation_unit_id
+          where unit.asset_id = candidate.asset_id and twin.asset_id in (select asset_id from seen))`.execute(trx);
   return new Set(result.rows.map((row) => row.asset_id));
 }
 

@@ -111,7 +111,11 @@ export interface FeedStore {
   roomsToLook(limit: number): Promise<readonly FeedRoomRef[]>;
   /** A room by its slug, for an operator who names it. */
   roomBySlug(slug: string): Promise<FeedRoomRef | undefined>;
-  /** Which of these assets the room has already seen: a find about it, a find turn that was made or is being made, or a card of it a member shared. */
+  /**
+   * Which of these assets the room has already seen, itself or in its twin: a find about it, a find turn that was made or is
+   * being made, or a card of it a member shared, for the asset or for any asset of the same explanation (a Reel and the Scroll
+   * made from one explanation are one find, not two).
+   */
   seenAmong(roomId: string, assetIds: readonly string[]): Promise<ReadonlySet<string>>;
 
   // --- In the room scope's transaction ------------------------------------------------------------
