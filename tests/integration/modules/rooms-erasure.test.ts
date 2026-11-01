@@ -118,7 +118,7 @@ describe('idea rooms and erasure (real PostgreSQL)', () => {
     // An inhabitant answers the person who will leave; its words belong to the room.
     const model = fixtureModel(() => ({
       kind: 'success',
-      text: JSON.stringify({ kind: 'explanation', text: 'A tokenizer splits text into pieces a model can count.' }),
+      text: JSON.stringify({ kind: 'explanation', text: 'A tokenizer splits text into pieces a model can count.', cites: ['e1'] }),
     }));
     const { harness } = fixtureRecordingHarness(database.db, { model });
     const before = world.queued.length;

@@ -1,3 +1,4 @@
+import { numericTokens } from '../../text.js';
 import { MAGNITUDES, type Magnitude } from '../../v2/blocks.js';
 
 /**
@@ -112,6 +113,40 @@ export function pointAgrees(
   const stated = (entry: Occurrence): boolean => entry.otherEnd === undefined || itemFigures.has(entry.otherEnd);
   const wanted: Reading = point.magnitude ?? 'bare';
   return readings.some((entry) => entry.reading === wanted && stated(entry));
+}
+
+/** Digits the matcher above does not read: fractions such as ½, superscripts and the digits of other scripts. */
+const OTHER_NUMERALS = /\p{N}/gu;
+const ASCII_DIGITS = /[0-9]/u;
+
+/**
+ * The figures of a text that the passages do not state the way the text writes them (D-208), in order and without
+ * repeats. This is the rule for a figure in prose, as `pointAgrees` is for a point of a scale or a chart: a figure is
+ * the number as a person reads it (thousands separators dropped, the decimal part kept), and it is stated when some
+ * passage writes that same figure the same way: with the same word after it ("1.25 million" is not "1.25"), the same
+ * other end of a range, or the same notation. A figure no passage holds is unstated, and so is one that the passages
+ * only ever write another way. A numeral the matcher cannot read is stated only when a passage holds it character for
+ * character, so it cannot slip past as a word.
+ *
+ * Numbers spelled in words ("a million") are not figures here; the support check judges them.
+ */
+export function unstatedFigures(text: string, passages: readonly string[]): readonly string[] {
+  const unstated = new Set<string>();
+  for (const match of text.matchAll(NUMBER)) {
+    const figure = plainFigure(match[0]);
+    const stated = readingsOf(figure, passages);
+    const writtenWays = readingsOf(figure, [text]);
+    const everyWayStated = writtenWays.every((way) =>
+      stated.some((entry) => entry.reading === way.reading && entry.otherEnd === way.otherEnd),
+    );
+    if (!everyWayStated) unstated.add(figure);
+  }
+  for (const [start, end] of numericTokens(text)) {
+    const token = text.slice(start, end);
+    for (const numeral of token.match(OTHER_NUMERALS) ?? [])
+      if (!ASCII_DIGITS.test(numeral) && !passages.some((passage) => passage.includes(numeral))) unstated.add(numeral);
+  }
+  return [...unstated];
 }
 
 /** The words of a unit that carry meaning: letters only, short joining words and plurals set aside. */

@@ -19,12 +19,14 @@ import {
 import {
   CHECK_ASSET_AUDIENCE,
   READ_CONTENT_SEQUENCE,
+  READ_LIBRARY_PASSAGES,
   READ_LIBRARY_REELS,
   READ_SHAREABLE_CONTENT,
   RESOLVE_SNIPPET_ANCHOR,
   VALIDATE_SNIPPET_ANCHOR,
   type CheckAssetAudience,
   type ReadContentSequence,
+  type ReadLibraryPassages,
   type ReadLibraryReels,
   type ReadShareableContent,
   type ResolveSnippetAnchor,
@@ -50,6 +52,7 @@ import {
   type ReadPublicPeople,
 } from '../../social/public.js';
 import { makeActivities } from '../application/activities.js';
+import { makeReadGround, type ReadGround } from '../application/answer-ground.js';
 import { makeDebateVotes } from '../application/debates.js';
 import { makeFeed } from '../application/feed-reads.js';
 import { makeIntroductionCommands } from '../application/introduction-commands.js';
@@ -217,6 +220,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     ...gateSnippetAnchors(deps.checkAudience, deps.validateSnippet, deps.resolveSnippet),
     readGeography: deps.readGeography ?? (() => Promise.resolve({ kind: 'refused' as const })),
     newId: deps.newId ?? uuidv7,
+    idFor: stableUuid,
     hash: (operation, input) => requestHash(operation, input as CanonicalJson),
     now: deps.now ?? (() => new Date()),
     enqueueContribution: async (scope, requestId) => {
@@ -295,9 +299,16 @@ export function contributeAsInhabitant(
     readonly harness: RecordingReasoningHarness;
     readonly ownerActive: CheckPersonalOwnerActive;
     readonly model: string;
+    /** The library passages an answer may rest on (D-298). */
+    readonly readGround: ReadGround;
   },
 ): ContributeAsInhabitant {
-  const ports: ContributePorts = { ...roomPorts(deps), ownerActive: deps.ownerActive, model: deps.model };
+  const ports: ContributePorts = {
+    ...roomPorts(deps),
+    ownerActive: deps.ownerActive,
+    model: deps.model,
+    readGround: deps.readGround,
+  };
   return makeContribute(ports, deps.harness);
 }
 
@@ -315,6 +326,8 @@ export function runCastPass(
     readonly ownerActive: CheckPersonalOwnerActive;
     readonly model: string;
     readonly generation: number;
+    /** The library passages an answer may rest on (D-298). */
+    readonly readGround: ReadGround;
   },
 ): RunCastPass {
   const ports: CastPassPorts = {
@@ -322,6 +335,7 @@ export function runCastPass(
     ownerActive: deps.ownerActive,
     model: deps.model,
     generation: deps.generation,
+    readGround: deps.readGround,
   };
   return makeCastPass(ports, deps.harness, deps.withRoomScope);
 }
@@ -391,6 +405,7 @@ export function composeFaceOperator(deps: {
 }
 
 export { seedRooms, setRoomModerator, type ModeratorOutcome } from './seed.js';
+export { makeReadGround, type ReadGround } from '../application/answer-ground.js';
 export { holdCast } from './typing-holds.js';
 export { readApprovedBackdrop } from './postgres-face.js';
 export { composeRitualOperator, roomsRitualProviders } from './ritual-providers.js';
@@ -584,6 +599,7 @@ export function roomsWorkerProviders(tokens: {
         CHECK_PERSONAL_OWNER_ACTIVE,
         tokens.enqueueJob,
         tokens.workerConfig,
+        READ_LIBRARY_PASSAGES,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -602,6 +618,7 @@ export function roomsWorkerProviders(tokens: {
         ownerActive: CheckPersonalOwnerActive,
         enqueue: EnqueueJob,
         config: WorkerConfig,
+        readPassages: ReadLibraryPassages,
       ) =>
         runCastPass({
           withScope,
@@ -622,6 +639,7 @@ export function roomsWorkerProviders(tokens: {
           residentsEnabled: config.reasoning.roomEnabled,
           generation: config.reasoning.roomGeneration,
           model: config.reasoning.minimax?.model ?? 'unconfigured',
+          readGround: makeReadGround(readPassages),
         }),
     },
     {
@@ -700,6 +718,7 @@ export function roomsWorkerProviders(tokens: {
         RECORDING_REASONING_HARNESS,
         CHECK_PERSONAL_OWNER_ACTIVE,
         tokens.workerConfig,
+        READ_LIBRARY_PASSAGES,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -716,6 +735,7 @@ export function roomsWorkerProviders(tokens: {
         harness: RecordingReasoningHarness,
         ownerActive: CheckPersonalOwnerActive,
         config: WorkerConfig,
+        readPassages: ReadLibraryPassages,
       ) =>
         contributeAsInhabitant({
           withScope,
@@ -732,6 +752,7 @@ export function roomsWorkerProviders(tokens: {
           harness,
           ownerActive,
           model: config.reasoning.minimax?.model ?? 'unconfigured',
+          readGround: makeReadGround(readPassages),
         }),
     },
   ];

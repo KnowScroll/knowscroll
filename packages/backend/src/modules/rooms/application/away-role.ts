@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ProposeOutcome, ReasoningContext, ReasoningRole } from '../../../reasoning/public.js';
 import { CONTEXT_MESSAGE_CHARS, textProblem } from '../domain/contribution.js';
-import { SAFE_HINTS, unproposedVerdict, type ContributionVerdict } from './inhabitant-role.js';
+import { SAFE_HINTS, unproposedVerdict, type FailedVerdict } from './inhabitant-role.js';
 
 /** Changes with the instructions or the answer schema; recorded on every summary. */
 export const AWAY_ROLE_VERSION = 'away.1';
@@ -118,7 +118,7 @@ export type SummaryVerdict =
       readonly end: 'completed';
     }
   | { readonly kind: 'nothing_to_add'; readonly end: 'completed' }
-  | Extract<ContributionVerdict, { readonly kind: 'failed' }>;
+  | FailedVerdict;
 
 /** Reads the harness outcome, with the same failure and dispatch rules as every resident's turn. */
 export function summaryVerdict(outcome: ProposeOutcome<AwayAnswer>): SummaryVerdict {
