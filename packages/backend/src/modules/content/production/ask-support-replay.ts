@@ -1,0 +1,224 @@
+import { sql, type Kysely } from 'kysely';
+import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
+import type { Database } from '../../../infrastructure/postgres/database.js';
+import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
+import type {
+  ProductionAuthority,
+  ProductionReasoningHarness,
+  WithProductionScope,
+} from '../../../reasoning/public.js';
+import type { SentenceUnderCheck, SentenceVerdict } from '../domain/ask-support.js';
+import { askSupportRunId, makeAskSupportStep } from './ask-support-step.js';
+import { sentencesOfAnswer } from './ask-support.js';
+import { evidencePassages, type EvidencePassage } from './evidence.js';
+import { SPIKE_MODEL } from './spike-v2/run.js';
+
+/** The policy version of a replay's runs in the production ledger. */
+export const ASK_SUPPORT_REPLAY_POLICY_VERSION = 'ask-support-replay.v1';
+
+/** The most answers one replay reads. A replay is paid for, one call each. */
+export const ASK_SUPPORT_REPLAY_MAX = 20;
+
+/** Which stored ask answers to replay: named by asset, or the newest published ones. */
+export type ReplayTarget =
+  | { readonly kind: 'assets'; readonly assetIds: readonly string[] }
+  | { readonly kind: 'recent'; readonly count: number };
+
+export type ReplayOutcome =
+  /** The checker answered. */
+  | 'checked'
+  /** The checker gave nothing usable (`code` says why); no verdict. */
+  | 'unchecked'
+  /** A daily budget or the provider's quota is used up: nothing was sent. */
+  | 'paused'
+  /** No published ask answer has this asset, or its stored answer or research cannot be read. */
+  | 'not_replayable'
+  | 'model_mismatch';
+
+/** What the operator prints for one answer: counts and codes, never a sentence, a title or a question. */
+export interface ReplayLine {
+  readonly assetId: string;
+  readonly outcome: ReplayOutcome;
+  readonly sentences: number;
+  readonly supported: number;
+  readonly unsupported: number;
+  readonly noClaim: number;
+  /** Paid requests the replay sent: 1, or 2 when the harness repaired an unusable reply. */
+  readonly requests: number;
+  readonly code?: string;
+  readonly runId?: string;
+}
+
+/** One sentence as the file shows it: the sentence, the passages it cites and the checker's verdict on it. */
+export interface ReplaySentence extends SentenceUnderCheck {
+  readonly verdict: SentenceVerdict['verdict'];
+  readonly kind?: string;
+  readonly problem?: string;
+  readonly quote?: string;
+}
+
+/** The detail written to the operator's file for a checked answer. It holds the answer's own words and never the question. */
+export interface ReplayDetail {
+  readonly assetId: string;
+  readonly title: string;
+  readonly runId: string;
+  readonly sentences: readonly ReplaySentence[];
+}
+
+export interface ReplayResult {
+  readonly line: ReplayLine;
+  readonly detail?: ReplayDetail;
+}
+
+export interface AskSupportReplayDeps {
+  readonly db: Kysely<Database>;
+  readonly harness: ProductionReasoningHarness;
+  readonly withScope: WithProductionScope;
+  readonly authority: ProductionAuthority;
+  /** The model the harness is configured with; the replay refuses to run on any other (D-031). */
+  readonly model: string;
+  readonly newRunKey: () => string;
+}
+
+interface StoredAnswer {
+  readonly asset_id: string;
+  readonly research: readonly ResearchPage[];
+  readonly writer_output: unknown;
+}
+
+const emptyLine = (assetId: string, outcome: ReplayOutcome, code?: string): ReplayLine => ({
+  assetId,
+  outcome,
+  sentences: 0,
+  supported: 0,
+  unsupported: 0,
+  noClaim: 0,
+  requests: 0,
+  ...(code === undefined ? {} : { code }),
+});
+
+/** Whether an asset id is a UUID, so it can be matched without a cast failing the whole read. */
+export const isAssetId = (value: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(value);
+
+/** The stored answers a target names: published ask orders only, with the research they cited and the answer the writer authored. */
+async function storedAnswers(db: Kysely<Database>, target: ReplayTarget): Promise<readonly StoredAnswer[]> {
+  const named = target.kind === 'assets' ? sql`and run.asset_id = any(${target.assetIds as string[]}::uuid[])` : sql``;
+  const limit = target.kind === 'assets' ? ASK_SUPPORT_REPLAY_MAX : target.count;
+  const result = await sql<StoredAnswer>`select run.asset_id, run.research, run.writer_output
+    from content.scroll_production_runs run
+    join content.made_to_order_scrolls ordered on ordered.recipe = run.topic and ordered.mode = 'question'
+    where run.state = 'published' and run.asset_id is not null ${named}
+    order by run.completed_at desc limit ${limit}`.execute(db);
+  return result.rows;
+}
+
+/**
+ * Replays the support check (D-250) over stored ask answers, for an operator who wants to see what the checker says about
+ * answers a person was already served. For each answer it rebuilds the passages from the research the job froze, reads the
+ * authored answer the job kept, and asks the same checker role the live path asks, in a run of its own through the
+ * production harness (so the call has an attempt in the ledger and counts against the production caps). Nothing is
+ * stored, published or changed: the answer's Scroll, the job and the person's request are untouched, and the question is
+ * never read, because the check does not use it.
+ *
+ * No model call or network wait runs inside a transaction. A spent budget or quota stops the replay at that answer.
+ */
+export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
+  const step = makeAskSupportStep(deps);
+
+  async function replayOne(stored: StoredAnswer, signal: AbortSignal): Promise<ReplayResult> {
+    const assetId = stored.asset_id;
+    const answer = AuthoredScroll.safeParse(stored.writer_output);
+    let passages: readonly EvidencePassage[];
+    try {
+      passages = evidencePassages(stored.research);
+    } catch {
+      return { line: emptyLine(assetId, 'not_replayable', 'evidence_unavailable') };
+    }
+    if (!answer.success) return { line: emptyLine(assetId, 'not_replayable', 'answer_unreadable') };
+    const sentences = sentencesOfAnswer(answer.data);
+    const jobId = `replay:${deps.newRunKey()}`;
+    const checked = await step.check({
+      jobId,
+      policyVersion: ASK_SUPPORT_REPLAY_POLICY_VERSION,
+      draft: 1,
+      sentences,
+      passages,
+      signal,
+    });
+    if (checked.kind === 'paused') return { line: emptyLine(assetId, 'paused', checked.code) };
+    // A fresh run id cannot already be closed.
+    if (checked.kind === 'advanced') return { line: emptyLine(assetId, 'not_replayable', 'run_closed') };
+    const runId = askSupportRunId(jobId, 1);
+    // An attempt of unknown outcome keeps its run open for reconciliation; every other outcome is final.
+    if (checked.record.code !== 'outcome_unknown')
+      await deps.withScope(deps.authority, (scope) =>
+        deps.harness.closeProductionRun(scope, {
+          runId,
+          state: checked.record.kind === 'checked' ? 'completed' : 'cancelled',
+        }),
+      );
+    const requests = checked.receipt.attempts?.length ?? 0;
+    const verdicts = new Map(checked.verdicts.map((verdict) => [verdict.number, verdict]));
+    const count = (kind: SentenceVerdict['verdict']) =>
+      checked.verdicts.filter((verdict) => verdict.verdict === kind).length;
+    const line: ReplayLine = {
+      assetId,
+      outcome: checked.record.kind,
+      sentences: sentences.length,
+      supported: count('supported'),
+      unsupported: count('unsupported'),
+      noClaim: count('no_claim'),
+      requests,
+      runId,
+      ...(checked.record.code === undefined ? {} : { code: checked.record.code }),
+    };
+    if (checked.record.kind !== 'checked') return { line };
+    const detail: ReplayDetail = {
+      assetId,
+      title: answer.data.title,
+      runId,
+      sentences: sentences.map((sentence): ReplaySentence => {
+        const verdict = verdicts.get(sentence.number);
+        return {
+          ...sentence,
+          verdict: verdict?.verdict ?? 'no_claim',
+          ...(verdict?.verdict === 'unsupported' ? { kind: verdict.kind, problem: verdict.problem } : {}),
+          ...(verdict?.verdict === 'supported' ? { quote: verdict.quote } : {}),
+        };
+      }),
+    };
+    return { line, detail };
+  }
+
+  /** Replays each named answer in turn, handing every result to `emit` as it finishes. Stops at a spent budget or quota. */
+  return async function replay(
+    target: ReplayTarget,
+    signal: AbortSignal,
+    emit: (result: ReplayResult) => Promise<void> | void,
+  ): Promise<{ readonly answers: number; readonly stopped: boolean }> {
+    if (deps.model !== SPIKE_MODEL) {
+      await emit({ line: emptyLine('', 'model_mismatch', 'configured_model_not_allowed') });
+      return { answers: 0, stopped: true };
+    }
+    const stored = await storedAnswers(deps.db, target);
+    const found = new Set(stored.map((answer) => answer.asset_id.toLowerCase()));
+    if (target.kind === 'assets')
+      for (const assetId of target.assetIds)
+        if (!found.has(assetId.toLowerCase()))
+          await emit({ line: emptyLine(assetId, 'not_replayable', 'not_an_ask_answer') });
+    let answers = 0;
+    for (const answer of stored) {
+      if (signal.aborted) return { answers, stopped: true };
+      const result = await replayOne(answer, signal);
+      await emit(result);
+      answers += 1;
+      if (
+        result.line.outcome === 'paused' ||
+        (result.line.outcome === 'unchecked' && result.line.code === 'outcome_unknown')
+      )
+        return { answers, stopped: true };
+    }
+    return { answers, stopped: false };
+  };
+}

@@ -171,34 +171,104 @@ export function verdicts(ids: readonly string[], flagged: Readonly<Record<string
   });
 }
 
+/** Whether a request is the support checker's (the answer to a person's question, D-250). */
+export const isSupportCall = (call: FixtureCall): boolean => call.request.system.includes('content.ask-support-check');
+
+const unescapeData = (text: string): string =>
+  text.replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&');
+
+/** The text of one context item of a request, as the model would read it. */
+function itemText(call: FixtureCall, ref: string): string {
+  const match = new RegExp(`<context-item ref="${ref}"[^>]*>\\n([\\s\\S]*?)\\n</context-item>`, 'u').exec(
+    call.request.user,
+  );
+  return match === null ? '' : unescapeData(match[1]!);
+}
+
+/** A support check request as the fixture reads it: the sentences listed, and the text of each passage by handle. */
+export function supportRequestOf(call: FixtureCall): {
+  readonly sentences: readonly { readonly n: number; readonly cites: readonly string[]; readonly text: string }[];
+  readonly passages: ReadonlyMap<string, string>;
+} {
+  const sentences = itemText(call, 'support:sentences')
+    .split('\n')
+    .filter((line) => line !== '')
+    .map((line) => JSON.parse(line) as { n: number; cites: string[]; text: string });
+  const passages = new Map(
+    itemText(call, 'support:passages')
+      .split('\n')
+      .flatMap((line) => {
+        const parsed = /^\[(e\d+)\] (.*)$/u.exec(line);
+        return parsed === null ? [] : [[parsed[1]!, parsed[2]!] as const];
+      }),
+  );
+  return { sentences, passages };
+}
+
+/** Which sentences of a support check a fixture finds unsupported (number -> kind and note), and which it marks as stating no fact. */
+export interface SupportScript {
+  readonly unsupported?: Readonly<Record<number, { readonly kind: string; readonly problem: string }>>;
+  readonly noClaim?: readonly number[];
+}
+
 /**
- * Routes a production job's requests: the checker's go to `checker` (its own count, from 1, and the ids of
- * the calls it was asked about; by default every call is consistent), and everything the writer is asked,
- * a check repair included, to `writer` with the writer's own count, so a script written for the writer
- * alone still counts its requests from 1.
+ * A support checker's reply: every sentence supported with a quote copied from the first passage it cites, except the
+ * ones named. The quote is real text of the request, so the reply passes the schema's check that a quote is in a
+ * cited passage.
+ */
+export function supportReply(call: FixtureCall, script: SupportScript = {}): FixtureScenario {
+  const { sentences, passages } = supportRequestOf(call);
+  return answerWith({
+    sentences: sentences.map((sentence) => {
+      const flagged = script.unsupported?.[sentence.n];
+      if (flagged !== undefined) return { n: sentence.n, verdict: 'unsupported', ...flagged };
+      if (script.noClaim?.includes(sentence.n) === true) return { n: sentence.n, verdict: 'no_claim' };
+      const text = sentence.cites.map((handle) => passages.get(handle)).find((passage) => passage !== undefined) ?? '';
+      return { n: sentence.n, verdict: 'supported', quote: text.split(/\s+/u).slice(0, 5).join(' ') };
+    }),
+  });
+}
+
+/** The support checker's script: its own request count from 1, the request, and a reply (by default every sentence supported). */
+export type SupportChecker = (check: number, call: FixtureCall) => FixtureScenario | Promise<FixtureScenario>;
+
+/**
+ * Routes a production job's requests: the answer checker's go to `checker` (its own count, from 1, and the ids of
+ * the calls it was asked about; by default every call is consistent), the support checker's go to `support` (its own
+ * count, from 1; by default every sentence is supported), and everything the writer is asked, a check repair
+ * included, to `writer` with the writer's own count, so a script written for the writer alone still counts its
+ * requests from 1.
  */
 export function routedScript(
   writer: (sequence: number, call: FixtureCall) => FixtureScenario | Promise<FixtureScenario>,
   checker: (check: number, ids: readonly string[], call: FixtureCall) => FixtureScenario = (_check, ids) =>
     verdicts(ids),
+  support: SupportChecker = (_check, call) => supportReply(call),
 ): {
   readonly script: (sequence: number, call: FixtureCall) => FixtureScenario | Promise<FixtureScenario>;
   /** The writer's requests so far (live). */
   readonly writerCalls: FixtureCall[];
-  /** The checker's requests so far (live). */
+  /** The answer checker's requests so far (live). */
   readonly checkerCalls: FixtureCall[];
+  /** The support checker's requests so far (live). */
+  readonly supportCalls: FixtureCall[];
 } {
   const writerCalls: FixtureCall[] = [];
   const checkerCalls: FixtureCall[] = [];
+  const supportCalls: FixtureCall[] = [];
   const script = (_sequence: number, call: FixtureCall) => {
     if (isCheckerCall(call)) {
       checkerCalls.push(call);
       return checker(checkerCalls.length, checkedCallIds(call), call);
     }
+    if (isSupportCall(call)) {
+      supportCalls.push(call);
+      return support(supportCalls.length, call);
+    }
     writerCalls.push(call);
     return writer(writerCalls.length, call);
   };
-  return { script, writerCalls, checkerCalls };
+  return { script, writerCalls, checkerCalls, supportCalls };
 }
 
 /**
@@ -211,14 +281,17 @@ export function fixtureProduction(
   script: (sequence: number, call: FixtureCall) => FixtureScenario | Promise<FixtureScenario>,
   research: (url: string) => ResearchPage = fixtureResearchFor,
   checker?: Parameters<typeof routedScript>[1],
+  support?: Parameters<typeof routedScript>[2],
 ): {
   /** The writer's requests only (the first answer, the validator's repair and a check repair). */
   readonly calls: readonly FixtureCall[];
-  /** The checker's requests only. */
+  /** The answer checker's requests only. */
   readonly checks: readonly FixtureCall[];
+  /** The support checker's requests only. */
+  readonly supports: readonly FixtureCall[];
   readonly produce: ReturnType<typeof makeProduceScroll>;
 } {
-  const routed = routedScript(script, checker);
+  const routed = routedScript(script, checker, support);
   const fixture = fixtureModel(routed.script, { label: 'generated-scroll-CI-fixture' });
   const model = guardedModelPort({ ...fixture, provider: 'minimax', model: 'MiniMax-M3.1-Flash' });
   const withScope = makeWithProductionScope(db, { enabled: true, lockTimeoutMs: 5000 });
@@ -240,7 +313,7 @@ export function fixtureProduction(
     model: model.model,
     research: (url) => Promise.resolve(research(url)),
   });
-  return { calls: routed.writerCalls, checks: routed.checkerCalls, produce };
+  return { calls: routed.writerCalls, checks: routed.checkerCalls, supports: routed.supportCalls, produce };
 }
 
 /** The production scope is disabled until an operator enables it; tests enable it explicitly. */

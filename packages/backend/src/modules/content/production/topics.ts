@@ -25,6 +25,12 @@ export const REQUEST_BOUND_PER_TOPIC = 2;
  * the two drafts the writer can produce, each with at most one repair of an unusable reply (D-198).
  */
 export const REQUEST_BOUND_V2_PER_TOPIC = 6;
+/**
+ * The answer to a person's question sends at most six paid requests a take, as a v2 library recipe does: the writer
+ * once and at most one repair (the validator's or the support check's), and the support check once for each of the two
+ * drafts, each with at most one repair of an unusable reply (D-250).
+ */
+export const REQUEST_BOUND_ASK_ORDER = 2 + 2 * 2;
 export { MAX_TAKES_PER_RECIPE } from '../domain/library/serving.js';
 /**
  * The explanation recipes the generator runs, by operator key. The plan itself (systems, planets,
@@ -68,9 +74,13 @@ export function productionVersionOf(key: string): string {
   return scrollV2PlanOf(key) === undefined ? SCROLL_PRODUCTION_VERSION : SCROLL_PRODUCTION_V2_VERSION;
 }
 
-/** The most paid model requests one take of this recipe, or order, may send. */
-export function requestBoundOf(key: string): number {
-  return scrollV2PlanOf(key) === undefined ? REQUEST_BOUND_PER_TOPIC : REQUEST_BOUND_V2_PER_TOPIC;
+/**
+ * The most paid model requests one take of this recipe, or order, may send. An order's key does not say what it
+ * answers, so a caller that has read the order passes its mode: the answer to a question is checked (D-250).
+ */
+export function requestBoundOf(key: string, mode?: string): number {
+  if (scrollV2PlanOf(key) !== undefined) return REQUEST_BOUND_V2_PER_TOPIC;
+  return mode === 'question' ? REQUEST_BOUND_ASK_ORDER : REQUEST_BOUND_PER_TOPIC;
 }
 
 /** Every production version a job row may carry. */

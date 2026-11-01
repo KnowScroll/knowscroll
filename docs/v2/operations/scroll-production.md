@@ -424,6 +424,36 @@ node dist/operator.js content production-status --only seasons,seasons-hemispher
 
 **Leaving a wave.** Record the yield (recipes held, released, rejected, unchecked), the tokens (sum the `attempts` of `production-status`) and the top findings of `reasoning rejected` in the tracker.
 
+## Checking stored ask answers (S-7b, D-250 to D-252)
+
+A person's question from a Scroll becomes a short answer made for them (an ask order, D-218). Nobody reads it first, so its job runs a second model, the **support
+check**, which reads each sentence against the passages the answer cites; an answer with a sentence they do not support is repaired once or refused, and
+the person gets the honest "could not prepare" state, never an unchecked answer. How it works: [content/production README](../../../packages/backend/src/modules/content/production/README.md).
+
+`content ask-check` runs the same checker again over answers that were already made, to see what it says. It publishes, stores and changes nothing, and it
+never reads a person's question (the check does not use one). It calls the production harness, so every request is an attempt in the ledger and spends the
+production budget (`KS_REASONING_PRODUCTION_ENABLED=1`, `KS_MINIMAX_MODEL=MiniMax-M3.1-Flash`; any other model is refused).
+
+```sh
+node dist/operator.js content ask-check --recent 5 --out /var/tmp/ks-v3-spike/ask-check-580.jsonl
+node dist/operator.js content ask-check --asset <asset id>[,<asset id>…] --out /var/tmp/ks-v3-spike/ask-check-580.jsonl
+```
+
+`--recent <n>` takes the newest published ask answers (1 to 20), `--asset` names them (at most 20; an asset that is not a stored ask answer is reported as
+`not_replayable` and asks the model nothing). `--out` is required.
+
+- **Standard output** is one JSON line for each answer: its asset ID, `outcome` (`checked`, `unchecked` with a `code`, `paused`, `not_replayable`), the counts of
+  sentences, supported, unsupported and no-claim, and the requests sent (1, or 2 when the harness repaired an unusable reply). No sentence, title or question is
+  printed, so the output may be pasted into an issue.
+- **The file** gets one JSON line for each checked answer: its title, and every sentence with the passages it cites and the checker's verdict (the quote for a supported
+  sentence; the kind and the note for an unsupported one). It holds the answer's own words, so read it from the server shell and never paste it into an issue.
+- **Exit status:** 0 when it ran to the end, 2 when it was refused or stopped early (a spent budget or quota, an attempt of unknown outcome, the wrong model), 1 on a failure.
+
+What to look for: the sentences you know are wrong should be `unsupported`; a good answer's sentences should be `supported` with a quote you can find in the answer's
+passages. Many `unsupported` verdicts on sentences that are fine mean the checker is too strict (people will see "could not prepare" more often); `supported` on a
+sentence that says more than its passage means it is too lenient. Both are reasons to change the checker's instructions (a new `ask-support-check` version and the
+pair in `versions.test.ts`), not to read answers by hand.
+
 ## Facts about the model
 
 `MiniMax-M3.1-Flash` thinks before it answers and refuses `thinking: disabled`; thinking tokens

@@ -199,6 +199,12 @@ describe('the instructions for the answer to one question (D-218)', () => {
     expect(text).toContain('about 230 to 340 words');
     expect(text).toContain('say plainly what they do not cover');
     expect(text).toContain('Use prose only');
+    // D-250: the reason a "why" question asks for is the passages’ own, a gap is said in one sentence, and each sentence is checked.
+    expect(text).toContain('When the question asks why, give the reason the passages themselves give');
+    expect(text).toContain('say in one sentence that the pages do not give the reason');
+    expect(text).toContain('If the passages do not hold the answer at all, say so in one sentence');
+    expect(text).toContain('A second reader checks each sentence against the passages you cited');
+    expect(text).toContain('do not say how a part works unless a passage says it');
     expect(text).not.toContain('THIS IS A WHAT-IF');
     expect(text.length).toBeLessThan(16_000);
     // The library's and the scenarios' own instructions are untouched.

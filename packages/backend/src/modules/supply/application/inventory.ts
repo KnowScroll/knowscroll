@@ -131,10 +131,10 @@ export async function inventory(
     capabilities: c.capabilities,
   });
   const sourceHead = source ? heads.find((x) => sameRef(x.ref, source)) : undefined;
-  const ready = heads.find(
+  const servable = heads.filter(
     (x) => x.encounter && brief && matches(brief, x.encounter) && !skipExplanations.has(x.encounter.explanationUnitId),
   );
-  return { heads, sourceHead, ready };
+  return { heads, sourceHead, ready: servable[0], servable };
 }
 /** How many of the latest finished ask orders the "usually" time is measured from. */
 const TYPICAL_SAMPLE_WINDOW = 20;

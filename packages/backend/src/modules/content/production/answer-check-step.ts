@@ -86,8 +86,8 @@ export interface CheckRepairInput {
   readonly signal: AbortSignal;
 }
 
-/** Why the checker gave nothing usable, as a code an operator can read. Never provider text. */
-function uncheckedCode(result: Exclude<ProposeOutcome<unknown>, { kind: 'proposed' }>): string {
+/** Why a checker gave nothing usable, as a code an operator can read. Never provider text. */
+export function uncheckedCode(result: Exclude<ProposeOutcome<unknown>, { kind: 'proposed' }>): string {
   switch (result.kind) {
     case 'invalid_output':
       return 'invalid_output';
@@ -103,8 +103,9 @@ function uncheckedCode(result: Exclude<ProposeOutcome<unknown>, { kind: 'propose
   }
 }
 
-const pauseCode = (result: Extract<ProposeOutcome<unknown>, { kind: 'budget_exhausted' | 'quota_unavailable' }>) =>
-  result.kind === 'budget_exhausted' ? `budget_${result.dimension}_${result.limit}` : result.kind;
+export const pauseCode = (
+  result: Extract<ProposeOutcome<unknown>, { kind: 'budget_exhausted' | 'quota_unavailable' }>,
+) => (result.kind === 'budget_exhausted' ? `budget_${result.dimension}_${result.limit}` : result.kind);
 
 /**
  * The two model steps the answer check adds to a production job (D-198): asking the checker about a draft,

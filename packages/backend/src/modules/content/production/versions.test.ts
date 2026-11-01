@@ -3,11 +3,13 @@ import { isReadingInteractionAllowed } from '../public.js';
 import { produceScrollJob, produceScrollQueue, PRODUCE_SCROLL_CLAIM_SECONDS } from './events.js';
 import { MINIMAX_REQUEST_TIMEOUT_MAX_MS } from '../../../infrastructure/config/index.js';
 import { makeRunScrollProduction } from './job.js';
+import { ASK_SUPPORT_CHECK_VERSION } from './ask-support.js';
 import {
   MAX_TAKES_PER_RECIPE,
   parseScrollTopic,
   planRefusalOf,
   productionVersionOf,
+  REQUEST_BOUND_ASK_ORDER,
   REQUEST_BOUND_PER_TOPIC,
   REQUEST_BOUND_V2_PER_TOPIC,
   requestBoundOf,
@@ -17,6 +19,7 @@ import {
   TOPICS,
 } from './topics.js';
 import { WRITER_V2_PROMPT_VERSION } from './writer-v2.js';
+import { QUESTION_WRITER_PROMPT_VERSION } from './writer.js';
 
 /** Marks a recipe v2 for one test, the way the plan will. */
 const marked: (() => void)[] = [];
@@ -110,10 +113,40 @@ describe('takes are counted per production version, so a writer bump gives new o
     expect(REQUEST_BOUND_PER_TOPIC).toBe(2);
   });
 
-  it('reports the bound of the recipe asked about: six for a v2 recipe, two for every other', () => {
+  it('reports the bound of the recipe asked about: six for a v2 recipe and for the answer to a question, two for every other', () => {
     expect(requestBoundOf('seasons')).toBe(REQUEST_BOUND_V2_PER_TOPIC);
     expect(requestBoundOf('exoplanet-kinds')).toBe(REQUEST_BOUND_PER_TOPIC);
-    expect(requestBoundOf(`order-${'a'.repeat(32)}`)).toBe(REQUEST_BOUND_PER_TOPIC);
+    const order = `order-${'a'.repeat(32)}` as const;
+    // An order’s key does not say what it answers: the caller that read the order says so.
+    expect(requestBoundOf(order)).toBe(REQUEST_BOUND_PER_TOPIC);
+    expect(requestBoundOf(order, 'what_if')).toBe(REQUEST_BOUND_PER_TOPIC);
+    expect(requestBoundOf(order, 'perspective')).toBe(REQUEST_BOUND_PER_TOPIC);
+    expect(requestBoundOf(order, 'question')).toBe(REQUEST_BOUND_ASK_ORDER);
+  });
+
+  it('counts the support check inside an ask order’s bound: the writer and its one repair, and the check once for each draft with one repair each (D-250)', () => {
+    expect(REQUEST_BOUND_ASK_ORDER).toBe(2 + 2 * 2);
+    expect(REQUEST_BOUND_ASK_ORDER).toBeLessThanOrEqual(REQUEST_BOUND_V2_PER_TOPIC);
+  });
+});
+
+describe('the answer to a question is written and checked as a pair (D-250)', () => {
+  /**
+   * Each question-writer version and the support check version it was released with. A new writer or a new checker
+   * without a row fails, so neither changes alone: the checker judges what the writer is told to write, and the writer is
+   * told it will be checked.
+   */
+  const SUPPORT_CHECK_OF_QUESTION_WRITER: Readonly<Record<string, string>> = {
+    'question-writer.v1': 'none',
+    'question-writer.v2': 'ask-support-check.v1',
+  };
+
+  it('pairs the question writer’s instructions with the support check’s version', () => {
+    expect(SUPPORT_CHECK_OF_QUESTION_WRITER[QUESTION_WRITER_PROMPT_VERSION]).toBe(ASK_SUPPORT_CHECK_VERSION);
+  });
+
+  it('keeps the library’s production version, because an order has one job a take and its key is its own', () => {
+    expect(productionVersionOf(`order-${'a'.repeat(32)}`)).toBe(SCROLL_PRODUCTION_VERSION);
   });
 });
 
