@@ -335,10 +335,26 @@ export class RoomsController {
   }
 
   @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.feed)
+  feedRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.feed).handler(async ({ input }) =>
+      value(await this.useCases.feed(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
   @Implement(apiContract.rooms.replay)
   replayRoute(@Req() request: Request) {
     return implement(apiContract.rooms.replay).handler(async ({ input }) =>
       value(await this.useCases.replay(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.replaceMemory)
+  replaceMemoryRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.replaceMemory).handler(async ({ input }) =>
+      value(await this.useCases.replaceMemory(this.authority(request), input)),
     );
   }
 

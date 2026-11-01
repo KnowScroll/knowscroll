@@ -66,7 +66,8 @@ function summary(row: ProductionRow): ProduceScrollResult {
  * resent, and never after an unknown attempt or a published job, except that a v2 library recipe's
  * later take may follow a take whose Scroll was released (regeneration, D-197). Unknown attempts halt:
  * they are never resent. Scope revocation prevents applying even a valid answer. For a v2 library
- * recipe the writer's answer is checked before it is stored (D-198).
+ * recipe the writer's answer is checked before it is stored (D-198), and so is the answer to a person's
+ * question, which is refused when it cannot be checked (D-250).
  */
 export function makeProduceScroll(deps: ProduceScrollDependencies) {
   const store = productionStore(deps.db);
@@ -246,19 +247,14 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     publish,
   });
 
-  return async (
+  /** Runs a subject's job from reserving its take to the end of the writer stage. */
+  async function runJob(
+    subject: ProductionSubject,
     key: ProductionKey,
-    dryRun: boolean,
     signal: AbortSignal,
-    resume = false,
-    take = 1,
-  ): Promise<ProduceScrollResult> => {
-    if (dryRun) return { outcome: 'dry_run', requestBound: requestBoundOf(key) };
-    const subject = await subjectOf(deps.db, key);
-    if (subject === undefined) return { outcome: 'unknown_recipe', requestBound: requestBoundOf(key) };
-    // A recipe the plan does not allow costs nothing: no job is reserved and no request is sent.
-    const refusal = planRefusalOf(key);
-    if (refusal !== undefined) return { outcome: 'plan_refused', requestBound: requestBoundOf(key), codes: [refusal] };
+    resume: boolean,
+    take: number,
+  ): Promise<ProduceScrollResult> {
     const reserved = await deps.withScope(deps.authority, (scope) =>
       store.create(productionTransactionOf(scope), key, subject.identity.assetId, deps.authority.generation, take),
     );
@@ -278,5 +274,23 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     }
     if (row.state !== 'writer') return summary(row);
     return writeAndPublish(subject, row, pages, signal);
+  }
+
+  return async (
+    key: ProductionKey,
+    dryRun: boolean,
+    signal: AbortSignal,
+    resume = false,
+    take = 1,
+  ): Promise<ProduceScrollResult> => {
+    if (dryRun) return { outcome: 'dry_run', requestBound: requestBoundOf(key) };
+    const subject = await subjectOf(deps.db, key);
+    if (subject === undefined) return { outcome: 'unknown_recipe', requestBound: requestBoundOf(key) };
+    // A recipe the plan does not allow costs nothing: no job is reserved and no request is sent.
+    const refusal = planRefusalOf(key);
+    if (refusal !== undefined) return { outcome: 'plan_refused', requestBound: requestBoundOf(key), codes: [refusal] };
+    // The bound of what an order answers is known only once the order is read (D-250).
+    const result = await runJob(subject, key, signal, resume, take);
+    return { ...result, requestBound: requestBoundOf(key, subject.mode) };
   };
 }

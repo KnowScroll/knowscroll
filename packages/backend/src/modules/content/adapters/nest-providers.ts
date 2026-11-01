@@ -45,6 +45,7 @@ import {
   READ_LIBRARY_PASSAGES,
   READ_LIBRARY_PASSAGE_TEXT,
   READ_LIBRARY_CALLS,
+  READ_LIBRARY_FINDS,
   type CheckAssetAudience,
   type EnqueueScrollProduction,
   type ReadMadeToOrderProduction,
@@ -82,6 +83,7 @@ import { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.j
 import { chooseScrollRecipe, readScrollProduction } from './production-state.js';
 import { readRegionEncounterCandidates, lockRegionEncounterCandidates } from './region-candidates.js';
 import { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
+import { makeReadLibraryFinds } from './library-finds.js';
 
 /**
  * Reusable outer wiring (blueprint §22): content's scope-bound read ports, used inside a personal
@@ -169,6 +171,11 @@ export function libraryPassageProviders(tokens: { readonly database: symbol }) {
       inject: [tokens.database],
       useFactory: (db: Kysely<Database>) => makeReadLibraryCalls(db),
     },
+    {
+      provide: READ_LIBRARY_FINDS,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => makeReadLibraryFinds(db),
+    },
   ];
 }
 
@@ -213,6 +220,7 @@ export function importEditorialScrollUseCase(db: Kysely<Database>) {
 }
 
 export { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
+export { makeReadLibraryFinds } from './library-finds.js';
 export { makeCutroomReelImporter, type CutroomImportSettings } from './import-cutroom-reel.js';
 export { makeMediaAccess } from './media-access.js';
 
@@ -229,6 +237,18 @@ export {
   type SpikeResult,
 } from '../production/spike-v2/run.js';
 export { parseSpikeBlocks, parseSpikeTopics, SPIKE_TOPICS_V2 } from '../production/spike-v2/topics.js';
+/**
+ * The operator's replay of the support check over stored ask answers (D-250): the checker run again on answers already
+ * served, writing nothing. The line it prints holds counts only; the detail goes to a file the operator reads.
+ */
+export {
+  ASK_SUPPORT_REPLAY_MAX,
+  isAssetId,
+  makeAskSupportReplay,
+  type ReplayLine,
+  type ReplayResult,
+  type ReplayTarget,
+} from '../production/ask-support-replay.js';
 /** The job one `content.produce-scroll` delivery runs, and the operator's enqueue and status reads. */
 export { makeRunScrollProduction } from '../production/job.js';
 export { makeEnqueueScrollProduction } from './enqueue-production.js';

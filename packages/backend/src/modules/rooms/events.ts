@@ -164,3 +164,33 @@ export const nightlyRitualsQueue = defineQueue({
   consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
   schedule: { cron: '10 3 * * *', payload: { v: 1 } },
 });
+
+/**
+ * The residents' heartbeat (v3 R-8, D-248): three times a day, at the start of each 8-hour UTC slot, every open room that has a
+ * resident and someone listening gets one look. A look writes the room's memory again when it is due and posts a find about a
+ * library asset the room has not seen when a resident's rest is over and the caps allow it; a room with nothing new, nothing due
+ * and nobody listening costs no model call. No payload but its version: the rooms are read when it runs. Every turn a look makes is
+ * unique by (room, kind, slot), and the model run's ID is fixed by it, so a late, repeated or retried delivery changes nothing and
+ * pays for nothing twice. Nothing here names a person or a universe.
+ */
+export const FeedHeartbeatJobSchema = z.strictObject({ v: z.literal(1) });
+export type FeedHeartbeatJob = z.infer<typeof FeedHeartbeatJobSchema>;
+
+export const feedHeartbeatQueue = defineQueue({
+  name: 'rooms.feed-heartbeat',
+  purpose:
+    "Let each room's residents look for something new in the library to post, and keep the room's memory current.",
+  payload: FeedHeartbeatJobSchema,
+  policy: {
+    // Up to two calls a room, each up to two attempts at the largest provider deadline: three hours cover a handful of rooms.
+    expireInSeconds: 10_800,
+    retryLimit: 2,
+    retryDelaySeconds: 300,
+    retryBackoff: true,
+    retentionSeconds: 3 * 86400,
+    deleteAfterSeconds: 86400,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
+  schedule: { cron: '7 0,8,16 * * *', payload: { v: 1 } },
+});

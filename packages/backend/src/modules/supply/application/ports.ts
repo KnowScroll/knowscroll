@@ -145,7 +145,7 @@ export interface AskOrderLedger {
   insert(scope: PersonalScopeTx, orderId: string): Promise<void>;
   /** Notes, once, when the order's Scroll was first seen admitted. */
   markReady(scope: PersonalScopeTx, orderId: string): Promise<void>;
-  /** How long the latest finished orders took, in seconds, newest first. */
+  /** How long the latest finished orders took, in seconds, newest first. Only orders made under the support check count (D-252). */
   recentWaitsSeconds(scope: PersonalScopeTx, limit: number): Promise<readonly number[]>;
 }
 export type Refusal =
@@ -302,5 +302,7 @@ export interface SupplyPorts {
   readonly advance: (scope: PersonalScopeTx) => Promise<number>;
   readonly notify: (scope: PersonalScopeTx, revision: number, eventId: string) => Promise<void>;
   readonly newId: () => string;
+  /** A deterministic id derived from a name: the same name always gives the same id, so a redelivery asks the ledger. */
+  readonly idFor: (name: string) => string;
   readonly now: () => Date;
 }

@@ -7,7 +7,9 @@ production of a library Scroll. Blueprint §3, §11, §15 and §19; decisions D-
 Status: **implemented**, CI-verified, and **runtime-verified** on a local database with the real
 `MiniMax-M3.1-Flash` model (a free-text ask matched to the catalogue, produced and opened in the
 client). Not yet running on dev. Ask orders (below, D-218) are **implemented** and CI-verified with labelled fixture
-models; the real-model run of five ask orders is **planned** (the coordinator's, on dev).
+models; the real-model run of five ask orders is **planned** (the coordinator's, on dev). The library check of a question (D-251) and the support
+check of an order's answer (D-250, in [content/production](../content/production/README.md)) are **implemented** and CI-verified with labelled
+fixture models; their first real-model measurement is **planned** (the coordinator's replay, `content ask-check`).
 
 ## What a person can do
 
@@ -62,8 +64,14 @@ It is the same request row, the same states (E07), polling, cancel and retry; on
    checks the exact activated source, and reads the anchor from the exact immutable revision (`READ_SCROLL_ASK_FACTS`): a stop that is not there is `source_unavailable`.
 2. **A suggested question** (the exact words of the Scroll's own `askSuggestions`) is about that Scroll by construction. `commissionAskOrder` runs in the same transaction: no model call.
 3. **A typed question** waits as `matching`. The worker's `supply.resolve-request` runs the scope step (`ask-scope.1`, one call and one repair on the personal harness):
-   `here` makes an ask order; `catalogue` goes to the library path (Reuse, Join, Create) like a free-text ask, never binding to the explanation asked from;
-   `none` closes `unsupported_request`; a failure or an unknown outcome closes `could_not_prepare` and is never resent.
+   `here` makes an ask order; `catalogue` runs the library check below; `none` closes `unsupported_request`; a failure or an unknown outcome closes `could_not_prepare` and is never resent.
+   **The library check** (D-251, `application/ask-library.ts`, `ask-library-role.ts`): a library Scroll is offered for a question only when a checker finds that it answers it.
+   Code lists up to three admitted library Scrolls of the matched subject (never the Scroll being read), reads their prose (`READ_LIBRARY_PASSAGES`), and the personal harness runs
+   `supply.ask-library` (`ask-library.2`, one call and one repair, outside every transaction). The reply is a handle and a quote copied from that Scroll; code accepts a Scroll only if
+   the quote has three words or more, is in its text and is about the question (it carries at least two of the question's key words). Whether it answers is the checker's judgement (measured with the replay, D-252). A Scroll that answers is bound (`ready`, `reuse`) and costs no order. Otherwise (none answers, the subject has none, the reply stayed unusable) an
+   ask order is made for the question within the caps (step 4), or the request closes `budget_unavailable`. **The library is never started for a question** (no Join, no Create).
+   A spent personal budget closes it `budget_unavailable`; an attempt of unknown outcome closes it `could_not_prepare` and is never resent. One personal transaction closes one personal run, so
+   the library check's run closes in its own transaction first; a redelivery after that offers no Scroll and makes an order.
 4. **The order** (`application/ask-orders.ts`). Under the commissioning lock: the world's day cap (`KS_SUPPLY_ASK_DAILY_CAP`, from `supply.ask_orders`) and the person's
    (`KS_SUPPLY_ASK_PERSON_DAILY_CAP`, from their own requests) are checked; the research pages come from the source Scroll's provenance (`READ_SCROLL_SOURCE_PAGES`); Content records
    the order (`RECORD_MADE_TO_ORDER_SCROLL`, mode `question`, kicker "You asked", factual framing); the ledger row is written; the production job for take 1 is sent. A full cap is `budget_unavailable`.
@@ -72,11 +80,11 @@ It is the same request row, the same states (E07), polling, cancel and retry; on
 6. **Try again** (`application/ask-retry.ts`) re-drives the same request and order: a Scroll admitted meanwhile makes it ready; otherwise the next take is sent (three in all). Nothing else can start: `not_retryable`.
 7. **The Scroll is open to its asker only** (`READ_ASK_ORDER_AUDIENCE`, `adapters/postgres-ask-orders.ts`): an account whose own request, not cancelled, names the asset. Erasing the request (Clear, account deletion) first sets the order's brief empty
    (`adapters/erasure.ts`), so a later take finds no order and the Scroll opens to nobody.
-8. **The "usually" time.** `snapshot` adds `typicalSeconds` to a preparing request that is an ask order (not one still being placed, not one the library answers): the median of the last 20 finished orders, and only from five (`domain/ask-order.ts`).
+8. **The "usually" time.** `snapshot` adds `typicalSeconds` to a preparing request that is an ask order (not one still being placed, not one the library answers): the median of the last 20 finished orders **made under the support check** (`supply.ask_orders.support_checked`, D-252), and only from five (`domain/ask-order.ts`). The check is part of the wait, so an order made before it is not counted.
 9. **The brief is one quoted line.** `askBrief` collapses the person's words (and the Scroll's title and stop) to one line, dropping control and format characters, so typed text cannot start a line of the brief of its own.
 10. **Never the Scroll being read.** `inventory` skips the source's explanation for every ask, so placing, polling and Try again can all not return the Scroll the question was asked from (D-230).
 
-*Implemented.* Not built: Reel asks (no production path), a v2 ask order (the review gate, D-138, would have to be skipped for a private audience), asking from a passage (D2) and as a wager (D3).
+*Implemented.* Not built: Reel asks (no production path), a v2 ask order (the review gate, D-138, would have to be skipped for a private audience), asking from a passage (D2) and as a wager (D3), and research pages chosen from the matched subject for an order whose question belongs to another subject (D-251).
 
 ## Waiting for production
 
@@ -181,7 +189,7 @@ transaction that makes the branch, so a retry never gets here twice. The scenari
 | `pgboss/supply.resolve-request` | IDs only (`universeId`, `privacyEpoch`, `requestId`). Four at a time, 360 s expiry, three retries. A recovery job uses the same payload. | The eraser removes every queued, active, retained and dead-lettered payload of the owner. |
 | `pgboss/content.produce-scroll` | Owned by Content; names a recipe, never a person. | Nothing personal to erase. |
 | `supply.scenario_orders` | The ledger of a thread's branch orders that the scenario caps count: order ID, thread ID, time. | Names no person; survives erasure. |
-| `supply.ask_orders` | The ledger of ask orders: order ID, when it was made and when its Scroll was first seen admitted. The world's cap and the "usually" time read it (D-218). | Names no person and no words; survives erasure. |
+| `supply.ask_orders` | The ledger of ask orders: order ID, when it was made, when its Scroll was first seen admitted, and whether it was made under the support check (`support_checked`, D-252). The world's cap and the "usually" time read it (D-218). | Names no person and no words; survives erasure. |
 | `supply.requests.ask_order_id`, `ask_asset_id` | The link from a person's ask to the order and the Scroll made for it. It is also the audience of that Scroll. | Erased with the request; the order's brief is set empty first. |
 
 An ask from here also writes one row in Content's `made_to_order_scrolls` (mode `question`) and reads the production jobs of the order; supply's erasure sets that row's brief empty (the one write it makes outside its own tables).
@@ -218,11 +226,12 @@ catch-up watermark.
 - `tests/integration/release/requests-http.test.ts`: the installed API.
 - `application/scenario-orders.test.ts`, `tests/integration/modules/scenarios.test.ts`: the order, both caps and idempotence.
 - `tests/integration/modules/supply-ask.test.ts`: ask from here on real PostgreSQL with labelled fixture models: a suggested question orders at once with no model call; a typed question placed here, in the catalogue or nowhere; the order, brief, pages and ledger; produced, bound and opened by the asker alone; both caps and zero; a refused take, Try again, three takes; cancel; paused and stale refused; a stop that is not in the Scroll; export, erasure and Clear; no exposure, observation or action written.
-- `domain/ask-order.test.ts`, `application/ask-scope.test.ts`: the brief, the suggestion rule, the median, and the scope answer.
+- `tests/integration/modules/supply-ask.test.ts` also covers the library check (D-251): a Scroll offered only with words of it that are about the question, none answers, a quote not in the Scroll, a quote that is not about the question, or an unknown handle, no candidate, no shared work, the Scroll being read never a candidate, the cap, an unknown outcome) and the support check of the order's answer (D-250: supported, repaired once, refused, unusable, unknown, paused).
+- `domain/ask-order.test.ts`, `application/ask-scope.test.ts`, `application/ask-library-role.test.ts`: the brief, the suggestion rule, the median, the scope answer, and the library check's reply and outcomes.
 
 CI fixtures only; real-provider runs are summarised in the pull request for #239.
 
 ## Related
 
 Production jobs and recipes: `../content/production/README.md`. Decisions: `docs/v2/decisions.md` D-035,
-D-037, D-218, D-230 to D-232. Client: `apps/client/features/requests/`. Operator runbook: `docs/v2/operations/scroll-production.md`.
+D-037, D-218, D-230 to D-232, D-250 to D-252. Client: `apps/client/features/requests/`. Operator runbook: `docs/v2/operations/scroll-production.md`.
