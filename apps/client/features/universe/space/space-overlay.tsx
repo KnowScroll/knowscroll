@@ -23,11 +23,11 @@ export interface SpaceOverlayProps extends SpaceOverlayInfo {
 }
 
 /**
- * A station's name with its count beside it ("Space room · 6 of 7"); any other body is its name. The count is the first part of
- * the caption: the constellation's name stays in the spoken name and the lists, so a label stays short enough to find room.
+ * A station's name with its count beside it, and what is live while something is ("Space room · 6 of 7 · Reel live"); any other
+ * body is its name. The constellation's name stays in the spoken name and the lists, so a label stays short enough to find room.
  */
 const captioned = (anchor: SpaceAnchor): string =>
-  anchor.caption === undefined ? anchor.name : `${anchor.name} · ${anchor.caption.split(' · ')[0]}`;
+  anchor.mapCaption === undefined ? anchor.name : `${anchor.name} · ${anchor.mapCaption}`;
 
 /** The size of the tap target of a body: the body's own size on screen, never smaller than a finger. */
 const targetSize = (anchor: SpaceAnchor, extra = 0): number => Math.min(160, Math.max(48, anchor.radiusPx * 2 + extra));

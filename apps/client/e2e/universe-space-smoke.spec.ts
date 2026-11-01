@@ -1,3 +1,5 @@
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { COLLECTION_READS, fixtureAccount, fixtureId, sceneFixture } from '../features/universe/universe.fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
@@ -31,7 +33,7 @@ interface Options {
   readonly size?: { width: number; height: number };
   /** Dust cues the emerging read answers with, and whether one room station sits beside the first system. */
   readonly dust?: number;
-  readonly station?: boolean;
+  readonly station?: boolean | 'live';
   /** The test walks the map, not its animations (universe-animations-smoke.spec.ts has those). */
   readonly calm?: boolean;
 }
@@ -61,10 +63,28 @@ const station = {
   placement: { systemId: fixtureId(10) },
 } as const;
 
+/** The same room as a member sees it while a Reel is watched together in it (D-268). */
+const liveStation = {
+  ...station,
+  standing: 'member',
+  sky: { lit: 2, of: 7, state: 'forming', finished: 0 },
+  live: 'reel',
+} as const;
+
+/** Screenshots are written only when `KS_UNIVERSE_SHOTS` names a folder (outside the repository). */
+async function shot(page: Page, name: string): Promise<void> {
+  const folder = process.env['KS_UNIVERSE_SHOTS'];
+  if (folder === undefined) return;
+  mkdirSync(folder, { recursive: true });
+  await page.waitForTimeout(450);
+  await page.screenshot({ path: join(folder, `${name}.png`) });
+}
+
 async function openUniverse(page: Page, requests: Request[], options: Options = {}): Promise<void> {
   const size = options.size ?? { width: 390, height: 844 };
   const world = sceneFixture(5, options.dust ?? 0);
   if (options.station === true) world.stations.push(station);
+  if (options.station === 'live') world.stations.push(liveStation);
   await page.setViewportSize(size);
   if (options.calm === true) await page.emulateMedia({ reducedMotion: 'reduce' });
   // Count the frames the renderer draws: three.js clears the canvas once per frame. A frame is stamped
@@ -361,6 +381,23 @@ test('search, the orbit dial and the Simple view work over the real map; search 
     requests.some(({ path }) => /region\/open|activate|observations|formation\/(claim|acknowledge)/.test(path)),
   ).toBe(false);
 });
+
+for (const size of [
+  { width: 390, height: 844 },
+  { width: 1440, height: 900 },
+]) {
+  test(`a member's station says on the map what is live in its room, as the lists do, at ${String(size.width)} × ${String(size.height)}`, async ({
+    page,
+  }) => {
+    await openUniverse(page, [], { size, station: 'live', calm: true });
+    const station = page.getByRole('button', { name: /^CI room, a room station/ }).first();
+    await expect(station).toBeVisible({ timeout: 60_000 });
+    await expect(station).toHaveAccessibleName('CI room, a room station, 2 of 7 · Reel live');
+    // The label under the station on the map carries the same words.
+    await expect(page.getByText('CI room · 2 of 7 · Reel live', { exact: true })).toBeVisible();
+    await shot(page, `station-live-${String(size.width)}`);
+  });
+}
 
 test('draws the desktop panel, docks a picked planet’s card, and the Simple drawing switch turns the map into lists', async ({
   page,

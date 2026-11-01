@@ -118,7 +118,9 @@ export async function startDecision(
 export async function lastOnStage(p: RoomPorts, lock: RoomLock): Promise<WatchLastOnStage | undefined> {
   const [session, launch] = await Promise.all([p.watches.latest(lock), p.launches.latest(lock)]);
   const options: WatchLastOnStage[] = [
-    ...(session === undefined ? [] : [{ kind: 'reel' as const, at: session.startsAt.toISOString() }]),
+    ...(session === undefined
+      ? []
+      : [{ kind: 'reel' as const, at: session.startsAt.toISOString(), title: session.title }]),
     ...(launch === undefined ? [] : [{ kind: 'launch' as const, at: launch.startsAt.toISOString() }]),
   ];
   return options.toSorted((a, b) => b.at.localeCompare(a.at))[0];
