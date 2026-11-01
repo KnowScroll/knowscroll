@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { askSupportRole } from '../../content/public.js';
-import type { ProposeOutcome, ReasoningHarness } from '../../../reasoning/public.js';
+import type { ProposeOutcome, RecordingReasoningHarness } from '../../../reasoning/public.js';
 import type { PersonalAuthority } from '../../identity/public.js';
 import type { CitablePassage, QuickAnswerDraft } from '../domain/quick-answer.js';
 import {
@@ -10,6 +10,8 @@ import {
   rewriteItems,
   sentencesOf,
 } from './quick-answer-support.js';
+
+const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 
 const passages: readonly CitablePassage[] = [
   {
@@ -125,11 +127,18 @@ describe('what a check came to', () => {
 
 describe('asking the checker through the harness', () => {
   function harness(outcome: unknown) {
-    const propose = vi.fn(() => Promise.resolve(outcome));
-    return { propose, value: { propose } as unknown as ReasoningHarness };
+    const propose = vi.fn((_input: unknown) => Promise.resolve(outcome));
+    return { propose, value: { proposePersonal: propose } as unknown as RecordingReasoningHarness };
   }
   const input = (allowRepair: boolean) => ({
     authority,
+    owner: {
+      accountId: id(2),
+      universeId: id(1),
+      privacyEpoch: 1,
+      recordId: id(50),
+      recordingGeneration: 3,
+    },
     quickAnswerId: 'quick-1',
     runId: 'run-1',
     draft: 1 as const,
@@ -157,14 +166,27 @@ describe('asking the checker through the harness', () => {
           role: { id: string };
           limits: { allowRepair: boolean };
           context: { items: { kind: string; text: string }[] };
+          recordingPurpose: Record<string, unknown>;
         },
       ]
     )[0];
+    // The run is stamped with the generation its Quick answer was asked at, and names that answer as its record (D-264).
+    expect(sent.recordingPurpose).toMatchObject({
+      ownerModule: 'supply',
+      purpose: 'quick-answer-support',
+      businessRunId: 'run-1',
+      recordingGeneration: 3,
+      accountId: id(2),
+      claimId: id(50),
+    });
     expect(sent.run).toMatchObject({ id: 'run-1', purpose: 'quick-answer-support', ownerModule: 'supply' });
     expect(sent.role.id).toBe('supply.quick-answer-support');
     expect(sent.limits).toEqual({ allowRepair: true });
     expect(sent.context.items.find((item) => item.kind === 'cited_passages')?.text).toBe(`[e1] ${passages[0]!.text}`);
-    expect(result).toEqual({ finding: { kind: 'supported' }, run: { runId: 'run-1', end: 'completed' } });
+    expect(result).toEqual({
+      finding: { kind: 'supported' },
+      run: { runId: 'run-1', purpose: sent.recordingPurpose, end: 'completed' },
+    });
     // The second draft's check has no repair of its own.
     await makeSupportCheck(model.value)(input(false));
     expect((model.propose.mock.calls[1] as unknown as [{ limits: { allowRepair: boolean } }])[0].limits).toEqual({
@@ -174,7 +196,10 @@ describe('asking the checker through the harness', () => {
 
   it('leaves the run open when the attempt may have reached the provider, so it is never resent', async () => {
     const result = await makeSupportCheck(harness({ kind: 'unknown' }).value)(input(true));
-    expect(result).toEqual({ finding: { kind: 'unchecked' }, run: { runId: 'run-1' } });
+    expect(result).toEqual({
+      finding: { kind: 'unchecked' },
+      run: { runId: 'run-1', purpose: expect.objectContaining({ businessRunId: 'run-1' }) as unknown },
+    });
   });
 });
 

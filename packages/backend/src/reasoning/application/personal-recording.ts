@@ -13,23 +13,39 @@ import type {
 
 const Counter = z.number().int().min(1).max(2_147_483_647);
 const Digest = z.string().regex(/^[a-f0-9]{64}$/u);
+
+/**
+ * The closed set of owners, and what each may stamp on a run. The Planner and the Cartographer have one purpose each. Supply
+ * names its steps itself: this engine does not name them, so a code is only checked to be one, and the schema
+ * (`reasoning_personal_recording_proof_shape`, migration 0094) and Supply's owner check hold the list.
+ */
+const PURPOSE_CODE = /^[a-z][a-z0-9-]{0,63}$/u;
+function purposeFitsOwner(p: { readonly ownerModule: string; readonly purpose: string }): boolean {
+  switch (p.ownerModule) {
+    case 'planner':
+      return p.purpose === 'personal-planner';
+    case 'geography':
+      return p.purpose === 'personal-cartographer';
+    default:
+      return p.ownerModule === 'supply' && PURPOSE_CODE.test(p.purpose);
+  }
+}
+
 const Purpose = z
   .strictObject({
     version: z.literal('personal-role-purpose.v1'),
     accountId: z.uuid(),
     universeId: z.uuid(),
     privacyEpoch: Counter,
-    ownerModule: z.enum(['planner', 'geography']),
-    purpose: z.enum(['personal-planner', 'personal-cartographer']),
+    ownerModule: z.enum(['planner', 'geography', 'supply']),
+    purpose: z.string().max(64),
     businessRunId: z.uuid(),
     recordingGeneration: Counter.refine((g) => g % 2 === 1),
     contextSha256: Digest,
     modelContextSha256: Digest,
     claimId: z.uuid(),
   })
-  .refine((p) =>
-    p.ownerModule === 'planner' ? p.purpose === 'personal-planner' : p.purpose === 'personal-cartographer',
-  );
+  .refine(purposeFitsOwner);
 
 /** Public data is inspected without invoking getters, including symbols/nonenumerable extras. */
 function data(value: unknown, keys: readonly string[]): Record<string, unknown> | undefined {
@@ -131,20 +147,32 @@ export interface PersonalRecordingHarnessPorts {
   readonly engine: HarnessPorts;
   readonly checkPlanner: CheckPersonalRecordingRun;
   readonly checkGeography: CheckPersonalRecordingRun;
+  readonly checkSupply: CheckPersonalRecordingRun;
   readonly hashContext: (context: ProposeInput<unknown>['context']) => string;
 }
 
 const sameId = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
-/** Required, closed two-owner dispatch. No string-selected registry or absent-success fallback. */
+/** Required, closed three-owner dispatch. No string-selected registry or absent-success fallback. */
 export function recordingOwnerDispatcher(
-  ports: Pick<PersonalRecordingHarnessPorts, 'checkPlanner' | 'checkGeography'>,
+  ports: Pick<PersonalRecordingHarnessPorts, 'checkPlanner' | 'checkGeography' | 'checkSupply'>,
 ): CheckPersonalRecordingRun {
-  if (typeof ports.checkPlanner !== 'function' || typeof ports.checkGeography !== 'function')
+  if (
+    typeof ports.checkPlanner !== 'function' ||
+    typeof ports.checkGeography !== 'function' ||
+    typeof ports.checkSupply !== 'function'
+  )
     throw new Error('PERSONAL_RECORDING_OWNERS_REQUIRED');
   return (scope, value) => {
     const p = parsePersonalRecordingPurpose(value);
     if (!p) return Promise.resolve('unavailable');
-    return p.ownerModule === 'planner' ? ports.checkPlanner(scope, p) : ports.checkGeography(scope, p);
+    switch (p.ownerModule) {
+      case 'planner':
+        return ports.checkPlanner(scope, p);
+      case 'geography':
+        return ports.checkGeography(scope, p);
+      case 'supply':
+        return ports.checkSupply(scope, p);
+    }
   };
 }
 
@@ -159,6 +187,7 @@ function snapshot<T>(input: PersonalRecordingProposeInput<T>): PersonalRecording
     'instructions',
     'outputSchema',
     'maxOutputTokens',
+    'effort',
     'minContextItems',
     'budget',
     'budgetClass',
@@ -186,6 +215,7 @@ function snapshot<T>(input: PersonalRecordingProposeInput<T>): PersonalRecording
     typeof role.maxOutputTokens !== 'number' ||
     !Number.isInteger(role.maxOutputTokens) ||
     !(role.outputSchema instanceof z.ZodType) ||
+    (role.effort !== undefined && role.effort !== 'low' && role.effort !== 'medium' && role.effort !== 'high') ||
     (role.minContextItems !== undefined &&
       (typeof role.minContextItems !== 'number' || !Number.isInteger(role.minContextItems))) ||
     (role.budgetClass !== undefined && role.budgetClass !== 'background' && role.budgetClass !== 'interactive') ||

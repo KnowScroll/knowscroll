@@ -724,6 +724,7 @@ describe('the reasoning attempt ledger (real database, real pg-boss, fixture mod
         overrides: { ledger: guarded },
         checkPlanner: makeCheckPlannerRecordingRun({ store: plannerStore, now: () => new Date() }),
         checkGeography: makeCheckGeographyRecordingRun({ store: geographyStore, now: () => new Date() }),
+        checkSupply: () => Promise.resolve('unavailable' as const),
       });
       const purpose: PersonalRecordingPurpose = {
         version: 'personal-role-purpose.v1',

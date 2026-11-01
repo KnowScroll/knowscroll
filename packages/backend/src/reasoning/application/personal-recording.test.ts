@@ -90,14 +90,16 @@ function denied() {
     },
   } as unknown as HarnessPorts;
   const checkPlanner = vi.fn(() => Promise.resolve('unavailable' as const)),
-    checkGeography = vi.fn(() => Promise.resolve('unavailable' as const));
+    checkGeography = vi.fn(() => Promise.resolve('unavailable' as const)),
+    checkSupply = vi.fn(() => Promise.resolve('unavailable' as const));
   const harness = makePersonalRecordingReasoningHarness({
     engine: ports,
     checkPlanner,
     checkGeography,
+    checkSupply,
     hashContext: canonicalSha256,
   });
-  return { harness, enter, read, model, quota, send, ports, checkPlanner, checkGeography };
+  return { harness, enter, read, model, quota, send, ports, checkPlanner, checkGeography, checkSupply };
 }
 
 describe('personal recording facade strict protocol (authored source fixtures only)', () => {
@@ -161,13 +163,21 @@ describe('personal recording facade strict protocol (authored source fixtures on
     expect(parsePersonalRunAccountingBinding(hidden)).toBeUndefined();
     expect(parsePersonalRunAccountingBinding({ ...binding, [Symbol('extra')]: true })).toBeUndefined();
   });
-  it('requires both real owner ports at construction and selects only its exact closed pair', async () => {
-    expect(() => recordingOwnerDispatcher({ checkPlanner: undefined, checkGeography: undefined } as never)).toThrow(
+  it('requires every real owner port at construction and selects only its exact closed pair', async () => {
+    expect(() =>
+      recordingOwnerDispatcher({ checkPlanner: undefined, checkGeography: undefined, checkSupply: undefined } as never),
+    ).toThrow('PERSONAL_RECORDING_OWNERS_REQUIRED');
+    const planner = vi.fn(() => Promise.resolve('unavailable' as const)),
+      geography = vi.fn(() => Promise.resolve('unavailable' as const)),
+      supply = vi.fn(() => Promise.resolve('unavailable' as const));
+    expect(() => recordingOwnerDispatcher({ checkPlanner: planner, checkGeography: geography } as never)).toThrow(
       'PERSONAL_RECORDING_OWNERS_REQUIRED',
     );
-    const planner = vi.fn(() => Promise.resolve('unavailable' as const)),
-      geography = vi.fn(() => Promise.resolve('unavailable' as const));
-    const dispatch = recordingOwnerDispatcher({ checkPlanner: planner, checkGeography: geography });
+    const dispatch = recordingOwnerDispatcher({
+      checkPlanner: planner,
+      checkGeography: geography,
+      checkSupply: supply,
+    });
     // This object tests dispatch selection only; the real adapter validates capability provenance first.
     const scope = {} as RecordingScopeTx;
     expect(await dispatch(scope, purpose)).toBe('unavailable');
@@ -177,9 +187,54 @@ describe('personal recording facade strict protocol (authored source fixtures on
       'unavailable',
     );
     expect(geography).toHaveBeenCalledOnce();
+    expect(supply).not.toHaveBeenCalled();
+    expect(await dispatch(scope, { ...purpose, ownerModule: 'supply', purpose: 'ask-scope' })).toBe('unavailable');
+    expect(supply).toHaveBeenCalledOnce();
+    // A pair that is not one of the closed set reaches no owner at all.
     expect(await dispatch(scope, { ...purpose, purpose: 'personal-cartographer' })).toBe('unavailable');
+    expect(await dispatch(scope, { ...purpose, ownerModule: 'planner', purpose: 'ask-scope' })).toBe('unavailable');
     expect(planner).toHaveBeenCalledOnce();
     expect(geography).toHaveBeenCalledOnce();
+    expect(supply).toHaveBeenCalledOnce();
+  });
+  it('accepts a Supply step for Supply only, at an odd generation, and nothing else of its', () => {
+    for (const supplyPurpose of ['ask-scope', 'step-two'])
+      expect(parsePersonalRecordingPurpose({ ...purpose, ownerModule: 'supply', purpose: supplyPurpose })).toEqual({
+        ...purpose,
+        ownerModule: 'supply',
+        purpose: supplyPurpose,
+      });
+    // The engine only checks that a Supply step is named by a code; the schema and Supply's owner hold the list.
+    expect(parsePersonalRecordingPurpose({ ...purpose, ownerModule: 'supply', purpose: 'Ask Scope' })).toBeUndefined();
+    expect(parsePersonalRecordingPurpose({ ...purpose, ownerModule: 'supply', purpose: '' })).toBeUndefined();
+    expect(
+      parsePersonalRecordingPurpose({ ...purpose, ownerModule: 'geography', purpose: 'ask-scope' }),
+    ).toBeUndefined();
+    expect(parsePersonalRecordingPurpose({ ...purpose, ownerModule: 'planner', purpose: 'ask-scope' })).toBeUndefined();
+    expect(
+      parsePersonalRecordingPurpose({
+        ...purpose,
+        ownerModule: 'supply',
+        purpose: 'ask-scope',
+        recordingGeneration: 4,
+      }),
+    ).toBeUndefined();
+  });
+  it('lets a role set its effort, and refuses one that is not a known effort, before any scope work', async () => {
+    const accepted = denied();
+    const low = { ...input(), role: { ...input().role, effort: 'low' as const } };
+    expect(await accepted.harness.proposePersonal(low, new AbortController().signal)).toEqual({
+      kind: 'refused',
+      reason: 'scope_refused',
+    });
+    expect(accepted.enter).toHaveBeenCalledOnce();
+    const unknown = denied();
+    const frantic = { ...input(), role: { ...input().role, effort: 'frantic' } } as never;
+    expect(await unknown.harness.proposePersonal(frantic, new AbortController().signal)).toEqual({
+      kind: 'refused',
+      reason: 'run_invalid',
+    });
+    expect(unknown.enter).not.toHaveBeenCalled();
   });
   it('rejects changed same-ref model text and forged purpose before any private scope/query', async () => {
     const c = denied(),

@@ -202,6 +202,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       overrides: fixture.ports,
       checkPlanner: makeCheckPlannerRecordingRun({ store: plannerStore, now: () => clock ?? new Date() }),
       checkGeography: makeCheckGeographyRecordingRun({ store: geographyStore, now: () => clock ?? new Date() }),
+      checkSupply: () => Promise.resolve('unavailable' as const),
     });
     const ports: PlannerPorts = {
       ...base,

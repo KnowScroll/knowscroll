@@ -163,14 +163,19 @@ export interface RecordingRunProof {
   readonly modelContextSha256: string;
 }
 
-/** Immutable private proof; claim is checked by the owner, never stored as run identity. */
+/**
+ * Immutable private proof; claim is checked by the owner, never stored as run identity.
+ * The Planner and the Cartographer have one purpose each. Supply names the step a run is (a lowercase code): its owner check
+ * knows which exist, and the schema repeats them (migration 0094). `claimId` is whatever the owner's own record is called: the
+ * Planner's current claim, or the ID of the request or answer a Supply run serves.
+ */
 export interface PersonalRecordingPurpose {
   readonly version: 'personal-role-purpose.v1';
   readonly accountId: string;
   readonly universeId: string;
   readonly privacyEpoch: number;
-  readonly ownerModule: 'planner' | 'geography';
-  readonly purpose: 'personal-planner' | 'personal-cartographer';
+  readonly ownerModule: 'planner' | 'geography' | 'supply';
+  readonly purpose: string;
   readonly businessRunId: string;
   readonly recordingGeneration: number;
   readonly contextSha256: string;

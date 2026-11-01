@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AskQuickAnswer } from '@knowscroll/contracts';
-import type { ReasoningHarness } from '../../../reasoning/public.js';
+import type { PersonalRecordingPurpose } from '../../../reasoning/public.js';
 import type { PersonalAuthority, PersonalScopeTx, WithPersonalScope } from '../../identity/public.js';
 import { makeAnswerQuickAnswer } from './answer-quick-answer.js';
 import { NOT_COVERED_ANSWER } from '../domain/quick-answer.js';
 import type { NewQuickAnswer, QuickAnswerPorts, QuickAnswerRow, QuickAnswerSettlement } from './quick-answer-ports.js';
 import type { QuickAnswerSupportCheck, SupportFinding } from './quick-answer-support.js';
+import { purposeOf, type RecordingRuns } from './recording-runs.js';
 import {
   QUICK_ANSWER_WAIT_LIMIT_MS,
   makeAskQuickAnswer,
@@ -83,6 +84,7 @@ function fixture(options: Options = {}) {
           assetId: row.assetId,
           assetRevision: row.assetRevision,
           stopId: row.stopId,
+          recordingGeneration: row.recordingGeneration,
           state: 'waiting',
           passage: row.passage,
           question: row.question,
@@ -299,19 +301,41 @@ describe('reading and dismissing a Quick answer', () => {
   });
 });
 
+/** The recording proof of a run the fixture checker made: only its shape matters to the step that closes it. */
+const stubPurpose = (runId: string, generation = 1): PersonalRecordingPurpose =>
+  purposeOf(
+    { accountId: id(2), universeId: id(1), privacyEpoch: 1, recordId: id(50), recordingGeneration: generation },
+    'quick-answer-support',
+    runId,
+    { bundleRef: 'ci:support', items: [] },
+  );
+
 /**
- * A harness that answers what the test says, and records every request. `answer` is one outcome for every request, or a function of
- * the request and its number (the writer's first request is number 1, its rewrite after a failed check number 2).
+ * A recording-aware harness that answers what the test says, and records every request. `answer` is one outcome for every
+ * request, or a function of the request and its number (the writer's first request is number 1, its rewrite after a failed check
+ * number 2). `propose` is its model call and `closeRun` its close of a run; `fence` makes the transaction under the recording
+ * fence refuse, as it does when the person's generation or the card has moved on.
  */
-function harness(answer: unknown) {
+function harness(answer: unknown, fence: { holds: boolean } = { holds: true }) {
   let calls = 0;
   const propose = vi.fn((input: unknown) =>
     Promise.resolve(
       typeof answer === 'function' ? (answer as (input: unknown, call: number) => unknown)(input, ++calls) : answer,
     ),
   );
-  const closeRun = vi.fn(() => Promise.resolve('closed'));
-  return { propose, closeRun, value: { propose, closeRun } as unknown as ReasoningHarness };
+  const closeRun = vi.fn((_cap: unknown, _run: unknown) => Promise.resolve('closed'));
+  const withPersonalApply = vi.fn(
+    async (_authority: unknown, purpose: PersonalRecordingPurpose, work: (cap: unknown) => Promise<unknown>) =>
+      fence.holds
+        ? { kind: 'entered', value: await work({ personal: scope, generation: purpose.recordingGeneration }) }
+        : { kind: 'refused', refusal: { kind: 'scope_refused' } },
+  );
+  const recording = {
+    harness: { proposePersonal: propose, closePersonalRun: closeRun, withPersonalApply },
+    fenceOwn: () =>
+      Promise.resolve({ kind: 'active', owner: { accountId: id(2), universeId: id(1), privacyEpoch: 1 } }),
+  } as unknown as RecordingRuns;
+  return { propose, closeRun, withPersonalApply, value: recording };
 }
 const proposed = (output: unknown) => ({
   kind: 'proposed',
@@ -330,7 +354,7 @@ function checker(...findings: SupportFinding[]) {
   return vi.fn<QuickAnswerSupportCheck>((input) =>
     Promise.resolve({
       finding: findings[Math.min(calls++, findings.length - 1)] ?? { kind: 'supported' },
-      run: { runId: input.runId, end: 'completed' },
+      run: { runId: input.runId, purpose: stubPurpose(input.runId), end: 'completed' },
     }),
   );
 }
@@ -380,7 +404,10 @@ describe('answering a Quick answer in the worker', () => {
       passage: undefined,
       question: undefined,
     });
-    expect(model.closeRun).toHaveBeenCalledWith(scope, { runId: id(50), state: 'completed' });
+    expect(model.closeRun).toHaveBeenCalledWith(
+      expect.objectContaining({ personal: scope }),
+      expect.objectContaining({ runId: id(50), state: 'completed' }),
+    );
     expect(log.notified).toEqual([id(50)]);
   });
 
@@ -564,6 +591,7 @@ describe('answering a Quick answer in the worker', () => {
       assetId: id(20),
       assetRevision: 3,
       stopId: 'two',
+      recordingGeneration: 1,
       passage: 'keeps pointing',
       question: undefined,
       createdAt: start,

@@ -2253,6 +2253,7 @@ export interface SupplyQuickAnswers {
   passage: string | null;
   privacy_epoch: number;
   question: string | null;
+  recording_generation: Generated<number>;
   settled_at: Timestamp | null;
   shown_question: string | null;
   state: string;
