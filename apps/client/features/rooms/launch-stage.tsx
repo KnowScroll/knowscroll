@@ -17,7 +17,7 @@ import { useSteadyNow } from './use-launch';
 
 type Running = Exclude<LaunchView, { phase: 'finished' }>;
 
-const LETTERS = ['A', 'B', 'C'] as const;
+export const LETTERS = ['A', 'B', 'C'] as const;
 
 /** Face colours: fixed, never a score, picked from the person's own ID so a face keeps its colour. */
 const FACE_COLOURS = [content.continue, content.fresh, content.paper, content.paper2] as const;
@@ -28,7 +28,7 @@ const colourOf = (personId: string): string => {
 };
 
 /** The people who are in or who got a question right, as small faces with their names for a screen reader. */
-function Faces({
+export function Faces({
   faces,
   label,
   testID,
@@ -68,7 +68,7 @@ function Faces({
  * The host's mark: a small rocket on a square tile. Squares are how an AI is drawn in a room (never a face); the words beside it,
  * "AI · Quizmaster", are what carry the meaning.
  */
-function HostMark() {
+export function HostMark() {
   return (
     <View style={styles.hostMark} aria-hidden importantForAccessibility="no-hide-descendants">
       <Svg width={26} height={26} viewBox="0 0 24 24">
@@ -81,7 +81,7 @@ function HostMark() {
 }
 
 /** The time left as a ring and as words ("8 s"): the ring steps and never needs motion, and the words are the real reading. */
-function TimerRing({ ms, total }: { readonly ms: number; readonly total: number }) {
+export function TimerRing({ ms, total }: { readonly ms: number; readonly total: number }) {
   const size = 46;
   const stroke = 4;
   const radiusOf = (size - stroke) / 2;
@@ -116,7 +116,7 @@ function TimerRing({ ms, total }: { readonly ms: number; readonly total: number 
 }
 
 /** One option: a button with its letter and words while the question is open, then marked in words as the right one or yours. */
-function Option({
+export function Option({
   letter,
   text,
   index,
@@ -166,7 +166,7 @@ function Option({
 }
 
 /** On the web a digit key picks the option with that number, unless the person is typing somewhere (R3: "options keys 1-4"). */
-function useDigitKeys(enabled: boolean, count: number, onDigit: (index: number) => void): void {
+export function useDigitKeys(enabled: boolean, count: number, onDigit: (index: number) => void): void {
   useEffect(() => {
     if (!enabled || Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
     const listener = (event: KeyboardEvent) => {

@@ -342,6 +342,8 @@ export interface RoomMessagesProps {
   readonly onAskAbout?: (kind: PointedAsk, messageId: string) => void;
   /** What stands above the first message: where a topic began. */
   readonly header?: ReactNode;
+  /** What stands after the newest message, where the conversation ends: the quiet room's offer (R3 F). */
+  readonly footer?: ReactNode;
 }
 
 const NO_TOPICS: ReadonlyMap<string, RoomDiscussionSummary> = new Map();
@@ -369,6 +371,7 @@ export function RoomMessages({
   canAsk = false,
   onAskAbout = noop,
   header,
+  footer,
 }: RoomMessagesProps) {
   const now = new Date();
   const partOf = (assetId: string) => {
@@ -554,6 +557,7 @@ export function RoomMessages({
           </View>
         ))}
       </View>
+      {footer}
     </ScrollView>
   );
 }

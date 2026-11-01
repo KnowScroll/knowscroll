@@ -201,6 +201,47 @@ describe('a room on the client', () => {
     expect(scope.calls.find((call) => call.name === 'dismissAway')?.input).toMatchObject({ roomId });
   });
 
+  it('leaves a question under one command until the server answers, and reads the room again', async () => {
+    let up = false;
+    const scope = scopeOf({
+      read: () => Promise.resolve(member),
+      leaveQuestion: () =>
+        up ? Promise.resolve({ discussionId: id(88), asked: 'queued' }) : Promise.reject(new Error('network')),
+    });
+    const controller = createRoom({ scope, roomId, newId });
+    await controller.load();
+    const question = { text: 'Why is the night sky dark?', askNow: true, notify: true };
+    expect(await controller.leaveQuestion(question)).toBeUndefined();
+    expect(controller.getState().offline).toBe(true);
+    up = true;
+    expect(await controller.leaveQuestion(question)).toEqual({ discussionId: id(88), asked: 'queued' });
+    const sent = scope.calls.filter((call) => call.name === 'leaveQuestion');
+    expect(sent).toHaveLength(2);
+    // The same intent, so the same command: a retry after an unknown outcome never leaves it twice.
+    expect((sent[1]?.input as { commandId: string }).commandId).toBe(
+      (sent[0]?.input as { commandId: string }).commandId,
+    );
+    expect(sent[1]?.input).toMatchObject({ roomId, ...question });
+    expect(scope.calls.filter((call) => call.name === 'read')).toHaveLength(2);
+  });
+
+  it('sets the notice switch and says an answer was noticed, each as its own command', async () => {
+    const scope = scopeOf({
+      read: () => Promise.resolve(member),
+      questionNotice: () => Promise.resolve({ notify: false }),
+    });
+    const controller = createRoom({ scope, roomId, newId });
+    await controller.load();
+    expect(await controller.setQuestionNotice(id(88), { notify: false })).toBe(true);
+    expect(await controller.setQuestionNotice(id(88), { noticed: true })).toBe(true);
+    const sent = scope.calls.filter((call) => call.name === 'questionNotice');
+    expect(sent[0]?.input).toMatchObject({ roomId, discussionId: id(88), notify: false });
+    expect(sent[1]?.input).toMatchObject({ roomId, discussionId: id(88), noticed: true });
+    expect((sent[0]?.input as { commandId: string }).commandId).not.toBe(
+      (sent[1]?.input as { commandId: string }).commandId,
+    );
+  });
+
   it('starts a topic from a message with a title and a tag under one command, and from nothing with a tag', async () => {
     const scope = scopeOf({
       read: () => Promise.resolve(member),

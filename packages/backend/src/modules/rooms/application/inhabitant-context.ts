@@ -158,10 +158,15 @@ export async function assembleMaterial(
     limit: CONTEXT_MESSAGES,
     ...(discussion.lastSequence > 0 ? { before: discussion.lastSequence + 1 } : {}),
   });
-  const origin =
+  const originRow =
     discussion.originMessageId === null || discussion.root !== null
       ? undefined
-      : (await p.discussions.messageInRoom(lock, discussion.originMessageId))?.message;
+      : await p.discussions.messageInRoom(lock, discussion.originMessageId);
+  const origin = originRow?.message;
+  // A question begins with its own first message, which the newest messages already hold: it is read once, and its title, which is
+  // those same words, is not read as a second copy of them.
+  const originIsOwn = originRow?.discussionId === discussion.discussionId;
+  const originInRows = origin !== undefined && originIsOwn && rows.some((row) => row.messageId === origin.messageId);
   // The message a turn is about may have scrolled out of the newest window (a pointed ask at an old message, or more
   // than a window of talk before the job ran). It is read by id and goes through the same reducer, so keep-out and
   // removal apply to it as to every other message.
@@ -169,7 +174,7 @@ export async function assembleMaterial(
     parts.focus === undefined || origin?.messageId === parts.focus || rows.some((row) => row.messageId === parts.focus)
       ? undefined
       : await p.discussions.messageById(lock, discussion.discussionId, parts.focus);
-  const before = [origin, focusRow].filter((row) => row !== undefined);
+  const before = [originInRows ? undefined : origin, focusRow].filter((row) => row !== undefined);
   const reduced = await reduceMessages(p, scope, lock, [...before, ...rows], {
     also: [discussion.startedByAccountId, origin?.authorAccountId ?? null].filter((id) => id !== null),
     refs: discussion.root === null ? [] : [discussion.root],
@@ -192,7 +197,9 @@ export async function assembleMaterial(
       originHidden: origin?.hidden ?? false,
     })
       ? KEPT_OUT_TOPIC
-      : discussion.title,
+      : originInRows && discussion.titleDerived
+        ? undefined
+        : discussion.title,
     content: root,
     messages: reduced.messages.map((entry) => entry.message),
   };
