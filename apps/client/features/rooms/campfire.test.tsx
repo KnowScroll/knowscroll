@@ -1,5 +1,5 @@
 import type * as React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { AccountScope, RoomController, RoomLaunchState, RoomState } from '@knowscroll/client-core';
 import { LAUNCH_HOST, type LaunchView, type RoomLaunch, type RoomView } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
@@ -22,7 +22,15 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 // The discussion itself is read elsewhere; General here is only the place the stage puts it.
 jest.mock('./discussion-screen', () => ({
-  OpenDiscussion: ({ discussionId, listHeader }: { discussionId: string; listHeader?: React.ReactNode }) => {
+  OpenDiscussion: ({
+    discussionId,
+    listHeader,
+    listFooter,
+  }: {
+    discussionId: string;
+    listHeader?: React.ReactNode;
+    listFooter?: React.ReactNode;
+  }) => {
     const { Text } = jest.requireActual<{ Text: React.ComponentType<{ testID: string; children: string }> }>(
       'react-native',
     );
@@ -30,6 +38,7 @@ jest.mock('./discussion-screen', () => ({
       <>
         <Text testID="general-discussion">{discussionId}</Text>
         {listHeader}
+        {listFooter}
       </>
     );
   },
@@ -51,6 +60,32 @@ const mockLaunch: { current: { controller: object; state: RoomLaunchState } } = 
   },
 };
 jest.mock('./use-launch', () => ({ useRoomLaunch: () => mockLaunch.current, useSteadyNow: () => 0 }));
+// The replay is read when its sheet opens (quiet-room.test.tsx plays it); General here only needs to open and close the sheet.
+const mockReplay: { current: { controller: object; state: object } } = {
+  current: {
+    controller: { begin: jest.fn(), leave: jest.fn(), load: jest.fn() },
+    state: {
+      phase: 'ready',
+      host: { name: 'Pixel', label: 'AI · Quizmaster' },
+      replay: {
+        launchId: '0199d000-0000-7000-8000-000000000044',
+        day: '2026-10-26',
+        played: 5,
+        questions: [],
+        answerSeconds: 8,
+      },
+      step: 'idle',
+      index: 0,
+      shownAt: 0,
+      picked: undefined,
+      answer: undefined,
+      squares: [],
+      working: false,
+      offline: false,
+    },
+  },
+};
+jest.mock('./use-replay', () => ({ useRoomReplay: () => mockReplay.current }));
 jest.mock('./use-room', () => ({
   ...jest.requireActual<object>('./use-room'),
   useRoomActivities: () => ({ controller: {}, state: { activities: [], canCreate: false } }),
@@ -136,7 +171,21 @@ const controller = () =>
     startDiscussion: jest.fn(),
     setPreferences: jest.fn(),
   }) as unknown as RoomController & { leave: jest.Mock; setPreferences: jest.Mock };
-const scope = {} as AccountScope;
+/** An account scope with the storage the quiet room keeps a put-away offer in (purged with the scope, as the real one is). */
+const scopeWithStorage = (): AccountScope => {
+  const values = new Map<string, string>();
+  return {
+    storage: {
+      get: (key: string) => values.get(key),
+      set: (key: string, value: string) => void values.set(key, value),
+      remove: (key: string) => void values.delete(key),
+    },
+  } as unknown as AccountScope;
+};
+let scope = scopeWithStorage();
+beforeEach(() => {
+  scope = scopeWithStorage();
+});
 const wrap = (node: React.ReactNode) =>
   render(<DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>{node}</DisplayProvider>);
 
@@ -168,13 +217,13 @@ describe('who is here, on the room’s band', () => {
   it('is honest when it is quiet: says so and when the last message was', async () => {
     const threeHoursAgo = new Date(Date.now() - 3 * 3_600_000).toISOString();
     await wrap(<HereStrip here={{ faces: [face(10, 'Ravi', true)] }} lastMessageAt={threeHoursAgo} />);
-    expect(screen.getByText('Quiet right now · last message 3 h ago')).toBeOnTheScreen();
+    expect(screen.getByText('Quiet right now · last person wrote 3 h ago')).toBeOnTheScreen();
     expect(screen.queryByText(/online/i)).not.toBeOnTheScreen();
   });
 
   it('says a room nobody has written in is quiet, and invents no time', async () => {
     await wrap(<HereStrip here={{ faces: [face(10, 'Ravi', true)] }} lastMessageAt={undefined} />);
-    expect(screen.getByText('Quiet right now · no messages yet')).toBeOnTheScreen();
+    expect(screen.getByText('Quiet right now · no one has written yet')).toBeOnTheScreen();
   });
 
   it('lists the names in D04’s Here now, with a number in the heading only from three', async () => {
@@ -466,5 +515,134 @@ describe('the Launch in the room', () => {
     await wrap(stage(member({ launch: { state: 'finished' } })));
     expect(screen.queryByTestId('launch-podium')).not.toBeOnTheScreen();
     expect(screen.getByTestId('now-launch')).toHaveTextContent(/Podium/);
+  });
+});
+
+describe('the quiet room', () => {
+  const READ = { noticeSeenAt: '2026-10-24T08:00:00.000Z' };
+  const quietFor = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
+  const stageOf = (
+    view: Member,
+    actions: Partial<Record<'setQuestionNotice' | 'leaveQuestion', jest.Mock>> = {},
+    inScope: AccountScope = scope,
+  ) => (
+    <GeneralStage
+      scope={inScope}
+      view={view}
+      controller={{ ...controller(), ...actions }}
+      state={roomState()}
+      header={null}
+    />
+  );
+  const quietView = (day: string, patch: Partial<Member> = {}) =>
+    member({
+      you: { aiLevel: 'lively', keepOut: false, ...READ },
+      lastMessageAt: quietFor(3),
+      replay: { day },
+      ...patch,
+    });
+
+  it('offers a warm-up as the host, labelled AI, in a room nobody has written in for hours that has a Launch to replay', async () => {
+    await wrap(stageOf(quietView('2026-10-20')));
+    expect(screen.getByTestId('quiet-offer')).toBeOnTheScreen();
+    expect(screen.getByLabelText('AI, Quizmaster')).toBeOnTheScreen();
+    expect(screen.getByTestId('quiet-offer-line')).toHaveTextContent(/Launch of 20 Oct/);
+    // The chip is there too, for whoever does not want a card.
+    expect(screen.getByTestId('now-replay')).toHaveTextContent(/Launch of 20 Oct/);
+  });
+
+  it('offers it once: Not now puts it away, and the chip stays', async () => {
+    await wrap(stageOf(quietView('2026-10-21')));
+    await fireEvent.press(screen.getByTestId('quiet-offer-dismiss'));
+    expect(screen.queryByTestId('quiet-offer')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('now-replay')).toBeOnTheScreen();
+  });
+
+  it('puts the offer away for that room and night only, and a new account scope is offered it again', async () => {
+    const day = '2026-10-29';
+    const otherRoom = { ...room, roomId: id(2) };
+    const { rerender } = await wrap(stageOf(quietView(day)));
+    await fireEvent.press(screen.getByTestId('quiet-offer-dismiss'));
+    expect(screen.queryByTestId('quiet-offer')).not.toBeOnTheScreen();
+    // Another room, the same night: it is that room's offer, not this one's.
+    await rerender(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        {stageOf(quietView(day, { room: otherRoom }))}
+      </DisplayProvider>,
+    );
+    expect(screen.getByTestId('quiet-offer')).toBeOnTheScreen();
+    // The first room is still put away in this scope; after an account switch (a new scope) it is offered again.
+    await rerender(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        {stageOf(quietView(day))}
+      </DisplayProvider>,
+    );
+    expect(screen.queryByTestId('quiet-offer')).not.toBeOnTheScreen();
+    await rerender(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        {stageOf(quietView(day), {}, scopeWithStorage())}
+      </DisplayProvider>,
+    );
+    expect(screen.getByTestId('quiet-offer')).toBeOnTheScreen();
+  });
+
+  it('opens the replay from the offer and from the chip', async () => {
+    await wrap(stageOf(quietView('2026-10-22')));
+    expect(screen.queryByTestId('replay-sheet')).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('quiet-offer-replay'));
+    expect(screen.getByTestId('replay-sheet')).toBeOnTheScreen();
+    expect(screen.getByTestId('replay-banner')).toHaveTextContent(/^Replay./);
+    expect(screen.queryByTestId('quiet-offer')).not.toBeOnTheScreen();
+  });
+
+  it('makes no offer while people are talking, and none when there is nothing to replay', async () => {
+    await wrap(stageOf(quietView('2026-10-23', { lastMessageAt: new Date().toISOString() })));
+    expect(screen.queryByTestId('quiet-offer')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('now-replay')).toBeOnTheScreen();
+    await wrap(stageOf(quietView('2026-10-24', { replay: undefined })));
+    expect(screen.queryByTestId('quiet-offer')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('now-replay')).not.toBeOnTheScreen();
+  });
+
+  it('tells the person who left a question that a person answered it, and takes the notice away when they say so', async () => {
+    const setQuestionNotice = jest.fn(() => Promise.resolve(true));
+    const reply = {
+      discussionId: id(60),
+      title: 'How do astronomers know how far away a star is?',
+      by: person(61, 'Lena'),
+      askedAt: '2026-10-26T21:14:00.000Z',
+      at: '2026-10-28T21:20:00.000Z',
+    };
+    await wrap(
+      stageOf(quietView('2026-10-25', { questions: { waiting: 0, replies: [reply] } }), { setQuestionNotice }),
+    );
+    expect(screen.getByTestId('question-reply-line')).toHaveTextContent(/Lena answered your question · 2 days later/);
+    await fireEvent.press(screen.getByTestId('question-reply-dismiss'));
+    expect(setQuestionNotice).toHaveBeenCalledWith(id(60), { noticed: true });
+  });
+
+  it('opens the answer from the notice, after saying it was seen', async () => {
+    mockPush.mockClear();
+    const setQuestionNotice = jest.fn(() => Promise.resolve(true));
+    const reply = {
+      discussionId: id(62),
+      title: 'Why is the night sky dark?',
+      by: person(61, 'Lena'),
+      askedAt: '2026-10-26T21:14:00.000Z',
+      at: '2026-10-26T21:20:00.000Z',
+    };
+    await wrap(
+      stageOf(quietView('2026-10-26', { questions: { waiting: 0, replies: [reply] } }), { setQuestionNotice }),
+    );
+    await fireEvent.press(screen.getByTestId('question-reply-read'));
+    expect(setQuestionNotice).toHaveBeenCalledWith(id(62), { noticed: true });
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith(`/rooms/${id(1)}/t/${id(62)}`));
+  });
+
+  it('counts the questions that wait for a person in the strip, and offers the shelf from it', async () => {
+    await wrap(stageOf(quietView('2026-10-27', { questions: { waiting: 3, replies: [] } })));
+    expect(screen.getByTestId('now-questions')).toHaveTextContent(/3 questions waiting/);
+    await fireEvent.press(screen.getByTestId('now-questions'));
+    expect(screen.getByTestId('questions-sheet')).toBeOnTheScreen();
   });
 });

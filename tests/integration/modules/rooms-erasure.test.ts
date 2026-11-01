@@ -547,6 +547,103 @@ describe('idea rooms and erasure (real PostgreSQL)', () => {
     expect(after.discussion.title).toBe(NEUTRAL);
   });
 
+  describe('the notice of an answer to a question left for people (D-242)', () => {
+    /** A member who left a question and was told of an answer, in a room with a moderator and an answerer. */
+    async function askedAndAnswered() {
+      const { roomId, slug } = await seedRoom(world);
+      const asker = await namedPerson();
+      const answerer = await seedFriend(world.db, world.friends);
+      const moderator = await seedFriend(world.db, world.friends);
+      await makeModerator(world, slug, moderator);
+      unwrap(await joinRoom(world, asker, roomId));
+      unwrap(await joinRoom(world, answerer, roomId));
+      const left = unwrap(
+        await world.rooms.leaveQuestion(asker.authority, {
+          version,
+          commandId: randomUUID(),
+          roomId,
+          text: 'QUESTION-WORDS how do astronomers weigh a faraway star?',
+          askNow: false,
+          notify: true,
+        }),
+      );
+      unwrap(await say(world, answerer, roomId, left.discussionId, 'Binary stars orbit each other: that gives mass.'));
+      unwrap(
+        await world.rooms.questionNotice(asker.authority, {
+          version,
+          commandId: randomUUID(),
+          roomId,
+          discussionId: left.discussionId,
+          noticed: true,
+        }),
+      );
+      return { roomId, asker, moderator, discussionId: left.discussionId };
+    }
+    const noticeOf = async (discussionId: string) =>
+      world.db
+        .selectFrom('rooms.discussions')
+        .select(['notify_answer', 'answer_noticed_at', 'started_by_account_id'])
+        .where('discussion_id', '=', discussionId)
+        .executeTakeFirstOrThrow();
+    const SWITCHED_OFF = { notify_answer: false, answer_noticed_at: null };
+
+    it('is in the asker’s own file with the switch and the marker, and in no one else’s', async () => {
+      const { asker, discussionId, moderator } = await askedAndAnswered();
+      expect((await noticeOf(discussionId)).notify_answer).toBe(true);
+      expect((await noticeOf(discussionId)).answer_noticed_at).toBeInstanceOf(Date);
+      const exportFor = async (person: Friend) => {
+        const exported = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(person.authority, (scope) =>
+          exportCurrentPerson(scope, { accountId: person.accountId }, openToEveryone),
+        );
+        if (exported.kind !== 'entered') throw new Error('export refused');
+        return exported.value.sections['rooms'];
+      };
+      const own = (await exportFor(asker)) as { discussionsStarted: Record<string, unknown>[] };
+      expect(own.discussionsStarted).toHaveLength(1);
+      expect(own.discussionsStarted[0]).toMatchObject({ tellMeWhenAPersonAnswers: true });
+      expect(typeof own.discussionsStarted[0]?.['answerNoticedAt']).toBe('string');
+      expect(JSON.stringify(await exportFor(moderator))).not.toContain('tellMeWhenAPersonAnswers');
+    });
+
+    it('ends when the asker leaves, and when a moderator removes them, and the topic stays', async () => {
+      const left = await askedAndAnswered();
+      unwrap(await world.rooms.leave(left.asker.authority, { version, commandId: randomUUID(), roomId: left.roomId }));
+      expect(await noticeOf(left.discussionId)).toMatchObject({
+        ...SWITCHED_OFF,
+        started_by_account_id: left.asker.accountId,
+      });
+
+      const removed = await askedAndAnswered();
+      unwrap(
+        await world.rooms.moderate(removed.moderator.authority, {
+          version,
+          commandId: randomUUID(),
+          roomId: removed.roomId,
+          action: { kind: 'remove_member', personId: removed.asker.person.personId },
+        }),
+      );
+      expect(await noticeOf(removed.discussionId)).toMatchObject(SWITCHED_OFF);
+    });
+
+    it('ends in a Clear, which keeps the topic and the words of the room', async () => {
+      const { asker, discussionId } = await askedAndAnswered();
+      await clearRecordingPerson(database, boss, asker);
+      expect(await noticeOf(discussionId)).toMatchObject({ ...SWITCHED_OFF, started_by_account_id: asker.accountId });
+    });
+
+    it('ends when the asker deletes their account', async () => {
+      const { asker, discussionId } = await askedAndAnswered();
+      const receiptId = randomUUID();
+      const deleting = deleteAccountFor(database.db, boss, {
+        eraseAccountData: eraseCurrentAccount,
+        lockTimeoutMs: 5_000,
+      });
+      expect((await deleting.request(asker.authority, { receiptId })).kind).toBe('accepted');
+      expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
+      expect(await noticeOf(discussionId)).toMatchObject({ ...SWITCHED_OFF, started_by_account_id: null });
+    });
+  });
+
   it('keeps marks of Useful, places and summaries through a Clear, as it keeps the room', async () => {
     const { roomId, general, person, theirs, summaryId } = await markedPerson();
     await clearRecordingPerson(database, boss, person);

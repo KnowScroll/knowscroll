@@ -202,3 +202,22 @@ test('the T key swaps every block for its text version', async ({ page }) => {
   await page.keyboard.press('t');
   await expect(page.getByTestId('fork-text')).toBeVisible();
 });
+
+test('Simpler swaps only the stop’s own text: the play block and the guide stay (D-244)', async ({ page }) => {
+  const doc = sortFork as unknown as ScrollDocumentV2;
+  await open(page, sortFork, { width: 390, height: 844 });
+  for (const [stopId, kept] of [
+    ['chain', 'play-sort'],
+    ['ray', 'guide'],
+  ] as const) {
+    await goTo(page, doc, stopId);
+    const stop = page.locator(`[data-ks-stop="${stopId}"]`);
+    const simple = (doc.stops.find((candidate) => candidate.id === stopId) as { simple: string }).simple;
+    await stop.getByRole('button', { name: 'Say it simpler' }).click();
+    await expect(stop.getByText(simple)).toBeVisible();
+    await expect(stop.getByTestId(kept).first()).toBeVisible();
+    await stop.getByRole('button', { name: 'Undo simpler version' }).click();
+    await expect(stop.getByText(simple)).toHaveCount(0);
+    await expect(stop.getByTestId(kept).first()).toBeVisible();
+  }
+});

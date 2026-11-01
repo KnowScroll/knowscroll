@@ -43,6 +43,11 @@ export interface StopListProps {
   readonly onNextTopic: (() => void) | undefined;
   readonly onUniverse: (() => void) | undefined;
   readonly onPlayFinal: (() => void) | undefined;
+  /** Challenge a friend, at the end of the Scroll (D-245). */
+  readonly onChallenge: (() => void) | undefined;
+  /** The stops shown in their plainer words (V3 D2), and how to switch one. */
+  readonly simplerStops: ReadonlySet<string>;
+  readonly onToggleSimpler: (stopId: string) => void;
   /** Drawn in the end tray, before the ways on. */
   readonly endSlot?: ReactNode;
 }
@@ -59,10 +64,15 @@ export function StopList(props: StopListProps) {
           aria-label={dots[index]?.label}
           onLayout={measureSection(index)}
           style={[styles.section, { minHeight: sectionHeight }]}
-          {...dataSet({ ksStop: stop.id })}
+          {...dataSet({ ksStop: stop.id, ksKind: stop.kind === 'read' ? 'read' : 'call' })}
         >
           {stop.kind === 'read' ? (
-            <ReadStopView stop={stop} textVersion={props.textVersion} />
+            <ReadStopView
+              stop={stop}
+              textVersion={props.textVersion}
+              simpler={props.simplerStops.has(stop.id)}
+              onToggleSimpler={() => props.onToggleSimpler(stop.id)}
+            />
           ) : (
             <CallView
               call={stop}
@@ -93,7 +103,7 @@ export function StopList(props: StopListProps) {
         aria-label={dots[dots.length - 1]?.label}
         onLayout={measureSection(document.stops.length)}
         style={[styles.section, { minHeight: sectionHeight }]}
-        {...dataSet({ ksStop: 'end' })}
+        {...dataSet({ ksStop: 'end', ksKind: 'end' })}
       >
         <EndTray
           recap={document.recap}
@@ -106,6 +116,7 @@ export function StopList(props: StopListProps) {
           onNextTopic={props.onNextTopic}
           onUniverse={props.onUniverse}
           onPlayFinal={props.onPlayFinal}
+          onChallenge={props.onChallenge}
           endSlot={props.endSlot}
         />
       </View>

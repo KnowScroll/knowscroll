@@ -72,6 +72,7 @@ export interface MessageColumns {
   asset_revision: number | null;
   note: string | null;
   reply_to_sequence: string | null;
+  challenge_stop: string | null;
   person_id: string | null;
   handle: string | null;
   display_name: string | null;
@@ -104,6 +105,7 @@ export const messageOf = (row: MessageColumns): MessageRow => ({
   content: row.asset_id === null ? null : { assetId: row.asset_id, assetRevision: row.asset_revision! },
   note: row.note,
   replyToSequence: row.reply_to_sequence === null ? null : Number(row.reply_to_sequence),
+  challengeStop: row.challenge_stop,
 });
 
 export const MESSAGE_COLUMNS = [
@@ -117,6 +119,7 @@ export const MESSAGE_COLUMNS = [
   'm.asset_revision',
   'm.note',
   'm.reply_to_sequence',
+  'm.challenge_stop',
   'p.person_id',
   'p.handle',
   'p.display_name',
@@ -211,6 +214,7 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
           asset_revision: message.content?.assetRevision ?? null,
           note: message.note ?? null,
           reply_to_sequence: message.replyToSequence ?? null,
+          challenge_stop: message.challengeStop ?? null,
         })
         .execute();
       return { sequence, changeSequence };
@@ -324,6 +328,65 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
         select = select.orderBy('m.sequence', 'desc');
       }
       return (await select.limit(query.limit).execute()).map(messageOf);
+    },
+
+    async challengeOf(reader, conversationId, messageId) {
+      const row = await trxOf(reader)
+        .selectFrom('social.messages')
+        .select(['sequence', 'asset_id', 'asset_revision', 'challenge_stop'])
+        .where('conversation_id', '=', conversationId)
+        .where('message_id', '=', messageId)
+        .where('author_account_id', 'is not', null)
+        .where('challenge_stop', 'is not', null)
+        .executeTakeFirst();
+      if (row === undefined || row.asset_id === null || row.asset_revision === null || row.challenge_stop === null)
+        return undefined;
+      return {
+        sequence: Number(row.sequence),
+        assetId: row.asset_id,
+        revision: row.asset_revision,
+        stopId: row.challenge_stop,
+      };
+    },
+
+    async picksOf(reader, conversationId, calls) {
+      if (calls.length === 0) return [];
+      const wanted = sql.join(
+        calls.map((call) => sql`(${call.assetId}::uuid, ${call.revision}::integer, ${call.stopId})`),
+      );
+      const rows = await trxOf(reader)
+        .selectFrom('social.thread_calls')
+        .select(['account_id', 'asset_id', 'revision', 'stop_id', 'option'])
+        .where('thread_id', '=', conversationId)
+        .where(sql<boolean>`(asset_id, revision, stop_id) in (${wanted})`)
+        .execute();
+      return rows.map((row) => ({
+        accountId: row.account_id,
+        assetId: row.asset_id,
+        revision: row.revision,
+        stopId: row.stop_id,
+        option: row.option,
+      }));
+    },
+
+    async insertPick(lock, conversationId, accountId, call, option, day) {
+      await trxOf(lock)
+        .insertInto('social.thread_calls')
+        .values({
+          thread_id: conversationId,
+          account_id: accountId,
+          asset_id: call.assetId,
+          revision: call.revision,
+          stop_id: call.stopId,
+          option,
+          day,
+        })
+        .onConflict((conflict) => conflict.doNothing())
+        .execute();
+    },
+
+    async touchMessage(lock, conversationId, sequence) {
+      await bumpMessageChange(trxOf(lock), conversationId, sequence);
     },
 
     async messageOfCommand(reader, conversationId, authorAccountId, commandId) {

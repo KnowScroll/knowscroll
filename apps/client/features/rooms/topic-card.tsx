@@ -38,6 +38,9 @@ export function TopicCard({
           Topic
         </Text>
         {topic.tag === undefined ? null : <Tag label={TAG_WORDS[topic.tag]} />}
+        {topic.tag !== 'question' || figures === undefined ? null : (
+          <Tag label={figures.waiting === true ? 'Open for people' : 'Answered by a person'} />
+        )}
       </View>
       <View style={styles.main}>
         <Text variant="ui" numberOfLines={2} style={styles.title}>

@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { LocalId } from '@knowscroll/scroll-model';
 import { AssetIdSchema, CommandIdSchema, UuidSchema } from './ids.js';
 import { EncounterMetadataSchema } from './navigation.js';
+import { RecordingGenerationSchema } from './recording.js';
 import { PublicPersonRefSchema } from './sharing.js';
 import { socialJsonData, socialPost } from './social-problems.js';
 
@@ -51,14 +53,57 @@ export const ConversationTextSchema = z
         return n === 10 || n === 9 || (n >= 32 && (n < 127 || n > 159));
       }),
   );
+/**
+ * Challenge a friend (D-244, D-245): a content card that also asks the friend to call one of the Scroll's questions. It
+ * names the stop (a Call it or the Final call) of the exact revision; the question and the options are read from that
+ * immutable revision when the card is shown, and the right answer is never carried until the reveal.
+ */
+export const ChallengeRequestSchema = z.strictObject({ stopId: LocalId });
 export const SendConversationBodySchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('text'), text: ConversationTextSchema }),
   z.strictObject({
     kind: z.literal('content'),
     target: ConversationContentRefSchema,
     note: ConversationTextSchema.optional(),
+    challenge: ChallengeRequestSchema.optional(),
   }),
 ]);
+
+/** A call has two or three options (`scroll-limits.v2`); this is the zero-based index of one. */
+const ChallengeOption = z.number().int().min(0).max(2);
+const ChallengeBase = {
+  stopId: LocalId,
+  prompt: z.string().min(1).max(200),
+  options: z.array(z.string().min(1).max(120)).min(2).max(3),
+};
+/**
+ * One person's view of a challenge (D-245). Where it is in its life decides what it carries, so a stage that must not
+ * show the friend's pick or the right answer cannot carry one:
+ * - `open`: the reader has not locked and may. The question and the options.
+ * - `locked`: they locked, the friend has not. Their own option only.
+ * - `revealed`: both locked. Both picks, the right answer, why, and the Scroll's warm second look after a wrong pick.
+ * A pick is a play result (D-063): nothing here is a score, a ranking or a count across people.
+ */
+export const ChallengeCardSchema = z.discriminatedUnion('stage', [
+  z.strictObject({ ...ChallengeBase, stage: z.literal('open') }),
+  z.strictObject({ ...ChallengeBase, stage: z.literal('locked'), option: ChallengeOption }),
+  z.strictObject({
+    ...ChallengeBase,
+    stage: z.literal('revealed'),
+    /** The reader's own pick. */
+    option: ChallengeOption,
+    /** The other person's pick. */
+    theirs: ChallengeOption,
+    /** The right option. */
+    answer: ChallengeOption,
+    explain: z.string().min(1).max(600),
+    /** The warm second look; present only when the reader's own pick was not the right one. */
+    twist: z.string().min(1).max(600).optional(),
+    right: z.boolean(),
+    theirsRight: z.boolean(),
+  }),
+]);
+export type ChallengeCard = z.infer<typeof ChallengeCardSchema>;
 /**
  * The five reactions of Talk (T3: Spark, Mind blown, Ha, Heart, Question). The set is closed and
  * has no emoji keyboard: a client draws each kind itself. A person can hold one of each kind on a
@@ -124,6 +169,8 @@ export const ConversationMessageSchema = z.discriminatedUnion('status', [
         kind: z.literal('content'),
         content: ConversationContentProjectionSchema,
         note: ConversationTextSchema.optional(),
+        /** Present when the card is a challenge and the revision still has the call. */
+        challenge: ChallengeCardSchema.optional(),
       }),
     ]),
   }),
@@ -440,6 +487,41 @@ export const ConversationReactionAcceptanceSchema = z.strictObject({
   changed: z.boolean(),
 });
 
+/**
+ * Locks the caller's pick on a challenge card. The first lock stands: a repeat, or another pick, answers `stands` and
+ * changes nothing, so there is no command ID and no receipt (D-156 keeps no time of a pick). `recordingGeneration` is
+ * the generation of the person's recording policy the client last read: a pick is a play result, so while recording is
+ * paused nothing is stored (D-083). The command carries no correctness: the server judges from the immutable revision.
+ */
+export const LockChallengePickSchema = z.strictObject({
+  version: Version,
+  conversation: DirectConversationRefSchema,
+  messageId: UuidSchema,
+  option: ChallengeOption,
+  recordingGeneration: RecordingGenerationSchema,
+});
+const ChallengeLockAcceptance = {
+  version: Version,
+  scope: ConversationScopeSchema,
+  operation: z.literal('challenge.lock'),
+};
+export const ChallengeLockAcceptanceSchema = z.discriminatedUnion('recorded', [
+  z.strictObject({
+    ...ChallengeLockAcceptance,
+    recorded: z.literal(true),
+    conversation: DirectConversationRefSchema,
+    messageId: UuidSchema,
+    /** `locked`: stored now. `stands`: the caller had already locked, and that pick stands. */
+    result: z.enum(['locked', 'stands']),
+  }),
+  z.strictObject({
+    ...ChallengeLockAcceptance,
+    recorded: z.literal(false),
+    reason: z.enum(['recording_paused', 'recording_generation_stale']),
+    currentGeneration: RecordingGenerationSchema,
+  }),
+]);
+
 export const MarkConversationReadSchema = z.strictObject({
   ...Command,
   conversation: DirectConversationRefSchema,
@@ -500,6 +582,11 @@ export const conversationsContract = {
     ReactToConversationMessageSchema,
     ConversationReactionAcceptanceSchema,
   ),
+  lockChallenge: socialPost(
+    '/v1/social/conversations/challenge/lock',
+    LockChallengePickSchema,
+    ChallengeLockAcceptanceSchema,
+  ),
   markRead: socialPost(
     '/v1/social/conversations/mark-read',
     MarkConversationReadSchema,
@@ -559,3 +646,6 @@ export function ownConversationSendForRead(
     return undefined;
   return b;
 }
+
+export type LockChallengePick = z.infer<typeof LockChallengePickSchema>;
+export type ChallengeLockAcceptance = z.infer<typeof ChallengeLockAcceptanceSchema>;

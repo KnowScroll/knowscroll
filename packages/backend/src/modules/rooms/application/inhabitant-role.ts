@@ -112,7 +112,8 @@ export interface ContributionMaterial {
   readonly roomName: string;
   readonly topicMeaning: string | undefined;
   readonly guidelines: string | undefined;
-  readonly discussionTitle: string;
+  /** None when the title is the first words of a message that is read as a message: the same words are not read twice. */
+  readonly discussionTitle: string | undefined;
   /** The title and summary of the content the discussion is about, if it has one. */
   readonly content: { readonly title: string; readonly summary: string | undefined } | undefined;
   readonly messages: readonly ContextMessage[];
@@ -136,7 +137,9 @@ export function contributionContext(material: ContributionMaterial): ReasoningCo
           .filter((line) => line !== undefined)
           .join('\n'),
       },
-      { ref: 'discussion', kind: 'discussion', text: material.discussionTitle },
+      ...(material.discussionTitle === undefined
+        ? []
+        : [{ ref: 'discussion', kind: 'discussion', text: material.discussionTitle }]),
       ...(material.focus === undefined
         ? []
         : [{ ref: 'focus', kind: 'focus', text: `Respond to message:${String(material.focus)}.` }]),

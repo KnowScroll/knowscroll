@@ -392,6 +392,7 @@ export const discussionStore: DiscussionStore = {
       cross join lateral (
         select message.recorded_at from rooms.messages message
         where message.discussion_id = discussion.discussion_id and message.hidden_at is null
+          and message.author_kind = 'person'
         order by message.recorded_at desc limit 1
       ) newest
       where discussion.room_id = ${lock.roomId}::uuid`.execute(trxOf(lock));
@@ -444,9 +445,19 @@ export const discussionStore: DiscussionStore = {
         root_asset_revision: discussion.root?.assetRevision ?? null,
         origin_message_id: discussion.originMessageId ?? null,
         started_by_account_id: discussion.startedByAccountId,
+        notify_answer: discussion.notifyAnswer ?? false,
         last_activity_at: discussion.now,
         created_at: discussion.now,
       })
+      .execute();
+  },
+
+  async setOrigin(lock, discussionId, messageId) {
+    await trxOf(lock)
+      .updateTable('rooms.discussions')
+      .set({ origin_message_id: messageId, title_derived: true })
+      .where('discussion_id', '=', discussionId)
+      .where('room_id', '=', lock.roomId)
       .execute();
   },
 

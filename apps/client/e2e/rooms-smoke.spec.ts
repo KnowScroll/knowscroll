@@ -55,7 +55,7 @@ test('on a phone a member lands in General under the room’s band, sees the not
   await expect(page.getByTestId('here-caption')).toHaveText('You and Asha are here');
   await expect(page.getByTestId('campfire-subline')).toHaveText(/Open to everyone/i);
   await expect(page.getByText(/online/i)).toHaveCount(0);
-  await expect(page.getByTestId('quiet-pill')).toHaveText(/Quiet right now · last message 3 h ago/i);
+  await expect(page.getByTestId('quiet-pill')).toHaveText(/Quiet right now · last person wrote 3 h ago/i);
   await expect(page.getByText('Huh. Then what is it?')).toBeVisible();
   await expect(page.getByTestId('ai-notice')).toBeVisible();
   await expect.poll(() => callsTo(calls, '/v1/rooms/presence').length).toBeGreaterThan(0);
