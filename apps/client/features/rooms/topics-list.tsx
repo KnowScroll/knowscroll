@@ -16,6 +16,7 @@ import { closeThen } from '../../platform/close-then';
 import { TAGS, TAG_WORDS } from './ask-words';
 import { useGroundInk } from './identity/room-ground';
 import { discussionHref, roomHref, todayHref } from './room-links';
+import { useRoomTabOpen } from './room-tab-open';
 import { PanelScroll } from './room-tabs';
 import { ShareIntoRoomSheet } from './share-into-room-sheet';
 import { StartTopicSheet } from './start-topic-sheet';
@@ -222,6 +223,7 @@ export function TopicsList({
 }) {
   const router = useRouter();
   const ink = useGroundInk(content.ink2);
+  const tabOpen = useRoomTabOpen();
   const [sharing, setSharing] = useState(false);
   const [starting, setStarting] = useState(false);
   const [sort, setSort] = useState<RoomTopicSort>('hot');
@@ -233,6 +235,7 @@ export function TopicsList({
     tag,
     refreshKey: view.discussions,
     enabled: !pinned,
+    paused: !tabOpen,
   });
   const items: readonly (RoomDiscussionSummary & Partial<Pick<RoomTopicItem, 'usefulCount'>>)[] = pinned
     ? view.discussions.filter((item) => item.pinned)
