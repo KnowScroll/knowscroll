@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Page, Route } from '@playwright/test';
 import { id } from './encounter-fixture';
 import { room } from './rooms-fixture';
 
@@ -15,7 +15,31 @@ const scrollId = id(533);
 const nova = { kind: 'ai' as const, inhabitant: 'explainer' as const, name: 'Nova', label: 'AI · Explainer' };
 const halley = { kind: 'ai' as const, inhabitant: 'skeptic' as const, name: 'Halley', label: 'AI · Skeptic' };
 
+/** The member who sent a scout, as a find signs it: an authored example, never product data. */
+export const asha = { kind: 'person' as const, personId: id(540), handle: 'asha', displayName: 'Asha' };
+export const scoutFindId = id(541);
+const scoutAuthor = { kind: 'agent' as const, sentBy: asha, label: 'AI · Scout' as const };
+const CHOICES = [
+  { id: 'astro.dark-matter', label: 'Dark matter' },
+  { id: 'astro.galaxies', label: 'Galaxies' },
+  { id: 'astro.lensing', label: 'Gravitational lensing' },
+  { id: 'astro.pulsars', label: 'Pulsars' },
+];
+
+/** The reader's own scout as the server would say it; absent while scouts are off in the world. */
+export interface ScoutWorld {
+  state: 'none' | 'on';
+  interests: string[];
+  cadence: 'daily' | 'weekly';
+  paused: boolean;
+  stopped: boolean;
+}
+
 export interface FeedWorld {
+  /** The reader's scout; absent while scouts are not switched on. */
+  scout?: ScoutWorld;
+  /** A find a scout posted, signed by Asha, is in the feed. */
+  scoutPost: boolean;
   aiLevel: 'lively' | 'quieter' | 'off';
   canEditMemory: boolean;
   memory: { state: 'none' } | { state: 'ready'; text: string; by: 'residents' | 'moderator' };
@@ -28,14 +52,31 @@ export const feedWorld = (patch: Partial<FeedWorld> = {}): FeedWorld => ({
   canEditMemory: false,
   memory: { state: 'none' },
   posts: true,
+  scoutPost: false,
   ...patch,
 });
+
+const scoutView = (scout: ScoutWorld) =>
+  scout.state === 'none'
+    ? { state: 'none' as const, choices: CHOICES }
+    : {
+        state: 'on' as const,
+        choices: CHOICES,
+        interests: scout.interests,
+        cadence: scout.cadence,
+        paused: scout.paused,
+        stopped: scout.stopped,
+      };
 
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
 
 /** The Now strip's word for the newest find, for a reader who can see one. */
 export const feedStrip = (world: FeedWorld) =>
-  world.aiLevel === 'off' || !world.posts ? undefined : { by: nova, postedAt: hoursAgo(2) };
+  world.aiLevel === 'off' || !world.posts
+    ? undefined
+    : world.scoutPost
+      ? { by: scoutAuthor, postedAt: hoursAgo(1) }
+      : { by: nova, postedAt: hoursAgo(2) };
 
 const REEL = {
   status: 'available' as const,
@@ -63,7 +104,20 @@ function postsOf(world: FeedWorld) {
   if (!world.posts || world.aiLevel === 'off') return [];
   const quiet = world.aiLevel === 'quieter';
   const note = (text: string) => (quiet ? { folded: true as const } : { note: text });
+  const scouts = world.scoutPost
+    ? [
+        {
+          discussionId: scoutFindId,
+          author: scoutAuthor,
+          postedAt: hoursAgo(1),
+          content: SCROLL,
+          ...note('A short walk through the two ways to weigh a galaxy, and where they differ.'),
+          replies: 0,
+        },
+      ]
+    : [];
   return [
+    ...scouts,
     {
       discussionId: findId,
       author: nova,
@@ -95,7 +149,7 @@ export interface FeedCall {
  */
 export async function feedRoutes(page: Page, world: FeedWorld, scope: { accountId: string; privacyEpoch: number }) {
   const calls: FeedCall[] = [];
-  await page.route('**/v1/rooms/{feed,memory}/**', (route) => {
+  const answer = (route: Route) => {
     const path = new URL(route.request().url()).pathname;
     const body = (route.request().postDataJSON() ?? {}) as Record<string, unknown>;
     calls.push({ path, body });
@@ -125,8 +179,42 @@ export async function feedRoutes(page: Page, world: FeedWorld, scope: { accountI
           canEditMemory: world.canEditMemory,
           aiLevel: world.aiLevel,
           limits: { postsPerDay: 3, restHours: 6 },
+          ...(world.scout === undefined ? {} : { scout: scoutView(world.scout) }),
         },
       });
+    if (path === '/v1/rooms/scout/set' && world.scout !== undefined) {
+      const chosen = body['scout'] as { interests: string[]; cadence: 'daily' | 'weekly'; paused: boolean } | null;
+      world.scout =
+        chosen === null
+          ? { ...world.scout, state: 'none', interests: [], paused: false }
+          : { ...world.scout, state: 'on', ...chosen };
+      return route.fulfill({
+        json: {
+          ...base,
+          commandId: body['commandId'],
+          recordedAt: new Date().toISOString(),
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'room.scout-set',
+          roomId: room.roomId,
+          scout: scoutView(world.scout),
+        },
+      });
+    }
+    if (path === '/v1/rooms/moderate') {
+      return route.fulfill({
+        json: {
+          ...base,
+          commandId: body['commandId'],
+          recordedAt: new Date().toISOString(),
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'room.moderate',
+          roomId: room.roomId,
+          action: (body['action'] as { kind: string }).kind,
+        },
+      });
+    }
     if (path === '/v1/rooms/memory/replace') {
       const text = body['text'] as string | null;
       world.memory = text === null ? { state: 'none' } : { state: 'ready', text, by: 'moderator' };
@@ -144,6 +232,8 @@ export async function feedRoutes(page: Page, world: FeedWorld, scope: { accountI
       });
     }
     return route.fulfill({ status: 404, json: {} });
-  });
+  };
+  await page.route('**/v1/rooms/{feed,memory,scout}/**', answer);
+  await page.route('**/v1/rooms/moderate', answer);
   return { calls };
 }

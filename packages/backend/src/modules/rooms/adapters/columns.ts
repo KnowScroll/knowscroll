@@ -11,7 +11,7 @@ import type { BackdropAttemptState } from '../domain/backdrop-spend.js';
  * only know `string`. Each reader names the set once and refuses a value outside it, so a schema that
  * drifts fails loudly here instead of reaching a use case as an impossible value.
  */
-function closed<T extends string>(column: string, values: readonly T[]): (value: string) => T {
+function closed<T extends string>(column: string, values: readonly T[]): (value: string | null) => T {
   return (value) => {
     const found = values.find((candidate) => candidate === value);
     if (found === undefined) throw new Error(`ROOMS_COLUMN_OUT_OF_RANGE: ${column}`);
@@ -45,6 +45,7 @@ export const messageTriggerOf = closed<MessageTrigger>('trigger', [
   'overstated_claim',
   'answer_overstated',
   'feed_find',
+  'scout_find',
 ]);
 export const turnTriggerOf = closed<TurnTrigger>('trigger', [
   'asked',

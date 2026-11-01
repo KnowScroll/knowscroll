@@ -38,7 +38,12 @@ import {
   type ReadScrollProduction,
   type LockCurrentEncounters,
 } from '../../content/public.js';
-import type { ReasoningHarness } from '../../../reasoning/public.js';
+import {
+  CHECK_SUPPLY_RECORDING_RUN,
+  type CheckPersonalRecordingRun,
+  type ReasoningHarness,
+  type RecordingReasoningHarness,
+} from '../../../reasoning/public.js';
 import {
   READ_EXPLORATION_SNAPSHOT,
   encounteredUnitsOf,
@@ -46,7 +51,9 @@ import {
 } from '../../personal-context/public.js';
 import {
   CHECK_PERSONAL_OWNER_ACTIVE,
+  FENCE_OWN_ACCOUNT,
   FENCE_PERSONAL_RECORDING,
+  type FenceOwnAccount,
   type FencePersonalRecording,
   type CheckPersonalOwnerActive,
   type PersonalScopeTx,
@@ -78,6 +85,8 @@ import { resolveSupplyQueue } from '../events.js';
 import type { SupplyPorts } from '../application/ports.js';
 import { supplyStore } from './postgres-store.js';
 import { askOrderLedger, makeReadAskOrderAudience } from './postgres-ask-orders.js';
+import { quickAnswerStore } from './postgres-quick-answers.js';
+import { makeCheckSupplyRecordingRun } from '../application/check-recording-run.js';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 export const SUPPLY_PORTS = Symbol('supply.ports');
@@ -119,15 +128,17 @@ const sendProduction =
 /**
  * Supply's use cases for the API and the worker. `config` names the token of the process's
  * configuration (`SupplySettings`). The worker also passes `harness`, the personal reasoning
- * harness, which lets its resolver match free-text asks to the catalogue and read a question against the
- * library Scrolls of its subject (it then needs content's `READ_LIBRARY_PASSAGES`); without it (the API,
- * tests) a free-text ask simply waits for a worker.
+ * harness, which lets its resolver match free-text asks to the catalogue, and `recordingHarness`, the recording-aware
+ * one (D-264), which lets it place a question asked from a Scroll and read it against the library Scrolls of its subject
+ * at the generation it was asked at (it then needs content's `READ_LIBRARY_PASSAGES`, the `FENCE_OWN_ACCOUNT`
+ * provider and `supplyRecordingOwnerProviders`); without them (the API, tests) a waiting ask simply waits for a worker.
  */
 export function supplyProviders(t: {
   readonly withPersonalScope: symbol;
   readonly enqueueJob: symbol;
   readonly config: symbol;
   readonly harness?: symbol;
+  readonly recordingHarness?: symbol;
 }) {
   return [
     {
@@ -260,11 +271,24 @@ export function supplyProviders(t: {
     { provide: RETRY_CONTENT_REQUEST, inject: [SUPPLY_PORTS], useFactory: (p: SupplyPorts) => makeRetryRequest(p) },
     {
       provide: RESOLVE_CONTENT_REQUEST,
-      inject: [SUPPLY_PORTS, ...(t.harness === undefined ? [] : [t.harness, READ_LIBRARY_PASSAGES])],
-      useFactory: (p: SupplyPorts, harness?: ReasoningHarness, readLibrary?: ReadLibraryPassages) =>
+      inject: [
+        SUPPLY_PORTS,
+        ...(t.harness === undefined || t.recordingHarness === undefined
+          ? []
+          : [t.harness, t.recordingHarness, FENCE_OWN_ACCOUNT, READ_LIBRARY_PASSAGES]),
+      ],
+      useFactory: (
+        p: SupplyPorts,
+        harness?: ReasoningHarness,
+        recordingHarness?: RecordingReasoningHarness,
+        fenceOwn?: FenceOwnAccount,
+        readLibrary?: ReadLibraryPassages,
+      ) =>
         makeResolveRequest(
           p,
-          harness === undefined || readLibrary === undefined ? undefined : makeMatchRequest(p, harness, readLibrary),
+          harness === undefined || recordingHarness === undefined || fenceOwn === undefined || readLibrary === undefined
+            ? undefined
+            : makeMatchRequest(p, harness, { harness: recordingHarness, fenceOwn }, readLibrary),
         ),
     },
     {
@@ -274,6 +298,22 @@ export function supplyProviders(t: {
     },
   ];
 }
+/**
+ * The owner check the recording-aware harness runs for Supply's personal runs (D-264): the request or the Quick answer a run
+ * serves must still be the one it was made for, at the generation it was made at. Installed wherever the recording harness is
+ * (the worker), because the harness cannot be built without it.
+ */
+export function supplyRecordingOwnerProviders() {
+  return [
+    {
+      provide: CHECK_SUPPLY_RECORDING_RUN,
+      inject: [],
+      useFactory: (): CheckPersonalRecordingRun =>
+        makeCheckSupplyRecordingRun({ requests: supplyStore, quickAnswers: quickAnswerStore }),
+    },
+  ];
+}
+
 /**
  * Who may open the Scroll of an ask order (`READ_ASK_ORDER_AUDIENCE`, which Content asks): the person who asked. Both
  * processes that serve a person's reads compose it, like the branch audience (`orderAudienceProviders` of scenarios).

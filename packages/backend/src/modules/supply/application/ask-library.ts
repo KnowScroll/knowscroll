@@ -1,5 +1,5 @@
 import type { ContentRef, ReadLibraryPassages } from '../../content/public.js';
-import type { ReasoningHarness } from '../../../reasoning/public.js';
+import type { RecordingReasoningHarness } from '../../../reasoning/public.js';
 import {
   ASK_LIBRARY_POLICY_VERSION,
   MAX_LIBRARY_CHOICES,
@@ -13,6 +13,7 @@ import {
 import { catalogueBrief, inventory } from './inventory.js';
 import type { CatalogueMatch } from './match-role.js';
 import type { SupplyPorts } from './ports.js';
+import { proposeAtGeneration, type RunOwner, type StartedRun } from './recording-runs.js';
 
 /** The run of the library check for one question, derived from the request: a redelivery asks the ledger, never pays twice. */
 export const askLibraryRunId = (p: Pick<SupplyPorts, 'idFor'>, requestId: string): string =>
@@ -20,11 +21,17 @@ export const askLibraryRunId = (p: Pick<SupplyPorts, 'idFor'>, requestId: string
 
 type Authority = Parameters<SupplyPorts['withScope']>[0];
 
-/** What a library check needs: the ports, the personal harness and the shared read of a library Scroll's prose. */
+/** What a library check needs: the ports, the recording-aware personal harness and the shared read of a library Scroll's prose. */
 export interface AskLibraryDeps {
   readonly p: SupplyPorts;
-  readonly harness: ReasoningHarness;
+  readonly harness: RecordingReasoningHarness;
   readonly readLibrary: ReadLibraryPassages;
+}
+
+/** What the check decided, and the run it made (none when no candidate was worth a model call), to close once the verdict is applied. */
+export interface LibraryCheck {
+  readonly verdict: LibraryVerdict;
+  readonly run?: StartedRun;
 }
 
 /**
@@ -86,23 +93,32 @@ async function choicesOf(
  * No candidate is no offer, without a model call.
  *
  * Authority: a `system` actor for the job's universe and epoch, rechecked in the candidate transaction; the verdict is
- * applied in the caller's transaction, which reads the candidates again. No model call and no read of shared prose
- * runs inside a transaction. Failure/retry: the run is derived from the request, so a redelivery answers from the
- * ledger and never pays twice; an attempt of unknown outcome is never resent.
+ * applied in the caller's transaction, which reads the candidates again. The run is stamped with the recording generation the
+ * question was asked at and fenced to it (D-264). No model call and no read of shared prose runs inside a transaction.
+ * Failure/retry: the run is derived from the request, so a redelivery answers from the ledger and never pays twice; an attempt
+ * of unknown outcome is never resent.
  */
 export async function checkLibraryMatch(
   deps: AskLibraryDeps,
   authority: Authority,
-  input: { readonly requestId: string; readonly question: string; readonly match: CatalogueMatch },
+  input: {
+    readonly requestId: string;
+    readonly question: string;
+    readonly match: CatalogueMatch;
+    readonly owner: RunOwner;
+  },
   signal: AbortSignal,
-): Promise<LibraryVerdict> {
+): Promise<LibraryCheck> {
   const candidates = await candidatesOf(deps, authority, input.requestId, input.match);
   const choices = await choicesOf(deps, input.match, candidates);
-  if (choices.length === 0) return { kind: 'none' };
-  const outcome = await deps.harness.propose(
+  if (choices.length === 0) return { verdict: { kind: 'none' } };
+  const runId = askLibraryRunId(deps.p, input.requestId);
+  const { outcome, purpose } = await proposeAtGeneration(
+    deps.harness,
+    input.owner,
     {
       run: {
-        id: askLibraryRunId(deps.p, input.requestId),
+        id: runId,
         authority,
         ownerModule: 'supply',
         purpose: 'ask-library',
@@ -114,5 +130,6 @@ export async function checkLibraryMatch(
     },
     signal,
   );
-  return libraryVerdict(outcome, choices);
+  const verdict = libraryVerdict(outcome, choices);
+  return { verdict, run: verdict.end === undefined ? { runId, purpose } : { runId, purpose, end: verdict.end } };
 }

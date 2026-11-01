@@ -8,6 +8,7 @@ import type { FeedStore, FeedTurn, MemoryMessage } from '../application/feed-por
 import type { FeedReadStore } from '../application/ports.js';
 import { dayStartOf } from '../domain/feed.js';
 import { inhabitantOf, statusOf, topicKindOf } from './columns.js';
+import { scoutLooks } from './postgres-scouts.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -42,7 +43,8 @@ async function seenIn(
         where discussion.room_id = ${roomId}::uuid and message.asset_id is not null and message.hidden_at is null
       union
       select turn.find_asset_id as asset_id from rooms.ai_turns turn
-        where turn.room_id = ${roomId}::uuid and turn.trigger = 'feed_find' and turn.find_asset_id is not null and ${COUNTED}
+        where turn.room_id = ${roomId}::uuid and turn.trigger in ('feed_find', 'scout_find') and turn.find_asset_id is not null
+          and ${COUNTED}
     )
     select candidate.asset_id from unnest(${ids}::uuid[]) as candidate(asset_id)
       where candidate.asset_id in (select asset_id from seen)
@@ -58,7 +60,7 @@ const READABLE = sql`message.author_kind = 'person' and message.author_account_i
   and message.hidden_at is null and message.topic_discussion_id is null and member.keep_out = false`;
 
 const turnKindOf = (value: string): FeedTurn['kind'] => {
-  if (value === 'feed_find' || value === 'memory_refresh') return value;
+  if (value === 'feed_find' || value === 'memory_refresh' || value === 'scout_find') return value;
   throw new Error('ROOMS_COLUMN_OUT_OF_RANGE: trigger');
 };
 const turnStateOf = (value: string): FeedTurn['state'] => {
@@ -130,22 +132,36 @@ export function feedStore(db: Kysely<Database>): FeedStore {
 
     async lapseLost(scope, roomId, before, at) {
       await sql`update rooms.ai_turns set state = 'failed', settled_at = ${at}, dispatched = true
-        where room_id = ${roomId}::uuid and trigger in ('feed_find', 'memory_refresh') and state = 'queued'
+        where room_id = ${roomId}::uuid and trigger in ('feed_find', 'memory_refresh', 'scout_find') and state = 'queued'
           and created_at < ${before}`.execute(productionTransactionOf(scope));
     },
 
     async turn(scope, turnId) {
       const row = await productionTransactionOf(scope)
         .selectFrom('rooms.ai_turns')
-        .select(['turn_id', 'trigger', 'inhabitant', 'state', 'find_asset_id', 'find_asset_revision', 'created_at'])
+        .select([
+          'turn_id',
+          'trigger',
+          'inhabitant',
+          'requested_by_account_id',
+          'state',
+          'find_asset_id',
+          'find_asset_revision',
+          'created_at',
+        ])
         .where('turn_id', '=', turnId)
-        .where('trigger', 'in', ['feed_find', 'memory_refresh'])
+        .where('trigger', 'in', ['feed_find', 'memory_refresh', 'scout_find'])
         .executeTakeFirst();
       if (row === undefined) return undefined;
       return {
         turnId: row.turn_id,
         kind: turnKindOf(row.trigger),
-        inhabitant: inhabitantOf(row.inhabitant),
+        // The owner link of a scout's turn is cleared with the owner's account, and every queued turn of it is ended first: an
+        // empty owner is only ever read from a turn that is already over.
+        author:
+          row.trigger === 'scout_find'
+            ? { kind: 'scout', ownerAccountId: row.requested_by_account_id ?? '' }
+            : { kind: 'resident', inhabitant: inhabitantOf(row.inhabitant) },
         state: turnStateOf(row.state),
         asset:
           row.find_asset_id === null || row.find_asset_revision === null
@@ -192,7 +208,8 @@ export function feedStore(db: Kysely<Database>): FeedStore {
         .values({
           turn_id: turn.turnId,
           room_id: turn.roomId,
-          inhabitant: turn.inhabitant,
+          inhabitant: turn.author.kind === 'resident' ? turn.author.inhabitant : null,
+          requested_by_account_id: turn.author.kind === 'scout' ? turn.author.ownerAccountId : null,
           trigger: turn.kind,
           state: refused ? 'refused' : 'queued',
           decided_by: turn.decision.kind === 'refused' ? turn.decision.cap : 'caps_clear',
@@ -261,11 +278,12 @@ export function feedStore(db: Kysely<Database>): FeedStore {
           sequence: '1',
           change_sequence: '1',
           message_id: find.messageId,
-          author_kind: 'ai',
-          inhabitant: find.inhabitant,
+          // A scout's note names its owner and has no resident; a resident's note names the resident and no person.
+          ...(find.author.kind === 'resident'
+            ? { author_kind: 'ai', inhabitant: find.author.inhabitant, trigger: 'feed_find' }
+            : { author_kind: 'agent', agent_owner_account_id: find.author.ownerAccountId, trigger: 'scout_find' }),
           ai_kind: 'find',
           body_text: find.note,
-          trigger: 'feed_find',
           recorded_at: find.at,
         })
         .execute();
@@ -374,6 +392,8 @@ export function feedStore(db: Kysely<Database>): FeedStore {
           turn_id = excluded.turn_id, edited_by_account_id = null, edited_at = null, updated_at = excluded.updated_at
         where rooms.room_memory.source = 'derived'`.execute(productionTransactionOf(scope));
     },
+
+    ...scoutLooks(db),
   };
 }
 
@@ -404,25 +424,29 @@ export const feedReadStore: FeedReadStore = {
       root_asset_id: string;
       root_asset_revision: number;
       created_at: Date | string;
-      inhabitant: string;
+      inhabitant: string | null;
+      agent_owner_account_id: string | null;
       body_text: string;
       replies: string;
     }>`
       select discussion.discussion_id, discussion.root_asset_id, discussion.root_asset_revision, discussion.created_at,
-        note.inhabitant, note.body_text,
+        note.inhabitant, note.agent_owner_account_id, note.body_text,
         (select count(*) from rooms.messages reply
           where reply.discussion_id = discussion.discussion_id and reply.sequence > 1 and reply.hidden_at is null
-            and (reply.author_account_id is not null or reply.author_kind = 'ai')) as replies
+            and (reply.author_account_id is not null or reply.author_kind in ('ai', 'agent'))) as replies
       from rooms.discussions discussion
       join rooms.messages note on note.discussion_id = discussion.discussion_id and note.sequence = 1
       where discussion.room_id = ${lock.roomId}::uuid and discussion.kind = 'find'
-        and note.author_kind = 'ai' and note.hidden_at is null
+        and note.author_kind in ('ai', 'agent') and note.hidden_at is null
       order by discussion.created_at desc, discussion.discussion_id limit ${limit}`.execute(
       sharedTransactionOf(lock.shared),
     );
     return rows.rows.map((row) => ({
       discussionId: row.discussion_id,
-      inhabitant: inhabitantOf(row.inhabitant),
+      author:
+        row.agent_owner_account_id === null
+          ? ({ kind: 'resident', inhabitant: inhabitantOf(row.inhabitant) } as const)
+          : ({ kind: 'scout', ownerAccountId: row.agent_owner_account_id } as const),
       asset: { assetId: row.root_asset_id, assetRevision: row.root_asset_revision },
       postedAt: new Date(row.created_at),
       note: row.body_text,

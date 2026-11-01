@@ -3,6 +3,7 @@ import type { CastMember } from '../domain/cast.js';
 import type { InhabitantId } from '../domain/contribution.js';
 import type { FeedCap, FeedCounts } from '../domain/feed.js';
 import type { RoomStatus } from '../domain/membership.js';
+import type { ScoutCadence, ScoutCap, ScoutCounts } from '../domain/scout.js';
 import type { ContentRef } from '../../content/public.js';
 
 /**
@@ -10,7 +11,8 @@ import type { ContentRef } from '../../content/public.js';
  * for it and none is its actor, so it runs under the nonpersonal `rooms` reasoning scope, never a personal one. Every method
  * that takes a scope runs inside that scope's transaction (the one that also holds the harness's room root), so a decision,
  * its ledger row and a post commit together. No method reads a person: a member is only ever a count of listeners, a flag that
- * says whose words are left out, or text read after that flag was applied.
+ * says whose words are left out, or text read after that flag was applied. The scouts' methods (v3 R-9) read one more thing of the
+ * member who sent a scout: whether they are still in the room and whether their recording is on, never anything they did.
  */
 
 /** A room the heartbeat may look at: where it is in the library. */
@@ -29,11 +31,19 @@ export interface FeedRoom extends FeedRoomRef {
   readonly listeners: number;
 }
 
+/**
+ * Who writes a find and signs it: one of the room's residents, or a member's scout (v3 R-9). A scout has no resident and no account
+ * of its own; its owner is the member who sent it.
+ */
+export type FindAuthor =
+  | { readonly kind: 'resident'; readonly inhabitant: InhabitantId }
+  | { readonly kind: 'scout'; readonly ownerAccountId: string };
+
 /** A find or a refresh of the memory, as the ledger holds it. */
 export interface FeedTurn {
   readonly turnId: string;
-  readonly kind: 'feed_find' | 'memory_refresh';
-  readonly inhabitant: InhabitantId;
+  readonly kind: 'feed_find' | 'memory_refresh' | 'scout_find';
+  readonly author: FindAuthor;
   readonly state: 'queued' | 'completed' | 'declined' | 'failed' | 'refused';
   /** The asset a find is about; none for a refresh. */
   readonly asset: ContentRef | undefined;
@@ -51,11 +61,11 @@ export interface FeedProvenance {
 export interface NewFeedTurn {
   readonly turnId: string;
   readonly roomId: string;
-  readonly kind: 'feed_find' | 'memory_refresh';
-  readonly inhabitant: InhabitantId;
+  readonly kind: 'feed_find' | 'memory_refresh' | 'scout_find';
+  readonly author: FindAuthor;
   readonly asset: ContentRef | undefined;
-  readonly decision: { readonly kind: 'allowed' } | { readonly kind: 'refused'; readonly cap: FeedCap };
-  readonly counts: FeedCounts;
+  readonly decision: { readonly kind: 'allowed' } | { readonly kind: 'refused'; readonly cap: FeedCap | ScoutCap };
+  readonly counts: FeedCounts | ScoutCounts;
   readonly now: Date;
 }
 
@@ -70,7 +80,7 @@ export interface NewFind {
   readonly roomId: string;
   readonly discussionId: string;
   readonly messageId: string;
-  readonly inhabitant: InhabitantId;
+  readonly author: FindAuthor;
   readonly asset: ContentRef;
   readonly title: string;
   readonly note: string;
@@ -161,6 +171,44 @@ export interface FeedStore {
   lastUnwrittenRefreshAt(scope: ProductionScopeTx, roomId: string, since: Date): Promise<Date | undefined>;
   /** Stores the derived text, unless a moderator's text stands. */
   storeMemory(scope: ProductionScopeTx, memory: NewMemory): Promise<void>;
+
+  // --- Scouts (v3 R-9): the same pass, with a member's scout as the author ------------------------
+
+  /**
+   * Scouts that may post: open room, not paused, not stopped, the owner a current member, recording on, someone else listening.
+   * The one who posted longest ago first, so a room's daily five go round. A cheap look before any transaction; every fact is
+   * read again under the room's lock.
+   */
+  scoutsToLook(limit: number): Promise<readonly ScoutRef[]>;
+  /** The scout of this owner in the room with this slug, for an operator who names it. */
+  scoutIn(slug: string, ownerHandle: string): Promise<ScoutRef | undefined>;
+  /** What decides whether this scout posts, read under the room's lock (see `ScoutStanding`). */
+  scoutStanding(scope: ProductionScopeTx, roomId: string, ownerAccountId: string, now: Date): Promise<ScoutStanding>;
+}
+
+/** A scout the heartbeat may look at: the room it posts in, its owner and the topics the owner chose. */
+export interface ScoutRef {
+  readonly room: FeedRoomRef;
+  readonly ownerAccountId: string;
+  readonly interests: readonly string[];
+}
+
+/** What a scout's look decides from, as the room stores it now. The owner's recording is one unlocked read (D-259). */
+export interface ScoutStanding {
+  readonly scout:
+    | {
+        readonly cadence: ScoutCadence;
+        readonly interests: readonly string[];
+        readonly paused: boolean;
+        readonly stopped: boolean;
+      }
+    | undefined;
+  readonly ownerIsMember: boolean;
+  readonly recording: boolean;
+  /** Current members other than the owner whose AI level is not Off. */
+  readonly otherListeners: number;
+  readonly lastPostAt: Date | undefined;
+  readonly scoutsToday: number;
 }
 
 // --- What a member's own use cases need, inside the personal scope and the room's lock ----------------------
@@ -168,7 +216,8 @@ export interface FeedStore {
 /** One find as the feed lists it: the discussion, who posted, what it is about and the note. */
 export interface FindRow {
   readonly discussionId: string;
-  readonly inhabitant: InhabitantId;
+  /** The resident that posted it, or the member whose scout did. */
+  readonly author: FindAuthor;
   readonly asset: ContentRef;
   readonly postedAt: Date;
   /** The resident's note; none when a moderator removed it, and then the find is not listed. */

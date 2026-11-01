@@ -63,7 +63,8 @@ describe('personal recording Reasoning prerequisite (PostgreSQL hosted fixtures 
   }
   function recording() {
     const checkPlanner = vi.fn(() => Promise.resolve('unavailable' as const)),
-      checkGeography = vi.fn(() => Promise.resolve('unavailable' as const));
+      checkGeography = vi.fn(() => Promise.resolve('unavailable' as const)),
+      checkSupply = vi.fn(() => Promise.resolve('unavailable' as const));
     const model = fixtureModel();
     const harness = personalRecordingReasoningHarnessFor({
       db: db(),
@@ -74,8 +75,9 @@ describe('personal recording Reasoning prerequisite (PostgreSQL hosted fixtures 
       settings: fixtureSettings,
       checkPlanner,
       checkGeography,
+      checkSupply,
     });
-    return { harness, model, checkPlanner, checkGeography };
+    return { harness, model, checkPlanner, checkGeography, checkSupply };
   }
   const purpose = (p: FixturePerson, g: number, id = randomUUID()): PersonalRecordingPurpose => ({
     version: 'personal-role-purpose.v1',

@@ -29,6 +29,7 @@ import type { StarAct } from '../domain/sky.js';
 import type { MessageTrigger, SpeechTrigger } from '../domain/triggers.js';
 import type { CastDueJob, CastPassJob, SummariseJob } from '../events.js';
 import type { FindRow, MemoryStaleCause, MemoryView } from './feed-ports.js';
+import type { ScoutCadence } from '../domain/scout.js';
 
 export type RoomRefusal = 'invalid_input' | 'unavailable' | 'command_key_reused' | 'rate_limited';
 export type Result<T> =
@@ -228,6 +229,8 @@ export interface MessageRow {
   readonly hidden: boolean;
   /** The author's account, null for an AI inhabitant and for a tombstone. */
   readonly authorAccountId: string | null;
+  /** The member whose scout wrote it (v3 R-9); the note's words are the scout's and it is signed with this member's name. */
+  readonly agentOwnerAccountId: string | null;
   readonly inhabitant: InhabitantId | null;
   readonly aiKind: ContributionKind | null;
   readonly text: string | null;
@@ -985,6 +988,53 @@ export interface FeedReadStore {
   markMemoryStale(lock: RoomLock, cause: MemoryStaleCause): Promise<void>;
 }
 
+// --- A member's own scout, inside the personal scope and the room's lock ---------------------------
+
+/** A member's scout in one room, as they set it and as a moderator may have stopped it. */
+export interface ScoutRow {
+  readonly scoutId: string;
+  readonly interests: readonly string[];
+  readonly cadence: ScoutCadence;
+  readonly paused: boolean;
+  readonly stopped: boolean;
+}
+
+export interface ScoutReadStore {
+  /** The member's own scout in the room, if they sent one. */
+  scoutOf(lock: RoomLock, accountId: string): Promise<ScoutRow | undefined>;
+  /** Whether the member's own recording is on: a scout posts nothing while it is paused (D-259). */
+  recordingOn(lock: RoomLock, accountId: string): Promise<boolean>;
+  /** When the member's scout last had a find counted in this room; none when it has not posted. */
+  lastPostOf(lock: RoomLock, accountId: string): Promise<Date | undefined>;
+  /** Sends a scout, or changes the one that stands; a moderator's stop is kept. */
+  save(
+    lock: RoomLock,
+    input: {
+      readonly scoutId: string;
+      readonly accountId: string;
+      readonly interests: readonly string[];
+      readonly cadence: ScoutCadence;
+      readonly paused: boolean;
+      readonly now: Date;
+    },
+  ): Promise<void>;
+  /**
+   * Ends the member's scout with their membership (leaving, removal): the row goes, a moderator's stop with it. It posts nothing
+   * more; what it posted stays.
+   */
+  forgetMember(lock: RoomLock, accountId: string): Promise<void>;
+  /**
+   * The member takes their scout back. It posts nothing more; what it posted stays. A scout a moderator stopped is not deleted but
+   * paused, with the stop kept, so sending it again cannot undo a moderator's stop (D-261).
+   */
+  takeBack(lock: RoomLock, accountId: string, now: Date): Promise<void>;
+  /** A moderator stops a member's scout, or lets it post again. False when the member has none. */
+  setStopped(
+    lock: RoomLock,
+    input: { readonly accountId: string; readonly stopped: boolean; readonly byAccountId: string; readonly now: Date },
+  ): Promise<boolean>;
+}
+
 /** Everything the room use cases need. Built once by the composition root; nothing here is global. */
 /** One message of a room that people have reported, as its moderators may see it: why, how many times and when. */
 export interface RoomReportRow {
@@ -1027,6 +1077,8 @@ export interface RoomPorts {
   readonly watches: WatchStore;
   /** The residents' feed and the room's memory, as a member reads and a moderator changes them (migration 0091). */
   readonly feed: FeedReadStore;
+  /** A member's own scout in a room (migration 0095). */
+  readonly scouts: ScoutReadStore;
   /** The notice state of the questions left for people (migration 0089). */
   readonly questions: QuestionStore;
   readonly people: PersonLookup;
@@ -1053,6 +1105,8 @@ export interface RoomPorts {
    * leaves residents off queues no job.
    */
   readonly residentsEnabled: boolean;
+  /** Whether members may send scouts in this world (`KS_ROOMS_SCOUTS_ENABLED`, D-259). Off, a scout cannot be set and none is shown. */
+  readonly scoutsEnabled: boolean;
   /** The most stars a room earns on one UTC day (D-174); the same in every process of a world. */
   readonly starsPerDay: number;
   /** The rest between the start of one Launch and the next, in milliseconds (`KS_ROOMS_LAUNCH_GAP_MINUTES`, D-178). */

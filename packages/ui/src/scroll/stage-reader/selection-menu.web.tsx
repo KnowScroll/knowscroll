@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { content } from '@knowscroll/design-tokens';
+import { content, fontFallback, fontFamily } from '@knowscroll/design-tokens';
 
 /** Where the menu sits and what it acts on: the stop the selection is in, the selected words and the middle of the first line. */
 interface Selected {
@@ -11,6 +11,8 @@ interface Selected {
 
 const MENU_WIDTH = 188;
 const EDGE = 8;
+/** The app's UI face: a bare `<button>` does not inherit one from the page, and falls back to the browser's own serif. */
+const UI_FONT = [fontFamily.text, ...fontFallback.text].join(', ');
 
 /** The read stop a selection lies wholly inside, or nothing: a call's words are never offered a Simpler or an answer. */
 export function selectedInReadStop(): Selected | undefined {
@@ -96,7 +98,8 @@ export function SelectionMenu({
             borderRadius: 8,
             background: 'transparent',
             color: content.continue,
-            font: 'inherit',
+            fontFamily: UI_FONT,
+            fontSize: 15,
             fontWeight: 700,
             cursor: 'pointer',
           }}
