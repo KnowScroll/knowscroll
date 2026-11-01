@@ -279,7 +279,7 @@ function Waiting({
 /**
  * The stage of a person who joined. It opens the Reel as an ordinary encounter of their own (the same open, grant and activation as
  * any Reel, with the same recorder), only now, because they joined; leaving unmounts it, so a Reel watched again is a new encounter and
- * nothing is left open. It plays from the shared clock and moves to it when it drifts. Mounted only while `youIn`.
+ * nothing is left open. It plays from the shared clock and moves to it when it drifts. Mounted only while this device joined (`joinedHere`).
  */
 function JoinedStage({
   scope,
@@ -414,7 +414,8 @@ function Player({
 
 /**
  * Watch together on the room's stage (R3 A2 "Stage first"): a Reel the room watches on one clock, above General, which goes on below as
- * the crowd. Someone who has not joined sees what is playing and a Join; someone who has sees the Reel, from where the room is. The
+ * the crowd. Someone who has not joined **on this device** sees what is playing and a Join (a second device of the same person, or a room
+ * reopened while their place still stands, shows Join again and opens nothing); someone who joined here sees the Reel, from where the room is. The
  * server holds only the Reel and when it began; every position here is worked out on this device from the server's clock counted by a
  * steady clock, and "N watching" appears only from three people who joined. Nothing says who is watching or where anyone is.
  */
@@ -430,7 +431,9 @@ export function WatchStage({
   readonly controller: RoomWatchController;
 }) {
   const { height, width } = useWindowDimensions();
-  const now = useSteadyNow(!session.youIn);
+  // The Reel is opened on this device only when this device's own Join was accepted, not because the server says the person is in.
+  const joinedHere = session.youIn && state.joinedHere.includes(session.sessionId);
+  const now = useSteadyNow(!joinedHere);
   const since = now - state.receivedAt;
   const stageHeight = Math.round(Math.max(STAGE_MIN, Math.min(STAGE_MAX, height * STAGE_SHARE)));
   const wide = width >= layout.measureDesktop + spacing[8];
@@ -442,7 +445,7 @@ export function WatchStage({
         role="region"
         accessibilityLabel="A Reel watched together"
       >
-        {session.youIn ? (
+        {joinedHere ? (
           <JoinedStage key={session.sessionId} scope={scope} session={session} state={state} controller={controller} />
         ) : (
           <Invitation session={session} state={state} controller={controller} line={positionWords(session, since)} />

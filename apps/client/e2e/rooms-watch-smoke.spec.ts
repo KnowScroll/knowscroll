@@ -230,6 +230,18 @@ for (const { name, size } of VIEWPORTS) {
     expect(world.exposures.get('asha')).toHaveLength(1);
     expect(world.exposures.get('kenji') ?? []).toEqual([]);
 
+    // The room opened again on a device that never tapped Join: the server still holds Asha's place, so it says she is in, but this
+    // device opens nothing and offers Join. Her own tap opens a new encounter of hers (D-258).
+    await asha.reload();
+    await expect(asha.getByTestId('watch-invitation')).toBeVisible({ timeout: 20_000 });
+    await expect(asha.getByTestId('watch-join')).toBeEnabled();
+    await expect(asha.locator('video')).toHaveCount(0);
+    expect(world.viewers.has('asha')).toBe(true);
+    expect(world.exposures.get('asha')).toHaveLength(1);
+    await asha.getByTestId('watch-join').click();
+    await expect(asha.locator('video')).toHaveCount(1, { timeout: 20_000 });
+    expect(world.exposures.get('asha')).toHaveLength(2);
+
     // Ravi leaves the stage: he is not counted, nothing of his is kept, and the session goes on for Asha.
     await page.getByTestId('watch-leave').click();
     await expect(page.getByTestId('watch-invitation')).toBeVisible();

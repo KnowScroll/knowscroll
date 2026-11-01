@@ -1,6 +1,11 @@
-import type * as React from 'react';
+import * as React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import type { AccountScope, RoomWatchController, RoomWatchState } from '@knowscroll/client-core';
+import {
+  createRoomWatch,
+  type AccountScope,
+  type RoomWatchController,
+  type RoomWatchState,
+} from '@knowscroll/client-core';
 import type { RoomWatch, WatchSessionView } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
 import { WatchSheet } from './watch-sheet';
@@ -70,10 +75,13 @@ const stateOf = (patch: Partial<RoomWatchState> = {}): RoomWatchState => ({
   offline: false,
   working: false,
   refused: false,
+  joinedHere: [],
   recordingPaused: false,
   notSaved: undefined,
   ...patch,
 });
+/** The state of a device whose own person joined from it: the server says they are in, and so does this device. */
+const joinedState = (patch: Partial<RoomWatchState> = {}) => stateOf({ joinedHere: [base.sessionId], ...patch });
 const controllerOf = (over: object = {}) =>
   ({
     load: jest.fn(),
@@ -203,7 +211,7 @@ describe('the stage for someone who joined', () => {
   };
 
   it('asks for the Reel’s own encounter once, and shows it is opening until it is', async () => {
-    await wrap(<WatchStage scope={scope} session={joined()} state={stateOf()} controller={controllerOf()} />);
+    await wrap(<WatchStage scope={scope} session={joined()} state={joinedState()} controller={controllerOf()} />);
     expect(mockUseExposure).toHaveBeenCalledWith(scope, reel.assetId);
     expect(mockStart).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('watch-opening')).toBeOnTheScreen();
@@ -213,7 +221,7 @@ describe('the stage for someone who joined', () => {
   it('plays the Reel from where the shared clock is, on and unattended, with the player’s own controls turned off', async () => {
     opened();
     mockNow.current = 1_500;
-    await wrap(<WatchStage scope={scope} session={joined()} state={stateOf()} controller={controllerOf()} />);
+    await wrap(<WatchStage scope={scope} session={joined()} state={joinedState()} controller={controllerOf()} />);
     const props = lastPlayer();
     expect(props.initialPositionMs).toBe(42_500);
     expect(props.initialPlaying).toBe(true);
@@ -226,7 +234,12 @@ describe('the stage for someone who joined', () => {
   it('waits for the first frame in words, then plays: before it, the player is not drawn', async () => {
     opened();
     await wrap(
-      <WatchStage scope={scope} session={starting({ youIn: true })} state={stateOf()} controller={controllerOf()} />,
+      <WatchStage
+        scope={scope}
+        session={starting({ youIn: true })}
+        state={joinedState()}
+        controller={controllerOf()}
+      />,
     );
     expect(screen.getByTestId('watch-starting')).toBeOnTheScreen();
     expect(screen.getByTestId('watch-title')).toHaveTextContent('Starting in 4 s');
@@ -237,7 +250,7 @@ describe('the stage for someone who joined', () => {
     opened();
     mockPlayback.current = { positionMs: 41_000, playing: true, muted: false };
     const view = await wrap(
-      <WatchStage scope={scope} session={joined()} state={stateOf()} controller={controllerOf()} />,
+      <WatchStage scope={scope} session={joined()} state={joinedState()} controller={controllerOf()} />,
     );
     expect(mockSeekBy).not.toHaveBeenCalled();
     // The player falls 4 s behind the clock: it is moved up to it.
@@ -246,7 +259,7 @@ describe('the stage for someone who joined', () => {
     await act(() =>
       view.rerender(
         <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
-          <WatchStage scope={scope} session={joined()} state={stateOf()} controller={controllerOf()} />
+          <WatchStage scope={scope} session={joined()} state={joinedState()} controller={controllerOf()} />
         </DisplayProvider>,
       ),
     );
@@ -258,7 +271,7 @@ describe('the stage for someone who joined', () => {
     await act(() =>
       view.rerender(
         <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
-          <WatchStage scope={scope} session={joined()} state={stateOf()} controller={controllerOf()} />
+          <WatchStage scope={scope} session={joined()} state={joinedState()} controller={controllerOf()} />
         </DisplayProvider>,
       ),
     );
@@ -268,7 +281,7 @@ describe('the stage for someone who joined', () => {
   it('lets a person pause for themselves without moving anyone else, and does not seek a paused player', async () => {
     opened();
     mockPlayback.current = { positionMs: 20_000, playing: false, muted: false };
-    await wrap(<WatchStage scope={scope} session={joined()} state={stateOf()} controller={controllerOf()} />);
+    await wrap(<WatchStage scope={scope} session={joined()} state={joinedState()} controller={controllerOf()} />);
     expect(screen.getByRole('button', { name: 'Play' })).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('watch-toggle'));
     expect(mockToggle).toHaveBeenCalledTimes(1);
@@ -278,7 +291,7 @@ describe('the stage for someone who joined', () => {
   it('leaves the stage from the stage, and the Reel is not shown to anyone as having left', async () => {
     opened();
     const controller = controllerOf();
-    await wrap(<WatchStage scope={scope} session={joined()} state={stateOf()} controller={controller} />);
+    await wrap(<WatchStage scope={scope} session={joined()} state={joinedState()} controller={controller} />);
     await fireEvent.press(screen.getByTestId('watch-leave'));
     expect(controller.leave).toHaveBeenCalledTimes(1);
   });
@@ -286,14 +299,14 @@ describe('the stage for someone who joined', () => {
   it('pauses the player when another screen takes focus', async () => {
     opened();
     mockFocused = false;
-    await wrap(<WatchStage scope={scope} session={joined()} state={stateOf()} controller={controllerOf()} />);
+    await wrap(<WatchStage scope={scope} session={joined()} state={joinedState()} controller={controllerOf()} />);
     expect(lastPlayer().active).toBe(false);
   });
 
   it('says so when the Reel cannot be opened, and still lets the person leave', async () => {
     mockExposure.current = { status: 'unavailable' };
     const controller = controllerOf();
-    await wrap(<WatchStage scope={scope} session={joined()} state={stateOf()} controller={controller} />);
+    await wrap(<WatchStage scope={scope} session={joined()} state={joinedState()} controller={controller} />);
     expect(screen.getByTestId('watch-title')).toHaveTextContent('This Reel isn’t available');
     await fireEvent.press(screen.getByTestId('watch-leave'));
     expect(controller.leave).toHaveBeenCalled();
@@ -302,10 +315,143 @@ describe('the stage for someone who joined', () => {
   it('says the Reel is over when the clock says so, before the next read arrives', async () => {
     opened();
     mockNow.current = 29_000;
-    await wrap(<WatchStage scope={scope} session={joined()} state={stateOf()} controller={controllerOf()} />);
+    await wrap(<WatchStage scope={scope} session={joined()} state={joinedState()} controller={controllerOf()} />);
     expect(screen.getByTestId('watch-ended')).toBeOnTheScreen();
     expect(screen.getByTestId('watch-title')).toHaveTextContent('That’s the Reel.');
     expect(mockPlayer).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The real controller over a labelled server, behind the stage. What the server says (the person is in) is not what this device did:
+ * only a Join accepted on this device opens the Reel here (D-258). A second device of the same person, and a room reopened while
+ * the person's place still stands, show Join and open nothing.
+ */
+describe('a device opens the Reel only after its own Join (D-258)', () => {
+  /** A server with one session, whose viewer row is the person's: `youIn` is that row, whatever device asks. */
+  function server(youIn: boolean) {
+    const row = { youIn };
+    const sent: string[] = [];
+    const rooms = {
+      watch: () => Promise.resolve(ready({ session: playing({ youIn: row.youIn }) })),
+      joinWatch: () => {
+        sent.push('join');
+        row.youIn = true;
+        return Promise.resolve({ outcome: 'accepted', sessionId: base.sessionId });
+      },
+      leaveWatch: () => {
+        sent.push('leave');
+        row.youIn = false;
+        return Promise.resolve({ outcome: 'accepted', sessionId: base.sessionId });
+      },
+    };
+    const recording = {
+      getState: () => ({ policy: { on: true, generation: 1 } }),
+      generation: () => Promise.resolve(1),
+      refresh: () => Promise.resolve(true),
+      subscribe: () => () => undefined,
+    };
+    const live = { active: true, api: { rooms }, recording } as unknown as AccountScope;
+    return { row, sent, live };
+  }
+  let counter = 500;
+  const open = (live: AccountScope) =>
+    createRoomWatch({ scope: live, roomId: id(1), newId: () => id(counter++), clock: () => mockNow.current });
+
+  /** The screen of one device: it reads the controller and draws the stage when there is a session. */
+  function Device({ live, controller }: { readonly live: AccountScope; readonly controller: RoomWatchController }) {
+    const state = React.useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
+    const session = state.view?.session;
+    return session === undefined ? null : (
+      <WatchStage scope={live} session={session} state={state} controller={controller} />
+    );
+  }
+  const openedExposure = () => {
+    mockExposure.current = {
+      status: 'ready',
+      exposure: {
+        exposureId: id(40),
+        document: { assetId: reel.assetId, revision: 1, title: reel.title, durationMs: 70_000 },
+        recorder: { end: jest.fn() },
+      },
+    };
+  };
+
+  it('opens nothing on a device that never joined, though the server says the person is in', async () => {
+    openedExposure();
+    const { live } = server(true);
+    const controller = open(live);
+    await act(() => controller.load());
+    await wrap(<Device live={live} controller={controller} />);
+    expect(controller.getState().view?.session?.youIn).toBe(true);
+    expect(controller.getState().joinedHere).toEqual([]);
+    expect(screen.getByTestId('watch-join')).toBeOnTheScreen();
+    expect(mockUseExposure).not.toHaveBeenCalled();
+    expect(mockStart).not.toHaveBeenCalled();
+    expect(mockPlayer).not.toHaveBeenCalled();
+  });
+
+  it('opens exactly one encounter for a Join on this device, and no second one however often the stage is read', async () => {
+    openedExposure();
+    const { live, sent, row } = server(false);
+    const controller = open(live);
+    await act(() => controller.load());
+    await wrap(<Device live={live} controller={controller} />);
+    expect(mockStart).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByTestId('watch-join'));
+    await act(() => Promise.resolve());
+    expect(sent).toEqual(['join']);
+    expect(row.youIn).toBe(true);
+    expect(controller.getState().joinedHere).toEqual([base.sessionId]);
+    expect(mockStart).toHaveBeenCalledTimes(1);
+    expect(mockPlayer).toHaveBeenCalled();
+    for (let read = 0; read < 3; read++) await act(() => controller.load());
+    expect(mockStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows Join, not a playing Reel, when the room is reopened while the person’s place still stands', async () => {
+    openedExposure();
+    const { live, row } = server(false);
+    const first = open(live);
+    await act(() => first.load());
+    const view = await wrap(<Device live={live} controller={first} />);
+    await fireEvent.press(screen.getByTestId('watch-join'));
+    await act(() => Promise.resolve());
+    expect(mockStart).toHaveBeenCalledTimes(1);
+    // The room is closed and opened again: a new screen, a new controller. The server still holds the person's place.
+    await view.unmount();
+    mockStart.mockClear();
+    mockPlayer.mockClear();
+    mockUseExposure.mockClear();
+    expect(row.youIn).toBe(true);
+    const second = open(live);
+    await act(() => second.load());
+    await wrap(<Device live={live} controller={second} />);
+    expect(screen.getByTestId('watch-join')).toBeOnTheScreen();
+    expect(screen.queryByTestId('watch-title')?.props.children).toBe(reel.title);
+    expect(mockUseExposure).not.toHaveBeenCalled();
+    expect(mockStart).not.toHaveBeenCalled();
+    expect(mockPlayer).not.toHaveBeenCalled();
+  });
+
+  it('shows Join again after leaving, and a place that was taken away does not come back on its own', async () => {
+    openedExposure();
+    const { live, row } = server(false);
+    const controller = open(live);
+    await act(() => controller.load());
+    await wrap(<Device live={live} controller={controller} />);
+    await fireEvent.press(screen.getByTestId('watch-join'));
+    await act(() => Promise.resolve());
+    await fireEvent.press(screen.getByTestId('watch-leave'));
+    await act(() => Promise.resolve());
+    expect(controller.getState().joinedHere).toEqual([]);
+    expect(screen.getByTestId('watch-join')).toBeOnTheScreen();
+    // The person joins again from another device: the server says they are in, this device still opens nothing.
+    mockStart.mockClear();
+    row.youIn = true;
+    await act(() => controller.load());
+    expect(screen.getByTestId('watch-join')).toBeOnTheScreen();
+    expect(mockStart).not.toHaveBeenCalled();
   });
 });
 

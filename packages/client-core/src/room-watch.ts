@@ -119,9 +119,11 @@ export function lastOnStageWords(last: WatchLastOnStage | undefined, now: Date, 
 // --- The controller ---------------------------------------------------------------------------
 
 type NotSaved = 'recording_paused' | 'recording_generation_stale';
-type Acceptance = { readonly outcome: 'accepted' } | { readonly outcome: 'not_saved'; readonly reason: NotSaved };
+type Acceptance =
+  | { readonly outcome: 'accepted'; readonly sessionId: string }
+  | { readonly outcome: 'not_saved'; readonly reason: NotSaved };
 type PlayResult =
-  | { readonly kind: 'accepted' }
+  | { readonly kind: 'accepted'; readonly sessionId: string }
   | { readonly kind: 'not_saved'; readonly reason: NotSaved }
   | { readonly kind: 'refused' | 'offline' | 'ended' };
 
@@ -139,6 +141,14 @@ export interface RoomWatchState {
   /** The last command was refused (the session changed meanwhile); the screen has read the stage again and says so. */
   readonly refused: boolean;
   /**
+   * The sessions this device's own person joined from this device, by session ID: set only when this device's Join (or Start) was
+   * accepted, and dropped when a read says the person is no longer in, when they leave or when the session is over. The server's
+   * `youIn` says the person is in from somewhere; only this says the Reel is to be opened **here**. So a second device, or a room
+   * reopened while the person's place still stands, shows Join and opens nothing (D-258). It lives in the controller, which lives in
+   * the account scope's screen, so an account switch ends it.
+   */
+  readonly joinedHere: readonly string[];
+  /**
    * Recording is paused right now (D-057). Joining is kept in the room, so while it is true a person cannot join or start one: the
    * screen says so before any tap. Read from the person's own recording policy and kept fresh while a screen listens (D-258).
    */
@@ -154,9 +164,9 @@ export interface RoomWatchController {
   readonly load: () => Promise<void>;
   /** Reads the Reels the room's topic rests on, for the picker. */
   readonly loadReels: () => Promise<void>;
-  /** Starts Watch together on a library Reel and joins it; true when it began. While recording is paused nothing is sent. */
+  /** Starts Watch together on a library Reel and joins it, here; true when it began. While recording is paused nothing is sent. */
   readonly start: (assetId: string) => Promise<boolean>;
-  /** Says the person is watching the session that is on. While recording is paused nothing is sent. */
+  /** Says the person is watching the session that is on, from this device. While recording is paused nothing is sent. */
   readonly join: () => Promise<boolean>;
   /** Leaves the stage: no longer counted, nothing of theirs kept. Always possible. */
   readonly leave: () => Promise<boolean>;
@@ -181,6 +191,7 @@ const initial: RoomWatchState = {
   offline: false,
   working: false,
   refused: false,
+  joinedHere: [],
   recordingPaused: false,
   notSaved: undefined,
 };
@@ -209,7 +220,12 @@ export function createRoomWatch(options: RoomWatchOptions): RoomWatchController 
     try {
       const answer = await scope.api.rooms.watch({ version: VERSION, readId: newId(), roomId });
       if (answer.status === 'unavailable') publish({ phase: 'unavailable', view: undefined, offline: false });
-      else publish({ phase: 'ready', view: answer, receivedAt: clock(), offline: false });
+      else {
+        // Only a session this device joined, that the server still says the person is in, stays joined here.
+        const session = answer.session;
+        const joinedHere = state.joinedHere.filter((joined) => session?.sessionId === joined && session.youIn);
+        publish({ phase: 'ready', view: answer, receivedAt: clock(), offline: false, joinedHere });
+      }
     } catch (error) {
       const failure = talkFailure(error);
       if (failure === 'ended') return;
@@ -241,7 +257,9 @@ export function createRoomWatch(options: RoomWatchOptions): RoomWatchController 
     });
     if (outcome.kind !== 'ok') return { kind: outcome.kind };
     const acceptance = outcome.value;
-    return acceptance.outcome === 'accepted' ? { kind: 'accepted' } : { kind: 'not_saved', reason: acceptance.reason };
+    return acceptance.outcome === 'accepted'
+      ? { kind: 'accepted', sessionId: acceptance.sessionId }
+      : { kind: 'not_saved', reason: acceptance.reason };
   }
 
   /** What a command that did not succeed comes to for the screen: a refusal reads the stage again, a `not_saved` says so and reads the policy. */
@@ -259,12 +277,16 @@ export function createRoomWatch(options: RoomWatchOptions): RoomWatchController 
   }
 
   /** Leave and stop remove what is stored, so they never wait on the recording policy. */
-  async function undo(intent: string, send: (commandId: string) => Promise<unknown>): Promise<boolean> {
+  async function undo(
+    intent: string,
+    sessionId: string,
+    send: (commandId: string) => Promise<unknown>,
+  ): Promise<boolean> {
     if (state.working) return false;
     publish({ working: true, refused: false, notSaved: undefined });
     const outcome = await run(intent, send);
     if (outcome.kind !== 'ok') return settleFailure({ kind: outcome.kind });
-    publish({ working: false });
+    publish({ working: false, joinedHere: state.joinedHere.filter((joined) => joined !== sessionId) });
     await load();
     return true;
   }
@@ -296,7 +318,7 @@ export function createRoomWatch(options: RoomWatchOptions): RoomWatchController 
         scope.api.rooms.startWatch({ version: VERSION, commandId, roomId, assetId, recordingGeneration }),
       );
       if (result.kind !== 'accepted') return settleFailure(result);
-      publish({ working: false });
+      publish({ working: false, joinedHere: [...state.joinedHere, result.sessionId] });
       await load();
       return true;
     },
@@ -315,7 +337,7 @@ export function createRoomWatch(options: RoomWatchOptions): RoomWatchController 
         }),
       );
       if (result.kind !== 'accepted') return settleFailure(result);
-      publish({ working: false });
+      publish({ working: false, joinedHere: [...state.joinedHere, result.sessionId] });
       await load();
       return true;
     },
@@ -323,7 +345,7 @@ export function createRoomWatch(options: RoomWatchOptions): RoomWatchController 
     async leave() {
       const session = state.view?.session;
       if (session === undefined) return false;
-      return undo(`leave:${session.sessionId}`, (commandId) =>
+      return undo(`leave:${session.sessionId}`, session.sessionId, (commandId) =>
         scope.api.rooms.leaveWatch({ version: VERSION, commandId, roomId, sessionId: session.sessionId }),
       );
     },
@@ -331,7 +353,7 @@ export function createRoomWatch(options: RoomWatchOptions): RoomWatchController 
     async stop() {
       const session = state.view?.session;
       if (session === undefined) return false;
-      return undo(`stop:${session.sessionId}`, (commandId) =>
+      return undo(`stop:${session.sessionId}`, session.sessionId, (commandId) =>
         scope.api.rooms.stopWatch({ version: VERSION, commandId, roomId, sessionId: session.sessionId }),
       );
     },

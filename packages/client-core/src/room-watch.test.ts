@@ -314,6 +314,73 @@ describe('Watch together on the client', () => {
     expect(refusing.calls.filter((call) => call.name === 'joinWatch')).toHaveLength(0);
   });
 
+  it('says a session is joined here only after this device’s own Join or Start was accepted (D-258)', async () => {
+    // The server says the person is in (from another device, or from before the room was reopened): this device did not join.
+    const seen = scopeOf({ watch: () => Promise.resolve(ready({ session: { ...playing, youIn: true } })) });
+    const idle = createRoomWatch({ scope: seen, roomId, newId, clock: () => 0 });
+    await idle.load();
+    expect(idle.getState().view?.session?.youIn).toBe(true);
+    expect(idle.getState().joinedHere).toEqual([]);
+
+    const server = { youIn: false };
+    const scope = scopeOf({
+      watch: () => Promise.resolve(ready({ session: { ...playing, youIn: server.youIn } })),
+      joinWatch: () => {
+        server.youIn = true;
+        return Promise.resolve(accepted('watch.join'));
+      },
+      startWatch: () => {
+        server.youIn = true;
+        return Promise.resolve({ ...accepted('watch.start'), startsInMs: 5_000 });
+      },
+      leaveWatch: () => {
+        server.youIn = false;
+        return Promise.resolve(accepted('watch.leave'));
+      },
+    });
+    const controller = createRoomWatch({ scope, roomId, newId, clock: () => 0 });
+    await controller.load();
+    expect(controller.getState().joinedHere).toEqual([]);
+    await controller.join();
+    expect(controller.getState().joinedHere).toEqual([sessionId]);
+    // A read that finds the person still in keeps it; leaving drops it at once.
+    await controller.load();
+    expect(controller.getState().joinedHere).toEqual([sessionId]);
+    await controller.leave();
+    expect(controller.getState().joinedHere).toEqual([]);
+    // Starting a Reel joins it here too.
+    await controller.start(reel.assetId);
+    expect(controller.getState().joinedHere).toEqual([sessionId]);
+  });
+
+  it('drops a joined session when a read says the person is out of it, or that it is over, and a refused Join adds nothing', async () => {
+    const server: { current: object } = { current: ready({ session: playing }) };
+    const scope = scopeOf({
+      watch: () => Promise.resolve(server.current),
+      joinWatch: () => Promise.resolve(accepted('watch.join')),
+    });
+    const controller = createRoomWatch({ scope, roomId, newId, clock: () => 0 });
+    await controller.load();
+    await controller.join();
+    // The server holds a person's place only while the session is on: this read says they are out (a Clear, a removal).
+    server.current = ready({ session: { ...playing, youIn: false } });
+    await controller.load();
+    expect(controller.getState().joinedHere).toEqual([]);
+    // Another session with the person in it was not joined from here.
+    server.current = ready({ session: { ...playing, sessionId: id(9), youIn: true } });
+    await controller.load();
+    expect(controller.getState().joinedHere).toEqual([]);
+
+    const refusing = scopeOf({
+      watch: () => Promise.resolve(ready({ session: playing })),
+      joinWatch: () => Promise.reject(refused()),
+    });
+    const other = createRoomWatch({ scope: refusing, roomId, newId, clock: () => 0 });
+    await other.load();
+    await other.join();
+    expect(other.getState().joinedHere).toEqual([]);
+  });
+
   it('leaves and stops with the session, and reads the stage after', async () => {
     const scope = scopeOf({
       leaveWatch: () => Promise.resolve(accepted('watch.leave')),
