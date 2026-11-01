@@ -39,8 +39,8 @@ describe('content ask-check refuses what it cannot run, before touching anything
   ])('refuses a command that %s with the usage line and exit status 2', async (_name, over) => {
     const { code, printed } = await run(over);
     expect(code).toBe(2);
-    expect(printed).toEqual([
-      expect.objectContaining({ result: 'usage', usage: expect.stringContaining('content ask-check') }),
-    ]);
+    expect(printed).toHaveLength(1);
+    expect(printed[0]).toMatchObject({ result: 'usage' });
+    expect(String(printed[0]?.['usage'])).toContain('content ask-check');
   });
 });

@@ -125,13 +125,10 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     expect(line).not.toContain('How a lighthouse');
     // The file's detail has every sentence with the passages it cites and the checker's verdict, flagged one included.
     expect(only!.detail!.sentences).toHaveLength(only!.line.sentences);
-    expect(only!.detail!.sentences.filter((sentence) => sentence.verdict === 'unsupported')).toEqual([
-      expect.objectContaining({
-        text: expect.stringMatching(/^Because the ribbon turns/u),
-        kind: 'contradicted',
-        problem: 'A passage says otherwise.',
-      }),
-    ]);
+    const flaggedSentences = only!.detail!.sentences.filter((sentence) => sentence.verdict === 'unsupported');
+    expect(flaggedSentences).toHaveLength(1);
+    expect(flaggedSentences[0]).toMatchObject({ kind: 'contradicted', problem: 'A passage says otherwise.' });
+    expect(flaggedSentences[0]!.text.startsWith('Because the ribbon turns')).toBe(true);
     expect(only!.detail!.sentences.find((sentence) => sentence.verdict === 'supported')?.quote).toBeTruthy();
     // The checker was never shown the question, because the check does not use it.
     expect(worker.supportCalls.at(-1)!.request.user).not.toContain('a CI question');

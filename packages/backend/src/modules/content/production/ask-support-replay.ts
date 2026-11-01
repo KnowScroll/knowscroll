@@ -103,7 +103,7 @@ export const isAssetId = (value: string): boolean =>
 
 /** The stored answers a target names: published ask orders only, with the research they cited and the answer the writer authored. */
 async function storedAnswers(db: Kysely<Database>, target: ReplayTarget): Promise<readonly StoredAnswer[]> {
-  const named = target.kind === 'assets' ? sql`and run.asset_id = any(${target.assetIds as string[]}::uuid[])` : sql``;
+  const named = target.kind === 'assets' ? sql`and run.asset_id = any(${target.assetIds}::uuid[])` : sql``;
   const limit = target.kind === 'assets' ? ASK_SUPPORT_REPLAY_MAX : target.count;
   const result = await sql<StoredAnswer>`select run.asset_id, run.research, run.writer_output
     from content.scroll_production_runs run

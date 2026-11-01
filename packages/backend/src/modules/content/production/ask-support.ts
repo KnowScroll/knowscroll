@@ -44,15 +44,9 @@ type AnswerBlock = AuthoredScroll['blocks'][number];
 
 /** The texts of a block that state things, each with the passages the block cites. A heading and a block of another shape state nothing here. */
 function statementsOf(block: AnswerBlock): readonly { readonly text: string; readonly cites: readonly string[] }[] {
-  switch (block.type) {
-    case 'paragraph':
-    case 'callout':
-      return [{ text: block.text, cites: block.cites }];
-    case 'list':
-      return block.items.map((text) => ({ text, cites: block.cites }));
-    default:
-      return [];
-  }
+  if (block.type === 'paragraph' || block.type === 'callout') return [{ text: block.text, cites: block.cites }];
+  if (block.type === 'list') return block.items.map((text) => ({ text, cites: block.cites }));
+  return [];
 }
 
 /**

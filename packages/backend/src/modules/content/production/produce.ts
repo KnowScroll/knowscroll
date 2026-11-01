@@ -66,7 +66,8 @@ function summary(row: ProductionRow): ProduceScrollResult {
  * resent, and never after an unknown attempt or a published job, except that a v2 library recipe's
  * later take may follow a take whose Scroll was released (regeneration, D-197). Unknown attempts halt:
  * they are never resent. Scope revocation prevents applying even a valid answer. For a v2 library
- * recipe the writer's answer is checked before it is stored (D-198).
+ * recipe the writer's answer is checked before it is stored (D-198), and so is the answer to a person's
+ * question, which is refused when it cannot be checked (D-250).
  */
 export function makeProduceScroll(deps: ProduceScrollDependencies) {
   const store = productionStore(deps.db);
