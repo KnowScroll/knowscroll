@@ -356,13 +356,15 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
         <ShareSheetBody target={target} title={scroll.document.title} kind="scroll" onClose={() => setSharing(false)} />
       </BottomSheet>
       <View style={[styles.askNotices, { top: insets.top + spacing[3] + 72 }]} pointerEvents="box-none">
-        <RequestNotice
-          requests={ask.session}
-          exposureId={scroll.exposureId}
-          onOpen={() => {
-            void ask.session.openReady();
-          }}
-        />
+        <View style={styles.askNoticeColumn} pointerEvents="box-none">
+          <RequestNotice
+            requests={ask.session}
+            exposureId={scroll.exposureId}
+            onOpen={() => {
+              void ask.openReady();
+            }}
+          />
+        </View>
       </View>
       {ask.open ? (
         <EncounterOverlay label="Ask" presentation="sheet" onClose={ask.close}>
@@ -509,5 +511,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[2],
   },
   spacer: { flex: 1 },
-  askNotices: { position: 'absolute', left: spacing[4], right: spacing[4] },
+  askNotices: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  // The reader's own column, so the notice does not stretch across a desktop window.
+  askNoticeColumn: {
+    width: '100%',
+    maxWidth: layout.measureDesktop + 2 * layout.gutter + spacing[8],
+    paddingHorizontal: spacing[4],
+  },
 });

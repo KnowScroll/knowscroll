@@ -32,7 +32,8 @@ export interface StageMoves {
   readonly done?: (() => void) | undefined;
   /**
    * Opens Ask from here anchored to a stop, with the words the reader selected as the first draft of the question (D-244).
-   * Absent where there is no Ask (the direct `/scroll/<id>` route).
+   * Absent where a screen offers no Ask (the selection toolbar then holds Simpler alone). The Explore encounter and the
+   * direct `/scroll/<id>` route both offer it (D-262).
    */
   readonly askAbout?: ((stopId: string, passage: string) => void) | undefined;
 }
