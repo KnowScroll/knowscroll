@@ -49,7 +49,7 @@ flags are not yet seen on a real model).
   answer has passed the validator and compiled, the role `content.scroll-answer-check` is shown each call and the Final call (the
   stop before, the question, lettered options, the marked letter, the explanation, the twist) and no source. It replies
   `{calls: [{id, consistent, problem?}]}`, one entry per call in order, a closed shape. **Code decides:** all consistent, or no
-  usable answer, stores the Scroll held (the second marked _unchecked_, never released by anything); a flag on the first draft earns
+  usable answer, stores the Scroll held (the second marked *unchecked*, never released by anything); a flag on the first draft earns
   the writer **one** repair in a run of its own with the problems and its draft as data (and none when the harness already repaired
   the draft for the validator); a flag that stands after it ends the job rejected, nothing stored. A spent budget or quota pauses the
   job; the writer's kept answer is read from the ledger on resume.
@@ -190,11 +190,11 @@ research. Decision D-032.
 
 ## State, locks and recovery
 
-| Stored table                                              | Role                                                                                                                                                                                                                    | Main query                                                    | Lifetime                                                               |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Stored table | Role | Main query | Lifetime |
+|---|---|---|---|
 | `content.scroll_production_runs` (0015, 0045, 0050, 0052) | Authoritative, private job: research pages, the authored document and the cited claims once published, code-only outcomes, the revision pointer. States `research`, `writer`, then `published`, `rejected` or `unknown` | Unique `(topic, policy_version, take)` with take 1 to 3, UUID | Nonpersonal public supply; retained for correction, no account erasure |
-| `content.asset_revisions` / `asset_provenance`            | Immutable admitted consumer bytes / internal evidence and generation lineage                                                                                                                                            | Asset + revision                                              | Shared content; no account erasure                                     |
-| `reasoning.production_*` (0013, 0050)                     | The writer run, every possible paid attempt, and the refused answers kept 30 days for diagnosis                                                                                                                         | Stable writer run UUID                                        | Harness retention and liability policy                                 |
+| `content.asset_revisions` / `asset_provenance` | Immutable admitted consumer bytes / internal evidence and generation lineage | Asset + revision | Shared content; no account erasure |
+| `reasoning.production_*` (0013, 0050) | The writer run, every possible paid attempt, and the refused answers kept 30 days for diagnosis | Stable writer run UUID | Harness retention and liability policy |
 
 Lock order: production root → production job row → asset advisory lock → asset rows. Short
 transactions freeze or apply data; no model or HTTP wait holds one. Every rejection and the final
