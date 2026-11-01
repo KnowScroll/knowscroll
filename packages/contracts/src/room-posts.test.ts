@@ -49,6 +49,21 @@ describe('a member’s post in the Feed (v3 R-8b, D-271)', () => {
     ).toBe(false);
   });
 
+  it('shows a source only as an http or https address', () => {
+    const withUrl = (url: string) =>
+      RoomFeedPostSchema.safeParse({ ...base, link: { kind: 'source', source: { url, host: 'example.org' } } }).success;
+    expect(withUrl('http://example.org/a')).toBe(true);
+    expect(withUrl('https://example.org/a')).toBe(true);
+    for (const url of [
+      'javascript:alert(1)',
+      'data:text/html,hi',
+      'ftp://example.org/a',
+      '//example.org/a',
+      'example.org',
+    ])
+      expect(withUrl(url)).toBe(false);
+  });
+
   it('is by a person with a public profile, and never carries an AI label or a resident', () => {
     const link = { kind: 'content', content: card } as const;
     expect(

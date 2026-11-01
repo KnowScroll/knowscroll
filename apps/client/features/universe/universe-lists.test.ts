@@ -65,18 +65,24 @@ describe('the lists the Simple view, the panel and the dial share', () => {
     expect(rooms.find((room) => room.id === 'o')).not.toHaveProperty('caption');
   });
 
-  it('says a Launch is live in the room’s caption, only while it is and only on a station that carries it', () => {
+  it('says what is live in the room’s caption, only while it is and only on a station that carries it', () => {
     const live = {
       ...station('m', 's-b'),
       sky: { lit: 3, of: 7, state: 'forming', finished: 0 },
-      live: true,
+      live: 'launch',
+    } as unknown as RoomStation;
+    const watching = {
+      ...station('w', 's-b'),
+      sky: { lit: 3, of: 7, state: 'forming', finished: 0 },
+      live: 'reel',
     } as unknown as RoomStation;
     const quiet = {
       ...station('q', 's-b'),
       sky: { lit: 3, of: 7, state: 'forming', finished: 0 },
     } as unknown as RoomStation;
-    const { rooms } = listUniverse(index, [live, quiet], null);
+    const { rooms } = listUniverse(index, [live, quiet, watching], null);
     expect(rooms.find((room) => room.id === 'm')?.caption).toBe('3 of 7 · Launch live');
+    expect(rooms.find((room) => room.id === 'w')?.caption).toBe('3 of 7 · Reel live');
     expect(rooms.find((room) => room.id === 'q')?.caption).toBe('3 of 7');
   });
 

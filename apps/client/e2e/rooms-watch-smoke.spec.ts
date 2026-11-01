@@ -260,6 +260,12 @@ for (const { name, size } of VIEWPORTS) {
     await readAgain(asha);
     await expect(asha.getByTestId('watch-stage')).toHaveCount(0, { timeout: 25_000 });
     await shoot(asha, `${name}-7-ended-asha`);
+    // The sheet now names the Reel that was last on the stage, as it names "the Launch".
+    await page.getByTestId('now-watch').click();
+    await expect(page.getByTestId('watch-last')).toContainText(
+      /^Last on stage: the Reel “How big is the universe\?”, /,
+    );
+    await shoot(page, `${name}-7-last-on-stage`);
     expect(await seriousViolations(page)).toEqual([]);
     await context.close();
   });

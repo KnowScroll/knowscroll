@@ -153,7 +153,7 @@ test('phone: a moderator may stop a scout from its find', async ({ page }) => {
 test('phone: a Quieter reader’s scout find is held back and says whose scout found it', async ({ page }) => {
   await openFeed(page, VIEWPORTS[0].size, feedWorld({ scout: { ...noScout }, scoutPost: true, aiLevel: 'quieter' }));
   const find = page.getByTestId(`feed-post-${scoutFindId}`);
-  await expect(find).toContainText('Asha’s scout found something. Open it to read the note.');
+  await expect(find).toContainText('Asha’s scout found something. The note is in the talk.');
   await expect(find).not.toContainText('A short walk through');
   await expect(find.getByTestId('feed-post-signature')).toHaveText('Sent by Asha');
 });

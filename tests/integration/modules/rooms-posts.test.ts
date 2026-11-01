@@ -456,6 +456,42 @@ describe('people’s posts and votes in the Feed (real PostgreSQL)', () => {
       expect(await personPosts(roomId, ravi)).toHaveLength(1);
     });
 
+    it('does not show the headline or the source of a post a moderator removed to a member who has its ID, and shows them again when it is restored', async () => {
+      const { roomId, slug, people } = await scene(3);
+      const [asha, ravi, moderator] = people as [Friend, Friend, Friend];
+      await makeModerator(world, slug, moderator);
+      const discussionId = await posted(
+        asha,
+        roomId,
+        sourceLink('https://example.org/removed-source'),
+        'A headline to hide',
+      );
+      const read = async (reader: Friend) => {
+        const view = await readDiscussion(world, reader, roomId, discussionId);
+        if (view.status !== 'ready') throw new Error('expected ready');
+        return view;
+      };
+      const before = await read(ravi);
+      expect(before.discussion).toMatchObject({
+        title: 'A headline to hide',
+        source: { url: 'https://example.org/removed-source', host: 'example.org' },
+      });
+      const firstMessageId = before.messages[0]!.messageId;
+      unwrap(await hideMessage(world, moderator, roomId, discussionId, firstMessageId));
+      for (const reader of [ravi, asha, moderator]) {
+        const view = await read(reader);
+        expect(view.discussion.title).toBe('A post from a deleted account');
+        expect(view.discussion).not.toHaveProperty('source');
+        expect(JSON.stringify(view)).not.toContain('A headline to hide');
+        expect(JSON.stringify(view)).not.toContain('removed-source');
+      }
+      unwrap(await hideMessage(world, moderator, roomId, discussionId, firstMessageId, false));
+      expect((await read(ravi)).discussion).toMatchObject({
+        title: 'A headline to hide',
+        source: { url: 'https://example.org/removed-source' },
+      });
+    });
+
     it('lists no post by someone the reader blocked and takes no vote on it, with the same counts for everyone else', async () => {
       const reel = await libraryReel(world.db, 'A blocked author');
       const { roomId, people } = await scene(4);

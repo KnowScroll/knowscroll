@@ -73,6 +73,9 @@ describe('Planner original recording provenance and exact wake ownership', () =>
       checkPlanner: values.get(CHECK_PLANNER_RECORDING_RUN) as CheckPersonalRecordingRun,
       checkGeography: () => Promise.resolve('unavailable' as const),
       checkSupply: () => Promise.resolve('unavailable' as const),
+      checkScenarios: () => Promise.resolve('unavailable' as const),
+      checkRooms: () => Promise.resolve('unavailable' as const),
+      checkComposer: () => Promise.resolve('unavailable' as const),
     });
     base = {
       ...(values.get(providers[0]!.provide) as PlannerPorts),

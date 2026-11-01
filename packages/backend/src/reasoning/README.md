@@ -581,7 +581,8 @@ Planner and Cartographer roles are off by default (`KS_PLANNER_ENABLED=0`,
 
 `RECORDING_REASONING_HARNESS` is a separate required personal facade. The existing generic
 `ReasoningHarness.propose` is only actual initial 1/on compatibility; a first real toggle
-permanently makes omitted provenance ineligible. Generic close also requires actual 1/on and an
+permanently makes omitted provenance ineligible. Since D-270 no module uses the generic harness any more: every personal
+model step runs on the facade. `REASONING_HARNESS` stays provided for the tests that exercise the engine itself. Generic close also requires actual 1/on and an
 unproved legacy run, so an old in-flight applier cannot commit through closure after a toggle. Neither path can stamp a later current generation
 onto an old run. This foundation installs no Role/API/UI/worker control and changes no production
 root, transport profile, cap, accounting state machine, reservation policy or paid permission.
@@ -591,10 +592,12 @@ root, transport profile, cap, accounting state machine, reservation policy or pa
 A strict `PersonalRecordingPurpose` contains version `personal-role-purpose.v1`, actual account,
 universe, privacy epoch, original recording generation, business run, current claim, immutable full
 frozen-context SHA and exact model-context SHA. Its owners are planner (purpose personal-planner), geography
-(personal-cartographer) and supply (a step it names, D-264: `ask-scope`, `ask-library`, `quick-answer`,
-`quick-answer-support`). The engine only checks that a Supply step is a lowercase code; the schema
-(`reasoning_personal_recording_proof_shape`, migration 0096) and Supply's owner check hold the list. For Supply, `claimId` is
-the ID of the request or Quick answer the run serves, and both hashes are of the context the model is sent. All fields are required; bounded UUID,
+(personal-cartographer) and four modules that name their own steps (`StepOwnerModule`): supply (D-264, D-270: `ask-scope`,
+`ask-library`, `match-request`, `quick-answer`, `quick-answer-support`), scenarios (D-270: `suggest`, `answer`), rooms
+(`inhabitant-contribution`) and composer (`jev-assessment`). The engine only checks that such a step is a lowercase code; the
+schema (`reasoning_personal_recording_proof_shape`, migrations 0096 and 0097) and each module's owner check hold the list.
+For these four, `claimId` is the ID of the request, draft, branch, ask, answer or exposure the run serves, and both hashes are
+of the context the model is sent. All fields are required; bounded UUID,
 int32 positive odd generation and lowercase 64 hex parsing has no default/coercion/transform. Own
 undefined, extra/hidden/symbol fields, inherited objects and getters refuse. The facade snapshots
 purpose, authority and exact bounded context items; no mutable input or live capability crosses
@@ -602,13 +605,30 @@ network waits. It hashes the actually supplied `{bundleRef,items}` independently
 
 ### Owner proof
 
-`CHECK_PLANNER_RECORDING_RUN`, `CHECK_GEOGRAPHY_RECORDING_RUN` and `CHECK_SUPPLY_RECORDING_RUN` are mandatory real owner
+`CHECK_PLANNER_RECORDING_RUN`, `CHECK_GEOGRAPHY_RECORDING_RUN`, `CHECK_SUPPLY_RECORDING_RUN`,
+`CHECK_SCENARIOS_RECORDING_RUN`, `CHECK_ROOMS_RECORDING_RUN` and `CHECK_COMPOSER_RECORDING_RUN` are mandatory real owner
 ports. A closed dispatcher selects the exact owner; missing functions fail construction/DI. Each
 owner must read its exact account/generation/status/claim/hash HEADER before any frozen body,
 refuse old/malformed provenance, and recompute the complete frozen-context and model-items hashes.
 Prepared status, active business run and unexpired exact current claim remain required. A string
 purpose or a caller-supplied hash cannot authorize a private read. Actual owner implementations
 and their positive combined fixture graph remain separately allocated dependencies.
+
+### Running a module's step under the fence (D-270)
+
+`application/recording-runs.ts` (exported from `public.ts`) is the whole mechanism a module needs; the engine names none of the
+modules' steps. A step reads who it runs for and the generation recording is at, in the transaction that reads what it needs
+(`startRunOwner`, which takes the scope's account gate, or `runOwnerOf` when the scope has entered a thread or a room and so
+holds the gate already). With no owner (recording is paused) `proposeWhenRecording` refuses without a run and without a model
+call. Otherwise it stamps a proof (`purposeOf`) and calls `proposePersonal` outside every transaction. The result is applied
+and its run closed in one transaction by `applyClosingRun`; when that fence refuses (`dropped`) the module writes only the end of
+what was asked. A run with no conclusive end (an attempt of unknown outcome) is never closed by the module and is never resent.
+
+| Capability | Where | Status |
+|---|---|---|
+| `currentOwner` / `currentGeneration` on the facade read where recording is now, under the caller's root | `adapters/personal-recording.ts`, `readPersonalRecordingNow` (identity) | implemented, CI-verified |
+| `startRunOwner`, `runOwnerOf`, `proposeAtGeneration`, `proposeWhenRecording`, `runToClose`, `applyClosingRun`, `closeStartedRun` | `application/recording-runs.ts` | implemented, unit-tested and CI-verified through the four modules |
+| Owners Supply, Scenarios, Rooms, Composer; six-way closed dispatch | `application/personal-recording.ts` | implemented |
 
 ### Reads and writes under authority
 

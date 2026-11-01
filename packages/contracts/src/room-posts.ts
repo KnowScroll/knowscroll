@@ -39,9 +39,16 @@ export type RoomFeedSort = z.infer<typeof RoomFeedSortSchema>;
 export const RoomFeedWindowSchema = z.enum(['day', 'week', 'month', 'all']);
 export type RoomFeedWindow = z.infer<typeof RoomFeedWindowSchema>;
 
-/** A source as the Feed shows it: the plain address and the site's name for the words of the link. Never fetched, never previewed. */
+/**
+ * A source as the Feed shows it: the plain address and the site's name for the words of the link. Never fetched, never previewed.
+ * The address is http or https, so a client that makes it a link can never be handed another scheme.
+ */
 export const RoomSourceSchema = z.strictObject({
-  url: z.string().min(1).max(ROOM_SOURCE_MAX_CHARS),
+  url: z
+    .string()
+    .min(1)
+    .max(ROOM_SOURCE_MAX_CHARS)
+    .refine((url) => /^https?:\/\//i.test(url)),
   host: z.string().min(1).max(253),
 });
 export type RoomSource = z.infer<typeof RoomSourceSchema>;

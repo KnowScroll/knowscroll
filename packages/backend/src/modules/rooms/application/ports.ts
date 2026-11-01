@@ -1019,7 +1019,7 @@ export interface ScoutRow {
   readonly stopped: boolean;
 }
 
-/** A person's posts to the Feed and the votes on every post (migration 0097), inside the personal scope and the room's lock. */
+/** A person's posts to the Feed and the votes on every post (migration 0098), inside the personal scope and the room's lock. */
 export interface PostStore {
   /** How many posts this member has made in this room since `since`. */
   postsSince(lock: RoomLock, accountId: string, since: Date): Promise<number>;
@@ -1129,7 +1129,7 @@ export interface RoomPorts {
   readonly feed: FeedReadStore;
   /** A member's own scout in a room (migration 0095). */
   readonly scouts: ScoutReadStore;
-  /** A member's posts to the Feed and the votes on posts (migration 0097). */
+  /** A member's posts to the Feed and the votes on posts (migration 0098). */
   readonly posts: PostStore;
   /** The notice state of the questions left for people (migration 0089). */
   readonly questions: QuestionStore;

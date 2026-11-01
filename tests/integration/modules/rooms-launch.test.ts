@@ -802,7 +802,7 @@ describe('the Launch (real PostgreSQL, labelled CI fixtures)', () => {
       expect(await stationOf(asha)).not.toHaveProperty('live');
       const started = unwrap(await start(asha, earth));
       if (started.outcome !== 'accepted') throw new Error('expected accepted');
-      expect((await stationOf(asha))?.live).toBe(true);
+      expect((await stationOf(asha))?.live).toBe('launch');
       expect(await stationOf(outsider)).not.toHaveProperty('live');
       expect((await stationOf(outsider))?.standing).toBe('none');
       at(opensAt(t0).getTime() - t0.getTime() + PLAY_MS, t0);

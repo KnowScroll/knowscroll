@@ -160,6 +160,21 @@ the three consumers (`apps/worker/src/jobs.ts`). Spend is bounded by `KS_SUPPLY_
 `KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP` (API only; dev values are in Ansible), and by the reasoning harness's own
 budgets for the Planner and the card's writer.
 
+## Recording generation (D-270)
+
+The planner's `suggest` and the writer's `answer` run on the recording-aware personal harness, so a person who paused and resumed
+recording gets directions and short answers. Neither a draft nor a branch records a generation (their commands name none), so the
+step reads the generation recording is at in its first transaction and stamps its run with it. The claim is the draft or branch
+ID. Every private read and write of the run is fenced to that generation, and Scenarios' owner check
+(`application/check-recording-run.ts`, installed by `scenariosRecordingOwnerProviders`) finds the draft still `thinking`, or the
+what-if branch standing with its short answer still being made.
+
+| Capability | Where | Status |
+|---|---|---|
+| The run is stamped with the generation at step start, and the result is stored in the transaction that closes the run, under the fence | `application/suggest.ts`, `application/write-answer.ts` | implemented, CI-verified on real PostgreSQL with labelled fixture models |
+| A reply that comes back after a pause, a resume or a Clear is dropped: the draft fails as `could_not_suggest`, the card ends with no short answer, and after a Clear nothing is written | the same | implemented, CI-verified |
+| While recording is paused no run and no call is made; the draft fails and the card has no short answer, as before | the same | implemented, CI-verified |
+
 ## Failure and recovery
 
 - A lost answer: retry with the same command ID; the receipt returns the first answer.

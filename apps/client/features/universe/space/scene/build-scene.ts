@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { stationCaption } from '@knowscroll/client-core';
+import { stationCaption, stationMapCaption } from '@knowscroll/client-core';
 import type { PixelImage } from '../texture-data';
 import { distanceOf, FIELD_OF_VIEW, type CameraPose } from '../camera-rig';
 import { planetGenome } from '../planet-genome';
@@ -20,6 +20,8 @@ export interface WorldAnchor {
   readonly name: string;
   /** A station's sky in words ("6 of 7"), drawn beside its name; absent for any other body and for an outsider's station. */
   readonly caption?: string;
+  /** A station's label on the map: its count and what is live, without the constellation's name; absent where `caption` is. */
+  readonly mapCaption?: string;
   /** The system it belongs to; dust belongs to none. */
   readonly systemId: string | null;
   readonly object: THREE.Object3D;
@@ -217,7 +219,7 @@ function buildStation(
     sun,
     station.emblem,
     station.sky,
-    station.live === true,
+    station.live !== undefined,
   );
   built.object.position.set(station.position.x, station.position.y, station.position.z);
   // Stations are small beside a sun: they are a doorway, not a place.
@@ -228,7 +230,12 @@ function buildStation(
       id: station.id,
       kind: 'station',
       name: station.name,
-      ...(station.sky === undefined ? {} : { caption: stationCaption(station.sky, station.live) }),
+      ...(station.sky === undefined
+        ? {}
+        : {
+            caption: stationCaption(station.sky, station.live),
+            mapCaption: stationMapCaption(station.sky, station.live),
+          }),
       systemId: station.systemId,
       object: built.object,
       radius: 0.6,

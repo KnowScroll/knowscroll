@@ -60,7 +60,8 @@ import { scenarioProviders, scenarioWorkerProviders } from '@knowscroll/backend/
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureAuthored, answerWith } from '../support/generated-scroll.js';
-import { fixtureHarness, fixtureModel, gate, protectedRequestsOf, receiptClassesOf } from '../support/fixture-model.js';
+import { fixtureModel, gate, protectedRequestsOf, receiptClassesOf } from '../support/fixture-model.js';
+import { fixtureRecordingHarness } from '../support/recording-harness.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
 import { buildRecursively } from '../support/providers.js';
@@ -191,7 +192,7 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
         [ENQUEUE, makeEnqueueJob(content.boss)],
         [DATABASE, database.db],
         [CONFIG, { supplyScenarioDailyCap: caps.perDay, supplyScenarioThreadDailyCap: caps.perThread }],
-        [HARNESS, fixtureHarness(database.db, { model: planner }).harness],
+        [HARNESS, fixtureRecordingHarness(database.db, { model: planner }).harness],
         [THREAD_GUEST, cases.guest],
         [READ_THREAD_STANDING, standing],
         [READ_VISITED_ASSETS, readVisitedAssets],

@@ -137,9 +137,9 @@ describe('the words of the stage', () => {
     expect(lastOnStageWords({ kind: 'launch', at: '2026-10-31T21:30:00.000Z' }, now, 'UTC')).toBe(
       'Last on stage: the Launch, yesterday at 21:30',
     );
-    expect(lastOnStageWords({ kind: 'reel', at: '2026-11-01T21:05:00.000Z' }, now, 'UTC')).toBe(
-      'Last on stage: a Reel together, today at 21:05',
-    );
+    expect(
+      lastOnStageWords({ kind: 'reel', at: '2026-11-01T21:05:00.000Z', title: 'A blanket made of gas' }, now, 'UTC'),
+    ).toBe('Last on stage: the Reel “A blanket made of gas”, today at 21:05');
     expect(lastOnStageWords({ kind: 'launch', at: '2026-10-20T08:00:00.000Z' }, now, 'UTC')).toBe(
       'Last on stage: the Launch, 20 Oct at 08:00',
     );
