@@ -60,10 +60,12 @@ export function StopList(props: StopListProps) {
       {document.stops.map((stop, index) => (
         <View
           key={stop.id}
+          testID={`stop-${stop.id}`}
           role="group"
           aria-label={dots[index]?.label}
           onLayout={measureSection(index)}
-          style={[styles.section, { minHeight: sectionHeight }]}
+          // A stop in its plainer words is short: it is not padded to a page, or it would leave a blank gap before the next stop.
+          style={[styles.section, props.simplerStops.has(stop.id) ? null : { minHeight: sectionHeight }]}
           {...dataSet({ ksStop: stop.id, ksKind: stop.kind === 'read' ? 'read' : 'call' })}
         >
           {stop.kind === 'read' ? (
