@@ -17,6 +17,7 @@ import type { z } from 'zod';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { acceptedReadThrough } from '../domain/conversations.js';
 import { sideOf } from '../domain/friends.js';
+import { makeChallengeLock } from './challenge-lock.js';
 import { enterConversation, refOf, type EnteredConversation } from './conversation-gate.js';
 import type { ConversationPorts, InboxChange } from './conversation-ports.js';
 import { conversationEnvelope, refuse, type PairLock, type Result } from './ports.js';
@@ -100,6 +101,7 @@ export function makeConversationCommands(p: ConversationPorts) {
   });
 
   return {
+    ...makeChallengeLock(p),
     /**
      * Starts the conversation with a current friend, or returns the open one: both people get the
      * same conversation, each with their own membership reference. Nothing is announced: a
@@ -156,7 +158,8 @@ export function makeConversationCommands(p: ConversationPorts) {
 
     /**
      * Sends a text bubble or a card for an exact content revision. A card for withdrawn or
-     * missing content is refused and nothing is stored. A reply names a message of this same
+     * missing content is refused and nothing is stored. A card may be a challenge for one call of its revision
+     * (D-245): the stop must be a call of that exact revision, and no pick is sent with it (each person locks their own). A reply names a message of this same
      * conversation (anything else is refused, and nothing is learned about other conversations).
      * Sending is not consumption evidence for anyone: the card is metadata, and only opening and
      * using the content is an encounter.
@@ -181,6 +184,12 @@ export function makeConversationCommands(p: ConversationPorts) {
           if (body.kind === 'content') {
             const [card] = await p.conversations.cards(lock, [body.target]);
             if (!card || card.status === 'unavailable') return refuse('unavailable');
+            // A challenge asks about a call of the exact revision on the card: a stop that is not one is refused (D-245).
+            if (body.challenge !== undefined) {
+              const facts = await p.readCallFacts(context.scope, body.target.assetId, body.target.assetRevision);
+              if (facts?.calls.some((call) => call.stopId === body.challenge?.stopId) !== true)
+                return refuse('invalid_input');
+            }
           }
           const reply = await resolveReplyTarget(
             p.conversations,
@@ -200,7 +209,11 @@ export function makeConversationCommands(p: ConversationPorts) {
                 ...(reply.value === undefined ? {} : { replyToSequence: reply.value }),
                 ...(body.kind === 'text'
                   ? { text: body.text }
-                  : { content: body.target, ...(body.note === undefined ? {} : { note: body.note }) }),
+                  : {
+                      content: body.target,
+                      ...(body.note === undefined ? {} : { note: body.note }),
+                      ...(body.challenge === undefined ? {} : { challengeStop: body.challenge.stopId }),
+                    }),
               });
               return ConversationMessageAcceptanceSchema.parse({
                 ...receiptBase(context, command.commandId),

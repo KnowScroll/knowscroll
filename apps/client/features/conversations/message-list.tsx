@@ -20,6 +20,7 @@ import {
 import type { ConversationMessage, MessageReactionKind } from '@knowscroll/contracts';
 import { layout, spacing } from '@knowscroll/design-tokens';
 import { Button, DateCapsule, Text, useDisplay, useTalkTheme } from '@knowscroll/ui';
+import { ChallengeBlock } from './challenge-block';
 import { AwayDivider, ContentCard, firstAwayMessage, OutgoingBubble, RemovedMessage } from './message-views';
 import { rootOfCard, type ThreadRoot } from './start-thread-sheet';
 import { TalkMessage, type AvailableTalkMessage, type TalkMessageBody } from './talk-message';
@@ -216,7 +217,7 @@ export function MessageList({
                         ownPersonId={ownPersonId}
                         flash={jumper.lit === message.sequence ? jumper.flash : undefined}
                         open={!state.ended}
-                        body={bodyOf(message, onWatchTogether)}
+                        body={bodyOf(message, onWatchTogether, state, controller)}
                         onReply={onReply}
                         onReact={react}
                         onReport={mine ? undefined : () => onReport(message)}
@@ -260,16 +261,33 @@ export function MessageList({
 }
 
 /** What a message says: its words, or the card it shares with a way to watch it together. */
-function bodyOf(message: Available, onWatchTogether: MessageListProps['onWatchTogether']): TalkMessageBody {
+function bodyOf(
+  message: Available,
+  onWatchTogether: MessageListProps['onWatchTogether'],
+  state: ThreadState,
+  controller: ThreadController,
+): TalkMessageBody {
   const { body } = message;
   if (body.kind === 'text') return { kind: 'text', text: body.text };
   const root = rootOfCard(body.content);
+  const { challenge } = body;
   return {
     kind: 'card',
     node: (
       <ContentCard
         card={body.content}
         note={body.note}
+        challenge={
+          challenge === undefined ? undefined : (
+            <ChallengeBlock
+              challenge={challenge}
+              friend={state.peer?.displayName ?? 'your friend'}
+              notice={state.challengeNotice?.messageId === message.messageId ? state.challengeNotice.reason : undefined}
+              locking={state.lockingChallenge === message.messageId}
+              onLock={(option) => void controller.lockChallenge(message.messageId, option)}
+            />
+          )
+        }
         onWatchTogether={onWatchTogether === undefined || root === undefined ? undefined : () => onWatchTogether(root)}
       />
     ),

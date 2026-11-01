@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import type { ConversationContentProjection } from '@knowscroll/contracts';
@@ -15,10 +16,13 @@ import { Button, TalkBubble, Tag, Text, useTalkTheme } from '@knowscroll/ui';
 export function ContentCard({
   card,
   note,
+  challenge,
   onWatchTogether,
 }: {
   readonly card: ConversationContentProjection;
   readonly note?: string | undefined;
+  /** The challenge this card carries, drawn under the card's body (D-245). */
+  readonly challenge?: ReactNode;
   /** Starts a thread about this card with the other person; absent when none can be started. */
   readonly onWatchTogether?: (() => void) | undefined;
 }) {
@@ -82,6 +86,7 @@ export function ContentCard({
           )}
         </View>
       </View>
+      {challenge}
     </View>
   );
 }

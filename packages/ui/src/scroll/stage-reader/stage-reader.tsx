@@ -21,6 +21,8 @@ import type { NextPartPeek, SmallPrint } from './end-tray';
 import type { PartMove } from './part-gesture';
 import { PartSwipe } from './part-swipe';
 import { payoffOf } from './payoff';
+import { passageOf } from './passage';
+import { SelectionMenu } from './selection-menu';
 import { actOnKey, run, type ReaderCommands } from './reader-actions';
 import { ReaderFocus } from './reader-focus';
 import type { ReaderKey } from './reader-keys';
@@ -37,6 +39,11 @@ export interface StageReaderHandle {
   /** The stop the reader is on, or `undefined` at the end tray. */
   readonly capture: () => { readonly stopId: string } | undefined;
   readonly jumpToStop: (stopId: string) => void;
+  /**
+   * Switches the stop the reader is on between its full text and its plainer words ("Simpler (this screen)" in the ••• menu).
+   * False when that stop has none to show: a call, or the end.
+   */
+  readonly toggleSimpler: () => boolean;
 }
 
 export interface StageReaderProps {
@@ -161,6 +168,19 @@ export function StageReader({
     return locked;
   };
   const [textVersion, setTextVersion] = useState(false);
+  const [simplerStops, setSimplerStops] = useState<ReadonlySet<string>>(new Set());
+  const toggleSimpler = useCallback((stopId: string) => {
+    setSimplerStops((all) => {
+      const next = new Set(all);
+      if (!next.delete(stopId)) next.add(stopId);
+      return next;
+    });
+  }, []);
+  /** Words were selected in a stop and asked about: the app opens Ask from here at that stop with the words as a draft (D-244). */
+  const askAboutWords = (stopId: string, selected: string) => {
+    const passage = passageOf(selected);
+    if (passage !== '') commands.askAbout?.(stopId, passage);
+  };
   const [opened, setOpened] = useState<ReadonlySet<string>>(
     () => new Set(document.asides.filter((aside) => !aside.collapsed).map((aside) => aside.id)),
   );
@@ -172,8 +192,14 @@ export function StageReader({
     () => ({
       capture: () => (activeStopId === undefined ? undefined : { stopId: activeStopId }),
       jumpToStop: (stopId) => jump(indexOfStop(document.stops, stopId), false),
+      toggleSimpler: () => {
+        const stop = document.stops.find((candidate) => candidate.id === activeStopId);
+        if (stop?.kind !== 'read') return false;
+        toggleSimpler(stop.id);
+        return true;
+      },
     }),
-    [activeStopId, document.stops, jump],
+    [activeStopId, document.stops, jump, toggleSimpler],
   );
 
   const toggleAside = (asideId: string) =>
@@ -258,11 +284,15 @@ export function StageReader({
               onPlayFinal={
                 finalCall === undefined ? undefined : () => jump(indexOfStop(document.stops, finalCall.id), false)
               }
+              onChallenge={commands.challenge}
+              simplerStops={simplerStops}
+              onToggleSimpler={toggleSimpler}
             />
           </ScrollView>
         </PartSwipe>
         <Spine dots={dots} current={current} onJump={(index) => jump(index, false)} />
       </View>
+      <SelectionMenu onSimpler={toggleSimpler} onAsk={commands.askAbout === undefined ? undefined : askAboutWords} />
       {dock}
     </ReaderFocus>
   );

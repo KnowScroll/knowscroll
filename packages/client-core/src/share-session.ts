@@ -26,7 +26,16 @@ export type SendStatus =
   | { readonly status: 'idle' }
   | { readonly status: 'sending' }
   /** "Sent" is shown only after the server's receipt. */
-  | { readonly status: 'sent'; readonly target: ShareTarget; readonly conversation: DirectConversationRef }
+  | {
+      readonly status: 'sent';
+      readonly target: ShareTarget;
+      readonly conversation: DirectConversationRef;
+      /**
+       * For a challenge (D-245): whether the sender's own pick was kept. `paused`: recording is paused, so the pick is
+       * not saved (D-083). `not_kept`: the pick did not get through; the card in the conversation still lets them call.
+       */
+      readonly pick?: 'kept' | 'paused' | 'not_kept';
+    }
   /** No answer: the identical command is kept, so Retry cannot send twice. */
   | { readonly status: 'unconfirmed' }
   | { readonly status: 'unavailable' }
@@ -44,6 +53,8 @@ export interface ShareState {
   readonly targets: { readonly status: 'loading' | 'ready' | 'failed'; readonly items: readonly ShareTarget[] };
   readonly selected: string | undefined;
   readonly note: string;
+  /** For a challenge: the option the sender calls, a zero-based index; none until they choose (D-245). */
+  readonly pick: number | undefined;
   readonly send: SendStatus;
   readonly link: LinkStatus;
 }
@@ -55,6 +66,8 @@ export interface ShareSession {
   /** Single choice, by person ID. Locked while a send's outcome is unknown. */
   readonly select: (personId: string | undefined) => void;
   readonly setNote: (note: string) => void;
+  /** For a challenge: the sender's own call. */
+  readonly setPick: (option: number | undefined) => void;
   /** Starts the conversation if needed, then sends the card. Calling it again retries the same command. */
   readonly send: () => Promise<void>;
   /** Makes a public link and copies it; the link is a bearer secret held only in memory. */
@@ -67,6 +80,11 @@ export interface ShareSessionOptions {
   readonly scope: AccountScope;
   /** The exact revision shared. */
   readonly target: ConversationContentRef;
+  /**
+   * Makes the card a challenge for this stop (a Call it or the Final call) of the revision (D-245): the friend is asked to
+   * call it, and the sender locks their own pick after the card is sent. No pick travels with the card.
+   */
+  readonly challenge?: { readonly stopId: string } | undefined;
   /** The origin links are built on (the app's own origin, where `/s/*` reaches the API). */
   readonly origin: string;
   readonly newId: () => string;
@@ -84,12 +102,13 @@ export interface ShareSessionOptions {
  * records consumption: choosing a friend, sending and copying are not encounters.
  */
 export function createShareSession(options: ShareSessionOptions): ShareSession {
-  const { scope, target, origin, newId, copyText } = options;
+  const { scope, target, challenge, origin, newId, copyText } = options;
   const listeners = new Set<() => void>();
   let state: ShareState = {
     targets: { status: 'loading', items: [] },
     selected: undefined,
     note: '',
+    pick: undefined,
     send: { status: 'idle' },
     link: { status: 'idle' },
   };
@@ -149,6 +168,35 @@ export function createShareSession(options: ShareSessionOptions): ShareSession {
     }
   }
 
+  /** The sender's own call on the card just sent. A pick that cannot be kept never undoes the send. */
+  async function lockOwnPick(
+    conversation: DirectConversationRef,
+    messageId: string,
+    option: number,
+  ): Promise<'kept' | 'paused' | 'not_kept'> {
+    if (scope.recording?.getState().policy?.on === false) return 'paused';
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const recordingGeneration = await scope.recording?.generation();
+        if (recordingGeneration === undefined) return 'not_kept';
+        const answer = await scope.api.conversations.lockChallenge({
+          version: VERSION,
+          conversation,
+          messageId,
+          option,
+          recordingGeneration,
+        });
+        if (answer.recorded) return 'kept';
+        if (answer.reason === 'recording_paused') return 'paused';
+        // The policy moved on since this device read it: read it again and send the same pick once more.
+        await scope.recording?.refresh();
+      }
+    } catch {
+      return 'not_kept';
+    }
+    return 'not_kept';
+  }
+
   async function send(): Promise<void> {
     const chosen = state.targets.items.find((candidate) => candidate.person.personId === state.selected);
     if (!chosen || state.send.status === 'sending' || state.send.status === 'sent') return;
@@ -166,14 +214,23 @@ export function createShareSession(options: ShareSessionOptions): ShareSession {
             expectedPairRevision: chosen.pairRevision,
           })
         ).conversation;
-      await scope.api.conversations.send({
+      const accepted = await scope.api.conversations.send({
         version: VERSION,
         commandId: intent.sendId,
         conversation,
-        body: { kind: 'content', target, ...(note === '' ? {} : { note }) },
+        body: {
+          kind: 'content',
+          target,
+          ...(note === '' ? {} : { note }),
+          ...(challenge === undefined ? {} : { challenge }),
+        },
       });
       sendIntent = undefined;
-      publish({ send: { status: 'sent', target: chosen, conversation } });
+      const pick =
+        challenge === undefined || state.pick === undefined
+          ? undefined
+          : await lockOwnPick(conversation, accepted.messageId, state.pick);
+      publish({ send: { status: 'sent', target: chosen, conversation, ...(pick === undefined ? {} : { pick }) } });
     } catch (error) {
       const kind = talkFailure(error);
       if (kind === 'ended') return;
@@ -248,6 +305,10 @@ export function createShareSession(options: ShareSessionOptions): ShareSession {
       if (locked() || state.send.status === 'sent') return;
       sendIntent = undefined;
       publish({ selected: personId, send: { status: 'idle' } });
+    },
+    setPick(option) {
+      if (locked() || state.send.status === 'sent') return;
+      publish({ pick: option });
     },
     setNote(note) {
       if (locked() || state.send.status === 'sent') return;

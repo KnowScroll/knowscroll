@@ -18,15 +18,15 @@ The owner's implementation request of 2026-10-19 authorises building the bluepri
 
 Tag `legacy/v1-final` → `106c4701` marks the last v1 revision on `dev`. The integration branch removes the v1 apps, packages, tests, scripts, docs, ADRs and agent instructions so future sessions cannot mistake them for current rules. Retained, because v2 needs them:
 
-| Kept | Why |
-|---|---|
-| `.claude/settings.json`, `.claude/hooks/refuse-main-update.mjs` | Enforces "agents never update main" (strengthened, D-012) |
-| `ops/vps/**` | The live VPS provisioning and `ks` deploy tool; v2 extends it (S1.5) |
-| `ops/pool/migrations/` (was `packages/db/pool-migrations/`) | Schema of the live `knowscroll_pool` spend database (CF-30) |
-| `packages/backend/src/modules/content/adapters/cutroom/wire-v1/` (was `packages/contracts/src/cutroom-v1/`) | Byte-for-byte vendored Cutroom wire schema pinned to `94ee04a1` (CF-61) |
-| `packages/design-tokens/fonts/` | Bricolage Grotesque, Instrument Sans, DM Mono with their OFL licences |
-| `content/**` | Frozen v1 data: editorial and model-written Scrolls, approved reel scripts bound to paid history (D-005) |
-| `scripts/promote.sh`, `.github/workflows/deploy.yml` | Promotion and the v1 deploy path; deploy is replaced for v2 in S1.5 |
+| Kept                                                                                                        | Why                                                                                                      |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `.claude/settings.json`, `.claude/hooks/refuse-main-update.mjs`                                             | Enforces "agents never update main" (strengthened, D-012)                                                |
+| `ops/vps/**`                                                                                                | The live VPS provisioning and `ks` deploy tool; v2 extends it (S1.5)                                     |
+| `ops/pool/migrations/` (was `packages/db/pool-migrations/`)                                                 | Schema of the live `knowscroll_pool` spend database (CF-30)                                              |
+| `packages/backend/src/modules/content/adapters/cutroom/wire-v1/` (was `packages/contracts/src/cutroom-v1/`) | Byte-for-byte vendored Cutroom wire schema pinned to `94ee04a1` (CF-61)                                  |
+| `packages/design-tokens/fonts/`                                                                             | Bricolage Grotesque, Instrument Sans, DM Mono with their OFL licences                                    |
+| `content/**`                                                                                                | Frozen v1 data: editorial and model-written Scrolls, approved reel scripts bound to paid history (D-005) |
+| `scripts/promote.sh`, `.github/workflows/deploy.yml`                                                        | Promotion and the v1 deploy path; deploy is replaced for v2 in S1.5                                      |
 
 ## D-004 · 2026-10-19 · Where v2 runs
 
@@ -44,27 +44,27 @@ Reason: the owner asked for promotion to dev then stage; separate `v2dev`/`v2sta
 
 ## D-006 · 2026-10-19 · Design conflicts resolved (v2.1 export vs blueprint and product rules)
 
-| # | Conflict | Resolution |
-|---|---|---|
-| a | "Speculative" label drawn in two styles beside "Hypothetical" | Status labels are only **Hypothetical** and **Corrected/Updated**. Speculative premises are expressed in the Hypothetical card's assumption text. |
-| b | Reel and Scroll not drawn as equals (yellow on Reel card, louder "Open Scroll" on D01, Scroll actions on the opposite side) | One action set (Like, Save, Share, Ask, Reel/Scroll switch, ⋯) in the same placement for both. Yellow means continuation only. No extra Open-Scroll button. |
-| c | Four tabs (Explore, Universe, Talk, Keep) vs blueprint's "recommend three" | Four tabs adopted: the blueprint left final placement to mockup review. Account is reachable from the avatar in every tab header, not only Keep/Universe. |
-| d | Route `/s/:id` for Scrolls collides with `/s/:token` share previews | `/s/[token]` = share preview. Content: `/reel/[assetId]`, `/scroll/[assetId]` (with `#block` anchors and `?t=` for Reel time). Threads `/threads/[id]`, explorations `/x/[id]/[node]`, universe `/universe?cam=`. |
-| e | Presence shown by default (D03) | Availability is opt-in; default is unknown/hidden. |
-| f | "Ravi asked" on a preparing part | Allowed: contribution history (blueprint §17). Never playback/seen/current position of another person. |
-| g | Snippet block settings shared by default (H03, E09 personal values) | Settings travel only when explicitly included; personal input values default to excluded; the card states whether settings are included. |
-| h | Revoked share landing names the sender | It names nobody; it says the link is no longer available. |
-| i | What-if summary "computed locally" | A server draft command returns bounded suggestions; it starts no production. |
-| j | "Finished" in the E05 trail | Neutral "Visited" (the caller's own history), never a completion grade. |
-| k | N01 contradicts itself on Share pausing the Reel | The share sheet pauses playback while open and restores the prior play state when dismissed. Overlays never enter Back history. |
-| l | Operator page assumes Grafana + Loki/Tempo/Alloy | Implement over Tier 0 (journald, `ops` SQL views, read-only Grafana on PostgreSQL, `pnpm journey <id>`). Panels with no Tier 0 source are shown as unavailable, not faked. |
-| m | Planet sizes in D02 look meaningful | Size comes from the visual family/template only; it never encodes consumption. |
-| n | Five controls under 44 px; focus ring invisible on cobalt media; "Talk •" as accessible name | Touch targets ≥ 44 px; focus ring uses the yellow/cream token on dark/cobalt surfaces; unread state is a separate accessible description. |
-| o | Rooms have no owning tab | Room stations open from the Universe; joined rooms are also listed in Talk. |
-| p | ~15 unnamed colour values and unnamed 12/13/14 px type roles in use | Normalised into named tokens in `packages/design-tokens`; the token set, not individual artboards, is the source. |
-| q | Storyboard privacy copy ("delete conversations you started", "complete only when every copy is cleared") | Use P02's copy and the blueprint §19 policy. |
-| r | Room "Scroll version" placed in the episode navigator | Format switching uses the Reel/Scroll switch everywhere. |
-| s | Suggested and made branches look alike in C04 | Suggested branches use the dashed/"Suggested" treatment and carry no episode number. |
+| #   | Conflict                                                                                                                    | Resolution                                                                                                                                                                                                        |
+| --- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a   | "Speculative" label drawn in two styles beside "Hypothetical"                                                               | Status labels are only **Hypothetical** and **Corrected/Updated**. Speculative premises are expressed in the Hypothetical card's assumption text.                                                                 |
+| b   | Reel and Scroll not drawn as equals (yellow on Reel card, louder "Open Scroll" on D01, Scroll actions on the opposite side) | One action set (Like, Save, Share, Ask, Reel/Scroll switch, ⋯) in the same placement for both. Yellow means continuation only. No extra Open-Scroll button.                                                       |
+| c   | Four tabs (Explore, Universe, Talk, Keep) vs blueprint's "recommend three"                                                  | Four tabs adopted: the blueprint left final placement to mockup review. Account is reachable from the avatar in every tab header, not only Keep/Universe.                                                         |
+| d   | Route `/s/:id` for Scrolls collides with `/s/:token` share previews                                                         | `/s/[token]` = share preview. Content: `/reel/[assetId]`, `/scroll/[assetId]` (with `#block` anchors and `?t=` for Reel time). Threads `/threads/[id]`, explorations `/x/[id]/[node]`, universe `/universe?cam=`. |
+| e   | Presence shown by default (D03)                                                                                             | Availability is opt-in; default is unknown/hidden.                                                                                                                                                                |
+| f   | "Ravi asked" on a preparing part                                                                                            | Allowed: contribution history (blueprint §17). Never playback/seen/current position of another person.                                                                                                            |
+| g   | Snippet block settings shared by default (H03, E09 personal values)                                                         | Settings travel only when explicitly included; personal input values default to excluded; the card states whether settings are included.                                                                          |
+| h   | Revoked share landing names the sender                                                                                      | It names nobody; it says the link is no longer available.                                                                                                                                                         |
+| i   | What-if summary "computed locally"                                                                                          | A server draft command returns bounded suggestions; it starts no production.                                                                                                                                      |
+| j   | "Finished" in the E05 trail                                                                                                 | Neutral "Visited" (the caller's own history), never a completion grade.                                                                                                                                           |
+| k   | N01 contradicts itself on Share pausing the Reel                                                                            | The share sheet pauses playback while open and restores the prior play state when dismissed. Overlays never enter Back history.                                                                                   |
+| l   | Operator page assumes Grafana + Loki/Tempo/Alloy                                                                            | Implement over Tier 0 (journald, `ops` SQL views, read-only Grafana on PostgreSQL, `pnpm journey <id>`). Panels with no Tier 0 source are shown as unavailable, not faked.                                        |
+| m   | Planet sizes in D02 look meaningful                                                                                         | Size comes from the visual family/template only; it never encodes consumption.                                                                                                                                    |
+| n   | Five controls under 44 px; focus ring invisible on cobalt media; "Talk •" as accessible name                                | Touch targets ≥ 44 px; focus ring uses the yellow/cream token on dark/cobalt surfaces; unread state is a separate accessible description.                                                                         |
+| o   | Rooms have no owning tab                                                                                                    | Room stations open from the Universe; joined rooms are also listed in Talk.                                                                                                                                       |
+| p   | ~15 unnamed colour values and unnamed 12/13/14 px type roles in use                                                         | Normalised into named tokens in `packages/design-tokens`; the token set, not individual artboards, is the source.                                                                                                 |
+| q   | Storyboard privacy copy ("delete conversations you started", "complete only when every copy is cleared")                    | Use P02's copy and the blueprint §19 policy.                                                                                                                                                                      |
+| r   | Room "Scroll version" placed in the episode navigator                                                                       | Format switching uses the Reel/Scroll switch everywhere.                                                                                                                                                          |
+| s   | Suggested and made branches look alike in C04                                                                               | Suggested branches use the dashed/"Suggested" treatment and carry no episode number.                                                                                                                              |
 
 States the export does not draw (loading, corrected Scroll, Scroll as a thread item, revoked invitation, blocked conversation, etc.) are designed from the existing tokens and components and listed in the coverage matrix on the tracker.
 
@@ -124,7 +124,7 @@ Blueprint §5 lists "command receipts" under Experience, but every module's comm
 - `personal_commands` keyed `(universe_id, command_id)`, read and written only inside the locked personal scope; the request hash covers the operation and the canonical validated request (keys in code-point order; non-plain data refused) including the revisions it relied on.
 - A replay returns the stored outcome only when the receipt's privacy epoch equals the caller's and its `outcome_version` is the one the caller reads. A receipt from before a privacy reset is never replayed; the caller is already at the current epoch, so it answers `COMMAND_KEY_REUSED` (mint a new ID) rather than a reload-and-retry problem that would loop. Outcome versions: a release that writes version N also reads N-1; a receipt written by a newer release (rolling deploy) answers a retryable 503 and is never re-applied; one in a retired older shape answers `COMMAND_KEY_REUSED`.
 - `shared_commands` keyed by scope kind and ID, actor, operation and command ID, usable only through a `SharedScopeTx`, which `enterSharedRoot` hands out at most once per personal scope after the personal root is locked (blueprint §19 lock order).
-- **Refusals.** Retryable refusals (lock busy, stale epoch, missing or stale asset) write no receipt and are evaluated again on retry. A future command with a *terminal* refusal (for example, sending to a room the person has left) must either store the refusal as its outcome or require the client to mint a new command ID; each such command states which.
+- **Refusals.** Retryable refusals (lock busy, stale epoch, missing or stale asset) write no receipt and are evaluated again on retry. A future command with a _terminal_ refusal (for example, sending to a room the person has left) must either store the refusal as its outcome or require the client to mint a new command ID; each such command states which.
 
 ## D-017 · 2026-10-19 · Diagnostics carry no free text (S1.2 #225)
 
@@ -656,7 +656,7 @@ Choices where blueprint §8, §9 and §19 and the P03 artboard leave room. Migra
 - **Reports.** A content error names the exact revision, a reason from the form (Something's wrong, Out of date, Misleading, Other), the moment in a Reel or the block of a Scroll, and an optional note. An abuse report names a Reel or Scroll, a message in a conversation or thread, a room message or a person, with a reason the person must pick (harassment, hate, sexual content, violence, spam, self-harm, other) and an optional note. A note is plain text, at most 500 characters. The server checks that the caller can see the target (member of the conversation or room, claimed profile, audience of the asset) and answers one `NOT_FOUND` for a missing, hidden or own target. At most 25 reports per account in 24 hours. Every command ID is its own report with its own receipt, also about a target the same account reported before: a second report may carry another reason or a note about something new, and it must reach the safety team, so a repeat is stored and counts against the 25. Only the same command ID replays its first receipt. Moderators and the room list count different people, so reporting twice does not raise what they see.
 - **Nobody a report concerns can see it.** No route returns a report to a consumer; the receipt holds an ID and a time. The reported person's data, export and screens are unchanged (a test compares them before and after). Operators read the newest reports on the Operator screen through `ops.feedback_reports`: ids, kind, reason, target kind, whether a note exists and when. The note, the sender and the person reported stay out of the view, because the `ops` views never carry text or accounts (D-044). The person acting on a report reads the note from the table.
 - **Room moderators see reports on their room's messages.** `POST /v1/rooms/reports`, moderators only: which message, the reasons, how many different people reported it, and on which day (the start of the UTC day of the newest report, never the time). Never who reported, the note or the author, and never a report about the moderator's own words. Moderators are named by the operator (D-051). Anyone else gets the same refusal as a room that is not there.
-- **Erasure follows who the data is about; deleting an account must not erase what others told us about it (coordinator policy, 24 Oct).** Reports are account-keyed: Clear keeps them (an explicit message to us, like rooms and conversations, D-042). Deleting the *reporter* removes every report they sent. Deleting the *reported* account keeps the reports about it for **90 days** from the deletion, without a pointer to the person: `reported_account_id` becomes null, a person target becomes `deleted_account`, and `retain_until` is set. A message id stays because Social and Rooms tombstone the message in the same deletion, so it names no one (the report's note stays as its reporter wrote it). A content error names an asset, never an account, so it is never touched by the reported side of a deletion; it goes with its reporter. The scheduled job `feedback.purge-reports` (pg-boss cron, daily at 03:17 UTC, in the queue registry and the Operator's retention jobs) deletes reports whose `retain_until` has passed, 500 at a time, skipping rows another transaction holds. The reporter's export lists their own reports in words (kind, reason, what it was about, their note, when, and until when for a report about a person who has since deleted their account) with no identifier and no name of the person reported. The delete-account page lists these reports under "What stays".
+- **Erasure follows who the data is about; deleting an account must not erase what others told us about it (coordinator policy, 24 Oct).** Reports are account-keyed: Clear keeps them (an explicit message to us, like rooms and conversations, D-042). Deleting the _reporter_ removes every report they sent. Deleting the _reported_ account keeps the reports about it for **90 days** from the deletion, without a pointer to the person: `reported_account_id` becomes null, a person target becomes `deleted_account`, and `retain_until` is set. A message id stays because Social and Rooms tombstone the message in the same deletion, so it names no one (the report's note stays as its reporter wrote it). A content error names an asset, never an account, so it is never touched by the reported side of a deletion; it goes with its reporter. The scheduled job `feedback.purge-reports` (pg-boss cron, daily at 03:17 UTC, in the queue registry and the Operator's retention jobs) deletes reports whose `retain_until` has passed, 500 at a time, skipping rows another transaction holds. The reporter's export lists their own reports in words (kind, reason, what it was about, their note, when, and until when for a report about a person who has since deleted their account) with no identifier and no name of the person reported. The delete-account page lists these reports under "What stays".
 - **Offline.** A report is saved in the scope's storage (at most ten) before it is sent. With no answer it is "queued", the sheet says "Will send when online", and it is sent again with the same command ID after 1, 2, 4 ... 60 seconds, and whenever a feedback surface opens after a restart. A server error shows Retry with the same command ID; any answer that settles it (target gone, too many) removes it. Changing the form after a failure makes a new report with a new ID. Sign-out and a privacy reset discard the queue with the rest of the scope.
 - **After a report: "Also block".** For a message or person whose author is known, the receipt offers the existing block command. The message is not hidden for the reporter; the receipt says only what happens next.
 - **Entries.** ⋯ in the encounter (Not interested, Report a content error, Report abuse); long-press (500 ms), right-click, Shift+F10 or the menu key on the Reel opens the P03 menu; the conversation's ⋯ ("Report {name}"); a long-press, right-click or screen-reader action on another person's message in a conversation; "Report this message" in a room's message options (AI inhabitants included); "Report" on the friend visit bar. A Scroll's reading surface keeps text selection and the browser's menu, so its only entry is ⋯. A message bubble opens the report sheet on long-press (a held mouse button on the web) or a screen-reader action; the browser's right-click on a bubble stays the browser's, so the text can be copied (the Reel's right-click is kept: a video has nothing to copy). Content-thread messages have no report entry yet.
@@ -1057,10 +1057,10 @@ Records the gate that D-073 asked for. D-073 (the owner's ruling) chose three.js
 - **Gate evidence.** Web, Chromium with software WebGL (Playwright, `e2e/space-gallery.spec.ts`): frames 33.3 ms apart on average (minimum 33.2 ms), 0.4 ms of CPU per draw, pixels read back and changing, reduced motion draws 1 frame in 2 s, the loop stops off screen and in a hidden tab, and the plain lists replace the scene without WebGL and on a lost context. Android emulator (`maestro/space.yaml` in `native.yml`, API 35, swiftshader): the `expo-gl` scene draws and a label tap works; with system animations off (reduced motion) exactly 1 frame; with the loop on, 876 frames, never faster than 32.1 ms apart, 8.1 ms of CPU per draw, **68.5 ms apart on average (about 15 fps)**. The software GL of the emulator cannot reach 30 fps, so its timing proves the path and the cap, not phone speed. Whether a phone holds 30 fps is open: U-2 must measure it on a physical phone before any planet view is built on this.
 - **Two native fixes the gate found.** The release build's R8 renamed the Expo `GLView` and the app crashed on creating it: `plugins/keep-expo-gl-views.js` adds a keep rule for the expo-gl classes. three.js refuses any context that is `instanceof WebGLRenderingContext` and the `expo-gl` WebGL 2 context inherits from it: the native host hands three.js a proxy that hides that inheritance, answers `getContextAttributes()` and ignores colour-space hints the context refuses.
 - **Not verified, and why it is acceptable for now.**
-  - *Native off-screen pause.* The canvas reports leaving the screen on the web only (`IntersectionObserver`). On native the loop follows route focus and `AppState`; a canvas scrolled out of view inside a focused screen keeps drawing. No U-2 screen scrolls its map, and this is not driven on a device.
-  - *Low memory.* The trigger is the `AppState` `memoryWarning` event. React Native raises it on iOS; on Android it is not known to be raised, and nothing was driven on a device. A device-memory class check that starts in the lists belongs with the Simple drawing switch (findings Slice 5) and is deferred to it.
-  - *Native context loss.* `expo-gl` raises no loss event. A context made anew after a resume arrives as a new surface, which the view handles (unit-tested, not driven on a device).
-  - *Phones and iOS.* Nothing was run on a physical phone or on iOS, and no long run was checked for memory.
+  - _Native off-screen pause._ The canvas reports leaving the screen on the web only (`IntersectionObserver`). On native the loop follows route focus and `AppState`; a canvas scrolled out of view inside a focused screen keeps drawing. No U-2 screen scrolls its map, and this is not driven on a device.
+  - _Low memory._ The trigger is the `AppState` `memoryWarning` event. React Native raises it on iOS; on Android it is not known to be raised, and nothing was driven on a device. A device-memory class check that starts in the lists belongs with the Simple drawing switch (findings Slice 5) and is deferred to it.
+  - _Native context loss._ `expo-gl` raises no loss event. A context made anew after a resume arrives as a new surface, which the view handles (unit-tested, not driven on a device).
+  - _Phones and iOS._ Nothing was run on a physical phone or on iOS, and no long run was checked for memory.
 
 ## D-102 · 2026-10-30 · The look lives in `scenes.looks` and reaches a client on the manifest read, under a capability (v3 U-1, #465)
 
@@ -1959,12 +1959,12 @@ Confirmed by: `play.test.tsx` (the score row, gold and plain cards, the paused a
 - **A stage names its kit.** `Stage` is one union over the five kits, and every state of a stage holds that kit's words and no others. A stored Seasons document is unchanged: the same kit id, the same state shape, the same hash.
 - **Eight recipes get a kit** (`stageKit` in the library plan, with a note in the file saying why the kit draws the subject):
 
-| Kit | Recipes | Why it draws the subject |
-|---|---|---|
-| `tides.v1` | `tides`, `tides-spring-neap` | The Moon's pull, the two bulges and spring and neap alignment are what the briefs ask for. |
+| Kit             | Recipes                                                    | Why it draws the subject                                                                                                            |
+| --------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `tides.v1`      | `tides`, `tides-spring-neap`                               | The Moon's pull, the two bulges and spring and neap alignment are what the briefs ask for.                                          |
 | `greenhouse.v1` | `greenhouse`, `greenhouse-radiation`, `greenhouse-balance` | Sunlight in, infrared out, a layer that returns some, balance and the first moments of imbalance, and a layer that makes no energy. |
-| `star.v1` | `stars-fusion`, `stars-lifecycle` | Gravity against pressure, mass against lifetime, and the stages of a low-mass and a high-mass star without years. |
-| `transit.v1` | `exoplanet-transit` | A planet crossing its star and the dip in the light, small against large. The wobble method is told in words only. |
+| `star.v1`       | `stars-fusion`, `stars-lifecycle`                          | Gravity against pressure, mass against lifetime, and the stages of a low-mass and a high-mass star without years.                   |
+| `transit.v1`    | `exoplanet-transit`                                        | A planet crossing its star and the dip in the light, small against large. The wobble method is told in words only.                  |
 
 - **Left without a kit, and why.** `tides-coasts` (basin shape and resonance are not a few words and cannot be derived honestly), `stars-colour-brightness` (a chart of two measures, a later block), `exoplanet-habitable-zone` (the zone's edges depend on a model, so it needs its own kit), `exoplanet-kinds` (a comparison of mass), `greenhouse-limits` (its subject is the audit of the blanket analogy, an argument about a comparison, which a picture of a layer cannot draw and could be taken to endorse), the three black-hole recipes (`star.v1` draws a massive star's end but not which remnant it leaves, so it cannot draw a black hole honestly) and `seasons-elsewhere` (a kit for other worlds, which D-125 left to S-8, is not built here).
 - **Not marked `scrollV2` yet.** A recipe produces a v2 Scroll only when a person marks it (D-137), with its misconception and landmark. These eight are measured first: the runbook prints the spike line (`SKY_SPIKE_TOPICS_V2`), and the spike draws each with its own kit. Until a recipe is marked, production still writes its v1 Scroll.
@@ -2013,19 +2013,20 @@ After D-131, D-132 and D-136 a vertical move no longer offers the series or the 
 
   Replay of 640 decisions (counts only; shares of first offers on the source's topic, and for the sweep also of first offers on another Jev subject and of all offers on the source's topic):
 
-  | Policy (Intent / penalty) | Same topic, first offer | Another subject, first offer | Same topic, all offers |
-  |---|---|---|---|
-  | stored, as served | 0.711 | | |
-  | v0 (0.35 / none) | 0.641 | | |
-  | 0.35 / 0.05 | 0.534 | 0.466 | 0.343 |
-  | **0.30 / 0.05 (chosen)** | **0.392** | **0.608** | **0.286** |
-  | 0.30 / 0.07 | 0.317 | | |
-  | 0.35 / 0.10 | 0.372 | | |
-  | 0.25 / 0 | 0.461 | | |
-  | 0.25 / 0.05 | 0.258 | | |
-  | 0.15 / 0.25 (the first numbers) | 0.006 | | |
+  | Policy (Intent / penalty)       | Same topic, first offer | Another subject, first offer | Same topic, all offers |
+  | ------------------------------- | ----------------------- | ---------------------------- | ---------------------- |
+  | stored, as served               | 0.711                   |                              |                        |
+  | v0 (0.35 / none)                | 0.641                   |                              |                        |
+  | 0.35 / 0.05                     | 0.534                   | 0.466                        | 0.343                  |
+  | **0.30 / 0.05 (chosen)**        | **0.392**               | **0.608**                    | **0.286**              |
+  | 0.30 / 0.07                     | 0.317                   |                              |                        |
+  | 0.35 / 0.10                     | 0.372                   |                              |                        |
+  | 0.25 / 0                        | 0.461                   |                              |                        |
+  | 0.25 / 0.05                     | 0.258                   |                              |                        |
+  | 0.15 / 0.25 (the first numbers) | 0.006                   |                              |                        |
 
   Sticky format was kept in all 640 decisions under every policy, so the format rule is not what moves these numbers. The replay names the series and format the person was in as today's assembly would, so it compares weights and not the rules of D-131 and D-132. The penalty is small on purpose: 0.07 with the same Intent already takes the share to 0.317.
+
 - **The replay command.** `composer replay-policy --since <date> [--limit <n>] [--intent-weight <x>] [--recent-topic-penalty <x>] [--sweep]` re-runs the retained vertical decisions since a date, newest first, under v0 and v1, on the same inputs. A stored input is first named as today's assembly would name it (the series and format the person is in, the topics of recent encounters, all taken from candidates it already holds), so the report compares weights and not the rules of D-131 and D-132. It prints counts and shares only: first offers on the source's topic, first offers in its series, sticky format kept or fallen back, and first offers on another Jev subject (each a possible Jev call under D-058). It names no person, session, asset, title or text. `--sweep` replays v1 over a grid of Intent weights and penalties.
 - **Changing the numbers.** The numbers of v1 were edited in place by S-5b (#476), and no `composer-policy.v2` was needed: no world had ever run `v1` (dev ran `v0` throughout, and the default is `v0`), so no decision named v1 and none can stop replaying. From the first v1 decision stored, new numbers need `composer-policy.v2` and a migration that widens the pin.
 - **The Planner's lift is smaller under v1.** A plan adds `0.15 x agreement` to the Intent feature of a candidate that ties for the best Intent, and Intent is then weighed. The most a plan can add to a vertical score falls from 0.15 x 0.35 = 0.0525 to 0.15 x 0.30 = 0.045 (and from 0.02625 to 0.0225 for a topic match). With the chosen weight that is a small fall: Intent, which is the source's topic, counts a little less, and so does a plan that rides on it. A plan still only breaks a tie among the best Intent matches and never overtakes a better match. `PLAN_LIFT` is unchanged.
@@ -2135,43 +2136,43 @@ Confirmed by: `answer-check.test.ts` (what the checker is shown and not shown, t
 - **Landmarks.** Each recipe names one: short, plain, a thing the Scroll is about, never a claim about the reader ("mastery", "expert", "perfect" are refused by a test). Keys and names are unique across the library (a test). They are authored here and a person should confirm them.
 - **Consequences.** Create commissions only v1 recipes, so a person's ask for a planet of these four systems is answered from the library as it stands and starts no production until the waves are released (D-138). The v1 Scrolls of these recipes keep serving until a v2 revision is released. The recipes' production version is `scroll-production.v17`, and `production-status` lists all thirty-five as `not_started` until a wave runs. The spike now runs these recipes exactly as the plan marks them.
 
-| Recipe | System | Page the choice was checked against | Misconception | Landmark (key) |
-|---|---|---|---|---|
-| `cardiac-cycle` | Human body | Wikipedia, Cardiac cycle | none | The Beating Pump (`the-beating-pump`) |
-| `blood-pressure` | Human body | Wikipedia, Vascular resistance | none | The Narrowing Pipe (`the-narrowing-pipe`) |
-| `oxygen-transport` | Human body | Wikipedia, Oxygen–hemoglobin dissociation curve | none | The Oxygen Handoff (`the-oxygen-handoff`) |
-| `action-potential` | Human body | Wikipedia, Action potential | none | The Racing Signal (`the-racing-signal`) |
-| `synapse-signalling` | Human body | Wikipedia, Synapse | none | The Gap Crossing (`the-gap-crossing`) |
-| `reflex-arc` | Human body | Wikipedia, Reflex arc | none | The Quick Loop (`the-quick-loop`) |
-| `innate-immunity` | Human body | Wikipedia, Immune system | none | The First Guard (`the-first-guard`) |
-| `adaptive-immunity` | Human body | Wikipedia, Adaptive immune system | none | The Tailored Defence (`the-tailored-defence`) |
-| `immune-memory` | Human body | Wikipedia, Immunological memory | none | The Remembered Foe (`the-remembered-foe`) |
-| `dns-lookup` | Computing | Wikipedia, Domain Name System | none | The Address Book (`the-address-book`) |
-| `https-handshake` | Computing | MDN, Transport Layer Security | none | The Secret Handshake (`the-secret-handshake`) |
-| `web-caching` | Computing | Wikipedia, Web cache | none | The Saved Copy (`the-saved-copy`) |
-| `rendering-pipeline` | Computing | MDN, Critical rendering path | none | The Pixel Path (`the-pixel-path`) |
-| `event-loop` | Computing | Wikipedia, Event loop | none | The Patient Loop (`the-patient-loop`) |
-| `same-origin-policy` | Computing | Wikipedia, Same-origin policy | none | The Wall Between Sites (`the-wall-between-sites`) |
-| `big-o-growth` | Computing | Wikipedia, Time complexity | none | The Growth Curve (`the-growth-curve`) |
-| `hybrid-sorting` | Computing | Wikipedia, Timsort | none | The Sorted Runs (`the-sorted-runs`) |
-| `hash-tables` | Computing | Wikipedia, Hash table | none | The Labelled Shelf (`the-labelled-shelf`) |
-| `attention-mechanism` | Machine learning | Wikipedia, Attention (machine learning) | none | The Weighted Glance (`the-weighted-glance`) |
-| `attention-example` | Machine learning | Wikipedia, Seq2seq | none | The Aligned Words (`the-aligned-words`) |
-| `attention-limits` | Machine learning | Wikipedia, Attention (machine learning) | none | The Edge of Attention (`the-edge-of-attention`) |
-| `transformer-architecture` | Machine learning | Wikipedia, Transformer (deep learning) | none | The Stacked Blocks (`the-stacked-blocks`) |
-| `token-embeddings` | Machine learning | Wikipedia, Word embedding | none | The Word Map (`the-word-map`) |
-| `next-token-generation` | Machine learning | Wikipedia, Large language model | none | The Next Word (`the-next-word`) |
-| `gradient-descent` | Machine learning | Wikipedia, Gradient descent | none | The Downhill Walk (`the-downhill-walk`) |
-| `training-by-example` | Machine learning | Wikipedia, Neural network (machine learning) | none | The Example Trail (`the-example-trail`) |
-| `overfitting` | Machine learning | Wikipedia, Overfitting | none | The Too-Close Fit (`the-too-close-fit`) |
-| `long-input-cost` | Machine learning | Wikipedia, Generative pre-trained transformer | none | The Growing Bill (`the-growing-bill`) |
-| `mixture-of-experts` | Machine learning | Wikipedia, Mixture of experts | none | The Specialist Team (`the-specialist-team`) |
-| `subword-tokens` | Machine learning | Wikipedia, Byte-pair encoding | none | The Word Pieces (`the-word-pieces`) |
-| `industrial-causes` | History | Wikipedia, Industrial Revolution | none | The Many Causes (`the-many-causes`) |
-| `steam-power` | History | Wikipedia, Watt steam engine | none | The Steady Steam (`the-steady-steam`) |
-| `factory-system` | History | Wikipedia, Factory system | none | The Factory Floor (`the-factory-floor`) |
-| `industrial-towns` | History | Wikipedia, Urbanization | none | The Crowded Towns (`the-crowded-towns`) |
-| `industrial-debate` | History | Wikipedia, Great Divergence | none | The Fork in the Road (`the-fork-in-the-road`) |
+| Recipe                     | System           | Page the choice was checked against             | Misconception | Landmark (key)                                    |
+| -------------------------- | ---------------- | ----------------------------------------------- | ------------- | ------------------------------------------------- |
+| `cardiac-cycle`            | Human body       | Wikipedia, Cardiac cycle                        | none          | The Beating Pump (`the-beating-pump`)             |
+| `blood-pressure`           | Human body       | Wikipedia, Vascular resistance                  | none          | The Narrowing Pipe (`the-narrowing-pipe`)         |
+| `oxygen-transport`         | Human body       | Wikipedia, Oxygen–hemoglobin dissociation curve | none          | The Oxygen Handoff (`the-oxygen-handoff`)         |
+| `action-potential`         | Human body       | Wikipedia, Action potential                     | none          | The Racing Signal (`the-racing-signal`)           |
+| `synapse-signalling`       | Human body       | Wikipedia, Synapse                              | none          | The Gap Crossing (`the-gap-crossing`)             |
+| `reflex-arc`               | Human body       | Wikipedia, Reflex arc                           | none          | The Quick Loop (`the-quick-loop`)                 |
+| `innate-immunity`          | Human body       | Wikipedia, Immune system                        | none          | The First Guard (`the-first-guard`)               |
+| `adaptive-immunity`        | Human body       | Wikipedia, Adaptive immune system               | none          | The Tailored Defence (`the-tailored-defence`)     |
+| `immune-memory`            | Human body       | Wikipedia, Immunological memory                 | none          | The Remembered Foe (`the-remembered-foe`)         |
+| `dns-lookup`               | Computing        | Wikipedia, Domain Name System                   | none          | The Address Book (`the-address-book`)             |
+| `https-handshake`          | Computing        | MDN, Transport Layer Security                   | none          | The Secret Handshake (`the-secret-handshake`)     |
+| `web-caching`              | Computing        | Wikipedia, Web cache                            | none          | The Saved Copy (`the-saved-copy`)                 |
+| `rendering-pipeline`       | Computing        | MDN, Critical rendering path                    | none          | The Pixel Path (`the-pixel-path`)                 |
+| `event-loop`               | Computing        | Wikipedia, Event loop                           | none          | The Patient Loop (`the-patient-loop`)             |
+| `same-origin-policy`       | Computing        | Wikipedia, Same-origin policy                   | none          | The Wall Between Sites (`the-wall-between-sites`) |
+| `big-o-growth`             | Computing        | Wikipedia, Time complexity                      | none          | The Growth Curve (`the-growth-curve`)             |
+| `hybrid-sorting`           | Computing        | Wikipedia, Timsort                              | none          | The Sorted Runs (`the-sorted-runs`)               |
+| `hash-tables`              | Computing        | Wikipedia, Hash table                           | none          | The Labelled Shelf (`the-labelled-shelf`)         |
+| `attention-mechanism`      | Machine learning | Wikipedia, Attention (machine learning)         | none          | The Weighted Glance (`the-weighted-glance`)       |
+| `attention-example`        | Machine learning | Wikipedia, Seq2seq                              | none          | The Aligned Words (`the-aligned-words`)           |
+| `attention-limits`         | Machine learning | Wikipedia, Attention (machine learning)         | none          | The Edge of Attention (`the-edge-of-attention`)   |
+| `transformer-architecture` | Machine learning | Wikipedia, Transformer (deep learning)          | none          | The Stacked Blocks (`the-stacked-blocks`)         |
+| `token-embeddings`         | Machine learning | Wikipedia, Word embedding                       | none          | The Word Map (`the-word-map`)                     |
+| `next-token-generation`    | Machine learning | Wikipedia, Large language model                 | none          | The Next Word (`the-next-word`)                   |
+| `gradient-descent`         | Machine learning | Wikipedia, Gradient descent                     | none          | The Downhill Walk (`the-downhill-walk`)           |
+| `training-by-example`      | Machine learning | Wikipedia, Neural network (machine learning)    | none          | The Example Trail (`the-example-trail`)           |
+| `overfitting`              | Machine learning | Wikipedia, Overfitting                          | none          | The Too-Close Fit (`the-too-close-fit`)           |
+| `long-input-cost`          | Machine learning | Wikipedia, Generative pre-trained transformer   | none          | The Growing Bill (`the-growing-bill`)             |
+| `mixture-of-experts`       | Machine learning | Wikipedia, Mixture of experts                   | none          | The Specialist Team (`the-specialist-team`)       |
+| `subword-tokens`           | Machine learning | Wikipedia, Byte-pair encoding                   | none          | The Word Pieces (`the-word-pieces`)               |
+| `industrial-causes`        | History          | Wikipedia, Industrial Revolution                | none          | The Many Causes (`the-many-causes`)               |
+| `steam-power`              | History          | Wikipedia, Watt steam engine                    | none          | The Steady Steam (`the-steady-steam`)             |
+| `factory-system`           | History          | Wikipedia, Factory system                       | none          | The Factory Floor (`the-factory-floor`)           |
+| `industrial-towns`         | History          | Wikipedia, Urbanization                         | none          | The Crowded Towns (`the-crowded-towns`)           |
+| `industrial-debate`        | History          | Wikipedia, Great Divergence                     | none          | The Fork in the Road (`the-fork-in-the-road`)     |
 
 Confirmed by: `library.test.ts` (the thirty-five and the four Seasons recipes are the only v2 recipes; each of the thirty-five is plain, has no kit, no myth and no Final call control, and a landmark with no claim of mastery; every series is wholly marked or not at all; landmarks are unique), `topics.test.ts` of the spike (it runs the marked recipes as the plan decides), `wave-tooling.test.ts` (`cardiac-cycle` is produced as a plain Scroll with its landmark, no myth and a passing check), and `supply-create.test.ts`, `supply.test.ts` and `supply-planned.test.ts` (Create is tested on the v1 library, since it writes no v2 recipe). Shown failing when a wave recipe was given a kit, when a series was marked in part, and when a landmark name claimed mastery.
 
@@ -2284,14 +2285,14 @@ Confirmed by: `rooms-sky.test.ts` ("Spot the flaw and recording": paused, stale 
 - **Two new kits.** `circulation.v1` and `nerve.v1`. Each is its own id with its own closed words. A stage names one kit, as before (D-194).
 - **Six recipes get a kit** (`stageKit` in the library plan, with a note in the file saying why the kit draws the subject):
 
-| Kit | Recipes | Why it draws the subject |
-|---|---|---|
-| `circulation.v1` | `cardiac-cycle` | The beat in order (the two atria, then the two ventricles), four valves that open and shut with the pressure behind them, and the right side to the lungs and the left to the body. The brief asks for exactly these. |
-| `circulation.v1` | `blood-pressure` | Pressure falling along the loop, the fall across a stretch as flow times resistance, and narrower or wider arterioles. The brief asks the reader to change the flow and the resistance and see the pressure respond, with relative numbers. |
-| `circulation.v1` | `oxygen-transport` | The S-shaped curve, haemoglobin loading in the lungs and giving some oxygen up in resting and in working tissue. The brief asks to compare resting and active tissue on an illustrative curve. |
-| `nerve.v1` | `action-potential` | Rest, threshold, rising, peak, falling and the undershoot, with the channels, the all-or-none rule and the spike running one way. The brief asks to step through rest, rising, falling and recovery. |
-| `nerve.v1` | `synapse-signalling` | The packets, the gap, the receptors, and an exciting and an inhibiting connection, with no chemical named. The brief asks to compare the two kinds of connection. |
-| `nerve.v1` | `reflex-arc` | Sensor, sensory neuron, spinal cord, motor neuron, muscle, and the news still on its way to the brain when the muscle responds. |
+| Kit              | Recipes              | Why it draws the subject                                                                                                                                                                                                                    |
+| ---------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `circulation.v1` | `cardiac-cycle`      | The beat in order (the two atria, then the two ventricles), four valves that open and shut with the pressure behind them, and the right side to the lungs and the left to the body. The brief asks for exactly these.                       |
+| `circulation.v1` | `blood-pressure`     | Pressure falling along the loop, the fall across a stretch as flow times resistance, and narrower or wider arterioles. The brief asks the reader to change the flow and the resistance and see the pressure respond, with relative numbers. |
+| `circulation.v1` | `oxygen-transport`   | The S-shaped curve, haemoglobin loading in the lungs and giving some oxygen up in resting and in working tissue. The brief asks to compare resting and active tissue on an illustrative curve.                                              |
+| `nerve.v1`       | `action-potential`   | Rest, threshold, rising, peak, falling and the undershoot, with the channels, the all-or-none rule and the spike running one way. The brief asks to step through rest, rising, falling and recovery.                                        |
+| `nerve.v1`       | `synapse-signalling` | The packets, the gap, the receptors, and an exciting and an inhibiting connection, with no chemical named. The brief asks to compare the two kinds of connection.                                                                           |
+| `nerve.v1`       | `reflex-arc`         | Sensor, sensory neuron, spinal cord, motor neuron, muscle, and the news still on its way to the brain when the muscle responds.                                                                                                             |
 
 - **Each series is drawn whole.** The heart series (the three `circulation.v1` recipes) and the nerves series (the three `nerve.v1` recipes) each hold their three recipes, so D-199's rule that a series is marked whole still holds when they are marked.
 - **Left without a kit, and why.** `innate-immunity`, `adaptive-immunity` and `immune-memory`. No kit draws cells, antibodies or a first and a second exposure, and a picture of "the immune system" drawn with another kit would teach a false subject (D-125). They stay plain Scrolls until a kit of their own exists.
@@ -2410,13 +2411,13 @@ Confirmed by: `writer-v2.test.ts` (the version, that a recipe of each new kit ge
 - **Two kits, each its own id.** `starlight.v1` draws the light of a star and what it makes possible; `black-hole.v1` draws how a black hole forms, what its edge is and how we know. `star.v1` is unchanged. Its words are what a writer chooses for fusion and a star's life; new views need new keys (a distance, an orbit), and a new key would change the shape of every stored `star.v1` state. A new id leaves those states, and the stars series, as they are (D-125: a new kit is a new id).
 - **Five recipes get a kit** (`stageKit` in the library plan, each with a note saying why):
 
-| Kit | Recipe | Why it draws the subject |
-|---|---|---|
-| `starlight.v1` | `stars-colour-brightness` | Colour from temperature, output from size and temperature together, dimming with distance and the chart of stars are the four views the brief asks for. |
-| `starlight.v1` | `exoplanet-habitable-zone` | The zones of three stars of different output, and a planet's orbit across them. The brief's "move a planet outward" is a choice of orbit. |
-| `black-hole.v1` | `black-hole-formation` | A massive star's core collapsing, beside a Sun-like star that leaves a white dwarf. Supermassive holes are told in words only. |
-| `black-hole.v1` | `black-hole-horizon` | Two holes to scale with their horizons, the light near an edge, and the same pull from far away. Spaghettification is told in words only. |
-| `black-hole.v1` | `black-hole-evidence` | Four clues: orbits round an unseen mass, a glowing disc, the ripples of a merger and the shadow. The brief's lensing is the shadow. |
+| Kit             | Recipe                     | Why it draws the subject                                                                                                                                |
+| --------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `starlight.v1`  | `stars-colour-brightness`  | Colour from temperature, output from size and temperature together, dimming with distance and the chart of stars are the four views the brief asks for. |
+| `starlight.v1`  | `exoplanet-habitable-zone` | The zones of three stars of different output, and a planet's orbit across them. The brief's "move a planet outward" is a choice of orbit.               |
+| `black-hole.v1` | `black-hole-formation`     | A massive star's core collapsing, beside a Sun-like star that leaves a white dwarf. Supermassive holes are told in words only.                          |
+| `black-hole.v1` | `black-hole-horizon`       | Two holes to scale with their horizons, the light near an edge, and the same pull from far away. Spaghettification is told in words only.               |
+| `black-hole.v1` | `black-hole-evidence`      | Four clues: orbits round an unseen mass, a glowing disc, the ripples of a merger and the shadow. The brief's lensing is the shadow.                     |
 
 - **`exoplanet-kinds` stays plain, and why.** Its subject is what the name "super-Earth" does not say: composition, temperature, orbit, habitability. A kit could draw only a ruler of masses, and the masses of the Solar System's planets and of known exoplanets are real data, which is a chart block (S-8d), not a few words. A picture of a planet would teach a surface the name does not give (D-125).
 - **Not marked `scrollV2`.** Naming a kit is not marking the recipe (D-194). Series stay wholly marked or not at all, since none of these recipes is marked: the stars series (`stars-fusion`, `stars-lifecycle`) keeps `star.v1` and the black-hole recipes are in no series.
@@ -2509,34 +2510,34 @@ Confirmed by: `tests/integration/modules/universe-resume.test.ts` (nothing befor
 - **`exoplanet-kinds` stays unmarked.** It has no kit (D-204) and is in no series, so no rule asks for it. It is the only v1 recipe left, so an ask for the Exoplanets topic is the only one Create can still commission. A person may mark it as a plain Scroll later; that is a separate choice.
 - **Series are whole.** The tides series (`tides`, `tides-spring-neap`, `tides-coasts`), the greenhouse series (`greenhouse-radiation`, `greenhouse-balance`, `greenhouse-limits`) and the stars series (`stars-fusion`, `stars-lifecycle`) are each marked entirely. The test of D-199 still holds. `greenhouse`, `stars-colour-brightness` and the other kit recipes are in no series; their related moves point inside their own system's wave.
 - **Misconception: none for all fifteen.** On 31 Oct I fetched each recipe's pages through the product's fetcher (20 pages, a pool of 7 to 27 passages each) and read the passages the writer would be offered for a statement that people hold a wrong idea, the same search as D-199 (misconception, myth, "commonly believed", "often thought", "mistakenly", "contrary to", "in fact", "misnomer", "so-called", and a wider read for "not a", "instead of", "often called"). No page states a belief as common. The nearest hits are not beliefs:
-  - NOAA, *What are spring and neap tides?* says "spring tide is a common historical term that has nothing to do with the season of spring". It explains a name; it does not say people take it for the season. The brief still tells the writer to say so, in a stop, not as a myth.
-  - Wikipedia, *Main sequence*: "In fact, a higher metallicity leads to a higher opacity" (physics, not a belief).
-  - NASA, *Anatomy*: "These rings are really multiple, highly distorted images of the accretion disk" (a description).
-  - NASA, *How We Find and Characterize*: "small planets are very common" (a finding about planets).
-  - NASA, *Black Holes*, in the `black-hole-evidence` pool: "Cosmic vacuum cleaners. Black holes don’t suck in other matter." The page lists it among things black holes are not, so it is a correction of a popular picture, but it does not say how many people hold it. A person may review this page as the source for a myth later.
-  - NASA Space Place, *What Is a Black Hole?*: "it sucks in everything, even light" (in the `black-hole-horizon` pool). The writer's guide for the black-hole kit forbids that picture (D-206). The page is a source the writer is offered, so the reader of the Space wave checks the held `black-hole-horizon` Scroll for it before release.
-  The spike's placeholder myths for these recipes (the Moon makes one bulge, spring tides happen in spring, the Sun burns like a fire, a planet in the habitable zone has life, and others) are stated as a belief by no page, so none could have a reviewed source (D-129). A recipe may get a myth later, one at a time, with a source a person has read; the first candidate is the spring tide name, if a person finds a source that says people hold it. The spike's own table of those placeholders reached no marked recipe, so it is deleted; the spike runs a marked recipe as the plan decides and an unmarked one (`exoplanet-kinds`) plain, with no misconception.
+  - NOAA, _What are spring and neap tides?_ says "spring tide is a common historical term that has nothing to do with the season of spring". It explains a name; it does not say people take it for the season. The brief still tells the writer to say so, in a stop, not as a myth.
+  - Wikipedia, _Main sequence_: "In fact, a higher metallicity leads to a higher opacity" (physics, not a belief).
+  - NASA, _Anatomy_: "These rings are really multiple, highly distorted images of the accretion disk" (a description).
+  - NASA, _How We Find and Characterize_: "small planets are very common" (a finding about planets).
+  - NASA, _Black Holes_, in the `black-hole-evidence` pool: "Cosmic vacuum cleaners. Black holes don’t suck in other matter." The page lists it among things black holes are not, so it is a correction of a popular picture, but it does not say how many people hold it. A person may review this page as the source for a myth later.
+  - NASA Space Place, _What Is a Black Hole?_: "it sucks in everything, even light" (in the `black-hole-horizon` pool). The writer's guide for the black-hole kit forbids that picture (D-206). The page is a source the writer is offered, so the reader of the Space wave checks the held `black-hole-horizon` Scroll for it before release.
+    The spike's placeholder myths for these recipes (the Moon makes one bulge, spring tides happen in spring, the Sun burns like a fire, a planet in the habitable zone has life, and others) are stated as a belief by no page, so none could have a reviewed source (D-129). A recipe may get a myth later, one at a time, with a source a person has read; the first candidate is the spring tide name, if a person finds a source that says people hold it. The spike's own table of those placeholders reached no marked recipe, so it is deleted; the spike runs a marked recipe as the plan decides and an unmarked one (`exoplanet-kinds`) plain, with no misconception.
 - **Landmarks.** One each, short (at most five words), plain, a thing the Scroll is about, never a claim about the reader. Keys and names are unique across the library and a test refuses mastery wording. They are authored here and a person should confirm them.
 - **Consequences.** Create no longer commissions any recipe of these topics; the v1 Scrolls keep serving until a v2 revision is released (as in D-199). `production-status` lists the fifteen as `not_started` until a wave runs. The production version stays `scroll-production.v19` (no writer change, no migration).
 - **The waves.** Two waves, each holding its series whole: Earth & sky (7) and Space (8). The commands are in the runbook.
 
-| Recipe | System | Variant (kit) | Page the choice was checked against | Misconception | Landmark (key) |
-|---|---|---|---|---|---|
-| `tides` | Earth & sky | stage (`tides.v1`) | NOAA, Gravity, Inertia, and the Two Bulges; Tidal Variations | none | The Two Bulges (`the-two-bulges`) |
-| `tides-spring-neap` | Earth & sky | stage (`tides.v1`) | NOAA, What are spring and neap tides?; What are tides? | none | The Added Pulls (`the-added-pulls`) |
-| `tides-coasts` | Earth & sky | plain | Wikipedia, Tidal range; Tidal resonance | none | The Sloshing Bay (`the-sloshing-bay`) |
-| `greenhouse` | Earth & sky | stage (`greenhouse.v1`) | NASA, What is the greenhouse effect? | none | The Warm Layer (`the-warm-layer`) |
-| `greenhouse-radiation` | Earth & sky | stage (`greenhouse.v1`) | NASA, The Earth's Radiation Budget; What is the greenhouse effect? | none | The Returning Glow (`the-returning-glow`) |
-| `greenhouse-balance` | Earth & sky | stage (`greenhouse.v1`) | NASA, Climate and Earth's Energy Budget; What is the greenhouse effect? | none | The Even Ledger (`the-even-ledger`) |
-| `greenhouse-limits` | Earth & sky | plain | NASA, The Earth's Radiation Budget; What is the greenhouse effect? | none | The Leaky Blanket (`the-leaky-blanket`) |
-| `stars-fusion` | Space | stage (`star.v1`) | Wikipedia, Main sequence | none | The Steady Core (`the-steady-core`) |
-| `stars-lifecycle` | Space | stage (`star.v1`) | NASA, Stars | none | The Ageing Star (`the-ageing-star`) |
-| `stars-colour-brightness` | Space | stage (`starlight.v1`) | Wikipedia, Hertzsprung–Russell diagram | none | The Colour Chart (`the-colour-chart`) |
-| `exoplanet-transit` | Space | stage (`transit.v1`) | NASA, How We Find and Characterize | none | The Small Dip (`the-small-dip`) |
-| `exoplanet-habitable-zone` | Space | stage (`starlight.v1`) | Wikipedia, Habitable zone | none | The Temperate Band (`the-temperate-band`) |
-| `black-hole-formation` | Space | stage (`black-hole.v1`) | NASA, Types | none | The Collapsing Core (`the-collapsing-core`) |
-| `black-hole-horizon` | Space | stage (`black-hole.v1`) | NASA, Anatomy; NASA Space Place, What Is a Black Hole? | none | The One-Way Edge (`the-one-way-edge`) |
-| `black-hole-evidence` | Space | stage (`black-hole.v1`) | NASA, Black Holes | none | The Unseen Weight (`the-unseen-weight`) |
+| Recipe                     | System      | Variant (kit)           | Page the choice was checked against                                     | Misconception | Landmark (key)                              |
+| -------------------------- | ----------- | ----------------------- | ----------------------------------------------------------------------- | ------------- | ------------------------------------------- |
+| `tides`                    | Earth & sky | stage (`tides.v1`)      | NOAA, Gravity, Inertia, and the Two Bulges; Tidal Variations            | none          | The Two Bulges (`the-two-bulges`)           |
+| `tides-spring-neap`        | Earth & sky | stage (`tides.v1`)      | NOAA, What are spring and neap tides?; What are tides?                  | none          | The Added Pulls (`the-added-pulls`)         |
+| `tides-coasts`             | Earth & sky | plain                   | Wikipedia, Tidal range; Tidal resonance                                 | none          | The Sloshing Bay (`the-sloshing-bay`)       |
+| `greenhouse`               | Earth & sky | stage (`greenhouse.v1`) | NASA, What is the greenhouse effect?                                    | none          | The Warm Layer (`the-warm-layer`)           |
+| `greenhouse-radiation`     | Earth & sky | stage (`greenhouse.v1`) | NASA, The Earth's Radiation Budget; What is the greenhouse effect?      | none          | The Returning Glow (`the-returning-glow`)   |
+| `greenhouse-balance`       | Earth & sky | stage (`greenhouse.v1`) | NASA, Climate and Earth's Energy Budget; What is the greenhouse effect? | none          | The Even Ledger (`the-even-ledger`)         |
+| `greenhouse-limits`        | Earth & sky | plain                   | NASA, The Earth's Radiation Budget; What is the greenhouse effect?      | none          | The Leaky Blanket (`the-leaky-blanket`)     |
+| `stars-fusion`             | Space       | stage (`star.v1`)       | Wikipedia, Main sequence                                                | none          | The Steady Core (`the-steady-core`)         |
+| `stars-lifecycle`          | Space       | stage (`star.v1`)       | NASA, Stars                                                             | none          | The Ageing Star (`the-ageing-star`)         |
+| `stars-colour-brightness`  | Space       | stage (`starlight.v1`)  | Wikipedia, Hertzsprung–Russell diagram                                  | none          | The Colour Chart (`the-colour-chart`)       |
+| `exoplanet-transit`        | Space       | stage (`transit.v1`)    | NASA, How We Find and Characterize                                      | none          | The Small Dip (`the-small-dip`)             |
+| `exoplanet-habitable-zone` | Space       | stage (`starlight.v1`)  | Wikipedia, Habitable zone                                               | none          | The Temperate Band (`the-temperate-band`)   |
+| `black-hole-formation`     | Space       | stage (`black-hole.v1`) | NASA, Types                                                             | none          | The Collapsing Core (`the-collapsing-core`) |
+| `black-hole-horizon`       | Space       | stage (`black-hole.v1`) | NASA, Anatomy; NASA Space Place, What Is a Black Hole?                  | none          | The One-Way Edge (`the-one-way-edge`)       |
+| `black-hole-evidence`      | Space       | stage (`black-hole.v1`) | NASA, Black Holes                                                       | none          | The Unseen Weight (`the-unseen-weight`)     |
 
 Confirmed by: `library.test.ts` (the v2 recipes are the Seasons four, the 35 of D-199 and these fifteen, and nothing else; each of the fifteen is `stage` exactly where a kit draws it and `plain` for `tides-coasts` and `greenhouse-limits`, has no myth and no Final call control, and a landmark with no mastery wording; every series is wholly marked or not at all; landmarks are unique), `topics.test.ts` of the spike (the Space recipes run as the plan marks them, and `exoplanet-kinds` is the recipe left to the spike's defaults), `versions.test.ts` (`exoplanet-kinds` is the v1 example). The integration files that used a kit recipe as their v1 example now name it with `markRecipesV1`. Shown failing when a recipe of a series was left unmarked (the list, the series and the landmark tests), when a plain recipe was given the `stage` variant, when a landmark name claimed mastery and when two landmarks shared a name.
 
@@ -2913,3 +2914,39 @@ Confirmed by: `rooms-quiet.test.ts` ("a question left for people": the topic, th
 - **An idle room makes no call.** Opening, reading, replaying and being offered make none; a test counts the queues around all of them.
 
 Confirmed by: `campfire.test.tsx` ("the quiet room": the offer, once, the chip, none while people talk), `client-core/room-questions.test.ts` (when the offer is made), `rooms-quiet.test.ts` ("the quiet pill", and the queue counts around reads), `rooms-campfire.test.ts` (the person-message cases, unchanged).
+
+## D-244 · 2026-11-01 · Simpler is the stop's authored text; Quick answer waits for its worker job (v3 S-9, #480)
+
+**Builds on** D-085 and D-086, which stand unchanged. Quick answer is built in S-9b as D-086 says (an HTTP command, then pg-boss, then MiniMax, with a daily cap, labelled "Quick answer · not a checked Scroll", reportable, never evidence and never in the Universe).
+
+- **Simpler.** A read stop shows its own `simple` text in place of its words, in a yellow box named "SIMPLER VERSION", with Undo. Only the stop's own text is swapped: a guide's line and a play block on the stop stay (D-207). The button under each stop, the ••• item "Simpler (this screen)" and the "Simpler" item of the selection menu all do this. It is the text written and checked with the Scroll (D-085), so it is instant and free and calls no model.
+- **The menu.** On the web a small toolbar with "Simpler" and "Ask" sits above selected words in a read stop (a page cannot add items to the browser's own menu). Until S-9b, "Ask" opens the Ask sheet (D-218) at that stop with "Tell me more about “the words”" as a draft the person can change. No card is drawn between the two. A call, the Final call and the end are never offered the menu, because their words could give the answer away before the person has locked it in. A phone's own selection menu cannot be extended, so on a phone Simpler is on each stop and in ••• (planned: native selection items).
+
+Confirmed by: `simpler.test.tsx`, `selection-menu.web.test.tsx`, `e2e/simpler-smoke.spec.ts` at 390 by 844 and 1440 by 900 with axe (Ask opens the sheet with the draft and sends nothing until Send; a call offers no menu).
+
+## D-245 · 2026-11-01 · Challenge a friend is a card in a direct conversation, and each pick stays hidden until both have called (v3 S-9, #480)
+
+**Builds on** D-063, D-083, D-155 to D-157 and D-180. It settles the challenge snippet's shape, which the change map leaves open.
+
+- **The card.** A content message in a direct conversation can name one call of the exact Scroll revision it shows: its Final call, else its first Call it. Migration 0090 adds `social.messages.challenge_stop` (the stop id, only on a content message). The question and options are read from that immutable revision when the card is shown. The send carries the stop and no pick.
+- **The picks.** Each person locks their own pick with `conversations.lockChallenge` (message, option, recording generation). It is stored in `social.thread_calls`, keyed by the direct conversation, the revision and the stop. That table's key is a conversation and its member, so Clear, account deletion, export and the wall around picks (D-156) already cover it. The sender locks right after the card goes, as a second command, so no pick is in the send's receipt. The first pick stands. No receipt, no time finer than a day.
+- **What each person sees.** Before they call: the question and the options, and nothing of the friend, not even whether the friend has called. After they call and before the friend does: their own pick only. When both have called: both picks, the right answer, why, and the Scroll's warm second look after a wrong pick. The right answer is never stored and never sent before then. A right call is a spark, shown and not stored. A wrong one is a plot twist (D-064).
+- **Privacy.** A blocked or ended friendship closes the conversation, so neither person can read or lock (`unavailable`, as for every other message). A deleted friend's pick is erased and the other person's card stays "locked". A deleted sender's message becomes a tombstone and clears `challenge_stop`. The export lists a person's own pick in words with `challengeFromConversation`, never the friend's and never whether it was right.
+- **The wire says nothing early.** A pick made before the friend has called moves nothing on the friend's side: no new change number for the message and no hint to their inbox. A pick that reveals moves both. Otherwise an observer could learn that the friend has called.
+- **Recording paused** (D-083). The card is sent, the lock stores nothing and says so (`recording_paused`, or `recording_generation_stale` once, then the same pick is sent again).
+- **A Clear after the reveal.** Clear erases the person's side of a challenge by design: their card is open again, the friend's card goes back to waiting, and a new call shows as their call; nothing is scored, so this is accepted.
+- **Not evidence, not ranking.** Sending, locking and reading a challenge add no row outside Social. Picks never reach Composer, Jev, Planner, Evidence, Personal Context, Geography or Scenes: the thread wall rule already allows only Social, feedback, rooms and scenarios to import Social.
+- **Once per call.** A second challenge for the same call in the same conversation shows the same card state, because the picks are keyed by the call.
+- **Not built.** A challenge in a thread or by link, a challenge on a Reel, and a wager (D3).
+
+Confirmed by: `social-challenges.test.ts` (real PostgreSQL: the card with no pick or answer, hidden until both have called, the first pick stands, a stranger, a plain card and another conversation are all `unavailable`, a block, recording paused and a stale generation, Clear, deletion of either person, export, no receipt, and the same tables outside Social before and after), `challenges.test.ts`, `challenge-client.test.ts`, `e2e/challenge-smoke.spec.ts` (two browsers at 390 by 844 and 1440 by 900 with axe). Shown failing with the reveal rule and the recording gate each broken once.
+
+## D-246 · 2026-11-01 · A Reel has the same two top buttons a Scroll has: Your Universe and Next topic (v3 S-9, #480)
+
+**Builds on** the V3 question 16 and D-185.
+
+- **Phone.** The Reel's top bar gains Your Universe at the left and Next topic at the right, in the same places as the Scroll reader's bar, for when a swipe does not work. The format switch is drawn without its state words so the bar stays one line at 390 px and 320 px. Next topic is the same vertical move as a swipe up, and Your Universe opens the Universe tab.
+- **Desktop.** The Reel card's top row gains Your Universe before Previous subject. Next subject stays below the card as it was.
+- **Nothing else changes.** Reel and Scroll keep equal standing: neither gets a control the other lacks. A v1 Scroll's article keeps Back.
+
+Confirmed by: `e2e/simpler-smoke.spec.ts` (the order of the buttons, 44 px targets, Next topic sends the vertical intent, Your Universe opens `/universe`, nothing clipped at 320 px, axe at 390 by 844 and 1440 by 900).

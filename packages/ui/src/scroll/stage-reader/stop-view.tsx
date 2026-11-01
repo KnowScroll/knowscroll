@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import type { Aside, ReadStop } from '@knowscroll/scroll-model';
@@ -14,22 +13,29 @@ export function asideLabel(kind: Aside['kind']): string {
 
 /**
  * One read stop: its heading, its lines and paragraphs, the guide's line and the play block when it has
- * them (D-207), and the same idea in simpler words on request. `textVersion` is the reader's text
- * version, which the guide and the play block follow.
+ * them (D-207), and the same idea in simpler words on request, applied in place with Undo (V3 D2). `textVersion` is the
+ * reader's text version, which the guide and the play block follow. Simpler swaps only the stop's own text: the guide's
+ * line and the play block stay. The simpler words are the stop's authored text (D-085), so showing them calls no model
+ * (D-244).
  */
 export function ReadStopView({
   stop,
   textVersion = false,
+  simpler,
+  onToggleSimpler,
 }: {
   readonly stop: ReadStop;
   readonly textVersion?: boolean;
+  readonly simpler: boolean;
+  readonly onToggleSimpler: () => void;
 }) {
-  const [simpler, setSimpler] = useState(false);
   const focus = useFocusRing('onLight');
   return (
     <View style={styles.stop}>
       {simpler ? (
-        <Text variant="body">{stop.simple}</Text>
+        <View style={styles.simpler} testID="simpler-text">
+          <Text variant="body">{stop.simple}</Text>
+        </View>
       ) : (
         stop.blocks.map((block, index) =>
           block.type === 'heading' ? (
@@ -51,18 +57,27 @@ export function ReadStopView({
       {stop.interactive === undefined ? null : (
         <PlayBlockView interactive={stop.interactive} readerAsText={textVersion} />
       )}
-      <Pressable
-        {...focus.props}
-        accessibilityRole="button"
-        accessibilityLabel={simpler ? 'Show the full text' : 'Say it simpler'}
-        aria-pressed={simpler}
-        onPress={() => setSimpler((now) => !now)}
-        style={[styles.simpler, focus.style]}
-      >
-        <Text variant="uiS" color={content.accentDeep}>
-          {simpler ? 'Show the full text' : 'Say it simpler'}
-        </Text>
-      </Pressable>
+      <View style={styles.simplerRow}>
+        {simpler ? (
+          <View style={styles.simplerChip}>
+            <Text variant="monoXs" color={content.ink}>
+              SIMPLER VERSION
+            </Text>
+          </View>
+        ) : null}
+        <Pressable
+          {...focus.props}
+          accessibilityRole="button"
+          accessibilityLabel={simpler ? 'Undo simpler version' : 'Say it simpler'}
+          onPress={onToggleSimpler}
+          style={[styles.simplerButton, focus.style]}
+          testID="simpler-toggle"
+        >
+          <Text variant="uiS" color={content.accentDeep}>
+            {simpler ? 'Undo' : 'Say it simpler'}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -106,7 +121,20 @@ export function AsideView({
 
 const styles = StyleSheet.create({
   stop: { gap: spacing[3] },
-  simpler: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
+  simpler: {
+    padding: spacing[3],
+    borderRadius: radius.card,
+    backgroundColor: content.highlight,
+  },
+  simplerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], flexWrap: 'wrap' },
+  simplerChip: {
+    paddingHorizontal: spacing[2],
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+  },
+  simplerButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
   aside: {
     gap: spacing[2],
     padding: spacing[3],
