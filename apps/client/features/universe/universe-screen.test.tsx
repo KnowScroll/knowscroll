@@ -2,7 +2,7 @@ import type * as React from 'react';
 import type * as FakeGpu from './space/fake-space-gpu';
 import { type EffectCallback, StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { AppState, StyleSheet, type ViewStyle } from 'react-native';
+import { AppState } from 'react-native';
 import { UniverseScreen, unavailableWords } from './universe-screen';
 import { fakeGpu, resetFakeGpu } from './space/fake-space-gpu';
 import { COLLECTION_READS, fixtureAccount, fixtureId, sceneFixture, universeHarness } from './universe.fixture';
@@ -744,7 +744,7 @@ it('stacks Refresh map over Go to Explore on a phone, and sets them side by side
     h.network(true);
     const view = await render(at(width));
     const actions = await screen.findByTestId('universe-offline-actions');
-    expect(StyleSheet.flatten(actions.props.style as ViewStyle).flexDirection).toBe(direction);
+    expect(actions).toHaveStyle({ flexDirection: direction });
     await view.unmount();
     h.scope.end();
   }
