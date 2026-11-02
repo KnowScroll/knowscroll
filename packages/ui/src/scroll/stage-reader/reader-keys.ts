@@ -15,6 +15,7 @@ export type ReaderKey =
   | { readonly action: 'simpler' }
   | { readonly action: 'small-print' }
   | { readonly action: 'report' }
+  | { readonly action: 'undo' }
   | { readonly action: 'lock-in' }
   | { readonly action: 'pick'; readonly option: number };
 
@@ -37,6 +38,8 @@ const BY_KEY: Readonly<Record<string, ReaderKey>> = {
   'Shift+S': { action: 'simpler' },
   p: { action: 'small-print' },
   r: { action: 'report' },
+  // Undoes the move that just opened this Scroll (V3 G4); the screen offers it only while its note is showing.
+  Escape: { action: 'undo' },
   Enter: { action: 'lock-in' },
   '1': { action: 'pick', option: 1 },
   '2': { action: 'pick', option: 2 },

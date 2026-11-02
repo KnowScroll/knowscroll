@@ -39,8 +39,10 @@ export function useReaderScroll(input: {
   readonly startAt: number;
   readonly reducedMotion: boolean;
   readonly onPullPastEnd: (() => void) | undefined;
+  /** How far an overscroll pull from the end has got, 0 to 1 (iOS only: the scroll view's own bounce), 0 again when it lets go. */
+  readonly onPull?: ((progress: number) => void) | undefined;
 }) {
-  const { scroller, sections, startAt, reducedMotion, onPullPastEnd } = input;
+  const { scroller, sections, startAt, reducedMotion, onPullPastEnd, onPull } = input;
   const tops = useRef<number[]>([]);
   const heights = useRef<number[]>([]);
   const metrics = useRef<Metrics>({ scrollTop: 0, viewport: 0, content: 0 });
@@ -81,6 +83,10 @@ export function useReaderScroll(input: {
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
     metrics.current = { scrollTop: contentOffset.y, viewport: layoutMeasurement.height, content: contentSize.height };
+    if (dragBeganAtEnd.current && onPull !== undefined) {
+      const past = contentOffset.y + layoutMeasurement.height - contentSize.height;
+      onPull(Math.min(1, Math.max(0, past / NATIVE_PULL)));
+    }
     if (restored.current) {
       const next = currentSection({
         tops: tops.current,
@@ -164,6 +170,7 @@ export function useReaderScroll(input: {
       const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
       const past = contentOffset.y + layoutMeasurement.height - contentSize.height;
       if (dragBeganAtEnd.current && past >= NATIVE_PULL) onPullPastEnd?.();
+      if (dragBeganAtEnd.current) onPull?.(0);
       dragBeganAtEnd.current = false;
     },
     ...snapProps(offsets),

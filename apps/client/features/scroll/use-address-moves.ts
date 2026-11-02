@@ -19,10 +19,12 @@ export function useAddressMoves(scope: AccountScope, exposureId: string): Addres
   const router = useRouter();
   const { data } = useOpenedContext(scope, exposureId);
   if (data === undefined) return { partLabel: undefined };
-  const moves = readerContinuations(data.continuations, (state) =>
-    router.push(`/${state.metadata.kind}/${state.target.assetId}`),
-  );
   const { series } = data;
+  // A step forward says which Part it left (`fromPart`), so the Part that opens can say its place there is kept.
+  const moves = readerContinuations(data.continuations, (state, direction) => {
+    const left = direction === 'next' && series !== undefined ? `?fromPart=${String(series.part)}` : '';
+    router.push(`/${state.metadata.kind}/${state.target.assetId}${left}`);
+  });
   return {
     ...moves,
     partLabel: series === undefined ? undefined : `Part ${String(series.part)} of ${String(series.total)}`,

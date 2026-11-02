@@ -37,6 +37,7 @@ describe('the moves a reader offers from what the server admitted', () => {
     moves.nextPart?.onPress();
     moves.related?.onPress();
     moves.previousPart?.();
+    expect(moves.previous).toMatchObject({ label: 'Part 1', title: 'The first Part' });
     expect(go.mock.calls.map(([state, direction]) => [state.linkId, direction])).toEqual([
       [partTwo.linkId, 'next'],
       [related.linkId, 'next'],
@@ -49,7 +50,7 @@ describe('the moves a reader offers from what the server admitted', () => {
       { seriesPrevious: none, seriesNext: none, related: { status: 'unavailable', reason: 'no_related_ready' } },
       jest.fn(),
     );
-    expect(moves).toEqual({ nextPart: undefined, related: undefined, previousPart: undefined });
+    expect(moves).toEqual({ nextPart: undefined, related: undefined, previousPart: undefined, previous: undefined });
   });
 
   it('has no move while a continuation is still being prepared', () => {

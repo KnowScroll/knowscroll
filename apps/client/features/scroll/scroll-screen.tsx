@@ -261,7 +261,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
   const router = useRouter();
   const back = useBack();
   const siblings = useFormatSiblings(scope, scroll.exposureId, 'scroll');
-  const params = useLocalSearchParams<{ anchor?: string | string[] }>();
+  const params = useLocalSearchParams<{ anchor?: string | string[]; fromPart?: string | string[] }>();
   const { breakpoint } = useDisplay();
   const narrow = breakpoint === 'compact' || breakpoint === 'phone';
   useDocumentTitle(scroll.document.title);
@@ -310,6 +310,11 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
   // The count is the server's; the Scroll's own Part number stands in until the context arrives.
   const ownPart = scroll.document.series?.part;
   const partLabel = moves.partLabel ?? (ownPart === undefined ? undefined : `Part ${String(ownPart)}`);
+  const left = Number(firstOf(params.fromPart));
+  const arrival =
+    ownPart !== undefined && Number.isInteger(left) && left >= 1 && left < ownPart
+      ? { part: `Part ${String(ownPart)}`, from: `Part ${String(left)}` }
+      : undefined;
   return (
     <>
       <StageReaderSurface
@@ -322,6 +327,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
           if (stopId !== undefined) remember(stopId);
         }}
         partLabel={partLabel}
+        arrival={arrival}
         moves={{
           universe: () => router.navigate('/universe'),
           save: {
@@ -337,6 +343,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
           nextPart: moves.nextPart,
           related: moves.related,
           previousPart: moves.previousPart,
+          previous: moves.previous,
           formatSwitch: (
             <FormatSwitch
               selected="scroll"

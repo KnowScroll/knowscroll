@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type ViewInstance } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, View, type ViewInstance } from 'react-native';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { Button } from '../../actions/button';
@@ -46,6 +46,8 @@ export interface EndTrayProps {
   readonly onChallenge?: (() => void) | undefined;
   /** What the screen the Scroll is read on adds at its foot, before the ways on (a thread's "I've finished this part"). */
   readonly endSlot?: ReactNode;
+  /** How far a pull up from the end has got (0 to 1): the meter in the handle at the top of the tray fills with it. */
+  readonly pull?: Animated.Value | undefined;
 }
 
 /**
@@ -65,6 +67,9 @@ export function EndTray(props: EndTrayProps) {
   useFocusOnMount(tray, returned);
   return (
     <View ref={tray} tabIndex={-1} style={styles.tray} testID="end-tray">
+      {props.onNextTopic === undefined || props.pull === undefined || !pullsByTouch() ? null : (
+        <PullHandle pull={props.pull} />
+      )}
       <Text variant="label" color={content.ink2} heading={2}>
         {hasStage ? 'The picture you built' : 'The short version'}
       </Text>
@@ -104,6 +109,35 @@ export function EndTray(props: EndTrayProps) {
           )}
         </View>
       )}
+    </View>
+  );
+}
+
+/** Whether a finger can pull up from the end here: a phone or tablet (and a touch screen on the web), not a mouse alone. */
+function pullsByTouch(): boolean {
+  if (Platform.OS !== 'web') return true;
+  return typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+}
+
+/**
+ * The handle at the top of the end tray (V3 G3): "Keep pulling · next topic" and a meter that fills as the finger pulls up
+ * from the end, full where a release moves on. It is the picture of the pull for the eye alone; "Something new" and the N key
+ * are the controls that do the same. The meter fills under reduced motion too, because it is feedback and travels nowhere.
+ */
+function PullHandle({ pull }: { readonly pull: Animated.Value }) {
+  const filled = pull.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'], extrapolate: 'clamp' });
+  return (
+    <View aria-hidden importantForAccessibility="no-hide-descendants" style={styles.handle} testID="pull-handle">
+      <View style={styles.grip} />
+      <View style={styles.pullRow}>
+        <Icon name="arrowUp" size={14} />
+        <Text variant="monoXs" style={styles.pullWords}>
+          KEEP PULLING · NEXT TOPIC
+        </Text>
+        <View style={styles.meter} testID="pull-meter">
+          <Animated.View style={[styles.meterFill, { width: filled }]} testID="pull-meter-fill" />
+        </View>
+      </View>
     </View>
   );
 }
@@ -253,6 +287,21 @@ function SmallPrintChip({ smallPrint }: { readonly smallPrint: SmallPrint }) {
 
 const styles = StyleSheet.create({
   tray: { gap: spacing[4] },
+  handle: { gap: spacing[2], alignItems: 'center' },
+  grip: { width: 40, height: 4, borderRadius: 2, backgroundColor: content.rule },
+  pullRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], alignSelf: 'stretch' },
+  pullWords: { flexShrink: 1 },
+  meter: {
+    flex: 1,
+    minWidth: 48,
+    height: 8,
+    borderRadius: radius.pill,
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+    backgroundColor: content.paper,
+    overflow: 'hidden',
+  },
+  meterFill: { height: '100%', backgroundColor: content.continue },
   captions: { gap: spacing[3] },
   caption: { flexDirection: 'row', gap: spacing[3], alignItems: 'flex-start' },
   captionText: { flex: 1 },

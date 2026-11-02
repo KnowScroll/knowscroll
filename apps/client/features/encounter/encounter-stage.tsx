@@ -1,8 +1,8 @@
-import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { content, spacing } from '@knowscroll/design-tokens';
-import { Button, useDisplay, type StageReaderHandle } from '@knowscroll/ui';
+import { Button, useDisplay, type PartArrival, type StageReaderHandle } from '@knowscroll/ui';
 import { StageReaderSurface } from '../scroll/stage-reader-surface';
 import { isStageScroll, type OpenedStageScroll } from '../scroll/scroll-session';
 import { continuationIntent } from './continuation-intent';
@@ -15,12 +15,32 @@ import { encounterOrigin } from './encounter-origin';
 import { EncounterOriginChip } from './encounter-origin-chip';
 import type { EncounterSession, EncounterState } from './encounter-session';
 import { EncounterFormatSwitch } from './encounter-top-bar';
+import { formatNoteOf } from './format-note';
+import { FormatNoteCard } from './format-note-card';
+
+/** The entries whose "Next topic" card has been shown: it is said once per Scroll, even if the screen is drawn again. */
+const noted = new WeakSet<EncounterEntry>();
 
 export type StageEntry = Extract<EncounterEntry, { kind: 'scroll' }> & { readonly scroll: OpenedStageScroll };
 
 /** Whether a Scroll entry holds a v2 document. The entry itself is kept: the session tracks entries by identity. */
 export function isStageEntry(entry: Extract<EncounterEntry, { kind: 'scroll' }>): entry is StageEntry {
   return isStageScroll(entry.scroll);
+}
+
+/**
+ * Whether this Scroll was opened by a move forward in its series: the Scroll before it in the trail is the same
+ * series' earlier Part. Only then does the reader say "Part 2 · your place in Part 1 is kept" (V3 G2), which is
+ * true because that entry is kept in the trail with its place (Back, and the tab, return to it).
+ */
+export function partArrival(trail: readonly EncounterEntry[], entry: StageEntry): PartArrival | undefined {
+  const before = trail.at(-2);
+  const now = entry.context.series;
+  const left = before?.context.series;
+  if (trail.at(-1) !== entry || entry.offer.relation.kind !== 'series_step') return undefined;
+  if (before?.kind !== 'scroll' || now === undefined || left === undefined) return undefined;
+  if (now.seriesId !== left.seriesId || now.part <= left.part) return undefined;
+  return { part: `Part ${String(now.part)}`, from: `Part ${String(left.part)}` };
 }
 
 /**
@@ -56,6 +76,14 @@ export function StageEncounter({
   );
   const series = entry.context.series;
   const reel = entry.context.variants.find((variant) => variant.kind === 'reel');
+  const switchToReel = () =>
+    reel?.status === 'ready' ? session.navigate({ mode: 'variant', to: 'reel' }) : session.openRequest('reel');
+  // "Next topic · as a Scroll" (V3 G4): once, for the Scroll a new topic just landed on.
+  const [note, setNote] = useState(() => (noted.has(entry) ? undefined : formatNoteOf(state.trail, entry)));
+  useEffect(() => {
+    noted.add(entry);
+  }, [entry]);
+  const putNoteAway = useCallback(() => setNote(undefined), []);
   useLayoutEffect(() => {
     if (!playable) return;
     session.bindSurface(entry, {
@@ -83,6 +111,7 @@ export function StageEncounter({
         paused={!playable}
         initialStopId={entry.position?.kind === 'scroll' ? entry.position.value.blockId : undefined}
         handleRef={reader}
+        arrival={partArrival(state.trail, entry)}
         partLabel={series === undefined ? undefined : `Part ${String(series.part)} of ${String(series.total)}`}
         moves={{
           universe: () => router.navigate('/universe'),
@@ -109,8 +138,8 @@ export function StageEncounter({
             session.requests.edit({ about: true, text: (question ?? `Tell me more about “${passage}”`).slice(0, 280) });
           },
           formatSwitch: <EncounterFormatSwitch entry={entry} session={session} showIcons={!narrow} terse={narrow} />,
-          format: () =>
-            reel?.status === 'ready' ? session.navigate({ mode: 'variant', to: 'reel' }) : session.openRequest('reel'),
+          format: switchToReel,
+          undo: note === undefined ? undefined : back,
           done: back,
         }}
         moreBody={(close) => (
@@ -145,6 +174,25 @@ export function StageEncounter({
       <View style={[styles.notices, { left: metrics.side, right: metrics.side }]} pointerEvents="box-none">
         <EncounterNotices entry={entry} state={state} session={session} />
       </View>
+      {note === undefined ? null : (
+        <View
+          style={[styles.note, { top: metrics.top + 76, left: metrics.side, right: metrics.side }]}
+          pointerEvents="box-none"
+        >
+          <FormatNoteCard
+            note={note}
+            onSwitch={() => {
+              setNote(undefined);
+              switchToReel();
+            }}
+            onUndo={() => {
+              setNote(undefined);
+              back();
+            }}
+            onExpire={putNoteAway}
+          />
+        </View>
+      )}
       {hint === null ? null : <View style={[styles.hint, { bottom: metrics.bottom + 72 }]}>{hint}</View>}
     </View>
   );
@@ -155,5 +203,6 @@ const styles = StyleSheet.create({
   more: { gap: spacing[3], alignItems: 'flex-start' },
   origin: { alignItems: 'flex-start', paddingHorizontal: spacing[5], paddingBottom: spacing[2] },
   notices: { position: 'absolute', top: spacing[2] },
+  note: { position: 'absolute' },
   hint: { position: 'absolute', left: spacing[4], right: spacing[4] },
 });
