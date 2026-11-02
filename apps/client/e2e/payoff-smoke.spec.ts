@@ -300,7 +300,7 @@ test('with reduced motion the payoff is drawn in its final state, and a screen r
   await lockFinal(page);
   await dot(page, 'The end of this Scroll').click();
   await expect(page.getByTestId('landmark-card')).toBeVisible();
-  // At the end the picture is the recap of the journey (D-345), so its text version says that; the tilt belongs to the Final call's own stop.
+  // At the end the picture is the recap of the journey (D-360), so its text version says that; the tilt belongs to the Final call's own stop.
   await page.getByRole('button', { name: 'Text version' }).click();
   await expect(page.getByTestId('stage')).toContainText(/The picture you built: Earth circles the Sun/);
   await dot(page, 'Final call').click();

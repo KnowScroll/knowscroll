@@ -3971,7 +3971,7 @@ Confirmed by: `part-gesture.test.ts`, `part-peek.test.tsx`, `e2e/scroll-motion-s
 
 Confirmed by: `part-peek.test.tsx` (bar text and timeout, the tab and its name, shown only when there is something to say), `continuation-moves.test.ts` (the previous Part as a named move), `e2e/scroll-motion-smoke.spec.ts` (a swipe and the button open Part 2 with the bar and tab; the tab goes back to Part 1).
 
-## D-345 · 2026-11-02 · At the end of a Scroll the picture becomes the recap of the journey, where the kit can draw one (v3 Scrolls fidelity, #497)
+## D-360 · 2026-11-02 · At the end of a Scroll the picture becomes the recap of the journey, where the kit can draw one (v3 Scrolls fidelity, #497)
 
 **Amends** D-189 ("The stage keeps its last picture").
 
@@ -3983,7 +3983,7 @@ Confirmed by: `part-peek.test.tsx` (bar text and timeout, the tab and its name, 
 
 Confirmed by: `kit.test.ts` of scroll-model (`recapMonths` once each in order, none without orbit views; `describeStageRecap`), `earth-sky-scene.test.ts` (the numbered Earths, no recap under two places), `stage.test.tsx` (the stage becomes the recap with its words, and the text version), `e2e/scroll-ending-smoke.spec.ts` (three numbered Earths and the words at 390 × 844 and 1440 × 900, back to a stop's own picture, reduced motion, axe).
 
-## D-346 · 2026-11-02 · The next Part peeks in from the right edge of the picture at the end, and the tray's Part card is gone (v3 Scrolls fidelity, #497)
+## D-361 · 2026-11-02 · The next Part peeks in from the right edge of the picture at the end, and the tray's Part card is gone (v3 Scrolls fidelity, #497)
 
 **Amends** D-189 ("the peek at the next Part" as a card in the tray, at the weight of the other ways on).
 
@@ -3993,7 +3993,7 @@ Confirmed by: `kit.test.ts` of scroll-model (`recapMonths` once each in order, n
 
 Confirmed by: `part-peek.test.tsx` (the tab, its name and its press), `e2e/scroll-ending-smoke.spec.ts` (it sits on the picture's right edge only at the end, opens Part 2, and the tray has no Part card), `e2e/payoff-smoke.spec.ts`, `e2e/reader-nav-smoke.spec.ts`.
 
-## D-347 · 2026-11-02 · The landmark standing on the planet map is an owner call, not built here (v3 Scrolls fidelity, #497)
+## D-362 · 2026-11-02 · The landmark standing on the planet map is an owner call, not built here (v3 Scrolls fidelity, #497)
 
 **Builds on** D-214.
 
