@@ -237,3 +237,15 @@ test('at 1280 px a thread has the list column and a conversation the rail, each 
   const list = await page.getByRole('complementary', { name: 'Conversations' }).boundingBox();
   expect(rail!.x - (list!.x + list!.width)).toBeGreaterThanOrEqual(400);
 });
+
+test('a thread and a conversation never scroll sideways at 320 px', async ({ page }) => {
+  await talkFixture(page, { width: 320, height: 568 }, { sharedCard: true, listThread: true });
+  for (const address of [threadAddress, conversationAddress]) {
+    await page.goto(address);
+    await expect(page.getByRole('textbox', { name: /^Message/ })).toBeVisible();
+    const sideways = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(sideways, address).toBeLessThanOrEqual(0);
+  }
+});

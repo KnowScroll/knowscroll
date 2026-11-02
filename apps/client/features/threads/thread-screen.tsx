@@ -566,7 +566,7 @@ export function ThreadScreen(params: {
         {withInbox && state.status === 'signed_in' ? (
           <TalkInboxPane scope={state.scope} currentId={params.threadId} />
         ) : null}
-        <View style={styles.thread}>
+        <View style={[styles.thread, withInbox ? styles.threadBeside : null]}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
@@ -603,7 +603,9 @@ export function ThreadScreen(params: {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: content.paper },
   talkPanes: { flex: 1, minHeight: 0, flexDirection: 'row' },
-  thread: { flex: 1, minWidth: 340, minHeight: 0 },
+  thread: { flex: 1, minWidth: 0, minHeight: 0 },
+  /** Beside the list the thread keeps room for its chat and the series panel, as a conversation does. */
+  threadBeside: { minWidth: 340 },
   ready: { flex: 1 },
   body: { padding: layout.gutter },
   banner: { paddingHorizontal: layout.gutter, paddingTop: spacing[2] },
