@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { borderWidth, content, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, ErrorState, RequestStatusChip, Skeleton, StateBlock, Text } from '@knowscroll/ui';
 import type { ContentRequestStatus } from '@knowscroll/contracts';
-import { formatWord, unavailableCopy } from './request-copy';
+import { formatWord, unavailableMessage } from './request-copy';
 import type { ListedRequest, RequestsListSession } from './requests-list-session';
 
 /** What a person can open: the Scroll or Reel that a ready request bound. */
@@ -64,7 +64,7 @@ function RequestRow({
         <RequestStatusChip status={chip} />
       )}
       {status.status === 'unavailable' && chip === 'unavailable' ? (
-        <Text variant="bodyS">{unavailableCopy[status.reason]}</Text>
+        <Text variant="bodyS">{unavailableMessage(status)}</Text>
       ) : null}
       {status.status === 'preparing' ? (
         <Button

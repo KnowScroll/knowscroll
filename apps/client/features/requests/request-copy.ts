@@ -17,4 +17,23 @@ export const unavailableCopy: Record<UnavailableReason, string> = {
   source_unavailable: 'The original encounter is no longer available for this request.',
 };
 
+const CLOSED = 'Your request is closed, so nothing is waiting.';
+
+/**
+ * The words for a closed request. A question refused by a daily limit says which one (D-387): the person's own, the
+ * day's shared one (nothing about anyone else), or ask orders being off. Every other closing keeps its general words.
+ */
+export function unavailableMessage(status: Extract<ContentRequestStatus, { status: 'unavailable' }>): string {
+  const { limit } = status;
+  if (status.reason !== 'budget_unavailable' || limit === undefined) return unavailableCopy[status.reason];
+  switch (limit.kind) {
+    case 'person':
+      return `You've asked for ${limit.perDay} new ${limit.perDay === 1 ? 'explanation' : 'explanations'} today, the most for one day. You can ask again tomorrow. ${CLOSED}`;
+    case 'world':
+      return `New explanations are full for today. You can ask again tomorrow. ${CLOSED}`;
+    case 'off':
+      return `New explanations are switched off right now. ${CLOSED}`;
+  }
+}
+
 export const formatWord = { reel: 'Reel', scroll: 'Scroll', either: 'Reel or Scroll' } as const;

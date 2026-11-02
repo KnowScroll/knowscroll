@@ -11,7 +11,7 @@ import type { CreateContentRequest } from '@knowscroll/contracts';
 import { CONCEPTS, type ScrollAskFacts } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { MAX_OPEN_REQUESTS, MAX_RETRIES, commissionSupply } from './commission.js';
-import { commissionAskOrder } from './ask-orders.js';
+import { askLimitOf, commissionAskOrder } from './ask-orders.js';
 import { reopenedAskOrder } from './ask-retry.js';
 import { isSuggestedQuestion } from '../domain/ask-order.js';
 import { briefOf, checkedRevision, inventory, snapshot, sourceOf } from './inventory.js';
@@ -54,7 +54,7 @@ async function askDemand(
   const commissioned = await commissionAskOrder(p, scope, { source: ask.source, facts, question: ask.question });
   return commissioned.kind === 'commissioned'
     ? { ...demand, status: 'requested', decision: 'create', reason: undefined, askOrder: commissioned.order }
-    : { ...demand, reason: commissioned.reason };
+    : { ...demand, reason: commissioned.reason, ...askLimitOf(commissioned) };
 }
 
 export function makeCreateRequest(p: SupplyPorts): CreateRequest {

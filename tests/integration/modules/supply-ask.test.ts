@@ -581,7 +581,11 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         await setup({ perDay: 0, perPerson: 5 });
         libraryScript = () => libraryReply(null, null);
         const { person, requestId } = await placed('earth.tides');
-        expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
+        expect(await status(person, requestId)).toMatchObject({
+          status: 'unavailable',
+          reason: 'budget_unavailable',
+          limit: { kind: 'off' },
+        });
         expect((await requestRow(requestId)).ask_order_id).toBeNull();
         expect(await queuedProduction()).toEqual([]);
       });
@@ -2230,6 +2234,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await status(second.person, capped)).toMatchObject({
         status: 'unavailable',
         reason: 'budget_unavailable',
+        limit: { kind: 'world' },
       });
       expect((await requestRow(capped)).ask_order_id).toBeNull();
 
@@ -2237,7 +2242,11 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       const asker = await reader();
       await ask(asker.person, askCommand(asker.exposure, suggestions[0]!));
       const over = await ask(asker.person, askCommand(asker.exposure, suggestions[1]!));
-      expect(await status(asker.person, over)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
+      expect(await status(asker.person, over)).toMatchObject({
+        status: 'unavailable',
+        reason: 'budget_unavailable',
+        limit: { kind: 'person', perDay: 1 },
+      });
       // Another person is not held back by theirs.
       const other = await reader();
       const fine = await ask(other.person, askCommand(other.exposure, suggestions[0]!));
@@ -2248,7 +2257,11 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       await setup({ perDay: 0, perPerson: 5 });
       const { person, exposure } = await reader();
       const requestId = await ask(person, askCommand(exposure, suggestions[0]!));
-      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
+      expect(await status(person, requestId)).toMatchObject({
+        status: 'unavailable',
+        reason: 'budget_unavailable',
+        limit: { kind: 'off' },
+      });
       expect(await queuedProduction()).toEqual([]);
     });
 

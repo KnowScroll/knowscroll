@@ -28,7 +28,7 @@ import type { OpenedStageScroll } from '../scroll/scroll-session';
 import { useStagePlay } from '../scroll/use-stage-play';
 import { AskPuzzle } from './ask-puzzle';
 import { COUNTER_FROM, PAUSED_COPY, aboutTitle, usuallyPhrase } from './ask-copy';
-import { unavailableCopy } from './request-copy';
+import { unavailableMessage } from './request-copy';
 import type { RequestSession } from './request-session';
 
 /** One suggested question: the whole row is the button, and its number is the key that picks it (D1: 1 to 3). */
@@ -339,7 +339,7 @@ export function AskSheet({
                 We couldn&apos;t prepare this one
               </Text>
             ) : null}
-            <Text variant="body">{unavailableCopy[status.reason]}</Text>
+            <Text variant="body">{unavailableMessage(status)}</Text>
           </View>
         ) : null}
         {couldBePreparedAgain && state.error === 'too_many_open' ? (

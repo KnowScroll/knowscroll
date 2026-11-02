@@ -164,6 +164,41 @@ describe('the Ask sheet (D1)', () => {
     }
   });
 
+  it('says which limit closed the ask, and nothing about other people', async () => {
+    const h = requestHarness();
+    const screen = await render(sheet(h));
+    try {
+      await fireEvent.changeText(screen.getByLabelText('Ask a question'), 'Why is the far side cold?');
+      await fireEvent.press(screen.getByRole('button', { name: 'Send' }));
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+      const cases = [
+        [
+          { kind: 'person', perDay: 5 },
+          /You've asked for 5 new explanations today, the most for one day\. You can ask again tomorrow\./,
+        ],
+        [{ kind: 'world' }, /New explanations are full for today\. You can ask again tomorrow\./],
+        [{ kind: 'off' }, /New explanations are switched off right now\./],
+      ] as const;
+      let revision = 2;
+      for (const [limit, words] of cases) {
+        h.setStatus({
+          ...h.fields,
+          requestRevision: revision++,
+          status: 'unavailable',
+          reason: 'budget_unavailable',
+          limit,
+        });
+        await act(() => h.session.refresh());
+        expect(screen.getByText(words)).toBeTruthy();
+        expect(screen.queryByText(/We can't prepare new explanations right now/)).toBeNull();
+        expect(screen.queryByText(/other people|everyone|anyone else/i)).toBeNull();
+      }
+    } finally {
+      await screen.unmount();
+      await act(() => h.scope.end());
+    }
+  });
+
   it('turns Change into "something new" and back, and words that are only blanks cannot be sent', async () => {
     const h = requestHarness();
     const screen = await render(sheet(h));

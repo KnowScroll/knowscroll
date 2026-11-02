@@ -251,6 +251,22 @@ describe('Supply prerequisite wire contracts', () => {
       expect(ContentRequestStatusSchema.safeParse({ ...ready, content }).success).toBe(false);
   });
 
+  it('names which limit closed an ask from a closed set, with no count of other people', () => {
+    const closed = { ...snapshot, status: 'unavailable', reason: 'budget_unavailable' };
+    for (const limit of [{ kind: 'person', perDay: 5 }, { kind: 'world' }, { kind: 'off' }])
+      expect(ContentRequestStatusSchema.safeParse({ ...closed, limit }).success).toBe(true);
+    // Absent on requests closed before the detail existed, and on every other reason.
+    expect(ContentRequestStatusSchema.safeParse(closed).success).toBe(true);
+    for (const limit of [
+      { kind: 'world', used: 20 },
+      { kind: 'person' },
+      { kind: 'person', perDay: 0 },
+      { kind: 'everyone' },
+      'person',
+    ])
+      expect(ContentRequestStatusSchema.safeParse({ ...closed, limit }).success).toBe(false);
+  });
+
   it('uses only fixed coarse unavailable reasons with no raw error or pending-work assertion', () => {
     for (const reason of [
       'unsupported_request',
