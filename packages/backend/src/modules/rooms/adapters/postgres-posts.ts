@@ -37,7 +37,7 @@ export const postStore: PostStore = {
       from rooms.discussions discussion
       join rooms.messages note on note.discussion_id = discussion.discussion_id and note.sequence = 1
       where discussion.room_id = ${lock.roomId}::uuid and discussion.discussion_id = ${discussionId}::uuid
-        and discussion.kind in ('find', 'intro') and note.hidden_at is null and note.body_text is not null`.execute(
+        and discussion.kind = 'find' and note.hidden_at is null and note.body_text is not null`.execute(
       sharedTransactionOf(lock.shared),
     );
     const found = row.rows[0];

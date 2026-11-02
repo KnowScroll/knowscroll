@@ -1,5 +1,6 @@
 /** Labelled fixtures for idea-room tests: the real use cases over the test database, no HTTP. */
 import { randomUUID } from 'node:crypto';
+import { ROOM_STARS_PER_DAY_DEFAULT } from '@knowscroll/contracts';
 import { sql, type Kysely } from 'kysely';
 import type { PgBoss } from 'pg-boss';
 import { expect } from 'vitest';
@@ -29,11 +30,14 @@ import {
   DEFAULT_CAST,
   castPassQueue,
   contributeQueue,
+  launchSettleQueue,
   libraryRoomSeeds,
+  SETTLE_LAUNCH,
   summariseQueue,
   type CastDueJob,
   type CastPassJob,
   type ContributeJob,
+  type LaunchSettleJob,
   type RoomSeed,
   type SummariseJob,
 } from '@knowscroll/backend/modules/rooms';
@@ -42,8 +46,10 @@ import {
   decideCast,
   roomUseCases,
   runCastPass,
+  roomsWorkerProviders,
   runSummarise,
   seedRooms,
+  settleLaunch,
   setRoomModerator,
 } from '@knowscroll/backend/modules/rooms/nest-providers';
 import {
@@ -89,9 +95,15 @@ export interface RoomWorld {
   readonly castPasses: { readonly job: CastPassJob; readonly startAfter: Date | undefined }[];
   /** The model calls that write a window's "while you were away", as queued, in order. */
   readonly summaries: SummariseJob[];
+  /** The settlements of Launches, as queued (with when they were asked to run), in order. */
+  readonly launchSettles: { readonly job: LaunchSettleJob; readonly startAfter: Date | undefined }[];
   readonly boss: PgBoss;
   /** The worker's consumer over the recording-aware harness (a fixture model in tests). */
   contribute(harness: RecordingReasoningHarness): (job: ContributeJob, signal?: AbortSignal) => Promise<void>;
+  /** The worker's settlement of a Launch whose play time ended (no model, no harness). */
+  settle(): (job: LaunchSettleJob) => Promise<void>;
+  /** The same consumer built by the worker's provider from a worker configuration, to show the configuration reaches it. */
+  settleAsProvided(config: { readonly roomStarsPerDay: number }): (job: LaunchSettleJob) => Promise<void>;
   /** The worker's check of whether a resident answers a message (no model, no harness). */
   decide(): (job: CastDueJob) => Promise<void>;
   /** The worker's model call of an allowed unprompted turn, over a rooms-scope harness. */
@@ -214,6 +226,7 @@ export async function roomWorld(
   const castChecks: RoomWorld['castChecks'] = [];
   const castPasses: RoomWorld['castPasses'] = [];
   const summaries: SummariseJob[] = [];
+  const launchSettles: RoomWorld['launchSettles'] = [];
   const enqueue: EnqueueJob = async (scope, queue, payload, enqueueOptions) => {
     if (queue.name === contributeQueue.name) queued.push(payload as ContributeJob);
     if (queue.name === castDueQueue.name)
@@ -221,7 +234,19 @@ export async function roomWorld(
     if (queue.name === castPassQueue.name)
       castPasses.push({ job: payload as CastPassJob, startAfter: enqueueOptions?.startAfter });
     if (queue.name === summariseQueue.name) summaries.push(payload as SummariseJob);
-    await forwarding(scope, queue, payload, enqueueOptions);
+    if (queue.name === launchSettleQueue.name)
+      launchSettles.push({ job: payload as LaunchSettleJob, startAfter: enqueueOptions?.startAfter });
+    // The queue refuses a start more than a day ahead of now: the same rule is held against the test clock, so a job queued too far
+    // ahead still fails here. The test clock itself runs ahead of the real one and nothing consumes these jobs, so a start that is
+    // valid by the test clock is forwarded as "now" to pass the real queue's check against the real time.
+    const startAfter = enqueueOptions?.startAfter;
+    if (startAfter !== undefined && startAfter.getTime() > clock.now.getTime() + 86_400_000)
+      throw new Error('JOB_START_AFTER_INVALID');
+    const forwarded =
+      startAfter !== undefined && startAfter.getTime() > Date.now()
+        ? { ...enqueueOptions, startAfter: new Date() }
+        : enqueueOptions;
+    await forwarding(scope, queue, payload, forwarded);
   };
   const access = accountAccessUseCases({ db: database.db, lockTimeoutMs: 10_000 });
   const deps = {
@@ -244,7 +269,7 @@ export async function roomWorld(
     now: () => clock.now,
     residentsEnabled: options.residentsEnabled ?? false,
     scoutsEnabled: options.scoutsEnabled ?? false,
-    ...(options.starsPerDay === undefined ? {} : { starsPerDay: options.starsPerDay }),
+    starsPerDay: options.starsPerDay ?? ROOM_STARS_PER_DAY_DEFAULT,
     ...(options.launchGapMinutes === undefined ? {} : { launchGapMinutes: options.launchGapMinutes }),
   };
   const ownerActive: CheckPersonalOwnerActive = identityScopeOwnerProviders()[0]!.useValue;
@@ -258,8 +283,38 @@ export async function roomWorld(
     queued,
     castChecks,
     castPasses,
+    launchSettles,
     summaries,
     boss,
+    settle() {
+      const run = settleLaunch({ ...deps, enqueue, ownerActive });
+      return (job) => run(job);
+    },
+    settleAsProvided(config) {
+      const provider = roomsWorkerProviders({
+        withPersonalScope: Symbol('withPersonalScope'),
+        workerConfig: Symbol('workerConfig'),
+        enqueueJob: Symbol('enqueueJob'),
+      }).find((entry) => entry.provide === SETTLE_LAUNCH)!;
+      // The arguments follow the provider's `inject` list: the use cases' own dependencies, then the queue and the config.
+      const make = provider.useFactory as unknown as (...args: unknown[]) => (job: LaunchSettleJob) => Promise<void>;
+      return make(
+        deps.withScope,
+        deps.fenceOwn,
+        deps.readPeople,
+        deps.readFriends,
+        deps.readContent,
+        deps.readSequence,
+        deps.readVisited,
+        deps.validateSnippet,
+        deps.resolveSnippet,
+        deps.checkAudience,
+        deps.readBlocked,
+        ownerActive,
+        enqueue,
+        { reasoning: { roomEnabled: false }, ...config },
+      );
+    },
     decide() {
       const decision = decideCast({ ...deps, enqueue, ownerActive, residentsEnabled: true });
       return (job) => decision(job);

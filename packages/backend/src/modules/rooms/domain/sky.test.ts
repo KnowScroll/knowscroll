@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { ROOM_STARS_PER_DAY_DEFAULT } from '@knowscroll/contracts';
 import { debateStartProblem, isClosedAt, resultOf } from './debate.js';
 import {
-  STARS_PER_DAY_DEFAULT,
   constellationCandidates,
   constellationNamesOf,
   constellationOfStar,
@@ -19,11 +19,11 @@ const KENJI = 'a0000000-0000-4000-8000-000000000003';
 
 describe('what earns a star (D-174)', () => {
   it('earns once per act and source, and stops at the day cap', () => {
-    expect(starDecision({ alreadyAwarded: false, earnedToday: 0, perDay: STARS_PER_DAY_DEFAULT })).toBe('award');
+    expect(starDecision({ alreadyAwarded: false, earnedToday: 0, perDay: ROOM_STARS_PER_DAY_DEFAULT })).toBe('award');
     expect(starDecision({ alreadyAwarded: false, earnedToday: 2, perDay: 3 })).toBe('award');
     expect(starDecision({ alreadyAwarded: false, earnedToday: 3, perDay: 3 })).toBe('day_full');
     expect(starDecision({ alreadyAwarded: true, earnedToday: 0, perDay: 3 })).toBe('duplicate');
-    expect(STARS_PER_DAY_DEFAULT).toBe(3);
+    expect(ROOM_STARS_PER_DAY_DEFAULT).toBe(3);
   });
 
   const facts = (over: Record<string, unknown> = {}) => ({

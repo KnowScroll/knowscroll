@@ -55,7 +55,7 @@ import type {
   WatchStoppedAcceptanceSchema,
 } from '@knowscroll/contracts';
 import type { PersonalAuthority, PersonalScopeTx } from '../identity/public.js';
-import type { CastDueJob, CastPassJob, ContributeJob, SummariseJob } from './events.js';
+import type { CastDueJob, CastPassJob, ContributeJob, LaunchSettleJob, SummariseJob } from './events.js';
 import type { Result } from './application/ports.js';
 
 export type { Result as RoomResult, RoomRefusal, ReadRoomReports, RoomReportRow } from './application/ports.js';
@@ -63,6 +63,7 @@ export {
   CastDueJobSchema,
   CastPassJobSchema,
   ContributeJobSchema,
+  LaunchSettleJobSchema,
   SummariseJobSchema,
   NightlyRitualsJobSchema,
   FeedHeartbeatJobSchema,
@@ -70,6 +71,7 @@ export {
   castDueQueue,
   castPassQueue,
   contributeQueue,
+  launchSettleQueue,
   summariseQueue,
   nightlyRitualsQueue,
   feedHeartbeatQueue,
@@ -77,6 +79,7 @@ export {
   type CastDueJob,
   type CastPassJob,
   type ContributeJob,
+  type LaunchSettleJob,
   type SummariseJob,
   type NightlyRitualsJob,
   type FeedHeartbeatJob,
@@ -304,6 +307,13 @@ export type DecideCast = (job: CastDueJob) => Promise<void>;
 export const DECIDE_CAST = Symbol('rooms.decideCast');
 export type RunCastPass = (job: CastPassJob, signal: AbortSignal) => Promise<void>;
 export const RUN_CAST_PASS = Symbol('rooms.runCastPass');
+
+/**
+ * The worker's consumer of `rooms.launch-settle` (D-298): marks a Launch finished and awards the room's star when its play time
+ * has ended, with no one's device asking. Needs no model grant, so it is registered in every worker.
+ */
+export type SettleLaunch = (job: LaunchSettleJob) => Promise<void>;
+export const SETTLE_LAUNCH = Symbol('rooms.settleLaunch');
 
 /**
  * The worker's consumer of `rooms.summarise` (D-169): the model call that writes one window's "while you were away", under
