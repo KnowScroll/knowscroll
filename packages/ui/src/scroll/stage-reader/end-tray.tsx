@@ -255,7 +255,7 @@ function DoneForToday({
       )}
       {nextPart === undefined ? null : (
         <Text variant="body" testID="done-next-time">
-          {`Next time you’ll start at ${nextPart.label}.`}
+          {`${nextPart.label} is next.`}
         </Text>
       )}
       <View style={styles.actions}>

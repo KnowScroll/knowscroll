@@ -3212,7 +3212,7 @@ Confirmed by: `domain/ask-support.test.ts` (each rule setting aside its own sent
 
 - **The gap.** `no_claim_without_ground` refused replies on the title, a heading and the limits lines. D-250 sent the title and every heading to the checker as sentences that state facts. Most are labels that name what follows ("How the Update Spreads", "What this does not explain"), and a limits line states what the pages do not hold, which no passage can support.
 - **Labels.** The title, each heading and each callout's title are labels (`SentenceUnderCheck.label`, set from their place in the document). A label may be marked `no_claim` only if it names a gap (the same whole-sentence rule, plus the titles of a limits callout: "What this does not explain", "What the label omits", "What remains unknown") or it has at most four words and no figure ("How the Update Spreads", "The Missing Position Detail"). Any other label states something and is judged like a sentence: "Why the Equator Barely Notices Earth's Tilt" (the real title, which the checker flagged as going beyond its passages) and "The Sun is overhead at the pole" are not accepted as `no_claim`. A label whose verdict fails is unsupported, which earns the writer's one repair, and fail closed. A short label that still states a fact ("The Sun is overhead") is the checker's to judge; code only refuses the long ones.
-- **Gap lines.** A plain admission of a gap is accepted as `no_claim` only when the *whole sentence* is the admission (`namesTheGap`). It begins with one of a small fixed list: "The pages do not say…", "This answer cannot tell, show, determine or choose…", "It also cannot…", "Nothing in the pages…", "That detail remains unspecified here" (a short subject of at most three words, then the verb). And it does not go on to say more: no semicolon, colon, dash or bracket; none of but, though, although, while, whereas, yet, because, since or so; no relative clause after a comma; no second clause after a comma or "and", seen as a new subject (a determiner, a pronoun, a capital) or, after "and", a short phrase that ends in an auxiliary verb. A figure is looked for first: a sentence with a number is never a gap line. D-250 accepted the phrase anywhere, so "This explains the pattern, but it does not give the height" and "The pages do not say why, but the Sun is overhead at the pole" passed. They are now judged, because they state something. "…how terrain, oceans, and local circulation shape particular climates" and "…a partial update and a broader redraw" still continue the object of the admission and pass.
+- **Gap lines.** A plain admission of a gap is accepted as `no_claim` only when the _whole sentence_ is the admission (`namesTheGap`). It begins with one of a small fixed list: "The pages do not say…", "This answer cannot tell, show, determine or choose…", "It also cannot…", "Nothing in the pages…", "That detail remains unspecified here" (a short subject of at most three words, then the verb). And it does not go on to say more: no semicolon, colon, dash or bracket; none of but, though, although, while, whereas, yet, because, since or so; no relative clause after a comma; no second clause after a comma or "and", seen as a new subject (a determiner, a pronoun, a capital) or, after "and", a short phrase that ends in an auxiliary verb. A figure is looked for first: a sentence with a number is never a gap line. D-250 accepted the phrase anywhere, so "This explains the pattern, but it does not give the height" and "The pages do not say why, but the Sun is overhead at the pole" passed. They are now judged, because they state something. "…how terrain, oceans, and local circulation shape particular climates" and "…a partial update and a broader redraw" still continue the object of the admission and pass.
 - **The checker and the writer are told.** `ask-support-check.v3` marks labels in the sentences it is shown and says what `no_claim` is for. `question-writer.v4` says that a heading or a callout's title of four words or fewer that only names what follows needs no passage, that the title and any longer heading are checked like any sentence, and that an admission of a gap begins with the admission and holds nothing else. `versions.test.ts` pairs the two versions, so neither can change alone. `SCROLL_PRODUCTION_VERSION` is unchanged for the reason in D-250.
 - **Limits.** Code does not override a checker that calls a gap line `unsupported`; an explicit verdict stands. If the replay shows the checker doing that, a later decision may treat a gap line the list knows as `no_claim` whatever the verdict. A gap line the list does not know is judged by the model.
 
@@ -3663,7 +3663,6 @@ Confirmed by: `answer-support.test.ts` (the bound, the claim, the fit of a seven
 
 Confirmed by: `rooms-answer-support.test.ts` ("says nothing, and is counted, when its answer is still flagged after the one rewrite", "makes no call, and hands the turn back, when no passage fits what was asked"). Shown failing when a resident that spoke on its own posted the line.
 
-
 ## D-298 · 2026-11-02 · A Launch is settled by a job at its end, not by a device that opens the room (v3 dev check fixes, #619)
 
 **Amends** D-178 ("no job") and D-223 ("a device says the Launch is over once").
@@ -3764,6 +3763,7 @@ Confirmed by: `ask-answer-shape.test.ts` (each word and "It's", the near words "
   - what is left is a valid answer whose sentences read back as exactly the ones kept.
 
   Otherwise the job ends `support_check_failed` with `support_drop_<reason>` beside it: `verdicts_incomplete`, `title_or_dek_flagged`, `no_direct_answer`, `too_few_supported`, `no_limit_callout` or `rebuilt_invalid`.
+
 - **Never unchecked.** Nothing is asked again. Each sentence served has the verdict it was checked with, and no sentence is served unsupported. The rebuilt answer is compiled by the writer's own compile (stage `after_check`), with the attempt identities of the revision. If that refuses, the job ends.
 - **Only the second draft.** The first draft's flags still earn the revision. An unusable check still ends the job. A draft that passes is served whole.
 - **Quick answer and residents do not get it, nor the soft rules it backs (D-316).** A Quick answer has two to four sentences and nothing to spare (D-253). A resident's answer is one rewrite and then posted whole or not at all (D-301). Both would need a floor of their own. The drop is for asks, where a person waits for a whole answer and there is room.
@@ -3828,6 +3828,85 @@ Confirmed by: `versions.test.ts` (the bound of 14 and both claims, written out a
 
 Confirmed by: `quick-answer-support.test.ts` (a short claim is not "no fact", a quote with one key word is not about the sentence, the checker is not told otherwise), `rooms/application/answer-check.test.ts` (the same for both of a room's roles), `domain/ask-support.test.ts` and `ask-support.test.ts` (the strict rules by default, the soft ones with the option, the two sets of instructions). Shown failing when the options were on for every caller.
 
+## D-323 · 2026-11-02 · No Challenge or Other side under a resident's "the library doesn't cover that" line (v3 fidelity, #497)
+
+**Amends** D-167 (a pointed ask can name any message) for one fixed line.
+
+- **Why.** The line is code's own words (D-301). Challenging it or asking for the other side posts the same line again, so the buttons only lead to a dead end.
+- **The rule.** `ROOM_NOT_COVERED_LINE` lives in the contracts. The client draws no Challenge or Other side under a resident's message that is exactly that line, and its message menu offers no ask on it. Useful, Report and Start a topic stay.
+
+Confirmed by: `room-messages.test.tsx` (no buttons, `canAsk` false; a person's message with the same words is still asked about), `rooms-smoke.spec.ts` (row and menu). Shown failing when the guard was removed.
+
+## D-324 · 2026-11-02 · The first-visit AI note has "Look around first" beside "Got it" (v3 fidelity, #497)
+
+**Builds on** D-161 (the AI notice). It adds the second button R3-FL1 draws.
+
+- **What the design draws.** A sheet with "Join and say hi" and a quieter "Look around first".
+- **What we do.** Joining is already done by the preview's "Join room", so the note is shown after it. "Got it" and "Look around first" both record the notice as read; neither posts or changes anything else. The second only gives the person the drawn way to say "not now".
+- **Not drawn.** The four-portrait cast (the room has two residents, D-163) and a sheet before joining.
+
+Confirmed by: `campfire.test.tsx`, `rooms-smoke.spec.ts` (the notice shows both buttons).
+
+## D-325 · 2026-11-02 · The leave-a-question sheet says the library may not cover the question (v3 fidelity, #497)
+
+**Amends** D-304 (what a resident does when the library does not support its answer) in the sheet's words only.
+
+- **Why.** A question can get the fixed "doesn't cover that yet" line at once (D-301). The sheet promised "It writes an answer straight away".
+- **The rule.** The switch says the resident answers when the library covers the question, that it may not, and that people in the room can answer either way. Nothing else about the sheet changes.
+
+Confirmed by: `quiet-room.test.tsx` (the words), `rooms-quiet-smoke.spec.ts` (the row is still one switch).
+
+## D-326 · 2026-11-02 · A part is painted as a world from its Scroll's ID, and keeps its number only when its Scroll is gone (v3 fidelity, #497)
+
+**Amends** D-153 (the header draws coloured numbered worlds "until the parts have art").
+
+- **Why.** T3 draws each part as a small painted world. A Scroll has no picture of its own (D-046), and the Universe's looks belong to one person's universe, so a thread of three people cannot use them.
+- **The rule.** The part's world is the Universe's flat painted planet (`PlanetDisc`), with its biome and hue chosen from the Scroll's ID alone. Every member sees the same world on the same part, and nothing a person read or formed changes it. The header and the Series sheet draw it, with the faces on top. A part whose Scroll is withdrawn keeps the number on its colour.
+- **Not drawn.** The design's rings and moons on a part, and a per-Scroll picture. Both wait for an art source.
+
+Confirmed by: `part-world` cases in `party.test.tsx` and `episode-list.test.tsx` (painted for a ready part, number for an unavailable one, the same ID gives the same world), `thread-party-smoke.spec.ts` (header and sheet, axe).
+
+## D-327 · 2026-11-02 · Talk's list is the first column beside a thread as well as beside a conversation (v3 fidelity, #497)
+
+**Amends** D-143 (a desktop thread has the conversation and the series panel).
+
+- **The rule.** From 1280 px `/threads/<id>` draws Talk's list (the same `TalkInboxPane` as a conversation) as its first column, with the thread's own row marked. Below 1280 px the thread keeps the layout it had: beside the list and the 400 px series panel the chat measured 116 px at 1024 and 192 at 1100. The thread asks for a minimum width only when the list is beside it, so it still fits 320 px.
+- **Cost.** At 1440 px the chat is about 530 px wide, narrower than the design's 720 px column, because the series panel keeps its 400 px.
+
+Confirmed by: `talk-smoke.spec.ts` (three columns in order, the row current, axe at 1440).
+
+## D-328 · 2026-11-02 · A conversation on a desktop has an "In this chat" rail of what the two people sent (v3 fidelity, #497)
+
+**Amends** D-154's layout for the conversation: it gains a right column, as T3's DMD frame draws.
+
+- **What it holds.** The other person, a link to their universe as far as they share it, "Shared here" (the Scroll and Reel cards sent in this chat, newest first, who sent each), and, when a card can start a thread, "Start a thread from this".
+- **When it shows.** Only while the chat keeps 400 px beside the navigation rail, the list and this rail (about 1210 px and wider); narrower desktops keep the conversation and its list.
+- **Only what is loaded.** Shared here reads the newest page of messages. While older messages are unread it carries no count and says "None in the recent messages", never "Nothing has been shared".
+- **Not as drawn.** The design's "On Part 2 of Tides · 4 worlds" line (it would read where a friend is, which only a thread may show, D-152), the moment cards in Shared here, and the promo being only for a series card: the chat does not know whether a card is a series, so any card that can start a thread shows it.
+- **Privacy.** Only what the two people put in the chat. Nothing about what either opened or read.
+
+Confirmed by: `shared-here.test.ts`, `chat-rail.test.tsx`, `talk-smoke.spec.ts` (rail at 1440, none on a phone, axe).
+
+## D-329 · 2026-11-02 · "New since you were here" is drawn from the person's own stored read position, with no new storage (v3 fidelity, #497)
+
+**Builds on** D-066 and D-150 (the read position each member keeps) and **amends** the away line of C02 and C04, which only follows a lost connection.
+
+- **What exists.** Each member row already holds `read_through_sequence`, moved by mark-read for the person's own unread dot. A thread's or a conversation's first read returns it before mark-read moves it.
+- **The rule.** On the first read of an opening, what others wrote after that position sits under a red line with a rippling dot ("New since you were here"). The line is set once per opening and stays while it is open. It is not drawn when the person has read to the end or has never read there (everything would be new). The ring holds still under reduced motion.
+- **No contract, SQL, erasure or export change.** The position is the person's own, never sent to anyone else (the SEEN position D-150 is a separate number). The screen does not scroll to the line.
+
+Confirmed by: `away-divider.test.ts`, `content-thread.test.ts`, `conversation-thread.test.ts` (set once, not again after mark-read), `conversation-screen.test.tsx`, `thread-party-smoke.spec.ts` and `talk-smoke.spec.ts` (line shown; none when read to the end). Shown failing when the line used the position after mark-read.
+
+## D-330 · 2026-11-02 · Talk's list has THREADS, PEOPLE and ROOMS, and a thread row says the part it was started on (v3 fidelity, #497)
+
+**Amends** D-154 (one list, newest first).
+
+- **The rule.** Threads, then people, then rooms, each under its label and newest first. A label is drawn only when its group has rows. A thread started on a part of a series has a chip "Part 2 of 3".
+- **Contract.** `ThreadSummary.series` ({ part, total }) is optional and read from the root's declared series (the same read the thread view uses). It is absent for a single Scroll or Reel and for a series of one part. It says where the thread began, not how far anyone has gone: the list has no place to read progress from.
+- **Not built.** The design's search bar.
+
+Confirmed by: `social-places.test.ts` (series on the thread list; none for a single), `thread-row.test.tsx`, `conversations-screen.test.tsx`, `talk-smoke.spec.ts`.
+
 ## D-331 · 2026-11-02 · The ••• sheet of a Scroll is the design's seven rows (v3 Scrolls fidelity, #497)
 
 **Builds on** round 1 (#548: Like and Ask live only in Explore), D-244 and D-292. **Amends** the sheet's three pill buttons and icon row.
@@ -3871,12 +3950,12 @@ Confirmed by: `e2e/scroll-fidelity-smoke.spec.ts` (the row and the P key open th
 
 Confirmed by: `reader-chrome.test.tsx` (the word at 390 and 834; the arrow at 320 and 360; taken back on a wrap and on a title that needs three lines) and `e2e/scroll-fidelity-smoke.spec.ts` (a short title keeps the word at 390 × 844; a long one gives it back and the bar stays one line; 1440 and 320).
 
-## D-335 · 2026-11-02 · "Done for today" says where next time starts, only when a next Part is admitted (v3 Scrolls fidelity, #497)
+## D-335 · 2026-11-02 · "Done for today" says which Part is next, only when a next Part is admitted (v3 Scrolls fidelity, #497)
 
 **Builds on** D-189 and D-216.
 
-- **The line.** "Next time you’ll start at Part 2." in the Done for today panel (V3 E2). It is said only when a next Part was admitted for this Scroll. A related move is not a next Part, so nothing is said then.
-- **Why it is true.** The Universe offers "Resume Part 2 of 3" for the next unopened Part of a series the person started (D-216). The line promises that, no more. The frame's "right where the cliffhanger left off" is not drawn: the context carries no teaser (D-189, D-072).
+- **The line.** "Part 2 is next." in the Done for today panel (V3 E2). The frame says "Next time you’ll start at Part 2", which promises more than D-216 guarantees: the Universe offers the Resume chip only in some cases, so the line says only what is true. It is said only when a next Part was admitted for this Scroll. A related move is not a next Part, so nothing is said then.
+- **Why it is true.** A next Part was admitted for this Scroll, and the Universe may offer "Resume Part 2 of 3" (D-216). The line promises neither a place nor a time. The frame's "right where the cliffhanger left off" is not drawn: the context carries no teaser (D-189, D-072).
 
 Confirmed by: `play.test.tsx` (the line with a next Part, none without) and `e2e/scroll-fidelity-smoke.spec.ts`.
 
