@@ -73,6 +73,7 @@ export default defineConfig({
         'quick-answer-smoke.spec.ts',
         'reader-back-smoke.spec.ts',
         'share-moment-smoke.spec.ts',
+        'scroll-fidelity-smoke.spec.ts',
       ],
       use: { baseURL: `http://127.0.0.1:${production}` },
     },

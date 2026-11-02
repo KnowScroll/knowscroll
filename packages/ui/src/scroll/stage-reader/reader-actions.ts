@@ -12,6 +12,11 @@ export interface ReaderCommands {
   readonly nextTopic?: () => void;
   /** Challenge a friend with one of this Scroll's calls (D-245); absent where it cannot be sent. */
   readonly challenge?: (() => void) | undefined;
+  /** The ••• sheet's other rows (V3 G5), each also a key; absent where the screen cannot do it (a thread's reader has no Save). */
+  readonly save?: (() => void) | undefined;
+  readonly shareMoment?: (() => void) | undefined;
+  readonly smallPrint?: (() => void) | undefined;
+  readonly report?: (() => void) | undefined;
   /** Opens Ask from here anchored to a stop, with the passage the reader selected as the draft question (D-244). */
   readonly askAbout?: ((stopId: string, passage: string) => void) | undefined;
 }
@@ -37,6 +42,8 @@ export interface KeyTargets {
    */
   readonly heading: () => number;
   readonly toggleTextVersion: () => void;
+  /** Shows or undoes the plainer words of the stop being read; false when that stop has none. */
+  readonly toggleSimpler: (stopId: string) => boolean;
   readonly pick: (callId: string, option: number, optionCount: number) => void;
   readonly lock: (callId: string) => boolean;
 }
@@ -64,6 +71,18 @@ export function actOnKey(key: ReaderKey, at: KeyTargets): boolean {
       return run(at.commands.ask);
     case 'format':
       return run(at.commands.format);
+    case 'save':
+      return run(at.commands.save);
+    case 'share-moment':
+      return run(at.commands.shareMoment);
+    case 'challenge':
+      return run(at.commands.challenge);
+    case 'small-print':
+      return run(at.commands.smallPrint);
+    case 'report':
+      return run(at.commands.report);
+    case 'simpler':
+      return stop?.kind === 'read' && at.toggleSimpler(stop.id);
     case 'text-version':
       if (!at.hasTextVersion) return false;
       at.toggleTextVersion();

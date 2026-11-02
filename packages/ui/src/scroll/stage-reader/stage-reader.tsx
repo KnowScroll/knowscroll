@@ -44,6 +44,19 @@ export interface StageReaderHandle {
    * False when that stop has none to show: a call, or the end.
    */
   readonly toggleSimpler: () => boolean;
+  /** Shows or hides the picture's text version; false when the Scroll has none to show. */
+  readonly toggleTextVersion: () => boolean;
+  /** What the ••• sheet needs to draw its rows for the stop the reader is on now. */
+  readonly view: () => StageReaderView;
+}
+
+/** The reader's state as the ••• sheet draws it. */
+export interface StageReaderView {
+  /** The read stop on screen, or `undefined` on a call or at the end. */
+  readonly simplerStopId: string | undefined;
+  readonly simplerOn: boolean;
+  readonly hasTextVersion: boolean;
+  readonly textVersionOn: boolean;
 }
 
 export interface StageReaderProps {
@@ -201,8 +214,22 @@ export function StageReader({
         toggleSimpler(stop.id);
         return true;
       },
+      toggleTextVersion: () => {
+        if (!hasTextVersion(document)) return false;
+        setTextVersion((now) => !now);
+        return true;
+      },
+      view: () => {
+        const stop = document.stops.find((candidate) => candidate.id === activeStopId);
+        return {
+          simplerStopId: stop?.kind === 'read' ? stop.id : undefined,
+          simplerOn: stop !== undefined && simplerStops.has(stop.id),
+          hasTextVersion: hasTextVersion(document),
+          textVersionOn: textVersion,
+        };
+      },
     }),
-    [activeStopId, document.stops, jump, toggleSimpler],
+    [activeStopId, document, jump, toggleSimpler, simplerStops, textVersion],
   );
 
   const toggleAside = (asideId: string) =>
@@ -229,6 +256,10 @@ export function StageReader({
       jump,
       heading: text.heading,
       toggleTextVersion: () => setTextVersion((now) => !now),
+      toggleSimpler: (readStopId) => {
+        toggleSimpler(readStopId);
+        return true;
+      },
       pick: played.pick,
       lock: lockCall,
     });

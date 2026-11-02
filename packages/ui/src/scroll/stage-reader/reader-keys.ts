@@ -9,6 +9,12 @@ export type ReaderKey =
   | { readonly action: 'ask' }
   | { readonly action: 'text-version' }
   | { readonly action: 'format' }
+  | { readonly action: 'save' }
+  | { readonly action: 'share-moment' }
+  | { readonly action: 'challenge' }
+  | { readonly action: 'simpler' }
+  | { readonly action: 'small-print' }
+  | { readonly action: 'report' }
   | { readonly action: 'lock-in' }
   | { readonly action: 'pick'; readonly option: number };
 
@@ -24,6 +30,13 @@ const BY_KEY: Readonly<Record<string, ReaderKey>> = {
   '?': { action: 'ask' },
   t: { action: 'text-version' },
   f: { action: 'format' },
+  // The rows of the ••• sheet each have a key (V3 G5). Shift + S is Simpler; S alone is Save.
+  s: { action: 'save' },
+  h: { action: 'share-moment' },
+  c: { action: 'challenge' },
+  'Shift+S': { action: 'simpler' },
+  p: { action: 'small-print' },
+  r: { action: 'report' },
   Enter: { action: 'lock-in' },
   '1': { action: 'pick', option: 1 },
   '2': { action: 'pick', option: 2 },
@@ -34,7 +47,11 @@ const BY_KEY: Readonly<Record<string, ReaderKey>> = {
 /** Every key the reader listens to, as `KeyboardEvent.key` names; the keyboard map lists each one. */
 export const READER_KEY_NAMES: readonly string[] = Object.keys(BY_KEY);
 
-/** The reader's action for a `KeyboardEvent.key`, or none. Letters are case-insensitive. */
-export function readerKeyOf(key: string): ReaderKey | undefined {
+/**
+ * The reader's action for a `KeyboardEvent.key`, or none. Letters are case-insensitive, so Caps Lock changes nothing;
+ * Shift is told apart only for S (Simpler), by the event's own shift flag.
+ */
+export function readerKeyOf(key: string, shift = false): ReaderKey | undefined {
+  if (shift && key.toLowerCase() === 's') return BY_KEY['Shift+S'];
   return BY_KEY[key.length === 1 ? key.toLowerCase() : key];
 }

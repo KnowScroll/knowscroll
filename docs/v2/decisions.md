@@ -3212,7 +3212,7 @@ Confirmed by: `domain/ask-support.test.ts` (each rule setting aside its own sent
 
 - **The gap.** `no_claim_without_ground` refused replies on the title, a heading and the limits lines. D-250 sent the title and every heading to the checker as sentences that state facts. Most are labels that name what follows ("How the Update Spreads", "What this does not explain"), and a limits line states what the pages do not hold, which no passage can support.
 - **Labels.** The title, each heading and each callout's title are labels (`SentenceUnderCheck.label`, set from their place in the document). A label may be marked `no_claim` only if it names a gap (the same whole-sentence rule, plus the titles of a limits callout: "What this does not explain", "What the label omits", "What remains unknown") or it has at most four words and no figure ("How the Update Spreads", "The Missing Position Detail"). Any other label states something and is judged like a sentence: "Why the Equator Barely Notices Earth's Tilt" (the real title, which the checker flagged as going beyond its passages) and "The Sun is overhead at the pole" are not accepted as `no_claim`. A label whose verdict fails is unsupported, which earns the writer's one repair, and fail closed. A short label that still states a fact ("The Sun is overhead") is the checker's to judge; code only refuses the long ones.
-- **Gap lines.** A plain admission of a gap is accepted as `no_claim` only when the *whole sentence* is the admission (`namesTheGap`). It begins with one of a small fixed list: "The pages do not say…", "This answer cannot tell, show, determine or choose…", "It also cannot…", "Nothing in the pages…", "That detail remains unspecified here" (a short subject of at most three words, then the verb). And it does not go on to say more: no semicolon, colon, dash or bracket; none of but, though, although, while, whereas, yet, because, since or so; no relative clause after a comma; no second clause after a comma or "and", seen as a new subject (a determiner, a pronoun, a capital) or, after "and", a short phrase that ends in an auxiliary verb. A figure is looked for first: a sentence with a number is never a gap line. D-250 accepted the phrase anywhere, so "This explains the pattern, but it does not give the height" and "The pages do not say why, but the Sun is overhead at the pole" passed. They are now judged, because they state something. "…how terrain, oceans, and local circulation shape particular climates" and "…a partial update and a broader redraw" still continue the object of the admission and pass.
+- **Gap lines.** A plain admission of a gap is accepted as `no_claim` only when the _whole sentence_ is the admission (`namesTheGap`). It begins with one of a small fixed list: "The pages do not say…", "This answer cannot tell, show, determine or choose…", "It also cannot…", "Nothing in the pages…", "That detail remains unspecified here" (a short subject of at most three words, then the verb). And it does not go on to say more: no semicolon, colon, dash or bracket; none of but, though, although, while, whereas, yet, because, since or so; no relative clause after a comma; no second clause after a comma or "and", seen as a new subject (a determiner, a pronoun, a capital) or, after "and", a short phrase that ends in an auxiliary verb. A figure is looked for first: a sentence with a number is never a gap line. D-250 accepted the phrase anywhere, so "This explains the pattern, but it does not give the height" and "The pages do not say why, but the Sun is overhead at the pole" passed. They are now judged, because they state something. "…how terrain, oceans, and local circulation shape particular climates" and "…a partial update and a broader redraw" still continue the object of the admission and pass.
 - **The checker and the writer are told.** `ask-support-check.v3` marks labels in the sentences it is shown and says what `no_claim` is for. `question-writer.v4` says that a heading or a callout's title of four words or fewer that only names what follows needs no passage, that the title and any longer heading are checked like any sentence, and that an admission of a gap begins with the admission and holds nothing else. `versions.test.ts` pairs the two versions, so neither can change alone. `SCROLL_PRODUCTION_VERSION` is unchanged for the reason in D-250.
 - **Limits.** Code does not override a checker that calls a gap line `unsupported`; an explicit verdict stands. If the replay shows the checker doing that, a later decision may treat a gap line the list knows as `no_claim` whatever the verdict. A gap line the list does not know is judged by the model.
 
@@ -3663,7 +3663,6 @@ Confirmed by: `answer-support.test.ts` (the bound, the claim, the fit of a seven
 
 Confirmed by: `rooms-answer-support.test.ts` ("says nothing, and is counted, when its answer is still flagged after the one rewrite", "makes no call, and hands the turn back, when no passage fits what was asked"). Shown failing when a resident that spoke on its own posted the line.
 
-
 ## D-298 · 2026-11-02 · A Launch is settled by a job at its end, not by a device that opens the room (v3 dev check fixes, #619)
 
 **Amends** D-178 ("no job") and D-223 ("a device says the Launch is over once").
@@ -3764,6 +3763,7 @@ Confirmed by: `ask-answer-shape.test.ts` (each word and "It's", the near words "
   - what is left is a valid answer whose sentences read back as exactly the ones kept.
 
   Otherwise the job ends `support_check_failed` with `support_drop_<reason>` beside it: `verdicts_incomplete`, `title_or_dek_flagged`, `no_direct_answer`, `too_few_supported`, `no_limit_callout` or `rebuilt_invalid`.
+
 - **Never unchecked.** Nothing is asked again. Each sentence served has the verdict it was checked with, and no sentence is served unsupported. The rebuilt answer is compiled by the writer's own compile (stage `after_check`), with the attempt identities of the revision. If that refuses, the job ends.
 - **Only the second draft.** The first draft's flags still earn the revision. An unusable check still ends the job. A draft that passes is served whole.
 - **Quick answer and residents do not get it, nor the soft rules it backs (D-316).** A Quick answer has two to four sentences and nothing to spare (D-253). A resident's answer is one rewrite and then posted whole or not at all (D-301). Both would need a floor of their own. The drop is for asks, where a person waits for a whole answer and there is room.
@@ -4074,3 +4074,101 @@ Confirmed by: `versions.test.ts` (the pair, the bound and the claim), `writer.te
 - **Limits.** The test is the exact text, so it cannot be fooled by a dek that resembles the line. A writer whose own dek was exactly the line would lose one counted sentence; it is code's line and the writer was never shown it.
 
 Confirmed by: `ask-answer-shape.test.ts` (four sentences beside the line are four, beside the writer's dek five; a dek that only resembles or begins with the line counts), `writer.test.ts` (the validator refuses a draft of four of its own sentences whose dek copied a passage and accepts it with the writer's own dek), `ask-support-drop.test.ts` (the line does not count among the five) and `supply-ask.test.ts` on real PostgreSQL with a labelled fixture model (the same draft is served with its own dek and refused after one repair, with no check, when code wrote the line). Shown failing when the line counted (three unit tests and the integration test).
+
+
+
+## D-331 · 2026-11-02 · The ••• sheet of a Scroll is the design's seven rows (v3 Scrolls fidelity, #497)
+
+**Builds on** round 1 (#548: Like and Ask live only in Explore), D-244 and D-292. **Amends** the sheet's three pill buttons and icon row.
+
+- **The rows.** Save, Share a moment, Challenge a friend, Text version, Simpler (this screen), Small print, Report, in that order, as one list. Each has a sub-line and the key that does the same (V3 G5).
+- **A row that cannot work here is left out.** No Save on a reader that keeps nothing (a thread's). No Challenge on a Scroll with no call. No Text version on a Scroll with no picture or play block. No Small print without a limits aside.
+- **A row that cannot work on this stop is dimmed and says why.** Share a moment on a call. Simpler on a call or the end.
+- **What stays under the list.** Explore keeps Like, Share and Ask and "Your path and more options" (round 1). `/scroll/<id>` keeps Share and the save notices. Save moved up into the list on both.
+- **Two sub-lines differ from the frame, on purpose.** Simpler says "This stop in plainer words", not "Quick answer · not a checked Scroll": the plainer words are the stop's own authored text (D-085), not a model's. Challenge says "Send one of its calls to a friend", not "to a thread": a challenge goes into a direct conversation (D-245).
+
+Confirmed by: `more-rows.test.ts` (the seven rows in order with a sub-line and a key; rows left out; rows dimmed with the reason; the Saved and switched-on states) and `e2e/scroll-fidelity-smoke.spec.ts` (the seven rows and their keys at 390 × 844 and 1440 × 900, each row doing its work, axe).
+
+## D-332 · 2026-11-02 · Each row of the ••• sheet has a key, and Shift + S is Simpler (v3 Scrolls fidelity, #497)
+
+**Builds on** D-134 and D-053.
+
+- **Keys.** S Save, H Share a moment, C Challenge a friend, Shift + S Simpler, P Small print, R Report. T (Text version) was already there. They work while the reader has focus, like every reader key, and run the same command as the row.
+- **Shift is read from the event's own flag**, not from the letter's case, so Caps Lock changes nothing: S stays Save.
+- **No command, no effect.** A key whose screen offers nothing (S in a thread's reader) does nothing and is not held back from the browser.
+- **The keyboard map lists each.** The existing test that fails when a reader key has no row covers them.
+
+Confirmed by: `reader-keys.test.ts`, `reader-actions.test.ts`, `keyboard-map.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (each key opens or toggles what its row does).
+
+## D-333 · 2026-11-02 · Small print opens from ••• as a sheet, and stays a chip on the end tray (v3 Scrolls fidelity, #497)
+
+**Builds on** D-189 ("Small print opens where it stands").
+
+- **From ••• or P.** The sheet shows the limits aside's title and text. It reads the same aside the end tray's chip opens (`recap.smallPrintAside`), so the two cannot differ.
+- **The end tray is unchanged.** Its chip still opens the aside in place (D-189). The sheet is for a person who is mid-read and asks.
+- **Reading time stops** while the sheet is open, as for every sheet over the reader.
+
+Confirmed by: `e2e/scroll-fidelity-smoke.spec.ts` (the row and the P key open the aside's text) and `e2e/payoff-smoke.spec.ts` (the chip is unchanged).
+
+## D-334 · 2026-11-02 · Next says its word when the bar has room, and keeps to its arrow when it does not (v3 Scrolls fidelity, #497)
+
+**Amends** D-185 ("Below tablet width Next is its arrow alone").
+
+- **The word.** From tablet width Next says "Next ↑" always. On a phone (361 px and up) it is laid out with the word first, and the word is taken back for that title and width when the controls would wrap under the title or the title would no longer fit its two lines beside them. At 320 to 360 px it is the arrow alone, as D-185 says.
+- **How it is judged.** From layout, not from the title's length: the controls' position against the title's, and the height of an unseen copy of the title at the width the bar gives it. A larger text size therefore takes the word back sooner.
+- **The name is the same.** "Next topic" for a screen reader, with or without the word.
+
+Confirmed by: `reader-chrome.test.tsx` (the word at 390 and 834; the arrow at 320 and 360; taken back on a wrap and on a title that needs three lines) and `e2e/scroll-fidelity-smoke.spec.ts` (a short title keeps the word at 390 × 844; a long one gives it back and the bar stays one line; 1440 and 320).
+
+## D-335 · 2026-11-02 · "Done for today" says which Part is next, only when a next Part is admitted (v3 Scrolls fidelity, #497)
+
+**Builds on** D-189 and D-216.
+
+- **The line.** "Part 2 is next." in the Done for today panel (V3 E2). The frame says "Next time you’ll start at Part 2", which promises more than D-216 guarantees: the Universe offers the Resume chip only in some cases, so the line says only what is true. It is said only when a next Part was admitted for this Scroll. A related move is not a next Part, so nothing is said then.
+- **Why it is true.** A next Part was admitted for this Scroll, and the Universe may offer "Resume Part 2 of 3" (D-216). The line promises neither a place nor a time. The frame's "right where the cliffhanger left off" is not drawn: the context carries no teaser (D-189, D-072).
+
+Confirmed by: `play.test.tsx` (the line with a next Part, none without) and `e2e/scroll-fidelity-smoke.spec.ts`.
+
+## D-336 · 2026-11-02 · The dock's Ask is a blue sparkle on a tinted pill (v3 Scrolls fidelity, #497)
+
+**Builds on** V3 P3 and G1.
+
+- **The look.** The Scroll dock's Ask pill is the sunken cream (`paper2`) with ink edges and no offset shadow, and a four-point sparkle in the accent blue before "Ask about this". The speech-box icon stays on the Reel and Explore action sets, which the frames do not change.
+- **The name is the same:** "Ask about this".
+
+Confirmed by: `reader-chrome.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (fill and sparkle colour at 390 and 1440).
+
+## D-337 · 2026-11-02 · The Final call's mark on the spine is a star (v3 Scrolls fidelity, #497)
+
+**Builds on** D-133 and V3 A1.
+
+- **The mark.** A star with an ink edge: yellow, or blue where the reader is. The Call it mark is a diamond, a read stop a circle and the end a square, as before.
+- **The name is the same:** "Final call", and "you are here" on it.
+
+Confirmed by: `stage-reader.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts`.
+
+## D-338 · 2026-11-02 · The picture says the tilt it is turned to while a Final call binds a tilt (v3 Scrolls fidelity, #497)
+
+**Builds on** D-187.
+
+- **The tag.** "TILT 23.4°" or "TILT 0°" in a dark pill at the bottom left of the pinned picture, drawn only while the tilt control is bound and the reader is at that Final call. It follows the slider. The text version leaves it out, because that already says the tilt in words.
+- **For the eye alone.** The control's own readout is what a screen reader hears, so the tag is hidden from assistive technology.
+
+Confirmed by: `stage.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts`.
+
+## D-339 · 2026-11-02 · The friend list of a sheet loads as a skeleton row (v3 Scrolls fidelity, #497)
+
+**Builds on** D-245.
+
+- **What changed.** The Challenge sheet and the Share sheet draw a skeleton row named "Loading your friends" while the list loads, instead of a line of text. The send button stays disabled until a friend is chosen, as before.
+
+Confirmed by: `friend-picker.test.tsx`.
+
+## D-340 · 2026-11-02 · Share a moment shows the stop and its picture before a thread is chosen (v3 Scrolls fidelity, #497)
+
+**Builds on** D-292.
+
+- **The preview.** The sheet opens with the stop's picture, as the reader draws it at that stop (only for a Scroll with a stage), and the words the card will quote. It stays through the thread choice and the message.
+- **Nothing more is sent.** The picture is drawn from the document on the device. The message carries the stop and a hash, as before (D-292).
+
+Confirmed by: `share-stop-sheet.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (the picture and the quote before any thread is chosen, with axe).

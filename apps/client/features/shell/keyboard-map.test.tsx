@@ -51,6 +51,7 @@ describe('the keyboard map', () => {
       ArrowLeft: '←',
       ' ': 'Space',
       Enter: 'Enter',
+      'Shift+S': '⇧S',
     };
     for (const name of READER_KEY_NAMES) expect(listed).toContain(drawn[name] ?? name.toUpperCase());
   });

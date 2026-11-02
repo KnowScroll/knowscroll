@@ -23,7 +23,7 @@ export function ReaderFocus({
       style={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0, flexDirection: 'column', outlineOffset: -3 }}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey) return;
-        const key = readerKeyOf(event.key);
+        const key = readerKeyOf(event.key, event.shiftKey);
         if (key !== undefined && onKey(key)) event.preventDefault();
       }}
     >

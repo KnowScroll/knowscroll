@@ -227,7 +227,7 @@ for (const viewport of viewports) {
     await page.getByRole('button', { name: 'Call it 1 of 3', exact: true }).click();
     await page.getByRole('button', { name: 'More', exact: true }).click();
     await expect(page.getByTestId('more-share-moment')).toBeDisabled();
-    await expect(page.getByTestId('more-share-moment-reason')).toContainText('A call would give its answer away');
+    await expect(page.getByTestId('more-share-moment-detail')).toContainText('A call would give its answer away');
     await shot(page, `moment-more-call-${viewport.name}`);
   });
 }

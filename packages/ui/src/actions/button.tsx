@@ -26,7 +26,7 @@ import { Text } from '../text/text';
  * and named here: danger (D05), continue (continuation only, D-006 b).
  */
 export type ButtonVariant =
-  'primary' | 'default' | 'ink' | 'ghost' | 'space' | 'spacePrimary' | 'spaceGhost' | 'danger' | 'continue';
+  'primary' | 'default' | 'tint' | 'ink' | 'ghost' | 'space' | 'spacePrimary' | 'spaceGhost' | 'danger' | 'continue';
 export type ButtonSize = 'md' | 'sm';
 
 interface VariantStyle {
@@ -46,6 +46,8 @@ const variants: Record<ButtonVariant, VariantStyle> = {
     focus: 'onLight',
   },
   default: { background: content.paper, foreground: content.ink, border: content.ink, shadow: true, focus: 'onLight' },
+  /** A quiet pill on the sunken cream, no offset shadow: the Scroll dock's Ask (V3 P3, G1). */
+  tint: { background: content.paper2, foreground: content.ink, border: content.ink, shadow: false, focus: 'onLight' },
   ink: { background: content.ink, foreground: content.paper, border: content.ink, shadow: false, focus: 'onLight' },
   ghost: { background: 'transparent', foreground: content.ink, border: content.ink, shadow: false, focus: 'onLight' },
   space: {
@@ -94,6 +96,8 @@ export interface ButtonProps {
   readonly size?: ButtonSize;
   readonly icon?: IconName;
   readonly iconPosition?: 'leading' | 'trailing';
+  /** The icon's own colour, where the design colours it apart from the label (the Ask sparkle is blue). */
+  readonly iconColor?: string;
   readonly disabled?: boolean;
   /** A command in flight: the spinner arc and a verb-ing label replace the label; presses are ignored. */
   readonly busy?: boolean;
@@ -133,6 +137,7 @@ export function Button({
   size = 'md',
   icon,
   iconPosition = 'leading',
+  iconColor,
   disabled = false,
   busy = false,
   busyLabel,
@@ -158,7 +163,7 @@ export function Button({
   const iconElement = busy ? (
     <Spinner size={iconSize} color={look.foreground} />
   ) : icon === undefined ? null : (
-    <Icon name={icon} size={iconSize} color={look.foreground} />
+    <Icon name={icon} size={iconSize} color={iconColor ?? look.foreground} />
   );
 
   return (

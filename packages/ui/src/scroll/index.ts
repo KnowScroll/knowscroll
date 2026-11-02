@@ -20,3 +20,4 @@ export {
 } from './state';
 export { type ScrollMediaRenderer, type ScrollMediaRequest } from './media';
 export * from './stage-reader';
+export { Stage, type StageProps } from './stage/stage';

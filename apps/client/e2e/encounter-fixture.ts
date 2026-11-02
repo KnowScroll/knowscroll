@@ -11,6 +11,8 @@ export interface EncounterFixtureOptions {
   readonly series?: boolean;
   /** A different Scroll document to serve for every Scroll offer (the labelled v2 fixture); the default is the v1 fixture. */
   readonly scrollDocument?: Record<string, unknown>;
+  /** The title of the first offer, which the served Scroll document takes too (a short one and a long one lay the reader's bar out differently). */
+  readonly firstTitle?: string;
   /**
    * Serves a Scroll opened by its address (`/scroll/<id>`): a direct open and activation with no session, and a
    * series of `parts` Scrolls that the context counts and links (each Part has the Part before and the Part after
@@ -147,7 +149,7 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
     explanationUnitId: `ci-fixture-${String(n)}`,
     metadata: {
       kind,
-      title: `CI encounter fixture ${String(n + 1)}`,
+      title: n === 0 && options.firstTitle !== undefined ? options.firstTitle : `CI encounter fixture ${String(n + 1)}`,
       summary: 'HTTP fixture only',
       language: 'en',
     },
