@@ -2,13 +2,12 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import type { SceneLook } from '@knowscroll/scene-core';
 import { borderWidth, content, radius, space, spacing, target } from '@knowscroll/design-tokens';
 import { Button, Icon, IconButton, Text } from '@knowscroll/ui';
-import { SpaceChip } from '../space-chip';
 import type { UniverseIndex } from '../universe-layout';
 import { countOf, nameWithTruth } from '../universe-lists';
 import type { UniverseMapSession } from '../universe-session';
 import { PlanetDisc, SunDisc } from './dial-art';
 import { DIAL_FILTERS, type DialSystem } from './dial-model';
-import { DialGlobe, Hint, InfoChip, MatchedName, PlanetDial } from './dial-parts';
+import { DialGlobe, Hint, InfoChip, MatchedName, PlanetDial, WordTab } from './dial-parts';
 import { Wheel } from './dial-wheel';
 import type { OrbitDialState } from './use-orbit-dial';
 
@@ -61,30 +60,42 @@ export function DialTop({
           {title}
         </Text>
       </Pressable>
-      <IconButton
-        icon="search"
-        label={dial.open ? 'Search systems' : 'Search planets'}
-        variant="onSpace"
-        onPress={dial.startSearch}
-        testID="dial-search"
-      />
+      <View style={styles.tools}>
+        <IconButton
+          icon="search"
+          label={dial.open ? 'Search systems' : 'Search planets'}
+          variant="onSpace"
+          onPress={dial.startSearch}
+          testID="dial-search"
+        />
+        {dial.open ? (
+          <IconButton
+            icon="filter"
+            label="Filter systems"
+            variant="onSpace"
+            onPress={dial.toggleFilters}
+            testID="dial-filter"
+          />
+        ) : null}
+      </View>
     </View>
   );
 }
 
-/** All, Lately, With rooms and A–Z, with how many systems the first and third keep. */
+/**
+ * All, Lately, With rooms and A–Z as plain words, as the file draws them: the chosen one bright with a
+ * yellow dot under it, how many systems All and With rooms keep beside them, and Lately's green dot.
+ */
 export function DialFilters({ dial }: { readonly dial: OrbitDialState }) {
   return (
-    <View role="group" aria-label="Filter systems" style={styles.chips}>
+    <View role="group" aria-label="Filters" style={styles.filters}>
       {DIAL_FILTERS.map(({ id, label }) => (
-        <SpaceChip
+        <WordTab
           key={id}
           label={label}
-          toggled={dial.filter === id}
-          variant={dial.filter === id ? 'solid' : 'ghost'}
-          accessibilityLabel={
-            id === 'all' ? `All, ${dial.counts.all}` : id === 'rooms' ? `With rooms, ${dial.counts.rooms}` : label
-          }
+          chosen={dial.filter === id}
+          count={id === 'all' ? dial.counts.all : id === 'rooms' ? dial.counts.rooms : undefined}
+          lately={id === 'lately'}
           onPress={() => dial.setFilter(id)}
         />
       ))}
@@ -140,16 +151,8 @@ export function SystemWheel({ dial }: { readonly dial: OrbitDialState }) {
   );
 }
 
-/** At rest the chosen system is a pill (touch it to open the wheel), with a way into the system itself beside it. */
-export function SystemPill({
-  dial,
-  system,
-  session,
-}: {
-  readonly dial: OrbitDialState;
-  readonly system: DialSystem;
-  readonly session: UniverseMapSession;
-}) {
+/** At rest the chosen system is its name and a chevron (touch it to open the wheel), as the file draws it. */
+export function SystemPill({ dial, system }: { readonly dial: OrbitDialState; readonly system: DialSystem }) {
   return (
     <View style={styles.centre}>
       <Pressable
@@ -159,18 +162,11 @@ export function SystemPill({
         onPress={dial.openWheel}
         style={styles.systemPill}
       >
-        <Text variant="uiS" color={space.label}>
+        <Text variant="uiS" color={space.label} style={styles.systemName}>
           {system.name}
         </Text>
         <Icon name="chevronDown" size={14} color={space.label} />
       </Pressable>
-      <IconButton
-        icon="arrowRight"
-        label={`Open ${system.name}`}
-        variant="onSpace"
-        size={44}
-        onPress={() => session.focus(system.id)}
-      />
     </View>
   );
 }
@@ -338,11 +334,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing[2],
     minHeight: 44,
-    paddingHorizontal: spacing[4],
-    borderRadius: radius.pill,
-    borderWidth: borderWidth.hairline,
-    borderColor: space.edge,
-    backgroundColor: space.labelChip,
+    paddingHorizontal: spacing[3],
+  },
+  systemName: { fontWeight: '800' },
+  tools: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
+  filters: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: spacing[5],
+    paddingLeft: spacing[1],
   },
   facts: { alignItems: 'center', gap: spacing[2] },
   faded: { alignItems: 'center', gap: spacing[3], paddingTop: spacing[4] },

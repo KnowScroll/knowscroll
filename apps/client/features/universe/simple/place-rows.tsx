@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
-import { spacing } from '@knowscroll/design-tokens';
-import { Icon, Text, useDisplay, useFocusRing } from '@knowscroll/ui';
+import { content, spacing } from '@knowscroll/design-tokens';
+import { Text, useDisplay, useFocusRing } from '@knowscroll/ui';
 
 /**
  * The paper of the Simple views (`simple-views-finalized.html`, "Do not change") and of the desktop
@@ -13,15 +13,15 @@ export const SIMPLE = {
   // The file draws 62 %; that measures 4.18:1 on its paper, under AA's 4.5:1, so the secondary text is 74 %.
   ink2: 'rgba(21,48,42,0.74)',
   line: 'rgba(21,48,42,0.1)',
-  chevron: 'rgba(21,48,42,0.4)',
-  group: '#FFFFFF',
   mode: '#F4EDD8',
+  switchOn: content.fresh,
+  switchOff: 'rgba(21,48,42,0.25)',
   here: '#FFEC7A',
   orange: '#FF684C',
   red: '#FF3B30',
 } as const;
 
-/** A white rounded group of rows (`.group`). */
+/** A group of plain rows on the paper, told apart by thin lines (the file draws no boxes or chevrons). */
 export function RowGroup({ children, label }: { readonly children: ReactNode; readonly label?: string }) {
   return (
     <View style={styles.group}>
@@ -34,8 +34,8 @@ export function RowGroup({ children, label }: { readonly children: ReactNode; re
 }
 
 /**
- * One row of a group (`.row`): a title, a line under it, and a chevron when it opens something. The
- * row where the person was is a plain yellow fill with a small red dot that sends out single ripples.
+ * One row of a group (`.row`): a title and a line under it. The row where the person was is a plain
+ * yellow fill with a small red dot that sends out single ripples.
  */
 export function PlaceRow({
   title,
@@ -56,7 +56,7 @@ export function PlaceRow({
   readonly current?: boolean;
   /** The planet picked on the desktop map, awaiting Land: a quiet paper fill. */
   readonly picked?: boolean;
-  /** Replaces the chevron (the "picked" tag of the desktop panel). */
+  /** The end of the row (the "picked" tag of the desktop panel). */
   readonly tail?: ReactNode;
   readonly onPress?: () => void;
   readonly accessibilityLabel?: string;
@@ -79,9 +79,7 @@ export function PlaceRow({
         )}
       </View>
       {current ? <RippleDot /> : null}
-      {/* The file puts the rippling dot where the chevron would be, not beside it. */}
-      {tail ??
-        (onPress && !current ? <Icon name="forward" size={18} color={SIMPLE.chevron} strokeWidth={2.4} /> : null)}
+      {tail}
     </>
   );
   return (
@@ -94,16 +92,57 @@ export function PlaceRow({
           aria-current={current ? 'true' : undefined}
           onPress={onPress}
           {...focus.props}
-          style={[styles.row, focus.style]}
+          style={[styles.row, current || picked ? styles.filled : null, focus.style]}
         >
           {body}
         </Pressable>
       ) : (
-        <View testID={testID} style={styles.row}>
+        <View testID={testID} style={[styles.row, current || picked ? styles.filled : null]}>
           {body}
         </View>
       )}
     </View>
+  );
+}
+
+/**
+ * The "Simple view" switch of the Simple page (`.mode`): the name and what it does, and a green switch,
+ * between two thin lines. The whole row is the switch.
+ */
+export function SimpleSwitch({
+  label,
+  description,
+  on,
+  onChange,
+}: {
+  readonly label: string;
+  readonly description: string;
+  readonly on: boolean;
+  readonly onChange: (on: boolean) => void;
+}) {
+  const focus = useFocusRing('onLight');
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: on }}
+      aria-checked={on}
+      onPress={() => onChange(!on)}
+      {...focus.props}
+      style={[styles.switchRow, focus.style]}
+    >
+      <View style={styles.words}>
+        <Text variant="uiS" color={SIMPLE.ink} style={styles.title}>
+          {label}
+        </Text>
+        <Text variant="meta" color={SIMPLE.ink2}>
+          {description}
+        </Text>
+      </View>
+      <View aria-hidden style={[styles.track, { backgroundColor: on ? SIMPLE.switchOn : SIMPLE.switchOff }]}>
+        <View style={[styles.knob, on ? styles.knobOn : null]} />
+      </View>
+    </Pressable>
   );
 }
 
@@ -138,25 +177,36 @@ function RippleDot() {
 }
 
 const styles = StyleSheet.create({
-  group: {
-    borderRadius: 18,
-    backgroundColor: SIMPLE.group,
-    borderWidth: 1,
-    borderColor: SIMPLE.line,
-    overflow: 'hidden',
-  },
+  group: { overflow: 'hidden' },
   rows: { marginTop: -1 },
   item: { borderTopWidth: 1, borderTopColor: SIMPLE.line },
-  current: { backgroundColor: SIMPLE.here },
-  picked: { backgroundColor: SIMPLE.mode },
+  current: { backgroundColor: SIMPLE.here, borderRadius: 14, borderTopColor: 'transparent', marginHorizontal: -4 },
+  picked: { backgroundColor: SIMPLE.mode, borderRadius: 14, borderTopColor: 'transparent', marginHorizontal: -4 },
+  filled: { paddingLeft: spacing[2], paddingRight: spacing[3] },
+  switchRow: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    marginTop: spacing['3.5'],
+    paddingVertical: spacing[2],
+    paddingHorizontal: spacing[1],
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: SIMPLE.line,
+    cursor: 'pointer' as const,
+  },
+  track: { width: 44, height: 26, borderRadius: 13, justifyContent: 'center' },
+  knob: { width: 20, height: 20, borderRadius: 10, marginLeft: 3, backgroundColor: '#FFFFFF' },
+  knobOn: { marginLeft: 21 },
   row: {
     minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing['2.5'],
     paddingVertical: spacing[2],
-    paddingLeft: spacing[4],
-    paddingRight: spacing[3],
+    paddingLeft: spacing[1],
+    paddingRight: spacing[1],
     cursor: 'pointer' as const,
   },
   words: { flex: 1, minWidth: 0 },

@@ -84,7 +84,7 @@ function ScreenName({ x, y, text, opacity = 1 }: { x: number; y: number; text: s
   );
 }
 
-const pillWidth = (text: string) => Math.ceil(text.length * 7.6 + 44);
+const pillWidth = (text: string) => Math.ceil(text.length * 8.4 + 44);
 
 /** The orange dot of "you were here", with a ripple unless motion is reduced. */
 function HereMarker({ x, y, reducedMotion }: { x: number; y: number; reducedMotion: boolean }) {
@@ -271,7 +271,8 @@ export function PlanetMap(props: PlanetMapProps) {
 /** The chosen region's name in the yellow selected pill (the design's U04 card view). */
 function SelectedName({ at, text, width }: { at: { x: number; y: number } | undefined; text: string; width: number }) {
   if (!at) return null;
-  const pill = Math.ceil(text.length * 8.4 + 26);
+  // The name is bold display type: a desktop-size face is wider than a phone's, so the pill is given room, never an ellipsis.
+  const pill = Math.ceil(text.length * 10 + 30);
   const left = Math.min(width - pill - 14, Math.max(14, at.x - pill / 2));
   return (
     <View pointerEvents="none" style={[styles.selectedPill, { left, top: at.y - 15, width: pill }]}>
