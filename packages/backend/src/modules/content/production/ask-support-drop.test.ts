@@ -339,6 +339,30 @@ describe('what is left must be enough to serve (D-310)', () => {
     });
   });
 
+  it('refuses a rebuilt answer that does not read back as the sentences that were kept: a line break inside a block (D-310)', () => {
+    // A line break ends a sentence, so these are three sentences in a paragraph. Taking the middle one out joins the other two with a
+    // space, and they read back as one sentence: the answer would not be the one that was checked.
+    const broken = AuthoredScroll.parse({
+      ...ANSWER,
+      blocks: ANSWER.blocks.map((block, index) =>
+        index === 2
+          ? {
+              ...block,
+              text: 'Because the beam turns, sailors see it only as a flash\nBy counting the seconds between flashes, sailors learn which lighthouse they are near.\nEach tower repeats its own rhythm.',
+            }
+          : block,
+      ),
+    });
+    expect(
+      placedSentencesOfAnswer(broken).filter(
+        (sentence) => sentence.place.field === 'paragraph' && sentence.place.block === 2,
+      ),
+    ).toHaveLength(3);
+    expect(refusedWith({ flagged: ['By counting'] }, broken)).toBe('rebuilt_invalid');
+    // A block with nothing taken out is kept as it was written, line breaks and all, so taking a sentence out of another block is fine.
+    expect(kept({ flagged: ['The keeper once'] }, broken).authored.blocks[2]).toEqual(broken.blocks[2]);
+  });
+
   it('refuses when what is left is not a valid answer', () => {
     // A paragraph limit that the rebuilt text cannot break, so make the callout cite nothing: the schema needs a citation.
     const nothingCited = {
