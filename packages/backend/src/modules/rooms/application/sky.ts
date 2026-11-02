@@ -3,6 +3,7 @@ import {
   NameConstellationSchema,
   ReadRoomSkySchema,
   RoomSkyViewSchema,
+  type PublicPersonRef,
   type RoomNaming,
   type RoomSky,
   type RoomStar,
@@ -169,7 +170,8 @@ export async function momentsOfStars(
       ),
     ),
   ];
-  const people = authorIds.length === 0 ? new Map() : await p.people.byAccounts(scope, authorIds);
+  const people =
+    authorIds.length === 0 ? new Map<string, PublicPersonRef>() : await p.people.byAccounts(scope, authorIds);
   const blocked = authorIds.length === 0 ? new Set<string>() : await p.blocked(scope, viewerAccountId, authorIds);
   const debates = [];
   for (const discussionId of new Set(keysOf('debate_closed'))) {

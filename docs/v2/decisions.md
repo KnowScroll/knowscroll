@@ -3840,7 +3840,7 @@ Confirmed by: `quick-answer-support.test.ts` (a short claim is not "no fact", a 
 - **Who marked an answer is never said.** The list says an answer was found useful and by whom it was written, not who found it so.
 - **The list** is the constellation being made, newest first, under the art. A tap on a star in the art says the same words.
 
-Confirmed by: `rooms-flair.test.ts` ("the sky's star moments": the author named and the answer opened, nobody who marked it, a blocked author and a removed answer and a deleted account named no one, a debate's title, a Launch's count and no name, a stranger reads no sky), `rooms-sky.test.ts` ("stores no account, text or title in a star, and names no one to the reader who blocked them"), `room-sky.test.ts` (the words), `today-and-sky.test.tsx` and `rooms-sky-smoke.spec.ts` (the list and its links at 390 and 1440).
+Confirmed by: `rooms-flair.test.ts` ("the sky's star moments": the author named and the answer opened, nobody who marked it, a blocked author and a removed answer and a deleted account named no one, a debate's title, a Launch's count and no name, a stranger reads no sky), `rooms-sky.test.ts` ("stores no account, text or title in a star, and names no one to the reader who blocked them"), `room-sky.test.ts` (the words), `today-and-sky.test.tsx` and `rooms-sky-smoke.spec.ts` (the list and its links at 390 and 1440). Shown failing when a blocked author was still named.
 
 ## D-342 · 2026-11-02 · Flair is four marks worked out from a person's own acts in the room; nothing is stored but their choice (v3 R-11, #631)
 
@@ -3853,7 +3853,7 @@ Confirmed by: `rooms-flair.test.ts` ("the sky's star moments": the author named 
 - **Not built, with reasons.** "Called it" counts calls in Scrolls, which a room never reads (D-063). "Room founder": a room is seeded by an operator and has no founder. "11 this week" is a person's own score, a total.
 - **Erasure follows the rows.** A Clear erases a mark made of taps and Launch answers (play results, D-082) and keeps one made of words and Useful marks (conversation, D-042). Leaving or removal shows no mark. An account deletion tombstones the words and deletes the taps, so nothing is left to show.
 
-Confirmed by: `domain/flair.test.ts` (which acts earn which mark, the order, the cap of a count), `rooms-flair.test.ts` ("which acts earn which mark": each of the four with its near misses, a removed answer takes its mark back; "who never earns one": a resident's message and a scout's note carry none and a scout's note counts for nobody), `rooms-flair.test.ts` ("what a person takes back"). Shown failing when a scout's note was counted for its owner.
+Confirmed by: `domain/flair.test.ts` (which acts earn which mark, the order, the cap of a count), `rooms-flair.test.ts` ("which acts earn which mark": each of the four with its near misses, a removed answer takes its mark back; "who never earns one": a resident's message and a scout's note carry none and a scout's note counts for nobody), `rooms-flair.test.ts` ("what a person takes back"). Shown failing when a scout's note carried its owner's mark, and when a threshold was lowered.
 
 ## D-343 · 2026-11-02 · Launch regular is a recent habit, and a chosen mark that is no longer earned shows nothing (v3 R-11, #631)
 
@@ -3881,7 +3881,7 @@ Confirmed by: `rooms-flair.test.ts` ("what shows beside a name": the first earne
 - **The rule.** A reader sees no mark beside a person they blocked or who blocked them. Social's `ReadBlockedAmong` takes `direction: 'either'` for it, and rooms use it for nothing else. Words and names keep D-051's one-way mask.
 - **Why this tells nobody.** A mark is optional, can be hidden and is often not earned, so its absence says nothing. The answer is used to leave something out of a read and is never sent to the reader.
 
-Confirmed by: `rooms-flair.test.ts` ("blocks": hidden both ways, lifted with the block, the room unchanged for everyone else).
+Confirmed by: `rooms-flair.test.ts` ("blocks": hidden both ways, lifted with the block, the room unchanged for everyone else; "the block list the mark uses": the old answer is unchanged and the new one is asked for by name). Shown failing when the block counted one way only.
 
 ## D-346 · 2026-11-02 · An answer that earned the room a star carries "+1 star for the room" (v3 R-11, #631)
 
@@ -3901,4 +3901,4 @@ Confirmed by: `rooms-flair.test.ts` ("a marked answer's +1 star": its place amon
 - **Two doors closed.** The import rule already keeps every module that ranks, plans or forms places from importing Rooms. `rooms/flair-wall.test.ts` adds the SQL side: no production file outside Rooms may name `rooms.ritual_solves`, `rooms.message_useful`, `rooms.stars`, `rooms.members` or `flair_choice`. It also checks that the files that make flair import no module of the personal universe.
 - **Nothing is written to one.** Reading flair, choosing it and reading the sky change no row of the personal universe.
 
-Confirmed by: `rooms/flair-wall.test.ts` (both walls, each shown to be able to fail), `write-boundary.test.ts`, `rooms-flair.test.ts` ("writes nothing to a person's own universe").
+Confirmed by: `rooms/flair-wall.test.ts` (both walls, each shown to be able to fail), `write-boundary.test.ts`, `rooms-flair.test.ts` ("writes nothing to a person's own universe"). Shown failing when a file outside Rooms named a table of flair and when a flair file imported a personal module.

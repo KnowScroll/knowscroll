@@ -12,6 +12,7 @@ import { makeWithPersonalScope } from '@knowscroll/backend/infrastructure/postgr
 import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
+import { readBlockedAmong } from '@knowscroll/backend/modules/social/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import {
@@ -234,7 +235,7 @@ describe('flair and the sky’s star moments (real PostgreSQL)', () => {
         .selectFrom('rooms.messages')
         .select('message_id')
         .where('discussion_id', '=', discussionId)
-        .where('sequence', '=', 1)
+        .where('sequence', '=', '1')
         .executeTakeFirstOrThrow()
     ).message_id;
 
@@ -511,6 +512,35 @@ describe('flair and the sky’s star moments (real PostgreSQL)', () => {
       expect((await messageAs(asha, roomId, today, kenjis.messageId)).status).toBe('available');
       unwrap(await friendCommand(world.friends, kenji, asha, 'unblock'));
       expect(await flairBesideName(asha, roomId, today, kenjis.messageId)).toBe('first_answer');
+    });
+  });
+
+  describe('the block list the mark uses', () => {
+    it('answers who the caller blocked, and who blocked them only when asked for both ways', async () => {
+      begin();
+      const { roomId } = await seedRoom(world);
+      const [asha, kenji, ravi] = (await joined(world, roomId, 3)) as [Friend, Friend, Friend];
+      unwrap(await friendCommand(world.friends, kenji, asha, 'block'));
+      const among = async (reader: Friend, others: readonly Friend[], direction?: 'own' | 'either') => {
+        const result = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(reader.authority, (scope) =>
+          readBlockedAmong(
+            scope,
+            reader.accountId,
+            others.map((other) => other.accountId),
+            direction,
+          ),
+        );
+        if (result.kind !== 'entered') throw new Error('scope refused');
+        return [...result.value].sort();
+      };
+      // Kenji blocked Asha. Asked the old way, only Kenji's own side says so: the blocked person is never told.
+      expect(await among(kenji, [asha, ravi])).toEqual([asha.accountId]);
+      expect(await among(asha, [kenji, ravi])).toEqual([]);
+      expect(await among(asha, [kenji, ravi], 'own')).toEqual([]);
+      // Asked for both ways, either side of the block says so, and a person with no block with the caller is never in it.
+      expect(await among(asha, [kenji, ravi], 'either')).toEqual([kenji.accountId]);
+      expect(await among(kenji, [asha, ravi], 'either')).toEqual([asha.accountId]);
+      expect(await among(ravi, [asha, kenji], 'either')).toEqual([]);
     });
   });
 
