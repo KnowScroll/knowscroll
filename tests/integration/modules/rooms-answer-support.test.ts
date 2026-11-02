@@ -402,6 +402,39 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       expect((await memberView(world, ravi, roomId)).questions?.waiting).toBe(1);
     });
 
+    it('says nothing to a message that names a resident and asks nothing: no call, no passage read, no line, counted as an ask', async () => {
+      const { roomId } = await seedRoom(world);
+      const [asha] = (await joined(world, roomId, 1)) as [Friend];
+      const discussionId = await startTopic(world, asha, roomId, 'Moon drift');
+      for (const greeting of ['@Nova thanks, that helps a lot', 'hi @Nova']) {
+        const before = world.queued.length;
+        const readsBefore = reads.length;
+        unwrap(await say(world, asha, roomId, discussionId, greeting));
+        expect(world.queued).toHaveLength(before + 1);
+        const model = playbook({ writer: [writes(SUPPORTED_ANSWER)] }, 'greeting');
+        await consumer(model)(world.queued.at(-1)!);
+        expect(model.calls).toHaveLength(0);
+        expect(reads).toHaveLength(readsBefore);
+        expect(await turnOf(world.queued.at(-1)!.requestId)).toMatchObject({
+          state: 'declined',
+          dispatched: true,
+          answer_support: null,
+        });
+      }
+      expect((await textsOf(asha, roomId, discussionId)).some((entry) => entry.ai)).toBe(false);
+    });
+
+    it('answers a message that names a resident and asks in an interrogative, without a question mark', async () => {
+      const { roomId } = await seedRoom(world);
+      const [asha] = (await joined(world, roomId, 1)) as [Friend];
+      const discussionId = await startTopic(world, asha, roomId, 'Moon drift');
+      unwrap(await say(world, asha, roomId, discussionId, '@Nova how do scientists know the Moon is drifting away'));
+      const model = playbook({ writer: [writes(SUPPORTED_ANSWER)] }, 'mention-question');
+      await consumer(model)(world.queued.at(-1)!);
+      expect(model.calls).toHaveLength(2);
+      expect((await textsOf(asha, roomId, discussionId)).at(-1)).toMatchObject({ ai: true, text: SUPPORTED_ANSWER });
+    });
+
     it('is a Skeptic’s challenge under the same check', async () => {
       const { roomId } = await seedRoom(world);
       const [asha] = (await joined(world, roomId, 1)) as [Friend];

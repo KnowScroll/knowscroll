@@ -15,10 +15,13 @@ export function unpostedOutcome(
 ): Exclude<TurnOutcome, { state: 'completed' }> {
   const { verdict } = result;
   const spoke = verdict.kind === 'nothing_to_add' || verdict.kind === 'not_covered';
+  const declined = spoke && allowed;
   return {
-    state: spoke && allowed ? 'declined' : 'failed',
+    state: declined ? 'declined' : 'failed',
     at,
-    dispatched: verdict.kind === 'failed' ? verdict.dispatched : result.runs.length > 0,
+    // A declined turn is always counted: the schema holds that only a queued, failed or refused turn may not have been sent, and
+    // a resident that was asked and had nothing to say used one of the asker's asks.
+    dispatched: declined || (verdict.kind === 'failed' ? verdict.dispatched : result.runs.length > 0),
     ...(result.support === undefined ? {} : { support: result.support }),
   };
 }

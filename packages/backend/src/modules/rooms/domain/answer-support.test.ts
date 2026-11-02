@@ -8,7 +8,7 @@ import {
   AnswerSupportRecordSchema,
   NOT_COVERED_LINE,
 } from './answer-support.js';
-import { contributionProblem } from './contribution.js';
+import { QUEUED_ASK_LAPSES_MS, contributionProblem } from './contribution.js';
 import { voiceProblem } from './feed.js';
 
 describe('the line a resident posts when the library cannot support an answer', () => {
@@ -41,6 +41,14 @@ describe('the request bound of an answer and the claim of its jobs (reasoning RE
     // And no more than the bound: one more attempt would not fit, so the bound cannot grow without the claim growing.
     expect(claimFor(ANSWER_PAID_ATTEMPTS + 1)).toBeGreaterThan(contributeQueue.policy.expireInSeconds);
     expect(claimFor(ANSWER_PAID_ATTEMPTS + 1)).toBeGreaterThan(castPassQueue.policy.expireInSeconds);
+  });
+});
+
+describe('how long an ask holds its discussion', () => {
+  it('outlasts the claim of the job that answers it, so a second ask cannot start while the first may still be running', () => {
+    expect(QUEUED_ASK_LAPSES_MS).toBeGreaterThan(ANSWER_CLAIM_SECONDS * 1000);
+    expect(QUEUED_ASK_LAPSES_MS).toBeGreaterThan(contributeQueue.policy.expireInSeconds * 1000);
+    expect(QUEUED_ASK_LAPSES_MS).toBe(37.5 * 60 * 1000);
   });
 });
 
