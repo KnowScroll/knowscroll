@@ -236,3 +236,16 @@ test('on a Scroll’s own address a step forward says the place in the Part befo
   // The tab is the Part before, kept in view whenever one was admitted.
   await expect(page.getByTestId('part-back-tab')).toBeVisible();
 });
+
+test('a related move opens its Scroll without saying a place in a Part was kept', async ({ page }) => {
+  await encounterFixture(page, 'scroll', {
+    viewport: phone,
+    direct: { parts: 1, related: true },
+    scrollDocument: seasons as unknown as Record<string, unknown>,
+  });
+  await page.goto(`/scroll/${id(300)}`);
+  await expect(page.getByTestId('scroll-reader')).toBeVisible();
+  await page.getByRole('button', { name: /^Related: / }).click();
+  await expect(page).toHaveURL(new RegExp(`/(scroll|reel)/${id(301)}$`));
+  await expect(page.getByTestId('part-arrival')).toHaveCount(0);
+});

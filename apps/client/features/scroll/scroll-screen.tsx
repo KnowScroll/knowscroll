@@ -32,7 +32,8 @@ import { RequestNotice } from '../encounter/encounter-notices';
 import { EncounterOverlay } from '../encounter/encounter-overlay';
 import { RequestPanel } from '../requests/request-panel';
 import { StageReaderSurface } from './stage-reader-surface';
-import { takePartLeft, useAddressMoves } from './use-address-moves';
+import { takePartLeft } from './part-left';
+import { useAddressMoves } from './use-address-moves';
 import { useDirectAsk } from './use-direct-ask';
 import { useScrollSession } from './use-scroll-session';
 import { ActivatedScrollView } from './activated-scroll-view';
@@ -310,7 +311,15 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
   // The count is the server's; the Scroll's own Part number stands in until the context arrives.
   const ownPart = scroll.document.series?.part;
   const partLabel = moves.partLabel ?? (ownPart === undefined ? undefined : `Part ${String(ownPart)}`);
-  const [left] = useState(() => takePartLeft(scroll.assetId));
+  // The step forward that opened this Scroll, taken once when the context says which Part of which series this is.
+  const [left, setLeft] = useState<number | undefined>();
+  const [leftTaken, setLeftTaken] = useState(false);
+  const { part: countedPart, seriesId } = moves;
+  useEffect(() => {
+    if (leftTaken || countedPart === undefined || seriesId === undefined) return;
+    setLeftTaken(true);
+    setLeft(takePartLeft(scope, scroll.assetId, { part: countedPart, seriesId }));
+  }, [leftTaken, countedPart, seriesId, scope, scroll.assetId]);
   const nowPart = moves.part ?? ownPart;
   const arrival =
     nowPart !== undefined && left !== undefined && left < nowPart
