@@ -30,6 +30,7 @@ export default defineConfig({
         'recording-smoke.spec.ts',
         'keep-smoke.spec.ts',
         'friends-smoke.spec.ts',
+        'visit-smoke.spec.ts',
         'universe-smoke.spec.ts',
         'universe-space-smoke.spec.ts',
         'universe-planet-smoke.spec.ts',

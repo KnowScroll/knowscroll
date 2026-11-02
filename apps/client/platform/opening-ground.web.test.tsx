@@ -14,23 +14,23 @@ function Opening({ dark }: { dark: boolean }) {
 }
 
 describe('useOpeningGround (web)', () => {
-  it('darkens the page while the opening is on and restores it after', async () => {
+  it('darkens the page while the opening is on and restores it after', () => {
     document.documentElement.style.backgroundColor = 'rgb(255, 255, 255)';
     const root = createRoot();
-    await act(async () => root.render(<Opening dark />));
+    act(() => root.render(<Opening dark />));
     expect(document.documentElement.style.backgroundColor).toBe('rgb(2, 3, 8)');
     expect(document.body.style.backgroundColor).toBe('rgb(2, 3, 8)');
-    await act(async () => root.render(<Opening dark={false} />));
+    act(() => root.render(<Opening dark={false} />));
     expect(document.documentElement.style.backgroundColor).toBe('rgb(255, 255, 255)');
     expect(document.body.style.backgroundColor).toBe('');
-    await act(async () => root.unmount());
+    act(() => root.unmount());
   });
 
-  it('leaves the page alone when there is no opening', async () => {
+  it('leaves the page alone when there is no opening', () => {
     document.documentElement.style.backgroundColor = '';
     const root = createRoot();
-    await act(async () => root.render(<Opening dark={false} />));
+    act(() => root.render(<Opening dark={false} />));
     expect(document.documentElement.style.backgroundColor).toBe('');
-    await act(async () => root.unmount());
+    act(() => root.unmount());
   });
 });
