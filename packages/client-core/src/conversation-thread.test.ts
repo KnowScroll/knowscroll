@@ -66,7 +66,11 @@ describe('conversation thread (labelled in-memory server)', () => {
     await reopened.load();
     expect(reopened.getState().newSinceSequence).toBe(2);
     await vi.waitFor(() => expect(server.readThrough()).toBe(3));
+    // Another message arrives and the screen reads again: the server's position is now 3 and the message is the
+    // peer's, so without the once-per-opening rule the line would jump to 3.
+    server.peerSays('four');
     await reopened.load();
+    expect(reopened.getState().messages.map((message) => message.sequence)).toEqual([1, 2, 3, 4]);
     expect(reopened.getState().newSinceSequence).toBe(2);
   });
 

@@ -239,16 +239,21 @@ describe('a content thread on the client', () => {
     const stored = [text(1, 'one'), text(2, 'two', ravi), text(3, 'three', ravi)];
     const scope = scopeOf({
       read: () => Promise.resolve(readyView(stored, { own: { readThroughSequence: readThrough, muted: false } })),
-      markRead: () => {
-        readThrough = 3;
-        return Promise.resolve({ acceptedThroughSequence: 3 });
+      markRead: (input: { throughSequence: number }) => {
+        readThrough = input.throughSequence;
+        return Promise.resolve({ acceptedThroughSequence: readThrough });
       },
     });
     const controller = createContentThread({ scope, thread, newId });
+    controller.setActive(true);
     await controller.load();
     expect(controller.getState().newSinceSequence).toBe(1);
-    // Coming back to the screen reads again; the server's position has moved, and the line stays where it was.
+    await vi.waitFor(() => expect(readThrough).toBe(3));
+    // Something new comes in and the screen reads again (a focus, a reconnect): the server's position has moved to 3
+    // and the new message is another person's, so without the once-per-opening rule the line would jump to 3.
+    stored.push(text(4, 'four', ravi));
     await controller.load();
+    expect(controller.getState().messages.map((message) => message.sequence)).toEqual([1, 2, 3, 4]);
     expect(controller.getState().newSinceSequence).toBe(1);
   });
 
