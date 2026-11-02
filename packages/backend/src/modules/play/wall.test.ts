@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { CALL_READ_INTERACTIONS, INTERACTION_KINDS_V2 } from '@knowscroll/scroll-model';
 
 /**
  * The SQL side of the play wall (D-063, D-180). The import rules in `.dependency-cruiser.cjs` stop
@@ -84,5 +85,45 @@ describe('what the play schema stores (D-063, D-209)', () => {
     expect([...planted.matchAll(/create table (?:if not exists )?play\.(\w+)/giu)].map((match) => match[1])).toEqual([
       'sort_attempts',
     ]);
+  });
+});
+
+/**
+ * The picture a wrong answer turns the stage to (D-382) is worked out on the device from the pick, so it sits behind the wall by never
+ * crossing it: the document names the picture (`revealStage`), the reader shows it, and nothing about the pick or the turn is reported, stored,
+ * ranked or planned on. Three things keep it so, and each can fail: the vocabulary of what a reader reports does not grow a kind for it, no
+ * module that handles evidence, plans or ranks names the field, and the app that carries a pick to the server does not either.
+ */
+describe('the picture a wrong answer turns the stage to stays on the device (D-063, D-382)', () => {
+  const read = (path: string) => readFileSync(join(repository, path), 'utf8');
+  const REVEAL_FIELD = /\brevealStage\b/;
+  /** The only code that may name the field: the document and its producer, the renderer, and the content module that publishes and reviews Scrolls. */
+  const MAY_NAME_IT = [/^packages\/scroll-model\//, /^packages\/ui\//, /^packages\/backend\/src\/modules\/content\//];
+
+  it('is not a thing a reader reports: the interaction kinds of a call are still the two value-free ones', () => {
+    expect(INTERACTION_KINDS_V2).toEqual({ call_it: ['locked', 'revealed'], final_call: ['locked', 'revealed'] });
+    expect([...CALL_READ_INTERACTIONS]).toEqual(['locked', 'revealed']);
+  });
+
+  it('is named by the document, its producer, the renderer and the content module alone: no other module and no app', () => {
+    const production = [...sourcesUnder('packages'), ...sourcesUnder('apps')].filter(
+      (path) => !/\.test\.tsx?$/u.test(path) && !MAY_NAME_IT.some((allowed) => allowed.test(path)),
+    );
+    expect(production.length).toBeGreaterThan(500);
+    expect(production.filter((path) => REVEAL_FIELD.test(read(path)))).toEqual([]);
+  });
+
+  it('can fail: the scan finds the field where it belongs, and in a file that should not name it', () => {
+    const everything = [...sourcesUnder('packages'), ...sourcesUnder('apps')];
+    const found = everything.filter((path) => REVEAL_FIELD.test(read(path)));
+    expect(found).toContain('packages/scroll-model/src/v2/document.ts');
+    expect(found).toContain('packages/ui/src/scroll/stage-reader/stage-reveal.ts');
+    expect(REVEAL_FIELD.test('const next = call.revealStage;')).toBe(true);
+    expect(REVEAL_FIELD.test('const next = call.reveal;')).toBe(false);
+    // A module that ranked on it would be found by the first scan, because none of these paths may name it.
+    expect(
+      MAY_NAME_IT.some((allowed) => allowed.test('packages/backend/src/modules/composer/application/rank.ts')),
+    ).toBe(false);
+    expect(MAY_NAME_IT.some((allowed) => allowed.test('apps/client/features/encounter/play-session.ts'))).toBe(false);
   });
 });
