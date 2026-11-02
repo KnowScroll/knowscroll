@@ -1208,7 +1208,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     it('checks an answer of 21 sentences in three requests of at most ten, each with every passage the answer cites, and closes every run', async () => {
       await setup();
       const { order } = await orderedAsk();
-      // 21 sentences in all (13 of reading text, the title and 7 headings), code's limits line not among them: the most a take can send to three requests.
+      // 21 sentences in all: the title, the dek, 11 sentences of paragraphs and 8 headings (one above each of the 7 paragraphs, one at the
+      // end). Code's limits line is not among them: it has no sentence in the check (D-371). The most a take can send to three requests.
       const base = fixtureAnswer();
       const paragraphs = [
         ...base.blocks.filter((block) => block.type === 'paragraph'),
@@ -1217,6 +1218,11 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
           cites: ['e1', 'e6'],
           text: 'The old clockwork has been replaced, but the original prisms remain.',
         },
+        {
+          type: 'paragraph' as const,
+          cites: ['e4'],
+          text: 'A horn warns ships where fog hides the beam, because light fades in a thick bank of fog.',
+        },
       ];
       const names = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta'];
       const longAnswer = AuthoredScroll.parse({
@@ -1224,7 +1230,6 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         blocks: [
           ...paragraphs.flatMap((paragraph, index) => [{ type: 'heading', text: 'Part ' + names[index]! }, paragraph]),
           { type: 'heading', text: 'Part ' + names[paragraphs.length]! },
-          base.blocks.at(-1)!,
         ],
       });
       writer = () => answerWith(longAnswer);
