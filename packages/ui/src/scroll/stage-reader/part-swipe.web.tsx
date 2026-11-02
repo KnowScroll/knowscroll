@@ -67,6 +67,11 @@ export function PartSwipe({
       onDrag({ kind: 'pull', progress: 0 });
     }
   };
+  /** A drag that stops being one finger (a second touch, a cancel) is over without a move: what was drawn for it is put away. */
+  const abandon = () => {
+    if (press.current?.shown === true) onDrag?.({ kind: 'end', move: undefined });
+    press.current = undefined;
+  };
   const finish = (x: number, y: number) => {
     const from = press.current;
     press.current = undefined;
@@ -83,20 +88,18 @@ export function PartSwipe({
         const touch = event.touches[0];
         if (touch !== undefined && event.touches.length === 1)
           begin(touch.clientX, touch.clientY, event.target, event.currentTarget);
-        else press.current = undefined;
+        else abandon();
       }}
       onTouchMove={(event) => {
         const touch = event.touches[0];
         if (touch !== undefined && event.touches.length === 1) follow(touch.clientX, touch.clientY);
+        else abandon();
       }}
       onTouchEnd={(event) => {
         const touch = event.changedTouches[0];
         if (touch !== undefined) finish(touch.clientX, touch.clientY);
       }}
-      onTouchCancel={() => {
-        if (press.current?.shown === true) onDrag?.({ kind: 'end', move: undefined });
-        press.current = undefined;
-      }}
+      onTouchCancel={abandon}
     >
       {children}
     </div>
