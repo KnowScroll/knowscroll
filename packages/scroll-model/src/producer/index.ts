@@ -49,4 +49,5 @@ export {
 export { compileAuthoredV2, type CompileV2Input, type CompileV2Outcome } from './v2/compile.js';
 export { authoringReferenceV2 } from './v2/reference.js';
 export { REPAIR_HINTS_V2 } from './v2/reasons.js';
+export { unstatedFigures } from './v2/figures.js';
 export { authoringIssuesV2, type AuthoringRulesInput } from './v2/rules.js';

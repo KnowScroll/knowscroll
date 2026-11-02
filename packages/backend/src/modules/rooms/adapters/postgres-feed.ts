@@ -453,15 +453,20 @@ export const feedReadStore: FeedReadStore = {
       agent_owner_account_id: string | null;
       author_account_id: string | null;
       body_text: string;
-      replies: string;
+      reply_groups: readonly { signer: string | null; own_voice: boolean; count: number }[];
       votes: string;
       voted: boolean;
     }>`
       select discussion.discussion_id, discussion.root_asset_id, discussion.root_asset_revision, discussion.source_url,
         discussion.intro_inhabitant, discussion.title, discussion.created_at, note.inhabitant, note.agent_owner_account_id, note.author_account_id, note.body_text,
-        (select count(*) from rooms.messages reply
-          where reply.discussion_id = discussion.discussion_id and reply.sequence > 1 and reply.hidden_at is null
-            and (reply.author_account_id is not null or reply.author_kind in ('ai', 'agent'))) as replies,
+        (select coalesce(json_agg(json_build_object('signer', grouped.signer, 'own_voice', grouped.own_voice, 'count', grouped.n)), '[]'::json)
+          from (select coalesce(reply.author_account_id, reply.agent_owner_account_id) as signer,
+              (reply.author_kind in ('ai', 'agent') and (reply.agent_owner_account_id is not null or reply.trigger is not null)) as own_voice,
+              count(*) as n
+            from rooms.messages reply
+            where reply.discussion_id = discussion.discussion_id and reply.sequence > 1 and reply.hidden_at is null
+              and (reply.author_account_id is not null or reply.author_kind in ('ai', 'agent'))
+            group by 1, 2) grouped) as reply_groups,
         (select count(*) from rooms.post_votes vote where vote.discussion_id = discussion.discussion_id) as votes,
         exists (select 1 from rooms.post_votes mine
           where mine.discussion_id = discussion.discussion_id and mine.account_id = ${query.readerAccountId}::uuid) as voted
@@ -482,7 +487,11 @@ export const feedReadStore: FeedReadStore = {
       title: row.title,
       postedAt: new Date(row.created_at),
       note: row.body_text,
-      replies: Number(row.replies),
+      replies: row.reply_groups.map((group) => ({
+        signer: group.signer,
+        ownVoice: group.own_voice,
+        count: group.count,
+      })),
       votes: Number(row.votes),
       votedByReader: row.voted,
     }));

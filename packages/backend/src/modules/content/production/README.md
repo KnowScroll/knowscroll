@@ -115,7 +115,8 @@ candidate file (D-280), and then the next pair is released or v4 and writer v5 a
 - **The bound (D-267, D-297)** is fourteen paid requests a take (`REQUEST_BOUND_ASK_ORDER` = 2 + 1 + 1 + 2 x (4 batches + 1)): the writer and the validator's repair, the revision and its repair for copying, and for each of the
   two drafts its batches and one repair of an unusable reply. The claim of its own queue is sized for it (`content.produce-answer`, `PRODUCE_ANSWER_CLAIM_SECONDS`, 4,660 s). A job queued before this change keeps the 4,020 s it was sent with.
   `requestBoundOf(key, mode)` needs the order's mode, which only the job knows once it has read the order. The Quick answer (supply) uses the same
-  checker in one request and keeps its own bound of six.
+  checker in one request and keeps its own bound of six. A room's resident (rooms, D-301) uses it too, in one request, under roles of its own, and has
+  the same bound of six.
 - **Runs and receipts.** The check's runs (one for each batch of each draft) and the repair's run are derived from the job and closed with it. The
   `support_check` receipts keep sentence numbers, kinds and rule codes only, with the batch count (D-231).
 - **Candidate instructions (D-280)** (`ask-support-candidate.ts`, replay only). `content ask-check … --checker-instructions <absolute path>` reads instructions from a file

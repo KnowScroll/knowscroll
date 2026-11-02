@@ -265,6 +265,8 @@ for (const { name, size } of VIEWPORTS) {
     await expect(page.getByTestId('watch-last')).toContainText(
       /^Last on stage: the Reel “How big is the universe\?”, /,
     );
+    // Axe measures contrast on what is painted: wait until the sheet has finished fading in, as the first opening of it does.
+    await expect(page.getByTestId('watch-sheet')).toHaveCSS('opacity', '1');
     await shoot(page, `${name}-7-last-on-stage`);
     expect(await seriousViolations(page)).toEqual([]);
     await context.close();

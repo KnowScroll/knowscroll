@@ -1,3 +1,5 @@
+import { ANSWER_CLAIM_SECONDS } from './answer-support.js';
+
 /** Rules of the labelled AI inhabitants: what they may say, and how often a room may ask them. */
 
 export type InhabitantId = 'explainer' | 'skeptic';
@@ -20,8 +22,12 @@ export const PERSON_ASKS_PER_HOUR = 10;
  * before reaching the provider. The bound above never counts those, so this one keeps them from piling up.
  */
 export const PERSON_REQUESTS_PER_HOUR = 20;
-/** An ask still queued after this long no longer holds its discussion (the job was lost or erased). */
-export const QUEUED_ASK_LAPSES_MS = 15 * 60 * 1000;
+/**
+ * An ask still queued after this long no longer holds its discussion (the job was lost or erased). It outlasts the claim of the
+ * job that answers it (D-303) by five minutes: a job may legally run for its whole claim, and until it lapses the discussion
+ * shows the resident as preparing and takes no second ask, so a second ask cannot start while the first is still running.
+ */
+export const QUEUED_ASK_LAPSES_MS = (ANSWER_CLAIM_SECONDS + 5 * 60) * 1000;
 /** The newest messages of a discussion an inhabitant reads, and the most characters of each. */
 export const CONTEXT_MESSAGES = 20;
 export const CONTEXT_MESSAGE_CHARS = 600;

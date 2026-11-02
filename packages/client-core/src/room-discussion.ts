@@ -423,7 +423,11 @@ export function createRoomDiscussion(options: RoomDiscussionOptions): RoomDiscus
       const accepted = await moderate(`hide:${messageId}:${String(hidden)}`, (commandId) =>
         scope.api.rooms.hideMessage({ version: VERSION, commandId, ...ids, messageId, hidden }),
       );
-      if (accepted !== undefined) await catchUp();
+      if (accepted !== undefined) {
+        // The change feed applies the message itself, wherever it is loaded; the read refreshes what the header says of a removed post.
+        await catchUp();
+        await load();
+      }
       return accepted !== undefined;
     },
     async removeMember(personId) {

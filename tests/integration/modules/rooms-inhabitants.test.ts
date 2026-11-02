@@ -31,7 +31,7 @@ import { seedReel } from '../support/thread-fixtures.js';
 const version = 'rooms.v1' as const;
 const answer = (kind: string, text: string): FixtureScenario => ({
   kind: 'success',
-  text: JSON.stringify({ kind, text }),
+  text: JSON.stringify({ kind, text, cites: ['e1'] }),
 });
 
 describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
@@ -126,7 +126,7 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     expect(request).toMatchObject({
       state: 'completed',
       inhabitant: 'skeptic',
-      role_version: 'inhabitant.2',
+      role_version: 'inhabitant.3',
       model: 'fixture-model-v1',
     });
     expect(request.prompt_version).toMatch(/\S/);

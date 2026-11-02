@@ -200,3 +200,28 @@ export function voiceProblem(text: string): VoiceProblem | undefined {
 export function noteProblem(text: string): NoteProblem | undefined {
   return textProblem(text, FEED_RULES.noteMaxChars) ?? voiceProblem(text);
 }
+
+/**
+ * The replies under one post that were written by the same signer in the same voice. `signer` is the member who wrote them, or the
+ * member whose scout did; a resident's reply has none. `ownVoice` is a reply nobody asked for (a resident speaking on its own, or a
+ * scout): the one an AI level of Off keeps from a reader. A resident's answer to a question someone asked is not.
+ */
+export interface ReplyGroup {
+  readonly signer: string | null;
+  readonly ownVoice: boolean;
+  readonly count: number;
+}
+
+/**
+ * How many replies a reader's thread shows under a post (D-299): a reply from someone the reader blocked is a collapsed marker and a
+ * reply an Off reader is told nothing of is a muted one, so neither counts for them. A moderator's removal is not a reply at all.
+ */
+export function repliesShownTo(
+  groups: readonly ReplyGroup[],
+  reader: { readonly aiOff: boolean; readonly blocked: ReadonlySet<string> },
+): number {
+  return groups
+    .filter((group) => !(group.signer !== null && reader.blocked.has(group.signer)))
+    .filter((group) => !(group.ownVoice && reader.aiOff))
+    .reduce((total, group) => total + group.count, 0);
+}

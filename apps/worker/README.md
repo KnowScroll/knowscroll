@@ -159,6 +159,8 @@ answers a message; the second makes the model call of an allowed turn under the 
 `rooms.summarise` (v3 R-3, D-169): one call per room and 12-hour window that writes "while you were away", under the same scope as an
 `ambient` role, with kept-out members and removed messages left out of what it reads.
 
+The `rooms.launch-settle` consumer (v3 R-6, D-298) is registered in every worker, with no model grant: queued by a Launch's start for the end of its play time, it marks the Launch finished at that end, awards the room's star under `KS_ROOMS_STARS_PER_DAY` and tells the room. A redelivery changes nothing.
+
 The ritual commands (`src/rooms-ritual-operator.ts`, v3 R-5, D-176) are `rooms rituals --room <slug> [--day YYYY-MM-DD] [--dry-run]`, `ritual-list [--state ...]` and
 `ritual-review --ritual <uuid> --approve|--reject`: they draft, list and approve a room's daily question (a template, no call) and Spot the flaw (one call of the
 `rooms.ambient-ritual` role under the `rooms` scope, so they need `KS_REASONING_ROOM_ENABLED=1` and a provider). The `rooms.nightly-rituals` consumer (cron `10 3 * * *`,

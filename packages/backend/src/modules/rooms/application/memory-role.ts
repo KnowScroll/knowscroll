@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ProposeOutcome, ReasoningContext, ReasoningRole } from '../../../reasoning/public.js';
 import { MEMORY_RULES, memoryProblem, type MemoryProblem } from '../domain/memory.js';
-import { unproposedVerdict, type ContributionVerdict } from './inhabitant-role.js';
+import { unproposedVerdict, type FailedVerdict } from './inhabitant-role.js';
 
 /** Changes with the instructions or the answer schema; recorded on every refresh of the memory. */
 export const MEMORY_ROLE_VERSION = 'memory.1';
@@ -102,7 +102,7 @@ export function memoryContext(material: MemoryMaterial): ReasoningContext {
 export type MemoryVerdict =
   | { readonly kind: 'memory'; readonly text: string; readonly attemptId: string; readonly end: 'completed' }
   | { readonly kind: 'nothing_to_add'; readonly end: 'completed' }
-  | Extract<ContributionVerdict, { readonly kind: 'failed' }>;
+  | FailedVerdict;
 
 export function memoryVerdict(outcome: ProposeOutcome<MemoryAnswer>): MemoryVerdict {
   if (outcome.kind !== 'proposed') return unproposedVerdict(outcome);

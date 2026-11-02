@@ -7,10 +7,13 @@ import { RoomEmblem } from './identity/room-emblem';
 import { roomHref } from './room-links';
 import { useTalkListLook } from '../conversations/talk-list-look';
 
-/** The words under a room's name in Talk: what the room is about, or that the person was invited. No counts, no activity. */
+/**
+ * The words under a room's name in Talk: the room's own line, the one its page opens with, or that the person was invited. A paused
+ * room says so first. No counts, no activity.
+ */
 export function roomRowSubtitle(item: RoomListItem): string {
   if (item.standing === 'invited') return 'You’re invited to this room';
-  return item.room.status === 'open' ? `A room about ${item.room.topic.label.toLowerCase()}` : 'A room · paused';
+  return item.room.status === 'open' ? item.room.description : `Paused · ${item.room.description}`;
 }
 
 /** A room the person belongs to or was invited to, listed in Talk (D-006 o). Opening it records nothing about anyone. */

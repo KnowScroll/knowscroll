@@ -305,9 +305,16 @@ export {
 export type { ScrollTopic } from './production/topics.js';
 /**
  * The words of a quote compared with a text, for a model's claim that a text says something (D-250, D-251): a claim
- * is accepted only when the quote is in the text. Pure.
+ * is accepted only when the quote is in the text. Pure. `sharedStems` counts the key words two texts share; a room's resident
+ * chooses the library passages an answer may rest on by it (D-301).
  */
-export { hasEnoughWords, isAbout, quoteIsIn } from './domain/ask-support.js';
+export { hasEnoughWords, isAbout, quoteIsIn, sharedStems } from './domain/ask-support.js';
+/**
+ * The figures of a text that no passage states the way the text writes them (D-208's reading of a figure, for prose): a figure
+ * the passages do not hold, or hold with another word after it. A room's resident may state no figure the passages it cites
+ * do not (D-302). Pure.
+ */
+export { unstatedFigures } from '@knowscroll/scroll-model/producer';
 /**
  * The support check of an answer to a question (D-250), for the Quick answer's own use of it (D-253): the sentences of an answer, the
  * checker's role, its context and how its reply reads. Pure; the caller makes the model call, under its own role ID, run and caps.

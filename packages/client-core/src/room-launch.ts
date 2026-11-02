@@ -208,9 +208,8 @@ const initial: RoomLaunchState = {
 /**
  * One room's Launch for a member. The server owns the clock and every answer: this keeps the last view it gave, when it arrived, the
  * command in flight and nothing else. It reads again by itself only when the phase it shows has ended (the screen asks, from
- * `msUntilNextRead`), when a room hint arrives and on the slow poll, so the screen is never ahead of the server. When a read finds the
- * Launch over, this device says so once (`finish`), which settles the room's star; every device may, and the server settles it once.
- * Nothing here is observed or recorded as reading.
+ * `msUntilNextRead`), when a room hint arrives and on the slow poll, so the screen is never ahead of the server. A Launch that is over is
+ * settled by the server by itself (D-298), so reading it, however often, sends no command. Nothing here is observed or recorded as reading.
  */
 export function createRoomLaunch(options: RoomLaunchOptions): RoomLaunchController {
   const { scope, roomId, newId, clock } = options;
@@ -218,7 +217,6 @@ export function createRoomLaunch(options: RoomLaunchOptions): RoomLaunchControll
   const run = intentRunner(newId);
   const paused = () => scope.recording?.getState().policy?.on === false;
   let state: RoomLaunchState = { ...initial, recordingPaused: paused() };
-  let settledFor: string | undefined;
   let stopWatching: (() => void) | undefined;
   const publish = (patch: Partial<RoomLaunchState>): void => {
     if (!scope.active) return;
@@ -237,23 +235,6 @@ export function createRoomLaunch(options: RoomLaunchOptions): RoomLaunchControll
       else if (state.phase === 'loading') publish({ phase: 'failed', offline: failure === 'offline' });
       else publish({ offline: true });
     }
-  }
-
-  /** The Launch is over: tell the server once so it settles (the star), then read the podium again. */
-  async function settle(): Promise<void> {
-    const launch = state.view?.launch;
-    if (launch?.phase !== 'finished' || settledFor === launch.launchId) return;
-    settledFor = launch.launchId;
-    const outcome = await run(`finish:${launch.launchId}`, (commandId) =>
-      scope.api.rooms.finishLaunch({ version: VERSION, commandId, roomId, launchId: launch.launchId }),
-    );
-    if (outcome.kind === 'ok') await read();
-    else if (outcome.kind === 'offline') settledFor = undefined;
-  }
-
-  async function load(): Promise<void> {
-    await read();
-    await settle();
   }
 
   /** Sends one command that records the person as playing, with the recording generation; the server may answer `not_saved`. */
@@ -303,7 +284,7 @@ export function createRoomLaunch(options: RoomLaunchOptions): RoomLaunchControll
         }
       };
     },
-    load,
+    load: read,
 
     async start() {
       if (state.working) return false;
@@ -313,7 +294,7 @@ export function createRoomLaunch(options: RoomLaunchOptions): RoomLaunchControll
       );
       if (result.kind !== 'accepted') return settleFailure(result);
       publish({ working: false });
-      await load();
+      await read();
       return true;
     },
 

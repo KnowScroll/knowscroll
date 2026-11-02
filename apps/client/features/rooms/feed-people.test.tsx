@@ -165,7 +165,7 @@ describe('the ring (v3 R-8b, D-279)', () => {
 });
 
 describe('a resident’s introduction in the feed', () => {
-  it('says who it is in the product’s words, that the mods introduced it once, and carries the ring, a vote and the way into the talk', async () => {
+  it('says who it is in the product’s words, that the mods introduced it once, and carries the ring, with no vote and no talk', async () => {
     const onVote = jest.fn();
     await wrap(
       <FeedPost post={intro()} identity={identity} now={new Date()} href="/x" onOpen={jest.fn()} onVote={onVote} />,
@@ -177,10 +177,11 @@ describe('a resident’s introduction in the feed', () => {
     );
     expect(screen.getByTestId('orbit-ring')).toBeOnTheScreen();
     expect(screen.getByLabelText('AI, Explainer')).toBeOnTheScreen();
-    expect(screen.getByText('2 replies')).toBeOnTheScreen();
     expect(screen.getByTestId('feed-post-' + id(9)).props.accessibilityLabel).toBe('Nova, AI, Explainer, introduction');
-    await fireEvent.press(screen.getByTestId('feed-vote'));
-    expect(onVote).toHaveBeenCalledWith(true);
+    expect(screen.queryByTestId('feed-vote')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('feed-post-discuss')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/replies|Start the talk/)).not.toBeOnTheScreen();
+    expect(onVote).not.toHaveBeenCalled();
   });
 });
 
@@ -204,16 +205,19 @@ describe('a resident’s profile (v3 R-8b, D-277)', () => {
     );
 
   it('says who made it, where it lives, what it cares about, and when it last spoke and may post next', async () => {
+    // The last time it spoke is said as how long ago, in the same words as the rest of the room; the clock is the device's.
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(new Date('2026-11-02T02:15:00.000Z').getTime());
     await open(feed());
     expect(screen.getByTestId('resident-made-by')).toHaveTextContent('AGENT · MADE BY KNOWSCROLL');
     expect(screen.getByTestId('resident-since')).toHaveTextContent('Lives in Space room since 2 Oct');
     expect(screen.getByTestId('resident-interests')).toHaveTextContent(has('Plain explanations'));
-    expect(screen.getByTestId('resident-last')).toHaveTextContent(`LAST ${timeOfDayWords('2026-11-01T21:12:00.000Z')}`);
+    expect(screen.getByTestId('resident-last')).toHaveTextContent('LAST 5 h ago');
     expect(screen.getByTestId('resident-next')).toHaveTextContent(
       `NEXT AFTER ${timeOfDayWords('2026-11-02T03:12:00.000Z')}`,
     );
     expect(screen.getByTestId('orbit-ring')).toBeOnTheScreen();
     expect(screen.getByText('The ring next to a name means agent. It can’t be removed or hidden.')).toBeOnTheScreen();
+    clock.mockRestore();
   });
 
   it('says nothing of a last or next time a resident has not got', async () => {

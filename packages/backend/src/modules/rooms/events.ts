@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { defineQueue } from '../../infrastructure/jobs/queues.js';
+import { ANSWER_CLAIM_SECONDS } from './domain/answer-support.js';
 
 /**
  * One member's ask of an AI inhabitant. IDs only: the worker rechecks the asker's universe and epoch,
@@ -19,9 +20,9 @@ export const contributeQueue = defineQueue({
   purpose: 'Let one labelled AI inhabitant answer a member who asked, within the room and daily bounds.',
   payload: ContributeJobSchema,
   policy: {
-    // Two attempts at the largest configurable provider deadline (300 s) plus quota and lock waits
-    // (reasoning/README: 2 x (10 + 300 + 10) + 30), rounded up.
-    expireInSeconds: 700,
+    // Every paid attempt of an answer at the largest provider deadline (300 s) plus quota and lock waits, one after the other
+    // (reasoning/README: 6 x (10 + 300 + 10) + 30, D-303).
+    expireInSeconds: ANSWER_CLAIM_SECONDS,
     retryLimit: 2,
     retryDelaySeconds: 15,
     retryBackoff: true,
@@ -95,8 +96,8 @@ export const castPassQueue = defineQueue({
   purpose: 'Let one resident answer on its own, once the router allowed the turn, under the room reasoning scope.',
   payload: CastPassJobSchema,
   policy: {
-    // As rooms.contribute: two attempts at the largest provider deadline plus quota and lock waits.
-    expireInSeconds: 700,
+    // As rooms.contribute: every paid attempt of an answer at the largest provider deadline plus quota and lock waits.
+    expireInSeconds: ANSWER_CLAIM_SECONDS,
     retryLimit: 2,
     retryDelaySeconds: 15,
     retryBackoff: true,
@@ -136,6 +137,38 @@ export const summariseQueue = defineQueue({
     deadLetter: true,
   },
   consumer: { localConcurrency: 1, pollingIntervalSeconds: 2 },
+});
+
+/**
+ * The settlement of one Launch, queued when it starts to run at the end of its play time (D-178, D-224). IDs only. The worker acts
+ * for the universe of the member who started it, only to take the room lock in order and to stop when that person is gone; a Launch
+ * it cannot settle is settled by the room's next member command, as before, and counts from its end either way. A redelivery or a
+ * Launch already settled changes nothing.
+ */
+export const LaunchSettleJobSchema = z.strictObject({
+  v: z.literal(1),
+  universeId: z.uuid(),
+  privacyEpoch: z.number().int().positive(),
+  roomId: z.uuid(),
+  launchId: z.uuid(),
+});
+export type LaunchSettleJob = z.infer<typeof LaunchSettleJobSchema>;
+
+export const launchSettleQueue = defineQueue({
+  name: 'rooms.launch-settle',
+  purpose:
+    "Mark a Launch finished and award the room's star when its play time has ended, with no one's device asking.",
+  payload: LaunchSettleJobSchema,
+  policy: {
+    expireInSeconds: 120,
+    retryLimit: 3,
+    retryDelaySeconds: 10,
+    retryBackoff: true,
+    retentionSeconds: 3 * 86400,
+    deleteAfterSeconds: 86400,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 2, pollingIntervalSeconds: 2 },
 });
 
 /**

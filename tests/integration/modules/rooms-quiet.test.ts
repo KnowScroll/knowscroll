@@ -486,7 +486,7 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
     world.rooms.questionNotice(person.authority, { version, commandId: randomUUID(), roomId, discussionId, ...over });
   const explanation = (text: string): FixtureScenario => ({
     kind: 'success',
-    text: JSON.stringify({ kind: 'explanation', text }),
+    text: JSON.stringify({ kind: 'explanation', text, cites: ['e1'] }),
   });
 
   describe('a question left for people', () => {

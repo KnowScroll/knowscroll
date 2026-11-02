@@ -31,13 +31,17 @@ import { deckOf, launchViewOf, startDecision } from './launch-view.js';
 import { ok, refuse, roomEnvelope, type Result, type RoomLock, type RoomPorts } from './ports.js';
 import { awardStar } from './sky.js';
 
+/** A moment after the play time ends, so the settling job never wakes a hair before the server's clock says it is over. */
+const SETTLE_SLACK_MS = 1_000;
+
 /** Results of a Launch that ended before this moment are past their seven days. */
 const resultsKeptUntil = (now: Date): Date => new Date(now.getTime() - RESULTS_KEPT_DAYS * 86_400_000);
 
 /**
  * Settles the room's Launch when its play time has passed (D-178): it is marked finished once, with how many people answered, and
- * the room earns its star when at least two did. There is no job: the first member command in the room after the end settles it
- * (a presence beat, which an open room sends every 25 seconds, or a Launch command), exactly as D-175 settles a constellation's name.
+ * the room earns its star when at least two did. A job queued at the start settles it at the end (D-298); if that does not run, the first
+ * member command in the room after the end does (a presence beat, which an open room sends every 25 seconds, or a Launch command),
+ * as D-175 settles a constellation's name.
  * The Launch row is taken FOR UPDATE, so an answer in flight commits first and the finished Launch holds every answer that was
  * accepted; the sky lock follows it, last, as everywhere. Two commands at once settle it once.
  *
@@ -183,6 +187,17 @@ export function makeLaunch(p: RoomPorts) {
               now,
             });
             await p.launches.addPlayer(lock, launchId, owner.accountId, now);
+            await p.enqueueLaunchSettle(
+              scope,
+              {
+                v: 1,
+                universeId: scope.authority.universeId,
+                privacyEpoch: scope.authority.privacyEpoch,
+                roomId: command.roomId,
+                launchId,
+              },
+              new Date(endsAt(startsAt).getTime() + SETTLE_SLACK_MS),
+            );
             await p.rooms.announce(lock, now);
             return LaunchStartedAcceptanceSchema.parse({
               ...receiptBase(scope, now, command.commandId),

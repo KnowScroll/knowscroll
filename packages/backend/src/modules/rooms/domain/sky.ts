@@ -22,9 +22,6 @@ export interface Sky {
   readonly constellationName?: string;
 }
 
-/** The most stars a room earns on one UTC day unless a world configures another number (R3: nobody can farm the sky). */
-export const STARS_PER_DAY_DEFAULT = 3;
-
 /** A debate earns its star only when at least this many different people voted: a vote of one is not a room's act. */
 export const DEBATE_MIN_VOTERS = 2;
 

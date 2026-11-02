@@ -183,9 +183,10 @@ describe('a scout’s find in the feed', () => {
 });
 
 describe('the feed screen’s scout button', () => {
-  it('is not there while scouts are off in this world', async () => {
+  it('is not there while scouts are off in this world, and nothing on the screen names scouts', async () => {
     await show(feed());
     expect(screen.queryByTestId('feed-scout-open')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/scouts/i)).not.toBeOnTheScreen();
   });
 
   it('offers to send one, then opens the sheet', async () => {

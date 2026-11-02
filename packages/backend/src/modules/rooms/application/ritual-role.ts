@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ProposeOutcome, ReasoningContext, ReasoningRole } from '../../../reasoning/public.js';
 import { alterationProblem, type AlterationProblem, type FlawPlan } from '../domain/flaw.js';
-import { unproposedVerdict, type ContributionVerdict } from './inhabitant-role.js';
+import { unproposedVerdict, type FailedVerdict } from './inhabitant-role.js';
 
 /** Changes with the instructions or the answer schema; recorded on every stored puzzle. */
 export const RITUAL_ROLE_VERSION = 'ritual.1';
@@ -90,7 +90,7 @@ export function ritualContext(plan: FlawPlan, runId: string): ReasoningContext {
 export type RitualVerdict =
   | { readonly kind: 'altered'; readonly text: string; readonly attemptId: string; readonly end: 'completed' }
   | { readonly kind: 'nothing_to_add'; readonly end: 'completed' }
-  | Extract<ContributionVerdict, { readonly kind: 'failed' }>;
+  | FailedVerdict;
 
 /** Reads the harness outcome, with the same failure and dispatch rules as every other call of the room scope. */
 export function ritualVerdict(outcome: ProposeOutcome<RitualAnswer>): RitualVerdict {

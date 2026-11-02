@@ -203,9 +203,9 @@ for (const { name, size } of VIEWPORTS) {
     await expect(page.getByTestId('launch-podium')).toHaveCount(0);
     await expect(page.getByTestId('launch-stage')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Launch, Podium' })).toBeVisible();
-    // The settled Launch was told to the world once by each device that saw it end, and settled once.
+    // The world settled the Launch once by itself, and no device was asked to say it saw the end.
     expect(world.stars).toBe(6);
-    expect(world.calls.filter((call) => call.path.endsWith('/finish') && call.who === 'ravi')).toHaveLength(1);
+    expect(world.calls.filter((call) => call.path.endsWith('/finish'))).toHaveLength(0);
     await shoot(page, `${name}-7-after`);
     expect(await seriousViolations(page)).toEqual([]);
     await other.close();
@@ -231,4 +231,29 @@ test('phone: while recording is paused the Launch says so and an answer is not s
   await expect(page.getByTestId('launch-paused')).toContainText('can’t be played while recording is paused');
   expect(world.calls.filter((call) => call.path.endsWith('/join') || call.path.endsWith('/answer'))).toHaveLength(0);
   expect(await seriousViolations(page)).toEqual([]);
+});
+
+test('opening a room whose Launch ended long ago sends no command (the server settles it by itself)', async ({
+  page,
+}) => {
+  const world = new LaunchWorld(0);
+  world.startsAt = Date.now() - 3 * 60 * 60 * 1000;
+  const { address } = await roomFixture(page, VIEWPORTS[0].size, {
+    others: 1,
+    lastMessageMinutesAgo: 5,
+    noticeSeen: true,
+    launch: () => world.strip(),
+  });
+  await launchRoutes(page, world, 'ravi', scope);
+  const writes: string[] = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (request.method() === 'POST' && /\/v1\/rooms\/launch\/(start|join|answer|finish)$/.test(path)) writes.push(path);
+  });
+  await page.goto(address);
+  await expect(page.getByRole('button', { name: 'Launch, Podium' })).toBeVisible();
+  await page.getByRole('button', { name: 'Launch, Podium' }).click();
+  await expect(page.getByTestId('launch-podium')).toBeVisible();
+  expect(world.calls.some((call) => call.path.endsWith('/read'))).toBe(true);
+  expect(writes).toEqual([]);
 });
