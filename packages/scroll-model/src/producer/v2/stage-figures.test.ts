@@ -339,3 +339,94 @@ describe('a figure and its month in one clause (D-382)', () => {
     expect(stageFigureIsStated(band('december-daylight', '14'), [NATURAL])).toBe(false);
   });
 });
+
+/**
+ * CI FIXTURES: passages in which a unit or a place the writer names stands in the text but belongs to another figure (D-382).
+ * Each sentence is authored about invented places and an invented planet.
+ */
+describe('the unit and the place of a figure are the ones that stand at the figure (D-382)', () => {
+  const MILES_THEN_KM =
+    'At perihelion Orrin is 91.4 million miles (147.1 million kilometres) from Vael, and at aphelion it is 94.5 million miles (152.1 million kilometres).';
+  const KM_THEN_MILES = 'At perihelion Orrin is 147.1 million kilometres (91.4 million miles) from Vael.';
+  const TWO_CITIES =
+    'In June Delhi has 14 hours of daylight, while Sydney has 10 hours. In December Delhi has 10 hours of daylight, while Sydney has 14 hours.';
+  const NATURAL = 'Delhi gets 14 hours of daylight in June and 10 hours in December.';
+  const SYDNEY_IN_JUNE = 'Delhi has 14 hours of daylight in June, while Sydney has 10 hours of daylight in June.';
+  const near = (value: string, unit: string, magnitude: string | undefined = 'million') => ({
+    slot: 'nearest' as const,
+    value,
+    unit,
+    ...(magnitude === undefined ? {} : { magnitude: magnitude as 'million' }),
+  });
+  const band = (slot: 'june-daylight' | 'december-daylight', value: string, place: string) => ({
+    slot,
+    value,
+    unit: 'hours',
+    place,
+  });
+
+  it('takes the unit that follows the figure and not one that stands elsewhere in the passage', () => {
+    expect(stageFigureIsStated(near('91.4', 'miles'), [MILES_THEN_KM])).toBe(true);
+    // "kilometres" is in the passage, but after 147.1, not after 91.4.
+    expect(stageFigureIsStated(near('91.4', 'kilometres'), [MILES_THEN_KM])).toBe(false);
+    expect(stageFigureIsStated(near('147.1', 'kilometres'), [KM_THEN_MILES])).toBe(true);
+    expect(stageFigureIsStated(near('147.1', 'miles'), [KM_THEN_MILES])).toBe(false);
+    expect(stageFigureIsStated({ ...near('94.5', 'miles'), slot: 'farthest' }, [MILES_THEN_KM])).toBe(true);
+    expect(stageFigureIsStated({ ...near('94.5', 'kilometres'), slot: 'farthest' }, [MILES_THEN_KM])).toBe(false);
+    // The unit must follow the word the passage puts after the figure, so a unit before it, or none, does not count.
+    expect(stageFigureIsStated(near('91.4', 'million'), [MILES_THEN_KM])).toBe(false);
+    expect(stageFigureIsStated(near('91.4', ''), [MILES_THEN_KM])).toBe(false);
+  });
+
+  it('takes the place that stands nearest the figure, not another place the passage names', () => {
+    expect(stageFigureIsStated(band('june-daylight', '14', 'Delhi'), [TWO_CITIES])).toBe(true);
+    expect(stageFigureIsStated(band('december-daylight', '10', 'Delhi'), [TWO_CITIES])).toBe(true);
+    // Sydney is named in the passage, but 14 hours in June are Delhi's.
+    expect(stageFigureIsStated(band('june-daylight', '14', 'Sydney'), [TWO_CITIES])).toBe(false);
+    expect(stageFigureIsStated(band('december-daylight', '10', 'Sydney'), [TWO_CITIES])).toBe(false);
+    expect(stageFigureIsStated(band('june-daylight', '10', 'Sydney'), [SYDNEY_IN_JUNE])).toBe(true);
+    expect(stageFigureIsStated(band('june-daylight', '10', 'Delhi'), [SYDNEY_IN_JUNE])).toBe(false);
+    expect(stageFigureIsStated(band('june-daylight', '14', 'Delhi'), [SYDNEY_IN_JUNE])).toBe(true);
+  });
+
+  it('weighs a place written in lower case against the capitalised names around it', () => {
+    expect(stageFigureIsStated(band('june-daylight', '14', 'delhi'), [NATURAL])).toBe(true);
+    expect(stageFigureIsStated(band('june-daylight', '14', 'delhi'), [TWO_CITIES])).toBe(true);
+    expect(stageFigureIsStated(band('june-daylight', '14', 'sydney'), [TWO_CITIES])).toBe(false);
+  });
+
+  it('leaves out, in a compile, the figure whose unit or place belongs to another figure of the passage', () => {
+    const passages = [...FIGURE_PASSAGES, MILES_THEN_KM, TWO_CITIES];
+    const handle = (text: string) => `e${String(passages.indexOf(text) + 1)}`;
+    const input: CompileV2Input = {
+      ...compileInputV2('stage'),
+      evidence: {
+        claimIdOf: new Map(
+          passages.map((_, index): [string, string] => [`e${String(index + 1)}`, `claim-v2-${String(index + 1)}`]),
+        ),
+        quoteOf: new Map(passages.map((text, index): [string, string] => [`claim-v2-${String(index + 1)}`, text])),
+        minDistinctCitations: 4,
+      },
+      sources: passages,
+    };
+    const run = (items: Record<string, unknown>) =>
+      compileAuthoredV2(
+        authoredOrbit((draft) => {
+          withStop(draft, 2, { cites: ['e4', handle(MILES_THEN_KM)], figures: [items] });
+          withStop(draft, 5, { cites: ['e2', handle(TWO_CITIES)], figures: [items] });
+        }),
+        input,
+      );
+    const rightUnit = compiled(run({ slot: 'nearest', value: '91.4', magnitude: 'million', unit: 'miles' }));
+    expect(entryAt(rightUnit.document, 's3')?.state).toMatchObject({ figures: [{ slot: 'nearest', unit: 'miles' }] });
+    const wrongUnit = compiled(run({ slot: 'nearest', value: '91.4', magnitude: 'million', unit: 'kilometres' }));
+    expect(entryAt(wrongUnit.document, 's3')?.state).not.toHaveProperty('figures');
+    expect(wrongUnit.leftOut.map((figure) => figure.slot)).toContain('nearest');
+    const wrongPlace = compiled(run({ slot: 'june-daylight', value: '14', unit: 'hours', place: 'Sydney' }));
+    expect(entryAt(wrongPlace.document, 's6')?.state).not.toHaveProperty('figures');
+    const rightPlace = compiled(run({ slot: 'june-daylight', value: '14', unit: 'hours', place: 'Delhi' }));
+    expect(entryAt(rightPlace.document, 's6')?.state).toMatchObject({
+      figures: [{ slot: 'june-daylight', place: 'Delhi' }],
+    });
+  });
+});

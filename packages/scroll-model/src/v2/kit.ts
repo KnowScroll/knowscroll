@@ -153,10 +153,18 @@ const DAYLIGHT_SLOTS: readonly StageFigureSlot[] = ['june-daylight', 'december-d
 const HOURS_OF_DAY = 24;
 const HOURS_UNIT = /^hours?$/iu;
 
+/** Two units, or two places, are the same when they differ only in case, spacing and a plural s. */
+const sameWords = (first: string, second: string): boolean => {
+  const normal = (text: string): string => text.trim().toLowerCase().replace(/\s+/gu, ' ').replace(/s$/u, '');
+  return normal(first) === normal(second);
+};
+
 /**
  * The figures a view can really draw, in the order of the slots, one for each slot (the first written). A figure the view
  * does not draw is set aside; a daylight figure is kept only with a place and in hours of at most a day; a place on a
- * distance is dropped. Idempotent.
+ * distance is dropped. A comparison needs one measure: the two distances are kept only if they are in the same unit, and the
+ * two bands only if they are about the same place, since a picture of two places or two units states a comparison no passage made.
+ * Idempotent.
  */
 function settleFigures(view: StageView, figures: readonly StageFigure[] | undefined): StageFigure[] {
   const settled: StageFigure[] = [];
@@ -167,7 +175,11 @@ function settleFigures(view: StageView, figures: readonly StageFigure[] | undefi
     else if (figure.place !== undefined && HOURS_UNIT.test(figure.unit.trim()) && figure.value <= HOURS_OF_DAY)
       settled.push({ slot, value: figure.value, unit: figure.unit, place: figure.place });
   }
-  return settled;
+  const distances = settled.filter((figure) => !DAYLIGHT_SLOTS.includes(figure.slot));
+  const bands = settled.filter((figure) => DAYLIGHT_SLOTS.includes(figure.slot));
+  const unitsAgree = distances.every((figure) => sameWords(figure.unit, distances[0]?.unit ?? ''));
+  const placesAgree = bands.every((figure) => sameWords(figure.place ?? '', bands[0]?.place ?? ''));
+  return [...(unitsAgree ? distances : []), ...(placesAgree ? bands : [])];
 }
 
 /**

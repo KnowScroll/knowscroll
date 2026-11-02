@@ -474,3 +474,54 @@ describe('the figures a state may carry (D-382)', () => {
     expect(accepts({ ...orbit, figures: [nearest, farthest, june, december, nearest] })).toBe(false);
   });
 });
+
+describe('a picture states one measure and one place (D-382)', () => {
+  const orbit = { view: 'orbit', earthAt: 'oct', moonAt: 'off', focus: 'none' } as const;
+  const sunEarth = { ...orbit, view: 'sun-earth', earthAt: 'jun' } as const;
+  const nearest: StageFigure = { slot: 'nearest', value: 91_400_000, unit: 'miles' };
+  const farthest: StageFigure = { slot: 'farthest', value: 94_500_000, unit: 'miles' };
+  const june: StageFigure = { slot: 'june-daylight', value: 14, unit: 'hours', place: 'Delhi' };
+  const december: StageFigure = { slot: 'december-daylight', value: 10, unit: 'hours', place: 'Delhi' };
+
+  it('keeps the two distances only in one unit, whatever the case or a plural s', () => {
+    expect(settleStageState({ ...orbit, figures: [nearest, farthest] }).figures).toEqual([nearest, farthest]);
+    expect(settleStageState({ ...orbit, figures: [nearest, { ...farthest, unit: 'Miles' }] }).figures).toHaveLength(2);
+    expect(settleStageState({ ...orbit, figures: [nearest, { ...farthest, unit: ' mile ' }] }).figures).toHaveLength(2);
+    // 91.4 million miles beside 152.1 million kilometres is no comparison any passage made.
+    expect(settleStageState({ ...orbit, figures: [nearest, { ...farthest, unit: 'kilometres' }] })).not.toHaveProperty(
+      'figures',
+    );
+    // One distance alone has nothing to disagree with.
+    expect(settleStageState({ ...orbit, figures: [{ ...farthest, unit: 'kilometres' }] }).figures).toHaveLength(1);
+  });
+
+  it('keeps the two bands only for one place, whatever the case or the spacing', () => {
+    expect(settleStageState({ ...sunEarth, figures: [june, december] }).figures).toEqual([june, december]);
+    expect(settleStageState({ ...sunEarth, figures: [june, { ...december, place: ' DELHI ' }] }).figures).toHaveLength(
+      2,
+    );
+    // Delhi's June beside Sydney's December is a picture of no place.
+    expect(settleStageState({ ...sunEarth, figures: [june, { ...december, place: 'Sydney' }] })).not.toHaveProperty(
+      'figures',
+    );
+    expect(settleStageState({ ...sunEarth, figures: [{ ...december, place: 'Sydney' }] }).figures).toHaveLength(1);
+  });
+
+  it('is idempotent with the new rules, for every pair of figures', () => {
+    const figures = fc.subarray([
+      nearest,
+      farthest,
+      { ...farthest, unit: 'kilometres' },
+      june,
+      december,
+      { ...december, place: 'Sydney' },
+    ]);
+    fc.assert(
+      fc.property(anyState, figures, (state, chosen) => {
+        const settled = settleStageState({ ...state, figures: chosen });
+        expect(settleStageState(settled)).toEqual(settled);
+        expect(StageStateSchema.safeParse(settled).success).toBe(true);
+      }),
+    );
+  });
+});

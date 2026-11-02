@@ -446,6 +446,8 @@ describe('the stage plan of a recipe: orbit months, figures and the reveal (D-38
     expect(text).toContain('2 different months at least');
     expect(text).toContain('FIGURES ON THE PICTURE (nearest, farthest, june-daylight, december-daylight)');
     expect(text).toContain('Never convert one unit to another');
+    expect(text).toContain('The unit is the word that follows the figure');
+    expect(text).toContain('Both distances must use one unit and both bands one place');
     expect(text).toContain('code leaves out any figure that no cited passage of the stop states');
     expect(text).toContain('THE FIRST CALL TURNS THE PICTURE');
     expect(text).toContain('"revealsNext":true');

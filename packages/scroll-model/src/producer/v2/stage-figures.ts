@@ -5,7 +5,7 @@ import type { AuthoringEvidence } from '../authoring-bind.js';
 import { isFigure, type StagePlanV2 } from './assemble.js';
 import type { AuthoredScrollV2, AuthoredStageFigure } from './authoring-schema.js';
 import { numericTokens } from '../../text.js';
-import { plainFigure, readingsOf, unitInPassages, type Reading } from './figures.js';
+import { plainFigure, readingsOf, type Reading } from './figures.js';
 
 /**
  * What a passage must say beside a figure for the figure to belong to its slot (D-382): the word that names the end of the
@@ -69,27 +69,145 @@ function slotNear(text: string, index: number, family: readonly StageFigureSlot[
   return ranked[0] !== undefined && ranked[0][1] > (ranked[1]?.[1] ?? 0) ? ranked[0][0] : undefined;
 }
 
+const MONTHS = new Set([
+  'january',
+  'february',
+  'march',
+  'april',
+  'may',
+  'june',
+  'july',
+  'august',
+  'september',
+  'october',
+  'november',
+  'december',
+]);
+
+/** Words a place name may hold between its capitalised words ("Stratford upon Avon", "Rio de Janeiro"). */
+const PLACE_CONNECTORS = new Set(['of', 'de', 'la', 'le', 'du', 'del', 'upon', 'on', 'the']);
+
+interface Span {
+  readonly start: number;
+  readonly end: number;
+}
+
 /**
- * Whether the cited passages state a figure of the stage as the figure is written (D-208, D-382): its digits with the word the
- * passage puts after them, standing beside the word that names its slot, in the unit and the place the passages use. A
- * figure the passages write another way (a range end, an exponent, a scaled `8.3m`), and a figure no passage holds, are not stated.
+ * The names of places a passage could be giving a figure to: each run of capitalised words (a month is no name), and every place
+ * where the place the writer gave is written, in any case. The writer's place stands in the list as itself, so a lower-case
+ * name is still weighed against the capitalised ones around it.
+ */
+function placeMentions(text: string, claimed: string): { readonly names: Span[]; readonly claimed: Span[] } {
+  const words = [...text.matchAll(/\p{L}[\p{L}'’-]*/gu)].map((match) => ({
+    start: match.index,
+    end: match.index + match[0].length,
+    word: match[0],
+  }));
+  const names: Span[] = [];
+  let run: Span | undefined;
+  /** Where a connector word right after the run ends, so that the next capitalised word may join across it. */
+  let connectorEnd: number | undefined;
+  const close = (): void => {
+    if (run !== undefined) names.push(run);
+    run = undefined;
+    connectorEnd = undefined;
+  };
+  const spaceBetween = (from: number, to: number): boolean => /^\s+$/u.test(text.slice(from, to));
+  for (const entry of words) {
+    const capital = /^\p{Lu}/u.test(entry.word) && !MONTHS.has(entry.word.toLowerCase());
+    if (capital) {
+      const joins =
+        run !== undefined &&
+        (spaceBetween(run.end, entry.start) || (connectorEnd !== undefined && spaceBetween(connectorEnd, entry.start)));
+      if (run !== undefined && joins) run = { start: run.start, end: entry.end };
+      else {
+        close();
+        run = { start: entry.start, end: entry.end };
+      }
+      connectorEnd = undefined;
+    } else if (
+      run !== undefined &&
+      connectorEnd === undefined &&
+      PLACE_CONNECTORS.has(entry.word.toLowerCase()) &&
+      spaceBetween(run.end, entry.start)
+    )
+      connectorEnd = entry.end;
+    else close();
+  }
+  close();
+  const wanted = claimed.trim().replace(/\s+/gu, ' ').toLowerCase();
+  const lowered = text.toLowerCase();
+  const claims: Span[] = [];
+  for (let from = lowered.indexOf(wanted); wanted !== '' && from >= 0; from = lowered.indexOf(wanted, from + 1)) {
+    const before = lowered.charAt(from - 1);
+    const after = lowered.charAt(from + wanted.length);
+    if (!/\p{L}/u.test(before) && !/\p{L}/u.test(after)) claims.push({ start: from, end: from + wanted.length });
+  }
+  const overlaps = (name: Span): boolean => claims.some((claim) => claim.start < name.end && name.start < claim.end);
+  return { names: names.filter((name) => !overlaps(name)), claimed: claims };
+}
+
+/** Whether the place the writer gave is the name that stands nearest to the figure at `span` of `text`, within reach. */
+function placeIsNearest(text: string, span: Span, place: string): boolean {
+  const { names, claimed } = placeMentions(text, place);
+  const gaps = (spans: readonly Span[]): number[] =>
+    spans.map((mention) => gapBetween(span.start, span.end, mention.start, mention.end));
+  const own = Math.min(...gaps(claimed), Infinity);
+  return own <= CUE_REACH && own <= Math.min(...gaps(names), Infinity);
+}
+
+/** The lower-case words of a unit or a stretch of text, a plural s cut off, so "Kilometres" and "kilometre" are one word. */
+const unitWords = (text: string): string[] =>
+  (text.toLowerCase().match(/\p{L}+/gu) ?? []).map((word) => word.replace(/s$/u, ''));
+
+/**
+ * Whether the words right after the figure at `span` of `text` are the unit the writer gave: first the magnitude word the writer
+ * gave, if any, then the unit's own words, one for one. A unit that stands elsewhere in the passage (the other half of "91.4 million
+ * miles (147.1 million kilometres)") belongs to another figure.
+ */
+function unitFollows(text: string, span: Span, magnitude: string | undefined, unit: string): boolean {
+  const wanted = unitWords(unit);
+  if (wanted.length === 0) return false;
+  const following = unitWords(
+    [...text.slice(span.end).matchAll(/\p{L}+/gu)]
+      .slice(0, wanted.length + 1)
+      .map((match) => match[0])
+      .join(' '),
+  );
+  const rest = magnitude === undefined ? following : following.slice(1);
+  if (magnitude !== undefined && following[0] !== unitWords(magnitude)[0]) return false;
+  return wanted.every((word, at) => rest[at] === word);
+}
+
+/**
+ * Whether the cited passages state a figure of the stage as the figure is written (D-208, D-382). Every part is judged at one place
+ * in one passage, the place of the figure itself: its digits with the word the passage puts after them; the unit as the next word
+ * after the figure and its magnitude; the word that names its slot standing beside it; and, for a daylight figure, the place name
+ * standing nearer to it than any other name. So a unit or a place that the passages hold but that belongs to another figure does not
+ * count. A figure the passages write another way (a range end, an exponent, a scaled `8.3m`), and a figure no passage holds, are not stated.
  */
 export function stageFigureIsStated(figure: AuthoredStageFigure, quotes: readonly string[]): boolean {
   if (!isFigure(figure.value)) return false;
   const digits = plainFigure(String(figure.value).trim());
   const wanted: Reading = figure.magnitude ?? 'bare';
-  const beside = quotes.some((quote) =>
-    readingsOf(digits, [quote]).some(
-      (way) =>
+  const daylight = figure.slot === 'june-daylight' || figure.slot === 'december-daylight';
+  if (daylight && figure.place === undefined) return false;
+  return quotes.some((quote) => {
+    const numbers = numericTokens(quote);
+    return readingsOf(digits, [quote]).some((way) => {
+      const token = numbers.find(([start, end]) => way.index >= start && way.index < end);
+      if (token === undefined) return false;
+      const span = { start: token[0], end: token[1] };
+      return (
         way.reading === wanted &&
         way.otherEnd === undefined &&
         !way.negative &&
-        slotNear(quote, way.index, FAMILY[figure.slot]) === figure.slot,
-    ),
-  );
-  const daylight = figure.slot === 'june-daylight' || figure.slot === 'december-daylight';
-  const placeStated = daylight ? figure.place !== undefined && unitInPassages(figure.place, quotes) : true;
-  return beside && unitInPassages(figure.unit, quotes) && placeStated;
+        slotNear(quote, way.index, FAMILY[figure.slot]) === figure.slot &&
+        unitFollows(quote, span, figure.magnitude, figure.unit) &&
+        (!daylight || placeIsNearest(quote, span, figure.place ?? ''))
+      );
+    });
+  });
 }
 
 /** One figure the writer gave that no cited passage states, left out of the picture. */
