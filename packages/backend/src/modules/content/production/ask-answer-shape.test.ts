@@ -3,11 +3,14 @@ import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { MIN_SERVED_SENTENCES } from '../domain/ask-support.js';
 import {
   ANSWER_LENGTH_CODE,
+  ASK_ANSWER_CEILING_SENTENCES,
+  ASK_ANSWER_FLOOR_SENTENCES,
   ASK_ANSWER_MAX_SENTENCES,
   ASK_ANSWER_MIN_SENTENCES,
-  LEANING_SENTENCE_CODE,
+  answerLengthHint,
   answerShapeIssues,
   leansOnPrevious,
+  readingSentencesOf,
 } from './ask-answer-shape.js';
 
 /** Labelled CI text about an invented lighthouse: never provider output and never product content. */
@@ -26,30 +29,26 @@ const withSentences = (count: number) =>
   answerOf([
     { type: 'heading', text: 'The beam' },
     ...Array.from({ length: count - 2 }, (_unused, index) =>
-      paragraph(`Sentence number ${'abcdefghijklmnop'[index]!}.`),
+      paragraph(`Sentence number ${String.fromCharCode(97 + index)}.`),
     ),
     limit,
   ]);
 
-describe('the length of the answer to a question (D-308)', () => {
-  it('is 8 to 12 sentences of reading text for the writer’s draft: the dek and callout text count, labels do not', () => {
+describe('the length of the answer to a question (D-308, D-349)', () => {
+  it('is asked for as 8 to 12 sentences of reading text, and the hint names that range', () => {
     expect([ASK_ANSWER_MIN_SENTENCES, ASK_ANSWER_MAX_SENTENCES]).toEqual([8, 12]);
-    const lengthFindings = (count: number) =>
-      answerShapeIssues(withSentences(count), 'draft').filter((issue) => issue.code === ANSWER_LENGTH_CODE);
-    expect(lengthFindings(7)).toEqual([{ code: ANSWER_LENGTH_CODE, path: '$' }]);
-    expect(lengthFindings(8)).toEqual([]);
-    expect(lengthFindings(12)).toEqual([]);
-    expect(lengthFindings(13)).toEqual([{ code: ANSWER_LENGTH_CODE, path: '$' }]);
+    expect(answerLengthHint()).toContain('must have 8 to 12 sentences');
+    expect(answerLengthHint().length).toBeLessThanOrEqual(256);
   });
 
-  it('is 5 to 12 after a support check, when sentences may have been taken out on purpose', () => {
-    expect(MIN_SERVED_SENTENCES).toBe(5);
-    const after = (count: number) =>
-      answerShapeIssues(withSentences(count), 'after_check').filter((issue) => issue.code === ANSWER_LENGTH_CODE);
-    expect(after(4)).toHaveLength(1);
-    expect(after(5)).toEqual([]);
-    expect(after(12)).toEqual([]);
-    expect(after(13)).toHaveLength(1);
+  it('is refused only below 5 or above 20 sentences of reading text: the dek and callout text count, labels do not', () => {
+    expect([ASK_ANSWER_FLOOR_SENTENCES, ASK_ANSWER_CEILING_SENTENCES]).toEqual([5, 20]);
+    expect(ASK_ANSWER_FLOOR_SENTENCES).toBe(MIN_SERVED_SENTENCES);
+    const lengthFindings = (count: number) => answerShapeIssues(withSentences(count));
+    expect(lengthFindings(4)).toEqual([{ code: ANSWER_LENGTH_CODE, path: '$' }]);
+    for (const count of [5, 7, 8, 12, 13, 17, 20]) expect(lengthFindings(count), String(count)).toEqual([]);
+    expect(lengthFindings(21)).toEqual([{ code: ANSWER_LENGTH_CODE, path: '$' }]);
+    expect(lengthFindings(22)).toEqual([{ code: ANSWER_LENGTH_CODE, path: '$' }]);
   });
 
   it('counts every sentence of a paragraph, a list item and a callout, not every block', () => {
@@ -59,7 +58,8 @@ describe('the length of the answer to a question (D-308)', () => {
       { ...limit, text: 'Seven. Eight.' },
     ]);
     // The dek, three, three and two: nine.
-    expect(answerShapeIssues(answer, 'draft')).toEqual([]);
+    expect(readingSentencesOf(answer)).toBe(9);
+    expect(answerShapeIssues(answer)).toEqual([]);
   });
 });
 
@@ -97,27 +97,13 @@ describe('a sentence that leans on the one before it (D-309)', () => {
       expect(leansOnPrevious(sentence), sentence).toBe(false);
   });
 
-  it('is refused after the first sentence of a block, once for each block, and the first sentence of any block may begin so', () => {
+  it('is no finding of the shape: a draft whose sentences lean is not refused (D-348)', () => {
     const answer = answerOf([
       paragraph('This lamp is old. It was lit by hand. They kept it burning.'),
       paragraph('The beam turns. That is why sailors see a flash.'),
       { type: 'list', cites: ['e1'], items: ['This item opens the list.', 'Another item. It follows.'] },
-      { type: 'list', cites: ['e1'], items: ['The first item.', 'It is a second item.'] },
       { ...limit, text: 'This answer is short. It leaves out radio.' },
     ]);
-    const leaning = answerShapeIssues(answer, 'draft').filter((issue) => issue.code === LEANING_SENTENCE_CODE);
-    // Blocks 0 to 4 are paragraph, paragraph, list, list, callout. Each has a leaning sentence after its first one; the first sentence
-    // of the third block, which opens it, is the only "This" that is allowed.
-    expect(leaning.map((issue) => issue.path)).toEqual(['blocks.0', 'blocks.1', 'blocks.2', 'blocks.3', 'blocks.4']);
-  });
-
-  it('is allowed as the opening sentence of every block, and in a title, a heading or a callout title', () => {
-    const answer = answerOf([
-      { type: 'heading', text: 'This is a heading' },
-      paragraph('This opens the first paragraph. The beam turns.'),
-      paragraph('It opens the second. The beam is thin.'),
-      { ...limit, title: 'It stops here', text: 'This answer leaves out radio.' },
-    ]);
-    expect(answerShapeIssues(answer, 'draft').filter((issue) => issue.code === LEANING_SENTENCE_CODE)).toEqual([]);
+    expect(answerShapeIssues(answer)).toEqual([]);
   });
 });

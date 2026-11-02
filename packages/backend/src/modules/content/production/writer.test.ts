@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { AuthoredScroll, COPY_RUN_WORDS, copiedRuns } from '@knowscroll/scroll-model/producer';
 import { extractResearch } from '../../../infrastructure/research/public-pages.js';
 import { evidencePassages } from './evidence.js';
+import { FALLBACK_TITLE, NEUTRAL_DEK, trimAskAnswer } from './ask-answer-trim.js';
 import {
+  askTrimRules,
   compileGeneratedScroll,
   COPY_RULE_EXAMPLE,
   generatedProvenance,
@@ -74,6 +76,9 @@ const comparison = {
     ['Flashes can be counted', 'Sound signals take over'],
   ],
 };
+/** The fixed code a writer finding carries to the harness's one repair (set with `params.safeCode`). */
+const safeCodeOf = (issue: unknown): string | undefined =>
+  (issue as { params?: { safeCode?: string } }).params?.safeCode;
 const scroll = (blocks: AuthoredScroll['blocks'], title = 'How a lighthouse guides ships') =>
   AuthoredScroll.parse({
     title,
@@ -205,6 +210,17 @@ describe('the instructions for the answer to one question (D-218)', () => {
     // D-309: each sentence stands on its own, so one can be taken out without the next losing its meaning.
     expect(text).toContain('Make every sentence stand on its own');
     expect(text).toContain('must not begin with “This”, “That”, “These”, “Those”, “It” or “They”');
+    // D-347 to D-349: the instructions say what code does, never that the answer is refused for what code takes out.
+    expect(text).toContain('Only an answer of fewer than 5 or more than 20 sentences is refused');
+    expect(text).toContain(
+      'is taken out whenever the sentence before it is, and so is the first sentence of the answer',
+    );
+    expect(text).toContain(
+      'a sentence with one is taken out before anyone reads it, and the answer is refused if too little is left',
+    );
+    expect(text).not.toContain('An answer outside that range is refused');
+    expect(text).not.toContain('An answer with such an opening is refused');
+    expect(text).not.toContain('an answer with one is refused before anyone reads it');
     expect(text).toContain('say plainly what they do not cover');
     expect(text).toContain('Use prose only');
     // D-250: the reason a "why" question asks for is the passages’ own, a gap is said in one sentence, and each sentence is checked.
@@ -234,7 +250,7 @@ describe('the instructions for the answer to one question (D-218)', () => {
     expect(writerInstructions('comparison', 'what_if')).not.toContain('THIS IS ANSWERING ONE QUESTION');
     for (const other of [writerInstructions('plain'), writerInstructions('comparison', 'what_if')])
       expect(other).not.toContain('State each fact in the passages’ own terms');
-    expect(QUESTION_WRITER_PROMPT_VERSION).toBe('question-writer.v7');
+    expect(QUESTION_WRITER_PROMPT_VERSION).toBe('question-writer.v8');
   });
 
   it('record their own prompt version, a one-to-two-minute target and a hint for the length, not the library’s', () => {
@@ -267,8 +283,8 @@ describe('the instructions for the answer to one question (D-218)', () => {
     prose('Sailors compare the rhythm of flashes with a chart to name the tower they pass.', ['e3']),
     prose('Where fog hides the lamp, a horn takes over and carries the warning by sound.', ['e4']),
   ];
-  const codesOf = (blocks: AuthoredScroll['blocks'], stage?: 'draft' | 'after_check') => {
-    const outcome = compileGeneratedScroll(scroll(blocks), questionProvenance, passages, 'plain', stage);
+  const codesOf = (blocks: AuthoredScroll['blocks']) => {
+    const outcome = compileGeneratedScroll(scroll(blocks), questionProvenance, passages, 'plain');
     return outcome.kind === 'refused' ? outcome.issues : [];
   };
 
@@ -347,8 +363,9 @@ describe('the instructions for the answer to one question (D-218)', () => {
     });
   });
 
-  it('names every block of an answer that copies, in the one repair, and none of the model’s own words (D-294)', () => {
-    const role = writerRole({ provenance: questionProvenance, passages, format: 'plain', mode: 'question' });
+  it('names every block of a library answer that copies, in the one repair, and none of the model’s own words (D-294)', () => {
+    // The library's repair is unchanged: the whole block is refused, so the notes name it.
+    const role = writerRole({ provenance, passages, format: 'plain' });
     const plainOf = (text: string) => text.toLowerCase().replace(/[^a-z\s]/gu, '');
     const answer = scroll([
       prose(SOURCE[0]!, ['e1']),
@@ -358,7 +375,7 @@ describe('the instructions for the answer to one question (D-218)', () => {
       prose(`${SOURCE[3]} Its own tail has quite different words.`, ['e4']),
       limit,
     ]);
-    const refused = compileGeneratedScroll(answer, questionProvenance, passages, 'plain');
+    const refused = compileGeneratedScroll(answer, provenance, passages, 'plain');
     for (const path of ['blocks.1', 'blocks.3', 'blocks.5'])
       expect(refused.kind === 'refused' && refused.issues).toContainEqual({ code: 'copied_passage', path });
     const notes = role.repairNotes?.(JSON.stringify(answer)) ?? '';
@@ -373,6 +390,34 @@ describe('the instructions for the answer to one question (D-218)', () => {
     expect(notes).toContain('keep its key terms');
   });
 
+  it('gives the answer to a question no copy notes for what code takes out, and locates a finding at the block of the draft (D-347)', () => {
+    const role = writerRole({ provenance: questionProvenance, passages, format: 'plain', mode: 'question' });
+    const copying = scroll([
+      ASKED_BODY[0]!,
+      prose(SOURCE[0]!, ['e1']),
+      ...ASKED_BODY.slice(1),
+      prose(`${SOURCE[3]} Its own tail has quite different words.`, ['e4']),
+      limit,
+    ]);
+    // The copied sentences are taken out before the compile, so there is nothing to name in the repair.
+    expect(role.repairNotes?.(JSON.stringify(copying))).toBeUndefined();
+    // A finding the writer must fix is located at the block it came from in the draft, though a block before it was taken out.
+    const named = scroll([
+      ASKED_BODY[0]!,
+      prose(SOURCE[0]!, ['e1']),
+      ...ASKED_BODY.slice(1),
+      prose('The Skerry lighthouse beam is described by the NASA team.', ['e2']),
+      limit,
+    ]);
+    const parsed = role.outputSchema.safeParse(named);
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    expect(parsed.error.issues.map((issue) => issue.path.join('.'))).toEqual([
+      `blocks.${String(ASKED_BODY.length + 2)}`,
+    ]);
+    // Block 2 was taken out whole, so the block after the draft's last paragraph stands one place earlier in the compile than in the draft.
+  });
+
   it('accept a short prose answer with no rich block, which the library would refuse as too short', () => {
     const short = scroll([...ASKED_BODY, limit]);
     const asked = compileGeneratedScroll(short, questionProvenance, passages, 'plain');
@@ -384,14 +429,11 @@ describe('the instructions for the answer to one question (D-218)', () => {
     );
   });
 
-  it('hold the answer to 8 to 12 sentences of reading text, the title, the headings and a callout title not counted (D-308)', () => {
+  it('hold the answer to 5 to 20 sentences of reading text, and ask for 8 to 12, the title, the headings and a callout title not counted (D-308, D-349)', () => {
     // The dek is one sentence and the limit callout's text another; the title, the heading and the callout title are labels.
     const withParagraphs = (count: number) => [
       ...Array.from({ length: count }, (_unused, index) =>
-        prose(
-          `Ships learn from lamp number ${['alpha', 'beta', 'gamma', 'delta', 'omega', 'sigma', 'theta', 'kappa', 'lambda', 'upsilon', 'zeta', 'iota', 'rho'][index]!} on the coast.`,
-          ['e2'],
-        ),
+        prose(`Ships learn from lamp ${String.fromCharCode(97 + index).repeat(3)} on the coast.`, ['e2']),
       ),
       limit,
     ];
@@ -399,83 +441,134 @@ describe('the instructions for the answer to one question (D-218)', () => {
       codesOf(blocks)
         .filter((issue) => issue.code === 'answer_sentences_out_of_brief')
         .map((issue) => issue.path);
-    // 5 paragraphs + the dek + the limit text = 7: too few. 6 makes 8; 10 makes 12; 11 makes 13: too many.
-    expect(lengthCodes(withParagraphs(5))).toEqual(['$']);
+    // The paragraphs, the dek and the limit text: 2 paragraphs make 4, 3 make 5, 18 make 20 and 19 make 21.
+    expect(lengthCodes(withParagraphs(2))).toEqual(['$']);
+    expect(lengthCodes(withParagraphs(3))).toEqual([]);
     expect(lengthCodes(withParagraphs(6))).toEqual([]);
-    expect(lengthCodes(withParagraphs(10))).toEqual([]);
-    expect(lengthCodes(withParagraphs(11))).toEqual(['$']);
-    // The same answer is served with fewer, to a floor of five, after a support check took sentences out of it.
-    const five = withParagraphs(3);
-    expect(codesOf(five, 'after_check').map((issue) => issue.code)).not.toContain('answer_sentences_out_of_brief');
-    expect(codesOf(five).map((issue) => issue.code)).toContain('answer_sentences_out_of_brief');
-    expect(codesOf(withParagraphs(2), 'after_check').map((issue) => issue.code)).toContain(
-      'answer_sentences_out_of_brief',
-    );
-    expect(codesOf(withParagraphs(11), 'after_check').map((issue) => issue.code)).toContain(
-      'answer_sentences_out_of_brief',
-    );
+    expect(lengthCodes(withParagraphs(11))).toEqual([]);
+    expect(lengthCodes(withParagraphs(18))).toEqual([]);
+    expect(lengthCodes(withParagraphs(19))).toEqual(['$']);
   });
 
-  it('refuse a sentence after the first of its block that begins with This, That, These, Those, It or They, naming the block (D-309)', () => {
-    // The first block of the answer is the heading, so the first paragraph is blocks.1.
-    const leaning = (text: string) =>
-      codesOf([prose(text, ['e2']), ...ASKED_BODY.slice(1), limit])
-        .filter((issue) => issue.code === 'sentence_leans_on_previous')
-        .map((issue) => issue.path);
-    for (const opening of ['This', 'That', 'These', 'Those', 'It', 'They', 'It’s'])
-      expect(leaning('Glass rings bend the glow. ' + opening + ' is the way a beam is made.')).toEqual(['blocks.1']);
-    // The first sentence of a block opens it and may begin so; any other word is fine anywhere.
-    expect(leaning('This lamp is the first thing ships see. Glass rings bend its glow.')).toEqual([]);
-    expect(leaning('Glass rings bend the glow. Thistles grow near the tower. Items on the shelf are old.')).toEqual([]);
-    expect(leaning('Glass rings bend the glow. The beam is thin. Each ring adds to it.')).toEqual([]);
-    // A list item and a callout text count too: the second item of a list, and the second sentence of a callout.
-    const inList = codesOf([
-      ...ASKED_BODY,
-      { type: 'list' as const, cites: ['e2'], items: ['Rings bend the glow.', 'It makes a narrow beam.'] },
+  it('accept a draft whose sentences lean: leaning is the trim’s business, never a finding of the writer’s validator (D-348)', () => {
+    const role = writerRole({ provenance: questionProvenance, passages, format: 'plain', mode: 'question' });
+    const leaning = scroll([
+      prose('Glass rings bend the glow. This is the way a beam is made. It is thin. They are glass.', ['e2']),
+      ...ASKED_BODY.slice(1),
       limit,
     ]);
-    expect(inList.filter((issue) => issue.code === 'sentence_leans_on_previous')).toEqual([
-      { code: 'sentence_leans_on_previous', path: `blocks.${String(ASKED_BODY.length + 1)}` },
+    expect(role.outputSchema.safeParse(leaning).success).toBe(true);
+    expect(codesOf(leaning.blocks.slice(1)).map((issue) => issue.code)).not.toContain('sentence_leans_on_previous');
+    // The first sentence of the answer leans on nothing: the validator accepts the draft, and code takes the sentence out.
+    const opening = scroll([
+      prose('This lamp is the first thing ships see. Glass rings bend the glow.', ['e2']),
+      ...ASKED_BODY.slice(1),
+      limit,
     ]);
-    const inCallout = codesOf([
-      ...ASKED_BODY,
-      { ...limit, text: 'This answer ignores radio. It also leaves out satellite navigation.' },
-    ]);
-    expect(inCallout.filter((issue) => issue.code === 'sentence_leans_on_previous')).toEqual([
-      { code: 'sentence_leans_on_previous', path: `blocks.${String(ASKED_BODY.length + 1)}` },
-    ]);
-    // One finding for each block, however many of its sentences lean.
-    expect(
-      codesOf([
-        prose('Rings bend the glow. It is thin. It is bright. They are glass.', ['e2']),
-        ...ASKED_BODY.slice(1),
-        limit,
-      ]).filter((issue) => issue.code === 'sentence_leans_on_previous'),
-    ).toHaveLength(1);
+    expect(role.outputSchema.safeParse(opening).success).toBe(true);
+    expect(role.safeCustomIssues).not.toHaveProperty('sentence_leans_on_previous');
   });
 
-  it('give the writer a fixed hint for each shape finding, short enough for the harness, and no model text (D-308, D-309)', () => {
+  it('checks the draft as it would be served: copied sentences are taken out first, and a draft left too short is refused (D-347)', () => {
     const role = writerRole({ provenance: questionProvenance, passages, format: 'plain', mode: 'question' });
-    expect(role.safeCustomIssues?.['answer_sentences_out_of_brief']).toContain('8 to 12 sentences');
-    expect(role.safeCustomIssues?.['sentence_leans_on_previous']).toContain('This, That, These, Those, It or They');
-    for (const code of ['answer_sentences_out_of_brief', 'sentence_leans_on_previous'])
+    const codes = (answer: AuthoredScroll) => {
+      const parsed = role.outputSchema.safeParse(answer);
+      return parsed.success ? [] : parsed.error.issues.map((issue) => safeCodeOf(issue));
+    };
+    // Eleven sentences of reading text, two of them copied: nine are left, and the draft is accepted.
+    const copying = scroll([ASKED_BODY[0]!, prose(`${SOURCE[1]} ${SOURCE[0]}`, ['e1']), ...ASKED_BODY.slice(1), limit]);
+    expect(codes(copying)).toEqual([]);
+    // Both sentences of the opening paragraph copied, and nothing else is: the direct answer is gone.
+    const lost = codes(
+      scroll([prose(`${SOURCE[1]} ${SOURCE[0]}`, ['e1']), prose('Sailors count the beam.', ['e3']), limit]),
+    );
+    expect(lost).toContain('direct_answer_lost');
+    expect(lost).toContain('answer_sentences_out_of_brief');
+    // A draft with only four sentences of reading text left is refused for its length, as it would be served.
+    const thin = scroll([prose('Glass rings bend the glow.', ['e2']), prose(SOURCE[1]!, ['e2']), limit]);
+    expect(codes(thin)).toContain('answer_sentences_out_of_brief');
+    expect(codes(thin)).not.toContain('direct_answer_lost');
+  });
+
+  it('refuses a draft of more than 20 sentences of reading text, and takes the count after the copied sentences are out', () => {
+    const role = writerRole({ provenance: questionProvenance, passages, format: 'plain', mode: 'question' });
+    const paragraphs = (count: number) =>
+      Array.from({ length: count }, (_unused, index) =>
+        prose(`Ships learn from lamp ${String.fromCharCode(97 + index).repeat(3)} on the coast.`, [
+          `e${String((index % 5) + 1)}`,
+        ]),
+      );
+    const longDraft = scroll([...paragraphs(20), limit]);
+    const parsedLong = role.outputSchema.safeParse(longDraft);
+    expect(parsedLong.success).toBe(false);
+    expect(!parsedLong.success && parsedLong.error.issues.map((issue) => safeCodeOf(issue))).toEqual([
+      'answer_sentences_out_of_brief',
+    ]);
+    // 19 paragraphs, the dek and the limit make 21; one copied sentence taken out leaves 20, which is served.
+    const copiedOne = scroll([...paragraphs(18), prose(SOURCE[1]!, ['e2']), limit]);
+    expect(role.outputSchema.safeParse(copiedOne).success).toBe(true);
+  });
+
+  it('give the writer a fixed hint for each shape finding, short enough for the harness, and no model text (D-308, D-347)', () => {
+    const role = writerRole({ provenance: questionProvenance, passages, format: 'plain', mode: 'question' });
+    expect(role.safeCustomIssues?.['answer_sentences_out_of_brief']).toContain('must have 8 to 12 sentences');
+    expect(role.safeCustomIssues?.['direct_answer_lost']).toContain('opening paragraph');
+    for (const code of ['answer_sentences_out_of_brief', 'direct_answer_lost'])
       expect(role.safeCustomIssues?.[code]?.length).toBeLessThanOrEqual(256);
     // The reading-time finding of a question names the same range.
     expect(role.safeCustomIssues?.['reading_length_out_of_brief']).toContain('8 to 12');
-    // The revision after a support check has the same findings with the lower floor.
-    const revision = writerRole({
-      provenance: questionProvenance,
-      passages,
-      format: 'plain',
-      mode: 'question',
-      stage: 'after_check',
+  });
+
+  describe('the lines code writes when the writer’s title or dek cannot be served (D-350)', () => {
+    const titleFor = (question: string | undefined, over = questionProvenance) =>
+      askTrimRules(over, question).lines.title;
+
+    it('make the title the person’s question when it can stand as a title', () => {
+      expect(titleFor('How does a lighthouse guide ships?')).toBe('How does a lighthouse guide ships?');
+      expect(askTrimRules(questionProvenance, 'Why?').lines.dek).toBe(NEUTRAL_DEK);
     });
-    expect(Object.keys(revision.safeCustomIssues ?? {})).toEqual(Object.keys(role.safeCustomIssues ?? {}));
-    // Each states the range its stage is held to: 8 to 12 for the writer's draft, 5 to 12 for the revision (D-308).
-    expect(role.safeCustomIssues?.['answer_sentences_out_of_brief']).toContain('must have 8 to 12 sentences');
-    expect(revision.safeCustomIssues?.['answer_sentences_out_of_brief']).toContain('must have 5 to 12 sentences');
-    expect(revision.safeCustomIssues?.['answer_sentences_out_of_brief']).not.toContain('8 to 12');
-    expect(revision.safeCustomIssues?.['answer_sentences_out_of_brief']?.length).toBeLessThanOrEqual(256);
+
+    it('fall back to the fixed title for a question with a figure, a source name, a web address or words of a passage', () => {
+      for (const question of [
+        'Why does the lamp turn every 4 hours?',
+        'Why did NASA say the lamp turns?',
+        'What does science.nasa.gov say about the lamp?',
+        'Who wrote to lamp@example.org about it?',
+        `Is it true that ${SOURCE[1]!.toLowerCase().slice(0, -1)}?`,
+        undefined,
+        '',
+      ])
+        expect(titleFor(question), String(question)).toBe(FALLBACK_TITLE);
+      // The same question about a source with another host is not about a source name.
+      expect(titleFor('Why did NASA say the lamp turns?', { ...questionProvenance, sources: [] })).toBe(
+        'Why did NASA say the lamp turns?',
+      );
+    });
+
+    it('are served by the compile: the answer with both lines in place compiles as the answer to the question', () => {
+      const role = writerRole({
+        provenance: questionProvenance,
+        passages,
+        format: 'plain',
+        mode: 'question',
+        trim: askTrimRules(questionProvenance, 'How does a lighthouse guide ships?'),
+      });
+      const copied = AuthoredScroll.parse({
+        title: SOURCE[0]!.slice(0, 80),
+        dek: SOURCE[1]!,
+        blocks: [{ type: 'heading', text: 'The beam' }, ...ASKED_BODY, limit],
+      });
+      expect(role.outputSchema.safeParse(copied).success).toBe(true);
+      const prepared = trimAskAnswer(copied, askTrimRules(questionProvenance, 'How does a lighthouse guide ships?'));
+      expect(prepared.authored).toMatchObject({ title: 'How does a lighthouse guide ships?', dek: NEUTRAL_DEK });
+      const outcome = compileGeneratedScroll(prepared.authored, questionProvenance, passages, 'plain');
+      expect(outcome.kind).toBe('compiled');
+      expect(outcome.kind === 'compiled' && outcome.document).toMatchObject({
+        title: 'How does a lighthouse guide ships?',
+        dek: NEUTRAL_DEK,
+        kicker: 'You asked',
+      });
+    });
   });
 
   it('refuse an answer that does not end with the limit callout, with a fixed hint for the one repair', () => {

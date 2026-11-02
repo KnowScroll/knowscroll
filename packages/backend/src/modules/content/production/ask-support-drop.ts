@@ -1,14 +1,15 @@
 import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
-import { MIN_SERVED_SENTENCES, type SentenceVerdict } from '../domain/ask-support.js';
-import { leansOnPrevious } from './ask-answer-shape.js';
-import { placedSentencesOfAnswer, type PlacedSentence, type StatementPlace } from './ask-support.js';
+import { MIN_SERVED_SENTENCES, splitSentences, type SentenceVerdict } from '../domain/ask-support.js';
+import { rebuildWithout, withLeaningSentencesRemoved } from './ask-answer-rebuild.js';
+import type { CodeMadeLines } from './ask-answer-trim.js';
+import { placedSentencesOfAnswer, type PlacedSentence } from './ask-support.js';
 
 /**
  * Why an answer with sentences that still fail the support check cannot be served without them (D-310). Each is a code, never a
- * sentence. `title_or_dek_flagged`: the title and the dek cannot be taken out. `no_direct_answer`: no sentence of the opening
- * paragraph is supported. `too_few_supported`: fewer than {@link MIN_SERVED_SENTENCES} sentences of reading text are supported.
- * `no_limit_callout`: the limits callout did not survive. `rebuilt_invalid`: what is left is not a valid answer that reads back as
- * the sentences that were kept.
+ * sentence. `title_or_dek_flagged`: the title or the dek was flagged and no line was given to replace it (D-350).
+ * `no_direct_answer`: no sentence of the opening paragraph is supported. `too_few_supported`: fewer than {@link MIN_SERVED_SENTENCES}
+ * sentences of reading text are supported. `no_limit_callout`: the limits callout did not survive. `rebuilt_invalid`: what is left
+ * is not a valid answer that reads back as the sentences that were kept.
  */
 export type DropRefusal =
   | 'verdicts_incomplete'
@@ -19,52 +20,76 @@ export type DropRefusal =
   | 'rebuilt_invalid';
 
 export type DropOutcome =
-  /** The answer without the sentences the check found unsupported; `dropped` counts them (a number, never their words). */
-  | { readonly kind: 'kept'; readonly authored: AuthoredScroll; readonly dropped: number }
+  /**
+   * The answer without the sentences the check found unsupported; `dropped` counts them (a number, never their words), and the
+   * flags say whether the title or the dek was replaced by the code-made line.
+   */
+  | {
+      readonly kind: 'kept';
+      readonly authored: AuthoredScroll;
+      readonly dropped: number;
+      readonly titleReplaced: boolean;
+      readonly dekReplaced: boolean;
+    }
   | { readonly kind: 'refused'; readonly code: DropRefusal };
-
-type Block = AuthoredScroll['blocks'][number];
 
 const refused = (code: DropRefusal): DropOutcome => ({ kind: 'refused', code });
 
-const keyOf = (place: StatementPlace): string =>
-  'block' in place ? `${place.field}:${String(place.block)}:${'item' in place ? String(place.item) : ''}` : place.field;
+/**
+ * Whether the only sentences the check found unsupported are the title and the dek: the two lines code can replace without the
+ * writer (D-350, D-351). False when nothing was flagged.
+ */
+export function onlyTitleOrDekFlagged(answer: AuthoredScroll, verdicts: readonly SentenceVerdict[]): boolean {
+  const flagged = placedSentencesOfAnswer(answer).filter(
+    (sentence) => verdicts.find((verdict) => verdict.number === sentence.number)?.verdict === 'unsupported',
+  );
+  return (
+    flagged.length > 0 &&
+    flagged.every((sentence) => sentence.place.field === 'title' || sentence.place.field === 'dek')
+  );
+}
 
 /**
  * The answer without the sentences that failed its support check (D-310). Pure: no model, no clock.
  *
- * Every sentence whose verdict is `unsupported` is taken out of its text. So is every kept sentence that opens with a pointer
- * ("This is why...", D-309) right after one that was taken out, since it would point at nothing; that repeats until none is left.
- * The blocks are rebuilt: a block left with no sentence is removed (a list left with one item becomes a paragraph), and so is a
- * heading with nothing left in its section. The closing limits callout belongs to no section. The answer is served only if
- * - the title and the dek were not flagged (they cannot be taken out),
+ * Every sentence of a paragraph, a list, a callout or a heading whose verdict is `unsupported` is taken out of its text. So is every
+ * kept sentence that opens with a pointer ("This is why...", D-309) right after one that was taken out, since it would point at
+ * nothing; that repeats until none is left. The blocks are rebuilt: a block left with no sentence is removed (a list left with one
+ * item becomes a paragraph), and so is a heading with nothing left in its section. The closing limits callout belongs to no section.
+ * A title or a dek that was flagged cannot be taken out, so it is replaced by the line in `lines` (D-350); without `lines` the answer
+ * is refused. The answer is served only if
  * - the first paragraph, the direct answer, keeps at least one supported sentence,
- * - at least {@link MIN_SERVED_SENTENCES} sentences of reading text (not a title, a heading or a callout's title) are supported,
+ * - at least {@link MIN_SERVED_SENTENCES} sentences of reading text (not a title, a heading or a callout's title, and not a dek that
+ *   code made) are supported,
  * - the limits callout is still the last block, and
  * - what is left is a valid answer whose sentences read back as exactly the ones that were kept, so every sentence served has the
- *   verdict it was checked with.
+ *   verdict it was checked with, except the lines code made.
  *
  * @param answer the authored answer the verdicts were given for
  * @param verdicts one for each sentence of `answer` (`placedSentencesOfAnswer`)
+ * @param lines the title and dek to put in for one that was flagged
  */
-export function dropFlagged(answer: AuthoredScroll, verdicts: readonly SentenceVerdict[]): DropOutcome {
+export function dropFlagged(
+  answer: AuthoredScroll,
+  verdicts: readonly SentenceVerdict[],
+  lines?: CodeMadeLines,
+): DropOutcome {
   const sentences = placedSentencesOfAnswer(answer);
   const verdictOf = new Map(verdicts.map((verdict) => [verdict.number, verdict.verdict]));
   if (sentences.some((sentence) => !verdictOf.has(sentence.number))) return refused('verdicts_incomplete');
-  const flagged = new Set(
-    sentences.filter((sentence) => verdictOf.get(sentence.number) === 'unsupported').map((sentence) => sentence.number),
+  const flagged = sentences.filter((sentence) => verdictOf.get(sentence.number) === 'unsupported');
+  const flaggedAt = (field: 'title' | 'dek') => flagged.some((sentence) => sentence.place.field === field);
+  const titleReplaced = flaggedAt('title');
+  const dekReplaced = flaggedAt('dek');
+  if ((titleReplaced || dekReplaced) && lines === undefined) return refused('title_or_dek_flagged');
+  const removed = withLeaningSentencesRemoved(
+    sentences,
+    new Set(flagged.filter((sentence) => 'block' in sentence.place).map((sentence) => sentence.number)),
   );
-  if (
-    sentences.some(
-      (sentence) =>
-        flagged.has(sentence.number) && (sentence.place.field === 'title' || sentence.place.field === 'dek'),
-    )
-  )
-    return refused('title_or_dek_flagged');
-  const removed = withLeaningSentencesRemoved(sentences, flagged);
 
   const supported = sentences.filter(
-    (sentence) => verdictOf.get(sentence.number) === 'supported' && !removed.has(sentence.number),
+    (sentence) =>
+      verdictOf.get(sentence.number) === 'supported' && !removed.has(sentence.number) && !isCodeMade(sentence, lines),
   );
   const directAnswer = answer.blocks.findIndex((block) => block.type === 'paragraph');
   if (!supported.some((sentence) => sentence.place.field === 'paragraph' && sentence.place.block === directAnswer))
@@ -76,124 +101,31 @@ export function dropFlagged(answer: AuthoredScroll, verdicts: readonly SentenceV
   const closing = rebuilt.blocks.at(-1);
   if (closing?.type !== 'callout' || closing.kind !== 'limit') return refused('no_limit_callout');
 
-  const candidate = AuthoredScroll.safeParse({ title: answer.title, dek: answer.dek, blocks: rebuilt.blocks });
+  const title = titleReplaced && lines !== undefined ? lines.title : answer.title;
+  const dek = dekReplaced && lines !== undefined ? lines.dek : answer.dek;
+  const candidate = AuthoredScroll.safeParse({ title, dek, blocks: rebuilt.blocks });
   if (!candidate.success) return refused('rebuilt_invalid');
-  // A sentence not taken out is served unless the block it stood in was removed whole (a callout's title goes with its text).
-  const expected = sentences
-    .filter(
-      (sentence) =>
-        !removed.has(sentence.number) && (!('block' in sentence.place) || rebuilt.keptBlocks.has(sentence.place.block)),
-    )
-    .map((sentence) => sentence.text);
+  // A sentence not taken out is served unless the block it stood in was removed whole (a callout's title goes with its text);
+  // a replaced title or dek is served as the line that replaced it.
+  const kept = new Set(rebuilt.origin);
+  const expected = [
+    ...(titleReplaced ? splitSentences(title) : textsOf(sentences, 'title')),
+    ...(dekReplaced ? splitSentences(dek) : textsOf(sentences, 'dek')),
+    ...sentences
+      .filter(
+        (sentence) => 'block' in sentence.place && !removed.has(sentence.number) && kept.has(sentence.place.block),
+      )
+      .map((sentence) => sentence.text),
+  ];
   const actual = placedSentencesOfAnswer(candidate.data).map((sentence) => sentence.text);
   if (expected.length !== actual.length || expected.some((text, index) => text !== actual[index]))
     return refused('rebuilt_invalid');
-  return { kind: 'kept', authored: candidate.data, dropped: removed.size };
+  return { kind: 'kept', authored: candidate.data, dropped: removed.size, titleReplaced, dekReplaced };
 }
 
-/**
- * The flagged sentences and every kept sentence that leans on one of them: it begins with a pointer and the sentence just before it
- * in its block was taken out. Taking that one out can leave the next in the same state, so this runs until nothing changes.
- */
-function withLeaningSentencesRemoved(
-  sentences: readonly PlacedSentence[],
-  flagged: ReadonlySet<number>,
-): ReadonlySet<number> {
-  const removed = new Set(flagged);
-  for (let changed = true; changed;) {
-    changed = false;
-    sentences.forEach((sentence, index) => {
-      const before = sentences[index - 1];
-      if (before === undefined || removed.has(sentence.number) || !removed.has(before.number)) return;
-      const inOneBlock =
-        'block' in sentence.place && 'block' in before.place && sentence.place.block === before.place.block;
-      if (!inOneBlock || sentence.label === true || before.label === true || !leansOnPrevious(sentence.text)) return;
-      removed.add(sentence.number);
-      changed = true;
-    });
-  }
-  return removed;
-}
+/** The dek that code wrote earlier states no fact and has no verdict worth counting, whatever the checker said of it. */
+const isCodeMade = (sentence: PlacedSentence, lines: CodeMadeLines | undefined): boolean =>
+  lines !== undefined && sentence.place.field === 'dek' && sentence.text === lines.dek;
 
-/** The blocks of the answer without the removed sentences, and the original indexes of the blocks that are left. */
-function rebuildWithout(
-  answer: AuthoredScroll,
-  sentences: readonly PlacedSentence[],
-  removed: ReadonlySet<number>,
-): { readonly blocks: readonly Block[]; readonly keptBlocks: ReadonlySet<number> } {
-  const byPlace = new Map<string, PlacedSentence[]>();
-  for (const sentence of sentences)
-    byPlace.set(keyOf(sentence.place), [...(byPlace.get(keyOf(sentence.place)) ?? []), sentence]);
-  /** The text at a place without its removed sentences; the original string when none was removed there. */
-  const keptAt = (place: StatementPlace, original: string): string => {
-    const own = byPlace.get(keyOf(place)) ?? [];
-    const kept = own.filter((sentence) => !removed.has(sentence.number));
-    return kept.length === own.length ? original : kept.map((sentence) => sentence.text).join(' ');
-  };
-  const rebuilt = answer.blocks.flatMap((block, index) => {
-    const next = rebuildBlock(block, index, keptAt);
-    return next === undefined ? [] : [{ block: next, from: index }];
-  });
-  const emptied = emptiedHeadings(answer.blocks, new Set(rebuilt.map((entry) => entry.from)));
-  const survivors = rebuilt.filter((entry) => !emptied.has(entry.from));
-  return { blocks: survivors.map((entry) => entry.block), keptBlocks: new Set(survivors.map((entry) => entry.from)) };
-}
-
-/** One block without its removed sentences, or `undefined` when nothing of it is left. */
-function rebuildBlock(
-  block: Block,
-  index: number,
-  keptAt: (place: StatementPlace, original: string) => string,
-): Block | undefined {
-  switch (block.type) {
-    case 'heading': {
-      const text = keptAt({ field: 'heading', block: index }, block.text);
-      return text === '' ? undefined : { ...block, text };
-    }
-    case 'paragraph': {
-      const text = keptAt({ field: 'paragraph', block: index }, block.text);
-      return text === '' ? undefined : { ...block, text };
-    }
-    case 'list': {
-      const items = block.items
-        .map((item, position) => keptAt({ field: 'item', block: index, item: position }, item))
-        .filter((item) => item !== '');
-      if (items.length === 0) return undefined;
-      // A list needs two items; one that is left is a paragraph of the same passages.
-      return items.length === 1 ? { type: 'paragraph', cites: block.cites, text: items[0]! } : { ...block, items };
-    }
-    case 'callout': {
-      const text = keptAt({ field: 'callout-text', block: index }, block.text);
-      if (text === '') return undefined;
-      const title = block.title === undefined ? '' : keptAt({ field: 'callout-title', block: index }, block.title);
-      return { type: 'callout', cites: block.cites, kind: block.kind, text, ...(title === '' ? {} : { title }) };
-    }
-    // The other blocks have no sentences of their own to take out; an answer to a question has none of them.
-    case 'bar-chart':
-    case 'comparison':
-    case 'diagram':
-    case 'line-chart':
-    case 'sequence':
-    case 'simulation':
-    case 'timeline':
-      return block;
-  }
-}
-
-/**
- * The headings left with nothing in their section: the blocks between a heading and the next heading, the closing limits callout
- * excluded, were all removed. A heading that had no blocks to begin with is left as it was written.
- */
-function emptiedHeadings(blocks: readonly Block[], survivors: ReadonlySet<number>): ReadonlySet<number> {
-  const last = blocks.at(-1);
-  const closing = last?.type === 'callout' && last.kind === 'limit' ? blocks.length - 1 : -1;
-  const emptied = new Set<number>();
-  blocks.forEach((block, heading) => {
-    if (block.type !== 'heading' || !survivors.has(heading)) return;
-    const section: number[] = [];
-    for (let index = heading + 1; index < blocks.length && blocks[index]!.type !== 'heading'; index += 1)
-      if (index !== closing) section.push(index);
-    if (section.length > 0 && section.every((index) => !survivors.has(index))) emptied.add(heading);
-  });
-  return emptied;
-}
+const textsOf = (sentences: readonly PlacedSentence[], field: 'title' | 'dek'): string[] =>
+  sentences.filter((sentence) => sentence.place.field === field).map((sentence) => sentence.text);

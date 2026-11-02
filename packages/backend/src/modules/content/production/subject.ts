@@ -32,6 +32,8 @@ export interface ProductionSubject {
   readonly scrollV2?: ScrollV2Plan;
   /** The kit that draws this recipe's subject, when the plan names one (D-125, D-194). Only a `stage` Scroll uses it. */
   readonly stageKit?: StageKitId;
+  /** For the answer to a question: the person's own words, read from the brief. Code may use them as the title (D-350); never the model's. */
+  readonly question?: string;
 }
 
 /** The subject of a library recipe. */
@@ -48,6 +50,15 @@ export function librarySubject(topic: ScrollTopic): ProductionSubject {
     ...(recipe.scrollV2 === undefined ? {} : { scrollV2: recipe.scrollV2 }),
     ...(recipe.stageKit === undefined ? {} : { stageKit: recipe.stageKit }),
   };
+}
+
+/**
+ * The person's own words in the brief of an ask order (`askBrief` in supply): the one quoted line the writer's instructions call
+ * data. The brief puts each of its fields on one line, so a question cannot start a line of its own; the first line that begins
+ * with the label is the real one. `undefined` when the brief has no such line.
+ */
+export function questionOfAskBrief(brief: string): string | undefined {
+  return /^THE QUESTION \([^)\n]*\): “(.*)”$/mu.exec(brief)?.[1];
 }
 
 interface OrderRow {
@@ -89,8 +100,14 @@ export async function madeToOrderSubject(
     pages: row.pages,
     format: row.mode === 'question' ? 'plain' : 'comparison',
     attribution: 'none',
+    ...(row.mode === 'question' ? questionField(row.brief) : {}),
   };
 }
+
+const questionField = (brief: string): { readonly question?: string } => {
+  const question = questionOfAskBrief(brief);
+  return question === undefined ? {} : { question };
+};
 
 /** The subject a job's key names, or `undefined` for a key that is neither a library recipe nor a stored order. */
 export async function subjectOf(db: Kysely<Database>, key: string): Promise<ProductionSubject | undefined> {

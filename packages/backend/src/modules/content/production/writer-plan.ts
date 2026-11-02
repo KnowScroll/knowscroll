@@ -1,14 +1,14 @@
 import type { AuthoredScroll, AuthoredScrollV2 } from '@knowscroll/scroll-model/producer';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { ReasoningRole } from '../../../reasoning/public.js';
-import type { CompileOutcome } from '../application/ports.js';
-import type { AnswerStage } from './ask-answer-shape.js';
+import type { AdmissionIssue, CompileOutcome } from '../application/ports.js';
+import { trimAskAnswer, unchanged, type CodeMadeLines, type TrimCounts } from './ask-answer-trim.js';
 import type { EvidencePassage } from './evidence.js';
 import type { ProductionSubject } from './subject.js';
 import { storedScrollV2, type ModelProduction } from './stored-v2.js';
 import { parseScrollTopic } from './topics.js';
 import { publicationV2, WRITER_V2_PROMPT_VERSION, writerRoleV2, type WriterV2Context } from './writer-v2.js';
-import { compileGeneratedScroll, generatedProvenance, promptVersionOf, writerRole } from './writer.js';
+import { askTrimRules, compileGeneratedScroll, generatedProvenance, promptVersionOf, writerRole } from './writer.js';
 
 /**
  * What differs between a v1 and a v2 Scroll in the production job: the role the model is asked, and
@@ -17,18 +17,28 @@ import { compileGeneratedScroll, generatedProvenance, promptVersionOf, writerRol
  */
 export interface WriterPlan {
   readonly role: ReasoningRole<unknown>;
-  /**
-   * The role for the revision a support check earns, when its validator differs from the first draft's: the answer to a question
-   * may then be shorter than the writer's range, since flagged sentences may have been taken out (D-310). Absent when it does not.
-   */
-  readonly afterCheckRole?: ReasoningRole<unknown>;
   /** Names the instructions the answer was written to; recorded in the Scroll's provenance. */
   readonly promptVersion: string;
   /**
-   * Compiles the harness's accepted answer, with the identities of the attempts that paid for it. `stage` is the length rule an
-   * answer to a question is held to; it is the draft's unless the answer is a revision or has had flagged sentences taken out.
+   * For the answer to a question: the title and the dek code writes when the writer's cannot be served, whether copied (the
+   * trim) or flagged by the support check (the drop) (D-350). Absent for every other Scroll.
    */
-  readonly compile: (output: unknown, production: ModelProduction, stage?: AnswerStage) => CompileOutcome;
+  readonly askLines?: CodeMadeLines;
+  /**
+   * Takes out of the harness's accepted answer what code can take out before the answer is compiled and checked (D-347): the
+   * answer to a question loses its sentences that copy a passage and the ones that lean. `counts` says how much, as numbers;
+   * `issues` are findings only the writer can put right. Every other Scroll is returned as it is.
+   */
+  readonly prepare: (output: unknown) => PreparedOutput;
+  /** Compiles the answer `prepare` returned, with the identities of the attempts that paid for it. */
+  readonly compile: (output: unknown, production: ModelProduction) => CompileOutcome;
+}
+
+/** An accepted answer after `WriterPlan.prepare`. */
+export interface PreparedOutput {
+  readonly authored: unknown;
+  readonly counts?: TrimCounts;
+  readonly issues: readonly AdmissionIssue[];
 }
 
 /** Everything a plan needs about one job. */
@@ -54,21 +64,14 @@ function v1Plan(input: WriterPlanInput): WriterPlan {
     passages,
     pages: input.pages,
   });
+  const trim = subject.mode === 'question' ? askTrimRules(provenance, subject.question) : undefined;
   return {
-    role: writerRole({ provenance, passages, format: subject.format, mode: subject.mode }),
-    ...(subject.mode === 'question'
-      ? {
-          afterCheckRole: writerRole({
-            provenance,
-            passages,
-            format: subject.format,
-            mode: subject.mode,
-            stage: 'after_check',
-          }),
-        }
-      : {}),
+    role: writerRole({ provenance, passages, format: subject.format, mode: subject.mode, ...(trim ? { trim } : {}) }),
+    ...(trim ? { askLines: trim.lines } : {}),
     promptVersion: promptVersionOf(subject.mode),
-    compile: (output, production, stage) =>
+    prepare: (output) =>
+      trim === undefined ? unchanged(output as AuthoredScroll) : trimAskAnswer(output as AuthoredScroll, trim),
+    compile: (output, production) =>
       compileGeneratedScroll(
         output as AuthoredScroll,
         {
@@ -83,7 +86,6 @@ function v1Plan(input: WriterPlanInput): WriterPlan {
         },
         passages,
         subject.format,
-        stage,
       ),
   };
 }
@@ -100,6 +102,7 @@ function v2Plan(input: WriterPlanInput, plan: NonNullable<ProductionSubject['scr
   return {
     role: writerRoleV2(context),
     promptVersion: WRITER_V2_PROMPT_VERSION,
+    prepare: (output) => ({ authored: output, issues: [] }),
     compile: (output, production) => storedScrollV2(output as AuthoredScrollV2, context, production),
   };
 }

@@ -19,7 +19,7 @@ import {
   type UnsupportedVerdict,
 } from '../domain/ask-support.js';
 import { pauseCode, uncheckedCode } from './answer-check-step.js';
-import { ANSWER_LENGTH_CODE, LEANING_SENTENCE_CODE } from './ask-answer-shape.js';
+import { ANSWER_LENGTH_CODE, DIRECT_ANSWER_LOST_CODE } from './ask-answer-shape.js';
 import {
   askSupportContext,
   askOrderCheckerRole,
@@ -45,10 +45,12 @@ export const askSupportRunId = (jobId: string, draft: 1 | 2, batch: number): str
 export const askSupportRepairRunId = (jobId: string): string => stableUuid(`content.ask-support-repair:${jobId}`);
 
 /**
- * The findings the revision's own repair is for: copying a passage (D-297), and the two rules of the answer's shape, since a
- * revision that takes sentences out or rewrites one can break them (D-314). Any other refusal of it ends the job.
+ * The findings the revision's own repair is for: a length out of range and an opening paragraph that code took out whole, since a
+ * revision that takes sentences out or rewrites one can break them (D-314, D-352), and a copied run that the trim could not place in
+ * a sentence (D-297). Code takes out the sentences that copy or lean itself (D-347, D-348), so none of those costs the repair. Any
+ * other refusal of the revision ends the job.
  */
-const REVISION_REPAIRABLE_CODES = ['copied_passage', ANSWER_LENGTH_CODE, LEANING_SENTENCE_CODE] as const;
+const REVISION_REPAIRABLE_CODES = ['copied_passage', ANSWER_LENGTH_CODE, DIRECT_ANSWER_LOST_CODE] as const;
 
 /** What asking the checker about one batch came to. */
 type BatchOutcome =

@@ -18,7 +18,7 @@ import {
 } from '../domain/ask-support.js';
 import { callsOfStoredDocument, type CallUnderCheck } from './answer-check.js';
 import { makeAnswerCheckStep } from './answer-check-step.js';
-import { dropFlagged } from './ask-support-drop.js';
+import { dropFlagged, onlyTitleOrDekFlagged } from './ask-support-drop.js';
 import { hasSupportCheck, sentencesOfAnswer } from './ask-support.js';
 import { makeAskSupportStep } from './ask-support-step.js';
 import { EvidenceRefusal, evidencePassages, evidenceText, type EvidencePassage } from './evidence.js';
@@ -91,6 +91,8 @@ interface Draft {
   readonly receipt: RoleReceipt;
   /** The harness already repaired this answer for the validator, so no repair is left to give a flagged one. */
   readonly repaired: boolean;
+  /** What code took out of the writer's draft before it was compiled, as receipts of counts; none when it served it as it was. */
+  readonly trims: readonly RoleReceipt[];
 }
 
 /** What earlier drafts of the job leave behind: their receipts, and the runs to close with the job. */
@@ -155,12 +157,15 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     if (paidAttemptIds.length < 1 || paidAttemptIds.length > mostPaidAttempts)
       return refuse(['attempt_bound_exceeded'], receipt);
     const recorded = withAccounting(receipt, attempts);
-    // The first draft has the writer's whole range of length; the revision a support check earned may have lost sentences (D-310).
-    const compiled = stage.plan.compile(
-      writer.output,
-      { runId, attemptIds: paidAttemptIds, model: deps.model },
-      number === 1 ? 'draft' : 'after_check',
-    );
+    // Code takes out what it can (the sentences that copy a passage or lean) before the draft is compiled and checked, so the check
+    // reads what could be served (D-347). The validator ran the same trim, so what is left is what it accepted.
+    const prepared = stage.plan.prepare(writer.output);
+    if (prepared.issues.length > 0)
+      return refuse(
+        prepared.issues.map((issue) => issue.code),
+        recorded,
+      );
+    const compiled = stage.plan.compile(prepared.authored, { runId, attemptIds: paidAttemptIds, model: deps.model });
     if (compiled.kind === 'refused')
       return refuse(
         compiled.issues.map((issue) => issue.code),
@@ -169,11 +174,15 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     return {
       number,
       runId,
-      authored: writer.output,
+      authored: prepared.authored,
       compiled,
       attemptIds: paidAttemptIds,
       receipt: recorded,
       repaired: writer.repaired,
+      trims:
+        prepared.counts === undefined
+          ? []
+          : [{ role: 'checks', kind: 'answer_trimmed', draft: number, ...prepared.counts }],
     };
   }
 
@@ -279,7 +288,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     if (checked.kind === 'advanced') return ops.replayCurrent(row);
     if (checked.kind === 'paused') return paused(row, checked.code);
 
-    const receipts = [draft.receipt, ...history.receipts, checked.receipt];
+    const receipts = [draft.receipt, ...draft.trims, ...history.receipts, checked.receipt];
     const closing = [...history.closing, { runId: draft.runId, state: 'failed' as const }, ...checked.runs];
     if (checked.record.kind === 'unchecked') {
       const code = `support_check_${checked.record.code ?? 'unchecked'}`;
@@ -296,7 +305,8 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
         ...history.closing,
         ...checked.runs,
       ]);
-    if (draft.number === 2)
+    // Only the title or the dek failing the check is no reason for a revision: code writes its own line for either (D-350, D-351).
+    if (draft.number === 2 || onlyTitleOrDekFlagged(draft.authored as AuthoredScroll, checked.verdicts))
       return publishWithoutFlagged(stage, draft, checked.verdicts, receipts, history, checked.runs);
     // The unsupported first draft is superseded: its writer receipt is kept as history, not as the Scroll's writer.
     // It earns the revision even when the validator already repaired it, since that repair was for another finding (D-297).
@@ -304,6 +314,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
       receipts: [
         ...history.receipts,
         { ...draft.receipt, role: 'checks', kind: 'draft_unsupported', runId: draft.runId },
+        ...draft.trims,
         checked.receipt,
       ],
       closing,
@@ -331,18 +342,27 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
         { runId: draft.runId, state: 'failed' },
         ...checkRuns,
       ]);
-    const dropped = dropFlagged(draft.authored as AuthoredScroll, verdicts);
+    const dropped = dropFlagged(draft.authored as AuthoredScroll, verdicts, stage.plan.askLines);
     if (dropped.kind === 'refused') return fail(`support_drop_${dropped.code}`);
-    const compiled = stage.plan.compile(
-      dropped.authored,
-      { runId: draft.runId, attemptIds: draft.attemptIds, model: deps.model },
-      'after_check',
-    );
+    const compiled = stage.plan.compile(dropped.authored, {
+      runId: draft.runId,
+      attemptIds: draft.attemptIds,
+      model: deps.model,
+    });
     if (compiled.kind === 'refused') return fail('support_drop_compile_refused');
     return ops.publish(
       stage.subject,
       row,
-      [...receipts, { role: 'checks', kind: 'sentences_dropped', dropped: dropped.dropped }],
+      [
+        ...receipts,
+        {
+          role: 'checks',
+          kind: 'sentences_dropped',
+          dropped: dropped.dropped,
+          titleReplaced: dropped.titleReplaced,
+          dekReplaced: dropped.dekReplaced,
+        },
+      ],
       dropped.authored,
       compiled,
       draft.runId,
@@ -365,7 +385,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     const repaired = await supportCheck.repair({
       jobId: row.id,
       policyVersion: productionVersionOf(stage.subject.key),
-      writer: stage.plan.afterCheckRole ?? stage.plan.role,
+      writer: stage.plan.role,
       writerItems: stage.items,
       sentences,
       unsupported,

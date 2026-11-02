@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { MIN_SERVED_SENTENCES, type SentenceVerdict } from '../domain/ask-support.js';
-import { dropFlagged } from './ask-support-drop.js';
+import { NEUTRAL_DEK } from './ask-answer-trim.js';
+import { dropFlagged, onlyTitleOrDekFlagged } from './ask-support-drop.js';
 import { placedSentencesOfAnswer } from './ask-support.js';
 
 /**
@@ -91,7 +92,13 @@ describe('the fixture', () => {
 
 describe('an answer with nothing flagged', () => {
   it('is served as it is, with nothing dropped', () => {
-    expect(kept({})).toEqual({ kind: 'kept', authored: ANSWER, dropped: 0 });
+    expect(kept({})).toEqual({
+      kind: 'kept',
+      authored: ANSWER,
+      dropped: 0,
+      titleReplaced: false,
+      dekReplaced: false,
+    });
   });
 });
 
@@ -271,12 +278,60 @@ describe('a kept sentence that leans on one that was taken out (D-309, D-310)', 
   });
 });
 
-describe('what is left must be enough to serve (D-310)', () => {
-  it('refuses an answer whose title or dek failed, since neither can be taken out', () => {
+describe('a title or a dek the check found unsupported (D-350)', () => {
+  /** The lines code writes: the question of the person who asked, and the neutral dek. Labelled CI text. */
+  const LINES = { title: 'How does a lighthouse guide ships?', dek: NEUTRAL_DEK };
+  const withLines = (marks: Parameters<typeof verdictsFor>[1], answer = ANSWER) => {
+    const outcome = dropFlagged(answer, verdictsFor(answer, marks), LINES);
+    if (outcome.kind !== 'kept') throw new Error(`CI: expected the answer to be kept, got ${outcome.code}`);
+    return outcome;
+  };
+
+  it('is replaced by the line code wrote, and every other sentence is the writer’s own', () => {
+    const title = withLines({ flagged: ['How a lamp'] });
+    expect(title).toMatchObject({ dropped: 0, titleReplaced: true, dekReplaced: false });
+    expect(title.authored).toEqual({ ...ANSWER, title: LINES.title });
+    const dek = withLines({ flagged: ['A ring of glass'] });
+    expect(dek).toMatchObject({ dropped: 0, titleReplaced: false, dekReplaced: true });
+    expect(dek.authored).toEqual({ ...ANSWER, dek: LINES.dek });
+    const both = withLines({ flagged: ['How a lamp', 'A ring of glass', 'By counting'] });
+    expect(both).toMatchObject({ dropped: 1, titleReplaced: true, dekReplaced: true });
+    expect(both.authored.title).toBe(LINES.title);
+    expect(both.authored.dek).toBe(LINES.dek);
+  });
+
+  it('is refused when code has no line to put in, since neither can be taken out', () => {
     expect(refusedWith({ flagged: ['How a lamp'] })).toBe('title_or_dek_flagged');
     expect(refusedWith({ flagged: ['A ring of glass'] })).toBe('title_or_dek_flagged');
   });
 
+  it('does not count a dek that code wrote among the five supported sentences, whatever the checker said of it', () => {
+    // Twelve sentences of reading text. The dek is code's and says "supported" (a check can say so of a line it was shown); six
+    // others are flagged or state no fact, so the five that remain are four writer sentences and the dek, which does not count.
+    const neutral = AuthoredScroll.parse({ ...ANSWER, dek: NEUTRAL_DEK });
+    const marks = {
+      flagged: ['By counting', 'The keeper once', 'A sound signal'],
+      noClaim: ['Each tower', 'Today a small', 'Fog scatters', 'This picture ignores'],
+    };
+    const verdicts = verdictsFor(neutral, marks);
+    expect(verdicts.filter((verdict) => verdict.verdict === 'supported')).toHaveLength(9);
+    expect(dropFlagged(neutral, verdicts, LINES)).toEqual({ kind: 'refused', code: 'too_few_supported' });
+    // With the dek among the five it would have been served: the same answer with a dek of the writer's own is.
+    expect(dropFlagged(AuthoredScroll.parse({ ...ANSWER }), verdictsFor(ANSWER, marks), LINES).kind).toBe('kept');
+  });
+
+  it('tells the title and the dek apart from the sentences code may leave to the writer', () => {
+    const flagged = (starts: string[]) => onlyTitleOrDekFlagged(ANSWER, verdictsFor(ANSWER, { flagged: starts }));
+    expect(flagged(['How a lamp'])).toBe(true);
+    expect(flagged(['A ring of glass'])).toBe(true);
+    expect(flagged(['How a lamp', 'A ring of glass'])).toBe(true);
+    expect(flagged(['How a lamp', 'By counting'])).toBe(false);
+    expect(flagged(['The beam'])).toBe(false);
+    expect(flagged([])).toBe(false);
+  });
+});
+
+describe('what is left must be enough to serve (D-310)', () => {
   it('refuses an answer whose direct answer has no supported sentence left', () => {
     expect(refusedWith({ flagged: ['A ring of prisms', 'The beam sweeps'] })).toBe('no_direct_answer');
     // A sentence that states no fact is not an answer: the paragraph keeps one, but it was not supported.
