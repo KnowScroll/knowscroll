@@ -103,6 +103,22 @@ export function StageEncounter({
         initialStopId={entry.position?.kind === 'scroll' ? entry.position.value.blockId : undefined}
         handleRef={reader}
         arrival={arrival}
+        topNote={
+          note === undefined ? undefined : (
+            <FormatNoteCard
+              note={note}
+              onSwitch={() => {
+                setNote(undefined);
+                switchToReel();
+              }}
+              onUndo={() => {
+                setNote(undefined);
+                back();
+              }}
+              onExpire={putNoteAway}
+            />
+          )
+        }
         partLabel={series === undefined ? undefined : `Part ${String(series.part)} of ${String(series.total)}`}
         moves={{
           universe: () => router.navigate('/universe'),
@@ -165,25 +181,6 @@ export function StageEncounter({
       <View style={[styles.notices, { left: metrics.side, right: metrics.side }]} pointerEvents="box-none">
         <EncounterNotices entry={entry} state={state} session={session} />
       </View>
-      {note === undefined ? null : (
-        <View
-          style={[styles.note, { top: metrics.top + 76, left: metrics.side, right: metrics.side }]}
-          pointerEvents="box-none"
-        >
-          <FormatNoteCard
-            note={note}
-            onSwitch={() => {
-              setNote(undefined);
-              switchToReel();
-            }}
-            onUndo={() => {
-              setNote(undefined);
-              back();
-            }}
-            onExpire={putNoteAway}
-          />
-        </View>
-      )}
       {hint === null ? null : <View style={[styles.hint, { bottom: metrics.bottom + 72 }]}>{hint}</View>}
     </View>
   );
@@ -194,6 +191,5 @@ const styles = StyleSheet.create({
   more: { gap: spacing[3], alignItems: 'flex-start' },
   origin: { alignItems: 'flex-start', paddingHorizontal: spacing[5], paddingBottom: spacing[2] },
   notices: { position: 'absolute', top: spacing[2] },
-  note: { position: 'absolute' },
   hint: { position: 'absolute', left: spacing[4], right: spacing[4] },
 });

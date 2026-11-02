@@ -88,6 +88,40 @@ describe('the note card', () => {
     expect(onUndo).toHaveBeenCalledTimes(1);
   });
 
+  it('answers Esc with Undo and F with the Reel from the note itself, and F only where there is a Reel to switch to', async () => {
+    const onSwitch = jest.fn();
+    const onUndo = jest.fn();
+    await card(onSwitch, onUndo);
+    const note = screen.getByTestId('format-note');
+    await fireEvent(note, 'keyDown', { nativeEvent: { key: 'f' } });
+    await fireEvent(note, 'keyDown', { nativeEvent: { key: 'Escape' } });
+    await fireEvent(note, 'keyDown', { nativeEvent: { key: 'x' } });
+    expect([onSwitch, onUndo].map((fn) => fn.mock.calls.length)).toEqual([1, 1]);
+  });
+
+  it('does not put itself away while it has focus or the pointer is over it, and starts its time again after', async () => {
+    jest.useFakeTimers();
+    try {
+      const onExpire = jest.fn();
+      await card(jest.fn(), jest.fn(), onExpire);
+      const note = screen.getByTestId('format-note');
+      await fireEvent(note, 'focus');
+      jest.advanceTimersByTime(30_000);
+      expect(onExpire).not.toHaveBeenCalled();
+      await fireEvent(note, 'blur');
+      await fireEvent(note, 'pointerEnter');
+      jest.advanceTimersByTime(30_000);
+      expect(onExpire).not.toHaveBeenCalled();
+      await fireEvent(note, 'pointerLeave');
+      jest.advanceTimersByTime(8_000);
+      expect(onExpire).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(1_100);
+      expect(onExpire).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('puts itself away after a few seconds', async () => {
     jest.useFakeTimers();
     try {
