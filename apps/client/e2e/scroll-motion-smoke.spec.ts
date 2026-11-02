@@ -198,14 +198,64 @@ test('Esc undoes the new topic while the note is showing, and the note is not sa
   await open(page);
   await page.getByRole('button', { name: 'Next topic' }).click();
   await expect(page.getByTestId('format-note')).toBeVisible();
-  // Focus has moved into the note by itself, so the keys act with no click or Tab first.
-  await expect(page.getByTestId('format-note')).toBeFocused();
+  // Focus is not taken into the note (that would hold its timer for good). The reader has it, as it does on any new Scroll,
+  // so the reader's own keys act with no click or Tab first.
+  await expect(page.getByTestId('scroll-reader')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(heading(page)).toHaveText('CI encounter fixture 1');
   await expect(page.getByTestId('scroll-reader')).toBeFocused();
   await page.getByRole('button', { name: /^Part 2: / }).click();
   await expect(page.getByTestId('part-arrival')).toBeVisible();
   await expect(page.getByTestId('format-note')).toHaveCount(0);
+});
+
+/** Whether focus is inside the note. */
+const focusInNote = (page: Page) =>
+  page.evaluate(() => document.querySelector('[data-testid="format-note"]')?.contains(document.activeElement) ?? false);
+
+for (const { label, viewport } of [
+  { label: '390 × 844', viewport: phone },
+  { label: '1440 × 900', viewport: desktop },
+]) {
+  test(`at ${label} the note puts itself away after nine seconds with no one touching it, and takes no focus (#648)`, async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await open(page, viewport);
+    await page.getByRole('button', { name: 'Next topic' }).click();
+    const note = page.getByTestId('format-note');
+    await expect(note).toBeVisible();
+    expect(await focusInNote(page)).toBe(false);
+    await page.clock.runFor(8_000);
+    await expect(note).toBeVisible();
+    await page.clock.runFor(1_500);
+    await expect(note).toHaveCount(0);
+  });
+}
+
+test('the note waits while the pointer is over it or focus is in it by the person’s own doing, and then goes', async ({
+  page,
+}) => {
+  await page.clock.install();
+  await open(page);
+  await page.getByRole('button', { name: 'Next topic' }).click();
+  const note = page.getByTestId('format-note');
+  await expect(note).toBeVisible();
+  await note.hover();
+  await page.clock.runFor(30_000);
+  await expect(note).toBeVisible();
+  await page.mouse.move(5, 400);
+  // Tab into it: the person's own focus holds it too.
+  await page.getByTestId('format-note-undo').focus();
+  await page.clock.runFor(30_000);
+  await expect(note).toBeVisible();
+  await page.getByTestId('scroll-reader').focus();
+  await page.clock.runFor(8_000);
+  await expect(note).toBeVisible();
+  await page.clock.runFor(1_500);
+  await expect(note).toHaveCount(0);
+  // Focus was not in the note when it went, so it was not pulled anywhere.
+  await expect(page.getByTestId('scroll-reader')).toBeFocused();
 });
 
 test('the note is drawn at 1440 × 900 too', async ({ page }) => {
