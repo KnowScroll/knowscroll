@@ -56,6 +56,7 @@ export function UniverseSurface({
   visitor,
   stations,
   onStation,
+  notice,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -67,6 +68,8 @@ export function UniverseSurface({
   readonly stations?: readonly RoomStation[];
   /** A tap on a station, or its row in the list, opens that room. */
   readonly onStation?: (roomId: string) => void;
+  /** A quiet notice the map carries (the new-place views cannot be shown): the top row of the bottom stack, above the card. */
+  readonly notice?: ReactNode;
 }) {
   const { breakpoint } = useDisplay();
   const insets = useSafeAreaInsets();
@@ -181,7 +184,7 @@ export function UniverseSurface({
         session={session}
         state={state}
         view={shown}
-        hasPlaces={places.length > 0}
+        hasPlaces={places.length > 0 || state.dust.cues.length > 0}
         onSearch={openSearch}
         {...(visitor ? { visitor: { ownerName: visitor.ownerName } } : {})}
         {...(systemFacts ? { systemFacts } : {})}
@@ -278,16 +281,17 @@ export function UniverseSurface({
         top={insets.top + spacing[3]}
         bottom={bottomInset + (card && !panel ? 200 : 0)}
         banner={
-          visitor?.bar || status ? (
+          visitor?.bar || status || notice ? (
             <>
               {visitor?.bar}
               {status ? <Tag label={status} variant="onDark" /> : null}
+              {notice}
             </>
           ) : undefined
         }
         onSearch={openSearch}
         {...(onStation ? { onStation } : {})}
-        {...(simpleDrawing ? { onTurnOff: () => turnSimple(false) } : {})}
+        {...(simpleDrawing && !panel ? { onTurnOff: () => turnSimple(false) } : {})}
         {...(searching ? { searchPanel: header } : {})}
         {...(panel || !card ? {} : { card })}
         {...(collectionPanel ? { collection: collectionPanel } : {})}
@@ -330,6 +334,7 @@ export function UniverseSurface({
             animation={animation}
             onSize={setStageSize}
           />
+          {searching ? <View pointerEvents="none" testID="universe-search-dim" style={styles.searchDim} /> : null}
           <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
             {visitor?.bar}
             <ChromeSlot
@@ -360,6 +365,7 @@ export function UniverseSurface({
             {view.kind === 'system' && state.lately && isDormant(index, view.system.objectId) ? (
               <DormantNote session={session} index={index} systemId={view.system.objectId} />
             ) : null}
+            {notice}
             {sheet}
             {panel ? null : card}
             {tray}
@@ -556,6 +562,8 @@ const styles = StyleSheet.create({
   stageHost: { flex: 1, overflow: 'hidden' },
   top: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: layout.topControlsInset, gap: spacing[2] },
   status: { alignItems: 'flex-end' },
+  /** The map stays in view under the search card, dimmed (U08). */
+  searchDim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(2,3,8,0.5)' },
   bottom: {
     position: 'absolute',
     left: 0,
