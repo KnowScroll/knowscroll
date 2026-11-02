@@ -4173,6 +4173,8 @@ Confirmed by: `friend-picker.test.tsx`.
 
 Confirmed by: `share-stop-sheet.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (the picture and the quote before any thread is chosen, with axe).
 
+
+
 ## D-341 · 2026-11-02 · The sky lists each star's moment, read for the reader from the act's own rows (v3 R-11, #631)
 
 **Amends** D-176 ("a star that is tapped names no person") and D-168 ("an author sees no mark and no count"), which R3 F4 and E5 draw otherwise. **Builds on** D-174, D-221 and R3 E5 ("How each star was earned").
