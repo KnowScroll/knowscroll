@@ -23,7 +23,14 @@ const reads = new Set([
   ...COLLECTION_READS,
 ]);
 
-async function openPlanet(page: Page, size: { width: number; height: number }) {
+/** A card as long as the real ones: a title that wraps to three lines and a three-line summary. */
+const LONG_CARD = {
+  title: 'Why the Two Hemispheres Always Have Opposite Seasons',
+  summary:
+    'Authored fixture text, not generated content. It runs long on purpose, to three lines on a phone, as a real summary does when a card opens over the map.',
+};
+
+async function openPlanet(page: Page, size: { width: number; height: number }, options: { longCard?: boolean } = {}) {
   const world = sceneFixture(5, 0, 3);
   // Local only: look at the same planet as another type (KS_PLANET_TYPE=lush) when comparing with the design.
   const type = process.env['KS_PLANET_TYPE'];
@@ -76,8 +83,8 @@ async function openPlanet(page: Page, size: { width: number; height: number }) {
             assetRevision: 1,
             metadata: {
               kind: 'reel',
-              title: 'CI card title',
-              summary: 'Authored fixture text, not generated content.',
+              title: options.longCard ? LONG_CARD.title : 'CI card title',
+              summary: options.longCard ? LONG_CARD.summary : 'Authored fixture text, not generated content.',
               language: 'en',
             },
           },
@@ -232,6 +239,42 @@ for (const size of [
     await expect(page.getByTestId('universe-region-card')).toHaveCount(0);
     expect(calls.every((call) => call.method === 'POST' && reads.has(call.path))).toBe(true);
     expect(calls.filter((call) => /open|activate|observations|actions/.test(call.path))).toEqual([]);
+  });
+}
+
+/** The phones real browsers give: Safari's 390 x 664 and a small Android's 360 x 640 (the address bar takes the height). */
+for (const size of [
+  { width: 390, height: 664 },
+  { width: 360, height: 640 },
+  { width: 390, height: 844 },
+]) {
+  test(`the picked region's name stays whole above the card at ${String(size.width)} x ${String(size.height)} (#648)`, async ({
+    page,
+  }) => {
+    await openPlanet(page, size, { longCard: true });
+    await page.getByRole('button', { name: 'Land on CI planet 2', exact: true }).click();
+    await expect(page.getByTestId('universe-level')).toHaveText('PLANET');
+    await page.getByRole('button', { name: 'CI region 5, a region', exact: true }).click();
+    const card = page.getByTestId('universe-region-card');
+    await expect(card).toBeVisible();
+    await expect(page.getByTestId('universe-region-card')).toContainText(LONG_CARD.title);
+    const pill = page.getByTestId('universe-region-name');
+    await expect(pill).toHaveText('CI region 5');
+    // The card is measured after it is drawn, and the pill then settles above it.
+    await expect
+      .poll(async () => {
+        const [pillBox, cardBox] = [(await pill.boundingBox())!, (await card.boundingBox())!];
+        return Math.round(cardBox.y - (pillBox.y + pillBox.height));
+      })
+      .toBeGreaterThanOrEqual(0);
+    const pillBox = (await pill.boundingBox())!;
+    expect(pillBox.y).toBeGreaterThanOrEqual(0);
+    expect(pillBox.x).toBeGreaterThanOrEqual(0);
+    expect(pillBox.x + pillBox.width).toBeLessThanOrEqual(size.width);
+    expect(await pill.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(false);
+    await page.waitForTimeout(400);
+    await shot(page, `region-card-${String(size.width)}x${String(size.height)}`);
+    await expectNoSeriousViolations(page);
   });
 }
 

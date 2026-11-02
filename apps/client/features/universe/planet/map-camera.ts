@@ -121,3 +121,22 @@ export const toScreen = (view: MapView, x: number, y: number): { readonly x: num
   x: x * view.scale + view.x,
   y: y * view.scale + view.y,
 });
+
+/** The picked region's name pill is this tall, and keeps this much air between it and the card under it. */
+export const NAME_PILL_HEIGHT = 30;
+const NAME_PILL_GAP = 8;
+/** Below the Back pill and its tag, so a lifted name never reaches the header. */
+const NAME_HEADER_CLEAR = 72;
+
+/**
+ * Where the top of the picked region's name pill goes. It is centred on the region's label, but on a short screen the
+ * card rises over that spot, so the pill is lifted to stand just above the card's top edge (`coveredBottom` is how far
+ * up from the screen's bottom the card reaches; `undefined` while it is not measured or there is none). It never goes
+ * higher than the header row.
+ */
+export function namePillTop(labelY: number, screenHeight: number, coveredBottom: number | undefined): number {
+  const wanted = labelY - NAME_PILL_HEIGHT / 2;
+  if (coveredBottom === undefined) return wanted;
+  const highest = screenHeight - coveredBottom - NAME_PILL_GAP - NAME_PILL_HEIGHT;
+  return Math.max(NAME_HEADER_CLEAR, Math.min(wanted, highest));
+}

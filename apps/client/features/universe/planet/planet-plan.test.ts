@@ -3,7 +3,16 @@ import { indexUniverse } from '../universe-layout';
 import { looksById } from '../space/space-model';
 import { fixtureId, sceneFixture } from '../universe.fixture';
 import { turnHue } from './hue';
-import { boxOfFormed, boxOfLoops, mapView, MAP_HEIGHT, MAP_WIDTH, toScreen } from './map-camera';
+import {
+  boxOfFormed,
+  boxOfLoops,
+  mapView,
+  MAP_HEIGHT,
+  MAP_WIDTH,
+  namePillTop,
+  NAME_PILL_HEIGHT,
+  toScreen,
+} from './map-camera';
 import { paletteOf } from './planet-palette';
 import { planPlanet } from './planet-plan';
 
@@ -119,6 +128,21 @@ describe('the camera of the landed map', () => {
     // A huge region does not drop below the least zoom, and a tiny one does not go past the most.
     expect(mapView(size, { x: 0, y: 0, scale: 1 }, { x0: 0, y0: 0, x1: 900, y1: 900 }).scale).toBe(1.6);
     expect(mapView(size, { x: 0, y: 0, scale: 1 }, { x0: 0, y0: 0, x1: 10, y1: 10 }).scale).toBe(2.1);
+  });
+
+  it('keeps the picked region’s name pill above the card on a short screen, and leaves it on its label elsewhere (#648)', () => {
+    const labelY = 253;
+    // 390 x 664: the card reaches 407 px up, so its top edge is at y = 257. The pill is lifted clear of it.
+    const short = namePillTop(labelY, 664, 407);
+    expect(short + NAME_PILL_HEIGHT).toBeLessThan(664 - 407);
+    // 360 x 640: a taller card (three-line title) still has room above it, and the pill never reaches the header.
+    const smallest = namePillTop(labelY, 640, 435);
+    expect(smallest + NAME_PILL_HEIGHT).toBeLessThanOrEqual(640 - 435);
+    expect(smallest).toBeGreaterThanOrEqual(72);
+    // 390 x 844: the label is well above the card, so the pill stays centred on it.
+    expect(namePillTop(322, 844, 421)).toBe(322 - NAME_PILL_HEIGHT / 2);
+    // No card measured yet: the pill is where it always was.
+    expect(namePillTop(labelY, 664, undefined)).toBe(labelY - NAME_PILL_HEIGHT / 2);
   });
 
   it('opens centred on the formed regions and their names, shrinking a little to take them all in', () => {

@@ -96,6 +96,7 @@ export function UniverseSurface({
     [visitor, state.collection.collection, index],
   );
   const [dustNote, setDustNote] = useState(false);
+  const [cardHeight, setCardHeight] = useState(0);
   const [refusedPlanetId, setRefusedPlanetId] = useState<string | null>(null);
   // Why 3D cannot be drawn, if it cannot: the tab is then the Simple lists, by itself (D-111).
   const [unavailable, setUnavailable] = useState<SpaceFailure | null>(() => (lowMemoryDevice() ? 'low-memory' : null));
@@ -349,6 +350,7 @@ export function UniverseSurface({
             state={state}
             index={index}
             landmarksByPlanet={collection.byPlanet}
+            {...(regionCard && !panel && cardHeight > 0 ? { coveredBottom: bottomInset + cardHeight } : {})}
             onSearch={openSearch}
             onDust={() => setDustNote(true)}
             stations={stations}
@@ -390,7 +392,9 @@ export function UniverseSurface({
             ) : null}
             {notice}
             {sheet}
-            {panel ? null : card}
+            {panel || !card ? null : (
+              <View onLayout={(event) => setCardHeight(event.nativeEvent.layout.height)}>{card}</View>
+            )}
             {visitor?.footer}
             <ChromeSlot
               player={animation.player}
