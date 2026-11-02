@@ -4075,6 +4075,8 @@ Confirmed by: `versions.test.ts` (the pair, the bound and the claim), `writer.te
 
 Confirmed by: `ask-answer-shape.test.ts` (four sentences beside the line are four, beside the writer's dek five; a dek that only resembles or begins with the line counts), `writer.test.ts` (the validator refuses a draft of four of its own sentences whose dek copied a passage and accepts it with the writer's own dek), `ask-support-drop.test.ts` (the line does not count among the five) and `supply-ask.test.ts` on real PostgreSQL with a labelled fixture model (the same draft is served with its own dek and refused after one repair, with no check, when code wrote the line). Shown failing when the line counted (three unit tests and the integration test).
 
+
+
 ## D-331 · 2026-11-02 · The ••• sheet of a Scroll is the design's seven rows (v3 Scrolls fidelity, #497)
 
 **Builds on** round 1 (#548: Like and Ask live only in Explore), D-244 and D-292. **Amends** the sheet's three pill buttons and icon row.
