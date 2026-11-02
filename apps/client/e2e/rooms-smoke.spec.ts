@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { ROOM_NOT_COVERED_LINE } from '@knowscroll/contracts';
 import { id } from './encounter-fixture';
 import { BACKDROP_PATH, generalId, room, roomFixture, type RoomCall } from './rooms-fixture';
 
@@ -394,6 +395,28 @@ test('from any message a member can ask a resident about it, challenge it, hear 
   });
 });
 
+test('a resident’s "library does not cover that" line offers no Challenge or Other side, in the row or the menu', async ({
+  page,
+}) => {
+  const { address } = await roomFixture(page, phone, {
+    others: 1,
+    lastMessageMinutesAgo: 2,
+    noticeSeen: true,
+    gap: true,
+  });
+  await page.goto(address);
+  await expect(page.getByText(ROOM_NOT_COVERED_LINE)).toBeVisible();
+  await expect(page.getByTestId(`challenge-${id(607)}`)).toHaveCount(0);
+  await expect(page.getByTestId(`other-side-${id(607)}`)).toHaveCount(0);
+  await shoot(page, 'phone-15-gap-line');
+  expect(await seriousViolations(page)).toEqual([]);
+  // The menu of that message still reports and marks Useful, but asks nothing.
+  await openOptions(page, 5);
+  await expect(page.getByTestId('option-useful')).toBeVisible();
+  for (const testID of ['option-ask-about', 'option-ask-other_side', 'option-ask-challenge'])
+    await expect(page.getByTestId(testID)).toHaveCount(0);
+});
+
 test('an answer to an ask says who asked and what, and a topic card opens the topic with its figures', async ({
   page,
 }) => {
@@ -486,6 +509,8 @@ test('a newcomer is welcomed by a resident from a template, with the notice, and
   await expect(welcome).toContainText('Welcome to Space room.');
   await shoot(page, 'phone-14-welcome');
   expect(await seriousViolations(page)).toEqual([]);
+  // R3 FL1: the notice has "Look around first" as the quiet second choice beside "Got it".
+  await expect(page.getByRole('button', { name: 'Look around first' })).toBeVisible();
   await page.getByTestId('ai-notice-ack').click();
   await expect(page.getByTestId('room-welcome')).toHaveCount(0);
   expect(callsTo(calls, '/v1/rooms/preferences')[0]?.body).toMatchObject({ noticeSeen: true });

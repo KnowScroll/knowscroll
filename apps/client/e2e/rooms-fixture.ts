@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import type { RoomIdentity, RoomYou } from '@knowscroll/contracts';
+import { ROOM_NOT_COVERED_LINE, type RoomIdentity, type RoomYou } from '@knowscroll/contracts';
 import { emptyInbox, isInboxPath } from './empty-inbox';
 import { id } from './encounter-fixture';
 
@@ -96,6 +96,8 @@ export interface RoomFixtureOptions {
    * welcome (needs `noticeSeen: false`); `away`: this member's "while you were away".
    */
   readonly asked?: boolean;
+  /** Halley's answer was the fixed "library does not cover that" line (D-301). */
+  readonly gap?: boolean;
   readonly topics?: boolean;
   readonly welcome?: boolean;
   readonly away?: 'preparing' | 'ready' | 'folded';
@@ -190,6 +192,19 @@ export async function roomFixture(
         },
       ]
     : [];
+  const gap = options.gap
+    ? [
+        {
+          messageId: id(607),
+          sequence: 5,
+          status: 'available' as const,
+          author: { kind: 'ai' as const, inhabitant: 'skeptic' as const, name: 'Halley', label: 'AI · Skeptic' },
+          recordedAt: new Date(Date.now() - Math.max(options.lastMessageMinutesAgo - 5, 0) * 60_000).toISOString(),
+          body: { kind: 'text' as const, text: ROOM_NOT_COVERED_LINE },
+          suggestion: 'explanation' as const,
+        },
+      ]
+    : [];
   // R-3: the card the topic leaves where it began.
   const topicCard = options.topics
     ? [
@@ -210,7 +225,7 @@ export async function roomFixture(
         },
       ]
     : [];
-  const messages = [...spoken, ...resident, ...asked, ...topicCard];
+  const messages = [...spoken, ...resident, ...asked, ...gap, ...topicCard];
   const lastAt = spoken.at(-1)!.recordedAt;
   const topics = [
     {
