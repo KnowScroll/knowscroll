@@ -77,8 +77,10 @@ function cutAtWord(text: string, max: number): string {
 }
 
 /** Sentences that are one text for the copy check: a list reads as one passage, since the check runs over its items joined. */
-const copyGroupOf = (place: StatementPlace): string =>
-  'item' in place ? `item:${String(place.block)}` : place.field + ('block' in place ? `:${String(place.block)}` : '');
+function copyGroupOf(place: StatementPlace): string {
+  if ('item' in place) return `item:${String(place.block)}`;
+  return 'block' in place ? `${place.field}:${String(place.block)}` : place.field;
+}
 
 /**
  * The numbers of the sentences that hold a word of a copied run. A run may cross the end of a sentence, so the copy check is
