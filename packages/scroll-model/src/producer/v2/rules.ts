@@ -83,7 +83,7 @@ function stageIssues(authored: AuthoredScrollV2, recipe: RecipeDataV2): IssueV2[
   authored.items.forEach((item, index) => {
     if (item.type === 'aside') return;
     if (recipe.variant === 'plain') {
-      // A plain Scroll has no picture for a state, a figure or a reveal to be about (D-381, D-382).
+      // A plain Scroll has no picture for a state, a figure or a reveal to be about (D-382, D-383).
       if (item.stage !== undefined) issues.push({ code: 'stage_unexpected', path: `items.${index}.stage` });
       if (item.type === 'stop' && item.figures !== undefined)
         issues.push({ code: 'stage_unexpected', path: `items.${index}.figures` });

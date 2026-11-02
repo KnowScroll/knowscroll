@@ -11,7 +11,7 @@ import {
 } from './earth-sky-scene';
 
 /**
- * Where the picture sets the figures a stop gave it (D-381, V3 F4 and F7): the nearest and farthest distance on the orbit views, beside
+ * Where the picture sets the figures a stop gave it (D-382, V3 F4 and F7): the nearest and farthest distance on the orbit views, beside
  * the "you are here" tag, and the hours of daylight of a place in June and in December as two bands of a day on the Sun and Earth view.
  * All of it is placed from the scene alone, so a test can check every label against the frame and against the others. The words are the
  * passage's (its number, unit and place); the picture adds only its own fixed words and never a figure of its own.
@@ -211,7 +211,7 @@ function hereOf(scene: EarthSkyScene, obstacles: readonly Box[]): DistanceMarks[
 }
 
 /**
- * The marks of a distance picture, or none when the state carries no distance (D-381). Both ends are drawn when both are
+ * The marks of a distance picture, or none when the state carries no distance (D-382). Both ends are drawn when both are
  * stated; one figure gets its own end and the dotted line still runs through the Sun. Everything is placed clear of what the
  * orbit view already draws (the month labels, the Sun, Earth and the line through the Sun) and of the other marks.
  */

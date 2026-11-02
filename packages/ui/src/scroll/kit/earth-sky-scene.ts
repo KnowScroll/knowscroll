@@ -102,7 +102,7 @@ export interface EarthSkyScene {
   readonly moonAngle: number;
   readonly moonPhased: boolean;
   readonly focus: StageState['focus'];
-  /** The month Earth stands at (the "you are here" tag names it), and the figures the picture shows, settled: none unless a cited passage stated them (D-381). */
+  /** The month Earth stands at (the "you are here" tag names it), and the figures the picture shows, settled: none unless a cited passage stated them (D-382). */
   readonly month: StageState['earthAt'];
   readonly figures: readonly StageFigure[];
 }

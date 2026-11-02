@@ -2,7 +2,7 @@ import type { Stop } from '@knowscroll/scroll-model';
 import type { CallState } from './call-state';
 
 /**
- * The stop whose picture the stage shows while the reader is on `stop` (D-382, V3 F3). It is the stop itself, except on a Call it
+ * The stop whose picture the stage shows while the reader is on `stop` (D-383, V3 F3). It is the stop itself, except on a Call it
  * that names a picture to turn to: once the reader has locked an answer that was wrong, the stage shows the picture of the stop that
  * call names, the true one the next stop was going to show anyway. A pick that is not locked changes nothing, and a right answer
  * keeps the picture and the flow.

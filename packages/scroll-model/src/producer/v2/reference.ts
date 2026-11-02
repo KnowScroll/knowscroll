@@ -18,7 +18,7 @@ const BLOCK_REFERENCE: Readonly<Record<InteractiveKind, string>> = {
 };
 
 /**
- * What a recipe's stage plan adds to the reference (D-381, D-382): the figures a stop may put on the picture and the reveal of the first
+ * What a recipe's stage plan adds to the reference (D-382, D-383): the figures a stop may put on the picture and the reveal of the first
  * call. Nothing for a recipe that asks for neither, so its text stays what it was.
  */
 function stagePlanReference(plan: StagePlanV2 | undefined): string[] {

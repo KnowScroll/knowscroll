@@ -245,7 +245,7 @@ function bindingIssues(document: ScrollDocumentV2): IssueV2[] {
 }
 
 /**
- * A call's reveal picture (D-382): the stage turns to it once the reader locks a wrong answer, so it must be a state the
+ * A call's reveal picture (D-383): the stage turns to it once the reader locks a wrong answer, so it must be a state the
  * document holds, set by the first read stop after the call, and it must differ from the picture the call is shown over,
  * or there would be nothing to turn to. The picture a right answer keeps is that same state, which the next stop shows.
  */

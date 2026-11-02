@@ -26,7 +26,7 @@ const document = compiled.document;
 describe('reading facts v3 of the labelled Orrin fixture', () => {
   const facts = readingFactsOfV2(document);
 
-  it('knows nothing of the picture a wrong answer turns the stage to, or of a figure on a picture (D-063, D-382)', () => {
+  it('knows nothing of the picture a wrong answer turns the stage to, or of a figure on a picture (D-063, D-383)', () => {
     const call = document.stops.find((stop) => stop.kind === 'call_it');
     if (call?.kind !== 'call_it' || call.revealStage === undefined) throw new Error('CI fixture has a reveal');
     const without = JSON.parse(JSON.stringify(document)) as ScrollDocumentV2;

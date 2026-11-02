@@ -409,7 +409,7 @@ describe('the play blocks and the guide in the writer’s instructions (D-207)',
   });
 });
 
-describe('the stage plan of a recipe: orbit months, figures and the reveal (D-381, D-382, D-383)', () => {
+describe('the stage plan of a recipe: orbit months, figures and the reveal (D-382, D-383, D-384)', () => {
   /** CI fixture sentences about the invented planet Orrin: the figures a stage may show, never product content. */
   const NEAR_FAR =
     'Orrin at its closest to Vael is 41 million kilometres from the star, and at its farthest it is 43 million kilometres away.';

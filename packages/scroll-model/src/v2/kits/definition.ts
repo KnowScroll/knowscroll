@@ -11,7 +11,7 @@ export type KitPatch<Enums extends KitEnums> = { readonly [Key in keyof Enums]?:
 
 /**
  * A kit's state seen by code that handles every kit alike (the document, the assembler, the writer rules). Its values are
- * words; only the Earth & sky kit also holds a list of figures a cited passage states (D-381).
+ * words; only the Earth & sky kit also holds a list of figures a cited passage states (D-382).
  */
 export type WordState = Readonly<Record<string, string | readonly unknown[] | undefined>>;
 

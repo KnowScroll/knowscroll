@@ -456,7 +456,7 @@ describe('the play blocks and the guide of a recipe (D-207)', () => {
   });
 });
 
-describe('what a recipe asks of its picture (D-381, D-382)', () => {
+describe('what a recipe asks of its picture (D-382, D-383)', () => {
   const planned = recipes.filter((recipe) => recipe.scrollV2?.stagePlan !== undefined);
 
   it('keeps the plan’s figure slots in step with scroll-model', () => {

@@ -47,7 +47,7 @@ export function fixtureResearchPageAt(url: string): ResearchPage {
  * the source. The picture changes on stops only and is chosen by view, month and focus (never a pin
  * or a tilt); the first call has two options with the common guess second and no number; the Final
  * call is a new case. It is valid against the fixture page above, with the seasons myth as the
- * recipe's misconception. It also meets the Seasons plan's asks (D-381, D-382): the picture stands on the orbit in
+ * recipe's misconception. It also meets the Seasons plan's asks (D-382, D-383): the picture stands on the orbit in
  * January and in December, and the first call turns the picture for a reader who guessed wrong.
  */
 function fixtureEarthSkyAuthoredV2(): AuthoredScrollV2 {

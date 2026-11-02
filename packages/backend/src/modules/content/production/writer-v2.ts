@@ -63,7 +63,7 @@ function stageInstructions(recipe: RecipeDataV2): string[] {
 }
 
 /**
- * What a recipe's stage plan asks of the picture beyond the kit's words (D-381, D-382, D-383): orbit views at enough months for the
+ * What a recipe's stage plan asks of the picture beyond the kit's words (D-382, D-383, D-384): orbit views at enough months for the
  * recap of the journey to draw, figures a cited passage states, and the first call turning the picture for a reader who guessed
  * wrong. Nothing for a recipe with no plan, so its text is what it was.
  */

@@ -331,7 +331,7 @@ function SceneText({ label, bold = false }: { readonly label: SceneLabel; readon
 /**
  * The distances a stop gave the orbit (V3 F4): a dotted line through the Sun from the nearest point to the farthest, a dot and the
  * figure at each end, a pin on Earth with "you are here", and the words that the Sun is not drawn to scale. Drawn only when the state
- * carries a distance a cited passage stated (D-381); the words of the numbers are the passage's.
+ * carries a distance a cited passage stated (D-382); the words of the numbers are the passage's.
  */
 function DistanceFigures({ scene }: { readonly scene: EarthSkyScene }) {
   const marks = distanceMarks(scene);

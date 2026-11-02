@@ -119,7 +119,7 @@ export const CallItStop = z.strictObject({
     })
     .optional(),
   /**
-   * The picture the stage turns to when the reader locks a wrong answer (D-382, V3 F3): the id of the read stop whose
+   * The picture the stage turns to when the reader locks a wrong answer (D-383, V3 F3): the id of the read stop whose
    * state in `stage.states` it is. It names the state of the first read stop after this call, which is the true picture
    * the stop after the call was going to show anyway, so a right answer keeps the flow and shows it at that stop. Set by
    * code from what the writer asked for; the pick stays on the device and nothing about the turn is reported or stored.

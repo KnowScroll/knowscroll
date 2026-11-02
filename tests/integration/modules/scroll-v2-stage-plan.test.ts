@@ -14,7 +14,7 @@ import { signal } from '../support/fixture-model.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
 
 /**
- * Seasons Part 1 asks for orbit views at two months, the figures a cited passage states and a reveal on the first call (D-381 to D-383).
+ * Seasons Part 1 asks for orbit views at two months, the figures a cited passage states and a reveal on the first call (D-382 to D-384).
  * The model is a labelled CI fixture and the Scroll is the authored Orrin fixture over an invented planet: no provider, no product
  * content, and the page the figures come from is an invented one (it states Orrin's distances, not Earth's).
  */

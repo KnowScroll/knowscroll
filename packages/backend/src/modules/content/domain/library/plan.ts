@@ -80,7 +80,7 @@ export const GUIDE_CHARACTER_IDS = ['ray'] as const;
 export type GuideCharacterId = (typeof GUIDE_CHARACTER_IDS)[number];
 
 /**
- * The figures a recipe may ask the writer to put on its picture (D-381). `scroll-model` owns the slots; this list names them for the
+ * The figures a recipe may ask the writer to put on its picture (D-382). `scroll-model` owns the slots; this list names them for the
  * plan, and a test keeps the two in step.
  */
 export const STAGE_FIGURE_SLOT_IDS = ['nearest', 'farthest', 'june-daylight', 'december-daylight'] as const;
@@ -162,7 +162,7 @@ export interface ScrollV2Plan {
   /** The character that speaks the Scroll's guide lines. Absent: no guide (D-207). Chosen by a person, per recipe. */
   readonly guide?: GuideCharacterId;
   /**
-   * What the recipe asks of its picture beyond the kit's words (D-381, D-382), for a stage Scroll drawn with Earth & sky. The writer
+   * What the recipe asks of its picture beyond the kit's words (D-382, D-383), for a stage Scroll drawn with Earth & sky. The writer
    * is told what is asked and code proves it, never the other way round. Chosen by a person, per recipe.
    */
   readonly stagePlan?: {

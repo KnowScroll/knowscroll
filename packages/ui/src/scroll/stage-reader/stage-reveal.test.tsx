@@ -14,7 +14,7 @@ jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resol
 jest.setTimeout(20_000);
 
 /**
- * The picture a wrong answer turns the stage to (D-382, V3 F3), over the labelled CI fixture `seasons-stage-ci` (not
+ * The picture a wrong answer turns the stage to (D-383, V3 F3), over the labelled CI fixture `seasons-stage-ci` (not
  * product content), whose first call, "call-delhi", is pointed at the next stop, "closest-in-january". The right option of the
  * call is the second (index 1); the first (index 0) is the common guess.
  */
@@ -147,7 +147,7 @@ function KeepingPlay({
   );
 }
 
-describe('a true picture that carries figures a passage stated (D-381)', () => {
+describe('a true picture that carries figures a passage stated (D-382)', () => {
   /** CI fixture figures of the invented planet Orrin: the true picture is the closest view, with its two distances. */
   const stage = turning.stage;
   if (stage === undefined) throw new Error('the fixture has a stage');

@@ -360,7 +360,7 @@ node dist/operator.js content readmit-coverage
 
 Release all three parts before step 6. `admit-continuity` binds a series to the Scrolls that are served at that moment, so run it once the parts are served: a series with a part still held is skipped whole and named in `seriesSkipped`. A Part tab shows only after step 6. `seasons-limits` is a related move from `seasons-elsewhere`; when it is released after the others, run `admit-continuity` once more. After it, `seasons-limits` may keep a `previous` link into the old series revision 1 (D-125): decide then whether to retire it.
 
-### Seasons Part 1 after the stage plan (v3 S-10, D-381 to D-383)
+### Seasons Part 1 after the stage plan (v3 S-10, D-382 to D-384)
 
 `seasons` (Part 1) asks the writer for orbit views at two months at least (so the recap of the journey draws at the end), for the nearest and farthest distance and the hours of daylight where a cited passage states them, and for a first call that turns the picture when the guess is wrong. No other recipe has a stage plan. The change is a new production version (`scroll-production.v21`), so `seasons` has three fresh takes. Producing makes one writer request and the answer check's, as for any v2 recipe, and at most one repair. Run it on dev after the change is deployed:
 

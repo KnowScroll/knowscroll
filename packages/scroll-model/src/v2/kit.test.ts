@@ -380,7 +380,7 @@ describe('the recap of a stage (V3 F10)', () => {
   });
 });
 
-describe('the figures a state may carry (D-381)', () => {
+describe('the figures a state may carry (D-382)', () => {
   const nearest: StageFigure = { slot: 'nearest', value: 41_000_000, unit: 'kilometres' };
   const farthest: StageFigure = { slot: 'farthest', value: 43_000_000, unit: 'kilometres' };
   const june: StageFigure = { slot: 'june-daylight', value: 14, unit: 'hours', place: 'Pell' };

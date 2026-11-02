@@ -15,7 +15,7 @@ export const SCROLL_PRODUCTION_VERSION = 'scroll-production.v14';
  * v18: the writer moved to `scroll-writer.v18`, with the guides of the heart and nerve kits (D-203).
  * v19: the writer moved to `scroll-writer.v19`, with the guides of the Space kits and two rules for every recipe (D-206).
  * v20: the writer moved to `scroll-writer.v20`, with the sort, fork, scale, growing chart and guide of a recipe that names them (D-207).
- * v21: the writer moved to `scroll-writer.v21`, with the stage plan of a recipe that asks for orbit months, figures or a reveal (D-383).
+ * v21: the writer moved to `scroll-writer.v21`, with the stage plan of a recipe that asks for orbit months, figures or a reveal (D-384).
  * `versions.test.ts` pins the pair, so a writer bump cannot go in without this one.
  */
 export const SCROLL_PRODUCTION_V2_VERSION = 'scroll-production.v21';

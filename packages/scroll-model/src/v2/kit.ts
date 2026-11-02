@@ -40,7 +40,7 @@ export type StageKey = keyof typeof STAGE_ENUMS;
 export const STAGE_KEYS = Object.keys(STAGE_ENUMS) as readonly StageKey[];
 
 /**
- * The figures a state may carry (D-381), each drawn where its slot says. `nearest` and `farthest` are Earth's distance
+ * The figures a state may carry (D-382), each drawn where its slot says. `nearest` and `farthest` are Earth's distance
  * from the Sun at the two ends of its orbit, drawn on the orbit views with the "you are here" tag; `june-daylight` and
  * `december-daylight` are the hours of daylight a place has around those months, drawn as two day bands on the Sun and Earth view.
  */
@@ -49,7 +49,7 @@ export type StageFigureSlot = (typeof STAGE_FIGURE_SLOTS)[number];
 
 /**
  * One figure on the stage: a number a cited passage states, with the unit the passage uses. It is never a number the
- * kit worked out: the production rules prove it in a cited passage and leave it out otherwise (D-381, D-208).
+ * kit worked out: the production rules prove it in a cited passage and leave it out otherwise (D-382, D-208).
  */
 export const StageFigureSchema = z.strictObject({
   slot: z.enum(STAGE_FIGURE_SLOTS),
@@ -86,7 +86,7 @@ export const StageStateSchema = z.strictObject({
 
 /**
  * The state after a stop's changes: patched keys replace the previous values, the rest carry over. The figures
- * do not: a figure belongs to the stop whose passages state it, so a stop that changes the picture clears them (D-381).
+ * do not: a figure belongs to the stop whose passages state it, so a stop that changes the picture clears them (D-382).
  */
 export function applyStagePatch(previous: StageState, patch: StagePatch | undefined): StageState {
   if (patch === undefined) return previous;

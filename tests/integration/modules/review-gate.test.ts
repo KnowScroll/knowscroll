@@ -596,7 +596,7 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
       };
       for (const item of withoutPicture.items) {
         delete item.stage;
-        // A call that turns the picture needs a picture to turn (D-382).
+        // A call that turns the picture needs a picture to turn (D-383).
         delete item.revealsNext;
       }
       const run = fixtureProduction(database.db, () => answerWith(withoutPicture), orrinPageFor);

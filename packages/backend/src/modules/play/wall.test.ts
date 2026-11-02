@@ -89,12 +89,12 @@ describe('what the play schema stores (D-063, D-209)', () => {
 });
 
 /**
- * The picture a wrong answer turns the stage to (D-382) is worked out on the device from the pick, so it sits behind the wall by never
+ * The picture a wrong answer turns the stage to (D-383) is worked out on the device from the pick, so it sits behind the wall by never
  * crossing it: the document names the picture (`revealStage`), the reader shows it, and nothing about the pick or the turn is reported, stored,
  * ranked or planned on. Three things keep it so, and each can fail: the vocabulary of what a reader reports does not grow a kind for it, no
  * module that handles evidence, plans or ranks names the field, and the app that carries a pick to the server does not either.
  */
-describe('the picture a wrong answer turns the stage to stays on the device (D-063, D-382)', () => {
+describe('the picture a wrong answer turns the stage to stays on the device (D-063, D-383)', () => {
   const read = (path: string) => readFileSync(join(repository, path), 'utf8');
   const REVEAL_FIELD = /\brevealStage\b/;
   /** The only code that may name the field: the document and its producer, the renderer, and the content module that publishes and reviews Scrolls. */

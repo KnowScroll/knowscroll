@@ -43,7 +43,7 @@ function callLines(
     );
   });
   lines.push(`  Explanation: ${stop.explain}`, `  After a wrong pick: ${stop.twist}`, `  Simpler: ${stop.simple}`);
-  // The picture a wrong pick turns the stage to (D-382): the operator reads it with the twist it comes with.
+  // The picture a wrong pick turns the stage to (D-383): the operator reads it with the twist it comes with.
   if (stop.kind === 'call_it' && stop.revealStage !== undefined)
     lines.push(
       `  After a wrong pick the picture turns to: ${pictures.get(stop.revealStage) ?? '(the stop it names sets none)'}`,

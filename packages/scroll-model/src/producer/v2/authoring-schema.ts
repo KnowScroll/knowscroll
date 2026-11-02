@@ -51,7 +51,7 @@ const readFields = {
 const guideFields = z.strictObject({ pose: z.enum(GUIDE_POSES), line: prose(1, 300) });
 
 /**
- * A figure the stop's picture shows (D-381), written as the cited passage writes it, like the figure of a scale: a bare number
+ * A figure the stop's picture shows (D-382), written as the cited passage writes it, like the figure of a scale: a bare number
  * or digits with a magnitude word, and the unit and the place in the passage's words. Where it goes follows from its slot. A
  * figure no cited passage states is left out by code and never refused: the picture simply has none.
  */
@@ -141,7 +141,7 @@ const callItem = z.strictObject({
   type: z.literal('call_it'),
   ...callFields,
   /**
-   * The picture of the stop right after this call is shown when the reader locks a wrong answer (D-382). The writer names
+   * The picture of the stop right after this call is shown when the reader locks a wrong answer (D-383). The writer names
    * no state and no id: code points the call at that stop, and the document's own admission proves the stop changes the picture.
    */
   revealsNext: z.boolean().optional(),

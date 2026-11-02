@@ -393,7 +393,7 @@ describe('validateDocumentV2: the rules of scroll-limits.v2', () => {
   });
 });
 
-describe('a call that turns the picture when the guess is wrong (D-382)', () => {
+describe('a call that turns the picture when the guess is wrong (D-383)', () => {
   /** The fixture's first call, pointed at the stop after it. */
   const revealing = (document: ScrollDocumentV2, stop = 's3') => {
     callIt(document, 1).revealStage = stop;

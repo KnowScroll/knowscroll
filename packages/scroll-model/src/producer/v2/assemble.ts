@@ -42,7 +42,7 @@ export interface PublicationV2 {
 }
 
 /**
- * What a recipe asks of the writer's picture beyond the kit's words (D-381). Chosen by a person, per recipe, with the
+ * What a recipe asks of the writer's picture beyond the kit's words (D-382). Chosen by a person, per recipe, with the
  * brief: the writer is told what is asked and code proves it, never the other way round.
  */
 export interface StagePlanV2 {
@@ -73,7 +73,7 @@ export interface RecipeDataV2 {
   readonly blocks?: readonly InteractiveKind[];
   /** The character that speaks the Scroll's guide lines. Absent: no guide (D-207). */
   readonly guide?: GuideCharacter;
-  /** What the recipe asks of the stage beyond the kit's words. Absent: nothing (D-381). Only a `stage` Scroll has one. */
+  /** What the recipe asks of the stage beyond the kit's words. Absent: nothing (D-382). Only a `stage` Scroll has one. */
   readonly stagePlan?: StagePlanV2;
 }
 
@@ -304,7 +304,7 @@ function stageFigureOf(figure: AuthoredStageFigure): StageFigure {
  * What the writer chose carries over from stop to stop; what is stored is only what the view can
  * show (the kit's `settle`), so a choice that changes nothing visible records nothing, and everything
  * physical follows from the words by the kit's own code (D-124, D-195). The figures of a stop (Earth & sky only)
- * stay until a stop changes the picture or names figures of its own (D-381); the kit sets aside any its view has no place for.
+ * stay until a stop changes the picture or names figures of its own (D-382); the kit sets aside any its view has no place for.
  */
 function buildStage(
   kitId: StageKitId,
@@ -334,7 +334,7 @@ function buildStage(
 }
 
 /**
- * Points each call that asked for it at the first read stop after it (D-382). A call with no read stop after it keeps no
+ * Points each call that asked for it at the first read stop after it (D-383). A call with no read stop after it keeps no
  * reveal; the recipe's own check reports that when it asked for one.
  */
 function pointRevealsAtNextStop(stops: readonly Stop[], revealing: ReadonlySet<number>): Stop[] {

@@ -19,7 +19,7 @@ export type CompileV2Outcome =
       readonly notices: readonly IssueV2[];
       /** The claims each part rests on, by the document's own ids (`s3`, `a1`, `recap`). Internal; never served. */
       readonly citations: Readonly<Record<string, readonly string[]>>;
-      /** The stage figures the writer gave that no cited passage states, left out of the picture (D-381). Internal; never served. */
+      /** The stage figures the writer gave that no cited passage states, left out of the picture (D-382). Internal; never served. */
       readonly leftOut: readonly LeftOutFigure[];
     }
   | { readonly kind: 'refused'; readonly stage: 'authoring' | 'document'; readonly issues: readonly IssueV2[] };
@@ -84,7 +84,7 @@ function citationsOf(
  */
 export function compileAuthoredV2(authored: AuthoredScrollV2, input: CompileV2Input): CompileV2Outcome {
   const own = authoringIssuesV2(authored, input);
-  // A figure no cited passage states is left out of the picture, not refused: the repair could only guess (D-381).
+  // A figure no cited passage states is left out of the picture, not refused: the repair could only guess (D-382).
   const { authored: stated, leftOut } = leaveOutUnstatedFigures(authored, input.evidence);
   const assembly = assembleScrollV2(stated, input.publication, input.recipe);
   if (assembly.kind === 'unassemblable')

@@ -98,7 +98,7 @@ export function plainOrrin(): AuthoredScrollV2 {
   const draft = JSON.parse(JSON.stringify(fixtureAuthoredV2())) as { items: Record<string, unknown>[] };
   for (const item of draft.items) {
     delete item['stage'];
-    // A call that turns the picture needs a picture to turn (D-382).
+    // A call that turns the picture needs a picture to turn (D-383).
     delete item['revealsNext'];
   }
   return AuthoredScrollV2.parse(draft);

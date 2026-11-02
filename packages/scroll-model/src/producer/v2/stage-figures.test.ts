@@ -79,7 +79,7 @@ const codes = (outcome: CompileV2Outcome) =>
 const entryAt = (document: ScrollDocumentV2, stopId: string) =>
   document.stage?.states.find((entry) => entry.stop === stopId);
 
-describe('a stage figure is shown only when a cited passage states it (D-381)', () => {
+describe('a stage figure is shown only when a cited passage states it (D-382)', () => {
   it('puts the figures of a stop on its picture, in the passage’s own unit, and says them in the picture’s words', () => {
     const outcome = compiled(
       compile(
@@ -225,7 +225,7 @@ describe('a stage figure is shown only when a cited passage states it (D-381)', 
   });
 });
 
-describe('what a recipe’s stage plan asks of the picture (D-381)', () => {
+describe('what a recipe’s stage plan asks of the picture (D-382)', () => {
   const plan: StagePlanV2 = { orbitMonths: 2 };
 
   it('accepts a picture that stands on the orbit at two different months, so the recap of the journey can draw', () => {
@@ -254,7 +254,7 @@ describe('what a recipe’s stage plan asks of the picture (D-381)', () => {
   });
 });
 
-describe('the first call shows the true picture to a reader who guessed wrong (D-382)', () => {
+describe('the first call shows the true picture to a reader who guessed wrong (D-383)', () => {
   const plan: StagePlanV2 = { reveal: true };
   const revealing = (draft: Mutable) => withStop(draft, 1, { revealsNext: true });
 
@@ -290,7 +290,7 @@ describe('the first call shows the true picture to a reader who guessed wrong (D
   });
 });
 
-describe('a state with figures, once stored, is admitted only as code made it (D-381)', () => {
+describe('a state with figures, once stored, is admitted only as code made it (D-382)', () => {
   const document = (): ScrollDocumentV2 =>
     JSON.parse(
       JSON.stringify(

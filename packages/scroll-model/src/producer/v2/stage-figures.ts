@@ -8,7 +8,7 @@ import { numericTokens } from '../../text.js';
 import { plainFigure, readingsOf, unitInPassages, type Reading } from './figures.js';
 
 /**
- * What a passage must say beside a figure for the figure to belong to its slot (D-381): the word that names the end of the
+ * What a passage must say beside a figure for the figure to belong to its slot (D-382): the word that names the end of the
  * orbit, or the month. A passage often gives two figures with two such words, in either order ("in June ... 14 hours ... in
  * December ... 10 hours", "14 hours in June and 10 in December"), so each cue word is given to the figure it stands nearest
  * to, and a figure belongs to the slot most of its cue words name. A figure whose cue words are tied, or are none, belongs to no slot,
@@ -57,7 +57,7 @@ function slotNear(text: string, index: number, family: readonly StageFigureSlot[
 }
 
 /**
- * Whether the cited passages state a figure of the stage as the figure is written (D-208, D-381): its digits with the word the
+ * Whether the cited passages state a figure of the stage as the figure is written (D-208, D-382): its digits with the word the
  * passage puts after them, standing beside the word that names its slot, in the unit and the place the passages use. A
  * figure the passages write another way (a range end, an exponent, a scaled `8.3m`), and a figure no passage holds, are not stated.
  */
@@ -88,7 +88,7 @@ export interface LeftOutFigure {
 
 /**
  * The authored Scroll with every stage figure that its stop's cited passages do not state taken out, and which they were. The picture then
- * simply has no such figure: code never rounds, converts or fills in a number (D-381), and the writer is not asked to repair
+ * simply has no such figure: code never rounds, converts or fills in a number (D-382), and the writer is not asked to repair
  * what it cannot know, so it costs no request. A slot written twice on a stop keeps its first.
  */
 export function leaveOutUnstatedFigures(
@@ -116,7 +116,7 @@ export function leaveOutUnstatedFigures(
 }
 
 /**
- * What a recipe's stage plan asks of the finished document (D-381): that the picture stands on the orbit at enough different
+ * What a recipe's stage plan asks of the finished document (D-382): that the picture stands on the orbit at enough different
  * months for the recap of the journey to draw (D-368), and that the first call shows the true picture to a reader who guessed
  * wrong. Findings are at the document's paths; the compile maps them to the writer's items.
  */

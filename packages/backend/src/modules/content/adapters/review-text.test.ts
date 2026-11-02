@@ -56,7 +56,7 @@ describe('the text an operator reads before releasing a v2 Scroll (labelled CI f
     expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 
-  it('names the picture a wrong pick turns the stage to, from the stop the call points at (D-382)', () => {
+  it('names the picture a wrong pick turns the stage to, from the stop the call points at (D-383)', () => {
     const call = document.stops.find((stop) => stop.kind === 'call_it');
     if (call?.kind !== 'call_it' || call.revealStage === undefined)
       throw new Error('CI expected a reveal on the first call');

@@ -323,7 +323,7 @@ export function StageReader({
   /** The reader is on the end tray: the picture becomes the recap and the next Part peeks in from the edge. */
   const atEnd = current >= document.stops.length;
   const shownStop = document.stops[Math.min(current, document.stops.length - 1)];
-  // A Call it that was answered wrongly turns the picture to the true one, on this device only (D-382).
+  // A Call it that was answered wrongly turns the picture to the true one, on this device only (D-383).
   const stopId = pictureStopOf(shownStop, shownStop === undefined ? undefined : played.stateOf(shownStop.id)) ?? '';
   return (
     <ReaderFocus onKey={onKey}>

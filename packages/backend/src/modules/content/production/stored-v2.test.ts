@@ -37,7 +37,7 @@ describe('what admission stores for a v2 Scroll (labelled CI fixture)', () => {
     expect(JSON.stringify(outcome.document)).not.toContain('claimId');
   });
 
-  it('records, in the private provenance, that a stage figure no cited passage states was left out of the picture (D-381)', () => {
+  it('records, in the private provenance, that a stage figure no cited passage states was left out of the picture (D-382)', () => {
     const draft = JSON.parse(JSON.stringify(fixtureAuthoredV2())) as { items: Record<string, unknown>[] };
     const figure = { slot: 'nearest', value: '41', magnitude: 'million', unit: 'kilometres' };
     draft.items[2] = { ...draft.items[2], figures: [figure] };

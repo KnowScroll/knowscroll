@@ -4397,7 +4397,7 @@ Confirmed by: `ask-answer-trim.test.ts` (the count; none for a callout equal to 
 
 Confirmed by: `ask-support-drop.test.ts` (the line cites what the draft cites when nothing is taken out; after the only blocks that cite two passages are taken out it cites neither; blocks that cite nothing are refused `rebuilt_invalid`), `writer.test.ts` (the line cites five passages and the other blocks two or three: refused `authoring_too_few_cites`, once; four: compiled; a writer's own callout in the same answer keeps the library's rule) and `supply-ask.test.ts` on real PostgreSQL with a labelled fixture model (a drop that leaves only blocks citing two passages ends `support_check_failed` with `support_drop_compile_refused` and serves nothing). Shown failing when the drop did not close again (two unit tests) and when the compile counted the line (one unit test); with both removed the integration test failed.
 
-## D-381 · 2026-11-03 · A stage state of Earth & sky may carry figures a cited passage states; code leaves out any it does not (v3 S-10, #649)
+## D-382 · 2026-11-03 · A stage state of Earth & sky may carry figures a cited passage states; code leaves out any it does not (v3 S-10, #649)
 
 **Builds on** D-124, D-195 and D-208. **Amends** D-120 only where it said a stage state holds words and no numbers.
 
@@ -4412,7 +4412,7 @@ Confirmed by: `ask-support-drop.test.ts` (the line cites what the draft cites wh
 
 Confirmed by: `producer/v2/stage-figures.test.ts` (a stated figure is shown and described; a figure no passage states, one the stop does not cite, one written another way, one with a unit or a place the passages never use, and a swapped pair are left out; a figure on a view that does not draw it is set aside; figures stay until the picture changes), `v2/kit.test.ts` (settling is idempotent over every view and figure; daylight only in hours of at most a day), `kit/earth-sky-figures.test.tsx` (every label of every month and both orbit views stays in the frame, clear of the TEXT pill and clear of the others; the bands are lit as long as the hours), `writer-v2.test.ts` and `stored-v2.test.ts`, and `scroll-v2-stage-plan.test.ts` on real PostgreSQL with a labelled fixture model (one writer request, the stated figure kept and the unstated one left out, the provenance check). Shown failing when the evidence check always passed, when the slot cue was ignored, when the left-out step was skipped, when a figure was kept on any view, when two labels were put on one line and when a band was lit by the wrong share.
 
-## D-382 · 2026-11-03 · A Call it may name the picture to show when its answer is wrong, and it stays on the device (v3 S-10, #649)
+## D-383 · 2026-11-03 · A Call it may name the picture to show when its answer is wrong, and it stays on the device (v3 S-10, #649)
 
 **Builds on** D-063, D-124 and D-189. **Amends** D-125, which said a document cannot bind a stage state to a revealed call.
 
@@ -4426,13 +4426,13 @@ Confirmed by: `producer/v2/stage-figures.test.ts` (a stated figure is shown and 
 
 Confirmed by: `v2/validate.test.ts` (accepted when it names the next read stop with a changed picture; refused for another stop, an unknown id, a call, a stop that sets no state, a state equal to the one on screen, a Scroll with no stage; the Final call refuses the field), `producer/v2/stage-figures.test.ts`, `stage-reader/stage-reveal.test.tsx` (not before the lock, turns on a wrong lock, not on a right one, a document without the field is unchanged, the text version, a wrong lock the play layer holds, and that the observer and the play layer hear only what they heard before), `play/wall.test.ts` and `reading-facts-v2.test.ts`. Shown failing when the turn came before the lock, when it came on a right answer too, when the validator did not check it, when a composer file named the field and when a new interaction kind was added.
 
-## D-383 · 2026-11-03 · Seasons Part 1 asks for orbit views at two months, the figures and the reveal; writer v21 with production v21 (v3 S-10, #649)
+## D-384 · 2026-11-03 · Seasons Part 1 asks for orbit views at two months, the figures and the reveal; writer v21 with production v21 (v3 S-10, #649)
 
-**Builds on** D-125, D-368, D-381 and D-382. **Amends** D-210 in that a recipe may now ask for more than blocks.
+**Builds on** D-125, D-368, D-382 and D-383. **Amends** D-210 in that a recipe may now ask for more than blocks.
 
 - **Why.** On dev every orbit view of Seasons Part 1 stood at June, so the recap of D-368 never drew, and F3, F4 and F7 had no state to show.
 - **The plan.** A recipe's `scrollV2.stagePlan` may name `orbitMonths` (the picture stands on an orbit view at that many different months at least), `figures` (the slots the writer may fill, where a cited passage states them) and `reveal` (the first call turns the picture). A person chooses it, per recipe, as for `blocks`. `seasons` has `{orbitMonths: 2, figures: all four, reveal: true}`; no other recipe has one.
-- **What code checks.** After assembling: `stage_months_too_few` if the orbit views stand at fewer months, and `call_reveal_missing` if the first call turns nothing. Each has a fixed repair hint, and the one repair can fix both. Figures are never a reason to repair (D-381).
+- **What code checks.** After assembling: `stage_months_too_few` if the orbit views stand at fewer months, and `call_reveal_missing` if the first call turns nothing. Each has a fixed repair hint, and the one repair can fix both. Figures are never a reason to repair (D-382).
 - **The writer.** `scroll-writer.v21` adds, for a recipe with a plan only, one paragraph for each ask and the syntax of `figures` and `revealsNext`. A recipe with no plan gets the text it had, apart from the version. `SCROLL_PRODUCTION_V2_VERSION` is `scroll-production.v21`, paired in `versions.test.ts`, so every v2 recipe has three fresh takes.
 - **Readers.** The document schema is strict, so a native build made before this change refuses a document that carries `figures` or `revealStage`, as D-210 said of blocks. The web reader ships with the server. A Seasons Scroll with the new fields should be released only once a native build with this reader exists; there are no native users today.
 - **The recorded answer.** The labelled Orrin answer in CI already stands on the orbit in January and December; it now carries `revealsNext` on its first call, so that it still meets the Seasons plan.
