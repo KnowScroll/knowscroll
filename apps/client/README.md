@@ -389,7 +389,7 @@ float over it.
   (gold or cream) painted on the globe and the landed map at places `landmarkSpots` picks; with no such planet on the map it
   waits ("Gold finish · waits for its planet"). The map carries no chips of the collection (the Universe set draws none): the
   newest landmark is a paper card over the bottom of the map ("New landmark" for a week after it was earned, "Latest landmark"
-  after; its name, "from <planet> · gold finish", "See it"), and "See it" opens the sheet that lists every one with its finish
+  after, D-363; its name, "from <planet> · gold finish", "See it"), and "See it" opens the sheet that lists every one with its finish
   and where it stands. The card is one line where a full card would reach the picture (D-319): on a globe, where it sits under
   Back above the globe so it clears the planet's name and hint, on a landed map, and on a screen under 760 px tall, where a
   full card would reach the sun. With only the week to say the card has no button. The Orbit is one quiet line of

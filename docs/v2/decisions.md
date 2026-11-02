@@ -3966,3 +3966,13 @@ Confirmed by: `universe-planet-smoke.spec.ts` (the region's name is whole at 390
 - **Navigation.** The visit keeps the tab bar (phones) or the rail (tablet and desktop), with Universe current. It has no unread dot, so a visit reads nothing of the person's own inbox.
 
 Confirmed by: `visit-screen.test.tsx` (the tab bar, the options, the same bar for every world).
+
+## D-363 · 2026-11-02 · A landmark is called new for a week, then the latest (v3 Universe fidelity, #497)
+
+**Builds on** D-319.
+
+- **Why.** The card said "New landmark" for as long as the landmark was the newest, so a landmark earned months ago was still "new". A word that stays true only for a while must end.
+- **The rule.** The card says "New landmark" while the newest landmark was earned within `NEW_LANDMARK_DAYS` (7) days of now, and "Latest landmark" after. A time that cannot be read counts as not new, so the card never claims freshness it cannot show. Nothing else changes: the card, the list and the markers stay.
+- **Not a score.** It reads the earned time only. It does not count, rank or reward.
+
+Confirmed by: `collection-view.test.ts` (`isNewLandmark`, the 7 day edge and an unreadable time), `collection-screen.test.tsx` ("calls a landmark new for a week and the latest after"). Shown failing when the window was removed.

@@ -33,10 +33,10 @@ export interface CollectionView {
   readonly resume: ResumeOffer | null;
 }
 
-/** How long a landmark is called new (the card says "Latest landmark" after). */
+/** How long a landmark is called new (the card says "Latest landmark" after; D-363). */
 export const NEW_LANDMARK_DAYS = 7;
 
-/** Whether a landmark was earned within {@link NEW_LANDMARK_DAYS} of `now`. A time that cannot be read counts as not new. */
+/** Whether a landmark was earned within {@link NEW_LANDMARK_DAYS} of `now` (D-363). A time that cannot be read counts as not new. */
 export function isNewLandmark(row: Pick<LandmarkRow, 'earnedAt'>, now: number = Date.now()): boolean {
   const earned = Date.parse(row.earnedAt);
   return Number.isFinite(earned) && now - earned <= NEW_LANDMARK_DAYS * 86_400_000;
