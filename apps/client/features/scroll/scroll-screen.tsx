@@ -32,7 +32,7 @@ import { RequestNotice } from '../encounter/encounter-notices';
 import { EncounterOverlay } from '../encounter/encounter-overlay';
 import { RequestPanel } from '../requests/request-panel';
 import { StageReaderSurface } from './stage-reader-surface';
-import { takePartLeft } from './part-left';
+import { forgetPartLeft, partLeftFor } from './part-left';
 import { useAddressMoves } from './use-address-moves';
 import { useDirectAsk } from './use-direct-ask';
 import { useScrollSession } from './use-scroll-session';
@@ -311,15 +311,18 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
   // The count is the server's; the Scroll's own Part number stands in until the context arrives.
   const ownPart = scroll.document.series?.part;
   const partLabel = moves.partLabel ?? (ownPart === undefined ? undefined : `Part ${String(ownPart)}`);
-  // The step forward that opened this Scroll, taken once when the context says which Part of which series this is.
-  const [left, setLeft] = useState<number | undefined>();
-  const [leftTaken, setLeftTaken] = useState(false);
+  // The step forward that opened this Scroll, read once the context says which Part of which series this is, then forgotten.
   const { part: countedPart, seriesId } = moves;
+  const left = useMemo(
+    () =>
+      countedPart === undefined || seriesId === undefined
+        ? undefined
+        : partLeftFor(scope, scroll.assetId, { part: countedPart, seriesId }),
+    [scope, scroll.assetId, countedPart, seriesId],
+  );
   useEffect(() => {
-    if (leftTaken || countedPart === undefined || seriesId === undefined) return;
-    setLeftTaken(true);
-    setLeft(takePartLeft(scope, scroll.assetId, { part: countedPart, seriesId }));
-  }, [leftTaken, countedPart, seriesId, scope, scroll.assetId]);
+    if (left !== undefined) forgetPartLeft(scope, scroll.assetId);
+  }, [left, scope, scroll.assetId]);
   const nowPart = moves.part ?? ownPart;
   const arrival =
     nowPart !== undefined && left !== undefined && left < nowPart

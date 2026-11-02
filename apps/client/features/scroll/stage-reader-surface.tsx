@@ -83,6 +83,7 @@ export function StageReaderSurface({
   headerNote,
   endSlot,
   arrival,
+  topNote,
   momentThread,
   topInset,
   bottomInset,
@@ -107,6 +108,8 @@ export function StageReaderSurface({
   readonly endSlot?: ReactNode;
   /** Set when this Scroll was opened by a move from the Part before: it comes in from the right and says the place there is kept. */
   readonly arrival?: PartArrival | undefined;
+  /** A note over the top of the reader, below its header (Explore's "Next topic" note). */
+  readonly topNote?: ReactNode;
   /** The thread this Scroll is read in, so "Share a moment" sends into it; elsewhere the person chooses one of theirs. */
   readonly momentThread?: MomentThread | undefined;
   readonly topInset: number;
@@ -176,6 +179,7 @@ export function StageReaderSurface({
           related={moves.related}
           previousPart={moves.previous}
           arrival={arrival}
+          topNote={topNote}
           onDone={moves.done}
           endSlot={endSlot}
           play={play}

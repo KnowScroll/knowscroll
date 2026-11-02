@@ -33,19 +33,23 @@ export function notePartLeft(
 }
 
 /**
- * The number of the Part a step forward just left for this Scroll, once, when the Scroll that opened is a later Part of the
- * same series and the step was a moment ago. `undefined` for a link, a reload, a later visit, another scope or another series.
+ * The number of the Part a step forward just left for this Scroll, when the Scroll that opened is a later Part of the same
+ * series and the step was a moment ago. `undefined` for a link, a reload, a later visit, another scope or another series.
+ * It reads and changes nothing, so it may be asked while drawing; `forgetPartLeft` is what makes it once.
  */
-export function takePartLeft(
+export function partLeftFor(
   scope: Pick<AccountScope, 'active'>,
   assetId: string,
   opened: { readonly part: number; readonly seriesId: string },
   now: number = Date.now(),
 ): number | undefined {
-  const own = notes.get(scope as AccountScope);
-  const left = own?.get(assetId);
-  if (own === undefined || left === undefined || !scope.active) return undefined;
-  own.delete(assetId);
+  const left = notes.get(scope as AccountScope)?.get(assetId);
+  if (left === undefined || !scope.active) return undefined;
   const fresh = now - left.at <= EXPIRES_MS;
   return fresh && left.seriesId === opened.seriesId && left.part < opened.part ? left.part : undefined;
+}
+
+/** Forgets the note for this Scroll, so the arrival it made is said once. */
+export function forgetPartLeft(scope: Pick<AccountScope, 'active'>, assetId: string): void {
+  notes.get(scope as AccountScope)?.delete(assetId);
 }
