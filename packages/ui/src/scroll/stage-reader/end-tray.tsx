@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type ViewInstance } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, View, type ViewInstance } from 'react-native';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { Button } from '../../actions/button';
@@ -46,6 +46,8 @@ export interface EndTrayProps {
   readonly onChallenge?: (() => void) | undefined;
   /** What the screen the Scroll is read on adds at its foot, before the ways on (a thread's "I've finished this part"). */
   readonly endSlot?: ReactNode;
+  /** How far a pull up from the end has got (0 to 1): the meter in the handle at the top of the tray fills with it. */
+  readonly pull?: Animated.Value | undefined;
 }
 
 /**
@@ -104,6 +106,41 @@ export function EndTray(props: EndTrayProps) {
           )}
         </View>
       )}
+      {props.onNextTopic === undefined || props.pull === undefined || !pullsByTouch() ? null : (
+        <PullHandle pull={props.pull} />
+      )}
+    </View>
+  );
+}
+
+/**
+ * Whether a pull up from the end can fill a meter here: iOS (the scroll view's own bounce, D-134) and a touch screen on the
+ * web (the drag itself). Android has no overscroll to read, and a mouse alone pulls nothing: "Something new" and N do it there.
+ */
+function pullsByTouch(): boolean {
+  if (Platform.OS === 'ios') return true;
+  return Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+}
+
+/**
+ * The handle at the foot of the end tray, where a pull from the end begins (V3 G3): "Keep pulling · next topic" and a meter that fills as the finger pulls up
+ * from the end, full where a release moves on. It is the picture of the pull for the eye alone; "Something new" and the N key
+ * are the controls that do the same. The meter fills under reduced motion too, because it is feedback and travels nowhere.
+ */
+function PullHandle({ pull }: { readonly pull: Animated.Value }) {
+  const filled = pull.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'], extrapolate: 'clamp' });
+  return (
+    <View aria-hidden importantForAccessibility="no-hide-descendants" style={styles.handle} testID="pull-handle">
+      <View style={styles.grip} />
+      <View style={styles.pullRow}>
+        <Icon name="arrowUp" size={14} />
+        <Text variant="monoXs" style={styles.pullWords}>
+          KEEP PULLING · NEXT TOPIC
+        </Text>
+        <View style={styles.meter} testID="pull-meter">
+          <Animated.View style={[styles.meterFill, { width: filled }]} testID="pull-meter-fill" />
+        </View>
+      </View>
     </View>
   );
 }
@@ -128,30 +165,12 @@ function PayoffBlock({
 }
 
 /**
- * Where to go next, every way with its own button: the peek at the next Part, then "Done for today"
- * and "Something new" side by side at the same size, then another angle if one was admitted.
+ * Where to go next, every way with its own button: "Done for today" and "Something new" side by side at the same
+ * size, then another angle if one was admitted. The next Part is the peek at the picture's right edge (V3 F10), not a card here.
  */
-function WaysOn({
-  nextPart,
-  related,
-  onNextTopic,
-  onDoneForToday,
-}: EndTrayProps & { readonly onDoneForToday: () => void }) {
+function WaysOn({ related, onNextTopic, onDoneForToday }: EndTrayProps & { readonly onDoneForToday: () => void }) {
   return (
     <>
-      {nextPart === undefined ? null : (
-        <View style={styles.peek} testID="part-peek">
-          <Tag label={nextPart.label} variant="part" />
-          <Text variant="title">{nextPart.title}</Text>
-          <Button
-            label={`Continue ${nextPart.label}`}
-            icon="arrowRight"
-            iconPosition="trailing"
-            variant="primary"
-            onPress={nextPart.onPress}
-          />
-        </View>
-      )}
       <View style={styles.equal}>
         <View style={styles.equalCell}>
           <Button label="Done for today" fullWidth onPress={onDoneForToday} />
@@ -253,6 +272,21 @@ function SmallPrintChip({ smallPrint }: { readonly smallPrint: SmallPrint }) {
 
 const styles = StyleSheet.create({
   tray: { gap: spacing[4] },
+  handle: { gap: spacing[2], alignItems: 'center' },
+  grip: { width: 40, height: 4, borderRadius: 2, backgroundColor: content.rule },
+  pullRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], alignSelf: 'stretch' },
+  pullWords: { flexShrink: 1 },
+  meter: {
+    flex: 1,
+    minWidth: 48,
+    height: 8,
+    borderRadius: radius.pill,
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+    backgroundColor: content.paper,
+    overflow: 'hidden',
+  },
+  meterFill: { height: '100%', backgroundColor: content.continue },
   captions: { gap: spacing[3] },
   caption: { flexDirection: 'row', gap: spacing[3], alignItems: 'flex-start' },
   captionText: { flex: 1 },
@@ -267,15 +301,6 @@ const styles = StyleSheet.create({
     backgroundColor: content.continue,
   },
   payoff: { gap: spacing[3], alignItems: 'flex-start' },
-  peek: {
-    gap: spacing[2],
-    alignItems: 'flex-start',
-    padding: spacing[4],
-    borderRadius: radius.panel,
-    borderWidth: borderWidth.regular,
-    borderColor: content.ink,
-    backgroundColor: content.continue,
-  },
   equal: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   equalCell: { flexGrow: 1, flexBasis: 150 },
   relatedRow: {

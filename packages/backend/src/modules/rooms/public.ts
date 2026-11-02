@@ -40,6 +40,8 @@ import type {
   RoomPreferencesAcceptanceSchema,
   RoomPresenceAckSchema,
   RoomReportsSchema,
+  RoomFlairChosenAcceptanceSchema,
+  RoomFlairViewSchema,
   RoomSkyViewSchema,
   RoomSnippetOpeningSchema,
   RoomStationsSchema,
@@ -145,6 +147,13 @@ export interface RoomUseCases {
     authority: PersonalAuthority,
     input: unknown,
   ): Promise<Result<z.infer<typeof ConstellationVoteAcceptanceSchema>>>;
+  /** The member's own flair card for the room: what they have earned, how far they are on the rest, and what shows beside their name (v3 R-11, D-342). */
+  flair(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomFlairViewSchema>>>;
+  /** The member chooses which earned flair shows beside their name, hides it, or leaves it automatic (v3 R-11, D-344). */
+  chooseFlair(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof RoomFlairChosenAcceptanceSchema>>>;
   /**
    * The room's Launch for a member: the one running or, for a day, the last one's podium, and whether they may start one now
    * (v3 R-6, D-178). A question that is open carries no key, no count and no name. Writes nothing.

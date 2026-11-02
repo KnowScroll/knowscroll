@@ -1,10 +1,12 @@
 import { z } from 'zod';
-import { isPublicLabel } from './sharing.js';
+import { UuidSchema } from './ids.js';
+import { PublicPersonRefSchema, isPublicLabel } from './sharing.js';
 
 /**
  * A room's sky (v3 R-5, D-174 to D-176): the stars a room earns together, the constellation seven of them make, and the
- * name the room gives it. A star is a moment the room made, not something a person owns: it names an act and a day and
- * never a person, a message, a title or a time of day. Only members read a room's sky; a block changes nothing in it.
+ * name the room gives it. A star is a moment the room made, not something a person owns: what is stored names an act and a
+ * day and never a person, a message, a title or a time of day. Only members read a room's sky. A read adds the moment of each
+ * star (R3 E5, D-341) for the reader, leaving out a person the reader blocked.
  */
 
 /** Seven stars make a constellation. */
@@ -46,12 +48,34 @@ export const RoomSkySchema = z
   );
 export type RoomSky = z.infer<typeof RoomSkySchema>;
 
-/** One star, for a member who taps it: the act, the UTC day and the constellation it belongs to. */
-export const RoomStarSchema = z.strictObject({
-  act: RoomStarActSchema,
-  day: z.iso.date(),
-  constellation: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
-});
+/**
+ * One star, for a member who reads the sky (R3 E5): the act, the UTC day and the constellation it belongs to, and the moment
+ * that earned it where the room may be told. A star still holds no account: the moment is read from the act's own rows when
+ * the sky is read, so what it names is what those rows show this reader now.
+ *
+ * - `by`: the person whose answer was marked useful (R3 names them). Absent when that person is blocked by the reader, the
+ *   answer was removed or its author's account is gone. Who marked it is never said (D-168).
+ * - `title`: the debate that closed, by the title rules of a topic (D-168).
+ * - `played`: how many people answered the Launch. The podium is gone after the night (D-221), so no one is named.
+ * - `opens`: the discussion a tap opens, present only when this reader may read it.
+ */
+export const RoomStarSchema = z
+  .strictObject({
+    act: RoomStarActSchema,
+    day: z.iso.date(),
+    constellation: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+    by: PublicPersonRefSchema.optional(),
+    title: z.string().min(1).max(80).refine(isPublicLabel).optional(),
+    played: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
+    opens: z.strictObject({ discussionId: UuidSchema }).optional(),
+  })
+  .refine(
+    (star) =>
+      (star.by === undefined || star.act === 'answer_useful') &&
+      (star.title === undefined || star.act === 'debate_closed') &&
+      (star.played === undefined || star.act === 'launch_finished') &&
+      (star.opens === undefined || star.act === 'answer_useful' || star.act === 'debate_closed'),
+  );
 export type RoomStar = z.infer<typeof RoomStarSchema>;
 
 /**

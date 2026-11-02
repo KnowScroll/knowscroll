@@ -128,13 +128,14 @@ describe('the Stage + Spine reader', () => {
         />
       </DisplayProvider>,
     );
-    expect(screen.getByText('Fixture part two')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: 'Continue Part 2' }));
+    // The next Part is no card in the tray: it peeks in from the picture's edge once the reader is at the end (part-peek.test.tsx).
+    expect(screen.queryByText('Fixture part two')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('part-edge-peek')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Done for today' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Back to the end' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Something new' }));
-    expect([onPart, onDone, onTopic].map((fn) => fn.mock.calls.length)).toEqual([1, 1, 1]);
+    expect([onPart, onDone, onTopic].map((fn) => fn.mock.calls.length)).toEqual([0, 1, 1]);
   });
 
   it('draws what the screen adds at the end of the Scroll, and nothing there when it adds none', async () => {

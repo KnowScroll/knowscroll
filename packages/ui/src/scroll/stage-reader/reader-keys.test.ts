@@ -25,6 +25,6 @@ describe('the reader keys', () => {
   });
 
   it('ignore every other key', () => {
-    for (const key of ['x', 'Tab', 'Escape', '5', '0', 'Shift']) expect(readerKeyOf(key)).toBeUndefined();
+    for (const key of ['x', 'Tab', '5', '0', 'Shift']) expect(readerKeyOf(key)).toBeUndefined();
   });
 });

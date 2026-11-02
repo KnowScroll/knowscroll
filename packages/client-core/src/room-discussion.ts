@@ -396,6 +396,8 @@ export function createRoomDiscussion(options: RoomDiscussionOptions): RoomDiscus
           return useful ? { ...rest, usefulByYou: true as const } : rest;
         }),
       });
+      // This mark earned the room a star, and the answer now carries it ("+1 star for the room", D-346): only a fresh read has it.
+      if (accepted.star === true) await load();
       return true;
     },
     async voteDebate(side) {

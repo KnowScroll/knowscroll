@@ -9,10 +9,15 @@ import {
   onCircle,
   onEllipse,
   pinPoint,
+  RECAP_FRAME,
+  recapHalfHeight,
+  recapPlaces,
   SCENE_HEIGHT,
   SCENE_WIDTH,
   type EarthSkyScene,
   type Point,
+  type RecapMark,
+  type RecapPlace,
 } from './earth-sky-scene';
 
 /**
@@ -213,6 +218,56 @@ function MonthLabel({ at, text, bold }: { readonly at: Point; readonly text: str
   );
 }
 
+/** One Earth of the recap, with its number: a yellow badge on the outer side of the orbit. */
+function RecapEarth({
+  scene,
+  place,
+  sun,
+}: {
+  readonly scene: EarthSkyScene;
+  readonly place: RecapPlace;
+  readonly sun: Point;
+}) {
+  const { mark, earth, badge } = place;
+  return (
+    <G testID={`recap-earth-${String(mark.n)}`}>
+      <Earth
+        scene={scene}
+        at={earth}
+        radius={RECAP_FRAME.earthRadius}
+        sunward={(Math.atan2(-(sun.y - earth.y), sun.x - earth.x) * 180) / Math.PI}
+        clipId={`ks-earth-recap-${String(mark.n)}`}
+        pins={false}
+      />
+      <Circle cx={badge.x} cy={badge.y} r={RECAP_FRAME.badgeRadius} fill={SUN} stroke={INK} strokeWidth={2} />
+      <SvgText x={badge.x} y={badge.y + 3.4} fontSize={10} fontFamily={fontFamily.mono} fill={INK} textAnchor="middle">
+        {String(mark.n)}
+      </SvgText>
+    </G>
+  );
+}
+
+/** The recap view: the orbit, the Sun, and an Earth numbered at each place the Scroll shows it. */
+function RecapView({ scene, marks }: { readonly scene: EarthSkyScene; readonly marks: readonly RecapMark[] }) {
+  const { centre, halfWidth } = RECAP_FRAME;
+  const halfHeight = recapHalfHeight(scene);
+  return (
+    <G>
+      <Path
+        d={`M ${centre.x - halfWidth} ${centre.y} a ${halfWidth} ${halfHeight} 0 1 0 ${2 * halfWidth} 0 a ${halfWidth} ${halfHeight} 0 1 0 ${-2 * halfWidth} 0`}
+        fill="none"
+        stroke={INK}
+        strokeWidth={1.6}
+        strokeDasharray="6 5"
+      />
+      <Sun at={centre} radius={18} focused={false} />
+      {recapPlaces(scene, marks).map((place) => (
+        <RecapEarth key={place.mark.n} scene={scene} place={place} sun={centre} />
+      ))}
+    </G>
+  );
+}
+
 /** Orbit views, seen from above: the orbit, the Sun, four pale Earths and the Earth of the month. */
 function OrbitView({ scene }: { readonly scene: EarthSkyScene }) {
   const centre = { x: SCENE_WIDTH / 2, y: SCENE_HEIGHT / 2 + 4 };
@@ -329,7 +384,9 @@ export function EarthSkyPicture({ scene }: { readonly scene: EarthSkyScene }): R
   const orbit = scene.view === 'orbit' || scene.view === 'orbit-stretched';
   return (
     <Svg width="100%" height="100%" viewBox={`0 0 ${SCENE_WIDTH} ${SCENE_HEIGHT}`} preserveAspectRatio="xMidYMid meet">
-      {orbit ? (
+      {scene.recap !== undefined ? (
+        <RecapView scene={scene} marks={scene.recap} />
+      ) : orbit ? (
         <OrbitView scene={scene} />
       ) : scene.view === 'moon-orbit' ? (
         <MoonView scene={scene} />

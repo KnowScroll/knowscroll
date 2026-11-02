@@ -32,6 +32,7 @@ import { RequestNotice } from '../encounter/encounter-notices';
 import { EncounterOverlay } from '../encounter/encounter-overlay';
 import { RequestPanel } from '../requests/request-panel';
 import { StageReaderSurface } from './stage-reader-surface';
+import { forgetPartLeft, partLeftFor } from './part-left';
 import { useAddressMoves } from './use-address-moves';
 import { useDirectAsk } from './use-direct-ask';
 import { useScrollSession } from './use-scroll-session';
@@ -310,6 +311,23 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
   // The count is the server's; the Scroll's own Part number stands in until the context arrives.
   const ownPart = scroll.document.series?.part;
   const partLabel = moves.partLabel ?? (ownPart === undefined ? undefined : `Part ${String(ownPart)}`);
+  // The step forward that opened this Scroll, read once the context says which Part of which series this is, then forgotten.
+  const { part: countedPart, seriesId } = moves;
+  const left = useMemo(
+    () =>
+      countedPart === undefined || seriesId === undefined
+        ? undefined
+        : partLeftFor(scope, scroll.assetId, { part: countedPart, seriesId }),
+    [scope, scroll.assetId, countedPart, seriesId],
+  );
+  useEffect(() => {
+    if (left !== undefined) forgetPartLeft(scope, scroll.assetId);
+  }, [left, scope, scroll.assetId]);
+  const nowPart = moves.part ?? ownPart;
+  const arrival =
+    nowPart !== undefined && left !== undefined && left < nowPart
+      ? { part: `Part ${String(nowPart)}`, from: `Part ${String(left)}` }
+      : undefined;
   return (
     <>
       <StageReaderSurface
@@ -322,6 +340,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
           if (stopId !== undefined) remember(stopId);
         }}
         partLabel={partLabel}
+        arrival={arrival}
         moves={{
           universe: () => router.navigate('/universe'),
           save: {
@@ -337,6 +356,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
           nextPart: moves.nextPart,
           related: moves.related,
           previousPart: moves.previousPart,
+          previous: moves.previous,
           formatSwitch: (
             <FormatSwitch
               selected="scroll"

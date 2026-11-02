@@ -2,10 +2,15 @@ import { useRouter } from 'expo-router';
 import type { AccountScope } from '@knowscroll/client-core';
 import { readerContinuations, type ReaderContinuations } from '../encounter/continuation-moves';
 import { useOpenedContext } from '../encounter/use-format-siblings';
+import { notePartLeft } from './part-left';
 
 /** The moves of a Scroll opened by its address, and the Part it says it is ("Part 1 of 3"). */
 export interface AddressMoves extends ReaderContinuations {
   readonly partLabel: string | undefined;
+  /** The Part number the context counts, for saying which Part a step forward opened. */
+  readonly part?: number | undefined;
+  /** The series the context counts the Part in, so a step noted for another series is not taken for this one. */
+  readonly seriesId?: string | undefined;
 }
 
 /**
@@ -19,12 +24,18 @@ export function useAddressMoves(scope: AccountScope, exposureId: string): Addres
   const router = useRouter();
   const { data } = useOpenedContext(scope, exposureId);
   if (data === undefined) return { partLabel: undefined };
-  const moves = readerContinuations(data.continuations, (state) =>
-    router.push(`/${state.metadata.kind}/${state.target.assetId}`),
-  );
   const { series } = data;
+  // A step forward notes which Part it left, so the Part that opens can say its place there is kept.
+  const moves = readerContinuations(data.continuations, (state, direction) => {
+    // Only a step forward in a series notes it: a related move or another angle leaves no "place kept" to say.
+    if (direction === 'next' && series !== undefined && state.relation.kind === 'series_step')
+      notePartLeft(scope, state.target.assetId, { part: series.part, seriesId: series.seriesId });
+    router.push(`/${state.metadata.kind}/${state.target.assetId}`);
+  });
   return {
     ...moves,
     partLabel: series === undefined ? undefined : `Part ${String(series.part)} of ${String(series.total)}`,
+    part: series?.part,
+    seriesId: series?.seriesId,
   };
 }

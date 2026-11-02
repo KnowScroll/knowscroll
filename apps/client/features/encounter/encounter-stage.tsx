@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { content, spacing } from '@knowscroll/design-tokens';
@@ -15,6 +15,12 @@ import { encounterOrigin } from './encounter-origin';
 import { EncounterOriginChip } from './encounter-origin-chip';
 import type { EncounterSession, EncounterState } from './encounter-session';
 import { EncounterFormatSwitch } from './encounter-top-bar';
+import { arrivalToSay, markArrivalSaid } from './part-arrival';
+import { formatNoteOf } from './format-note';
+import { FormatNoteCard } from './format-note-card';
+
+/** The entries whose "Next topic" card has been shown: it is said once per Scroll, even if the screen is drawn again. */
+const noted = new WeakSet<EncounterEntry>();
 
 export type StageEntry = Extract<EncounterEntry, { kind: 'scroll' }> & { readonly scroll: OpenedStageScroll };
 
@@ -56,6 +62,19 @@ export function StageEncounter({
   );
   const series = entry.context.series;
   const reel = entry.context.variants.find((variant) => variant.kind === 'reel');
+  const switchToReel = () =>
+    reel?.status === 'ready' ? session.navigate({ mode: 'variant', to: 'reel' }) : session.openRequest('reel');
+  // "Next topic · as a Scroll" (V3 G4): once, for the Scroll a new topic just landed on.
+  // "Part 2 · your place in Part 1 is kept" and the slide in are for the step forward, once: not for a Back or an Undo that returns here.
+  const [arrival] = useState(() => arrivalToSay(state.trail, entry));
+  useEffect(() => {
+    markArrivalSaid(entry);
+  }, [entry]);
+  const [note, setNote] = useState(() => (noted.has(entry) ? undefined : formatNoteOf(state.trail, entry)));
+  useEffect(() => {
+    noted.add(entry);
+  }, [entry]);
+  const putNoteAway = useCallback(() => setNote(undefined), []);
   useLayoutEffect(() => {
     if (!playable) return;
     session.bindSurface(entry, {
@@ -83,6 +102,23 @@ export function StageEncounter({
         paused={!playable}
         initialStopId={entry.position?.kind === 'scroll' ? entry.position.value.blockId : undefined}
         handleRef={reader}
+        arrival={arrival}
+        topNote={
+          note === undefined ? undefined : (
+            <FormatNoteCard
+              note={note}
+              onSwitch={() => {
+                setNote(undefined);
+                switchToReel();
+              }}
+              onUndo={() => {
+                setNote(undefined);
+                back();
+              }}
+              onExpire={putNoteAway}
+            />
+          )
+        }
         partLabel={series === undefined ? undefined : `Part ${String(series.part)} of ${String(series.total)}`}
         moves={{
           universe: () => router.navigate('/universe'),
@@ -109,8 +145,8 @@ export function StageEncounter({
             session.requests.edit({ about: true, text: (question ?? `Tell me more about “${passage}”`).slice(0, 280) });
           },
           formatSwitch: <EncounterFormatSwitch entry={entry} session={session} showIcons={!narrow} terse={narrow} />,
-          format: () =>
-            reel?.status === 'ready' ? session.navigate({ mode: 'variant', to: 'reel' }) : session.openRequest('reel'),
+          format: switchToReel,
+          undo: note === undefined ? undefined : back,
           done: back,
         }}
         moreBody={(close) => (
