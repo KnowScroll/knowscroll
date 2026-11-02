@@ -17,7 +17,7 @@ import {
   WINDOW_MESSAGES,
   type SuggestVerdict,
 } from './planner-role.js';
-import type { DraftRow, DraftWorkerPorts } from './ports.js';
+import type { DraftFailure, DraftRow, DraftWorkerPorts } from './ports.js';
 
 /** Asks the Scenario Planner about one waiting draft; the worker's consumer calls it. */
 export type SuggestStep = (job: SuggestDraftJob, signal: AbortSignal) => Promise<void>;
@@ -109,7 +109,11 @@ export function makeSuggestDraft(p: DraftWorkerPorts, harness: RecordingReasonin
     };
   }
 
-  async function apply(scope: PersonalScopeTx, draftId: string, verdict: SuggestVerdict): Promise<void> {
+  async function apply(
+    scope: PersonalScopeTx,
+    draftId: string,
+    verdict: SuggestVerdict | { readonly kind: 'failed'; readonly failure: DraftFailure },
+  ): Promise<void> {
     const draft = await p.store.lockDraft(scope, draftId);
     // A choice made while the model thought, or an expiry, wins: the late answer is dropped.
     if (draft?.state !== 'thinking') return;
@@ -144,7 +148,9 @@ export function makeSuggestDraft(p: DraftWorkerPorts, harness: RecordingReasonin
     }
     // Recording is paused: no run and no model call, and the draft says so (D-388), because the person's own pause is theirs to know.
     if (value.owner === undefined) {
-      await p.withScope(authority, (scope) => apply(scope, job.draftId, { kind: 'failed', failure: 'recording_paused' }));
+      await p.withScope(authority, (scope) =>
+        apply(scope, job.draftId, { kind: 'failed', failure: 'recording_paused' }),
+      );
       return;
     }
     const { outcome, purpose } = await proposeWhenRecording(

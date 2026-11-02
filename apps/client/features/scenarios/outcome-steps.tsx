@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import type { ScenarioBlock } from '@knowscroll/client-core';
+import type { ScenarioBlock, ScenarioComposerState } from '@knowscroll/client-core';
 import type { ScenarioCard } from '@knowscroll/contracts';
 import { content, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Spinner, Tag, Text } from '@knowscroll/ui';
@@ -9,7 +9,7 @@ const blockMessage: Record<ScenarioBlock, string> = {
   budget:
     'No more branches can be made right now. A thread can make five a day, and KnowScroll has a limit each day too. Try again tomorrow.',
   // The server refuses before it writes anything when no sources can be found for the Scroll (an older or imported one).
-  // The thread cannot know that cheaply, so the sheet is offered and this is the plain answer (D-389).
+  // The thread cannot know that cheaply, so the sheet is offered and this is the plain answer (D-390).
   unsupported:
     'This Scroll doesn’t have what KnowScroll needs to check a new idea against, so a branch can’t be made from it yet. Nothing was made. You can keep talking about it here, or try What if on another Scroll.',
   invalid: 'That wording isn’t accepted. Keep it to a plain sentence, without web addresses.',
@@ -59,7 +59,7 @@ export function NoSuggestionsStep({
   onOwn,
   onClose,
 }: {
-  readonly reason: 'could_not_suggest' | 'budget_unavailable' | undefined;
+  readonly reason: ScenarioComposerState['failure'];
   readonly onOwn: () => void;
   readonly onClose: () => void;
 }) {

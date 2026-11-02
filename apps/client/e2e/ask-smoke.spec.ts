@@ -272,6 +272,25 @@ test('could not prepare is said plainly, and Try again re-drives the same reques
   await expect(page.getByTestId('ask-making')).toBeVisible();
 });
 
+test('a question closed by a daily limit says which one, and nothing about other people', async ({ page }) => {
+  const cases = [
+    ['person_cap_full', /You've asked for 5 new explanations today, the most for one day\. You can ask again tomorrow\./],
+    ['world_cap_full', /New explanations are full for today\. You can ask again tomorrow\./],
+    ['ask_orders_off', /New explanations are switched off right now\./],
+  ] as const;
+  for (const [outcome, words] of cases) {
+    await open(page, phone, { requests: { outcome } });
+    await askButton(page).click();
+    await page.getByRole('button', { name: `Ask: ${suggestions[0]}` }).click();
+    const closed = page.getByTestId('ask-closed');
+    await expect(closed.getByText(words)).toBeVisible();
+    await expect(closed.getByText(/can't prepare new explanations right now/)).toHaveCount(0);
+    await expect(closed.getByText(/other people|everyone|anyone else/i)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+    expect(await audit(page)).toEqual([]);
+  }
+});
+
 test('while recording is paused the ask is off, says why, and sends nothing', async ({ page }) => {
   const served = await open(page, phone, { play: { recordingPaused: true } });
   await askButton(page).click();
