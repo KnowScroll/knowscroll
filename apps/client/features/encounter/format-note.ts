@@ -1,8 +1,11 @@
 import { callsOf } from '@knowscroll/scroll-model';
 import type { EncounterEntry } from './encounter-history';
-import type { StageEntry } from './encounter-stage';
+import type { OpenedStageScroll } from '../scroll/scroll-session';
 
 /** What the "Next topic" card says: where the person has landed and what they left. */
+/** A Scroll entry that holds a v2 document (what `encounter-stage.tsx` calls a stage entry). */
+type ScrollEntryOf = Extract<EncounterEntry, { kind: 'scroll' }> & { readonly scroll: OpenedStageScroll };
+
 export interface FormatNote {
   /** "NEXT TOPIC · AS A SCROLL": the format stays the one the person was in (D-132). */
   readonly kicker: string;
@@ -28,7 +31,7 @@ export function keptWords(kept: FormatNote['kept']): string {
  * for a Scroll that was reached from a Scroll by a new topic (a discovery after an entry in the trail), never for the first
  * open, a Part, a related move, a format switch or a Back. Everything on it is read from the two entries.
  */
-export function formatNoteOf(trail: readonly EncounterEntry[], entry: StageEntry): FormatNote | undefined {
+export function formatNoteOf(trail: readonly EncounterEntry[], entry: ScrollEntryOf): FormatNote | undefined {
   const before = trail.at(-2);
   if (trail.at(-1) !== entry || entry.offer.relation.kind !== 'discovery') return undefined;
   if (before?.kind !== 'scroll') return undefined;

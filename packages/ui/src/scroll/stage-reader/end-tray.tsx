@@ -67,9 +67,6 @@ export function EndTray(props: EndTrayProps) {
   useFocusOnMount(tray, returned);
   return (
     <View ref={tray} tabIndex={-1} style={styles.tray} testID="end-tray">
-      {props.onNextTopic === undefined || props.pull === undefined || !pullsByTouch() ? null : (
-        <PullHandle pull={props.pull} />
-      )}
       <Text variant="label" color={content.ink2} heading={2}>
         {hasStage ? 'The picture you built' : 'The short version'}
       </Text>
@@ -109,6 +106,9 @@ export function EndTray(props: EndTrayProps) {
           )}
         </View>
       )}
+      {props.onNextTopic === undefined || props.pull === undefined || !pullsByTouch() ? null : (
+        <PullHandle pull={props.pull} />
+      )}
     </View>
   );
 }
@@ -120,7 +120,7 @@ function pullsByTouch(): boolean {
 }
 
 /**
- * The handle at the top of the end tray (V3 G3): "Keep pulling · next topic" and a meter that fills as the finger pulls up
+ * The handle at the foot of the end tray, where a pull from the end begins (V3 G3): "Keep pulling · next topic" and a meter that fills as the finger pulls up
  * from the end, full where a release moves on. It is the picture of the pull for the eye alone; "Something new" and the N key
  * are the controls that do the same. The meter fills under reduced motion too, because it is feedback and travels nowhere.
  */
