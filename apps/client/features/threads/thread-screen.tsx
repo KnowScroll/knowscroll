@@ -40,6 +40,8 @@ import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { TalkFrame } from '../shell/talk-frame';
+import { TalkInboxPane } from '../conversations/talk-inbox-pane';
+import { threadHasList } from '../conversations/talk-columns';
 import { Composer } from '../conversations/composer';
 import { useFollowEnd } from '../conversations/message-list';
 import type { AvailableTalkMessage } from '../conversations/talk-message';
@@ -553,41 +555,57 @@ export function ThreadScreen(params: {
   const { state, manager } = useAccountScope();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // From 1280 px Talk's list is the first column, as beside a conversation (D03, T3, D-327); below it the thread keeps
+  // the room it had, so the chat is never squeezed beside the series panel.
+  const withInbox = threadHasList(useDisplay().width) && state.status === 'signed_in';
+  // The list is a sibling before a thread wrapper that is always there, so a resize across 1280 px adds or removes only
+  // the list: the open thread keeps its player, its reads and anything still being sent.
   return (
     <TalkFrame>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
-      >
-        {state.status === 'signed_in' ? (
-          <ResolvedThread scope={state.scope} params={params} />
-        ) : state.status === 'unavailable' ? (
-          <StateBlock
-            title="Can’t reach your account"
-            body="Reconnect to read this thread."
-            actions={[{ label: 'Reconnect', onPress: () => void manager.refresh() }]}
-          />
-        ) : (
-          <StateBlock
-            title="Sign in to read this thread"
-            actions={[
-              {
-                label: 'Sign in',
-                variant: 'primary',
-                role: 'link',
-                href: '/welcome',
-                onPress: () => router.navigate('/welcome'),
-              },
-            ]}
-          />
-        )}
-      </KeyboardAvoidingView>
+      <View style={styles.talkPanes}>
+        {withInbox && state.status === 'signed_in' ? (
+          <TalkInboxPane scope={state.scope} currentId={params.threadId} />
+        ) : null}
+        <View style={[styles.thread, withInbox ? styles.threadBeside : null]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+          >
+            {state.status === 'signed_in' ? (
+              <ResolvedThread scope={state.scope} params={params} />
+            ) : state.status === 'unavailable' ? (
+              <StateBlock
+                title="Can’t reach your account"
+                body="Reconnect to read this thread."
+                actions={[{ label: 'Reconnect', onPress: () => void manager.refresh() }]}
+              />
+            ) : (
+              <StateBlock
+                title="Sign in to read this thread"
+                actions={[
+                  {
+                    label: 'Sign in',
+                    variant: 'primary',
+                    role: 'link',
+                    href: '/welcome',
+                    onPress: () => router.navigate('/welcome'),
+                  },
+                ]}
+              />
+            )}
+          </KeyboardAvoidingView>
+        </View>
+      </View>
     </TalkFrame>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: content.paper },
+  talkPanes: { flex: 1, minHeight: 0, flexDirection: 'row' },
+  thread: { flex: 1, minWidth: 0, minHeight: 0 },
+  /** Beside the list the thread keeps room for its chat and the series panel, as a conversation does. */
+  threadBeside: { minWidth: 340 },
   ready: { flex: 1 },
   body: { padding: layout.gutter },
   banner: { paddingHorizontal: layout.gutter, paddingTop: spacing[2] },

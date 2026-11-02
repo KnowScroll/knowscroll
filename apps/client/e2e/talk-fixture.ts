@@ -64,7 +64,18 @@ export interface TalkCall {
   readonly body: Record<string, unknown>;
 }
 
-export async function talkFixture(page: Page, viewport: { width: number; height: number }) {
+export interface TalkFixtureOptions {
+  /** The direct conversation holds a Scroll card Ravi sent (for the "In this chat" rail). */
+  readonly sharedCard?: boolean;
+  /** Talk's list holds the content thread, started on Part 1 of a series of three. */
+  readonly listThread?: boolean;
+}
+
+export async function talkFixture(
+  page: Page,
+  viewport: { width: number; height: number },
+  options: TalkFixtureOptions = {},
+) {
   await page.setViewportSize(viewport);
   await page.route('**/auth/session', (route) =>
     route.fulfill({ json: { account, client: 'web', expiresAt: '2099-10-24T00:00:00.000Z' } }),
@@ -99,7 +110,34 @@ export async function talkFixture(page: Page, viewport: { width: number; height:
       });
     if (path === '/v1/social/threads/inbox')
       return route.fulfill({
-        json: { ...base, status: 'ready', limit: body['limit'], viewRevision: 1, items: [] },
+        json: {
+          ...base,
+          status: 'ready',
+          limit: body['limit'],
+          viewRevision: 1,
+          items:
+            options.listThread === true
+              ? [
+                  {
+                    thread,
+                    name: 'CI series',
+                    root: {
+                      status: 'available',
+                      target: { assetId: episodes[0]!.assetId, assetRevision: 1 },
+                      metadata: { kind: 'reel', title: 'CI part 1', summary: '', language: 'en' },
+                    },
+                    series: { part: 1, total: 3 },
+                    state: 'joined',
+                    ownPersonId: asha.personId,
+                    people: [ravi, meera],
+                    latestMessageSequence: messages.length,
+                    own: { readThroughSequence: messages.length, muted: false },
+                    lastActivityAt: '2026-10-24T08:00:00.000Z',
+                    lastMessage: messages.at(-1),
+                  },
+                ]
+              : [],
+        },
       });
     if (path === '/v1/social/conversations/read')
       return route.fulfill({
@@ -109,7 +147,7 @@ export async function talkFixture(page: Page, viewport: { width: number; height:
           conversation,
           peer: ravi,
           own: { readThroughSequence: 2, muted: false },
-          latestMessageSequence: 2,
+          latestMessageSequence: options.sharedCard === true ? 3 : 2,
           messages: [
             {
               ...text(1, asha, 'Starting the second part now.'),
@@ -119,10 +157,34 @@ export async function talkFixture(page: Page, viewport: { width: number; height:
               ],
             },
             lastDirect,
+            ...(options.sharedCard === true
+              ? [
+                  {
+                    messageId: id(103),
+                    sequence: 3,
+                    status: 'available' as const,
+                    author: ravi,
+                    recordedAt: '2026-10-24T08:00:00.000Z',
+                    body: {
+                      kind: 'content' as const,
+                      content: {
+                        status: 'available' as const,
+                        target: { assetId: id(320), assetRevision: 1 },
+                        metadata: {
+                          kind: 'scroll' as const,
+                          title: 'CI why the Moon and Sun make tides',
+                          summary: 'Fixture summary.',
+                          language: 'en',
+                        },
+                      },
+                    },
+                  },
+                ]
+              : []),
           ],
           limit: body['limit'],
           history: { kind: 'end' },
-          catchUpCursor: cursor(2),
+          catchUpCursor: cursor(options.sharedCard === true ? 3 : 2),
         },
       });
     if (path === '/v1/social/conversations/changes')

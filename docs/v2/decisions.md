@@ -3856,6 +3856,57 @@ Confirmed by: `campfire.test.tsx`, `rooms-smoke.spec.ts` (the notice shows both 
 
 Confirmed by: `quiet-room.test.tsx` (the words), `rooms-quiet-smoke.spec.ts` (the row is still one switch).
 
+## D-326 · 2026-11-02 · A part is painted as a world from its Scroll's ID, and keeps its number only when its Scroll is gone (v3 fidelity, #497)
+
+**Amends** D-153 (the header draws coloured numbered worlds "until the parts have art").
+
+- **Why.** T3 draws each part as a small painted world. A Scroll has no picture of its own (D-046), and the Universe's looks belong to one person's universe, so a thread of three people cannot use them.
+- **The rule.** The part's world is the Universe's flat painted planet (`PlanetDisc`), with its biome and hue chosen from the Scroll's ID alone. Every member sees the same world on the same part, and nothing a person read or formed changes it. The header and the Series sheet draw it, with the faces on top. A part whose Scroll is withdrawn keeps the number on its colour.
+- **Not drawn.** The design's rings and moons on a part, and a per-Scroll picture. Both wait for an art source.
+
+Confirmed by: `part-world` cases in `party.test.tsx` and `episode-list.test.tsx` (painted for a ready part, number for an unavailable one, the same ID gives the same world), `thread-party-smoke.spec.ts` (header and sheet, axe).
+
+## D-327 · 2026-11-02 · Talk's list is the first column beside a thread as well as beside a conversation (v3 fidelity, #497)
+
+**Amends** D-143 (a desktop thread has the conversation and the series panel).
+
+- **The rule.** From 1280 px `/threads/<id>` draws Talk's list (the same `TalkInboxPane` as a conversation) as its first column, with the thread's own row marked. Below 1280 px the thread keeps the layout it had: beside the list and the 400 px series panel the chat measured 116 px at 1024 and 192 at 1100. The thread asks for a minimum width only when the list is beside it, so it still fits 320 px.
+- **Cost.** At 1440 px the chat is about 530 px wide, narrower than the design's 720 px column, because the series panel keeps its 400 px.
+
+Confirmed by: `talk-smoke.spec.ts` (three columns in order, the row current, axe at 1440).
+
+## D-328 · 2026-11-02 · A conversation on a desktop has an "In this chat" rail of what the two people sent (v3 fidelity, #497)
+
+**Amends** D-154's layout for the conversation: it gains a right column, as T3's DMD frame draws.
+
+- **What it holds.** The other person, a link to their universe as far as they share it, "Shared here" (the Scroll and Reel cards sent in this chat, newest first, who sent each), and, when a card can start a thread, "Start a thread from this".
+- **When it shows.** Only while the chat keeps 400 px beside the navigation rail, the list and this rail (about 1210 px and wider); narrower desktops keep the conversation and its list.
+- **Only what is loaded.** Shared here reads the newest page of messages. While older messages are unread it carries no count and says "None in the recent messages", never "Nothing has been shared".
+- **Not as drawn.** The design's "On Part 2 of Tides · 4 worlds" line (it would read where a friend is, which only a thread may show, D-152), the moment cards in Shared here, and the promo being only for a series card: the chat does not know whether a card is a series, so any card that can start a thread shows it.
+- **Privacy.** Only what the two people put in the chat. Nothing about what either opened or read.
+
+Confirmed by: `shared-here.test.ts`, `chat-rail.test.tsx`, `talk-smoke.spec.ts` (rail at 1440, none on a phone, axe).
+
+## D-329 · 2026-11-02 · "New since you were here" is drawn from the person's own stored read position, with no new storage (v3 fidelity, #497)
+
+**Builds on** D-066 and D-150 (the read position each member keeps) and **amends** the away line of C02 and C04, which only follows a lost connection.
+
+- **What exists.** Each member row already holds `read_through_sequence`, moved by mark-read for the person's own unread dot. A thread's or a conversation's first read returns it before mark-read moves it.
+- **The rule.** On the first read of an opening, what others wrote after that position sits under a red line with a rippling dot ("New since you were here"). The line is set once per opening and stays while it is open. It is not drawn when the person has read to the end or has never read there (everything would be new). The ring holds still under reduced motion.
+- **No contract, SQL, erasure or export change.** The position is the person's own, never sent to anyone else (the SEEN position D-150 is a separate number). The screen does not scroll to the line.
+
+Confirmed by: `away-divider.test.ts`, `content-thread.test.ts`, `conversation-thread.test.ts` (set once, not again after mark-read), `conversation-screen.test.tsx`, `thread-party-smoke.spec.ts` and `talk-smoke.spec.ts` (line shown; none when read to the end). Shown failing when the line used the position after mark-read.
+
+## D-330 · 2026-11-02 · Talk's list has THREADS, PEOPLE and ROOMS, and a thread row says the part it was started on (v3 fidelity, #497)
+
+**Amends** D-154 (one list, newest first).
+
+- **The rule.** Threads, then people, then rooms, each under its label and newest first. A label is drawn only when its group has rows. A thread started on a part of a series has a chip "Part 2 of 3".
+- **Contract.** `ThreadSummary.series` ({ part, total }) is optional and read from the root's declared series (the same read the thread view uses). It is absent for a single Scroll or Reel and for a series of one part. It says where the thread began, not how far anyone has gone: the list has no place to read progress from.
+- **Not built.** The design's search bar.
+
+Confirmed by: `social-places.test.ts` (series on the thread list; none for a single), `thread-row.test.tsx`, `conversations-screen.test.tsx`, `talk-smoke.spec.ts`.
+
 ## D-341 · 2026-11-02 · The sky lists each star's moment, read for the reader from the act's own rows (v3 R-11, #631)
 
 **Amends** D-176 ("a star that is tapped names no person") and D-168 ("an author sees no mark and no count"), which R3 F4 and E5 draw otherwise. **Builds on** D-174, D-221 and R3 E5 ("How each star was earned").

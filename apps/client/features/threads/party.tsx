@@ -11,6 +11,7 @@ import type { ThreadEpisode, ThreadParticipant, ThreadPlace } from '@knowscroll/
 import { content, spacing, universe } from '@knowscroll/design-tokens';
 import { SwitchRow, Tag, Text, useFocusRing, useTalkTheme } from '@knowscroll/ui';
 import { initialOf, PersonAvatar } from '../conversations/person-avatar';
+import { hasPartWorld, PartWorldDisc } from './part-world';
 
 /**
  * A thread as a party (T3 "who is on which part", D-065): the series' part worlds in the header with the
@@ -20,7 +21,7 @@ import { initialOf, PersonAvatar } from '../conversations/person-avatar';
  * "watching".
  */
 
-/** The three worlds' stand-in colours until the parts have art (as T-A's tiles): a part keeps its colour. */
+/** A part whose Scroll is gone has no art: it keeps its number on one of these colours (as T-A's tiles). */
 const WORLD_COLOURS = [universe.cobalt, universe.orange, universe.fresh] as const;
 const WORLD = 28;
 const FACE = 16;
@@ -128,14 +129,18 @@ export function PartWorlds({
             <View
               style={[
                 styles.world,
-                { backgroundColor: worldColour(part) },
+                { backgroundColor: hasPartWorld(episode) ? universe.sky : worldColour(part) },
                 episode.assetId === selected ? { borderColor: theme.focus, borderWidth: 2 } : null,
               ]}
               aria-hidden
             >
-              <Text variant="monoXs" color={universe.paper}>
-                {String(part)}
-              </Text>
+              {hasPartWorld(episode) ? (
+                <PartWorldDisc assetId={episode.assetId} size={Math.round(WORLD * 1.3)} />
+              ) : (
+                <Text variant="monoXs" color={universe.paper}>
+                  {String(part)}
+                </Text>
+              )}
             </View>
             {here === undefined ? null : (
               <View style={styles.faces} aria-hidden>
