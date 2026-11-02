@@ -108,7 +108,9 @@ describe('Seasons Part 1 and its stage plan (labelled CI fixtures, real PostgreS
         { slot: 'farthest', value: 43_000_000, unit: 'kilometres' },
       ],
     });
-    expect(turnedTo?.alt).toContain('At its nearest, Earth is 41,000,000 kilometres from the Sun.');
+    expect(turnedTo?.alt).toContain(
+      'At its nearest, Earth is 41,000,000 kilometres from the Sun; at its farthest, 43,000,000 kilometres.',
+    );
     // The daylight figure the page never states is nowhere in what a reader gets.
     expect(JSON.stringify(document)).not.toMatch(/daylight|Pell/u);
 

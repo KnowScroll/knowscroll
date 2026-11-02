@@ -441,12 +441,19 @@ describe('the figures a state may carry (D-382)', () => {
 
   it('describes a distance, a daylight figure and what the picture says beside the distances, from the figures alone', () => {
     const words = describeStageState({ ...orbit, figures: [nearest, farthest] });
-    expect(words).toContain('At its nearest, Earth is 41,000,000 kilometres from the Sun.');
-    expect(words).toContain('At its farthest, Earth is 43,000,000 kilometres from the Sun.');
+    expect(words).toContain(
+      'At its nearest, Earth is 41,000,000 kilometres from the Sun; at its farthest, 43,000,000 kilometres.',
+    );
+    // One distance alone is said on its own.
+    expect(describeStageState({ ...orbit, figures: [farthest] })).toContain(
+      'At its farthest, Earth is 43,000,000 kilometres from the Sun.',
+    );
     expect(words).toContain('Earth is marked “You are here”, and the Sun is not drawn to scale.');
     const bands = describeStageState({ ...sunEarth, figures: [june, december] });
-    expect(bands).toContain('In Pell, daylight lasts 14 hours in June.');
-    expect(bands).toContain('In Pell, daylight lasts 10 hours in December.');
+    expect(bands).toContain('In Pell, daylight lasts 14 hours in June and 10 hours in December.');
+    expect(describeStageState({ ...sunEarth, figures: [december] })).toContain(
+      'In Pell, daylight lasts 10 hours in December.',
+    );
     expect(bands).not.toContain('You are here');
     // A figure the view cannot draw is not described either: the words are of the settled state.
     expect(describeStageState({ ...sunEarth, figures: [nearest] })).toBe(describeStageState(sunEarth));
@@ -523,5 +530,78 @@ describe('a picture states one measure and one place (D-382)', () => {
         expect(StageStateSchema.safeParse(settled).success).toBe(true);
       }),
     );
+  });
+});
+
+describe('the words of a state never pass the document’s limit, with the longest figures there can be (D-382)', () => {
+  const limit = FIELD_LIMITS_V2.stateDescriptionChars;
+  /** The longest of everything a figure holds: fifteen digits, a unit and a place of the longest length the document allows. */
+  const longest = (slot: StageFigure['slot']): StageFigure =>
+    slot === 'nearest' || slot === 'farthest'
+      ? { slot, value: 999_999_999_999_999, unit: 'k'.repeat(FIELD_LIMITS_V2.unitChars) }
+      : {
+          slot,
+          value: 24,
+          unit: 'hours',
+          place: 'Thiruvananthapuram Kerala South India'.slice(0, FIELD_LIMITS_V2.pointLabelChars),
+        };
+  const everything = STAGE_FIGURE_SLOTS.map(longest);
+
+  it('is within the limit for every state, whatever figures and place names are asked for', () => {
+    const over: string[] = [];
+    let kept = 0;
+    for (const state of EVERY_STATE) {
+      const settled = settleStageState({ ...state, figures: everything });
+      const text = describeStageState({ ...state, figures: everything });
+      if (text.length > limit) over.push(JSON.stringify(state));
+      if (settled.figures !== undefined) kept += 1;
+      expect(StageStateSchema.safeParse(settled).success).toBe(true);
+      expect(settleStageState(settled)).toEqual(settled);
+    }
+    expect(over).toEqual([]);
+    // Some states have room for the figures and keep them: leaving all out would also be within the limit.
+    expect(kept).toBeGreaterThan(0);
+  });
+
+  it('is within the limit for the places the writer is most likely to name, short and long', () => {
+    for (const place of ['Delhi', 'Thiruvananthapuram', 'New York City', 'Rio de Janeiro', 'Pell']) {
+      for (const state of EVERY_STATE) {
+        const bands: StageFigure[] = [
+          { slot: 'june-daylight', value: 14.25, unit: 'hours', place },
+          { slot: 'december-daylight', value: 9.75, unit: 'hours', place },
+        ];
+        expect(
+          describeStageState({ ...state, figures: bands }).length,
+          `${place} ${JSON.stringify(state)}`,
+        ).toBeLessThanOrEqual(limit);
+      }
+    }
+  });
+
+  it('gives up the later band first, then the earlier, and keeps both where both fit', () => {
+    const state = { view: 'sun-earth', earthAt: 'jun', moonAt: 'off', focus: 'ray' } as const;
+    const place = 'Thiruvananthapuram Kerala South India';
+    const bands: StageFigure[] = [
+      { slot: 'june-daylight', value: 14, unit: 'hours', place },
+      { slot: 'december-daylight', value: 10, unit: 'hours', place },
+    ];
+    const kept = (figures: StageFigure[]) =>
+      (settleStageState({ ...state, figures }).figures ?? []).map((figure) => figure.slot);
+    // With a short name both fit; with a very long one the picture's words would pass the limit, so December goes first.
+    const short = bands.map((band) => ({ ...band, place: 'Pell' }));
+    expect(kept(short)).toEqual(['june-daylight', 'december-daylight']);
+    const widths = [place, `${place} ${place}`.slice(0, FIELD_LIMITS_V2.pointLabelChars)].map((name) =>
+      kept(bands.map((band) => ({ ...band, place: name }))),
+    );
+    for (const slots of widths) expect(['june-daylight', 'december-daylight']).toEqual(expect.arrayContaining(slots));
+    const states = EVERY_STATE.filter((candidate) => candidate.view === 'sun-earth');
+    const outcomes = new Set(
+      states.map((candidate) =>
+        JSON.stringify((settleStageState({ ...candidate, figures: bands }).figures ?? []).map((figure) => figure.slot)),
+      ),
+    );
+    // Only ever both, the earlier alone or none: never the later band without the earlier.
+    for (const outcome of outcomes)
+      expect(['[]', '["june-daylight"]', '["june-daylight","december-daylight"]']).toContain(outcome);
   });
 });

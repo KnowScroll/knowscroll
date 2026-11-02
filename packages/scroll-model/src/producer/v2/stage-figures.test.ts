@@ -94,8 +94,9 @@ describe('a stage figure is shown only when a cited passage states it (D-382)', 
         { slot: 'farthest', value: 43_000_000, unit: 'kilometres' },
       ],
     });
-    expect(entry?.alt).toContain('At its nearest, Earth is 41,000,000 kilometres from the Sun.');
-    expect(entry?.alt).toContain('At its farthest, Earth is 43,000,000 kilometres from the Sun.');
+    expect(entry?.alt).toContain(
+      'At its nearest, Earth is 41,000,000 kilometres from the Sun; at its farthest, 43,000,000 kilometres.',
+    );
     expect(entry?.alt).toContain('You are here');
     expect(outcome.leftOut).toEqual([]);
     expect(validateDocumentV2(JSON.parse(JSON.stringify(outcome.document))).kind).toBe('valid');
@@ -123,8 +124,7 @@ describe('a stage figure is shown only when a cited passage states it (D-382)', 
         { slot: 'december-daylight', value: 10, unit: 'hours', place: 'Pell' },
       ],
     });
-    expect(entry?.alt).toContain('In Pell, daylight lasts 14 hours in June.');
-    expect(entry?.alt).toContain('In Pell, daylight lasts 10 hours in December.');
+    expect(entry?.alt).toContain('In Pell, daylight lasts 14 hours in June and 10 hours in December.');
   });
 
   it('leaves out a figure that no passage states, and reports it, without refusing the Scroll or inventing one', () => {
@@ -428,5 +428,44 @@ describe('the unit and the place of a figure are the ones that stand at the figu
     expect(entryAt(rightPlace.document, 's6')?.state).toMatchObject({
       figures: [{ slot: 'june-daylight', place: 'Delhi' }],
     });
+  });
+});
+
+describe('a long place name never makes the picture’s words too long to store (D-382)', () => {
+  const LONG_NAME = 'Thiruvananthapuram';
+  const KERALA = `In June ${LONG_NAME} has 14 hours of daylight and in December ${LONG_NAME} has 10 hours of daylight.`;
+
+  it('compiles, and the picture says what fits: a band that would not fit is left out, the Scroll is not refused', () => {
+    const passages = [...FIGURE_PASSAGES, KERALA];
+    const handle = `e${String(passages.length)}`;
+    const input: CompileV2Input = {
+      ...compileInputV2('stage'),
+      evidence: {
+        claimIdOf: new Map(
+          passages.map((_, index): [string, string] => [`e${String(index + 1)}`, `claim-v2-${String(index + 1)}`]),
+        ),
+        quoteOf: new Map(passages.map((text, index): [string, string] => [`claim-v2-${String(index + 1)}`, text])),
+        minDistinctCitations: 4,
+      },
+      sources: passages,
+    };
+    const outcome = compiled(
+      compileAuthoredV2(
+        authoredOrbit((draft) =>
+          withStop(draft, 5, {
+            cites: ['e2', handle],
+            // The longest description a Sun and Earth state has: Ray in view, the focus on the sunbeam.
+            stage: { view: 'sun-earth', earthAt: 'jun', focus: 'ray' },
+            figures: [
+              { slot: 'june-daylight', value: '14', unit: 'hours', place: LONG_NAME },
+              { slot: 'december-daylight', value: '10', unit: 'hours', place: LONG_NAME },
+            ],
+          }),
+        ),
+        input,
+      ),
+    );
+    for (const entry of outcome.document.stage?.states ?? []) expect(entry.alt.length).toBeLessThanOrEqual(600);
+    expect(validateDocumentV2(JSON.parse(JSON.stringify(outcome.document))).kind).toBe('valid');
   });
 });

@@ -182,6 +182,24 @@ function settleFigures(view: StageView, figures: readonly StageFigure[] | undefi
   return [...(unitsAgree ? distances : []), ...(placesAgree ? bands : [])];
 }
 
+/** The order figures are given up in when the words of a state would not fit the document's limit: the bands, then the distances. */
+const GIVE_UP_ORDER: readonly StageFigureSlot[] = ['december-daylight', 'june-daylight', 'farthest', 'nearest'];
+
+/**
+ * The figures a state's description can hold. The words of a figure are code's, not the writer's, so a writer cannot shorten them:
+ * a figure whose sentence would take the description past `stateDescriptionChars` is left out here, in `GIVE_UP_ORDER`, and the
+ * Scroll is never refused for code's own words. Idempotent, since the description of what is kept fits.
+ */
+function figuresThatFit(base: StageState, figures: readonly StageFigure[]): StageFigure[] {
+  let kept = [...figures];
+  for (const slot of GIVE_UP_ORDER) {
+    const description = describeSettled(kept.length === 0 ? base : { ...base, figures: kept });
+    if (description.length <= FIELD_LIMITS_V2.stateDescriptionChars) return kept;
+    kept = kept.filter((figure) => figure.slot !== slot);
+  }
+  return kept;
+}
+
 /**
  * The state a view can really show. Values for parts the view does not draw are set aside: the
  * month where the view has no seasons, the Moon's phase where it has no Moon, a focus on a part
@@ -191,14 +209,14 @@ function settleFigures(view: StageView, figures: readonly StageFigure[] | undefi
 export function settleStageState(state: StageState): StageState {
   const parts = stageParts(state.view);
   const focusPart = FOCUS_PART[state.focus];
-  const figures = settleFigures(state.view, state.figures);
-  return {
+  const base: StageState = {
     view: state.view,
     earthAt: parts.includes('season') ? state.earthAt : NEUTRAL_MONTH,
     moonAt: parts.includes('moon') ? state.moonAt : 'off',
     focus: focusPart === null || parts.includes(focusPart) ? state.focus : 'none',
-    ...(figures.length === 0 ? {} : { figures }),
   };
+  const figures = figuresThatFit(base, settleFigures(state.view, state.figures));
+  return figures.length === 0 ? base : { ...base, figures };
 }
 
 /** How high the Sun stands for a hemisphere at noon, which sets both Ray's angle and the pin there. */
@@ -341,30 +359,39 @@ const raySentence = (physics: Pick<StagePhysics, 'north' | 'south'>): string =>
 export const figureWords = (figure: Pick<StageFigure, 'value' | 'unit'>): string =>
   `${formatFigure(figure.value)} ${figure.unit}`;
 
-/** The sentence a figure adds to the words of its state, or none. The wording is code's; the number, unit and place are the passage's. */
-function figureSentence(figure: StageFigure): string {
-  switch (figure.slot) {
-    case 'nearest':
-      return `At its nearest, Earth is ${figureWords(figure)} from the Sun.`;
-    case 'farthest':
-      return `At its farthest, Earth is ${figureWords(figure)} from the Sun.`;
-    case 'june-daylight':
-      return `In ${figure.place ?? 'one place'}, daylight lasts ${figureWords(figure)} in June.`;
-    case 'december-daylight':
-      return `In ${figure.place ?? 'one place'}, daylight lasts ${figureWords(figure)} in December.`;
-  }
-}
-
 /**
- * What the figures of a settled state add: each figure's sentence, and for the distances the two things the picture says
- * beside them, that Earth is marked "You are here" and that the Sun is not drawn to scale.
+ * What the figures of a settled state add, in as few words as the sentences allow, since the description has to fit the document's
+ * limit (D-382): one sentence for the two distances and one for the two bands, which a settled state says are in one unit and
+ * about one place; and, beside the distances, that Earth is marked "You are here" and the Sun is not drawn to scale. The wording
+ * is code's; the number, unit and place are the passage's.
  */
 function figureSentences(figures: readonly StageFigure[] | undefined): string[] {
-  if (figures === undefined || figures.length === 0) return [];
-  const distances = figures.some((figure) => figure.slot === 'nearest' || figure.slot === 'farthest');
+  const find = (slot: StageFigureSlot): StageFigure | undefined => figures?.find((figure) => figure.slot === slot);
+  const nearest = find('nearest');
+  const farthest = find('farthest');
+  const june = find('june-daylight');
+  const december = find('december-daylight');
+  const placeOf = (figure: StageFigure): string => figure.place ?? 'one place';
+  const distances =
+    nearest !== undefined && farthest !== undefined
+      ? [`At its nearest, Earth is ${figureWords(nearest)} from the Sun; at its farthest, ${figureWords(farthest)}.`]
+      : [
+          ...(nearest === undefined ? [] : [`At its nearest, Earth is ${figureWords(nearest)} from the Sun.`]),
+          ...(farthest === undefined ? [] : [`At its farthest, Earth is ${figureWords(farthest)} from the Sun.`]),
+        ];
+  const bands =
+    june !== undefined && december !== undefined && placeOf(june) === placeOf(december)
+      ? [`In ${placeOf(june)}, daylight lasts ${figureWords(june)} in June and ${figureWords(december)} in December.`]
+      : [
+          ...(june === undefined ? [] : [`In ${placeOf(june)}, daylight lasts ${figureWords(june)} in June.`]),
+          ...(december === undefined
+            ? []
+            : [`In ${placeOf(december)}, daylight lasts ${figureWords(december)} in December.`]),
+        ];
   return [
-    ...figures.map(figureSentence),
-    ...(distances ? ['Earth is marked “You are here”, and the Sun is not drawn to scale.'] : []),
+    ...distances,
+    ...bands,
+    ...(distances.length > 0 ? ['Earth is marked “You are here”, and the Sun is not drawn to scale.'] : []),
   ];
 }
 
@@ -375,7 +402,11 @@ function figureSentences(figures: readonly StageFigure[] | undefined): string[] 
  * the picture, state a fact the kit does not hold or describe a picture that is physically impossible.
  */
 export function describeStageState(chosen: StageState): string {
-  const state = settleStageState(chosen);
+  return describeSettled(settleStageState(chosen));
+}
+
+/** The words of a state that is already settled. */
+function describeSettled(state: StageState): string {
   const parts = stageParts(state.view);
   const physics = stagePhysics(state);
   const has = (part: StagePart): boolean => parts.includes(part);

@@ -488,7 +488,9 @@ describe('the stage plan of a recipe: orbit months, figures and the reveal (D-38
         { slot: 'farthest', value: 43_000_000, unit: 'kilometres' },
       ],
     });
-    expect(entry?.alt).toContain('At its nearest, Earth is 41,000,000 kilometres from the Sun.');
+    expect(entry?.alt).toContain(
+      'At its nearest, Earth is 41,000,000 kilometres from the Sun; at its farthest, 43,000,000 kilometres.',
+    );
     expect(outcome.leftOut).toEqual([]);
   });
 
