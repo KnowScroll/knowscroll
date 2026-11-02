@@ -16,18 +16,14 @@ function KeyChip({ name }: { readonly name: string }) {
 }
 
 /**
- * Puts keyboard focus on the reader group, where its keys (F and Esc here) act, when the person's focus is lost or sits on a
- * control of the reader that has just been replaced by the move they made (the Next button they pressed). Focus anywhere
- * else is theirs and stays, and focus inside the note itself is never taken or given.
+ * Puts keyboard focus on the reader group, where its keys (F and Esc here) act, only when the person's focus has been
+ * lost (nothing is focused, or the focused element is gone). Focus anywhere else is theirs and stays.
  */
 function restoreReaderFocus(): void {
   if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-  const reader = document.querySelector<HTMLElement>('[data-testid="scroll-reader"]');
   const focused = document.activeElement;
-  if (reader === null || reader === focused) return;
-  const lost = focused === null || focused === document.body;
-  const inNote = focused !== null && focused.closest('[data-testid="format-note"]') !== null;
-  if (lost || (reader.contains(focused) && !inNote)) reader.focus();
+  if (focused !== null && focused !== document.body) return;
+  document.querySelector<HTMLElement>('[data-testid="scroll-reader"]')?.focus();
 }
 
 /**

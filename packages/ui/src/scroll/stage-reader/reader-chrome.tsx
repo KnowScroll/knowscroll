@@ -135,6 +135,9 @@ function TitleProbe({ title, onHeight }: { readonly title: string; readonly onHe
   );
 }
 
+/** Below this width the dock closes its gaps so that Ask, the sparks, ••• and the way on fit in a row. */
+const NARROW_PHONE = 400;
+
 /**
  * The dock at the bottom of a v2 Scroll: Ask, the sparks earned on this Scroll, the ••• menu and the
  * way on. The way on is the one primary action, in the continuation yellow's place: the next Part, or,
@@ -154,10 +157,14 @@ export function ReaderDock({
   readonly nextPart?: NextPartPeek | undefined;
 }) {
   // At 320 to 359 px the four controls do not fit in a row with the full wording, so Ask drops to its first word; its name does not change.
-  const { breakpoint } = useDisplay();
+  // At 361 to 399 px (a 390 phone) the controls fit only once the gaps close up; the wording stays.
+  const { breakpoint, width } = useDisplay();
   const compact = breakpoint === 'compact';
   return (
-    <View style={[styles.dock, compact ? styles.dockCompact : null]}>
+    <View
+      testID="reader-dock"
+      style={[styles.dock, compact ? styles.dockCompact : width < NARROW_PHONE ? styles.dockNarrow : null]}
+    >
       {onAsk === undefined ? null : (
         <Button
           label={compact ? 'Ask' : 'Ask about this'}
@@ -216,5 +223,6 @@ const styles = StyleSheet.create({
     backgroundColor: content.paper,
   },
   dockCompact: { gap: spacing[1], paddingHorizontal: spacing[3] },
+  dockNarrow: { gap: spacing[1] },
   spacer: { flex: 1 },
 });

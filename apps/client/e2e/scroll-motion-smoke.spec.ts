@@ -197,10 +197,11 @@ test('after Next ↑ the note says it is the next topic as a Scroll, offers the 
 
 test('Esc undoes the new topic while the note is showing, and the note is not said for a Part', async ({ page }) => {
   await open(page);
-  await page.getByRole('button', { name: 'Next topic' }).click();
+  // The key N from the reader group: focus is not taken into the note (that would hold its timer for good), and the
+  // reader's own keys act with no click or Tab first.
+  await page.getByTestId('scroll-reader').focus();
+  await page.keyboard.press('n');
   await expect(page.getByTestId('format-note')).toBeVisible();
-  // Focus is not taken into the note (that would hold its timer for good). The reader has it, as it does on any new Scroll,
-  // so the reader's own keys act with no click or Tab first.
   await expect(page.getByTestId('scroll-reader')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(heading(page)).toHaveText('CI encounter fixture 1');
@@ -250,13 +251,14 @@ test('the note waits while the pointer is over it or focus is in it by the perso
   await page.getByTestId('format-note-undo').focus();
   await page.clock.runFor(30_000);
   await expect(note).toBeVisible();
-  await page.getByTestId('scroll-reader').focus();
+  // Focus moves on to another control of the reader: the hold ends, and the note's going takes nothing from that control.
+  const ask = page.getByRole('button', { name: /^Ask about this/ });
+  await ask.focus();
   await page.clock.runFor(8_000);
   await expect(note).toBeVisible();
   await page.clock.runFor(1_500);
   await expect(note).toHaveCount(0);
-  // Focus was not in the note when it went, so it was not pulled anywhere.
-  await expect(page.getByTestId('scroll-reader')).toBeFocused();
+  await expect(ask).toBeFocused();
 });
 
 test('the note is drawn at 1440 × 900 too', async ({ page }) => {
@@ -317,6 +319,34 @@ for (const { label, viewport } of [
   });
 }
 
+for (const width of [320, 390]) {
+  for (const [label, fixture] of [
+    ['a Part with a picture', seasons],
+    ['a Part with no picture', blocks],
+  ] as const) {
+    test(`at ${String(width)} px the reader of ${label} has nothing past the right edge (#648)`, async ({ page }) => {
+      await encounterFixture(page, 'scroll', {
+        viewport: { width, height: 844 },
+        series: true,
+        scrollDocument: fixture as unknown as Record<string, unknown>,
+      });
+      await page.goto('/explore');
+      await page.getByRole('button', { name: 'Got it' }).click();
+      await expect(page.getByTestId('reader-dock')).toBeVisible();
+      const past = await page.evaluate((limit) => {
+        const found: string[] = [];
+        for (const node of document.querySelectorAll<HTMLElement>('body *')) {
+          const box = node.getBoundingClientRect();
+          if (box.width > 0 && box.right > limit + 0.5)
+            found.push(`${node.getAttribute('aria-label') ?? node.tagName} right=${box.right.toFixed(1)}`);
+        }
+        return found;
+      }, width);
+      expect(past).toEqual([]);
+    });
+  }
+}
+
 test('a related move opens its Scroll without saying a place in a Part was kept', async ({ page }) => {
   await encounterFixture(page, 'scroll', {
     viewport: phone,
@@ -341,7 +371,8 @@ test('a related move opens its Scroll without saying a place in a Part was kept'
 
 test('F switches to the Reel with no click or Tab first: the reader has focus, not the note', async ({ page }) => {
   await open(page);
-  await page.getByRole('button', { name: 'Next topic' }).click();
+  await page.getByTestId('scroll-reader').focus();
+  await page.keyboard.press('n');
   await expect(page.getByTestId('format-note')).toBeVisible();
   await expect(page.getByTestId('scroll-reader')).toBeFocused();
   const requests: string[] = [];
