@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { content, spacing } from '@knowscroll/design-tokens';
-import { Text, useDisplay, useFocusRing } from '@knowscroll/ui';
+import { spaceActivates, Text, useDisplay, useFocusRing } from '@knowscroll/ui';
 
 /**
  * The paper of the Simple views (`simple-views-finalized.html`, "Do not change") and of the desktop
@@ -129,6 +129,7 @@ export function SimpleSwitch({
       aria-checked={on}
       onPress={() => onChange(!on)}
       {...focus.props}
+      {...spaceActivates(() => onChange(!on))}
       style={[styles.switchRow, focus.style]}
     >
       <View style={styles.words}>

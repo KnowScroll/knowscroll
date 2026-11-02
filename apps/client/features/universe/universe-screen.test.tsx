@@ -473,7 +473,7 @@ it('opens the orbit dial from List view: the systems on a wheel, a system’s pl
   // The system's row is its name and a chevron: no arrow button into the system (D-317).
   expect(screen.queryByRole('button', { name: /^Open CI system/ })).toBeNull();
   // The filters stay behind their button until the wheel is open and the button is pressed (O1).
-  expect(screen.queryByRole('button', { name: 'Filter systems' })).toBeNull();
+  expect(screen.queryByRole('togglebutton', { name: 'Filter systems' })).toBeNull();
   // Turn the dial to the next planet.
   await fireEvent.press(screen.getByRole('button', { name: 'CI planet 3, a planet' }));
   expect(screen.getByTestId('dial-planet-facts')).toHaveTextContent(/Planet 2 of 2/);
@@ -482,7 +482,11 @@ it('opens the orbit dial from List view: the systems on a wheel, a system’s pl
   await fireEvent.press(screen.getByTestId('dial-system-pill'));
   expect(screen.getByTestId('dial-system-facts')).toHaveTextContent(/System 1 of 1/);
   expect(screen.queryByRole('togglebutton', { name: 'All, 1' })).toBeNull();
-  await fireEvent.press(screen.getByRole('button', { name: 'Filter systems' }));
+  const filterButton = () => screen.getByRole('togglebutton', { name: 'Filter systems' });
+  expect(filterButton().props.accessibilityState).toMatchObject({ checked: false });
+  await fireEvent.press(screen.getByRole('togglebutton', { name: 'Filter systems' }));
+  // The button says the filters are showing.
+  expect(filterButton().props.accessibilityState).toMatchObject({ checked: true });
   for (const name of ['All, 1', 'Lately', 'With rooms, 0', 'A–Z'])
     expect(screen.getByRole('togglebutton', { name })).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('togglebutton', { name: 'With rooms, 0' }));

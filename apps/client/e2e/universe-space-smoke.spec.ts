@@ -357,7 +357,10 @@ test('search, the orbit dial and the Simple view work over the real map; search 
   await expect(page.getByTestId('dial-system-facts')).toContainText('System 1 of 1');
   // The filters stay behind their button until it is pressed (O1), then are plain words with counts.
   await expect(page.getByRole('button', { name: 'With rooms, 1', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Filter systems', exact: true }).click();
+  const filterButton = page.getByRole('button', { name: 'Filter systems', exact: true });
+  await expect(filterButton).toHaveAttribute('aria-pressed', 'false');
+  await filterButton.click();
+  await expect(filterButton).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'With rooms, 1', exact: true }).click();
   await expect(page.getByTestId('dial-system-facts')).toContainText('1 room');
   await page.getByRole('button', { name: 'CI system 0, a system, 2 planets', exact: true }).click();
@@ -374,7 +377,9 @@ test('search, the orbit dial and the Simple view work over the real map; search 
   await page.getByRole('button', { name: 'CI planet 2, a planet in CI system 0', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Back to Your universe', exact: true }).click();
-  await page.getByRole('switch', { name: 'Simple view', exact: true }).click();
+  // The switch turns with Space as well as Enter and a tap (a switch is not a button to the browser).
+  await page.getByRole('switch', { name: 'Simple view', exact: true }).focus();
+  await page.keyboard.press('Space');
   await expect(page.getByTestId('universe-simple')).toHaveCount(0);
 
   // J3 over search, the dial and the Simple view: only the Universe's own reads left the page.
