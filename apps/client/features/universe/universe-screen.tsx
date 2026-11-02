@@ -9,10 +9,11 @@ import { space, spacing } from '@knowscroll/design-tokens';
 import { useAccountScope } from '../../providers/account-scope';
 import { roomHref } from '../rooms/room-links';
 import { useRoomStationsOnMap } from '../rooms/use-room-stations';
+import { ScreenFrame } from '../shell/screen-frame';
 import { useDocumentTitle } from '../../platform/document-title';
 import { FirstOpenGate } from './animation/first-open';
 import { EmptyUniverseScreen } from './empty-universe-screen';
-import { FormationPresentation } from './formation-presentation';
+import { FormationNotice, FormationPresentation } from './formation-presentation';
 import { lowMemoryDevice } from './space/low-memory-device';
 import { SkyBackdrop } from './space/sky-backdrop';
 import { indexUniverse } from './universe-layout';
@@ -113,6 +114,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
         status={statusOf(state)}
         stations={stations}
         onStation={(roomId) => router.push(roomHref(roomId))}
+        notice={<FormationNotice session={session} />}
       />
       <FormationPresentation session={session} />
     </>,
@@ -144,19 +146,21 @@ function Unavailable({
   state: ReturnType<typeof useUniverseSession>['state'];
   onExplore: () => void;
 }) {
-  const insets = useSafeAreaInsets();
   const { read } = state;
   if (['idle', 'loading'].includes(read.status)) return <QuietGround label="Loading your universe" />;
   const { heading, message } = unavailableWords(read);
   return (
-    <View style={[styles.ground, { paddingTop: insets.top + spacing[6] }]}>
-      <SkyBackdrop />
-      <Text variant="heading" heading={1} color={space.label}>
-        Your universe
-      </Text>
+    <ScreenFrame
+      tone="space"
+      title="Your universe"
+      pageTitle="Universe"
+      titleVariant="heading"
+      backdrop={<SkyBackdrop />}
+      bodyPlacement="center"
+    >
       <View style={styles.offline}>
         <View style={styles.offlineMark}>
-          <Icon name="offline" size={28} color={space.label} />
+          <Icon name="wifiOff" size={28} color={space.label} />
         </View>
         <Text variant="heading" heading={2} color={space.label} align="center">
           {heading}
@@ -174,10 +178,17 @@ function Unavailable({
               void session.refresh();
             }}
           />
-          <Button label="Go to Explore" variant="spaceGhost" role="link" href="/explore" onPress={onExplore} />
+          <Button
+            label="Go to Explore"
+            variant="spaceGhost"
+            icon="explore"
+            role="link"
+            href="/explore"
+            onPress={onExplore}
+          />
         </View>
       </View>
-    </View>
+    </ScreenFrame>
   );
 }
 
@@ -207,7 +218,7 @@ export function UniverseScreen() {
 const styles = StyleSheet.create({
   ground: { flex: 1, backgroundColor: space.s0, paddingHorizontal: spacing[5] },
   centred: { flex: 1, justifyContent: 'center', gap: spacing[4] },
-  offline: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing[3], paddingBottom: spacing[12] },
+  offline: { alignItems: 'center', justifyContent: 'center', gap: spacing[3] },
   offlineMark: {
     width: 64,
     height: 64,

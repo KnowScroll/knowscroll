@@ -72,6 +72,7 @@ import { makeRoomCommands } from '../application/room-commands.js';
 import { makeRoomReads } from '../application/room-reads.js';
 import { BACKDROP_MONEY, makeFaceBackdropOperator, type BackdropMoney } from '../application/face-backdrop.js';
 import { makeFaceKitOperator } from '../application/face-kit.js';
+import { makeFlairUseCases } from '../application/flair.js';
 import { makeSkyUseCases } from '../application/sky.js';
 import { makeStationReads } from '../application/stations.js';
 import { makeSummarise, type SummarisePorts } from '../application/summarise.js';
@@ -120,6 +121,7 @@ import { scoutReadStore } from './postgres-scouts.js';
 import { launchStore } from './postgres-launch.js';
 import { watchStore } from './postgres-watch.js';
 import { questionStore } from './postgres-questions.js';
+import { flairStore } from './postgres-flair.js';
 import { debateStore, skyStore, todayStore } from './postgres-sky.js';
 import { summaryStore } from './postgres-summaries.js';
 import { readReportableRoomMessage } from './report-reads.js';
@@ -188,6 +190,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     scouts: scoutReadStore,
     posts: postStore,
     questions: questionStore,
+    flair: flairStore,
     people: {
       async byAccounts(scope, accountIds) {
         const people = await deps.readPeople(scope, { accountIds });
@@ -287,6 +290,7 @@ export function roomUseCases(deps: RoomsDeps): RoomUseCases {
     ...makeStationReads(ports),
     ...makeActivities(ports),
     ...makeSkyUseCases(ports),
+    ...makeFlairUseCases(ports),
     ...makeToday(ports),
     ...makeLaunch(ports),
     ...makeWatch(ports),

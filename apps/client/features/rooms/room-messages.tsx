@@ -30,8 +30,10 @@ import { borderWidth, content, layout, radius, spacing, status } from '@knowscro
 import { Button, IconButton, Tag, Text } from '@knowscroll/ui';
 import { SnippetCard } from '../threads/snippet-card';
 import { residentColourOf } from './identity/room-emblem';
+import { FlairChip } from './flair-chip';
 import { useGroundColour, useGroundInk, useQuietButton } from './identity/room-ground';
 import { FoldedResident, ResidentHeader } from './resident-message';
+import { StarCard } from './star-card';
 import { TopicCard } from './topic-card';
 
 type Available = Extract<RoomMessage, { status: 'available' }>;
@@ -482,9 +484,14 @@ export function RoomMessages({
                         inhabitant={message.author.kind === 'ai' ? message.author.inhabitant : undefined}
                       />
                     ) : mine ? null : (
-                      <Text variant="metaS" color={ink}>
-                        {message.author.displayName}
-                      </Text>
+                      <View style={styles.nameLine}>
+                        <Text variant="metaS" color={ink}>
+                          {message.author.displayName}
+                        </Text>
+                        {message.flair === undefined ? null : (
+                          <FlairChip flair={message.flair} testID={`flair-${message.messageId}`} />
+                        )}
+                      </View>
                     )
                   ) : null}
                   {folded ? null : (
@@ -529,6 +536,7 @@ export function RoomMessages({
                               You marked this useful
                             </Text>
                           ) : null}
+                          {message.star === undefined ? null : <StarCard star={message.star} />}
                           {message.blockedByYou === true ? (
                             <View style={styles.revealed}>
                               <Text variant="metaS" color={ink}>
@@ -613,6 +621,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   messages: { gap: spacing[3] },
+  nameLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing[2] },
   quiet: {
     gap: spacing[1],
     padding: spacing[4],

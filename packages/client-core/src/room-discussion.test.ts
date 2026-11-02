@@ -233,6 +233,21 @@ describe('a room discussion on the client', () => {
     expect(controller.getState().messages[0]).not.toHaveProperty('usefulByYou');
   });
 
+  it('reads the discussion again when a mark earned the room a star, so the answer carries it', async () => {
+    let starred = false;
+    const scope = scopeOf({
+      readDiscussion: () => Promise.resolve(readyView([text(1, 'an answer')])),
+      markUseful: () => Promise.resolve(starred ? { star: true } : {}),
+    });
+    const controller = createRoomDiscussion({ scope, roomId, discussionId, newId });
+    await controller.load();
+    expect(await controller.markUseful(id(101), true)).toBe(true);
+    expect(scope.calls.filter((call) => call.name === 'readDiscussion')).toHaveLength(1);
+    starred = true;
+    expect(await controller.markUseful(id(101), true)).toBe(true);
+    expect(scope.calls.filter((call) => call.name === 'readDiscussion')).toHaveLength(2);
+  });
+
   it('votes on a debate and reads the discussion again for the tally', async () => {
     let voted = false;
     const debate = () => ({

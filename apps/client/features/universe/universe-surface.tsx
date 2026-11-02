@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NO_COLLECTION } from '@knowscroll/client-core';
 import type { RoomStation } from '@knowscroll/contracts';
@@ -10,7 +10,7 @@ import { Reveal, type Rising } from './animation/animated';
 import type { AnimationPlayer } from './animation/player';
 import { stepChrome } from './animation/step-chrome';
 import { useUniverseAnimation } from './animation/use-universe-animation';
-import { CollectionSection, CollectionSheet, CollectionStrip, LandmarkTray } from './collection/collection-parts';
+import { CollectionSection, CollectionSheet, LandmarkCard } from './collection/collection-parts';
 import { collectionViewOf } from './collection/collection-view';
 import { OrbitDial } from './dial/orbit-dial';
 import { SimpleUniverse } from './simple/simple-universe';
@@ -31,6 +31,12 @@ import { looksById, looksOfState } from './space/space-model';
 import type { SpaceFailure } from './space/space-surface';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
 
+/**
+ * Below this height a screen cannot hold the full landmark card under the map's sun and above its chips (Safari on a
+ * 390 x 664 phone, Android Chrome at 360 x 640), so the card is one line there.
+ */
+const FULL_CARD_MIN_HEIGHT = 760;
+
 /** The colour of the globe's hint, from the design. */
 const HINT_COLOUR = '#B8E2E3';
 
@@ -41,6 +47,8 @@ const HINT_COLOUR = '#B8E2E3';
 export interface VisitorChrome {
   readonly ownerName: string;
   readonly bar: ReactNode;
+  /** The row at the bottom of the map (U06's one lock chip). */
+  readonly footer?: ReactNode;
 }
 
 /**
@@ -56,6 +64,7 @@ export function UniverseSurface({
   visitor,
   stations,
   onStation,
+  notice,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -67,9 +76,12 @@ export function UniverseSurface({
   readonly stations?: readonly RoomStation[];
   /** A tap on a station, or its row in the list, opens that room. */
   readonly onStation?: (roomId: string) => void;
+  /** A quiet notice the map carries (the new-place views cannot be shown): the top row of the bottom stack, above the card. */
+  readonly notice?: ReactNode;
 }) {
   const { breakpoint } = useDisplay();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   // From 1024 px the outline sits beside the map, once there is anything to list (D02).
   const wide = breakpoint === 'desktop';
   const view = viewFor(index, state.focusId, state.landed);
@@ -159,14 +171,26 @@ export function UniverseSurface({
         onPlanet={(planetId) => void session.focus(planetId)}
       />
     ) : null;
-  // A landmark whose planet has not formed waits here (D-084); it takes no room while a card or the sheet is open.
-  const tray =
-    !visitor && !card && !sheet && state.overlay !== 'search' && collection.waiting.length > 0 ? (
-      <LandmarkTray view={collection} onSee={openCollection} />
-    ) : null;
   const collectionPanel = visitor ? null : (
     <CollectionSection view={collection} onPlanet={(planetId) => void session.focus(planetId)} />
   );
+
+  // The landmark card (D-089, D-319). On the desktop the panel lists the collection, so the map carries none, and a card or
+  // the list in front of it takes its place. It is one line wherever a long card would reach the picture: on a globe (under
+  // Back, above the globe, clear of its name and hint, which fill the lower half) and on a short screen, where a full card
+  // would reach the sun.
+  const landmarkAllowed = !visitor && !panel && !card && !sheet && !searching;
+  const onGlobe = (shown: UniverseView) => shown.kind === 'planet' && !shown.landed && !simple;
+  const landmarkOf = (shown: UniverseView): ReactNode =>
+    landmarkAllowed && !onGlobe(shown) ? (
+      <LandmarkCard
+        view={collection}
+        folded={shown.kind === 'planet' || windowHeight < FULL_CARD_MIN_HEIGHT}
+        onSee={openCollection}
+      />
+    ) : null;
+  const globeLandmarkOf = (shown: UniverseView): ReactNode =>
+    landmarkAllowed && onGlobe(shown) ? <LandmarkCard view={collection} folded onSee={openCollection} /> : null;
 
   const headerOf = (shown: UniverseView): ReactNode =>
     searching ? (
@@ -177,16 +201,19 @@ export function UniverseSurface({
         {...(onStation ? { onStation } : {})}
       />
     ) : (
-      <UniverseHeader
-        session={session}
-        state={state}
-        view={shown}
-        hasPlaces={places.length > 0}
-        onSearch={openSearch}
-        {...(visitor ? { visitor: { ownerName: visitor.ownerName } } : {})}
-        {...(systemFacts ? { systemFacts } : {})}
-        searchInPanel={panel}
-      />
+      <View style={styles.headerStack}>
+        <UniverseHeader
+          session={session}
+          state={state}
+          view={shown}
+          hasPlaces={places.length > 0 || state.dust.cues.length > 0}
+          onSearch={openSearch}
+          {...(visitor ? { visitor: { ownerName: visitor.ownerName } } : {})}
+          {...(systemFacts ? { systemFacts } : {})}
+          searchInPanel={panel}
+        />
+        {globeLandmarkOf(shown)}
+      </View>
     );
   const header = headerOf(view);
 
@@ -263,6 +290,7 @@ export function UniverseSurface({
       </View>
     ) : null;
   const chips = chipsOf(view);
+  const landmarkCard = landmarkOf(view);
   // The screen being left stays on screen, fading, under the destination's chrome as it rises (design: "Rules for all of them").
   const leaving = step?.from;
 
@@ -278,16 +306,18 @@ export function UniverseSurface({
         top={insets.top + spacing[3]}
         bottom={bottomInset + (card && !panel ? 200 : 0)}
         banner={
-          visitor?.bar || status ? (
+          visitor?.bar || status || notice ? (
             <>
               {visitor?.bar}
               {status ? <Tag label={status} variant="onDark" /> : null}
+              {notice}
+              {visitor?.footer}
             </>
           ) : undefined
         }
         onSearch={openSearch}
         {...(onStation ? { onStation } : {})}
-        {...(simpleDrawing ? { onTurnOff: () => turnSimple(false) } : {})}
+        {...(simpleDrawing && !panel ? { onTurnOff: () => turnSimple(false) } : {})}
         {...(searching ? { searchPanel: header } : {})}
         {...(panel || !card ? {} : { card })}
         {...(collectionPanel ? { collection: collectionPanel } : {})}
@@ -330,6 +360,7 @@ export function UniverseSurface({
             animation={animation}
             onSize={setStageSize}
           />
+          {searching ? <View pointerEvents="none" testID="universe-search-dim" style={styles.searchDim} /> : null}
           <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
             {visitor?.bar}
             <ChromeSlot
@@ -344,9 +375,6 @@ export function UniverseSurface({
                 <Tag label={status} variant="onDark" />
               </View>
             ) : null}
-            {!visitor && !searching && !wide ? (
-              <CollectionStrip view={collection} onLandmarks={openCollection} />
-            ) : null}
           </View>
           <ChromeSlot
             player={animation.player}
@@ -360,9 +388,17 @@ export function UniverseSurface({
             {view.kind === 'system' && state.lately && isDormant(index, view.system.objectId) ? (
               <DormantNote session={session} index={index} systemId={view.system.objectId} />
             ) : null}
+            {notice}
             {sheet}
             {panel ? null : card}
-            {tray}
+            {visitor?.footer}
+            <ChromeSlot
+              player={animation.player}
+              now={landmarkCard}
+              was={chrome?.chipsOut && leaving ? landmarkOf(leaving) : undefined}
+              into={chrome?.chipsIn}
+              out={chrome?.chipsOut}
+            />
             <ChromeSlot
               player={animation.player}
               now={chips}
@@ -556,6 +592,9 @@ const styles = StyleSheet.create({
   stageHost: { flex: 1, overflow: 'hidden' },
   top: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: layout.topControlsInset, gap: spacing[2] },
   status: { alignItems: 'flex-end' },
+  headerStack: { gap: spacing[3] },
+  /** The map stays in view under the search card, dimmed (U08). */
+  searchDim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(2,3,8,0.5)' },
   bottom: {
     position: 'absolute',
     left: 0,

@@ -23,6 +23,12 @@ export interface SkyWorld {
   /** The name the room settled on, once the vote closed. */
   named: string | undefined;
   readonly solves: { sentence: number }[];
+  /** What the reader has earned in the room (R3 E5) and what they chose to show beside their name. */
+  readonly flair: {
+    earned: readonly string[];
+    coming: readonly { flair: string; have: number; of: number }[];
+    choice: string | undefined;
+  };
 }
 
 export const skyWorld = (stars: number): SkyWorld => ({
@@ -31,7 +37,41 @@ export const skyWorld = (stars: number): SkyWorld => ({
   vote: undefined,
   named: undefined,
   solves: [],
+  flair: {
+    earned: ['first_answer', 'launch_regular'],
+    // A partway count is only for a mark made of the person's own acts (D-342); Good question shows once it is earned.
+    coming: [{ flair: 'flaw_finder', have: 2, of: 3 }],
+    choice: undefined,
+  },
 });
+
+/** What shows beside the reader's name now, by the server's rule: hidden, a chosen mark that is earned, or the first earned. */
+const shownFlair = (flair: SkyWorld['flair']) =>
+  flair.choice === 'none'
+    ? undefined
+    : flair.choice === undefined
+      ? flair.earned[0]
+      : flair.earned.includes(flair.choice)
+        ? flair.choice
+        : undefined;
+
+/**
+ * The moment of the nth newest star, as the server reads it for this reader: an answer of Asha's (named, and it opens Today), a debate
+ * with its title, the day's Spot the flaw and a Launch with how many played. Authored examples.
+ */
+function momentOf(index: number) {
+  const day = `2026-10-${String(27 - index).padStart(2, '0')}`;
+  switch (index % 4) {
+    case 0:
+      return { act: 'answer_useful', day, by: person(1, 'Asha'), opens: { discussionId: todayId } };
+    case 1:
+      return { act: 'debate_closed', day, title: 'Is Pluto a planet?', opens: { discussionId: todayId } };
+    case 2:
+      return { act: 'daily_solved', day };
+    default:
+      return { act: 'launch_finished', day, played: 5 };
+  }
+}
 
 /** The sky as every read of the room carries it, worked out from the star count by the rule the server uses. */
 export function skyOf(world: SkyWorld) {
@@ -99,7 +139,7 @@ export interface SkyCall {
  */
 export async function skyRoutes(page: Page, world: SkyWorld, scope: { accountId: string; privacyEpoch: number }) {
   const calls: SkyCall[] = [];
-  await page.route('**/v1/rooms/{today,sky,debates}/**', (route) => {
+  await page.route('**/v1/rooms/{today,sky,debates,flair}/**', (route) => {
     const path = new URL(route.request().url()).pathname;
     const body = (route.request().postDataJSON() ?? {}) as Record<string, unknown>;
     calls.push({ path, body });
@@ -167,8 +207,7 @@ export async function skyRoutes(page: Page, world: SkyWorld, scope: { accountId:
           sky: skyOf(world),
           starsPerDay: 3,
           stars: Array.from({ length: Math.min(world.stars, 28) }, (_, index) => ({
-            act: (['answer_useful', 'debate_closed', 'daily_solved'] as const)[index % 3],
-            day: `2026-10-${String(27 - index).padStart(2, '0')}`,
+            ...momentOf(index),
             constellation: Math.floor((world.stars - 1 - index) / 7) + 1,
           })),
           ...(naming
@@ -184,6 +223,26 @@ export async function skyRoutes(page: Page, world: SkyWorld, scope: { accountId:
               }
             : {}),
         },
+      });
+    }
+    if (path === '/v1/rooms/flair/read') {
+      const shown = shownFlair(world.flair);
+      return route.fulfill({
+        json: {
+          ...base,
+          status: 'ready',
+          earned: world.flair.earned,
+          coming: world.flair.coming,
+          ...(world.flair.choice === undefined ? {} : { choice: world.flair.choice }),
+          ...(shown === undefined ? {} : { shown }),
+        },
+      });
+    }
+    if (path === '/v1/rooms/flair/choose') {
+      const flair = body['flair'] as string;
+      world.flair.choice = flair === 'auto' ? undefined : flair;
+      return route.fulfill({
+        json: { ...receipt(body, scope, 'room.flair'), roomId: body['roomId'], flair },
       });
     }
     if (path === '/v1/rooms/sky/name') {
@@ -235,6 +294,9 @@ export async function skyRoutes(page: Page, world: SkyWorld, scope: { accountId:
               kind: 'text',
               text: 'Because the universe has a beginning, so the light from far stars has not arrived yet.',
             },
+            // What the room draws beside Asha's name, and under her answer once someone found it useful (R3 E5, F4).
+            flair: 'first_answer',
+            star: { place: 6 },
           },
         ],
         limit: body['limit'],

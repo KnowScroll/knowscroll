@@ -2,9 +2,8 @@ import { useMemo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text as NativeText, View } from 'react-native';
 import { chartWorld, type SceneDescriptor, type SceneLook } from '@knowscroll/scene-core';
 import { borderWidth, radius, space, spacing } from '@knowscroll/design-tokens';
-import { Icon, Text } from '@knowscroll/ui';
+import { Text, toggleSemantics, useFocusRing } from '@knowscroll/ui';
 import { PlanetGlobe } from '../planet/planet-globe';
-import { SpaceChip } from '../space-chip';
 import { paletteOf } from '../planet/planet-palette';
 import { planPlanet } from '../planet/planet-plan';
 import { useGlobeWorld } from '../planet/use-planet-world';
@@ -17,6 +16,54 @@ import type { DialPlanet, PlanetMatch } from './dial-model';
 
 /** The yellow ring that marks the chosen place, and the yellow under matched letters. */
 export const CHOSEN = space.focus;
+
+const PAPER = '#FFFDF2';
+const PAPER_INK = '#15302A';
+const PAPER_INK2 = 'rgba(21,48,42,0.7)';
+const PAPER_TOP = '#F4EDD8';
+const MARK = '#FFEC7A';
+
+/**
+ * A plain word that is a choice (the file's `fchip` and `kind`): the chosen one bright with a yellow
+ * dot under it, an optional count raised beside it, and Lately's green dot. Never an outlined pill.
+ */
+export function WordTab({
+  label,
+  chosen,
+  count,
+  lately = false,
+  accessibilityLabel,
+  onPress,
+}: {
+  readonly label: string;
+  readonly chosen: boolean;
+  readonly count?: number | undefined;
+  readonly lately?: boolean;
+  readonly accessibilityLabel?: string;
+  readonly onPress: () => void;
+}) {
+  const focus = useFocusRing('onDark');
+  return (
+    <Pressable
+      {...toggleSemantics(chosen)}
+      accessibilityLabel={accessibilityLabel ?? (count === undefined ? label : `${label}, ${count}`)}
+      onPress={onPress}
+      {...focus.props}
+      style={[styles.word, focus.style]}
+    >
+      <Text variant="uiS" color={chosen ? space.label : space.label2} style={chosen ? styles.wordOn : null}>
+        {label}
+      </Text>
+      {count === undefined ? null : (
+        <Text variant="metaS" color={space.label2} style={styles.wordCount}>
+          {count}
+        </Text>
+      )}
+      {lately ? <View style={styles.wordLately} /> : null}
+      {chosen ? <View style={styles.wordMark} /> : null}
+    </Pressable>
+  );
+}
 
 /** A small dark pill of fact ("3 planets", "You're here"); a fact, never a control. */
 export function InfoChip({ label, dot = false }: { readonly label: string; readonly dot?: boolean }) {
@@ -38,6 +85,7 @@ export function MatchedName({
   color,
   heading,
   center = false,
+  onPaper = false,
 }: {
   readonly name: string;
   readonly match: SearchResult['match'] | undefined;
@@ -45,6 +93,8 @@ export function MatchedName({
   readonly color: string;
   readonly heading?: 2;
   readonly center?: boolean;
+  /** On a paper card the matched letters sit on yellow, in ink (the file's `mark`). */
+  readonly onPaper?: boolean;
 }) {
   const [from, to] = match ?? [0, 0];
   return (
@@ -55,7 +105,11 @@ export function MatchedName({
       {...(center ? { align: 'center' as const } : {})}
     >
       {name.slice(0, from)}
-      {to > from ? <NativeText style={{ color: CHOSEN }}>{name.slice(from, to)}</NativeText> : null}
+      {to > from ? (
+        <NativeText style={onPaper ? { color: PAPER_INK, backgroundColor: MARK } : { color: CHOSEN }}>
+          {name.slice(from, to)}
+        </NativeText>
+      ) : null}
       {name.slice(to)}
     </Text>
   );
@@ -154,7 +208,10 @@ export function PlanetDial({
   );
 }
 
-/** O4: the matching planets of the current system, and one row for what matched in the others. */
+/**
+ * O4: "In Earth 1 / Everywhere 3" as words above a paper card of the matching planets of the current
+ * system, and one row for what matched in the others.
+ */
 export function PlanetResults({
   system,
   here,
@@ -175,62 +232,68 @@ export function PlanetResults({
   return (
     <View testID="dial-planet-results" style={styles.results}>
       <View role="group" aria-label="Where to look" style={styles.scope}>
-        <SpaceChip
-          label={`In ${system} ${here.length}`}
-          toggled={!everywhere}
-          variant={everywhere ? 'ghost' : 'solid'}
+        <WordTab
+          label={`In ${system}`}
+          count={here.length}
+          chosen={!everywhere}
           accessibilityLabel={`In ${system}, ${here.length}`}
           onPress={() => onScope(false)}
         />
-        <SpaceChip
-          label={`Everywhere ${here.length + elsewhere.length}`}
-          toggled={everywhere}
-          variant={everywhere ? 'solid' : 'ghost'}
+        <WordTab
+          label="Everywhere"
+          count={here.length + elsewhere.length}
+          chosen={everywhere}
           accessibilityLabel={`Everywhere, ${here.length + elsewhere.length}`}
           onPress={() => onScope(true)}
         />
       </View>
-      <Text variant="label" color={space.label2}>
-        {everywhere
-          ? `${countOf(shown.length, 'planet')} everywhere`
-          : `${countOf(here.length, 'planet')} in ${system}`}
-      </Text>
-      {shown.map((match) => (
-        <Pressable
-          key={match.planet.id}
-          accessibilityRole="button"
-          accessibilityLabel={nameWithTruth(
-            `${match.planet.name}, a planet in ${match.system.name}`,
-            match.planet.hypothetical,
-          )}
-          onPress={() => onChoose(match)}
-          style={styles.resultRow}
-        >
-          <PlanetDisc planet={match.planet} size={34} />
-          <View style={styles.resultWords}>
-            <MatchedName name={match.planet.name} match={match.result.match} variant="title" color={space.label} />
-            <Text variant="label" color={space.label2} numberOfLines={1}>
-              {`Planet · ${countOf(match.planet.regions, 'region')}${match.planet.here ? ' · You were here' : ''}${everywhere ? ` · ${match.system.name}` : ''}`}
+      <View style={styles.paper}>
+        <Text variant="label" color={PAPER_INK2}>
+          {everywhere
+            ? `${countOf(shown.length, 'planet')} everywhere`
+            : `${countOf(here.length, 'planet')} in ${system}`}
+        </Text>
+        {shown.map((match, position) => (
+          <Pressable
+            key={match.planet.id}
+            accessibilityRole="button"
+            accessibilityLabel={nameWithTruth(
+              `${match.planet.name}, a planet in ${match.system.name}`,
+              match.planet.hypothetical,
+            )}
+            onPress={() => onChoose(match)}
+            style={[styles.resultRow, position === 0 ? styles.resultTop : null]}
+          >
+            <View style={styles.resultWords}>
+              <MatchedName
+                name={match.planet.name}
+                match={match.result.match}
+                variant="title"
+                color={PAPER_INK}
+                onPaper
+              />
+              <Text variant="label" color={PAPER_INK2} numberOfLines={1}>
+                {`Planet · ${countOf(match.planet.regions, 'region')}${match.planet.here ? ' · You were here' : ''}${everywhere ? ` · ${match.system.name}` : ''}`}
+              </Text>
+            </View>
+          </Pressable>
+        ))}
+        {!everywhere && first ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={nameWithTruth(
+              `Also elsewhere: ${first.planet.name} in ${first.system.name}`,
+              first.planet.hypothetical,
+            )}
+            onPress={() => onScope(true)}
+            style={styles.elsewhere}
+          >
+            <Text variant="uiS" color={PAPER_INK2}>
+              {`Also elsewhere: ${first.planet.name} in ${first.system.name}`}
             </Text>
-          </View>
-          <Icon name="forward" size={18} color={space.label2} />
-        </Pressable>
-      ))}
-      {!everywhere && first ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={nameWithTruth(
-            `Also elsewhere: ${first.planet.name} in ${first.system.name}`,
-            first.planet.hypothetical,
-          )}
-          onPress={() => onScope(true)}
-          style={styles.elsewhere}
-        >
-          <Text variant="uiS" color={space.label}>
-            {`Also elsewhere: ${first.planet.name} in ${first.system.name}`}
-          </Text>
-        </Pressable>
-      ) : null}
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -267,22 +330,38 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   dialName: { fontWeight: '700' },
-  results: {
-    gap: spacing[2],
-    padding: spacing[4],
-    borderRadius: radius.card,
-    borderWidth: borderWidth.hairline,
-    borderColor: space.edge,
-    backgroundColor: 'rgba(11,26,46,0.82)',
+  word: { minHeight: 44, minWidth: 44, justifyContent: 'center', paddingRight: spacing[2] },
+  wordOn: { fontWeight: '800' },
+  wordCount: { position: 'absolute', right: -6, top: 8 },
+  wordLately: {
+    position: 'absolute',
+    right: -4,
+    top: 12,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#14C79B',
   },
-  scope: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
-  resultRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], minHeight: 56, borderRadius: radius.md },
-  resultWords: { flex: 1, gap: 2 },
+  wordMark: {
+    position: 'absolute',
+    bottom: 3,
+    alignSelf: 'center',
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: CHOSEN,
+  },
+  results: { gap: spacing[1] },
+  scope: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing[5], paddingLeft: spacing[1] },
+  paper: { gap: spacing[1], padding: spacing[3], borderRadius: 16, backgroundColor: PAPER },
+  resultRow: { justifyContent: 'center', minHeight: 56, paddingHorizontal: spacing[2], borderRadius: 10 },
+  resultTop: { backgroundColor: PAPER_TOP },
+  resultWords: { gap: 2 },
   elsewhere: {
     minHeight: 44,
     justifyContent: 'center',
-    paddingHorizontal: spacing[3],
-    borderRadius: radius.md,
-    backgroundColor: 'rgba(255,251,240,0.08)',
+    paddingHorizontal: spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(21,48,42,0.1)',
   },
 });

@@ -44,6 +44,7 @@ export function useOrbitDial(input: {
   const [filter, setFilter] = useState<DialFilter>('all');
   const [wheelOpen, setWheelOpen] = useState(false);
   const [turning, setTurning] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [searching, setSearching] = useState<DialSearch>(null);
   const [query, setQuery] = useState('');
   const [everywhere, setEverywhere] = useState(false);
@@ -83,6 +84,10 @@ export function useOrbitDial(input: {
     counts: filterCounts(all),
     /** The wheel is big: a finger turns it, the row was touched, or systems are being searched. */
     open: wheelOpen || turning || searching === 'systems',
+    /** The filters stay behind the filter button, and show while systems are searched or one is in use (O1, O2). */
+    filtersShown:
+      (wheelOpen || turning || searching === 'systems') && (filtersOpen || searching === 'systems' || filter !== 'all'),
+    toggleFilters: () => setFiltersOpen((was) => !was),
     turning,
     searching,
     query,

@@ -20,6 +20,8 @@ import type { ActivityKind, ActivityState, StoredDefinition } from '../domain/ac
 import type { LaunchRow, ReadyDeck, StoredAnswer } from './launch-ports.js';
 import type { WatchSessionRow } from './watch-ports.js';
 import type { UnnoticedQuestion } from './question-ports.js';
+import type { FlairMember, StarSources } from './flair-ports.js';
+import type { FlairChoice } from '../domain/flair.js';
 import type { AnswerSupportRecord } from '../domain/answer-support.js';
 import type { AskKind } from '../domain/asks.js';
 import type { CastMember } from '../domain/cast.js';
@@ -745,7 +747,20 @@ export interface SkyStore {
   latestStars(
     lock: RoomLock,
     limit: number,
-  ): Promise<readonly { act: StarActName; day: string; constellation: number }[]>;
+  ): Promise<readonly { act: StarActName; sourceKey: string; day: string; constellation: number }[]>;
+  /**
+   * The rows that stars of these acts point at: the marked answers and the Launches' player counts. Read only for a sky read, which
+   * has no star's account to give: a star holds none, so who wrote an answer is found from the message itself (D-341).
+   */
+  sources(
+    lock: RoomLock,
+    keys: { readonly answers: readonly string[]; readonly launches: readonly string[] },
+  ): Promise<StarSources>;
+  /**
+   * Where each of these messages stands among the stars of its constellation, for the answers that earned one (D-346): the
+   * first star of a constellation is place 1. A message that earned none is absent.
+   */
+  placesOf(lock: RoomLock, messageIds: readonly string[]): Promise<ReadonlyMap<string, number>>;
   constellations(lock: RoomLock): Promise<readonly ConstellationRow[]>;
   insertConstellation(lock: RoomLock, row: Omit<ConstellationRow, 'name'>): Promise<void>;
   name(lock: RoomLock, no: number, name: string, at: Date): Promise<void>;
@@ -961,6 +976,25 @@ export interface QuestionStore {
   ): Promise<{ readonly notify: boolean } | undefined>;
 }
 
+/**
+ * A member's flair: the acts that earn it, counted from rows that exist, and their own choice (migration 0102). Every method is one
+ * explicit query inside the room's lock; none decides access or what is shown.
+ */
+export interface FlairStore {
+  /**
+   * The acts and the choice of these accounts, for the ones that are current members of the room; anyone else is absent.
+   * `shownOnly` leaves out a member who chose to hide their flair, so a page of messages never counts what it will not show.
+   * Each count stops at what its mark needs.
+   */
+  membersOf(
+    lock: RoomLock,
+    accountIds: readonly string[],
+    options: { readonly shownOnly: boolean },
+  ): Promise<readonly FlairMember[]>;
+  /** Saves the member's own choice. */
+  choose(lock: RoomLock, accountId: string, choice: FlairChoice): Promise<void>;
+}
+
 // --- What the application needs from outside ----------------------------------------------
 
 /** A person the caller can name: a public profile, by account. */
@@ -1151,6 +1185,8 @@ export interface RoomPorts {
   readonly posts: PostStore;
   /** The notice state of the questions left for people (migration 0089). */
   readonly questions: QuestionStore;
+  /** A member's flair and their choice of what shows (migration 0102). */
+  readonly flair: FlairStore;
   readonly people: PersonLookup;
   readonly friends: FriendLookup;
   readonly blocked: BlockedLookup;

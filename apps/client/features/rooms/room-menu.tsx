@@ -6,8 +6,9 @@ import type { RoomAiLevel, RoomView } from '@knowscroll/contracts';
 import { borderWidth, content, spacing } from '@knowscroll/design-tokens';
 import { BottomSheet, Button, Icon, Text } from '@knowscroll/ui';
 import { afterPendingBack, notePendingBack } from '../../platform/after-pending-back';
+import { closeThen } from '../../platform/close-then';
 import { AiHere } from './ai-here';
-import { activitiesHref, todayHref } from './room-links';
+import { activitiesHref, discussionHref, todayHref } from './room-links';
 import { ModeratorTools, RULE_WORDS, WhoIsHere } from './room-parts';
 import { SkyContent } from './sky-sheet';
 import { TopicsList } from './topics-list';
@@ -113,7 +114,8 @@ export function RoomMenu({
   const pinned = view.discussions.filter((item) => item.pinned).length;
   const moderator = view.role === 'moderator';
   return (
-    <BottomSheet visible={visible} title={view.room.name} onClose={close} testID="room-menu">
+    // `fit` on the sky page: it scrolls under the room's name and Close, as the sky sheet does.
+    <BottomSheet visible={visible} title={view.room.name} onClose={close} testID="room-menu" fit={page === 'sky'}>
       {page === 'root' ? (
         <View style={styles.list}>
           <MenuRow label="About" onPress={() => setPage('about')} testID="menu-about" />
@@ -222,7 +224,14 @@ export function RoomMenu({
         </PageFrame>
       ) : page === 'sky' ? (
         <PageFrame title="Room sky" onBack={() => setPage('root')}>
-          <SkyContent scope={scope} roomId={view.room.roomId} />
+          <SkyContent
+            scope={scope}
+            roomId={view.room.roomId}
+            roomName={view.room.name}
+            onOpenMoment={(discussionId) =>
+              closeThen(close, () => router.push(discussionHref(view.room.roomId, discussionId)))
+            }
+          />
         </PageFrame>
       ) : page === 'topics' ? (
         <PageFrame title="Topics" onBack={() => setPage('root')}>
@@ -246,7 +255,7 @@ export function RoomMenu({
 
 const styles = StyleSheet.create({
   list: { gap: spacing[1] },
-  page: { gap: spacing[3] },
+  page: { gap: spacing[3], flexShrink: 1, minHeight: 0 },
   back: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], minHeight: 44 },
   row: {
     minHeight: 48,

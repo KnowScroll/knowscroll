@@ -369,14 +369,17 @@ float over it.
   offers land that has not formed. `/` opens it from the focused map.
 - **The orbit dial** (`dial/`, D-112) replaces the List view on phones and tablets. Touch the system row to open the
   wheel of systems, turn it (drag, or the arrow keys on the focused wheel), let go to choose; the chosen system's
-  planet at the top of its dial is shown big as its real globe, and a tap lands on its map. Filters All, Lately (not
-  quiet), With rooms and A–Z; one search for systems (wheel open) and one for planets (in this system or everywhere).
+  planet at the top of its dial is shown big as its real globe, and a tap lands on its map. The chosen system is its
+  name and a chevron, with no arrow into the system (D-317). Filters All, Lately (not quiet), With rooms and A–Z are plain
+  words with counts behind the filter button of the open wheel, and shown while systems are searched; one search for systems
+  (wheel open) and one for planets (in this system or everywhere), whose matches are a paper card under "In <system> / Everywhere".
   It is built from the reads the Universe holds (`buildDial`): nothing is fetched or written, and land not reached yet
   is neither listed nor counted. The design's "N uncharted" chip is not drawn (D-109).
 - **Simple drawing** (`simple/`, D-111). The whole tab as the two lists of `simple-views-finalized.html`. It is on by
   the setting ("Simple view" on the dial, "Simple drawing" in the desktop panel; remembered on the device with the
   camera) and by itself when WebGL is missing, the context is lost, a frame fails, the system warns of low memory or
-  the browser says it has 1 GB or less. Turning the switch off tries 3D again.
+  the browser says it has 1 GB or less. Turning the switch off tries 3D again. Its rows are plain: no boxes, no chevrons,
+  a thin line between them, and a green switch. At 1024 px and up the panel's "Simple drawing" switch is the only one.
 - **Desktop D02** (`universe-panel.tsx`). From 1024 px the panel is always open: counts, search, the picked planet's
   card (Land goes straight to its map, Close), the Lately and Simple drawing switches, then the same lists as the
   Simple view (systems with planets and rooms). On a system a tap on a planet picks it and it glows; key hints and
@@ -386,10 +389,16 @@ float over it.
   week's Orbit, the next Part to resume and the topic of each planet (`readCollection` in client-core) when the tab comes to
   the front and when the map's geography changes. A landmark stands on the planet of its Scroll's topic as a small pennant
   (gold or cream) painted on the globe and the landed map at places `landmarkSpots` picks; with no such planet on the map it
-  waits in the tray ("Your landmark is waiting", with "See it") and the Landmarks chip opens the sheet that lists every one
-  with its finish and where it stands. The Orbit is one quiet line of text ("Orbit · 1 of 3 days this week"; never a ring on
-  the map, D-087) and the resume chip ("Resume Part 2 of 3") opens the next Part by its address. On desktop the panel carries
-  the same as a paper list, and so does the Simple drawing, so the landmarks are readable without the drawing. The markers
+  waits ("Gold finish · waits for its planet"). The map carries no chips of the collection (the Universe set draws none): the
+  newest landmark is a paper card over the bottom of the map ("New landmark" for a week after it was earned, "Latest landmark"
+  after, D-363; its name, "from <planet> · gold finish", "See it"), and "See it" opens the sheet that lists every one with its finish
+  and where it stands. The card is one line where a full card would reach the picture (D-319): on a globe, where it sits under
+  Back above the globe so it clears the planet's name and hint, on a landed map, and on a screen under 760 px tall, where a
+  full card would reach the sun. With only the week to say the card has no button. The Orbit is one quiet line of
+  text inside the card ("Orbit · 1 of 3 days this week"; never a ring on the map, D-087) and the yellow chip ("Resume Part 2
+  of 3") beside it opens the next Part by its address. With no landmark yet the card speaks of the next Part, or of the week.
+  On desktop the panel carries the same as a paper list and the map carries no card, and so does the Simple drawing, so the
+  landmarks are readable without the drawing. The markers
   do not move, so reduced motion changes nothing about them. A friend's universe is never given a collection. Cloud thinning
   and an Orbit ring were not built (D-088, D-087).
 - **Return.** The camera, lens and ship's place persist per device in the account scope's storage

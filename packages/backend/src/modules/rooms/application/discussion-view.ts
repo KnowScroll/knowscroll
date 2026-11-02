@@ -2,6 +2,7 @@ import {
   AI_INHABITANT_LABELS,
   SCOUT_LABEL,
   type PublicPersonRef,
+  type RoomFlairKind,
   type RoomMessage,
   type ThreadEpisode,
 } from '@knowscroll/contracts';
@@ -11,6 +12,7 @@ import { snippetCard } from '../../social/public.js';
 import { nameOf, type CastMember } from '../domain/cast.js';
 import type { AiLevel } from '../domain/membership.js';
 import { titlesFor } from './discussion-titles.js';
+import { flairShownTo } from './flair.js';
 import type {
   AskedFor,
   ContentCard,
@@ -56,6 +58,10 @@ export interface ViewLookups {
   readonly topics: ReadonlyMap<string, { readonly title: string; readonly tag: TopicTag | null }>;
   /** The messages of the page the reader marked Useful. */
   readonly useful: ReadonlySet<string>;
+  /** The flair each person author of the page shows to this reader (D-342): absent for anyone whose flair is hidden, masked or unearned. */
+  readonly flair: ReadonlyMap<string, RoomFlairKind>;
+  /** Where the answers of the page that earned the room a star stand among their constellation's seven (D-346). */
+  readonly starPlaces: ReadonlyMap<string, number>;
 }
 
 /**
@@ -79,12 +85,17 @@ export function viewRoomMessage(row: MessageRow, lookups: ViewLookups, reader: R
   const signer = row.authorAccountId ?? row.agentOwnerAccountId;
   const blockedAuthor = signer !== null && blocked.has(signer);
   if (blockedAuthor && !reader.moderator) return { ...identity, status: 'blocked' };
+  // Only a person's own account has flair or earns a star: a resident and a scout's note have none to look up.
+  const flair = row.authorAccountId === null ? undefined : lookups.flair.get(row.authorAccountId);
+  const place = row.authorAccountId === null ? undefined : lookups.starPlaces.get(row.messageId);
   const base = {
     ...identity,
     status: 'available' as const,
     recordedAt: row.recordedAt.toISOString(),
     ...(blockedAuthor ? { blockedByYou: true as const } : {}),
     ...(lookups.useful.has(row.messageId) ? { usefulByYou: true as const } : {}),
+    ...(flair === undefined ? {} : { flair }),
+    ...(place === undefined ? {} : { star: { place } }),
   };
   if (row.inhabitant !== null && row.aiKind !== null && row.text !== null) {
     if (row.trigger !== null && reader.aiLevel === 'off') return { ...identity, status: 'muted' };
@@ -219,6 +230,14 @@ export async function viewRoomMessages(
     viewer.accountId,
     shown.map((row) => row.messageId),
   );
+  const personAuthors = [
+    ...new Set(shown.flatMap((row) => (row.authorAccountId === null ? [] : [row.authorAccountId]))),
+  ];
+  const flair = await flairShownTo(p, scope, lock, viewer.accountId, personAuthors);
+  const starPlaces = await p.sky.placesOf(
+    lock,
+    shown.filter((row) => row.authorAccountId !== null && row.text !== null).map((row) => row.messageId),
+  );
   const lookups: ViewLookups = {
     authors,
     snippets,
@@ -227,6 +246,8 @@ export async function viewRoomMessages(
     asks,
     topics,
     useful,
+    flair,
+    starPlaces,
   };
   return rows.map((row) => viewRoomMessage(row, lookups, viewer));
 }

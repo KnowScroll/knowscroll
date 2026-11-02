@@ -6,7 +6,7 @@ import { fixtureAccount, fixtureId, sceneFixture } from '../features/universe/un
 import { id } from './encounter-fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
 import { FACES, room, roomFixture } from './rooms-fixture';
-import { TODAY_STRIP, skyOf, skyRoutes, skyWorld, type SkyWorld } from './rooms-sky-fixture';
+import { TODAY_STRIP, skyOf, skyRoutes, skyWorld, todayId, type SkyWorld } from './rooms-sky-fixture';
 
 /**
  * Today and the sky (v3 R-5) in the production export over labelled HTTP fixtures, for two people who share one room. Person A
@@ -186,7 +186,7 @@ for (const { name, size } of VIEWPORTS) {
     await expect(page.getByTestId('sky-line')).toHaveText('7 of 7 stars');
     await expect(page.getByTestId('constellation').getByRole('button')).toHaveCount(7);
     await page.getByRole('button', { name: 'Star 1 of 7' }).click();
-    await expect(page.getByTestId('sky-moment')).toContainText('An answer someone found useful');
+    await expect(page.getByTestId('sky-moment')).toContainText('Spot the flaw found · 21 Oct');
     await expect(page.getByText('Name this constellation')).toBeVisible();
     await expect(page.getByText(/\d votes?$/)).toHaveCount(0);
     await shoot(page, `${name}-sky-naming`);
@@ -218,6 +218,137 @@ for (const { name, size } of VIEWPORTS) {
     await other.close();
   });
 }
+
+for (const { name, size } of VIEWPORTS) {
+  test(`${name}: the sky lists how each star was earned, the person chooses and hides their flair, and the answer carries both marks`, async ({
+    page,
+  }) => {
+    const world = skyWorld(5);
+    const { address } = await roomFixture(page, size, {
+      others: 1,
+      lastMessageMinutesAgo: 5,
+      noticeSeen: true,
+      sky: () => skyOf(world),
+      today: TODAY_STRIP,
+    });
+    const { calls } = await skyRoutes(page, world, scope);
+    await page.goto(address);
+    await page.getByTestId('now-sky').click();
+
+    // The person's own flair: the one showing, the one earned, and the one partway with how far. No total, no rank.
+    await expect(page.getByTestId('flair-card')).toBeVisible();
+    await expect(page.getByText('You in Space room')).toBeVisible();
+    await expect(page.getByTestId('flair-shown')).toHaveText('First answer · Showing');
+    await expect(page.getByTestId('flair-earned-launch_regular')).toHaveText('Launch regular');
+    await expect(page.getByTestId('flair-coming-flaw_finder')).toHaveText('Flaw finder · 2/3');
+    await expect(page.getByTestId('flair-coming-good_question')).toHaveCount(0);
+    await expect(page.getByText(/karma|leaderboard|rank|level|points/i)).toHaveCount(0);
+
+    // Each lit star says what earned it, newest first, naming a person only where the room does, and never who marked it.
+    const moments = page.getByTestId('star-moments');
+    await expect(moments).toBeVisible();
+    await expect(page.getByTestId('star-moment-0')).toContainText('Asha’s answer marked useful · 27 Oct');
+    await expect(page.getByTestId('star-moment-1')).toContainText('Debate closed: Is Pluto a planet? · 26 Oct');
+    await expect(page.getByTestId('star-moment-2')).toContainText('Spot the flaw found · 25 Oct');
+    await expect(page.getByTestId('star-moment-3')).toContainText('Launch, 24 Oct · 5 played');
+    await expect(page.getByTestId('star-moment-4')).toContainText('Asha’s answer marked useful · 23 Oct');
+    await expect(moments.getByRole('link')).toHaveCount(3);
+    await shoot(page, `${name}-sky-flair`);
+    expect(await seriousViolations(page)).toEqual([]);
+
+    // Choosing: hide it, then show another earned mark. Each is one command, and the card reads again.
+    await page.getByTestId('flair-choose').click();
+    await expect(page.getByRole('radio', { name: 'The first on the card' })).toBeChecked();
+    await shoot(page, `${name}-sky-flair-choosing`);
+    expect(await seriousViolations(page)).toEqual([]);
+    await page.getByRole('radio', { name: 'Nothing' }).click();
+    await expect(page.getByTestId('flair-hidden')).toBeVisible();
+    await expect(page.getByTestId('flair-shown')).toHaveCount(0);
+    expect(calls.filter((call) => call.path === '/v1/rooms/flair/choose').at(-1)?.body).toMatchObject({
+      flair: 'none',
+    });
+    await page.getByRole('radio', { name: 'Launch regular' }).click();
+    await expect(page.getByTestId('flair-shown')).toHaveText('Launch regular · Showing');
+    expect(calls.filter((call) => call.path === '/v1/rooms/flair/choose').at(-1)?.body).toMatchObject({
+      flair: 'launch_regular',
+    });
+
+    // A moment that has a place opens it: Asha's answer is in Today, where her mark stands beside her name and her answer
+    // carries "+1 star for the room".
+    await page.getByTestId('star-moment-0').click();
+    await expect(page).toHaveURL(new RegExp(`/t/${todayId}$`));
+    await expect(page.getByText('Because the universe has a beginning')).toBeVisible();
+    await expect(page.getByTestId(`flair-${id(700)}`)).toHaveText('First answer');
+    await expect(page.getByTestId('star-card')).toContainText('+1 star for the room');
+    await expect(page.getByTestId('star-card')).toContainText('Star 6 of 7');
+    await shoot(page, `${name}-answer-flair-star`);
+    expect(await seriousViolations(page)).toEqual([]);
+  });
+}
+
+/**
+ * The sky's own scroller must not scroll sideways, and the art, with the whole touch target of its seventh star, must lie inside it
+ * (a 320 px screen leaves the sheet's column 280 px, and the art is up to 288).
+ */
+async function expectSkyFits(page: Page) {
+  const scroll = page.getByTestId('sky-scroll');
+  await expect(page.getByTestId('star-6')).toBeVisible();
+  const widths = await scroll.evaluate((element) => ({
+    scrollWidth: element.scrollWidth,
+    clientWidth: element.clientWidth,
+  }));
+  expect(widths.scrollWidth).toBeLessThanOrEqual(widths.clientWidth);
+  const frame = (await scroll.boundingBox())!;
+  const art = (await page.getByTestId('constellation').boundingBox())!;
+  const last = (await page.getByTestId('star-6').boundingBox())!;
+  const within = (inner: { x: number; width: number }, outer: { x: number; width: number }) =>
+    inner.x >= outer.x - 0.5 && inner.x + inner.width <= outer.x + outer.width + 0.5;
+  expect({
+    artInFrame: within(art, frame),
+    lastStarInArt: within(last, art),
+    lastStarInFrame: within(last, frame),
+  }).toEqual({
+    artInFrame: true,
+    lastStarInArt: true,
+    lastStarInFrame: true,
+  });
+  // The target is the full 44 px a finger needs, not a part of it.
+  expect(last.width).toBeGreaterThanOrEqual(44);
+  expect(last.height).toBeGreaterThanOrEqual(44);
+}
+
+test('320 px: the sky fits the sheet and the room menu page, with the whole target of the seventh star', async ({
+  page,
+}) => {
+  const world = skyWorld(7);
+  const { address } = await roomFixture(
+    page,
+    { width: 320, height: 568 },
+    {
+      others: 1,
+      lastMessageMinutesAgo: 5,
+      noticeSeen: true,
+      sky: () => skyOf(world),
+      today: TODAY_STRIP,
+    },
+  );
+  await skyRoutes(page, world, scope);
+  await page.goto(address);
+  await page.getByTestId('now-sky').click();
+  await expect(page.getByTestId('flair-card')).toBeVisible();
+  await expectSkyFits(page);
+  await shoot(page, 'small-sky-sheet');
+  expect(await seriousViolations(page)).toEqual([]);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('sky-sheet')).toHaveCount(0);
+  // The room menu's page holds the same content.
+  await page.getByTestId('room-menu-open').click();
+  await page.getByTestId('menu-sky').click();
+  await expect(page.getByTestId('sky-line')).toHaveText('7 of 7 stars');
+  await expectSkyFits(page);
+  await shoot(page, 'small-sky-menu');
+  expect(await seriousViolations(page)).toEqual([]);
+});
 
 test('phone: while recording is paused a tap on Spot the flaw is not sent, and the card says why', async ({ page }) => {
   const world = skyWorld(2);
