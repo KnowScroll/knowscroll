@@ -111,6 +111,17 @@ it('says a landmark is new while its planet has not formed, with the Orbit as te
   await v.unmount();
 });
 
+it('lets a long landmark name and its waiting line wrap to two lines, never cut after one (#648)', async () => {
+  const h = universeHarness();
+  h.world.collection.landmarks = [earned({ name: 'The Returning Glow' })];
+  const v = await open(h);
+  await waitFor(() => expect(screen.getByTestId('universe-landmark-card')).toBeOnTheScreen());
+  expect(screen.getByTestId('universe-landmark-title').props.numberOfLines).toBe(2);
+  expect(screen.getByTestId('universe-landmark-line').props.numberOfLines).toBe(2);
+  await act(() => h.scope.end());
+  await v.unmount();
+});
+
 it('calls a landmark new for a week and the latest after, and has no See it on a week with no landmark', async () => {
   const h = universeHarness();
   h.world.collection.landmarks = [earned({ earnedAt: '2026-01-02T10:00:00.000Z' })];
