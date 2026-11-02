@@ -56,6 +56,18 @@ describe('the text an operator reads before releasing a v2 Scroll (labelled CI f
     expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 
+  it('names the picture a wrong pick turns the stage to, from the stop the call points at (D-382)', () => {
+    const call = document.stops.find((stop) => stop.kind === 'call_it');
+    if (call?.kind !== 'call_it' || call.revealStage === undefined)
+      throw new Error('CI expected a reveal on the first call');
+    const turnedTo = document.stage?.states.find((entry) => entry.stop === call.revealStage);
+    expect(turnedTo).toBeDefined();
+    expect(text).toContain(`After a wrong pick the picture turns to: ${turnedTo?.alt ?? ''}`);
+    // A call that turns nothing says nothing of it.
+    const others = text.split('\n').filter((line) => line.includes('the picture turns to'));
+    expect(others).toHaveLength(1);
+  });
+
   it('marks the correct option, the common guess with its source, and each picture', () => {
     expect(text).toContain('(correct');
     expect(text).toContain('common guess, source: CI fixture label');

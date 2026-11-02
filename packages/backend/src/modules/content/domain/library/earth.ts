@@ -81,6 +81,13 @@ export const earthRecipes = {
       },
       landmark: { key: 'the-leaning-axis', name: 'The Leaning Axis' },
       finalCall: { kind: 'tilt' },
+      // The recap of the journey needs Earth on its orbit at two months at least (D-368); the first call turns the picture to the true
+      // one when the guess is wrong (D-382); the distances and the daylight are shown only where a cited passage states them (D-381).
+      stagePlan: {
+        orbitMonths: 2,
+        figures: ['nearest', 'farthest', 'june-daylight', 'december-daylight'],
+        reveal: true,
+      },
     },
   },
   'seasons-hemispheres': {

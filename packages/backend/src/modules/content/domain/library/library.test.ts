@@ -6,10 +6,17 @@ import {
   GUIDE_CHARACTERS,
   INTERACTIVE_KINDS as SCROLL_MODEL_PLAY_KINDS,
   LIMITS_V2,
+  STAGE_FIGURE_SLOTS,
   STAGE_KIT_IDS as SCROLL_MODEL_KIT_IDS,
 } from '@knowscroll/scroll-model';
 import { LIBRARY_SERIES } from './continuity.js';
-import { GUIDE_CHARACTER_IDS, INTERACTIVE_KINDS, PLAY_BLOCK_KINDS, STAGE_KIT_IDS } from './plan.js';
+import {
+  GUIDE_CHARACTER_IDS,
+  INTERACTIVE_KINDS,
+  PLAY_BLOCK_KINDS,
+  STAGE_FIGURE_SLOT_IDS,
+  STAGE_KIT_IDS,
+} from './plan.js';
 import { LIBRARY_SYSTEMS, RECIPES, RECIPE_KEYS, RECIPE_SETS, hazeFamilyOf, sceneFamilyOf } from './index.js';
 
 const recipes = RECIPE_KEYS.map((key) => ({ key, ...RECIPES[key] }));
@@ -305,6 +312,11 @@ describe('the recipes the plan produces as v2 Scrolls (scrollV2, D-137)', () => 
       },
       landmark: { key: 'the-leaning-axis', name: 'The Leaning Axis' },
       finalCall: { kind: 'tilt' },
+      stagePlan: {
+        orbitMonths: 2,
+        figures: ['nearest', 'farthest', 'june-daylight', 'december-daylight'],
+        reveal: true,
+      },
     });
     for (const key of ['seasons-hemispheres', 'seasons-limits', 'seasons-elsewhere'] as const)
       expect(RECIPES[key].scrollV2?.misconception, key).toEqual({ kind: 'none' });
@@ -440,6 +452,31 @@ describe('the play blocks and the guide of a recipe (D-207)', () => {
     for (const recipe of recipes) {
       const plan = recipe as { readonly scrollV2?: unknown; readonly blocks?: unknown; readonly guide?: unknown };
       if (plan.scrollV2 === undefined) expect([plan.blocks, plan.guide], recipe.key).toEqual([undefined, undefined]);
+    }
+  });
+});
+
+describe('what a recipe asks of its picture (D-381, D-382)', () => {
+  const planned = recipes.filter((recipe) => recipe.scrollV2?.stagePlan !== undefined);
+
+  it('keeps the plan’s figure slots in step with scroll-model', () => {
+    expect([...STAGE_FIGURE_SLOT_IDS]).toEqual([...STAGE_FIGURE_SLOTS]);
+  });
+
+  it('asks only of a stage Scroll drawn with Earth & sky, the one kit that draws orbits, figures and a reveal', () => {
+    expect(planned.map((recipe) => recipe.key)).toEqual(['seasons']);
+    for (const recipe of planned) {
+      expect(recipe.scrollV2?.variant, recipe.key).toBe('stage');
+      expect(recipe.stageKit, recipe.key).toBe(EARTH_SKY_KIT);
+    }
+  });
+
+  it('asks for at least two months, so the recap draws, and names each figure slot once', () => {
+    for (const recipe of planned) {
+      const plan = recipe.scrollV2?.stagePlan;
+      expect(plan?.orbitMonths ?? 2, recipe.key).toBeGreaterThanOrEqual(2);
+      expect(plan?.orbitMonths ?? 2, recipe.key).toBeLessThanOrEqual(12);
+      expect(new Set(plan?.figures).size, recipe.key).toBe(plan?.figures?.length ?? 0);
     }
   });
 });

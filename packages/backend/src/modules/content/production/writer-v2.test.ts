@@ -3,7 +3,8 @@ import { kitDefinition, kitKeys, LIMITS_V2 } from '@knowscroll/scroll-model';
 import { AuthoredScrollV2 } from '@knowscroll/scroll-model/producer';
 import { evidencePassages } from './evidence.js';
 import { spikeRecipeV2 } from './spike-v2/topics.js';
-import { fixtureAuthoredV2, fixtureResearchPageV2 } from './spike-v2/writer-v2.fixture.js';
+import { extractResearch } from '../../../infrastructure/research/public-pages.js';
+import { FIXTURE_SOURCE_V2, fixtureAuthoredV2, fixtureResearchPageV2 } from './spike-v2/writer-v2.fixture.js';
 import { WRITER_PROMPT_VERSION } from './writer.js';
 import {
   compileGeneratedScrollV2,
@@ -31,11 +32,11 @@ function changed(
   return AuthoredScrollV2.parse(draft);
 }
 
-describe('the v20 writer', () => {
+describe('the v21 writer', () => {
   it('has its own version and leaves the v1 writer’s alone', () => {
-    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v20');
+    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v21');
     expect(WRITER_PROMPT_VERSION).toBe('scroll-writer.v13');
-    expect(writerRoleV2(context()).version).toBe('scroll-writer.v20');
+    expect(writerRoleV2(context()).version).toBe('scroll-writer.v21');
     expect(writerRoleV2(context()).id).toBe('content.scroll-writer');
   });
 
@@ -403,6 +404,123 @@ describe('the play blocks and the guide in the writer’s instructions (D-207)',
       expect(
         refused.error.issues.some(
           (issue) => (issue as { params?: { safeCode?: string } }).params?.safeCode === 'block_missing',
+        ),
+      ).toBe(true);
+  });
+});
+
+describe('the stage plan of a recipe: orbit months, figures and the reveal (D-381, D-382, D-383)', () => {
+  /** CI fixture sentences about the invented planet Orrin: the figures a stage may show, never product content. */
+  const NEAR_FAR =
+    'Orrin at its closest to Vael is 41 million kilometres from the star, and at its farthest it is 43 million kilometres away.';
+  const DAYLIGHT = 'In June the harbour town of Pell has 14 hours of daylight, and in December it has only 10 hours.';
+  const figurePage = extractResearch(
+    `<html><title>CI fixture</title><main>${[...FIXTURE_SOURCE_V2, NEAR_FAR, DAYLIGHT].map((text) => `<p>${text}</p>`).join('')}</main></html>`,
+    'https://spaceplace.nasa.gov/seasons/en/',
+    '2026-10-20T00:00:00.000Z',
+  );
+  const figurePassages = evidencePassages([figurePage]);
+  const handleOf = (sentence: string): string =>
+    figurePassages.find((passage) => passage.text === sentence)?.handle ?? '';
+  const figureContext = (): WriterV2Context => ({ ...context(), passages: figurePassages, pages: [figurePage] });
+  type Draft = { items: Record<string, unknown>[] };
+  const compileWith = (edit: (draft: Draft) => void) => compileGeneratedScrollV2(changed(edit), figureContext());
+  const NEAREST = { slot: 'nearest', value: '41', magnitude: 'million', unit: 'kilometres' };
+  const FARTHEST = { slot: 'farthest', value: '43', magnitude: 'million', unit: 'kilometres' };
+  /** The stop right after the first call: the recorded answer turns the picture to the orbit there. */
+  const withFigures =
+    (...figures: object[]) =>
+    (draft: Draft) => {
+      draft.items[2] = { ...draft.items[2], cites: ['e4', handleOf(NEAR_FAR)], figures };
+    };
+  const withoutReveal = (draft: Draft) => {
+    const { revealsNext: _removed, ...call } = draft.items[1] as Record<string, unknown>;
+    draft.items[1] = call;
+  };
+  const codesOf = (outcome: ReturnType<typeof compileGeneratedScrollV2>) =>
+    outcome.kind === 'refused' ? outcome.issues.map((issue) => issue.code) : [];
+
+  it('asks the Seasons recipe for the months, the figures and the reveal, and says nothing of them to a recipe with no plan', () => {
+    const text = writerInstructionsV2(spikeRecipeV2('seasons'));
+    expect(text).toContain('THE PICTURE GOES ROUND THE ORBIT');
+    expect(text).toContain('2 different months at least');
+    expect(text).toContain('FIGURES ON THE PICTURE (nearest, farthest, june-daylight, december-daylight)');
+    expect(text).toContain('Never convert one unit to another');
+    expect(text).toContain('code leaves out any figure that no cited passage of the stop states');
+    expect(text).toContain('THE FIRST CALL TURNS THE PICTURE');
+    expect(text).toContain('"revealsNext":true');
+    expect(text).toContain('"figures":[{"slot":"nearest"');
+    for (const key of ['seasons-hemispheres', 'seasons-limits', 'dns-lookup'] as const) {
+      const other = writerInstructionsV2(spikeRecipeV2(key));
+      expect(other, key).not.toMatch(/ROUND THE ORBIT|FIGURES ON THE PICTURE|TURNS THE PICTURE|revealsNext|"figures"/u);
+    }
+  });
+
+  it('follows the plan: removing a clause removes its words, and a recipe with no picture gets none', () => {
+    const recipe = spikeRecipeV2('seasons');
+    const { stagePlan: _removed, ...unplanned } = recipe;
+    expect(writerInstructionsV2(unplanned)).not.toMatch(/ROUND THE ORBIT|FIGURES ON THE PICTURE|TURNS THE PICTURE/u);
+    const monthsOnly = writerInstructionsV2({ ...recipe, stagePlan: { orbitMonths: 3 } });
+    expect(monthsOnly).toContain('3 different months at least');
+    expect(monthsOnly).not.toMatch(/FIGURES ON THE PICTURE|TURNS THE PICTURE|revealsNext/u);
+    const plain = writerInstructionsV2({ ...spikeRecipeV2('dns-lookup'), stagePlan: { orbitMonths: 2, reveal: true } });
+    expect(plain).not.toMatch(/ROUND THE ORBIT|TURNS THE PICTURE/u);
+  });
+
+  it('compiles the recorded answer, which stands on the orbit in two months and turns the picture after the first call', () => {
+    const outcome = compileGeneratedScrollV2(fixtureAuthoredV2(), context());
+    expect(outcome.kind).toBe('compiled');
+    if (outcome.kind !== 'compiled') return;
+    expect(outcome.document.stops[1]).toMatchObject({ kind: 'call_it', revealStage: 's3' });
+  });
+
+  it('puts a figure on the picture that a cited passage states, and says it in the picture’s words', () => {
+    const outcome = compileWith(withFigures(NEAREST, FARTHEST));
+    expect(outcome.kind).toBe('compiled');
+    if (outcome.kind !== 'compiled') return;
+    const entry = outcome.document.stage?.states.find((held) => held.stop === 's3');
+    expect(entry?.state).toMatchObject({
+      view: 'orbit',
+      figures: [
+        { slot: 'nearest', value: 41_000_000, unit: 'kilometres' },
+        { slot: 'farthest', value: 43_000_000, unit: 'kilometres' },
+      ],
+    });
+    expect(entry?.alt).toContain('At its nearest, Earth is 41,000,000 kilometres from the Sun.');
+    expect(outcome.leftOut).toEqual([]);
+  });
+
+  it('leaves out a figure no cited passage states, with no repair and no invented number', () => {
+    const outcome = compileWith(withFigures({ ...NEAREST, value: '39' }, FARTHEST));
+    expect(outcome.kind).toBe('compiled');
+    if (outcome.kind !== 'compiled') return;
+    const entry = outcome.document.stage?.states.find((held) => held.stop === 's3');
+    expect(entry?.state).toMatchObject({ figures: [{ slot: 'farthest', value: 43_000_000 }] });
+    expect(entry?.alt).not.toContain('39');
+    expect(outcome.leftOut).toEqual([{ path: 'items.2', slot: 'nearest' }]);
+  });
+
+  it('refuses, with fixed findings the one repair can use, a picture on the orbit at one month and a first call that turns nothing', () => {
+    const oneMonth = compileWith((draft) => {
+      draft.items[3] = { ...draft.items[3], stage: { earthAt: 'jan', focus: 'axis' } };
+    });
+    expect(codesOf(oneMonth)).toContain('stage_months_too_few');
+    expect(codesOf(compileWith(withoutReveal))).toContain('call_reveal_missing');
+    const role = writerRoleV2(figureContext());
+    for (const code of ['stage_months_too_few', 'call_reveal_missing', 'call_reveal_invalid'])
+      expect(role.safeCustomIssues?.[code], code).toMatch(/\S/u);
+  });
+
+  it('reaches the model: the role carries the plan and refuses a recorded answer that ignores it', () => {
+    const role = writerRoleV2(context());
+    expect(role.instructions).toContain('THE FIRST CALL TURNS THE PICTURE');
+    expect(role.outputSchema.safeParse(fixtureAuthoredV2()).success).toBe(true);
+    const refused = role.outputSchema.safeParse(changed(withoutReveal));
+    expect(refused.success).toBe(false);
+    if (!refused.success)
+      expect(
+        refused.error.issues.some(
+          (issue) => (issue as { params?: { safeCode?: string } }).params?.safeCode === 'call_reveal_missing',
         ),
       ).toBe(true);
   });

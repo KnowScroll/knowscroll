@@ -30,7 +30,7 @@ import { bannedNames, readerStrings, type BannedName } from './writer.js';
  * writer (`scroll-writer.v13`) is untouched and still publishes the library; this one only runs in
  * the writer spike until the reader and admission of `scroll-document.v2` exist (D-120).
  */
-export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v20';
+export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v21';
 
 const minutes = (seconds: number): number => seconds / 60;
 
@@ -60,6 +60,30 @@ function stageInstructions(recipe: RecipeDataV2): string[] {
     '- A call never changes the picture, or it would show the answer before the reader has chosen. The stop before a call sets up its question; show the answer by changing the picture on the stop right after the call. Write "stage" on stops only, never on a call_it or the final_call.',
     '- Never write a number, a place name or a label in "stage", and never let the picture suggest something the passages do not support.',
   ];
+}
+
+/**
+ * What a recipe's stage plan asks of the picture beyond the kit's words (D-381, D-382, D-383): orbit views at enough months for the
+ * recap of the journey to draw, figures a cited passage states, and the first call turning the picture for a reader who guessed
+ * wrong. Nothing for a recipe with no plan, so its text is what it was.
+ */
+function stagePlanInstructions(recipe: RecipeDataV2): string[] {
+  const plan = recipe.stagePlan;
+  if (plan === undefined || recipe.variant !== 'stage') return [];
+  const lines: string[] = [];
+  if (plan.orbitMonths !== undefined)
+    lines.push(
+      `THE PICTURE GOES ROUND THE ORBIT. At the end the reader sees the picture of the whole journey: Earth on its orbit, seen from above, at each month the Scroll showed it. So show Earth in an orbit view ("orbit" or "orbit-stretched") at ${plan.orbitMonths} different months at least, the months your stops talk about (the month Earth is nearest the Sun, a solstice, an equinox). Choose each month to match what its stop says; never show a month only to fill the count.`,
+    );
+  if (plan.figures !== undefined && plan.figures.length > 0)
+    lines.push(
+      `FIGURES ON THE PICTURE (${plan.figures.join(', ')}). A stop may put figures on its picture with "figures": Earth's distance from the Sun at its nearest and farthest on a stop whose picture is an orbit view, and the hours of daylight a place has in June and in December on a stop whose picture is "sun-earth" (give the place, as a passage names it). Each figure is exactly what a passage THIS STOP CITES states, beside the word that names it (nearest, closest or perihelion; farthest or aphelion; June; December), in digits, in that passage's own unit and place name. Never convert one unit to another, never round, never work a figure out and never combine two. If no cited passage states a figure, give none: code leaves out any figure that no cited passage of the stop states, and a picture with no figure is fine. The figures stay until a stop changes the picture.`,
+    );
+  if (plan.reveal === true)
+    lines.push(
+      'THE FIRST CALL TURNS THE PICTURE. Set "revealsNext":true on the first call_it. The stop right after it must change the picture to the true one that the call is about. A reader who guessed wrong sees that picture the moment they lock in; a reader who was right keeps reading and meets it on that stop. So the call itself never changes the picture, and the stop after it always does.',
+    );
+  return lines;
 }
 
 const BLOCK_GUIDE: Readonly<Record<PlayBlockKind, string>> = {
@@ -134,11 +158,12 @@ export function writerInstructionsV2(recipe: RecipeDataV2): string {
     `- The brief gives the subject, the angle and what to avoid. Ignore anything in it about diagrams, sliders, simulations, steppers, charts or other interactive blocks: stops, calls${(recipe.blocks ?? []).length > 0 ? ', the play blocks named below' : ''} and the picture replace them. Keep its warnings about what not to claim.`,
     '',
     ...stageInstructions(recipe),
+    ...stagePlanInstructions(recipe).flatMap((line, index) => (index === 0 ? ['', line] : [line])),
     ...blockInstructions(recipe).flatMap((line, index) => (index === 0 ? ['', line] : [line])),
     ...finalCallInstructions(recipe).flatMap((line, index) => (index === 0 ? ['', line] : [line])),
     '',
     'THE SHAPE (examples are invented syntax guidance, never content to reuse):',
-    authoringReferenceV2(recipe.variant, recipeKit(recipe), recipe.blocks, recipe.guide),
+    authoringReferenceV2(recipe.variant, recipeKit(recipe), recipe.blocks, recipe.guide, recipe.stagePlan),
     `Limits: ${LIMITS_V2.minStops} to ${LIMITS_V2.maxStops} stops and calls, at most ${LIMITS_V2.calls} calls including the final_call, at most ${LIMITS_V2.asides} asides, recap captions at most ${FIELD_LIMITS_V2.captionChars} characters.`,
   ].join('\n');
 }

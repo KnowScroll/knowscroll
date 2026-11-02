@@ -79,6 +79,13 @@ export type PlayBlockKind = (typeof PLAY_BLOCK_KINDS)[number];
 export const GUIDE_CHARACTER_IDS = ['ray'] as const;
 export type GuideCharacterId = (typeof GUIDE_CHARACTER_IDS)[number];
 
+/**
+ * The figures a recipe may ask the writer to put on its picture (D-381). `scroll-model` owns the slots; this list names them for the
+ * plan, and a test keeps the two in step.
+ */
+export const STAGE_FIGURE_SLOT_IDS = ['nearest', 'farthest', 'june-daylight', 'december-daylight'] as const;
+export type StageFigureSlotId = (typeof STAGE_FIGURE_SLOT_IDS)[number];
+
 type Interactivity =
   | { readonly interactive: true; readonly interactiveKind: InteractiveKind }
   | { readonly interactive: false; readonly interactiveKind: null };
@@ -154,6 +161,18 @@ export interface ScrollV2Plan {
   readonly blocks?: readonly PlayBlockKind[];
   /** The character that speaks the Scroll's guide lines. Absent: no guide (D-207). Chosen by a person, per recipe. */
   readonly guide?: GuideCharacterId;
+  /**
+   * What the recipe asks of its picture beyond the kit's words (D-381, D-382), for a stage Scroll drawn with Earth & sky. The writer
+   * is told what is asked and code proves it, never the other way round. Chosen by a person, per recipe.
+   */
+  readonly stagePlan?: {
+    /** The picture stands on Earth's orbit at this many different months at least, so the recap of the journey draws (D-368). */
+    readonly orbitMonths?: number;
+    /** Figures the writer is asked for where a cited passage states them; code leaves out any no passage states. */
+    readonly figures?: readonly StageFigureSlotId[];
+    /** The first call_it shows the true picture to a reader who guessed wrong: the stop after it sets that picture. */
+    readonly reveal?: boolean;
+  };
 }
 
 /**
