@@ -83,7 +83,7 @@ for (const viewport of [phone, desktop]) {
     await open(page, viewport);
     await dot(page, 'The end of this Scroll').click();
     await page.getByRole('button', { name: 'Done for today' }).click();
-    await expect(page.getByTestId('done-next-time')).toHaveText('Next time you’ll start at Part 2.');
+    await expect(page.getByTestId('done-next-time')).toHaveText('Part 2 is next.');
     await shot(page, `done-next-time-${name}`);
     expect(await audit(page)).toEqual([]);
   });
@@ -164,9 +164,16 @@ for (const viewport of [phone, desktop]) {
   });
 }
 
-test('the keys of the ••• rows act from the reader: S, H, C, ⇧S, P and R', async ({ page }) => {
+test('the keys of the ••• rows act from the reader: S, H, C, ⇧S, P and R, each doing what its row does', async ({
+  page,
+}) => {
   await open(page, desktop);
   await page.getByRole('group', { name: 'Scroll reader' }).focus();
+  // S alone is Save (not Simpler): it sends the save action for this Scroll, and changes no stop's words.
+  const saves = page.waitForRequest((request) => new URL(request.url()).pathname === '/v1/actions');
+  await page.keyboard.press('s');
+  expect(JSON.parse((await saves).postData() ?? '{}')).toMatchObject({ kind: 'save' });
+  await expect(page.getByTestId('simpler-text')).toHaveCount(0);
   await page.keyboard.press('Shift+S');
   await expect(page.getByTestId('simpler-text')).toBeVisible();
   await page.keyboard.press('Shift+S');
