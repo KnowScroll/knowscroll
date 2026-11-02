@@ -182,7 +182,7 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
   const [replyTo, setReplyTo] = useState<AvailableTalkMessage | undefined>(undefined);
   const [draft, keepDraft] = useDraft(scope, reference.conversationId);
   const theme = useTalkTheme();
-  // From 1024 px the "In this chat" rail sits at the right of the conversation (T3).
+  // The "In this chat" rail sits at the right of the conversation when the chat keeps its room beside it (T3, D-328).
   const railed = useDisplay().breakpoint === 'desktop';
   const {
     ref: scrollRef,
@@ -280,6 +280,7 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
         <ChatRail
           peer={peer}
           shared={sharedHere(state.messages, peer)}
+          complete={!state.hasOlder}
           onVisit={
             peerHandle === undefined || state.ended || accountDeleted
               ? undefined

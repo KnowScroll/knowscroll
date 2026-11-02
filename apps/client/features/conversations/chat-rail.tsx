@@ -16,11 +16,17 @@ export const CHAT_RAIL_WIDTH = 300;
 export function ChatRail({
   peer,
   shared,
+  complete,
   onVisit,
   onStartThread,
 }: {
   readonly peer: PublicPersonRef;
   readonly shared: readonly SharedHere[];
+  /**
+   * Whether every message of the chat has been read. Only the newest page is loaded, so while older messages wait the
+   * list is the recent ones: it carries no count and never says nothing was shared.
+   */
+  readonly complete: boolean;
   /** Opens the friend's universe as far as they share it; absent when the chat has ended. */
   readonly onVisit: (() => void) | undefined;
   /** Starts a thread from the newest shared card; absent when none can be started. */
@@ -61,11 +67,11 @@ export function ChatRail({
       )}
       <View style={styles.group}>
         <Text variant="monoXs" heading={3} color={theme.textQuiet}>
-          {`SHARED HERE · ${String(shared.length)}`}
+          {complete ? `SHARED HERE · ${String(shared.length)}` : 'SHARED HERE'}
         </Text>
         {shared.length === 0 ? (
           <Text variant="bodyS" color={theme.textQuiet} testID="shared-here-empty">
-            Nothing has been shared in this chat yet.
+            {complete ? 'Nothing has been shared in this chat yet.' : 'None in the recent messages.'}
           </Text>
         ) : (
           <View role="list" accessibilityLabel="Shared here" style={styles.list}>

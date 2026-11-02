@@ -24,7 +24,9 @@ describe('the "In this chat" rail', () => {
   it('names the person, lists what was shared here, and starts a thread from it', async () => {
     const onStartThread = jest.fn();
     const onVisit = jest.fn();
-    await render(inDisplay(<ChatRail peer={peer} shared={[card]} onVisit={onVisit} onStartThread={onStartThread} />));
+    await render(
+      inDisplay(<ChatRail peer={peer} shared={[card]} complete onVisit={onVisit} onStartThread={onStartThread} />),
+    );
     expect(screen.getByTestId('chat-rail')).toBeOnTheScreen();
     expect(screen.getByText('Ravi')).toBeOnTheScreen();
     expect(screen.getByText('SHARED HERE · 1')).toBeOnTheScreen();
@@ -35,8 +37,20 @@ describe('the "In this chat" rail', () => {
     expect(onVisit).toHaveBeenCalledTimes(1);
   });
 
+  it('gives no count and never says nothing was shared while older messages are still unread', async () => {
+    await render(
+      inDisplay(<ChatRail peer={peer} shared={[]} complete={false} onVisit={undefined} onStartThread={undefined} />),
+    );
+    expect(screen.getByText('SHARED HERE')).toBeOnTheScreen();
+    expect(screen.getByText('None in the recent messages.')).toBeOnTheScreen();
+    expect(screen.queryByText(/Nothing has been shared/)).toBeNull();
+    expect(screen.queryByText(/SHARED HERE ·/)).toBeNull();
+  });
+
   it('offers no thread when nothing can be one, and says plainly that nothing was shared', async () => {
-    await render(inDisplay(<ChatRail peer={peer} shared={[]} onVisit={undefined} onStartThread={undefined} />));
+    await render(
+      inDisplay(<ChatRail peer={peer} shared={[]} complete onVisit={undefined} onStartThread={undefined} />),
+    );
     expect(screen.getByTestId('shared-here-empty')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Start a thread from this' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Visit/ })).toBeNull();
