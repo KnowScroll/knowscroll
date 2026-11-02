@@ -50,6 +50,17 @@ export const FACES = {
       cast: { explainer: 'book', skeptic: 'gear' },
     },
   },
+  /** The thinnest legal kit: ink on ground at 4.54:1 (the rule is 4.5:1), for a check that nothing drawn over the ground lowers it. */
+  thin: {
+    kit: {
+      version: 'station-kit.v1',
+      palette: { ground: 'midnight', accent: 'sun', ink: 'coral' },
+      emblem: { frame: 'shield', glyph: 'flame' },
+      motif: 'constellation',
+      motion: 'twinkle',
+      cast: { explainer: 'flame', skeptic: 'atom' },
+    },
+  },
 } as const satisfies Record<string, RoomIdentity>;
 /** The address a fixture backdrop is served from; the test answers it with a labelled one-pixel image. */
 export const BACKDROP_PATH = `/media/room/${'ab'.repeat(32)}`;

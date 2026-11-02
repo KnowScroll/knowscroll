@@ -29,6 +29,7 @@ import { borderWidth, content, layout, radius, spacing, status } from '@knowscro
 import { Button, IconButton, Tag, Text } from '@knowscroll/ui';
 import { SnippetCard } from '../threads/snippet-card';
 import { residentColourOf } from './identity/room-emblem';
+import { useGroundColour, useGroundInk, useQuietButton } from './identity/room-ground';
 import { FoldedResident, ResidentHeader } from './resident-message';
 import { TopicCard } from './topic-card';
 
@@ -286,6 +287,7 @@ function OutgoingBubble({
   readonly onRetry: () => void;
   readonly onDismiss: () => void;
 }) {
+  const quiet = useQuietButton();
   const failed = entry.status === 'unconfirmed' || entry.status === 'not_sent';
   const words =
     entry.body.kind === 'text'
@@ -311,7 +313,7 @@ function OutgoingBubble({
           </Text>
           <Button label="Retry" size="sm" icon="retry" onPress={onRetry} />
           {entry.status === 'not_sent' ? (
-            <Button label="Dismiss" size="sm" variant="ghost" onPress={onDismiss} />
+            <Button label="Dismiss" size="sm" variant={quiet} onPress={onDismiss} />
           ) : null}
         </View>
       ) : (
@@ -378,6 +380,10 @@ export function RoomMessages({
   footer,
 }: RoomMessagesProps) {
   const now = new Date();
+  // On a room's ground (General) the list takes the kit's ground and the words that sit straight on it its ink; cards keep their own.
+  const ink = useGroundInk(content.ink2);
+  const quiet = useQuietButton();
+  const ground = useGroundColour(content.paper2);
   const partOf = (assetId: string) => {
     const part = series ? episodes.find((episode) => episode.assetId === assetId)?.part : undefined;
     return part === undefined ? undefined : `Part ${String(part)}`;
@@ -401,7 +407,7 @@ export function RoomMessages({
   return (
     <ScrollView
       ref={scrollRef}
-      style={styles.list}
+      style={[styles.list, { backgroundColor: ground }]}
       contentContainerStyle={styles.listContent}
       onScroll={onScroll}
       scrollEventThrottle={100}
@@ -412,7 +418,7 @@ export function RoomMessages({
         <Button
           label="Earlier messages"
           size="sm"
-          variant="ghost"
+          variant={quiet}
           busy={state.loadingOlder}
           busyLabel="Loading"
           onPress={() => void controller.loadOlder()}
@@ -432,7 +438,7 @@ export function RoomMessages({
       <View role="list" accessibilityLabel="Messages in this discussion" style={styles.messages}>
         {dividedByDay(state.messages).map((group) => (
           <View key={group.key + String(group.items[0]?.sequence)} style={styles.messages}>
-            <Text variant="metaS" color={content.ink2} align="center">
+            <Text variant="metaS" color={ink} align="center">
               {dayLabel(group.at, now)}
             </Text>
             {group.items.map((message) => {
@@ -462,7 +468,7 @@ export function RoomMessages({
                         inhabitant={message.author.kind === 'ai' ? message.author.inhabitant : undefined}
                       />
                     ) : mine ? null : (
-                      <Text variant="metaS" color={content.ink2}>
+                      <Text variant="metaS" color={ink}>
                         {message.author.displayName}
                       </Text>
                     )
@@ -486,7 +492,7 @@ export function RoomMessages({
                           <Button
                             label="Show for moderation"
                             size="sm"
-                            variant="ghost"
+                            variant={quiet}
                             onPress={() => toggleShown(message.messageId)}
                             testID={`show-blocked-${message.messageId}`}
                           />
@@ -505,19 +511,19 @@ export function RoomMessages({
                             kit={state.view?.room.identity?.kit}
                           />
                           {message.usefulByYou === true ? (
-                            <Text variant="metaS" color={content.ink2} testID={`useful-${message.messageId}`}>
+                            <Text variant="metaS" color={ink} testID={`useful-${message.messageId}`}>
                               You marked this useful
                             </Text>
                           ) : null}
                           {message.blockedByYou === true ? (
                             <View style={styles.revealed}>
-                              <Text variant="metaS" color={content.ink2}>
+                              <Text variant="metaS" color={ink}>
                                 You blocked this person. Shown for moderation.
                               </Text>
                               <Button
                                 label="Hide again"
                                 size="sm"
-                                variant="ghost"
+                                variant={quiet}
                                 onPress={() => toggleShown(message.messageId)}
                               />
                             </View>
@@ -579,7 +585,7 @@ export function cardWords(message: RoomMessage): string | undefined {
 }
 
 const styles = StyleSheet.create({
-  list: { flex: 1, backgroundColor: content.paper2 },
+  list: { flex: 1 },
   listContent: {
     padding: layout.gutter,
     gap: spacing[3],

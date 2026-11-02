@@ -13,8 +13,5 @@ export const activityHref = (roomId: string, activityId: string): string => `/ro
 /** Whether a route parameter is a well-formed ID, so a malformed address is never sent to the API. */
 export const isRoomId = (value: string | undefined): value is string => value !== undefined && UUID.test(value);
 
-/** A room's Feed (T3): the finds residents posted from the library, and what they remember. */
-export const feedHref = (roomId: string): string => `/rooms/${roomId}/feed`;
-
 /** A room's Today (R3 B): the day's question and Spot the flaw over the Today discussion. */
 export const todayHref = (roomId: string): string => `/rooms/${roomId}/today`;

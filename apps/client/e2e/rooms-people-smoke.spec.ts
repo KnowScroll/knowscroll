@@ -72,7 +72,7 @@ for (const { name, size } of VIEWPORTS) {
     expect(await seriousViolations(page)).toEqual([]);
 
     await page.getByTestId('now-feed-open').click();
-    await expect(page).toHaveURL(/\/feed$/);
+    await expect(page.getByTestId('room-tab-feed')).toHaveAttribute('aria-selected', 'true');
     // The ring is on every AI label in the Feed, with a name of its own, and never on a person.
     const nova = page.getByTestId(`feed-post-${findId}`);
     await expect(nova.getByLabel('Agent ring')).toHaveCount(1);

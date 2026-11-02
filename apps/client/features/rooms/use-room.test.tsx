@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 import { announceBlocksChanged, type AccountScope } from '@knowscroll/client-core';
-import { useRoom, useRoomDiscussion } from './use-room';
+import { RoomTabOpenProvider } from './room-tab-open';
+import { useRoom, useRoomDiscussion, useRoomFeed, useRoomTopics } from './use-room';
 
 jest.mock('expo-router', () => ({ useIsFocused: () => true }));
 jest.mock('../../platform/command-id', () => {
@@ -177,5 +178,77 @@ describe('an open room and who is here', () => {
     await hook.unmount();
     expect(presence).toEqual([]);
     expect(watching.current).toBe(0);
+  });
+});
+
+describe('a room tab that is not open', () => {
+  /** A scope that counts how often the feed and the topics are read. */
+  function countingScope() {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const reads = { feed: 0, topics: 0 };
+    const scope = {
+      active: true,
+      id: 'scope-2',
+      queryClient,
+      queryKey: (...parts: (string | number)[]) => ['scope', 'scope-2', ...parts],
+      api: {
+        rooms: {
+          feed: () => {
+            reads.feed++;
+            return Promise.resolve({ status: 'unavailable' });
+          },
+          topics: () => {
+            reads.topics++;
+            return Promise.resolve({ status: 'ready', topics: [] });
+          },
+        },
+      },
+    } as unknown as AccountScope;
+    return { scope, reads, queryClient };
+  }
+
+  it('is not polled for the feed while another tab is open, or a discussion is over the room, and is read once when shown', async () => {
+    jest.useFakeTimers();
+    try {
+      const { scope, reads, queryClient } = countingScope();
+      const tab = { open: true };
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>
+          <RoomTabOpenProvider value={tab.open}>{children}</RoomTabOpenProvider>
+        </QueryClientProvider>
+      );
+      const hook = await renderHook(() => useRoomFeed(scope, id(1)), { wrapper });
+      await waitFor(() => expect(reads.feed).toBe(1));
+      // Open, it asks again on the slow poll.
+      await act(() => jest.advanceTimersByTimeAsync(20_500));
+      expect(reads.feed).toBe(2);
+
+      tab.open = false;
+      await hook.rerender({});
+      await act(() => jest.advanceTimersByTimeAsync(120_000));
+      expect(reads.feed).toBe(2);
+
+      tab.open = true;
+      await hook.rerender({});
+      await waitFor(() => expect(reads.feed).toBe(3));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('keeps its topics list and reads it once, afresh, when its tab is shown again', async () => {
+    const { scope, reads } = countingScope();
+    const hook = await renderHook(
+      ({ paused, key }: { paused: boolean; key: object }) =>
+        useRoomTopics(scope, id(1), { sort: 'hot', tag: undefined, refreshKey: key, enabled: true, paused }),
+      { initialProps: { paused: false, key: {} } },
+    );
+    await waitFor(() => expect(reads.topics).toBe(1));
+    // Hidden, a new room read (a new key) changes nothing.
+    await hook.rerender({ paused: true, key: {} });
+    await hook.rerender({ paused: true, key: {} });
+    expect(reads.topics).toBe(1);
+    await hook.rerender({ paused: false, key: {} });
+    await waitFor(() => expect(reads.topics).toBe(2));
   });
 });
