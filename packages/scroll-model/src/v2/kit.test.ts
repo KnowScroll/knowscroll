@@ -356,7 +356,7 @@ describe('the recap of a stage (V3 F10)', () => {
     focus: 'none',
   });
 
-  it('numbers the months the orbit views stood at, once each, in the order they were met', () => {
+  it('numbers the months the orbit views stood at, once each, in the order the Scroll shows them', () => {
     const states = [
       at('sun-earth', 'jun'),
       at('orbit', 'jun'),
@@ -371,7 +371,7 @@ describe('the recap of a stage (V3 F10)', () => {
 
   it('says them in words that follow the months, and the lean that is the same in every one', () => {
     const text = describeStageRecap(['jun', 'jan', 'mar']);
-    expect(text).toMatch(/marked 1 in June, 2 in January and 3 in March, numbered in the order you met them/u);
+    expect(text).toMatch(/marked 1 in June, 2 in January and 3 in March, numbered in the order the Scroll shows them/u);
     expect(text).toMatch(/leans the same way in every one/u);
     expect(describeStageRecap(['dec', 'jun'])).toMatch(/marked 1 in December and 2 in June/u);
   });

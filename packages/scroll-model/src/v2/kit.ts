@@ -418,7 +418,7 @@ export function describeStageAtTilt(chosen: StageState, tiltDegrees: number): st
 }
 
 /**
- * The months the Scroll's orbit pictures stood Earth at, in the order the reader met them, each once. These are the places
+ * The months the Scroll's orbit pictures stood Earth at, in the order the Scroll shows them, each once. These are the places
  * the recap picture numbers (V3 F10): they come from the states the document already holds, so nothing in the recap is new.
  */
 export function recapMonths(states: readonly StageState[]): readonly StageState['earthAt'][] {
@@ -431,14 +431,14 @@ export function recapMonths(states: readonly StageState[]): readonly StageState[
 }
 
 /**
- * The text version of the recap picture: Earth's orbit seen from above with each month the reader met, numbered in that
+ * The text version of the recap picture: Earth's orbit seen from above with each month the Scroll shows, numbered in that
  * order, and the axis leaning the same way in all of them. Derived by code from the months, so it never disagrees with
  * the picture drawn for them.
  */
 export function describeStageRecap(months: readonly StageState['earthAt'][]): string {
   const marks = months.map((month, index) => `${String(index + 1)} in ${MONTH_NAMES[month]}`);
   const list = marks.length < 2 ? marks.join('') : `${marks.slice(0, -1).join(', ')} and ${marks[marks.length - 1]}`;
-  return `The picture you built: Earth circles the Sun, seen from above, with Earth marked ${list}, numbered in the order you met them. The axis leans the same way in every one.`;
+  return `The picture you built: Earth circles the Sun, seen from above, with Earth marked ${list}, numbered in the order the Scroll shows them. The axis leans the same way in every one.`;
 }
 
 /** Earth & sky as the generic code of the document and the writer sees it (D-194). Its words, physics and descriptions are the ones above. */
