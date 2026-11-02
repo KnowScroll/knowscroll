@@ -2661,7 +2661,7 @@ Confirmed by: `launch.test.ts` (the phases at each millisecond of the edge, the 
 - **The deck.** Five questions, from different Scrolls where the library allows and at most two from one, preferring calls this room was not asked in the last 14 days. The reason keeps its first whole sentences up to 280 characters. A library with fewer than five usable calls makes no deck: nothing is made up. It is a `launch` item of `rooms.rituals`, drafted by the night's batch beside the day's question and Spot the flaw and by `rooms rituals`, and it costs no call.
 - **Approval.** An operator approves a deck. Approving re-reads each cited Scroll's exact revision and refuses with `citation_changed` unless every question still says what the deck says. A deck is played once (`launches.deck_ritual_id` is unique) and is offered for today and the day before.
 - **Starting checks again.** The deck is frozen onto the Launch, and the start refuses unless every cited revision is still the current one anyone may be served. It reads through the caller's own scope, so no network wait runs inside the transaction.
-- **Never generated live.** No model is called on a Launch's path, and its queue holds no job.
+- **Never generated live.** No model is called on a Launch's path, and its queue holds no model job. Since D-298 a start queues one settle job (`rooms.launch-settle`), which calls no model.
 
 Confirmed by: `launch-deck.test.ts`, `rooms-launch-deck.test.ts` (no model call, approval, a corrected Scroll), `content-library-calls.test.ts` (a real admitted v2 Scroll; held and withdrawn ones are not read), `rooms-launch.test.ts` (a deck whose Scroll is gone does not start).
 
@@ -2672,7 +2672,7 @@ Confirmed by: `launch-deck.test.ts`, `rooms-launch-deck.test.ts` (no model call,
 - **Why not a cast resident.** A resident speaks as messages and every message is an `ai_turns` row. The host never posts: it says short lines on the stage, drawn from the state of the game ("Question three. Go.", "Called it!"). So it has no turn to log, no cap to decide, no job and no model.
 - **Always labelled.** The view carries the host as `{ name: 'Pixel', label: 'AI · Quizmaster' }`, fixed by the contract. The screen draws the name, a square mark and the label; a screen reader hears "AI, Quizmaster". No line speaks of a wrong answer.
 - **An AI never plays.** A player is an account, and the contract's faces and podium entries hold only a public person. An AI has no place to stand on a podium, in a count or among the people who called a question.
-- **The ledger rule still holds.** A Launch writes no `ai_turns` row, no AI message and queues nothing; a test counts them around a whole game.
+- **The ledger rule still holds.** A Launch writes no `ai_turns` row and no AI message, and queues no model work; a test counts them around a whole game. Since D-298 its start queues one `rooms.launch-settle` job, which calls no model.
 
 Confirmed by: `rooms-launch.test.ts` (nothing queued, no turn, around five rounds), `room-launch.test.ts` (the host and the faces), `launch.test.tsx` (the label on the stage and the start sheet), `client-core/room-launch.test.ts` (the lines).
 
@@ -3560,7 +3560,7 @@ Confirmed by: `share-stop-sheet.test.tsx` (in the thread's reader the stop goes 
 
 ## D-298 · 2026-11-02 · A Launch is settled by a job at its end, not by a device that opens the room (v3 dev check fixes, #619)
 
-**Amends** D-178 ("no job"), D-224's settlement at the end and the client rule that a device says it saw the end.
+**Amends** D-178 ("no job") and D-223 ("a device says the Launch is over once").
 
 - **What went wrong.** Every room page view sent `rooms/launch/finish` for a Launch that had ended hours before, with a new command ID each time. A screen view wrote.
 - **The rule.** Starting a Launch queues one job, `rooms.launch-settle`, to run a second after its play time ends. The worker marks the Launch finished at that end, awards the room's star when two people answered, and tells the room, exactly as the first member command after the end did. The job acts for the starter's universe only to take the room lock in order, and does nothing if that person is gone. Then the room's next member command still settles it, counted from the end either way.
