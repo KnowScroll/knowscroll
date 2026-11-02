@@ -26,7 +26,7 @@ function restoreReaderFocus(): void {
   const focused = document.activeElement;
   if (reader === null || reader === focused) return;
   const lost = focused === null || focused === document.body;
-  const inNote = focused?.closest('[data-testid="format-note"]') != null;
+  const inNote = focused !== null && focused.closest('[data-testid="format-note"]') !== null;
   if (lost || (reader.contains(focused) && !inNote)) reader.focus();
 }
 

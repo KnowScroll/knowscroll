@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
+import blocks from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
 import { encounterFixture, id } from './encounter-fixture';
 
 /**
@@ -289,6 +290,33 @@ test('on a Scroll’s own address a step forward says the place in the Part befo
   await expect(page.getByTestId('part-back-tab')).toBeVisible();
 });
 
+/** A labelled v2 CI document with no pinned picture, as Seasons Part 3 has none. */
+const pictureless = blocks as unknown as Record<string, unknown>;
+
+for (const { label, viewport } of [
+  { label: '390 × 844', viewport: phone },
+  { label: '1440 × 900', viewport: desktop },
+]) {
+  test(`at ${label} the back tab of a Part with no picture has a row of its own and covers none of the text (#648)`, async ({
+    page,
+  }) => {
+    await encounterFixture(page, 'scroll', { viewport, direct: { parts: 3 }, scrollDocument: pictureless });
+    await page.goto(`/scroll/${id(301)}`);
+    await expect(page.getByTestId('scroll-reader')).toBeVisible();
+    const tab = page.getByTestId('part-back-tab');
+    await expect(tab).toBeVisible();
+    await expect(page.getByTestId('part-back-tab-row')).toBeVisible();
+    const tabBox = (await tab.boundingBox())!;
+    // The first stop's text starts below the tab, not under it.
+    const firstText = (await page.getByTestId('stop-scroller').boundingBox())!;
+    expect(tabBox.y + tabBox.height).toBeLessThanOrEqual(firstText.y + 1);
+    await shot(page, `part-back-tab-no-picture-${String(viewport.width)}`);
+    expect(await audit(page)).toEqual([]);
+    await tab.click();
+    await expect(page).toHaveURL(new RegExp(`/scroll/${id(300)}$`));
+  });
+}
+
 test('a related move opens its Scroll without saying a place in a Part was kept', async ({ page }) => {
   await encounterFixture(page, 'scroll', {
     viewport: phone,
@@ -311,16 +339,11 @@ test('a related move opens its Scroll without saying a place in a Part was kept'
   }
 });
 
-test('F in the note switches to the Reel with no click first, and the note waits while it has focus', async ({
-  page,
-}) => {
+test('F switches to the Reel with no click or Tab first: the reader has focus, not the note', async ({ page }) => {
   await open(page);
   await page.getByRole('button', { name: 'Next topic' }).click();
-  const note = page.getByTestId('format-note');
-  await expect(note).toBeFocused();
-  // Held by focus, it outlasts its nine seconds.
-  await page.waitForTimeout(10_000);
-  await expect(note).toBeVisible();
+  await expect(page.getByTestId('format-note')).toBeVisible();
+  await expect(page.getByTestId('scroll-reader')).toBeFocused();
   const requests: string[] = [];
   page.on('request', (request) => requests.push(new URL(request.url()).pathname));
   await page.keyboard.press('f');
