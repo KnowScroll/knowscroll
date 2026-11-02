@@ -55,7 +55,7 @@ export function OrbitDial({
       >
         <View style={styles.column}>
           <DialTop dial={dial} session={session} title={visitor ? `${owner}’s universe` : 'Your universe'} />
-          {dial.open ? <DialFilters dial={dial} /> : null}
+          {dial.filtersShown ? <DialFilters dial={dial} /> : null}
           {system === undefined ? (
             <NoSystem dial={dial} />
           ) : dial.open ? (
@@ -79,7 +79,7 @@ export function OrbitDial({
           ) : (
             <>
               <SystemWheel dial={dial} />
-              <SystemPill dial={dial} system={system} session={session} />
+              <SystemPill dial={dial} system={system} />
               {hasPlanets ? (
                 <>
                   <PlanetFace

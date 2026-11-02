@@ -3907,6 +3907,24 @@ Confirmed by: `away-divider.test.ts`, `content-thread.test.ts`, `conversation-th
 
 Confirmed by: `social-places.test.ts` (series on the thread list; none for a single), `thread-row.test.tsx`, `conversations-screen.test.tsx`, `talk-smoke.spec.ts`.
 
+## D-317 · 2026-11-02 · The orbit dial has no arrow into the system; the system is opened from the map (v3 Universe fidelity, #497)
+
+**Amends** D-112 for the dial's system row only.
+
+- **Design.** O3 draws the chosen system as a plain name with a chevron. There is no second button beside it.
+- **Before.** The row carried an arrow button that flew to the system's own view.
+- **The rule.** The arrow is gone. A system opens from the map (tap it, or its name in the panel or the Simple lists). The dial still lands on a planet from the big planet.
+- **Owner can overrule.** The file is final (D-060); say so if the shortcut should come back.
+
+Confirmed by: `universe-screen.test.tsx` (the dial's system row has no "Open <system>" button).
+
+## D-318 · 2026-11-02 · The search card's empty heading is 18 px, a size of its own (v3 Universe fidelity, #497)
+
+- **Design.** U08 draws "Find any place you've been" at 18 px with a 14 px line under it.
+- **The rule.** The heading takes the display face at 18/22 as a local size, like the planet title's 30 px. The line under it is the 15 px body. The type scale gets no new role for one card.
+
+Confirmed by: the 390 pair `U08-search-empty-390` in the fidelity sweep.
+
 ## D-331 · 2026-11-02 · The ••• sheet of a Scroll is the design's seven rows (v3 Scrolls fidelity, #497)
 
 **Builds on** round 1 (#548: Like and Ask live only in Explore), D-244 and D-292. **Amends** the sheet's three pill buttons and icon row.

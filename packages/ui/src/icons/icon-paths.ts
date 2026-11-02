@@ -74,6 +74,15 @@ export const iconShapes = {
   retry: [path('M20 12a8 8 0 1 1-2.3-5.7'), path('M20 4v5h-5')],
   clock: [circle(12, 12, 9), path('M12 7v5l3 2')],
   offline: [path('M3 3l18 18'), path('M7 18H6a4 4 0 0 1-.6-8'), path('M10.5 6.2A6 6 0 0 1 18 10a4 4 0 0 1 2 7')],
+  // A wifi fan with a slash (Universe "Offline"), and the eight-spoke spark of a quiet notice (Universe "Notice").
+  wifiOff: [
+    path(
+      'M2 8.8a15 15 0 0 1 4.2-2.6M9.6 5.3A15 15 0 0 1 22 8.8M5 12.9a10 10 0 0 1 3.5-2.3M14.5 10.3A10 10 0 0 1 19 12.9M8.5 16.4a5 5 0 0 1 7 0M12 20h.01M3 3l18 18',
+    ),
+  ],
+  spark: [path('M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6')],
+  // Two sliders: the orbit dial's filters.
+  filter: [path('M4 7h9M17 7h3M4 17h3M11 17h9'), circle(15, 7, 2), circle(9, 17, 2)],
   alert: [circle(12, 12, 9), path('M12 7v6M12 16.5v.1')],
   info: [circle(12, 12, 9), path('M12 8v5M12 16v.1')],
   // Semantics.

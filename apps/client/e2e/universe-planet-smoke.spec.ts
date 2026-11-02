@@ -220,6 +220,10 @@ for (const size of [
     await page.getByRole('button', { name: 'CI region 5, a region', exact: true }).click();
     await expect(page.getByTestId('universe-region-card')).toBeVisible();
     await expect(page.getByTestId('universe-level')).toHaveText('REGION');
+    // The region's name in its yellow pill is whole at every width, never cut to an ellipsis (U04).
+    const pillName = page.getByTestId('universe-region-name');
+    await expect(pillName).toHaveText('CI region 5');
+    expect(await pillName.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(false);
     await page.waitForTimeout(400);
     await shot(page, `u04-card-${size.label}`);
     await expectNoSeriousViolations(page);
