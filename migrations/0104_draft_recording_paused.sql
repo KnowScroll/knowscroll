@@ -8,6 +8,8 @@
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';
 
+-- Required vocabulary extension; the replacement enforces every old value plus the new one, and validates in this same migration.
+-- squawk-ignore ban-drop-constraint
 alter table scenarios.drafts drop constraint drafts_failure_check;
 alter table scenarios.drafts
   add constraint drafts_failure_check
