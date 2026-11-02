@@ -78,7 +78,6 @@ import { makeQuestions } from '../application/questions.js';
 import { makeReplay } from '../application/replay.js';
 import { makeToday } from '../application/today.js';
 import { LAUNCH_GAP_MINUTES_DEFAULT } from '../domain/launch.js';
-import { STARS_PER_DAY_DEFAULT } from '../domain/sky.js';
 import { castDueQueue, castPassQueue, contributeQueue, launchSettleQueue, summariseQueue } from '../events.js';
 import {
   CONTRIBUTE_AS_INHABITANT,
@@ -155,8 +154,8 @@ export interface RoomsDeps {
   readonly residentsEnabled?: boolean;
   /** Members may send scouts in this world (`KS_ROOMS_SCOUTS_ENABLED`, v3 R-9, D-259). Off, no scout can be set. */
   readonly scoutsEnabled?: boolean;
-  /** The most stars a room earns on one UTC day (`KS_ROOMS_STARS_PER_DAY`, D-174); the default is three. */
-  readonly starsPerDay?: number;
+  /** The most stars a room earns on one UTC day (`KS_ROOMS_STARS_PER_DAY`, D-174): a process's configuration always names it, so none can fall back to another number. */
+  readonly starsPerDay: number;
   /** The rest between the start of one Launch and the next, in minutes (`KS_ROOMS_LAUNCH_GAP_MINUTES`, D-178); the default is two hours. */
   readonly launchGapMinutes?: number;
   readonly now?: () => Date;
@@ -233,7 +232,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     },
     residentsEnabled: deps.residentsEnabled ?? false,
     scoutsEnabled: deps.scoutsEnabled ?? false,
-    starsPerDay: deps.starsPerDay ?? STARS_PER_DAY_DEFAULT,
+    starsPerDay: deps.starsPerDay,
     launchGapMs: (deps.launchGapMinutes ?? LAUNCH_GAP_MINUTES_DEFAULT) * 60_000,
     enqueueCastDue: async (scope, job, startAfter) => {
       if (deps.enqueue === undefined) throw new Error('ROOMS_ENQUEUE_NOT_CONFIGURED');
@@ -580,6 +579,7 @@ export function roomsWorkerProviders(tokens: {
           ownerActive,
           enqueue,
           residentsEnabled: config.reasoning.roomEnabled,
+          starsPerDay: config.roomStarsPerDay,
         }),
     },
     {
@@ -689,6 +689,7 @@ export function roomsWorkerProviders(tokens: {
           ownerActive,
           enqueue,
           residentsEnabled: config.reasoning.roomEnabled,
+          starsPerDay: config.roomStarsPerDay,
           generation: config.reasoning.roomGeneration,
           model: config.reasoning.minimax?.model ?? 'unconfigured',
         }),
@@ -748,6 +749,7 @@ export function roomsWorkerProviders(tokens: {
           ownerActive,
           enqueue,
           residentsEnabled: config.reasoning.roomEnabled,
+          starsPerDay: config.roomStarsPerDay,
           generation: config.reasoning.roomGeneration,
           model: config.reasoning.minimax?.model ?? 'unconfigured',
         }),
@@ -800,6 +802,7 @@ export function roomsWorkerProviders(tokens: {
           readBlocked,
           harness,
           ownerActive,
+          starsPerDay: config.roomStarsPerDay,
           model: config.reasoning.minimax?.model ?? 'unconfigured',
         }),
     },

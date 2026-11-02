@@ -31,6 +31,7 @@ import {
   launchSettleQueue,
   libraryRoomSeeds,
   SETTLE_LAUNCH,
+  STARS_PER_DAY_DEFAULT,
   summariseQueue,
   type CastDueJob,
   type CastPassJob,
@@ -182,7 +183,7 @@ export async function roomWorld(
     now: () => clock.now,
     residentsEnabled: options.residentsEnabled ?? false,
     scoutsEnabled: options.scoutsEnabled ?? false,
-    ...(options.starsPerDay === undefined ? {} : { starsPerDay: options.starsPerDay }),
+    starsPerDay: options.starsPerDay ?? STARS_PER_DAY_DEFAULT,
     ...(options.launchGapMinutes === undefined ? {} : { launchGapMinutes: options.launchGapMinutes }),
   };
   const ownerActive: CheckPersonalOwnerActive = identityScopeOwnerProviders()[0]!.useValue;
