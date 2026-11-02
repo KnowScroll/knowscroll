@@ -183,8 +183,15 @@ describe('the bands of a day (V3 F7)', () => {
     expect(dayBands(sceneOf(state({ view: 'sun-earth' })))).toEqual([]);
     const long = { ...DECEMBER, place: 'The harbour town of Pell on the northern coast', value: 10.5 };
     const band = dayBands(sceneOf(state({ view: 'sun-earth', figures: [long] })))[0];
-    expect(band?.label.text).toBe('DECEMBER · THE HARBOUR TOWN OF  · 10.5 HOURS');
+    // Cut at a word, with an ellipsis that says it was cut.
+    expect(band?.label.text).toBe('DECEMBER · THE HARBOUR TOWN OF… · 10.5 HOURS');
     expect(labelBox(band!.label).right).toBeLessThan(TEXT_PILL.left);
+    const textOf = (place: string) =>
+      dayBands(sceneOf(state({ view: 'sun-earth', figures: [{ ...DECEMBER, place }] })))[0]?.label.text;
+    // A name that fits is written whole, one that ends in the middle of a word is cut before the word, and one long word is cut in it.
+    expect(textOf('Thiruvananthapuram')).toBe('DECEMBER · THIRUVANANTHAPURAM · 10 HOURS');
+    expect(textOf('Thiruvananthapuram Kerala South India')).toBe('DECEMBER · THIRUVANANTHAPURAM… · 10 HOURS');
+    expect(textOf('Llanfairpwllgwyngyllgogerychwyrndrobwll')).toBe('DECEMBER · LLANFAIRPWLLGWYNGYL… · 10 HOURS');
   });
 });
 

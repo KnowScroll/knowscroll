@@ -259,6 +259,15 @@ export interface DayBand {
 const BAND = { x: 8, width: 150, height: 8, firstY: 160, rowHeight: 22 } as const;
 /** The longest place name a band's words carry before they are cut, so the words stay inside the frame. */
 const PLACE_CHARS = 20;
+
+/** A place name as a band says it: in capitals, and cut at a word with an ellipsis when it is longer than `PLACE_CHARS`. */
+function shortPlace(place: string): string {
+  const upper = place.trim().toUpperCase();
+  if (upper.length <= PLACE_CHARS) return upper;
+  const room = upper.slice(0, PLACE_CHARS - 1);
+  const atWord = upper.charAt(PLACE_CHARS - 1) === ' ' ? room : room.replace(/\s+\S*$/u, '');
+  return `${atWord.trimEnd()}…`;
+}
 const HOURS_IN_A_DAY = 24;
 
 /** The bands of the daylight figures a state carries, June above December, or none. */
@@ -275,7 +284,7 @@ export function dayBands(scene: EarthSkyScene): readonly DayBand[] {
     bands.push({
       slot,
       label: {
-        text: `${month} · ${(figure.place ?? '').toUpperCase().slice(0, PLACE_CHARS)} · ${formatFigure(figure.value)} ${figure.unit.toUpperCase()}`,
+        text: `${month} · ${shortPlace(figure.place ?? '')} · ${formatFigure(figure.value)} ${figure.unit.toUpperCase()}`,
         x: BAND.x,
         y: top,
         anchor: 'start',
