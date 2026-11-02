@@ -151,15 +151,14 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
   // "Call it together" (D-155): the calls of the series' parts, and the one the person has open.
   const calls = useThreadCalls(scope, thread, series);
   const [callPart, setCallPart] = useState<number>();
-  const openCall = calls.state.calls.find((call) => call.part === callPart);
   const barCall = callForBar(calls.state.calls, calls.seen);
   const { markSeen } = calls;
   // A reveal the person has not seen on this device opens in the thread as soon as it is there (T3 frame 5), unless they
   // already have a call open. The server sends picks only for a call revealed to this reader (D-155); this only shows it.
+  // It is adjusted while rendering, so the card does not vanish the moment it is marked as seen.
   const waitingReveal = unseenReveal(calls.state.calls, calls.seen);
-  useEffect(() => {
-    if (waitingReveal !== undefined) setCallPart((open) => open ?? waitingReveal.part);
-  }, [waitingReveal]);
+  if (callPart === undefined && waitingReveal !== undefined) setCallPart(waitingReveal.part);
+  const openCall = calls.state.calls.find((call) => call.part === callPart);
   useEffect(() => {
     if (openCall?.stage === 'revealed') markSeen(openCall);
   }, [openCall, markSeen]);
