@@ -22,7 +22,7 @@ import {
 import { BlackHolePicture } from './black-hole';
 import { blackHoleSceneOf, canTweenBlackHole, lerpBlackHoleScene, type BlackHoleScene } from './black-hole-scene';
 import { EarthSkyPicture } from './earth-sky';
-import { canTween, lerpScene, sceneOf, type EarthSkyScene } from './earth-sky-scene';
+import { canTween, describeRecap, lerpScene, recapSceneOf, sceneOf, type EarthSkyScene } from './earth-sky-scene';
 import { GreenhousePicture } from './greenhouse';
 import { canTweenGreenhouse, greenhouseSceneOf, lerpGreenhouseScene, type GreenhouseScene } from './greenhouse-scene';
 import { NervePicture } from './nerve';
@@ -53,6 +53,14 @@ export interface KitPicture {
     readonly sceneOf: (state: unknown, tilt: number) => unknown;
     readonly describe: (state: unknown, tilt: number) => string;
   };
+  /**
+   * The picture of the whole journey (V3 F10): what the stage turns into at the end of a Scroll, made of the document's own
+   * states, with its words. Only a kit that can draw one honestly has it; the others keep their last state.
+   */
+  readonly recap?: {
+    readonly sceneOf: (states: readonly unknown[]) => unknown;
+    readonly describe: (states: readonly unknown[]) => string | undefined;
+  };
 }
 
 /**
@@ -68,6 +76,10 @@ function kitPicture<State, Scene>(kit: {
     readonly isTurned: (tilt: number) => boolean;
     readonly sceneOf: (state: State, tilt: number) => Scene;
     readonly describe: (state: State, tilt: number) => string;
+  };
+  readonly recap?: {
+    readonly sceneOf: (states: readonly State[]) => Scene | undefined;
+    readonly describe: (states: readonly State[]) => string | undefined;
   };
 }): KitPicture {
   return kit as unknown as KitPicture;
@@ -85,6 +97,7 @@ export const KIT_PICTURES = {
       sceneOf,
       describe: describeStageAtTilt,
     },
+    recap: { sceneOf: recapSceneOf, describe: describeRecap },
   }),
   'tides.v1': kitPicture<TidesState, TidesScene>({
     sceneOf: tidesSceneOf,

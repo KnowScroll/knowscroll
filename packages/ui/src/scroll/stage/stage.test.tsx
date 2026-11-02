@@ -49,3 +49,16 @@ describe('the tilt tag on the picture (V3 F9, C3)', () => {
     expect(screen.queryByTestId('stage-tilt-tag', { includeHiddenElements: true })).not.toBeOnTheScreen();
   });
 });
+
+describe('the stage at the end of a Scroll (V3 F10)', () => {
+  it('turns into the picture of the whole journey, named by the same months, where its kit can draw one', async () => {
+    const view = await render(<Stage {...props} stopId="the-year" />);
+    expect(screen.queryByLabelText(/The picture you built/)).not.toBeOnTheScreen();
+    await view.rerender(<Stage {...props} stopId="the-year" recap />);
+    expect(
+      screen.getByLabelText(/The picture you built: .*marked 1 in June, 2 in January and 3 in March/),
+    ).toBeOnTheScreen();
+    await view.rerender(<Stage {...props} stopId="the-year" recap textVersion />);
+    expect(screen.getByText(/The picture you built: /)).toBeOnTheScreen();
+  });
+});

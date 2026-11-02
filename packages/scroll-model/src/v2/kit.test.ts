@@ -5,6 +5,8 @@ import {
   applyStagePatch,
   AXIAL_TILT_DEGREES,
   describeStageAtTilt,
+  describeStageRecap,
+  recapMonths,
   describeStageState,
   INITIAL_STAGE_STATE,
   NORTH_LEAN_PERCENT,
@@ -343,5 +345,34 @@ describe('the tilt a reader turns at the Final call (D-187)', () => {
     const moon: StageState = { view: 'moon-orbit', earthAt: 'jun', moonAt: 'full', focus: 'none' };
     const text = describeStageAtTilt(moon, 0);
     expect(text).not.toMatch(/axis|pin|Ray/u);
+  });
+});
+
+describe('the recap of a stage (V3 F10)', () => {
+  const at = (view: StageState['view'], earthAt: StageState['earthAt']): StageState => ({
+    view,
+    earthAt,
+    moonAt: 'off',
+    focus: 'none',
+  });
+
+  it('numbers the months the orbit views stood at, once each, in the order they were met', () => {
+    const states = [
+      at('sun-earth', 'jun'),
+      at('orbit', 'jun'),
+      at('orbit-stretched', 'jan'),
+      at('earth-close', 'jul'),
+      at('orbit', 'mar'),
+      at('orbit', 'jun'),
+    ];
+    expect(recapMonths(states)).toEqual(['jun', 'jan', 'mar']);
+    expect(recapMonths([at('sun-earth', 'jun'), at('earth-close', 'dec')])).toEqual([]);
+  });
+
+  it('says them in words that follow the months, and the lean that is the same in every one', () => {
+    const text = describeStageRecap(['jun', 'jan', 'mar']);
+    expect(text).toMatch(/marked 1 in June, 2 in January and 3 in March, numbered in the order you met them/u);
+    expect(text).toMatch(/leans the same way in every one/u);
+    expect(describeStageRecap(['dec', 'jun'])).toMatch(/marked 1 in December and 2 in June/u);
   });
 });

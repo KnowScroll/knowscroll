@@ -1,4 +1,12 @@
-import { dragOf, DRAG_SHOWS_AT, EDGE_ZONE, partMoveOf, pullProgress, PULL_DISTANCE, SWIPE_DISTANCE } from './part-gesture';
+import {
+  dragOf,
+  DRAG_SHOWS_AT,
+  EDGE_ZONE,
+  partMoveOf,
+  pullProgress,
+  PULL_DISTANCE,
+  SWIPE_DISTANCE,
+} from './part-gesture';
 
 const drag = (dx: number, dy: number, rest: { startedAtEnd?: boolean; startX?: number; screenWidth?: number } = {}) =>
   partMoveOf({ dx, dy, startedAtEnd: false, ...rest });

@@ -74,6 +74,7 @@ export default defineConfig({
         'share-moment-smoke.spec.ts',
         'scroll-fidelity-smoke.spec.ts',
         'scroll-motion-smoke.spec.ts',
+        'scroll-ending-smoke.spec.ts',
       ],
       use: { baseURL: `http://127.0.0.1:${production}` },
     },

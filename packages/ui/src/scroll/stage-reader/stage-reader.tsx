@@ -29,9 +29,10 @@ import { Stage } from '../stage';
 import type { FinalCallPlay } from './call-view';
 import type { NextPartPeek, SmallPrint } from './end-tray';
 import { PartBackTab, PartArrivalBar, type PartArrival } from './part-arrival';
+import { PartEdgePeek } from './part-edge-peek';
 import type { PartDrag, PartMove } from './part-gesture';
-import { notePartSwipeCommitted, partSwipeJustCommitted } from './part-handoff';
-import { PartPeekPanel, type PeekSide } from './part-peek';
+import { partSwipeJustCommitted } from './part-handoff';
+import { PartPeekPanel } from './part-peek';
 import { PartSwipe } from './part-swipe';
 import { usePartPeek } from './use-part-peek';
 import { payoffOf } from './payoff';
@@ -315,6 +316,8 @@ export function StageReader({
     });
 
   const wide = breakpoint === 'tablet' || breakpoint === 'desktop';
+  /** The reader is on the end tray: the picture becomes the recap and the next Part peeks in from the edge. */
+  const atEnd = current >= document.stops.length;
   const stopId = document.stops[Math.min(current, document.stops.length - 1)]?.id ?? '';
   return (
     <ReaderFocus onKey={onKey}>
@@ -334,6 +337,7 @@ export function StageReader({
                 reducedMotion={reducedMotion}
                 textVersion={textVersion}
                 tilt={tiltBound && activeStopId === finalCall?.id ? tilt : undefined}
+                recap={atEnd}
                 height={stageHeightFor(windowHeight, wide)}
               />
               <TextVersionSwitch on={textVersion} onPress={() => setTextVersion((now) => !now)} />
@@ -392,6 +396,9 @@ export function StageReader({
           </View>
         </Animated.View>
         {previousPart === undefined || current !== 0 ? null : <PartBackTab previous={previousPart} />}
+        {nextPart === undefined || !atEnd ? null : (
+          <PartEdgePeek peek={nextPart} top={stageHeightFor(windowHeight, wide) * 0.3} />
+        )}
         {arrival === undefined ? null : <PartArrivalBar arrival={arrival} />}
         {peek.side === undefined || peeked === undefined ? null : (
           <PartPeekPanel side={peek.side} peek={peeked} dx={peek.dx} width={peek.width} past={peek.past} />

@@ -5,6 +5,7 @@ import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { DisplayProvider } from '../../display/display';
 import { PartArrivalBar, PartBackTab } from './part-arrival';
 import { notePartSwipeCommitted, partSwipeJustCommitted } from './part-handoff';
+import { PartEdgePeek } from './part-edge-peek';
 import { PartPeekPanel } from './part-peek';
 import { StageReader } from './stage-reader';
 
@@ -95,5 +96,16 @@ describe('the pull from the end (V3 G3)', () => {
   it('draws no handle where there is no new topic to pull to', async () => {
     await render(wrap(<StageReader document={document} commands={{}} />));
     expect(screen.queryByTestId('pull-handle', { includeHiddenElements: true })).not.toBeOnTheScreen();
+  });
+});
+
+describe('the next Part peeking in from the edge at the end (V3 F10, E1)', () => {
+  it('is a tab named for the Part it continues to, and does what the dock does', async () => {
+    const onPress = jest.fn();
+    await render(wrap(<PartEdgePeek peek={{ ...two, onPress }} top={60} />));
+    const tab = screen.getByRole('button', { name: 'Continue Part 2' });
+    expect(tab).toHaveTextContent('PART 2');
+    await fireEvent.press(tab);
+    expect(onPress).toHaveBeenCalledTimes(1);
   });
 });

@@ -162,30 +162,12 @@ function PayoffBlock({
 }
 
 /**
- * Where to go next, every way with its own button: the peek at the next Part, then "Done for today"
- * and "Something new" side by side at the same size, then another angle if one was admitted.
+ * Where to go next, every way with its own button: "Done for today" and "Something new" side by side at the same
+ * size, then another angle if one was admitted. The next Part is the peek at the picture's right edge (V3 F10), not a card here.
  */
-function WaysOn({
-  nextPart,
-  related,
-  onNextTopic,
-  onDoneForToday,
-}: EndTrayProps & { readonly onDoneForToday: () => void }) {
+function WaysOn({ related, onNextTopic, onDoneForToday }: EndTrayProps & { readonly onDoneForToday: () => void }) {
   return (
     <>
-      {nextPart === undefined ? null : (
-        <View style={styles.peek} testID="part-peek">
-          <Tag label={nextPart.label} variant="part" />
-          <Text variant="title">{nextPart.title}</Text>
-          <Button
-            label={`Continue ${nextPart.label}`}
-            icon="arrowRight"
-            iconPosition="trailing"
-            variant="primary"
-            onPress={nextPart.onPress}
-          />
-        </View>
-      )}
       <View style={styles.equal}>
         <View style={styles.equalCell}>
           <Button label="Done for today" fullWidth onPress={onDoneForToday} />
@@ -316,15 +298,6 @@ const styles = StyleSheet.create({
     backgroundColor: content.continue,
   },
   payoff: { gap: spacing[3], alignItems: 'flex-start' },
-  peek: {
-    gap: spacing[2],
-    alignItems: 'flex-start',
-    padding: spacing[4],
-    borderRadius: radius.panel,
-    borderWidth: borderWidth.regular,
-    borderColor: content.ink,
-    backgroundColor: content.continue,
-  },
   equal: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   equalCell: { flexGrow: 1, flexBasis: 150 },
   relatedRow: {

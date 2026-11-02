@@ -1,4 +1,13 @@
-import { AXIAL_TILT_DEGREES, physicsAtTilt, stageParts, stagePhysics, type StagePart, type StageState } from '../model';
+import {
+  AXIAL_TILT_DEGREES,
+  describeStageRecap,
+  physicsAtTilt,
+  recapMonths,
+  stageParts,
+  stagePhysics,
+  type StagePart,
+  type StageState,
+} from '../model';
 
 /**
  * The drawing parameters of the "Earth & sky" kit (D-133): what the picture needs to place its parts,
@@ -63,8 +72,17 @@ const ORBIT_SHAPE: Readonly<Record<'orbit' | 'orbit-stretched', { ratio: number;
   'orbit-stretched': { ratio: 0.62, sunOffset: 0.42 },
 };
 
+/** One numbered Earth of the recap: where on the orbit the reader met it, and which meeting it was. */
+export interface RecapMark {
+  readonly angle: number;
+  readonly n: number;
+  readonly month: StageState['earthAt'];
+}
+
 export interface EarthSkyScene {
   readonly view: StageView;
+  /** Set only for the recap picture (V3 F10): Earth numbered at each place the reader met it, in place of the Earth of one month. */
+  readonly recap?: readonly RecapMark[];
   readonly parts: readonly StagePart[];
   /** Earth's place on the orbit, degrees. */
   readonly earthAngle: number;
@@ -142,6 +160,28 @@ export function sceneOf(state: StageState, tiltDegrees: number = AXIAL_TILT_DEGR
     moonPhased: state.moonAt !== 'off',
     focus: state.focus,
   };
+}
+
+/**
+ * The recap picture of a Scroll's stage: the orbit seen from above with an Earth numbered at each month the reader met, in
+ * order (V3 F10, "the picture you built"). It is made of the states the document already holds and nothing else, so it adds
+ * no text and no figure. It needs two places to be a picture of a journey: with fewer, there is no recap and the stage keeps
+ * its last state.
+ */
+export function recapSceneOf(states: readonly StageState[]): EarthSkyScene | undefined {
+  const months = recapMonths(states);
+  const last = states.findLast((state) => state.view === 'orbit' || state.view === 'orbit-stretched');
+  if (months.length < 2 || last === undefined) return undefined;
+  return {
+    ...sceneOf({ ...last, view: 'orbit', moonAt: 'off', focus: 'none' }),
+    recap: months.map((month, index) => ({ angle: MONTH_ANGLE_DEGREES[month], n: index + 1, month })),
+  };
+}
+
+/** The words for the recap picture, or none where there is no recap. */
+export function describeRecap(states: readonly StageState[]): string | undefined {
+  const months = recapMonths(states);
+  return months.length < 2 ? undefined : describeStageRecap(months);
 }
 
 /** Whether a move between two scenes is drawn as one picture changing (a tween) or as one replacing another. */

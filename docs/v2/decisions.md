@@ -3970,3 +3970,33 @@ Confirmed by: `part-gesture.test.ts`, `part-peek.test.tsx`, `e2e/scroll-motion-s
 - **Fixture.** The e2e Explore fixture now names the Part of an entry reached by a series step and offers the Part before, as the server does.
 
 Confirmed by: `part-peek.test.tsx` (bar text and timeout, the tab and its name, shown only when there is something to say), `continuation-moves.test.ts` (the previous Part as a named move), `e2e/scroll-motion-smoke.spec.ts` (a swipe and the button open Part 2 with the bar and tab; the tab goes back to Part 1).
+
+## D-345 · 2026-11-02 · At the end of a Scroll the picture becomes the recap of the journey, where the kit can draw one (v3 Scrolls fidelity, #497)
+
+**Amends** D-189 ("The stage keeps its last picture").
+
+- **The recap.** When the reader is on the end tray, the pinned picture of the Earth & sky kit turns into the orbit seen from above with an Earth numbered at each month the orbit views of this Scroll stood at, in the order the reader met them, each once (V3 F10, E1). It is made of the states the document already holds: no new text, no new figure, no model call.
+- **Where the words come from.** The picture is named, and its text version says, "The picture you built: Earth circles the Sun, seen from above, with Earth marked 1 in June, 2 in January and 3 in March, numbered in the order you met them. The axis leans the same way in every one." The months and numbers come from the same function that draws them, so the words cannot disagree with the picture.
+- **When there is none.** With fewer than two places to number (a Scroll whose orbit views stand at one month, or none), there is no honest picture of a journey. The stage then keeps its last state, as D-189 said. The eight other kits have no recap yet: each keeps its last state, and "The picture you built" over the captions still means the stage as it ended.
+- **Moving.** Between the last state and the recap the picture tweens when both are orbit views, and cross-fades otherwise. Under reduced motion it cross-fades, as every stage change does. Going back up to a stop gives that stop's picture again.
+- **Not built.** Ray and the landmark flying to the Universe, which the frame draws on the recap: Ray is a guide of a stop, and the flight is the S-4 overlay (D-189).
+
+Confirmed by: `kit.test.ts` of scroll-model (`recapMonths` once each in order, none without orbit views; `describeStageRecap`), `earth-sky-scene.test.ts` (the numbered Earths, no recap under two places), `stage.test.tsx` (the stage becomes the recap with its words, and the text version), `e2e/scroll-ending-smoke.spec.ts` (three numbered Earths and the words at 390 × 844 and 1440 × 900, back to a stop's own picture, reduced motion, axe).
+
+## D-346 · 2026-11-02 · The next Part peeks in from the right edge of the picture at the end, and the tray's Part card is gone (v3 Scrolls fidelity, #497)
+
+**Amends** D-189 ("the peek at the next Part" as a card in the tray, at the weight of the other ways on).
+
+- **The peek.** A yellow tab on the right edge of the picture, "PART 2 →", drawn only when the reader is on the end tray and a next Part was admitted. It does what the dock's Part 2 button, the → key and a swipe left do, and is named "Continue Part 2" with the Part's title as its hint. A related move alone has no peek: it stays the dashed row in the tray.
+- **The tray.** Its Part card and its "Continue Part 2" button are gone. "Done for today" and "Something new" stay side by side at one size. The yellow of the continuation (D-006 b) now has one place at the end, the edge.
+- **It names the Part and nothing else.** The context carries no teaser (D-072), so the frame's cliffhanger text is not drawn.
+
+Confirmed by: `part-peek.test.tsx` (the tab, its name and its press), `e2e/scroll-ending-smoke.spec.ts` (it sits on the picture's right edge only at the end, opens Part 2, and the tray has no Part card), `e2e/payoff-smoke.spec.ts`, `e2e/reader-nav-smoke.spec.ts`.
+
+## D-347 · 2026-11-02 · The landmark standing on the planet map is an owner call, not built here (v3 Scrolls fidelity, #497)
+
+**Builds on** D-214.
+
+- **What the frames ask.** F12 and E3 draw the landmark standing on the planet, and a card "Earth & sky · Seasons / The Leaning Axis stands here now" after the landing.
+- **Why it waits.** The Universe files govern the map. D-214 already puts a landmark as a small pennant on the planet it belongs to, and keeps a waiting one in a tray. How it should look and where the landing card sits is a map decision. The Scroll slice does not change the map.
+- **Left for the owner.** Whether the pennant should become the frame's standing mark, and whether the landing card is wanted. Until then D-214 stands.

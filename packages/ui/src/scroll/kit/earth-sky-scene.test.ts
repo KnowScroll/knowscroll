@@ -14,6 +14,8 @@ import {
   lerpScene,
   onCircle,
   pinPoint,
+  recapSceneOf,
+  describeRecap,
   sceneOf,
 } from './earth-sky-scene';
 
@@ -151,5 +153,36 @@ describe('the picture when the reader turns the axis at the Final call (D-187)',
     const patch = (away: number) => footprintLength(beamFootprint(centre, 100, pinPoint(centre, 100, 'north', away)));
     expect(scene.northPinAway).toBeLessThan(scene.southPinAway);
     expect(patch(scene.northPinAway)).toBeLessThan(patch(scene.southPinAway));
+  });
+});
+
+describe('the recap of an Earth & sky stage (V3 F10)', () => {
+  const at = (view: StageState['view'], earthAt: StageState['earthAt']) => state({ view, earthAt });
+
+  it('numbers an Earth at each month the orbit views stood at, in the order they were met, on the plain orbit', () => {
+    const scene = recapSceneOf([
+      at('sun-earth', 'jun'),
+      at('orbit', 'jun'),
+      at('orbit-stretched', 'jan'),
+      at('orbit', 'mar'),
+    ]);
+    expect(scene?.view).toBe('orbit');
+    expect(scene?.recap?.map((mark) => [mark.n, mark.month])).toEqual([
+      [1, 'jun'],
+      [2, 'jan'],
+      [3, 'mar'],
+    ]);
+    expect(scene?.recap?.[1]?.angle).toBe(sceneOf(at('orbit', 'jan')).earthAngle);
+    expect(scene?.focus).toBe('none');
+  });
+
+  it('is no picture of a journey with fewer than two places, so there is none and the stage keeps its last state', () => {
+    expect(recapSceneOf([at('sun-earth', 'jun'), at('earth-close', 'dec')])).toBeUndefined();
+    expect(recapSceneOf([at('orbit', 'jun'), at('orbit', 'jun')])).toBeUndefined();
+    expect(describeRecap([at('orbit', 'jun')])).toBeUndefined();
+  });
+
+  it('is described by the same months it draws', () => {
+    expect(describeRecap([at('orbit', 'jun'), at('orbit', 'dec')])).toMatch(/marked 1 in June and 2 in December/);
   });
 });
