@@ -591,8 +591,14 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
     it('leaves the asset held and unreachable, and a later take can still be released', async () => {
       const plain = fixtureAuthoredV2();
       // The recipe is a plain Scroll, so the fixture's picture is taken out the way a writer would write none.
-      const withoutPicture = JSON.parse(JSON.stringify(plain)) as { items: { stage?: unknown }[] };
-      for (const item of withoutPicture.items) delete item.stage;
+      const withoutPicture = JSON.parse(JSON.stringify(plain)) as {
+        items: { stage?: unknown; revealsNext?: unknown }[];
+      };
+      for (const item of withoutPicture.items) {
+        delete item.stage;
+        // A call that turns the picture needs a picture to turn (D-383).
+        delete item.revealsNext;
+      }
       const run = fixtureProduction(database.db, () => answerWith(withoutPicture), orrinPageFor);
       const first = await run.produce(key, false, signal());
       expect(first).toMatchObject({ outcome: 'published', held: true, revision: 1 });

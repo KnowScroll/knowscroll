@@ -1,6 +1,7 @@
 import { z } from '../../zod.js';
 import { CHART_SHAPES, GUIDE_POSES, MAGNITUDES, SCALE_AXES } from '../../v2/blocks.js';
 import { ASIDE_KINDS, STOP_EMPHASES } from '../../v2/document.js';
+import { STAGE_FIGURE_SLOTS } from '../../v2/kit.js';
 import { LIMITS_V2 } from '../../v2/limits.js';
 
 /**
@@ -49,7 +50,28 @@ const readFields = {
  */
 const guideFields = z.strictObject({ pose: z.enum(GUIDE_POSES), line: prose(1, 300) });
 
-const stopItem = z.strictObject({ type: z.literal('stop'), ...readFields, guide: guideFields.optional() });
+/**
+ * A figure the stop's picture shows (D-382), written as the cited passage writes it, like the figure of a scale: a bare number
+ * or digits with a magnitude word, and the unit and the place in the passage's words. Where it goes follows from its slot. A
+ * figure no cited passage states is left out by code and never refused: the picture simply has none.
+ */
+const stageFigure = z.strictObject({
+  slot: z.enum(STAGE_FIGURE_SLOTS),
+  value: z.union([prose(1, 24), z.number()]),
+  magnitude: z.enum(Object.keys(MAGNITUDES) as [keyof typeof MAGNITUDES, ...(keyof typeof MAGNITUDES)[]]).optional(),
+  unit: prose(1, 60),
+  /** The place a daylight figure is about, in the passage's words. A distance has none. */
+  place: prose(1, 80).optional(),
+});
+export type AuthoredStageFigure = z.infer<typeof stageFigure>;
+
+const stopItem = z.strictObject({
+  type: z.literal('stop'),
+  ...readFields,
+  /** Figures the picture shows from this stop on, until a stop changes the picture. Only where the recipe asks for them. */
+  figures: z.array(stageFigure).max(STAGE_FIGURE_SLOTS.length).optional(),
+  guide: guideFields.optional(),
+});
 
 /**
  * A figure of a scale or a chart, written as the cited passage writes it. A bare number is accepted too:
@@ -115,7 +137,15 @@ const callFields = {
  * The writer gives the common guess no number: the SECOND option of the first call_it of a myth
  * Scroll is the wrong option that states the misconception, and code marks it (D-126).
  */
-const callItem = z.strictObject({ type: z.literal('call_it'), ...callFields });
+const callItem = z.strictObject({
+  type: z.literal('call_it'),
+  ...callFields,
+  /**
+   * The picture of the stop right after this call is shown when the reader locks a wrong answer (D-383). The writer names
+   * no state and no id: code points the call at that stop, and the document's own admission proves the stop changes the picture.
+   */
+  revealsNext: z.boolean().optional(),
+});
 
 const finalCallItem = z.strictObject({ type: z.literal('final_call'), ...callFields });
 

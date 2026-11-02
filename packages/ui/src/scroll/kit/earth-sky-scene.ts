@@ -5,6 +5,7 @@ import {
   recapMonths,
   stageParts,
   stagePhysics,
+  type StageFigure,
   type StagePart,
   type StageState,
 } from '../model';
@@ -101,6 +102,9 @@ export interface EarthSkyScene {
   readonly moonAngle: number;
   readonly moonPhased: boolean;
   readonly focus: StageState['focus'];
+  /** The month Earth stands at (the "you are here" tag names it), and the figures the picture shows, settled: none unless a cited passage stated them (D-382). */
+  readonly month: StageState['earthAt'];
+  readonly figures: readonly StageFigure[];
 }
 
 /** Where the Moon is in each phase, seen from above with the Sun at the left: new beside the Sun, full away from it. */
@@ -159,6 +163,27 @@ export function sceneOf(state: StageState, tiltDegrees: number = AXIAL_TILT_DEGR
     moonAngle: MOON_ANGLE[state.moonAt],
     moonPhased: state.moonAt !== 'off',
     focus: state.focus,
+    month: state.earthAt,
+    figures: state.figures ?? [],
+  };
+}
+
+/**
+ * Where the orbit views draw the orbit, the Sun and Earth. It is one place, so that the figures and the tag the picture sets
+ * beside them (`earth-sky-figures.ts`) stand where the drawing is.
+ */
+export function orbitFrame(scene: Pick<EarthSkyScene, 'orbitRatio' | 'sunOffset' | 'earthAngle'>) {
+  const centre = { x: SCENE_WIDTH / 2, y: SCENE_HEIGHT / 2 + 4 };
+  const halfWidth = 112;
+  const halfHeight = halfWidth * scene.orbitRatio * 0.78;
+  return {
+    centre,
+    halfWidth,
+    halfHeight,
+    sun: { x: centre.x - scene.sunOffset * halfWidth, y: centre.y },
+    sunRadius: 20,
+    earth: onEllipse(centre, halfWidth, halfHeight, scene.earthAngle),
+    earthRadius: 15,
   };
 }
 
@@ -173,7 +198,8 @@ export function recapSceneOf(states: readonly StageState[]): EarthSkyScene | und
   const last = states.findLast((state) => state.view === 'orbit' || state.view === 'orbit-stretched');
   if (months.length < 2 || last === undefined) return undefined;
   return {
-    ...sceneOf({ ...last, view: 'orbit', moonAt: 'off', focus: 'none' }),
+    // The recap draws the journey, not the figures of one stop.
+    ...sceneOf({ ...last, view: 'orbit', moonAt: 'off', focus: 'none', figures: undefined }),
     recap: months.map((month, index) => ({ angle: MONTH_ANGLE_DEGREES[month], n: index + 1, month })),
   };
 }

@@ -1,5 +1,8 @@
 import { z } from '../zod.js';
+import { plainText } from '../primitives.js';
+import { formatFigure } from './blocks.js';
 import { defineKit } from './kits/definition.js';
+import { FIELD_LIMITS_V2 } from './limits.js';
 
 /**
  * The first drawing kit, "Earth & sky" (D-133). A writer arranges kit parts by closed
@@ -36,8 +39,32 @@ export const STAGE_ENUMS = {
 export type StageKey = keyof typeof STAGE_ENUMS;
 export const STAGE_KEYS = Object.keys(STAGE_ENUMS) as readonly StageKey[];
 
-/** One complete stage state: every key has a value. What a stored document holds is always settled. */
-export type StageState = { readonly [Key in StageKey]: (typeof STAGE_ENUMS)[Key][number] };
+/**
+ * The figures a state may carry (D-382), each drawn where its slot says. `nearest` and `farthest` are Earth's distance
+ * from the Sun at the two ends of its orbit, drawn on the orbit views with the "you are here" tag; `june-daylight` and
+ * `december-daylight` are the hours of daylight a place has around those months, drawn as two day bands on the Sun and Earth view.
+ */
+export const STAGE_FIGURE_SLOTS = ['nearest', 'farthest', 'june-daylight', 'december-daylight'] as const;
+export type StageFigureSlot = (typeof STAGE_FIGURE_SLOTS)[number];
+
+/**
+ * One figure on the stage: a number a cited passage states, with the unit the passage uses. It is never a number the
+ * kit worked out: the production rules prove it in a cited passage and leave it out otherwise (D-382, D-208).
+ */
+export const StageFigureSchema = z.strictObject({
+  slot: z.enum(STAGE_FIGURE_SLOTS),
+  /** The figure with its word applied: "147" and "million" are 147,000,000. */
+  value: z.number().positive().max(1e15),
+  unit: plainText(1, FIELD_LIMITS_V2.unitChars),
+  /** The place a daylight figure is about, as the passage names it. A distance has none. */
+  place: plainText(1, FIELD_LIMITS_V2.pointLabelChars).optional(),
+});
+export type StageFigure = z.infer<typeof StageFigureSchema>;
+
+/** One complete stage state: every key has a value, and the figures it shows if any. What a stored document holds is always settled. */
+export type StageState = { readonly [Key in StageKey]: (typeof STAGE_ENUMS)[Key][number] } & {
+  readonly figures?: StageFigure[];
+};
 /** What a stop changes: the keys it names. The rest carry over from the previous state. */
 export type StagePatch = { readonly [Key in StageKey]?: (typeof STAGE_ENUMS)[Key][number] };
 
@@ -54,12 +81,21 @@ export const StageStateSchema = z.strictObject({
   earthAt: z.enum(STAGE_ENUMS.earthAt),
   moonAt: z.enum(STAGE_ENUMS.moonAt),
   focus: z.enum(STAGE_ENUMS.focus),
+  figures: z.array(StageFigureSchema).min(1).max(STAGE_FIGURE_SLOTS.length).optional(),
 });
 
-/** The state after a stop's changes: patched keys replace the previous values, the rest carry over. */
+/**
+ * The state after a stop's changes: patched keys replace the previous values, the rest carry over. The figures
+ * do not: a figure belongs to the stop whose passages state it, so a stop that changes the picture clears them (D-382).
+ */
 export function applyStagePatch(previous: StageState, patch: StagePatch | undefined): StageState {
   if (patch === undefined) return previous;
-  const next: Record<StageKey, string> = { ...previous };
+  const next: Record<StageKey, string> = {
+    view: previous.view,
+    earthAt: previous.earthAt,
+    moonAt: previous.moonAt,
+    focus: previous.focus,
+  };
   for (const key of STAGE_KEYS) {
     const value = patch[key];
     if (value !== undefined) next[key] = value;
@@ -102,21 +138,85 @@ const FOCUS_PART: Readonly<Record<StageState['focus'], StagePart | null>> = {
 /** The month a picture shows when the month does not matter to it, so that unseen differences are not counted as change. */
 const NEUTRAL_MONTH: StageMonth = 'mar';
 
+/** The views each slot is drawn in. A figure in any other view is set aside. */
+const FIGURE_VIEWS: Readonly<Record<StageFigureSlot, readonly StageView[]>> = {
+  nearest: ['orbit', 'orbit-stretched'],
+  farthest: ['orbit', 'orbit-stretched'],
+  'june-daylight': ['sun-earth'],
+  'december-daylight': ['sun-earth'],
+};
+
+/** A daylight figure is about a place; a distance is about Earth and has none. */
+const DAYLIGHT_SLOTS: readonly StageFigureSlot[] = ['june-daylight', 'december-daylight'];
+
+/** Daylight is drawn as a share of a day, so it is a number of hours in the passage's own word, never more than a day holds. */
+const HOURS_OF_DAY = 24;
+const HOURS_UNIT = /^hours?$/iu;
+
+/** Two units, or two places, are the same when they differ only in case, spacing and a plural s. */
+const sameWords = (first: string, second: string): boolean => {
+  const normal = (text: string): string => text.trim().toLowerCase().replace(/\s+/gu, ' ').replace(/s$/u, '');
+  return normal(first) === normal(second);
+};
+
+/**
+ * The figures a view can really draw, in the order of the slots, one for each slot (the first written). A figure the view
+ * does not draw is set aside; a daylight figure is kept only with a place and in hours of at most a day; a place on a
+ * distance is dropped. A comparison needs one measure: the two distances are kept only if they are in the same unit, and the
+ * two bands only if they are about the same place, since a picture of two places or two units states a comparison no passage made.
+ * Idempotent.
+ */
+function settleFigures(view: StageView, figures: readonly StageFigure[] | undefined): StageFigure[] {
+  const settled: StageFigure[] = [];
+  for (const slot of STAGE_FIGURE_SLOTS) {
+    const figure = figures?.find((candidate) => candidate.slot === slot);
+    if (figure === undefined || !FIGURE_VIEWS[slot].includes(view)) continue;
+    if (!DAYLIGHT_SLOTS.includes(slot)) settled.push({ slot, value: figure.value, unit: figure.unit });
+    else if (figure.place !== undefined && HOURS_UNIT.test(figure.unit.trim()) && figure.value <= HOURS_OF_DAY)
+      settled.push({ slot, value: figure.value, unit: figure.unit, place: figure.place });
+  }
+  const distances = settled.filter((figure) => !DAYLIGHT_SLOTS.includes(figure.slot));
+  const bands = settled.filter((figure) => DAYLIGHT_SLOTS.includes(figure.slot));
+  const unitsAgree = distances.every((figure) => sameWords(figure.unit, distances[0]?.unit ?? ''));
+  const placesAgree = bands.every((figure) => sameWords(figure.place ?? '', bands[0]?.place ?? ''));
+  return [...(unitsAgree ? distances : []), ...(placesAgree ? bands : [])];
+}
+
+/** The order figures are given up in when the words of a state would not fit the document's limit: the bands, then the distances. */
+const GIVE_UP_ORDER: readonly StageFigureSlot[] = ['december-daylight', 'june-daylight', 'farthest', 'nearest'];
+
+/**
+ * The figures a state's description can hold. The words of a figure are code's, not the writer's, so a writer cannot shorten them:
+ * a figure whose sentence would take the description past `stateDescriptionChars` is left out here, in `GIVE_UP_ORDER`, and the
+ * Scroll is never refused for code's own words. Idempotent, since the description of what is kept fits.
+ */
+function figuresThatFit(base: StageState, figures: readonly StageFigure[]): StageFigure[] {
+  let kept = [...figures];
+  for (const slot of GIVE_UP_ORDER) {
+    const description = describeSettled(kept.length === 0 ? base : { ...base, figures: kept });
+    if (description.length <= FIELD_LIMITS_V2.stateDescriptionChars) return kept;
+    kept = kept.filter((figure) => figure.slot !== slot);
+  }
+  return kept;
+}
+
 /**
  * The state a view can really show. Values for parts the view does not draw are set aside: the
  * month where the view has no seasons, the Moon's phase where it has no Moon, a focus on a part
- * that is not there. Settling is idempotent, and code does it before a state is stored; a stored
+ * that is not there, a figure the view has no place for. Settling is idempotent, and code does it before a state is stored; a stored
  * state that is not settled is refused.
  */
 export function settleStageState(state: StageState): StageState {
   const parts = stageParts(state.view);
   const focusPart = FOCUS_PART[state.focus];
-  return {
+  const base: StageState = {
     view: state.view,
     earthAt: parts.includes('season') ? state.earthAt : NEUTRAL_MONTH,
     moonAt: parts.includes('moon') ? state.moonAt : 'off',
     focus: focusPart === null || parts.includes(focusPart) ? state.focus : 'none',
   };
+  const figures = figuresThatFit(base, settleFigures(state.view, state.figures));
+  return figures.length === 0 ? base : { ...base, figures };
 }
 
 /** How high the Sun stands for a hemisphere at noon, which sets both Ray's angle and the pin there. */
@@ -255,6 +355,46 @@ const RAY_WORDS: Readonly<Record<SunHeight, string>> = {
 const raySentence = (physics: Pick<StagePhysics, 'north' | 'south'>): string =>
   `In the north, Ray the sunbeam ${RAY_WORDS[physics.north.sunHeight]}. In the south, Ray ${RAY_WORDS[physics.south.sunHeight]}.`;
 
+/** A figure as a reader sees it: "91,400,000 miles". */
+export const figureWords = (figure: Pick<StageFigure, 'value' | 'unit'>): string =>
+  `${formatFigure(figure.value)} ${figure.unit}`;
+
+/**
+ * What the figures of a settled state add, in as few words as the sentences allow, since the description has to fit the document's
+ * limit (D-382): one sentence for the two distances and one for the two bands, which a settled state says are in one unit and
+ * about one place; and, beside the distances, that Earth is marked "You are here" and the Sun is not drawn to scale. The wording
+ * is code's; the number, unit and place are the passage's.
+ */
+function figureSentences(figures: readonly StageFigure[] | undefined): string[] {
+  const find = (slot: StageFigureSlot): StageFigure | undefined => figures?.find((figure) => figure.slot === slot);
+  const nearest = find('nearest');
+  const farthest = find('farthest');
+  const june = find('june-daylight');
+  const december = find('december-daylight');
+  const placeOf = (figure: StageFigure): string => figure.place ?? 'one place';
+  const distances =
+    nearest !== undefined && farthest !== undefined
+      ? [`At its nearest, Earth is ${figureWords(nearest)} from the Sun; at its farthest, ${figureWords(farthest)}.`]
+      : [
+          ...(nearest === undefined ? [] : [`At its nearest, Earth is ${figureWords(nearest)} from the Sun.`]),
+          ...(farthest === undefined ? [] : [`At its farthest, Earth is ${figureWords(farthest)} from the Sun.`]),
+        ];
+  const bands =
+    june !== undefined && december !== undefined && placeOf(june) === placeOf(december)
+      ? [`In ${placeOf(june)}, daylight lasts ${figureWords(june)} in June and ${figureWords(december)} in December.`]
+      : [
+          ...(june === undefined ? [] : [`In ${placeOf(june)}, daylight lasts ${figureWords(june)} in June.`]),
+          ...(december === undefined
+            ? []
+            : [`In ${placeOf(december)}, daylight lasts ${figureWords(december)} in December.`]),
+        ];
+  return [
+    ...distances,
+    ...bands,
+    ...(distances.length > 0 ? ['Earth is marked “You are here”, and the Sun is not drawn to scale.'] : []),
+  ];
+}
+
 /**
  * What a stage state shows, as sentences: the text version of a stage and its accessible name.
  * It is derived by code from the state and the physics of its month, never written by the model,
@@ -262,7 +402,11 @@ const raySentence = (physics: Pick<StagePhysics, 'north' | 'south'>): string =>
  * the picture, state a fact the kit does not hold or describe a picture that is physically impossible.
  */
 export function describeStageState(chosen: StageState): string {
-  const state = settleStageState(chosen);
+  return describeSettled(settleStageState(chosen));
+}
+
+/** The words of a state that is already settled. */
+function describeSettled(state: StageState): string {
   const parts = stageParts(state.view);
   const physics = stagePhysics(state);
   const has = (part: StagePart): boolean => parts.includes(part);
@@ -274,6 +418,7 @@ export function describeStageState(chosen: StageState): string {
     has('pins') ? pinSentence(physics) : '',
     has('ray') ? raySentence(physics) : '',
     has('moon') ? MOON_SENTENCE[state.moonAt] : '',
+    ...figureSentences(state.figures),
     FOCUS_SENTENCE[state.focus],
   ]
     .filter((sentence) => sentence !== '')
@@ -411,6 +556,7 @@ export function describeStageAtTilt(chosen: StageState, tiltDegrees: number): st
     has('season') ? LEAN_SENTENCE[physics.leansToward] : '',
     has('pins') ? pinSentence(physics) : '',
     has('ray') ? raySentence(physics) : '',
+    ...figureSentences(state.figures),
     FOCUS_SENTENCE[state.focus],
   ]
     .filter((sentence) => sentence !== '')
