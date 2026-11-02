@@ -2,6 +2,7 @@ import type { AuthoredScroll, AuthoredScrollV2 } from '@knowscroll/scroll-model/
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { ReasoningRole } from '../../../reasoning/public.js';
 import type { CompileOutcome } from '../application/ports.js';
+import type { AnswerStage } from './ask-answer-shape.js';
 import type { EvidencePassage } from './evidence.js';
 import type { ProductionSubject } from './subject.js';
 import { storedScrollV2, type ModelProduction } from './stored-v2.js';
@@ -16,10 +17,18 @@ import { compileGeneratedScroll, generatedProvenance, promptVersionOf, writerRol
  */
 export interface WriterPlan {
   readonly role: ReasoningRole<unknown>;
+  /**
+   * The role for the revision a support check earns, when its validator differs from the first draft's: the answer to a question
+   * may then be shorter than the writer's range, since flagged sentences may have been taken out (D-307). Absent when it does not.
+   */
+  readonly afterCheckRole?: ReasoningRole<unknown>;
   /** Names the instructions the answer was written to; recorded in the Scroll's provenance. */
   readonly promptVersion: string;
-  /** Compiles the harness's accepted answer, with the identities of the attempts that paid for it. */
-  readonly compile: (output: unknown, production: ModelProduction) => CompileOutcome;
+  /**
+   * Compiles the harness's accepted answer, with the identities of the attempts that paid for it. `stage` is the length rule an
+   * answer to a question is held to; it is the draft's unless the answer is a revision or has had flagged sentences taken out.
+   */
+  readonly compile: (output: unknown, production: ModelProduction, stage?: AnswerStage) => CompileOutcome;
 }
 
 /** Everything a plan needs about one job. */
@@ -47,8 +56,19 @@ function v1Plan(input: WriterPlanInput): WriterPlan {
   });
   return {
     role: writerRole({ provenance, passages, format: subject.format, mode: subject.mode }),
+    ...(subject.mode === 'question'
+      ? {
+          afterCheckRole: writerRole({
+            provenance,
+            passages,
+            format: subject.format,
+            mode: subject.mode,
+            stage: 'after_check',
+          }),
+        }
+      : {}),
     promptVersion: promptVersionOf(subject.mode),
-    compile: (output, production) =>
+    compile: (output, production, stage) =>
       compileGeneratedScroll(
         output as AuthoredScroll,
         {
@@ -63,6 +83,7 @@ function v1Plan(input: WriterPlanInput): WriterPlan {
         },
         passages,
         subject.format,
+        stage,
       ),
   };
 }

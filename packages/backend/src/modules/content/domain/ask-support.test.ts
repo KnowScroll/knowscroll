@@ -9,8 +9,10 @@ import {
   checkedRecord,
   contentStems,
   MAX_LABEL_WORDS,
+  MAX_SHORT_NO_CLAIM_WORDS,
   hasEnoughWords,
   isAbout,
+  isAboutSentence,
   isQuestion,
   judgeVerdicts,
   namesTheGap,
@@ -20,6 +22,7 @@ import {
   quoteParts,
   splitSentences,
   sharedStems,
+  SHORT_SENTENCE_KEY_WORDS,
   statesFigure,
   uncheckedRecord,
   unsupportedOf,
@@ -214,6 +217,25 @@ describe('the key words that tie a quote to a sentence (B1.2)', () => {
     expect(isAbout('light into a single beam', 'The beam')).toBe(true);
     expect(isAbout('light into a single beam', 'Why?')).toBe(true);
   });
+
+  it('are shared once for a sentence of eight key words or fewer, and twice for a longer one (D-305)', () => {
+    const passage = 'Near the poles the Sun is never directly overhead';
+    // Five key words (sun, nearly, overhead, pole, summer): a quote that carries one is about it.
+    const short = 'The Sun is nearly overhead at the pole in summer.';
+    expect(SHORT_SENTENCE_KEY_WORDS).toBe(8);
+    expect(contentStems(short).size).toBeLessThanOrEqual(SHORT_SENTENCE_KEY_WORDS);
+    expect(isAboutSentence('the Sun is', short)).toBe(true);
+    expect(isAboutSentence('a kettle switches off', short)).toBe(false);
+    expect(isAboutSentence(passage, short)).toBe(true);
+    // Nine key words: one shared word is no longer enough, two are.
+    const long =
+      'The Sun is nearly overhead at the pole in summer, so every glacier melts under bright weather somewhere.';
+    expect(contentStems(long).size).toBeGreaterThan(SHORT_SENTENCE_KEY_WORDS);
+    expect(isAboutSentence('the Sun is', long)).toBe(false);
+    expect(isAboutSentence(passage, long)).toBe(true);
+    // A sentence with no key word needs none, as before.
+    expect(isAboutSentence('light into a single beam', 'Why?')).toBe(true);
+  });
 });
 
 describe('which sentences may state no fact (B1.3, D-266)', () => {
@@ -304,10 +326,29 @@ describe('which sentences may state no fact (B1.3, D-266)', () => {
   it('gives a ground for no fact to a question, a gap or a transition that shares no key word with its passages, and to nothing else', () => {
     expect(noClaimGround({ text: 'Why does the beam turn?' }, cited)).toBe('question');
     expect(noClaimGround({ text: 'The pages do not say how.' }, cited)).toBe('gap');
-    expect(noClaimGround({ text: 'Putting it together' }, cited)).toBe('unshared');
-    expect(noClaimGround({ text: 'The beam is narrow.' }, cited)).toBeUndefined();
+    expect(
+      noClaimGround({ text: 'Putting it together at the end of the night, as the keeper climbs down' }, cited),
+    ).toBe('unshared');
     expect(noClaimGround({ text: 'Seven crows nested.' }, cited)).toBeUndefined();
     expect(noClaimGround({ text: '7 crows nested.' }, cited)).toBeUndefined();
+    // A longer sentence that says something of the passages' subject is a statement.
+    expect(
+      noClaimGround({ text: 'The beam is narrow and it sweeps across the open water of the bay each night.' }, cited),
+    ).toBeUndefined();
+  });
+
+  it('gives a ground to a sentence of at most eight words with no figure, whatever key words it shares, and to no longer one (D-306)', () => {
+    expect(MAX_SHORT_NO_CLAIM_WORDS).toBe(8);
+    // Seven words, sharing "beam" with its passage: before D-306 this was judged as a statement.
+    expect(noClaimGround({ text: 'The beam is narrow.' }, cited)).toBe('short');
+    expect(noClaimGround({ text: 'Here is why the beam matters so much.' }, cited)).toBe('short');
+    // Eight words is the last that counts; nine is a sentence to judge.
+    expect(noClaimGround({ text: 'Here is why the beam matters to every single ship.' }, cited)).toBeUndefined();
+    // A figure, in digits or in words, makes it a claim.
+    expect(noClaimGround({ text: 'The beam is 7 metres wide.' }, cited)).toBeUndefined();
+    expect(noClaimGround({ text: 'The beam is seven metres wide.' }, cited)).toBeUndefined();
+    // A label has its own rule: a longer heading that states something is not made a transition by being short.
+    expect(noClaimGround({ text: 'Why the beam turns once', label: true }, cited)).toBeUndefined();
   });
 
   it('gives a ground to a label of at most four words even when it shares key words with its passages, unless it has a figure', () => {
@@ -316,7 +357,8 @@ describe('which sentences may state no fact (B1.3, D-266)', () => {
       'The browser combines the document object model and the CSS object model into a render tree, then runs layout and paint.',
     ];
     expect(MAX_LABEL_WORDS).toBe(4);
-    expect(noClaimGround({ text: 'How the render tree' }, passages)).toBeUndefined();
+    // The same words as a sentence, not a label, are short enough to be marked too (D-306).
+    expect(noClaimGround({ text: 'How the render tree' }, passages)).toBe('short');
     for (const heading of ['How the Update Spreads', 'The Missing Position Detail', 'The render tree'])
       expect(noClaimGround({ text: heading, label: true }, passages)).toBe('label');
     expect(noClaimGround({ text: 'Twenty layout passes', label: true }, passages)).toBeUndefined();
@@ -387,11 +429,11 @@ describe('what a verdict that breaks a rule does to its own sentence (D-265)', (
     expect(judged).toEqual([supported(1, prismQuote), flagged(2)]);
   });
 
-  it('turns a quote that is not in a passage the sentence cites into unsupported for that sentence alone', () => {
-    // Real words, but of e3, which the first sentence does not cite; and words nobody wrote.
+  it('turns a quote that is in no passage the answer cites into unsupported for that sentence alone (D-305)', () => {
+    // Real words, but of e5, which no sentence of the answer cites; and words nobody wrote.
     const judged = judgeVerdicts(
       [
-        supported(1, 'light cannot cross a thick bank'),
+        supported(1, 'Near the poles the Sun is never directly overhead'),
         supported(2, 'winds an invented clockwork'),
         supported(3, 'Fog signals complement the beam'),
       ],
@@ -411,13 +453,42 @@ describe('what a verdict that breaks a rule does to its own sentence (D-265)', (
     });
   });
 
+  it('accepts a quote from any passage the answer cites, not only those of the sentence’s own block (D-305)', () => {
+    const answer = numbered([prism, sentence(2, 'Fog signals complement the beam.', ['e3'])]);
+    // The first sentence cites e2; the words are e3's, which the answer cites at the second sentence.
+    const verdicts = [supported(1, 'light cannot cross a thick bank'), supported(2, 'Fog signals complement the beam')];
+    expect(outcomes(judgeVerdicts(verdicts, answer, texts))).toEqual(['supported', 'supported']);
+    // Checked one batch at a time, the batch is told the sentences of the whole answer: a quote of a passage that only another
+    // batch's sentences cite is as good as a quote of its own.
+    expect(outcomes(judgeVerdicts(verdicts.slice(0, 1), answer.slice(0, 1), texts, answer))).toEqual(['supported']);
+    // Without the rest of the answer, e3 is cited by nobody here: the same quote is in no passage this answer cites.
+    expect(outcomes(judgeVerdicts(verdicts.slice(0, 1), answer.slice(0, 1), texts))).toEqual([
+      'quote_not_in_cited_passages',
+    ]);
+  });
+
   it('turns a quote of too few words or a quote about something else into unsupported, with the code that says which', () => {
-    const sun = numbered([sentence(1, 'The Sun is nearly overhead at the pole in summer.', ['e5'])]);
-    expect(outcomes(judgeVerdicts([supported(1, 'Sun — is')], sun, texts))).toEqual(['quote_too_short']);
-    expect(outcomes(judgeVerdicts([supported(1, 'the Sun is')], sun, texts))).toEqual(['quote_not_about_sentence']);
+    // Ten key words: a quote needs two of them (D-305).
+    const longSun = numbered([
+      sentence(
+        1,
+        'The Sun is nearly overhead at the pole in summer, so every glacier melts under bright weather somewhere.',
+        ['e5'],
+      ),
+    ]);
+    expect(contentStems(longSun[0]!.text).size).toBeGreaterThan(SHORT_SENTENCE_KEY_WORDS);
+    expect(outcomes(judgeVerdicts([supported(1, 'Sun — is')], longSun, texts))).toEqual(['quote_too_short']);
+    expect(outcomes(judgeVerdicts([supported(1, 'the Sun is')], longSun, texts))).toEqual(['quote_not_about_sentence']);
     // Words that carry the sentence’s own key words stay the checker’s judgement (D-250).
-    expect(outcomes(judgeVerdicts([supported(1, 'the Sun is never directly overhead')], sun, texts))).toEqual([
+    expect(outcomes(judgeVerdicts([supported(1, 'the Sun is never directly overhead')], longSun, texts))).toEqual([
       'supported',
+    ]);
+    // Five key words: one is enough (D-305). Whether "the Sun is" supports this sentence is now the checker’s judgement alone.
+    const shortSun = numbered([sentence(1, 'The Sun is nearly overhead at the pole in summer.', ['e5'])]);
+    expect(outcomes(judgeVerdicts([supported(1, 'the Sun is')], shortSun, texts))).toEqual(['supported']);
+    // A quote that shares none of them is still about something else.
+    expect(outcomes(judgeVerdicts([supported(1, 'the planet’s axis is tilted')], shortSun, texts))).toEqual([
+      'quote_not_about_sentence',
     ]);
   });
 
@@ -435,7 +506,7 @@ describe('what a verdict that breaks a rule does to its own sentence (D-265)', (
     const judged = judgeVerdicts(
       [noClaim(1), noClaim(2), noClaim(3), noClaim(4), noClaim(5), supported(6, prismQuote)],
       numbered([
-        sentence(1, 'The beam sweeps across the water.', ['e2']),
+        sentence(1, 'The beam sweeps across the water and reaches the distant ships.', ['e2']),
         sentence(2, 'Why does the beam turn?', ['e2']),
         sentence(3, 'This answer cannot tell us about radio.', ['e2']),
         sentence(4, 'How the beam turns', ['e2'], true),
@@ -481,6 +552,29 @@ describe('what a verdict that breaks a rule does to its own sentence (D-265)', (
       texts,
     );
     expect(outcomes(lazy)).toEqual(['too_many_no_claim', 'too_many_no_claim', 'no_claim', 'too_many_no_claim']);
+  });
+
+  it('allows "no fact" for a short sentence that shares key words with its passages, and counts it toward the share marked (D-306)', () => {
+    const short = numbered([
+      sentence(1, 'The beam is narrow.', ['e2']),
+      sentence(2, 'The ring is glass.', ['e2']),
+      sentence(3, 'The flame is small.', ['e2']),
+      prism,
+    ]);
+    // One of four is allowed: the sentence shares "beam" with its passage and is eight words or fewer, so it may be marked.
+    expect(
+      outcomes(
+        judgeVerdicts(
+          [noClaim(1), supported(2, prismQuote), supported(3, prismQuote), supported(4, prismQuote)],
+          short,
+          texts,
+        ),
+      ),
+    ).toEqual(['no_claim', 'supported', 'supported', 'supported']);
+    // Three of four is more than half: a reply that calls short statements "no fact" that often is not believed.
+    expect(
+      outcomes(judgeVerdicts([noClaim(1), noClaim(2), noClaim(3), supported(4, prismQuote)], short, texts)),
+    ).toEqual(['too_many_no_claim', 'too_many_no_claim', 'too_many_no_claim', 'supported']);
   });
 
   it('does not count labels toward the share of sentences marked as stating no fact', () => {

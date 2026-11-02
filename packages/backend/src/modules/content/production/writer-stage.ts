@@ -9,9 +9,16 @@ import type { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { CompileOutcome } from '../application/ports.js';
 import { flaggedCalls, type CallVerdict } from '../domain/answer-check.js';
-import { passes, unsupportedOf, type SentenceUnderCheck, type UnsupportedVerdict } from '../domain/ask-support.js';
+import {
+  passes,
+  unsupportedOf,
+  type SentenceUnderCheck,
+  type SentenceVerdict,
+  type UnsupportedVerdict,
+} from '../domain/ask-support.js';
 import { callsOfStoredDocument, type CallUnderCheck } from './answer-check.js';
 import { makeAnswerCheckStep } from './answer-check-step.js';
+import { dropFlagged } from './ask-support-drop.js';
 import { hasSupportCheck, sentencesOfAnswer } from './ask-support.js';
 import { makeAskSupportStep } from './ask-support-step.js';
 import { EvidenceRefusal, evidencePassages, evidenceText, type EvidencePassage } from './evidence.js';
@@ -79,6 +86,8 @@ interface Draft {
   readonly runId: string;
   readonly authored: unknown;
   readonly compiled: Compiled;
+  /** The identities of the paid attempts that wrote it, which a compile of the same answer without some sentences keeps. */
+  readonly attemptIds: readonly string[];
   readonly receipt: RoleReceipt;
   /** The harness already repaired this answer for the validator, so no repair is left to give a flagged one. */
   readonly repaired: boolean;
@@ -146,13 +155,26 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     if (paidAttemptIds.length < 1 || paidAttemptIds.length > mostPaidAttempts)
       return refuse(['attempt_bound_exceeded'], receipt);
     const recorded = withAccounting(receipt, attempts);
-    const compiled = stage.plan.compile(writer.output, { runId, attemptIds: paidAttemptIds, model: deps.model });
+    // The first draft has the writer's whole range of length; the revision a support check earned may have lost sentences (D-307).
+    const compiled = stage.plan.compile(
+      writer.output,
+      { runId, attemptIds: paidAttemptIds, model: deps.model },
+      number === 1 ? 'draft' : 'after_check',
+    );
     if (compiled.kind === 'refused')
       return refuse(
         compiled.issues.map((issue) => issue.code),
         recorded,
       );
-    return { number, runId, authored: writer.output, compiled, receipt: recorded, repaired: writer.repaired };
+    return {
+      number,
+      runId,
+      authored: writer.output,
+      compiled,
+      attemptIds: paidAttemptIds,
+      receipt: recorded,
+      repaired: writer.repaired,
+    };
   }
 
   /**
@@ -239,8 +261,9 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
   /**
    * Asks the support checker about the answer to a question and acts on the verdicts (D-250). Nothing unsupported:
    * the Scroll is published. An unsupported sentence in the first draft earns the writer one revision, whether or not the
-   * validator had repaired that draft; an unsupported sentence that stands after it ends the job. So does a check that
-   * gave no usable answer: nobody reads an ask order before the person who asked, so it is never served unchecked.
+   * validator had repaired that draft. A sentence still unsupported after the revision is taken out and the rest is served, if
+   * enough of it is left (D-307); otherwise the job ends. A check that gave no usable answer ends the job: nobody reads an ask
+   * order before the person who asked, so it is never served unchecked.
    */
   async function supportCheckDraft(stage: Stage, draft: Draft, history: History): Promise<ProduceScrollResult> {
     const { row } = stage;
@@ -273,7 +296,8 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
         ...history.closing,
         ...checked.runs,
       ]);
-    if (draft.number === 2) return ops.end(row, 'rejected', ['support_check_failed'], receipts, closing);
+    if (draft.number === 2)
+      return publishWithoutFlagged(stage, draft, checked.verdicts, receipts, history, checked.runs);
     // The unsupported first draft is superseded: its writer receipt is kept as history, not as the Scroll's writer.
     // It earns the revision even when the validator already repaired it, since that repair was for another finding (D-297).
     const earlier: History = {
@@ -285,6 +309,45 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
       closing,
     };
     return repairUnsupported(stage, draft, sentences, unsupportedOf(checked.verdicts), earlier);
+  }
+
+  /**
+   * Serves the revision without the sentences its check still found unsupported, when what is left is enough (D-307), and ends the
+   * job when it is not. The sentences left each have the verdict they were checked with; nothing is checked again. The answer stored
+   * and compiled is the one served, and the receipts say how many sentences were taken out, never which.
+   */
+  async function publishWithoutFlagged(
+    stage: Stage,
+    draft: Draft,
+    verdicts: readonly SentenceVerdict[],
+    receipts: readonly RoleReceipt[],
+    history: History,
+    checkRuns: readonly ClosingRun[],
+  ): Promise<ProduceScrollResult> {
+    const { row } = stage;
+    const fail = (...why: readonly string[]) =>
+      ops.end(row, 'rejected', ['support_check_failed', ...why], receipts, [
+        ...history.closing,
+        { runId: draft.runId, state: 'failed' },
+        ...checkRuns,
+      ]);
+    const dropped = dropFlagged(draft.authored as AuthoredScroll, verdicts);
+    if (dropped.kind === 'refused') return fail(`support_drop_${dropped.code}`);
+    const compiled = stage.plan.compile(
+      dropped.authored,
+      { runId: draft.runId, attemptIds: draft.attemptIds, model: deps.model },
+      'after_check',
+    );
+    if (compiled.kind === 'refused') return fail('support_drop_compile_refused');
+    return ops.publish(
+      stage.subject,
+      row,
+      [...receipts, { role: 'checks', kind: 'sentences_dropped', dropped: dropped.dropped }],
+      dropped.authored,
+      compiled,
+      draft.runId,
+      [...history.closing, ...checkRuns],
+    );
   }
 
   /**
@@ -302,7 +365,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     const repaired = await supportCheck.repair({
       jobId: row.id,
       policyVersion: productionVersionOf(stage.subject.key),
-      writer: stage.plan.role,
+      writer: stage.plan.afterCheckRole ?? stage.plan.role,
       writerItems: stage.items,
       sentences,
       unsupported,
