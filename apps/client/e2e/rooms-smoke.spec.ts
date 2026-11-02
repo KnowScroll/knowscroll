@@ -398,23 +398,28 @@ test('from any message a member can ask a resident about it, challenge it, hear 
 test('a resident’s "library does not cover that" line offers no Challenge or Other side, in the row or the menu', async ({
   page,
 }) => {
-  const { address } = await roomFixture(page, phone, {
-    others: 1,
-    lastMessageMinutesAgo: 2,
-    noticeSeen: true,
-    gap: true,
-  });
-  await page.goto(address);
-  await expect(page.getByText(ROOM_NOT_COVERED_LINE)).toBeVisible();
-  await expect(page.getByTestId(`challenge-${id(607)}`)).toHaveCount(0);
-  await expect(page.getByTestId(`other-side-${id(607)}`)).toHaveCount(0);
-  await shoot(page, 'phone-15-gap-line');
-  expect(await seriousViolations(page)).toEqual([]);
-  // The menu of that message still reports and marks Useful, but asks nothing.
-  await openOptions(page, 5);
-  await expect(page.getByTestId('option-useful')).toBeVisible();
-  for (const testID of ['option-ask-about', 'option-ask-other_side', 'option-ask-challenge'])
-    await expect(page.getByTestId(testID)).toHaveCount(0);
+  for (const [name, size] of [
+    ['phone', phone],
+    ['desktop', desktop],
+  ] as const) {
+    const { address } = await roomFixture(page, size, {
+      others: 1,
+      lastMessageMinutesAgo: 2,
+      noticeSeen: true,
+      gap: true,
+    });
+    await page.goto(address);
+    await expect(page.getByText(ROOM_NOT_COVERED_LINE)).toBeVisible();
+    await expect(page.getByTestId(`challenge-${id(607)}`)).toHaveCount(0);
+    await expect(page.getByTestId(`other-side-${id(607)}`)).toHaveCount(0);
+    await shoot(page, `${name}-15-gap-line`);
+    expect(await seriousViolations(page)).toEqual([]);
+    // The menu of that message still reports and marks Useful, but asks nothing.
+    await openOptions(page, 5);
+    await expect(page.getByTestId('option-useful')).toBeVisible();
+    for (const testID of ['option-ask-about', 'option-ask-other_side', 'option-ask-challenge'])
+      await expect(page.getByTestId(testID)).toHaveCount(0);
+  }
 });
 
 test('an answer to an ask says who asked and what, and a topic card opens the topic with its figures', async ({
@@ -491,6 +496,21 @@ test('the room menu shows the limits to everyone, and says asked turns have thei
   await page.waitForTimeout(400);
   await shoot(page, 'phone-13-limits');
   expect(await seriousViolations(page, '[role="dialog"]')).toEqual([]);
+});
+
+test('on a desktop the first-visit note has Look around first too', async ({ page }) => {
+  const { address } = await roomFixture(page, desktop, {
+    others: 1,
+    lastMessageMinutesAgo: 2,
+    noticeSeen: false,
+    welcome: true,
+  });
+  await page.goto(address);
+  await expect(page.getByRole('button', { name: 'Look around first' })).toBeVisible();
+  await shoot(page, 'desktop-14-welcome');
+  expect(await seriousViolations(page)).toEqual([]);
+  await page.getByRole('button', { name: 'Look around first' }).click();
+  await expect(page.getByTestId('ai-notice')).toHaveCount(0);
 });
 
 test('a newcomer is welcomed by a resident from a template, with the notice, and it goes once the notice is read', async ({

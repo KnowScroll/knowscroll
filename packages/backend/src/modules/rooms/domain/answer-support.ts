@@ -1,4 +1,3 @@
-import { ROOM_NOT_COVERED_LINE } from '@knowscroll/contracts';
 import { z } from 'zod';
 
 /**
@@ -8,9 +7,9 @@ import { z } from 'zod';
 
 /**
  * The line a resident posts when the library cannot support an answer. It is code's, never a model's, so nothing in it is a
- * fact; it says plainly what is missing and where a Scroll can be asked for. It speaks of no self (no "I", no "my").
+ * fact; it says plainly what is missing and where a Scroll can be asked for. It speaks of no self (no "I", no "my"). The client recognises it by `ROOM_NOT_COVERED_LINE` in the contracts, which a test keeps equal.
  */
-export const NOT_COVERED_LINE = ROOM_NOT_COVERED_LINE;
+export const NOT_COVERED_LINE = "The library doesn't cover that yet. Ask from here on a Scroll to have one made.";
 
 /** At most this many passages are offered to a resident for one answer. */
 export const GROUND_MAX_PASSAGES = 4;
