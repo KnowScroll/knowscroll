@@ -11,7 +11,8 @@ runtime-verified on dev.
 | `use-visit-sessions.ts` | Makes the visit's data session (client-core `createVisitSession`) and map session while the screen is mounted, and drops both when it leaves                                                                        |
 | `visit-map-session.ts`  | The camera and selection of a visit: the `UniverseMapSession` the map is drawn from, over the list. No formation, no region cards, no Lately, no ship, nothing stored on this device                                |
 | `visitor-scene.ts`      | Turns the public list into the renderer's descriptors. The list has no position, family or seed, so this device invents them from the public IDs alone: a place keeps its spot and look while it stays shared. Pure |
-| `visitor-bar.tsx`       | "Visiting Ravi / Only what Ravi shares", Leave, and the banner "Private parts stay private" with its explanation. The banner is the same on every visit, so it cannot say whether anything is hidden                |
+| `visitor-bar.tsx`       | One cream pill: Leave (dark, first in the tab order), "Visiting Ravi's universe / Only what Ravi shares", and the person's initial, which opens the options (Report). `VisitorPrivacy` is the one lock chip at the bottom, "Private parts stay private", with its explanation; it is the same on every visit, so it cannot say whether anything is hidden |
+| `visit-frame.tsx`       | Keeps the primary navigation on the visit page (U06): the floating tab bar on phones, the rail on tablets and desktops, Universe current. It carries no unread dot, because a visit reads only the friend's list          |
 
 How it takes part in the journey: Friends row, then Visit, then one read (`POST /v1/social/visits/read`) that
 the server checks again for friendship, blocks and the owner's audience. The screen rereads every 15 s while it
