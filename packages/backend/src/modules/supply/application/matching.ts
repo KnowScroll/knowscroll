@@ -51,7 +51,15 @@ type Asked =
 /** The fields a verdict changes on the request. */
 type Decided = Pick<
   Demand,
-  'status' | 'decision' | 'reason' | 'askLimit' | 'brief' | 'workId' | 'askOrder' | 'content' | 'contentAvailabilityRevision'
+  | 'status'
+  | 'decision'
+  | 'reason'
+  | 'askLimit'
+  | 'brief'
+  | 'workId'
+  | 'askOrder'
+  | 'content'
+  | 'contentAvailabilityRevision'
 >;
 
 /** Reads what the request needs placed, inside the caller's transaction; nothing when it is no longer waiting. */

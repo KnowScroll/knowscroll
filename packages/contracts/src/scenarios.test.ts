@@ -159,7 +159,9 @@ describe('what a draft and a branch show', () => {
   it('says a failed draft failed in one of three ways, and an unavailable one nothing else', () => {
     const base = { version: 'scenario.v1', readId: id(9), scope };
     for (const reason of ['budget_unavailable', 'recording_paused'])
-      expect(ScenarioDraftViewSchema.safeParse({ ...base, status: 'failed', draft: summary, reason }).success).toBe(true);
+      expect(ScenarioDraftViewSchema.safeParse({ ...base, status: 'failed', draft: summary, reason }).success).toBe(
+        true,
+      );
     expect(
       ScenarioDraftViewSchema.safeParse({ ...base, status: 'failed', draft: summary, reason: 'could_not_suggest' })
         .success,

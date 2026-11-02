@@ -31,12 +31,7 @@ export interface EncounterFixtureOptions {
   readonly requests?: {
     /** Where the request stands: preparing (the default), ready, or closed as could-not-prepare. */
     readonly outcome?:
-      | 'preparing'
-      | 'ready'
-      | 'could_not_prepare'
-      | 'person_cap_full'
-      | 'world_cap_full'
-      | 'ask_orders_off';
+      'preparing' | 'ready' | 'could_not_prepare' | 'person_cap_full' | 'world_cap_full' | 'ask_orders_off';
     /** A measured usual wait in seconds; absent, as it is until five orders have finished. */
     readonly typicalSeconds?: number;
   };

@@ -274,7 +274,10 @@ test('could not prepare is said plainly, and Try again re-drives the same reques
 
 test('a question closed by a daily limit says which one, and nothing about other people', async ({ page }) => {
   const cases = [
-    ['person_cap_full', /You've asked for 5 new explanations today, the most for one day\. You can ask again tomorrow\./],
+    [
+      'person_cap_full',
+      /You've asked for 5 new explanations today, the most for one day\. You can ask again tomorrow\./,
+    ],
     ['world_cap_full', /New explanations are full for today\. You can ask again tomorrow\./],
     ['ask_orders_off', /New explanations are switched off right now\./],
   ] as const;

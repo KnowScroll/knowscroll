@@ -149,7 +149,12 @@ export function whatIfWorld() {
               ...base,
               readId: body['readId'],
               status: 'failed',
-              draft: { draftId: body['draftId'], kind: 'what_if', text: draft.text, createdAt: new Date().toISOString() },
+              draft: {
+                draftId: body['draftId'],
+                kind: 'what_if',
+                text: draft.text,
+                createdAt: new Date().toISOString(),
+              },
               reason: 'recording_paused',
             },
           };
