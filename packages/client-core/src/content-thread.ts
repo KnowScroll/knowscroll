@@ -10,7 +10,7 @@ import type {
   ThreadParticipant,
 } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
-import { awayAfter, newestSequence } from './away-divider';
+import { awayAfter, newestSequence, newSinceAfter } from './away-divider';
 import { mergeMessages } from './conversation-thread';
 import { talkFailure } from './talk-failure';
 
@@ -57,6 +57,11 @@ export interface ContentThreadState {
   readonly offline: boolean;
   /** After a lost connection returned with new messages: the sequence the "While you were away" divider follows. */
   readonly awayAfterSequence: number | undefined;
+  /**
+   * The person's own stored read position when they opened the thread, when others wrote after it: the "New since
+   * you were here" line follows it. Set once per opening and kept while it is open.
+   */
+  readonly newSinceSequence: number | undefined;
   /** Answering an invitation is in flight. */
   readonly responding: boolean;
 }
@@ -110,6 +115,7 @@ const emptyState: ContentThreadState = {
   loadingOlder: false,
   offline: false,
   awayAfterSequence: undefined,
+  newSinceSequence: undefined,
   responding: false,
 };
 
@@ -164,6 +170,7 @@ class ContentThreadSession {
   private catchUpCursor: string | undefined;
   private olderCursor: string | undefined;
   private readThrough = 0;
+  private readOnce = false;
   private active = false;
   private syncing: Promise<void> | undefined;
   private syncAgain = false;
@@ -249,6 +256,8 @@ class ContentThreadSession {
     this.olderCursor = view.history.kind === 'more' ? view.history.cursor : undefined;
     this.readThrough = view.own.readThroughSequence;
     const messages = mergeMessages(this.state.messages, view.messages);
+    const newSince = this.readOnce ? {} : this.newSinceOnOpen(view, messages);
+    this.readOnce = true;
     this.publish({
       phase: 'ready',
       name: view.name,
@@ -261,7 +270,17 @@ class ContentThreadSession {
       hasOlder: this.olderCursor !== undefined,
       offline: false,
       ...this.returned(messages),
+      ...newSince,
     });
+  }
+
+  /** The "new since you were here" patch, for the first read of an opening only: later reads follow a position this opening moved. */
+  private newSinceOnOpen(view: ReadyThreadView, messages: readonly ThreadMessage[]): Partial<ContentThreadState> {
+    const ownId = view.participants.find((participant) => participant.you)?.person.personId;
+    const isOwn = (message: ThreadMessage) =>
+      message.status === 'available' && ownId !== undefined && message.author.personId === ownId;
+    const after = newSinceAfter(view.own.readThroughSequence, messages, isOwn);
+    return after === undefined ? {} : { newSinceSequence: after };
   }
 
   /** Reads from the last confirmed change until caught up; a cursor the server calls stale starts over. */

@@ -194,6 +194,54 @@ describe('party places (real PostgreSQL)', () => {
       }
     });
 
+    it('tells the thread list the part a thread was started on and how many the series has, and nothing for a single', async () => {
+      const { a, refs } = await party();
+      const inbox = unwrap(await threads().inbox(a.authority, { version, readId: randomUUID(), limit: 50 }));
+      expect(inbox.items.find((item) => item.thread.threadId === refs.a.threadId)?.series).toEqual({
+        part: 1,
+        total: 3,
+      });
+      const [lone, friend] = [
+        await seedFriend(database.db, cases.friends),
+        await seedFriend(database.db, cases.friends),
+      ];
+      await befriend(cases.friends, lone, friend);
+      const reel = await seedReel(database.db);
+      unwrap(
+        await threads().create(lone.authority, {
+          version,
+          commandId: randomUUID(),
+          root: { assetId: reel.assetId, assetRevision: 1 },
+          friendPersonIds: [friend.person.personId],
+        }),
+      );
+      const single = unwrap(await threads().inbox(lone.authority, { version, readId: randomUUID(), limit: 50 }));
+      expect(single.items[0]).not.toHaveProperty('series');
+    });
+
+    it('says the part a thread was started on, not always the first', async () => {
+      const [starter, friend] = [
+        await seedFriend(database.db, cases.friends),
+        await seedFriend(database.db, cases.friends),
+      ];
+      await befriend(cases.friends, starter, friend);
+      const reels = [await seedReel(database.db), await seedReel(database.db), await seedReel(database.db)];
+      await declareSeries(database.db, `ci-series-${randomUUID()}`, reels);
+      const started = unwrap(
+        await threads().create(starter.authority, {
+          version,
+          commandId: randomUUID(),
+          root: { assetId: reels[1]!.assetId, assetRevision: 1 },
+          friendPersonIds: [friend.person.personId],
+        }),
+      );
+      const inbox = unwrap(await threads().inbox(starter.authority, { version, readId: randomUUID(), limit: 50 }));
+      expect(inbox.items.find((item) => item.thread.threadId === started.thread.threadId)?.series).toEqual({
+        part: 2,
+        total: 3,
+      });
+    });
+
     it('has no places for a thread that is not a series, and refuses to set one', async () => {
       const [a, b] = [await seedFriend(database.db, cases.friends), await seedFriend(database.db, cases.friends)];
       await befriend(cases.friends, a, b);

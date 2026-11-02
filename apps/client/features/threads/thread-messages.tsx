@@ -27,7 +27,13 @@ import type {
 } from '@knowscroll/contracts';
 import { layout, spacing } from '@knowscroll/design-tokens';
 import { Button, DateCapsule, MenuRow, TalkBubble, Text, useDisplay, useTalkTheme } from '@knowscroll/ui';
-import { AwayDivider, firstAwayMessage, OutgoingBubble, RemovedMessage } from '../conversations/message-views';
+import {
+  AwayDivider,
+  firstAwayMessage,
+  NewSinceDivider,
+  OutgoingBubble,
+  RemovedMessage,
+} from '../conversations/message-views';
 import { TalkMessage, type AvailableTalkMessage, type TalkMessageBody } from '../conversations/talk-message';
 import { useMessageJump } from '../conversations/use-message-jump';
 import { BranchCard } from '../scenarios/branch-card';
@@ -233,6 +239,7 @@ export function ThreadMessages({
   };
   const mineOf = (message: ThreadMessage) => message.status === 'available' && message.author.personId === ownPersonId;
   const awayFrom = firstAwayMessage(state.messages, state.awayAfterSequence);
+  const newSinceFrom = firstAwayMessage(state.messages, state.newSinceSequence);
   const jump = (sequence: number) =>
     void jumper.jump(sequence, { hasOlder: () => controller.getState().hasOlder, loadOlder: controller.loadOlder });
   const react = (message: AvailableTalkMessage, kind: MessageReactionKind, present: boolean) =>
@@ -292,6 +299,7 @@ export function ThreadMessages({
                     role="listitem"
                     style={styles.item}
                   >
+                    {entry.message.sequence === newSinceFrom ? <NewSinceDivider /> : null}
                     {entry.message.sequence === awayFrom ? <AwayDivider /> : null}
                     {entry.message.status === 'unavailable' ? (
                       <RemovedMessage mine={mineOf(entry.message)} />

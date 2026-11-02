@@ -33,6 +33,21 @@ async function show(selected = id(2)) {
 }
 
 describe('the episode list', () => {
+  it('draws a series part as its painted world, and a part whose Scroll is gone as the plain tile', async () => {
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <EpisodeList
+          episodes={[episode(1), episode(2, { state: 'unavailable' })]}
+          selected={id(1)}
+          series
+          onSelect={jest.fn()}
+          onStep={jest.fn()}
+        />
+      </DisplayProvider>,
+    );
+    expect(screen.getAllByTestId('painted-world', { includeHiddenElements: true })).toHaveLength(1);
+  });
+
   it('names each episode with its place, title and own state in words', async () => {
     await show();
     expect(screen.getByRole('button', { name: 'Part 1, The edge, visited by you' })).toBeOnTheScreen();
