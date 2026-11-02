@@ -28,7 +28,7 @@ import type { AiLevel, EarlierPlace, JoinRule, RoomRole, RoomStatus } from '../d
 import type { CapCounts, RefusalCap } from '../domain/router.js';
 import type { StarAct } from '../domain/sky.js';
 import type { MessageTrigger, SpeechTrigger } from '../domain/triggers.js';
-import type { CastDueJob, CastPassJob, SummariseJob } from '../events.js';
+import type { CastDueJob, CastPassJob, LaunchSettleJob, SummariseJob } from '../events.js';
 import type { FindQuery, FindRow, LiveEventRow, MemoryStaleCause, MemoryView, ResidentFacts } from './feed-ports.js';
 import type { ScoutCadence } from '../domain/scout.js';
 
@@ -1047,7 +1047,7 @@ export interface PostStore {
     link: { readonly kind: 'content'; readonly assetId: string } | { readonly kind: 'source'; readonly url: string },
   ): Promise<string | undefined>;
   /**
-   * A post that people may vote on: a find of this room whose first message is shown. Its author is the member who wrote it, or
+   * A post that people may vote on: a find of this room whose first message is shown (a resident's introduction takes no votes, D-300). Its author is the member who wrote it, or
    * none for a resident's or a scout's find.
    */
   votable(lock: RoomLock, discussionId: string): Promise<{ readonly authorAccountId: string | null } | undefined>;
@@ -1185,6 +1185,8 @@ export interface RoomPorts {
   readonly launchGapMs: number;
   /** Queues the check that decides whether a resident answers a message, to run at `startAfter`. */
   enqueueCastDue(scope: PersonalScopeTx, job: CastDueJob, startAfter: Date): Promise<void>;
+  /** Queues the settlement of a Launch to run at `startAfter`, its end, in the caller's open transaction. */
+  enqueueLaunchSettle(scope: PersonalScopeTx, job: LaunchSettleJob, startAfter: Date): Promise<void>;
   /** Queues the model call of an allowed unprompted turn, now or at `startAfter`. */
   enqueueCastPass(scope: PersonalScopeTx, job: CastPassJob, startAfter?: Date): Promise<void>;
   /** Queues the model call that writes one window's "while you were away", in the caller's open transaction. */

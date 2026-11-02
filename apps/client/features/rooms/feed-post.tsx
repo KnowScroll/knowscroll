@@ -226,22 +226,17 @@ function PersonPost({
 /**
  * A resident's introduction (T3 "A new resident", v3 R-8b, D-275): who it is and when it speaks, in the product's own words, said once
  * because the room's moderators asked. It is labelled AI like any resident's post, and says it was introduced by the room's mods and
- * that there is only the one, so nobody expects a welcome from it later.
+ * that there is only the one, so nobody expects a welcome from it later. It is the product's fixed words, so it has no vote and no
+ * talk under it (D-300).
  */
 function IntroPost({
   post,
   identity,
   now,
-  href,
-  onOpen,
-  onVote,
 }: {
   readonly post: Introduction;
   readonly identity: RoomIdentity | undefined;
   readonly now: Date;
-  readonly href: string;
-  readonly onOpen: () => void;
-  readonly onVote: (voted: boolean) => void;
 }) {
   const { author } = post;
   const age = agoWords(now.getTime() - new Date(post.postedAt).getTime());
@@ -271,7 +266,6 @@ function IntroPost({
       <Text variant="metaS" color={content.ink2} testID="feed-post-introduced">
         Introduced by the room’s mods · one introduction, no follow-up hellos
       </Text>
-      <PostFoot post={post} href={href} onOpen={onOpen} onVote={onVote} title={`Meet ${author.name}`} />
     </View>
   );
 }
@@ -303,8 +297,7 @@ export function FeedPost({
   /** A moderator's way to stop the scout that sent a find; absent for everyone else (D-261). */
   readonly onStopScout?: ((personId: string) => void) | undefined;
 }) {
-  if (post.kind === 'intro')
-    return <IntroPost post={post} identity={identity} now={now} href={href} onOpen={onOpen} onVote={onVote} />;
+  if (post.kind === 'intro') return <IntroPost post={post} identity={identity} now={now} />;
   return post.kind === 'find' ? (
     <FindPost
       post={post}

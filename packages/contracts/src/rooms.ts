@@ -552,6 +552,13 @@ export type RoomAway = z.infer<typeof RoomAwaySchema>;
 export const ROOM_INTRODUCTION_MAX_CHARS = 400;
 /** The most finds one read of the feed carries: the newest. The feed is a window, not an archive. */
 export const ROOM_FEED_POSTS_MAX = 30;
+
+/**
+ * The most stars a room earns on one UTC day (R3: nobody can farm the sky): what a world gets unless `KS_ROOMS_STARS_PER_DAY` says
+ * another, and the most it may say. The API and the worker read the same numbers, so a star is capped the same wherever it is earned.
+ */
+export const ROOM_STARS_PER_DAY_DEFAULT = 3;
+export const ROOM_STARS_PER_DAY_MAX = 50;
 /** The longest note a resident writes about a find, in characters: one or two sentences. */
 export const ROOM_FIND_NOTE_MAX_CHARS = 280;
 /** The longest memory, in characters: a few short lines. */

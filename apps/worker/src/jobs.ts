@@ -50,12 +50,14 @@ import {
 import {
   CONTRIBUTE_AS_INHABITANT,
   DECIDE_CAST,
+  SETTLE_LAUNCH,
   RUN_CAST_PASS,
   RUN_FEED_HEARTBEAT,
   RUN_NIGHTLY_RITUALS,
   RUN_SCOUT_HEARTBEAT,
   SUMMARISE,
   castDueQueue,
+  launchSettleQueue,
   castPassQueue,
   feedHeartbeatQueue,
   nightlyRitualsQueue,
@@ -64,6 +66,7 @@ import {
   contributeQueue,
   type ContributeAsInhabitant,
   type DecideCast,
+  type SettleLaunch,
   type RunCastPass,
   type RunFeedHeartbeat,
   type RunNightlyRituals,
@@ -325,6 +328,7 @@ export const jobWiring: Provider[] = [
       PREPARE_COMPOSER_BUFFER,
       CONTRIBUTE_AS_INHABITANT,
       DECIDE_CAST,
+      SETTLE_LAUNCH,
       RUN_CAST_PASS,
       SUMMARISE,
       APPLY_ACTION_EVIDENCE,
@@ -364,6 +368,7 @@ export const jobWiring: Provider[] = [
       prepareBuffer: PrepareBuffer,
       contributeAsInhabitant: ContributeAsInhabitant,
       decideCast: DecideCast,
+      settleLaunch: SettleLaunch,
       runCastPass: RunCastPass,
       summarise: Summarise,
       applyActionEvidence: ApplyActionEvidence,
@@ -483,6 +488,10 @@ export const jobWiring: Provider[] = [
       }),
       jobConsumer(contributeQueue, async (payload, delivery) => {
         await contributeAsInhabitant(payload, delivery.signal);
+      }),
+      // A Launch whose play time ended is settled here, so no device has to say it saw the end (D-298).
+      jobConsumer(launchSettleQueue, async (payload) => {
+        await settleLaunch(payload);
       }),
       // Residents speaking on their own are registered only when this worker holds the rooms grant
       // (KS_REASONING_ROOM_ENABLED), so a world that leaves them off keeps the jobs for one that has it (D-162).

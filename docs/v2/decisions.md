@@ -2661,7 +2661,7 @@ Confirmed by: `launch.test.ts` (the phases at each millisecond of the edge, the 
 - **The deck.** Five questions, from different Scrolls where the library allows and at most two from one, preferring calls this room was not asked in the last 14 days. The reason keeps its first whole sentences up to 280 characters. A library with fewer than five usable calls makes no deck: nothing is made up. It is a `launch` item of `rooms.rituals`, drafted by the night's batch beside the day's question and Spot the flaw and by `rooms rituals`, and it costs no call.
 - **Approval.** An operator approves a deck. Approving re-reads each cited Scroll's exact revision and refuses with `citation_changed` unless every question still says what the deck says. A deck is played once (`launches.deck_ritual_id` is unique) and is offered for today and the day before.
 - **Starting checks again.** The deck is frozen onto the Launch, and the start refuses unless every cited revision is still the current one anyone may be served. It reads through the caller's own scope, so no network wait runs inside the transaction.
-- **Never generated live.** No model is called on a Launch's path, and its queue holds no job.
+- **Never generated live.** No model is called on a Launch's path, and its queue holds no model job. Since D-298 a start queues one settle job (`rooms.launch-settle`), which calls no model.
 
 Confirmed by: `launch-deck.test.ts`, `rooms-launch-deck.test.ts` (no model call, approval, a corrected Scroll), `content-library-calls.test.ts` (a real admitted v2 Scroll; held and withdrawn ones are not read), `rooms-launch.test.ts` (a deck whose Scroll is gone does not start).
 
@@ -2672,7 +2672,7 @@ Confirmed by: `launch-deck.test.ts`, `rooms-launch-deck.test.ts` (no model call,
 - **Why not a cast resident.** A resident speaks as messages and every message is an `ai_turns` row. The host never posts: it says short lines on the stage, drawn from the state of the game ("Question three. Go.", "Called it!"). So it has no turn to log, no cap to decide, no job and no model.
 - **Always labelled.** The view carries the host as `{ name: 'Pixel', label: 'AI · Quizmaster' }`, fixed by the contract. The screen draws the name, a square mark and the label; a screen reader hears "AI, Quizmaster". No line speaks of a wrong answer.
 - **An AI never plays.** A player is an account, and the contract's faces and podium entries hold only a public person. An AI has no place to stand on a podium, in a count or among the people who called a question.
-- **The ledger rule still holds.** A Launch writes no `ai_turns` row, no AI message and queues nothing; a test counts them around a whole game.
+- **The ledger rule still holds.** A Launch writes no `ai_turns` row and no AI message, and queues no model work; a test counts them around a whole game. Since D-298 its start queues one `rooms.launch-settle` job, which calls no model.
 
 Confirmed by: `rooms-launch.test.ts` (nothing queued, no turn, around five rounds), `room-launch.test.ts` (the host and the faces), `launch.test.tsx` (the label on the stage and the start sheet), `client-core/room-launch.test.ts` (the lines).
 
@@ -3662,6 +3662,38 @@ Confirmed by: `answer-support.test.ts` (the bound, the claim, the fit of a seven
 - **Not changed.** What a reader sees of a resident that did speak (levels, the one-line why), the unprompted caps (a declined turn counts for the hour and the day, never for the ratio, as an honest "nothing to add" did) and the typing hold.
 
 Confirmed by: `rooms-answer-support.test.ts` ("says nothing, and is counted, when its answer is still flagged after the one rewrite", "makes no call, and hands the turn back, when no passage fits what was asked"). Shown failing when a resident that spoke on its own posted the line.
+
+
+## D-298 · 2026-11-02 · A Launch is settled by a job at its end, not by a device that opens the room (v3 dev check fixes, #619)
+
+**Amends** D-178 ("no job") and D-223 ("a device says the Launch is over once").
+
+- **What went wrong.** Every room page view sent `rooms/launch/finish` for a Launch that had ended hours before, with a new command ID each time. A screen view wrote.
+- **The rule.** Starting a Launch queues one job, `rooms.launch-settle`, to run a second after its play time ends. The worker marks the Launch finished at that end, awards the room's star when two people answered, and tells the room, exactly as the first member command after the end did. The job acts for the starter's universe only to take the room lock in order, and does nothing if that person is gone. Then the room's next member command still settles it, counted from the end either way.
+- **The app** reads the Launch and sends no command when it finds it over. `finishLaunch` stays on the server for now but nothing in the app calls it.
+- **Config.** The worker reads `KS_ROOMS_STARS_PER_DAY` too, so the star it awards obeys the same daily cap as the API.
+
+Confirmed by: `rooms-launch.test.ts` ("the settling job"), `room-launch.test.ts` ("sends no command when it finds the Launch over"), `rooms-launch-smoke.spec.ts` (no `/finish` call). Shown failing when the app still sent finish on load.
+
+## D-299 · 2026-11-02 · A post's reply count is the number of replies the reader's thread shows (v3 dev check fixes, #619)
+
+**Amends** D-274 for the reply count only; votes and the order stay the same for every reader.
+
+- **What went wrong.** A reader who muted the residents saw "2 replies" under a post whose thread showed one, because the count included the resident's reply the thread hides.
+- **The rule.** The count leaves out a reply written by a person the reader blocked (or by a scout of theirs), and, for a reader whose AI is Off, a reply a resident wrote on its own or a scout wrote. A resident's answer to a question someone asked it still counts, as the thread still shows it. A reply a moderator removed never counts.
+- **How.** The store returns the replies grouped by who signed them and whether they were nobody's asking; code applies the reader's blocks and level (`repliesShownTo`).
+
+Confirmed by: `feed.test.ts` (`repliesShownTo`), `rooms-posts.test.ts` ("the replies a reader is told of"). Shown failing when the rule ignored the level.
+
+## D-300 · 2026-11-02 · A resident's introduction takes no votes and has no "Start the talk" (v3 dev check fixes, #619)
+
+**Amends** D-275 ("A post like any other. People vote under it and reply to it").
+
+- **Why.** An introduction is the product's fixed words, said once. A vote on it ranks nothing worth ranking, and "Start the talk" invites a conversation with words nobody wrote to be answered.
+- **The rule.** The Feed draws an introduction with its words and "Introduced by the room's mods" and nothing under it: no vote, no reply count, no way into a talk. A vote on one is refused as for a post that is not there (`unavailable`), and its own page carries no vote figures.
+- **Not changed.** A reply written under it by any other way still shows in its thread; the live strip still opens it.
+
+Confirmed by: `rooms-people.test.ts` ("takes no vote, can be replied under"), `feed-people.test.tsx` (an introduction in the feed carries no vote and no talk). Shown failing while the vote was accepted and drawn.
 
 ## D-305 · 2026-11-02 · A quote may come from any passage the answer cites (v3 S-7f, #624)
 

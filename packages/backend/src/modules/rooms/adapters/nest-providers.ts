@@ -59,6 +59,7 @@ import { makeIntroductionCommands } from '../application/introduction-commands.j
 import { makePostCommands } from '../application/post-commands.js';
 import { makeScoutCommands } from '../application/scout-commands.js';
 import { makeCastDue, type CastDuePorts } from '../application/cast-due.js';
+import { makeLaunchSettle, type LaunchSettlePorts } from '../application/launch-settle.js';
 import { makeCastPass, type CastPassPorts } from '../application/cast-pass.js';
 import { makeCheckRoomsRecordingRun } from '../application/check-recording-run.js';
 import { makeContribute, type ContributePorts } from '../application/contribute.js';
@@ -80,8 +81,7 @@ import { makeQuestions } from '../application/questions.js';
 import { makeReplay } from '../application/replay.js';
 import { makeToday } from '../application/today.js';
 import { LAUNCH_GAP_MINUTES_DEFAULT } from '../domain/launch.js';
-import { STARS_PER_DAY_DEFAULT } from '../domain/sky.js';
-import { castDueQueue, castPassQueue, contributeQueue, summariseQueue } from '../events.js';
+import { castDueQueue, castPassQueue, contributeQueue, launchSettleQueue, summariseQueue } from '../events.js';
 import {
   CONTRIBUTE_AS_INHABITANT,
   DECIDE_CAST,
@@ -92,6 +92,7 @@ import {
   READ_ROOM_REPORTS,
   ROOM_USE_CASES,
   RUN_CAST_PASS,
+  SETTLE_LAUNCH,
   SUMMARISE,
   type ContributeAsInhabitant,
   type DecideCast,
@@ -99,6 +100,7 @@ import {
   type ReadRoomReports,
   type RoomUseCases,
   type RunCastPass,
+  type SettleLaunch,
   type Summarise,
 } from '../public.js';
 import { localBackdropMedia } from './backdrop-media.js';
@@ -155,8 +157,8 @@ export interface RoomsDeps {
   readonly residentsEnabled?: boolean;
   /** Members may send scouts in this world (`KS_ROOMS_SCOUTS_ENABLED`, v3 R-9, D-259). Off, no scout can be set. */
   readonly scoutsEnabled?: boolean;
-  /** The most stars a room earns on one UTC day (`KS_ROOMS_STARS_PER_DAY`, D-174); the default is three. */
-  readonly starsPerDay?: number;
+  /** The most stars a room earns on one UTC day (`KS_ROOMS_STARS_PER_DAY`, D-174): a process's configuration always names it, so none can fall back to another number. */
+  readonly starsPerDay: number;
   /** The rest between the start of one Launch and the next, in minutes (`KS_ROOMS_LAUNCH_GAP_MINUTES`, D-178); the default is two hours. */
   readonly launchGapMinutes?: number;
   readonly now?: () => Date;
@@ -234,13 +236,21 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     },
     residentsEnabled: deps.residentsEnabled ?? false,
     scoutsEnabled: deps.scoutsEnabled ?? false,
-    starsPerDay: deps.starsPerDay ?? STARS_PER_DAY_DEFAULT,
+    starsPerDay: deps.starsPerDay,
     launchGapMs: (deps.launchGapMinutes ?? LAUNCH_GAP_MINUTES_DEFAULT) * 60_000,
     enqueueCastDue: async (scope, job, startAfter) => {
       if (deps.enqueue === undefined) throw new Error('ROOMS_ENQUEUE_NOT_CONFIGURED');
       await deps.enqueue(scope, castDueQueue, job, {
         // One job per message, trigger and look: a redelivery of the send or of a look cannot queue a second.
         jobId: stableUuid(`rooms-cast-due:${job.causeMessageId}:${job.trigger}:${String(job.round)}`),
+        duplicate: 'ignore',
+        startAfter,
+      });
+    },
+    enqueueLaunchSettle: async (scope, job, startAfter) => {
+      if (deps.enqueue === undefined) throw new Error('ROOMS_ENQUEUE_NOT_CONFIGURED');
+      await deps.enqueue(scope, launchSettleQueue, job, {
+        jobId: stableUuid(`rooms-launch-settle:${job.launchId}`),
         duplicate: 'ignore',
         startAfter,
       });
@@ -316,6 +326,12 @@ export function contributeAsInhabitant(
 export function decideCast(deps: RoomsDeps & { readonly ownerActive: CheckPersonalOwnerActive }): DecideCast {
   const ports: CastDuePorts = { ...roomPorts(deps), ownerActive: deps.ownerActive };
   return makeCastDue(ports);
+}
+
+/** The worker's settlement of a Launch whose play time has ended: no model, no harness. */
+export function settleLaunch(deps: RoomsDeps & { readonly ownerActive: CheckPersonalOwnerActive }): SettleLaunch {
+  const ports: LaunchSettlePorts = { ...roomPorts(deps), ownerActive: deps.ownerActive };
+  return makeLaunchSettle(ports);
 }
 
 /** The worker's model call of an allowed unprompted turn, under the room scope. */
@@ -578,6 +594,59 @@ export function roomsWorkerProviders(tokens: {
           ownerActive,
           enqueue,
           residentsEnabled: config.reasoning.roomEnabled,
+          starsPerDay: config.roomStarsPerDay,
+        }),
+    },
+    {
+      provide: SETTLE_LAUNCH,
+      inject: [
+        tokens.withPersonalScope,
+        FENCE_OWN_ACCOUNT,
+        READ_PUBLIC_PEOPLE,
+        READ_FRIEND_ACCOUNTS,
+        READ_SHAREABLE_CONTENT,
+        READ_CONTENT_SEQUENCE,
+        READ_VISITED_ASSETS,
+        VALIDATE_SNIPPET_ANCHOR,
+        RESOLVE_SNIPPET_ANCHOR,
+        CHECK_ASSET_AUDIENCE,
+        READ_BLOCKED_AMONG,
+        CHECK_PERSONAL_OWNER_ACTIVE,
+        tokens.enqueueJob,
+        tokens.workerConfig,
+      ],
+      useFactory: (
+        withScope: WithPersonalScope,
+        fenceOwn: FenceOwnAccount,
+        readPeople: ReadPublicPeople,
+        readFriends: ReadFriendAccounts,
+        readContent: ReadShareableContent,
+        readSequence: ReadContentSequence,
+        readVisited: ReadVisitedAssets,
+        validateSnippet: ValidateSnippetAnchor,
+        resolveSnippet: ResolveSnippetAnchor,
+        checkAudience: CheckAssetAudience,
+        readBlocked: ReadBlockedAmong,
+        ownerActive: CheckPersonalOwnerActive,
+        enqueue: EnqueueJob,
+        config: WorkerConfig,
+      ) =>
+        settleLaunch({
+          withScope,
+          fenceOwn,
+          readPeople,
+          readFriends,
+          readContent,
+          readSequence,
+          readVisited,
+          validateSnippet,
+          resolveSnippet,
+          checkAudience,
+          readBlocked,
+          ownerActive,
+          enqueue,
+          residentsEnabled: config.reasoning.roomEnabled,
+          starsPerDay: config.roomStarsPerDay,
         }),
     },
     {
@@ -637,6 +706,7 @@ export function roomsWorkerProviders(tokens: {
           ownerActive,
           enqueue,
           residentsEnabled: config.reasoning.roomEnabled,
+          starsPerDay: config.roomStarsPerDay,
           generation: config.reasoning.roomGeneration,
           model: config.reasoning.minimax?.model ?? 'unconfigured',
           readGround: makeReadGround(readPassages),
@@ -697,6 +767,7 @@ export function roomsWorkerProviders(tokens: {
           ownerActive,
           enqueue,
           residentsEnabled: config.reasoning.roomEnabled,
+          starsPerDay: config.roomStarsPerDay,
           generation: config.reasoning.roomGeneration,
           model: config.reasoning.minimax?.model ?? 'unconfigured',
         }),
@@ -751,6 +822,7 @@ export function roomsWorkerProviders(tokens: {
           readBlocked,
           harness,
           ownerActive,
+          starsPerDay: config.roomStarsPerDay,
           model: config.reasoning.minimax?.model ?? 'unconfigured',
           readGround: makeReadGround(readPassages),
         }),

@@ -1,7 +1,7 @@
 import type { ProductionScopeTx } from '../../../reasoning/public.js';
 import type { CastMember } from '../domain/cast.js';
 import type { InhabitantId } from '../domain/contribution.js';
-import type { FeedCap, FeedCounts } from '../domain/feed.js';
+import type { FeedCap, FeedCounts, ReplyGroup } from '../domain/feed.js';
 import type { RoomStatus } from '../domain/membership.js';
 import type { ScoutCadence, ScoutCap, ScoutCounts } from '../domain/scout.js';
 import type { ContentRef } from '../../content/public.js';
@@ -234,8 +234,8 @@ export interface FindRow {
   readonly postedAt: Date;
   /** The note or the words; none when a moderator removed them or their account is gone, and then the post is not listed. */
   readonly note: string | null;
-  /** Messages shown after the first. */
-  readonly replies: number;
+  /** The messages after the first, grouped by who signed them: what a reader is shown of them depends on the reader. */
+  readonly replies: readonly ReplyGroup[];
   /** People's votes. A count only: nothing here says who. */
   readonly votes: number;
   /** Whether the reader voted. */
