@@ -322,3 +322,20 @@ describe('a state with figures, once stored, is admitted only as code made it (D
     );
   });
 });
+
+describe('a figure and its month in one clause (D-382)', () => {
+  const NATURAL = 'Delhi gets 14 hours of daylight in June and 10 hours in December.';
+  const band = (slot: 'june-daylight' | 'december-daylight', value: string) => ({
+    slot,
+    value,
+    unit: 'hours',
+    place: 'Delhi',
+  });
+
+  it('reads "Delhi gets 14 hours of daylight in June and 10 hours in December" as each number with its own month', () => {
+    expect(stageFigureIsStated(band('june-daylight', '14'), [NATURAL])).toBe(true);
+    expect(stageFigureIsStated(band('december-daylight', '10'), [NATURAL])).toBe(true);
+    expect(stageFigureIsStated(band('june-daylight', '10'), [NATURAL])).toBe(false);
+    expect(stageFigureIsStated(band('december-daylight', '14'), [NATURAL])).toBe(false);
+  });
+});

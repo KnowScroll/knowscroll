@@ -10,9 +10,10 @@ import { plainFigure, readingsOf, unitInPassages, type Reading } from './figures
 /**
  * What a passage must say beside a figure for the figure to belong to its slot (D-382): the word that names the end of the
  * orbit, or the month. A passage often gives two figures with two such words, in either order ("in June ... 14 hours ... in
- * December ... 10 hours", "14 hours in June and 10 in December"), so each cue word is given to the figure it stands nearest
- * to, and a figure belongs to the slot most of its cue words name. A figure whose cue words are tied, or are none, belongs to no slot,
- * so a pair given the wrong way round is not stated.
+ * December ... 10 hours", "Delhi gets 14 hours of daylight in June and 10 hours in December"), so each cue word is given to a
+ * figure of its own clause when there is one (a clause ends at a comma, a semicolon or a sentence end, and at "and", "while",
+ * "but"), and otherwise to the figure it stands nearest to. A figure belongs to the slot most of its cue words name. A figure
+ * whose cue words are tied, or are none, belongs to no slot, so a pair given the wrong way round is not stated.
  */
 const SLOT_CUES: Readonly<Record<StageFigureSlot, RegExp>> = {
   nearest: /\b(?:nearest|closest|nearer|perihelion)\b/giu,
@@ -29,27 +30,39 @@ const FAMILY: Readonly<Record<StageFigureSlot, readonly StageFigureSlot[]>> = {
   'december-daylight': ['june-daylight', 'december-daylight'],
 };
 
-/** How far from a figure a cue word may stand to count for it, in characters. */
+/** How far from a figure a cue word, or a place name, may stand to count for it, in characters. */
 const CUE_REACH = 120;
 
-/** The gap in characters between a span and a cue word that does not overlap it. */
-const gapBetween = (start: number, end: number, cueStart: number, cueEnd: number): number =>
-  cueEnd <= start ? start - cueEnd : Math.max(0, cueStart - end);
+/** What ends a clause: a semicolon or colon, a sentence end, a comma before a space (never one inside `91,400,000`), and a joining word. */
+const CLAUSE_END = /[;:]|[.!?](?=\s|$)|,(?=\s)|\s(?:and|while|whereas|whilst|but)\s/giu;
+
+/** The clause a position is in: how many clause ends come before it. */
+const clauseAt = (ends: readonly number[], position: number): number => ends.filter((end) => end <= position).length;
+
+/** The gap in characters between a span and a word that does not overlap it. */
+const gapBetween = (start: number, end: number, otherStart: number, otherEnd: number): number =>
+  otherEnd <= start ? start - otherEnd : Math.max(0, otherStart - end);
 
 /** The slot most of the cue words that stand nearest to the figure at `index` of `text` name, or none when they are tied or absent. */
 function slotNear(text: string, index: number, family: readonly StageFigureSlot[]): StageFigureSlot | undefined {
   const numbers = numericTokens(text);
   const own = numbers.findIndex(([start, end]) => index >= start && index < end);
   if (own < 0) return undefined;
+  const ends = [...text.matchAll(CLAUSE_END)].map((match) => match.index + match[0].length);
   const votes = new Map<StageFigureSlot, number>();
   for (const slot of family)
     for (const cue of text.matchAll(SLOT_CUES[slot])) {
       const cueEnd = cue.index + cue[0].length;
-      let nearest = { at: -1, gap: Infinity };
-      numbers.forEach(([start, end], at) => {
-        const gap = gapBetween(start, end, cue.index, cueEnd);
-        if (gap < nearest.gap) nearest = { at, gap };
-      });
+      const candidates = numbers.map(([start, end], at) => ({
+        at,
+        gap: gapBetween(start, end, cue.index, cueEnd),
+        together: clauseAt(ends, start) === clauseAt(ends, cue.index),
+      }));
+      // A figure in the cue's own clause takes it; with none there, the nearest figure of the passage does.
+      const pool = candidates.some((candidate) => candidate.together)
+        ? candidates.filter((candidate) => candidate.together)
+        : candidates;
+      const nearest = pool.reduce((best, candidate) => (candidate.gap < best.gap ? candidate : best));
       if (nearest.at === own && nearest.gap <= CUE_REACH) votes.set(slot, (votes.get(slot) ?? 0) + 1);
     }
   const ranked = [...votes].sort((first, second) => second[1] - first[1]);
