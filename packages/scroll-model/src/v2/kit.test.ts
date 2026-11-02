@@ -417,6 +417,17 @@ describe('the figures a state may carry (D-381)', () => {
     ]);
   });
 
+  it('keeps a daylight figure only in hours and never more than a day, because the picture draws it as a share of a day', () => {
+    const kept = (change: Partial<StageFigure>) =>
+      settleStageState({ ...sunEarth, figures: [{ ...june, ...change }] }).figures?.length ?? 0;
+    expect(kept({})).toBe(1);
+    expect(kept({ unit: 'Hour', value: 1 })).toBe(1);
+    expect(kept({ value: 24 })).toBe(1);
+    expect(kept({ value: 24.5 })).toBe(0);
+    expect(kept({ unit: 'minutes' })).toBe(0);
+    expect(kept({ unit: 'kilometres' })).toBe(0);
+  });
+
   it('is idempotent for every figure on every view', () => {
     const figures = fc.subarray([nearest, farthest, june, december, { ...june, place: undefined }]);
     fc.assert(

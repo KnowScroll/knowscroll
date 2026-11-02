@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react-native';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import tides from '@knowscroll/scroll-model/fixtures/tides-stage-ci.json';
-import { Stage } from './stage';
+import { Stage, type StageProps } from './stage';
 import { stageEntryAt } from './stage-state';
 
 const document = seasons as unknown as ScrollDocumentV2;
@@ -62,6 +62,43 @@ describe('the stage at the end of a Scroll (V3 F10)', () => {
     ).toBeOnTheScreen();
     await view.rerender(<Stage {...props} stopId="the-year" recap textVersion />);
     expect(screen.getByText(/The picture you built: /)).toBeOnTheScreen();
+  });
+});
+
+describe('the recap of a Scroll whose picture stood on the orbit at two months, and at one (V3 F10, D-368)', () => {
+  /** The fixture with its picture on the orbit only at the months given: every other orbit state is set back to the Sun and Earth view. */
+  function standingAt(months: readonly string[]) {
+    const held = document.stage;
+    if (held?.kit !== 'earth-sky.v1') throw new Error('the fixture has an Earth & sky stage');
+    const reduced = {
+      stops: document.stops,
+      stage: {
+        ...held,
+        states: held.states.map((entry) =>
+          (entry.state.view === 'orbit' || entry.state.view === 'orbit-stretched') &&
+          !months.includes(entry.state.earthAt)
+            ? { ...entry, state: { ...entry.state, view: 'sun-earth' as const } }
+            : entry,
+        ),
+      },
+    } as unknown as StageProps['document'];
+    return { ...props, document: reduced, stopId: 'the-year', reducedMotion: true };
+  }
+
+  it('draws the recap with two months, numbered in the order the Scroll showed them, and names both in words', async () => {
+    const own = standingAt(['jun', 'jan']);
+    const view = await render(<Stage {...own} recap />);
+    expect(
+      screen.getByLabelText(/The picture you built: .*marked 1 in June and 2 in January, numbered/),
+    ).toBeOnTheScreen();
+    await view.rerender(<Stage {...own} recap textVersion />);
+    expect(screen.getByText(/marked 1 in June and 2 in January/)).toBeOnTheScreen();
+  });
+
+  it('draws none with one month: the stage keeps its last state, as before', async () => {
+    const own = standingAt(['jun']);
+    await render(<Stage {...own} recap />);
+    expect(screen.queryByLabelText(/The picture you built/)).not.toBeOnTheScreen();
   });
 });
 

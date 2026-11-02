@@ -43,6 +43,7 @@ import { ReaderFocus } from './reader-focus';
 import type { ReaderKey } from './reader-keys';
 import { Spine, type SpineDot } from './spine';
 import { lockOf, useLocalStagePlay, type StagePlay } from './stage-play';
+import { pictureStopOf } from './stage-reveal';
 import { StopList } from './stop-list';
 import { useCallPlay } from './use-call-play';
 import { useReaderScroll } from './use-reader-scroll';
@@ -321,7 +322,9 @@ export function StageReader({
   const wide = breakpoint === 'tablet' || breakpoint === 'desktop';
   /** The reader is on the end tray: the picture becomes the recap and the next Part peeks in from the edge. */
   const atEnd = current >= document.stops.length;
-  const stopId = document.stops[Math.min(current, document.stops.length - 1)]?.id ?? '';
+  const shownStop = document.stops[Math.min(current, document.stops.length - 1)];
+  // A Call it that was answered wrongly turns the picture to the true one, on this device only (D-382).
+  const stopId = pictureStopOf(shownStop, shownStop === undefined ? undefined : played.stateOf(shownStop.id)) ?? '';
   return (
     <ReaderFocus onKey={onKey}>
       {header}

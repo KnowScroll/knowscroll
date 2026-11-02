@@ -149,19 +149,23 @@ const FIGURE_VIEWS: Readonly<Record<StageFigureSlot, readonly StageView[]>> = {
 /** A daylight figure is about a place; a distance is about Earth and has none. */
 const DAYLIGHT_SLOTS: readonly StageFigureSlot[] = ['june-daylight', 'december-daylight'];
 
+/** Daylight is drawn as a share of a day, so it is a number of hours in the passage's own word, never more than a day holds. */
+const HOURS_OF_DAY = 24;
+const HOURS_UNIT = /^hours?$/iu;
+
 /**
  * The figures a view can really draw, in the order of the slots, one for each slot (the first written). A figure the view
- * does not draw is set aside, a daylight figure with no place is set aside, and a place on a distance is dropped. Idempotent.
+ * does not draw is set aside; a daylight figure is kept only with a place and in hours of at most a day; a place on a
+ * distance is dropped. Idempotent.
  */
 function settleFigures(view: StageView, figures: readonly StageFigure[] | undefined): StageFigure[] {
   const settled: StageFigure[] = [];
   for (const slot of STAGE_FIGURE_SLOTS) {
     const figure = figures?.find((candidate) => candidate.slot === slot);
     if (figure === undefined || !FIGURE_VIEWS[slot].includes(view)) continue;
-    if (DAYLIGHT_SLOTS.includes(slot)) {
-      if (figure.place !== undefined)
-        settled.push({ slot, value: figure.value, unit: figure.unit, place: figure.place });
-    } else settled.push({ slot, value: figure.value, unit: figure.unit });
+    if (!DAYLIGHT_SLOTS.includes(slot)) settled.push({ slot, value: figure.value, unit: figure.unit });
+    else if (figure.place !== undefined && HOURS_UNIT.test(figure.unit.trim()) && figure.value <= HOURS_OF_DAY)
+      settled.push({ slot, value: figure.value, unit: figure.unit, place: figure.place });
   }
   return settled;
 }

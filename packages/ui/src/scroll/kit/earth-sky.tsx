@@ -9,6 +9,7 @@ import {
   onCircle,
   onEllipse,
   pinPoint,
+  orbitFrame,
   RECAP_FRAME,
   recapHalfHeight,
   recapPlaces,
@@ -19,6 +20,7 @@ import {
   type RecapMark,
   type RecapPlace,
 } from './earth-sky-scene';
+import { dayBands, distanceMarks, type SceneLabel } from './earth-sky-figures';
 
 /**
  * The "Earth & sky" kit drawn in the V3 style (D-133): thick ink outlines on flat colour, the Sun, a
@@ -270,12 +272,7 @@ function RecapView({ scene, marks }: { readonly scene: EarthSkyScene; readonly m
 
 /** Orbit views, seen from above: the orbit, the Sun, four pale Earths and the Earth of the month. */
 function OrbitView({ scene }: { readonly scene: EarthSkyScene }) {
-  const centre = { x: SCENE_WIDTH / 2, y: SCENE_HEIGHT / 2 + 4 };
-  const halfWidth = 112;
-  const halfHeight = halfWidth * scene.orbitRatio * 0.78;
-  const sun = { x: centre.x - scene.sunOffset * halfWidth, y: centre.y };
-  const earth = onEllipse(centre, halfWidth, halfHeight, scene.earthAngle);
-  const earthRadius = 15;
+  const { centre, halfWidth, halfHeight, sun, earth, earthRadius } = orbitFrame(scene);
   const sunward = (Math.atan2(-(sun.y - earth.y), sun.x - earth.x) * 180) / Math.PI;
   const orbitFocused = scene.focus === 'orbit';
   return (
@@ -311,6 +308,104 @@ function OrbitView({ scene }: { readonly scene: EarthSkyScene }) {
       <Sun at={sun} radius={20} focused={scene.focus === 'sun'} />
       <Earth scene={scene} at={earth} radius={earthRadius} sunward={sunward} clipId="ks-earth-now" pins />
       {scene.focus === 'earth' || scene.focus === 'axis' ? <FocusRing at={earth} radius={earthRadius + 14} /> : null}
+      <DistanceFigures scene={scene} />
+    </G>
+  );
+}
+
+function SceneText({ label, bold = false }: { readonly label: SceneLabel; readonly bold?: boolean }) {
+  return (
+    <SvgText
+      x={label.x}
+      y={label.y}
+      fontSize={8.5}
+      fontFamily={fontFamily.mono}
+      fill={bold ? INK : content.muted}
+      textAnchor={label.anchor}
+    >
+      {label.text}
+    </SvgText>
+  );
+}
+
+/**
+ * The distances a stop gave the orbit (V3 F4): a dotted line through the Sun from the nearest point to the farthest, a dot and the
+ * figure at each end, a pin on Earth with "you are here", and the words that the Sun is not drawn to scale. Drawn only when the state
+ * carries a distance a cited passage stated (D-381); the words of the numbers are the passage's.
+ */
+function DistanceFigures({ scene }: { readonly scene: EarthSkyScene }) {
+  const marks = distanceMarks(scene);
+  if (marks === undefined) return null;
+  const { axis, nearest, farthest, sunCaption, here } = marks;
+  return (
+    <G testID="stage-distances">
+      <Line
+        x1={axis.from.x}
+        y1={axis.from.y}
+        x2={axis.to.x}
+        y2={axis.to.y}
+        stroke={INK}
+        strokeWidth={1.2}
+        strokeDasharray="2 4"
+      />
+      {[nearest, farthest].map((end) =>
+        end === undefined ? null : (
+          <G key={end.name.text}>
+            <Line
+              x1={end.leader.from.x}
+              y1={end.leader.from.y}
+              x2={end.leader.to.x}
+              y2={end.leader.to.y}
+              stroke={INK}
+              strokeWidth={1}
+            />
+            <Circle cx={end.dot.x} cy={end.dot.y} r={4.5} fill={EARTH} stroke={INK} strokeWidth={1.8} />
+            <SceneText label={end.name} />
+            <SceneText label={end.value} bold />
+          </G>
+        ),
+      )}
+      <SceneText label={sunCaption} />
+      <Path d={`M ${here.pin.x} ${here.pin.y} l -4.5 -8 a 5 5 0 1 1 9 0 Z`} fill={SUN} stroke={INK} strokeWidth={1.6} />
+      <SceneText label={here.label} bold />
+    </G>
+  );
+}
+
+/**
+ * The hours of daylight a stop gave the Sun and Earth view (V3 F7): one band of a day for each figure, June above December, the
+ * lit part as long as the hours are of a day. The words are the passage's number, unit and place.
+ */
+function DayBands({ scene }: { readonly scene: EarthSkyScene }) {
+  const bands = dayBands(scene);
+  if (bands.length === 0) return null;
+  return (
+    <G testID="stage-day-bands">
+      {bands.map((band) => (
+        <G key={band.slot}>
+          <SceneText label={band.label} bold />
+          <Rect
+            x={band.bar.x}
+            y={band.bar.y}
+            width={band.bar.width}
+            height={band.bar.height}
+            rx={2}
+            fill={NEUTRAL}
+            stroke={INK}
+            strokeWidth={1.4}
+          />
+          <Rect
+            x={band.bar.x}
+            y={band.bar.y}
+            width={band.lit}
+            height={band.bar.height}
+            rx={2}
+            fill={SUN}
+            stroke={INK}
+            strokeWidth={1.4}
+          />
+        </G>
+      ))}
     </G>
   );
 }
@@ -335,6 +430,7 @@ function SideView({ scene }: { readonly scene: EarthSkyScene }) {
       {scene.focus === 'earth' || scene.focus === 'axis' ? <FocusRing at={earth} radius={radius + 10} /> : null}
       {scene.focus === 'north-pin' ? <FocusRing at={northPin} radius={11} /> : null}
       {scene.focus === 'south-pin' ? <FocusRing at={southPin} radius={11} /> : null}
+      {close ? null : <DayBands scene={scene} />}
     </G>
   );
 }
