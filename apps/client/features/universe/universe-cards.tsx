@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
-import { Button, IconButton, Text } from '@knowscroll/ui';
+import { Button, Icon, IconButton, Text, useFocusRing } from '@knowscroll/ui';
 import type { PlanetPalette } from './planet/planet-palette';
 import { countOf } from './universe-lists';
 import type { UniversePlace, UniverseMapSession, UniverseViewState } from './universe-session';
@@ -58,7 +58,13 @@ function CardFrame({
             {eyebrow}
           </Text>
         </View>
-        <IconButton icon="close" label={`Close ${title}`} variant={glass ? 'onSpace' : 'plain'} onPress={onClose} />
+        {glass ? (
+          <View style={styles.glassClose}>
+            <IconButton icon="close" label={`Close ${title}`} variant="plain" color="#ffffff" onPress={onClose} />
+          </View>
+        ) : (
+          <IconButton icon="close" label={`Close ${title}`} variant="plain" onPress={onClose} />
+        )}
       </View>
       <View ref={headingRef}>
         <Text variant="title" heading={2} {...(glass ? { color: '#ffffff' } : {})}>
@@ -147,8 +153,9 @@ export function PlanetCard({
 }
 
 /** The dark glass of the region card (U04): what it is, where it is, what it offers. */
-const GLASS = 'rgba(6,26,38,0.92)';
-const GLASS_EDGE = 'rgba(255,255,255,0.15)';
+const GLASS = 'rgba(8,48,58,0.86)';
+const GLASS_EDGE = 'rgba(255,255,255,0.18)';
+const GLASS_FIELD = 'rgba(255,255,255,0.08)';
 const GLASS_TEXT = 'rgba(214,238,245,0.85)';
 /** The fill that replaces the glass in Simple drawing. */
 const SOLID = '#0D2230';
@@ -217,9 +224,9 @@ export function RegionCard({
           <Text variant="bodyS" color={GLASS_TEXT}>
             {displayed.encounter.metadata.summary}
           </Text>
-          <View style={styles.actions}>
-            <Button label="Open" variant="space" icon="arrowRight" iconPosition="trailing" onPress={open} />
-            <Button label="Close" variant="spaceGhost" onPress={close} />
+          <View style={styles.openActions}>
+            <OpenRow accent={accent} onPress={open} />
+            <Button label="Close" variant="spaceGhost" size="sm" onPress={close} />
           </View>
         </>
       ) : (
@@ -258,6 +265,30 @@ export function RegionCard({
   );
 }
 
+/**
+ * The region card's wide "Open" row (U04): the word on the left and the planet's own accent as a small square
+ * with an arrow on the right, so the whole row reads as the way in. It is a button named "Open".
+ */
+function OpenRow({ accent, onPress }: { accent: string; onPress: () => void }) {
+  const focus = useFocusRing('onDark');
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Open"
+      onPress={onPress}
+      {...focus.props}
+      style={[styles.openRow, focus.style]}
+    >
+      <Text variant="ui" color="#ffffff">
+        Open
+      </Text>
+      <View style={[styles.openTile, { backgroundColor: accent }]} aria-hidden>
+        <Icon name="arrowRight" size={18} color="#04202a" strokeWidth={2.4} />
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   card: {
     backgroundColor: content.paper,
@@ -278,6 +309,23 @@ const styles = StyleSheet.create({
     padding: spacing[4],
   },
   solid: { backgroundColor: SOLID },
+  glassClose: { borderRadius: 24, backgroundColor: GLASS_FIELD },
+  openActions: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginTop: spacing[2] },
+  openRow: {
+    flex: 1,
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: spacing[4],
+    paddingRight: spacing[2],
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: GLASS_EDGE,
+    backgroundColor: GLASS_FIELD,
+    cursor: 'pointer' as const,
+  },
+  openTile: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   docked: { backgroundColor: content.paper2, borderWidth: 0, borderRadius: 24, maxWidth: undefined },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing[2] },

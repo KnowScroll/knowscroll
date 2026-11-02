@@ -3,7 +3,7 @@ import { Modal, Platform, StyleSheet, useWindowDimensions, View } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Ellipse, G, Line } from 'react-native-svg';
 import { Button, dialogHostSemantics, dialogSemantics, Icon, Tag, Text, usePageInert } from '@knowscroll/ui';
-import { content, layout, radius, space, spacing } from '@knowscroll/design-tokens';
+import { content, radius, space, spacing } from '@knowscroll/design-tokens';
 import type { SceneGeometry } from '@knowscroll/scene-core';
 import type { FormationPresentationState } from '@knowscroll/client-core';
 import type { FormationPresentationFact } from '@knowscroll/contracts';
@@ -18,6 +18,18 @@ export function FormationPresentation({ session }: { session: UniverseViewSessio
   const state = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
   if (state.fact)
     return <FormationSurface key={state.fact.transitionId} session={session} state={state} fact={state.fact} />;
+  return null;
+}
+
+/**
+ * The quiet card for when the new-place story cannot be shown or confirmed (the design's "Notice
+ * Formation"): a round mark, one plain line and a short action. It is a row of the map's bottom
+ * stack, so it sits above the landmark and the chips and never covers them. The map stays usable.
+ */
+export function FormationNotice({ session }: { session: UniverseViewSession }) {
+  const controller = session.formation;
+  const state = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
+  if (state.fact) return null;
   if (state.status === 'unavailable')
     return (
       <Notice
@@ -40,10 +52,7 @@ export function FormationPresentation({ session }: { session: UniverseViewSessio
     );
   return null;
 }
-/**
- * A quiet card over the map when the new-place story cannot be shown or confirmed (the design's
- * "Notice Formation"): a round mark, one plain line and a short action. The map stays usable.
- */
+
 function Notice({
   text,
   action,
@@ -56,10 +65,10 @@ function Notice({
   onAction: () => void;
 }) {
   return (
-    <View pointerEvents="box-none" style={styles.noticeHost}>
+    <View testID="formation-notice" style={styles.noticeHost}>
       <View style={styles.notice} role="status">
         <View style={styles.noticeMark}>
-          <Icon name="info" size={16} color={content.ink} />
+          <Icon name="spark" size={16} color={content.ink} />
         </View>
         <Text variant="bodyS" style={styles.noticeText}>
           {text}
@@ -337,13 +346,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     justifyContent: 'center',
   },
-  noticeHost: {
-    position: 'absolute',
-    left: spacing[4],
-    right: spacing[4],
-    bottom: layout.tabBarSlot + spacing[18],
-    alignItems: 'center',
-  },
+  noticeHost: { alignItems: 'center' },
   notice: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -5,6 +5,7 @@ import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { Text } from '../../text/text';
 import { KIT_PICTURES } from '../kit';
 import { dataSet } from '../stage-reader/data-set';
+import { tiltText } from '../stage-reader/tilt-control';
 import { stageEntryAt } from './stage-state';
 import { useStagePictures } from './use-stage-pictures';
 
@@ -75,6 +76,19 @@ export function Stage({ document, stopId, reducedMotion, textVersion = false, ti
           ))}
         </View>
       )}
+      {tilt === undefined || textVersion ? null : (
+        // The tag repeats what the control above the options says, so it is drawn for the eye alone (V3 F9, C3).
+        <View
+          aria-hidden
+          importantForAccessibility="no-hide-descendants"
+          style={styles.tiltTag}
+          testID="stage-tilt-tag"
+        >
+          <Text variant="monoXs" color={content.paper}>
+            {`TILT ${tiltText(tilt)}`}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -88,4 +102,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   text: { flex: 1, justifyContent: 'center', padding: spacing[4] },
+  tiltTag: {
+    position: 'absolute',
+    left: spacing[2],
+    bottom: spacing[2],
+    minHeight: 32,
+    paddingHorizontal: spacing[3],
+    justifyContent: 'center',
+    borderRadius: 16,
+    backgroundColor: content.ink,
+  },
 });

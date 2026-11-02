@@ -85,6 +85,7 @@ export function EndTray(props: EndTrayProps) {
       {closing ? (
         <DoneForToday
           payoff={payoff}
+          nextPart={props.nextPart}
           onUniverse={props.onUniverse}
           onClose={props.onDone}
           onBack={() => {
@@ -185,11 +186,14 @@ function WaysOn({
  */
 function DoneForToday({
   payoff,
+  nextPart,
   onUniverse,
   onClose,
   onBack,
 }: {
   readonly payoff: Payoff | undefined;
+  /** The admitted next Part: said as where the person will start next time (V3 E2). Absent: nothing is promised. */
+  readonly nextPart: NextPartPeek | undefined;
   readonly onUniverse: (() => void) | undefined;
   readonly onClose: (() => void) | undefined;
   readonly onBack: () => void;
@@ -213,6 +217,11 @@ function DoneForToday({
         <Text variant="body">
           {`Today: ${sparks}.`}
           {payoff.landmark === undefined ? '' : ` ${payoff.landmark.name} is yours.`}
+        </Text>
+      )}
+      {nextPart === undefined ? null : (
+        <Text variant="body" testID="done-next-time">
+          {`${nextPart.label} is next.`}
         </Text>
       )}
       <View style={styles.actions}>

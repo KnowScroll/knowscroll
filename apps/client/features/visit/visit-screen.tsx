@@ -15,7 +15,8 @@ import { UniverseSurface } from '../universe/universe-surface';
 import { useUniverseBack } from '../universe/use-universe-back';
 import type { VisitMapSession } from './visit-map-session';
 import { useVisitSessions } from './use-visit-sessions';
-import { VisitorBar } from './visitor-bar';
+import { VisitFrame } from './visit-frame';
+import { VisitorBar, VisitorPrivacy } from './visitor-bar';
 import { visitorDescriptors, visitorLooks } from './visitor-scene';
 
 /**
@@ -45,7 +46,11 @@ export function VisitScreen({ handle }: { readonly handle: string }) {
         </View>
       </Ground>
     );
-  return <SignedInVisit scope={state.scope} handle={handle} />;
+  return (
+    <VisitFrame>
+      <SignedInVisit scope={state.scope} handle={handle} />
+    </VisitFrame>
+  );
 }
 
 /** One visit: its data session and its map session, made when the screen mounts and dropped when it leaves. */
@@ -103,6 +108,7 @@ function Visit({ visit, map }: { readonly visit: VisitSession; readonly map: Vis
         status={state.stale ? 'Last list shown' : undefined}
         visitor={{
           ownerName: owner.displayName,
+          footer: <VisitorPrivacy ownerName={owner.displayName} />,
           bar: (
             <VisitorBar
               ownerName={owner.displayName}

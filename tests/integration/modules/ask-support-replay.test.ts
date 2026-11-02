@@ -21,6 +21,7 @@ import type { FixtureCall, FixtureScenario } from '../support/fixture-model-port
 import {
   answerWith,
   enableProductionScope,
+  FIXTURE_SOURCE,
   fixtureAnswer,
   fixtureAuthored,
   fixtureResearchPage,
@@ -28,6 +29,22 @@ import {
   supportRequestOf,
 } from '../support/generated-scroll.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
+
+/** The default answer with the second sentence of the upkeep paragraph replaced by a sentence of a passage, word for word. */
+function copiedAnswer() {
+  const base = fixtureAnswer();
+  return {
+    ...base,
+    blocks: base.blocks.map((block, index) =>
+      index === 4
+        ? {
+            ...block,
+            text: `Someone had to keep that turning going, and the keeper once wound the lamp clockwork by hand every few hours. ${FIXTURE_SOURCE[1]}`,
+          }
+        : block,
+    ),
+  };
+}
 
 /**
  * The operator's replay of the support check over stored ask answers (D-250) against a real PostgreSQL 16 database. The
@@ -50,7 +67,13 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     worker = fixtureProductionWorker(
       database,
       (_sequence, call) =>
-        answerWith(call.request.user.includes('KIND: a CI what-if') ? fixtureAuthored('comparison') : fixtureAnswer()),
+        answerWith(
+          call.request.user.includes('KIND: a CI what-if')
+            ? fixtureAuthored('comparison')
+            : call.request.user.includes('a CI question with a copied sentence')
+              ? copiedAnswer()
+              : fixtureAnswer(),
+        ),
       {
         support: (check, call) => support(check, call),
         quota: () => ({
@@ -66,10 +89,15 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
   });
 
   /** An order stored the way supply stores one, produced by the real job. */
-  async function producedOrder(mode: 'question' | 'what_if') {
+  async function producedOrder(mode: 'question' | 'what_if', copying = false) {
     const recipe = madeToOrderKey(randomUUID());
     const assetId = randomUUID();
-    const brief = mode === 'question' ? 'KIND: a CI question, never a person’s words' : 'KIND: a CI what-if';
+    const brief =
+      mode === 'what_if'
+        ? 'KIND: a CI what-if'
+        : copying
+          ? 'KIND: a CI question with a copied sentence, never a person’s words'
+          : 'KIND: a CI question, never a person’s words';
     await sql`insert into content.made_to_order_scrolls (recipe, asset_id, explanation_unit_id, mode, brief, pages, kicker, framing)
       values (${recipe}, ${assetId}::uuid, ${recipe}, ${mode}, ${brief}, ${[fixtureResearchPage.url]}::text[], ${'You asked'}, ${JSON.stringify({ kind: 'factual' })}::jsonb)`.execute(
       database.db,
@@ -180,6 +208,23 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
       expect(run.closed_at).not.toBeNull();
     }
     support = (_check, call) => supportReply(call);
+  });
+
+  it('says how many sentences code took out of the writer’s draft before it was checked, as a number (D-348)', async () => {
+    const trimmed = await producedOrder('question', true);
+    const whole = await producedOrder('question');
+
+    const { results } = await replayed({ kind: 'assets', assetIds: [trimmed.assetId, whole.assetId] });
+
+    const byAsset = new Map(results.map((result) => [result.line.assetId, result]));
+    const line = byAsset.get(trimmed.assetId)!.line;
+    expect(line).toMatchObject({ outcome: 'checked', trimmed: 1, unsupported: 0 });
+    // The answer replayed is the one served: one sentence fewer, and none of its words.
+    expect(line.sentences).toBe(byAsset.get(whole.assetId)!.line.sentences - 1);
+    expect(JSON.stringify(byAsset.get(trimmed.assetId)!.detail)).not.toContain('that sweeps across the water');
+    expect(JSON.stringify(line)).not.toContain('prism ring');
+    expect(byAsset.get(whole.assetId)!.line).not.toHaveProperty('trimmed');
+    expect(line).not.toHaveProperty('dropped');
   });
 
   it('says how many sentences the job took out of the answer it served, as a number, and replays the answer that was served (D-310, D-311)', async () => {

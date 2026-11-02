@@ -15,6 +15,8 @@ export interface TabBarProps {
   readonly unread?: boolean;
   /** The address of each destination; on the web the items become real links. */
   readonly hrefFor?: (destination: Destination) => string;
+  /** `glass` marks the current tab with the 13 % white pill of the Universe's dark bar; the others keep the cobalt pill. */
+  readonly mark?: 'accent' | 'glass';
 }
 
 /**
@@ -22,7 +24,7 @@ export interface TabBarProps {
  * (≤ 360) the items are icon-only and the labels become their accessible names (V01). The pill
  * is positioned by the screen (the 96 px slot); this component draws only the pill.
  */
-export function TabBar({ active, onSelect, tone = 'paper', unread = false, hrefFor }: TabBarProps) {
+export function TabBar({ active, onSelect, tone = 'paper', unread = false, hrefFor, mark = 'accent' }: TabBarProps) {
   const { breakpoint } = useDisplay();
   const compact = breakpoint === 'compact';
   return (
@@ -45,6 +47,7 @@ export function TabBar({ active, onSelect, tone = 'paper', unread = false, hrefF
           href={hrefFor?.(destination.id)}
           ground={tone === 'space' ? space.s1 : content.nav}
           onSelect={onSelect}
+          mark={mark}
         />
       ))}
     </View>

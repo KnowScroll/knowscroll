@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { createAccountScope, memoryStore, type AccountScope } from '@knowscroll/client-core';
-import { FormationPresentation } from './formation-presentation';
+import { FormationNotice, FormationPresentation } from './formation-presentation';
 import { createUniverseViewSession } from './universe-session';
 import { COLLECTION_READS, fixtureAccount, fixtureId as id, sceneFixture } from './universe.fixture';
 // Native UUID stub is replaced only in these authored HTTP/component fixtures.
@@ -200,7 +200,12 @@ it('unknown claim has no story or optimistic shown; explicit retry sends the ori
   h.failClaim(true);
   h.session.setForeground(true);
   await waitFor(() => expect(h.session.formation.getState().status).toBe('claim_unknown'));
-  const v = await render(<FormationPresentation session={h.session} />);
+  const v = await render(
+    <>
+      <FormationPresentation session={h.session} />
+      <FormationNotice session={h.session} />
+    </>,
+  );
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(pathCalls(h, '/acknowledge')).toHaveLength(0);
   h.failClaim(false);
@@ -215,7 +220,7 @@ it('unknown claim has no story or optimistic shown; explicit retry sends the ori
 it('a missing durable service stays honestly unavailable and explicit Refresh performs only another pure read', async () => {
   const h = fixture(true, false);
   h.session.setForeground(true);
-  const v = await render(<FormationPresentation session={h.session} />);
+  const v = await render(<FormationNotice session={h.session} />);
   await waitFor(() => expect(screen.getByText('New-place views aren’t available right now.')).toBeOnTheScreen());
   await fireEvent.press(screen.getByRole('button', { name: 'Refresh new-place view' }));
   await waitFor(() => expect(pathCalls(h, '/formation/read')).toHaveLength(2));

@@ -57,6 +57,7 @@ export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProp
         active={active}
         accountCurrent={routeName === 'account'}
         tone={tone}
+        mark={routeName === 'universe' ? 'dot' : 'accent'}
         insets={insets}
         unread={unread}
         onSelect={select}
@@ -64,11 +65,39 @@ export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProp
     );
   }
   return (
+    <FloatingTabBar
+      active={active}
+      onSelect={select}
+      tone={tone}
+      unread={unread}
+      mark={routeName === 'universe' ? 'glass' : 'accent'}
+      insets={insets}
+    />
+  );
+}
+
+/** The phone's floating tab bar in its 96 px slot at the bottom of the screen; tab screens and the visit page share it. */
+export function FloatingTabBar({
+  active,
+  onSelect,
+  tone,
+  unread,
+  mark,
+  insets,
+}: {
+  readonly active: Destination | null;
+  readonly onSelect: (destination: Destination) => void;
+  readonly tone: 'paper' | 'space';
+  readonly unread: boolean;
+  readonly mark: 'accent' | 'glass';
+  readonly insets: { readonly bottom: number };
+}) {
+  return (
     <View
       pointerEvents="box-none"
       style={[styles.slot, { height: layout.tabBarSlot + insets.bottom, paddingBottom: insets.bottom }]}
     >
-      <TabBar active={active} onSelect={select} hrefFor={destinationHref} tone={tone} unread={unread} />
+      <TabBar active={active} onSelect={onSelect} hrefFor={destinationHref} tone={tone} unread={unread} mark={mark} />
     </View>
   );
 }
@@ -82,6 +111,7 @@ export function PrimaryRail({
   active,
   accountCurrent,
   tone,
+  mark = 'accent',
   insets,
   unread,
   onSelect,
@@ -89,6 +119,7 @@ export function PrimaryRail({
   readonly active: Destination | null;
   readonly accountCurrent: boolean;
   readonly tone: 'paper' | 'space';
+  readonly mark?: 'accent' | 'dot';
   readonly insets: { readonly top: number; readonly bottom: number; readonly left: number };
   readonly unread: boolean;
   readonly onSelect: (destination: Destination) => void;
@@ -109,6 +140,7 @@ export function PrimaryRail({
         hrefFor={destinationHref}
         size={breakpoint === 'desktop' ? 'desktop' : 'tablet'}
         tone={tone}
+        mark={mark}
         unread={unread}
         account={{
           onPress: () => router.navigate('/account'),

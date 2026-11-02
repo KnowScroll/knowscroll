@@ -3212,7 +3212,7 @@ Confirmed by: `domain/ask-support.test.ts` (each rule setting aside its own sent
 
 - **The gap.** `no_claim_without_ground` refused replies on the title, a heading and the limits lines. D-250 sent the title and every heading to the checker as sentences that state facts. Most are labels that name what follows ("How the Update Spreads", "What this does not explain"), and a limits line states what the pages do not hold, which no passage can support.
 - **Labels.** The title, each heading and each callout's title are labels (`SentenceUnderCheck.label`, set from their place in the document). A label may be marked `no_claim` only if it names a gap (the same whole-sentence rule, plus the titles of a limits callout: "What this does not explain", "What the label omits", "What remains unknown") or it has at most four words and no figure ("How the Update Spreads", "The Missing Position Detail"). Any other label states something and is judged like a sentence: "Why the Equator Barely Notices Earth's Tilt" (the real title, which the checker flagged as going beyond its passages) and "The Sun is overhead at the pole" are not accepted as `no_claim`. A label whose verdict fails is unsupported, which earns the writer's one repair, and fail closed. A short label that still states a fact ("The Sun is overhead") is the checker's to judge; code only refuses the long ones.
-- **Gap lines.** A plain admission of a gap is accepted as `no_claim` only when the *whole sentence* is the admission (`namesTheGap`). It begins with one of a small fixed list: "The pages do not say…", "This answer cannot tell, show, determine or choose…", "It also cannot…", "Nothing in the pages…", "That detail remains unspecified here" (a short subject of at most three words, then the verb). And it does not go on to say more: no semicolon, colon, dash or bracket; none of but, though, although, while, whereas, yet, because, since or so; no relative clause after a comma; no second clause after a comma or "and", seen as a new subject (a determiner, a pronoun, a capital) or, after "and", a short phrase that ends in an auxiliary verb. A figure is looked for first: a sentence with a number is never a gap line. D-250 accepted the phrase anywhere, so "This explains the pattern, but it does not give the height" and "The pages do not say why, but the Sun is overhead at the pole" passed. They are now judged, because they state something. "…how terrain, oceans, and local circulation shape particular climates" and "…a partial update and a broader redraw" still continue the object of the admission and pass.
+- **Gap lines.** A plain admission of a gap is accepted as `no_claim` only when the _whole sentence_ is the admission (`namesTheGap`). It begins with one of a small fixed list: "The pages do not say…", "This answer cannot tell, show, determine or choose…", "It also cannot…", "Nothing in the pages…", "That detail remains unspecified here" (a short subject of at most three words, then the verb). And it does not go on to say more: no semicolon, colon, dash or bracket; none of but, though, although, while, whereas, yet, because, since or so; no relative clause after a comma; no second clause after a comma or "and", seen as a new subject (a determiner, a pronoun, a capital) or, after "and", a short phrase that ends in an auxiliary verb. A figure is looked for first: a sentence with a number is never a gap line. D-250 accepted the phrase anywhere, so "This explains the pattern, but it does not give the height" and "The pages do not say why, but the Sun is overhead at the pole" passed. They are now judged, because they state something. "…how terrain, oceans, and local circulation shape particular climates" and "…a partial update and a broader redraw" still continue the object of the admission and pass.
 - **The checker and the writer are told.** `ask-support-check.v3` marks labels in the sentences it is shown and says what `no_claim` is for. `question-writer.v4` says that a heading or a callout's title of four words or fewer that only names what follows needs no passage, that the title and any longer heading are checked like any sentence, and that an admission of a gap begins with the admission and holds nothing else. `versions.test.ts` pairs the two versions, so neither can change alone. `SCROLL_PRODUCTION_VERSION` is unchanged for the reason in D-250.
 - **Limits.** Code does not override a checker that calls a gap line `unsupported`; an explicit verdict stands. If the replay shows the checker doing that, a later decision may treat a gap line the list knows as `no_claim` whatever the verdict. A gap line the list does not know is judged by the model.
 
@@ -3663,7 +3663,6 @@ Confirmed by: `answer-support.test.ts` (the bound, the claim, the fit of a seven
 
 Confirmed by: `rooms-answer-support.test.ts` ("says nothing, and is counted, when its answer is still flagged after the one rewrite", "makes no call, and hands the turn back, when no passage fits what was asked"). Shown failing when a resident that spoke on its own posted the line.
 
-
 ## D-298 · 2026-11-02 · A Launch is settled by a job at its end, not by a device that opens the room (v3 dev check fixes, #619)
 
 **Amends** D-178 ("no job") and D-223 ("a device says the Launch is over once").
@@ -3764,6 +3763,7 @@ Confirmed by: `ask-answer-shape.test.ts` (each word and "It's", the near words "
   - what is left is a valid answer whose sentences read back as exactly the ones kept.
 
   Otherwise the job ends `support_check_failed` with `support_drop_<reason>` beside it: `verdicts_incomplete`, `title_or_dek_flagged`, `no_direct_answer`, `too_few_supported`, `no_limit_callout` or `rebuilt_invalid`.
+
 - **Never unchecked.** Nothing is asked again. Each sentence served has the verdict it was checked with, and no sentence is served unsupported. The rebuilt answer is compiled by the writer's own compile (stage `after_check`), with the attempt identities of the revision. If that refuses, the job ends.
 - **Only the second draft.** The first draft's flags still earn the revision. An unusable check still ends the job. A draft that passes is served whole.
 - **Quick answer and residents do not get it, nor the soft rules it backs (D-316).** A Quick answer has two to four sentences and nothing to spare (D-253). A resident's answer is one rewrite and then posted whole or not at all (D-301). Both would need a floor of their own. The drop is for asks, where a person waits for a whole answer and there is room.
@@ -3906,6 +3906,270 @@ Confirmed by: `away-divider.test.ts`, `content-thread.test.ts`, `conversation-th
 - **Not built.** The design's search bar.
 
 Confirmed by: `social-places.test.ts` (series on the thread list; none for a single), `thread-row.test.tsx`, `conversations-screen.test.tsx`, `talk-smoke.spec.ts`.
+
+## D-317 · 2026-11-02 · The orbit dial has no arrow into the system; the system is opened from the map (v3 Universe fidelity, #497)
+
+**Amends** D-112 for the dial's system row only.
+
+- **Design.** O3 draws the chosen system as a plain name with a chevron. There is no second button beside it.
+- **Before.** The row carried an arrow button that flew to the system's own view.
+- **The rule.** The arrow is gone. A system opens from the map (tap it, or its name in the panel or the Simple lists). The dial still lands on a planet from the big planet.
+- **Owner can overrule.** The file is final (D-060); say so if the shortcut should come back.
+
+Confirmed by: `universe-screen.test.tsx` (the dial's system row has no "Open <system>" button).
+
+## D-318 · 2026-11-02 · The search card's empty heading is 18 px, a size of its own (v3 Universe fidelity, #497)
+
+- **Design.** U08 draws "Find any place you've been" at 18 px with a 14 px line under it.
+- **The rule.** The heading takes the display face at 18/22 as a local size, like the planet title's 30 px. The line under it is the 15 px body. The type scale gets no new role for one card.
+
+Confirmed by: the 390 pair `U08-search-empty-390` in the fidelity sweep.
+
+## D-319 · 2026-11-02 · The collection is one landmark card over the map, folded to a line on a planet, and no chips (v3 Universe fidelity, #497)
+
+**Amends** D-214 and D-215 for how the collection is drawn on the phone map.
+
+- **Design.** The Universe set draws no chips on the map. V3 Scrolls p6 draws the landmark as a paper card with "New landmark" and "from …".
+- **The rule.** The "Landmarks · n", Orbit and Resume chips and the dark tray are gone from the map. One paper card sits over the bottom of the map: the newest landmark, "from <planet> · gold finish", and "See it". The week's Orbit is one line of text in it, and the next Part is a yellow chip in it.
+- **Folded.** While a globe or a landed map is on screen, the card is one line (a paper pill), so it never covers a planet's or region's name. The pill opens the same list.
+- **Without a landmark** the card speaks of the next Part (with "Resume"), or of the week. It shows nothing when there is nothing to say.
+- **Desktop and a friend's universe.** The panel carries the collection on paper and the map has no card. A friend's universe has none (D-214).
+- **Animation.** The card fades with the rest of the chrome in the steps down, and only the tab bar stays.
+
+Confirmed by: `collection-screen.test.tsx`, `step-animations.test.tsx` (the card fades), `universe-collection-smoke.spec.ts` (the folded line clears the planet's name and hint).
+
+## D-320 · 2026-11-02 · The landmark card says which planet a landmark came from, not the Scroll (v3 Universe fidelity, #497)
+
+- **Design.** The card reads "from Seasons, Part 1 · gold finish": the Scroll it came from.
+- **What the read has.** A landmark carries its own name, finish and topic, not its Scroll's title. Fetching a title for it would add a read to the map for one line.
+- **The rule.** The line says "from <planet> · gold finish" while its planet is on the map, and "Gold finish · waits for its planet" until then. No title is invented.
+- **Owner can overrule.** If the Scroll's title should show, the landmark read needs to return it.
+
+Confirmed by: `collection-screen.test.tsx` ("from CI planet 2 · gold finish").
+
+## D-321 · 2026-11-02 · The landmark's pennant stays on the map; the region's name pill is plain (v3 Universe fidelity, #497)
+
+**Keeps** D-089.
+
+- **The row.** The sweep read the pennant beside the region's yellow name pill as a flag on the pill. The pennant is the landmark itself (D-089): the one place the person can see that a landmark stands on that region.
+- **The rule.** The pennant stays. The pill carries only the name, as drawn, and grows with the name so it is never cut to an ellipsis.
+- **Reason to keep it.** Without the pennant a landmark has no mark on the map, which is the whole of D-089 and D-214.
+
+Confirmed by: `universe-planet-smoke.spec.ts` (the region's name is whole at 390 and 1440).
+
+## D-322 · 2026-11-02 · On a visit, Report sits in the avatar's options and the tab bar stays (v3 Universe fidelity, #497)
+
+**Amends** D-047 for the visit bar's controls only.
+
+- **Design.** U06 draws one cream pill: Leave first, who, the person's initial on the right. One lock chip is at the bottom. It draws no Report.
+- **The rule.** Report stays, folded into the initial's options, so a safety control is never lost. The lock chip keeps the same neutral words on every visit ("Private parts stay private", never "Some of X is private"), because the bar must not say whether anything is hidden.
+- **Navigation.** The visit keeps the tab bar (phones) or the rail (tablet and desktop), with Universe current. It has no unread dot, so a visit reads nothing of the person's own inbox.
+
+Confirmed by: `visit-screen.test.tsx` (the tab bar, the options, the same bar for every world).
+
+## D-363 · 2026-11-02 · A landmark is called new for a week, then the latest (v3 Universe fidelity, #497)
+
+**Builds on** D-319.
+
+- **Why.** The card said "New landmark" for as long as the landmark was the newest, so a landmark earned months ago was still "new". A word that stays true only for a while must end.
+- **The rule.** The card says "New landmark" while the newest landmark was earned within `NEW_LANDMARK_DAYS` (7) days of now, and "Latest landmark" after. A time that cannot be read counts as not new, so the card never claims freshness it cannot show. Nothing else changes: the card, the list and the markers stay.
+- **Not a score.** It reads the earned time only. It does not count, rank or reward.
+
+Confirmed by: `collection-view.test.ts` (`isNewLandmark`, the 7 day edge and an unreadable time), `collection-screen.test.tsx` ("calls a landmark new for a week and the latest after"). Shown failing when the window was removed.
+
+## D-348 · 2026-11-02 · A sentence that copies a passage is taken out of an ask answer before it is checked, and the draft is not refused (v3 S-7g, #636)
+
+**Builds on** D-013 (the nine-word rule), D-250, D-294 and D-310. **Amends** D-294 and D-297 (a copied run refused the whole draft, and the revision had a repair for it).
+
+- **The gap.** On dev (2 Nov, `question-writer.v7` with `ask-support-check.v5`) none of three admitted asks was served. One first draft was refused whole, and one revision was refused whole after the check had flagged 8 of 14 (#636). The writer-stage rules refuse a whole draft for one copied run, and the repair tripped them again.
+- **The rule.** Before a draft is compiled or checked, code takes out every sentence that holds a word of a run of `COPY_RUN_WORDS` words copied from a passage (`trimAskAnswer`, pure). The writer's validator runs the same trim, so its one repair is never spent on a copy. The job's accepted draft is the trimmed one, so the support check reads what could be served. A block left with no sentence goes, a list left with one item becomes a paragraph, and a heading with nothing left under it goes, as in D-310.
+- **A run may cross a full stop.** The copy check works on the whole text of a paragraph, a callout or a list. The trim finds the copied words over that whole text and marks every sentence that holds one, so two sentences that each hold fewer than nine words of a run both go. A list is read as one text, as the compile reads it.
+- **No copied run is served.** The compile still refuses any copied run. If the trim could not place one, the draft is refused with `copied_passage` and the repair is told where, as before (D-294, D-353).
+- **Not changed.** The library, the what-if and the perspective still refuse a copied block. A Quick answer and a resident's answer are not written by this writer (D-316).
+- **Limits.** Copying is judged on words, not meaning. A draft that copies a great deal ends with too few sentences and is refused for its length (D-350) or its opening paragraph (D-353).
+
+Confirmed by: `ask-answer-trim.test.ts` (a copied sentence is taken out and the others stay word for word; a run of nine words and not of eight; a run across a full stop takes out both sentences; a list is one text; a heading whose section was copied goes; a callout loses its copied sentence), `writer.test.ts` (a copying draft passes the validator and its repair has no copy notes) and `supply-ask.test.ts` on real PostgreSQL with a labelled fixture model (a draft with a copied sentence is served after one writer request, the checker is never shown the sentence, and the stored answer has none of its words; the same for the revision a support check earned). Shown failing when the sentences were not taken out, when each sentence was judged alone and when a list item was judged alone.
+
+## D-349 · 2026-11-02 · A leaning sentence is never refused by the writer's validator: it goes with a sentence taken out, or when it opens the answer (v3 S-7g, #636)
+
+**Builds on** D-309 and D-310. **Amends** D-309 (the finding `sentence_leans_on_previous` is gone).
+
+- **The gap.** A draft with one sentence that began "This ..." after the first of its block was refused whole, and the repair often leaned again (#636).
+- **The rule.** The validator makes no finding for a leaning sentence. The trim takes out (1) the first sentence of the answer, the first sentence of the first block that is not a heading, when it begins with This, That, These, Those, It or They, since nothing comes before it; and (2) every kept sentence that begins so right after a sentence taken out of its own block, until none is left (the same function as the drop of D-310, `withLeaningSentencesRemoved`). A leaning sentence whose predecessor stays is kept.
+- **Not changed.** The first sentence of any other block is exempt, as in D-309. The writer is still told not to lean, and why.
+- **Limits.** Code sees the opening word only, as in D-309. "Because of this, ..." leans and stays.
+
+Confirmed by: `ask-answer-trim.test.ts` (a leaning sentence after a kept one stays; the first sentence of the answer goes and the next is judged on its own; a leaning sentence after a copied one goes with it, and the next that leans on that; a block's first sentence is exempt after a block that was taken out), `ask-answer-shape.test.ts` (a draft whose sentences lean has no shape finding), `writer.test.ts` (the validator accepts a leaning draft and has no hint for it) and `supply-ask.test.ts` (a leaning second sentence is served as written; a leaning first sentence is taken out and counted as leaning; a leaning sentence after one the check still found unsupported goes with it). Shown failing when the first sentence was kept and when the cascade was removed.
+
+## D-350 · 2026-11-02 · An ask answer is asked to be 8 to 12 sentences and refused only below 5 or above 20, for a draft and a revision alike (v3 S-7g, #636)
+
+**Builds on** D-308 and D-310. **Amends** D-308 (8 to 12 for the draft, 5 to 12 for the revision and the served answer) and D-314 (the repair's range).
+
+- **The gap.** A draft of 7 or 13 sentences, which the check could read, was refused whole (#636).
+- **The rule.** The instructions still ask for 8 to 12 sentences. Code refuses an answer, as it would be served (after the trim), of fewer than 5 (`MIN_SERVED_SENTENCES`) or more than 20 sentences of reading text, with `answer_sentences_out_of_brief`. The hint names the range asked for, 8 to 12. The two stages share one range, so `AnswerStage`, `afterCheckRole` and the second writer role are gone.
+- **Why 20.** A check reads at most four batches of ten sentences (`ASK_SUPPORT_MAX_BATCHES`). Twenty sentences of reading text and the labels fit in three, and the reading time (two minutes) is still checked.
+- **Limits.** A draft of 13 to 20 sentences is more for the checker to flag, and the drop (D-310) takes out what fails. The floor of five supported sentences is unchanged.
+
+Confirmed by: `ask-answer-shape.test.ts` (4 and 21 refused; 5, 8, 12, 13 and 20 allowed; the hint names 8 to 12), `writer.test.ts` (the validator refuses 4 and 21 and allows 5 and 20 sentences; a draft of 21 with one copied sentence is allowed, since it is counted after the trim) and `supply-ask.test.ts` (a draft of 15 is served after one request; a draft of 22 and a remainder of 4 after the trim are refused with the hint after the one repair and no check; a draft of 4 is repaired once; a revision of 4 is repaired once). Shown failing when the floor was 8 and when the ceiling was 12.
+
+## D-351 · 2026-11-02 · A title or dek that cannot be served is replaced by a line code writes, from the Scroll the person asked from and never from their question (v3 S-7g, #636)
+
+**Builds on** D-218 (the order keeps no words of the person), D-266, D-310 and the kicker "You asked". **Amends** D-310 (a flagged title or dek ended the job with `title_or_dek_flagged`) and D-266 (the writer repaired a flagged title once).
+
+- **The gap.** One of the three dev asks passed its check and was then refused only because its title or dek was flagged (#636).
+- **The rule.** A title or a dek is replaced when it copies a passage (the trim) or when the support check finds it unsupported (the drop). The title becomes "Your question about" and the title of the Scroll the person asked from, cut after a whole word to the title limit with an ellipsis. That title is public library text; the brief names it on its `SCROLL BEING READ` line (`readingTitleOfAskBrief`). The title becomes `FALLBACK_TITLE` ("About your question") when the brief names no Scroll, when no word fits, or when the result could not stand as a stored title: it breaks the document's own rule for a title (`DocumentTitle`: four to ninety plain characters, no web address), or it has a figure, a source name or a run of a passage. The dek becomes `NEUTRAL_DEK` ("A short answer to your question."). A dek cannot be removed because the stored document needs one of ten characters or more. No word of either is the model's.
+- **Why never the person's question.** A title is stored in the revision, the document and the job's `writer_output`. Supply's erasure wipes the words a person typed from the order and the request (`scrubQuestionOrders`) and does not reach Content. A title that held the question would outlive an erasure and break D-218. An earlier version of this decision used the question; the ruling is that nothing of the person's words is stored in a title, and erasure is not extended across modules. `ProductionSubject` has no field for the question.
+- **Checked where it can be.** The lines the trim puts in are shown to the support check like any other sentence, because the check reads the answer as it will be served. A title of more than four words that is not a question cannot be "no fact", so the check may call it unsupported; code then replaces it with the same line and nothing changes. The lines the drop puts in come after the check and are not checked: they hold library text and fixed words and state nothing of the answer.
+- **Floors.** A dek that code wrote is no sentence of the answer's own, in the count of the writer stage and in the five supported sentences of D-310 alike (D-356). The title is a label and never counted.
+- **Limits.** "Your question about Why Orrin has summers and winters" reads stiffly; it is a fixed shape on purpose. A Scroll whose title has a figure gets the fixed title. Text a model writes from the question can still echo it in a sentence of the answer; that is the answer's content, as before.
+
+Confirmed by: `ask-answer-trim.test.ts` (the title is the prefix and the Scroll's title as the brief has it, cut at a word to the limit, the fixed title when there is none, its first word does not fit or the result cannot stand; a copied title and a copied dek are replaced whole), `subject.test.ts` (the Scroll's title is read from the brief, never from the question or the stop, even when those hold the label's words), `ask-support-drop.test.ts` (a flagged title or dek is replaced and every other sentence is the writer's own; without lines it is still refused), `writer.test.ts` (a Scroll title with a figure, a source name, a web address or a run of a passage gets the fixed title; every title made passes `DocumentTitle`; the answer with both lines in place compiles) and `supply-ask.test.ts` on real PostgreSQL with a labelled fixture model (a copied title and dek are replaced; a flagged title or dek is replaced; the brief supply stored gives the Scroll's title and the subject has no question; **the stored revision, the document and the job's `writer_output` and receipts never contain the typed question, before or after an erasure**). Shown failing when a copied title was kept, when a copied dek was kept, when a flagged title still refused the answer, when the replaced title was not used, when a dek that code wrote counted as supported, and when the title was built from the question line of the brief (six tests, the erasure one among them).
+
+## D-352 · 2026-11-02 · A first draft whose only unsupported sentences are the title and the dek earns no revision when code can serve it (v3 S-7g, #636)
+
+**Builds on** D-297 and D-351. **Amends** D-250 ("an unsupported sentence in the first draft earns the writer one revision").
+
+- **The rule.** When every sentence the check found unsupported in the first draft is the title or the dek, code tries the drop of D-310 at once (`dropFlagged`, with its own lines in their place). If the drop is `kept` and its answer compiles, that answer is served and the writer is asked for nothing: the revision could only write a line that code replaces anyway.
+- **Otherwise the revision runs as before.** If the drop is refused (the direct answer has no supported sentence, fewer than five sentences are supported, the limits callout is gone) or its answer does not compile, the first draft earns its one revision exactly as it did before this decision. The title and the dek are among the findings the revision sees. The job does not end on the first draft for this.
+- **Saves.** When the drop is kept, one writer request and the second check, which is three paid requests of the fourteen (the revision and the two batches of its check).
+- **Limits.** The draft is served with the title code made, not a better one the writer might have written. The floors decide whether it is served at all.
+
+Confirmed by: `supply-ask.test.ts` (an unsupported title and, separately, an unsupported dek are replaced after one writer request and one check; a title set aside by code for being "no fact" without a ground is replaced with no revision; a draft with the title and another sentence unsupported earns the revision, and the title is replaced after it; **a draft whose only unsupported sentence is the title, but whose opening paragraph has no supported sentence, earns the revision and is served after it**) and `ask-support-drop.test.ts` (the title and dek alone are told apart from any other flag). Shown failing when the draft still earned a revision, and when the shortcut ended the job whenever the drop was refused.
+
+## D-353 · 2026-11-02 · The trim leaves the writer's one repair for what only the writer can fix (v3 S-7g, #636)
+
+**Builds on** D-297, D-314 and D-348. **Amends** D-314 (the revision's repair covered `copied_passage`, `answer_sentences_out_of_brief` and `sentence_leans_on_previous`).
+
+- **The findings left.** The validator makes three findings for an ask answer that code cannot fix: `answer_sentences_out_of_brief` (the answer as it would be served has fewer than 5 or more than 20 sentences), `direct_answer_lost` (every sentence of the writer's opening paragraph was taken out) and a `copied_passage` the trim could not place. The first draft's harness repair covers any finding, as before. The revision's repair (`repairOnlyFor`) covers these three and nothing else; any other refusal of the revision ends the job.
+- **The direct answer.** The direct answer is the first paragraph, as in D-310. If the trim takes out all of it, the draft is refused with `direct_answer_lost` and a fixed hint, at that block. A later paragraph is not taken for it.
+- **Located in the draft.** A finding is reported at the block it had in the writer's draft, not in the trimmed one. The copy notes of a repair (D-294) name only the runs the trim left.
+- **Not changed.** The bound stays 14 requests and the claim 4,660 s (D-315): the revision's repair is the one D-297 counted.
+
+Confirmed by: `ask-answer-trim.test.ts` (the opening paragraph taken out whole is a finding at its block, a paragraph after it is not taken for it), `writer.test.ts` (the validator reports a draft left too short and a lost direct answer with their fixed codes, locates a finding at the draft's block though an earlier block was taken out, and names no copied run for what the trim takes out) and `supply-ask.test.ts` (a draft whose opening paragraph is all copied is repaired once with the fixed hint and no copy notes; a repair that loses it again ends the job with no check; a revision that is too short is repaired once). Shown failing when the finding was removed.
+
+## D-354 · 2026-11-02 · The job records what the trim took out as counts, and the replay prints them (v3 S-7g, #636)
+
+**Builds on** D-231 and D-311.
+
+- **What is recorded.** When the trim changed a draft, the job adds a receipt `{role: 'checks', kind: 'answer_trimmed', draft, copied, leaning, titleReplaced, dekReplaced}`. The `sentences_dropped` receipt of D-311 also says whether the check's drop replaced the title or the dek. A receipt holds numbers and flags and never a word, so the job still outlives an erasure of the question. The job's `writer_output` is the answer that was served.
+- **The replay.** `content ask-check` prints `trimmed` (copied plus leaning, from the receipt of the draft that was served) on the line of an answer whose draft was trimmed, and omits it otherwise. A draft that was superseded by a revision is not counted.
+
+Confirmed by: `supply-ask.test.ts` (the receipts of a trimmed draft, a trimmed revision, a leaning first sentence and a replaced title and dek; none holds a word of a sentence) and `ask-support-replay.test.ts` (the count on the line; none on an answer served whole). Shown failing when the receipt was not written.
+
+## D-355 · 2026-11-02 · The question writer v8 and the ask check v5 are a pair; the bound of 14 stays (v3 S-7g, #636)
+
+**Builds on** D-312 and D-315.
+
+- **The pair.** The writer's instructions change, because they said an answer with a copied run, a leaning opening or a length outside 8 to 12 is refused. They now say what code does: a copying sentence and a leaning one are taken out, only fewer than 5 or more than 20 sentences is refused, and 8 to 12 is still asked for. So `question-writer.v8` replaces v7, with `ask-support-check.v5` unchanged: its text has not changed. `versions.test.ts` holds the pair. The revision's reminder says a copying sentence is taken out.
+- **Not changed.** `SCROLL_PRODUCTION_VERSION`, `REQUEST_BOUND_ASK_ORDER` (14) and `PRODUCE_ANSWER_CLAIM_SECONDS` (4,660 s). The trim adds no request. The library's, the what-if's and the perspective's instructions and versions stay. No migration.
+
+Confirmed by: `versions.test.ts` (the pair, the bound and the claim), `writer.test.ts` (the instructions say what code does and no longer say "refused" for what is taken out) and `ask-support.test.ts` (the revision's reminder). Shown failing when the version changed alone.
+
+## D-356 · 2026-11-02 · The line code wrote for a dek is no sentence of the answer's own, in every floor of five (v3 S-7g, #636)
+
+**Builds on** D-308, D-310, D-350 and D-351. **Amends** D-351 (it excluded the line from the drop's five supported sentences only).
+
+- **The gap.** The count behind `answer_sentences_out_of_brief` counts the dek as a sentence of reading text. When the trim replaced a copied dek with the fixed line, that line made one of the five. A draft with four sentences of its own and the line was served whole whenever the check found nothing unsupported, because the pass path applies no floor of supported sentences.
+- **The rule.** A dek that is exactly `NEUTRAL_DEK` (`hasCodeMadeDek`) is not counted by `readingSentencesOf`, so the writer's validator and the job's compile need five sentences of the answer's own beside it. `dropFlagged` does not count it among the five supported either, whatever the checker said of it. Nothing else changes: a dek the writer wrote counts, even one that only begins with the line.
+- **Limits.** The test is the exact text, so it cannot be fooled by a dek that resembles the line. A writer whose own dek was exactly the line would lose one counted sentence; it is code's line and the writer was never shown it.
+
+Confirmed by: `ask-answer-shape.test.ts` (four sentences beside the line are four, beside the writer's dek five; a dek that only resembles or begins with the line counts), `writer.test.ts` (the validator refuses a draft of four of its own sentences whose dek copied a passage and accepts it with the writer's own dek), `ask-support-drop.test.ts` (the line does not count among the five) and `supply-ask.test.ts` on real PostgreSQL with a labelled fixture model (the same draft is served with its own dek and refused after one repair, with no check, when code wrote the line). Shown failing when the line counted (three unit tests and the integration test).
+
+## D-331 · 2026-11-02 · The ••• sheet of a Scroll is the design's seven rows (v3 Scrolls fidelity, #497)
+
+**Builds on** round 1 (#548: Like and Ask live only in Explore), D-244 and D-292. **Amends** the sheet's three pill buttons and icon row.
+
+- **The rows.** Save, Share a moment, Challenge a friend, Text version, Simpler (this screen), Small print, Report, in that order, as one list. Each has a sub-line and the key that does the same (V3 G5).
+- **A row that cannot work here is left out.** No Save on a reader that keeps nothing (a thread's). No Challenge on a Scroll with no call. No Text version on a Scroll with no picture or play block. No Small print without a limits aside.
+- **A row that cannot work on this stop is dimmed and says why.** Share a moment on a call. Simpler on a call or the end.
+- **What stays under the list.** Explore keeps Like, Share and Ask and "Your path and more options" (round 1). `/scroll/<id>` keeps Share and the save notices. Save moved up into the list on both.
+- **Two sub-lines differ from the frame, on purpose.** Simpler says "This stop in plainer words", not "Quick answer · not a checked Scroll": the plainer words are the stop's own authored text (D-085), not a model's. Challenge says "Send one of its calls to a friend", not "to a thread": a challenge goes into a direct conversation (D-245).
+
+Confirmed by: `more-rows.test.ts` (the seven rows in order with a sub-line and a key; rows left out; rows dimmed with the reason; the Saved and switched-on states) and `e2e/scroll-fidelity-smoke.spec.ts` (the seven rows and their keys at 390 × 844 and 1440 × 900, each row doing its work, axe).
+
+## D-332 · 2026-11-02 · Each row of the ••• sheet has a key, and Shift + S is Simpler (v3 Scrolls fidelity, #497)
+
+**Builds on** D-134 and D-053.
+
+- **Keys.** S Save, H Share a moment, C Challenge a friend, Shift + S Simpler, P Small print, R Report. T (Text version) was already there. They work while the reader has focus, like every reader key, and run the same command as the row.
+- **Shift is read from the event's own flag**, not from the letter's case, so Caps Lock changes nothing: S stays Save.
+- **No command, no effect.** A key whose screen offers nothing (S in a thread's reader) does nothing and is not held back from the browser.
+- **The keyboard map lists each.** The existing test that fails when a reader key has no row covers them.
+
+Confirmed by: `reader-keys.test.ts`, `reader-actions.test.ts`, `keyboard-map.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (each key opens or toggles what its row does).
+
+## D-333 · 2026-11-02 · Small print opens from ••• as a sheet, and stays a chip on the end tray (v3 Scrolls fidelity, #497)
+
+**Builds on** D-189 ("Small print opens where it stands").
+
+- **From ••• or P.** The sheet shows the limits aside's title and text. It reads the same aside the end tray's chip opens (`recap.smallPrintAside`), so the two cannot differ.
+- **The end tray is unchanged.** Its chip still opens the aside in place (D-189). The sheet is for a person who is mid-read and asks.
+- **Reading time stops** while the sheet is open, as for every sheet over the reader.
+
+Confirmed by: `e2e/scroll-fidelity-smoke.spec.ts` (the row and the P key open the aside's text) and `e2e/payoff-smoke.spec.ts` (the chip is unchanged).
+
+## D-334 · 2026-11-02 · Next says its word when the bar has room, and keeps to its arrow when it does not (v3 Scrolls fidelity, #497)
+
+**Amends** D-185 ("Below tablet width Next is its arrow alone").
+
+- **The word.** From tablet width Next says "Next ↑" always. On a phone (361 px and up) it is laid out with the word first, and the word is taken back for that title and width when the controls would wrap under the title or the title would no longer fit its two lines beside them. At 320 to 360 px it is the arrow alone, as D-185 says.
+- **How it is judged.** From layout, not from the title's length: the controls' position against the title's, and the height of an unseen copy of the title at the width the bar gives it. A larger text size therefore takes the word back sooner.
+- **The name is the same.** "Next topic" for a screen reader, with or without the word.
+
+Confirmed by: `reader-chrome.test.tsx` (the word at 390 and 834; the arrow at 320 and 360; taken back on a wrap and on a title that needs three lines) and `e2e/scroll-fidelity-smoke.spec.ts` (a short title keeps the word at 390 × 844; a long one gives it back and the bar stays one line; 1440 and 320).
+
+## D-335 · 2026-11-02 · "Done for today" says which Part is next, only when a next Part is admitted (v3 Scrolls fidelity, #497)
+
+**Builds on** D-189 and D-216.
+
+- **The line.** "Part 2 is next." in the Done for today panel (V3 E2). The frame says "Next time you’ll start at Part 2", which promises more than D-216 guarantees: the Universe offers the Resume chip only in some cases, so the line says only what is true. It is said only when a next Part was admitted for this Scroll. A related move is not a next Part, so nothing is said then.
+- **Why it is true.** A next Part was admitted for this Scroll, and the Universe may offer "Resume Part 2 of 3" (D-216). The line promises neither a place nor a time. The frame's "right where the cliffhanger left off" is not drawn: the context carries no teaser (D-189, D-072).
+
+Confirmed by: `play.test.tsx` (the line with a next Part, none without) and `e2e/scroll-fidelity-smoke.spec.ts`.
+
+## D-336 · 2026-11-02 · The dock's Ask is a blue sparkle on a tinted pill (v3 Scrolls fidelity, #497)
+
+**Builds on** V3 P3 and G1.
+
+- **The look.** The Scroll dock's Ask pill is the sunken cream (`paper2`) with ink edges and no offset shadow, and a four-point sparkle in the accent blue before "Ask about this". The speech-box icon stays on the Reel and Explore action sets, which the frames do not change.
+- **The name is the same:** "Ask about this".
+
+Confirmed by: `reader-chrome.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (fill and sparkle colour at 390 and 1440).
+
+## D-337 · 2026-11-02 · The Final call's mark on the spine is a star (v3 Scrolls fidelity, #497)
+
+**Builds on** D-133 and V3 A1.
+
+- **The mark.** A star with an ink edge: yellow, or blue where the reader is. The Call it mark is a diamond, a read stop a circle and the end a square, as before.
+- **The name is the same:** "Final call", and "you are here" on it.
+
+Confirmed by: `stage-reader.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts`.
+
+## D-338 · 2026-11-02 · The picture says the tilt it is turned to while a Final call binds a tilt (v3 Scrolls fidelity, #497)
+
+**Builds on** D-187.
+
+- **The tag.** "TILT 23.4°" or "TILT 0°" in a dark pill at the bottom left of the pinned picture, drawn only while the tilt control is bound and the reader is at that Final call. It follows the slider. The text version leaves it out, because that already says the tilt in words.
+- **For the eye alone.** The control's own readout is what a screen reader hears, so the tag is hidden from assistive technology.
+
+Confirmed by: `stage.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts`.
+
+## D-339 · 2026-11-02 · The friend list of a sheet loads as a skeleton row (v3 Scrolls fidelity, #497)
+
+**Builds on** D-245.
+
+- **What changed.** The Challenge sheet and the Share sheet draw a skeleton row named "Loading your friends" while the list loads, instead of a line of text. The send button stays disabled until a friend is chosen, as before.
+
+Confirmed by: `friend-picker.test.tsx`.
+
+## D-340 · 2026-11-02 · Share a moment shows the stop and its picture before a thread is chosen (v3 Scrolls fidelity, #497)
+
+**Builds on** D-292.
+
+- **The preview.** The sheet opens with the stop's picture, as the reader draws it at that stop (only for a Scroll with a stage), and the words the card will quote. It stays through the thread choice and the message.
+- **Nothing more is sent.** The picture is drawn from the document on the device. The message carries the stop and a hash, as before (D-292).
+
+Confirmed by: `share-stop-sheet.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (the picture and the quote before any thread is chosen, with axe).
 
 ## D-341 · 2026-11-02 · The sky lists each star's moment, read for the reader from the act's own rows (v3 R-11, #631)
 

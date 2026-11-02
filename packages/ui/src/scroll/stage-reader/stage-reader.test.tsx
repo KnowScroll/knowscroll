@@ -45,6 +45,12 @@ describe('the Stage + Spine reader', () => {
     expect(screen.getByRole('button', { name: 'Stop 1 of 12, you are here' })).toBeOnTheScreen();
   });
 
+  it('draws the Final call as a star on the spine, one star for the one Final call', async () => {
+    await reader(spy());
+    expect(screen.getAllByTestId('spine-final-star')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Final call' })).toBeOnTheScreen();
+  });
+
   it('reports the first stop as the one visible stop, wholly, and nothing else', async () => {
     const observer = spy();
     await reader(observer);

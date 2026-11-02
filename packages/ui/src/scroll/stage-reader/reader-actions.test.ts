@@ -17,11 +17,32 @@ function targets(heading: number): { at: KeyTargets; pick: jest.Mock; lock: jest
     jump: jest.fn(),
     heading: () => heading,
     toggleTextVersion: jest.fn(),
+    toggleSimpler: jest.fn(() => true),
     pick,
     lock,
   };
   return { at, pick, lock };
 }
+
+describe('the keys of the ••• sheet', () => {
+  it('run the screen command of their row, and do nothing where the screen has none', () => {
+    const save = jest.fn();
+    const { at } = targets(0);
+    expect(actOnKey({ action: 'save' }, { ...at, commands: { save } })).toBe(true);
+    expect(save).toHaveBeenCalledTimes(1);
+    for (const action of ['save', 'share-moment', 'challenge', 'small-print', 'report'] as const)
+      expect(actOnKey({ action }, at)).toBe(false);
+  });
+
+  it('turn Simpler on for a read stop only', () => {
+    const read = targets(0);
+    expect(actOnKey({ action: 'simpler' }, read.at)).toBe(true);
+    expect(read.at.toggleSimpler).toHaveBeenCalledWith('read-1');
+    const call = targets(1);
+    expect(actOnKey({ action: 'simpler' }, call.at)).toBe(false);
+    expect(call.at.toggleSimpler).not.toHaveBeenCalled();
+  });
+});
 
 describe('the keys of a call', () => {
   it('act on the stop the reader is heading to, which may not be the one the scroll has reported yet', () => {

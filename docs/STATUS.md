@@ -61,5 +61,4 @@ Owner decisions taken on the owner's behalf are listed on #462 under "Waiting fo
 ## Code to improve as you touch it
 
 - `reasoning/application/execute-attempt.ts`: `executeAttempt` is one 300-line function. Split it into named steps like `propose.ts`.
-- Root `lint` needs a 6 GB heap on the merged tree; typed lint will need splitting or more memory as the code grows.
 - Room backdrops: the image model signs its prints whatever the prompt says; the band hides the outer tenth (D-177). A server-side crop would make the stored picture clean too.

@@ -14,6 +14,16 @@ describe('the reader keys', () => {
     expect(readerKeyOf('Enter')).toEqual({ action: 'lock-in' });
   });
 
+  it('give each row of the ••• sheet its key, and Shift + S is Simpler where S alone is Save', () => {
+    expect(readerKeyOf('s')).toEqual({ action: 'save' });
+    expect(readerKeyOf('S')).toEqual({ action: 'save' });
+    expect(readerKeyOf('S', true)).toEqual({ action: 'simpler' });
+    expect(readerKeyOf('h')).toEqual({ action: 'share-moment' });
+    expect(readerKeyOf('c')).toEqual({ action: 'challenge' });
+    expect(readerKeyOf('p')).toEqual({ action: 'small-print' });
+    expect(readerKeyOf('R')).toEqual({ action: 'report' });
+  });
+
   it('ignore every other key', () => {
     for (const key of ['x', 'Tab', 'Escape', '5', '0', 'Shift']) expect(readerKeyOf(key)).toBeUndefined();
   });

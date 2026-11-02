@@ -136,6 +136,24 @@ describe('Share a moment', () => {
     expect(JSON.stringify(body)).not.toContain(moment.quote.slice(0, 15));
   });
 
+  it('shows the stop and its picture before any thread is chosen, and keeps them while one is picked', async () => {
+    await show({});
+    expect(await screen.findByTestId('moment-preview')).toBeOnTheScreen();
+    expect(screen.getByTestId('moment-picture')).toBeOnTheScreen();
+    expect(screen.getByTestId('stage')).toBeOnTheScreen();
+    expect(screen.getByTestId('moment-quote')).toHaveTextContent(`“${momentOf(document, readStop.id)!.quote}”`);
+    await fireEvent.press((await screen.findAllByTestId('moment-thread'))[0]!);
+    expect(await screen.findByTestId('moment-share')).toBeOnTheScreen();
+    expect(screen.getByTestId('moment-picture')).toBeOnTheScreen();
+  });
+
+  it('draws no picture for a Scroll that has none', async () => {
+    const plain = { ...document, stage: undefined } as unknown as ScrollDocumentV2;
+    await show({ scroll: { ...scroll, document: plain } });
+    expect(await screen.findByTestId('moment-preview')).toBeOnTheScreen();
+    expect(screen.queryByTestId('moment-picture')).toBeNull();
+  });
+
   it('offers only the joined threads whose series holds the Scroll, and asks each one once', async () => {
     await show({});
     expect(await screen.findByText('Share into a thread')).toBeOnTheScreen();

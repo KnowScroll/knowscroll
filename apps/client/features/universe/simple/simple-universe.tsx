@@ -3,13 +3,13 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { RoomStation } from '@knowscroll/contracts';
 import type { SceneLook } from '@knowscroll/scene-core';
 import { spacing } from '@knowscroll/design-tokens';
-import { Icon, IconButton, SwitchRow, Tag, Text } from '@knowscroll/ui';
+import { Icon, IconButton, Tag, Text } from '@knowscroll/ui';
 import { planPlanet } from '../planet/planet-plan';
 import { looksById } from '../space/space-model';
 import { countOf, listUniverse, nameWithTruth } from '../universe-lists';
 import { viewFor, type UniverseIndex } from '../universe-layout';
 import type { UniverseMapSession, UniverseViewState } from '../universe-session';
-import { PlaceRow, RowGroup, SIMPLE } from './place-rows';
+import { PlaceRow, RowGroup, SIMPLE, SimpleSwitch } from './place-rows';
 import { SystemSections } from './system-sections';
 
 /**
@@ -182,9 +182,7 @@ function SystemsAndRooms({
         {`${countOf(listed.systems.length, 'system')} · ${countOf(planets, 'planet')}`}
       </Text>
       {onTurnOff ? (
-        <View style={styles.mode}>
-          <SwitchRow label="Simple view" description="Plain lists, for slow devices" on onChange={onTurnOff} />
-        </View>
+        <SimpleSwitch label="Simple view" description="Plain lists, for slow devices" on onChange={onTurnOff} />
       ) : null}
       <SystemSections session={session} listed={listed} visitor={visitor} onStation={onStation} />
     </>
@@ -315,12 +313,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sub: { marginTop: 2 },
-  mode: {
-    marginTop: spacing['3.5'],
-    paddingHorizontal: spacing['3.5'],
-    borderRadius: 16,
-    backgroundColor: SIMPLE.mode,
-  },
   systemHead: {
     flexDirection: 'row',
     alignItems: 'baseline',
