@@ -41,6 +41,7 @@ import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { TalkFrame } from '../shell/talk-frame';
 import { TalkInboxPane } from '../conversations/talk-inbox-pane';
+import { threadHasList } from '../conversations/talk-columns';
 import { Composer } from '../conversations/composer';
 import { useFollowEnd } from '../conversations/message-list';
 import type { AvailableTalkMessage } from '../conversations/talk-message';
@@ -554,9 +555,10 @@ export function ThreadScreen(params: {
   const { state, manager } = useAccountScope();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  // From 1024 px Talk's list stays as the first column, as beside a conversation (D03, T3).
-  const withInbox = useDisplay().breakpoint === 'desktop' && state.status === 'signed_in';
-  // The list is a sibling before a thread wrapper that is always there, so a resize across 1024 px adds or removes only
+  // From 1280 px Talk's list is the first column, as beside a conversation (D03, T3, D-327); below it the thread keeps
+  // the room it had, so the chat is never squeezed beside the series panel.
+  const withInbox = threadHasList(useDisplay().width) && state.status === 'signed_in';
+  // The list is a sibling before a thread wrapper that is always there, so a resize across 1280 px adds or removes only
   // the list: the open thread keeps its player, its reads and anything still being sent.
   return (
     <TalkFrame>

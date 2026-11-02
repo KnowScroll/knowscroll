@@ -203,3 +203,37 @@ test('a phone conversation has no rail, and opens with the "New since you were h
   await shot(page, 'dm-390-new-since');
   expect(await seriousViolations(page)).toEqual([]);
 });
+
+test('at 1024 px the chat keeps its room: a thread has no list column and a conversation has no rail', async ({
+  page,
+}) => {
+  await talkFixture(page, { width: 1024, height: 800 }, { sharedCard: true, listThread: true });
+  await page.goto(threadAddress);
+  await expect(page.getByRole('heading', { level: 1, name: 'CI series' })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Conversations' })).toHaveCount(0);
+  const threadChat = await page.getByRole('region', { name: 'Conversation' }).boundingBox();
+  expect(threadChat!.width).toBeGreaterThanOrEqual(400);
+
+  await page.goto(conversationAddress);
+  await expect(page.getByText('Starting the second part now.')).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'In this chat' })).toHaveCount(0);
+  await expect(page.getByRole('complementary', { name: 'Conversations' })).toBeVisible();
+  const messages = await page.getByRole('textbox', { name: /^Message/ }).boundingBox();
+  expect(messages!.width).toBeGreaterThanOrEqual(400 - 2 * 20);
+  await shot(page, 'dm-1024-no-rail');
+});
+
+test('at 1280 px a thread has the list column and a conversation the rail, each chat wide enough to read', async ({
+  page,
+}) => {
+  await talkFixture(page, { width: 1280, height: 800 }, { sharedCard: true, listThread: true });
+  await page.goto(threadAddress);
+  await expect(page.getByRole('complementary', { name: 'Conversations' })).toBeVisible();
+  const threadChat = await page.getByRole('region', { name: 'Conversation' }).boundingBox();
+  expect(threadChat!.width).toBeGreaterThanOrEqual(360);
+  await page.goto(conversationAddress);
+  await expect(page.getByRole('complementary', { name: 'In this chat' })).toBeVisible();
+  const rail = await page.getByRole('complementary', { name: 'In this chat' }).boundingBox();
+  const list = await page.getByRole('complementary', { name: 'Conversations' }).boundingBox();
+  expect(rail!.x - (list!.x + list!.width)).toBeGreaterThanOrEqual(400);
+});

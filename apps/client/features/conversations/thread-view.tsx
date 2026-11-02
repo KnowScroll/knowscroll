@@ -21,6 +21,7 @@ import { Composer } from './composer';
 import { ConversationMenu } from './conversation-menu';
 import { MessageList, useFollowEnd } from './message-list';
 import { sharedHere } from './shared-here';
+import { conversationHasRail } from './talk-columns';
 import { StartThreadSheet, rootOfCard, type ThreadRoot } from './start-thread-sheet';
 import type { AvailableTalkMessage } from './talk-message';
 import { ThreadHeader } from './thread-header';
@@ -183,7 +184,7 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
   const [draft, keepDraft] = useDraft(scope, reference.conversationId);
   const theme = useTalkTheme();
   // The "In this chat" rail sits at the right of the conversation when the chat keeps its room beside it (T3, D-328).
-  const railed = useDisplay().breakpoint === 'desktop';
+  const railed = conversationHasRail(useDisplay().width);
   const {
     ref: scrollRef,
     onScroll,
