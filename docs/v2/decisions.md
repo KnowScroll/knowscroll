@@ -3842,7 +3842,7 @@ Confirmed by: `part-world` cases in `party.test.tsx` and `episode-list.test.tsx`
 
 **Amends** D-143 (a desktop thread has the conversation and the series panel).
 
-- **The rule.** From 1024 px `/threads/<id>` draws Talk's list (the same `TalkInboxPane` as a conversation) as its first column, with the thread's own row marked. Below 1024 px nothing changes.
+- **The rule.** From 1280 px `/threads/<id>` draws Talk's list (the same `TalkInboxPane` as a conversation) as its first column, with the thread's own row marked. Below 1280 px the thread keeps the layout it had: beside the list and the 400 px series panel the chat measured 116 px at 1024 and 192 at 1100. The thread asks for a minimum width only when the list is beside it, so it still fits 320 px.
 - **Cost.** At 1440 px the chat is about 530 px wide, narrower than the design's 720 px column, because the series panel keeps its 400 px.
 
 Confirmed by: `talk-smoke.spec.ts` (three columns in order, the row current, axe at 1440).
@@ -3852,6 +3852,8 @@ Confirmed by: `talk-smoke.spec.ts` (three columns in order, the row current, axe
 **Amends** D-154's layout for the conversation: it gains a right column, as T3's DMD frame draws.
 
 - **What it holds.** The other person, a link to their universe as far as they share it, "Shared here" (the Scroll and Reel cards sent in this chat, newest first, who sent each), and, when a card can start a thread, "Start a thread from this".
+- **When it shows.** Only while the chat keeps 400 px beside the navigation rail, the list and this rail (about 1210 px and wider); narrower desktops keep the conversation and its list.
+- **Only what is loaded.** Shared here reads the newest page of messages. While older messages are unread it carries no count and says "None in the recent messages", never "Nothing has been shared".
 - **Not as drawn.** The design's "On Part 2 of Tides · 4 worlds" line (it would read where a friend is, which only a thread may show, D-152), the moment cards in Shared here, and the promo being only for a series card: the chat does not know whether a card is a series, so any card that can start a thread shows it.
 - **Privacy.** Only what the two people put in the chat. Nothing about what either opened or read.
 

@@ -655,9 +655,9 @@ Routes: `/threads/<id>` (C04, `?m=<membership>&r=<revision>` from Talk or the sh
 direct conversations and threads together; a thread row shows its people, the last message and an invitation badge.
 
 - Talk fidelity (v3, #497, D-326 to D-330; status: **implemented** (web smoke over labelled fixtures; native by unit tests only), not yet runtime-verified on dev). The Talk list
-  (`conversations-screen.tsx`) has THREADS, PEOPLE and ROOMS and a "Part 2 of 3" chip on a thread row; from 1024 px it is the
-  first column beside a conversation and a thread (`conversations/talk-inbox-pane.tsx`). A conversation has the "In this chat"
-  rail (`chat-rail.tsx`, `shared-here.ts`). A part is painted as a world from its Scroll's ID (`threads/part-world.tsx`) in the
+  (`conversations-screen.tsx`) has THREADS, PEOPLE and ROOMS and a "Part 2 of 3" chip on a thread row. It is the first column beside a conversation from 1024 px and beside a thread from
+  1280 px (`conversations/talk-inbox-pane.tsx`, `talk-columns.ts`). A conversation has the "In this chat"
+  rail from about 1210 px, while its chat keeps 400 px (`chat-rail.tsx`, `shared-here.ts`). A part is painted as a world from its Scroll's ID (`threads/part-world.tsx`) in the
   header and the Series sheet. `NewSinceDivider` (`message-views.tsx`) draws "New since you were here" over what came after the
   person's own stored read position. Covered by `talk-smoke.spec.ts` and `thread-party-smoke.spec.ts` (390 and 1440, axe).
 - `features/threads/thread-screen.tsx` is C04 (T3, D-140 to D-144): `thread-chrome.tsx` (the 72 px `ThreadStrip`, people, options,
