@@ -223,7 +223,9 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
       catchUpCursor = snapshot.catchUpCursor;
       olderCursor = snapshot.history.kind === 'more' ? snapshot.history.cursor : undefined;
       readThrough = snapshot.own.readThroughSequence;
-      const newSince = readOnce ? {} : newSinceOnOpen(snapshot.own.readThroughSequence, snapshot.messages, snapshot.peer?.personId);
+      const newSince = readOnce
+        ? {}
+        : newSinceOnOpen(snapshot.own.readThroughSequence, snapshot.messages, snapshot.peer?.personId);
       readOnce = true;
       publish({
         phase: 'ready',

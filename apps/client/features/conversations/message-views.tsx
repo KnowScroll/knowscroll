@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'expo-router';
-import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 import type { ConversationContentProjection } from '@knowscroll/contracts';
 import type { OutgoingMessage } from '@knowscroll/client-core';
 import { borderWidth, content, radius, spacing, status, universe } from '@knowscroll/design-tokens';
@@ -124,7 +124,7 @@ function RippleDot({ colour }: { readonly colour: string }) {
       Animated.timing(spread, {
         toValue: 1,
         duration: 1600,
-        easing: Easing.out(Easing.quad),
+        easing: (progress) => 1 - (1 - progress) ** 2,
         useNativeDriver: Platform.OS !== 'web',
       }),
     );
