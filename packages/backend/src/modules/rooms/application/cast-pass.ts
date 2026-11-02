@@ -114,8 +114,19 @@ async function prepare(p: CastPassPorts, scope: PersonalScopeTx, job: CastPassJo
 /**
  * The result of a turn whose answer is held: the answer that passed its checks, posted as it is. The writer's run is the only one
  * left to close, because the checks' runs were closed before the answer was held.
+ *
+ * Only an answer whose record says it cleared is posted. A held answer with no record, or one whose record says otherwise, was
+ * held by a worker from before the check (a deploy in the middle of a hold) and was never checked: it is dropped, the turn ends
+ * failed and counted, and nothing is posted (D-301).
  */
 function heldResult(turn: AiTurnRow, held: NonNullable<AiTurnRow['held']>): PipelineResult {
+  const cleared = held.support?.result === 'cleared' || held.support?.result === 'cleared_after_rewrite';
+  if (!cleared)
+    return {
+      verdict: { kind: 'failed', dispatched: true, end: 'failed' },
+      support: undefined,
+      runs: [{ runId: turn.turnId, end: 'failed' }],
+    };
   return {
     verdict: { kind: 'post', answer: { kind: held.kind, text: held.text }, attemptId: held.attemptId },
     support: held.support,

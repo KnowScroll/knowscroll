@@ -428,7 +428,10 @@ export interface HeldAnswer {
   readonly kind: ContributionKind;
   readonly text: string;
   readonly attemptId: string;
-  /** How the answer came out (D-301); none for an answer held before there was a check. */
+  /**
+   * How the answer came out (D-301). Every answer this code holds has it, and says it cleared. A held answer without it was held
+   * by a worker from before the check; it is never posted, because nothing is known about it (`cast-pass.ts`).
+   */
   readonly support?: AnswerSupportRecord;
 }
 

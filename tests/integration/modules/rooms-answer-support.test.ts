@@ -520,6 +520,30 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       expect(turn!.answer_support).toMatchObject({ result: 'no_ground' });
     });
 
+    it('drops a held answer that has no record of its check, as a worker from before the check would have left it', async () => {
+      const room = await gathering();
+      world.clock.now = new Date(START.getTime() + MINUTE);
+      for (const person of room.people) unwrap(await setPresence(world, person, room.roomId));
+      unwrap(await say(world, room.people[1], room.roomId, room.general, MOON_QUESTION));
+      const check = world.castChecks.at(-1)!;
+      world.clock.now = check.startAfter!;
+      await world.decide()(check.job);
+      // The words were held by an old worker: no record of a figure rule or a check, and a figure no passage writes.
+      await world.db
+        .updateTable('rooms.ai_turns')
+        .set({ held_kind: 'explanation', held_text: INVENTED_FIGURE, attempt_id: randomUUID(), dispatched: true })
+        .where('room_id', '=', room.roomId)
+        .execute();
+      const model = playbook({ writer: [writes('must not be asked')] }, 'held-without-record');
+      const scope = roomScope(world.db, model);
+      await world.pass(scope.harness, scope.withScope)(world.castPasses.at(-1)!.job);
+      expect(model.calls).toHaveLength(0);
+      expect(await spoken(room)).toEqual([]);
+      expect(await turnsOf(room.roomId)).toMatchObject([
+        { state: 'failed', dispatched: true, held_kind: null, held_text: null },
+      ]);
+    });
+
     it('keeps its record when posting is put off for someone typing, and posts the checked words without a second call', async () => {
       const room = await gathering();
       world.clock.now = new Date(START.getTime() + MINUTE);
