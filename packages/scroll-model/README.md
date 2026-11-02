@@ -477,7 +477,7 @@ converter produces a canonical `ScrollDraft` and every canonical check still run
 
 ## `scroll-document.v2` (D-120, D-121)
 
-Status. **Implemented** (unit tests, and a recorded writer answer through the real harness over PostgreSQL): the document, `scroll-limits.v2`, `scroll-measures.v2`, the Earth & sky kit enums, `validateDocumentV2`, and the writer's authoring shape with its assembler and rules. **Not yet run on real MiniMax**: that is the S-0 spike (#471), whose result decides whether the shape stands. **Planned** (S-1, S-2): the reader and stage engine, negotiation and a client `parseDocumentV2`, coverage v2, play, and admission and storage of v2 documents. v1 documents, limits and measures are untouched and still govern the library.
+Status. **Implemented** (unit tests, and a recorded writer answer through the real harness over PostgreSQL): the document, `scroll-limits.v2`, `scroll-measures.v2`, the Earth & sky kit enums, `validateDocumentV2`, and the writer's authoring shape with its assembler and rules. **Run on real MiniMax** in the S-0 spike (#471, D-123; see `packages/backend/src/modules/content/production/README.md`), and **runtime-verified on dev**: the Scrolls read there are v2 documents (1 and 2 Nov, `journeys-v3` and `fidelity-v3`). The reader and stage engine, negotiation, a client `parseDocumentV2`, coverage v2, play, and admission and storage of v2 documents (S-1, S-2) are implemented; see the READMEs of `ui`, `client-core` and the content module. v1 documents, limits and measures are untouched and still govern the library.
 
 Where it lives. `src/v2/` is the public model (`@knowscroll/scroll-model`). The writer's side is backend-only (`./producer`): `src/producer/v2/`.
 
