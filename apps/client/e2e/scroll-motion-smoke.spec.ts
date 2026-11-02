@@ -198,9 +198,11 @@ test('Esc undoes the new topic while the note is showing, and the note is not sa
   await open(page);
   await page.getByRole('button', { name: 'Next topic' }).click();
   await expect(page.getByTestId('format-note')).toBeVisible();
-  await page.getByRole('group', { name: 'Scroll reader' }).focus();
+  // Focus has moved into the note by itself, so the keys act with no click or Tab first.
+  await expect(page.getByTestId('format-note')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(heading(page)).toHaveText('CI encounter fixture 1');
+  await expect(page.getByTestId('scroll-reader')).toBeFocused();
   await page.getByRole('button', { name: /^Part 2: / }).click();
   await expect(page.getByTestId('part-arrival')).toBeVisible();
   await expect(page.getByTestId('format-note')).toHaveCount(0);
@@ -240,12 +242,53 @@ test('on a Scroll’s own address a step forward says the place in the Part befo
 test('a related move opens its Scroll without saying a place in a Part was kept', async ({ page }) => {
   await encounterFixture(page, 'scroll', {
     viewport: phone,
-    direct: { parts: 1, related: true },
+    direct: { parts: 3, related: true },
     scrollDocument: seasons as unknown as Record<string, unknown>,
   });
   await page.goto(`/scroll/${id(300)}`);
   await expect(page.getByTestId('scroll-reader')).toBeVisible();
-  await page.getByRole('button', { name: /^Related: / }).click();
-  await expect(page).toHaveURL(new RegExp(`/(scroll|reel)/${id(301)}$`));
-  await expect(page.getByTestId('part-arrival')).toHaveCount(0);
+  // The related move is at the end of the Scroll, beside the next Part; the Scroll it opens is counted in a series too.
+  await page.getByRole('button', { name: 'The end of this Scroll', exact: true }).click();
+  await page.getByRole('button', { name: /^Another related explanation/ }).click();
+  // The fixture's related Scroll is not the next one in the series.
+  await expect(page).toHaveURL(new RegExp(`/scroll/${id(305)}$`));
+  // Once its context has arrived (the Part before is admitted, so the tab is there) the bar would have been said.
+  await expect(page.getByTestId('part-back-tab')).toBeVisible();
+  // Never, for as long as the bar would last: looked at every 100 ms, so a bar that comes and goes cannot be missed.
+  for (let look = 0; look < 40; look += 1) {
+    expect(await page.getByTestId('part-arrival').count()).toBe(0);
+    await page.waitForTimeout(100);
+  }
+});
+
+test('F in the note switches to the Reel with no click first, and the note waits while it has focus', async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole('button', { name: 'Next topic' }).click();
+  const note = page.getByTestId('format-note');
+  await expect(note).toBeFocused();
+  // Held by focus, it outlasts its nine seconds.
+  await page.waitForTimeout(10_000);
+  await expect(note).toBeVisible();
+  const requests: string[] = [];
+  page.on('request', (request) => requests.push(new URL(request.url()).pathname));
+  await page.keyboard.press('f');
+  await expect.poll(() => requests.some((path) => path === '/v1/experience/navigate')).toBe(true);
+});
+
+test('at 320 px the note sits below the whole top bar, wrapped as it is, and covers none of its controls', async ({
+  page,
+}) => {
+  await open(page, { width: 320, height: 640 });
+  await page.getByRole('button', { name: 'Next topic' }).click();
+  const note = await page.getByTestId('format-note').boundingBox();
+  const bar = await page.getByTestId('reader-top-bar').boundingBox();
+  if (note === null || bar === null) throw new Error('the note and the bar are drawn');
+  expect(note.y).toBeGreaterThanOrEqual(bar.y + bar.height - 1);
+  for (const name of ['Your Universe', 'Next topic']) {
+    const control = await page.getByRole('button', { name, exact: true }).boundingBox();
+    expect(control && control.y + control.height <= note.y + 1).toBe(true);
+  }
+  await shot(page, 'format-note-320x640');
 });

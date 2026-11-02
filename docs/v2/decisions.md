@@ -4010,8 +4010,10 @@ Confirmed by: `share-stop-sheet.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts
 - **When.** For a Scroll that a new topic (Next ↑, a pull past the end, N) landed on from another Scroll. Not for the first open, a Part, a related move, a format switch, a Back, or after a Reel.
 - **What it says.** "NEXT TOPIC · AS A SCROLL", the title, and what the document itself says about it (its kicker, its reading minutes and its calls: `measures.readingMinutes` and the call stops, so nothing is invented). Under it, a bar and "Seasons Part 1 is kept at 4 of 10": the Scroll just left and the stop it was on, which is true because the entry stays in the trail with its place.
 - **Two moves.** "Switch to Reel" (key F), only when the Reel of this topic is ready: it is the same move as the F key. "Undo" (key Esc) goes back to the Scroll that was left, as Back does. The Esc key does this only while the note is showing.
-- **It goes by itself.** After nine seconds, or when either move is made. It is shown once per Scroll, even if the screen is drawn again. It asks for nothing and takes no reading time.
-- **Not built.** The slide up from below that the frame draws for the new topic: the new Scroll appears as before.
+- **Where.** Over the top of the reader, below its header however tall that is (at 320 px the header wraps, and the note never covers its controls).
+- **Keys.** Focus moves into the note when it appears, so F and Esc act at once, from the note itself; focus goes back to the reader when it goes.
+- **It goes by itself.** After nine seconds, or when either move is made, but not while it has focus or the pointer is over it (WCAG 2.2.1): its time starts again after. It is shown once per Scroll, even if the screen is drawn again. It asks for nothing and takes no reading time.
+- **Not built.** The slide up from below that the frame draws for the new topic: the new Scroll appears as before. Nor the same note for a Reel that a new topic lands on ("AS A REEL · Switch to Scroll"): the Reel surface has its own gesture stage and keys (D-246, Q16: nothing else in a Reel changes), so a note over the video is a design call for the owner, not a cheap mirror.
 
 Confirmed by: `format-note.test.tsx` (what the note says from two entries; no switch without a ready Reel; none for the first open, a Part, a related move, a format switch, a Reel left behind), `reader-keys.test.ts`, `e2e/scroll-motion-smoke.spec.ts` (Next ↑ shows it at 390 and 1440, Undo and Esc go back, a Part does not show it, axe).
 
@@ -4019,7 +4021,7 @@ Confirmed by: `format-note.test.tsx` (what the note says from two entries; no sw
 
 **Builds on** D-134 (the pull of 96 px from the end) and D-189.
 
-- **The handle.** At the foot of the end tray: "KEEP PULLING · NEXT TOPIC" and a meter. It is drawn only where a new topic can be asked for and a finger can pull (a phone or tablet, or a touch screen on the web). On a mouse alone it is absent, because nothing there is pulled; "Something new" and N do the same.
+- **The handle.** At the foot of the end tray: "KEEP PULLING · NEXT TOPIC" and a meter. It is drawn only where a new topic can be asked for and a pull can fill it: on iOS (the scroll view's bounce, D-134) and on a touch screen on the web. On Android, where D-134 reads no overscroll, and on a mouse alone it is absent, because nothing there is pulled; "Something new" and N do the same.
 - **The meter.** It fills as the finger pulls up from the very end, full at the distance a release needs (96 px; on iOS the bounce's 72 px). It empties when the finger lets go or the pull turns back. It fills under reduced motion, because it is feedback and travels nowhere.
 - **Nothing else changes.** What a release does is D-134's rule, read by the same function. The handle is hidden from assistive technology.
 - **Not built.** The Universe and Next topic tiles of the frame: D-189 keeps every way on at one weight.
@@ -4031,6 +4033,7 @@ Confirmed by: `part-gesture.test.ts` (the drag the meter shows is the one the re
 **Amends** D-134 ("The Part 2 entry animation ... not decided here").
 
 - **During the swipe.** A sideways finger drag of 12 px or more brings a panel in from the edge that Part waits at (the next from the right, the one before from the left), following the finger. It carries what is known before the Part opens: its label and title, never its text. A bar along its top fills as the drag goes on, with a notch at the distance a release needs: "KEEP GOING · PART 2", then "PAST THE NOTCH · LET GO TO CONTINUE". Only for a Part that was admitted.
+- **A second finger** ends the drag at once, with no move, and puts the panel away; the lifts that follow move nothing.
 - **After it.** A release that counts settles the panel over the area and holds it until the Part opens (put away after six seconds if none does). A release that does not count sends it back to its edge.
 - **A Part that opens by button, key or tab** slides in from the right (360 px, `motion.thread`). One that a swipe has just shown arriving does not slide a second time: the reader that is left notes the commit and the one that opens asks (a timestamp of eight seconds, which decides only whether to animate).
 - **Reduced motion.** No panel and no slide: a plain change, with the same bar and tab (D-359).
@@ -4043,7 +4046,7 @@ Confirmed by: `part-gesture.test.ts`, `part-peek.test.tsx`, `e2e/scroll-motion-s
 
 **Amends** D-134 ("not decided here") with D-358.
 
-- **The bar.** "Part 2 · your place in Part 1 is kept" over the top of the text for four seconds, as a polite status. It is said only when the Scroll opened by a step forward in its series from an earlier Part of the same series: in Explore from the trail; on `/scroll/<id>` from a note kept in memory by the step forward and taken once by the Scroll that opens (nothing goes in the address, so a link, a reload or a later visit says nothing).
+- **The bar.** "Part 2 · your place in Part 1 is kept" over the top of the text for four seconds, as a polite status. It is said once per step forward (Back, a tab return or an Undo that returns to the Part does not say it or slide it in again), and only when the Scroll opened by a step forward in its series from an earlier Part of the same series: in Explore from the trail; on `/scroll/<id>` from a note kept in memory by a step forward in a series (never a related move), held per account scope so that an account switch, a logout and a privacy reset leave none, kept a minute, matched to the series and taken once by the Scroll that opens (nothing goes in the address, so a link, a reload or a later visit says nothing).
 - **Why it is true.** The Part left stays in the trail with its stop (Back returns to it), and its resume place is kept for its address. The bar names no stop.
 - **The tab.** "← Part 1" at the left edge of the picture, on the first stop, whenever a Part before was admitted (not only on arrival). It is the visible form of swipe right and the ← key, and is named "Back to Part 1: its title".
 - **Fixture.** The e2e Explore fixture now names the Part of an entry reached by a series step and offers the Part before, as the server does.
