@@ -26,6 +26,8 @@ export interface RoleReceipt {
     readonly kind: UnsupportedKind;
     readonly code?: RuleCode;
   }[];
+  /** For a `sentences_dropped` receipt: how many sentences the support check still found unsupported and the job served the answer without (D-311). A number, never a sentence. */
+  readonly dropped?: number;
   readonly attemptId?: string;
   readonly attempts?: readonly ProductionAttemptAccounting[];
   readonly code?: string;
