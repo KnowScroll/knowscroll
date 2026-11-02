@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { Animated, Platform, StyleSheet } from 'react-native';
+import { Animated, Platform, StyleSheet, type ViewStyle } from 'react-native';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { DisplayProvider } from '../../display/display';
@@ -86,7 +86,7 @@ describe('arriving at the next Part (V3 G2, F11)', () => {
     const row = screen.getByTestId('part-back-tab-row');
     expect(row).toBeOnTheScreen();
     // In the flow: the tab is not laid over the text, and the arrival bar is told to stand under it.
-    expect(StyleSheet.flatten(screen.getByTestId('part-back-tab').props.style).position).toBe('relative');
+    expect(StyleSheet.flatten(screen.getByTestId('part-back-tab').props.style as ViewStyle).position).toBe('relative');
     await view.rerender(
       wrap(
         <StageReader
@@ -98,11 +98,11 @@ describe('arriving at the next Part (V3 G2, F11)', () => {
       ),
     );
     const bar = screen.getByTestId('part-arrival-slot');
-    expect(StyleSheet.flatten(bar.props.style).top).toBe(TAB_ROW_HEIGHT + 8);
+    expect(StyleSheet.flatten(bar.props.style as ViewStyle).top).toBe(TAB_ROW_HEIGHT + 8);
     // With a picture there is no row: the tab stands on the picture's edge.
     await view.rerender(wrap(<StageReader document={document} commands={{}} previousPart={previousPart} />));
     expect(screen.queryByTestId('part-back-tab-row')).not.toBeOnTheScreen();
-    expect(StyleSheet.flatten(screen.getByTestId('part-back-tab').props.style).position).toBe('absolute');
+    expect(StyleSheet.flatten(screen.getByTestId('part-back-tab').props.style as ViewStyle).position).toBe('absolute');
   });
 
   it('remembers that a swipe has just moved, so the Part that opens does not slide in a second time', () => {
