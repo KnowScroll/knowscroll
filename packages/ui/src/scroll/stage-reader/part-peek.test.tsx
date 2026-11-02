@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { Animated } from 'react-native';
+import { Animated, Platform } from 'react-native';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { DisplayProvider } from '../../display/display';
@@ -91,6 +91,16 @@ describe('the pull from the end (V3 G3)', () => {
     expect(screen.getByTestId('pull-handle', { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.getByTestId('pull-meter-fill', { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.getByText('KEEP PULLING · NEXT TOPIC', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('draws no handle on Android, where D-134 reads no overscroll and a pull could not fill it', async () => {
+    const os = jest.replaceProperty(Platform, 'OS', 'android');
+    try {
+      await render(wrap(<StageReader document={document} commands={{ nextTopic: jest.fn() }} />));
+      expect(screen.queryByTestId('pull-handle', { includeHiddenElements: true })).not.toBeOnTheScreen();
+    } finally {
+      os.restore();
+    }
   });
 
   it('draws no handle where there is no new topic to pull to', async () => {

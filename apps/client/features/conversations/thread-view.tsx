@@ -12,13 +12,16 @@ import {
 } from '@knowscroll/client-core';
 import { DELETED_ACCOUNT_LABEL, type ConversationMessage, type DirectConversationRef } from '@knowscroll/contracts';
 import { layout, spacing } from '@knowscroll/design-tokens';
-import { Banner, Skeleton, StateBlock, useTalkTheme } from '@knowscroll/ui';
+import { Banner, Skeleton, StateBlock, useDisplay, useTalkTheme } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
 import { FeedbackSheet } from '../feedback/feedback-sheet';
+import { ChatRail } from './chat-rail';
 import { Composer } from './composer';
 import { ConversationMenu } from './conversation-menu';
 import { MessageList, useFollowEnd } from './message-list';
+import { sharedHere } from './shared-here';
+import { conversationHasRail } from './talk-columns';
 import { StartThreadSheet, rootOfCard, type ThreadRoot } from './start-thread-sheet';
 import type { AvailableTalkMessage } from './talk-message';
 import { ThreadHeader } from './thread-header';
@@ -180,6 +183,8 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
   const [replyTo, setReplyTo] = useState<AvailableTalkMessage | undefined>(undefined);
   const [draft, keepDraft] = useDraft(scope, reference.conversationId);
   const theme = useTalkTheme();
+  // The "In this chat" rail sits at the right of the conversation when the chat keeps its room beside it (T3, D-328).
+  const railed = conversationHasRail(useDisplay().width);
   const {
     ref: scrollRef,
     onScroll,
@@ -199,82 +204,100 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
   const canStartThread = root !== undefined && peer !== undefined && !state.ended && !accountDeleted;
   // A reply waits only while its original stands: once it is removed there is nothing to answer.
   const waitingReply = liveReplyTarget(replyTo, state.messages);
+  const peerHandle = peer?.handle;
   return (
-    <View style={[styles.ready, { backgroundColor: theme.ground }]}>
-      <ThreadHeader
-        peer={state.peer}
-        fallbackName={name}
-        onBack={() => (router.canGoBack() ? router.back() : leaveToTalk())}
-        onMenu={() => setMenu(true)}
-        onStartThread={canStartThread ? () => setStarting({ root, watch: false }) : undefined}
-      />
-      <ThreadNotices state={state} name={name} accountDeleted={accountDeleted} />
-      <MessageList
-        state={state}
-        controller={controller}
-        name={name}
-        scrollRef={scrollRef}
-        onScroll={onScroll}
-        onContentSizeChange={onContentSizeChange}
-        onReport={(message) =>
-          setReporting({ kind: 'message', messageId: message.messageId, author: reportedPerson(message.author) })
-        }
-        onReply={setReplyTo}
-        onWatchTogether={
-          peer === undefined || accountDeleted || state.ended
-            ? undefined
-            : (target) => setStarting({ root: target, watch: true })
-        }
-      />
-      {state.ended ? null : (
-        <Composer
+    <View style={[styles.ready, styles.row, { backgroundColor: theme.ground }]}>
+      <View style={styles.main}>
+        <ThreadHeader
+          peer={state.peer}
+          fallbackName={name}
+          onBack={() => (router.canGoBack() ? router.back() : leaveToTalk())}
+          onMenu={() => setMenu(true)}
+          onStartThread={canStartThread ? () => setStarting({ root, watch: false }) : undefined}
+        />
+        <ThreadNotices state={state} name={name} accountDeleted={accountDeleted} />
+        <MessageList
+          state={state}
+          controller={controller}
           name={name}
-          value={draft}
-          onChange={keepDraft}
-          replyTo={
-            waitingReply === undefined
-              ? undefined
-              : { author: waitingReply.author.displayName, preview: messagePreview(waitingReply) }
+          scrollRef={scrollRef}
+          onScroll={onScroll}
+          onContentSizeChange={onContentSizeChange}
+          onReport={(message) =>
+            setReporting({ kind: 'message', messageId: message.messageId, author: reportedPerson(message.author) })
           }
-          onCancelReply={() => setReplyTo(undefined)}
-          onSend={(text) => {
-            keepDraft('');
-            follow();
-            void controller.send({ kind: 'text', text }, waitingReply?.messageId);
-            setReplyTo(undefined);
+          onReply={setReplyTo}
+          onWatchTogether={
+            peer === undefined || accountDeleted || state.ended
+              ? undefined
+              : (target) => setStarting({ root: target, watch: true })
+          }
+        />
+        {state.ended ? null : (
+          <Composer
+            name={name}
+            value={draft}
+            onChange={keepDraft}
+            replyTo={
+              waitingReply === undefined
+                ? undefined
+                : { author: waitingReply.author.displayName, preview: messagePreview(waitingReply) }
+            }
+            onCancelReply={() => setReplyTo(undefined)}
+            onSend={(text) => {
+              keepDraft('');
+              follow();
+              void controller.send({ kind: 'text', text }, waitingReply?.messageId);
+              setReplyTo(undefined);
+            }}
+          />
+        )}
+        {starting !== undefined && peer !== undefined ? (
+          <StartThreadSheet
+            visible
+            scope={scope}
+            root={starting.root}
+            peer={peer}
+            purpose={starting.watch ? 'watch' : 'start'}
+            onClose={() => setStarting(undefined)}
+          />
+        ) : null}
+        <ThreadMenu
+          scope={scope}
+          controller={controller}
+          state={state}
+          name={name}
+          accountDeleted={accountDeleted}
+          visible={menu}
+          onClose={() => setMenu(false)}
+          leaveToTalk={leaveToTalk}
+          onReport={() => {
+            if (state.peer !== undefined) setReporting({ kind: 'person', person: reportedPerson(state.peer) });
           }}
         />
-      )}
-      {starting !== undefined && peer !== undefined ? (
-        <StartThreadSheet
-          visible
-          scope={scope}
-          root={starting.root}
+        <FeedbackSheet target={reporting} onClose={() => setReporting(undefined)} />
+      </View>
+      {railed && peer !== undefined ? (
+        <ChatRail
           peer={peer}
-          purpose={starting.watch ? 'watch' : 'start'}
-          onClose={() => setStarting(undefined)}
+          shared={sharedHere(state.messages, peer)}
+          complete={!state.hasOlder}
+          onVisit={
+            peerHandle === undefined || state.ended || accountDeleted
+              ? undefined
+              : () => router.push(`/visit/${encodeURIComponent(peerHandle)}`)
+          }
+          onStartThread={canStartThread ? () => setStarting({ root, watch: false }) : undefined}
         />
       ) : null}
-      <ThreadMenu
-        scope={scope}
-        controller={controller}
-        state={state}
-        name={name}
-        accountDeleted={accountDeleted}
-        visible={menu}
-        onClose={() => setMenu(false)}
-        leaveToTalk={leaveToTalk}
-        onReport={() => {
-          if (state.peer !== undefined) setReporting({ kind: 'person', person: reportedPerson(state.peer) });
-        }}
-      />
-      <FeedbackSheet target={reporting} onClose={() => setReporting(undefined)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   ready: { flex: 1 },
+  row: { flexDirection: 'row' },
+  main: { flex: 1, minWidth: 0, minHeight: 0 },
   body: { padding: layout.gutter },
   banner: {
     paddingHorizontal: layout.gutter,

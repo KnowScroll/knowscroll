@@ -22,7 +22,14 @@ import { layout, spacing } from '@knowscroll/design-tokens';
 import { Button, DateCapsule, Text, useDisplay, useTalkTheme } from '@knowscroll/ui';
 import { useRecordingPaused } from '../../providers/use-recording-paused';
 import { ChallengeBlock } from './challenge-block';
-import { AwayDivider, ContentCard, firstAwayMessage, OutgoingBubble, RemovedMessage } from './message-views';
+import {
+  AwayDivider,
+  ContentCard,
+  firstAwayMessage,
+  NewSinceDivider,
+  OutgoingBubble,
+  RemovedMessage,
+} from './message-views';
 import { rootOfCard, type ThreadRoot } from './start-thread-sheet';
 import { TalkMessage, type AvailableTalkMessage, type TalkMessageBody } from './talk-message';
 import { useMessageJump } from './use-message-jump';
@@ -157,6 +164,7 @@ export function MessageList({
   const ownPersonId = ownPersonIdOf(state);
   const now = new Date();
   const awayFrom = firstAwayMessage(state.messages, state.awayAfterSequence);
+  const newSinceFrom = firstAwayMessage(state.messages, state.newSinceSequence);
   const jump = (sequence: number) =>
     void jumper.jump(sequence, { hasOlder: () => controller.getState().hasOlder, loadOlder: controller.loadOlder });
   const react = (message: AvailableTalkMessage, kind: MessageReactionKind, present: boolean) =>
@@ -207,6 +215,7 @@ export function MessageList({
                     role="listitem"
                     style={styles.item}
                   >
+                    {message.sequence === newSinceFrom ? <NewSinceDivider /> : null}
                     {message.sequence === awayFrom ? <AwayDivider /> : null}
                     {message.status === 'unavailable' ? (
                       <RemovedMessage mine={mine} />

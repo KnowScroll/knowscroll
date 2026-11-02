@@ -93,6 +93,8 @@ export interface StageReaderProps {
    * right brings in. The same move is `commands.previousPart`.
    */
   readonly previousPart?: NextPartPeek | undefined;
+  /** A note laid over the top of the picture and text, below the header however tall it is (the "Next topic" note, V3 G4). */
+  readonly topNote?: ReactNode;
   /** Set when this reader was opened by a move to the next Part: says where the person's place in the one left went. */
   readonly arrival?: PartArrival | undefined;
   readonly onDone?: (() => void) | undefined;
@@ -162,6 +164,7 @@ export function StageReader({
   related,
   previousPart,
   arrival,
+  topNote,
   onDone,
   play: appPlay,
   endSlot,
@@ -400,6 +403,11 @@ export function StageReader({
           <PartEdgePeek peek={nextPart} top={stageHeightFor(windowHeight, wide) * 0.3} />
         )}
         {arrival === undefined ? null : <PartArrivalBar arrival={arrival} />}
+        {topNote === undefined ? null : (
+          <View style={styles.topNote} pointerEvents="box-none">
+            {topNote}
+          </View>
+        )}
         {peek.side === undefined || peeked === undefined ? null : (
           <PartPeekPanel side={peek.side} peek={peeked} dx={peek.dx} width={peek.width} past={peek.past} />
         )}
@@ -430,6 +438,7 @@ function TextVersionSwitch({ on, onPress }: { readonly on: boolean; readonly onP
 const styles = StyleSheet.create({
   middle: { flex: 1, minHeight: 0, overflow: 'hidden' },
   slide: { flex: 1, minHeight: 0 },
+  topNote: { position: 'absolute', top: spacing[2], left: spacing[4], right: spacing[4] },
   body: { flex: 1, minHeight: 0, flexDirection: 'row' },
   scroller: { flex: 1 },
   content: { paddingBottom: spacing[12] },

@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Platform, StyleSheet, View, type ViewInstance } from 'react-native';
 import { borderWidth, content, elevation, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 import { keptWords, type FormatNote } from './format-note';
@@ -15,10 +15,18 @@ function KeyChip({ name }: { readonly name: string }) {
   );
 }
 
+/** Hands focus back to the reader once the note has gone, so the keys of the reader work again (web). */
+function returnFocusToReader(): void {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  document.querySelector<HTMLElement>('[data-testid="scroll-reader"]')?.focus();
+}
+
 /**
  * "Next topic · as a Scroll" (V3 G4): said once, over the top of the Scroll that Next ↑ landed on, with the topic's title and
  * what the document itself says about it, the way to the Reel of the same topic when there is one, and Undo, which goes back to
- * the Scroll that was left, kept as it was. F and Esc do the two. It puts itself away after a few seconds and asks for nothing.
+ * the Scroll that was left, kept as it was. F and Esc do the two, from the note itself: focus moves into it when it appears,
+ * so the keys act at once, and goes back to the reader when it goes. It puts itself away after nine seconds, but not while it
+ * has focus or the pointer is over it (WCAG 2.2.1), and asks for nothing.
  */
 export function FormatNoteCard({
   note,
@@ -31,13 +39,37 @@ export function FormatNoteCard({
   readonly onUndo: () => void;
   readonly onExpire: () => void;
 }) {
+  const card = useRef<ViewInstance>(null);
+  const [held, setHeld] = useState({ focus: false, pointer: false });
+  const hold = held.focus || held.pointer;
   useEffect(() => {
+    (card.current as unknown as { focus?: () => void } | null)?.focus?.();
+    return returnFocusToReader;
+  }, []);
+  useEffect(() => {
+    if (hold) return undefined;
     const timer = setTimeout(onExpire, NOTE_MS);
     return () => clearTimeout(timer);
-  }, [onExpire]);
+  }, [hold, onExpire]);
   const filled = note.kept.at === undefined || note.kept.of === undefined ? undefined : note.kept.at / note.kept.of;
   return (
-    <View style={styles.card} role="status" accessibilityLiveRegion="polite" testID="format-note">
+    <View
+      ref={card}
+      tabIndex={-1}
+      style={styles.card}
+      role="status"
+      accessibilityLiveRegion="polite"
+      testID="format-note"
+      onFocus={() => setHeld((now) => ({ ...now, focus: true }))}
+      onBlur={() => setHeld((now) => ({ ...now, focus: false }))}
+      onPointerEnter={() => setHeld((now) => ({ ...now, pointer: true }))}
+      onPointerLeave={() => setHeld((now) => ({ ...now, pointer: false }))}
+      onKeyDown={(event: { nativeEvent?: { key?: string }; key?: string }) => {
+        const key = event.nativeEvent?.key ?? event.key;
+        if (key === 'Escape') onUndo();
+        else if ((key === 'f' || key === 'F') && note.canSwitchToReel) onSwitch();
+      }}
+    >
       <Text variant="monoXs" color={content.ink2}>
         {note.kicker}
       </Text>

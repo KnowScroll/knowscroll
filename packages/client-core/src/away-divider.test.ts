@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { awayAfter, newestSequence } from './away-divider';
+import { awayAfter, newestSequence, newSinceAfter } from './away-divider';
 
 const messages = (...sequences: number[]) => sequences.map((sequence) => ({ sequence }));
 const nobodyOwn = () => false;
@@ -23,5 +23,25 @@ describe('the "While you were away" divider', () => {
     const own = (message: { sequence: number }) => message.sequence === 4;
     expect(awayAfter(3, messages(1, 2, 3, 4), own)).toBeUndefined();
     expect(awayAfter(3, messages(1, 2, 3, 4, 5), own)).toBe(3);
+  });
+});
+
+describe('the "New since you were here" line', () => {
+  it('follows the position the person had read through when they opened it', () => {
+    expect(newSinceAfter(2, messages(1, 2, 3, 4), nobodyOwn)).toBe(2);
+  });
+
+  it('is not drawn when nothing came after that position', () => {
+    expect(newSinceAfter(3, messages(1, 2, 3), nobodyOwn)).toBeUndefined();
+  });
+
+  it('is not drawn for a place the person never read in: everything would be new', () => {
+    expect(newSinceAfter(0, messages(1, 2, 3), nobodyOwn)).toBeUndefined();
+  });
+
+  it('does not count the person’s own messages', () => {
+    const own = (message: { sequence: number }) => message.sequence === 4;
+    expect(newSinceAfter(3, messages(1, 2, 3, 4), own)).toBeUndefined();
+    expect(newSinceAfter(3, messages(1, 2, 3, 4, 5), own)).toBe(3);
   });
 });

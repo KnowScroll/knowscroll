@@ -56,7 +56,13 @@ export function SunDisc({
  * A planet as the dial draws it, small: a flat painted ball in its type's own colours, with its ring
  * when its look gives it one. The big planet of the dial is the real globe.
  */
-export function PlanetDisc({ planet, size }: { readonly planet: DialPlanet; readonly size: number }) {
+export function PlanetDisc({
+  planet,
+  size,
+}: {
+  readonly planet: Pick<DialPlanet, 'type' | 'hueShift' | 'rings'>;
+  readonly size: number;
+}) {
   const id = useId().replaceAll(':', '');
   const palette = paletteOf(planet.type, planet.hueShift);
   const span = size * (planet.rings ? 1.9 : 1);

@@ -25,6 +25,7 @@ import type {
   RoomMessage,
   ThreadEpisode,
 } from '@knowscroll/contracts';
+import { ROOM_NOT_COVERED_LINE } from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Button, IconButton, Tag, Text } from '@knowscroll/ui';
 import { SnippetCard } from '../threads/snippet-card';
@@ -75,6 +76,19 @@ export interface MessageActions {
   readonly canReport: boolean;
 }
 
+/**
+ * True for a resident's fixed "the library doesn't cover that yet" line. Challenging it or asking for the other side
+ * would only post the same line again, so no ask is offered under it.
+ */
+export function isGapLine(message: RoomMessage): boolean {
+  return (
+    message.status === 'available' &&
+    message.author.kind !== 'person' &&
+    message.body.kind === 'text' &&
+    message.body.text === ROOM_NOT_COVERED_LINE
+  );
+}
+
 export function actionsFor(
   message: RoomMessage,
   role: 'member' | 'moderator',
@@ -88,7 +102,7 @@ export function actionsFor(
   return {
     canStartThread: isCard,
     canStartTopic: available && message.body.kind === 'text',
-    canAsk: available && message.body.kind !== 'topic',
+    canAsk: available && message.body.kind !== 'topic' && !isGapLine(message),
     canUseful: available && !mine && message.body.kind !== 'topic',
     canModerate: role === 'moderator' && (message.status === 'removed' || message.status === 'available'),
     canReport: message.status === 'available' && !mine,
@@ -538,7 +552,10 @@ export function RoomMessages({
                       )}
                     </MessageLine>
                   )}
-                  {message.status === 'available' && message.author.kind !== 'person' && !folded ? (
+                  {message.status === 'available' &&
+                  message.author.kind !== 'person' &&
+                  !folded &&
+                  !isGapLine(message) ? (
                     <View style={styles.askRow} testID={`ai-actions-${message.messageId}`}>
                       <Button
                         label="Challenge"

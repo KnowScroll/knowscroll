@@ -410,7 +410,7 @@ describe('the payoff at the end (E1, D-189)', () => {
       </DisplayProvider>,
     );
     await fireEvent.press(screen.getByRole('button', { name: 'Done for today' }));
-    expect(screen.getByTestId('done-next-time')).toHaveTextContent('Next time you’ll start at Part 2.');
+    expect(screen.getByTestId('done-next-time')).toHaveTextContent('Part 2 is next.');
     await withPart.unmount();
     await render(
       <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>

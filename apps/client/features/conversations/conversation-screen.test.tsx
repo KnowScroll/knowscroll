@@ -144,6 +144,39 @@ describe('conversation thread screen (labelled in-memory server)', () => {
     await finish(server);
   });
 
+  it('draws the "New since you were here" line over what the peer wrote after the person’s own read position', async () => {
+    const server = talkServer();
+    server.peerSays('read already');
+    await server.scope.api.conversations.markRead({
+      version: 'direct-conversation.v1',
+      commandId: id(902),
+      conversation,
+      throughSequence: 1,
+    });
+    server.peerSays('written after');
+    await open(server);
+    await screen.findByText('written after');
+    expect(screen.getByText('NEW SINCE YOU WERE HERE')).toBeOnTheScreen();
+    expect(screen.getAllByTestId('new-since-divider')).toHaveLength(1);
+    expect(screen.queryByTestId('away-divider')).toBeNull();
+    await finish(server);
+  });
+
+  it('draws no "New since you were here" line for a conversation read to the end', async () => {
+    const server = talkServer();
+    server.peerSays('read already');
+    await server.scope.api.conversations.markRead({
+      version: 'direct-conversation.v1',
+      commandId: id(903),
+      conversation,
+      throughSequence: 1,
+    });
+    await open(server);
+    await screen.findByText('read already');
+    expect(screen.queryByTestId('new-since-divider')).toBeNull();
+    await finish(server);
+  });
+
   it('turns the shared card into a thread with the other person, once, from the header', async () => {
     const server = talkServer();
     await open(server);

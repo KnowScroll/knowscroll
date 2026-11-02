@@ -87,6 +87,12 @@ const Revision = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 const Counter = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const Limit = z.number().int().min(1).max(50);
 
+/**
+ * The fixed line a resident posts when the library cannot support an answer (D-301). It is code's words, not a model's. The
+ * server posts it and the client recognises it to offer nothing to challenge under it.
+ */
+export const ROOM_NOT_COVERED_LINE = "The library doesn't cover that yet. Ask from here on a Scroll to have one made.";
+
 /** A number of people here is shown from this many; below it the faces speak for themselves (D-069). */
 export const ROOM_HERE_COUNT_FROM = 3;
 /** How long one heartbeat keeps a person's face in the room. */
