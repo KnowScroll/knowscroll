@@ -1524,6 +1524,7 @@ export interface RoomsActivities {
 }
 
 export interface RoomsAiTurns {
+  answer_support: Json | null;
   ask_kind: string | null;
   attempt_id: string | null;
   caps: Generated<Json>;

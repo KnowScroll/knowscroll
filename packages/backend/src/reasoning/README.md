@@ -96,6 +96,9 @@ itself fails `schema-structure.test.ts`, instead of silently masking every path.
   `unknown` (never resent) and the operator has to write it off.
 - **Aborts.** A graceful stop (the delivery's signal) before the request leaves records a failure
   with code `ABORTED_BEFORE_DISPATCH` that charges nothing; the stop after it left records `unknown`.
+- **A resident's answer** (`rooms.contribute`, `rooms.cast-pass`, D-301, D-303) counts six paid attempts by the same rule: the writer and its repair, the
+  support check and its repair, one rewrite and its check (the last two have no repair). The claim of both queues is `6 x (10 + 300 + 10) + 30 = 1,950` s
+  (`ANSWER_CLAIM_SECONDS`); `answer-support.test.ts` writes the formula out again and shows that a seventh attempt would not fit.
 
 Every request is framed by the harness: a fixed preamble and the role's instructions in the system
 text; every context item as escaped, delimited data in the user text (`domain/prompt.ts`), so

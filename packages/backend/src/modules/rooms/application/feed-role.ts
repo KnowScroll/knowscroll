@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { ProposeOutcome, ReasoningContext, ReasoningRole } from '../../../reasoning/public.js';
 import type { InhabitantId } from '../domain/contribution.js';
 import { FEED_RULES, noteProblem, type FindCandidate, type NoteProblem } from '../domain/feed.js';
-import { unproposedVerdict, type ContributionVerdict } from './inhabitant-role.js';
+import { unproposedVerdict, type FailedVerdict } from './inhabitant-role.js';
 
 /** Changes with the instructions or the answer schema; recorded on every find. */
 export const FIND_ROLE_VERSION = 'find.1';
@@ -149,7 +149,7 @@ export function findContext(material: FindMaterial): ReasoningContext {
 export type FindVerdict =
   | { readonly kind: 'find'; readonly text: string; readonly attemptId: string; readonly end: 'completed' }
   | { readonly kind: 'nothing_to_add'; readonly end: 'completed' }
-  | Extract<ContributionVerdict, { readonly kind: 'failed' }>;
+  | FailedVerdict;
 
 /** Reads the harness outcome, with the same failure and dispatch rules as every resident's turn. */
 export function findVerdict(outcome: ProposeOutcome<FindAnswer>): FindVerdict {

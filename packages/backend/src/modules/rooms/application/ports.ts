@@ -20,6 +20,7 @@ import type { ActivityKind, ActivityState, StoredDefinition } from '../domain/ac
 import type { LaunchRow, ReadyDeck, StoredAnswer } from './launch-ports.js';
 import type { WatchSessionRow } from './watch-ports.js';
 import type { UnnoticedQuestion } from './question-ports.js';
+import type { AnswerSupportRecord } from '../domain/answer-support.js';
 import type { AskKind } from '../domain/asks.js';
 import type { CastMember } from '../domain/cast.js';
 import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
@@ -419,11 +420,19 @@ export type TurnTrigger = 'asked' | SpeechTrigger;
 
 export type TurnState = 'queued' | 'completed' | 'declined' | 'failed' | 'refused';
 
-/** An answer the model already gave and the room paid for, kept on its turn while posting is put off for someone typing. */
+/**
+ * An answer the model already gave, that passed its checks, and the room paid for, kept on its turn while posting is put off
+ * for someone typing. It is posted as it is; nothing is checked or asked again.
+ */
 export interface HeldAnswer {
   readonly kind: ContributionKind;
   readonly text: string;
   readonly attemptId: string;
+  /**
+   * How the answer came out (D-301). Every answer this code holds has it, and says it cleared. A held answer without it was held
+   * by a worker from before the check; it is never posted, because nothing is known about it (`cast-pass.ts`).
+   */
+  readonly support?: AnswerSupportRecord;
 }
 
 export interface AiTurnRow {
@@ -458,14 +467,23 @@ export interface AiProvenance {
   readonly attemptId: string | undefined;
 }
 
-/** The result of settling a queued turn. */
+/**
+ * The result of settling a queued turn. `support` is how the answer came out (D-301): kept with the turn, it holds IDs of public
+ * library passages and counts and never a word.
+ */
 export type TurnOutcome =
-  | { readonly state: 'declined' | 'failed'; readonly at: Date; readonly dispatched: boolean }
+  | {
+      readonly state: 'declined' | 'failed';
+      readonly at: Date;
+      readonly dispatched: boolean;
+      readonly support?: AnswerSupportRecord;
+    }
   | {
       readonly state: 'completed';
       readonly at: Date;
       readonly messageId: string;
       readonly provenance: AiProvenance;
+      readonly support?: AnswerSupportRecord;
     };
 
 /** An unprompted turn the router decided: allowed (queued for the worker) or refused (settled at once, posts nothing). */
@@ -1148,6 +1166,8 @@ export interface RoomPorts {
   /** The caller's own map, to place stations beside the systems it holds. */
   readonly readGeography: ReadGeographySceneInput;
   newId(): string;
+  /** A UUID derived from a name: the same name is the same ID, so a redelivered job names the same model runs again. */
+  readonly idFor: (name: string) => string;
   hash(operation: string, input: unknown): string;
   now(): Date;
   /** Queues the contribution job in the caller's open transaction. */

@@ -39,7 +39,7 @@ const MINUTE = 60_000;
 
 const answer = (kind: string, text: string): FixtureScenario => ({
   kind: 'success',
-  text: JSON.stringify({ kind, text }),
+  text: JSON.stringify({ kind, text, cites: ['e1'] }),
 });
 const explains = (text = 'Seasons come from the tilt of the Earth, which changes how directly sunlight lands.') =>
   answer('explanation', text);
@@ -184,7 +184,7 @@ describe('residents speak on their own (real PostgreSQL, CI fixture model)', () 
         inhabitant: 'explainer',
         requested_by_account_id: null,
         dispatched: true,
-        role_version: 'resident.1',
+        role_version: 'resident.2',
       });
       expect(turn!.caps).toMatchObject({ roomLastHour: 0, roomToday: 0, residentLastHour: 0, personLastHour: 0 });
       expect(turn!.attempt_id).not.toBeNull();

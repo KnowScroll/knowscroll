@@ -361,7 +361,7 @@ describe('the room as a place (real PostgreSQL)', () => {
       const model = fixtureModel(
         () => ({
           kind: 'success',
-          text: JSON.stringify({ kind: 'explanation', text: 'Batching keeps hardware busy.' }),
+          text: JSON.stringify({ kind: 'explanation', text: 'Batching keeps hardware busy.', cites: ['e1'] }),
         }),
         { label: 'rooms-hint' },
       );
@@ -465,7 +465,11 @@ describe('the room as a place (real PostgreSQL)', () => {
   });
 
   describe('keeping messages out of what AI reads', () => {
-    const answer = JSON.stringify({ kind: 'explanation', text: 'Batching groups requests so hardware stays busy.' });
+    const answer = JSON.stringify({
+      kind: 'explanation',
+      text: 'Batching groups requests so hardware stays busy.',
+      cites: ['e1'],
+    });
 
     async function conversation() {
       const { roomId } = await seedRoom(world);

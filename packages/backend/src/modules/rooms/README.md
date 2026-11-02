@@ -8,7 +8,7 @@ and sets how much the AI inhabitants may speak to them. AI inhabitants answer wh
 labelled as AI, and make nothing. Each room has a cast of named residents (an Explainer and a Skeptic): they answer
 when a member asks and, under caps the router keeps, speak on their own when a question goes unanswered or a claim is
 stated very strongly. Blueprint §10, §15 (roles), §16–§17 ("Idea rooms use the same exploration
-model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165, D-166 to D-171, D-174 to D-176, D-178 to D-179, D-219 to D-224, D-241 to D-243, D-271 to D-274.
+model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165, D-166 to D-171, D-174 to D-176, D-178 to D-179, D-219 to D-224, D-241 to D-243, D-271 to D-274, D-301 to D-304.
 
 Status marks: **implemented** means merged with tests against real PostgreSQL and the reasoning
 harness over a CI fixture model. **Runtime-verified** means used on a local system with the real
@@ -23,7 +23,7 @@ A room's residents also post finds: three times a day each looks at the room and
 | See their rooms and invitations (Talk), preview a room before joining, join (by the room's rule) and leave | Implemented |
 | Read and write in a room's discussions; share a card for current content; share a Reel moment, a Scroll passage or a block inside a content thread | Implemented |
 | Start a content thread from shared content, or from a card in a discussion | Implemented |
-| Ask a labelled AI inhabitant to contribute (Explainer, Skeptic) | Implemented; runtime-verified |
+| Ask a labelled AI inhabitant to contribute (Explainer, Skeptic) | Implemented; runtime-verified. Since v3 #620 the answer rests on library passages and passes the support check (below); not yet runtime-verified |
 | Moderator: pin a discussion, hide or restore a message, pause or resume the room, remove an ordinary member | Implemented |
 | Operator: seed one room for each library system, name a moderator | Implemented |
 | Find a room's station beside a system of their own map (U01, U02, the list view) and open it | Implemented; runtime-verified |
@@ -42,6 +42,7 @@ A room's residents also post finds: three times a day each looks at the room and
 | Start a topic from any message: it becomes the topic's first item and leaves a card; browse topics as a list with tags, sorted Hot, New or Unanswered (v3 R-3, D-168) | Implemented (CI-verified) |
 | Mark a message Useful: one mark per member, never one's own, counted only on a topic (v3 R-3, D-168) | Implemented (CI-verified) |
 | A welcome from a resident when joining: a template, no model call (v3 R-3, D-169) | Implemented (CI-verified) |
+| A resident's answer, asked or unprompted, rests on library passages chosen by code for the room and the question, cites them, and is posted only after every figure is a passage's own and the shared support check found every sentence supported; one rewrite for a flagged sentence, then a fixed line to a member who asked ("The library doesn't cover that yet. Ask from here on a Scroll to have one made.") or silence from a resident that spoke on its own; at most six paid attempts an answer; an idle room makes no call (v3 #620, D-301 to D-304) | Implemented (CI-verified; fixture model). Off for unprompted turns until `KS_REASONING_ROOM_ENABLED`; not yet runtime-verified |
 | A "while you were away" card for a member who comes back after 12 hours to 15 new messages: Halley writes it once per room and 12-hour window, without kept-out members and removed messages, and it is erased when what it read is removed (v3 R-3, D-169) | Implemented (CI-verified; fixture model). Off until `KS_REASONING_ROOM_ENABLED`; not yet runtime-verified |
 | Every room has a face: an emblem, palette, motif and one slow loop on its band, the residents' marks, the emblem on its Talk row and on its station on the Universe map. A room wears the default its ID gives it until an operator approves a kit (v3 R-4, D-170) | Implemented (CI-verified) |
 | Operator: propose a room's kit from its topic (the `rooms.station-kit` role, one call, closed vocabulary, contrast checked), review it, and approve or reject it (v3 R-4, D-170, D-171) | Implemented (CI-verified; fixture model). Not yet runtime-verified |
@@ -191,7 +192,8 @@ conversations or threads.
 - **An inhabitant never starts production.** A contribution is a message. Nothing it says creates a
   demand, a job or a branch; a person who likes a suggestion asks for it themselves.
 - **Private friend context never flows in.** The context an inhabitant reads is this room's own
-  discussion, the content it is about, the room's name, topic and guidelines, and nothing else. Speakers
+  discussion, the content it is about, the room's name, topic and guidelines, the public library passages chosen
+  for the question (D-301), and nothing else. Speakers
   are "Member 1", "Member 2": no name, handle, ID, reading position or hidden message is sent. A test
   puts a friend thread with distinctive words beside the room and proves they never reach the model.
 - **Messages and pins are conversation, not evidence.** Joining, chatting, pinning, hiding and asking
@@ -202,6 +204,20 @@ conversations or threads.
 - **Rooms never write to the personal universe.** No code here names a table of `experience`, `geography`, `composer`,
   `planner`, `evidence` or `personal_context` as a write target (`write-boundary.test.ts`), and a resident's turn
   changes no row there (`rooms-residents.test.ts`).
+
+## Residents' answers rest on the library (v3 #620, D-301 to D-304)
+
+A resident that states a fact has looked it up. Every answer a resident gives, to a member's ask (a plain ask, a challenge, the other side, a mention, a left question) or on its own (an unanswered question, a strong claim in a message or a post), passes through one pipeline (`application/answer-pipeline.ts`) before a word is posted. Status: **implemented** (CI-verified with a labelled fixture model); not yet runtime-verified.
+
+- **Passages.** `answer-ground.ts` reads the admitted library Scrolls under the room's topic (`READ_LIBRARY_PASSAGES`, shared content, outside every transaction) and chooses up to four stops of them by the key words they share with the discussion's title, the title of its content and the message being answered with the two before it. Code chooses; the model never does. No passage fits: no model is asked, a member who asked is given the fixed line, and a resident that spoke on its own stays quiet and the turn is handed back.
+- **A message that asks nothing.** A message that names a resident (`@Nova thanks, that helps`, `hi @Halley`) and has no question mark, no interrogative or request opening (`asksSomething`) is an ask that asks nothing: the resident is not asked, nothing is read, nothing is posted and no fixed line is said. The turn ends `declined` ("had nothing to add") and counts as one of the member's asks. A pointed ask (challenge, the other side, about) and a left question are requests in themselves.
+- **The writer** (`inhabitant.3`, `resident.2`) cites one to three passages by handle (`e1`…) in `cites`, may answer `not_covered`, and writes at most ten sentences. The schema refuses a missing, unknown, repeated or excess citation with a fixed hint for the harness's one repair.
+- **The check.** Code applies the figure rule (D-302: every figure in a sentence is written, the same way, by a passage the answer cites) and the shared support checker (`content/public.ts`: `askSupportRole`, `askSupportContext`, `verdictsOf`, version `ask-support-check.v4`) reads each sentence against the passages cited, in one request, under the roles `rooms.inhabitant-support` (a member's ask, the asker's recording-aware personal harness) and `rooms.ambient-support` (a resident on its own, the room scope, `ambient`). A verdict that breaks a rule makes only its sentence unsupported (D-265).
+- **One rewrite.** A flagged sentence earns the writer's role as a revision (`.fix`), shown the sentence and a fixed hint, never the checker's words, and the rewrite is checked once. Cleared: posted. Still flagged, or the writer or the rewrite says the passages do not cover it: a member who asked is given `NOT_COVERED_LINE` ("The library doesn't cover that yet. Ask from here on a Scroll to have one made."), an AI message of kind `explanation` labelled as the resident asked; a resident that spoke on its own says nothing and the turn is `declined` and counted (D-304). A step that failed, was refused or ran out of budget, or a checker reply code refuses, ends the turn as failed: nothing unchecked is ever posted.
+- **Bound.** Writer and repair, check and repair, one rewrite, one check: six paid attempts (`ANSWER_PAID_ATTEMPTS`). The claim of `rooms.contribute` and `rooms.cast-pass` is 6 x (10 + 300 + 10) + 30 = 1,950 s by the reasoning README's rule (D-303). Caps are unchanged: the asked bounds, the unprompted caps, the AI levels and keep-out. An idle room, a calm message and a world with residents off queue nothing, read no passage and make no call.
+- **Tables.** `rooms.ai_turns.answer_support` (migration 0101) keeps, for a turn, the passages cited (asset, revision and stop IDs), how the answer came out (`cleared`, `cleared_after_rewrite`, `not_covered`, `no_ground`) and how many sentences each draft had flagged: IDs and counts, no word. A checked answer held for someone typing keeps it on the turn. It is public content and a count, so nothing here is erased by a Clear or a deletion beyond what the turn already was.
+- **Lock order and runs.** The ground is read after step 1's transaction ends and before step 3's begins; no lock is held while a passage is read or a model is asked. A member's ask: the checks' and the rewrite's runs (purpose `inhabitant-contribution`, IDs derived from the ask's) close first, one transaction each while the ask is still queued for the owner check, and the writer's run closes in the transaction that stores the message. A resident on its own: the same order on the room scope (`closeProductionRun`). A delivery that dies between a check's close and the store finds the check closed on redelivery and posts nothing.
+- **Failure and recovery.** A redelivery answers every step from the ledger, except a check whose run was already closed (a delivery died between closing it and storing the answer): that check is refused on redelivery, the answer counts as unchecked, nothing is posted and the turn fails, counted. A library that changed between two deliveries makes the request differ for a run already sent; the ledger refuses it and the turn fails, counted. An attempt of unknown outcome is never resent. A recording paused, resumed or cleared while the steps run drops the answer (D-270).
 
 ## Residents' feed and memory (v3 R-8, D-247 to D-249)
 
@@ -369,10 +385,12 @@ anything else.
 `rooms.cast-due` (IDs only: universe, epoch, room, discussion, message, trigger, round) decides, with no model call, whether a
 resident answers one message (see "Rules that matter"). `rooms.cast-pass` (IDs only) is the model call of a turn the router
 allowed: (1) one transaction rechecks authority and that the turn is still wanted (open room, resident in the cast, message
-not removed, nobody has answered) and builds the bounded context with keep-out applied; (2) the room-scope harness makes
-one call (plus at most one repair) outside any transaction, on a run whose ID is the turn ID, so a redelivery never pays
-twice; (3) one transaction stores the message and settles the turn, or settles it without a message (`declined` for a
-resident's own "nothing to add", `failed` otherwise, handed back when nothing reached the provider), and the run is closed.
+not removed, nobody has answered) and builds the bounded material with keep-out applied; (2) the passages for the message are
+read and chosen by code, and the room-scope harness makes the writer's call, the check of its answer and, when a sentence is flagged, one
+rewrite and its check (at most six paid attempts, "Residents' answers rest on the library" below), outside any transaction, each on a
+run whose ID is derived from the turn's, so a redelivery never pays twice; (3) one transaction stores the message and settles the
+turn, or settles it without a message (`declined` for a resident's own "nothing to add" and for an answer the library does not
+support, `failed` otherwise, handed back when nothing reached the provider), and the runs are closed.
 Step 1 also lets the turn go if its author has since asked that their messages be kept out. Posting is put off while someone
 is typing: the paid answer is stored on the turn (`held_kind`, `held_text`), which counts as having reached the provider,
 and the next delivery posts it, or drops it with the turn still counted, without building a context or calling the model
@@ -395,13 +413,15 @@ Clear is dropped and the ask ends as failed; while the asker's recording is paus
 is not counted. A resident speaking on its own (`rooms.cast-pass`) runs in the room's scope and is not governed by this.
 Status: implemented, CI-verified. A pointed ask or a mention reads the message it is about as the turn's
 focus, and ends without a call when that message is gone or its author keeps messages out. Steps: (1) one transaction rechecks the
-asker's authority and reads the room's own discussion into the bounded context; (2) the harness makes
-one model call (plus at most one repair) outside any transaction, on a run whose ID is the request ID,
-so a redelivery never pays twice and an unknown outcome is never resent; (3) one transaction rechecks
-membership and the room's status, stores the message with its provenance and closes the run. The answer
+asker's authority and reads the room's own discussion into the bounded context; (2) the passages for the question are read and
+chosen by code, and the harness makes the writer's call, the check of its answer and, when a sentence is flagged, one rewrite and its
+check (at most six paid attempts), outside any transaction, each on a run named from the request ID, so a redelivery never pays
+twice and an unknown outcome is never resent; (3) one transaction rechecks membership and the room's status, stores the message
+with its provenance (and how the answer came out) and closes the writer's run. The answer
 schema allows only the kinds an inhabitant may use (the Explainer explains; the Skeptic names an
 assumption, another perspective or a counterexample) and refuses a link or a claim to be a person with a
-fixed hint. `nothing_to_add` is an honest answer: nothing is posted and the asker is told. The harness
+fixed hint. `nothing_to_add` is an honest answer: nothing is posted and the asker is told; `not_covered` is the writer saying the
+passages do not cover the question, and the asker is then given the fixed line. The harness
 refuses every call while no model provider is configured (`KS_REASONING_PROVIDER=none`), and the ask then
 ends as failed.
 
@@ -458,14 +478,14 @@ person who never took part in a room has no section.
   reads the discussion afresh while an inhabitant is preparing a reply. A room hint on the socket (a message sent, a
   lease starting or ending, someone leaving, an AI reply the worker stored) makes a member's client read within seconds; it is disposable and
   names only the room. A lease that lapses without a hint is noticed on the next poll.
-- A lost job: an ask still queued after 15 minutes no longer holds its discussion; a new ask is allowed.
+- A lost job: an ask still queued after 37.5 minutes (the claim of its job, 32.5 minutes, and five more; `QUEUED_ASK_LAPSES_MS`) no longer holds its discussion; a new ask is allowed. Until then a second ask in the discussion is refused as "preparing", even while the first job is legally still running.
 - A moderator's hide or restore gives the message a fresh change number, so catch-up replaces the bubble.
 
 ## Related
 
 - Contracts: `packages/contracts/src/rooms.ts` (routes under `/v1/rooms/*`, sharing Social's problem
   family and private cache policy).
-- Tests: `tests/integration/modules/rooms.test.ts`, `rooms-residents.test.ts` and `rooms-residents-migration.test.ts` (residents, the router's caps,
+- Tests: `tests/integration/modules/rooms-answer-support.test.ts` (a resident's answer passes the support check: the passages, the figure rule, one rewrite, the fixed line, silence, the bound, an idle room; unit tests in `application/answer-*.test.ts`, `inhabitant-role.test.ts` and `domain/answer-support.test.ts`), `tests/integration/modules/rooms.test.ts`, `rooms-residents.test.ts` and `rooms-residents-migration.test.ts` (residents, the router's caps,
   keep-out bytes, levels, typing, the room scope), `rooms-campfire.test.ts` (General, presence, hints, settings, keep-out),
   `rooms-campfire-migration.test.ts` (migration 0069 over existing rooms), `rooms-inhabitants.test.ts`, `rooms-erasure.test.ts`,
   `rooms-stations.test.ts`, `rooms-sky.test.ts` (stars, the cap, constellations and their names, debates, Spot the flaw, who can read the sky, what a person takes back), `rooms-launch.test.ts` (the Launch on the server clock: timing, ties, hidden until reveal, the star, paused, who can take part, blocks, the station, Clear and deletion, retention) and `rooms-launch-deck.test.ts` (a deck: no model call, approval), `launch-wall.test.ts` (no file outside Rooms names a Launch table), `domain/sky.test.ts`, `rooms-activities.test.ts`, `rooms-asks.test.ts` (pointed asks, mentions, topics, Useful, the welcome),

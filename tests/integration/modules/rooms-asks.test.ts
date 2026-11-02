@@ -43,7 +43,7 @@ const MINUTE = 60_000;
 
 const answer = (kind: string, text: string): FixtureScenario => ({
   kind: 'success',
-  text: JSON.stringify({ kind, text }),
+  text: JSON.stringify({ kind, text, cites: ['e1'] }),
 });
 
 describe('asked turns, topics and Useful (real PostgreSQL, CI fixture model)', () => {

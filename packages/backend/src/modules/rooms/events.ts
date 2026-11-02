@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { defineQueue } from '../../infrastructure/jobs/queues.js';
+import { ANSWER_CLAIM_SECONDS } from './domain/answer-support.js';
 
 /**
  * One member's ask of an AI inhabitant. IDs only: the worker rechecks the asker's universe and epoch,
@@ -19,9 +20,9 @@ export const contributeQueue = defineQueue({
   purpose: 'Let one labelled AI inhabitant answer a member who asked, within the room and daily bounds.',
   payload: ContributeJobSchema,
   policy: {
-    // Two attempts at the largest configurable provider deadline (300 s) plus quota and lock waits
-    // (reasoning/README: 2 x (10 + 300 + 10) + 30), rounded up.
-    expireInSeconds: 700,
+    // Every paid attempt of an answer at the largest provider deadline (300 s) plus quota and lock waits, one after the other
+    // (reasoning/README: 6 x (10 + 300 + 10) + 30, D-303).
+    expireInSeconds: ANSWER_CLAIM_SECONDS,
     retryLimit: 2,
     retryDelaySeconds: 15,
     retryBackoff: true,
@@ -95,8 +96,8 @@ export const castPassQueue = defineQueue({
   purpose: 'Let one resident answer on its own, once the router allowed the turn, under the room reasoning scope.',
   payload: CastPassJobSchema,
   policy: {
-    // As rooms.contribute: two attempts at the largest provider deadline plus quota and lock waits.
-    expireInSeconds: 700,
+    // As rooms.contribute: every paid attempt of an answer at the largest provider deadline plus quota and lock waits.
+    expireInSeconds: ANSWER_CLAIM_SECONDS,
     retryLimit: 2,
     retryDelaySeconds: 15,
     retryBackoff: true,

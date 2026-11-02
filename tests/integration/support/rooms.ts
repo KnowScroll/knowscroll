@@ -23,6 +23,7 @@ import {
   identityScopeOwnerProviders,
 } from '@knowscroll/backend/modules/identity/nest-providers';
 import type { CheckPersonalOwnerActive } from '@knowscroll/backend/modules/identity';
+import type { ReadGround } from '@knowscroll/backend/modules/rooms/nest-providers';
 import {
   castDueQueue,
   DEFAULT_CAST,
@@ -53,6 +54,7 @@ import {
 import { makeCheckAssetAudience } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
 import type {
   ProductionReasoningHarness,
+  ProposeOutcome,
   RecordingReasoningHarness,
   WithProductionScope,
 } from '@knowscroll/backend/reasoning';
@@ -105,7 +107,91 @@ export interface RoomWorld {
   close(): Promise<void>;
 }
 
+/** The roles of a room's support check (D-301): one for a member's ask, one for a resident speaking on its own. */
+const ASKED_CHECK_ROLE = 'rooms.inhabitant-support';
+const AMBIENT_CHECK_ROLE = 'rooms.ambient-support';
+
+/**
+ * CI FIXTURE: the passages every room test is offered unless it brings its own (`RoomWorldOptions.ground`). One invented
+ * passage, whatever the question is, so a test about a router cap or a keep-out choice has ground to stand on. It is not library
+ * text. The real choice of passages is tested in rooms-answer-support.test.ts over admitted CI Scrolls.
+ */
+export const ciGround: ReadGround = () =>
+  Promise.resolve([
+    {
+      handle: 'e1',
+      assetId: '00000000-0000-4000-8000-000000000620',
+      assetRevision: 1,
+      blockId: 's1',
+      text: 'CI fixture passage: serving a model batches requests together, which raises throughput but can add latency. A hundred requests a second is a CI figure.',
+    },
+  ]);
+
+/** A reply that finds every sentence listed in the checker's request supported. The quote is a placeholder: nothing reads it. */
+function everythingSupported<T>(context: {
+  readonly items: readonly { readonly ref: string; readonly text: string }[];
+}): ProposeOutcome<T> {
+  const lines = context.items.find((item) => item.ref === 'support:sentences')?.text.split('\n') ?? [];
+  const sentences = lines.map((line) => ({
+    number: (JSON.parse(line) as { n: number }).n,
+    verdict: 'supported',
+    quote: 'fixture',
+  }));
+  return {
+    kind: 'proposed',
+    output: { sentences } as T,
+    attemptId: randomUUID(),
+    usage: { inputTokens: null, outputTokens: null, reasoningTokens: null, cachedTokens: null },
+    repaired: false,
+    reconciled: false,
+  };
+}
+
+/**
+ * CI FIXTURE: a recording harness whose support check finds every sentence supported, without a model, a run or a ledger row. The
+ * writer's calls go through as they are. A room test that is about something other than the check (a cap, keep-out, a pause)
+ * uses it, so what it counts and what it scripts stay what they were; the check itself is tested with the real one.
+ */
+function clearingRecording(harness: RecordingReasoningHarness): RecordingReasoningHarness {
+  const fabricated = new Set<string>();
+  return {
+    ...harness,
+    proposePersonal: (input, signal) => {
+      if (input.role.id !== ASKED_CHECK_ROLE) return harness.proposePersonal(input, signal);
+      fabricated.add(input.run.id);
+      return Promise.resolve(everythingSupported(input.context));
+    },
+    closePersonalRun: (scope, run) =>
+      fabricated.has(run.runId) ? Promise.resolve('closed' as const) : harness.closePersonalRun(scope, run),
+  };
+}
+
+/** The same fixture for the room scope's harness: the checks of a resident speaking on its own. */
+function clearingProduction(harness: ProductionReasoningHarness): ProductionReasoningHarness {
+  const fabricated = new Set<string>();
+  return {
+    ...harness,
+    proposeProduction: (input, signal) => {
+      if (input.role.id !== AMBIENT_CHECK_ROLE) return harness.proposeProduction(input, signal);
+      fabricated.add(input.run.id);
+      return Promise.resolve(everythingSupported(input.context));
+    },
+    closeProductionRun: (scope, run) =>
+      fabricated.has(run.runId) ? Promise.resolve('closed' as const) : harness.closeProductionRun(scope, run),
+  };
+}
+
 export interface RoomWorldOptions {
+  /**
+   * The passages a resident may rest an answer on. Default: `ciGround`, one fixture passage for every question. A test of the
+   * choice and the check brings the real reader over admitted CI Scrolls.
+   */
+  readonly ground?: ReadGround;
+  /**
+   * Run the real support check over the harness the test gives (a fixture model plays the checker). Default: a fixture that
+   * finds every sentence supported, for tests that are about something else.
+   */
+  readonly realSupport?: boolean;
   /** Residents may speak unprompted (`KS_REASONING_ROOM_ENABLED`). Off by default, as in a world that has not turned them on. */
   readonly residentsEnabled?: boolean;
   /** Members may send scouts (`KS_ROOMS_SCOUTS_ENABLED`). Off by default, as in a world that has not turned them on. */
@@ -182,7 +268,8 @@ export async function roomWorld(
       const consume = runCastPass({
         ...deps,
         enqueue,
-        harness,
+        harness: options.realSupport === true ? harness : clearingProduction(harness),
+        readGround: options.ground ?? ciGround,
         withRoomScope,
         ownerActive,
         model: 'fixture-model-v1',
@@ -205,7 +292,13 @@ export async function roomWorld(
       return (job, signal = new AbortController().signal) => consume(job, signal);
     },
     contribute(harness) {
-      const consume = contributeAsInhabitant({ ...deps, harness, ownerActive, model: 'fixture-model-v1' });
+      const consume = contributeAsInhabitant({
+        ...deps,
+        harness: options.realSupport === true ? harness : clearingRecording(harness),
+        readGround: options.ground ?? ciGround,
+        ownerActive,
+        model: 'fixture-model-v1',
+      });
       return (job, signal = new AbortController().signal) => consume(job, signal);
     },
     close: () => boss.stop({ graceful: false }),

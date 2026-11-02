@@ -75,7 +75,7 @@ const LIFECYCLE = {
 /**
  * Ends the turns that are still queued and whose job is being erased with this universe: the asks of its account, and
  * the unprompted turns whose model call (`rooms.cast-pass`) was queued under its universe. Without this the row would stay
- * queued, keep a discussion looking busy for fifteen minutes and count toward the caps for a call nobody will make. A
+ * queued, keep a discussion looking busy until the ask lapses and count toward the caps for a call nobody will make. A
  * queued turn may already have its model call running, so it stays counted (`dispatched`): a Clear does not hand a turn
  * back. A held answer is dropped with it.
  */
