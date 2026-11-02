@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import { encounterFixture } from './encounter-fixture';
+import { encounterFixture, id } from './encounter-fixture';
 
 /**
  * Moving between Parts and topics in the Scroll reader (#497, part B) in the production export over labelled HTTP fixtures:
@@ -212,4 +212,27 @@ test('the note is drawn at 1440 × 900 too', async ({ page }) => {
   await expect(page.getByTestId('format-note')).toBeVisible();
   await shot(page, 'format-note-1440x900');
   expect(await audit(page)).toEqual([]);
+});
+
+test('on a Scroll’s own address a step forward says the place in the Part before is kept, and a reload does not', async ({
+  page,
+}) => {
+  await encounterFixture(page, 'scroll', {
+    viewport: phone,
+    direct: { parts: 3 },
+    scrollDocument: seasons as unknown as Record<string, unknown>,
+  });
+  await page.goto(`/scroll/${id(300)}`);
+  await expect(page.getByTestId('scroll-reader')).toBeVisible();
+  await expect(page.getByTestId('part-arrival')).toHaveCount(0);
+  await expect(page.getByTestId('part-back-tab')).toHaveCount(0);
+  await page.getByRole('button', { name: /^Part 2: / }).click();
+  await expect(page.getByTestId('part-arrival')).toHaveText('Part 2 · your place in Part 1 is kept');
+  await expect(page.getByTestId('part-back-tab')).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/scroll/${id(301)}$`));
+  await page.reload();
+  await expect(page.getByTestId('scroll-reader')).toBeVisible();
+  await expect(page.getByTestId('part-arrival')).toHaveCount(0);
+  // The tab is the Part before, kept in view whenever one was admitted.
+  await expect(page.getByTestId('part-back-tab')).toBeVisible();
 });

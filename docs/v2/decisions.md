@@ -3964,7 +3964,7 @@ Confirmed by: `part-gesture.test.ts`, `part-peek.test.tsx`, `e2e/scroll-motion-s
 
 **Amends** D-134 ("not decided here") with D-343.
 
-- **The bar.** "Part 2 · your place in Part 1 is kept" over the top of the text for four seconds, as a polite status. It is said only when the Scroll opened by a step forward in its series from an earlier Part of the same series: in Explore from the trail; on `/scroll/<id>` from a `fromPart` parameter that a step forward adds to the address.
+- **The bar.** "Part 2 · your place in Part 1 is kept" over the top of the text for four seconds, as a polite status. It is said only when the Scroll opened by a step forward in its series from an earlier Part of the same series: in Explore from the trail; on `/scroll/<id>` from a note kept in memory by the step forward and taken once by the Scroll that opens (nothing goes in the address, so a link, a reload or a later visit says nothing).
 - **Why it is true.** The Part left stays in the trail with its stop (Back returns to it), and its resume place is kept for its address. The bar names no stop.
 - **The tab.** "← Part 1" at the left edge of the picture, on the first stop, whenever a Part before was admitted (not only on arrival). It is the visible form of swipe right and the ← key, and is named "Back to Part 1: its title".
 - **Fixture.** The e2e Explore fixture now names the Part of an entry reached by a series step and offers the Part before, as the server does.

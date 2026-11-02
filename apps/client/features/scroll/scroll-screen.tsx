@@ -32,7 +32,7 @@ import { RequestNotice } from '../encounter/encounter-notices';
 import { EncounterOverlay } from '../encounter/encounter-overlay';
 import { RequestPanel } from '../requests/request-panel';
 import { StageReaderSurface } from './stage-reader-surface';
-import { useAddressMoves } from './use-address-moves';
+import { takePartLeft, useAddressMoves } from './use-address-moves';
 import { useDirectAsk } from './use-direct-ask';
 import { useScrollSession } from './use-scroll-session';
 import { ActivatedScrollView } from './activated-scroll-view';
@@ -261,7 +261,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
   const router = useRouter();
   const back = useBack();
   const siblings = useFormatSiblings(scope, scroll.exposureId, 'scroll');
-  const params = useLocalSearchParams<{ anchor?: string | string[]; fromPart?: string | string[] }>();
+  const params = useLocalSearchParams<{ anchor?: string | string[] }>();
   const { breakpoint } = useDisplay();
   const narrow = breakpoint === 'compact' || breakpoint === 'phone';
   useDocumentTitle(scroll.document.title);
@@ -310,10 +310,11 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
   // The count is the server's; the Scroll's own Part number stands in until the context arrives.
   const ownPart = scroll.document.series?.part;
   const partLabel = moves.partLabel ?? (ownPart === undefined ? undefined : `Part ${String(ownPart)}`);
-  const left = Number(firstOf(params.fromPart));
+  const [left] = useState(() => takePartLeft(scroll.assetId));
+  const nowPart = moves.part ?? ownPart;
   const arrival =
-    ownPart !== undefined && Number.isInteger(left) && left >= 1 && left < ownPart
-      ? { part: `Part ${String(ownPart)}`, from: `Part ${String(left)}` }
+    nowPart !== undefined && left !== undefined && left < nowPart
+      ? { part: `Part ${String(nowPart)}`, from: `Part ${String(left)}` }
       : undefined;
   return (
     <>
