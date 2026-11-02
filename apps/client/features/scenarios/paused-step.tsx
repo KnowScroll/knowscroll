@@ -41,7 +41,9 @@ export function RecordingPausedStep({
         message={
           on
             ? 'What-if suggestions need recording on, and it is on again. Ask again to get directions.'
-            : 'What-if suggestions need recording on. You can resume it here; it is your own setting, and you can pause it again any time.'
+            : policy === undefined
+              ? 'What-if suggestions need recording on. You can turn it on in Privacy.'
+              : 'What-if suggestions need recording on. You can resume it here; it is your own setting, and you can pause it again any time.'
         }
       />
       {on ? (

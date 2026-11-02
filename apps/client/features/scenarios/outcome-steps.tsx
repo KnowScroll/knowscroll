@@ -8,13 +8,26 @@ import { sheetStyles } from './sheet-styles';
 const blockMessage: Record<ScenarioBlock, string> = {
   budget:
     'No more branches can be made right now. A thread can make five a day, and KnowScroll has a limit each day too. Try again tomorrow.',
-  unsupported: 'This can’t be explored yet: nothing it rests on can be looked up.',
+  // The server refuses before it writes anything when no sources can be found for the Scroll (an older or imported one).
+  // The thread cannot know that cheaply, so the sheet is offered and this is the plain answer (D-389).
+  unsupported:
+    'This Scroll doesn’t have what KnowScroll needs to check a new idea against, so a branch can’t be made from it yet. Nothing was made. You can keep talking about it here, or try What if on another Scroll.',
   invalid: 'That wording isn’t accepted. Keep it to a plain sentence, without web addresses.',
   stale:
     'This idea changed, was already used, or took too long (an idea is kept for two hours). Nothing was made. Close this and start again from the thread.',
   unavailable: 'The thread, or the Scroll it is about, isn’t available any more. Nothing was made.',
   offline: 'Couldn’t reach KnowScroll. Nothing was lost; try again.',
   failed: 'Something went wrong on our side. Nothing was made. Try again.',
+};
+
+const blockLead: Record<ScenarioBlock, string> = {
+  budget: 'Can’t do that.',
+  unsupported: 'Can’t explore this one yet.',
+  invalid: 'Can’t do that.',
+  stale: 'Can’t do that.',
+  unavailable: 'Can’t do that.',
+  offline: 'Offline.',
+  failed: 'Didn’t go through.',
 };
 
 /** The sixth branch of a thread's day: said as it is, with when it comes back (the UTC day starts at midnight UTC). */
@@ -104,7 +117,7 @@ export function BlockedStep({
     <View style={sheetStyles.step}>
       <Banner
         kind={block === 'offline' ? 'offline' : 'error'}
-        lead={block === 'offline' ? 'Offline.' : block === 'failed' ? 'Didn’t go through.' : 'Can’t do that.'}
+        lead={blockLead[block]}
         message={block === 'budget' && threadFull ? THREAD_FULL_MESSAGE : blockMessage[block]}
       />
       {block === 'offline' || block === 'failed' ? (

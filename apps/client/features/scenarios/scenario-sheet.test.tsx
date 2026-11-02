@@ -118,6 +118,35 @@ async function open(
   return { ...harness, onChosen };
 }
 
+/** What the API client throws for a problem answer: the real error, made by answering a request with it. */
+async function problem(code: ProblemCode): Promise<Error> {
+  const details = problemDetails(code);
+  const api = createApiClient({
+    baseUrl: 'https://app.fixture.test',
+    fetch: () =>
+      Promise.resolve(
+        new Response(JSON.stringify(details), {
+          status: details.status,
+          headers: { 'content-type': 'application/problem+json' },
+        }),
+      ),
+  });
+  return api.scenarios
+    .choose({
+      version: 'scenario.v1',
+      commandId: id(30),
+      thread,
+      draftId: id(7),
+      selection: { kind: 'suggestion', optionId: 'o1' },
+    })
+    .then(
+      () => {
+        throw new Error('the fixture answer was not a problem');
+      },
+      (error: unknown) => error as Error,
+    );
+}
+
 async function ask(words = 'What if traffic increases tenfold?') {
   await fireEvent.changeText(screen.getByLabelText('Your idea'), words);
   await fireEvent.press(screen.getByRole('button', { name: 'Continue' }));
@@ -487,35 +516,18 @@ describe('the What if… sheet', () => {
     ).toBeOnTheScreen();
   });
 
+  it('says plainly why a Scroll cannot be explored and what to do, and offers no retry', async () => {
+    const refused = await problem('UNPROCESSABLE_REQUEST');
+    await open({ draft: () => Promise.reject(refused) });
+    await ask();
+    expect(await screen.findByText('Can’t explore this one yet.')).toBeOnTheScreen();
+    expect(screen.getByText(/doesn’t have what KnowScroll needs to check a new idea against/)).toBeOnTheScreen();
+    expect(screen.getByText(/keep talking about it here, or try What if on another Scroll/)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Close' }).length).toBeGreaterThan(0);
+  });
+
   describe('a refused version of the member’s own', () => {
-    /** What the API client throws for a problem answer: the real error, made by answering a request with it. */
-    async function problem(code: ProblemCode): Promise<Error> {
-      const details = problemDetails(code);
-      const api = createApiClient({
-        baseUrl: 'https://app.fixture.test',
-        fetch: () =>
-          Promise.resolve(
-            new Response(JSON.stringify(details), {
-              status: details.status,
-              headers: { 'content-type': 'application/problem+json' },
-            }),
-          ),
-      });
-      return api.scenarios
-        .choose({
-          version: 'scenario.v1',
-          commandId: id(30),
-          thread,
-          draftId: id(7),
-          selection: { kind: 'suggestion', optionId: 'o1' },
-        })
-        .then(
-          () => {
-            throw new Error('the fixture answer was not a problem');
-          },
-          (error: unknown) => error as Error,
-        );
-    }
     async function refused(code: 'SHARING_UNAVAILABLE' | 'SHARING_REVISION_STALE' | 'INTERNAL') {
       const failure = await problem(code);
       await open({
