@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { MIN_SERVED_SENTENCES } from '../domain/ask-support.js';
+import { LIMITS_TEXT, LIMITS_TITLE } from './ask-answer-limits.js';
 import {
   ANSWER_LENGTH_CODE,
   ASK_ANSWER_CEILING_SENTENCES,
@@ -61,6 +62,32 @@ describe('the length of the answer to a question (D-308, D-350)', () => {
     // The dek, three, three and two: nine.
     expect(readingSentencesOf(answer)).toBe(9);
     expect(answerShapeIssues(answer)).toEqual([]);
+  });
+});
+
+describe('the limits callout code wrote is no sentence of the answer’s own (D-371)', () => {
+  const codeLimits = { type: 'callout', cites: ['e1'], kind: 'limit', title: LIMITS_TITLE, text: LIMITS_TEXT };
+  const four = [paragraph('One.'), paragraph('Two.'), paragraph('Three.'), paragraph('Four.')];
+
+  it('is not counted, so an answer needs five sentences of its own beside it', () => {
+    // The dek and four paragraphs: five of its own. The callout, two sentences and a title, adds none.
+    expect(readingSentencesOf(answerOf([...four, codeLimits]))).toBe(5);
+    expect(answerShapeIssues(answerOf([...four, codeLimits]))).toEqual([]);
+    expect(readingSentencesOf(answerOf([...four.slice(0, 3), codeLimits]))).toBe(4);
+    expect(answerShapeIssues(answerOf([...four.slice(0, 3), codeLimits]))).toEqual([
+      { code: ANSWER_LENGTH_CODE, path: '$' },
+    ]);
+  });
+
+  it('is told by its exact words and its kind: a callout of the writer’s own still counts', () => {
+    expect(readingSentencesOf(answerOf([...four, { ...codeLimits, text: `${LIMITS_TEXT} More.` }]))).toBe(8);
+    expect(readingSentencesOf(answerOf([...four, { ...codeLimits, title: 'Where it stops' }]))).toBe(7);
+    expect(readingSentencesOf(answerOf([...four, { ...codeLimits, kind: 'note' }]))).toBe(7);
+  });
+
+  it('is named by the hint, so the writer is told not to write it', () => {
+    expect(answerLengthHint()).toContain('Code adds the closing limits line');
+    expect(answerLengthHint().length).toBeLessThanOrEqual(256);
   });
 });
 

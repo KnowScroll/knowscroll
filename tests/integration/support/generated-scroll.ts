@@ -161,12 +161,15 @@ export function fixtureAuthored(
 /**
  * The answer to a question, authored about the same invented lighthouse as the sources above: every sentence is written
  * from the passages its block cites, so a support check that reads it finds words of those passages that are about the
- * sentence. It has the shape the question writer is asked for (D-308, D-309): a direct answer, two short sections and the limits callout,
- * eleven sentences of reading text (the dek included) and fifteen sentences in all, which a check reads in two requests (10 + 5).
- * No sentence after the first of its block begins with a pointer to the one before. It is a labelled CI fixture, never product
- * content. `sentence` replaces one sentence of the answer, the title included (the support check's repair).
+ * sentence. It has the shape the question writer is asked for (D-308, D-309, D-371): a direct answer and two short sections, and no
+ * limits callout, which code writes. Nine sentences of reading text (the dek included) and thirteen sentences in all, which a check
+ * reads in two requests (10 + 3). No sentence after the first of its block begins with a pointer to the one before. It is a labelled
+ * CI fixture, never product content. `sentence` replaces one sentence of the answer, the title included (the support check's repair).
+ * `writersLimits` adds the limits callout an older writer sent, which code replaces with its own line.
  */
-export function fixtureAnswer(overrides: { readonly sentence?: readonly [string, string] } = {}) {
+export function fixtureAnswer(
+  overrides: { readonly sentence?: readonly [string, string]; readonly writersLimits?: boolean } = {},
+) {
   const say = (text: string) => (overrides.sentence?.[0] === text ? overrides.sentence[1] : text);
   return AuthoredScroll.parse({
     title: say('How a lamp and a prism ring guide sailors'),
@@ -211,13 +214,17 @@ export function fixtureAnswer(overrides: { readonly sentence?: readonly [string,
           'The tower in this story is twenty-one metres tall.',
         ].join(' '),
       },
-      {
-        type: 'callout',
-        cites: ['e4'],
-        kind: 'limit',
-        title: 'Where this stops',
-        text: 'This picture ignores radio and satellite navigation, which now do most of the work.',
-      },
+      ...(overrides.writersLimits === true
+        ? [
+            {
+              type: 'callout',
+              cites: ['e4'],
+              kind: 'limit',
+              title: 'What this does not explain',
+              text: 'This picture ignores radio and satellite navigation, which now do most of the work.',
+            },
+          ]
+        : []),
     ],
   });
 }

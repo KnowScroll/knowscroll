@@ -72,7 +72,9 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
             ? fixtureAuthored('comparison')
             : call.request.user.includes('a CI question with a copied sentence')
               ? copiedAnswer()
-              : fixtureAnswer(),
+              : call.request.user.includes('a CI question with the old limits callout')
+                ? fixtureAnswer({ writersLimits: true })
+                : fixtureAnswer(),
         ),
       {
         support: (check, call) => support(check, call),
@@ -89,15 +91,17 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
   });
 
   /** An order stored the way supply stores one, produced by the real job. */
-  async function producedOrder(mode: 'question' | 'what_if', copying = false) {
+  async function producedOrder(mode: 'question' | 'what_if', kind: 'plain' | 'copying' | 'old_limits' = 'plain') {
     const recipe = madeToOrderKey(randomUUID());
     const assetId = randomUUID();
     const brief =
       mode === 'what_if'
         ? 'KIND: a CI what-if'
-        : copying
+        : kind === 'copying'
           ? 'KIND: a CI question with a copied sentence, never a person’s words'
-          : 'KIND: a CI question, never a person’s words';
+          : kind === 'old_limits'
+            ? 'KIND: a CI question with the old limits callout, never a person’s words'
+            : 'KIND: a CI question, never a person’s words';
     await sql`insert into content.made_to_order_scrolls (recipe, asset_id, explanation_unit_id, mode, brief, pages, kicker, framing)
       values (${recipe}, ${assetId}::uuid, ${recipe}, ${mode}, ${brief}, ${[fixtureResearchPage.url]}::text[], ${'You asked'}, ${JSON.stringify({ kind: 'factual' })}::jsonb)`.execute(
       database.db,
@@ -163,7 +167,7 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     const { results, summary } = await replayed({ kind: 'assets', assetIds: [answer.assetId] });
 
     expect(summary).toEqual({ answers: 1, stopped: false });
-    // The answer has 15 sentences: two requests, ten sentences and five (D-267).
+    // The answer has 13 sentences besides the limits callout code wrote: two requests, ten sentences and three (D-267, D-371).
     expect(worker.supportCalls.length - callsBefore).toBe(2);
     const [only] = results;
     expect(only!.line).toMatchObject({
@@ -211,7 +215,7 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
   });
 
   it('says how many sentences code took out of the writer’s draft before it was checked, as a number (D-348)', async () => {
-    const trimmed = await producedOrder('question', true);
+    const trimmed = await producedOrder('question', 'copying');
     const whole = await producedOrder('question');
 
     const { results } = await replayed({ kind: 'assets', assetIds: [trimmed.assetId, whole.assetId] });
@@ -225,6 +229,59 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     expect(JSON.stringify(line)).not.toContain('prism ring');
     expect(byAsset.get(whole.assetId)!.line).not.toHaveProperty('trimmed');
     expect(line).not.toHaveProperty('dropped');
+  });
+
+  it('says how many limits callouts the writer sent that code replaced, as a number, and replays the answer with code’s line unchecked (D-371)', async () => {
+    const old = await producedOrder('question', 'old_limits');
+    const whole = await producedOrder('question');
+    const callsBefore = worker.supportCalls.length;
+
+    const { results } = await replayed({ kind: 'assets', assetIds: [old.assetId, whole.assetId] });
+
+    const byAsset = new Map(results.map((result) => [result.line.assetId, result]));
+    const line = byAsset.get(old.assetId)!.line;
+    expect(line).toMatchObject({ outcome: 'checked', limitsReplaced: 1, unsupported: 0 });
+    // A callout replaced is no sentence taken out: the line says nothing of `trimmed`.
+    expect(line).not.toHaveProperty('trimmed');
+    // The answer replayed holds code's line and the writer's words are nowhere in it; neither is sent to the checker.
+    const stored = await sql<{
+      document: unknown;
+    }>`select document from content.asset_revisions where asset_id = ${old.assetId}::uuid`.execute(database.db);
+    const document = JSON.stringify(stored.rows[0]!.document);
+    expect(document).toContain("the library's sources");
+    expect(document).not.toContain('radio and satellite navigation');
+    expect(byAsset.get(old.assetId)!.line.sentences).toBe(byAsset.get(whole.assetId)!.line.sentences);
+    expect(JSON.stringify(line)).not.toContain('radio');
+    for (const call of worker.supportCalls.slice(callsBefore)) {
+      expect(call.request.user).not.toContain("the library's sources");
+      expect(call.request.user).not.toContain('radio and satellite navigation');
+    }
+    expect(byAsset.get(whole.assetId)!.line).not.toHaveProperty('limitsReplaced');
+  });
+
+  it('replays an answer stored before the limits line was code’s, whose kept answer holds the writer’s own callout, as it was served (D-371)', async () => {
+    const answer = await producedOrder('question');
+    const whole = await replayed({ kind: 'assets', assetIds: [answer.assetId] });
+    // What the job kept before this change: the draft as the writer wrote it, with its own limits callout, and no receipt of a replacement.
+    await sql`update content.scroll_production_runs set writer_output = ${JSON.stringify(fixtureAnswer({ writersLimits: true }))}::jsonb
+      where asset_id = ${answer.assetId}::uuid`.execute(database.db);
+    const callsBefore = worker.supportCalls.length;
+
+    const { results } = await replayed({ kind: 'assets', assetIds: [answer.assetId] });
+
+    const [only] = results;
+    expect(only!.line).toMatchObject({ outcome: 'checked', unsupported: 0 });
+    expect(only!.line).not.toHaveProperty('limitsReplaced');
+    // The callout is the writer's, so it has sentences like any other: its title and its one sentence are two more than the answer
+    // with code's line, and the checker is sent them, as it was before.
+    expect(only!.line.sentences).toBe(whole.results[0]!.line.sentences + 2);
+    const sent = worker.supportCalls
+      .slice(callsBefore)
+      .map((call) => call.request.user)
+      .join('\n');
+    expect(sent).toContain('radio and satellite navigation');
+    expect(sent).toContain('What this does not explain');
+    expect(sent).not.toContain("the library's sources");
   });
 
   it('says how many sentences the job took out of the answer it served, as a number, and replays the answer that was served (D-310, D-311)', async () => {
@@ -260,15 +317,13 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
 
   it('counts the no_claim verdicts by the ground they passed on, so the replay shows how many pass on a label or a gap line (D-266)', async () => {
     const answer = await producedOrder('question');
-    // The checker marks the three short headings and the limits line as stating no fact.
+    // The checker marks the two short headings as stating no fact. The limits callout is code's line (D-371): the replay never sends it.
+    const sentSentences: string[] = [];
     support = (_check, call) => {
       const { sentences } = supportRequestOf(call);
+      sentSentences.push(...sentences.map((one) => one.text));
       const noClaim = sentences
-        .filter((one) =>
-          ['The beam', 'The upkeep', 'Putting it together', 'This picture ignores'].some((start) =>
-            one.text.startsWith(start),
-          ),
-        )
+        .filter((one) => ['The beam', 'The upkeep'].some((start) => one.text.startsWith(start)))
         .map((one) => one.n);
       return supportReply(call, { noClaim });
     };
@@ -284,8 +339,11 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
       grounds.every(([key]) => ['label', 'gap', 'question', 'unshared'].includes(key.slice('no_claim_'.length))),
     ).toBe(true);
     expect(grounds.reduce((total, [, n]) => total + n, 0)).toBe(only!.line.noClaim);
-    // The three short headings passed on their label ground (a callout's title, which the fixture also leaves unquoted, is a fourth).
-    expect(only!.line.codes.no_claim_label).toBeGreaterThanOrEqual(3);
+    // The two short headings passed on their label ground.
+    expect(only!.line.codes.no_claim_label).toBe(2);
+    // The limits callout code wrote is in the stored answer and was not sent: nothing of it reached the checker.
+    expect(sentSentences.join(' ')).not.toContain('Where this stops');
+    expect(sentSentences.join(' ')).not.toContain("the library's sources");
     // Counts only: no sentence is printed.
     expect(JSON.stringify(only!.line)).not.toContain('The upkeep');
   });

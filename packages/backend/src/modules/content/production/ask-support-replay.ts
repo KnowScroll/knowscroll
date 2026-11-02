@@ -70,6 +70,11 @@ export interface ReplayLine {
    * on a sentence that was taken out (D-348, D-349), from its receipts: a number, never a sentence. Absent when it took out none.
    */
   readonly trimmed?: number;
+  /**
+   * How many limits callouts the writer sent that the production job replaced with its own line (D-371), from its receipts: a number,
+   * never a word. Absent when the writer sent none, as it is told. The line code wrote is in the answer replayed and is not checked.
+   */
+  readonly limitsReplaced?: number;
   /** Why the check gave no usable answer, when it did not. */
   readonly code?: string;
   readonly runIds?: readonly string[];
@@ -177,21 +182,29 @@ const TrimmedReceipt = z.object({
   draft: z.number().int(),
   copied: z.number().int().min(0),
   leaning: z.number().int().min(0),
+  limitsReplaced: z.number().int().min(0).default(0),
 });
 const CheckedDraftReceipt = z.object({ role: z.literal('support_check'), draft: z.number().int() });
 
-/** How many sentences the job's receipts say code took out of the draft that was served, before it was checked (D-348). */
-function trimmedOf(outcomes: unknown): number {
-  if (!Array.isArray(outcomes)) return 0;
+/** What the job's receipts say code did to the draft that was served, before it was checked: sentences taken out (D-348) and limits callouts replaced (D-371). */
+function trimOf(outcomes: unknown): { readonly trimmed: number; readonly limitsReplaced: number } {
+  if (!Array.isArray(outcomes)) return { trimmed: 0, limitsReplaced: 0 };
   const drafts = outcomes.flatMap((receipt: unknown) => {
     const parsed = CheckedDraftReceipt.safeParse(receipt);
     return parsed.success ? [parsed.data.draft] : [];
   });
   const served = Math.max(0, ...drafts);
-  return outcomes.reduce<number>((total, receipt: unknown) => {
-    const parsed = TrimmedReceipt.safeParse(receipt);
-    return parsed.success && parsed.data.draft === served ? total + parsed.data.copied + parsed.data.leaning : total;
-  }, 0);
+  return outcomes.reduce<{ trimmed: number; limitsReplaced: number }>(
+    (total, receipt: unknown) => {
+      const parsed = TrimmedReceipt.safeParse(receipt);
+      if (!parsed.success || parsed.data.draft !== served) return total;
+      return {
+        trimmed: total.trimmed + parsed.data.copied + parsed.data.leaning,
+        limitsReplaced: total.limitsReplaced + parsed.data.limitsReplaced,
+      };
+    },
+    { trimmed: 0, limitsReplaced: 0 },
+  );
 }
 
 /** Whether an asset id is a UUID, so it can be matched without a cast failing the whole read. */
@@ -272,7 +285,7 @@ export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
     const count = (kind: SentenceVerdict['verdict']) =>
       checked.verdicts.filter((verdict) => verdict.verdict === kind).length;
     const dropped = droppedOf(stored.outcomes);
-    const trimmed = trimmedOf(stored.outcomes);
+    const { trimmed, limitsReplaced } = trimOf(stored.outcomes);
     const line: ReplayLine = {
       assetId,
       outcome: checked.record.kind,
@@ -286,6 +299,7 @@ export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
       runIds,
       ...(dropped === 0 ? {} : { dropped }),
       ...(trimmed === 0 ? {} : { trimmed }),
+      ...(limitsReplaced === 0 ? {} : { limitsReplaced }),
       ...(checked.record.code === undefined ? {} : { code: checked.record.code }),
     };
     if (checked.record.kind !== 'checked') return { line };

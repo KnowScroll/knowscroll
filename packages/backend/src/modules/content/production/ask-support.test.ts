@@ -26,6 +26,7 @@ import {
 } from './ask-support.js';
 import type { EvidencePassage } from './evidence.js';
 import { COPY_RULE_EXAMPLE, QUESTION_WRITER_PROMPT_VERSION } from './writer.js';
+import { LIMITS_TEXT, LIMITS_TITLE } from './ask-answer-limits.js';
 
 /** Labelled CI text about an invented lighthouse: never provider output and never product content. */
 const passage = (n: number, text: string): EvidencePassage => ({
@@ -101,6 +102,42 @@ describe('the sentences a support check reads', () => {
       .text.split('\n')
       .map((line) => JSON.parse(line) as object);
     expect(lines.map((line) => 'label' in line)).toEqual([true, false, true, false, false, false, false, true, false]);
+  });
+
+  it('leave out the limits callout code wrote: it has no sentence to number, show or judge (D-371)', () => {
+    const closed = AuthoredScroll.parse({
+      ...ANSWER,
+      blocks: [
+        ...ANSWER.blocks.slice(0, 3),
+        { type: 'callout', cites: ['e1', 'e2', 'e3'], kind: 'limit', title: LIMITS_TITLE, text: LIMITS_TEXT },
+      ],
+    });
+    const shown = sentencesOfAnswer(closed);
+    expect(shown.map((sentence) => sentence.number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(shown.map((sentence) => sentence.text)).not.toContain(LIMITS_TITLE);
+    expect(shown.map((sentence) => sentence.text).join(' ')).not.toContain(LIMITS_TEXT);
+    expect(placedSentencesOfAnswer(closed).map((sentence) => sentence.place)).not.toContainEqual({
+      field: 'callout-text',
+      block: 3,
+    });
+    // What the checker is sent never holds the line.
+    expect(
+      askSupportContext(shown, PASSAGES)
+        .map((item) => item.text)
+        .join('\n'),
+    ).not.toContain(LIMITS_TEXT);
+    // A callout of the writer's own, even of the same kind, is a statement like any other and is shown.
+    expect(sentencesOfAnswer(ANSWER).map((sentence) => sentence.text)).toContain('This says nothing of radio.');
+    // The same words under another kind of callout are not code's line either.
+    const note = AuthoredScroll.parse({
+      ...closed,
+      blocks: [...closed.blocks.slice(0, 3), { ...closed.blocks[3]!, kind: 'note' }],
+    });
+    expect(
+      sentencesOfAnswer(note)
+        .map((sentence) => sentence.text)
+        .join(' '),
+    ).toContain(LIMITS_TEXT);
   });
 
   it('leave out the title of a callout that has none', () => {
@@ -916,6 +953,18 @@ describe('the one repair an unsupported sentence earns', () => {
       `A sentence that repeats ${String(COPY_RUN_WORDS)} or more words in a row from a passage is taken out of the revision, and the revision is refused if too little is left.`,
     );
     expect(repair.instructions).toContain('never the passage’s sentence with a word changed');
+  });
+
+  it('tells the writer in a revision that the limits callout is code’s and is not to be written (D-371)', () => {
+    const repair = supportRepairRole({
+      id: 'content.scroll-writer',
+      version: QUESTION_WRITER_PROMPT_VERSION,
+      instructions: 'WRITER RULES',
+      outputSchema: AuthoredScroll,
+      maxOutputTokens: 1000,
+    });
+    expect(repair.instructions).toContain('Do not write a callout of kind "limit"');
+    expect(repair.instructions).not.toContain('including the ending with the callout of kind "limit"');
   });
 });
 
