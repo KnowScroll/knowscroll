@@ -299,7 +299,7 @@ Related: #238.
 
 Each capability is marked **planned**, **implemented** (in source, covered by CI) or **runtime-verified**
 (driven in a browser against a local PostgreSQL, API and worker with worlds formed through the real
-Geography and Scenes path and the CI fixture model). A mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`) was seen on dev that day; the folders are on the coordinator's machine, not in the repository, and `docs/v2/design/v3/fidelity.md` records what the screens looked like.
+Geography and Scenes path and the CI fixture model). A mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`) was seen on dev that day; the folders are on the coordinator's machine, not in the repository, and `docs/v2/design/fidelity-v3.md` records what the screens looked like.
 
 | Capability                                                                                   | Status                           |
 | -------------------------------------------------------------------------------------------- | -------------------------------- |

@@ -42,8 +42,6 @@ The three PDFs (22 to 34 MB each) are **not** in the repository, which is public
 | `rooms-r3/pages/` | 11 page images of the R3 PDF | in `SHA256SUMS` |
 | `talk-t3/pages/` | 7 page images of the T3 PDF | in `SHA256SUMS` |
 
-`SHA256SUMS` lists all 41 files here except this README, `fidelity.md` and itself, in `sha256sum` format. To check: `cd docs/v2/design/v3 && sha256sum --check --quiet SHA256SUMS`.
-
-`fidelity.md` is our own table of how the app compares with these designs, frame by frame. It is not part of the design package and is not hashed.
+`SHA256SUMS` lists all 41 files here except this README and itself, in `sha256sum` format. To check: `cd docs/v2/design/v3 && sha256sum --check --quiet SHA256SUMS`.
 
 The change map that turns these designs into work is `../../v3-revamp/CHANGE-MAP.md`.

@@ -1,6 +1,6 @@
 # Design fidelity: v3 designs against the app
 
-The v3 designs (Universe, V3 Scrolls, R3 Rooms, T3 Talk) compared with the app on dev. This is the v3 twin of [`../fidelity.md`](../fidelity.md), for issue #497. It records two passes: a first sweep (**before**) and an after pass once the v3 slices and the fidelity fixes had landed (**after**).
+The v3 designs (Universe, V3 Scrolls, R3 Rooms, T3 Talk) compared with the app on dev. This is the v3 twin of [`fidelity.md`](fidelity.md), for issue #497. It records two passes: a first sweep (**before**) and an after pass once the v3 slices and the fidelity fixes had landed (**after**).
 
 **Dev commit.** The after pass ran on dev commit `36ca34b2` (migration `0102_room_flair`, 2 Nov 2026). The ask rows (D1) were re-run on `09adb590` (dev-check-10, 2 Nov 2026), where all five asks reached Ready.
 

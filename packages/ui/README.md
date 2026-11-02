@@ -6,7 +6,7 @@ router-agnostic and data-agnostic: they take typed props and report semantic act
 (`onSelect('saved')`, `onAction('save')`), never raw gestures. A control whose backend does not
 exist is not passed in, so it is not rendered.
 
-A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/v3/fidelity.md` records what the screens looked like.
+A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
 
 The package exports its TypeScript sources (`"."` → `src/index.ts`); Metro and jest-expo compile
 them. Tests run in CI only (D-010): `pnpm --filter @knowscroll/ui test` runs two Jest projects,

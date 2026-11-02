@@ -42,7 +42,7 @@ jobs:
         run: |
           sha256sum --check --quiet SHA256SUMS
           expected=$(wc -l < SHA256SUMS)
-          actual=$(find . -type f ! -name README.md ! -name fidelity.md ! -name SHA256SUMS | wc -l)
+          actual=$(find . -type f ! -name README.md ! -name SHA256SUMS | wc -l)
           test "$expected" -eq "$actual" || { echo "file count $actual != recorded $expected"; exit 1; }
       - name: Vendored Cutroom wire schema matches its pinned upstream hashes
         working-directory: packages/backend/src/modules/content/adapters/cutroom/wire-v1

@@ -3,7 +3,7 @@
 Owns: `experience.saved_items`, `experience.actions` (migration `0004_experience_actions`) and
 `experience.exposures` (migration `0011_experience_exposures`).
 
-A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/v3/fidelity.md` records what the screens looked like.
+A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
 
 | Operation | Route | Authority, effects, failure |
 |---|---|---|

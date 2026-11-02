@@ -5,7 +5,7 @@ writer's instructions and checks, the job state and the application of a result.
 `infrastructure/research` owns the public HTTP boundary, and the shared reasoning engine keeps
 transport, admission and the external attempt ledger.
 
-A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/v3/fidelity.md` records what the screens looked like.
+A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
 
 Status: the pipeline below is **implemented** and has been **runtime-verified** with real
 `MiniMax-M3.1-Flash` calls against a local database (summaries in the pull requests for #232 and

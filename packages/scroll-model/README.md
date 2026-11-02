@@ -2,7 +2,7 @@
 
 The canonical declarative Scroll document, **`scroll-document.v1`**, and beside it **`scroll-document.v2`** (the V3 Scrolls: stops, calls and a pinned stage; see the section on it below). This package holds:
 
-A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/v3/fidelity.md` records what the screens looked like.
+A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
 
 - schemas, limits and validation;
 - version negotiation;

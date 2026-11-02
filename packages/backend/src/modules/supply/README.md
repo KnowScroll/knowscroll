@@ -4,7 +4,7 @@ Supply turns a person's ask for something to explore into admitted content they 
 what exists, joins work that is already under way, and otherwise creates it: it commissions the
 production of a library Scroll. Blueprint §3, §11, §15 and §19; decisions D-035 and D-037.
 
-A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/v3/fidelity.md` records what the screens looked like.
+A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
 
 Status: **implemented**, CI-verified, and **runtime-verified** on a local database with the real
 `MiniMax-M3.1-Flash` model (a free-text ask matched to the catalogue, produced and opened in the

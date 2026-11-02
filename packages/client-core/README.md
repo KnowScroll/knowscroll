@@ -5,7 +5,7 @@ factory, and the AccountScope (#226: account + privacy epoch ownership of the qu
 API client, the hint socket and local stores) with the sign-in client, and the interaction recorder
 (#229) whose durable outbox belongs to the scope.
 
-A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/v3/fidelity.md` records what the screens looked like.
+A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
 
 | File | Contents |
 |---|---|

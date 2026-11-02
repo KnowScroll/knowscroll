@@ -5,7 +5,7 @@ and routes. It decides when reading is enough to form one, records every change 
 delta, and offers the unlabelled dust cues that come before a system. Scene projection, rendering,
 navigation and sharing belong to other modules. Decisions: D-033, D-038, D-052, D-104, D-105. Tracker: #237, #467.
 
-A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/v3/fidelity.md` records what the screens looked like.
+A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
 
 Status words used below: **implemented** (in source, covered by `checks`), **runtime-verified**
 (seen working on a running API and worker), **planned**.
