@@ -1,5 +1,6 @@
 /** Labelled fixtures for idea-room tests: the real use cases over the test database, no HTTP. */
 import { randomUUID } from 'node:crypto';
+import { ROOM_STARS_PER_DAY_DEFAULT } from '@knowscroll/contracts';
 import { sql, type Kysely } from 'kysely';
 import type { PgBoss } from 'pg-boss';
 import { expect } from 'vitest';
@@ -31,7 +32,6 @@ import {
   launchSettleQueue,
   libraryRoomSeeds,
   SETTLE_LAUNCH,
-  STARS_PER_DAY_DEFAULT,
   summariseQueue,
   type CastDueJob,
   type CastPassJob,
@@ -183,7 +183,7 @@ export async function roomWorld(
     now: () => clock.now,
     residentsEnabled: options.residentsEnabled ?? false,
     scoutsEnabled: options.scoutsEnabled ?? false,
-    starsPerDay: options.starsPerDay ?? STARS_PER_DAY_DEFAULT,
+    starsPerDay: options.starsPerDay ?? ROOM_STARS_PER_DAY_DEFAULT,
     ...(options.launchGapMinutes === undefined ? {} : { launchGapMinutes: options.launchGapMinutes }),
   };
   const ownerActive: CheckPersonalOwnerActive = identityScopeOwnerProviders()[0]!.useValue;

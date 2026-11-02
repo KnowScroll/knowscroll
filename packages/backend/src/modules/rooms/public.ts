@@ -88,7 +88,6 @@ export {
 export { libraryRoomSeeds } from './application/library-rooms.js';
 export { DEFAULT_CAST, type CastMember } from './domain/cast.js';
 export { UNPROMPTED_CAPS } from './domain/router.js';
-export { STARS_PER_DAY_DEFAULT, STARS_PER_DAY_MAX } from './domain/sky.js';
 export type { RoomSeed } from './application/seeds.js';
 
 /**
