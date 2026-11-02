@@ -47,7 +47,16 @@ export function AiNoticeCard({
       <Text variant="meta" color={content.ink2}>
         {AI_NOTICE.control}
       </Text>
-      <Button label="Got it" size="sm" variant="primary" busy={busy} onPress={onAcknowledge} testID="ai-notice-ack" />
+      <View style={styles.actions}>
+        <Button label="Got it" size="sm" variant="primary" busy={busy} onPress={onAcknowledge} testID="ai-notice-ack" />
+        <Button
+          label="Look around first"
+          size="sm"
+          disabled={busy}
+          onPress={onAcknowledge}
+          testID="ai-notice-look-around"
+        />
+      </View>
     </View>
   );
 }
@@ -65,5 +74,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   welcome: { gap: spacing[1] },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   who: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing[2] },
 });

@@ -3828,6 +3828,34 @@ Confirmed by: `versions.test.ts` (the bound of 14 and both claims, written out a
 
 Confirmed by: `quick-answer-support.test.ts` (a short claim is not "no fact", a quote with one key word is not about the sentence, the checker is not told otherwise), `rooms/application/answer-check.test.ts` (the same for both of a room's roles), `domain/ask-support.test.ts` and `ask-support.test.ts` (the strict rules by default, the soft ones with the option, the two sets of instructions). Shown failing when the options were on for every caller.
 
+## D-323 · 2026-11-02 · No Challenge or Other side under a resident's "the library doesn't cover that" line (v3 fidelity, #497)
+
+**Amends** D-167 (a pointed ask can name any message) for one fixed line.
+
+- **Why.** The line is code's own words (D-301). Challenging it or asking for the other side posts the same line again, so the buttons only lead to a dead end.
+- **The rule.** `ROOM_NOT_COVERED_LINE` lives in the contracts. The client draws no Challenge or Other side under a resident's message that is exactly that line, and its message menu offers no ask on it. Useful, Report and Start a topic stay.
+
+Confirmed by: `room-messages.test.tsx` (no buttons, `canAsk` false; a person's message with the same words is still asked about), `rooms-smoke.spec.ts` (row and menu). Shown failing when the guard was removed.
+
+## D-324 · 2026-11-02 · The first-visit AI note has "Look around first" beside "Got it" (v3 fidelity, #497)
+
+**Builds on** D-161 (the AI notice). It adds the second button R3-FL1 draws.
+
+- **What the design draws.** A sheet with "Join and say hi" and a quieter "Look around first".
+- **What we do.** Joining is already done by the preview's "Join room", so the note is shown after it. "Got it" and "Look around first" both record the notice as read; neither posts or changes anything else. The second only gives the person the drawn way to say "not now".
+- **Not drawn.** The four-portrait cast (the room has two residents, D-163) and a sheet before joining.
+
+Confirmed by: `campfire.test.tsx`, `rooms-smoke.spec.ts` (the notice shows both buttons).
+
+## D-325 · 2026-11-02 · The leave-a-question sheet says the library may not cover the question (v3 fidelity, #497)
+
+**Amends** D-304 (what a resident does when the library does not support its answer) in the sheet's words only.
+
+- **Why.** A question can get the fixed "doesn't cover that yet" line at once (D-301). The sheet promised "It writes an answer straight away".
+- **The rule.** The switch says the resident answers when the library covers the question, that it may not, and that people in the room can answer either way. Nothing else about the sheet changes.
+
+Confirmed by: `quiet-room.test.tsx` (the words), `rooms-quiet-smoke.spec.ts` (the row is still one switch).
+
 ## D-326 · 2026-11-02 · A part is painted as a world from its Scroll's ID, and keeps its number only when its Scroll is gone (v3 fidelity, #497)
 
 **Amends** D-153 (the header draws coloured numbered worlds "until the parts have art").

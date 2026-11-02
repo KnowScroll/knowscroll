@@ -477,6 +477,10 @@ describe('leaving a question', () => {
     await fireEvent.changeText(screen.getByTestId('question-text'), 'How do astronomers know how far a star is?');
     expect(screen.getByRole('switch', { name: 'Ask Nova to answer now' })).toBeChecked();
     expect(screen.getByRole('switch', { name: 'Tell me when a person answers' })).toBeChecked();
+    // It says plainly that the library may not cover the question and that people in the room can answer.
+    expect(
+      screen.getByText(/The library may not cover it; people in the room can answer either way/),
+    ).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('question-submit'));
     expect(controller.leaveQuestion).toHaveBeenCalledWith({
       text: 'How do astronomers know how far a star is?',
