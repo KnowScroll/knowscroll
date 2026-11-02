@@ -7,7 +7,7 @@ production of a library Scroll. Blueprint §3, §11, §15 and §19; decisions D-
 Status: **implemented**, CI-verified, and **runtime-verified** on a local database with the real
 `MiniMax-M3.1-Flash` model (a free-text ask matched to the catalogue, produced and opened in the
 client). Not yet running on dev. Ask orders (below, D-218) are **implemented** and CI-verified with labelled fixture
-models; the real-model run of five ask orders is **planned** (the coordinator's, on dev). The library check of a question (D-251) and the support
+models; five real asks on dev reached Ready (2 Nov, dev-check-10, writer v9), so the ask order is **runtime-verified** on dev. The library check of a question (D-251) and the support
 check of an order's answer (D-250, in [content/production](../content/production/README.md)) are **implemented** and CI-verified with labelled
 fixture models; their real-model measurement is **planned** (the coordinator's replay, `content ask-check`). S-7c (D-263, D-265 to D-267) made the check work on real
 model output: quotes are matched after normalising marks and spacing, a verdict that breaks a rule makes only its sentence unsupported, titles and
