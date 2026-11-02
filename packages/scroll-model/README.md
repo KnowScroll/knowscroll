@@ -2,6 +2,8 @@
 
 The canonical declarative Scroll document, **`scroll-document.v1`**, and beside it **`scroll-document.v2`** (the V3 Scrolls: stops, calls and a pinned stage; see the section on it below). This package holds:
 
+A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/v3/fidelity.md` records what the screens looked like.
+
 - schemas, limits and validation;
 - version negotiation;
 - passage and block locators, block state and snapshots;
@@ -505,9 +507,9 @@ The design's block table lists 12 new, 5 kept and 6 changed blocks. *Implemented
 | `paragraph` | kept | implemented, inside a stop |
 | `heading` | changed | implemented, inside a stop (level 1 or 2, rare) |
 | `aside` | new | implemented (a limits aside is required and never last) |
-| `stage` | new | implemented: seven kits (Earth & sky, D-124; tides, greenhouse, star and transit, D-194; circulation and nerve, D-201), each with its physics derived by code (D-195, D-202), drawn by the stage engine (S-1c) |
-| `call_it` | new | implemented as a stop; locking in, sparks, combo and the Plot twist reveal are play, implemented (S-2: `modules/play`, `packages/client-core/src/play-session.ts`) |
-| `final_call` | new | implemented as the last stop (S-3): judged on the server like a Call it, a combo bonus (`sparksEarned`, D-187), an optional `binding: tilt` that hands the reader Earth's tilt on the stage, and the document's `landmark` it awards (D-188). No `bind_stage` for other kits and no simulation formulas for it: the tilt is the kit's physics in code |
+| `stage` | new | implemented; runtime-verified on dev for Earth & sky and tides (web, 2 Nov, fidelity-v3), the other kits not seen there: seven kits (Earth & sky, D-124; tides, greenhouse, star and transit, D-194; circulation and nerve, D-201), each with its physics derived by code (D-195, D-202), drawn by the stage engine (S-1c) |
+| `call_it` | new | implemented as a stop (runtime-verified on dev, 1 Nov, journeys-v3); locking in, sparks, combo and the Plot twist reveal are play, implemented (S-2: `modules/play`, `packages/client-core/src/play-session.ts`) |
+| `final_call` | new | implemented as the last stop (S-3; runtime-verified on dev, 1 Nov, journeys-v3: the combo and the gold landmark): judged on the server like a Call it, a combo bonus (`sparksEarned`, D-187), an optional `binding: tilt` that hands the reader Earth's tilt on the stage, and the document's `landmark` it awards (D-188). No `bind_stage` for other kits and no simulation formulas for it: the tilt is the kit's physics in code |
 | `recap` | new | implemented |
 | `sort`, `fork`, `scale`, `chart` (growing), `guide` | new / changed | implemented (S-8d, D-207 to D-210): a read stop's `interactive` (one of the four) and `guide`; at most two interactives and two guide lines a Scroll; figures only from cited passages (D-208); played on the device, nothing reported (D-209); the writer fills them from JSON for a recipe that names them, nothing runtime-verified yet (the spike `blocks-v20` measures them) |
 | `scene` | new | deferred (D-210): hotspots need parts a picture can name |

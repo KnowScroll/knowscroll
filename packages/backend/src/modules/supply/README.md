@@ -4,6 +4,8 @@ Supply turns a person's ask for something to explore into admitted content they 
 what exists, joins work that is already under way, and otherwise creates it: it commissions the
 production of a library Scroll. Blueprint §3, §11, §15 and §19; decisions D-035 and D-037.
 
+A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/v3/fidelity.md` records what the screens looked like.
+
 Status: **implemented**, CI-verified, and **runtime-verified** on a local database with the real
 `MiniMax-M3.1-Flash` model (a free-text ask matched to the catalogue, produced and opened in the
 client). Not yet running on dev. Ask orders (below, D-218) are **implemented** and CI-verified with labelled fixture
@@ -91,6 +93,8 @@ It is the same request row, the same states (E07), polling, cancel and retry; on
 ## Quick answer (D-086, D-253 to D-255; v3 S-9b)
 
 A person who selects words in a read stop of a v2 Scroll and chooses Ask gets a short answer under the stop, labelled "Quick answer · not a checked Scroll". It is not a Scroll, not evidence and never part of the Universe. It is a different request from an ask: its own table, its own caps and no production behind it.
+
+Runtime-verified on dev (2 Nov, dev-check-9): six Quick answers were asked and each was answered within 18 seconds, labelled, with "Make it a full Scroll", "Ask a follow-up" and "Report" offered; the Report sheet was opened and nothing was sent.
 
 | Capability | Where | Status |
 |---|---|---|
