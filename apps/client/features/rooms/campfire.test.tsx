@@ -298,6 +298,13 @@ describe('General and the AI notice', () => {
     expect(c.setPreferences).toHaveBeenCalledWith({ noticeSeen: true });
   });
 
+  it('offers "Look around first" beside "Got it": both record the notice as read, neither joins in', async () => {
+    const onAcknowledge = jest.fn();
+    await wrap(<AiNoticeCard busy={false} onAcknowledge={onAcknowledge} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Look around first' }));
+    expect(onAcknowledge).toHaveBeenCalledTimes(1);
+  });
+
   it('shows no notice once it has been read: from then on it is only in the room menu', async () => {
     const view = member({ you: { aiLevel: 'lively', keepOut: false, noticeSeenAt: '2026-10-24T08:00:00.000Z' } });
     await wrap(<GeneralStage scope={scope} view={view} controller={controller()} state={roomState()} />);

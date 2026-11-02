@@ -1,3 +1,4 @@
+import { ROOM_NOT_COVERED_LINE } from '@knowscroll/contracts';
 import { describe, expect, it } from 'vitest';
 import { MINIMAX_REQUEST_TIMEOUT_MAX_MS } from '../../../infrastructure/config/index.js';
 import { castPassQueue, contributeQueue } from '../events.js';
@@ -14,6 +15,8 @@ import { voiceProblem } from './feed.js';
 describe('the line a resident posts when the library cannot support an answer', () => {
   it('is plain, names where to ask, and passes the rules a resident’s words pass', () => {
     expect(NOT_COVERED_LINE).toBe("The library doesn't cover that yet. Ask from here on a Scroll to have one made.");
+    // The client draws no ask under exactly this line, so the two copies must stay the same words.
+    expect(ROOM_NOT_COVERED_LINE).toBe(NOT_COVERED_LINE);
     expect(contributionProblem(NOT_COVERED_LINE)).toBeUndefined();
     // A resident has no self to speak of: no "I", no "my", no claimed experience.
     expect(voiceProblem(NOT_COVERED_LINE)).toBeUndefined();
