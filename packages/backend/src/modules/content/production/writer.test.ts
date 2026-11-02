@@ -471,6 +471,11 @@ describe('the instructions for the answer to one question (D-218)', () => {
       stage: 'after_check',
     });
     expect(Object.keys(revision.safeCustomIssues ?? {})).toEqual(Object.keys(role.safeCustomIssues ?? {}));
+    // Each states the range its stage is held to: 8 to 12 for the writer's draft, 5 to 12 for the revision (D-308).
+    expect(role.safeCustomIssues?.['answer_sentences_out_of_brief']).toContain('must have 8 to 12 sentences');
+    expect(revision.safeCustomIssues?.['answer_sentences_out_of_brief']).toContain('must have 5 to 12 sentences');
+    expect(revision.safeCustomIssues?.['answer_sentences_out_of_brief']).not.toContain('8 to 12');
+    expect(revision.safeCustomIssues?.['answer_sentences_out_of_brief']?.length).toBeLessThanOrEqual(256);
   });
 
   it('refuse an answer that does not end with the limit callout, with a fixed hint for the one repair', () => {

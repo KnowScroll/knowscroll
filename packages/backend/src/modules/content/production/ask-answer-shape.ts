@@ -24,6 +24,15 @@ export const LEANING_SENTENCE_CODE = 'sentence_leans_on_previous';
  */
 export type AnswerStage = 'draft' | 'after_check';
 
+/**
+ * The fixed repair hint for an answer of the wrong length, for the stage it is written at: it names the range that stage is held to.
+ * It never holds the writer's words.
+ */
+export function answerLengthHint(stage: AnswerStage): string {
+  const fewest = stage === 'draft' ? ASK_ANSWER_MIN_SENTENCES : MIN_SERVED_SENTENCES;
+  return `The answer must have ${String(fewest)} to ${String(ASK_ANSWER_MAX_SENTENCES)} sentences of reader text (a title, a heading and a callout title do not count): the direct answer, at most two short sections and the closing callout.`;
+}
+
 /** The words that begin a sentence leaning on the one before: a pointer that needs the previous sentence to mean anything. */
 const LEANING_OPENING = /^[\s"'“‘([]*(?:this|that|these|those|it|they)(?![\p{L}\p{N}])/iu;
 

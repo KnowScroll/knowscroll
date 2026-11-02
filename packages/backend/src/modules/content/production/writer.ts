@@ -14,6 +14,7 @@ import { readingFactsOf } from '../adapters/scroll-compiler.js';
 import type { AdmissionIssue, CompileOutcome } from '../application/ports.js';
 import {
   ANSWER_LENGTH_CODE,
+  answerLengthHint,
   answerShapeIssues,
   ASK_ANSWER_MAX_SENTENCES,
   ASK_ANSWER_MIN_SENTENCES,
@@ -117,7 +118,6 @@ const WRITER_SAFE_ISSUES: Readonly<Record<string, string>> = Object.freeze({
     'This block type is not allowed in this Scroll. Replace the block with a paragraph, or with the block the recipe asks for.',
   limit_callout_required:
     'End the answer with a callout of kind "limit" as the last block: what this answer cannot tell us.',
-  [ANSWER_LENGTH_CODE]: `The answer must have ${String(ASK_ANSWER_MIN_SENTENCES)} to ${String(ASK_ANSWER_MAX_SENTENCES)} sentences of reader text (a title, a heading and a callout title do not count): the direct answer, at most two short sections and the closing callout.`,
   [LEANING_SENTENCE_CODE]:
     'A sentence after the first of its paragraph, list or callout begins with This, That, These, Those, It or They. Begin it with the thing it is about, so that it stands on its own.',
 });
@@ -375,10 +375,16 @@ export function bannedNames(provenance: {
 const QUESTION_LENGTH_HINT = `The answer must read in one to two minutes: write ${String(ASK_ANSWER_MIN_SENTENCES)} to ${String(ASK_ANSWER_MAX_SENTENCES)} short sentences of prose.`;
 
 /** The fixed hints of the writer, with the source names of this job and the length of its mode. */
-function writerSafeIssues(provenance: DraftProvenance, mode: WriterMode): Readonly<Record<string, string>> {
+function writerSafeIssues(
+  provenance: DraftProvenance,
+  mode: WriterMode,
+  stage: AnswerStage,
+): Readonly<Record<string, string>> {
   const sourceHints = Object.fromEntries(bannedNames(provenance).map((name) => [name.code, name.hint]));
   const lengthHint: Record<string, string> =
-    mode === 'question' ? { reading_length_out_of_brief: QUESTION_LENGTH_HINT } : {};
+    mode === 'question'
+      ? { reading_length_out_of_brief: QUESTION_LENGTH_HINT, [ANSWER_LENGTH_CODE]: answerLengthHint(stage) }
+      : {};
   return Object.freeze({ ...WRITER_SAFE_ISSUES, ...lengthHint, ...sourceHints });
 }
 
@@ -515,7 +521,7 @@ export function writerRole(input: {
   readonly stage?: AnswerStage;
 }): ReasoningRole<AuthoredScroll> {
   const mode = input.mode ?? 'library';
-  const safeIssues = writerSafeIssues(input.provenance, mode);
+  const safeIssues = writerSafeIssues(input.provenance, mode, input.stage ?? 'draft');
   return {
     id: 'content.scroll-writer',
     version: promptVersionOf(mode),
