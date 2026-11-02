@@ -111,12 +111,12 @@ it('says a landmark is new while its planet has not formed, with the Orbit as te
   await v.unmount();
 });
 
-it('lets a long landmark name and its waiting line wrap to two lines, never cut after one (#648)', async () => {
+it('lets a long landmark name wrap to three lines and its waiting line to two, never cut after one (#648)', async () => {
   const h = universeHarness();
   h.world.collection.landmarks = [earned({ name: 'The Returning Glow' })];
   const v = await open(h);
   await waitFor(() => expect(screen.getByTestId('universe-landmark-card')).toBeOnTheScreen());
-  expect(screen.getByTestId('universe-landmark-title').props.numberOfLines).toBe(2);
+  expect(screen.getByTestId('universe-landmark-title').props.numberOfLines).toBe(3);
   expect(screen.getByTestId('universe-landmark-line').props.numberOfLines).toBe(2);
   await act(() => h.scope.end());
   await v.unmount();

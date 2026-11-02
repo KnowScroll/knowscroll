@@ -246,6 +246,7 @@ for (const size of [
 for (const size of [
   { width: 390, height: 664 },
   { width: 360, height: 640 },
+  { width: 320, height: 568 },
   { width: 390, height: 844 },
 ]) {
   test(`the picked region's name stays whole above the card at ${String(size.width)} x ${String(size.height)} (#648)`, async ({

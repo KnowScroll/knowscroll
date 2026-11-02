@@ -161,6 +161,14 @@ test.describe('a phone, 390 x 844', () => {
     await shot(page, 'landmark-name-wraps-phone');
   });
 
+  test('at 320 px the name wraps to three lines and nothing is cut', async ({ page }) => {
+    await openUniverse(page, { width: 320, height: 800 }, { formed: false, firstLandmarkName: 'The Returning Glow' });
+    const title = page.getByTestId('universe-landmark-card').getByTestId('universe-landmark-title');
+    await expect(title).toHaveText('The Returning Glow');
+    expect(await title.evaluate((node) => node.scrollHeight > node.clientHeight + 1)).toBe(false);
+    await shot(page, 'landmark-name-wraps-320');
+  });
+
   test('the notice that new-place views are unavailable sits above the landmark card and covers none of it', async ({
     page,
   }) => {

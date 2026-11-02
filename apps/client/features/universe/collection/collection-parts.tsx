@@ -130,8 +130,8 @@ function OpenLandmark({
           <Text variant="label" color={PAPER_INK2}>
             {heading}
           </Text>
-          {/* A long name wraps to a second line; only a name longer than two lines is cut (#648). */}
-          <Text variant="title" heading={2} color={PAPER_INK} numberOfLines={2} testID="universe-landmark-title">
+          {/* A long name wraps (to a third line at 320 px); only a name longer than three lines is cut (#648). */}
+          <Text variant="title" heading={2} color={PAPER_INK} numberOfLines={3} testID="universe-landmark-title">
             {title}
           </Text>
           {line ? (

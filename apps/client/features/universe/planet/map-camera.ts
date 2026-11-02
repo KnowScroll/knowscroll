@@ -131,12 +131,13 @@ const NAME_HEADER_CLEAR = 72;
 /**
  * Where the top of the picked region's name pill goes. It is centred on the region's label, but on a short screen the
  * card rises over that spot, so the pill is lifted to stand just above the card's top edge (`coveredBottom` is how far
- * up from the screen's bottom the card reaches; `undefined` while it is not measured or there is none). It never goes
- * higher than the header row.
+ * up from the screen's bottom the card reaches; `undefined` while it is not measured or there is none). It stays below
+ * the header row unless the card leaves no room, and then clears the card.
  */
 export function namePillTop(labelY: number, screenHeight: number, coveredBottom: number | undefined): number {
   const wanted = labelY - NAME_PILL_HEIGHT / 2;
   if (coveredBottom === undefined) return wanted;
   const highest = screenHeight - coveredBottom - NAME_PILL_GAP - NAME_PILL_HEIGHT;
-  return Math.max(NAME_HEADER_CLEAR, Math.min(wanted, highest));
+  // The card wins: on a screen so short that the header row and the card meet, the pill stands clear of the card.
+  return Math.min(highest, Math.max(NAME_HEADER_CLEAR, wanted));
 }

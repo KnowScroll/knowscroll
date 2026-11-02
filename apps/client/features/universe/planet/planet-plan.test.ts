@@ -139,6 +139,9 @@ describe('the camera of the landed map', () => {
     const smallest = namePillTop(labelY, 640, 435);
     expect(smallest + NAME_PILL_HEIGHT).toBeLessThanOrEqual(640 - 435);
     expect(smallest).toBeGreaterThanOrEqual(72);
+    // 320 x 568: a three-line card reaches 480 px up and the header row meets it: the card wins, the pill still clears it.
+    const tiny = namePillTop(labelY, 568, 480);
+    expect(tiny + NAME_PILL_HEIGHT).toBeLessThanOrEqual(568 - 480);
     // 390 x 844: the label is well above the card, so the pill stays centred on it.
     expect(namePillTop(322, 844, 421)).toBe(322 - NAME_PILL_HEIGHT / 2);
     // No card measured yet: the pill is where it always was.
