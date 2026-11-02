@@ -81,9 +81,16 @@ function stageIssues(authored: AuthoredScrollV2, recipe: RecipeDataV2): IssueV2[
   const first = authored.items.findIndex((item) => item.type !== 'aside');
   const kit = kitDefinition(recipeKit(recipe));
   authored.items.forEach((item, index) => {
-    if (item.type === 'aside' || item.stage === undefined) return;
-    if (recipe.variant === 'plain') issues.push({ code: 'stage_unexpected', path: `items.${index}.stage` });
-    else if (!isKitPatch(kit, item.stage)) issues.push({ code: 'stage_choice_invalid', path: `items.${index}.stage` });
+    if (item.type === 'aside') return;
+    if (recipe.variant === 'plain') {
+      // A plain Scroll has no picture for a state, a figure or a reveal to be about (D-381, D-382).
+      if (item.stage !== undefined) issues.push({ code: 'stage_unexpected', path: `items.${index}.stage` });
+      if (item.type === 'stop' && item.figures !== undefined)
+        issues.push({ code: 'stage_unexpected', path: `items.${index}.figures` });
+      if (item.type === 'call_it' && item.revealsNext !== undefined)
+        issues.push({ code: 'stage_unexpected', path: `items.${index}.revealsNext` });
+    } else if (item.stage !== undefined && !isKitPatch(kit, item.stage))
+      issues.push({ code: 'stage_choice_invalid', path: `items.${index}.stage` });
   });
   const opening = authored.items[first];
   if (

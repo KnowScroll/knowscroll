@@ -22,7 +22,7 @@ function everyState(kit: KitDefinition): WordState[] {
   );
 }
 
-const anyState = (kit: KitDefinition): fc.Arbitrary<WordState> =>
+const anyState = (kit: KitDefinition): fc.Arbitrary<Readonly<Record<string, string>>> =>
   fc.record(Object.fromEntries(kitKeys(kit).map((key) => [key, fc.constantFrom(...(kit.enums[key] ?? []))])));
 
 /** The settled states of a kit, each once: what a stored document can hold. A kit with many words has far fewer of these than states. */
@@ -62,7 +62,7 @@ describe.each(STAGE_KIT_IDS)('the generic rules of the kit %s', (id) => {
       if (settled['view'] !== state['view']) problems.push(`view changed: ${JSON.stringify(state)}`);
       for (const key of kitKeys(kit)) {
         const words: readonly string[] = kit.enums[key] ?? [];
-        if (!words.includes(settled[key] ?? '')) problems.push(`${key} not a word: ${JSON.stringify(state)}`);
+        if (!words.includes(String(settled[key] ?? ''))) problems.push(`${key} not a word: ${JSON.stringify(state)}`);
       }
     }
     expect(problems).toEqual([]);

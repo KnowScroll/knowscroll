@@ -14,6 +14,7 @@ import {
   PIN_LATITUDE_DEGREES,
   settleStageState,
   STAGE_ENUMS,
+  STAGE_FIGURE_SLOTS,
   STAGE_KEYS,
   stageParts,
   stagePhysics,
@@ -21,13 +22,15 @@ import {
   sunLatitudeDegrees,
   TILT_RANGE,
   tiltMatters,
+  type StageFigure,
+  type StageKey,
   type StageState,
 } from './kit.js';
 import { FIELD_LIMITS_V2 } from './limits.js';
 
 const anyState = fc.record(
   Object.fromEntries(STAGE_KEYS.map((key) => [key, fc.constantFrom(...STAGE_ENUMS[key])])) as {
-    [Key in keyof StageState]: fc.Arbitrary<StageState[Key]>;
+    [Key in StageKey]: fc.Arbitrary<StageState[Key]>;
   },
 );
 
@@ -374,5 +377,89 @@ describe('the recap of a stage (V3 F10)', () => {
     expect(text).toMatch(/marked 1 in June, 2 in January and 3 in March, numbered in the order the Scroll shows them/u);
     expect(text).toMatch(/leans the same way in every one/u);
     expect(describeStageRecap(['dec', 'jun'])).toMatch(/marked 1 in December and 2 in June/u);
+  });
+});
+
+describe('the figures a state may carry (D-381)', () => {
+  const nearest: StageFigure = { slot: 'nearest', value: 41_000_000, unit: 'kilometres' };
+  const farthest: StageFigure = { slot: 'farthest', value: 43_000_000, unit: 'kilometres' };
+  const june: StageFigure = { slot: 'june-daylight', value: 14, unit: 'hours', place: 'Pell' };
+  const december: StageFigure = { slot: 'december-daylight', value: 10, unit: 'hours', place: 'Pell' };
+  const orbit = { view: 'orbit', earthAt: 'oct', moonAt: 'off', focus: 'none' } as const;
+  const sunEarth = { ...orbit, view: 'sun-earth', earthAt: 'jun' } as const;
+
+  it('has four slots, and a state with none is described and settled exactly as before', () => {
+    expect([...STAGE_FIGURE_SLOTS]).toEqual(['nearest', 'farthest', 'june-daylight', 'december-daylight']);
+    expect(describeStageState(orbit)).not.toMatch(/nearest|farthest|You are here|not drawn to scale/u);
+    expect(settleStageState(orbit)).toEqual(orbit);
+    expect(settleStageState(orbit)).not.toHaveProperty('figures');
+  });
+
+  it('keeps the distances on the orbit views and the daylight on the Sun and Earth view, and sets aside the rest', () => {
+    for (const view of ['orbit', 'orbit-stretched'] as const)
+      expect(settleStageState({ ...orbit, view, figures: [nearest, farthest, june] }).figures).toEqual([
+        nearest,
+        farthest,
+      ]);
+    expect(settleStageState({ ...sunEarth, figures: [nearest, june, december] }).figures).toEqual([june, december]);
+    for (const view of ['earth-close', 'moon-orbit'] as const)
+      expect(settleStageState({ ...orbit, view, figures: [nearest, june] })).not.toHaveProperty('figures');
+  });
+
+  it('puts the figures in the order of the slots, once each, a daylight figure only with a place and a distance never with one', () => {
+    expect(settleStageState({ ...orbit, figures: [farthest, nearest, { ...nearest, value: 1 }] }).figures).toEqual([
+      nearest,
+      farthest,
+    ]);
+    expect(settleStageState({ ...orbit, figures: [{ ...nearest, place: 'Pell' }] }).figures).toEqual([nearest]);
+    expect(settleStageState({ ...sunEarth, figures: [{ ...june, place: undefined }, december] }).figures).toEqual([
+      december,
+    ]);
+  });
+
+  it('is idempotent for every figure on every view', () => {
+    const figures = fc.subarray([nearest, farthest, june, december, { ...june, place: undefined }]);
+    fc.assert(
+      fc.property(anyState, figures, (state, chosen) => {
+        const settled = settleStageState({ ...state, figures: chosen });
+        expect(settleStageState(settled)).toEqual(settled);
+        expect(StageStateSchema.safeParse(settled).success).toBe(true);
+      }),
+    );
+  });
+
+  it('describes a distance, a daylight figure and what the picture says beside the distances, from the figures alone', () => {
+    const words = describeStageState({ ...orbit, figures: [nearest, farthest] });
+    expect(words).toContain('At its nearest, Earth is 41,000,000 kilometres from the Sun.');
+    expect(words).toContain('At its farthest, Earth is 43,000,000 kilometres from the Sun.');
+    expect(words).toContain('Earth is marked “You are here”, and the Sun is not drawn to scale.');
+    const bands = describeStageState({ ...sunEarth, figures: [june, december] });
+    expect(bands).toContain('In Pell, daylight lasts 14 hours in June.');
+    expect(bands).toContain('In Pell, daylight lasts 10 hours in December.');
+    expect(bands).not.toContain('You are here');
+    // A figure the view cannot draw is not described either: the words are of the settled state.
+    expect(describeStageState({ ...sunEarth, figures: [nearest] })).toBe(describeStageState(sunEarth));
+  });
+
+  it('says them at a turned tilt too, since the picture still draws them', () => {
+    expect(describeStageAtTilt({ ...orbit, figures: [nearest] }, 60)).toContain('At its nearest, Earth is 41,000,000');
+  });
+
+  it('is carried by no patch: a stop that changes the picture clears them, and no word of a patch can name one', () => {
+    const next = applyStagePatch({ ...orbit, figures: [nearest] }, { focus: 'sun' });
+    expect(next).not.toHaveProperty('figures');
+    expect(applyStagePatch({ ...orbit, figures: [nearest] }, undefined).figures).toEqual([nearest]);
+    expect([...STAGE_KEYS]).not.toContain('figures');
+  });
+
+  it('holds a number, a unit and a place a person could read: no zero, no negative, no empty unit, no further key', () => {
+    const accepts = (state: unknown) => StageStateSchema.safeParse(state).success;
+    expect(accepts({ ...orbit, figures: [nearest] })).toBe(true);
+    expect(accepts({ ...orbit, figures: [{ ...nearest, value: 0 }] })).toBe(false);
+    expect(accepts({ ...orbit, figures: [{ ...nearest, value: -4 }] })).toBe(false);
+    expect(accepts({ ...orbit, figures: [{ ...nearest, unit: '' }] })).toBe(false);
+    expect(accepts({ ...orbit, figures: [{ ...nearest, extra: 1 }] })).toBe(false);
+    expect(accepts({ ...orbit, figures: [] })).toBe(false);
+    expect(accepts({ ...orbit, figures: [nearest, farthest, june, december, nearest] })).toBe(false);
   });
 });

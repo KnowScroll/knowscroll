@@ -244,6 +244,30 @@ function bindingIssues(document: ScrollDocumentV2): IssueV2[] {
   return held !== undefined && tiltMatters(held.state) ? [] : invalid;
 }
 
+/**
+ * A call's reveal picture (D-382): the stage turns to it once the reader locks a wrong answer, so it must be a state the
+ * document holds, set by the first read stop after the call, and it must differ from the picture the call is shown over,
+ * or there would be nothing to turn to. The picture a right answer keeps is that same state, which the next stop shows.
+ */
+function revealIssues(document: ScrollDocumentV2): IssueV2[] {
+  const issues: IssueV2[] = [];
+  document.stops.forEach((stop, index) => {
+    if (stop.kind !== 'call_it' || stop.revealStage === undefined) return;
+    const stage = document.stage;
+    const next = document.stops.find((candidate, at) => at > index && candidate.kind === 'read');
+    const turnedTo = stage?.states.find((held) => held.stop === stop.revealStage);
+    const position = new Map(document.stops.map((candidate, at) => [candidate.id, at]));
+    const shownNow = stage?.states.filter((held) => (position.get(held.stop) ?? Infinity) <= index).at(-1);
+    const invalid =
+      stage === undefined ||
+      next?.id !== stop.revealStage ||
+      turnedTo === undefined ||
+      (shownNow !== undefined && canonicalJson(shownNow.state) === canonicalJson(turnedTo.state));
+    if (invalid) issues.push({ code: 'call_reveal_invalid', path: `stops.${index}.revealStage` });
+  });
+  return issues;
+}
+
 /** Asides: each opens next to a stop; a limits aside exists, opens before the Final call, and the recap links to it. */
 function asideIssues(document: ScrollDocumentV2): IssueV2[] {
   const issues: IssueV2[] = [];
@@ -347,6 +371,7 @@ export function validateDocumentV2(input: unknown, options: ValidateV2Options = 
     ...callIssues(document),
     ...restatementIssues(document),
     ...bindingIssues(document),
+    ...revealIssues(document),
     ...asideIssues(document),
     ...stageIssues(document),
     ...(options.verify === false ? [] : storedIssues(document)),

@@ -392,3 +392,56 @@ describe('validateDocumentV2: the rules of scroll-limits.v2', () => {
     ]);
   });
 });
+
+describe('a call that turns the picture when the guess is wrong (D-382)', () => {
+  /** The fixture's first call, pointed at the stop after it. */
+  const revealing = (document: ScrollDocumentV2, stop = 's3') => {
+    callIt(document, 1).revealStage = stop;
+  };
+
+  it('accepts a call that names the next read stop when that stop changes the picture', () => {
+    expect(broken((document) => revealing(document))).toEqual([]);
+  });
+
+  it('refuses a name that is not the first read stop after the call, one that is no stop, and a call stop', () => {
+    const refused = ['call_reveal_invalid@stops.1.revealStage'];
+    expect(broken((document) => revealing(document, 's4'))).toEqual(refused);
+    expect(broken((document) => revealing(document, 's1'))).toEqual(refused);
+    expect(broken((document) => revealing(document, 's99'))).toEqual(refused);
+    // s2 is the call itself.
+    expect(broken((document) => revealing(document, 's2'))).toEqual(refused);
+  });
+
+  it('refuses a stop that sets no picture of its own, and one that sets the picture already on screen', () => {
+    const refused = ['call_reveal_invalid@stops.1.revealStage'];
+    expect(
+      broken((document) => {
+        revealing(document);
+        const stage = stageOf(document);
+        stage.states = stage.states.filter((entry) => entry.stop !== 's3');
+      }),
+    ).toEqual(expect.arrayContaining(refused));
+    expect(
+      broken((document) => {
+        revealing(document);
+        const shown = stateAt(document, 0);
+        const turnedTo = stageOf(document).states.find((entry) => entry.stop === 's3');
+        if (turnedTo === undefined) throw new Error('the fixture sets a picture at s3');
+        turnedTo.state = shown.state;
+        turnedTo.alt = shown.alt;
+      }),
+    ).toContain(refused[0]);
+  });
+
+  it('refuses a reveal on a Scroll with no stage: there is no picture to turn', () => {
+    expect(broken((document) => revealing(document), 'plain')).toEqual(['call_reveal_invalid@stops.1.revealStage']);
+  });
+
+  it('lets only a Call it carry one: the Final call has no such field', () => {
+    expect(
+      broken((document) => {
+        (call(document, document.stops.length - 1) as { revealStage?: string }).revealStage = 's3';
+      }),
+    ).toContain(`schema_unrecognized_keys@stops.${String(fixture().stops.length - 1)}`);
+  });
+});

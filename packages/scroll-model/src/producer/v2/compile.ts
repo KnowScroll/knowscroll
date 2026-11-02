@@ -4,6 +4,7 @@ import type { ScrollDocumentV2 } from '../../v2/document.js';
 import { assembleScrollV2, type AssemblyMap, type PublicationV2, type RecipeDataV2 } from './assemble.js';
 import type { AuthoredScrollV2 } from './authoring-schema.js';
 import { authoringIssuesV2, type AuthoringRulesInput } from './rules.js';
+import { leaveOutUnstatedFigures, stagePlanIssues, type LeftOutFigure } from './stage-figures.js';
 
 export interface CompileV2Input extends AuthoringRulesInput {
   readonly publication: PublicationV2;
@@ -18,6 +19,8 @@ export type CompileV2Outcome =
       readonly notices: readonly IssueV2[];
       /** The claims each part rests on, by the document's own ids (`s3`, `a1`, `recap`). Internal; never served. */
       readonly citations: Readonly<Record<string, readonly string[]>>;
+      /** The stage figures the writer gave that no cited passage states, left out of the picture (D-381). Internal; never served. */
+      readonly leftOut: readonly LeftOutFigure[];
     }
   | { readonly kind: 'refused'; readonly stage: 'authoring' | 'document'; readonly issues: readonly IssueV2[] };
 
@@ -81,7 +84,9 @@ function citationsOf(
  */
 export function compileAuthoredV2(authored: AuthoredScrollV2, input: CompileV2Input): CompileV2Outcome {
   const own = authoringIssuesV2(authored, input);
-  const assembly = assembleScrollV2(authored, input.publication, input.recipe);
+  // A figure no cited passage states is left out of the picture, not refused: the repair could only guess (D-381).
+  const { authored: stated, leftOut } = leaveOutUnstatedFigures(authored, input.evidence);
+  const assembly = assembleScrollV2(stated, input.publication, input.recipe);
   if (assembly.kind === 'unassemblable')
     return {
       kind: 'refused',
@@ -96,13 +101,18 @@ export function compileAuthoredV2(authored: AuthoredScrollV2, input: CompileV2In
           path: authoredPath(issue.path, assembly.document, assembly.map),
         }))
       : [];
-  const issues = uniqueIssuesV2([...own, ...fromDocument]);
+  const planned = stagePlanIssues(assembly.document, input.recipe.stagePlan).map((issue): IssueV2 => ({
+    code: issue.code,
+    path: authoredPath(issue.path, assembly.document, assembly.map),
+  }));
+  const issues = uniqueIssuesV2([...own, ...fromDocument, ...planned]);
   if (issues.length > 0 || checked.kind !== 'valid')
     return { kind: 'refused', stage: own.length > 0 ? 'authoring' : 'document', issues };
   return {
     kind: 'compiled',
     document: checked.document,
     notices: checked.notices,
-    citations: citationsOf(authored, checked.document, assembly.map, input.evidence.claimIdOf),
+    citations: citationsOf(stated, checked.document, assembly.map, input.evidence.claimIdOf),
+    leftOut,
   };
 }
