@@ -238,6 +238,30 @@ test('the reveal of Part 2 opens in the thread by itself, ahead of the call befo
   await closeAll(asha.context);
 });
 
+test('on a desktop the reveal also opens in the conversation by itself, only once everyone finished', async ({
+  browser,
+}) => {
+  const world = partyWorld({ call: true, nextCall: true });
+  world.setPlace('meera', 1, 'on');
+  world.setPlace('ravi', 2, 'finished');
+  world.setPlace('asha', 2, 'finished');
+  world.lock('ravi', 0);
+  world.lock('meera', 0);
+  world.lock('asha', 1);
+  const asha = await person(browser, world, 'asha', desktop);
+  const { page } = asha;
+  await expect(page.getByTestId('call-card')).toHaveCount(0);
+  await expect(page.getByTestId('call-explain')).toHaveCount(0);
+
+  world.setPlace('meera', 2, 'finished');
+  await page.reload();
+  await expect(page.getByTestId('call-card').getByText('PLOT TWIST! · REVEALED TOGETHER')).toBeVisible();
+  await expect(page.getByTestId('call-explain')).toHaveText(PARTY_CALL.explain);
+  await shot(page, 'reveal-1440-in-thread');
+  expect(await seriousViolations(page)).toEqual([]);
+  await closeAll(asha.context);
+});
+
 test('a member who never calls, and one who hides where they are, do not hold the others back', async ({ browser }) => {
   const world = partyWorld({ call: true });
   // Ravi shows no place and never calls; Meera finished Part 2 and called it right.

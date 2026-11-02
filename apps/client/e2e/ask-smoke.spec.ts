@@ -272,27 +272,31 @@ test('could not prepare is said plainly, and Try again re-drives the same reques
   await expect(page.getByTestId('ask-making')).toBeVisible();
 });
 
-test('a question closed by a daily limit says which one, and nothing about other people', async ({ page }) => {
-  const cases = [
-    [
-      'person_cap_full',
-      /You've asked for 5 new explanations today, the most for one day\. You can ask again tomorrow\./,
-    ],
-    ['world_cap_full', /New explanations are full for today\. You can ask again tomorrow\./],
-    ['ask_orders_off', /New explanations are switched off right now\./],
-  ] as const;
-  for (const [outcome, words] of cases) {
-    await open(page, phone, { requests: { outcome } });
-    await askButton(page).click();
-    await page.getByRole('button', { name: `Ask: ${suggestions[0]}` }).click();
-    const closed = page.getByTestId('ask-closed');
-    await expect(closed.getByText(words)).toBeVisible();
-    await expect(closed.getByText(/can't prepare new explanations right now/)).toHaveCount(0);
-    await expect(closed.getByText(/other people|everyone|anyone else/i)).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
-    expect(await audit(page)).toEqual([]);
-  }
-});
+for (const [outcome, name, words] of [
+  [
+    'person_cap_full',
+    'their own daily limit',
+    /You've asked for 5 new explanations today, the most for one day\. You can ask again tomorrow\./,
+  ],
+  ['world_cap_full', 'the day’s shared limit', /New explanations are full for today\. You can ask again tomorrow\./],
+  ['ask_orders_off', 'new explanations being off', /New explanations are switched off right now\./],
+] as const)
+  for (const [size, viewport] of [
+    ['390', phone],
+    ['1440', desktop],
+  ] as const)
+    test(`a question closed by ${name} says which, and nothing about other people, at ${size}`, async ({ page }) => {
+      await open(page, viewport, { requests: { outcome } });
+      await askButton(page).click();
+      await page.getByRole('button', { name: `Ask: ${suggestions[0]}` }).click();
+      const closed = page.getByTestId('ask-closed');
+      await expect(closed.getByText(words)).toBeVisible();
+      await expect(closed.getByText(/can't prepare new explanations right now/)).toHaveCount(0);
+      await expect(closed.getByText(/other people|everyone|anyone else/i)).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+      await shot(page, `ask-limit-${outcome}-${size}`);
+      expect(await audit(page)).toEqual([]);
+    });
 
 test('while recording is paused the ask is off, says why, and sends nothing', async ({ page }) => {
   const served = await open(page, phone, { play: { recordingPaused: true } });
