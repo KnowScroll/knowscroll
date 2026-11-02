@@ -32,8 +32,11 @@ export interface ProductionSubject {
   readonly scrollV2?: ScrollV2Plan;
   /** The kit that draws this recipe's subject, when the plan names one (D-125, D-194). Only a `stage` Scroll uses it. */
   readonly stageKit?: StageKitId;
-  /** For the answer to a question: the person's own words, read from the brief. Code may use them as the title (D-351); never the model's. */
-  readonly question?: string;
+  /**
+   * For the answer to a question: the title of the Scroll the person asked from, read from the brief. It is library text, so code may
+   * build a title from it (D-351); the person's own words are never read into the subject.
+   */
+  readonly readingTitle?: string;
 }
 
 /** The subject of a library recipe. */
@@ -53,12 +56,13 @@ export function librarySubject(topic: ScrollTopic): ProductionSubject {
 }
 
 /**
- * The person's own words in the brief of an ask order (`askBrief` in supply): the one quoted line the writer's instructions call
- * data. The brief puts each of its fields on one line, so a question cannot start a line of its own; the first line that begins
- * with the label is the real one. `undefined` when the brief has no such line.
+ * The title of the Scroll being read, in the brief of an ask order (`askBrief` in supply): public library text, on a line of its own
+ * that comes before the person's words. The brief puts each of its fields on one line, so no field can start a line of its own; the
+ * first line that begins with the label is the real one. `undefined` when the brief has no such line or it is empty.
  */
-export function questionOfAskBrief(brief: string): string | undefined {
-  return /^THE QUESTION \([^)\n]*\): “(.*)”$/mu.exec(brief)?.[1];
+export function readingTitleOfAskBrief(brief: string): string | undefined {
+  const title = /^SCROLL BEING READ: (.*)$/mu.exec(brief)?.[1]?.trim();
+  return title === undefined || title === '' ? undefined : title;
 }
 
 interface OrderRow {
@@ -100,13 +104,13 @@ export async function madeToOrderSubject(
     pages: row.pages,
     format: row.mode === 'question' ? 'plain' : 'comparison',
     attribution: 'none',
-    ...(row.mode === 'question' ? questionField(row.brief) : {}),
+    ...(row.mode === 'question' ? readingTitleField(row.brief) : {}),
   };
 }
 
-const questionField = (brief: string): { readonly question?: string } => {
-  const question = questionOfAskBrief(brief);
-  return question === undefined ? {} : { question };
+const readingTitleField = (brief: string): { readonly readingTitle?: string } => {
+  const readingTitle = readingTitleOfAskBrief(brief);
+  return readingTitle === undefined ? {} : { readingTitle };
 };
 
 /** The subject a job's key names, or `undefined` for a key that is neither a library recipe nor a stored order. */

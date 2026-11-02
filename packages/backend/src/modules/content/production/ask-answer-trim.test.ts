@@ -6,7 +6,8 @@ import {
   copiedSentenceNumbers,
   FALLBACK_TITLE,
   NEUTRAL_DEK,
-  titleFromQuestion,
+  QUESTION_TITLE_PREFIX,
+  titleAboutReading,
   trimAskAnswer,
   unchanged,
   type PreparedAnswer,
@@ -283,35 +284,42 @@ describe('a sentence that leans (D-349)', () => {
   });
 });
 
-describe('the title code makes from the person’s question (D-351)', () => {
+describe('the title code makes from the Scroll the person asked from (D-351)', () => {
   const usable = () => true;
 
-  it('is their words, one line, as they asked', () => {
-    expect(titleFromQuestion('How does a lighthouse guide ships?', usable)).toBe('How does a lighthouse guide ships?');
-    expect(titleFromQuestion('  Why   does\tit\nturn? ', usable)).toBe('Why does it turn?');
+  it('is "Your question about" and the title of that Scroll, as the brief names it', () => {
+    expect(titleAboutReading('How a lamp guides sailors', usable)).toBe(
+      'Your question about How a lamp guides sailors',
+    );
+    expect(titleAboutReading('  How a   lamp\tguides sailors ', usable)).toBe(
+      'Your question about How a lamp guides sailors',
+    );
+    expect(QUESTION_TITLE_PREFIX).toBe('Your question about ');
   });
 
   it('is cut after a whole word to the title limit, and ends in an ellipsis', () => {
-    const long = `Why does the lamp of a lighthouse that stands on a rock in the sea turn at a steady pace all through the night and the day`;
-    const title = titleFromQuestion(long, usable);
-    expect(long.length).toBeGreaterThan(FIELD_LIMITS.titleChars);
+    const long =
+      'How the lamp of a lighthouse that stands on a rock in the sea turns at a steady pace all through the night';
+    const title = titleAboutReading(long, usable);
+    const whole = `${QUESTION_TITLE_PREFIX}${long}`;
+    expect(whole.length).toBeGreaterThan(FIELD_LIMITS.titleChars);
     expect(title.length).toBeLessThanOrEqual(FIELD_LIMITS.titleChars);
     expect(title.endsWith('…')).toBe(true);
-    expect(long.startsWith(title.slice(0, -1))).toBe(true);
-    expect(long[title.length - 1]).toBe(' ');
-    // A question of exactly the limit is kept whole.
-    const exact = 'a'.repeat(FIELD_LIMITS.titleChars);
-    expect(titleFromQuestion(exact, usable)).toBe(exact);
+    expect(whole.startsWith(title.slice(0, -1))).toBe(true);
+    expect(whole[title.length - 1]).toBe(' ');
+    // A title that fits exactly is kept whole.
+    const room = 'a'.repeat(FIELD_LIMITS.titleChars - QUESTION_TITLE_PREFIX.length);
+    expect(titleAboutReading(room, usable)).toBe(`${QUESTION_TITLE_PREFIX}${room}`);
   });
 
-  it('is the fixed title when there are no words, when the first word does not fit, or when the question cannot stand as a title', () => {
-    expect(titleFromQuestion(undefined, usable)).toBe(FALLBACK_TITLE);
-    expect(titleFromQuestion('   ', usable)).toBe(FALLBACK_TITLE);
-    expect(titleFromQuestion('a'.repeat(FIELD_LIMITS.titleChars + 5), usable)).toBe(FALLBACK_TITLE);
-    expect(titleFromQuestion('Why is the sky blue?', () => false)).toBe(FALLBACK_TITLE);
+  it('is the fixed title when there is no Scroll title, when its first word does not fit, or when the result cannot stand as a title', () => {
+    expect(titleAboutReading(undefined, usable)).toBe(FALLBACK_TITLE);
+    expect(titleAboutReading('   ', usable)).toBe(FALLBACK_TITLE);
+    expect(titleAboutReading('a'.repeat(FIELD_LIMITS.titleChars), usable)).toBe(FALLBACK_TITLE);
+    expect(titleAboutReading('How a lamp guides sailors', () => false)).toBe(FALLBACK_TITLE);
   });
 
-  it('never holds a word that is not the person’s: the fixed lines are plain and short enough for the stored document', () => {
+  it('keeps the fixed lines plain and short enough for the stored document', () => {
     expect(NEUTRAL_DEK.length).toBeGreaterThanOrEqual(10);
     expect(NEUTRAL_DEK.length).toBeLessThanOrEqual(FIELD_LIMITS.dekChars);
     expect(FALLBACK_TITLE.length).toBeLessThanOrEqual(FIELD_LIMITS.titleChars);

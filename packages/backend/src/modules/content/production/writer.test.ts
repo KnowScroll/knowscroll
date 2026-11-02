@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AuthoredScroll, COPY_RUN_WORDS, copiedRuns } from '@knowscroll/scroll-model/producer';
+import { AuthoredScroll, COPY_RUN_WORDS, copiedRuns, DocumentTitle } from '@knowscroll/scroll-model/producer';
 import { extractResearch } from '../../../infrastructure/research/public-pages.js';
 import { evidencePassages } from './evidence.js';
 import { FALLBACK_TITLE, NEUTRAL_DEK, trimAskAnswer } from './ask-answer-trim.js';
@@ -520,38 +520,46 @@ describe('the instructions for the answer to one question (D-218)', () => {
   });
 
   describe('the lines code writes when the writer’s title or dek cannot be served (D-351)', () => {
-    const titleFor = (question: string | undefined, over = questionProvenance) =>
-      askTrimRules(over, question).lines.title;
+    const titleFor = (readingTitle: string | undefined, over = questionProvenance) =>
+      askTrimRules(over, readingTitle).lines.title;
+    const READING = 'How a lamp guides sailors';
 
-    it('make the title the person’s question when it can stand as a title', () => {
-      expect(titleFor('How does a lighthouse guide ships?')).toBe('How does a lighthouse guide ships?');
-      expect(askTrimRules(questionProvenance, 'Why?').lines.dek).toBe(NEUTRAL_DEK);
+    it('make the title from the Scroll the person asked from, and the dek a fixed line', () => {
+      expect(titleFor(READING)).toBe('Your question about How a lamp guides sailors');
+      expect(askTrimRules(questionProvenance, READING).lines.dek).toBe(NEUTRAL_DEK);
     });
 
-    it('fall back to the fixed title for a question with a figure, a source name, a web address or words of a passage', () => {
-      for (const question of [
-        'Why does the lamp turn every 4 hours?',
-        'Why did NASA say the lamp turns?',
-        'What does science.nasa.gov say about the lamp?',
-        'Who wrote to lamp@example.org about it?',
-        `Is it true that ${SOURCE[1]!.toLowerCase().slice(0, -1)}?`,
+    it('fall back to the fixed title when the Scroll’s title has a figure, a source name, a web address or words of a passage', () => {
+      for (const reading of [
+        'Why 4 hours decide the lamp',
+        'What NASA says about the lamp',
+        'What science.nasa.gov says about the lamp',
+        SOURCE[1]!.slice(0, -1),
         undefined,
         '',
       ])
-        expect(titleFor(question), String(question)).toBe(FALLBACK_TITLE);
-      // The same question about a source with another host is not about a source name.
-      expect(titleFor('Why did NASA say the lamp turns?', { ...questionProvenance, sources: [] })).toBe(
-        'Why did NASA say the lamp turns?',
+        expect(titleFor(reading), String(reading)).toBe(FALLBACK_TITLE);
+      // The same title is fine for a job whose sources have another host: it is not about a source name.
+      expect(titleFor('What NASA says about the lamp', { ...questionProvenance, sources: [] })).toBe(
+        'Your question about What NASA says about the lamp',
       );
     });
 
+    it('make a title the document accepts: its own rule for a title (four to ninety characters, plain, no web address) is the test', () => {
+      for (const reading of ['How a lamp guides sailors', 'x'.repeat(200), 'a b', 'Lamps\u0007and bells']) {
+        const title = titleFor(reading);
+        expect(DocumentTitle.safeParse(title).success, title).toBe(true);
+      }
+    });
+
     it('are served by the compile: the answer with both lines in place compiles as the answer to the question', () => {
+      const rules = askTrimRules(questionProvenance, READING);
       const role = writerRole({
         provenance: questionProvenance,
         passages,
         format: 'plain',
         mode: 'question',
-        trim: askTrimRules(questionProvenance, 'How does a lighthouse guide ships?'),
+        trim: rules,
       });
       const copied = AuthoredScroll.parse({
         title: SOURCE[0]!.slice(0, 80),
@@ -559,12 +567,15 @@ describe('the instructions for the answer to one question (D-218)', () => {
         blocks: [{ type: 'heading', text: 'The beam' }, ...ASKED_BODY, limit],
       });
       expect(role.outputSchema.safeParse(copied).success).toBe(true);
-      const prepared = trimAskAnswer(copied, askTrimRules(questionProvenance, 'How does a lighthouse guide ships?'));
-      expect(prepared.authored).toMatchObject({ title: 'How does a lighthouse guide ships?', dek: NEUTRAL_DEK });
+      const prepared = trimAskAnswer(copied, rules);
+      expect(prepared.authored).toMatchObject({
+        title: 'Your question about How a lamp guides sailors',
+        dek: NEUTRAL_DEK,
+      });
       const outcome = compileGeneratedScroll(prepared.authored, questionProvenance, passages, 'plain');
       expect(outcome.kind).toBe('compiled');
       expect(outcome.kind === 'compiled' && outcome.document).toMatchObject({
-        title: 'How does a lighthouse guide ships?',
+        title: 'Your question about How a lamp guides sailors',
         dek: NEUTRAL_DEK,
         kicker: 'You asked',
       });

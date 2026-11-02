@@ -7,6 +7,7 @@ import {
   copyMaterial,
   COPY_RUN_WORDS,
   copyWords,
+  DocumentTitle,
   REPAIR_HINTS,
   type AuthoredBlockType,
   type DraftProvenance,
@@ -28,7 +29,7 @@ import {
 } from './ask-answer-shape.js';
 import {
   NEUTRAL_DEK,
-  titleFromQuestion,
+  titleAboutReading,
   trimAskAnswer,
   unchanged,
   type PreparedAnswer,
@@ -475,23 +476,24 @@ export function compileGeneratedScroll(
 }
 
 /**
- * What an answer to a question is trimmed with (D-348 to D-351), from the job's evidence and the person's own words: the copy
- * check's material, and the title and dek code puts in when the writer's cannot be served. The title is the person's question cut
- * at a word to the title limit, or a fixed title when the question could not stand as one (a figure no passage states, a source
- * name, a web address, or words of a passage); no word of it is the model's.
+ * What an answer to a question is trimmed with (D-348 to D-351), from the job's evidence and the title of the Scroll the person asked
+ * from: the copy check's material, and the title and dek code puts in when the writer's cannot be served. The title is "Your question
+ * about" and the title of that Scroll, cut at a word to the title limit, or a fixed title when that could not stand as a title: it
+ * breaks the document's own rule for a title (`DocumentTitle`), or has a figure no passage states, a source name or a run of a
+ * passage. No word of it is the model's, and none is the person's: the person's question is never stored in a title (D-351).
  */
-export function askTrimRules(provenance: DraftProvenance, question: string | undefined): TrimRules {
+export function askTrimRules(provenance: DraftProvenance, readingTitle: string | undefined): TrimRules {
   const names = bannedNames(provenance);
   const material = copyMaterial(
     [...provenance.claims.map((claim) => claim.quote), ...provenance.material],
     COPY_RUN_WORDS,
   );
   const usable = (title: string): boolean =>
+    DocumentTitle.safeParse(title).success &&
     !/\p{N}/u.test(title) &&
-    !/:\/\/|www\.|@|\.\p{L}{2,}/u.test(title) &&
     !names.some((name) => name.pattern.test(title)) &&
     !copiedWordMask(copyWords(title), material, COPY_RUN_WORDS).some(Boolean);
-  return { copyMaterial: material, lines: { title: titleFromQuestion(question, usable), dek: NEUTRAL_DEK } };
+  return { copyMaterial: material, lines: { title: titleAboutReading(readingTitle, usable), dek: NEUTRAL_DEK } };
 }
 
 /** The part of an authored Scroll a finding path (`title`, `dek`, `blocks.7`) points at. */

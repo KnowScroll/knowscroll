@@ -87,6 +87,9 @@ export const SeriesRef = z.strictObject({
   part: z.number().int().min(1).max(99),
 });
 
+/** The title of a document: plain text of 4 to `FIELD_LIMITS.titleChars` characters, with no web address. */
+export const DocumentTitle = plainText(4, FIELD_LIMITS.titleChars);
+
 /**
  * The consumer Scroll document, immutable per revision. It carries no claim, source, model,
  * prompt, reviewer or per-reader data: internal provenance is a separate schema
@@ -103,7 +106,7 @@ export const ScrollDocument = z.strictObject({
   template: z.enum(TEMPLATES),
   theme: z.strictObject({ family: z.enum(THEME_FAMILIES) }),
   kicker: plainText(1, FIELD_LIMITS.kickerChars),
-  title: plainText(4, FIELD_LIMITS.titleChars),
+  title: DocumentTitle,
   dek: plainText(10, FIELD_LIMITS.dekChars),
   framing: Framing,
   sections: z.array(Section).min(1).max(LIMITS.sections),

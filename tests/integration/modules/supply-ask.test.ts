@@ -135,6 +135,9 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
   const libraryCalls = () => scopeModel.calls.filter(isLibraryCall);
   let scroll: { readonly assetId: string; readonly revision: number };
   let stopId: string;
+  /** The title of the Scroll the questions are asked from: the title code makes for an answer is built from it (D-351). */
+  let readingTitle: string;
+  const askedTitle = () => `Your question about ${readingTitle}`;
   let suggestions: readonly string[];
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
   /** Pauses or resumes recording through the real policy command, from the generation the person is at. */
@@ -232,6 +235,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     }
     library = { assetId: TOPICS.tides.assetId, revision: 1 };
     stopId = parsed.document.stops[0]!.id;
+    readingTitle = parsed.document.title;
     suggestions = parsed.document.askSuggestions;
     content = await scrollUseCases(database, {
       recording: true,
@@ -1153,9 +1157,9 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(production.supportCalls).toHaveLength(BATCHES);
     });
 
-    it('does not take the title for a label that states no fact: marked so, it is unsupported, and code puts the question in its place (D-266, D-351)', async () => {
+    it('does not take the title for a label that states no fact: marked so, it is unsupported, and code puts its own title in its place (D-266, D-351)', async () => {
       await setup();
-      const { order, question } = await orderedAsk();
+      const { order } = await orderedAsk();
       supportScript = (check, call) =>
         firstDraft(check) ? withVerdict(supportReply(call), 1, { verdict: 'no_claim' }) : supportReply(call);
 
@@ -1164,7 +1168,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       // Nothing was asked of the writer again for a line code writes itself.
       expect(production.writerCalls).toHaveLength(1);
       expect(await codesOfFirstCheck(order.recipe)).toEqual(['no_claim_without_ground']);
-      expect((await storedAnswer(order.assetId))?.document).toMatchObject({ title: question });
+      expect((await storedAnswer(order.assetId))?.document).toMatchObject({ title: askedTitle() });
     });
 
     it('checks an answer of 21 sentences in three requests of at most ten, each with every passage the answer cites, and closes every run', async () => {
@@ -1885,22 +1889,24 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     });
 
     describe('a title or a dek that cannot be served (D-351, D-352)', () => {
-      it('is replaced when it copies a passage: the title by the question the person asked, the dek by a fixed line', async () => {
+      it('is replaced when it copies a passage: the title by one made from the Scroll the person asked from, the dek by a fixed line', async () => {
         await setup();
-        const { person, requestId, order, question } = await orderedAsk();
+        const { person, requestId, order } = await orderedAsk();
         writer = () => answerWith({ ...base, title: COPIED, dek: COPIED_TOO });
+        // A title of more than four words that is not a question cannot be "no fact", so the check sets this one aside; code keeps its own line.
+        supportScript = (_check, call) => supportReply(call, { noClaim: [1] });
 
         expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published', take: 1 } });
 
         expect(production.writerCalls).toHaveLength(1);
         expect((await storedAnswer(order.assetId))?.document).toMatchObject({
-          title: question,
+          title: askedTitle(),
           dek: NEUTRAL_DEK,
           kicker: 'You asked',
         });
-        // The checker was shown the lines code wrote, like any other sentence, and the person's words reached no model by it.
+        // The lines the trim put in are shown to the checker like any other sentence.
         const asked = supportRequestOf(production.supportCalls[0]!).sentences.map((one) => one.text);
-        expect(asked.slice(0, 2)).toEqual([question, NEUTRAL_DEK]);
+        expect(asked.slice(0, 2)).toEqual([askedTitle(), NEUTRAL_DEK]);
         expect(await receiptsOf(order.recipe)).toContainEqual(
           expect.objectContaining({
             kind: 'answer_trimmed',
@@ -1910,13 +1916,17 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
             dekReplaced: true,
           }),
         );
+        // The check set the title aside and code kept its own line, with no revision (D-352).
+        expect(await receiptsOf(order.recipe)).toContainEqual(
+          expect.objectContaining({ kind: 'sentences_dropped', dropped: 0, titleReplaced: true }),
+        );
         await resolve(job(person, requestId));
         expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
       });
 
       it('is replaced, with no revision, when the support check finds only the title unsupported', async () => {
         await setup();
-        const { person, requestId, order, question } = await orderedAsk();
+        const { person, requestId, order } = await orderedAsk();
         supportScript = (_check, call) => supportReply(call, flaggedAt('How a lamp and a prism ring'));
 
         expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published', take: 1 } });
@@ -1924,7 +1934,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         // One writer request and one check: nothing was asked again for a line code writes itself.
         expect(production.writerCalls).toHaveLength(1);
         expect(production.supportCalls).toHaveLength(BATCHES);
-        expect((await storedAnswer(order.assetId))?.document).toMatchObject({ title: question });
+        expect((await storedAnswer(order.assetId))?.document).toMatchObject({ title: askedTitle() });
         expect(await receiptsOf(order.recipe)).toContainEqual(
           expect.objectContaining({ kind: 'sentences_dropped', dropped: 0, titleReplaced: true, dekReplaced: false }),
         );
@@ -1945,9 +1955,9 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         expect(JSON.stringify(stored)).toContain('Someone had to keep that turning going');
       });
 
-      it('is replaced in the revision too: the title and a sentence are unsupported, the writer revises the sentence, the title is still unsupported, and the question stands in', async () => {
+      it('is replaced in the revision too: the title and a sentence are unsupported, the writer revises the sentence, the title is still unsupported, and the title code made stands in', async () => {
         await setup();
-        const { order, question } = await orderedAsk();
+        const { order } = await orderedAsk();
         let writes = 0;
         writer = () => {
           writes += 1;
@@ -1971,16 +1981,18 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         expect(production.writerCalls).toHaveLength(2);
         expect(production.supportCalls).toHaveLength(2 * BATCHES);
         const stored = (await storedAnswer(order.assetId))?.document;
-        expect(stored).toMatchObject({ title: question });
+        expect(stored).toMatchObject({ title: askedTitle() });
         expect(JSON.stringify(stored)).toContain('a brief flash of it');
       });
     });
 
     describe('what is served from an ask order', () => {
-      it('reads the question out of the brief that supply stored, which is the title code writes', async () => {
+      it('reads the title of the Scroll being read out of the brief that supply stored, and keeps no field for the person’s question', async () => {
         await setup();
-        const { order, question } = await orderedAsk();
-        expect((await madeToOrderSubject(database.db, order.recipe))?.question).toBe(question);
+        const { order } = await orderedAsk();
+        const subject = await madeToOrderSubject(database.db, order.recipe);
+        expect(subject?.readingTitle).toBe(readingTitle);
+        expect(subject).not.toHaveProperty('question');
       });
     });
   });
@@ -2388,8 +2400,27 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       const requestId = await ask(person, askCommand(exposure, question));
       await resolve(job(person, requestId));
       const order = await orderOf(requestId);
+      // The writer's own title and dek copy a passage, so code puts its own in their place (D-351). Whatever it makes, the stored
+      // answer holds none of the person's words: an erasure of the question does not reach the revision or the job.
+      writer = () => answerWith({ ...fixtureAnswer(), title: FIXTURE_SOURCE[1], dek: FIXTURE_SOURCE[2] });
+      supportScript = (_check, call) => supportReply(call, { noClaim: [1] });
       await publish(order.recipe);
       await resolve(job(person, requestId));
+      const wordsKept = async () => {
+        const revisions = await database.db
+          .selectFrom('content.asset_revisions')
+          .selectAll()
+          .where('asset_id', '=', order.assetId)
+          .execute();
+        const jobs = await database.db
+          .selectFrom('content.scroll_production_runs')
+          .select(['writer_output', 'outcomes'])
+          .where('topic', '=', order.recipe)
+          .execute();
+        return JSON.stringify({ revisions, jobs });
+      };
+      expect(await wordsKept()).toContain(askedTitle());
+      expect(await wordsKept()).not.toContain(question);
 
       const exported = await withScope()(person.authority, (tx) =>
         exportCurrentPerson(tx, { accountId: person.accountId }, () => Promise.resolve(new Set<string>())),
@@ -2417,6 +2448,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await database.db.selectFrom('supply.ask_orders').select('order_id').execute()).toHaveLength(1);
       // Nothing is written for words that were erased: a take that comes later finds no order to write.
       expect(await publish(order.recipe, 2)).toMatchObject({ kind: 'skipped' });
+      expect(await wordsKept()).not.toContain(question);
     });
 
     it('is erased by Clear exploration too', async () => {

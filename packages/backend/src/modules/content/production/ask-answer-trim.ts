@@ -10,7 +10,10 @@ import { placedSentencesOfAnswer, type PlacedSentence, type StatementPlace } fro
  * checked (D-348 to D-351). The support check then reads what could be served. Pure: no model, no clock.
  */
 
-/** The title given to an answer whose own title cannot be served when the person's question cannot stand as one. */
+/** What an answer's replacement title begins with; the rest is the title of the Scroll the person asked from. */
+export const QUESTION_TITLE_PREFIX = 'Your question about ';
+
+/** The title given to an answer whose own title cannot be served when no title can be made from the Scroll it was asked from. */
 export const FALLBACK_TITLE = 'About your question';
 
 /** The dek given to an answer whose own dek cannot be served. It states no fact; the stored document needs a dek of ten characters or more. */
@@ -57,11 +60,20 @@ export const unchanged = (answer: AuthoredScroll): PreparedAnswer => ({
   issues: [],
 });
 
-/** The title code makes from a person's question: their words, cut at a word to the title limit, or {@link FALLBACK_TITLE}. */
-export function titleFromQuestion(question: string | undefined, usable: (candidate: string) => boolean): string {
-  const whole = (question ?? '').replace(/\s+/gu, ' ').trim().normalize('NFC');
+/**
+ * The title code makes for an answer whose own cannot be served: "Your question about" and the title of the Scroll the person asked
+ * from, cut at a word to the title limit, or {@link FALLBACK_TITLE}. The Scroll's title is library text; the person's own words are never
+ * used, because a title is stored in the revision and the job, which an erasure of the question does not reach (D-351).
+ *
+ * @param readingTitle the title of the Scroll the question was asked from, as the brief names it
+ * @param usable whether a candidate passes the rules a stored title must (`askTrimRules`)
+ */
+export function titleAboutReading(readingTitle: string | undefined, usable: (candidate: string) => boolean): string {
+  const reading = (readingTitle ?? '').replace(/\s+/gu, ' ').trim();
+  if (reading === '') return FALLBACK_TITLE;
+  const whole = `${QUESTION_TITLE_PREFIX}${reading}`.normalize('NFC');
   const candidate = whole.length <= FIELD_LIMITS.titleChars ? whole : cutAtWord(whole, FIELD_LIMITS.titleChars);
-  return candidate !== '' && usable(candidate) ? candidate : FALLBACK_TITLE;
+  return candidate.length > QUESTION_TITLE_PREFIX.length && usable(candidate) ? candidate : FALLBACK_TITLE;
 }
 
 /** `text` cut after a whole word to at most `max` characters, ending in an ellipsis; empty when not even the first word fits. */

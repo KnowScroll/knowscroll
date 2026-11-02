@@ -10,6 +10,7 @@ export { type AuthoringEvidence } from './authoring-bind.js';
 export { authoringReference } from './authoring-reference.js';
 export { AuthoredScroll, SCROLL_AUTHORING_VERSION, type AuthoredBlockType } from './authoring-schema.js';
 export { copiedRuns, copiedWordMask, copyMaterial, copyWords } from '../text.js';
+export { DocumentTitle } from '../document.js';
 export {
   COPY_RUN_WORDS,
   compileDraft,

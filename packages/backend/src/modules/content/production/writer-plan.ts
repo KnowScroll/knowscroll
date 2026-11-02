@@ -64,7 +64,7 @@ function v1Plan(input: WriterPlanInput): WriterPlan {
     passages,
     pages: input.pages,
   });
-  const trim = subject.mode === 'question' ? askTrimRules(provenance, subject.question) : undefined;
+  const trim = subject.mode === 'question' ? askTrimRules(provenance, subject.readingTitle) : undefined;
   return {
     role: writerRole({ provenance, passages, format: subject.format, mode: subject.mode, ...(trim ? { trim } : {}) }),
     ...(trim ? { askLines: trim.lines } : {}),
