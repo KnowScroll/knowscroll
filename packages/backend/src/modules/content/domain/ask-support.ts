@@ -464,9 +464,9 @@ const setAside = (number: number, code: RuleCode): SentenceVerdict => ({
  * (a quote that is too short, not in a cited passage or about something else; "no fact" where nothing shows it) becomes
  * unsupported for that sentence with its code, and the others stand. The reply is never refused whole for it (D-265).
  *
- * A reply in which more than half of the answer's sentences are marked "no fact" on the weakest grounds (short, or sharing no
+ * A reply in which more than half of its sentences are marked "no fact" on the weakest grounds (short, or sharing no
  * key word with their passages: not a title, a question or an admission code can see) is not credible: those sentences are set
- * aside too.
+ * aside too. A reply for part of a longer answer may hold one such sentence in any case.
  *
  * @param verdicts one for each sentence, in order (the shape is checked before this)
  * @param passageTexts the words of each passage by handle
@@ -493,7 +493,10 @@ export function judgeVerdicts(
     return ground === 'unshared' || ground === 'short' ? [index] : [];
   });
   const stated = sentences.filter((sentence) => sentence.label !== true).length;
-  if (weakest.length <= Math.floor(stated / 2)) return judged;
+  // A batch that is only the end of a longer answer (the limits line, say) may hold one such sentence whatever its size: a lone
+  // one is not a share, and refusing it would refuse the limits callout for the batch it fell in.
+  const allowed = sentences.length < answer.length ? Math.max(1, Math.floor(stated / 2)) : Math.floor(stated / 2);
+  if (weakest.length <= allowed) return judged;
   return judged.map((verdict, index) =>
     weakest.includes(index) ? setAside(verdict.number, 'too_many_no_claim') : verdict,
   );

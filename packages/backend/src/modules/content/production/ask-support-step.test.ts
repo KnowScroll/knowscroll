@@ -33,7 +33,11 @@ const questions = (count: number): SentenceUnderCheck[] =>
     text: `Why does the beam turn, part ${String(index + 1)}?`,
     cites: ['e1'],
   }));
-const passages = [{ handle: 'e1', claimId: 'claim-1', pageId: 'page-1', text: 'The lamp turns once a minute.' }];
+const passages = [
+  { handle: 'e1', claimId: 'claim-1', pageId: 'page-1', text: 'The lamp turns once a minute.' },
+  { handle: 'e2', claimId: 'claim-2', pageId: 'page-1', text: 'A horn sounds in fog.' },
+  { handle: 'e3', claimId: 'claim-3', pageId: 'page-1', text: 'Nobody cites this passage.' },
+];
 
 type Script = (batch: number) => 'ok' | 'ok_after_repair' | Exclude<ProposeOutcome<never>, { kind: 'proposed' }>;
 
@@ -43,6 +47,8 @@ function harnessOf(script: Script = () => 'ok') {
     runId: string;
     allowRepair: boolean | undefined;
     numbers: number[];
+    /** The handles of the passages the request shows. */
+    shown: string[];
     roleVersion: string;
     instructions: string;
   }[] = [];
@@ -50,10 +56,12 @@ function harnessOf(script: Script = () => 'ok') {
     proposeProduction: vi.fn((input: Parameters<ProductionReasoningHarness['proposeProduction']>[0]) => {
       const lines = input.context.items.find((item) => item.kind === 'answer_sentences')!.text.split('\n');
       const numbers = lines.map((line) => (JSON.parse(line) as { n: number }).n);
+      const shown = input.context.items.find((item) => item.kind === 'cited_passages')!.text;
       requests.push({
         runId: input.run.id,
         allowRepair: input.limits?.allowRepair,
         numbers,
+        shown: [...shown.matchAll(/^\[(e\d+)\]/gmu)].map((match) => match[1]!),
         roleVersion: input.role.version,
         instructions: input.role.instructions,
       });
@@ -100,8 +108,8 @@ describe('which instructions ask the checker (D-280)', () => {
   });
 
   it('asks every batch with the role it is handed, and with that role alone', async () => {
-    const candidateRole: CheckerRoleOf = (sentences, cited) => ({
-      ...askSupportRole(sentences, cited),
+    const candidateRole: CheckerRoleOf = (sentences, cited, answer) => ({
+      ...askSupportRole(sentences, cited, answer),
       version: 'ask-support-check.cand-ci',
       instructions: 'CI candidate instructions',
     });
@@ -113,6 +121,20 @@ describe('which instructions ask the checker (D-280)', () => {
 });
 
 describe('asking the checker about a long draft in batches (D-267)', () => {
+  it('shows every batch the passages the whole answer cites, and none it does not (D-305)', async () => {
+    // The first ten sentences cite e1 and the last five e2: a quote for any of them may come from either passage.
+    const sentences = questions(15).map((sentence) => ({
+      ...sentence,
+      cites: sentence.number <= 10 ? ['e1'] : ['e2'],
+    }));
+    const { requests } = await check(sentences);
+    expect(requests.map((request) => request.numbers.length)).toEqual([10, 5]);
+    expect(requests.map((request) => request.shown)).toEqual([
+      ['e1', 'e2'],
+      ['e1', 'e2'],
+    ]);
+  });
+
   it('sends the sentences in order, ten at most to a request, each batch in a run of its own', async () => {
     const { outcome, requests } = await check(questions(25));
     expect(requests.map((request) => request.numbers.length)).toEqual([10, 10, 5]);

@@ -577,6 +577,36 @@ describe('what a verdict that breaks a rule does to its own sentence (D-265)', (
     ).toEqual(['too_many_no_claim', 'too_many_no_claim', 'too_many_no_claim', 'supported']);
   });
 
+  it('lets the last batch of a longer answer hold one sentence marked “no fact” on a weak ground, however small the batch (D-306)', () => {
+    const answer = numbered([
+      prism,
+      sentence(2, 'A prism ring gathers the light into one beam.', ['e2']),
+      sentence(3, 'Where this stops', ['e2'], true),
+      sentence(4, 'Radio is not covered here.', ['e2']),
+    ]);
+    // The last batch is the limits callout: its title and one short line that states no fact.
+    const lastBatch = answer.slice(2);
+    expect(outcomes(judgeVerdicts([noClaim(3), noClaim(4)], lastBatch, texts, answer))).toEqual([
+      'no_claim',
+      'no_claim',
+    ]);
+    // Checked on its own, as a whole answer, the same line is more than half of what it holds.
+    expect(outcomes(judgeVerdicts([noClaim(3), noClaim(4)], lastBatch, texts))).toEqual([
+      'no_claim',
+      'too_many_no_claim',
+    ]);
+    // Two weak lines in a batch of two stated sentences are still more than half.
+    const two = numbered([
+      ...answer.slice(0, 1),
+      sentence(2, 'Radio is not covered here.', ['e2']),
+      sentence(3, 'Nor is sound.', ['e2']),
+    ]);
+    expect(outcomes(judgeVerdicts([noClaim(2), noClaim(3)], two.slice(1), texts, two))).toEqual([
+      'too_many_no_claim',
+      'too_many_no_claim',
+    ]);
+  });
+
   it('does not count labels toward the share of sentences marked as stating no fact', () => {
     const judged = judgeVerdicts(
       [noClaim(1), noClaim(2), noClaim(3), supported(4, prismQuote)],

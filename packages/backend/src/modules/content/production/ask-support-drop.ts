@@ -60,6 +60,18 @@ export function dropFlagged(answer: AuthoredScroll, verdicts: readonly SentenceV
   )
     return refused('title_or_dek_flagged');
 
+  const directAnswer = answer.blocks.findIndex((block) => block.type === 'paragraph');
+  const isSupported = (sentence: PlacedSentence) => verdictOf.get(sentence.number) === 'supported';
+  if (
+    !sentences.some(
+      (sentence) =>
+        sentence.place.field === 'paragraph' && sentence.place.block === directAnswer && isSupported(sentence),
+    )
+  )
+    return refused('no_direct_answer');
+  if (sentences.filter((sentence) => sentence.label !== true && isSupported(sentence)).length < MIN_SERVED_SENTENCES)
+    return refused('too_few_supported');
+
   const byPlace = new Map<string, PlacedSentence[]>();
   for (const sentence of sentences)
     byPlace.set(keyOf(sentence.place), [...(byPlace.get(keyOf(sentence.place)) ?? []), sentence]);
@@ -75,33 +87,23 @@ export function dropFlagged(answer: AuthoredScroll, verdicts: readonly SentenceV
     return next === undefined ? [] : [{ block: next, from: index }];
   });
   const emptied = emptiedHeadings(answer.blocks, new Set(rebuilt.map((entry) => entry.from)));
-  const blocks = rebuilt.filter((entry) => !emptied.has(entry.from)).map((entry) => entry.block);
+  const survivors = rebuilt.filter((entry) => !emptied.has(entry.from));
+  const blocks = survivors.map((entry) => entry.block);
+  const closing = blocks.at(-1);
+  if (closing?.type !== 'callout' || closing.kind !== 'limit') return refused('no_limit_callout');
 
   const candidate = AuthoredScroll.safeParse({ title: answer.title, dek: answer.dek, blocks });
   if (!candidate.success) return refused('rebuilt_invalid');
-
+  // A sentence not flagged is served unless the block it stood in was removed whole (a callout's title goes with its text).
+  const keptBlocks = new Set(survivors.map((entry) => entry.from));
   const expected = sentences
     .filter(
-      (sentence) => !isFlagged(sentence) && !(sentence.place.field === 'heading' && emptied.has(sentence.place.block)),
+      (sentence) => !isFlagged(sentence) && (!('block' in sentence.place) || keptBlocks.has(sentence.place.block)),
     )
     .map((sentence) => sentence.text);
   const actual = placedSentencesOfAnswer(candidate.data).map((sentence) => sentence.text);
   if (expected.length !== actual.length || expected.some((text, index) => text !== actual[index]))
     return refused('rebuilt_invalid');
-
-  const directAnswer = answer.blocks.findIndex((block) => block.type === 'paragraph');
-  const isSupported = (sentence: PlacedSentence) => verdictOf.get(sentence.number) === 'supported';
-  if (
-    !sentences.some(
-      (sentence) =>
-        sentence.place.field === 'paragraph' && sentence.place.block === directAnswer && isSupported(sentence),
-    )
-  )
-    return refused('no_direct_answer');
-  if (sentences.filter((sentence) => sentence.label !== true && isSupported(sentence)).length < MIN_SERVED_SENTENCES)
-    return refused('too_few_supported');
-  const closing = candidate.data.blocks.at(-1);
-  if (closing?.type !== 'callout' || closing.kind !== 'limit') return refused('no_limit_callout');
   return { kind: 'kept', authored: candidate.data, dropped: flagged.size };
 }
 

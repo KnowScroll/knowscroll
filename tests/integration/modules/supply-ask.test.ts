@@ -680,7 +680,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(ready.status === 'ready' ? ready.content.metadata.title : '').not.toBe('');
       // The writer and the support check ran for the order; the question's scope was never asked for a suggested question.
       expect(production.writerCalls).toHaveLength(1);
-      // The answer has 19 sentences: the check is two requests (D-267).
+      // The answer has 15 sentences, labels included: the check is two requests (D-267).
       expect(production.supportCalls).toHaveLength(2);
       expect(scopeModel.calls).toHaveLength(0);
       expect(
@@ -771,7 +771,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     const numberOf = (start: string) =>
       sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer())).find((sentence) => sentence.text.startsWith(start))!
         .number;
-    /** The default fixture answer has 19 sentences, so a check of it is two requests (10 + 9 sentences, D-267). */
+    /** The default fixture answer has 15 sentences in all, so a check of it is two requests (10 + 5 sentences, D-267). */
     const BATCHES = batchesOf(sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer()))).length;
     /** The ids of the runs of the checks of a draft: one for each batch. */
     const checkRuns = (jobId: string, draft: 1 | 2) =>
@@ -779,6 +779,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     /** Whether the checker's request number `check`, counted over the whole job from 1, is about the first draft. */
     const firstDraft = (check: number) => check <= BATCHES;
     const BEFORE = 'Because the beam turns';
+    const TITLE = 'How a lamp and a prism ring guide sailors';
     const BEFORE_SENTENCE = 'Because the beam turns, sailors see it only as a flash, once each turn.';
     const REPAIRED = 'Because the beam turns, sailors catch only a brief flash of it on each pass.';
     const flagged = (start: string) => ({
@@ -825,8 +826,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       }
       // Together the batches carry every sentence of the answer once, in order, ten at most to a request.
       const asked = production.supportCalls.map((call) => supportRequestOf(call).sentences.map((one) => one.n));
-      expect(asked.map((numbers) => numbers.length)).toEqual([10, 9]);
-      expect(asked.flat()).toEqual(Array.from({ length: 19 }, (_unused, index) => index + 1));
+      expect(asked.map((numbers) => numbers.length)).toEqual([10, 5]);
+      expect(asked.flat()).toEqual(Array.from({ length: 15 }, (_unused, index) => index + 1));
 
       await resolve(job(person, requestId));
       expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
@@ -897,7 +898,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     describe('a draft the validator refuses for copying a passage (D-294)', () => {
       /** A passage sentence of the labelled lighthouse fixture, word for word: more than nine words in a row. */
       const COPIED = 'A prism ring around the flame gathers the light into a single beam that sweeps across the water.';
-      const OWN_TAIL = 'This tail is the writer’s own sentence and the notes never repeat it.';
+      const OWN_TAIL = 'The tail is the writer’s own sentence and the notes never repeat it.';
       const copiedDraft = () => answerWith(fixtureAnswer({ sentence: [BEFORE_SENTENCE, `${COPIED} ${OWN_TAIL}`] }));
       /** The `<repair-notes>` data of a writer request, as the model would read it. */
       const notesOf = (call: FixtureCall) =>
@@ -926,12 +927,12 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         const notes = notesOf(production.writerCalls[1]!);
         expect(notes).toContain('keep its key terms');
         expect(notes).toContain(
-          'blocks[1] copies: "a prism ring around the flame gathers the light into a single beam that sweeps across the water"',
+          'blocks[0] copies: "a prism ring around the flame gathers the light into a single beam that sweeps across the water"',
         );
         expect(notes).not.toContain('tail');
         expect(notes).not.toContain('writer’s own');
         expect(repair!.user).toContain('<previous-answer>');
-        // Both writer requests are the question writer, version 6.
+        // Both writer requests are the question writer, version 7.
         const [row] = await jobsOf(order.recipe);
         const attempts = await database.db
           .selectFrom('reasoning.production_attempts')
@@ -940,8 +941,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
           .orderBy('reserved_at')
           .execute();
         expect(attempts).toEqual([
-          { role_version: 'question-writer.v6', step: 'primary', state: 'succeeded' },
-          { role_version: 'question-writer.v6', step: 'repair', state: 'succeeded' },
+          { role_version: 'question-writer.v7', step: 'primary', state: 'succeeded' },
+          { role_version: 'question-writer.v7', step: 'repair', state: 'succeeded' },
         ]);
         // The answer served has none of the copied sentence, and every sentence of it passed the check.
         const stored = JSON.stringify((await storedAnswer(order.assetId))?.document);
@@ -963,7 +964,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         });
         expect(production.writerCalls).toHaveLength(2);
         expect(production.supportCalls).toHaveLength(0);
-        expect(notesOf(production.writerCalls[1]!)).toContain('blocks[1] copies: ');
+        expect(notesOf(production.writerCalls[1]!)).toContain('blocks[0] copies: ');
         expect(await storedAnswer(order.assetId)).toBeUndefined();
       });
 
@@ -1002,7 +1003,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
           expect(repair!.user).toContain('<previous-answer>');
           const notes = notesOf(production.writerCalls[2]!);
           expect(notes).toContain(
-            'blocks[1] copies: "a prism ring around the flame gathers the light into a single beam that sweeps across the water"',
+            'blocks[0] copies: "a prism ring around the flame gathers the light into a single beam that sweeps across the water"',
           );
           expect(notes).not.toContain('tail');
           // Both requests of the revision are in the revision’s own run, under the revision’s version.
@@ -1015,8 +1016,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
             .orderBy('reserved_at')
             .execute();
           expect(attempts).toEqual([
-            { role_version: 'question-writer.v6.fix', step: 'primary', state: 'succeeded' },
-            { role_version: 'question-writer.v6.fix', step: 'repair', state: 'succeeded' },
+            { role_version: 'question-writer.v7.fix', step: 'primary', state: 'succeeded' },
+            { role_version: 'question-writer.v7.fix', step: 'repair', state: 'succeeded' },
           ]);
           // What the person gets is the repaired revision, with none of the copied sentence.
           const stored = JSON.stringify((await storedAnswer(order.assetId))?.document);
@@ -1096,16 +1097,16 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect((await storedAnswer(order.assetId))?.document).toMatchObject({ title: repairedTitle });
     });
 
-    it('refuses when the repaired answer still has an unsupported sentence: nothing is stored and the person gets the honest state', async () => {
+    it('refuses when the repaired answer still has an unsupported sentence that cannot be taken out: nothing is stored and the person gets the honest state', async () => {
       await setup();
       const { person, requestId, order } = await orderedAsk();
-      supportScript = (_check, call) => supportReply(call, flagged(BEFORE));
+      supportScript = (_check, call) => supportReply(call, flagged(TITLE));
 
       const done = await publish(order.recipe);
 
       expect(done).toMatchObject({
         kind: 'finished',
-        result: { outcome: 'rejected', codes: ['support_check_failed'] },
+        result: { outcome: 'rejected', codes: ['support_check_failed', 'support_drop_title_or_dek_flagged'] },
       });
       // One repair and no more: two writer requests and two checks of two batches each, inside the bound of twelve.
       expect(production.writerCalls).toHaveLength(2);
@@ -1125,7 +1126,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     it('lets Try again make the next take, which is checked again from the start', async () => {
       await setup();
       const { person, requestId, order } = await orderedAsk();
-      supportScript = (_check, call) => supportReply(call, flagged(BEFORE));
+      supportScript = (_check, call) => supportReply(call, flagged(TITLE));
       expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'rejected' } });
       await resolve(job(person, requestId));
       supportScript = (_check, call) => supportReply(call);
@@ -1159,7 +1160,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(JSON.stringify((await storedAnswer(order.assetId))?.document)).toContain('a brief flash of it');
     });
 
-    it('ends the job when the revision of a repaired draft is still unsupported: three writer requests, two checks', async () => {
+    it('ends the job when the revision of a repaired draft is still unsupported in its title: three writer requests, two checks', async () => {
       await setup();
       const { order } = await orderedAsk();
       let writes = 0;
@@ -1167,10 +1168,10 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         writes += 1;
         return writes === 1 ? answerWith({ title: 'not a Scroll' }) : answerWith(fixtureAnswer());
       };
-      supportScript = (_check, call) => supportReply(call, flagged(BEFORE));
+      supportScript = (_check, call) => supportReply(call, flagged(TITLE));
 
       expect(await publish(order.recipe)).toMatchObject({
-        result: { outcome: 'rejected', codes: ['support_check_failed'] },
+        result: { outcome: 'rejected', codes: ['support_check_failed', 'support_drop_title_or_dek_flagged'] },
       });
       expect(production.writerCalls).toHaveLength(3);
       expect(production.supportCalls).toHaveLength(2 * BATCHES);
@@ -1320,14 +1321,14 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         'quote_not_about_sentence',
       ],
     ] as const)(
-      'does not serve an answer whose sentences the rules set aside, and does not call the check unusable: %s',
+      'does not serve an answer whose sentences the rules set aside, nor call the check unusable: %s',
       async (_name, reply, code) => {
         await setup();
         const { person, requestId, order } = await orderedAsk();
         supportScript = reply;
 
         expect(await publish(order.recipe)).toMatchObject({
-          result: { outcome: 'rejected', codes: ['support_check_failed'] },
+          result: { outcome: 'rejected', codes: expect.arrayContaining(['support_check_failed']) },
         });
         // Every reply had the shape: no harness repair was paid for. One writer repair, then the same finding again.
         expect(production.supportCalls).toHaveLength(2 * BATCHES);
@@ -1347,8 +1348,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         .filter((one) => one.label === true && wordsOf(one.text).length <= MAX_LABEL_WORDS)
         .map((one) => one.number);
       const limits = numbers.find((one) => one.text.startsWith('This picture ignores'))!.number;
-      // The headings and the callout's title are short; the title is not and is judged by a quote like a sentence.
-      expect(short).toHaveLength(4);
+      // The two headings and the callout's title are short; the title is not and is judged by a quote like a sentence.
+      expect(short).toHaveLength(3);
       supportScript = (_check, call) => {
         let reply = supportReply(call);
         for (const n of [...short, limits])
@@ -1381,24 +1382,25 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect((await storedAnswer(order.assetId))?.document).toMatchObject({ title: repairedTitle });
     });
 
-    it('checks an answer of 23 sentences in three requests of at most ten, each with the passages of its own sentences, and closes every run', async () => {
+    it('checks an answer of 21 sentences in three requests of at most ten, each with every passage the answer cites, and closes every run', async () => {
       await setup();
       const { order } = await orderedAsk();
+      // Twelve sentences of reading text and a heading above every block but the first: the most a take can send to three requests.
       const base = fixtureAnswer();
+      const paragraphs = [
+        ...base.blocks.filter((block) => block.type === 'paragraph'),
+        {
+          type: 'paragraph' as const,
+          cites: ['e1', 'e6'],
+          text: 'The old clockwork has been replaced, but the original prisms remain.',
+        },
+      ];
+      const names = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta'];
       const longAnswer = AuthoredScroll.parse({
         ...base,
         blocks: [
-          ...base.blocks.slice(0, -1),
-          {
-            type: 'paragraph',
-            cites: ['e1', 'e6'],
-            text: [
-              'Winter nights are long, so the keeper tends the lamp clockwork often.',
-              'A small motor now does the winding that the keeper once did.',
-              'The glass prisms were kept when the clockwork was replaced.',
-              'The old clockwork has been replaced, but the original prisms remain.',
-            ].join(' '),
-          },
+          ...paragraphs.flatMap((paragraph, index) => [{ type: 'heading', text: 'Part ' + names[index]! }, paragraph]),
+          { type: 'heading', text: 'Part ' + names[paragraphs.length]! },
           base.blocks.at(-1)!,
         ],
       });
@@ -1406,25 +1408,23 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
 
       expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published', requestBound: 14 } });
 
-      expect(sentencesOfAnswer(longAnswer)).toHaveLength(23);
+      expect(sentencesOfAnswer(longAnswer)).toHaveLength(21);
       expect(production.supportCalls).toHaveLength(3);
       const asked = production.supportCalls.map((call) => supportRequestOf(call));
-      expect(asked.map((request) => request.sentences.length)).toEqual([10, 10, 3]);
+      expect(asked.map((request) => request.sentences.length)).toEqual([10, 10, 1]);
       expect(asked.flatMap((request) => request.sentences.map((one) => one.n))).toEqual(
-        Array.from({ length: 23 }, (_unused, index) => index + 1),
+        Array.from({ length: 21 }, (_unused, index) => index + 1),
       );
-      // A request carries the passages its own sentences cite, and no other.
-      for (const request of asked)
-        expect([...request.passages.keys()].sort()).toEqual(
-          [...new Set(request.sentences.flatMap((one) => one.cites))].sort(),
-        );
+      // A request carries every passage the whole answer cites, so a quote may come from any of them (D-305).
+      const cited = [...new Set(sentencesOfAnswer(longAnswer).flatMap((one) => one.cites))].sort();
+      for (const request of asked) expect([...request.passages.keys()].sort()).toEqual(cited);
       const [row] = await jobsOf(order.recipe);
       const ids = Array.from({ length: 3 }, (_unused, batch) => askSupportRunId(row!.id, 1, batch));
       expect(await runStates(ids)).toEqual(
         ids.map((id) => ({ id, state: 'completed', closed: true })).sort((a, b) => a.id.localeCompare(b.id)),
       );
       expect(row!.outcomes).toContainEqual(
-        expect.objectContaining({ role: 'support_check', kind: 'checked', draft: 1, sentences: 23, batches: 3 }),
+        expect.objectContaining({ role: 'support_check', kind: 'checked', draft: 1, sentences: 21, batches: 3 }),
       );
     });
 
@@ -1523,6 +1523,339 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       // The first batch's reply was read from the ledger: only the second batch was asked in all.
       expect(worker.writerCalls).toHaveLength(1);
       expect(worker.supportCalls).toHaveLength(BATCHES);
+    });
+  });
+
+  describe('an answer that passes after the one revision (D-305, D-306, D-307)', () => {
+    async function orderedAsk() {
+      const { person, exposure } = await reader();
+      const requestId = await ask(person, askCommand(exposure, suggestions[0]!));
+      return { person, requestId, order: await orderOf(requestId) };
+    }
+    const jobsOf = (recipe: string) =>
+      database.db.selectFrom('content.scroll_production_runs').selectAll().where('topic', '=', recipe).execute();
+    const storedAnswer = (assetId: string) =>
+      database.db
+        .selectFrom('content.asset_revisions')
+        .select('document')
+        .where('asset_id', '=', assetId)
+        .executeTakeFirst();
+    const authoredOf = async (recipe: string) => JSON.stringify((await jobsOf(recipe))[0]!.writer_output);
+    const sentences = sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer()));
+    const numberOf = (start: string) => sentences.find((sentence) => sentence.text.startsWith(start))!.number;
+    const BATCHES = batchesOf(sentences).length;
+    /** The checker flags every sentence that starts with one of these, in the first check and in the one of the revision. */
+    const flagging = (...starts: string[]) => {
+      supportScript = (_check, call) =>
+        supportReply(call, {
+          unsupported: Object.fromEntries(
+            starts.map((start) => [
+              numberOf(start),
+              { kind: 'not_stated', problem: 'No passage says that, a CI note.' },
+            ]),
+          ),
+        });
+    };
+    const BEFORE = 'Because the beam turns';
+    /** The reply the fixture gives, with the verdict of sentence n replaced. */
+    function withVerdict(reply: FixtureScenario, n: number, verdict: object): FixtureScenario {
+      if (reply.kind !== 'success') throw new Error('CI: the fixture reply is a success');
+      const parsed = JSON.parse(reply.text) as { sentences: { n: number }[] };
+      return answerWith({
+        sentences: parsed.sentences.map((sentence) => (sentence.n === n ? { n, ...verdict } : sentence)),
+      });
+    }
+    const receiptsOf = async (recipe: string) =>
+      (await jobsOf(recipe))[0]!.outcomes as {
+        role: string;
+        kind: string;
+        draft?: number;
+        dropped?: number;
+        code?: string;
+      }[];
+
+    it('serves the revision without the two sentences the check still found unsupported, and records how many, not which (D-307)', async () => {
+      await setup();
+      const { person, requestId, order } = await orderedAsk();
+      flagging(BEFORE, 'Today a small motor');
+
+      const done = await publish(order.recipe);
+
+      expect(done).toMatchObject({ kind: 'finished', result: { outcome: 'published', take: 1 } });
+      // The draft, its one revision, and a check of each: nothing was asked again for the sentences that were taken out.
+      expect(production.writerCalls).toHaveLength(2);
+      expect(production.supportCalls).toHaveLength(2 * BATCHES);
+      // What the person gets has neither sentence, and keeps the rest word for word.
+      const stored = JSON.stringify((await storedAnswer(order.assetId))?.document);
+      expect(stored).not.toContain('Because the beam turns');
+      expect(stored).not.toContain('Today a small motor');
+      expect(stored).toContain('A ring of prisms around the flame bends the light into one narrow beam.');
+      expect(stored).toContain('Someone had to keep that turning going');
+      expect(stored).toContain('This picture ignores radio and satellite navigation');
+      // The job keeps the answer that was served, so the replay reads what the person read.
+      const authored = await authoredOf(order.recipe);
+      expect(authored).not.toContain('Because the beam turns');
+      expect(authored).not.toContain('Today a small motor');
+      const receipts = await receiptsOf(order.recipe);
+      expect(receipts).toContainEqual(
+        expect.objectContaining({ role: 'checks', kind: 'sentences_dropped', dropped: 2 }),
+      );
+      expect(receipts.filter((receipt) => receipt.role === 'support_check' && receipt.draft === 2)).toEqual([
+        expect.objectContaining({
+          kind: 'checked',
+          unsupported: [
+            { number: numberOf(BEFORE), kind: 'not_stated' },
+            { number: numberOf('Today a small motor'), kind: 'not_stated' },
+          ],
+        }),
+      ]);
+      expect(JSON.stringify(receipts)).not.toContain('No passage says that');
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
+    });
+
+    it('removes a heading whose paragraphs were all taken out, and serves exactly five supported sentences of reading text', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      // Of eleven sentences of reading text five fail. The section "The beam" has nothing left. Of the six that stay, the limits line
+      // states no fact, and five are supported.
+      flagging(BEFORE, 'By counting', 'Someone had to keep', 'Today a small motor', 'Thick fog');
+
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+
+      const stored = JSON.stringify((await storedAnswer(order.assetId))?.document);
+      expect(stored).not.toContain('"The beam"');
+      expect(stored).toContain('The upkeep');
+      expect(stored).toContain('Height helps too');
+      expect(await receiptsOf(order.recipe)).toContainEqual(
+        expect.objectContaining({ kind: 'sentences_dropped', dropped: 5 }),
+      );
+    });
+
+    it('refuses an answer with four supported sentences of reading text left, which is one fewer than it takes', async () => {
+      await setup();
+      const { person, requestId, order } = await orderedAsk();
+      flagging(
+        BEFORE,
+        'By counting',
+        'Someone had to keep',
+        'Today a small motor',
+        'Thick fog',
+        'A lighthouse therefore',
+      );
+
+      expect(await publish(order.recipe)).toMatchObject({
+        result: { outcome: 'rejected', codes: ['support_check_failed', 'support_drop_too_few_supported'] },
+      });
+      expect(await storedAnswer(order.assetId)).toBeUndefined();
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+    });
+
+    it('refuses an answer that would lose its direct answer, however much else is supported', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      flagging('A ring of prisms', BEFORE);
+
+      expect(await publish(order.recipe)).toMatchObject({
+        result: { outcome: 'rejected', codes: ['support_check_failed', 'support_drop_no_direct_answer'] },
+      });
+      expect(production.writerCalls).toHaveLength(2);
+      expect(await storedAnswer(order.assetId)).toBeUndefined();
+      // Every run closed, though the job ended without serving.
+      const [row] = await jobsOf(order.recipe);
+      const ids = [
+        ...Array.from({ length: BATCHES }, (_u, batch) => askSupportRunId(row!.id, 2, batch)),
+        askSupportRepairRunId(row!.id),
+      ];
+      const runs = await database.db
+        .selectFrom('reasoning.production_runs')
+        .select(['id', 'closed_at'])
+        .where('id', 'in', ids)
+        .execute();
+      expect(runs).toHaveLength(ids.length);
+      expect(runs.every((run) => run.closed_at !== null)).toBe(true);
+    });
+
+    it('refuses an answer whose limits callout would be lost', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      flagging('This picture ignores');
+
+      expect(await publish(order.recipe)).toMatchObject({
+        result: { outcome: 'rejected', codes: ['support_check_failed', 'support_drop_no_limit_callout'] },
+      });
+      expect(await storedAnswer(order.assetId)).toBeUndefined();
+    });
+
+    it('never serves a sentence it did not check: a draft that passes its first check is served whole, and nothing is dropped', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+      expect((await receiptsOf(order.recipe)).filter((receipt) => receipt.kind === 'sentences_dropped')).toEqual([]);
+    });
+
+    it('accepts a quote from a passage the answer cites but the sentence’s own paragraph does not (D-305)', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      // The fog paragraph cites e4; the words are e2's, which other paragraphs of the answer cite, and they carry two of its key words.
+      supportScript = (_check, call) =>
+        withVerdict(supportReply(call), numberOf('Thick fog scatters'), {
+          verdict: 'supported',
+          quote: 'gathers the light into a single beam',
+        });
+
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+      // No sentence was set aside, so there was no revision: one writer request, one check.
+      expect(production.writerCalls).toHaveLength(1);
+      expect(production.supportCalls).toHaveLength(BATCHES);
+    });
+
+    it('accepts a quote with one key word for a sentence of eight key words or fewer (D-305)', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      // "The tower in this story is twenty-one metres tall." has four key words; the quote shares one of them.
+      supportScript = (_check, call) =>
+        withVerdict(supportReply(call), numberOf('The tower in this story'), {
+          verdict: 'supported',
+          quote: 'The tower stands',
+        });
+
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+      expect(production.writerCalls).toHaveLength(1);
+      expect(production.supportCalls).toHaveLength(BATCHES);
+    });
+
+    it('accepts “no fact” for a sentence of eight words or fewer with no figure, though it names its passages’ subject (D-306)', async () => {
+      await setup();
+      const { order } = await orderedAsk();
+      const signpost = 'Here is why the beam matters.';
+      writer = () =>
+        answerWith(
+          fixtureAnswer({
+            sentence: ['Because the beam turns, sailors see it only as a flash, once each turn.', signpost],
+          }),
+        );
+      const asked = sentencesOfAnswer(
+        AuthoredScroll.parse(
+          fixtureAnswer({
+            sentence: ['Because the beam turns, sailors see it only as a flash, once each turn.', signpost],
+          }),
+        ),
+      ).find((sentence) => sentence.text === signpost)!.number;
+      supportScript = (_check, call) => supportReply(call, { noClaim: [asked] });
+
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+      expect(production.writerCalls).toHaveLength(1);
+      expect(production.supportCalls).toHaveLength(BATCHES);
+      expect(JSON.stringify((await storedAnswer(order.assetId))?.document)).toContain(signpost);
+    });
+
+    describe('a draft or revision with a sentence that leans on the one before it, or with the wrong length', () => {
+      const LEANING = 'This is why sailors see only a flash, once each turn.';
+      const hintOf = (call: FixtureCall) => call.request.user + call.request.system;
+
+      it('is repaired once with the fixed hint, checked after the repair only, and served', async () => {
+        await setup();
+        const { order } = await orderedAsk();
+        let writes = 0;
+        writer = () => {
+          writes += 1;
+          return writes === 1
+            ? answerWith(
+                fixtureAnswer({
+                  sentence: ['Because the beam turns, sailors see it only as a flash, once each turn.', LEANING],
+                }),
+              )
+            : answerWith(fixtureAnswer());
+        };
+
+        expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published', take: 1 } });
+
+        expect(production.writerCalls).toHaveLength(2);
+        expect(production.supportCalls).toHaveLength(BATCHES);
+        expect(hintOf(production.writerCalls[1]!)).toContain('begins with This, That, These, Those, It or They');
+        expect(hintOf(production.writerCalls[1]!)).toContain('blocks[0]: sentence_leans_on_previous');
+        expect(hintOf(production.writerCalls[0]!)).not.toContain('begins with This, That');
+        expect(JSON.stringify((await storedAnswer(order.assetId))?.document)).not.toContain('This is why sailors');
+      });
+
+      it('ends the job when the repair leans again, with no second repair and no check', async () => {
+        await setup();
+        const { order } = await orderedAsk();
+        writer = () =>
+          answerWith(
+            fixtureAnswer({
+              sentence: ['Because the beam turns, sailors see it only as a flash, once each turn.', LEANING],
+            }),
+          );
+
+        expect(await publish(order.recipe)).toMatchObject({
+          result: { outcome: 'rejected', codes: ['invalid_output'] },
+        });
+        expect(production.writerCalls).toHaveLength(2);
+        expect(production.supportCalls).toHaveLength(0);
+        expect(await storedAnswer(order.assetId)).toBeUndefined();
+      });
+
+      it('is repaired for its length once, with the fixed hint naming 8 to 12 sentences', async () => {
+        await setup();
+        const { order } = await orderedAsk();
+        const base = fixtureAnswer();
+        let writes = 0;
+        writer = () => {
+          writes += 1;
+          // The direct answer, the limits callout and the dek: four sentences of reading text.
+          return answerWith(writes === 1 ? { ...base, blocks: [base.blocks[0], base.blocks.at(-1)] } : base);
+        };
+
+        expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+        expect(production.writerCalls).toHaveLength(2);
+        expect(hintOf(production.writerCalls[1]!)).toContain('8 to 12 sentences');
+        expect(production.supportCalls).toHaveLength(BATCHES);
+      });
+
+      it('is repaired once in the revision a support check earned, for either rule', async () => {
+        await setup();
+        const { order } = await orderedAsk();
+        let writes = 0;
+        writer = () => {
+          writes += 1;
+          if (writes === 1) return answerWith(fixtureAnswer());
+          // The revision rewrites the flagged sentence so that it leans; its one repair puts it right.
+          return writes === 2
+            ? answerWith(
+                fixtureAnswer({
+                  sentence: ['Because the beam turns, sailors see it only as a flash, once each turn.', LEANING],
+                }),
+              )
+            : answerWith(
+                fixtureAnswer({
+                  sentence: [
+                    'Because the beam turns, sailors see it only as a flash, once each turn.',
+                    'Because the beam turns, sailors catch only a brief flash of it on each pass.',
+                  ],
+                }),
+              );
+        };
+        supportScript = (check, call) =>
+          check <= BATCHES
+            ? supportReply(call, {
+                unsupported: {
+                  [numberOf(BEFORE)]: { kind: 'goes_beyond', problem: 'The passage says something narrower.' },
+                },
+              })
+            : supportReply(call);
+
+        expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+        // The draft, the revision that leaned and its repair; a check for each of the two drafts.
+        expect(production.writerCalls).toHaveLength(3);
+        expect(production.supportCalls).toHaveLength(2 * BATCHES);
+        expect(production.writerCalls[2]!.request.system).toContain('REVISION AFTER A SUPPORT CHECK');
+        expect(hintOf(production.writerCalls[2]!)).toContain('begins with This, That, These, Those, It or They');
+        expect(JSON.stringify((await storedAnswer(order.assetId))?.document)).toContain('a brief flash of it');
+      });
     });
   });
 
