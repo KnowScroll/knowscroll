@@ -729,6 +729,27 @@ it('says plainly, with its apostrophes, when there is no map to draw: offline, n
   gone.scope.end();
 });
 
+it('stacks Refresh map over Go to Explore on a phone, and sets them side by side on a desktop (#648)', async () => {
+  const at = (width: number) => (
+    <DisplayProvider value={{ width, textScale: 1, reducedMotion: true }}>
+      <UniverseScreen />
+    </DisplayProvider>
+  );
+  for (const [width, direction] of [
+    [390, 'column'],
+    [1440, 'row'],
+  ] as const) {
+    const h = universeHarness();
+    mockScope = h.scope;
+    h.network(true);
+    const view = await render(at(width));
+    const actions = await screen.findByTestId('universe-offline-actions');
+    expect(actions).toHaveStyle({ flexDirection: direction });
+    await view.unmount();
+    h.scope.end();
+  }
+});
+
 it('words every reason there is no map, and none of the words carries a broken character', () => {
   const words = [
     unavailableWords({ status: 'unsupported', active: true }),
@@ -883,6 +904,21 @@ describe('desktop D02 (v3 U-5)', () => {
       session.escape();
     });
     expect(session.getState().focusId).toBe(fixtureId(10));
+    await act(() => h.scope.end());
+    await v.unmount();
+  });
+
+  it('hides the zoom buttons while a search card is open, and brings them back when it closes (#648)', async () => {
+    const h = universeHarness();
+    mockScope = h.scope;
+    const v = await render(wide);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Zoom in' })).toBeOnTheScreen());
+    await fireEvent.press(screen.getByRole('button', { name: 'Search your universe' }));
+    await screen.findByRole('searchbox', { name: /search/i });
+    expect(screen.queryByRole('button', { name: 'Zoom in' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Zoom out' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('button', { name: 'Zoom in' })).toBeOnTheScreen();
     await act(() => h.scope.end());
     await v.unmount();
   });

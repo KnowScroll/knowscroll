@@ -8,7 +8,7 @@ import { LandmarkMark, type LandmarkMarker } from '../collection/landmark-mark';
 import { BodyTarget, SceneLayer } from '../scene-parts';
 import type { UniverseFrame } from '../universe-camera';
 import type { Size } from '../universe-layout';
-import { boxOfFormed, boxOfLoops, mapView, toScreen, type MapView } from './map-camera';
+import { boxOfFormed, boxOfLoops, mapView, namePillTop, NAME_PILL_HEIGHT, toScreen, type MapView } from './map-camera';
 import { MapClouds, MapLand } from './map-ground';
 import type { PlanetPalette } from './planet-palette';
 import { loopsToPath } from './svg-paths';
@@ -47,6 +47,8 @@ export interface PlanetMapProps {
   readonly hypothetical?: ReadonlySet<string>;
   /** The landmarks standing on this planet, painted on the land (D-089). */
   readonly markers?: readonly LandmarkMarker[];
+  /** How far up from the bottom of the stage the open card reaches, once measured: the picked name stays above it. */
+  readonly coveredBottom?: number;
 }
 
 /** The chosen region keeps its colour under a white glow and everything else dims. */
@@ -226,7 +228,12 @@ export function PlanetMap(props: PlanetMapProps) {
           </Svg>
         </Animated.View>
         {chosen ? (
-          <SelectedName at={spots.get(chosen.objectId)} text={names.get(chosen.objectId) ?? ''} width={size.width} />
+          <SelectedName
+            at={spots.get(chosen.objectId)}
+            text={names.get(chosen.objectId) ?? ''}
+            size={size}
+            coveredBottom={props.coveredBottom}
+          />
         ) : null}
         {marked ? (
           <>
@@ -269,13 +276,27 @@ export function PlanetMap(props: PlanetMapProps) {
 }
 
 /** The chosen region's name in the yellow selected pill (the design's U04 card view). */
-function SelectedName({ at, text, width }: { at: { x: number; y: number } | undefined; text: string; width: number }) {
+function SelectedName({
+  at,
+  text,
+  size,
+  coveredBottom,
+}: {
+  at: { x: number; y: number } | undefined;
+  text: string;
+  size: Size;
+  coveredBottom: number | undefined;
+}) {
   if (!at) return null;
+  const width = size.width;
   // The name is bold display type: a desktop-size face is wider than a phone's, so the pill is given room, never an ellipsis.
   const pill = Math.ceil(text.length * 10 + 30);
   const left = Math.min(width - pill - 14, Math.max(14, at.x - pill / 2));
   return (
-    <View pointerEvents="none" style={[styles.selectedPill, { left, top: at.y - 15, width: pill }]}>
+    <View
+      pointerEvents="none"
+      style={[styles.selectedPill, { left, top: namePillTop(at.y, size.height, coveredBottom), width: pill }]}
+    >
       <Text variant="uiS" color="#111111" numberOfLines={1} testID="universe-region-name">
         {text}
       </Text>
@@ -320,7 +341,7 @@ const styles = StyleSheet.create({
   hereDot: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: HERE_ORANGE },
   selectedPill: {
     position: 'absolute',
-    height: 30,
+    height: NAME_PILL_HEIGHT,
     borderRadius: 15,
     borderWidth: 2,
     borderColor: INK,
