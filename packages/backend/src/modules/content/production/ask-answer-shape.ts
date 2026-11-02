@@ -4,7 +4,7 @@ import { MIN_SERVED_SENTENCES } from '../domain/ask-support.js';
 import { placedSentencesOfAnswer } from './ask-support.js';
 
 /**
- * The shape of the answer to a person's question (D-305): 8 to 12 sentences of reading text, and every sentence after the first
+ * The shape of the answer to a person's question (D-308, D-309): 8 to 12 sentences of reading text, and every sentence after the first
  * of its block stands on its own. Pure; the writer's validator applies it to the draft and the production job to the answer it serves.
  * "Reading text" is every sentence that is not a title, a heading or a callout's title, the dek included.
  */
@@ -20,12 +20,12 @@ export const LEANING_SENTENCE_CODE = 'sentence_leans_on_previous';
 /**
  * Which length the answer must have. `draft`: the writer's own answer, 8 to 12 sentences. `after_check`: the revision a support
  * check earned and the answer served without its flagged sentences, which have lost some on purpose, so the floor is the fewest
- * an answer may be served with (D-307) and the ceiling is the same.
+ * an answer may be served with (D-310) and the ceiling is the same.
  */
 export type AnswerStage = 'draft' | 'after_check';
 
 /** The words that begin a sentence leaning on the one before: a pointer that needs the previous sentence to mean anything. */
-const LEANING_OPENING = /^[\s"'“‘(\[]*(?:this|that|these|those|it|they)(?![\p{L}\p{N}])/iu;
+const LEANING_OPENING = /^[\s"'“‘([]*(?:this|that|these|those|it|they)(?![\p{L}\p{N}])/iu;
 
 /** Whether a sentence begins with a pointer ("This", "That", "It", "These", "Those", "They") that leans on the sentence before it. */
 export const leansOnPrevious = (sentence: string): boolean => LEANING_OPENING.test(sentence);

@@ -160,7 +160,7 @@ export function fixtureAuthored(
 /**
  * The answer to a question, authored about the same invented lighthouse as the sources above: every sentence is written
  * from the passages its block cites, so a support check that reads it finds words of those passages that are about the
- * sentence. It has the shape the question writer is asked for (D-305): a direct answer, two short sections and the limits callout,
+ * sentence. It has the shape the question writer is asked for (D-308, D-309): a direct answer, two short sections and the limits callout,
  * eleven sentences of reading text (the dek included) and fifteen sentences in all, which a check reads in two requests (10 + 5).
  * No sentence after the first of its block begins with a pointer to the one before. It is a labelled CI fixture, never product
  * content. `sentence` replaces one sentence of the answer, the title included (the support check's repair).

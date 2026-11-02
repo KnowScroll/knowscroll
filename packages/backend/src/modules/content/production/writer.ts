@@ -49,8 +49,8 @@ export const SCENARIO_WRITER_PROMPT_VERSION = 'scenario-writer.v1';
  * refuses an answer, so the instruction names its number), and a link between two ideas is short and plain or part of the
  * next fact. v6 (D-294): the copy rule comes with one worked example (a passage, a copy that is refused, a rebuilt sentence that
  * keeps the key terms and passes), and the revision after a support check is told that a rewritten sentence must not copy
- * either. v7 (D-305): the answer is 8 to 12 sentences (a direct answer, at most two short sections and the limits callout) and each
- * sentence after the first of its block stands on its own, so a sentence that fails the check can be taken out (D-307) without
+ * either. v7 (D-308, D-309): the answer is 8 to 12 sentences (a direct answer, at most two short sections and the limits callout) and each
+ * sentence after the first of its block stands on its own, so a sentence that fails the check can be taken out (D-310) without
  * the next one losing its meaning; code refuses a draft that breaks either, with a fixed repair hint. `versions.test.ts` pairs it with the
  * support check's version.
  */
@@ -411,7 +411,7 @@ function moduleIssues(
   const last = authored.blocks.at(-1);
   if (format === 'plain' && !(last?.type === 'callout' && last.kind === 'limit'))
     issues.push({ code: 'limit_callout_required', path: '$' });
-  // The answer to a question is short, and each sentence after the first of a block stands on its own (D-305).
+  // The answer to a question is short, and each sentence after the first of a block stands on its own (D-308, D-309).
   if (format === 'plain') issues.push(...answerShapeIssues(authored, stage));
   const allowed = allowedBlockTypes(format);
   authored.blocks.forEach((block, index) => {

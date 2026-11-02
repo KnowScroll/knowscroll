@@ -122,7 +122,7 @@ describe('the sentences a support check reads', () => {
     ]);
   });
 
-  it('know where they stand, so one can be taken out of its text (D-307)', () => {
+  it('know where they stand, so one can be taken out of its text (D-310)', () => {
     expect(placedSentencesOfAnswer(ANSWER).map((sentence) => sentence.place)).toEqual([
       { field: 'title' },
       { field: 'dek' },
@@ -549,7 +549,7 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
     const sunReply = (quote: string) =>
       askSupportSchema(sun, PASSAGES).safeParse({ sentences: [{ n: 1, verdict: 'supported', quote }] });
 
-    it('sets aside the false sentence of the dev run marked supported with the three words "the Sun is", once the sentence has more than eight key words (D-305)', () => {
+    it('sets aside the false sentence of the dev run marked supported with the three words "the Sun is", once the sentence has more than eight key words (D-306)', () => {
       const long: readonly SentenceUnderCheck[] = [
         {
           number: 1,
@@ -564,7 +564,7 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
       expect(outcomes(longReply('Sun is never directly'))).toEqual(['quote_not_about_sentence']);
     });
 
-    it('lets a sentence of eight key words or fewer be supported by a quote with one of them, which is then the checker’s judgement alone (D-305)', () => {
+    it('lets a sentence of eight key words or fewer be supported by a quote with one of them, which is then the checker’s judgement alone (D-306)', () => {
       expect(outcomes(sunReply('the Sun is'))).toEqual(['supported']);
       // A quote with none of them is still about something else.
       expect(outcomes(sunReply('the planet’s axis is tilted'))).toEqual(['quote_not_about_sentence']);
@@ -679,7 +679,7 @@ describe('the role', () => {
  * is that they say what each verdict means, still tell the checker the rules code applies to its reply, and that the worked
  * examples they carry are consistent with those rules.
  */
-describe('the instructions of ask-support-check.v5 (D-281, D-305, D-306)', () => {
+describe('the instructions of ask-support-check.v5 (D-281, D-305 to D-307)', () => {
   it('is version 5', () => {
     expect(ASK_SUPPORT_CHECK_VERSION).toBe('ask-support-check.v5');
   });

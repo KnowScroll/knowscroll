@@ -155,7 +155,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     if (paidAttemptIds.length < 1 || paidAttemptIds.length > mostPaidAttempts)
       return refuse(['attempt_bound_exceeded'], receipt);
     const recorded = withAccounting(receipt, attempts);
-    // The first draft has the writer's whole range of length; the revision a support check earned may have lost sentences (D-307).
+    // The first draft has the writer's whole range of length; the revision a support check earned may have lost sentences (D-310).
     const compiled = stage.plan.compile(
       writer.output,
       { runId, attemptIds: paidAttemptIds, model: deps.model },
@@ -262,7 +262,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
    * Asks the support checker about the answer to a question and acts on the verdicts (D-250). Nothing unsupported:
    * the Scroll is published. An unsupported sentence in the first draft earns the writer one revision, whether or not the
    * validator had repaired that draft. A sentence still unsupported after the revision is taken out and the rest is served, if
-   * enough of it is left (D-307); otherwise the job ends. A check that gave no usable answer ends the job: nobody reads an ask
+   * enough of it is left (D-310); otherwise the job ends. A check that gave no usable answer ends the job: nobody reads an ask
    * order before the person who asked, so it is never served unchecked.
    */
   async function supportCheckDraft(stage: Stage, draft: Draft, history: History): Promise<ProduceScrollResult> {
@@ -312,7 +312,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
   }
 
   /**
-   * Serves the revision without the sentences its check still found unsupported, when what is left is enough (D-307), and ends the
+   * Serves the revision without the sentences its check still found unsupported, when what is left is enough (D-310), and ends the
    * job when it is not. The sentences left each have the verdict they were checked with; nothing is checked again. The answer stored
    * and compiled is the one served, and the receipts say how many sentences were taken out, never which.
    */

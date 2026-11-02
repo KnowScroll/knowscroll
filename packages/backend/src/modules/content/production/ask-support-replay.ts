@@ -56,7 +56,7 @@ export interface ReplayLine {
    */
   readonly codes: Readonly<Record<string, number>>;
   /**
-   * How many sentences the production job took out of this answer before serving it (D-307), from its receipts: a number, never a
+   * How many sentences the production job took out of this answer before serving it (D-311), from its receipts: a number, never a
    * sentence. The answer replayed is the one served, so these sentences are not in it. Absent when the job dropped none.
    */
   readonly dropped?: number;
@@ -153,7 +153,7 @@ function codeCounts(
 
 const DroppedReceipt = z.object({ kind: z.literal('sentences_dropped'), dropped: z.number().int().min(0) });
 
-/** How many sentences the job's receipts say it took out of the answer it served (D-307). */
+/** How many sentences the job's receipts say it took out of the answer it served (D-311). */
 function droppedOf(outcomes: unknown): number {
   if (!Array.isArray(outcomes)) return 0;
   return outcomes.reduce<number>((total, receipt: unknown) => {

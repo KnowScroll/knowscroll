@@ -1,6 +1,6 @@
 /**
- * The support check of an ask order's answer (D-250, D-263, D-265 to D-267): after the writer, a second model reads each sentence of the
- * answer against the passages its block cites and says which sentences those passages do not support. It only proposes.
+ * The support check of an ask order's answer (D-250, D-263, D-265 to D-267, D-305 to D-307, D-310): after the writer, a second model reads each
+ * sentence of the answer against the passages the answer cites and says which sentences those passages do not support. It only proposes.
  * Code validates the shape of its reply, judges each verdict on its own sentence, decides what a verdict changes and never
  * edits an answer. Pure; the production job asks the model.
  */
@@ -291,11 +291,11 @@ export function isAbout(quote: string, text: string): boolean {
   return sharedStems(quote, text) >= Math.min(MIN_SHARED_WORDS, contentStems(text).size);
 }
 
-/** A sentence with at most this many key words needs one shared key word from its quote; a longer one needs {@link MIN_SHARED_WORDS} (D-305). */
+/** A sentence with at most this many key words needs one shared key word from its quote; a longer one needs {@link MIN_SHARED_WORDS} (D-306). */
 export const SHORT_SENTENCE_KEY_WORDS = 8;
 
 /**
- * Whether a verdict's quote is about the sentence it was given for (D-305). A sentence of at most {@link SHORT_SENTENCE_KEY_WORDS}
+ * Whether a verdict's quote is about the sentence it was given for (D-306). A sentence of at most {@link SHORT_SENTENCE_KEY_WORDS}
  * key words has too few of them for two to be a fair demand, since a good paraphrase often keeps one: its quote needs one. A longer
  * sentence needs {@link MIN_SHARED_WORDS}, as {@link isAbout} says. Whether the quote then supports the sentence is the checker's
  * judgement, which no count of words settles.
@@ -397,7 +397,7 @@ export type NoClaimGround =
   | 'gap'
   /** A title, a heading or a callout's title of a few words that names what follows and has no figure. */
   | 'label'
-  /** A sentence of at most {@link MAX_SHORT_NO_CLAIM_WORDS} words with no figure: a signpost or a turn, whatever key words it shares (D-306). */
+  /** A sentence of at most {@link MAX_SHORT_NO_CLAIM_WORDS} words with no figure: a signpost or a turn, whatever key words it shares (D-307). */
   | 'short'
   /** A longer sentence with no figure that shares no key word with the passages it cites: a transition, nothing a passage could support. */
   | 'unshared';
@@ -405,7 +405,7 @@ export type NoClaimGround =
 /** The most words a label may have and still be marked as stating no fact on its place in the document alone (D-266). */
 export const MAX_LABEL_WORDS = 4;
 
-/** The most words a sentence that is not a label may have and still be marked as stating no fact when it has no figure (D-306). */
+/** The most words a sentence that is not a label may have and still be marked as stating no fact when it has no figure (D-307). */
 export const MAX_SHORT_NO_CLAIM_WORDS = 8;
 
 /**
@@ -413,7 +413,7 @@ export const MAX_SHORT_NO_CLAIM_WORDS = 8;
  * sentence states something and must be judged. A figure makes a label or a transition a claim, in digits or in words. A
  * label (title, heading, callout title) of more than {@link MAX_LABEL_WORDS} words that does not name a gap is a statement
  * ("Why the Equator Barely Notices Earth's Tilt"), so it is judged like any sentence. Any other sentence of eight words or fewer with
- * no figure is a signpost or a turn ("Here is why the tilt matters."), and may be marked even though it names what its passages are about (D-306).
+ * no figure is a signpost or a turn ("Here is why the tilt matters."), and may be marked even though it names what its passages are about (D-307).
  */
 export function noClaimGround(
   sentence: Pick<SentenceUnderCheck, 'text' | 'label'>,
@@ -466,7 +466,7 @@ const setAside = (number: number, code: RuleCode): SentenceVerdict => ({
  *
  * A reply in which more than half of its sentences are marked "no fact" on the weakest grounds (short, or sharing no
  * key word with their passages: not a title, a question or an admission code can see) is not credible: those sentences are set
- * aside too. A reply for part of a longer answer may hold one such sentence in any case.
+ * aside too. A reply for part of a longer answer may hold one such sentence in any case (D-307).
  *
  * @param verdicts one for each sentence, in order (the shape is checked before this)
  * @param passageTexts the words of each passage by handle
@@ -504,7 +504,7 @@ export function judgeVerdicts(
 
 /**
  * The fewest sentences of reading text (every sentence that is not a title, a heading or a callout's title) an answer may be served with
- * after a check, and the fewest of them that must be supported when flagged sentences are dropped (D-307). The writer's own draft has
+ * after a check, and the fewest of them that must be supported when flagged sentences are dropped (D-310). The writer's own draft has
  * more (`ASK_ANSWER_MIN_SENTENCES`).
  */
 export const MIN_SERVED_SENTENCES = 5;

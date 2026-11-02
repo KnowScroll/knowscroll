@@ -46,7 +46,7 @@ export const askSupportRepairRunId = (jobId: string): string => stableUuid(`cont
 
 /**
  * The findings the revision's own repair is for: copying a passage (D-297), and the two rules of the answer's shape, since a
- * revision that takes sentences out or rewrites one can break them (D-305). Any other refusal of it ends the job.
+ * revision that takes sentences out or rewrites one can break them (D-312). Any other refusal of it ends the job.
  */
 const REVISION_REPAIRABLE_CODES = ['copied_passage', ANSWER_LENGTH_CODE, LEANING_SENTENCE_CODE] as const;
 

@@ -1327,9 +1327,9 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         const { person, requestId, order } = await orderedAsk();
         supportScript = reply;
 
-        expect(await publish(order.recipe)).toMatchObject({
-          result: { outcome: 'rejected', codes: expect.arrayContaining(['support_check_failed']) },
-        });
+        const done = await publish(order.recipe);
+        expect(done).toMatchObject({ result: { outcome: 'rejected' } });
+        expect(done.kind === 'finished' ? done.result.codes : []).toContain('support_check_failed');
         // Every reply had the shape: no harness repair was paid for. One writer repair, then the same finding again.
         expect(production.supportCalls).toHaveLength(2 * BATCHES);
         expect(production.writerCalls).toHaveLength(2);
@@ -1526,7 +1526,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     });
   });
 
-  describe('an answer that passes after the one revision (D-305, D-306, D-307)', () => {
+  describe('an answer that passes after the one revision (D-305 to D-312)', () => {
     async function orderedAsk() {
       const { person, exposure } = await reader();
       const requestId = await ask(person, askCommand(exposure, suggestions[0]!));
@@ -1574,7 +1574,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         code?: string;
       }[];
 
-    it('serves the revision without the two sentences the check still found unsupported, and records how many, not which (D-307)', async () => {
+    it('serves the revision without the two sentences the check still found unsupported, and records how many, not which (D-310, D-311)', async () => {
       await setup();
       const { person, requestId, order } = await orderedAsk();
       flagging(BEFORE, 'Today a small motor');
@@ -1712,7 +1712,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(production.supportCalls).toHaveLength(BATCHES);
     });
 
-    it('accepts a quote with one key word for a sentence of eight key words or fewer (D-305)', async () => {
+    it('accepts a quote with one key word for a sentence of eight key words or fewer (D-306)', async () => {
       await setup();
       const { order } = await orderedAsk();
       // "The tower in this story is twenty-one metres tall." has four key words; the quote shares one of them.
@@ -1727,7 +1727,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(production.supportCalls).toHaveLength(BATCHES);
     });
 
-    it('accepts “no fact” for a sentence of eight words or fewer with no figure, though it names its passages’ subject (D-306)', async () => {
+    it('accepts “no fact” for a sentence of eight words or fewer with no figure, though it names its passages’ subject (D-307)', async () => {
       await setup();
       const { order } = await orderedAsk();
       const signpost = 'Here is why the beam matters.';

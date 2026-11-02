@@ -3,7 +3,7 @@ import { MIN_SERVED_SENTENCES, type SentenceVerdict } from '../domain/ask-suppor
 import { placedSentencesOfAnswer, type PlacedSentence, type StatementPlace } from './ask-support.js';
 
 /**
- * Why an answer with sentences that still fail the support check cannot be served without them (D-307). Each is a code, never a
+ * Why an answer with sentences that still fail the support check cannot be served without them (D-310). Each is a code, never a
  * sentence. `title_or_dek_flagged`: the title and the dek cannot be taken out. `no_direct_answer`: no sentence of the opening
  * paragraph is supported. `too_few_supported`: fewer than {@link MIN_SERVED_SENTENCES} sentences of reading text are supported.
  * `no_limit_callout`: the limits callout did not survive. `rebuilt_invalid`: what is left is not a valid answer that reads back as
@@ -30,7 +30,7 @@ const keyOf = (place: StatementPlace): string =>
   'block' in place ? `${place.field}:${String(place.block)}:${'item' in place ? String(place.item) : ''}` : place.field;
 
 /**
- * The answer without the sentences that failed its support check (D-307). Pure: no model, no clock.
+ * The answer without the sentences that failed its support check (D-310). Pure: no model, no clock.
  *
  * Every sentence whose verdict is `unsupported` is taken out of its text and the blocks are rebuilt: a block left with no sentence is
  * removed (a list left with one item becomes a paragraph), and so is a heading with nothing left in its section. The closing limits
@@ -136,7 +136,14 @@ function rebuildBlock(
       const title = block.title === undefined ? '' : keptAt({ field: 'callout-title', block: index }, block.title);
       return { type: 'callout', cites: block.cites, kind: block.kind, text, ...(title === '' ? {} : { title }) };
     }
-    default:
+    // The other blocks have no sentences of their own to take out; an answer to a question has none of them.
+    case 'bar-chart':
+    case 'comparison':
+    case 'diagram':
+    case 'line-chart':
+    case 'sequence':
+    case 'simulation':
+    case 'timeline':
       return block;
   }
 }

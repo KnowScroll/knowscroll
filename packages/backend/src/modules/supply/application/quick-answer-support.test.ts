@@ -92,7 +92,7 @@ describe('the checker’s role for a Quick answer', () => {
         verdict.verdict === 'unsupported' ? verdict.code : verdict.verdict,
       ),
     ).toEqual(['supported', 'no_claim_without_ground']);
-    // The first sentence has seven words and no figure, so it may be marked, as in an ask order's answer (D-306).
+    // The first sentence has seven words and no figure, so it may be marked, as in an ask order's answer (D-307).
     expect(
       judged({ n: 1, verdict: 'no_claim' }, good.sentences[1]).map((verdict) =>
         verdict.verdict === 'unsupported' ? verdict.code : verdict.verdict,

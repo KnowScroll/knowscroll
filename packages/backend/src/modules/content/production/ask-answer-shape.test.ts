@@ -31,7 +31,7 @@ const withSentences = (count: number) =>
     limit,
   ]);
 
-describe('the length of the answer to a question (D-305)', () => {
+describe('the length of the answer to a question (D-308)', () => {
   it('is 8 to 12 sentences of reading text for the writer’s draft: the dek and callout text count, labels do not', () => {
     expect([ASK_ANSWER_MIN_SENTENCES, ASK_ANSWER_MAX_SENTENCES]).toEqual([8, 12]);
     const lengthFindings = (count: number) =>
@@ -63,7 +63,7 @@ describe('the length of the answer to a question (D-305)', () => {
   });
 });
 
-describe('a sentence that leans on the one before it (D-305)', () => {
+describe('a sentence that leans on the one before it (D-309)', () => {
   it('is one that begins with This, That, These, Those, It or They', () => {
     for (const sentence of [
       'This is why.',

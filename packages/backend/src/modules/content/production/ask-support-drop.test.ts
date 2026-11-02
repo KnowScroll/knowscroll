@@ -5,7 +5,7 @@ import { dropFlagged } from './ask-support-drop.js';
 import { placedSentencesOfAnswer } from './ask-support.js';
 
 /**
- * Taking out the sentences a support check still found unsupported (D-307). Labelled CI text about an invented lighthouse: never
+ * Taking out the sentences a support check still found unsupported (D-310). Labelled CI text about an invented lighthouse: never
  * provider output and never product content. The verdicts are written by hand, since the rule is code's and needs no model.
  */
 const ANSWER = AuthoredScroll.parse({
@@ -205,7 +205,7 @@ describe('a sentence the check still found unsupported', () => {
   });
 });
 
-describe('what is left must be enough to serve (D-307)', () => {
+describe('what is left must be enough to serve (D-310)', () => {
   it('refuses an answer whose title or dek failed, since neither can be taken out', () => {
     expect(refusedWith({ flagged: ['How a lamp'] })).toBe('title_or_dek_flagged');
     expect(refusedWith({ flagged: ['A ring of glass'] })).toBe('title_or_dek_flagged');

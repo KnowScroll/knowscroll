@@ -218,7 +218,7 @@ describe('the key words that tie a quote to a sentence (B1.2)', () => {
     expect(isAbout('light into a single beam', 'Why?')).toBe(true);
   });
 
-  it('are shared once for a sentence of eight key words or fewer, and twice for a longer one (D-305)', () => {
+  it('are shared once for a sentence of eight key words or fewer, and twice for a longer one (D-306)', () => {
     const passage = 'Near the poles the Sun is never directly overhead';
     // Five key words (sun, nearly, overhead, pole, summer): a quote that carries one is about it.
     const short = 'The Sun is nearly overhead at the pole in summer.';
@@ -337,9 +337,9 @@ describe('which sentences may state no fact (B1.3, D-266)', () => {
     ).toBeUndefined();
   });
 
-  it('gives a ground to a sentence of at most eight words with no figure, whatever key words it shares, and to no longer one (D-306)', () => {
+  it('gives a ground to a sentence of at most eight words with no figure, whatever key words it shares, and to no longer one (D-307)', () => {
     expect(MAX_SHORT_NO_CLAIM_WORDS).toBe(8);
-    // Seven words, sharing "beam" with its passage: before D-306 this was judged as a statement.
+    // Seven words, sharing "beam" with its passage: before D-307 this was judged as a statement.
     expect(noClaimGround({ text: 'The beam is narrow.' }, cited)).toBe('short');
     expect(noClaimGround({ text: 'Here is why the beam matters so much.' }, cited)).toBe('short');
     // Eight words is the last that counts; nine is a sentence to judge.
@@ -357,7 +357,7 @@ describe('which sentences may state no fact (B1.3, D-266)', () => {
       'The browser combines the document object model and the CSS object model into a render tree, then runs layout and paint.',
     ];
     expect(MAX_LABEL_WORDS).toBe(4);
-    // The same words as a sentence, not a label, are short enough to be marked too (D-306).
+    // The same words as a sentence, not a label, are short enough to be marked too (D-307).
     expect(noClaimGround({ text: 'How the render tree' }, passages)).toBe('short');
     for (const heading of ['How the Update Spreads', 'The Missing Position Detail', 'The render tree'])
       expect(noClaimGround({ text: heading, label: true }, passages)).toBe('label');
@@ -468,7 +468,7 @@ describe('what a verdict that breaks a rule does to its own sentence (D-265)', (
   });
 
   it('turns a quote of too few words or a quote about something else into unsupported, with the code that says which', () => {
-    // Ten key words: a quote needs two of them (D-305).
+    // Ten key words: a quote needs two of them (D-306).
     const longSun = numbered([
       sentence(
         1,
@@ -483,7 +483,7 @@ describe('what a verdict that breaks a rule does to its own sentence (D-265)', (
     expect(outcomes(judgeVerdicts([supported(1, 'the Sun is never directly overhead')], longSun, texts))).toEqual([
       'supported',
     ]);
-    // Five key words: one is enough (D-305). Whether "the Sun is" supports this sentence is now the checker’s judgement alone.
+    // Five key words: one is enough (D-306). Whether "the Sun is" supports this sentence is now the checker’s judgement alone.
     const shortSun = numbered([sentence(1, 'The Sun is nearly overhead at the pole in summer.', ['e5'])]);
     expect(outcomes(judgeVerdicts([supported(1, 'the Sun is')], shortSun, texts))).toEqual(['supported']);
     // A quote that shares none of them is still about something else.
@@ -554,7 +554,7 @@ describe('what a verdict that breaks a rule does to its own sentence (D-265)', (
     expect(outcomes(lazy)).toEqual(['too_many_no_claim', 'too_many_no_claim', 'no_claim', 'too_many_no_claim']);
   });
 
-  it('allows "no fact" for a short sentence that shares key words with its passages, and counts it toward the share marked (D-306)', () => {
+  it('allows "no fact" for a short sentence that shares key words with its passages, and counts it toward the share marked (D-307)', () => {
     const short = numbered([
       sentence(1, 'The beam is narrow.', ['e2']),
       sentence(2, 'The ring is glass.', ['e2']),
@@ -577,7 +577,7 @@ describe('what a verdict that breaks a rule does to its own sentence (D-265)', (
     ).toEqual(['too_many_no_claim', 'too_many_no_claim', 'too_many_no_claim', 'supported']);
   });
 
-  it('lets the last batch of a longer answer hold one sentence marked “no fact” on a weak ground, however small the batch (D-306)', () => {
+  it('lets the last batch of a longer answer hold one sentence marked “no fact” on a weak ground, however small the batch (D-307)', () => {
     const answer = numbered([
       prism,
       sentence(2, 'A prism ring gathers the light into one beam.', ['e2']),

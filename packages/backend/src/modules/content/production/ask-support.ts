@@ -10,15 +10,14 @@ import {
   type SentenceVerdict,
   type UnsupportedVerdict,
 } from '../domain/ask-support.js';
-import type { ProductionSubject } from './subject.js';
 
 /**
- * The support check of an ask order's answer (D-250, D-263, D-265 to D-267, D-281, D-305, D-306): a second model role that reads each
+ * The support check of an ask order's answer (D-250, D-263, D-265 to D-267, D-281, D-305 to D-307, D-310): a second model role that reads each
  * sentence of the answer against the passages the answer cites and says which sentences those passages do not support. The writer's
  * validator cannot see that: it proves that digits come from a cited passage and that nine words are not copied, not
  * that a sentence about a cause or a direction says what the passage says. The checker only proposes. Code validates
  * the shape of its reply, judges each verdict on its own sentence, reads the verdicts and decides: the answer is served,
- * repaired once, served without the sentences that still fail (D-307), or refused.
+ * repaired once, served without the sentences that still fail (D-310), or refused.
  */
 export const ASK_SUPPORT_CHECK_VERSION = 'ask-support-check.v5';
 
@@ -32,11 +31,11 @@ const MAX_QUOTE_CHARS = 240;
 const CHECK_MAX_OUTPUT_TOKENS = 12_000;
 
 /** Whether the Scroll an order makes is the answer to a person's question, which no person reads before it is served. */
-export const hasSupportCheck = (subject: Pick<ProductionSubject, 'mode'>): boolean => subject.mode === 'question';
+export const hasSupportCheck = (subject: { readonly mode: string }): boolean => subject.mode === 'question';
 
 type AnswerBlock = AuthoredScroll['blocks'][number];
 
-/** Where a statement stands in the authored answer, so a sentence can be taken out of its text (D-307). */
+/** Where a statement stands in the authored answer, so a sentence can be taken out of its text (D-310). */
 export type StatementPlace =
   | { readonly field: 'title' | 'dek' }
   | { readonly field: 'heading' | 'paragraph' | 'callout-title' | 'callout-text'; readonly block: number }

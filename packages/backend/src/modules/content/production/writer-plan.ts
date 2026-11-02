@@ -19,7 +19,7 @@ export interface WriterPlan {
   readonly role: ReasoningRole<unknown>;
   /**
    * The role for the revision a support check earns, when its validator differs from the first draft's: the answer to a question
-   * may then be shorter than the writer's range, since flagged sentences may have been taken out (D-307). Absent when it does not.
+   * may then be shorter than the writer's range, since flagged sentences may have been taken out (D-310). Absent when it does not.
    */
   readonly afterCheckRole?: ReasoningRole<unknown>;
   /** Names the instructions the answer was written to; recorded in the Scroll's provenance. */
