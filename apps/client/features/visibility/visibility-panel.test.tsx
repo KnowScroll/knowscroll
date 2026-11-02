@@ -128,7 +128,11 @@ describe('sharing and visibility settings (labelled in-memory server)', () => {
   it('says the account is being cleared, not that the settings could not load, and loads them when it is done', async () => {
     const server = visitServer();
     server.failNext('/v1/social/visibility', 'network');
-    const clear = { title: 'Clearing', text: 'Your exploration history and universe are being removed.' };
+    const clear = {
+      title: 'Clearing',
+      text: 'Your exploration history and universe are being removed.',
+      removing: true,
+    };
     const view = (progress: typeof clear | undefined) => (
       <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
         <VisibilityPanel scope={server.scope} clear={progress} />
@@ -142,6 +146,24 @@ describe('sharing and visibility settings (labelled in-memory server)', () => {
     await rendered.rerender(view(undefined));
     await screen.findByRole('radio', { name: 'Nobody' });
     expect(screen.queryByText('Clearing exploration.')).toBeNull();
+    await rendered.unmount();
+    server.scope.end();
+  });
+
+  it('does not read the settings again when only the status check that its own failure started has finished', async () => {
+    const server = visitServer();
+    server.failNext('/v1/social/visibility', 'network');
+    const checking = { title: 'Checking', text: 'Checking the latest removal status…', removing: false };
+    const view = (progress: typeof checking | undefined) => (
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <VisibilityPanel scope={server.scope} clear={progress} />
+      </DisplayProvider>
+    );
+    const rendered = await render(view(checking));
+    await screen.findByText('Clearing exploration.');
+    await rendered.rerender(view(undefined));
+    await screen.findByText('Couldn’t load your settings.');
+    expect(server.requests.filter((request) => request.path === '/v1/social/visibility')).toHaveLength(1);
     await rendered.unmount();
     server.scope.end();
   });
