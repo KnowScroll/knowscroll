@@ -204,6 +204,22 @@ test('a phone conversation has no rail, and opens with the "New since you were h
   expect(await seriousViolations(page)).toEqual([]);
 });
 
+for (const size of [
+  { width: 390, height: 844 },
+  { width: 1440, height: 900 },
+]) {
+  test(`at ${String(size.width)} px a conversation the person wrote in but never opened still draws "New since you were here" over the reply (#648)`, async ({
+    page,
+  }) => {
+    // Their message 1 went out from a share sheet, so no read position was ever stored (0); Ravi answered with 2.
+    await talkFixture(page, size, { readThrough: 0 });
+    await page.goto(conversationAddress);
+    await expect(page.getByText('NEW SINCE YOU WERE HERE')).toBeVisible();
+    await shot(page, `dm-${String(size.width)}-new-since-never-opened`);
+    expect(await seriousViolations(page)).toEqual([]);
+  });
+}
+
 test('at 1024 px the chat keeps its room: a thread has no list column and a conversation has no rail', async ({
   page,
 }) => {

@@ -430,3 +430,52 @@ test('durable formation waits for an exact current claim after a lost reply, pre
     /objectId|frame|seed|0199a000|transitionId|claimId|attemptNonce/,
   );
 });
+
+/** Error · Offline: the two buttons are stacked on a phone and side by side on a desktop (#648). */
+for (const size of [
+  { width: 390, height: 844, stacked: true },
+  { width: 1440, height: 900, stacked: false },
+]) {
+  test(`offline at ${String(size.width)} x ${String(size.height)} says so and ${size.stacked ? 'stacks' : 'sets side by side'} Refresh map and Go to Explore`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.route('**/auth/session', (route) =>
+      route.fulfill({ json: { account: fixtureAccount, client: 'web', expiresAt: '2099-10-21T00:00:00.000Z' } }),
+    );
+    await page.route('**/v1/**', (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (isInboxPath(path))
+        return route.fulfill({
+          json: emptyInbox(path, route.request().postDataJSON() as Record<string, unknown>, fixtureAccount.accountId),
+        });
+      if (path === '/v1/privacy/recording/read') {
+        const body = route.request().postDataJSON() as Record<string, unknown>;
+        return route.fulfill({
+          json: {
+            ...body,
+            scope: { accountId: fixtureAccount.accountId, privacyEpoch: 1 },
+            revision: 0,
+            policy: { on: true, generation: 1 },
+          },
+        });
+      }
+      return route.abort('internetdisconnected');
+    });
+    await page.goto('/universe');
+    await expect(page.getByText('You’re offline')).toBeVisible();
+    const refresh = (await page.getByRole('button', { name: 'Refresh map' }).boundingBox())!;
+    const explore = (await page.getByRole('link', { name: 'Go to Explore' }).boundingBox())!;
+    if (size.stacked) {
+      expect(refresh.y + refresh.height).toBeLessThanOrEqual(explore.y);
+      // Centred on one line, as the design draws them.
+      expect(Math.abs(refresh.x + refresh.width / 2 - (explore.x + explore.width / 2))).toBeLessThanOrEqual(2);
+    } else {
+      expect(refresh.x + refresh.width).toBeLessThanOrEqual(explore.x);
+      expect(Math.abs(refresh.y - explore.y)).toBeLessThanOrEqual(2);
+    }
+    if (process.env['KS_SHOT_DIR'])
+      await page.screenshot({ path: `${process.env['KS_SHOT_DIR']}/offline-${String(size.width)}.png` });
+  });
+}

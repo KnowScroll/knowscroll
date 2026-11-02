@@ -35,11 +35,11 @@ const apart = (one: Box, other: Box) =>
 async function openUniverse(
   page: Page,
   size: { width: number; height: number },
-  options: { formed: boolean; formationUnavailable?: boolean },
+  options: { formed: boolean; formationUnavailable?: boolean; firstLandmarkName?: string },
 ) {
   const world = sceneFixture(5, 1, 3);
   world.collection.landmarks = [
-    landmark(),
+    landmark(options.firstLandmarkName ? { name: options.firstLandmarkName } : {}),
     landmark({ key: 'the-turning-halves', name: 'The Turning Halves', tier: 'plain', assetId: fixtureId(501) }),
   ];
   world.collection.orbit = { days: 1, goal: 3, weekStart: '2026-11-02', closed: false };
@@ -137,6 +137,36 @@ test.describe('a phone, 390 x 844', () => {
     expect(
       calls.filter((call) => call.method !== 'POST' || /activate|observations|actions|lock/.test(call.path)),
     ).toEqual([]);
+  });
+
+  test('a landmark name that does not fit on one line wraps to a second, and the waiting line is whole too', async ({
+    page,
+  }) => {
+    await openUniverse(page, size, { formed: false, firstLandmarkName: 'The Returning Glow' });
+    const card = page.getByTestId('universe-landmark-card');
+    for (const [part, words] of [
+      ['universe-landmark-title', 'The Returning Glow'],
+      ['universe-landmark-line', 'Gold finish · waits for its planet'],
+    ] as const) {
+      const text = card.getByTestId(part);
+      await expect(text).toHaveText(words);
+      // Nothing is hidden: the box shows all of its text, so no ellipsis stands in for a word.
+      const clipped = await text.evaluate(
+        (node) => node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight,
+      );
+      expect(clipped).toBe(false);
+    }
+    const title = (await card.getByTestId('universe-landmark-title').boundingBox())!;
+    expect(title.height).toBeGreaterThan(30);
+    await shot(page, 'landmark-name-wraps-phone');
+  });
+
+  test('at 320 px the name wraps to three lines and nothing is cut', async ({ page }) => {
+    await openUniverse(page, { width: 320, height: 800 }, { formed: false, firstLandmarkName: 'The Returning Glow' });
+    const title = page.getByTestId('universe-landmark-card').getByTestId('universe-landmark-title');
+    await expect(title).toHaveText('The Returning Glow');
+    expect(await title.evaluate((node) => node.scrollHeight > node.clientHeight + 1)).toBe(false);
+    await shot(page, 'landmark-name-wraps-320');
   });
 
   test('the notice that new-place views are unavailable sits above the landmark card and covers none of it', async ({
@@ -271,6 +301,20 @@ test.describe('a desktop, 1440 x 900', () => {
     await expect(page.getByTestId('universe-landmark-card')).toHaveCount(0);
     await shot(page, 'collection-desktop-panel');
     await expectNoSeriousViolations(page);
+  });
+
+  test('the zoom buttons step aside while a search card is open and return when it closes', async ({ page }) => {
+    await openUniverse(page, size, { formed: false });
+    const zoomIn = page.getByRole('button', { name: 'Zoom in' });
+    await expect(zoomIn).toBeVisible();
+    await page.getByRole('button', { name: 'Search your universe' }).click();
+    await expect(page.getByRole('searchbox', { name: 'Search your universe' })).toBeVisible();
+    await expect(zoomIn).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Zoom out' })).toHaveCount(0);
+    await shot(page, 'search-no-zoom-desktop');
+    await expectNoSeriousViolations(page);
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(zoomIn).toBeVisible();
   });
 
   test('a landmark whose planet has formed is listed on that planet, and the panel row flies to it', async ({

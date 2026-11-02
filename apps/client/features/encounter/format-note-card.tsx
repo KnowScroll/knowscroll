@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, View, type ViewInstance } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import { borderWidth, content, elevation, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 import { keptWords, type FormatNote } from './format-note';
@@ -15,18 +15,26 @@ function KeyChip({ name }: { readonly name: string }) {
   );
 }
 
-/** Hands focus back to the reader once the note has gone, so the keys of the reader work again (web). */
-function returnFocusToReader(): void {
+/**
+ * Puts keyboard focus on the reader group, where its keys (F and Esc here) act, only when the person's focus has been
+ * lost (nothing is focused, or the focused element is gone). Focus anywhere else is theirs and stays.
+ */
+function restoreReaderFocus(): void {
   if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  const focused = document.activeElement;
+  if (focused !== null && focused !== document.body) return;
   document.querySelector<HTMLElement>('[data-testid="scroll-reader"]')?.focus();
 }
 
 /**
  * "Next topic · as a Scroll" (V3 G4): said once, over the top of the Scroll that Next ↑ landed on, with the topic's title and
  * what the document itself says about it, the way to the Reel of the same topic when there is one, and Undo, which goes back to
- * the Scroll that was left, kept as it was. F and Esc do the two, from the note itself: focus moves into it when it appears,
- * so the keys act at once, and goes back to the reader when it goes. It puts itself away after nine seconds, but not while it
- * has focus or the pointer is over it (WCAG 2.2.1), and asks for nothing.
+ * the Scroll that was left, kept as it was. It is a polite status, so it is announced without taking focus. F and Esc do the
+ * two moves from the reader, which has focus as on any new Scroll, and from the note's own buttons when the person tabs there.
+ *
+ * It puts itself away after nine seconds (D-364). WCAG 2.2.1: the person can hold it by putting the pointer over it or
+ * tabbing into it, and its time starts again when they leave. Nothing moves focus into it, because focus there that the
+ * person did not choose would hold it for good.
  */
 export function FormatNoteCard({
   note,
@@ -39,12 +47,12 @@ export function FormatNoteCard({
   readonly onUndo: () => void;
   readonly onExpire: () => void;
 }) {
-  const card = useRef<ViewInstance>(null);
   const [held, setHeld] = useState({ focus: false, pointer: false });
   const hold = held.focus || held.pointer;
   useEffect(() => {
-    (card.current as unknown as { focus?: () => void } | null)?.focus?.();
-    return returnFocusToReader;
+    restoreReaderFocus();
+    // Put away while the person was in it: focus falls to the page, so it goes back to the reader.
+    return restoreReaderFocus;
   }, []);
   useEffect(() => {
     if (hold) return undefined;
@@ -54,8 +62,6 @@ export function FormatNoteCard({
   const filled = note.kept.at === undefined || note.kept.of === undefined ? undefined : note.kept.at / note.kept.of;
   return (
     <View
-      ref={card}
-      tabIndex={-1}
       style={styles.card}
       role="status"
       accessibilityLiveRegion="polite"

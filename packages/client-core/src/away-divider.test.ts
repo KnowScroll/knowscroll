@@ -44,4 +44,14 @@ describe('the "New since you were here" line', () => {
     expect(newSinceAfter(3, messages(1, 2, 3, 4), own)).toBeUndefined();
     expect(newSinceAfter(3, messages(1, 2, 3, 4, 5), own)).toBe(3);
   });
+
+  it('follows the person’s own last message when they wrote here but never read: writing somewhere is being there (#648)', () => {
+    const own = (message: { sequence: number }) => message.sequence === 2;
+    // Wrote message 2 without opening the place (a share sheet), so the read position never moved off 0.
+    expect(newSinceAfter(0, messages(1, 2, 3, 4), own)).toBe(2);
+    // A read position that exists still governs.
+    expect(newSinceAfter(1, messages(1, 2, 3, 4), own)).toBe(1);
+    // Nothing from anyone else came after the person's own message.
+    expect(newSinceAfter(0, messages(1, 2), own)).toBeUndefined();
+  });
 });

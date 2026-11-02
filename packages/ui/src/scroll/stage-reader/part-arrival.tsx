@@ -9,6 +9,9 @@ import type { NextPartPeek } from './end-tray';
 /** How long the bar says where the person's place went: long enough to read, short enough not to sit on the text. */
 const BAR_MS = 4_000;
 
+/** The row of a Part with no picture that holds the back tab. */
+export const TAB_ROW_HEIGHT = target.minimum + spacing[2];
+
 /** What the reader says when it was opened by a move to the next Part. */
 export interface PartArrival {
   /** The Part now on screen: "Part 2". */
@@ -22,14 +25,27 @@ export interface PartArrival {
  * the text, and gone after a few seconds. It is true because the Part left is kept as it was (Back and "← Part 1" return
  * to the same stop). A polite status, so a screen reader hears it once; it has nothing to press.
  */
-export function PartArrivalBar({ arrival }: { readonly arrival: PartArrival }) {
+export function PartArrivalBar({
+  arrival,
+  belowTab = false,
+}: {
+  readonly arrival: PartArrival;
+  /** The back tab has its own row at the top (a Part with no picture): the bar sits under it, not over it. */
+  readonly belowTab?: boolean;
+}) {
   const [shown, setShown] = useState(true);
   useEffect(() => {
     const timer = setTimeout(() => setShown(false), BAR_MS);
     return () => clearTimeout(timer);
   }, []);
   return (
-    <View style={styles.barSlot} pointerEvents="none" role="status" accessibilityLiveRegion="polite">
+    <View
+      style={[styles.barSlot, belowTab ? styles.barSlotBelowTab : null]}
+      pointerEvents="none"
+      testID="part-arrival-slot"
+      role="status"
+      accessibilityLiveRegion="polite"
+    >
       {shown ? (
         <View style={styles.bar} testID="part-arrival">
           <Text variant="uiS" color={content.paper}>
@@ -42,10 +58,17 @@ export function PartArrivalBar({ arrival }: { readonly arrival: PartArrival }) {
 }
 
 /**
- * The tab at the left edge of the picture that goes back to the Part before (V3 F11 "← Part 1"). The swipe right, the ←
- * key and this tab do the same thing; the tab is the one a person can see.
+ * The tab that goes back to the Part before (V3 F11 "← Part 1"). The swipe right, the ← key and this tab do the same
+ * thing; the tab is the one a person can see. With a picture it stands at the picture's left edge. A Part with no picture
+ * has no edge to stand on, so the tab takes a row of its own above the text (`inFlow`) and covers none of it.
  */
-export function PartBackTab({ previous }: { readonly previous: NextPartPeek }) {
+export function PartBackTab({
+  previous,
+  inFlow = false,
+}: {
+  readonly previous: NextPartPeek;
+  readonly inFlow?: boolean;
+}) {
   const focus = useFocusRing('onLight');
   return (
     <Pressable
@@ -53,12 +76,21 @@ export function PartBackTab({ previous }: { readonly previous: NextPartPeek }) {
       accessibilityRole="button"
       accessibilityLabel={`Back to ${previous.label}: ${previous.title}`}
       onPress={previous.onPress}
-      style={[styles.tab, focus.style]}
+      style={[styles.tab, inFlow ? styles.tabInFlow : null, focus.style]}
       testID="part-back-tab"
     >
       <Icon name="arrowLeft" size={18} />
       <Text variant="monoXs">{previous.label.toUpperCase()}</Text>
     </Pressable>
+  );
+}
+
+/** The row the tab takes above a Part's text when there is no picture to stand it on. */
+export function PartBackTabRow({ previous }: { readonly previous: NextPartPeek }) {
+  return (
+    <View style={styles.tabRow} testID="part-back-tab-row">
+      <PartBackTab previous={previous} inFlow />
+    </View>
   );
 }
 
@@ -69,6 +101,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     borderRadius: radius.pill,
     backgroundColor: content.ink,
+  },
+  barSlotBelowTab: { top: TAB_ROW_HEIGHT + spacing[2] },
+  tabRow: { height: TAB_ROW_HEIGHT, alignItems: 'flex-start', justifyContent: 'center' },
+  tabInFlow: {
+    position: 'relative',
+    top: 0,
+    flexDirection: 'row',
+    minHeight: target.minimum,
+    paddingRight: spacing[3],
   },
   tab: {
     position: 'absolute',

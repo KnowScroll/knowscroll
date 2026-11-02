@@ -28,7 +28,7 @@ import { Text } from '../../text/text';
 import { Stage } from '../stage';
 import type { FinalCallPlay } from './call-view';
 import type { NextPartPeek, SmallPrint } from './end-tray';
-import { PartBackTab, PartArrivalBar, type PartArrival } from './part-arrival';
+import { PartArrivalBar, PartBackTab, PartBackTabRow, type PartArrival } from './part-arrival';
 import { PartEdgePeek } from './part-edge-peek';
 import type { PartDrag, PartMove } from './part-gesture';
 import { partSwipeJustCommitted } from './part-handoff';
@@ -320,6 +320,8 @@ export function StageReader({
     });
 
   const wide = breakpoint === 'tablet' || breakpoint === 'desktop';
+  // With no picture there is no edge for the tab to stand on, so it keeps a row of its own above the text.
+  const tabInRow = previousPart !== undefined && document.stage === undefined;
   /** The reader is on the end tray: the picture becomes the recap and the next Part peeks in from the edge. */
   const atEnd = current >= document.stops.length;
   const shownStop = document.stops[Math.min(current, document.stops.length - 1)];
@@ -329,6 +331,7 @@ export function StageReader({
     <ReaderFocus onKey={onKey}>
       {header}
       <View style={styles.middle} onLayout={peek.onAreaLayout} testID="reader-middle">
+        {tabInRow ? <PartBackTabRow previous={previousPart} /> : null}
         <Animated.View
           style={[
             styles.slide,
@@ -401,11 +404,11 @@ export function StageReader({
             <Spine dots={dots} current={current} onJump={(index) => jump(index, false)} />
           </View>
         </Animated.View>
-        {previousPart === undefined || current !== 0 ? null : <PartBackTab previous={previousPart} />}
+        {previousPart === undefined || current !== 0 || tabInRow ? null : <PartBackTab previous={previousPart} />}
         {nextPart === undefined || !atEnd ? null : (
           <PartEdgePeek peek={nextPart} top={stageHeightFor(windowHeight, wide) * 0.3} />
         )}
-        {arrival === undefined ? null : <PartArrivalBar arrival={arrival} />}
+        {arrival === undefined ? null : <PartArrivalBar arrival={arrival} belowTab={tabInRow} />}
         {topNote === undefined ? null : (
           <View style={styles.topNote} pointerEvents="box-none">
             {topNote}

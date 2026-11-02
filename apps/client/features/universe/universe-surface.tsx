@@ -96,6 +96,9 @@ export function UniverseSurface({
     [visitor, state.collection.collection, index],
   );
   const [dustNote, setDustNote] = useState(false);
+  // Where the open card's top edge stands, from the bottom of the stage, once the card and the stack under it are drawn.
+  const [bottomStackHeight, setBottomStackHeight] = useState(0);
+  const [cardTopInStack, setCardTopInStack] = useState<number | undefined>(undefined);
   const [refusedPlanetId, setRefusedPlanetId] = useState<string | null>(null);
   // Why 3D cannot be drawn, if it cannot: the tab is then the Simple lists, by itself (D-111).
   const [unavailable, setUnavailable] = useState<SpaceFailure | null>(() => (lowMemoryDevice() ? 'low-memory' : null));
@@ -349,6 +352,9 @@ export function UniverseSurface({
             state={state}
             index={index}
             landmarksByPlanet={collection.byPlanet}
+            {...(regionCard && !panel && cardTopInStack !== undefined
+              ? { coveredBottom: bottomStackHeight - cardTopInStack }
+              : {})}
             onSearch={openSearch}
             onDust={() => setDustNote(true)}
             stations={stations}
@@ -384,13 +390,19 @@ export function UniverseSurface({
             out={chrome?.captionOut}
             fill
           />
-          <View pointerEvents="box-none" style={[styles.bottom, { paddingBottom: bottomInset }]}>
+          <View
+            pointerEvents="box-none"
+            style={[styles.bottom, { paddingBottom: bottomInset }]}
+            onLayout={(event) => setBottomStackHeight(event.nativeEvent.layout.height)}
+          >
             {view.kind === 'system' && state.lately && isDormant(index, view.system.objectId) ? (
               <DormantNote session={session} index={index} systemId={view.system.objectId} />
             ) : null}
             {notice}
             {sheet}
-            {panel ? null : card}
+            {panel || !card ? null : (
+              <View onLayout={(event) => setCardTopInStack(event.nativeEvent.layout.y)}>{card}</View>
+            )}
             {visitor?.footer}
             <ChromeSlot
               player={animation.player}
@@ -407,8 +419,9 @@ export function UniverseSurface({
               out={chrome?.chipsOut}
             />
           </View>
-          {wide && !globe ? (
-            <View pointerEvents="box-none" style={styles.zoomControls}>
+          {/* The search card opens over the same corner; the keys + and - still zoom while it is open. */}
+          {wide && !globe && !searching ? (
+            <View pointerEvents="box-none" testID="universe-zoom" style={styles.zoomControls}>
               <IconButton
                 icon="plus"
                 label="Zoom in"
