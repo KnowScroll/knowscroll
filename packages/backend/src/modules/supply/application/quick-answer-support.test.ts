@@ -93,6 +93,26 @@ describe('the checker’s role for a Quick answer', () => {
     ).toEqual(['no_claim_without_ground', 'supported']);
   });
 
+  it('keeps the strict rules of v4: a short claim is never "no fact", and a quote with one key word of the sentence is not about it (D-306, D-307)', () => {
+    const outcomesOf = (...verdicts: unknown[]) =>
+      role.outputSchema
+        .parse(reply(...verdicts))
+        .sentences.map((verdict) => (verdict.verdict === 'unsupported' ? verdict.code : verdict.verdict));
+    const second = supported(2, 'keeps pointing the same way all year long');
+    // "Nothing turns the axis during a year." is seven words with no figure, and it is a causal claim. An ask order may let the
+    // checker call such a sentence "no fact", because a drop backs it; a two-to-four-sentence Quick answer has no backstop.
+    expect(sentences[0]!.text).toBe('Nothing turns the axis during a year.');
+    expect(outcomesOf({ n: 1, verdict: 'no_claim' }, second)).toEqual(['no_claim_without_ground', 'supported']);
+    // A quote that shares one key word with the sentence ("axis") is not about it, though it has key words of its own.
+    expect(outcomesOf(supported(1, 'The axis leans twenty-three degrees and keeps'), second)).toEqual([
+      'quote_not_about_sentence',
+      'supported',
+    ]);
+    // The checker is not told that either is allowed.
+    expect(role.instructions).not.toContain('eight words or fewer');
+    expect(role.instructions).not.toContain('eight or fewer key words');
+  });
+
   it('is asked about no more sentences than one request carries, because a Quick answer is checked in one request', () => {
     expect(ASK_SUPPORT_BATCH_SENTENCES).toBe(10);
   });
