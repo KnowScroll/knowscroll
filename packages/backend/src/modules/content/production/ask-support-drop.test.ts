@@ -205,6 +205,72 @@ describe('a sentence the check still found unsupported', () => {
   });
 });
 
+describe('a kept sentence that leans on one that was taken out (D-309, D-310)', () => {
+  /** The first section's paragraph, with two sentences that open with a pointer: "This is why" and "It also". */
+  const pointing = AuthoredScroll.parse({
+    ...ANSWER,
+    blocks: ANSWER.blocks.map((block, index) =>
+      index === 2
+        ? {
+            ...block,
+            text: 'Because the beam turns, sailors see it only as a flash. This is why sailors count the seconds between flashes. It also lets them name the tower. Each tower repeats its own rhythm.',
+          }
+        : block,
+    ),
+  });
+  const paragraphTwo = (answer: AuthoredScroll) => (answer.blocks[2] as { text: string }).text;
+
+  it('is taken out with it, and the next one that leans on that in turn, until none is left', () => {
+    // Only the first sentence is flagged. "This is why" would point at nothing, and so would "It also" after it.
+    const outcome = kept({ flagged: ['Because the beam turns'] }, pointing);
+    expect(paragraphTwo(outcome.authored)).toBe('Each tower repeats its own rhythm.');
+    expect(outcome.dropped).toBe(3);
+  });
+
+  it('stays when the sentence before it stays, and the rest of the paragraph is as the writer wrote it', () => {
+    // "It also lets them name the tower." is flagged: the sentence after it does not lean, and the one before is kept.
+    const outcome = kept({ flagged: ['It also lets'] }, pointing);
+    expect(paragraphTwo(outcome.authored)).toBe(
+      'Because the beam turns, sailors see it only as a flash. This is why sailors count the seconds between flashes. Each tower repeats its own rhythm.',
+    );
+    expect(outcome.dropped).toBe(1);
+  });
+
+  it('is taken out before the floors are counted, so a supported sentence that leans does not count among the five', () => {
+    // Thirteen sentences of reading text; seven are flagged. If the two pointers stayed, six would be supported. They go with the
+    // sentence they lean on, so four are, one fewer than it takes.
+    const marks = {
+      flagged: [
+        'Because the beam turns',
+        'The keeper once',
+        'Today a small motor',
+        'Fog scatters',
+        'A sound signal',
+        'The beam sweeps',
+        'Each tower repeats',
+      ],
+    };
+    expect(refusedWith(marks, pointing)).toBe('too_few_supported');
+    // The same marks on the plain fixture leave exactly five, and that is served.
+    expect(kept(marks).dropped).toBe(7);
+  });
+
+  it('leaves a leaning sentence alone when it opens its block, since nothing before it was taken out of the block', () => {
+    const opening = AuthoredScroll.parse({
+      ...ANSWER,
+      blocks: ANSWER.blocks.map((block, index) =>
+        index === 4
+          ? {
+              ...block,
+              text: 'This is why the keeper once wound the clockwork by hand. Today a small motor does that work.',
+            }
+          : block,
+      ),
+    });
+    expect(kept({ flagged: ['Today a small motor'] }, opening).dropped).toBe(1);
+  });
+});
+
 describe('what is left must be enough to serve (D-310)', () => {
   it('refuses an answer whose title or dek failed, since neither can be taken out', () => {
     expect(refusedWith({ flagged: ['How a lamp'] })).toBe('title_or_dek_flagged');

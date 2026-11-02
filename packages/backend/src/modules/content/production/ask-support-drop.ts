@@ -1,5 +1,6 @@
 import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { MIN_SERVED_SENTENCES, type SentenceVerdict } from '../domain/ask-support.js';
+import { leansOnPrevious } from './ask-answer-shape.js';
 import { placedSentencesOfAnswer, type PlacedSentence, type StatementPlace } from './ask-support.js';
 
 /**
@@ -32,9 +33,10 @@ const keyOf = (place: StatementPlace): string =>
 /**
  * The answer without the sentences that failed its support check (D-310). Pure: no model, no clock.
  *
- * Every sentence whose verdict is `unsupported` is taken out of its text and the blocks are rebuilt: a block left with no sentence is
- * removed (a list left with one item becomes a paragraph), and so is a heading with nothing left in its section. The closing limits
- * callout belongs to no section. The answer is served only if
+ * Every sentence whose verdict is `unsupported` is taken out of its text. So is every kept sentence that opens with a pointer
+ * ("This is why...", D-309) right after one that was taken out, since it would point at nothing; that repeats until none is left.
+ * The blocks are rebuilt: a block left with no sentence is removed (a list left with one item becomes a paragraph), and so is a
+ * heading with nothing left in its section. The closing limits callout belongs to no section. The answer is served only if
  * - the title and the dek were not flagged (they cannot be taken out),
  * - the first paragraph, the direct answer, keeps at least one supported sentence,
  * - at least {@link MIN_SERVED_SENTENCES} sentences of reading text (not a title, a heading or a callout's title) are supported,
@@ -52,62 +54,92 @@ export function dropFlagged(answer: AuthoredScroll, verdicts: readonly SentenceV
   const flagged = new Set(
     sentences.filter((sentence) => verdictOf.get(sentence.number) === 'unsupported').map((sentence) => sentence.number),
   );
-  const isFlagged = (sentence: PlacedSentence): boolean => flagged.has(sentence.number);
   if (
     sentences.some(
-      (sentence) => isFlagged(sentence) && (sentence.place.field === 'title' || sentence.place.field === 'dek'),
+      (sentence) =>
+        flagged.has(sentence.number) && (sentence.place.field === 'title' || sentence.place.field === 'dek'),
     )
   )
     return refused('title_or_dek_flagged');
+  const removed = withLeaningSentencesRemoved(sentences, flagged);
 
+  const supported = sentences.filter(
+    (sentence) => verdictOf.get(sentence.number) === 'supported' && !removed.has(sentence.number),
+  );
   const directAnswer = answer.blocks.findIndex((block) => block.type === 'paragraph');
-  const isSupported = (sentence: PlacedSentence) => verdictOf.get(sentence.number) === 'supported';
-  if (
-    !sentences.some(
-      (sentence) =>
-        sentence.place.field === 'paragraph' && sentence.place.block === directAnswer && isSupported(sentence),
-    )
-  )
+  if (!supported.some((sentence) => sentence.place.field === 'paragraph' && sentence.place.block === directAnswer))
     return refused('no_direct_answer');
-  if (sentences.filter((sentence) => sentence.label !== true && isSupported(sentence)).length < MIN_SERVED_SENTENCES)
+  if (supported.filter((sentence) => sentence.label !== true).length < MIN_SERVED_SENTENCES)
     return refused('too_few_supported');
 
+  const rebuilt = rebuildWithout(answer, sentences, removed);
+  const closing = rebuilt.blocks.at(-1);
+  if (closing?.type !== 'callout' || closing.kind !== 'limit') return refused('no_limit_callout');
+
+  const candidate = AuthoredScroll.safeParse({ title: answer.title, dek: answer.dek, blocks: rebuilt.blocks });
+  if (!candidate.success) return refused('rebuilt_invalid');
+  // A sentence not taken out is served unless the block it stood in was removed whole (a callout's title goes with its text).
+  const expected = sentences
+    .filter(
+      (sentence) =>
+        !removed.has(sentence.number) && (!('block' in sentence.place) || rebuilt.keptBlocks.has(sentence.place.block)),
+    )
+    .map((sentence) => sentence.text);
+  const actual = placedSentencesOfAnswer(candidate.data).map((sentence) => sentence.text);
+  if (expected.length !== actual.length || expected.some((text, index) => text !== actual[index]))
+    return refused('rebuilt_invalid');
+  return { kind: 'kept', authored: candidate.data, dropped: removed.size };
+}
+
+/**
+ * The flagged sentences and every kept sentence that leans on one of them: it begins with a pointer and the sentence just before it
+ * in its block was taken out. Taking that one out can leave the next in the same state, so this runs until nothing changes.
+ */
+function withLeaningSentencesRemoved(
+  sentences: readonly PlacedSentence[],
+  flagged: ReadonlySet<number>,
+): ReadonlySet<number> {
+  const removed = new Set(flagged);
+  for (let changed = true; changed;) {
+    changed = false;
+    sentences.forEach((sentence, index) => {
+      const before = sentences[index - 1];
+      if (before === undefined || removed.has(sentence.number) || !removed.has(before.number)) return;
+      const inOneBlock =
+        'block' in sentence.place && 'block' in before.place && sentence.place.block === before.place.block;
+      if (!inOneBlock || sentence.label === true || before.label === true || !leansOnPrevious(sentence.text)) return;
+      removed.add(sentence.number);
+      changed = true;
+    });
+  }
+  return removed;
+}
+
+/** The blocks of the answer without the removed sentences, and the original indexes of the blocks that are left. */
+function rebuildWithout(
+  answer: AuthoredScroll,
+  sentences: readonly PlacedSentence[],
+  removed: ReadonlySet<number>,
+): { readonly blocks: readonly Block[]; readonly keptBlocks: ReadonlySet<number> } {
   const byPlace = new Map<string, PlacedSentence[]>();
   for (const sentence of sentences)
     byPlace.set(keyOf(sentence.place), [...(byPlace.get(keyOf(sentence.place)) ?? []), sentence]);
-  /** The text at a place without its flagged sentences; the original string when none was flagged there. */
+  /** The text at a place without its removed sentences; the original string when none was removed there. */
   const keptAt = (place: StatementPlace, original: string): string => {
     const own = byPlace.get(keyOf(place)) ?? [];
-    const kept = own.filter((sentence) => !isFlagged(sentence));
+    const kept = own.filter((sentence) => !removed.has(sentence.number));
     return kept.length === own.length ? original : kept.map((sentence) => sentence.text).join(' ');
   };
-
   const rebuilt = answer.blocks.flatMap((block, index) => {
     const next = rebuildBlock(block, index, keptAt);
     return next === undefined ? [] : [{ block: next, from: index }];
   });
   const emptied = emptiedHeadings(answer.blocks, new Set(rebuilt.map((entry) => entry.from)));
   const survivors = rebuilt.filter((entry) => !emptied.has(entry.from));
-  const blocks = survivors.map((entry) => entry.block);
-  const closing = blocks.at(-1);
-  if (closing?.type !== 'callout' || closing.kind !== 'limit') return refused('no_limit_callout');
-
-  const candidate = AuthoredScroll.safeParse({ title: answer.title, dek: answer.dek, blocks });
-  if (!candidate.success) return refused('rebuilt_invalid');
-  // A sentence not flagged is served unless the block it stood in was removed whole (a callout's title goes with its text).
-  const keptBlocks = new Set(survivors.map((entry) => entry.from));
-  const expected = sentences
-    .filter(
-      (sentence) => !isFlagged(sentence) && (!('block' in sentence.place) || keptBlocks.has(sentence.place.block)),
-    )
-    .map((sentence) => sentence.text);
-  const actual = placedSentencesOfAnswer(candidate.data).map((sentence) => sentence.text);
-  if (expected.length !== actual.length || expected.some((text, index) => text !== actual[index]))
-    return refused('rebuilt_invalid');
-  return { kind: 'kept', authored: candidate.data, dropped: flagged.size };
+  return { blocks: survivors.map((entry) => entry.block), keptBlocks: new Set(survivors.map((entry) => entry.from)) };
 }
 
-/** One block without its flagged sentences, or `undefined` when nothing of it is left. */
+/** One block without its removed sentences, or `undefined` when nothing of it is left. */
 function rebuildBlock(
   block: Block,
   index: number,
