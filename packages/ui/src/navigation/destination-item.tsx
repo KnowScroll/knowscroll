@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
-import { content, dimension, overlay, spacing } from '@knowscroll/design-tokens';
+import { content, dimension, overlay, space, spacing } from '@knowscroll/design-tokens';
 import { useFocusRing } from '../display/focus-ring';
 import { linkPress } from '../display/link';
 import { describedByElement, descriptionSemantics, destinationSemantics } from '../display/semantics';
@@ -23,6 +23,11 @@ export interface DestinationItemProps {
   /** Colour behind the item, for the unread dot's cut-out ring. */
   readonly ground: string;
   readonly onSelect: (id: Destination) => void;
+  /**
+   * How the current destination is marked. `accent` is the cobalt pill; `glass` the 13 % white pill of the
+   * Universe's dark bar; `dot` a bold word with a yellow dot under it (the Universe's desktop rail, D02).
+   */
+  readonly mark?: 'accent' | 'glass' | 'dot';
 }
 
 /**
@@ -44,10 +49,11 @@ export function DestinationItem({
   href,
   ground,
   onSelect,
+  mark = 'accent',
 }: DestinationItemProps) {
   const focus = useFocusRing('onDark');
   const descriptionId = `ks-unread-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
-  const foreground = current ? content.onAccent : overlay.onDarkMuted;
+  const foreground = current ? (mark === 'accent' ? content.onAccent : space.label) : overlay.onDarkMuted;
   return (
     <Pressable
       {...focus.props}
@@ -58,7 +64,7 @@ export function DestinationItem({
       testID={`destination-${id}`}
       style={() => {
         const frame: ViewStyle[] = [styles.item, { width, minHeight: height, borderRadius: radius }];
-        if (current) frame.push(styles.current);
+        if (current) frame.push(mark === 'glass' ? styles.glass : mark === 'dot' ? styles.dotted : styles.current);
         if (focus.style !== undefined) frame.push(focus.style);
         return frame;
       }}
@@ -68,15 +74,25 @@ export function DestinationItem({
         {unread && !showLabel ? (
           <View
             testID={`destination-${id}-unread`}
-            style={[styles.dot, { backgroundColor: foreground, borderColor: current ? content.accent : ground }]}
+            style={[
+              styles.dot,
+              { backgroundColor: foreground, borderColor: current && mark === 'accent' ? content.accent : ground },
+            ]}
           />
         ) : null}
       </View>
       {showLabel ? (
-        <Text variant="uiLabel" color={foreground} align="center" numberOfLines={1}>
+        <Text
+          variant="uiLabel"
+          color={foreground}
+          align="center"
+          numberOfLines={1}
+          style={current && mark === 'dot' ? styles.bold : null}
+        >
           {unread ? `${label} •` : label}
         </Text>
       ) : null}
+      {current && mark === 'dot' ? <View aria-hidden style={styles.currentDot} /> : null}
       {unread && describedByElement ? (
         <View nativeID={descriptionId} style={styles.hidden}>
           <Text variant="uiLabel">{unreadDescription}</Text>
@@ -89,6 +105,10 @@ export function DestinationItem({
 const styles = StyleSheet.create({
   item: { alignItems: 'center', justifyContent: 'center', gap: spacing[1], cursor: 'pointer' as const },
   current: { backgroundColor: content.accent },
+  glass: { backgroundColor: 'rgba(255,255,255,0.13)' },
+  dotted: { gap: 3 },
+  bold: { fontWeight: '800' },
+  currentDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: space.focus },
   dot: {
     position: 'absolute',
     top: -2,

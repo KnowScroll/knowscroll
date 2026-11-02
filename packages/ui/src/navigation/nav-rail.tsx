@@ -23,10 +23,21 @@ export interface NavRailProps {
   };
   /** The address of each destination; on the web the items become real links. */
   readonly hrefFor?: (destination: Destination) => string;
+  /** `dot` marks the current destination with a bold word and a yellow dot (the Universe's desktop rail, D02). */
+  readonly mark?: 'accent' | 'dot';
 }
 
 /** The ink navigation rail of tablets and desktops (V01 `.tnav`, D01–D05 `.rnav`). */
-export function NavRail({ active, onSelect, size, tone = 'paper', unread = false, account, hrefFor }: NavRailProps) {
+export function NavRail({
+  active,
+  onSelect,
+  size,
+  tone = 'paper',
+  unread = false,
+  account,
+  hrefFor,
+  mark = 'accent',
+}: NavRailProps) {
   const desktop = size === 'desktop';
   return (
     <View
@@ -64,6 +75,7 @@ export function NavRail({ active, onSelect, size, tone = 'paper', unread = false
             href={hrefFor?.(destination.id)}
             ground={content.nav}
             onSelect={onSelect}
+            mark={desktop ? mark : 'accent'}
           />
         ))}
       </View>

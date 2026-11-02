@@ -199,6 +199,9 @@ describe('laying out the universe for the space views', () => {
     expect(lone).toHaveLength(1);
     expect(lone[0]!.position).toEqual({ x: 0, y: 0, z: 0 });
     expect(lone[0]!.radius).toBeGreaterThan(4);
+    // It is framed tighter than its radius, so it runs past both edges of a phone, as U01 Emerging draws it.
+    const framed = layOutUniverse(input({ index: empty, dustCueIds: [fixtureId(1)] })).universeFocus;
+    expect(framed.halfWidth).toBeLessThan(lone[0]!.radius);
     const space = layOutUniverse(input({ dustCueIds: [fixtureId(3), fixtureId(2)] }));
     const { universeFocus } = space;
     for (const cloud of space.definition.dust!)
