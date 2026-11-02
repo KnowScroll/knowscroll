@@ -65,6 +65,11 @@ export interface ReplayLine {
    * sentence. The answer replayed is the one served, so these sentences are not in it. Absent when the job dropped none.
    */
   readonly dropped?: number;
+  /**
+   * How many sentences the production job took out of the writer's draft before it was checked, because they copied a passage or leaned
+   * on a sentence that was taken out (D-347, D-348), from its receipts: a number, never a sentence. Absent when it took out none.
+   */
+  readonly trimmed?: number;
   /** Why the check gave no usable answer, when it did not. */
   readonly code?: string;
   readonly runIds?: readonly string[];
@@ -167,6 +172,28 @@ function droppedOf(outcomes: unknown): number {
   }, 0);
 }
 
+const TrimmedReceipt = z.object({
+  kind: z.literal('answer_trimmed'),
+  draft: z.number().int(),
+  copied: z.number().int().min(0),
+  leaning: z.number().int().min(0),
+});
+const CheckedDraftReceipt = z.object({ role: z.literal('support_check'), draft: z.number().int() });
+
+/** How many sentences the job's receipts say code took out of the draft that was served, before it was checked (D-347). */
+function trimmedOf(outcomes: unknown): number {
+  if (!Array.isArray(outcomes)) return 0;
+  const drafts = outcomes.flatMap((receipt: unknown) => {
+    const parsed = CheckedDraftReceipt.safeParse(receipt);
+    return parsed.success ? [parsed.data.draft] : [];
+  });
+  const served = Math.max(0, ...drafts);
+  return outcomes.reduce<number>((total, receipt: unknown) => {
+    const parsed = TrimmedReceipt.safeParse(receipt);
+    return parsed.success && parsed.data.draft === served ? total + parsed.data.copied + parsed.data.leaning : total;
+  }, 0);
+}
+
 /** Whether an asset id is a UUID, so it can be matched without a cast failing the whole read. */
 export const isAssetId = (value: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(value);
@@ -245,6 +272,7 @@ export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
     const count = (kind: SentenceVerdict['verdict']) =>
       checked.verdicts.filter((verdict) => verdict.verdict === kind).length;
     const dropped = droppedOf(stored.outcomes);
+    const trimmed = trimmedOf(stored.outcomes);
     const line: ReplayLine = {
       assetId,
       outcome: checked.record.kind,
@@ -257,6 +285,7 @@ export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
       codes: codeCounts(checked.verdicts, sentences, passages),
       runIds,
       ...(dropped === 0 ? {} : { dropped }),
+      ...(trimmed === 0 ? {} : { trimmed }),
       ...(checked.record.code === undefined ? {} : { code: checked.record.code }),
     };
     if (checked.record.kind !== 'checked') return { line };

@@ -110,7 +110,9 @@ const isResult = (value: Draft | ProduceScrollResult): value is ProduceScrollRes
  * the support check does (D-250). The stage sends at most two writer requests (the first draft with the
  * harness's repair, or with the one repair a flag earns) and at most two checks (one for each draft), and
  * holds no transaction while a request is out. The answer to a question may send four: the first draft and its
- * repair, then the revision a support check earns and its repair for a copied passage (D-297).
+ * repair, then the revision a support check earns and its repair for a length out of range, an opening paragraph taken out whole
+ * or a copied run the trim could not place (D-297, D-352). Before either draft is checked, code takes out of it the sentences it can
+ * (the ones that copy a passage or lean, D-347, D-348), so the check reads what could be served.
  */
 export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperations) {
   const answerCheck = makeAnswerCheckStep(deps);
@@ -152,7 +154,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     if (attempts === undefined) return refuse(['accounting_unavailable'], receipt);
     const paidAttemptIds = attempts.filter(isSentAttempt).map((attempt) => attempt.attemptId);
     // The first draft has the harness's repair. The second is the repair a flag earned and has none of its own, except
-    // the revision after a support check, which has one for a copied passage (D-297).
+    // the revision after a support check, which has one for the findings of D-352.
     const mostPaidAttempts = number === 1 || hasSupportCheck(stage.subject) ? 2 : 1;
     if (paidAttemptIds.length < 1 || paidAttemptIds.length > mostPaidAttempts)
       return refuse(['attempt_bound_exceeded'], receipt);
@@ -270,7 +272,8 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
   /**
    * Asks the support checker about the answer to a question and acts on the verdicts (D-250). Nothing unsupported:
    * the Scroll is published. An unsupported sentence in the first draft earns the writer one revision, whether or not the
-   * validator had repaired that draft. A sentence still unsupported after the revision is taken out and the rest is served, if
+   * validator had repaired that draft; none when only the title or the dek is unsupported, since code writes its own line for
+   * either (D-350, D-351). A sentence still unsupported after the revision is taken out and the rest is served, if
    * enough of it is left (D-310); otherwise the job ends. A check that gave no usable answer ends the job: nobody reads an ask
    * order before the person who asked, so it is never served unchecked.
    */
@@ -325,7 +328,8 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
   /**
    * Serves the revision without the sentences its check still found unsupported, when what is left is enough (D-310), and ends the
    * job when it is not. The sentences left each have the verdict they were checked with; nothing is checked again. The answer stored
-   * and compiled is the one served, and the receipts say how many sentences were taken out, never which.
+   * and compiled is the one served, and the receipts say how many sentences were taken out and whether the title or the dek was
+   * replaced by code's own line, never which sentences.
    */
   async function publishWithoutFlagged(
     stage: Stage,
@@ -372,7 +376,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
 
   /**
    * The one revision an unsupported first draft earns: the writer sees the findings and its draft, and the new draft is checked
-   * in turn. A revision refused for copying a passage has one repair of its own; any other refusal of it ends the job (D-297).
+   * in turn. A revision refused for a length out of range, an opening paragraph taken out whole or a copied run the trim could not place has one repair of its own; any other refusal of it ends the job (D-297, D-352).
    */
   async function repairUnsupported(
     stage: Stage,
