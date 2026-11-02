@@ -3924,7 +3924,7 @@ Confirmed by: `friend-picker.test.tsx`.
 
 Confirmed by: `share-stop-sheet.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (the picture and the quote before any thread is chosen, with axe).
 
-## D-341 · 2026-11-02 · After a new topic lands on a Scroll, a note offers the Reel and Undo; the format still stays (v3 Scrolls fidelity, #497)
+## D-356 · 2026-11-02 · After a new topic lands on a Scroll, a note offers the Reel and Undo; the format still stays (v3 Scrolls fidelity, #497)
 
 **Amends** D-132 only in showing it: the format still stays the one the person is in, and now the card says so (V3 G4).
 
@@ -3936,7 +3936,7 @@ Confirmed by: `share-stop-sheet.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts
 
 Confirmed by: `format-note.test.tsx` (what the note says from two entries; no switch without a ready Reel; none for the first open, a Part, a related move, a format switch, a Reel left behind), `reader-keys.test.ts`, `e2e/scroll-motion-smoke.spec.ts` (Next ↑ shows it at 390 and 1440, Undo and Esc go back, a Part does not show it, axe).
 
-## D-342 · 2026-11-02 · The end of a Scroll has a pull handle whose meter fills with the pull (v3 Scrolls fidelity, #497)
+## D-357 · 2026-11-02 · The end of a Scroll has a pull handle whose meter fills with the pull (v3 Scrolls fidelity, #497)
 
 **Builds on** D-134 (the pull of 96 px from the end) and D-189.
 
@@ -3947,22 +3947,22 @@ Confirmed by: `format-note.test.tsx` (what the note says from two entries; no sw
 
 Confirmed by: `part-gesture.test.ts` (the drag the meter shows is the one the release takes), `part-peek.test.tsx`, `e2e/scroll-motion-smoke.spec.ts` (the meter grows with a finger held 48 px and 80 px up, empties on a short pull, nothing moves).
 
-## D-343 · 2026-11-02 · The next Part comes in under the finger during a swipe, and a Part that opens slides in unless a swipe showed it (v3 Scrolls fidelity, #497)
+## D-358 · 2026-11-02 · The next Part comes in under the finger during a swipe, and a Part that opens slides in unless a swipe showed it (v3 Scrolls fidelity, #497)
 
 **Amends** D-134 ("The Part 2 entry animation ... not decided here").
 
 - **During the swipe.** A sideways finger drag of 12 px or more brings a panel in from the edge that Part waits at (the next from the right, the one before from the left), following the finger. It carries what is known before the Part opens: its label and title, never its text. A bar along its top fills as the drag goes on, with a notch at the distance a release needs: "KEEP GOING · PART 2", then "PAST THE NOTCH · LET GO TO CONTINUE". Only for a Part that was admitted.
 - **After it.** A release that counts settles the panel over the area and holds it until the Part opens (put away after six seconds if none does). A release that does not count sends it back to its edge.
 - **A Part that opens by button, key or tab** slides in from the right (360 px, `motion.thread`). One that a swipe has just shown arriving does not slide a second time: the reader that is left notes the commit and the one that opens asks (a timestamp of eight seconds, which decides only whether to animate).
-- **Reduced motion.** No panel and no slide: a plain change, with the same bar and tab (D-344).
+- **Reduced motion.** No panel and no slide: a plain change, with the same bar and tab (D-359).
 - **Not built.** The frame's Cancel and Continue buttons under the drag: a finger cannot press them; the dock's Part 2 button and the → key are the equivalents.
 - **No decision moves.** The release is still `partMoveOf` (D-134); the panel is drawn for the eye alone and hidden from assistive technology.
 
 Confirmed by: `part-gesture.test.ts`, `part-peek.test.tsx`, `e2e/scroll-motion-smoke.spec.ts` (the panel follows a finger held 30 px and 110 px, a short drag puts it back, nothing before the first Part, reduced motion draws none, axe).
 
-## D-344 · 2026-11-02 · A Part that opens from the one before says its place there is kept, and has a tab back (v3 Scrolls fidelity, #497)
+## D-359 · 2026-11-02 · A Part that opens from the one before says its place there is kept, and has a tab back (v3 Scrolls fidelity, #497)
 
-**Amends** D-134 ("not decided here") with D-343.
+**Amends** D-134 ("not decided here") with D-358.
 
 - **The bar.** "Part 2 · your place in Part 1 is kept" over the top of the text for four seconds, as a polite status. It is said only when the Scroll opened by a step forward in its series from an earlier Part of the same series: in Explore from the trail; on `/scroll/<id>` from a note kept in memory by the step forward and taken once by the Scroll that opens (nothing goes in the address, so a link, a reload or a later visit says nothing).
 - **Why it is true.** The Part left stays in the trail with its stop (Back returns to it), and its resume place is kept for its address. The bar names no stop.
