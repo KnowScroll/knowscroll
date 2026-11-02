@@ -3586,3 +3586,30 @@ Confirmed by: `copy-repair.test.ts` (the notes name each place and the passage's
 - **Limits.** A revision that copies twice, or is refused for anything but copying, still ends the job. A take may now send four writer requests, not two, which costs more of the daily request cap in the worst case. Whether it lifts the asks is measured on dev.
 
 Confirmed by: `versions.test.ts` (the bound and the claim), `propose.test.ts` (a repair narrowed to one kind of refusal: repairs it, leaves another kind alone, nothing for an empty list or when repair is forbidden, still one repair at most) and `supply-ask.test.ts` on real PostgreSQL with a labelled fixture model (a repaired draft that is flagged earns the revision and is served; a revision that copies is repaired once with the passage words named by block, checked and served, in its own run under the `.fix` version; one that copies again ends the job after three writer requests and one check; a revision refused for copying and for a missing limit callout has no repair). Shown failing when the narrowing was removed, when the revision was refused to a repaired draft and when the bound stayed at twelve.
+
+## D-295 · 2026-11-02 · General, Feed and Topics are tabs of the room: chosen in place, never an address change (R-8c, #606)
+
+**Builds on** D-248 (the Feed from the Now strip and the room menu), D-276 (the live strip and its Feed chip) and T3 ("a General / Feed / Topics segmented bar under the room header"). **Amends** R-8, where the Feed was a screen of its own that the Now strip's Feed chip and the room menu's Feed row pushed.
+
+- **In place.** A member's room has a bar of three tabs under its header, at every width. Choosing one changes what the room shows and nothing else: the address stays, no entry is added to the history, and Back leaves the room, not the tab.
+- **Where it stands.** On a phone the bar is under the band. From 1024 px the room's header is in the left pane (D04), so the bar stands at the top of the centre pane, over the same three tabs.
+- **Kept.** Feed and Topics are read the first time they are opened. A tab that has been opened stays mounted, so its scroll and what was typed in it are still there when it is opened again. A tab that is not open is hidden from a screen reader and cannot be reached with Tab. It also does nothing: its Feed and its topics are not polled, and a Reel being watched together in General is paused and records nothing; coming back reads once and resumes under the same rules as before. The same holds while a discussion is open over the room.
+- **The old ways in.** The Now strip's Feed chip and the room menu's Feed row open the Feed tab. The room menu's Topics page stays, as the place for Pins and for a phone's short list.
+- **The address.** `/rooms/<id>/feed` is the room opened on its Feed tab. It stays so a link to the Feed lands on the Feed; the tabs do not rewrite it, so a reload of a room on its Feed opens General.
+- **Keys.** Tab reaches the open tab; the left and right arrows move to the neighbouring tab, wrapping, and Home and End to the first and last. A key with Alt, Ctrl or Cmd is left to the browser. The keyboard map lists them under "Room tabs".
+- **Not changed.** No server call, contract or migration; the Feed, its sorts, votes and posts are as D-271 to D-279 made them.
+
+Confirmed by: `room-tabs.test.tsx` (the open tab, opening on the Feed, a tab keeping what it held, a tab read once), `rooms-tabs-smoke.spec.ts` (no address or history change, Back leaving the room, the deep link, the arrow keys, Home and End, and each tab's scroll kept, at 390 and 1440).
+
+## D-296 · 2026-11-02 · A member's room stands on its own kit's ground, with cream cards on it (R-8c, #606)
+
+**Builds on** D-170 (a kit's ink is checked against its ground), D-173 and D-177 (the band's backdrop) and T3 ("a dark space ground with cream cards"). **Amends** R-1, which gave only the band a face and left the rest of the room on paper.
+
+- **The ground.** Under the band, the bar and the three tabs stand on the kit's ground colour; a room with no face keeps the dark space ground. The painted backdrop stays on the band only.
+- **Ink and cards.** Words that sit straight on the ground (a day label, a name over a bubble, a list's title, the line under the sorts, the labels of the General / Feed / Topics bar) are drawn in the kit's ink, whose contrast with the ground was checked before the kit could be shown (4.5 to 1). Nothing is laid between such words and the ground: the bar has no tint under its labels, only a hairline edge drawn over it, and the open tab is the ink with the ground's colour on it, the same pair turned round. Anything with its own fill (a message, a post, a topic row, a chip, a button) keeps it, so a card is cream on a dark kit and on a pale one.
+- **A quiet button.** A ghost button has no fill, so on the ground it is drawn with its card.
+- **The focus ring.** Cobalt reaches 3:1 on paper but not on most kit grounds (2.3 to 3.0 on the dark ones). On a ground it cannot be seen on, the ring keeps its cobalt and gains a band of white (or black on a mid-tone such as lilac) on both sides, so it reaches 3:1 against the ground and the ground-coloured band reaches 3:1 against the cobalt. On a cream card inside the ground the white band is not seen. The room says which halo its ground needs; every control that draws the cobalt ring reads it.
+- **Not a theme.** Only a member's room is on the ground. A discussion opened from it, the preview before joining and every other screen keep paper.
+
+Confirmed by: `room-tabs.test.tsx` ("the room's ground": the kit's ground and ink, the default, a plain page, AA contrast of the kit tones, the focus ring on a dark and a pale ground), `rooms-tabs-smoke.spec.ts` (the ground of a dark and a pale room, and axe over each tab at 390 and 1440).
+

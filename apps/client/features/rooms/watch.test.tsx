@@ -8,6 +8,7 @@ import {
 } from '@knowscroll/client-core';
 import type { RoomWatch, WatchSessionView } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
+import { RoomPanels, RoomTabBar, type RoomTab } from './room-tabs';
 import { WatchSheet } from './watch-sheet';
 import { WatchStage } from './watch-stage';
 
@@ -300,6 +301,39 @@ describe('the stage for someone who joined', () => {
     opened();
     mockFocused = false;
     await wrap(<WatchStage scope={scope} session={joined()} state={joinedState()} controller={controllerOf()} />);
+    expect(lastPlayer().active).toBe(false);
+  });
+
+  it('plays only while General is the open tab of the room, and picks up again when General is shown', async () => {
+    opened();
+    function Tabbed() {
+      const [tab, setTab] = React.useState<RoomTab>('general');
+      return (
+        <>
+          <RoomTabBar tab={tab} onSelect={setTab} />
+          <RoomPanels
+            tab={tab}
+            general={<WatchStage scope={scope} session={joined()} state={joinedState()} controller={controllerOf()} />}
+            feed={null}
+            topics={null}
+          />
+        </>
+      );
+    }
+    await wrap(<Tabbed />);
+    expect(lastPlayer().active).toBe(true);
+    // Behind the Feed the stage is still mounted (it keeps its place) but the player is told it is not on screen, so it neither
+    // plays with sound nor samples.
+    await fireEvent.press(screen.getByTestId('room-tab-feed'));
+    expect(lastPlayer().active).toBe(false);
+    await fireEvent.press(screen.getByTestId('room-tab-topics'));
+    expect(lastPlayer().active).toBe(false);
+    await fireEvent.press(screen.getByTestId('room-tab-general'));
+    expect(lastPlayer().active).toBe(true);
+    // The route's own focus still counts: General is open, but another screen is over the room.
+    mockFocused = false;
+    await fireEvent.press(screen.getByTestId('room-tab-feed'));
+    await fireEvent.press(screen.getByTestId('room-tab-general'));
     expect(lastPlayer().active).toBe(false);
   });
 

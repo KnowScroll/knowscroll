@@ -34,6 +34,7 @@ import {
 import { useMemo } from 'react';
 import type { RoomTopicItem, RoomTopicSort, RoomTopicTag } from '@knowscroll/contracts';
 import { newCommandId } from '../../platform/command-id';
+import { useRoomTabOpen } from './room-tab-open';
 
 /** How often an open room or discussion asks again, in case nothing else did. */
 const POLL_MS = 20_000;
@@ -114,12 +115,14 @@ export function useRoomTopics(
     readonly refreshKey: unknown;
     /** Off where the list is not shown (the pinned page), so nothing is read for it. */
     readonly enabled: boolean;
+    /** The list is on a tab that is not open: nothing is read until it is shown again, and the last list stays. */
+    readonly paused?: boolean;
   },
 ): readonly RoomTopicItem[] | undefined {
   const [topics, setTopics] = useState<readonly RoomTopicItem[]>();
-  const { sort, tag, refreshKey, enabled } = query;
+  const { sort, tag, refreshKey, enabled, paused = false } = query;
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (!enabled || paused) return undefined;
     let current = true;
     readRoomTopics(scope, newCommandId, roomId, { sort, ...(tag === undefined ? {} : { tag }) }).then(
       (items) => {
@@ -132,7 +135,7 @@ export function useRoomTopics(
     return () => {
       current = false;
     };
-  }, [scope, roomId, sort, tag, refreshKey, enabled]);
+  }, [scope, roomId, sort, tag, refreshKey, enabled, paused]);
   return enabled ? topics : undefined;
 }
 
@@ -285,14 +288,17 @@ export function useRoomFeed(
 ): { controller: RoomFeedController; state: RoomFeedState } {
   const [controller] = useState(() => createRoomFeed({ scope, roomId, newId: newCommandId }));
   const state = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
+  // Hidden behind another tab, or behind a discussion over the room, the feed is not read; it is read once when it is shown again.
+  const open = useRoomTabOpen();
   useQuery({
     queryKey: scope.queryKey(TALK_QUERY_KEY, 'room-feed', roomId),
     queryFn: async () => {
       await controller.load();
       return Date.now();
     },
+    enabled: open,
     staleTime: 0,
-    refetchInterval: POLL_MS,
+    refetchInterval: open ? POLL_MS : false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });

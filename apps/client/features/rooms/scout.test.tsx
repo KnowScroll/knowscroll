@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { RoomFeedController, RoomFeedState } from '@knowscroll/client-core';
 import type { RoomFeed, RoomFeedPost, RoomScout } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
-import { RoomFeedScreen } from './feed-screen';
+import { RoomFeedPanel } from './feed-screen';
 import { FeedPost } from './feed-post';
 import { ScoutSheet } from './scout-sheet';
 
@@ -111,7 +111,7 @@ const show = (view: Extract<RoomFeed, { status: 'ready' }>, controller: Partial<
     controller,
     state: { phase: 'ready', view, sort: 'hot', window: 'week', offline: false, working: false, refused: false },
   };
-  return wrap(<RoomFeedScreen roomId={roomId} />);
+  return wrap(<RoomFeedPanel scope={{ active: true } as never} roomId={roomId} />);
 };
 
 beforeEach(() => mockPush.mockClear());

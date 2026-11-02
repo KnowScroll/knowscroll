@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, View } from 'react-native';
 import {
   emptyFeedWords,
   feedSorts,
@@ -13,19 +12,18 @@ import {
 } from '@knowscroll/client-core';
 import type { FeedbackTarget } from '@knowscroll/client-core';
 import type { RoomIdentity, RoomInhabitant } from '@knowscroll/contracts';
-import { borderWidth, content, layout, radius, spacing } from '@knowscroll/design-tokens';
+import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Skeleton, StateBlock, Text } from '@knowscroll/ui';
-import { useDocumentTitle } from '../../platform/document-title';
-import { useAccountScope } from '../../providers/account-scope';
 import { FeedbackSheet } from '../feedback/feedback-sheet';
-import { ThreadHeader } from '../threads/thread-chrome';
 import { AiLabel } from './ai-label';
 import { FeedPost } from './feed-post';
 import { ResidentMark } from './identity/room-emblem';
+import { useGroundInk, useQuietButton } from './identity/room-ground';
 import { PostSheet } from './post-sheet';
 import { ResidentSheet } from './resident-sheet';
 import { ScoutSheet } from './scout-sheet';
-import { discussionHref, isRoomId, roomHref } from './room-links';
+import { discussionHref } from './room-links';
+import { PanelScroll } from './room-tabs';
 import { useRoomFeed } from './use-room';
 
 /** The residents who post, as a row of chips: tapping one opens its profile. Names and labels, never a count. */
@@ -73,6 +71,8 @@ function SortBar({
   readonly canPost: boolean;
   readonly onPost: () => void;
 }) {
+  const ink = useGroundInk(content.ink2);
+  const quiet = useQuietButton();
   return (
     <View style={styles.sortBar}>
       <View style={styles.sortRow}>
@@ -100,7 +100,7 @@ function SortBar({
               key={window}
               label={label}
               size="sm"
-              variant={state.window === window ? 'ink' : 'ghost'}
+              variant={state.window === window ? 'ink' : quiet}
               toggled={state.window === window}
               onPress={() => void controller.setWindow(window)}
               testID={`feed-window-${window}`}
@@ -108,10 +108,10 @@ function SortBar({
           ))}
         </View>
       ) : null}
-      <Text variant="monoXs" color={content.ink2} testID="feed-people-only">
+      <Text variant="monoXs" color={ink} testID="feed-people-only">
         VOTES COME FROM PEOPLE ONLY · AGENTS CAN’T VOTE
       </Text>
-      <Text variant="metaS" color={content.ink2}>
+      <Text variant="metaS" color={ink}>
         {sortWords[state.sort]}
       </Text>
     </View>
@@ -230,72 +230,47 @@ function Body({
  * A member's post links a Reel, a Scroll or a source; a resident's or scout's find is a real library asset with a short labelled note.
  * Only people vote, and a vote is a count and never a name; there is no karma and no leaderboard, and no resident can be messaged. A
  * reader whose AI is Off is listed no find but still every post a member made; a room with nothing new is told that, and nothing is
- * made up to fill it.
+ * made up to fill it. It is the room's Feed tab: it stands on the room's ground, so what is not a card is drawn in the kit's ink.
  */
-function FeedRoom({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
-  const router = useRouter();
+export function RoomFeedPanel({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
   const { controller, state } = useRoomFeed(scope, roomId);
-  const back = () => (router.canGoBack() ? router.back() : router.replace(roomHref(roomId)));
-  useDocumentTitle('Feed');
   const view = state.view;
-  if (state.phase === 'loading') return <Skeleton rows={4} label="Loading the feed" />;
+  if (state.phase === 'loading')
+    return (
+      <PanelScroll testID="feed-screen">
+        <View style={styles.notice}>
+          <Skeleton rows={4} label="Loading the feed" />
+        </View>
+      </PanelScroll>
+    );
   if (view === undefined)
-    return state.phase === 'failed' ? (
-      <StateBlock
-        title="Can’t open the feed"
-        body="Check your connection and try again."
-        actions={[{ label: 'Try again', onPress: () => void controller.load() }]}
-      />
-    ) : (
-      <StateBlock
-        title="The feed isn’t available"
-        body="You may no longer be in this room, or it may have closed."
-        actions={[{ label: 'Back to the room', role: 'link', href: roomHref(roomId), onPress: back }]}
-      />
+    return (
+      <PanelScroll testID="feed-screen">
+        <View style={styles.notice}>
+          {state.phase === 'failed' ? (
+            <StateBlock
+              title="Can’t open the feed"
+              body="Check your connection and try again."
+              actions={[{ label: 'Try again', onPress: () => void controller.load() }]}
+            />
+          ) : (
+            <StateBlock
+              title="The feed isn’t available"
+              body="You may no longer be in this room, or it may have closed."
+            />
+          )}
+        </View>
+      </PanelScroll>
     );
   return (
-    <ScrollView contentContainerStyle={styles.scroll} testID="feed-screen">
-      <ThreadHeader
-        title="Feed"
-        people="Posts from this room’s people, residents and scouts"
-        onBack={back}
-        onMenu={undefined}
-      />
-      <View style={styles.column}>
-        <Body scope={scope} roomId={roomId} state={state} controller={controller} />
-      </View>
-    </ScrollView>
-  );
-}
-
-/** `/rooms/<id>/feed`: signed in, a member's feed; anything else is the same refusal as a room that is not there. */
-export function RoomFeedScreen({ roomId }: { readonly roomId: string }) {
-  const { state } = useAccountScope();
-  const insets = useSafeAreaInsets();
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
-    >
-      {!isRoomId(roomId) || state.status !== 'signed_in' ? (
-        <StateBlock title="The feed isn’t available" body="Sign in and open the room again." />
-      ) : (
-        <FeedRoom key={roomId} scope={state.scope} roomId={roomId} />
-      )}
-    </KeyboardAvoidingView>
+    <PanelScroll testID="feed-screen">
+      <Body scope={scope} roomId={roomId} state={state} controller={controller} />
+    </PanelScroll>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: content.paper },
-  scroll: { flexGrow: 1, paddingBottom: spacing[8] },
-  column: {
-    gap: spacing[4],
-    padding: layout.gutter,
-    width: '100%',
-    maxWidth: layout.measureDesktop,
-    alignSelf: 'center',
-  },
+  notice: { padding: spacing[3], borderRadius: radius.card, backgroundColor: content.paper },
   residents: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   resident: {
     minHeight: 44,
@@ -325,5 +300,6 @@ const styles = StyleSheet.create({
     borderColor: content.ink,
     borderStyle: 'dashed',
     borderRadius: radius.card,
+    backgroundColor: content.paper,
   },
 });

@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useContext, type ReactNode } from 'react';
+import { useContext, useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountScope, RoomController, RoomState } from '@knowscroll/client-core';
@@ -10,12 +10,13 @@ import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { ActivitiesSection } from './activities-section';
 import { AiHere } from './ai-here';
-import { GeneralStage, PhoneRoom } from './campfire';
+import { MemberTabs, PhoneRoom } from './campfire';
 import { isRoomId } from './room-links';
 import { BandTag } from './identity/band-tag';
 import { RoomBand } from './identity/room-band';
 import { RoomEmblem } from './identity/room-emblem';
 import { Guidelines, ModeratorTools, RULE_WORDS, WhoIsHere } from './room-parts';
+import type { RoomTab } from './room-tabs';
 import { RoomWorkspaceContext } from './room-workspace-context';
 import { TopicsList } from './topics-list';
 import { useRoom, useRoomActivities } from './use-room';
@@ -246,10 +247,12 @@ function RoomPage({
   scope,
   controller,
   state,
+  initialTab,
 }: {
   readonly scope: AccountScope;
   readonly controller: RoomController;
   readonly state: RoomState;
+  readonly initialTab: RoomTab;
 }) {
   const router = useRouter();
   const view = state.view;
@@ -292,7 +295,14 @@ function RoomPage({
             <Banner kind="offline" lead="Offline." message="This may be out of date." />
           </View>
         ) : null}
-        <PhoneRoom scope={scope} view={view} controller={controller} state={state} onBack={back} />
+        <PhoneRoom
+          scope={scope}
+          view={view}
+          controller={controller}
+          state={state}
+          onBack={back}
+          initialTab={initialTab}
+        />
       </>
     );
   return (
@@ -315,29 +325,61 @@ function RoomPage({
 }
 
 /** A room opened on its own (a phone, a tablet): the screen reads it itself. */
-function StandaloneRoom({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
+function StandaloneRoom({
+  scope,
+  roomId,
+  initialTab,
+}: {
+  readonly scope: AccountScope;
+  readonly roomId: string;
+  readonly initialTab: RoomTab;
+}) {
   const { controller, state } = useRoom(scope, roomId);
-  return <RoomPage scope={scope} controller={controller} state={state} />;
+  return <RoomPage scope={scope} controller={controller} state={state} initialTab={initialTab} />;
 }
 
-/** A room opened beside its own panes (D04): the layout already reads it, and a member's centre is General. */
-function WorkspaceRoom({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
+/** The centre of D04's panes: the room's own bar and tabs, with the room's header and extras in the panes beside it. */
+function CentreRoom({
+  scope,
+  view,
+  initialTab,
+}: {
+  readonly scope: AccountScope;
+  readonly view: Member;
+  readonly initialTab: RoomTab;
+}) {
+  const workspace = useContext(RoomWorkspaceContext)!;
+  const [tab, setTab] = useState<RoomTab>(initialTab);
+  return (
+    <View style={styles.centreHome} testID="room-workspace-home">
+      <MemberTabs
+        scope={scope}
+        view={view}
+        controller={workspace.controller}
+        state={workspace.state}
+        tab={tab}
+        onTab={setTab}
+      />
+    </View>
+  );
+}
+
+/** A room opened beside its own panes (D04): the layout already reads it, and a member's centre is its tabs. */
+function WorkspaceRoom({
+  scope,
+  roomId,
+  initialTab,
+}: {
+  readonly scope: AccountScope;
+  readonly roomId: string;
+  readonly initialTab: RoomTab;
+}) {
   const workspace = useContext(RoomWorkspaceContext);
-  if (workspace === undefined) return <StandaloneRoom scope={scope} roomId={roomId} />;
+  if (workspace === undefined) return <StandaloneRoom scope={scope} roomId={roomId} initialTab={initialTab} />;
   const view = workspace.state.view;
   if (workspace.panes && view?.status === 'member')
-    return (
-      <View style={styles.centreHome} testID="room-workspace-home">
-        <GeneralStage
-          scope={scope}
-          view={view}
-          controller={workspace.controller}
-          state={workspace.state}
-          header={null}
-        />
-      </View>
-    );
-  return <RoomPage scope={scope} controller={workspace.controller} state={workspace.state} />;
+    return <CentreRoom scope={scope} view={view} initialTab={initialTab} />;
+  return <RoomPage scope={scope} controller={workspace.controller} state={workspace.state} initialTab={initialTab} />;
 }
 
 /**
@@ -345,7 +387,14 @@ function WorkspaceRoom({ scope, roomId }: { readonly scope: AccountScope; readon
  * Outsiders see who it is for and who is here to help, then join; members see the room's discussions.
  * No member, activity or online count is shown anywhere, and joining never changes the universe.
  */
-export function RoomScreen({ roomId }: { readonly roomId: string }) {
+export function RoomScreen({
+  roomId,
+  initialTab = 'general',
+}: {
+  readonly roomId: string;
+  /** The tab the address asked for: `/rooms/<id>/feed` is the room opened on its Feed. */
+  readonly initialTab?: RoomTab;
+}) {
   const { state, manager } = useAccountScope();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -357,7 +406,7 @@ export function RoomScreen({ roomId }: { readonly roomId: string }) {
       {!isRoomId(roomId) ? (
         <StateBlock title="This room isn’t available" body="Check the address and try again." />
       ) : state.status === 'signed_in' ? (
-        <WorkspaceRoom key={roomId} scope={state.scope} roomId={roomId} />
+        <WorkspaceRoom key={roomId} scope={state.scope} roomId={roomId} initialTab={initialTab} />
       ) : state.status === 'unavailable' ? (
         <StateBlock
           title="Can’t reach your account"

@@ -4,6 +4,7 @@ import {
   content,
   defaultTalkTheme,
   family,
+  focusHalo,
   focusRing,
   iconStroke,
   motion,
@@ -89,6 +90,8 @@ describe('colour pairs', () => {
     ['dark focus ring on ink', focusRing.onDark.color, content.ink],
     ['dark focus ring on space', focusRing.onDark.color, space.s0],
     ['dark focus ring on cobalt media', focusRing.onDark.color, content.accent],
+    ['cobalt focus ring against its white halo', focusRing.onLight.color, focusHalo.light],
+    ['cobalt focus ring against its black halo', focusRing.onLight.color, focusHalo.dark],
   ];
   it.each(edges)('%s meets 3:1', (_name, foreground, background) => {
     expect(contrast(foreground, background)).toBeGreaterThanOrEqual(3);

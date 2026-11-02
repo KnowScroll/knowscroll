@@ -9,7 +9,7 @@ import type {
   RoomLaunchStrip,
 } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
-import { RoomFeedScreen } from './feed-screen';
+import { RoomFeedPanel } from './feed-screen';
 import { FeedPost } from './feed-post';
 import { NowStrip } from './now-strip';
 import { ResidentSheet } from './resident-sheet';
@@ -120,7 +120,7 @@ const show = (
   patch: Partial<RoomFeedState> = {},
 ) => {
   mockFeed.current = { controller, state: state({ view, ...patch }) };
-  return wrap(<RoomFeedScreen roomId={roomId} />);
+  return wrap(<RoomFeedPanel scope={{ active: true } as never} roomId={roomId} />);
 };
 
 /** The words appear in the text content, whatever sits around them. */
@@ -291,7 +291,7 @@ describe('the Feed screen', () => {
 
   it('is told, when the server refuses, that the room is not available, without why', async () => {
     mockFeed.current = { controller: {}, state: state({ phase: 'unavailable', view: undefined }) };
-    await wrap(<RoomFeedScreen roomId={roomId} />);
+    await wrap(<RoomFeedPanel scope={{ active: true } as never} roomId={roomId} />);
     expect(screen.getByText('The feed isn’t available')).toBeOnTheScreen();
   });
 });
@@ -355,6 +355,7 @@ describe('the live strip on the Now strip', () => {
 
   it('shows who posted and who replied and how long ago, each opening its post, and a Feed chip that opens the feed', async () => {
     const asha = { kind: 'person' as const, personId: id(7), handle: 'asha', displayName: 'Asha' };
+    const onOpenFeed = jest.fn();
     await wrap(
       <NowStrip
         scope={{} as never}
@@ -362,6 +363,7 @@ describe('the live strip on the Now strip', () => {
         today={undefined}
         sky={sky}
         launch={noLaunch}
+        onOpenFeed={onOpenFeed}
         live={[
           event({
             kind: 'replied',
@@ -378,8 +380,11 @@ describe('the live strip on the Now strip', () => {
     expect(screen.getByTestId('now-feed-1')).toHaveTextContent(has('Novaposted · 2 h ago'));
     await fireEvent.press(screen.getByTestId('now-feed'));
     expect(mockPush).toHaveBeenCalledWith(`/rooms/${roomId}/t/${id(4)}`);
+    // The Feed chip opens the Feed tab in place: it asks the room for it and navigates nowhere.
+    mockPush.mockClear();
     await fireEvent.press(screen.getByTestId('now-feed-open'));
-    expect(mockPush).toHaveBeenCalledWith(`/rooms/${roomId}/feed`);
+    expect(onOpenFeed).toHaveBeenCalledTimes(1);
+    expect(mockPush).not.toHaveBeenCalled();
     expect(screen.queryByText(/online|people here|\d+ (people|members)/i)).not.toBeOnTheScreen();
   });
 
