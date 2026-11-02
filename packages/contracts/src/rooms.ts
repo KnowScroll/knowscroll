@@ -59,6 +59,14 @@ import {
   RoomSourceSchema,
   VoteRoomPostSchema,
 } from './room-posts.js';
+import {
+  ChooseRoomFlairSchema,
+  ReadRoomFlairSchema,
+  RoomFlairChosenAcceptanceSchema,
+  RoomFlairKindSchema,
+  RoomFlairViewSchema,
+  RoomMessageStarSchema,
+} from './room-flair.js';
 import { NewDebateSchema, RoomDebateSchema, RoomNamingSchema, RoomSkySchema, RoomStarSchema } from './room-sky.js';
 import { RecordingGenerationSchema } from './recording.js';
 import { PublicPersonRefSchema } from './sharing.js';
@@ -402,7 +410,7 @@ export const RoomSkyViewSchema = z.discriminatedUnion('status', [
     ...ScopedRead,
     status: z.literal('ready'),
     sky: RoomSkySchema,
-    /** The newest stars first: the moment each was made, with no person in it. */
+    /** The newest stars first: the act and day of each and, for this reader, the moment that earned it (R3 E5). */
     stars: z.array(RoomStarSchema).max(28),
     /** The most stars the room can earn in a day in this world (D-174), so a screen never states a number of its own. */
     starsPerDay: z.number().int().min(1).max(50),
@@ -1038,6 +1046,13 @@ export const RoomMessageSchema = z.discriminatedUnion('status', [
     /** The reader marked this message Useful. No count is ever sent with a message, and an author is never told who marked theirs. */
     usefulByYou: z.literal(true).optional(),
     /**
+     * The flair the author chose to show beside their name (R3 E5, D-341): present only on a person's message, only while they are
+     * a member, and never for a person the reader has blocked or who has blocked the reader. An AI inhabitant or a scout never has one.
+     */
+    flair: RoomFlairKindSchema.optional(),
+    /** This answer earned the room a star, and it was the `place`th of its constellation (R3 F4, D-344). */
+    star: RoomMessageStarSchema.optional(),
+    /**
      * The reader is a moderator who has blocked the author. A block collapses the author's words for the
      * reader (`blocked`), but a moderator must still be able to moderate them, so the words are sent and
      * the client keeps them collapsed until the moderator chooses to show them.
@@ -1626,6 +1641,8 @@ export const UsefulAcceptanceSchema = z.strictObject({
   discussionId: UuidSchema,
   messageId: UuidSchema,
   useful: z.boolean(),
+  /** This mark earned the room a star, so the message now carries one (D-344). Absent otherwise, and on a replay. */
+  star: z.literal(true).optional(),
 });
 
 /** The member has read their "while you were away"; it is not shown again. The same command again is accepted. */
@@ -1679,12 +1696,14 @@ export const roomsActivityContract = {
   ),
 };
 
-/** Today's items, the room's sky and a debate's vote (v3 R-5). */
+/** Today's items, the room's sky, a member's flair and a debate's vote (v3 R-5, R-11). */
 export const roomsSkyContract = {
   today: roomsPost('/v1/rooms/today/read', ReadRoomTodaySchema, RoomTodaySchema),
   solveFlaw: roomsPost('/v1/rooms/today/solve', SolveFlawSchema, FlawSolvedAcceptanceSchema),
   sky: roomsPost('/v1/rooms/sky/read', ReadRoomSkySchema, RoomSkyViewSchema),
   nameConstellation: roomsPost('/v1/rooms/sky/name', NameConstellationSchema, ConstellationVoteAcceptanceSchema),
+  flair: roomsPost('/v1/rooms/flair/read', ReadRoomFlairSchema, RoomFlairViewSchema),
+  chooseFlair: roomsPost('/v1/rooms/flair/choose', ChooseRoomFlairSchema, RoomFlairChosenAcceptanceSchema),
   voteDebate: roomsPost('/v1/rooms/debates/vote', VoteDebateSchema, DebateVoteAcceptanceSchema),
 };
 

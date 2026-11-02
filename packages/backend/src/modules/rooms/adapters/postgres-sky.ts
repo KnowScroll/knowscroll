@@ -76,15 +76,74 @@ export const skyStore: SkyStore = {
   },
 
   async latestStars(lock, limit) {
-    const result = await sql<{ act: string; day: string; constellation_no: number }>`
-      select act, to_char(earned_on, 'YYYY-MM-DD') as day, constellation_no
+    const result = await sql<{ act: string; source_key: string; day: string; constellation_no: number }>`
+      select act, source_key, to_char(earned_on, 'YYYY-MM-DD') as day, constellation_no
       from rooms.stars where room_id = ${lock.roomId}::uuid
       order by earned_at desc, star_id desc limit ${limit}`.execute(trxOf(lock));
     return result.rows.map((row) => ({
       act: row.act as StarActName,
+      sourceKey: row.source_key,
       day: row.day,
       constellation: row.constellation_no,
     }));
+  },
+
+  async sources(lock, keys) {
+    const trx = trxOf(lock);
+    const answers =
+      keys.answers.length === 0
+        ? []
+        : (
+            await sql<{
+              message_id: string;
+              discussion_id: string;
+              author_account_id: string | null;
+              shown: boolean;
+            }>`
+              select message.message_id, message.discussion_id, message.author_account_id,
+                (message.hidden_at is null and message.body_text is not null) as shown
+              from rooms.messages message
+              join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
+              where discussion.room_id = ${lock.roomId}::uuid and message.message_id = any(${[...keys.answers]}::uuid[])`.execute(
+              trx,
+            )
+          ).rows;
+    const launches =
+      keys.launches.length === 0
+        ? []
+        : (
+            await sql<{ launch_id: string; played: number | null }>`
+              select launch_id, played from rooms.launches
+              where room_id = ${lock.roomId}::uuid and launch_id = any(${[...keys.launches]}::uuid[])
+                and state = 'finished'`.execute(trx)
+          ).rows;
+    return {
+      answers: new Map(
+        answers.map((row) => [
+          row.message_id,
+          {
+            messageId: row.message_id,
+            discussionId: row.discussion_id,
+            authorAccountId: row.author_account_id,
+            shown: row.shown,
+          },
+        ]),
+      ),
+      launches: new Map(launches.flatMap((row) => (row.played === null ? [] : [[row.launch_id, row.played] as const]))),
+    };
+  },
+
+  async placesOf(lock, messageIds) {
+    if (messageIds.length === 0) return new Map<string, number>();
+    const result = await sql<{ source_key: string; place: string }>`
+      select star.source_key,
+        (select count(*) from rooms.stars earlier
+          where earlier.room_id = star.room_id and earlier.constellation_no = star.constellation_no
+            and (earlier.earned_at, earlier.star_id) <= (star.earned_at, star.star_id)) as place
+      from rooms.stars star
+      where star.room_id = ${lock.roomId}::uuid and star.act = 'answer_useful'
+        and star.source_key = any(${[...messageIds]}::uuid[])`.execute(trxOf(lock));
+    return new Map(result.rows.map((row) => [row.source_key, Number(row.place)]));
   },
 
   async constellations(lock) {

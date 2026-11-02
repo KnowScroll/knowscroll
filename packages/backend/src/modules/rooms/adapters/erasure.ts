@@ -41,7 +41,8 @@ const QUEUES = [
  * words and no account; a queued one whose job is erased with a universe ends as failed, like a queued turn.
  */
 const LIFECYCLE = {
-  'rooms.members': 'the account membership is removed, with its AI level, keep-out choice and notice mark',
+  'rooms.members':
+    'the account membership is removed, with its AI level, keep-out choice, notice mark and flair choice',
   'rooms.room_presence': 'the lease is deleted with the membership; it also ends by itself after a minute',
   'rooms.invitations': 'invitations made to or by the account are removed',
   'rooms.discussions':
@@ -442,9 +443,10 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         ai_level: string;
         keep_out: boolean;
         notice_seen_at: Date | null;
+        flair_choice: string | null;
       }>`
         select room.name, member.role, member.joined_at, member.ended_at, member.ai_level, member.keep_out,
-          member.notice_seen_at
+          member.notice_seen_at, member.flair_choice
         from rooms.members member join rooms.rooms room on room.room_id = member.room_id
         where member.account_id = ${person.accountId}::uuid
         order by member.joined_at desc limit 500`.execute(trx);
@@ -621,6 +623,8 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
           aiLevel: row.ai_level,
           keepMessagesOutOfAi: row.keep_out,
           ...(row.notice_seen_at === null ? {} : { aiNoticeSeenAt: row.notice_seen_at.toISOString() }),
+          // The person's own choice of what shows beside their name (D-342); flair itself is read from rows the file already holds.
+          ...(row.flair_choice === null ? {} : { flairChoice: row.flair_choice }),
         })),
         discussionsStarted: started.rows.map((row) => ({
           title: row.title,

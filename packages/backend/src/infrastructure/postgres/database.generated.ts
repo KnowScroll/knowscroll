@@ -1670,6 +1670,7 @@ export interface RoomsMembers {
   ai_level: Generated<string>;
   ended_at: Timestamp | null;
   ended_by: string | null;
+  flair_choice: string | null;
   joined_at: Timestamp;
   keep_out: Generated<boolean>;
   notice_seen_at: Timestamp | null;

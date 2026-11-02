@@ -61,18 +61,22 @@ export const readFriendAccounts: ReadFriendAccounts = async (scope, accountId, q
   return rows.rows.map(personOf);
 };
 
-/** Which of these accounts the caller has blocked: their own side of a pair says so, the other side never does. */
-export const readBlockedAmong: ReadBlockedAmong = async (scope, accountId, candidates) => {
+/**
+ * Which of these accounts the caller has blocked: their own side of a pair says so, the other side never does. With
+ * `direction: 'either'`, also the accounts that blocked the caller (a block on either side of the pair).
+ */
+export const readBlockedAmong: ReadBlockedAmong = async (scope, accountId, candidates, direction = 'own') => {
   if (candidates.length === 0) return new Set();
+  const ids = [...candidates];
   const rows = await sql<{ other: string }>`
     select case when pair.low_account_id = ${accountId}::uuid then pair.high_account_id else pair.low_account_id end as other
     from social.pairs pair
-    join social.pair_sides side on side.pair_id = pair.pair_id and side.account_id = ${accountId}::uuid
-    where side.own_blocked
-      and ((pair.low_account_id = ${accountId}::uuid and pair.high_account_id = any(${[...candidates]}::uuid[]))
-        or (pair.high_account_id = ${accountId}::uuid and pair.low_account_id = any(${[...candidates]}::uuid[])))`.execute(
-    transactionOf(scope),
-  );
+    where ((pair.low_account_id = ${accountId}::uuid and pair.high_account_id = any(${ids}::uuid[]))
+        or (pair.high_account_id = ${accountId}::uuid and pair.low_account_id = any(${ids}::uuid[])))
+      and exists (
+        select 1 from social.pair_sides side
+        where side.pair_id = pair.pair_id and side.own_blocked
+          and (${direction === 'either'} or side.account_id = ${accountId}::uuid))`.execute(transactionOf(scope));
   return new Set(rows.rows.map((row) => row.other));
 };
 

@@ -5,10 +5,12 @@ import {
   RoomSkyViewSchema,
   type RoomNaming,
   type RoomSky,
+  type RoomStar,
 } from '@knowscroll/contracts';
 import type { z } from 'zod';
-import type { PersonalAuthority } from '../../identity/public.js';
+import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { receiptBase, runCommand } from './command.js';
+import { titlesFor } from './discussion-titles.js';
 import { enterRoom } from './gate.js';
 import {
   ok,
@@ -144,6 +146,62 @@ export async function skyOfRoom(p: RoomPorts, lock: RoomLock): Promise<RoomSky> 
   });
 }
 
+/**
+ * The stars as a member reads them, each with the moment that earned it (R3 E5, D-341). A star holds no account, so everything
+ * here is read from the act's own rows for this reader: an answer's author is named only while the answer is shown and the
+ * reader has not blocked them (and never who marked it, D-168); a debate's title follows the title rules of a topic (D-168);
+ * a Launch says how many played and nobody by name, as its podium is gone after the night (D-221). A star opens a discussion only
+ * when there is one this reader may read.
+ */
+export async function momentsOfStars(
+  p: RoomPorts,
+  scope: PersonalScopeTx,
+  lock: RoomLock,
+  viewerAccountId: string,
+  stars: readonly { act: StarActName; sourceKey: string; day: string; constellation: number }[],
+): Promise<RoomStar[]> {
+  const keysOf = (act: StarActName) => stars.filter((star) => star.act === act).map((star) => star.sourceKey);
+  const sources = await p.sky.sources(lock, { answers: keysOf('answer_useful'), launches: keysOf('launch_finished') });
+  const authorIds = [
+    ...new Set(
+      [...sources.answers.values()].flatMap((source) =>
+        source.shown && source.authorAccountId !== null ? [source.authorAccountId] : [],
+      ),
+    ),
+  ];
+  const people = authorIds.length === 0 ? new Map() : await p.people.byAccounts(scope, authorIds);
+  const blocked = authorIds.length === 0 ? new Set<string>() : await p.blocked(scope, viewerAccountId, authorIds);
+  const debates = [];
+  for (const discussionId of new Set(keysOf('debate_closed'))) {
+    const discussion = await p.discussions.load(lock, discussionId);
+    if (discussion !== undefined) debates.push(discussion);
+  }
+  const titles = await titlesFor(p, scope, lock, viewerAccountId, debates);
+  return stars.map((star): RoomStar => {
+    const base = { act: star.act, day: star.day, constellation: star.constellation };
+    if (star.act === 'answer_useful') {
+      const source = sources.answers.get(star.sourceKey);
+      if (source === undefined || !source.shown) return base;
+      const author = source.authorAccountId === null ? undefined : people.get(source.authorAccountId);
+      const hidden = source.authorAccountId !== null && blocked.has(source.authorAccountId);
+      return {
+        ...base,
+        ...(author === undefined || hidden ? {} : { by: author }),
+        ...(hidden ? {} : { opens: { discussionId: source.discussionId } }),
+      };
+    }
+    if (star.act === 'debate_closed') {
+      const title = titles.get(star.sourceKey);
+      return title === undefined ? base : { ...base, title, opens: { discussionId: star.sourceKey } };
+    }
+    if (star.act === 'launch_finished') {
+      const played = sources.launches.get(star.sourceKey);
+      return played === undefined || played < 1 ? base : { ...base, played };
+    }
+    return base;
+  });
+}
+
 /** The name vote as a member sees it: the three names, when it closes, and the counts only once they have voted. */
 async function namingView(
   p: RoomPorts,
@@ -166,8 +224,9 @@ async function namingView(
 export function makeSkyUseCases(p: RoomPorts) {
   return {
     /**
-     * A member reads the room's sky: how many stars are lit, the newest stars with the act and day of each, and the name
-     * vote while one is open. Reads nothing about a person and writes nothing. Every refusal is `unavailable`.
+     * A member reads the room's sky: how many stars are lit, the newest stars with the act, day and moment of each, and the
+     * name vote while one is open. Names a person only where a star's moment does (`momentsOfStars`) and writes nothing.
+     * Every refusal is `unavailable`.
      */
     async sky(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomSkyViewSchema>>> {
       const parsed = ReadRoomSkySchema.safeParse(input);
@@ -176,11 +235,12 @@ export function makeSkyUseCases(p: RoomPorts) {
         const entered = await enterRoom(p, scope, parsed.data.roomId, 'read');
         if (entered?.member === undefined) return refuse('unavailable');
         const { lock, owner } = entered;
-        const [sky, stars, constellations] = await Promise.all([
+        const [sky, latest, constellations] = await Promise.all([
           skyOfRoom(p, lock),
           p.sky.latestStars(lock, STARS_SHOWN),
           p.sky.constellations(lock),
         ]);
+        const stars = await momentsOfStars(p, scope, lock, owner.accountId, latest);
         const naming = votableOf(constellations, p.now());
         return ok(
           RoomSkyViewSchema.parse({

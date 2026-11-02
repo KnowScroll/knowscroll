@@ -287,6 +287,22 @@ export class RoomsController {
   }
 
   @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.flair)
+  flairRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.flair).handler(async ({ input }) =>
+      value(await this.useCases.flair(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.chooseFlair)
+  chooseFlairRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.chooseFlair).handler(async ({ input }) =>
+      value(await this.useCases.chooseFlair(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
   @Implement(apiContract.rooms.voteDebate)
   voteDebateRoute(@Req() request: Request) {
     return implement(apiContract.rooms.voteDebate).handler(async ({ input }) =>

@@ -405,17 +405,19 @@ export function makeDiscussionCommands(p: RoomPorts) {
           return ok(async () => {
             await p.discussions.setUseful(lock, command.messageId, owner.accountId, command.useful, now);
             // A human answer another member found useful earns the room a star, once, and the star stays if the mark is taken
-            // back: nobody owns a star, so nobody loses one (D-174).
-            if (
+            // back: nobody owns a star, so nobody loses one (D-174). The acceptance says when this mark earned it, so the
+            // maker's screen shows the star at once (D-344).
+            const earnsStar =
               command.useful &&
               usefulEarnsStar({
                 discussion: found.value,
                 authorAccountId: message.authorAccountId,
                 giverAccountId: owner.accountId,
                 hasWords: message.text !== null && !message.hidden,
-              })
-            )
-              await awardStar(p, lock, standing.room.topic.id, 'answer_useful', command.messageId, now);
+              });
+            const awarded =
+              earnsStar &&
+              (await awardStar(p, lock, standing.room.topic.id, 'answer_useful', command.messageId, now)) === 'awarded';
             return UsefulAcceptanceSchema.parse({
               ...receiptBase(scope, now, command.commandId),
               operation: 'message.useful',
@@ -423,6 +425,7 @@ export function makeDiscussionCommands(p: RoomPorts) {
               discussionId: command.discussionId,
               messageId: command.messageId,
               useful: command.useful,
+              ...(awarded ? { star: true as const } : {}),
             });
           });
         },
