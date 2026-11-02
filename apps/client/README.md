@@ -706,7 +706,7 @@ direct conversations and threads together; a thread row shows its people, the la
   no screen holds another member's pick before it: the contract carries picks only in the revealed stage. Covered by
   A call whose Scroll was updated after the thread began calling keeps the question the thread called on and says so on the card (`updated`, `callUpdateWords`, D-233).
   `call-together.test.tsx` and `e2e/thread-calls-smoke.spec.ts` (two people in two browser contexts and a third member; the
-  reveal, a member who hides, paused recording; axe at 390 × 844 and 1440 × 900). _Implemented; **runtime-verified** on dev (1 Nov, journeys-v3 and dev-check-3: the reveal, together)._
+  reveal, a member who hides, paused recording; axe at 390 × 844 and 1440 × 900). _Implemented; **runtime-verified** on dev (1 and 2 Nov, journeys-v3, dev-check-3 and journeys-final: the reveal, together, at 390 and 1440)._
 - `reel-encounter.tsx` plays a Reel inside the thread. It starts with a poster and an explicit Watch; only that opens and
   activates an exposure and mounts the ordinary `ReelPlayer`. The full-screen `snippet-viewer.tsx` does the same for a
   moment ("Watch from here") and always has a Back to thread button that returns to the same message.

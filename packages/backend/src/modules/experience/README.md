@@ -489,4 +489,4 @@ taken back. The reads that tell a person what they opened leave a marked exposur
 (`readVisitedAssets`). The gates that serve the open item (`hasActivatedExposure`, the document and media reads) still count it. The
 Composer reads no exposure: its routing history reads `encounter_lineage` and `recording_segments`, and a paused-time
 opening writes neither, so repeat avoidance already ignores it.
-*Implemented; CI-verified against PostgreSQL; not yet run on dev.*
+*Implemented; CI-verified against PostgreSQL; runtime-verified on dev (2 Nov, journeys-final: four opens made while paused are absent from the export's encounters, and the next open after Resume appears).*
