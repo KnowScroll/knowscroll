@@ -15,7 +15,7 @@ import type {
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Icon, Text } from '@knowscroll/ui';
 import { OrbitRing } from './orbit-ring';
-import { discussionHref, feedHref, todayHref } from './room-links';
+import { discussionHref, todayHref } from './room-links';
 import { SkySheet } from './sky-sheet';
 
 /** One pill of the strip: at least 44 px tall, with words, never colour alone. */
@@ -28,6 +28,7 @@ function Chip({
   star,
   live,
   agent,
+  fitLabel,
 }: {
   readonly label: string;
   readonly detail?: string | undefined;
@@ -39,6 +40,8 @@ function Chip({
   readonly live?: boolean;
   /** The chip is an AI's: the ring that marks an agent is drawn before its name, as on every AI label (D-279). */
   readonly agent?: boolean;
+  /** A long label gives way (a name is cut with an ellipsis) so the detail, which carries the time, is always whole. */
+  readonly fitLabel?: boolean;
 }) {
   return (
     <Pressable
@@ -51,9 +54,16 @@ function Chip({
       {star === true ? <Icon name="star" size={16} color={content.ink} /> : null}
       {live === true ? <View style={styles.liveDot} aria-hidden /> : null}
       {agent === true ? <OrbitRing size={16} /> : null}
-      <Text variant="label">{label}</Text>
+      <Text variant="label" numberOfLines={1} style={fitLabel === true ? styles.fitLabel : undefined}>
+        {label}
+      </Text>
       {detail === undefined ? null : (
-        <Text variant="bodyS" color={content.ink2} numberOfLines={1} style={styles.detail}>
+        <Text
+          variant="bodyS"
+          color={content.ink2}
+          numberOfLines={1}
+          style={fitLabel === true ? styles.keepDetail : styles.detail}
+        >
           {detail}
         </Text>
       )}
@@ -76,6 +86,7 @@ export function NowStrip({
   launch,
   live,
   onLaunch,
+  onOpenFeed,
   watch,
   onWatch,
   replay,
@@ -92,6 +103,8 @@ export function NowStrip({
   /** What happened in the Feed lately, newest first, at most three: who posted and who replied (D-276). Absent when nothing did. */
   readonly live?: readonly RoomLiveEvent[] | undefined;
   readonly onLaunch?: () => void;
+  /** Opens the room's Feed tab in place. */
+  readonly onOpenFeed?: () => void;
   /** A Reel can be watched together (v3 R-10). The chip is not drawn while one is on: the stage above says so. */
   readonly watch?: RoomWatchStrip | undefined;
   readonly onWatch?: () => void;
@@ -167,16 +180,12 @@ export function NowStrip({
             detail={chip.detail}
             accessibilityLabel={`Feed, ${chip.spoken}`}
             agent={chip.agent !== undefined}
+            fitLabel
             onPress={() => router.push(discussionHref(roomId, chip.discussionId))}
             testID={index === 0 ? 'now-feed' : `now-feed-${String(index)}`}
           />
         ))}
-        <Chip
-          label="Feed"
-          accessibilityLabel="Open the Feed"
-          onPress={() => router.push(feedHref(roomId))}
-          testID="now-feed-open"
-        />
+        <Chip label="Feed" accessibilityLabel="Open the Feed" onPress={() => onOpenFeed?.()} testID="now-feed-open" />
         <Chip
           star
           label={skyLine(sky)}
@@ -205,5 +214,7 @@ const styles = StyleSheet.create({
     backgroundColor: content.paper,
   },
   detail: { flexShrink: 1 },
+  fitLabel: { flexShrink: 1 },
+  keepDetail: { flexShrink: 0 },
   liveDot: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: status.danger.fill },
 });

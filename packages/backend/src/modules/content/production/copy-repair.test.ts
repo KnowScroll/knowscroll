@@ -1,0 +1,194 @@
+import { describe, expect, it } from 'vitest';
+import { COPY_RUN_WORDS } from '@knowscroll/scroll-model/producer';
+import { MAX_REPAIR_NOTES_CHARS } from '../../../reasoning/public.js';
+import {
+  copyRepairNotes,
+  REPAIR_NOTE_PLACES,
+  REPAIR_NOTE_RUN_WORDS,
+  REPAIR_NOTE_RUNS,
+  type CopiedPlace,
+} from './copy-repair.js';
+
+/**
+ * Labelled CI fixtures: invented passage sentences, and drafts that repeat some of their words. Nothing here is provider
+ * output or product content.
+ */
+const CANAL = 'A canal lock raises a boat by letting water into a closed chamber until the level matches.';
+const KETTLE = 'The kettle thermostat switches the heater off once the water reaches a rolling boil.';
+const BRIDGE = 'The old bridge is closed in heavy snow because the ice makes the ramp unsafe.';
+const SOURCES = [CANAL, KETTLE, BRIDGE];
+
+/** `count` words that no passage holds, tagged so two runs of them never match. */
+const ownWords = (tag: string, count = 12): string =>
+  Array.from({ length: count }, (_unused, index) => `${tag}${String(index)}`).join(' ');
+
+const place = (where: string, ...texts: string[]): CopiedPlace => ({ where, texts });
+
+/** The words of a sentence as the copy check compares them: lower case, no punctuation. */
+const plain = (text: string): string => text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '');
+
+describe('the notes that go with a repair after a copy finding (D-294)', () => {
+  it('name each place and the passage’s own words that its text repeats, and ask for a rebuild that keeps the key terms', () => {
+    const notes = copyRepairNotes(
+      [
+        place('blocks[1]', `${ownWords('first')} ${CANAL} ${ownWords('second')}`),
+        place('blocks[4]', KETTLE),
+        place('title', `${ownWords('third')} and some more`),
+      ],
+      SOURCES,
+    );
+    expect(notes).toContain(`blocks[1] copies: "${plain(CANAL)}"`);
+    expect(notes).toContain(`blocks[4] copies: "${plain(KETTLE)}"`);
+    expect(notes).not.toContain('title copies');
+    expect(notes).toContain('Rebuild each sentence that holds them in your own words: keep its key terms');
+    expect(notes).toContain('Keep every other sentence as it is.');
+  });
+
+  it('shows two separate runs of one place, and a run once however many strings repeat it', () => {
+    const notes = copyRepairNotes([place('blocks[2]', `${CANAL} ${ownWords('mid')} ${BRIDGE}`, CANAL)], SOURCES);
+    expect(notes).toContain(`blocks[2] copies: "${plain(CANAL)}" | "${plain(BRIDGE)}"`);
+    expect(notes?.split(plain(CANAL))).toHaveLength(2);
+  });
+
+  it('echoes nothing the model wrote: of its draft only the block reference, and runs cut from the passages', () => {
+    const draft = `${ownWords('canary')} ${CANAL} ${ownWords('marmalade')}`;
+    const notes = copyRepairNotes([place('blocks[3]', draft)], SOURCES) ?? '';
+    expect(notes).not.toMatch(/canary|marmalade/u);
+    // The only words in quotation marks are the passage's.
+    const quoted = [...notes.matchAll(/"([^"]+)"/gu)].map((match) => match[1]);
+    expect(quoted).toEqual([plain(CANAL)]);
+  });
+
+  it('shows no more than 20 words of a longer run, and ends it with an ellipsis', () => {
+    const long = `${CANAL} ${KETTLE}`;
+    const longSources = [long];
+    const notes = copyRepairNotes([place('blocks[0]', long)], longSources) ?? '';
+    const shown = /blocks\[0\] copies: "([^"]+)"/u.exec(notes)?.[1] ?? '';
+    expect(REPAIR_NOTE_RUN_WORDS).toBe(20);
+    expect(shown.endsWith(' …')).toBe(true);
+    expect(shown.replace(/ …$/u, '').split(' ')).toEqual(plain(long).split(/\s+/u).slice(0, REPAIR_NOTE_RUN_WORDS));
+  });
+
+  it('names no more than six runs in all, but a first run of every place before a second of any', () => {
+    const threeRuns = (tag: string) => `${CANAL} ${ownWords(tag)} ${BRIDGE} ${ownWords(`${tag}end`)} ${KETTLE}`;
+    const places = [0, 1, 2, 3].map((index) => place(`blocks[${String(index)}]`, threeRuns(`p${String(index)}`)));
+    const notes = copyRepairNotes(places, SOURCES) ?? '';
+    expect(REPAIR_NOTE_RUNS).toBe(6);
+    const shownRuns = [...notes.matchAll(/ copies: (.+)$/gmu)].flatMap((line) => line[1]!.split(' | '));
+    expect(shownRuns).toHaveLength(REPAIR_NOTE_RUNS);
+    // Each of the four places is named by its first run; the two runs left go to the first two places.
+    const linesOf = (block: string) =>
+      new RegExp(`${block.replace(/[[\]]/gu, '\\$&')} copies: (.+)$`, 'mu').exec(notes)?.[1];
+    expect(linesOf('blocks[0]')?.split(' | ')).toHaveLength(2);
+    expect(linesOf('blocks[1]')?.split(' | ')).toHaveLength(2);
+    expect(linesOf('blocks[2]')?.split(' | ')).toHaveLength(1);
+    expect(linesOf('blocks[3]')?.split(' | ')).toHaveLength(1);
+    expect(notes).toContain(`More runs of ${String(COPY_RUN_WORDS)} or more words are copied than are shown`);
+  });
+
+  it('names a place it has no room to quote, by its reference alone', () => {
+    const places = Array.from({ length: 8 }, (_unused, index) => place(`blocks[${String(index)}]`, CANAL));
+    const notes = copyRepairNotes(places, SOURCES) ?? '';
+    expect([...notes.matchAll(/^blocks\[\d+\] copies:/gmu)]).toHaveLength(REPAIR_NOTE_RUNS);
+    expect(notes).toContain('Also copying: blocks[6], blocks[7].');
+  });
+
+  it('names no more than twelve places it has no room to quote, and counts the rest', () => {
+    const places = Array.from({ length: 30 }, (_unused, index) => place(`blocks[${String(index)}]`, CANAL));
+    const notes = copyRepairNotes(places, SOURCES) ?? '';
+    expect(REPAIR_NOTE_PLACES).toBe(12);
+    // Six are quoted; of the 24 left, twelve are named and twelve counted.
+    const named = Array.from({ length: 12 }, (_unused, index) => `blocks[${String(index + REPAIR_NOTE_RUNS)}]`);
+    expect(notes).toContain(`Also copying: ${named.join(', ')} and 12 more.`);
+    expect(notes).not.toContain('blocks[18]');
+  });
+
+  it('says nothing of more runs when every run is shown', () => {
+    const notes = copyRepairNotes([place('blocks[0]', CANAL), place('blocks[1]', KETTLE)], SOURCES) ?? '';
+    expect(notes).not.toContain('More runs');
+    expect(notes).not.toContain('Also copying');
+  });
+
+  it('fits the limit the harness cuts at, even for the longest words, without cutting a line', () => {
+    const longWord = 'x'.repeat(40);
+    const words = (tag: string) =>
+      Array.from({ length: 30 }, (_unused, index) => `${tag}${longWord}${String(index)}`).join(' ');
+    const sources = [0, 1, 2, 3, 4, 5].map((index) => words(`s${String(index)}`));
+    const places = sources.map((text, index) => place(`blocks[${String(index)}]`, text));
+    const notes = copyRepairNotes(places, sources) ?? '';
+    expect(notes.length).toBeLessThanOrEqual(MAX_REPAIR_NOTES_CHARS);
+    for (const line of notes.split('\n').filter((one) => one.includes(' copies: ')))
+      expect(line.endsWith('"')).toBe(true);
+    // Fewer runs than the cap are shown here, because six would not fit, and the notes say that more remain.
+    expect([...notes.matchAll(/ copies: (.+)$/gmu)].flatMap((line) => line[1]!.split(' | ')).length).toBeLessThan(
+      REPAIR_NOTE_RUNS,
+    );
+    expect(notes).toContain('More runs');
+  });
+
+  describe('always fits the limit, whatever the words and however many blocks copy', () => {
+    /** Thirty words, each `word` and a letter, as one passage; every one of `blocks` blocks repeats all of it. */
+    function worstCase(word: string, blocks: number) {
+      const passage = Array.from({ length: 30 }, (_unused, index) => `${word}${String.fromCharCode(97 + index)}`).join(
+        ' ',
+      );
+      return copyRepairNotes(
+        Array.from({ length: blocks }, (_unused, index) => place(`blocks[${String(index)}]`, passage)),
+        [passage],
+      );
+    }
+
+    it('with 80 blocks of 100-character words: one run, cut as the last resort, and the other places counted', () => {
+      const notes = worstCase('y'.repeat(100), 80) ?? '';
+      expect(notes.length).toBeLessThanOrEqual(MAX_REPAIR_NOTES_CHARS);
+      expect(notes.startsWith('Each line names a place in your text')).toBe(true);
+      const quoted = notes.split('\n').filter((line) => line.includes(' copies: '));
+      expect(quoted).toHaveLength(1);
+      expect(quoted[0]).toMatch(/^blocks\[0\] copies: "y+.*…"$/u);
+      const named = Array.from({ length: 12 }, (_unused, index) => `blocks[${String(index + 1)}]`);
+      expect(notes).toContain(`Also copying: ${named.join(', ')} and 67 more.`);
+      expect(notes).toContain('More runs');
+    });
+
+    it.each([40, 100, 400, 3000])('with %i-character words, on 1 block and on 80', (size) => {
+      for (const blocks of [1, 80]) {
+        const notes = worstCase('z'.repeat(size), blocks) ?? '';
+        expect(notes.length).toBeLessThanOrEqual(MAX_REPAIR_NOTES_CHARS);
+        expect(notes).toContain('blocks[0] copies: "z');
+      }
+    });
+
+    it('never cuts between the halves of a character outside the basic plane, whatever the alignment of the words', () => {
+      // Words of pairs (two code units each); a prefix of one to three letters moves where the pairs fall, so that the
+      // cut meets the first half of a pair in at least one of the four alignments.
+      for (const prefix of ['', 'a', 'ab', 'abc']) {
+        const notes = worstCase(`${prefix}${'\u{1d49c}'.repeat(50)}`, 80) ?? '';
+        expect(notes.length).toBeLessThanOrEqual(MAX_REPAIR_NOTES_CHARS);
+        expect(/[\ud800-\udfff]/u.test(notes)).toBe(false);
+      }
+    });
+  });
+
+  it.each([
+    ['no place', []],
+    ['a place whose text copies nothing', [place('blocks[0]', ownWords('plain'))]],
+    [
+      'a run one word short of the rule',
+      [
+        place(
+          'blocks[0]',
+          CANAL.split(' ')
+            .slice(0, COPY_RUN_WORDS - 1)
+            .join(' '),
+        ),
+      ],
+    ],
+  ])('has no notes for %s', (_label, places) => {
+    expect(copyRepairNotes(places, SOURCES)).toBeUndefined();
+  });
+
+  it('names a run of exactly the rule’s number of words', () => {
+    const exactly = CANAL.split(' ').slice(0, COPY_RUN_WORDS).join(' ');
+    expect(copyRepairNotes([place('blocks[0]', exactly)], SOURCES)).toContain(`blocks[0] copies: "${plain(exactly)}"`);
+  });
+});

@@ -121,6 +121,18 @@ export const KEYBOARD_MAP: readonly ShortcutGroup[] = [
     ],
   },
   {
+    title: 'Room tabs',
+    where: 'While a tab of the room’s General, Feed and Topics bar is focused (Tab to it)',
+    shortcuts: [
+      {
+        keys: ['←', '→'],
+        spoken: 'Left and right arrow',
+        action: 'Open the previous or next tab: General, Feed or Topics',
+      },
+      { keys: ['Home', 'End'], spoken: 'Home or End', action: 'Open the first tab or the last' },
+    ],
+  },
+  {
     title: 'Talk messages',
     where: 'While a message’s options button is focused (Tab to it; it shows on hover or focus)',
     shortcuts: [

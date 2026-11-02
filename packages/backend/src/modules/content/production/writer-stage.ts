@@ -98,7 +98,8 @@ const isResult = (value: Draft | ProduceScrollResult): value is ProduceScrollRes
  * library recipe the answer check sits between the two (D-198), and for the answer to a person's question
  * the support check does (D-250). The stage sends at most two writer requests (the first draft with the
  * harness's repair, or with the one repair a flag earns) and at most two checks (one for each draft), and
- * holds no transaction while a request is out.
+ * holds no transaction while a request is out. The answer to a question may send four: the first draft and its
+ * repair, then the revision a support check earns and its repair for a copied passage (D-297).
  */
 export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperations) {
   const answerCheck = makeAnswerCheckStep(deps);
@@ -139,8 +140,10 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     const attempts = await attemptsOf(runId);
     if (attempts === undefined) return refuse(['accounting_unavailable'], receipt);
     const paidAttemptIds = attempts.filter(isSentAttempt).map((attempt) => attempt.attemptId);
-    // The first draft has the harness's repair; the second is the repair a flag earned and has none of its own.
-    if (paidAttemptIds.length < 1 || paidAttemptIds.length > (number === 1 ? 2 : 1))
+    // The first draft has the harness's repair. The second is the repair a flag earned and has none of its own, except
+    // the revision after a support check, which has one for a copied passage (D-297).
+    const mostPaidAttempts = number === 1 || hasSupportCheck(stage.subject) ? 2 : 1;
+    if (paidAttemptIds.length < 1 || paidAttemptIds.length > mostPaidAttempts)
       return refuse(['attempt_bound_exceeded'], receipt);
     const recorded = withAccounting(receipt, attempts);
     const compiled = stage.plan.compile(writer.output, { runId, attemptIds: paidAttemptIds, model: deps.model });
@@ -235,9 +238,9 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
 
   /**
    * Asks the support checker about the answer to a question and acts on the verdicts (D-250). Nothing unsupported:
-   * the Scroll is published. An unsupported sentence earns the writer one repair if it has not used it; one that
-   * stands after that ends the job. So does a check that gave no usable answer: nobody reads an ask order before the
-   * person who asked, so it is never served unchecked.
+   * the Scroll is published. An unsupported sentence in the first draft earns the writer one revision, whether or not the
+   * validator had repaired that draft; an unsupported sentence that stands after it ends the job. So does a check that
+   * gave no usable answer: nobody reads an ask order before the person who asked, so it is never served unchecked.
    */
   async function supportCheckDraft(stage: Stage, draft: Draft, history: History): Promise<ProduceScrollResult> {
     const { row } = stage;
@@ -270,9 +273,9 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
         ...history.closing,
         ...checked.runs,
       ]);
-    if (draft.number === 2 || draft.repaired)
-      return ops.end(row, 'rejected', ['support_check_failed'], receipts, closing);
+    if (draft.number === 2) return ops.end(row, 'rejected', ['support_check_failed'], receipts, closing);
     // The unsupported first draft is superseded: its writer receipt is kept as history, not as the Scroll's writer.
+    // It earns the revision even when the validator already repaired it, since that repair was for another finding (D-297).
     const earlier: History = {
       receipts: [
         ...history.receipts,
@@ -284,7 +287,10 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     return repairUnsupported(stage, draft, sentences, unsupportedOf(checked.verdicts), earlier);
   }
 
-  /** The one repair an unsupported first draft earns: the writer sees the findings and its draft, and the new draft is checked in turn. */
+  /**
+   * The one revision an unsupported first draft earns: the writer sees the findings and its draft, and the new draft is checked
+   * in turn. A revision refused for copying a passage has one repair of its own; any other refusal of it ends the job (D-297).
+   */
   async function repairUnsupported(
     stage: Stage,
     draft: Draft,

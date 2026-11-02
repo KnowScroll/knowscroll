@@ -17,6 +17,7 @@ import { Banner, Button, IconButton, Skeleton, Text, type ReelControls, type Ree
 import { useDevicePreferences } from '../../providers/device-preferences';
 import { ActivatedReelView } from '../reel/activated-reel-view';
 import { useReelExposure, type ReelExposure } from '../threads/reel-encounter';
+import { useRoomTabOpen } from './room-tab-open';
 import { steadyClock, useSteadyNow } from './use-launch';
 
 /** After the player is moved to the shared clock, it is left alone this long, so a slow seek is never chased. */
@@ -293,7 +294,9 @@ function JoinedStage({
   readonly controller: RoomWatchController;
 }) {
   const { state: opened, start } = useReelExposure(scope, session.reel.assetId);
-  const focused = useIsFocused();
+  // Behind another tab of the room the Reel is paused and records nothing, as it is behind a screen pushed over the room.
+  const tabOpen = useRoomTabOpen();
+  const focused = useIsFocused() && tabOpen;
   const now = useSteadyNow(true);
   const since = now - state.receivedAt;
   const phase = watchPhaseNow(session, since);

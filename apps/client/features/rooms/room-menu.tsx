@@ -7,7 +7,7 @@ import { borderWidth, content, spacing } from '@knowscroll/design-tokens';
 import { BottomSheet, Button, Icon, Text } from '@knowscroll/ui';
 import { afterPendingBack, notePendingBack } from '../../platform/after-pending-back';
 import { AiHere } from './ai-here';
-import { activitiesHref, feedHref, todayHref } from './room-links';
+import { activitiesHref, todayHref } from './room-links';
 import { ModeratorTools, RULE_WORDS, WhoIsHere } from './room-parts';
 import { SkyContent } from './sky-sheet';
 import { TopicsList } from './topics-list';
@@ -91,6 +91,7 @@ export function RoomMenu({
   visible,
   onClose,
   onShare,
+  onOpenFeed,
 }: {
   readonly scope: AccountScope;
   readonly view: Member;
@@ -100,6 +101,8 @@ export function RoomMenu({
   readonly onClose: () => void;
   /** Opens the share sheet once the menu has closed. */
   readonly onShare: () => void;
+  /** Opens the Feed tab behind the sheet, which closes first. */
+  readonly onOpenFeed: () => void;
 }) {
   const router = useRouter();
   const [page, setPage] = useState<Page>('root');
@@ -136,9 +139,8 @@ export function RoomMenu({
           <MenuRow
             label="Feed"
             onPress={() => {
-              notePendingBack();
               close();
-              afterPendingBack(() => router.push(feedHref(view.room.roomId)));
+              onOpenFeed();
             }}
             testID="menu-feed"
           />

@@ -5,7 +5,7 @@ import type { RoomFeed, RoomFeedPost, RoomResidentProfile } from '@knowscroll/co
 import { DisplayProvider } from '@knowscroll/ui';
 import { AiLabel } from './ai-label';
 import { FeedPost } from './feed-post';
-import { RoomFeedScreen } from './feed-screen';
+import { RoomFeedPanel } from './feed-screen';
 import { PostBar } from './post-bar';
 import { ResidentSheet } from './resident-sheet';
 
@@ -113,7 +113,7 @@ const show = (view: Extract<RoomFeed, { status: 'ready' }>, controller: Partial<
     controller,
     state: { phase: 'ready', view, sort: 'hot', window: 'week', offline: false, working: false, refused: false },
   };
-  return wrap(<RoomFeedScreen roomId={roomId} />);
+  return wrap(<RoomFeedPanel scope={{ active: true } as never} roomId={roomId} />);
 };
 const has = (text: string) => new RegExp(text.replaceAll(/[.*+?^${}()|[\]\\]/g, (character) => `\\${character}`));
 

@@ -3,7 +3,10 @@
  * and focus. The browser behaviour itself (Enter on a link, Tab order) is covered by the
  * Playwright smoke over the production export (apps/client/e2e).
  */
+import { createElement, type ReactNode } from 'react';
 import type { GestureResponderEvent } from 'react-native';
+import { renderHook } from '@testing-library/react-native';
+import { FocusHaloProvider } from './focus-halo';
 import { useFocusRing } from './focus-ring';
 import { linkPress } from './link';
 import {
@@ -101,14 +104,31 @@ describe('semantics (web)', () => {
 });
 
 describe('useFocusRing (web)', () => {
-  it('draws the ring with :focus-visible only, cobalt on light and yellow on dark, installed once', () => {
-    expect(useFocusRing('onLight').props).toMatchObject({ dataSet: { ksFocus: 'onLight' } });
-    useFocusRing('onDark');
+  it('draws the ring with :focus-visible only, cobalt on light and yellow on dark, installed once', async () => {
+    expect((await renderHook(() => useFocusRing('onLight'))).result.current.props).toMatchObject({
+      dataSet: { ksFocus: 'onLight' },
+    });
+    await renderHook(() => useFocusRing('onDark'));
     const sheets = document.querySelectorAll('style#ks-focus-ring');
     expect(sheets).toHaveLength(1);
     const css = sheets[0]?.textContent ?? '';
     expect(css).toContain('[data-ks-focus="onLight"]:focus-visible{outline:3px solid #2C46E8;outline-offset:3px}');
     expect(css).toContain('[data-ks-focus="onDark"]:focus-visible{outline:3px solid #FFE44D;outline-offset:3px}');
     expect(css).toContain('[data-ks-focus]:focus{outline:none}');
+  });
+
+  it('puts a halo around the cobalt ring where a screen says its ground needs one, and never around the yellow one', async () => {
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(FocusHaloProvider, { value: 'light' }, children);
+    expect((await renderHook(() => useFocusRing('onLight'), { wrapper })).result.current.props).toMatchObject({
+      dataSet: { ksFocus: 'onLight', ksHalo: 'light' },
+    });
+    const yellow = (await renderHook(() => useFocusRing('onDark'), { wrapper })).result.current.props;
+    expect((yellow as { dataSet?: unknown }).dataSet).toEqual({ ksFocus: 'onDark' });
+    const css = document.querySelector('style#ks-focus-ring')?.textContent ?? '';
+    expect(css).toContain(
+      '[data-ks-focus="onLight"][data-ks-halo="light"]:focus-visible{box-shadow:0 0 0 8px #FFFFFF}',
+    );
+    expect(css).toContain('[data-ks-focus="onLight"][data-ks-halo="dark"]:focus-visible{box-shadow:0 0 0 8px #000000}');
   });
 });

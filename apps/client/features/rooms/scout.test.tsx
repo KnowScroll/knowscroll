@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { RoomFeedController, RoomFeedState } from '@knowscroll/client-core';
 import type { RoomFeed, RoomFeedPost, RoomScout } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
-import { RoomFeedScreen } from './feed-screen';
+import { RoomFeedPanel } from './feed-screen';
 import { FeedPost } from './feed-post';
 import { ScoutSheet } from './scout-sheet';
 
@@ -111,7 +111,7 @@ const show = (view: Extract<RoomFeed, { status: 'ready' }>, controller: Partial<
     controller,
     state: { phase: 'ready', view, sort: 'hot', window: 'week', offline: false, working: false, refused: false },
   };
-  return wrap(<RoomFeedScreen roomId={roomId} />);
+  return wrap(<RoomFeedPanel scope={{ active: true } as never} roomId={roomId} />);
 };
 
 beforeEach(() => mockPush.mockClear());
@@ -183,16 +183,10 @@ describe('a scout’s find in the feed', () => {
 });
 
 describe('the feed screen’s scout button', () => {
-  it('is not there while scouts are off in this world, and the subtitle names no scouts', async () => {
+  it('is not there while scouts are off in this world, and nothing on the screen names scouts', async () => {
     await show(feed());
     expect(screen.queryByTestId('feed-scout-open')).not.toBeOnTheScreen();
-    expect(screen.getByText('Posts from this room’s people and residents')).toBeOnTheScreen();
-    expect(screen.queryByText(/scouts/)).not.toBeOnTheScreen();
-  });
-
-  it('names scouts in the subtitle once they are on in this world', async () => {
-    await show(feed({ scout: none }));
-    expect(screen.getByText('Posts from this room’s people, residents and scouts')).toBeOnTheScreen();
+    expect(screen.queryByText(/scouts/i)).not.toBeOnTheScreen();
   });
 
   it('offers to send one, then opens the sheet', async () => {
