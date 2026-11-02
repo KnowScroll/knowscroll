@@ -407,8 +407,9 @@ export function UniverseSurface({
               out={chrome?.chipsOut}
             />
           </View>
-          {wide && !globe ? (
-            <View pointerEvents="box-none" style={styles.zoomControls}>
+          {/* The search card opens over the same corner; the keys + and - still zoom while it is open. */}
+          {wide && !globe && !searching ? (
+            <View pointerEvents="box-none" testID="universe-zoom" style={styles.zoomControls}>
               <IconButton
                 icon="plus"
                 label="Zoom in"

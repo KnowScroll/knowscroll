@@ -887,6 +887,21 @@ describe('desktop D02 (v3 U-5)', () => {
     await v.unmount();
   });
 
+  it('hides the zoom buttons while a search card is open, and brings them back when it closes (#648)', async () => {
+    const h = universeHarness();
+    mockScope = h.scope;
+    const v = await render(wide);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Zoom in' })).toBeOnTheScreen());
+    await fireEvent.press(screen.getByRole('button', { name: 'Search your universe' }));
+    await screen.findByRole('searchbox', { name: /search/i });
+    expect(screen.queryByRole('button', { name: 'Zoom in' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Zoom out' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('button', { name: 'Zoom in' })).toBeOnTheScreen();
+    await act(() => h.scope.end());
+    await v.unmount();
+  });
+
   it('turns the whole map into the plain lists from the panel’s switch, and back', async () => {
     const h = universeHarness();
     mockScope = h.scope;

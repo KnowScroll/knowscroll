@@ -295,6 +295,20 @@ test.describe('a desktop, 1440 x 900', () => {
     await expectNoSeriousViolations(page);
   });
 
+  test('the zoom buttons step aside while a search card is open and return when it closes', async ({ page }) => {
+    await openUniverse(page, size, { formed: false });
+    const zoomIn = page.getByRole('button', { name: 'Zoom in' });
+    await expect(zoomIn).toBeVisible();
+    await page.getByRole('button', { name: 'Search your universe' }).click();
+    await expect(page.getByRole('searchbox', { name: 'Search your universe' })).toBeVisible();
+    await expect(zoomIn).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Zoom out' })).toHaveCount(0);
+    await shot(page, 'search-no-zoom-desktop');
+    await expectNoSeriousViolations(page);
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(zoomIn).toBeVisible();
+  });
+
   test('a landmark whose planet has formed is listed on that planet, and the panel row flies to it', async ({
     page,
   }) => {
