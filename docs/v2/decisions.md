@@ -4402,7 +4402,7 @@ Confirmed by: `ask-support-drop.test.ts` (the line cites what the draft cites wh
 **Builds on** the region card of the Universe (v3 U-4, U-5): only where the name pill stands when the card is tall.
 
 - **The gap.** The camera centres a picked region in a band scaled by the screen's height. A card has a fixed height, so on a 390 x 664 phone the card covered half of the name pill, and on 360 x 640 all of it.
-- **The rule.** The surface measures the card once it is drawn and tells the planet map how far up from the bottom it reaches. The pill is lifted to stand 8 px above the card's top edge, and never higher than the header row. Where the label already clears the card (844 and taller) the pill is where it was. Before the card is measured, nothing moves.
+- **The rule.** The surface measures the card once it is drawn and tells the planet map how far up from the bottom it reaches. The pill is lifted to stand 8 px above the card's top edge, and below the header row unless the card leaves no room (a 320 x 568 phone with a three-line card), where clearing the card wins. Where the label already clears the card (844 and taller) the pill is where it was. Before the card is measured, nothing moves.
 - **Not changed.** The camera and the region's drawing: on a short phone part of the region sits under the card, as the card sits over the map on every phone.
 
 Confirmed by: `planet-plan.test.ts` (the pill's top at 390 x 664, 360 x 640 and 844, and unmeasured), `e2e/universe-planet-smoke.spec.ts` (the pill is whole and above a three-line card at 390 x 664, 360 x 640 and 390 x 844). Shown failing when the lift was removed.
@@ -4421,7 +4421,7 @@ Confirmed by: `part-peek.test.tsx` (the row, the tab's position and the bar's of
 **Amends** D-364, its "Keys" and "It goes by itself" lines.
 
 - **The gap.** Focus was moved into the note when it appeared, and the note waits while it has focus (WCAG 2.2.1). The code's own move therefore held the note for good: it was still up 14 s later, not 9.
-- **The rule.** Nothing moves focus into the note. It is a polite status, so it is announced. It waits only while the pointer is over it or the person tabs into it, and its nine seconds start again after. F and Esc act from the reader group, which is given focus only when the person's focus was lost or sat on a control of the reader that the move replaced (the Next button they pressed), and from the note's own buttons when the person is there. Focus that the person put elsewhere stays.
+- **The rule.** Nothing moves focus into the note. It is a polite status, so it is announced. It waits only while the pointer is over it or the person tabs into it, and its nine seconds start again after. F and Esc act from the reader group when it has focus (as it does after the key N), and from the note's own buttons when the person is there. The reader group is given focus only when focus was lost (nothing focused); focus on any control, the Next button just pressed included, is the person's and stays, so after a click on Next the keys need a click or Tab into the reader first.
 - **Not changed.** The note's words, its two moves, and that it is shown once per Scroll.
 
 Confirmed by: `e2e/scroll-motion-smoke.spec.ts` (gone after nine seconds at 390 and 1440 with no focus inside it; held by hover and by focus, then gone; Esc from the reader), `format-note.test.tsx` (timer and holds). Shown failing against the focus move.
@@ -4441,8 +4441,8 @@ Confirmed by: `away-divider.test.ts`, `content-thread.test.ts`, `conversation-th
 
 **Builds on** D-066, D-150 and D-329. **Amends** the hooks' "while the screen is open" rule.
 
-- **The gap.** A thread or conversation screen kept under another (a Scroll or Reel opened from it) kept its controller active. A message that arrived meanwhile was caught up and marked read. Mark-read stores the person's position, and with both people sharing read marks it is also what the other person is shown as "seen" (D-150), so the other person could be told the message was seen when it was not. It also hid "New since you were here" on return.
-- **The rule.** The controller is active only while the app is in the foreground and its screen is focused (`useReadingWhileInView`). Covered or in the background, new messages are still caught up and shown, but nothing is marked. On return, what is there is marked, and the line (D-329) can draw.
+- **The gap.** A thread or conversation screen kept under another (a Scroll or Reel opened from it) kept its controller active. A message that arrived meanwhile was caught up and marked read. Mark-read stores the person's position, and with both people sharing read marks it is also what the other person is shown as "seen" (D-150), so the other person could be told the message was seen when it was not.
+- **The rule.** The controller is active only while the app is in the foreground and its screen is focused (`useReadingWhileInView`). Covered or in the background, new messages are still caught up and shown, but nothing is marked. On return, what is there is marked read. No "New since you were here" line is drawn for it: the kept controller does not read the opening again (D-329 sets the line once per opening).
 - **Not changed.** The controllers' own rules; no contract, SQL, erasure or export change.
 
 Confirmed by: `use-conversation-thread.test.tsx` (both hooks; shown failing against the old AppState-only rule), `use-reading-while-in-view.test.tsx`, `conversation-thread.test.ts` (a message that arrives while inactive is not marked; reopening marks it).
