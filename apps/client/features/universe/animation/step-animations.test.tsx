@@ -7,7 +7,7 @@ import { DisplayProvider } from '@knowscroll/ui';
 import type { AccountScope } from '@knowscroll/client-core';
 import { UniverseScreen } from '../universe-screen';
 import { fakeGpu, resetFakeGpu } from '../space/fake-space-gpu';
-import { sceneFixture, universeHarness } from '../universe.fixture';
+import { fixtureId, sceneFixture, universeHarness } from '../universe.fixture';
 import { indexUniverse, viewFor } from '../universe-layout';
 import { looksById } from '../space/space-model';
 import { universeSessionFor } from '../use-universe-session';
@@ -155,6 +155,33 @@ describe('entering a system', () => {
     // After it, taps work again.
     await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
     await settle(() => expect(screen.getByRole('button', { name: 'Back to CI system 0' })).toBeOnTheScreen());
+    await view.unmount();
+  });
+
+  it('fades the landmark card with the rest of the chrome while it plays, and leaves one card after it', async () => {
+    const h = universeHarness();
+    h.world.collection.landmarks = [
+      {
+        key: 'the-leaning-axis',
+        name: 'The Leaning Axis',
+        tier: 'gold',
+        assetId: fixtureId(500),
+        revision: 1,
+        earnedAt: '2026-11-02T10:00:00.000Z',
+        topicId: 'earth.seasons',
+      },
+    ];
+    mockScope = h.scope;
+    const view = await render(withMotion);
+    await settle(() => expect(system()).toBeOnTheScreen());
+    await settle(() => expect(screen.getByTestId('universe-landmark-card')).toBeOnTheScreen());
+    await fireEvent.press(system());
+    await settle(() => expect(lastScript()?.kind).toBe('enter-system'));
+    await playFor(0.3);
+    // The overview's card is still on screen, fading, under the system's own as it rises (design: only the tab bar stays).
+    expect(screen.getAllByTestId('universe-landmark-card', hidden)).toHaveLength(2);
+    await playFor(6);
+    expect(screen.getAllByTestId('universe-landmark-card', hidden)).toHaveLength(1);
     await view.unmount();
   });
 

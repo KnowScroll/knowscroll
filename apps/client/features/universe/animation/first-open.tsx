@@ -4,6 +4,7 @@ import { useIsFocused } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { claimFirstOpen, firstOpenSeen, type AccountScope, type FirstOpenAnswer } from '@knowscroll/client-core';
 import { layout, space, spacing } from '@knowscroll/design-tokens';
+import { useOpeningGround } from '../../../platform/opening-ground';
 import { loadFirstOpenRenderer } from '../space/load-space-renderer';
 import type { SpaceDefinition } from '../space/space-definition';
 import { SpaceView } from '../space/space-view';
@@ -79,6 +80,8 @@ export function FirstOpenGate({
   const [below, setBelow] = useState(false);
   const shown = phase === 'preparing' && !enabled ? 'done' : phase;
   const covered = shown !== 'done';
+  // The page behind the app is the opening's ground too, so no white page shows before its first frame.
+  useOpeningGround(covered, space.s0);
   const showChildren = shown === 'done' || (shown === 'playing' && below);
   return (
     <View style={styles.fill}>
