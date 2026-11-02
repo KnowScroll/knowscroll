@@ -189,7 +189,7 @@ export function askSupportContext(
  */
 export function askSupportInstructions(rules: CheckerRules): string {
   const quoteKeyWords = rules.oneKeyWordAbout
-    ? 'Code needs the quote to carry at least one of the sentence’s own key words when the sentence has eight or fewer key words, and at least two when it has more, so choose the stretch that uses the sentence’s words or their near forms.'
+    ? 'Code needs the quote to carry at least two key words of its own, and at least one of the sentence’s own key words when the sentence has eight or fewer key words, and at least two when it has more, so choose the stretch that uses the sentence’s words or their near forms.'
     : 'Code needs the quote to carry at least two of the sentence’s own key words (one, if the sentence has only one), so choose the stretch that uses the sentence’s words or their near forms.';
   const noClaimGrounds = rules.shortNoClaim
     ? 'for a sentence of eight words or fewer with no number; and for any other sentence with no number that shares no key word with the passages it cites. Use "no_claim" only for a sentence that adds no fact, even where code would accept it for a short one. A sentence that has a number, or that names what the passages talk about and says something of it ("Fog hides the beam."), is a statement:'

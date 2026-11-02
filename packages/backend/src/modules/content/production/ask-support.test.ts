@@ -567,6 +567,7 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
       // The words are in the passage, and they say nothing about "nearly overhead", the pole or the summer.
       expect(outcomes(sunReply('the Sun is'))).toEqual(['quote_not_about_sentence']);
       expect(outcomes(sunReply('Sun is never directly'))).toEqual(['quote_not_about_sentence']);
+      expect(outcomes(askSunReply('the Sun is'))).toEqual(['quote_not_about_sentence']);
     });
 
     it('lets an ask order’s sentence of eight key words or fewer be supported by a quote with one of them and two of its own, which is then the checker’s judgement alone (D-306)', () => {
@@ -712,6 +713,7 @@ describe('the role', () => {
     for (const soft of [
       'for a sentence of eight words or fewer with no number',
       'at least one of the sentence’s own key words when the sentence has eight or fewer key words',
+      'at least two key words of its own',
       'even where code would accept it for a short one',
     ]) {
       expect(ASK_SUPPORT_INSTRUCTIONS).toContain(soft);

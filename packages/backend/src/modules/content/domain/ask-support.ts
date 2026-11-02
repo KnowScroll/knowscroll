@@ -300,7 +300,7 @@ export function isAbout(quote: string, text: string): boolean {
 export interface CheckerRules {
   /** A figure-free sentence of at most {@link MAX_SHORT_NO_CLAIM_WORDS} words may be marked as stating no fact (D-307). */
   readonly shortNoClaim: boolean;
-  /** A sentence of at most {@link SHORT_SENTENCE_KEY_WORDS} key words needs one shared key word (D-306). */
+  /** A sentence of at most {@link SHORT_SENTENCE_KEY_WORDS} key words needs one shared key word from a quote of two (D-306). */
   readonly oneKeyWordAbout: boolean;
 }
 
@@ -313,16 +313,21 @@ export const ASK_ORDER_CHECK_RULES: CheckerRules = { shortNoClaim: true, oneKeyW
 /** A sentence with at most this many key words needs one shared key word from its quote; a longer one needs {@link MIN_SHARED_WORDS} (D-306). */
 export const SHORT_SENTENCE_KEY_WORDS = 8;
 
+/** The key words a quote must carry itself when one shared key word is enough, so a quote of function words and one name proves nothing (D-306). */
+export const MIN_QUOTE_KEY_WORDS = 2;
+
 /**
  * Whether a verdict's quote is about the sentence it was given for. With the strict rules it is {@link isAbout}: two shared key words,
  * or all of them when the sentence has fewer. With `oneKeyWordAbout` (D-306) a sentence of at most {@link SHORT_SENTENCE_KEY_WORDS}
- * key words needs one shared key word, since a good paraphrase often keeps one. A longer sentence needs two shared, as before. Whether
- * the quote then supports the sentence is the checker's judgement, which no count of words settles.
+ * key words needs one shared key word, since a good paraphrase often keeps one, but the quote must carry at least
+ * {@link MIN_QUOTE_KEY_WORDS} key words of its own: "the Sun is" has one and is not about "The Sun is nearly overhead at the pole in
+ * summer". A longer sentence needs two shared, as before. Whether the quote then supports the sentence is the checker's judgement,
+ * which no count of words settles.
  */
 export function isAboutSentence(quote: string, sentence: string, rules: CheckerRules = STRICT_CHECK_RULES): boolean {
   const keyWords = contentStems(sentence).size;
   if (!rules.oneKeyWordAbout || keyWords > SHORT_SENTENCE_KEY_WORDS) return isAbout(quote, sentence);
-  return keyWords === 0 || sharedStems(quote, sentence) >= 1;
+  return keyWords === 0 || (sharedStems(quote, sentence) >= 1 && contentStems(quote).size >= MIN_QUOTE_KEY_WORDS);
 }
 
 /** Numbers written in words ("twenty-one", "a hundred"). A figure written in words is a figure. */

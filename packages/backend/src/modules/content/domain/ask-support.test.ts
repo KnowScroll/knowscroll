@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ASK_ORDER_CHECK_RULES,
   ASK_SUPPORT_BATCH_SENTENCES,
+  MIN_QUOTE_KEY_WORDS,
   STRICT_CHECK_RULES,
   RULE_CODES,
   RULE_PROBLEMS,
@@ -220,16 +221,19 @@ describe('the key words that tie a quote to a sentence (B1.2)', () => {
     expect(isAbout('light into a single beam', 'Why?')).toBe(true);
   });
 
-  it('are shared once for a sentence of eight key words or fewer, in an ask order’s answer (D-306)', () => {
+  it('are shared once for a sentence of eight key words or fewer, from a quote with two of its own, in an ask order’s answer (D-306)', () => {
     const passage = 'Near the poles the Sun is never directly overhead';
     // Five key words (sun, nearly, overhead, pole, summer): a quote that carries one of them and two of its own is about it.
     const short = 'The Sun is nearly overhead at the pole in summer.';
     expect(SHORT_SENTENCE_KEY_WORDS).toBe(8);
+    expect(MIN_QUOTE_KEY_WORDS).toBe(2);
     expect(contentStems(short).size).toBeLessThanOrEqual(SHORT_SENTENCE_KEY_WORDS);
     const about = (quote: string, sentence: string) => isAboutSentence(quote, sentence, ASK_ORDER_CHECK_RULES);
     expect(about('poles the Sun is never', short)).toBe(true);
     expect(about(passage, short)).toBe(true);
-    expect(about('the Sun is', short)).toBe(true);
+    // The quote itself must carry two key words: "the Sun is" has one (D-250's cheap case), so it is refused again.
+    expect(contentStems('the Sun is').size).toBe(1);
+    expect(about('the Sun is', short)).toBe(false);
     expect(about('a kettle switches off', short)).toBe(false);
     // Nine key words or more: one shared word is no longer enough, two are.
     const long =
@@ -525,7 +529,8 @@ describe('what a verdict that breaks a rule does to its own sentence (D-265)', (
     // Five key words, in an ask order's answer: one shared is enough from a quote with two key words of its own (D-306).
     const shortSun = numbered([sentence(1, 'The Sun is nearly overhead at the pole in summer.', ['e5'])]);
     expect(outcomes(judgedForAsk([supported(1, 'poles the Sun is never')], shortSun))).toEqual(['supported']);
-    expect(outcomes(judgedForAsk([supported(1, 'the Sun is')], shortSun))).toEqual(['supported']);
+    // The dev run's three words carry one key word in all: still refused, for a short sentence too.
+    expect(outcomes(judgedForAsk([supported(1, 'the Sun is')], shortSun))).toEqual(['quote_not_about_sentence']);
     // A quote that shares none of them is about something else.
     expect(outcomes(judgedForAsk([supported(1, 'the planet’s axis is tilted')], shortSun))).toEqual([
       'quote_not_about_sentence',
