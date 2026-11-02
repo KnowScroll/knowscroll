@@ -26,15 +26,9 @@ import {
   ASK_ANSWER_MIN_SENTENCES,
   DIRECT_ANSWER_LOST_CODE,
   DIRECT_ANSWER_LOST_HINT,
-} from './ask-answer-shape.js';
-import {
   NEUTRAL_DEK,
-  titleAboutReading,
-  trimAskAnswer,
-  unchanged,
-  type PreparedAnswer,
-  type TrimRules,
-} from './ask-answer-trim.js';
+} from './ask-answer-shape.js';
+import { titleAboutReading, trimAskAnswer, unchanged, type PreparedAnswer, type TrimRules } from './ask-answer-trim.js';
 import { copyRepairNotes } from './copy-repair.js';
 import { authoringEvidence, MIN_EVIDENCE_PASSAGES, type EvidencePassage } from './evidence.js';
 import { explanationUnitFor, TOPICS, type ScrollTopic } from './topics.js';

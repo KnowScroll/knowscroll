@@ -21,6 +21,12 @@ export const ASK_ANSWER_MAX_SENTENCES = 12;
 export const ASK_ANSWER_FLOOR_SENTENCES = MIN_SERVED_SENTENCES;
 export const ASK_ANSWER_CEILING_SENTENCES = 20;
 
+/**
+ * The dek given to an answer whose own dek cannot be served (D-351). It states no fact; the stored document needs a dek of ten
+ * characters or more. It is code's line, so it never counts among the sentences of an answer (D-356).
+ */
+export const NEUTRAL_DEK = 'A short answer to your question.';
+
 /** The finding for an answer outside the range code holds, and the finding for an opening paragraph that code took out whole. Each has a fixed repair hint. */
 export const ANSWER_LENGTH_CODE = 'answer_sentences_out_of_brief';
 export const DIRECT_ANSWER_LOST_CODE = 'direct_answer_lost';
@@ -43,9 +49,17 @@ const LEANING_OPENING = /^[\s"'“‘([]*(?:this|that|these|those|it|they)(?![\p
 /** Whether a sentence begins with a pointer ("This", "That", "It", "These", "Those", "They") that leans on the sentence before it. */
 export const leansOnPrevious = (sentence: string): boolean => LEANING_OPENING.test(sentence);
 
-/** The number of sentences of reading text in an answer: every sentence that is not a title, a heading or a callout's title. */
+/**
+ * The number of sentences of reading text in an answer: every sentence that is not a title, a heading or a callout's title, and not the
+ * dek when it is the line code wrote ({@link NEUTRAL_DEK}), which is no sentence of the answer's own (D-356).
+ */
 export const readingSentencesOf = (answer: AuthoredScroll): number =>
-  placedSentencesOfAnswer(answer).filter((sentence) => sentence.label !== true).length;
+  placedSentencesOfAnswer(answer).filter(
+    (sentence) => sentence.label !== true && !(sentence.place.field === 'dek' && hasCodeMadeDek(answer)),
+  ).length;
+
+/** Whether the dek of an answer is the line code wrote, whole. */
+export const hasCodeMadeDek = (answer: Pick<AuthoredScroll, 'dek'>): boolean => answer.dek === NEUTRAL_DEK;
 
 /** The length finding of an answer, located at `$`: none while it has {@link ASK_ANSWER_FLOOR_SENTENCES} to {@link ASK_ANSWER_CEILING_SENTENCES} sentences of reading text. */
 export function answerShapeIssues(answer: AuthoredScroll): AdmissionIssue[] {

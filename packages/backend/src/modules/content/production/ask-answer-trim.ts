@@ -16,9 +16,6 @@ export const QUESTION_TITLE_PREFIX = 'Your question about ';
 /** The title given to an answer whose own title cannot be served when no title can be made from the Scroll it was asked from. */
 export const FALLBACK_TITLE = 'About your question';
 
-/** The dek given to an answer whose own dek cannot be served. It states no fact; the stored document needs a dek of ten characters or more. */
-export const NEUTRAL_DEK = 'A short answer to your question.';
-
 /** The two lines code writes itself when the writer's cannot be served. Neither holds a word the model wrote. */
 export interface CodeMadeLines {
   readonly title: string;

@@ -10,6 +10,7 @@ import {
   answerLengthHint,
   answerShapeIssues,
   leansOnPrevious,
+  NEUTRAL_DEK,
   readingSentencesOf,
 } from './ask-answer-shape.js';
 
@@ -60,6 +61,24 @@ describe('the length of the answer to a question (D-308, D-350)', () => {
     // The dek, three, three and two: nine.
     expect(readingSentencesOf(answer)).toBe(9);
     expect(answerShapeIssues(answer)).toEqual([]);
+  });
+});
+
+describe('the line code wrote for a dek is no sentence of the answer’s own (D-356)', () => {
+  /** Four sentences of reading text besides the dek: three paragraphs and the limit line. */
+  const four = [paragraph('One.'), paragraph('Two.'), paragraph('Three.'), { ...limit, text: 'Four.' }];
+
+  it('is not counted, so an answer needs five sentences of its own beside it', () => {
+    expect(readingSentencesOf(answerOf(four))).toBe(5);
+    expect(answerShapeIssues(answerOf(four))).toEqual([]);
+    expect(readingSentencesOf(answerOf(four, NEUTRAL_DEK))).toBe(4);
+    expect(answerShapeIssues(answerOf(four, NEUTRAL_DEK))).toEqual([{ code: ANSWER_LENGTH_CODE, path: '$' }]);
+    expect(readingSentencesOf(answerOf([...four, paragraph('Five.')], NEUTRAL_DEK))).toBe(5);
+  });
+
+  it('is told by its exact words: a dek of the writer’s that only resembles it still counts', () => {
+    expect(readingSentencesOf(answerOf(four, 'A short answer to your question!'))).toBe(5);
+    expect(readingSentencesOf(answerOf(four, NEUTRAL_DEK + ' It says more.'))).toBe(6);
   });
 });
 

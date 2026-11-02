@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { AuthoredScroll, COPY_RUN_WORDS, copiedRuns, DocumentTitle } from '@knowscroll/scroll-model/producer';
 import { extractResearch } from '../../../infrastructure/research/public-pages.js';
 import { evidencePassages } from './evidence.js';
-import { FALLBACK_TITLE, NEUTRAL_DEK, trimAskAnswer } from './ask-answer-trim.js';
+import { NEUTRAL_DEK } from './ask-answer-shape.js';
+import { FALLBACK_TITLE, trimAskAnswer } from './ask-answer-trim.js';
 import {
   askTrimRules,
   compileGeneratedScroll,
@@ -488,6 +489,20 @@ describe('the instructions for the answer to one question (D-218)', () => {
     const thin = scroll([prose('Glass rings bend the glow.', ['e2']), prose(SOURCE[1]!, ['e2']), limit]);
     expect(codes(thin)).toContain('answer_sentences_out_of_brief');
     expect(codes(thin)).not.toContain('direct_answer_lost');
+  });
+
+  it('does not count the dek code wrote among the five sentences: a draft whose own dek copied a passage needs five of its own (D-356)', () => {
+    const role = writerRole({ provenance: questionProvenance, passages, format: 'plain', mode: 'question' });
+    // Three paragraphs and the limit line: four sentences of reading text besides the dek, from five different passages.
+    const withDek = (dek: string) =>
+      AuthoredScroll.parse({ title: 'How a lighthouse guides ships', dek, blocks: [BODY[0], BODY[1], BODY[2], limit] });
+    const ownDek = 'A shaped beam, a rhythm and a dependable rotation turn one lamp into a coastal signal.';
+    expect(role.outputSchema.safeParse(withDek(ownDek)).success).toBe(true);
+    const copied = role.outputSchema.safeParse(withDek(SOURCE[1]!));
+    expect(copied.success).toBe(false);
+    expect(!copied.success && copied.error.issues.map((issue) => safeCodeOf(issue))).toEqual([
+      'answer_sentences_out_of_brief',
+    ]);
   });
 
   it('refuses a draft of more than 20 sentences of reading text, and takes the count after the copied sentences are out', () => {

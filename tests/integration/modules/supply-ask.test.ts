@@ -44,7 +44,7 @@ import {
   fixtureResearchPageV2,
 } from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
-import { NEUTRAL_DEK } from '../../../packages/backend/src/modules/content/production/ask-answer-trim.js';
+import { NEUTRAL_DEK } from '../../../packages/backend/src/modules/content/production/ask-answer-shape.js';
 import { madeToOrderSubject } from '../../../packages/backend/src/modules/content/production/subject.js';
 import { madeToOrderKey } from '../../../packages/backend/src/modules/content/domain/order-key.js';
 import {
@@ -1820,6 +1820,42 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
 
         expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published', take: 1 } });
         expect(production.writerCalls).toHaveLength(1);
+      });
+
+      it('does not count the dek code wrote among the five: a draft whose own dek copied a passage needs five sentences of its own (D-356)', async () => {
+        await setup();
+        const { order } = await orderedAsk();
+        // The opening paragraph's first sentence, one of the upkeep, one of the fog paragraph and the limit line: four besides the dek.
+        const four = [
+          paragraphOf(0, 'A ring of prisms around the flame bends the light into one narrow beam.'),
+          paragraphOf(4, KEEP),
+          paragraphOf(5, 'Thick fog scatters light in every direction, so the beam fades after a short distance.'),
+          base.blocks.at(-1),
+        ];
+        // With the writer's own dek they are five sentences and the draft is served.
+        writer = () => answerWith({ ...base, blocks: four });
+        expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+        expect(production.writerCalls).toHaveLength(1);
+      });
+
+      it('refuses the same draft when its dek copied a passage and code wrote the line, leaving four sentences of its own (D-356)', async () => {
+        await setup();
+        const { order } = await orderedAsk();
+        const four = [
+          paragraphOf(0, 'A ring of prisms around the flame bends the light into one narrow beam.'),
+          paragraphOf(4, KEEP),
+          paragraphOf(5, 'Thick fog scatters light in every direction, so the beam fades after a short distance.'),
+          base.blocks.at(-1),
+        ];
+        writer = () => answerWith({ ...base, dek: COPIED_TOO, blocks: four });
+
+        expect(await publish(order.recipe)).toMatchObject({
+          result: { outcome: 'rejected', codes: ['invalid_output'] },
+        });
+        expect(production.writerCalls).toHaveLength(2);
+        expect(hintOf(production.writerCalls[1]!)).toContain('8 to 12 sentences');
+        expect(production.supportCalls).toHaveLength(0);
+        expect(await storedAnswer(order.assetId)).toBeUndefined();
       });
 
       it('is refused above 20 sentences of reading text, with the fixed hint naming the range asked for', async () => {

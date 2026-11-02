@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { FIELD_LIMITS } from '@knowscroll/scroll-model';
 import { AuthoredScroll, COPY_RUN_WORDS, copyMaterial } from '@knowscroll/scroll-model/producer';
-import { DIRECT_ANSWER_LOST_CODE } from './ask-answer-shape.js';
+import { DIRECT_ANSWER_LOST_CODE, NEUTRAL_DEK } from './ask-answer-shape.js';
 import {
   copiedSentenceNumbers,
   FALLBACK_TITLE,
-  NEUTRAL_DEK,
   QUESTION_TITLE_PREFIX,
   titleAboutReading,
   trimAskAnswer,

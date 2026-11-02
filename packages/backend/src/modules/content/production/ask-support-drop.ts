@@ -1,6 +1,7 @@
 import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { MIN_SERVED_SENTENCES, splitSentences, type SentenceVerdict } from '../domain/ask-support.js';
 import { rebuildWithout, withLeaningSentencesRemoved } from './ask-answer-rebuild.js';
+import { hasCodeMadeDek } from './ask-answer-shape.js';
 import type { CodeMadeLines } from './ask-answer-trim.js';
 import { placedSentencesOfAnswer, type PlacedSentence } from './ask-support.js';
 
@@ -89,7 +90,7 @@ export function dropFlagged(
 
   const supported = sentences.filter(
     (sentence) =>
-      verdictOf.get(sentence.number) === 'supported' && !removed.has(sentence.number) && !isCodeMade(sentence, lines),
+      verdictOf.get(sentence.number) === 'supported' && !removed.has(sentence.number) && !isCodeMade(sentence, answer),
   );
   const directAnswer = answer.blocks.findIndex((block) => block.type === 'paragraph');
   if (!supported.some((sentence) => sentence.place.field === 'paragraph' && sentence.place.block === directAnswer))
@@ -123,9 +124,9 @@ export function dropFlagged(
   return { kind: 'kept', authored: candidate.data, dropped: removed.size, titleReplaced, dekReplaced };
 }
 
-/** The dek that code wrote earlier states no fact and has no verdict worth counting, whatever the checker said of it. */
-const isCodeMade = (sentence: PlacedSentence, lines: CodeMadeLines | undefined): boolean =>
-  lines !== undefined && sentence.place.field === 'dek' && sentence.text === lines.dek;
+/** The dek that code wrote states no fact and has no verdict worth counting, whatever the checker said of it (D-356). */
+const isCodeMade = (sentence: PlacedSentence, answer: AuthoredScroll): boolean =>
+  sentence.place.field === 'dek' && hasCodeMadeDek(answer);
 
 const textsOf = (sentences: readonly PlacedSentence[], field: 'title' | 'dek'): string[] =>
   sentences.filter((sentence) => sentence.place.field === field).map((sentence) => sentence.text);

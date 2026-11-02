@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { MIN_SERVED_SENTENCES, type SentenceVerdict } from '../domain/ask-support.js';
-import { NEUTRAL_DEK } from './ask-answer-trim.js';
+import { NEUTRAL_DEK } from './ask-answer-shape.js';
 import { dropFlagged, onlyTitleOrDekFlagged } from './ask-support-drop.js';
 import { placedSentencesOfAnswer } from './ask-support.js';
 
