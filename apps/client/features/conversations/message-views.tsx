@@ -1,10 +1,10 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 import type { ConversationContentProjection } from '@knowscroll/contracts';
 import type { OutgoingMessage } from '@knowscroll/client-core';
-import { borderWidth, content, radius, spacing, universe } from '@knowscroll/design-tokens';
-import { Button, TalkBubble, Tag, Text, useTalkTheme } from '@knowscroll/ui';
+import { borderWidth, content, radius, spacing, status, universe } from '@knowscroll/design-tokens';
+import { Button, TalkBubble, Tag, Text, useDisplay, useTalkTheme } from '@knowscroll/ui';
 
 /**
  * A shared Reel or Scroll as a card (T3 kit: paper, a chunky shadow). It shows only public metadata and
@@ -108,6 +108,62 @@ export function AwayDivider() {
   );
 }
 
+/** The red of the line, readable on the sky and on paper. */
+const NEW_SINCE_ON_SKY = '#FF8573';
+
+/** The dot of the line: a still core with one ring that spreads and fades; under reduced motion the ring holds still. */
+function RippleDot({ colour }: { readonly colour: string }) {
+  const { reducedMotion } = useDisplay();
+  const [spread] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    if (reducedMotion) {
+      spread.setValue(0);
+      return undefined;
+    }
+    const loop = Animated.loop(
+      Animated.timing(spread, {
+        toValue: 1,
+        duration: 1600,
+        easing: (progress) => 1 - (1 - progress) ** 2,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [reducedMotion, spread]);
+  const scale = spread.interpolate({ inputRange: [0, 1], outputRange: [1, 2.6] });
+  const opacity = spread.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] });
+  return (
+    <View style={styles.dotBox} aria-hidden testID="new-since-dot">
+      <Animated.View
+        style={[
+          styles.dotRing,
+          { borderColor: colour, opacity: reducedMotion ? 0.5 : opacity, transform: [{ scale }] },
+        ]}
+      />
+      <View style={[styles.dotCore, { backgroundColor: colour }]} />
+    </View>
+  );
+}
+
+/**
+ * T3 "new since you were here": the line under which sit the messages others wrote after the position the person had
+ * read to when they opened the thread. The position is their own and is never shown to anyone. Placed, never scrolled to.
+ */
+export function NewSinceDivider() {
+  const theme = useTalkTheme();
+  const colour = theme.name === 'sky' ? NEW_SINCE_ON_SKY : status.danger.foreground;
+  return (
+    <View style={styles.away} accessibilityLiveRegion="polite" testID="new-since-divider">
+      <RippleDot colour={colour} />
+      <Text variant="monoXs" color={colour}>
+        NEW SINCE YOU WERE HERE
+      </Text>
+      <View style={[styles.awayRule, { backgroundColor: colour }]} />
+    </View>
+  );
+}
+
 /** The sequence of the first message under the divider, if the divider is drawn at all. */
 export function firstAwayMessage(
   messages: readonly { readonly sequence: number }[],
@@ -195,6 +251,9 @@ export function OutgoingBubble({
 const styles = StyleSheet.create({
   away: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], paddingVertical: spacing[2] },
   awayRule: { flex: 1, height: borderWidth.hairline },
+  dotBox: { width: 12, height: 12, alignItems: 'center', justifyContent: 'center' },
+  dotCore: { width: 8, height: 8, borderRadius: 4 },
+  dotRing: { position: 'absolute', width: 8, height: 8, borderRadius: 4, borderWidth: 1 },
   mine: { alignSelf: 'flex-end', alignItems: 'flex-end', gap: spacing[1] },
   theirs: { alignSelf: 'flex-start' },
   sending: { opacity: 0.8 },

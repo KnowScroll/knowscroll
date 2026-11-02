@@ -61,7 +61,20 @@ function InboxRow({ item, current }: { readonly item: DirectConversationSummary;
   );
 }
 
-/** The person's conversations and threads, newest first; `currentId` marks the one open beside the list. */
+/** One group's label in the list (T3: THREADS, PEOPLE, ROOMS). */
+function SectionLabel({ label }: { readonly label: string }) {
+  const look = useTalkListLook();
+  return (
+    <Text variant="monoXs" heading={3} color={look.quiet} style={styles.sectionLabel}>
+      {label}
+    </Text>
+  );
+}
+
+/**
+ * The person's threads, then people (direct conversations), then rooms, each group under its own label and newest
+ * first (T3). `currentId` marks the conversation or thread open beside the list.
+ */
 export function TalkList({ scope, currentId }: { readonly scope: AccountScope; readonly currentId?: string }) {
   const inbox = useTalkInbox(scope);
   const threads = useThreadInbox(scope);
@@ -78,22 +91,15 @@ export function TalkList({ scope, currentId }: { readonly scope: AccountScope; r
       />
     );
   if (inbox.items.length === 0 && threads.items.length === 0 && rooms.items.length === 0) return <EmptyTalk />;
-  // An invitation is a card above the list (C03), not a row; the rest share one list, newest first.
+  // An invitation is a card above the list (C03), not a row; the rest are grouped, each newest first.
   const invitations = threads.items.filter((item) => item.state === 'invited');
-  const rows = [
-    ...inbox.items.map((item) => ({
-      key: item.conversation.conversationId,
-      at: inboxRowView(item).at?.getTime() ?? 0,
-      node: <InboxRow item={item} current={item.conversation.conversationId === currentId} />,
-    })),
-    ...threads.items
-      .filter((item) => item.state !== 'invited')
-      .map((item) => ({
-        key: item.thread.threadId,
-        at: threadRowView(item).at.getTime(),
-        node: <ThreadRow item={item} />,
-      })),
-  ].sort((first, second) => second.at - first.at);
+  const threadRows = threads.items
+    .filter((item) => item.state !== 'invited')
+    .map((item) => ({ item, at: threadRowView(item).at.getTime() }))
+    .sort((first, second) => second.at - first.at);
+  const personRows = inbox.items
+    .map((item) => ({ item, at: inboxRowView(item).at?.getTime() ?? 0 }))
+    .sort((first, second) => second.at - first.at);
   return (
     <View style={styles.list}>
       {inbox.failed || threads.failed ? (
@@ -104,18 +110,33 @@ export function TalkList({ scope, currentId }: { readonly scope: AccountScope; r
       {invitations.map((item) => (
         <InvitationCard key={item.thread.threadId} scope={scope} item={item} />
       ))}
-      <View role="list" accessibilityLabel="Conversations">
-        {rows.map((row) => (
-          <View key={row.key} role="listitem">
-            {row.node}
+      {threadRows.length === 0 ? null : (
+        <View style={styles.section}>
+          <SectionLabel label="THREADS" />
+          <View role="list" accessibilityLabel="Threads">
+            {threadRows.map(({ item }) => (
+              <View key={item.thread.threadId} role="listitem">
+                <ThreadRow item={item} current={item.thread.threadId === currentId} />
+              </View>
+            ))}
           </View>
-        ))}
-      </View>
+        </View>
+      )}
+      {personRows.length === 0 ? null : (
+        <View style={styles.section}>
+          <SectionLabel label="PEOPLE" />
+          <View role="list" accessibilityLabel="People">
+            {personRows.map(({ item }) => (
+              <View key={item.conversation.conversationId} role="listitem">
+                <InboxRow item={item} current={item.conversation.conversationId === currentId} />
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
       {rooms.items.length === 0 ? null : (
-        <View style={styles.rooms}>
-          <Text variant="monoXs" color={look.quiet}>
-            Rooms
-          </Text>
+        <View style={styles.section}>
+          <SectionLabel label="ROOMS" />
           <View role="list" accessibilityLabel="Rooms">
             {rooms.items.map((item) => (
               <View key={item.room.roomId} role="listitem">
@@ -231,6 +252,7 @@ const styles = StyleSheet.create({
   rowEnd: { alignItems: 'flex-end', gap: spacing[2], minWidth: 44 },
   unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: content.accent },
   banner: { marginBottom: spacing[3] },
-  rooms: { gap: spacing[2], paddingTop: spacing[5] },
+  section: { gap: spacing[1], paddingTop: spacing[3] },
+  sectionLabel: { paddingBottom: spacing[1] },
   more: { paddingVertical: spacing[4] },
 });

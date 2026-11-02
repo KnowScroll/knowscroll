@@ -162,3 +162,24 @@ export async function threadEpisodes(
     episodes: units.map((unit) => episodeOf(unit, byKey.get(keyOf(unit)), visited, inSeries)),
   };
 }
+
+/**
+ * For each root that is a part of a declared series, the part it is and how many parts the series has, keyed
+ * `<assetId>:<revision>` like the inbox's own roots. A root in no series, in a series of one part, or whose sequence cannot be read, has none.
+ * A shared-metadata read of the series only; it says nothing of anyone's progress.
+ */
+export async function seriesOfRoots(
+  p: ThreadPorts,
+  scope: PersonalScopeTx,
+  roots: readonly ContentRef[],
+): Promise<Map<string, { part: number; total: number }>> {
+  const found = new Map<string, { part: number; total: number }>();
+  for (const root of roots) {
+    const sequence = await p.readSequence(scope, root);
+    if (sequence?.kind !== 'series' || sequence.units.length < 2) continue;
+    const unit = sequence.units.find((candidate) => candidate.assetId === root.assetId);
+    if (unit !== undefined)
+      found.set(`${root.assetId}:${String(root.assetRevision)}`, { part: unit.part, total: sequence.units.length });
+  }
+  return found;
+}
