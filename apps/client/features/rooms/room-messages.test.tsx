@@ -1,7 +1,7 @@
 import { StyleSheet } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { RoomDiscussionController, RoomDiscussionState } from '@knowscroll/client-core';
-import { ROOM_SWATCHES, type RoomKit, type RoomMessage } from '@knowscroll/contracts';
+import { ROOM_NOT_COVERED_LINE, ROOM_SWATCHES, type RoomKit, type RoomMessage } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
 import { actionsFor, RoomMessages } from './room-messages';
 
@@ -112,6 +112,22 @@ describe('room messages', () => {
     expect(screen.getByTestId(`challenge-${skeptic.messageId}`)).toBeOnTheScreen();
     // A person's message carries no AI label, and the caller's own is not named.
     expect(screen.queryByText('Asha')).not.toBeOnTheScreen();
+  });
+
+  it('offers nothing to challenge under a resident’s fixed "the library does not cover that" line', async () => {
+    const gap: RoomMessage = {
+      ...skeptic,
+      messageId: id(202),
+      sequence: 3,
+      body: { kind: 'text', text: ROOM_NOT_COVERED_LINE },
+    };
+    await show([text(1, asha, 'Why does the Moon drift away?'), gap]);
+    expect(screen.getByText(ROOM_NOT_COVERED_LINE)).toBeOnTheScreen();
+    expect(screen.queryByTestId(`challenge-${gap.messageId}`)).not.toBeOnTheScreen();
+    expect(screen.queryByTestId(`other-side-${gap.messageId}`)).not.toBeOnTheScreen();
+    expect(actionsFor(gap, 'member', asha.personId).canAsk).toBe(false);
+    // A person who writes the same words is still a person's message: they can be asked about.
+    expect(actionsFor({ ...gap, author: asha }, 'member', undefined).canAsk).toBe(true);
   });
 
   it('draws a resident’s edge in its colour in a room with a face, and the label stays whatever the colour', async () => {
