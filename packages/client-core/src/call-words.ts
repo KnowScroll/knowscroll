@@ -79,6 +79,11 @@ export function revealWords(call: Extract<ThreadCall, { stage: 'revealed' }>): {
 export const callKey = (call: Pick<ThreadCall, 'part' | 'assetId' | 'assetRevision'>): string =>
   `${String(call.part)}@${call.assetId}@${String(call.assetRevision)}`;
 
+/** The first revealed call this device has not shown yet: the thread opens it on its own when it arrives. */
+export function unseenReveal(calls: readonly ThreadCall[], seen: ReadonlySet<string>): ThreadCall | undefined {
+  return calls.find((call) => call.stage === 'revealed' && !seen.has(callKey(call)));
+}
+
 /**
  * The call the bar above the composer offers: the first one the person can still make, else the first they are waiting
  * on, else the first reveal they have not opened on this device. Nothing once every call is closed or its reveal was
@@ -88,6 +93,6 @@ export function callForBar(calls: readonly ThreadCall[], seen: ReadonlySet<strin
   return (
     calls.find((call) => call.stage === 'open') ??
     calls.find((call) => call.stage === 'locked') ??
-    calls.find((call) => call.stage === 'revealed' && !seen.has(callKey(call)))
+    unseenReveal(calls, seen)
   );
 }

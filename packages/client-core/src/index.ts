@@ -82,6 +82,7 @@ export { createThreadCalls, type ThreadCallsController, type ThreadCallsState } 
 export {
   callChipWords,
   callForBar,
+  unseenReveal,
   callKey,
   callPartLabel,
   callSummaryWords,

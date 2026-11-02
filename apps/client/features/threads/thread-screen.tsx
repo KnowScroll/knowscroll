@@ -15,6 +15,7 @@ import {
   TALK_QUERY_KEY,
   answersKey,
   callForBar,
+  unseenReveal,
   composerAddressees,
   findThread,
   liveReplyTarget,
@@ -153,6 +154,12 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
   const openCall = calls.state.calls.find((call) => call.part === callPart);
   const barCall = callForBar(calls.state.calls, calls.seen);
   const { markSeen } = calls;
+  // A reveal the person has not seen on this device opens in the thread as soon as it is there (T3 frame 5), unless they
+  // already have a call open. The server sends picks only for a call revealed to this reader (D-155); this only shows it.
+  const waitingReveal = unseenReveal(calls.state.calls, calls.seen);
+  useEffect(() => {
+    if (waitingReveal !== undefined) setCallPart((open) => open ?? waitingReveal.part);
+  }, [waitingReveal]);
   useEffect(() => {
     if (openCall?.stage === 'revealed') markSeen(openCall);
   }, [openCall, markSeen]);

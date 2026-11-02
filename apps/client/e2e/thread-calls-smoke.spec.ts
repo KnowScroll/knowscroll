@@ -181,7 +181,6 @@ test('the reveal waits for everyone who shares where they are, then shows every 
   // Meera finishes: everyone who shares has, and the call shows to those who locked.
   world.setPlace('meera', 2, 'finished');
   await asha.page.reload();
-  await asha.page.getByTestId('call-bar').click();
   const card = asha.page.getByTestId('call-card');
   await expect(card.getByText('PLOT TWIST! · REVEALED TOGETHER')).toBeVisible();
   await expect(asha.page.getByTestId('call-explain')).toHaveText(PARTY_CALL.explain);
@@ -200,6 +199,42 @@ test('the reveal waits for everyone who shares where they are, then shows every 
   // The reveal was opened here, so the bar stops offering it after the card is closed.
   await asha.page.getByTestId('call-close').click();
   await expect(asha.page.getByTestId('call-bar')).toHaveCount(0);
+  await closeAll(asha.context);
+});
+
+test('the reveal of Part 2 opens in the thread by itself, ahead of the call before Part 3, and only once everyone finished', async ({
+  browser,
+}) => {
+  const world = partyWorld({ call: true, nextCall: true });
+  world.setPlace('meera', 1, 'on');
+  world.setPlace('ravi', 2, 'finished');
+  world.setPlace('asha', 2, 'finished');
+  world.lock('ravi', 0);
+  world.lock('meera', 0);
+  world.lock('asha', 1);
+  const asha = await person(browser, world, 'asha');
+  const { page } = asha;
+
+  // Meera still shares Part 1: nobody's pick shows, and the bar offers the call before Part 3.
+  await expect(page.getByTestId('call-bar')).toContainText('Call it first');
+  await expect(page.getByTestId('call-card')).toHaveCount(0);
+  await expect(page.getByTestId('call-explain')).toHaveCount(0);
+
+  // Meera finishes Part 2: the reveal is in the thread without a tap, ahead of the next call.
+  world.setPlace('meera', 2, 'finished');
+  await page.reload();
+  const card = page.getByTestId('call-card');
+  await expect(card.getByText('PLOT TWIST! · REVEALED TOGETHER')).toBeVisible();
+  await expect(page.getByTestId('call-explain')).toHaveText(PARTY_CALL.explain);
+  await shot(page, 'reveal-390-in-thread');
+  expect(await seriousViolations(page)).toEqual([]);
+
+  // Closing it brings the call before Part 3 back; the reveal is not shown again on this device.
+  await page.getByTestId('call-close').click();
+  await expect(page.getByTestId('call-bar')).toContainText('Call it first');
+  await page.reload();
+  await expect(page.getByTestId('call-bar')).toContainText('Call it first');
+  await expect(page.getByTestId('call-card')).toHaveCount(0);
   await closeAll(asha.context);
 });
 
@@ -225,7 +260,6 @@ test('a member who never calls, and one who hides where they are, do not hold th
   await expect.poll(() => world.isHidden('asha')).toBe(true);
   await asha.page.keyboard.press('Escape');
   await asha.page.reload();
-  await asha.page.getByTestId('call-bar').click();
   await expect(asha.page.getByTestId('call-card').getByText('CALLED IT! · REVEALED TOGETHER')).toBeVisible();
   await expect(asha.page.getByTestId('call-spark')).toHaveText('★ +1 for 2 of you');
   await shot(asha.page, 'call-390-called-it');
