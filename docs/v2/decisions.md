@@ -3828,7 +3828,7 @@ Confirmed by: `versions.test.ts` (the bound of 14 and both claims, written out a
 
 Confirmed by: `quick-answer-support.test.ts` (a short claim is not "no fact", a quote with one key word is not about the sentence, the checker is not told otherwise), `rooms/application/answer-check.test.ts` (the same for both of a room's roles), `domain/ask-support.test.ts` and `ask-support.test.ts` (the strict rules by default, the soft ones with the option, the two sets of instructions). Shown failing when the options were on for every caller.
 
-## D-329 · 2026-11-02 · The ••• sheet of a Scroll is the design's seven rows (v3 Scrolls fidelity, #497)
+## D-331 · 2026-11-02 · The ••• sheet of a Scroll is the design's seven rows (v3 Scrolls fidelity, #497)
 
 **Builds on** round 1 (#548: Like and Ask live only in Explore), D-244 and D-292. **Amends** the sheet's three pill buttons and icon row.
 
@@ -3840,7 +3840,7 @@ Confirmed by: `quick-answer-support.test.ts` (a short claim is not "no fact", a 
 
 Confirmed by: `more-rows.test.ts` (the seven rows in order with a sub-line and a key; rows left out; rows dimmed with the reason; the Saved and switched-on states) and `e2e/scroll-fidelity-smoke.spec.ts` (the seven rows and their keys at 390 × 844 and 1440 × 900, each row doing its work, axe).
 
-## D-330 · 2026-11-02 · Each row of the ••• sheet has a key, and Shift + S is Simpler (v3 Scrolls fidelity, #497)
+## D-332 · 2026-11-02 · Each row of the ••• sheet has a key, and Shift + S is Simpler (v3 Scrolls fidelity, #497)
 
 **Builds on** D-134 and D-053.
 
@@ -3851,7 +3851,7 @@ Confirmed by: `more-rows.test.ts` (the seven rows in order with a sub-line and a
 
 Confirmed by: `reader-keys.test.ts`, `reader-actions.test.ts`, `keyboard-map.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (each key opens or toggles what its row does).
 
-## D-331 · 2026-11-02 · Small print opens from ••• as a sheet, and stays a chip on the end tray (v3 Scrolls fidelity, #497)
+## D-333 · 2026-11-02 · Small print opens from ••• as a sheet, and stays a chip on the end tray (v3 Scrolls fidelity, #497)
 
 **Builds on** D-189 ("Small print opens where it stands").
 
@@ -3861,7 +3861,7 @@ Confirmed by: `reader-keys.test.ts`, `reader-actions.test.ts`, `keyboard-map.tes
 
 Confirmed by: `e2e/scroll-fidelity-smoke.spec.ts` (the row and the P key open the aside's text) and `e2e/payoff-smoke.spec.ts` (the chip is unchanged).
 
-## D-332 · 2026-11-02 · Next says its word when the bar has room, and keeps to its arrow when it does not (v3 Scrolls fidelity, #497)
+## D-334 · 2026-11-02 · Next says its word when the bar has room, and keeps to its arrow when it does not (v3 Scrolls fidelity, #497)
 
 **Amends** D-185 ("Below tablet width Next is its arrow alone").
 
@@ -3871,7 +3871,7 @@ Confirmed by: `e2e/scroll-fidelity-smoke.spec.ts` (the row and the P key open th
 
 Confirmed by: `reader-chrome.test.tsx` (the word at 390 and 834; the arrow at 320 and 360; taken back on a wrap and on a title that needs three lines) and `e2e/scroll-fidelity-smoke.spec.ts` (a short title keeps the word at 390 × 844; a long one gives it back and the bar stays one line; 1440 and 320).
 
-## D-333 · 2026-11-02 · "Done for today" says where next time starts, only when a next Part is admitted (v3 Scrolls fidelity, #497)
+## D-335 · 2026-11-02 · "Done for today" says where next time starts, only when a next Part is admitted (v3 Scrolls fidelity, #497)
 
 **Builds on** D-189 and D-216.
 
@@ -3880,7 +3880,7 @@ Confirmed by: `reader-chrome.test.tsx` (the word at 390 and 834; the arrow at 32
 
 Confirmed by: `play.test.tsx` (the line with a next Part, none without) and `e2e/scroll-fidelity-smoke.spec.ts`.
 
-## D-334 · 2026-11-02 · The dock's Ask is a blue sparkle on a tinted pill (v3 Scrolls fidelity, #497)
+## D-336 · 2026-11-02 · The dock's Ask is a blue sparkle on a tinted pill (v3 Scrolls fidelity, #497)
 
 **Builds on** V3 P3 and G1.
 
@@ -3889,7 +3889,7 @@ Confirmed by: `play.test.tsx` (the line with a next Part, none without) and `e2e
 
 Confirmed by: `reader-chrome.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (fill and sparkle colour at 390 and 1440).
 
-## D-335 · 2026-11-02 · The Final call's mark on the spine is a star (v3 Scrolls fidelity, #497)
+## D-337 · 2026-11-02 · The Final call's mark on the spine is a star (v3 Scrolls fidelity, #497)
 
 **Builds on** D-133 and V3 A1.
 
@@ -3898,7 +3898,7 @@ Confirmed by: `reader-chrome.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (
 
 Confirmed by: `stage-reader.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts`.
 
-## D-336 · 2026-11-02 · The picture says the tilt it is turned to while a Final call binds a tilt (v3 Scrolls fidelity, #497)
+## D-338 · 2026-11-02 · The picture says the tilt it is turned to while a Final call binds a tilt (v3 Scrolls fidelity, #497)
 
 **Builds on** D-187.
 
@@ -3907,7 +3907,7 @@ Confirmed by: `stage-reader.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts`.
 
 Confirmed by: `stage.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts`.
 
-## D-337 · 2026-11-02 · The friend list of a sheet loads as a skeleton row (v3 Scrolls fidelity, #497)
+## D-339 · 2026-11-02 · The friend list of a sheet loads as a skeleton row (v3 Scrolls fidelity, #497)
 
 **Builds on** D-245.
 
@@ -3915,7 +3915,7 @@ Confirmed by: `stage.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts`.
 
 Confirmed by: `friend-picker.test.tsx`.
 
-## D-338 · 2026-11-02 · Share a moment shows the stop and its picture before a thread is chosen (v3 Scrolls fidelity, #497)
+## D-340 · 2026-11-02 · Share a moment shows the stop and its picture before a thread is chosen (v3 Scrolls fidelity, #497)
 
 **Builds on** D-292.
 
