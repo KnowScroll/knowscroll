@@ -20,7 +20,6 @@ const FIGURE_PASSAGES = [...PASSAGES_V2, NEAR_FAR, DAYLIGHT, SWAPPED, RANGE];
 const NEAR_FAR_HANDLE = 'e7';
 const DAYLIGHT_HANDLE = 'e8';
 const SWAPPED_HANDLE = 'e9';
-const RANGE_HANDLE = 'e10';
 
 const evidence = (): CompileV2Input['evidence'] => ({
   claimIdOf: new Map([
@@ -270,7 +269,7 @@ describe('the first call shows the true picture to a reader who guessed wrong (D
     const still = authoredOrbit((draft) => {
       revealing(draft);
       draft.items[2] = { ...draft.items[2], stage: undefined };
-      delete (draft.items[2] as Record<string, unknown>)['stage'];
+      delete draft.items[2]['stage'];
     });
     expect(codes(compile(still, plan))).toContain('call_reveal_invalid@items.1.revealStage');
   });
@@ -310,7 +309,7 @@ describe('a state with figures, once stored, is admitted only as code made it (D
       const copy = JSON.parse(kept) as ScrollDocumentV2;
       const held = copy.stage?.states.find((candidate) => candidate.stop === 's3');
       if (held === undefined) throw new Error('fixture has the state');
-      change(held.state as unknown as { figures?: unknown[]; view: string });
+      change(held.state);
       const outcome = validateDocumentV2(copy, { verify: false });
       return outcome.kind === 'invalid' ? outcome.issues.map((issue) => issue.code) : [];
     };

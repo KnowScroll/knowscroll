@@ -75,7 +75,7 @@ describe('Seasons Part 1 and its stage plan (labelled CI fixtures, real PostgreS
   };
 
   it('carries the plan, and publishes a Scroll that stands on the orbit at two months, turns the picture after the first call and shows only the figure a passage states', async () => {
-    expect(TOPICS.seasons.scrollV2.stagePlan).toEqual({
+    expect(TOPICS.seasons.scrollV2?.stagePlan).toEqual({
       orbitMonths: 2,
       figures: ['nearest', 'farthest', 'june-daylight', 'december-daylight'],
       reveal: true,
@@ -94,7 +94,9 @@ describe('Seasons Part 1 and its stage plan (labelled CI fixtures, real PostgreS
     expect(request?.system).toContain('THE FIRST CALL TURNS THE PICTURE');
 
     const document = await storedDocument(TOPICS.seasons.assetId, revisionOf(result));
-    const states = document.stage?.states ?? [];
+    const stage = document.stage;
+    if (stage?.kit !== 'earth-sky.v1') throw new Error('CI expected an Earth & sky stage');
+    const states = stage.states;
     expect(recapMonths(states.map((entry) => entry.state))).toHaveLength(2);
     const call = document.stops.find((stop) => stop.kind === 'call_it');
     expect(call).toMatchObject({ kind: 'call_it', revealStage: 's3' });

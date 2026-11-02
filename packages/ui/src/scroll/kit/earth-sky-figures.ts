@@ -88,6 +88,8 @@ const figureOf = (scene: Pick<EarthSkyScene, 'figures'>, slot: StageFigure['slot
 /** One end of the orbit: the dot, the two lines of text that name it and the thin line joining them. */
 export interface OrbitEnd {
   readonly dot: Point;
+  /** Earth stands on this end, so it needs no dot of its own. */
+  readonly earthOnIt: boolean;
   readonly name: SceneLabel;
   readonly value: SceneLabel;
   readonly leader: { readonly from: Point; readonly to: Point };
@@ -100,8 +102,8 @@ export interface DistanceMarks {
   readonly farthest: OrbitEnd | undefined;
   /** What the picture says beside the Sun: it is drawn larger than it is. */
   readonly sunCaption: SceneLabel;
-  /** The pin on Earth and the words beside it. */
-  readonly here: { readonly pin: Point; readonly label: SceneLabel };
+  /** The pin on Earth (its tip, and whether it stands above Earth) and the words beside it. */
+  readonly here: { readonly pin: Point; readonly pinUp: boolean; readonly label: SceneLabel };
 }
 
 const MONTH_TEXT = (month: EarthSkyScene['month']): string => month.toUpperCase();
@@ -124,33 +126,94 @@ function endOf(scene: EarthSkyScene, figure: StageFigure | undefined, side: 'lef
   const dot = { x: centre.x + (left ? -halfWidth : halfWidth), y: centre.y };
   return {
     dot,
+    earthOnIt: false,
     name: { text: left ? 'NEAREST' : 'FARTHEST', x, y: 13, anchor },
     value: { text: compactFigure(figure), x, y: 23.5, anchor },
     leader: { from: { x: left ? 16 : SCENE_WIDTH - 16, y: 28 }, to: { x: dot.x + (left ? -2 : 2), y: dot.y - 6 } },
   };
 }
 
-/** The "you are here" words stand where they collide with nothing: above Earth, then below it, then at its right, then its left. */
-function hereLabel(scene: EarthSkyScene, others: readonly SceneLabel[]): SceneLabel {
-  const { earth, earthRadius } = orbitFrame(scene);
-  const text = `YOU ARE HERE · ${MONTH_TEXT(scene.month)}`;
-  const candidates: SceneLabel[] = [
-    { text, x: earth.x, y: earth.y - earthRadius - 17, anchor: 'middle' },
-    { text, x: earth.x, y: earth.y + earthRadius + 16, anchor: 'middle' },
-    { text, x: earth.x + earthRadius + 7, y: earth.y + 3, anchor: 'start' },
-    { text, x: earth.x - earthRadius - 7, y: earth.y + 3, anchor: 'end' },
-  ];
-  const taken = others.map(labelBox);
+const boxAround = (at: Point, reach: number): Box => ({
+  left: at.x - reach,
+  right: at.x + reach,
+  top: at.y - reach,
+  bottom: at.y + reach,
+});
+
+/** The thin line from a label to its end of the orbit, as small boxes along it, so that no words are set across it. */
+export function leaderBoxes(leader: OrbitEnd['leader']): Box[] {
+  const steps = 10;
+  return Array.from({ length: steps + 1 }, (_, step) =>
+    boxAround(
+      {
+        x: leader.from.x + ((leader.to.x - leader.from.x) * step) / steps,
+        y: leader.from.y + ((leader.to.y - leader.from.y) * step) / steps,
+      },
+      2,
+    ),
+  );
+}
+
+/** A label of the given words centred on `x` as far as the frame lets it be, so its words never leave the picture. */
+function centred(text: string, x: number, y: number): SceneLabel {
+  const half = (text.length * LABEL_CHARACTER_PX) / 2;
+  return { text, x: Math.min(SCENE_WIDTH - 2 - half, Math.max(2 + half, x)), y, anchor: 'middle' };
+}
+
+/** The first candidate that fits the frame and covers none of the boxes; with none, the first (the layout tests would say so). */
+function firstFree(candidates: readonly SceneLabel[], obstacles: readonly Box[]): SceneLabel {
   const free = candidates.find((candidate) => {
     const box = labelBox(candidate);
-    return fits(box) && taken.every((other) => !overlap(box, other));
+    return fits(box) && obstacles.every((other) => !overlap(box, other));
   });
-  return free ?? candidates[1] ?? candidates[0]!;
+  return free ?? candidates[0]!;
+}
+
+/** The words about the Sun stand below it, or above it where Earth, a label or the frame is in the way. */
+function sunCaptionOf(scene: EarthSkyScene, obstacles: readonly Box[]): SceneLabel {
+  const { sun, sunRadius } = orbitFrame(scene);
+  const text = 'SUN NOT TO SCALE';
+  return firstFree(
+    [centred(text, sun.x, sun.y + sunRadius + 18), centred(text, sun.x, sun.y - sunRadius - 14)],
+    obstacles,
+  );
+}
+
+/** How high the pin and the room it needs above Earth, in frame units. */
+const PIN_HEIGHT = 13;
+
+/**
+ * The pin on Earth and the "you are here" words. The pin stands above Earth, or below it, upside down, when Earth is so high
+ * in the frame that it would be cut off. The words go beyond the pin, then on the other side of Earth, then beside it, each
+ * kept inside the frame, and take the first place that covers nothing.
+ */
+function hereOf(scene: EarthSkyScene, obstacles: readonly Box[]): DistanceMarks['here'] {
+  const { earth, earthRadius } = orbitFrame(scene);
+  const text = `YOU ARE HERE · ${MONTH_TEXT(scene.month)}`;
+  const up = earth.y - earthRadius - 4 - PIN_HEIGHT >= 1;
+  const beyond = up ? earth.y - earthRadius - PIN_HEIGHT - 12 : earth.y + earthRadius + PIN_HEIGHT + 16;
+  const opposite = up ? earth.y + earthRadius + 16 : earth.y - earthRadius - 12;
+  // Above or below Earth first, then beside it, then moved sideways and further out.
+  const outward = up ? -22 : 22;
+  const rows = [beyond, opposite, beyond + outward, opposite - outward];
+  const label = firstFree(
+    [
+      centred(text, earth.x, beyond),
+      centred(text, earth.x, opposite),
+      { text, x: earth.x + earthRadius + 7, y: earth.y + 3, anchor: 'start' },
+      { text, x: earth.x - earthRadius - 7, y: earth.y + 3, anchor: 'end' },
+      ...[45, -45, 90, -90].flatMap((shift) => rows.map((y) => centred(text, earth.x + shift, y))),
+      ...rows.slice(2).map((y) => centred(text, earth.x, y)),
+    ],
+    obstacles,
+  );
+  return { pin: { x: earth.x, y: earth.y + (up ? -earthRadius - 4 : earthRadius + 4) }, pinUp: up, label };
 }
 
 /**
  * The marks of a distance picture, or none when the state carries no distance (D-381). Both ends are drawn when both are
- * stated; one figure gets its own end and the dotted line still runs through the Sun.
+ * stated; one figure gets its own end and the dotted line still runs through the Sun. Everything is placed clear of what the
+ * orbit view already draws (the month labels, the Sun, Earth and the line through the Sun) and of the other marks.
  */
 export function distanceMarks(scene: EarthSkyScene): DistanceMarks | undefined {
   const near = figureOf(scene, 'nearest');
@@ -160,21 +223,27 @@ export function distanceMarks(scene: EarthSkyScene): DistanceMarks | undefined {
   const { centre, halfWidth, sun, sunRadius, earth, earthRadius } = orbitFrame(scene);
   const nearest = endOf(scene, near, 'left');
   const farthest = endOf(scene, far, 'right');
-  const sunCaption: SceneLabel = { text: 'SUN NOT TO SCALE', x: sun.x, y: sun.y + sunRadius + 18, anchor: 'middle' };
+  const earthBox = boxAround(earth, earthRadius + 3);
+  const sunBox = boxAround(sun, sunRadius + 10);
+  const axisBox: Box = { left: 0, right: SCENE_WIDTH, top: centre.y - 2, bottom: centre.y + 2 };
   const fixed = [
-    ...monthLabels(scene),
-    sunCaption,
-    ...[nearest, farthest].flatMap((end) => (end === undefined ? [] : [end.name, end.value])),
+    ...monthLabels(scene).map(labelBox),
+    ...[nearest, farthest].flatMap((end) =>
+      end === undefined ? [] : [labelBox(end.name), labelBox(end.value), ...leaderBoxes(end.leader)],
+    ),
   ];
+  const sunCaption = sunCaptionOf(scene, [...fixed, earthBox]);
+  const here = hereOf(scene, [...fixed, labelBox(sunCaption), sunBox, axisBox, earthBox]);
+  const standingOn = (end: OrbitEnd | undefined): OrbitEnd | undefined =>
+    end === undefined
+      ? end
+      : { ...end, earthOnIt: Math.hypot(end.dot.x - earth.x, end.dot.y - earth.y) <= earthRadius };
   return {
     axis: { from: { x: centre.x - halfWidth, y: centre.y }, to: { x: centre.x + halfWidth, y: centre.y } },
-    nearest,
-    farthest,
+    nearest: standingOn(nearest),
+    farthest: standingOn(farthest),
     sunCaption,
-    here: {
-      pin: { x: earth.x, y: earth.y - earthRadius - 4 },
-      label: hereLabel(scene, fixed),
-    },
+    here,
   };
 }
 

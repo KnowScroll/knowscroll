@@ -287,7 +287,7 @@ Each run starts fresh and remembers nothing. Before running again, reconcile eve
 
 ## Producing a v2 Scroll (S-1b, D-127 to D-130, D-137)
 
-A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. The plan marks the four Seasons recipes (D-137), the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217): `seasons`, `seasons-hemispheres` and `seasons-limits` with a picture, the six heart and nerve recipes of Human body with a picture (D-201), the thirteen Earth & sky and Space recipes a kit draws (D-217), and every other marked recipe without one. Only `exoplanet-kinds` is still v1. The plan may also name a `landmark` (key and name) and a `finalCall` control (`tilt`) for a recipe; code sets both into the document, the writer never writes them, and a recipe without them awards no landmark (D-187, D-188). The v2 writer prompt is `scroll-writer.v20`. A v2 recipe is a job of its own version (`scroll-production.v20`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset. That version is the takes' budget: a recipe has three takes to a production version, and the version changes whenever the v2 writer or the job's steps change (D-197), which gives every recipe fresh takes.
+A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. The plan marks the four Seasons recipes (D-137), the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217): `seasons`, `seasons-hemispheres` and `seasons-limits` with a picture, the six heart and nerve recipes of Human body with a picture (D-201), the thirteen Earth & sky and Space recipes a kit draws (D-217), and every other marked recipe without one. Only `exoplanet-kinds` is still v1. The plan may also name a `landmark` (key and name) and a `finalCall` control (`tilt`) for a recipe; code sets both into the document, the writer never writes them, and a recipe without them awards no landmark (D-187, D-188). The v2 writer prompt is `scroll-writer.v21`. A v2 recipe is a job of its own version (`scroll-production.v21`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset. That version is the takes' budget: a recipe has three takes to a production version, and the version changes whenever the v2 writer or the job's steps change (D-197), which gives every recipe fresh takes.
 
 **A produced v2 library Scroll is held, not published (D-138).** The job stores it with its provenance and coverage and then waits: nobody is served it until you have read it and released it (next section). The commands that start a job are the same for every recipe; the plan decides which writer runs and the gate decides what happens to the result.
 
@@ -359,6 +359,31 @@ node dist/operator.js content readmit-coverage
 ```
 
 Release all three parts before step 6. `admit-continuity` binds a series to the Scrolls that are served at that moment, so run it once the parts are served: a series with a part still held is skipped whole and named in `seriesSkipped`. A Part tab shows only after step 6. `seasons-limits` is a related move from `seasons-elsewhere`; when it is released after the others, run `admit-continuity` once more. After it, `seasons-limits` may keep a `previous` link into the old series revision 1 (D-125): decide then whether to retire it.
+
+### Seasons Part 1 after the stage plan (v3 S-10, D-381 to D-383)
+
+`seasons` (Part 1) asks the writer for orbit views at two months at least (so the recap of the journey draws at the end), for the nearest and farthest distance and the hours of daylight where a cited passage states them, and for a first call that turns the picture when the guess is wrong. No other recipe has a stage plan. The change is a new production version (`scroll-production.v21`), so `seasons` has three fresh takes. Producing makes one writer request and the answer check's, as for any v2 recipe, and at most one repair. Run it on dev after the change is deployed:
+
+```sh
+# 1. Nothing is sent. `seasons` shows regeneration `available` (its Scroll is served).
+node dist/operator.js content regenerate --only seasons --dry-run
+# 2. Queue the next take. The dev worker writes it and it ends held.
+node dist/operator.js content regenerate --only seasons
+# 3. Watch. held = waiting for you; retryable = the writer was refused (see "When a Scroll is refused").
+node dist/operator.js content production-status --only seasons
+# 4. Read it against its source (asset id af2628f1-98a7-4c39-9f81-628506d247a1).
+node dist/operator.js content review-list
+node dist/operator.js content review-show --asset af2628f1-98a7-4c39-9f81-628506d247a1 --sources
+# 5. Release the revision you read, or reject it to free the next take.
+node dist/operator.js content release --asset af2628f1-98a7-4c39-9f81-628506d247a1 --revision <n>
+# 6. Admit the series again for the new revision, then decide coverage again (idempotent).
+node dist/operator.js content admit-continuity --dry-run
+node dist/operator.js content admit-continuity
+node dist/operator.js content readmit-coverage --dry-run
+node dist/operator.js content readmit-coverage
+```
+
+What to read for, besides the list above: each `PICTURE:` line says the figures a state shows, and every number, unit and place in it must be in a passage the stop cites (`--sources`). The page of `seasons` states the distances in miles and no hours of daylight, so expect the distances in miles and no daylight bands; a figure that is not there was left out on purpose and is no fault. `review-show` also prints, under the first call, "After a wrong pick the picture turns to:", which must be the true picture of the call (the nearest and farthest points of the orbit), and the picture must stand on the orbit at two months at least. The Part 2 and Part 3 Scrolls are not changed and need no new take.
 
 ### If you reject
 

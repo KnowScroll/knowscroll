@@ -11,11 +11,12 @@ import {
   dayBands,
   distanceMarks,
   labelBox,
+  leaderBoxes,
   TEXT_PILL,
   type Box,
   type SceneLabel,
 } from './earth-sky-figures';
-import { sceneOf, SCENE_HEIGHT, SCENE_WIDTH } from './earth-sky-scene';
+import { orbitFrame, sceneOf, SCENE_HEIGHT, SCENE_WIDTH } from './earth-sky-scene';
 import { KIT_PICTURES } from './registry';
 
 /**
@@ -99,6 +100,43 @@ describe('the marks of a distance picture (V3 F4)', () => {
     expect(problems).toEqual([]);
   });
 
+  it('keep clear of the Sun, of Earth and of the dotted line through the Sun, and keep the pin inside the frame', () => {
+    const covers = (first: Box, second: Box) =>
+      first.left < second.right && second.left < first.right && first.top < second.bottom && second.top < first.bottom;
+    const around = (at: { x: number; y: number }, reach: number): Box => ({
+      left: at.x - reach,
+      right: at.x + reach,
+      top: at.y - reach,
+      bottom: at.y + reach,
+    });
+    const problems: string[] = [];
+    for (const { name, scene } of everyPicture) {
+      const marks = distanceMarks(scene);
+      if (marks === undefined) throw new Error(`${name} has marks`);
+      const frame = orbitFrame(scene);
+      const here = labelBox(marks.here.label);
+      if (covers(here, around(frame.sun, frame.sunRadius + 10)))
+        problems.push(`${name}: "you are here" covers the Sun`);
+      if (covers(here, { left: 0, right: SCENE_WIDTH, top: frame.centre.y - 2, bottom: frame.centre.y + 2 }))
+        problems.push(`${name}: "you are here" sits on the dotted line`);
+      if (covers(here, around(frame.earth, frame.earthRadius))) problems.push(`${name}: "you are here" covers Earth`);
+      if (covers(labelBox(marks.sunCaption), around(frame.earth, frame.earthRadius)))
+        problems.push(`${name}: the Sun's words cover Earth`);
+      const leaders = [marks.nearest, marks.farthest].flatMap((end) =>
+        end === undefined ? [] : leaderBoxes(end.leader),
+      );
+      for (const [words, box] of [
+        ['you are here', here],
+        ['the Sun’s words', labelBox(marks.sunCaption)],
+      ] as const)
+        if (leaders.some((leader) => covers(box, leader))) problems.push(`${name}: "${words}" crosses a leader`);
+      const tipToTop = marks.here.pinUp ? marks.here.pin.y - 13 : marks.here.pin.y;
+      const tipToBottom = marks.here.pinUp ? marks.here.pin.y : marks.here.pin.y + 13;
+      if (tipToTop < 0 || tipToBottom > SCENE_HEIGHT) problems.push(`${name}: the pin leaves the frame`);
+    }
+    expect(problems).toEqual([]);
+  });
+
   it('keep the "you are here" words off the labels the orbit already has for its four turning points', () => {
     const problems: string[] = [];
     for (const { name, scene } of everyPicture) {
@@ -159,7 +197,7 @@ type Node = {
 /** Every text the drawing holds: an SVG text keeps its words in the `content` of its span. */
 function svgTexts(tree: unknown): string[] {
   const walk = (node: unknown): Node[] =>
-    typeof node === 'object' && node !== null ? [node as Node, ...((node as Node).children ?? []).flatMap(walk)] : [];
+    typeof node === 'object' && node !== null ? [node, ...((node as Node).children ?? []).flatMap(walk)] : [];
   return walk(tree)
     .filter((node) => node.type === 'RNSVGText')
     .map((node) =>

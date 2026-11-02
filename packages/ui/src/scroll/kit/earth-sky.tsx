@@ -359,14 +359,25 @@ function DistanceFigures({ scene }: { readonly scene: EarthSkyScene }) {
               stroke={INK}
               strokeWidth={1}
             />
-            <Circle cx={end.dot.x} cy={end.dot.y} r={4.5} fill={EARTH} stroke={INK} strokeWidth={1.8} />
+            {end.earthOnIt ? null : (
+              <Circle cx={end.dot.x} cy={end.dot.y} r={4.5} fill={EARTH} stroke={INK} strokeWidth={1.8} />
+            )}
             <SceneText label={end.name} />
             <SceneText label={end.value} bold />
           </G>
         ),
       )}
       <SceneText label={sunCaption} />
-      <Path d={`M ${here.pin.x} ${here.pin.y} l -4.5 -8 a 5 5 0 1 1 9 0 Z`} fill={SUN} stroke={INK} strokeWidth={1.6} />
+      <Path
+        d={
+          here.pinUp
+            ? `M ${here.pin.x} ${here.pin.y} l -4.5 -8 a 5 5 0 1 1 9 0 Z`
+            : `M ${here.pin.x} ${here.pin.y} l -4.5 8 a 5 5 0 1 0 9 0 Z`
+        }
+        fill={SUN}
+        stroke={INK}
+        strokeWidth={1.6}
+      />
       <SceneText label={here.label} bold />
     </G>
   );

@@ -417,8 +417,9 @@ describe('a call that turns the picture when the guess is wrong (D-382)', () => 
     expect(
       broken((document) => {
         revealing(document);
-        const stage = stageOf(document);
-        stage.states = stage.states.filter((entry) => entry.stop !== 's3');
+        // The fixture's stop s3 sets a picture; take that state away.
+        const states = stageOf(document).states as { stop: string }[];
+        states.splice(0, states.length, ...states.filter((entry) => entry.stop !== 's3'));
       }),
     ).toEqual(expect.arrayContaining(refused));
     expect(

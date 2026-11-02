@@ -251,12 +251,12 @@ function bindingIssues(document: ScrollDocumentV2): IssueV2[] {
  */
 function revealIssues(document: ScrollDocumentV2): IssueV2[] {
   const issues: IssueV2[] = [];
+  const stage = document.stage;
+  const position = new Map(document.stops.map((candidate, at) => [candidate.id, at]));
   document.stops.forEach((stop, index) => {
     if (stop.kind !== 'call_it' || stop.revealStage === undefined) return;
-    const stage = document.stage;
     const next = document.stops.find((candidate, at) => at > index && candidate.kind === 'read');
     const turnedTo = stage?.states.find((held) => held.stop === stop.revealStage);
-    const position = new Map(document.stops.map((candidate, at) => [candidate.id, at]));
     const shownNow = stage?.states.filter((held) => (position.get(held.stop) ?? Infinity) <= index).at(-1);
     const invalid =
       stage === undefined ||
