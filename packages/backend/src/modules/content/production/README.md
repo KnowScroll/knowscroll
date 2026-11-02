@@ -68,7 +68,7 @@ flags are not yet seen on a real model).
   writer or the job's steps change (`versions.test.ts` pairs it with the writer's version), and the older version's jobs do not count.
   `regenerationStanding` and `planRegeneration` (`domain/library/serving.ts`) are the pure rules.
 
-## The support check of an ask order's answer (S-7b to S-7g, D-250 to D-252, D-263, D-265 to D-267, D-280 to D-282, D-305 to D-316, D-347 to D-353)
+## The support check of an ask order's answer (S-7b to S-7g, D-250 to D-252, D-263, D-265 to D-267, D-280 to D-282, D-305 to D-316, D-347 to D-354)
 
 Status: **implemented**, runtime-verified with labelled CI fixture models on real PostgreSQL. **Measured on real MiniMax (1 Nov, v3):** every answer checked and both known
 errors flagged, but 59 of 101 sentences `unsupported`, almost all sound. **Planned:** v4 and writer v5 are live on dev with S-7d (D-281) and are measured by the same replay right after. The acceptance is in
@@ -76,7 +76,7 @@ errors flagged, but 59 of 101 sentences `unsupported`, almost all sound. **Plann
 candidate file (D-280), and then the next pair is released or v4 and writer v5 are reverted. **S-7e (D-294, D-297):** five real asks on dev then closed on `copied_passage` (four of the six refusals in the ledger were the revision
 `question-writer.v5.fix`), so the writer is `question-writer.v6` (still paired with checker v4): the copy rule has a worked example, a copy refusal's repair names each copied run, and the revision has a repair of its own for copying. Implemented; runtime-verified on dev is the next check (#615).
 **S-7f (D-305 to D-316, #624):** four of five real asks then ended `support_check_failed`, because every one of about twenty sentences had to pass. The pair is now `question-writer.v7` with `ask-support-check.v5`: the answer is 8 to 12 sentences with standalone openings (code-enforced), three code rules are softer where they misfired, and after the one revision code takes out the sentences that still fail and serves the rest when enough is left. Implemented, CI-verified with labelled fixture models on real PostgreSQL; runtime-verified on dev is the next check.
-**S-7g (D-347 to D-353, #636):** on dev (2 Nov, writer v7, checker v5) none of three admitted asks was served: a title or dek the check flagged, a revision refused whole for a copied run, a first draft refused whole. The writer is now `question-writer.v8` (still paired with checker v5): code takes out what it can instead of refusing the draft, before the check. Implemented, CI-verified with labelled fixture models on real PostgreSQL; runtime-verified on dev is the next check (#636).
+**S-7g (D-347 to D-354, #636):** on dev (2 Nov, writer v7, checker v5) none of three admitted asks was served: a title or dek the check flagged, a revision refused whole for a copied run, a first draft refused whole. The writer is now `question-writer.v8` (still paired with checker v5): code takes out what it can instead of refusing the draft, before the check. Implemented, CI-verified with labelled fixture models on real PostgreSQL; runtime-verified on dev is the next check (#636).
 
 - **The check** (`ask-support.ts`, `ask-support-step.ts`, `writer-stage.ts`, `domain/ask-support.ts`). For the answer to a question (mode `question`),
   after the writer's answer has passed the validator and compiled, the role `content.ask-support-check` (`ask-support-check.v5`) is shown the

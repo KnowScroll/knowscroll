@@ -426,7 +426,7 @@ node dist/operator.js content production-status --only seasons,seasons-hemispher
 
 **Leaving a wave.** Record the yield (recipes held, released, rejected, unchecked), the tokens (sum the `attempts` of `production-status`) and the top findings of `reasoning rejected` in the tracker.
 
-## Checking stored ask answers (S-7b to S-7g, D-250 to D-252, D-263, D-265, D-280 to D-282, D-305 to D-316, D-347 to D-353)
+## Checking stored ask answers (S-7b to S-7g, D-250 to D-252, D-263, D-265, D-280 to D-282, D-305 to D-316, D-347 to D-354)
 
 A person's question from a Scroll becomes a short answer made for them (an ask order, D-218). Nobody reads it first, so its job runs a second model, the **support
 check**, which reads each sentence against the passages the answer cites. The writer is asked for 8 to 12 sentences (`question-writer.v8`, paired with `ask-support-check.v5`). Before the check, code takes out the sentences that copy a passage, a leaning first sentence and the leaning sentences after a removed one (D-347, D-348), and puts the person's question in place of a copied title (D-350); only an answer outside 5 to 20 sentences is refused (D-349). A sentence they do not support earns one revision (none when only the title or the dek failed, D-351);
