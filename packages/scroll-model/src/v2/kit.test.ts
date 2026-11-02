@@ -14,6 +14,7 @@ import {
   PIN_LATITUDE_DEGREES,
   settleStageState,
   STAGE_ENUMS,
+  STAGE_FIGURE_SLOTS,
   STAGE_KEYS,
   stageParts,
   stagePhysics,
@@ -21,13 +22,15 @@ import {
   sunLatitudeDegrees,
   TILT_RANGE,
   tiltMatters,
+  type StageFigure,
+  type StageKey,
   type StageState,
 } from './kit.js';
 import { FIELD_LIMITS_V2 } from './limits.js';
 
 const anyState = fc.record(
   Object.fromEntries(STAGE_KEYS.map((key) => [key, fc.constantFrom(...STAGE_ENUMS[key])])) as {
-    [Key in keyof StageState]: fc.Arbitrary<StageState[Key]>;
+    [Key in StageKey]: fc.Arbitrary<StageState[Key]>;
   },
 );
 
@@ -374,5 +377,231 @@ describe('the recap of a stage (V3 F10)', () => {
     expect(text).toMatch(/marked 1 in June, 2 in January and 3 in March, numbered in the order the Scroll shows them/u);
     expect(text).toMatch(/leans the same way in every one/u);
     expect(describeStageRecap(['dec', 'jun'])).toMatch(/marked 1 in December and 2 in June/u);
+  });
+});
+
+describe('the figures a state may carry (D-382)', () => {
+  const nearest: StageFigure = { slot: 'nearest', value: 41_000_000, unit: 'kilometres' };
+  const farthest: StageFigure = { slot: 'farthest', value: 43_000_000, unit: 'kilometres' };
+  const june: StageFigure = { slot: 'june-daylight', value: 14, unit: 'hours', place: 'Pell' };
+  const december: StageFigure = { slot: 'december-daylight', value: 10, unit: 'hours', place: 'Pell' };
+  const orbit = { view: 'orbit', earthAt: 'oct', moonAt: 'off', focus: 'none' } as const;
+  const sunEarth = { ...orbit, view: 'sun-earth', earthAt: 'jun' } as const;
+
+  it('has four slots, and a state with none is described and settled exactly as before', () => {
+    expect([...STAGE_FIGURE_SLOTS]).toEqual(['nearest', 'farthest', 'june-daylight', 'december-daylight']);
+    expect(describeStageState(orbit)).not.toMatch(/nearest|farthest|You are here|not drawn to scale/u);
+    expect(settleStageState(orbit)).toEqual(orbit);
+    expect(settleStageState(orbit)).not.toHaveProperty('figures');
+  });
+
+  it('keeps the distances on the orbit views and the daylight on the Sun and Earth view, and sets aside the rest', () => {
+    for (const view of ['orbit', 'orbit-stretched'] as const)
+      expect(settleStageState({ ...orbit, view, figures: [nearest, farthest, june] }).figures).toEqual([
+        nearest,
+        farthest,
+      ]);
+    expect(settleStageState({ ...sunEarth, figures: [nearest, june, december] }).figures).toEqual([june, december]);
+    for (const view of ['earth-close', 'moon-orbit'] as const)
+      expect(settleStageState({ ...orbit, view, figures: [nearest, june] })).not.toHaveProperty('figures');
+  });
+
+  it('puts the figures in the order of the slots, once each, a daylight figure only with a place and a distance never with one', () => {
+    expect(settleStageState({ ...orbit, figures: [farthest, nearest, { ...nearest, value: 1 }] }).figures).toEqual([
+      nearest,
+      farthest,
+    ]);
+    expect(settleStageState({ ...orbit, figures: [{ ...nearest, place: 'Pell' }] }).figures).toEqual([nearest]);
+    expect(settleStageState({ ...sunEarth, figures: [{ ...june, place: undefined }, december] }).figures).toEqual([
+      december,
+    ]);
+  });
+
+  it('keeps a daylight figure only in hours and never more than a day, because the picture draws it as a share of a day', () => {
+    const kept = (change: Partial<StageFigure>) =>
+      settleStageState({ ...sunEarth, figures: [{ ...june, ...change }] }).figures?.length ?? 0;
+    expect(kept({})).toBe(1);
+    expect(kept({ unit: 'Hour', value: 1 })).toBe(1);
+    expect(kept({ value: 24 })).toBe(1);
+    expect(kept({ value: 24.5 })).toBe(0);
+    expect(kept({ unit: 'minutes' })).toBe(0);
+    expect(kept({ unit: 'kilometres' })).toBe(0);
+  });
+
+  it('is idempotent for every figure on every view', () => {
+    const figures = fc.subarray([nearest, farthest, june, december, { ...june, place: undefined }]);
+    fc.assert(
+      fc.property(anyState, figures, (state, chosen) => {
+        const settled = settleStageState({ ...state, figures: chosen });
+        expect(settleStageState(settled)).toEqual(settled);
+        expect(StageStateSchema.safeParse(settled).success).toBe(true);
+      }),
+    );
+  });
+
+  it('describes a distance, a daylight figure and what the picture says beside the distances, from the figures alone', () => {
+    const words = describeStageState({ ...orbit, figures: [nearest, farthest] });
+    expect(words).toContain(
+      'At its nearest, Earth is 41,000,000 kilometres from the Sun; at its farthest, 43,000,000 kilometres.',
+    );
+    // One distance alone is said on its own.
+    expect(describeStageState({ ...orbit, figures: [farthest] })).toContain(
+      'At its farthest, Earth is 43,000,000 kilometres from the Sun.',
+    );
+    expect(words).toContain('Earth is marked “You are here”, and the Sun is not drawn to scale.');
+    const bands = describeStageState({ ...sunEarth, figures: [june, december] });
+    expect(bands).toContain('In Pell, daylight lasts 14 hours in June and 10 hours in December.');
+    expect(describeStageState({ ...sunEarth, figures: [december] })).toContain(
+      'In Pell, daylight lasts 10 hours in December.',
+    );
+    expect(bands).not.toContain('You are here');
+    // A figure the view cannot draw is not described either: the words are of the settled state.
+    expect(describeStageState({ ...sunEarth, figures: [nearest] })).toBe(describeStageState(sunEarth));
+  });
+
+  it('says them at a turned tilt too, since the picture still draws them', () => {
+    expect(describeStageAtTilt({ ...orbit, figures: [nearest] }, 60)).toContain('At its nearest, Earth is 41,000,000');
+  });
+
+  it('is carried by no patch: a stop that changes the picture clears them, and no word of a patch can name one', () => {
+    const next = applyStagePatch({ ...orbit, figures: [nearest] }, { focus: 'sun' });
+    expect(next).not.toHaveProperty('figures');
+    expect(applyStagePatch({ ...orbit, figures: [nearest] }, undefined).figures).toEqual([nearest]);
+    expect([...STAGE_KEYS]).not.toContain('figures');
+  });
+
+  it('holds a number, a unit and a place a person could read: no zero, no negative, no empty unit, no further key', () => {
+    const accepts = (state: unknown) => StageStateSchema.safeParse(state).success;
+    expect(accepts({ ...orbit, figures: [nearest] })).toBe(true);
+    expect(accepts({ ...orbit, figures: [{ ...nearest, value: 0 }] })).toBe(false);
+    expect(accepts({ ...orbit, figures: [{ ...nearest, value: -4 }] })).toBe(false);
+    expect(accepts({ ...orbit, figures: [{ ...nearest, unit: '' }] })).toBe(false);
+    expect(accepts({ ...orbit, figures: [{ ...nearest, extra: 1 }] })).toBe(false);
+    expect(accepts({ ...orbit, figures: [] })).toBe(false);
+    expect(accepts({ ...orbit, figures: [nearest, farthest, june, december, nearest] })).toBe(false);
+  });
+});
+
+describe('a picture states one measure and one place (D-382)', () => {
+  const orbit = { view: 'orbit', earthAt: 'oct', moonAt: 'off', focus: 'none' } as const;
+  const sunEarth = { ...orbit, view: 'sun-earth', earthAt: 'jun' } as const;
+  const nearest: StageFigure = { slot: 'nearest', value: 91_400_000, unit: 'miles' };
+  const farthest: StageFigure = { slot: 'farthest', value: 94_500_000, unit: 'miles' };
+  const june: StageFigure = { slot: 'june-daylight', value: 14, unit: 'hours', place: 'Delhi' };
+  const december: StageFigure = { slot: 'december-daylight', value: 10, unit: 'hours', place: 'Delhi' };
+
+  it('keeps the two distances only in one unit, whatever the case or a plural s', () => {
+    expect(settleStageState({ ...orbit, figures: [nearest, farthest] }).figures).toEqual([nearest, farthest]);
+    expect(settleStageState({ ...orbit, figures: [nearest, { ...farthest, unit: 'Miles' }] }).figures).toHaveLength(2);
+    expect(settleStageState({ ...orbit, figures: [nearest, { ...farthest, unit: ' mile ' }] }).figures).toHaveLength(2);
+    // 91.4 million miles beside 152.1 million kilometres is no comparison any passage made.
+    expect(settleStageState({ ...orbit, figures: [nearest, { ...farthest, unit: 'kilometres' }] })).not.toHaveProperty(
+      'figures',
+    );
+    // One distance alone has nothing to disagree with.
+    expect(settleStageState({ ...orbit, figures: [{ ...farthest, unit: 'kilometres' }] }).figures).toHaveLength(1);
+  });
+
+  it('keeps the two bands only for one place, whatever the case or the spacing', () => {
+    expect(settleStageState({ ...sunEarth, figures: [june, december] }).figures).toEqual([june, december]);
+    expect(settleStageState({ ...sunEarth, figures: [june, { ...december, place: ' DELHI ' }] }).figures).toHaveLength(
+      2,
+    );
+    // Delhi's June beside Sydney's December is a picture of no place.
+    expect(settleStageState({ ...sunEarth, figures: [june, { ...december, place: 'Sydney' }] })).not.toHaveProperty(
+      'figures',
+    );
+    expect(settleStageState({ ...sunEarth, figures: [{ ...december, place: 'Sydney' }] }).figures).toHaveLength(1);
+  });
+
+  it('is idempotent with the new rules, for every pair of figures', () => {
+    const figures = fc.subarray([
+      nearest,
+      farthest,
+      { ...farthest, unit: 'kilometres' },
+      june,
+      december,
+      { ...december, place: 'Sydney' },
+    ]);
+    fc.assert(
+      fc.property(anyState, figures, (state, chosen) => {
+        const settled = settleStageState({ ...state, figures: chosen });
+        expect(settleStageState(settled)).toEqual(settled);
+        expect(StageStateSchema.safeParse(settled).success).toBe(true);
+      }),
+    );
+  });
+});
+
+describe('the words of a state never pass the document’s limit, with the longest figures there can be (D-382)', () => {
+  const limit = FIELD_LIMITS_V2.stateDescriptionChars;
+  /** The longest of everything a figure holds: fifteen digits, a unit and a place of the longest length the document allows. */
+  const longest = (slot: StageFigure['slot']): StageFigure =>
+    slot === 'nearest' || slot === 'farthest'
+      ? { slot, value: 999_999_999_999_999, unit: 'k'.repeat(FIELD_LIMITS_V2.unitChars) }
+      : {
+          slot,
+          value: 24,
+          unit: 'hours',
+          place: 'Thiruvananthapuram Kerala South India'.slice(0, FIELD_LIMITS_V2.pointLabelChars),
+        };
+  const everything = STAGE_FIGURE_SLOTS.map(longest);
+
+  it('is within the limit for every state, whatever figures and place names are asked for', () => {
+    const over: string[] = [];
+    let kept = 0;
+    for (const state of EVERY_STATE) {
+      const settled = settleStageState({ ...state, figures: everything });
+      const text = describeStageState({ ...state, figures: everything });
+      if (text.length > limit) over.push(JSON.stringify(state));
+      if (settled.figures !== undefined) kept += 1;
+      expect(StageStateSchema.safeParse(settled).success).toBe(true);
+      expect(settleStageState(settled)).toEqual(settled);
+    }
+    expect(over).toEqual([]);
+    // Some states have room for the figures and keep them: leaving all out would also be within the limit.
+    expect(kept).toBeGreaterThan(0);
+  });
+
+  it('is within the limit for the places the writer is most likely to name, short and long', () => {
+    for (const place of ['Delhi', 'Thiruvananthapuram', 'New York City', 'Rio de Janeiro', 'Pell']) {
+      for (const state of EVERY_STATE) {
+        const bands: StageFigure[] = [
+          { slot: 'june-daylight', value: 14.25, unit: 'hours', place },
+          { slot: 'december-daylight', value: 9.75, unit: 'hours', place },
+        ];
+        expect(
+          describeStageState({ ...state, figures: bands }).length,
+          `${place} ${JSON.stringify(state)}`,
+        ).toBeLessThanOrEqual(limit);
+      }
+    }
+  });
+
+  it('gives up the later band first, then the earlier, and keeps both where both fit', () => {
+    const state = { view: 'sun-earth', earthAt: 'jun', moonAt: 'off', focus: 'ray' } as const;
+    const place = 'Thiruvananthapuram Kerala South India';
+    const bands: StageFigure[] = [
+      { slot: 'june-daylight', value: 14, unit: 'hours', place },
+      { slot: 'december-daylight', value: 10, unit: 'hours', place },
+    ];
+    const kept = (figures: StageFigure[]) =>
+      (settleStageState({ ...state, figures }).figures ?? []).map((figure) => figure.slot);
+    // With a short name both fit; with a very long one the picture's words would pass the limit, so December goes first.
+    const short = bands.map((band) => ({ ...band, place: 'Pell' }));
+    expect(kept(short)).toEqual(['june-daylight', 'december-daylight']);
+    const widths = [place, `${place} ${place}`.slice(0, FIELD_LIMITS_V2.pointLabelChars)].map((name) =>
+      kept(bands.map((band) => ({ ...band, place: name }))),
+    );
+    for (const slots of widths) expect(['june-daylight', 'december-daylight']).toEqual(expect.arrayContaining(slots));
+    const states = EVERY_STATE.filter((candidate) => candidate.view === 'sun-earth');
+    const outcomes = new Set(
+      states.map((candidate) =>
+        JSON.stringify((settleStageState({ ...candidate, figures: bands }).figures ?? []).map((figure) => figure.slot)),
+      ),
+    );
+    // Only ever both, the earlier alone or none: never the later band without the earlier.
+    for (const outcome of outcomes)
+      expect(['[]', '["june-daylight"]', '["june-daylight","december-daylight"]']).toContain(outcome);
   });
 });

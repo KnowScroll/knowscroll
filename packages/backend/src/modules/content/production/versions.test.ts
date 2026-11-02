@@ -106,6 +106,7 @@ describe('takes are counted per production version, so a writer bump gives new o
     'scroll-writer.v18': 'scroll-production.v18',
     'scroll-writer.v19': 'scroll-production.v19',
     'scroll-writer.v20': 'scroll-production.v20',
+    'scroll-writer.v21': 'scroll-production.v21',
   };
 
   it('pairs the v2 writer’s instructions with the v2 production version, so a new writer cannot reuse the old writer’s takes', () => {

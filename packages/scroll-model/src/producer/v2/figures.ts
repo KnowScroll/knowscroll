@@ -64,7 +64,9 @@ function readingAfter(text: string, end: number): Reading {
   return UNKNOWN_SCALERS.has(word) ? 'unknown' : 'bare';
 }
 
-interface Occurrence {
+export interface Occurrence {
+  /** Where the figure starts in the text it was found in. */
+  readonly index: number;
   readonly reading: Reading;
   /** A minus sign stands before the figure ("-3.8", "−3.8"); a hyphen or dash between two figures is a range, not a sign. */
   readonly negative: boolean;
@@ -92,16 +94,26 @@ export function readingsOf(figure: string, quotes: readonly string[]): readonly 
         POWER_BEFORE.test(lead) ||
         (figure === '10' && TEN_BEFORE.test(lead) && EXPONENT_AFTER.test(quote.slice(end)))
       ) {
-        found.push({ reading: 'unknown', negative });
+        found.push({ index: match.index, reading: 'unknown', negative });
         continue;
       }
       const next = RANGE_AFTER.exec(quote.slice(end));
       const before = RANGE_BEFORE.exec(quote.slice(0, match.index));
       if (next?.[1] !== undefined)
-        found.push({ reading: readingAfter(quote, end + next[0].length), otherEnd: plainFigure(next[1]), negative });
+        found.push({
+          index: match.index,
+          reading: readingAfter(quote, end + next[0].length),
+          otherEnd: plainFigure(next[1]),
+          negative,
+        });
       else if (before?.[1] !== undefined)
-        found.push({ reading: readingAfter(quote, end), otherEnd: plainFigure(before[1]), negative });
-      else found.push({ reading: readingAfter(quote, end), negative });
+        found.push({
+          index: match.index,
+          reading: readingAfter(quote, end),
+          otherEnd: plainFigure(before[1]),
+          negative,
+        });
+      else found.push({ index: match.index, reading: readingAfter(quote, end), negative });
     }
   return found;
 }
