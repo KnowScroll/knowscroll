@@ -388,10 +388,16 @@ float over it.
   week's Orbit, the next Part to resume and the topic of each planet (`readCollection` in client-core) when the tab comes to
   the front and when the map's geography changes. A landmark stands on the planet of its Scroll's topic as a small pennant
   (gold or cream) painted on the globe and the landed map at places `landmarkSpots` picks; with no such planet on the map it
-  waits in the tray ("Your landmark is waiting", with "See it") and the Landmarks chip opens the sheet that lists every one
-  with its finish and where it stands. The Orbit is one quiet line of text ("Orbit · 1 of 3 days this week"; never a ring on
-  the map, D-087) and the resume chip ("Resume Part 2 of 3") opens the next Part by its address. On desktop the panel carries
-  the same as a paper list, and so does the Simple drawing, so the landmarks are readable without the drawing. The markers
+  waits ("Gold finish · waits for its planet"). The map carries no chips of the collection (the Universe set draws none): the
+  newest landmark is a paper card over the bottom of the map ("New landmark" for a week after it was earned, "Latest landmark"
+  after, D-363; its name, "from <planet> · gold finish", "See it"), and "See it" opens the sheet that lists every one with its finish
+  and where it stands. The card is one line where a full card would reach the picture (D-319): on a globe, where it sits under
+  Back above the globe so it clears the planet's name and hint, on a landed map, and on a screen under 760 px tall, where a
+  full card would reach the sun. With only the week to say the card has no button. The Orbit is one quiet line of
+  text inside the card ("Orbit · 1 of 3 days this week"; never a ring on the map, D-087) and the yellow chip ("Resume Part 2
+  of 3") beside it opens the next Part by its address. With no landmark yet the card speaks of the next Part, or of the week.
+  On desktop the panel carries the same as a paper list and the map carries no card, and so does the Simple drawing, so the
+  landmarks are readable without the drawing. The markers
   do not move, so reduced motion changes nothing about them. A friend's universe is never given a collection. Cloud thinning
   and an Orbit ring were not built (D-088, D-087).
 - **Return.** The camera, lens and ship's place persist per device in the account scope's storage

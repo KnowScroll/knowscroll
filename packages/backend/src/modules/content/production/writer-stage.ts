@@ -18,7 +18,7 @@ import {
 } from '../domain/ask-support.js';
 import { callsOfStoredDocument, type CallUnderCheck } from './answer-check.js';
 import { makeAnswerCheckStep } from './answer-check-step.js';
-import { dropFlagged } from './ask-support-drop.js';
+import { dropFlagged, onlyTitleOrDekFlagged, type DropOutcome } from './ask-support-drop.js';
 import { hasSupportCheck, sentencesOfAnswer } from './ask-support.js';
 import { makeAskSupportStep } from './ask-support-step.js';
 import { EvidenceRefusal, evidencePassages, evidenceText, type EvidencePassage } from './evidence.js';
@@ -91,6 +91,8 @@ interface Draft {
   readonly receipt: RoleReceipt;
   /** The harness already repaired this answer for the validator, so no repair is left to give a flagged one. */
   readonly repaired: boolean;
+  /** What code took out of the writer's draft before it was compiled, as receipts of counts; none when it served it as it was. */
+  readonly trims: readonly RoleReceipt[];
 }
 
 /** What earlier drafts of the job leave behind: their receipts, and the runs to close with the job. */
@@ -108,7 +110,9 @@ const isResult = (value: Draft | ProduceScrollResult): value is ProduceScrollRes
  * the support check does (D-250). The stage sends at most two writer requests (the first draft with the
  * harness's repair, or with the one repair a flag earns) and at most two checks (one for each draft), and
  * holds no transaction while a request is out. The answer to a question may send four: the first draft and its
- * repair, then the revision a support check earns and its repair for a copied passage (D-297).
+ * repair, then the revision a support check earns and its repair for a length out of range, an opening paragraph taken out whole
+ * or a copied run the trim could not place (D-297, D-353). Before either draft is checked, code takes out of it the sentences it can
+ * (the ones that copy a passage or lean, D-348, D-349), so the check reads what could be served.
  */
 export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperations) {
   const answerCheck = makeAnswerCheckStep(deps);
@@ -150,17 +154,20 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     if (attempts === undefined) return refuse(['accounting_unavailable'], receipt);
     const paidAttemptIds = attempts.filter(isSentAttempt).map((attempt) => attempt.attemptId);
     // The first draft has the harness's repair. The second is the repair a flag earned and has none of its own, except
-    // the revision after a support check, which has one for a copied passage (D-297).
+    // the revision after a support check, which has one for the findings of D-353.
     const mostPaidAttempts = number === 1 || hasSupportCheck(stage.subject) ? 2 : 1;
     if (paidAttemptIds.length < 1 || paidAttemptIds.length > mostPaidAttempts)
       return refuse(['attempt_bound_exceeded'], receipt);
     const recorded = withAccounting(receipt, attempts);
-    // The first draft has the writer's whole range of length; the revision a support check earned may have lost sentences (D-310).
-    const compiled = stage.plan.compile(
-      writer.output,
-      { runId, attemptIds: paidAttemptIds, model: deps.model },
-      number === 1 ? 'draft' : 'after_check',
-    );
+    // Code takes out what it can (the sentences that copy a passage or lean) before the draft is compiled and checked, so the check
+    // reads what could be served (D-348). The validator ran the same trim, so what is left is what it accepted.
+    const prepared = stage.plan.prepare(writer.output);
+    if (prepared.issues.length > 0)
+      return refuse(
+        prepared.issues.map((issue) => issue.code),
+        recorded,
+      );
+    const compiled = stage.plan.compile(prepared.authored, { runId, attemptIds: paidAttemptIds, model: deps.model });
     if (compiled.kind === 'refused')
       return refuse(
         compiled.issues.map((issue) => issue.code),
@@ -169,11 +176,15 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     return {
       number,
       runId,
-      authored: writer.output,
+      authored: prepared.authored,
       compiled,
       attemptIds: paidAttemptIds,
       receipt: recorded,
       repaired: writer.repaired,
+      trims:
+        prepared.counts === undefined
+          ? []
+          : [{ role: 'checks', kind: 'answer_trimmed', draft: number, ...prepared.counts }],
     };
   }
 
@@ -261,7 +272,8 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
   /**
    * Asks the support checker about the answer to a question and acts on the verdicts (D-250). Nothing unsupported:
    * the Scroll is published. An unsupported sentence in the first draft earns the writer one revision, whether or not the
-   * validator had repaired that draft. A sentence still unsupported after the revision is taken out and the rest is served, if
+   * validator had repaired that draft; none when only the title or the dek is unsupported and the drop would serve the draft, since
+   * code writes its own line for either (D-351, D-352). A sentence still unsupported after the revision is taken out and the rest is served, if
    * enough of it is left (D-310); otherwise the job ends. A check that gave no usable answer ends the job: nobody reads an ask
    * order before the person who asked, so it is never served unchecked.
    */
@@ -279,7 +291,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     if (checked.kind === 'advanced') return ops.replayCurrent(row);
     if (checked.kind === 'paused') return paused(row, checked.code);
 
-    const receipts = [draft.receipt, ...history.receipts, checked.receipt];
+    const receipts = [draft.receipt, ...draft.trims, ...history.receipts, checked.receipt];
     const closing = [...history.closing, { runId: draft.runId, state: 'failed' as const }, ...checked.runs];
     if (checked.record.kind === 'unchecked') {
       const code = `support_check_${checked.record.code ?? 'unchecked'}`;
@@ -298,12 +310,19 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
       ]);
     if (draft.number === 2)
       return publishWithoutFlagged(stage, draft, checked.verdicts, receipts, history, checked.runs);
+    // Only the title or the dek failing the check is no reason for a revision when code can serve the draft with its own line for
+    // either under the floors of D-310. When it cannot, the revision runs as it always has (D-352).
+    if (onlyTitleOrDekFlagged(draft.authored as AuthoredScroll, checked.verdicts)) {
+      const served = dropAndCompile(stage, draft, checked.verdicts);
+      if (served.kind === 'served') return publishDropped(stage, draft, served, receipts, history, checked.runs);
+    }
     // The unsupported first draft is superseded: its writer receipt is kept as history, not as the Scroll's writer.
     // It earns the revision even when the validator already repaired it, since that repair was for another finding (D-297).
     const earlier: History = {
       receipts: [
         ...history.receipts,
         { ...draft.receipt, role: 'checks', kind: 'draft_unsupported', runId: draft.runId },
+        ...draft.trims,
         checked.receipt,
       ],
       closing,
@@ -313,8 +332,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
 
   /**
    * Serves the revision without the sentences its check still found unsupported, when what is left is enough (D-310), and ends the
-   * job when it is not. The sentences left each have the verdict they were checked with; nothing is checked again. The answer stored
-   * and compiled is the one served, and the receipts say how many sentences were taken out, never which.
+   * job when it is not. The sentences left each have the verdict they were checked with; nothing is checked again.
    */
   async function publishWithoutFlagged(
     stage: Stage,
@@ -324,27 +342,67 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     history: History,
     checkRuns: readonly ClosingRun[],
   ): Promise<ProduceScrollResult> {
-    const { row } = stage;
-    const fail = (...why: readonly string[]) =>
-      ops.end(row, 'rejected', ['support_check_failed', ...why], receipts, [
-        ...history.closing,
-        { runId: draft.runId, state: 'failed' },
-        ...checkRuns,
-      ]);
-    const dropped = dropFlagged(draft.authored as AuthoredScroll, verdicts);
-    if (dropped.kind === 'refused') return fail(`support_drop_${dropped.code}`);
-    const compiled = stage.plan.compile(
-      dropped.authored,
-      { runId: draft.runId, attemptIds: draft.attemptIds, model: deps.model },
-      'after_check',
-    );
-    if (compiled.kind === 'refused') return fail('support_drop_compile_refused');
+    const served = dropAndCompile(stage, draft, verdicts);
+    if (served.kind === 'served') return publishDropped(stage, draft, served, receipts, history, checkRuns);
+    return ops.end(stage.row, 'rejected', ['support_check_failed', served.why], receipts, [
+      ...history.closing,
+      { runId: draft.runId, state: 'failed' },
+      ...checkRuns,
+    ]);
+  }
+
+  /**
+   * The draft without the sentences its check found unsupported, compiled as the answer to serve, or why it cannot be served
+   * (`support_drop_<code>`). Pure of any write: the caller decides whether a draft that cannot be served ends the job (a revision) or
+   * earns a revision (a first draft whose only flags are the title and the dek, D-352).
+   */
+  function dropAndCompile(
+    stage: Stage,
+    draft: Draft,
+    verdicts: readonly SentenceVerdict[],
+  ):
+    | { readonly kind: 'served'; readonly dropped: Extract<DropOutcome, { kind: 'kept' }>; readonly compiled: Compiled }
+    | { readonly kind: 'unserved'; readonly why: string } {
+    const dropped = dropFlagged(draft.authored as AuthoredScroll, verdicts, stage.plan.askLines);
+    if (dropped.kind === 'refused') return { kind: 'unserved', why: `support_drop_${dropped.code}` };
+    const compiled = stage.plan.compile(dropped.authored, {
+      runId: draft.runId,
+      attemptIds: draft.attemptIds,
+      model: deps.model,
+    });
+    if (compiled.kind === 'refused') return { kind: 'unserved', why: 'support_drop_compile_refused' };
+    return { kind: 'served', dropped, compiled };
+  }
+
+  /**
+   * Publishes the draft served without the sentences its check found unsupported. The answer stored and compiled is the one served,
+   * and the receipts say how many sentences were taken out and whether the title or the dek was replaced by code's own line, never
+   * which sentences.
+   */
+  function publishDropped(
+    stage: Stage,
+    draft: Draft,
+    served: Extract<ReturnType<typeof dropAndCompile>, { kind: 'served' }>,
+    receipts: readonly RoleReceipt[],
+    history: History,
+    checkRuns: readonly ClosingRun[],
+  ): Promise<ProduceScrollResult> {
+    const { dropped } = served;
     return ops.publish(
       stage.subject,
-      row,
-      [...receipts, { role: 'checks', kind: 'sentences_dropped', dropped: dropped.dropped }],
+      stage.row,
+      [
+        ...receipts,
+        {
+          role: 'checks',
+          kind: 'sentences_dropped',
+          dropped: dropped.dropped,
+          titleReplaced: dropped.titleReplaced,
+          dekReplaced: dropped.dekReplaced,
+        },
+      ],
       dropped.authored,
-      compiled,
+      served.compiled,
       draft.runId,
       [...history.closing, ...checkRuns],
     );
@@ -352,7 +410,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
 
   /**
    * The one revision an unsupported first draft earns: the writer sees the findings and its draft, and the new draft is checked
-   * in turn. A revision refused for copying a passage has one repair of its own; any other refusal of it ends the job (D-297).
+   * in turn. A revision refused for a length out of range, an opening paragraph taken out whole or a copied run the trim could not place has one repair of its own; any other refusal of it ends the job (D-297, D-353).
    */
   async function repairUnsupported(
     stage: Stage,
@@ -365,7 +423,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     const repaired = await supportCheck.repair({
       jobId: row.id,
       policyVersion: productionVersionOf(stage.subject.key),
-      writer: stage.plan.afterCheckRole ?? stage.plan.role,
+      writer: stage.plan.role,
       writerItems: stage.items,
       sentences,
       unsupported,

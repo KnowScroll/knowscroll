@@ -1,7 +1,7 @@
 import type { Collection, CollectionLandmark } from '@knowscroll/client-core';
 import type { SceneDescriptor } from '@knowscroll/scene-core';
 import { indexUniverse } from '../universe-layout';
-import { collectionViewOf } from './collection-view';
+import { collectionViewOf, isNewLandmark, NEW_LANDMARK_DAYS } from './collection-view';
 
 /** Authored protocol fixtures only. */
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -35,6 +35,7 @@ describe('the collection as the Universe shows it', () => {
         name: 'The Leaning Axis',
         tier: 'gold',
         finish: 'Gold finish',
+        earnedAt: '2026-11-02T10:00:00.000Z',
         planet: { id: id(20), name: 'Earth & sky' },
       },
     ]);
@@ -73,5 +74,18 @@ describe('the collection as the Universe shows it', () => {
     const offer = { assetId: id(11), title: 'Why the hemispheres take turns', part: 2, total: 3 };
     expect(collectionViewOf(collection({ resume: offer }), indexUniverse([], [])).resume).toEqual(offer);
     expect(collectionViewOf(collection(), indexUniverse([], [])).resume).toBeNull();
+  });
+});
+
+describe('when a landmark is new', () => {
+  const day = 86_400_000;
+  const at = Date.parse('2026-11-10T12:00:00.000Z');
+  it(`is new for ${String(NEW_LANDMARK_DAYS)} days after it was earned, and the latest after`, () => {
+    expect(isNewLandmark({ earnedAt: '2026-11-10T11:00:00.000Z' }, at)).toBe(true);
+    expect(isNewLandmark({ earnedAt: new Date(at - NEW_LANDMARK_DAYS * day).toISOString() }, at)).toBe(true);
+    expect(isNewLandmark({ earnedAt: new Date(at - NEW_LANDMARK_DAYS * day - 1).toISOString() }, at)).toBe(false);
+  });
+  it('is not new when its time cannot be read', () => {
+    expect(isNewLandmark({ earnedAt: 'not a time' }, at)).toBe(false);
   });
 });

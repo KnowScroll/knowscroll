@@ -1,14 +1,20 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { content, overlay, radius, space, spacing, target } from '@knowscroll/design-tokens';
-import { IconButton, Text } from '@knowscroll/ui';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { content, radius, spacing, target } from '@knowscroll/design-tokens';
+import { Button, IconButton, Text, useFocusRing } from '@knowscroll/ui';
 import { SpaceChip } from '../universe/space-chip';
 
+const PAPER = '#FFFDF2';
+const INK = '#15302A';
+const INK2 = 'rgba(21,48,42,0.7)';
+/** The orange of the visited person's initial (U06). */
+const ORANGE = '#FF8A5C';
+
 /**
- * The visitor bar of U06: who is being visited, "Only what they share", Leave and Report. It is the first
- * thing on the screen so Leave is first in the tab order, and the banner under it is the same on
- * every visit for every person: it does not appear because something is hidden, so it cannot say
- * whether anything is.
+ * The visitor bar of U06: one cream pill with Leave first (dark), who is being visited and "Only what they
+ * share", and the person's initial on the right, which opens the options (Report). It is the first thing on
+ * the screen so Leave is first in the tab order, and it is the same on every visit for every person: it does
+ * not appear because something is hidden, so it cannot say whether anything is.
  */
 export function VisitorBar({
   ownerName,
@@ -20,47 +26,86 @@ export function VisitorBar({
   /** Opens the report sheet about the owner. */
   readonly onReport: () => void;
 }) {
-  const [explaining, setExplaining] = useState(false);
+  const [options, setOptions] = useState(false);
+  const leaveFocus = useFocusRing('onLight');
+  const optionsFocus = useFocusRing('onLight');
   return (
     <View testID="visitor-bar" style={styles.root}>
-      <View role="banner" style={styles.bar}>
-        <View style={styles.avatar} aria-hidden importantForAccessibility="no-hide-descendants">
-          <Text variant="ui" color={space.onControl}>
-            {[...ownerName][0]?.toUpperCase() ?? ''}
+      <View role="banner" style={styles.pill}>
+        <Pressable
+          testID="visit-leave"
+          accessibilityRole="button"
+          accessibilityLabel="Leave this visit"
+          onPress={onLeave}
+          {...leaveFocus.props}
+          style={[styles.leave, leaveFocus.style]}
+        >
+          <Text variant="ui" color={PAPER}>
+            Leave
           </Text>
-        </View>
+        </Pressable>
         <View style={styles.who}>
-          <Text variant="ui" heading={1} color={space.label} numberOfLines={1}>
-            {`Visiting ${ownerName}`}
+          <Text variant="ui" heading={1} color={INK} numberOfLines={1}>
+            {`Visiting ${ownerName}’s universe`}
           </Text>
-          <Text variant="meta" color={space.label2} numberOfLines={1}>
+          <Text variant="meta" color={INK2} numberOfLines={1}>
             {`Only what ${ownerName} shares`}
           </Text>
         </View>
-        <SpaceChip
-          testID="visit-leave"
-          variant="solid"
-          label="Leave"
-          accessibilityLabel="Leave this visit"
-          onPress={onLeave}
-        />
+        <Pressable
+          testID="visit-options"
+          accessibilityRole="button"
+          accessibilityLabel={`Options for ${ownerName}`}
+          aria-expanded={options}
+          onPress={() => setOptions((open) => !open)}
+          {...optionsFocus.props}
+          style={[styles.avatar, optionsFocus.style]}
+        >
+          <Text variant="ui" color={content.ink}>
+            {[...ownerName][0]?.toUpperCase() ?? ''}
+          </Text>
+        </Pressable>
       </View>
-      <View style={styles.banner}>
-        <SpaceChip
-          testID="visit-private-parts"
-          icon="lock"
-          label="Private parts stay private"
-          toggled={explaining}
-          onPress={() => setExplaining((open) => !open)}
-        />
-        <SpaceChip
-          testID="visit-report"
-          icon="alert"
-          label="Report"
-          accessibilityLabel={`Report ${ownerName}`}
-          onPress={onReport}
-        />
-      </View>
+      {options ? (
+        <View
+          testID="visit-options-card"
+          role="dialog"
+          accessibilityLabel={`Options for ${ownerName}`}
+          style={styles.card}
+        >
+          <View style={styles.cardHeader}>
+            <Text variant="title" heading={2}>
+              {ownerName}
+            </Text>
+            <IconButton icon="close" label="Close" variant="plain" onPress={() => setOptions(false)} />
+          </View>
+          <View style={styles.cardActions}>
+            <Button
+              testID="visit-report"
+              label="Report"
+              icon="alert"
+              variant="ghost"
+              accessibilityLabel={`Report ${ownerName}`}
+              onPress={() => {
+                setOptions(false);
+                onReport();
+              }}
+            />
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * The one lock chip at the bottom of the visit (U06): "Private parts stay private", which opens the same
+ * explanation on every visit, so it never says whether anything is hidden.
+ */
+export function VisitorPrivacy({ ownerName }: { readonly ownerName: string }) {
+  const [explaining, setExplaining] = useState(false);
+  return (
+    <View testID="visitor-privacy" style={styles.privacy}>
       {explaining ? (
         <View testID="visit-private-card" role="dialog" accessibilityLabel="About private parts" style={styles.card}>
           <View style={styles.cardHeader}>
@@ -77,30 +122,47 @@ export function VisitorBar({
           </Text>
         </View>
       ) : null}
+      <SpaceChip
+        testID="visit-private-parts"
+        icon="lock"
+        label="Private parts stay private"
+        toggled={explaining}
+        onPress={() => setExplaining((open) => !open)}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { gap: spacing[2] },
-  bar: {
+  pill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[3],
-    minHeight: target.comfortable,
+    minHeight: 60,
+    paddingHorizontal: spacing[2],
+    borderRadius: radius.pill,
+    backgroundColor: PAPER,
   },
+  leave: {
+    minHeight: target.minimum,
+    justifyContent: 'center',
+    paddingHorizontal: spacing[5],
+    borderRadius: radius.pill,
+    backgroundColor: INK,
+    cursor: 'pointer' as const,
+  },
+  who: { flex: 1, minWidth: 0 },
   avatar: {
     width: target.minimum,
     height: target.minimum,
     borderRadius: radius.pill,
-    backgroundColor: space.control,
-    borderWidth: 1,
-    borderColor: overlay.onDarkEdge,
+    backgroundColor: ORANGE,
     alignItems: 'center',
     justifyContent: 'center',
+    cursor: 'pointer' as const,
   },
-  who: { flex: 1, minWidth: 0 },
-  banner: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: spacing[2] },
+  privacy: { gap: spacing[2], alignItems: 'flex-start' },
   card: {
     gap: spacing[2],
     padding: spacing[4],
@@ -109,4 +171,5 @@ const styles = StyleSheet.create({
     maxWidth: 420,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing[2] },
+  cardActions: { flexDirection: 'row', gap: spacing[2] },
 });

@@ -185,13 +185,32 @@ export function wordShingles(text: string, size: number): Set<string> {
 }
 
 /** The words the copy check compares: lower-case letters and digits only (see `wordShingles`). */
-function copyWords(text: string): string[] {
+export function copyWords(text: string): string[] {
   return text
     .normalize('NFC')
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .split(/\s+/u)
     .filter((word) => word.length > 0);
+}
+
+/** Every shingle of `size` words of the sources: what the copy check compares a text against. */
+export function copyMaterial(sources: readonly string[], size: number): ReadonlySet<string> {
+  const material = new Set<string>();
+  for (const source of sources) for (const shingle of wordShingles(source, size)) material.add(shingle);
+  return material;
+}
+
+/**
+ * For each of `words` (see `copyWords`), whether it lies in a stretch of at least `size` words that also stands, word for word,
+ * in the `material` (see `copyMaterial`). A stretch may run across what the caller treats as a boundary, such as a sentence's end.
+ */
+export function copiedWordMask(words: readonly string[], material: ReadonlySet<string>, size: number): boolean[] {
+  const copied = new Array<boolean>(words.length).fill(false);
+  for (let start = 0; start + size <= words.length; start += 1)
+    if (material.has(words.slice(start, start + size).join(' ')))
+      for (let at = start; at < start + size; at += 1) copied[at] = true;
+  return copied;
 }
 
 /**
@@ -202,13 +221,8 @@ function copyWords(text: string): string[] {
  * The runs are cut from the sources' own words, so they are as public as the sources are.
  */
 export function copiedRuns(text: string, sources: readonly string[], size: number): readonly string[] {
-  const material = new Set<string>();
-  for (const source of sources) for (const shingle of wordShingles(source, size)) material.add(shingle);
   const words = copyWords(text);
-  const copied = new Array<boolean>(words.length).fill(false);
-  for (let start = 0; start + size <= words.length; start += 1)
-    if (material.has(words.slice(start, start + size).join(' ')))
-      for (let at = start; at < start + size; at += 1) copied[at] = true;
+  const copied = copiedWordMask(words, copyMaterial(sources, size), size);
   const runs: string[] = [];
   let from = -1;
   for (let at = 0; at <= words.length; at += 1) {

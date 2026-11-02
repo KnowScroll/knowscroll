@@ -80,7 +80,7 @@ describe('friend visit screen (labelled in-memory server)', () => {
     mockScope = server.scope;
     const rendered = await render(view(true));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Machine learning, a system' })).toBeOnTheScreen());
-    expect(screen.getByRole('header', { name: 'Visiting Ravi fixture' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Visiting Ravi fixture’s universe' })).toBeOnTheScreen();
     expect(screen.getByText('Only what Ravi fixture shares')).toBeOnTheScreen();
     // The root header names no avatar, no Lately and no "Your universe".
     expect(screen.queryByText('Your universe')).toBeNull();
@@ -166,6 +166,20 @@ describe('friend visit screen (labelled in-memory server)', () => {
     expect(screen.getByRole('header', { name: 'Hardware' })).toBeOnTheScreen();
     expect(screen.queryByText('Countries')).toBeNull();
     expect(server.requests.map((request) => request.path)).toEqual(['/v1/social/visits/read']);
+    await rendered.unmount();
+    server.scope.end();
+  });
+
+  it('keeps the primary tab bar with Universe current, and folds Report into the avatar’s options (U06)', async () => {
+    const server = visitServer();
+    mockScope = server.scope;
+    const rendered = await render(view(true));
+    expect(await screen.findByRole('tab', { name: 'Universe', selected: true })).toBeOnTheScreen();
+    expect(screen.getAllByRole('tab')).toHaveLength(4);
+    // Leave comes first in the bar, and Report is not on the map until the options are opened.
+    expect(screen.queryByRole('button', { name: /^Report/ })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: /^Options for/ }));
+    expect(screen.getByRole('button', { name: /^Report/ })).toBeOnTheScreen();
     await rendered.unmount();
     server.scope.end();
   });
