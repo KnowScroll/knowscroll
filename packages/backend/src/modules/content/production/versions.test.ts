@@ -156,6 +156,8 @@ describe('the answer to a question is written and checked as a pair (D-250)', ()
     'question-writer.v6': 'ask-support-check.v4',
     'question-writer.v7': 'ask-support-check.v5',
     'question-writer.v8': 'ask-support-check.v5',
+    // D-371: the writer is told not to write the limits callout, which code writes and the checker never reads; the checker is unchanged.
+    'question-writer.v9': 'ask-support-check.v5',
   };
 
   it('pairs the question writer’s instructions with the support check’s version', () => {

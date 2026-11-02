@@ -13,6 +13,7 @@ import {
   type SentenceVerdict,
   type UnsupportedVerdict,
 } from '../domain/ask-support.js';
+import { isCodeMadeLimits } from './ask-answer-limits.js';
 
 /**
  * The support check of an ask order's answer (D-250, D-263, D-265 to D-267, D-281, D-305 to D-307, D-310, D-313, D-316): a second model role that reads each
@@ -55,7 +56,8 @@ interface Statement {
 /**
  * The texts of a block that state things. A paragraph, a list item and a callout's text rest on the passages the block
  * cites. A heading and a callout's title cite nothing of their own, so they rest on whatever the answer cites; they are
- * labels (D-266).
+ * labels (D-266). The limits callout that code wrote states nothing about the subject and has no passage to rest on, so it has no
+ * statements: it is never shown to the checker, never given a verdict and never counted (D-371).
  */
 function statementsOf(block: AnswerBlock, index: number, answerCites: readonly string[]): readonly Statement[] {
   if (block.type === 'heading')
@@ -68,7 +70,8 @@ function statementsOf(block: AnswerBlock, index: number, answerCites: readonly s
       cites: block.cites,
       place: { field: 'item' as const, block: index, item },
     }));
-  if (block.type === 'callout')
+  if (block.type === 'callout') {
+    if (isCodeMadeLimits(block)) return [];
     return [
       ...(block.title
         ? [
@@ -82,6 +85,7 @@ function statementsOf(block: AnswerBlock, index: number, answerCites: readonly s
         : []),
       { text: block.text, cites: block.cites, place: { field: 'callout-text', block: index } },
     ];
+  }
   return [];
 }
 
@@ -92,7 +96,7 @@ export interface PlacedSentence extends SentenceUnderCheck {
 
 /**
  * The sentences of an answer in reading order, each with the passages it rests on and where it stands: the title, the dek, each
- * heading, each sentence of a paragraph or list item, and a callout's title and text. A title or a heading can state a fact as well as
+ * heading, each sentence of a paragraph or list item, and a callout's title and text, except the limits callout code wrote (D-371). A title or a heading can state a fact as well as
  * a sentence can ("Why the equator barely notices the tilt"), so none is left unchecked (B1.4). The title, the headings and
  * the callouts' titles are marked as labels: one that only names what follows may be marked as stating no fact (D-266).
  */
@@ -344,7 +348,7 @@ export const verdictsOf = (answer: AskSupportAnswer): readonly SentenceVerdict[]
 /** Instructions added to the writer's own when it repairs a draft whose sentences the check found unsupported. */
 const SUPPORT_REPAIR_INSTRUCTIONS = [
   'REVISION AFTER A SUPPORT CHECK. A reader of your previous draft would find sentences that the passages you cited do not support. The context has two more items, both data: "check-problems" lists each unsupported sentence, what to do about it and a note on what is wrong, and "previous-draft" is the complete draft you wrote.',
-  'Return the complete corrected answer in the same shape. For each listed sentence, remove it, or rewrite it to say only what a passage you cite states. If that leaves the answer without the reason the reader asked for, say so plainly in one sentence: that the pages do not give it. Keep every other sentence exactly as it was. All the other rules above still hold, including the ending with the callout of kind "limit".',
+  'Return the complete corrected answer in the same shape. For each listed sentence, remove it, or rewrite it to say only what a passage you cite states. If that leaves the answer without the reason the reader asked for, say so plainly in one sentence: that the pages do not give it. Keep every other sentence exactly as it was. All the other rules above still hold. Do not write a callout of kind "limit": the draft you are shown has one that code wrote, and code puts it last again.',
   `A sentence you rewrite is built in your own words around the key terms of the passage, as in the example above; it is never the passage’s sentence with a word changed. A sentence that repeats ${String(COPY_RUN_WORDS)} or more words in a row from a passage is taken out of the revision, and the revision is refused if too little is left.`,
 ].join('\n');
 

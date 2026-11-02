@@ -26,7 +26,8 @@ export interface WriterPlan {
   readonly askLines?: CodeMadeLines;
   /**
    * Takes out of the harness's accepted answer what code can take out before the answer is compiled and checked (D-348): the
-   * answer to a question loses its sentences that copy a passage and the ones that lean. `counts` says how much, as numbers;
+   * answer to a question loses its sentences that copy a passage and the ones that lean, and has the limits callout code writes put
+   * last in place of any the writer sent (D-371). `counts` says how much, as numbers;
    * `issues` are findings only the writer can put right. Every other Scroll is returned as it is.
    */
   readonly prepare: (output: unknown) => PreparedOutput;

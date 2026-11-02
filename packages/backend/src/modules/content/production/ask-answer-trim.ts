@@ -1,13 +1,14 @@
 import { FIELD_LIMITS } from '@knowscroll/scroll-model';
 import { COPY_RUN_WORDS, copiedWordMask, copyWords, type AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import type { AdmissionIssue } from '../application/ports.js';
+import { closeWithCodeMadeLimits, isWritersLimits } from './ask-answer-limits.js';
 import { rebuildWithout, withLeaningSentencesRemoved } from './ask-answer-rebuild.js';
 import { DIRECT_ANSWER_LOST_CODE, leansOnPrevious } from './ask-answer-shape.js';
 import { placedSentencesOfAnswer, type PlacedSentence, type StatementPlace } from './ask-support.js';
 
 /**
  * What code takes out of the writer's draft of the answer to a question, and puts in its place, before the draft is compiled and
- * checked (D-348 to D-351). The support check then reads what could be served. Pure: no model, no clock.
+ * checked (D-348 to D-351, D-371). The support check then reads what could be served. Pure: no model, no clock.
  */
 
 /** What an answer's replacement title begins with; the rest is the title of the Scroll the person asked from. */
@@ -37,6 +38,8 @@ export interface TrimCounts {
   readonly leaning: number;
   readonly titleReplaced: boolean;
   readonly dekReplaced: boolean;
+  /** Limits callouts the writer sent, which code replaced with its own line (D-371). Zero when the writer sent none, as it is told. */
+  readonly limitsReplaced: number;
 }
 
 /** A draft after the trim, ready to compile. */
@@ -120,50 +123,64 @@ export function copiedSentenceNumbers(
 }
 
 /**
- * The draft without what code can take out of it (D-348 to D-351):
+ * The draft without what code can take out of it (D-348 to D-351), and with the limits line code writes (D-371):
  * - every sentence that holds a word of a run of `COPY_RUN_WORDS` words copied from a passage (a copied title or dek is replaced
  *   by the code-made line instead);
  * - the first sentence of the answer when it opens with a pointer, since it has nothing before it to lean on;
- * - every kept sentence that opens with a pointer right after a sentence that was taken out, and so on until none is left.
+ * - every kept sentence that opens with a pointer right after a sentence that was taken out, and so on until none is left;
+ * - every limits callout the writer wrote, whole, whatever it says; code's callout is put last in its place (`closeWithCodeMadeLimits`).
  *
  * The blocks are rebuilt as in the drop of D-310: a block left with no sentence goes, a list left with one item becomes a
  * paragraph, and a heading with nothing left under it goes. Nothing is refused here except by the finding
- * `direct_answer_lost`: the opening paragraph, the direct answer, had every sentence taken out. The length and the limits callout are
- * left to the compile, which sees the answer as it would be served.
+ * `direct_answer_lost`: the opening paragraph, the direct answer, had every sentence taken out. The length is left to the compile,
+ * which sees the answer as it would be served.
  *
  * @param answer the draft the writer authored
  * @param rules the copy material and the lines to put in for a title or a dek that cannot be served
  */
 export function trimAskAnswer(answer: AuthoredScroll, rules: TrimRules): PreparedAnswer {
   const sentences = placedSentencesOfAnswer(answer);
-  const copied = copiedSentenceNumbers(sentences, rules.copyMaterial);
+  const writersLimits = new Set(answer.blocks.flatMap((block, index) => (isWritersLimits(block) ? [index] : [])));
+  const inWritersLimits = (sentence: PlacedSentence) =>
+    'block' in sentence.place && writersLimits.has(sentence.place.block);
+  // The writer's own limits callout is replaced whole, so none of its sentences takes part in the rest of the trim or its counts.
+  const limitsNumbers = new Set(sentences.filter(inWritersLimits).map((sentence) => sentence.number));
+  const trimmable = sentences.filter((sentence) => !limitsNumbers.has(sentence.number));
+  const copied = copiedSentenceNumbers(trimmable, rules.copyMaterial);
   const inBlock = (sentence: PlacedSentence) => 'block' in sentence.place;
-  const copiedInBlocks = sentences.filter((sentence) => inBlock(sentence) && copied.has(sentence.number));
-  const opening = sentences.find((sentence) => inBlock(sentence) && sentence.label !== true);
+  const copiedInBlocks = trimmable.filter((sentence) => inBlock(sentence) && copied.has(sentence.number));
+  const opening = trimmable.find((sentence) => inBlock(sentence) && sentence.label !== true);
   const leaningOpening = opening !== undefined && !copied.has(opening.number) && leansOnPrevious(opening.text);
-  const titleReplaced = sentences.some((sentence) => sentence.place.field === 'title' && copied.has(sentence.number));
-  const dekReplaced = sentences.some((sentence) => sentence.place.field === 'dek' && copied.has(sentence.number));
-  if (copiedInBlocks.length === 0 && !leaningOpening && !titleReplaced && !dekReplaced) return unchanged(answer);
+  const titleReplaced = trimmable.some((sentence) => sentence.place.field === 'title' && copied.has(sentence.number));
+  const dekReplaced = trimmable.some((sentence) => sentence.place.field === 'dek' && copied.has(sentence.number));
+  const changed = copiedInBlocks.length > 0 || leaningOpening || titleReplaced || dekReplaced || writersLimits.size > 0;
+  if (!changed) {
+    const whole = unchanged(answer);
+    const closed = closeWithCodeMadeLimits(answer.blocks, whole.blockOrigin, answer.blocks.length);
+    return { ...whole, authored: { ...answer, blocks: [...closed.blocks] }, blockOrigin: closed.origin };
+  }
 
-  const removing = new Set(copiedInBlocks.map((sentence) => sentence.number));
+  const removing = new Set([...copiedInBlocks.map((sentence) => sentence.number), ...limitsNumbers]);
   if (leaningOpening) removing.add(opening.number);
   const removed = withLeaningSentencesRemoved(sentences, removing);
-  const { blocks, origin } = rebuildWithout(answer, sentences, removed);
+  const rebuilt = rebuildWithout(answer, sentences, removed);
 
   const directAnswer = answer.blocks.findIndex((block) => block.type === 'paragraph');
-  const directAnswerLost = directAnswer >= 0 && !origin.includes(directAnswer);
+  const directAnswerLost = directAnswer >= 0 && !rebuilt.origin.includes(directAnswer);
+  const closed = closeWithCodeMadeLimits(rebuilt.blocks, rebuilt.origin, answer.blocks.length);
   return {
     authored: {
       title: titleReplaced ? rules.lines.title : answer.title,
       dek: dekReplaced ? rules.lines.dek : answer.dek,
-      blocks: [...blocks],
+      blocks: [...closed.blocks],
     },
-    blockOrigin: origin,
+    blockOrigin: closed.origin,
     counts: {
       copied: copiedInBlocks.length,
-      leaning: removed.size - copiedInBlocks.length,
+      leaning: removed.size - copiedInBlocks.length - limitsNumbers.size,
       titleReplaced,
       dekReplaced,
+      limitsReplaced: writersLimits.size,
     },
     issues: directAnswerLost ? [{ code: DIRECT_ANSWER_LOST_CODE, path: `blocks.${String(directAnswer)}` }] : [],
   };

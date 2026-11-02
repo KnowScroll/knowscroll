@@ -112,7 +112,8 @@ const isResult = (value: Draft | ProduceScrollResult): value is ProduceScrollRes
  * holds no transaction while a request is out. The answer to a question may send four: the first draft and its
  * repair, then the revision a support check earns and its repair for a length out of range, an opening paragraph taken out whole
  * or a copied run the trim could not place (D-297, D-353). Before either draft is checked, code takes out of it the sentences it can
- * (the ones that copy a passage or lean, D-348, D-349), so the check reads what could be served.
+ * (the ones that copy a passage or lean, D-348, D-349) and has put its own limits line last (D-371), so the check reads what could be
+ * served and never reads that line.
  */
 export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperations) {
   const answerCheck = makeAnswerCheckStep(deps);
@@ -159,8 +160,9 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     if (paidAttemptIds.length < 1 || paidAttemptIds.length > mostPaidAttempts)
       return refuse(['attempt_bound_exceeded'], receipt);
     const recorded = withAccounting(receipt, attempts);
-    // Code takes out what it can (the sentences that copy a passage or lean) before the draft is compiled and checked, so the check
-    // reads what could be served (D-348). The validator ran the same trim, so what is left is what it accepted.
+    // Code takes out what it can (the sentences that copy a passage or lean) and writes the limits callout itself before the draft is
+    // compiled and checked, so the check reads what could be served (D-348, D-371). The validator ran the same trim, so what is left
+    // is what it accepted.
     const prepared = stage.plan.prepare(writer.output);
     if (prepared.issues.length > 0)
       return refuse(
