@@ -86,16 +86,19 @@ function allStrings(node: unknown, found: string[] = []): string[] {
   return found;
 }
 
-it('keeps a landmark in the tray while its planet has not formed, with the Orbit as text', async () => {
+it('says a landmark is new while its planet has not formed, with the Orbit as text, on a paper card', async () => {
   const h = universeHarness();
   h.world.collection.landmarks = [earned()];
   h.world.collection.orbit = { days: 1, goal: 3, weekStart: '2026-11-02', closed: false };
   const v = await open(h);
-  await waitFor(() => expect(screen.getByTestId('universe-landmark-tray')).toBeOnTheScreen());
-  expect(screen.getByText('Your landmark is waiting')).toBeOnTheScreen();
+  await waitFor(() => expect(screen.getByTestId('universe-landmark-card')).toBeOnTheScreen());
+  expect(screen.getByText('New landmark')).toBeOnTheScreen();
   expect(screen.getByText('The Leaning Axis')).toBeOnTheScreen();
+  expect(screen.getByText('Gold finish · waits for its planet')).toBeOnTheScreen();
   expect(screen.getByTestId('universe-orbit')).toHaveTextContent('Orbit · 1 of 3 days this week');
-  await fireEvent.press(screen.getByRole('button', { name: 'See it' }));
+  // The map itself carries no chip of the collection (the Universe set draws none).
+  expect(screen.queryByTestId('universe-landmarks')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'See your landmarks' }));
   expect(await screen.findByTestId('universe-collection-sheet')).toBeOnTheScreen();
   expect(screen.getByText('Gold finish · Waiting for its planet')).toBeOnTheScreen();
   expect(
@@ -115,30 +118,33 @@ it('stands the landmark on its planet once that planet has formed: nothing waits
   ];
   h.world.collection.planets = [{ id: fixtureId(12), topicId: 'earth.seasons' }];
   const v = await open(h);
-  await waitFor(() => expect(screen.getByTestId('universe-landmarks')).toBeOnTheScreen());
-  expect(screen.queryByTestId('universe-landmark-tray')).toBeNull();
+  await waitFor(() => expect(screen.getByTestId('universe-landmark-card')).toBeOnTheScreen());
+  expect(screen.getByText('from CI planet 2 · gold finish')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
   await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
+  // With a globe on screen the card is one line, so it cannot cover the planet's name or hint.
+  expect(screen.queryByTestId('universe-landmark-card')).toBeNull();
+  expect(screen.getByTestId('universe-landmark-chip')).toHaveTextContent('New landmark · The Leaning Axis');
   // The globe paints a pennant for each landmark, gold or plain.
   await waitFor(() =>
     expect(screen.getAllByTestId('landmark-mark-gold', { includeHiddenElements: true }).length).toBeGreaterThan(0),
   );
   expect(screen.getAllByTestId('landmark-mark-plain', { includeHiddenElements: true }).length).toBeGreaterThan(0);
   // The list says where each one stands, for a screen reader and for anyone who cannot see the drawing.
-  await fireEvent.press(screen.getByRole('button', { name: 'Landmarks · 2' }));
+  await fireEvent.press(screen.getByTestId('universe-landmark-chip'));
   expect(await screen.findByText('Gold finish · On CI planet 2')).toBeOnTheScreen();
   expect(screen.getByText('Plain finish · On CI planet 2')).toBeOnTheScreen();
   await act(() => h.scope.end());
   await v.unmount();
 });
 
-it('paints no marker on a planet that is not the landmark’s, and keeps the landmark in the tray', async () => {
+it('paints no marker on a planet that is not the landmark’s, and keeps the landmark waiting', async () => {
   const h = universeHarness();
   h.world.collection.landmarks = [earned()];
   // Another topic's planet: nothing here names the Seasons planet yet.
   h.world.collection.planets = [{ id: fixtureId(13), topicId: 'earth.tides' }];
   const v = await open(h);
-  await waitFor(() => expect(screen.getByTestId('universe-landmark-tray')).toBeOnTheScreen());
+  await waitFor(() => expect(screen.getByText('Gold finish · waits for its planet')).toBeOnTheScreen());
   await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
   await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
   expect(screen.queryAllByTestId('landmark-mark-gold', { includeHiddenElements: true })).toHaveLength(0);
@@ -150,6 +156,9 @@ it('offers the next Part to resume and opens it by its address', async () => {
   const h = universeHarness();
   h.world.collection.resume = { assetId: fixtureId(502), title: 'Why the hemispheres take turns', part: 2, total: 3 };
   const v = await open(h);
+  // With no landmark yet the card speaks of the next Part, with its own Resume.
+  expect(await screen.findByText('Next part')).toBeOnTheScreen();
+  expect(screen.getByText('Part 2 of 3')).toBeOnTheScreen();
   const chip = await screen.findByRole('button', { name: 'Resume Part 2 of 3: Why the hemispheres take turns' });
   await fireEvent.press(chip);
   expect(mockPush).toHaveBeenCalledWith({ pathname: '/scroll/[assetId]', params: { assetId: fixtureId(502) } });
@@ -157,16 +166,15 @@ it('offers the next Part to resume and opens it by its address', async () => {
   await v.unmount();
 });
 
-it('is quiet before anything was played: no resume chip, no tray, no Orbit line, no landmarks chip, no score words', async () => {
+it('is quiet before anything was played: no card, no resume, no Orbit line, no score words', async () => {
   const h = universeHarness();
   const v = await open(h);
   await waitFor(() => expect(h.calls).toContain('/v1/experience/resume/read'));
   await waitFor(() => expect(h.calls).toContain('/v1/play/orbit/read'));
   expect(screen.queryByTestId('universe-resume')).toBeNull();
-  expect(screen.queryByTestId('universe-collection-strip')).toBeNull();
   expect(screen.queryByTestId('universe-orbit')).toBeNull();
-  expect(screen.queryByTestId('universe-landmark-tray')).toBeNull();
-  expect(screen.queryByTestId('universe-landmarks')).toBeNull();
+  expect(screen.queryByTestId('universe-landmark-card')).toBeNull();
+  expect(screen.queryByTestId('universe-landmark-chip')).toBeNull();
   expect(allStrings(screen.toJSON()).join(' | ')).not.toMatch(/streak|lose|lost|missed|score|level|rank/i);
   await act(() => h.scope.end());
   await v.unmount();
@@ -177,7 +185,7 @@ it('lists the landmarks and the Orbit in the Simple drawing too, in plain words'
   h.world.collection.landmarks = [earned()];
   h.world.collection.orbit = { days: 2, goal: 3, weekStart: '2026-11-02', closed: false };
   const v = await open(h);
-  await waitFor(() => expect(screen.getByTestId('universe-landmarks')).toBeOnTheScreen());
+  await waitFor(() => expect(screen.getByTestId('universe-landmark-card')).toBeOnTheScreen());
   await fireEvent.press(screen.getByRole('button', { name: 'List view' }));
   await fireEvent.press(screen.getByRole('togglebutton', { name: 'Simple view' }));
   await screen.findByTestId('universe-simple');
@@ -193,7 +201,7 @@ it('reads the collection again when the screen comes to the front, so a Scroll f
   const h = universeHarness();
   const v = await open(h);
   await waitFor(() => expect(h.calls).toContain('/v1/play/landmarks/read'));
-  expect(screen.queryByTestId('universe-landmark-tray')).toBeNull();
+  expect(screen.queryByTestId('universe-landmark-card')).toBeNull();
   h.world.collection.landmarks = [earned()];
   const session = universeSessionFor(h.scope);
   await act(async () => {
@@ -201,7 +209,7 @@ it('reads the collection again when the screen comes to the front, so a Scroll f
     session.setForeground(true);
     await Promise.resolve();
   });
-  await waitFor(() => expect(screen.getByTestId('universe-landmark-tray')).toBeOnTheScreen());
+  await waitFor(() => expect(screen.getByTestId('universe-landmark-card')).toBeOnTheScreen());
   await act(() => h.scope.end());
   await v.unmount();
 });
@@ -229,11 +237,10 @@ it('is never drawn on a friend’s universe, even over a session that holds a co
   );
   await screen.findByTestId('universe-screen');
   for (const id of [
-    'universe-collection-strip',
+    'universe-landmark-card',
+    'universe-landmark-chip',
     'universe-resume',
     'universe-orbit',
-    'universe-landmarks',
-    'universe-landmark-tray',
     'universe-collection-section',
   ])
     expect(screen.queryByTestId(id)).toBeNull();
@@ -253,8 +260,7 @@ it('keeps the map working when every collection read fails: the collection is de
   await waitFor(() => expect(h.calls).toContain('/v1/play/landmarks/read'));
   expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen();
-  expect(screen.queryByTestId('universe-collection-strip')).toBeNull();
-  expect(screen.queryByTestId('universe-landmark-tray')).toBeNull();
+  expect(screen.queryByTestId('universe-landmark-card')).toBeNull();
   await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
   expect(screen.getByRole('header', { name: 'CI system 0' })).toBeOnTheScreen();
   await act(() => h.scope.end());

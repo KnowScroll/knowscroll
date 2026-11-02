@@ -10,7 +10,7 @@ import { Reveal, type Rising } from './animation/animated';
 import type { AnimationPlayer } from './animation/player';
 import { stepChrome } from './animation/step-chrome';
 import { useUniverseAnimation } from './animation/use-universe-animation';
-import { CollectionSection, CollectionSheet, CollectionStrip, LandmarkTray } from './collection/collection-parts';
+import { CollectionSection, CollectionSheet, LandmarkCard } from './collection/collection-parts';
 import { collectionViewOf } from './collection/collection-view';
 import { OrbitDial } from './dial/orbit-dial';
 import { SimpleUniverse } from './simple/simple-universe';
@@ -41,6 +41,8 @@ const HINT_COLOUR = '#B8E2E3';
 export interface VisitorChrome {
   readonly ownerName: string;
   readonly bar: ReactNode;
+  /** The row at the bottom of the map (U06's one lock chip). */
+  readonly footer?: ReactNode;
 }
 
 /**
@@ -162,11 +164,6 @@ export function UniverseSurface({
         onPlanet={(planetId) => void session.focus(planetId)}
       />
     ) : null;
-  // A landmark whose planet has not formed waits here (D-084); it takes no room while a card or the sheet is open.
-  const tray =
-    !visitor && !card && !sheet && state.overlay !== 'search' && collection.waiting.length > 0 ? (
-      <LandmarkTray view={collection} onSee={openCollection} />
-    ) : null;
   const collectionPanel = visitor ? null : (
     <CollectionSection view={collection} onPlanet={(planetId) => void session.focus(planetId)} />
   );
@@ -266,6 +263,13 @@ export function UniverseSurface({
       </View>
     ) : null;
   const chips = chipsOf(view);
+  // The landmark card (D-089): over the bottom of the map, folded to one line while a globe or a landed map is in view.
+  // On the desktop the panel lists the collection, so the map carries none. A card or the list in front of it takes its place.
+  const landmarkOf = (shown: UniverseView): ReactNode =>
+    !visitor && !panel && !card && !sheet && !searching ? (
+      <LandmarkCard view={collection} folded={shown.kind === 'planet'} onSee={openCollection} />
+    ) : null;
+  const landmarkCard = landmarkOf(view);
   // The screen being left stays on screen, fading, under the destination's chrome as it rises (design: "Rules for all of them").
   const leaving = step?.from;
 
@@ -286,6 +290,7 @@ export function UniverseSurface({
               {visitor?.bar}
               {status ? <Tag label={status} variant="onDark" /> : null}
               {notice}
+              {visitor?.footer}
             </>
           ) : undefined
         }
@@ -349,9 +354,6 @@ export function UniverseSurface({
                 <Tag label={status} variant="onDark" />
               </View>
             ) : null}
-            {!visitor && !searching && !wide ? (
-              <CollectionStrip view={collection} onLandmarks={openCollection} />
-            ) : null}
           </View>
           <ChromeSlot
             player={animation.player}
@@ -368,7 +370,14 @@ export function UniverseSurface({
             {notice}
             {sheet}
             {panel ? null : card}
-            {tray}
+            {visitor?.footer}
+            <ChromeSlot
+              player={animation.player}
+              now={landmarkCard}
+              was={chrome?.chipsOut && leaving ? landmarkOf(leaving) : undefined}
+              into={chrome?.chipsIn}
+              out={chrome?.chipsOut}
+            />
             <ChromeSlot
               player={animation.player}
               now={chips}
