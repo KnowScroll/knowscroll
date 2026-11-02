@@ -271,6 +271,40 @@ test('on a desktop the panel lists the members and where they are beside the par
   await closeAll(asha.context);
 });
 
+test('the header’s parts are painted worlds with the faces on them, and the Series sheet paints them too', async ({
+  browser,
+}) => {
+  const world = partyWorld();
+  world.setPlace('meera', 1, 'on');
+  const asha = await person(browser, world, 'asha');
+  const { page } = asha;
+  await expect(page.getByTestId('part-worlds').getByTestId('painted-world')).toHaveCount(3);
+  await expect(page.getByTestId('part-world-1').getByTestId(`face-${id(12)}`)).toBeAttached();
+  await shot(page, 'thread-390-painted-worlds');
+  const sheet = await openSeries(page, 'Parts');
+  await expect(sheet.getByTestId('painted-world')).toHaveCount(3);
+  await shot(page, 'thread-390-series-painted');
+  expect(await seriousViolations(page)).toEqual([]);
+  await closeAll(asha.context);
+});
+
+test('opening a thread draws "New since you were here" over what others wrote after the person’s own read position', async ({
+  browser,
+}) => {
+  const world = partyWorld({ readThrough: 1 });
+  const asha = await person(browser, world, 'asha');
+  const { page } = asha;
+  await expect(page.getByTestId('new-since-divider')).toBeVisible();
+  await expect(page.getByText('NEW SINCE YOU WERE HERE')).toBeVisible();
+  await shot(page, 'thread-390-new-since');
+  expect(await seriousViolations(page)).toEqual([]);
+  await closeAll(asha.context);
+  // Read to the end: no line.
+  const caughtUp = await person(browser, partyWorld(), 'asha');
+  await expect(caughtUp.page.getByTestId('new-since-divider')).toHaveCount(0);
+  await closeAll(caughtUp.context);
+});
+
 test('a phone thread with places has no serious accessibility violation, header and sheet', async ({ browser }) => {
   const world = partyWorld();
   world.setPlace('meera', 3, 'finished');

@@ -23,7 +23,7 @@ import { refuse, threadEnvelope, type Result } from './ports.js';
 import { enterThread, threadRefOf, type EnteredThread } from './thread-gate.js';
 import type { ExtrasContext } from './message-extras.js';
 import type { ThreadLock, ThreadMember, ThreadPorts } from './thread-ports.js';
-import { participantsOf, threadEpisodes, viewThreadMessages } from './thread-view.js';
+import { participantsOf, seriesOfRoots, threadEpisodes, viewThreadMessages } from './thread-view.js';
 
 const ok = <T>(value: T): Result<T> => ({ kind: 'ok', value });
 
@@ -269,12 +269,14 @@ export function makeThreadReads(p: ThreadPorts) {
             status: 'unavailable' as const,
             target: root,
           };
+        const seriesOfRoot = await seriesOfRoots(p, scope, [...roots.values()]);
         const lastMessages = await viewThreadMessages(
           p,
           scope,
           rows.flatMap((row) => (row.lastMessage ? [row.lastMessage] : [])),
         );
         const items = rows.map((row) => {
+          const series = seriesOfRoot.get(`${row.thread.root.assetId}:${String(row.thread.root.assetRevision)}`);
           const pending = row.own.pending;
           const last =
             row.lastMessage && lastMessages.find((message) => message.messageId === row.lastMessage?.messageId);
@@ -286,6 +288,7 @@ export function makeThreadReads(p: ThreadPorts) {
             } satisfies ContentThreadRef,
             ...(row.thread.name === null ? {} : { name: row.thread.name }),
             root: cardOf(row.thread.root),
+            ...(series === undefined ? {} : { series }),
             state: pending ? ('invited' as const) : ('joined' as const),
             ownPersonId: row.own.person.personId,
             people: pending ? [row.inviter ?? DELETED_PERSON] : row.people,

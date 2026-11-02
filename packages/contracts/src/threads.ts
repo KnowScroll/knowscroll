@@ -435,6 +435,11 @@ export const ThreadSummarySchema = z.strictObject({
   thread: ContentThreadRefSchema,
   name: ThreadName.optional(),
   root: ConversationContentProjectionSchema,
+  /**
+   * When the root is a part of a declared series: the part the thread was started on and how many parts the series has.
+   * It places the thread in the list ("Part 2 of 3"); it says nothing of how far anyone has watched.
+   */
+  series: z.strictObject({ part: PartNumber, total: z.number().int().min(2).max(99) }).optional(),
   /** Invited threads show who invited; joined threads show the people in them. */
   state: z.enum(['invited', 'joined']),
   /** The caller's own public person ID, so a row can write "You" for their own last message. */

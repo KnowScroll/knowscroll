@@ -110,6 +110,11 @@ Block end it for both people without saying why.
 - **The inbox reads consistently.** It lists conversations in one statement, then reads each one's last message by
   the exact (conversation, sequence) pair that statement returned, so a message that commits in between can never
   make a row say "N messages" and show message N+1. A cursor with a time no date can hold is treated as no cursor.
+- **A thread row says its part (D-330; implemented).** The thread list's `series` is read from the root's declared series
+  (`seriesOfRoots`, the same `readSequence` the thread view uses): the part the thread started on and the number of
+  parts. It is absent for a single Scroll or Reel and for a series of one. It is shared metadata, never anyone's progress.
+  Follow-up: `seriesOfRoots` reads one sequence per distinct root (up to 50 per list); batch it into one query if the
+  list grows.
 - **Cursors** for the inbox (`kci1_`), history (`kch1_`) and changes (`kcc1_`) are base64url of a version, a
   number and an ID. They are positions only. Every read checks that the caller is a member.
 - **Deleted person.** When the other account is deleted, the friendship row goes and `conversations.pair_id`

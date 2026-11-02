@@ -81,6 +81,17 @@ describe('Talk inbox (labelled in-memory server)', () => {
     }
   });
 
+  it('groups the list under a label for each kind, and draws a label only for a group that has rows', async () => {
+    const server = talkServer();
+    server.peerSays('hello');
+    await mount(server);
+    await screen.findByTestId(`talk-row-${conversation.conversationId}`);
+    expect(screen.getByText('PEOPLE')).toBeOnTheScreen();
+    expect(screen.queryByText('THREADS')).toBeNull();
+    expect(screen.queryByText('ROOMS')).toBeNull();
+    await finish(server);
+  });
+
   it('lists a conversation as one link with an unread description, and opens it with the person’s own reference', async () => {
     const server = talkServer();
     server.peerSays('Wait, so batching makes each answer slower?');

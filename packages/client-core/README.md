@@ -470,6 +470,9 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
 - Both conversation and content-thread state carry `awayAfterSequence`: set when a lost connection returned and
   something arrived after the last message the person had, so the screen draws "While you were away" there. It only
   places the divider and never moves the scroll.
+- They also carry `newSinceSequence` (D-329; **implemented**): the person's own stored read position as the first read of an
+  opening returned it, when others wrote after it. The screen draws "New since you were here" there; it is set once per
+  opening, is never sent to anyone, and `newSinceAfter` (`away-divider.ts`) holds the rule.
 - `thread-snippets.ts`: `initialRange`, `nudgeRange`, `setRangeEnd`, `sentenceRanges`, `passageOf`, `formatRange` for the pickers.
 - `overlayBlockState` (`scroll-state/snippet-overlay.ts`): the sender's block settings, shown without writing the reader's own.
 - The Talk fixture serves `threads/create` and the thread reads for tests; it is a labelled fixture.

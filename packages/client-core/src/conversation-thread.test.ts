@@ -51,6 +51,29 @@ describe('conversation thread (labelled in-memory server)', () => {
     expect(thread.getState().peerReadThrough).toBeUndefined();
   });
 
+  it('marks what the other person wrote after the position the person last read to, on opening only', async () => {
+    const { server, thread } = setup();
+    server.peerSays('one');
+    server.peerSays('two');
+    thread.setActive(true);
+    await thread.load();
+    // First time here: nothing was read before, so nothing is "new since you were here".
+    expect(thread.getState().newSinceSequence).toBeUndefined();
+    await vi.waitFor(() => expect(server.readThrough()).toBe(2));
+    server.peerSays('three');
+    const reopened = createConversationThread({ scope: server.scope, conversation, newId });
+    reopened.setActive(true);
+    await reopened.load();
+    expect(reopened.getState().newSinceSequence).toBe(2);
+    await vi.waitFor(() => expect(server.readThrough()).toBe(3));
+    // Another message arrives and the screen reads again: the server's position is now 3 and the message is the
+    // peer's, so without the once-per-opening rule the line would jump to 3.
+    server.peerSays('four');
+    await reopened.load();
+    expect(reopened.getState().messages.map((message) => message.sequence)).toEqual([1, 2, 3, 4]);
+    expect(reopened.getState().newSinceSequence).toBe(2);
+  });
+
   it('catches up from its cursor and keeps messages in order, ignoring a repeated refresh', async () => {
     const { server, thread } = setup();
     server.peerSays('before');
