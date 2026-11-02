@@ -25,6 +25,20 @@ export async function signedInAccount(page: Page) {
       return route.fulfill({
         json: { version: 'clear-exploration.v1', scope, target: body['target'], status: 'not_recorded' },
       });
+    // What the Privacy page reads besides Clear: nothing shared and no links, so no panel fails to load and
+    // asks Clear for its status again while a person is using the page.
+    if (path === '/v1/social/visibility')
+      return route.fulfill({
+        json: { version: 'sharing.v1', scope, visibilityRevision: 0, audience: { mode: 'nobody' }, systems: [] },
+      });
+    if (path === '/v1/social/presence/preference')
+      return route.fulfill({
+        json: { version: 'sharing.v1', scope, presencePreferenceRevision: 0, preference: 'hidden' },
+      });
+    if (path === '/v1/social/read-receipts')
+      return route.fulfill({ json: { version: 'sharing.v1', scope, readReceiptsRevision: 0, shared: true } });
+    if (path === '/v1/social/content-shares/list')
+      return route.fulfill({ json: { version: 'content-share.v1', readId: body['readId'], scope, items: [] } });
     if (path === '/v1/account/sessions')
       return route.fulfill({
         json: {

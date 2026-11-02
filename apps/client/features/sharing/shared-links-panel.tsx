@@ -36,7 +36,7 @@ export function SharedLinksPanel({
     if (failed) onLoadFailed?.();
   }, [failed, onLoadFailed]);
   // The list is read again once the Clear that stopped it has finished.
-  const clearing = clear !== undefined;
+  const clearing = clear?.removing === true;
   const wasClearing = useRef(false);
   useEffect(() => {
     if (wasClearing.current && !clearing) void session.refresh();
