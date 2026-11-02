@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { AuthoredScroll, COPY_RUN_WORDS, copiedRuns } from '@knowscroll/scroll-model/producer';
-import { RULE_PROBLEMS, UNSUPPORTED_HINTS, sharedStems, type SentenceUnderCheck } from '../domain/ask-support.js';
+import {
+  ASK_ORDER_CHECK_RULES,
+  STRICT_CHECK_RULES,
+  RULE_PROBLEMS,
+  UNSUPPORTED_HINTS,
+  sharedStems,
+  type SentenceUnderCheck,
+} from '../domain/ask-support.js';
 import {
   ASK_SUPPORT_CHECK_VERSION,
   ASK_SUPPORT_INSTRUCTIONS,
+  askOrderCheckerRole,
   askSupportContext,
+  askSupportInstructions,
   askSupportRole,
   askSupportSchema,
   citedPassages,
@@ -207,7 +216,7 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
 
   it('accepts a quote from a passage another sentence of the answer cites, and a quote from no passage the answer cites is unsupported for that sentence alone (D-305)', () => {
     // The words are real and come from e3, which sentence 1 does not cite but sentence 3 does: the answer cites it.
-    expect(outcomes(parse([supported(1, 'light cannot cross a thick bank'), good[1], good[2]]))).toEqual([
+    expect(outcomes(parse([supported(1, 'complement the beam, because light'), good[1], good[2]]))).toEqual([
       'supported',
       'supported',
       'no_claim',
@@ -231,7 +240,7 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
   it('lets a batch quote a passage that only another batch cites, when it is told the whole answer (D-305)', () => {
     // Sentence 1 cites e2; the answer cites e3 only in a sentence of another batch. The quote is e3's, about sentence 1's "light".
     const batch = sentences.slice(0, 1);
-    const crossQuote = [supported(1, 'light cannot cross a thick bank')];
+    const crossQuote = [supported(1, 'complement the beam, because light')];
     const own = askSupportSchema(batch, PASSAGES).safeParse({ sentences: crossQuote });
     expect(own.success && verdictsOf(own.data)[0]).toMatchObject({ code: 'quote_not_in_cited_passages' });
     const told = askSupportSchema(batch, PASSAGES, sentences).safeParse({ sentences: crossQuote });
@@ -548,26 +557,24 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
     ];
     const sunReply = (quote: string) =>
       askSupportSchema(sun, PASSAGES).safeParse({ sentences: [{ n: 1, verdict: 'supported', quote }] });
+    /** The same, with the soft rules of an ask order's answer. */
+    const askSunReply = (quote: string) =>
+      askSupportSchema(sun, PASSAGES, sun, ASK_ORDER_CHECK_RULES).safeParse({
+        sentences: [{ n: 1, verdict: 'supported', quote }],
+      });
 
-    it('sets aside the false sentence of the dev run marked supported with the three words "the Sun is", once the sentence has more than eight key words (D-306)', () => {
-      const long: readonly SentenceUnderCheck[] = [
-        {
-          number: 1,
-          text: 'The Sun is nearly overhead at the pole in summer, so every glacier melts under bright weather somewhere.',
-          cites: ['e5'],
-        },
-      ];
-      const longReply = (quote: string) =>
-        askSupportSchema(long, PASSAGES).safeParse({ sentences: [{ n: 1, verdict: 'supported', quote }] });
+    it('sets aside the false sentence of the dev run marked supported with the three words "the Sun is", with the strict rules and an ask order’s alike (D-306)', () => {
       // The words are in the passage, and they say nothing about "nearly overhead", the pole or the summer.
-      expect(outcomes(longReply('the Sun is'))).toEqual(['quote_not_about_sentence']);
-      expect(outcomes(longReply('Sun is never directly'))).toEqual(['quote_not_about_sentence']);
+      expect(outcomes(sunReply('the Sun is'))).toEqual(['quote_not_about_sentence']);
+      expect(outcomes(sunReply('Sun is never directly'))).toEqual(['quote_not_about_sentence']);
     });
 
-    it('lets a sentence of eight key words or fewer be supported by a quote with one of them, which is then the checker’s judgement alone (D-306)', () => {
-      expect(outcomes(sunReply('the Sun is'))).toEqual(['supported']);
-      // A quote with none of them is still about something else.
-      expect(outcomes(sunReply('the planet’s axis is tilted'))).toEqual(['quote_not_about_sentence']);
+    it('lets an ask order’s sentence of eight key words or fewer be supported by a quote with one of them and two of its own, which is then the checker’s judgement alone (D-306)', () => {
+      expect(outcomes(askSunReply('poles the Sun is never'))).toEqual(['supported']);
+      // The strict rules need two shared key words, so a Quick answer or a resident's answer sets it aside.
+      expect(outcomes(sunReply('poles the Sun is never'))).toEqual(['quote_not_about_sentence']);
+      // A quote with none of them is about something else, with either.
+      expect(outcomes(askSunReply('the planet’s axis is tilted'))).toEqual(['quote_not_about_sentence']);
     });
 
     it('sets aside a quote that leaves the "never" out with an ellipsis, so it cannot turn the passage round (D-263)', () => {
@@ -671,6 +678,51 @@ describe('the role', () => {
     expect(ASK_SUPPORT_INSTRUCTIONS).toContain('Judge against the cited passages alone');
     expect(ASK_SUPPORT_INSTRUCTIONS).toContain('Do not fill a gap with what you know');
     expect(ASK_SUPPORT_INSTRUCTIONS.length).toBeLessThan(8000);
+  });
+
+  it('gives an ask order’s role the soft rules and every other caller’s role the strict ones (D-306, D-307)', () => {
+    const batch: SentenceUnderCheck[] = [
+      { number: 1, text: 'A prism ring gathers the light into one beam.', cites: ['e2'] },
+      { number: 2, text: 'The beam is narrow.', cites: ['e2'] },
+    ];
+    const reply = {
+      sentences: [
+        { n: 1, verdict: 'supported', quote: 'prism ring around the flame' },
+        { n: 2, verdict: 'no_claim' },
+      ],
+    };
+    const outcomesOf = (role: ReturnType<typeof askSupportRole>) =>
+      verdictsOf(role.outputSchema.parse(reply)).map((verdict) =>
+        verdict.verdict === 'unsupported' ? verdict.code : verdict.verdict,
+      );
+    // A short sentence that names its passage's subject may be "no fact" in an ask order's answer, and nowhere else.
+    expect(outcomesOf(askOrderCheckerRole(batch, PASSAGES))).toEqual(['supported', 'no_claim']);
+    expect(outcomesOf(askSupportRole(batch, PASSAGES))).toEqual(['supported', 'no_claim_without_ground']);
+    expect(outcomesOf(askSupportRole(batch, PASSAGES, batch, STRICT_CHECK_RULES))).toEqual([
+      'supported',
+      'no_claim_without_ground',
+    ]);
+  });
+
+  it('tells the checker only the rules code applies for it: the soft ones to an ask order’s, the strict ones to every other', () => {
+    const strict = askSupportRole(sentences, PASSAGES).instructions;
+    expect(strict).toBe(askSupportInstructions(STRICT_CHECK_RULES));
+    expect(askOrderCheckerRole(sentences, PASSAGES).instructions).toBe(ASK_SUPPORT_INSTRUCTIONS);
+    expect(ASK_SUPPORT_INSTRUCTIONS).toBe(askSupportInstructions(ASK_ORDER_CHECK_RULES));
+    for (const soft of [
+      'for a sentence of eight words or fewer with no number',
+      'at least one of the sentence’s own key words when the sentence has eight or fewer key words',
+      'even where code would accept it for a short one',
+    ]) {
+      expect(ASK_SUPPORT_INSTRUCTIONS).toContain(soft);
+      expect(strict).not.toContain(soft);
+    }
+    expect(strict).toContain('at least two of the sentence’s own key words (one, if the sentence has only one)');
+    // The rest is shared, and both versions carry it.
+    for (const text of [strict, ASK_SUPPORT_INSTRUCTIONS]) {
+      expect(text).toContain('"supported": the cited passages state the sentence');
+      expect(text).toContain('any passage listed, not only those the sentence cites');
+    }
   });
 });
 

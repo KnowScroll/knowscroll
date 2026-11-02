@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { ReasoningRole } from '../../../reasoning/public.js';
 import type { SentenceUnderCheck } from '../domain/ask-support.js';
-import { ASK_SUPPORT_ROLE_ID, askSupportRole, type AskSupportAnswer, type SupportPassage } from './ask-support.js';
+import { ASK_SUPPORT_ROLE_ID, askOrderCheckerRole, type AskSupportAnswer, type SupportPassage } from './ask-support.js';
 
 /**
  * Candidate instructions for the support checker, for the operator's replay only (D-280). They let the coordinator measure
@@ -93,7 +93,7 @@ export function candidateCheckerRole(
   answer: readonly SentenceUnderCheck[] = sentences,
 ): ReasoningRole<AskSupportAnswer> {
   return {
-    ...askSupportRole(sentences, passages, answer),
+    ...askOrderCheckerRole(sentences, passages, answer),
     id: CANDIDATE_ROLE_ID,
     version: candidate.version,
     instructions: candidate.text,

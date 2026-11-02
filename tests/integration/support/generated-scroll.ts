@@ -12,6 +12,7 @@ import {
 import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { makeProduceScroll } from '../../../packages/backend/src/modules/content/production/produce.js';
 import {
+  ASK_ORDER_CHECK_RULES,
   hasEnoughWords,
   isAboutSentence,
   noClaimGround,
@@ -298,7 +299,7 @@ export function quoteAbout(sentence: string, passages: readonly string[]): strin
     for (let from = 0; from < words.length; from += 1)
       for (let to = from + 2; to < Math.min(words.length, from + 25); to += 1) {
         const quote = words.slice(from, to + 1).join(' ');
-        if (!hasEnoughWords(quote) || !isAboutSentence(quote, sentence)) continue;
+        if (!hasEnoughWords(quote) || !isAboutSentence(quote, sentence, ASK_ORDER_CHECK_RULES)) continue;
         const shared = sharedStems(quote, sentence);
         if (best === undefined || shared > best.shared || (shared === best.shared && to - from < best.length))
           best = { quote, shared, length: to - from };
@@ -324,7 +325,11 @@ export function supportReply(call: FixtureCall, script: SupportScript = {}): Fix
       if (quote !== undefined) return { n: sentence.n, verdict: 'supported', quote };
       // A sentence no passage is about may state no fact only where code can see it; a fixture answer must not need more.
       if (
-        noClaimGround({ text: sentence.text, ...(sentence.label === true ? { label: true } : {}) }, cited) === undefined
+        noClaimGround(
+          { text: sentence.text, ...(sentence.label === true ? { label: true } : {}) },
+          cited,
+          ASK_ORDER_CHECK_RULES,
+        ) === undefined
       )
         throw new Error(`CI fixture: sentence ${String(sentence.n)} has no words of its passages about it`);
       return { n: sentence.n, verdict: 'no_claim' };

@@ -85,19 +85,32 @@ describe('the checker’s role for a Quick answer', () => {
     // A reply that skips a sentence, or gives them out of order, is refused whole.
     expect(role.outputSchema.safeParse(reply(good.sentences[0])).success).toBe(false);
     expect(role.outputSchema.safeParse(reply(good.sentences[1], good.sentences[0])).success).toBe(false);
-    // "States no fact" is accepted only where code can see the sentence states none: this one has a subject in the passage and is
-    // longer than eight words.
-    expect(
-      judged(good.sentences[0], { n: 2, verdict: 'no_claim' }).map((verdict) =>
-        verdict.verdict === 'unsupported' ? verdict.code : verdict.verdict,
-      ),
-    ).toEqual(['supported', 'no_claim_without_ground']);
-    // The first sentence has seven words and no figure, so it may be marked, as in an ask order's answer (D-307).
+    // "States no fact" is accepted only where code can see the sentence states none: this one has a subject in the passage.
     expect(
       judged({ n: 1, verdict: 'no_claim' }, good.sentences[1]).map((verdict) =>
         verdict.verdict === 'unsupported' ? verdict.code : verdict.verdict,
       ),
-    ).toEqual(['no_claim', 'supported']);
+    ).toEqual(['no_claim_without_ground', 'supported']);
+  });
+
+  it('keeps the strict rules of v4: a short claim is never "no fact", and a quote with one key word of the sentence is not about it (D-306, D-307)', () => {
+    const outcomesOf = (...verdicts: unknown[]) =>
+      role.outputSchema
+        .parse(reply(...verdicts))
+        .sentences.map((verdict) => (verdict.verdict === 'unsupported' ? verdict.code : verdict.verdict));
+    const second = supported(2, 'keeps pointing the same way all year long');
+    // "Nothing turns the axis during a year." is seven words with no figure, and it is a causal claim. An ask order may let the
+    // checker call such a sentence "no fact", because a drop backs it; a two-to-four-sentence Quick answer has no backstop.
+    expect(sentences[0]!.text).toBe('Nothing turns the axis during a year.');
+    expect(outcomesOf({ n: 1, verdict: 'no_claim' }, second)).toEqual(['no_claim_without_ground', 'supported']);
+    // A quote that shares one key word with the sentence ("axis") is not about it, though it has key words of its own.
+    expect(outcomesOf(supported(1, 'The axis leans twenty-three degrees and keeps'), second)).toEqual([
+      'quote_not_about_sentence',
+      'supported',
+    ]);
+    // The checker is not told that either is allowed.
+    expect(role.instructions).not.toContain('eight words or fewer');
+    expect(role.instructions).not.toContain('eight or fewer key words');
   });
 
   it('is asked about no more sentences than one request carries, because a Quick answer is checked in one request', () => {

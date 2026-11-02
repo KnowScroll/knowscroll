@@ -22,7 +22,7 @@ import { pauseCode, uncheckedCode } from './answer-check-step.js';
 import { ANSWER_LENGTH_CODE, LEANING_SENTENCE_CODE } from './ask-answer-shape.js';
 import {
   askSupportContext,
-  askSupportRole,
+  askOrderCheckerRole,
   supportRepairItems,
   supportRepairRole,
   verdictsOf,
@@ -65,7 +65,7 @@ export interface AskSupportStepDependencies {
 
 /**
  * The checker's role for one batch of sentences of an answer (`answer` is all of them, D-305). Production always uses
- * {@link askSupportRole}.
+ * {@link askOrderCheckerRole}.
  */
 export type CheckerRoleOf = (
   sentences: readonly SentenceUnderCheck[],
@@ -138,10 +138,13 @@ export interface SupportRepairInput {
  * so each request has an attempt in the ledger and counts against the production caps; neither holds a transaction.
  * They return what happened and decide nothing: the writer stage does.
  *
- * `checkerRoleOf` says which role asks the checker. The production job and the Quick answer leave it out and get the
- * production role; only the operator's replay passes another, to try candidate instructions (D-280).
+ * `checkerRoleOf` says which role asks the checker. The production job leaves it out and gets the ask order's role (the soft
+ * rules of D-306 and D-307, whose backstop is the drop of D-310); only the operator's replay passes another, to try candidate instructions (D-280).
  */
-export function makeAskSupportStep(deps: AskSupportStepDependencies, checkerRoleOf: CheckerRoleOf = askSupportRole) {
+export function makeAskSupportStep(
+  deps: AskSupportStepDependencies,
+  checkerRoleOf: CheckerRoleOf = askOrderCheckerRole,
+) {
   /** Every paid attempt of a run with its usage, for the job's receipt; none when the ledger cannot say. */
   async function attemptsOf(runId: string) {
     const accounted = await deps.withScope(deps.authority, (scope) =>

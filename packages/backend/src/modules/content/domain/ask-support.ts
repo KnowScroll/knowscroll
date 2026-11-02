@@ -291,19 +291,38 @@ export function isAbout(quote: string, text: string): boolean {
   return sharedStems(quote, text) >= Math.min(MIN_SHARED_WORDS, contentStems(text).size);
 }
 
+/**
+ * Which of the softer rules of an ask order's answer a check applies (D-306, D-307). Only an ask order's answer has a backstop for
+ * them: it is 8 to 12 sentences that must keep five supported ones and a supported direct answer (D-310), so a sentence the checker
+ * waves through on a soft rule is one among many. A Quick answer (two to four sentences) and a resident's answer have none, and keep the
+ * strict rules of ask-support-check.v4. The rules are chosen where the role is made and never by the checker's reply.
+ */
+export interface CheckerRules {
+  /** A figure-free sentence of at most {@link MAX_SHORT_NO_CLAIM_WORDS} words may be marked as stating no fact (D-307). */
+  readonly shortNoClaim: boolean;
+  /** A sentence of at most {@link SHORT_SENTENCE_KEY_WORDS} key words needs one shared key word (D-306). */
+  readonly oneKeyWordAbout: boolean;
+}
+
+/** The rules of ask-support-check.v4, which a Quick answer and a resident's answer keep. */
+export const STRICT_CHECK_RULES: CheckerRules = { shortNoClaim: false, oneKeyWordAbout: false };
+
+/** The rules of an ask order's answer, whose drop (D-310) is the backstop of the soft ones. */
+export const ASK_ORDER_CHECK_RULES: CheckerRules = { shortNoClaim: true, oneKeyWordAbout: true };
+
 /** A sentence with at most this many key words needs one shared key word from its quote; a longer one needs {@link MIN_SHARED_WORDS} (D-306). */
 export const SHORT_SENTENCE_KEY_WORDS = 8;
 
 /**
- * Whether a verdict's quote is about the sentence it was given for (D-306). A sentence of at most {@link SHORT_SENTENCE_KEY_WORDS}
- * key words has too few of them for two to be a fair demand, since a good paraphrase often keeps one: its quote needs one. A longer
- * sentence needs {@link MIN_SHARED_WORDS}, as {@link isAbout} says. Whether the quote then supports the sentence is the checker's
- * judgement, which no count of words settles.
+ * Whether a verdict's quote is about the sentence it was given for. With the strict rules it is {@link isAbout}: two shared key words,
+ * or all of them when the sentence has fewer. With `oneKeyWordAbout` (D-306) a sentence of at most {@link SHORT_SENTENCE_KEY_WORDS}
+ * key words needs one shared key word, since a good paraphrase often keeps one. A longer sentence needs two shared, as before. Whether
+ * the quote then supports the sentence is the checker's judgement, which no count of words settles.
  */
-export function isAboutSentence(quote: string, sentence: string): boolean {
+export function isAboutSentence(quote: string, sentence: string, rules: CheckerRules = STRICT_CHECK_RULES): boolean {
   const keyWords = contentStems(sentence).size;
-  const needed = keyWords <= SHORT_SENTENCE_KEY_WORDS ? 1 : MIN_SHARED_WORDS;
-  return sharedStems(quote, sentence) >= Math.min(needed, keyWords);
+  if (!rules.oneKeyWordAbout || keyWords > SHORT_SENTENCE_KEY_WORDS) return isAbout(quote, sentence);
+  return keyWords === 0 || sharedStems(quote, sentence) >= 1;
 }
 
 /** Numbers written in words ("twenty-one", "a hundred"). A figure written in words is a figure. */
@@ -397,7 +416,7 @@ export type NoClaimGround =
   | 'gap'
   /** A title, a heading or a callout's title of a few words that names what follows and has no figure. */
   | 'label'
-  /** A sentence of at most {@link MAX_SHORT_NO_CLAIM_WORDS} words with no figure: a signpost or a turn, whatever key words it shares (D-307). */
+  /** A sentence of at most {@link MAX_SHORT_NO_CLAIM_WORDS} words with no figure: a signpost or a turn, whatever key words it shares (D-307). Only with `shortNoClaim`. */
   | 'short'
   /** A longer sentence with no figure that shares no key word with the passages it cites: a transition, nothing a passage could support. */
   | 'unshared';
@@ -412,18 +431,20 @@ export const MAX_SHORT_NO_CLAIM_WORDS = 8;
  * Why a sentence may be marked as stating no fact, from what code can see, or `undefined` when it may not: any other
  * sentence states something and must be judged. A figure makes a label or a transition a claim, in digits or in words. A
  * label (title, heading, callout title) of more than {@link MAX_LABEL_WORDS} words that does not name a gap is a statement
- * ("Why the Equator Barely Notices Earth's Tilt"), so it is judged like any sentence. Any other sentence of eight words or fewer with
- * no figure is a signpost or a turn ("Here is why the tilt matters."), and may be marked even though it names what its passages are about (D-307).
+ * ("Why the Equator Barely Notices Earth's Tilt"), so it is judged like any sentence. With `shortNoClaim` (D-307), any other sentence
+ * of eight words or fewer with no figure is a signpost or a turn ("Here is why the tilt matters."), and may be marked even though it
+ * names what its passages are about.
  */
 export function noClaimGround(
   sentence: Pick<SentenceUnderCheck, 'text' | 'label'>,
   citedTexts: readonly string[],
+  rules: CheckerRules = STRICT_CHECK_RULES,
 ): NoClaimGround | undefined {
   if (isQuestion(sentence.text)) return 'question';
   if (statesFigure(sentence.text)) return undefined;
   if (namesTheGap(sentence.text)) return 'gap';
   if (sentence.label === true) return wordsOf(sentence.text).length <= MAX_LABEL_WORDS ? 'label' : undefined;
-  if (wordsOf(sentence.text).length <= MAX_SHORT_NO_CLAIM_WORDS) return 'short';
+  if (rules.shortNoClaim && wordsOf(sentence.text).length <= MAX_SHORT_NO_CLAIM_WORDS) return 'short';
   const cited = new Set(citedTexts.flatMap((text) => [...contentStems(text)]));
   return [...contentStems(sentence.text)].some((stem) => cited.has(stem)) ? undefined : 'unshared';
 }
@@ -437,16 +458,17 @@ function ruleBrokenBy(
   sentence: SentenceUnderCheck,
   citedTexts: readonly string[],
   answerTexts: readonly string[],
+  rules: CheckerRules,
 ): RuleCode | undefined {
   switch (verdict.verdict) {
     case 'unsupported':
       return undefined;
     case 'no_claim':
-      return noClaimGround(sentence, citedTexts) === undefined ? 'no_claim_without_ground' : undefined;
+      return noClaimGround(sentence, citedTexts, rules) === undefined ? 'no_claim_without_ground' : undefined;
     case 'supported':
       if (!hasEnoughWords(verdict.quote)) return 'quote_too_short';
       if (!answerTexts.some((text) => quoteIsIn(verdict.quote, text))) return 'quote_not_in_cited_passages';
-      return isAboutSentence(verdict.quote, sentence.text) ? undefined : 'quote_not_about_sentence';
+      return isAboutSentence(verdict.quote, sentence.text, rules) ? undefined : 'quote_not_about_sentence';
   }
 }
 
@@ -472,24 +494,26 @@ const setAside = (number: number, code: RuleCode): SentenceVerdict => ({
  * @param passageTexts the words of each passage by handle
  * @param answer the sentences of the whole answer when `sentences` are one batch of it: a quote may come from any passage the
  *   answer cites, not only those of the sentence's own block (D-305). The sentences themselves by default.
+ * @param rules the softer rules to apply (D-306, D-307); the strict rules of v4 by default
  */
 export function judgeVerdicts(
   verdicts: readonly SentenceVerdict[],
   sentences: readonly SentenceUnderCheck[],
   passageTexts: ReadonlyMap<string, string>,
   answer: readonly SentenceUnderCheck[] = sentences,
+  rules: CheckerRules = STRICT_CHECK_RULES,
 ): readonly SentenceVerdict[] {
   const textsOf = (handles: readonly string[]) => handles.flatMap((handle) => passageTexts.get(handle) ?? []);
   const citedTextsOf = (sentence: SentenceUnderCheck) => textsOf(sentence.cites);
   const answerTexts = textsOf([...new Set(answer.flatMap((sentence) => sentence.cites))]);
   const judged = verdicts.map((verdict, index) => {
     const sentence = sentences[index]!;
-    const code = ruleBrokenBy(verdict, sentence, citedTextsOf(sentence), answerTexts);
+    const code = ruleBrokenBy(verdict, sentence, citedTextsOf(sentence), answerTexts, rules);
     return code === undefined ? verdict : setAside(verdict.number, code);
   });
   const weakest = judged.flatMap((verdict, index) => {
     if (verdict.verdict !== 'no_claim') return [];
-    const ground = noClaimGround(sentences[index]!, citedTextsOf(sentences[index]!));
+    const ground = noClaimGround(sentences[index]!, citedTextsOf(sentences[index]!), rules);
     return ground === 'unshared' || ground === 'short' ? [index] : [];
   });
   const stated = sentences.filter((sentence) => sentence.label !== true).length;

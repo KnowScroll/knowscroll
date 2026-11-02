@@ -8,10 +8,15 @@ import type {
   ProductionReasoningHarness,
   WithProductionScope,
 } from '../../../reasoning/public.js';
-import { noClaimGround, type SentenceUnderCheck, type SentenceVerdict } from '../domain/ask-support.js';
+import {
+  ASK_ORDER_CHECK_RULES,
+  noClaimGround,
+  type SentenceUnderCheck,
+  type SentenceVerdict,
+} from '../domain/ask-support.js';
 import { candidateCheckerRole, type CandidateCheckerInstructions } from './ask-support-candidate.js';
 import { makeAskSupportStep } from './ask-support-step.js';
-import { askSupportRole, sentencesOfAnswer } from './ask-support.js';
+import { askOrderCheckerRole, sentencesOfAnswer } from './ask-support.js';
 import { evidencePassages, type EvidencePassage } from './evidence.js';
 import { SPIKE_MODEL } from './spike-v2/run.js';
 
@@ -146,7 +151,7 @@ function codeCounts(
     const sentence = sentenceOf.get(verdict.number);
     if (verdict.verdict !== 'no_claim' || sentence === undefined) continue;
     const cited = sentence.cites.flatMap((handle) => textOf.get(handle) ?? []);
-    count(`no_claim_${noClaimGround(sentence, cited) ?? 'unknown'}`);
+    count(`no_claim_${noClaimGround(sentence, cited, ASK_ORDER_CHECK_RULES) ?? 'unknown'}`);
   }
   return counts;
 }
@@ -193,7 +198,7 @@ export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
   const step = makeAskSupportStep(
     deps,
     candidate === undefined
-      ? askSupportRole
+      ? askOrderCheckerRole
       : (sentences, passages, answer) => candidateCheckerRole(candidate, sentences, passages, answer),
   );
   /** A candidate replay marks everything it produces, so its output can never be read as the production checker's. */
