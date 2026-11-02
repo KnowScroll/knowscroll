@@ -45,6 +45,17 @@ describe('the figure rule (D-208)', () => {
     expect(figureFlags(sentences, PASSAGES)).toEqual([{ number: 2, hints: [FIGURE_HINT] }]);
   });
 
+  it('flags a number written in words the same way, and a minus sign dropped', () => {
+    const sentences = sentencesOf({
+      text: 'It moves by one point two five million metres each second. It cools to -3.8 degrees. It is a clear example.',
+      cites: ['e1'],
+    });
+    expect(figureFlags(sentences, PASSAGES).map((flag) => flag.number)).toEqual([1, 2]);
+    expect(
+      figureFlags(sentencesOf({ text: 'It drifts by about a million metres a year.', cites: ['e1'] }), PASSAGES),
+    ).toEqual([{ number: 1, hints: [FIGURE_HINT] }]);
+  });
+
   it('holds a sentence to the passages it cites, not to every passage offered', () => {
     const sentences = sentencesOf({ text: 'The moon moves away by 3.8 centimetres every year.', cites: ['e2'] });
     expect(figureFlags(sentences, PASSAGES)).toEqual([{ number: 1, hints: [FIGURE_HINT] }]);

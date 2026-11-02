@@ -66,7 +66,7 @@ export interface FlaggedSentence {
 
 /** The hint for a figure no cited passage writes the way the sentence does. */
 export const FIGURE_HINT =
-  "A figure may appear only where a passage you cite writes that same number the same way. Use the passage's own figure, or say it without a number.";
+  "A number, in digits or in words, may appear only where a passage you cite writes that same number the same way. Use the passage's own figure, or say it without a number.";
 
 /** The sentences whose figures a cited passage does not state (D-208, D-302). Pure; no model. */
 export function figureFlags(
