@@ -97,14 +97,7 @@ export function FloatingTabBar({
       pointerEvents="box-none"
       style={[styles.slot, { height: layout.tabBarSlot + insets.bottom, paddingBottom: insets.bottom }]}
     >
-      <TabBar
-        active={active}
-        onSelect={onSelect}
-        hrefFor={destinationHref}
-        tone={tone}
-        unread={unread}
-        mark={mark}
-      />
+      <TabBar active={active} onSelect={onSelect} hrefFor={destinationHref} tone={tone} unread={unread} mark={mark} />
     </View>
   );
 }

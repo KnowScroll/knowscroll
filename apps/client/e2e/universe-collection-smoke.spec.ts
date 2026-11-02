@@ -97,19 +97,24 @@ async function expectNoSeriousViolations(page: Page) {
 test.describe('a phone, 390 x 844', () => {
   const size = { width: 390, height: 844 };
 
-  test('a landmark waits in the tray while its planet is not formed, with the Orbit in words and the resume chip', async ({
+  test('a new landmark is a paper card while its planet is not formed, with the Orbit in words and the resume chip', async ({
     page,
   }) => {
     const { calls } = await openUniverse(page, size, { formed: false });
-    await expect(page.getByTestId('universe-landmark-tray')).toBeVisible();
-    await expect(page.getByTestId('universe-landmark-tray')).toContainText('Your landmarks are waiting');
-    await expect(page.getByTestId('universe-orbit')).toHaveText('Orbit · 1 of 3 days this week');
-    await expect(page.getByTestId('universe-resume')).toHaveText('Resume Part 2 of 3');
+    const card = page.getByTestId('universe-landmark-card');
+    await expect(card).toBeVisible();
+    await expect(card).toContainText('New landmark');
+    await expect(card).toContainText('The Leaning Axis');
+    await expect(card).toContainText('Gold finish · waits for its planet');
+    // The map carries no chips of the collection: the Orbit and the resume chip live inside the card.
+    await expect(card.getByTestId('universe-orbit')).toHaveText('Orbit · 1 of 3 days this week');
+    await expect(card.getByTestId('universe-resume')).toHaveText('Resume Part 2 of 3');
+    await expect(page.getByTestId('universe-landmarks')).toHaveCount(0);
     await expect(
       page.getByRole('button', { name: 'Resume Part 2 of 3: Why the hemispheres take turns' }),
     ).toBeVisible();
     await shot(page, 'collection-phone-tray');
-    await page.getByRole('button', { name: 'See it' }).click();
+    await page.getByRole('button', { name: 'See your landmarks' }).click();
     const sheet = page.getByTestId('universe-collection-sheet');
     await expect(sheet).toContainText('Gold finish · Waiting for its planet');
     await expect(sheet).toContainText('Plain finish · Waiting for its planet');
@@ -130,7 +135,7 @@ test.describe('a phone, 390 x 844', () => {
   }) => {
     await openUniverse(page, size, { formed: false, formationUnavailable: true });
     const notice = page.getByTestId('formation-notice');
-    const card = page.getByTestId('universe-landmark-tray');
+    const card = page.getByTestId('universe-landmark-card');
     await expect(notice).toBeVisible();
     await expect(card).toBeVisible();
     const [noticeBox, cardBox] = [await notice.boundingBox(), await card.boundingBox()];
@@ -142,22 +147,37 @@ test.describe('a phone, 390 x 844', () => {
     page,
   }) => {
     await openUniverse(page, size, { formed: true });
-    await expect(page.getByTestId('universe-landmark-tray')).toHaveCount(0);
+    await expect(page.getByTestId('universe-landmark-card')).toContainText('from CI planet 2 · gold finish');
     await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click();
     await tapOrbitingTarget(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }));
     await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
+    // On a globe the card folds to one line, and that line never covers the planet's name or its hint.
+    const chip = page.getByTestId('universe-landmark-chip');
+    await expect(chip).toBeVisible();
+    await expect(page.getByTestId('universe-landmark-card')).toHaveCount(0);
+    const chipBox = (await chip.boundingBox())!;
+    expect(chipBox.height).toBeLessThanOrEqual(48);
+    for (const covered of [
+      page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true }),
+      page.getByText('Drag to rotate · tap to land'),
+    ]) {
+      const box = (await covered.boundingBox())!;
+      const apart =
+        chipBox.y >= box.y + box.height || chipBox.y + chipBox.height <= box.y || chipBox.x >= box.x + box.width;
+      expect(apart).toBe(true);
+    }
     // The pennants are painted on the globe: a gold one and a cream one.
     await expect(page.locator('[data-testid="landmark-mark-gold"]').first()).toBeAttached();
     await expect(page.locator('[data-testid="landmark-mark-plain"]').first()).toBeAttached();
     await shot(page, 'collection-phone-globe');
-    await page.getByRole('button', { name: 'Landmarks · 2' }).click();
+    await chip.click();
     await expect(page.getByTestId('universe-collection-sheet')).toContainText('Gold finish · On CI planet 2');
     await expectNoSeriousViolations(page);
   });
 
   test('with reduced motion the landed states are drawn at once and nothing moves', async ({ page }) => {
     await openUniverse(page, size, { formed: true });
-    await expect(page.getByTestId('universe-landmarks')).toBeVisible();
+    await expect(page.getByTestId('universe-landmark-card')).toBeVisible();
     await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click();
     await tapOrbitingTarget(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }));
     await page.getByRole('button', { name: 'Land on CI planet 2' }).click();
@@ -181,7 +201,7 @@ test.describe('a phone, 390 x 844', () => {
 test.describe('a desktop, 1440 x 900', () => {
   const size = { width: 1440, height: 900 };
 
-  test('the panel carries the Orbit, the resume button and the landmark list; the tray waits on the map', async ({
+  test('the panel carries the Orbit, the resume button and the landmark list; the map carries no card', async ({
     page,
   }) => {
     await openUniverse(page, size, { formed: false });
@@ -193,7 +213,7 @@ test.describe('a desktop, 1440 x 900', () => {
     await expect(
       section.getByRole('button', { name: 'Resume Part 2 of 3: Why the hemispheres take turns' }),
     ).toBeVisible();
-    await expect(page.getByTestId('universe-landmark-tray')).toBeVisible();
+    await expect(page.getByTestId('universe-landmark-card')).toHaveCount(0);
     await shot(page, 'collection-desktop-panel');
     await expectNoSeriousViolations(page);
   });
@@ -204,7 +224,7 @@ test.describe('a desktop, 1440 x 900', () => {
     await openUniverse(page, size, { formed: true });
     const section = page.getByTestId('universe-panel').getByTestId('universe-collection-section');
     await expect(section).toContainText('Gold finish · On CI planet 2');
-    await expect(page.getByTestId('universe-landmark-tray')).toHaveCount(0);
+    await expect(page.getByTestId('universe-landmark-card')).toHaveCount(0);
     await section.getByRole('button', { name: 'The Leaning Axis, Gold finish, on CI planet 2' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
     await shot(page, 'collection-desktop-planet');

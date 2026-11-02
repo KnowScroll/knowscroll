@@ -3711,3 +3711,45 @@ Confirmed by: `universe-screen.test.tsx` (the dial's system row has no "Open <sy
 - **The rule.** The heading takes the display face at 18/22 as a local size, like the planet title's 30 px. The line under it is the 15 px body. The type scale gets no new role for one card.
 
 Confirmed by: the 390 pair `U08-search-empty-390` in the fidelity sweep.
+
+## D-319 · 2026-11-02 · The collection is one landmark card over the map, folded to a line on a planet, and no chips (v3 Universe fidelity, #497)
+
+**Amends** D-214 and D-215 for how the collection is drawn on the phone map.
+
+- **Design.** The Universe set draws no chips on the map. V3 Scrolls p6 draws the landmark as a paper card with "New landmark" and "from …".
+- **The rule.** The "Landmarks · n", Orbit and Resume chips and the dark tray are gone from the map. One paper card sits over the bottom of the map: the newest landmark, "from <planet> · gold finish", and "See it". The week's Orbit is one line of text in it, and the next Part is a yellow chip in it.
+- **Folded.** While a globe or a landed map is on screen, the card is one line (a paper pill), so it never covers a planet's or region's name. The pill opens the same list.
+- **Without a landmark** the card speaks of the next Part (with "Resume"), or of the week. It shows nothing when there is nothing to say.
+- **Desktop and a friend's universe.** The panel carries the collection on paper and the map has no card. A friend's universe has none (D-214).
+- **Animation.** The card fades with the rest of the chrome in the steps down, and only the tab bar stays.
+
+Confirmed by: `collection-screen.test.tsx`, `step-animations.test.tsx` (the card fades), `universe-collection-smoke.spec.ts` (the folded line clears the planet's name and hint).
+
+## D-320 · 2026-11-02 · The landmark card says which planet a landmark came from, not the Scroll (v3 Universe fidelity, #497)
+
+- **Design.** The card reads "from Seasons, Part 1 · gold finish": the Scroll it came from.
+- **What the read has.** A landmark carries its own name, finish and topic, not its Scroll's title. Fetching a title for it would add a read to the map for one line.
+- **The rule.** The line says "from <planet> · gold finish" while its planet is on the map, and "Gold finish · waits for its planet" until then. No title is invented.
+- **Owner can overrule.** If the Scroll's title should show, the landmark read needs to return it.
+
+Confirmed by: `collection-screen.test.tsx` ("from CI planet 2 · gold finish").
+
+## D-321 · 2026-11-02 · The landmark's pennant stays on the map; the region's name pill is plain (v3 Universe fidelity, #497)
+
+**Keeps** D-089.
+
+- **The row.** The sweep read the pennant beside the region's yellow name pill as a flag on the pill. The pennant is the landmark itself (D-089): the one place the person can see that a landmark stands on that region.
+- **The rule.** The pennant stays. The pill carries only the name, as drawn, and grows with the name so it is never cut to an ellipsis.
+- **Reason to keep it.** Without the pennant a landmark has no mark on the map, which is the whole of D-089 and D-214.
+
+Confirmed by: `universe-planet-smoke.spec.ts` (the region's name is whole at 390 and 1440).
+
+## D-322 · 2026-11-02 · On a visit, Report sits in the avatar's options and the tab bar stays (v3 Universe fidelity, #497)
+
+**Amends** D-047 for the visit bar's controls only.
+
+- **Design.** U06 draws one cream pill: Leave first, who, the person's initial on the right. One lock chip is at the bottom. It draws no Report.
+- **The rule.** Report stays, folded into the initial's options, so a safety control is never lost. The lock chip keeps the same neutral words on every visit ("Private parts stay private", never "Some of X is private"), because the bar must not say whether anything is hidden.
+- **Navigation.** The visit keeps the tab bar (phones) or the rail (tablet and desktop), with Universe current. It has no unread dot, so a visit reads nothing of the person's own inbox.
+
+Confirmed by: `visit-screen.test.tsx` (the tab bar, the options, the same bar for every world).

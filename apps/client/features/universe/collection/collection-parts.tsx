@@ -68,9 +68,7 @@ export function LandmarkCard({
 function useResume(view: CollectionView): (() => void) | undefined {
   const router = useRouter();
   const { resume } = view;
-  return resume
-    ? () => router.push({ pathname: '/scroll/[assetId]', params: { assetId: resume.assetId } })
-    : undefined;
+  return resume ? () => router.push({ pathname: '/scroll/[assetId]', params: { assetId: resume.assetId } }) : undefined;
 }
 
 /** The yellow "Resume Part 2 of 3" chip: the one yellow thing on the card, as yellow means continuation. */
@@ -108,7 +106,12 @@ function OpenLandmark({
   const { resume, orbitText } = view;
   const heading = subject === 'landmark' ? 'New landmark' : subject === 'resume' ? 'Next part' : 'This week';
   const title = newest && subject === 'landmark' ? newest.name : subject === 'resume' ? resume!.title : orbitText!;
-  const line = newest && subject === 'landmark' ? fromLine(newest) : subject === 'resume' ? `Part ${String(resume!.part)} of ${String(resume!.total)}` : '';
+  const line =
+    newest && subject === 'landmark'
+      ? fromLine(newest)
+      : subject === 'resume'
+        ? `Part ${String(resume!.part)} of ${String(resume!.total)}`
+        : '';
   return (
     <View
       testID="universe-landmark-card"
