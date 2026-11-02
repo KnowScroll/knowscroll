@@ -665,6 +665,30 @@ describe('the instructions for the answer to one question (D-218)', () => {
       expect(codeIssues(scroll([...BODY.slice(0, 4), limit]))).toEqual([]);
     });
 
+    it('is no evidence: the four different passages the compile asks for must be cited by the other blocks (D-376)', () => {
+      const codeLimits = {
+        type: 'callout' as const,
+        cites: ['e1', 'e2', 'e3', 'e4', 'e5'],
+        kind: 'limit' as const,
+        title: LIMITS_TITLE,
+        text: LIMITS_TEXT,
+      };
+      const codesFor = (blocks: AuthoredScroll['blocks']) => {
+        const outcome = compileGeneratedScroll(scroll(blocks), questionProvenance, passages, 'plain');
+        return outcome.kind === 'refused' ? outcome.issues.map((issue) => issue.code) : [];
+      };
+      // Paragraphs that cite two passages, and a callout that cites five: the callout alone used to make up the four.
+      const thin = ASKED_BODY.map((block) => ({ ...block, cites: ['e1', 'e2'] }));
+      expect(codesFor([...thin, codeLimits])).toEqual(['authoring_too_few_cites']);
+      // Three passages in the paragraphs are still too few; four are enough.
+      const three = ASKED_BODY.map((block, index) => ({ ...block, cites: [`e${String((index % 3) + 1)}`] }));
+      expect(codesFor([...three, codeLimits])).toEqual(['authoring_too_few_cites']);
+      const four = ASKED_BODY.map((block, index) => ({ ...block, cites: [`e${String((index % 4) + 1)}`] }));
+      expect(codesFor([...four, codeLimits])).toEqual([]);
+      // The same thin answer ending in a callout of the writer's own keeps the library's rule: that callout counts as before.
+      expect(codesFor([...thin, { ...codeLimits, title: 'What this does not explain' }])).toEqual([]);
+    });
+
     it('gives the one way an answer can lack it a hint that asks for cited paragraphs, not for a callout', () => {
       const hint = role.safeCustomIssues?.['limit_callout_required'];
       expect(hint).toContain('Code adds the closing limits line');

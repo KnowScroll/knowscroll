@@ -1580,6 +1580,32 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         expect((await receiptsOf(order.recipe)).filter((receipt) => receipt.kind === 'answer_trimmed')).toEqual([]);
       });
 
+      it('does not let the line make up the four passages the compile asks for, after the drop took out the blocks that cited them (D-376)', async () => {
+        await setup();
+        const { order } = await orderedAsk();
+        // The default answer cites six passages. Its upkeep, fog and height paragraphs hold the sentences below, and are the only
+        // blocks that cite e1, e4, e5 and e6; two more paragraphs cite e2 and e3 alone, so five sentences stay supported without them.
+        const base = fixtureAnswer();
+        writer = () => answerWith({ ...base, blocks: [...base.blocks, base.blocks[0], base.blocks[2]] });
+        flagging(
+          'Someone had to keep',
+          'Today a small motor',
+          'Thick fog scatters',
+          'A lighthouse therefore',
+          'Height helps too',
+          'The tower in this story',
+        );
+
+        expect(await publish(order.recipe)).toMatchObject({
+          result: { outcome: 'rejected', codes: ['support_check_failed', 'support_drop_compile_refused'] },
+        });
+
+        // The draft, its one revision and a check of each; the drop was tried and the compile refused what was left (two passages).
+        expect(production.writerCalls).toHaveLength(2);
+        expect(production.supportCalls).toHaveLength(2 * BATCHES);
+        expect(await storedAnswer(order.assetId)).toBeUndefined();
+      });
+
       it('still refuses an answer whose direct answer is flagged, whatever the checker says of the callout', async () => {
         await setup();
         const { order } = await orderedAsk();

@@ -1,6 +1,6 @@
 import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { MIN_SERVED_SENTENCES, splitSentences, type SentenceVerdict } from '../domain/ask-support.js';
-import { isCodeMadeLimits } from './ask-answer-limits.js';
+import { closeWithCodeMadeLimits, isCodeMadeLimits } from './ask-answer-limits.js';
 import { rebuildWithout, withLeaningSentencesRemoved } from './ask-answer-rebuild.js';
 import { hasCodeMadeDek } from './ask-answer-shape.js';
 import type { CodeMadeLines } from './ask-answer-trim.js';
@@ -65,7 +65,8 @@ export function onlyTitleOrDekFlagged(answer: AuthoredScroll, verdicts: readonly
  * - the first paragraph, the direct answer, keeps at least one supported sentence,
  * - at least {@link MIN_SERVED_SENTENCES} sentences of reading text (not a title, a heading or a callout's title, and not a dek that
  *   code made) are supported,
- * - the callout code wrote is the last block, as code placed it, and
+ * - the callout code wrote is the last block, as code placed it, and is closed again over the blocks that are left so it cites only
+ *   passages that survive (D-376), and
  * - what is left is a valid answer whose sentences read back as exactly the ones that were kept, so every sentence served has the
  *   verdict it was checked with, except the lines code made.
  *
@@ -103,14 +104,18 @@ export function dropFlagged(
 
   const rebuilt = rebuildWithout(answer, sentences, removed);
   if (!isCodeMadeLimits(rebuilt.blocks.at(-1))) return refused('no_limit_callout');
+  // The callout cited every passage the draft cited. Closed again over what is left, it cites only passages that survive, so it
+  // cannot make up the four different passages the compile asks for after a block that cited them was taken out (D-376).
+  const closed = closeWithCodeMadeLimits(rebuilt.blocks, rebuilt.origin, answer.blocks.length);
+  if (!isCodeMadeLimits(closed.blocks.at(-1))) return refused('rebuilt_invalid');
 
   const title = titleReplaced && lines !== undefined ? lines.title : answer.title;
   const dek = dekReplaced && lines !== undefined ? lines.dek : answer.dek;
-  const candidate = AuthoredScroll.safeParse({ title, dek, blocks: rebuilt.blocks });
+  const candidate = AuthoredScroll.safeParse({ title, dek, blocks: closed.blocks });
   if (!candidate.success) return refused('rebuilt_invalid');
   // A sentence not taken out is served unless the block it stood in was removed whole (a callout's title goes with its text);
   // a replaced title or dek is served as the line that replaced it.
-  const kept = new Set(rebuilt.origin);
+  const kept = new Set(closed.origin);
   const expected = [
     ...(titleReplaced ? splitSentences(title) : textsOf(sentences, 'title')),
     ...(dekReplaced ? splitSentences(dek) : textsOf(sentences, 'dek')),

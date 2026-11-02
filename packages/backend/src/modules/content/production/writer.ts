@@ -28,6 +28,7 @@ import {
   DIRECT_ANSWER_LOST_HINT,
   NEUTRAL_DEK,
 } from './ask-answer-shape.js';
+import { isCodeMadeLimits } from './ask-answer-limits.js';
 import { titleAboutReading, trimAskAnswer, unchanged, type PreparedAnswer, type TrimRules } from './ask-answer-trim.js';
 import { copyRepairNotes } from './copy-repair.js';
 import { authoringEvidence, MIN_EVIDENCE_PASSAGES, type EvidencePassage } from './evidence.js';
@@ -431,6 +432,12 @@ function moduleIssues(authored: AuthoredScroll, format: WriterFormat, names: rea
   const last = authored.blocks.at(-1);
   if (format === 'plain' && !(last?.type === 'callout' && last.kind === 'limit'))
     issues.push({ code: 'limit_callout_required', path: '$' });
+  // The line code wrote claims nothing, so the passages it cites are no evidence for the answer: the four different passages the
+  // compile asks for must be cited by the other blocks (D-376).
+  if (format === 'plain' && isCodeMadeLimits(last)) {
+    const cited = new Set(authored.blocks.slice(0, -1).flatMap((block) => ('cites' in block ? block.cites : [])));
+    if (cited.size < MIN_EVIDENCE_PASSAGES) issues.push({ code: 'authoring_too_few_cites', path: '$' });
+  }
   // The answer to a question is held to a range of sentences (D-308, D-350).
   if (format === 'plain') issues.push(...answerShapeIssues(authored));
   const allowed = allowedBlockTypes(format);
@@ -462,8 +469,13 @@ export function compileGeneratedScroll(
 ): CompileOutcome {
   const own = moduleIssues(authored, format, bannedNames(provenance));
   const compiled = compileAuthored(authored, provenance, authoringEvidence(passages));
-  if (compiled.kind === 'refused')
-    return { kind: 'refused', stage: compiled.stage, issues: [...compiled.issues, ...own].slice(0, 32) };
+  if (compiled.kind === 'refused') {
+    // The compile may already have found what a module check finds again (too few cited passages): it is reported once.
+    const extra = own.filter(
+      (issue) => !compiled.issues.some((one) => one.code === issue.code && one.path === issue.path),
+    );
+    return { kind: 'refused', stage: compiled.stage, issues: [...compiled.issues, ...extra].slice(0, 32) };
+  }
   if (own.length > 0) return { kind: 'refused', stage: 'brief', issues: own };
   // The stored bytes are what the reader gets: admit exactly those.
   const document = JSON.parse(JSON.stringify(compiled.document)) as Record<string, unknown>;

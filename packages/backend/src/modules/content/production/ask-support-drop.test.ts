@@ -37,7 +37,7 @@ const ANSWER = AuthoredScroll.parse({
       cites: ['e4'],
       items: ['Fog scatters light in every direction.', 'A sound signal carries through fog.'],
     },
-    { type: 'callout', cites: ['e1', 'e2', 'e3', 'e4', 'e6'], kind: 'limit', title: LIMITS_TITLE, text: LIMITS_TEXT },
+    { type: 'callout', cites: ['e2', 'e3', 'e1', 'e6', 'e4'], kind: 'limit', title: LIMITS_TITLE, text: LIMITS_TEXT },
   ],
 });
 /** A limits callout as a writer would have written it: a claim about its own answer, which only the writer's words can carry. */
@@ -182,10 +182,41 @@ describe('a sentence the check still found unsupported', () => {
     const everything = kept({
       flagged: ['A ring of prisms', 'By counting', 'The keeper once', 'Fog scatters', 'A sound signal'],
     });
-    expect(everything.authored.blocks.at(-1)).toEqual(ANSWER.blocks.at(-1));
+    // Its words are code's, as they were; only the passages it cites follow the blocks that are left (D-376).
+    expect(everything.authored.blocks.at(-1)).toEqual({ ...ANSWER.blocks.at(-1), cites: ['e2', 'e3', 'e1', 'e6'] });
     // The callout has no sentence, so it has no verdict and takes no part in the count of what was dropped.
     expect(verdictsFor(ANSWER, {})).toHaveLength(SENTENCES.length);
     expect(everything.dropped).toBe(5);
+  });
+
+  it('closes the callout again over the blocks that are left, so it cites only passages that survive (D-376)', () => {
+    const calloutCites = (outcome: { readonly authored: AuthoredScroll }) =>
+      (outcome.authored.blocks.at(-1) as { cites: string[] }).cites;
+    // Nothing taken out: it cites what the whole draft cites.
+    expect(calloutCites(kept({}))).toEqual(['e2', 'e3', 'e1', 'e6', 'e4']);
+    // The upkeep paragraph (e1, e6) and the list (e4) are the only blocks that cite those passages, and both go.
+    const survivors = kept({
+      flagged: ['The keeper once', 'Today a small motor', 'Fog scatters', 'A sound signal'],
+    });
+    expect(survivors.authored.blocks.map((block) => block.type)).toEqual([
+      'paragraph',
+      'heading',
+      'paragraph',
+      'callout',
+    ]);
+    expect(calloutCites(survivors)).toEqual(['e2', 'e3']);
+    expect(survivors.authored.blocks.at(-1)).toMatchObject({ kind: 'limit', title: LIMITS_TITLE, text: LIMITS_TEXT });
+    // Only the list goes: e4 is no longer cited by the callout, e1 and e6 still are.
+    expect(calloutCites(kept({ flagged: ['Fog scatters', 'A sound signal'] }))).toEqual(['e2', 'e3', 'e1', 'e6']);
+  });
+
+  it('refuses a rebuilt answer whose blocks cite nothing, since the callout would have no passage to rest on (D-376)', () => {
+    // The paragraphs and the list cite nothing the schema accepts, so what is left is not a valid answer.
+    const nothingCited = {
+      ...ANSWER,
+      blocks: ANSWER.blocks.map((block) => ({ ...block, cites: [] })),
+    } as AuthoredScroll;
+    expect(refusedWith({ flagged: ['By counting'] }, nothingCited)).toBe('rebuilt_invalid');
   });
 
   it('removes a heading with nothing left in its section but never counts the closing limits callout as that section', () => {
