@@ -31,3 +31,21 @@ describe('the stage at a tilt the reader has turned (D-187)', () => {
     }
   });
 });
+
+describe('the tilt tag on the picture (V3 F9, C3)', () => {
+  it('says the tilt the picture is turned to while a tilt is bound, and nothing otherwise', async () => {
+    const view = await render(<Stage {...props} />);
+    expect(screen.queryByTestId('stage-tilt-tag', { includeHiddenElements: true })).not.toBeOnTheScreen();
+    await view.rerender(<Stage {...props} tilt={0} />);
+    expect(screen.getByTestId('stage-tilt-tag', { includeHiddenElements: true })).toHaveTextContent('TILT 0°');
+    await view.rerender(<Stage {...props} tilt={60} />);
+    expect(screen.getByTestId('stage-tilt-tag', { includeHiddenElements: true })).toHaveTextContent('TILT 60°');
+    await view.rerender(<Stage {...props} tilt={23.4} />);
+    expect(screen.getByTestId('stage-tilt-tag', { includeHiddenElements: true })).toHaveTextContent('TILT 23.4°');
+  });
+
+  it('is left out of the text version, which already says the tilt in words', async () => {
+    await render(<Stage {...props} tilt={0} textVersion />);
+    expect(screen.queryByTestId('stage-tilt-tag', { includeHiddenElements: true })).not.toBeOnTheScreen();
+  });
+});

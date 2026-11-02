@@ -3,7 +3,6 @@ import { StyleSheet, View } from 'react-native';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import {
   BottomSheet,
-  Button,
   QuickAnswerCard,
   ReaderDock,
   ReaderTopBar,
@@ -12,6 +11,7 @@ import {
   useDisplay,
   type NextPartPeek,
   type StageReaderHandle,
+  type StageReaderView,
   type StageReadingObserver,
 } from '@knowscroll/ui';
 import { QUICK_ANSWER_LABEL, QUICK_ANSWER_QUESTION_MAX } from '@knowscroll/contracts';
@@ -20,7 +20,9 @@ import { FeedbackSheetBody } from '../feedback/feedback-sheet';
 import { whyNoMoment } from '@knowscroll/scroll-model';
 import { challengeCallOf } from '../sharing/challenge-call';
 import { ChallengeSheet } from '../sharing/challenge-sheet';
-import { noMomentWords, ShareStopSheet, type MomentThread } from '../threads/share-stop-sheet';
+import { ShareStopSheet, type MomentThread } from '../threads/share-stop-sheet';
+import type { SaveMove } from './more-rows';
+import { MoreSheetBody } from './more-sheet';
 import type { OpenedStageScroll } from './scroll-session';
 import { quickAnswerViewOf } from './quick-answer-copy';
 import { useQuickAnswers } from './use-quick-answers';
@@ -29,6 +31,8 @@ import { useStagePlay } from './use-stage-play';
 /** What the surface needs from the screen it is on: where each move goes. Each is also a gesture and a key in the reader. */
 export interface StageMoves {
   readonly universe: () => void;
+  /** Save, as the ••• sheet and the S key offer it; absent where the screen keeps nothing (a thread's reader). */
+  readonly save?: SaveMove | undefined;
   readonly nextTopic?: (() => void) | undefined;
   readonly nextPart?: NextPartPeek | undefined;
   /** Another angle on the idea. With no next Part it is the way on (the dock, the → key, a swipe left) (D-184). */
@@ -86,7 +90,10 @@ export function StageReaderSurface({
   readonly moves: StageMoves;
   /** "Part 1 of 3": a count only when the server counted it. */
   readonly partLabel?: string | undefined;
-  /** What the ••• sheet holds, given a way to close it; without it there is no ••• button. */
+  /**
+   * What the screen adds under the seven rows of the ••• sheet (Like and Ask in Explore, notices about Save), given a way to
+   * close it. The ••• button is always there: the rows are the reader's own.
+   */
   readonly moreBody?: ((close: () => void) => ReactNode) | undefined;
   /** A line under the top bar (where the person came from). */
   readonly headerNote?: ReactNode;
@@ -103,6 +110,9 @@ export function StageReaderSurface({
   const [momentStop, setMomentStop] = useState<string | undefined>();
   const [sharingMoment, setSharingMoment] = useState(false);
   const [reporting, setReporting] = useState<FeedbackTarget>();
+  const [smallPrintOpen, setSmallPrintOpen] = useState(false);
+  // What the reader showed when ••• opened, so the rows can say which words and pictures they would switch.
+  const [readerView, setReaderView] = useState<StageReaderView | undefined>();
   // Quick answers on this Scroll: asked from the selection menu, drawn under the stop, never part of the Scroll (D-253).
   const quick = useQuickAnswers(scroll);
   // The reader's own handle is kept here too, because the ••• menu switches the stop on screen to its plainer words.
@@ -118,16 +128,39 @@ export function StageReaderSurface({
   const { breakpoint } = useDisplay();
   const { document } = scroll;
   const noMoment = whyNoMoment(document, momentStop);
+  const limits = document.asides.find((aside) => aside.id === document.recap.smallPrintAside);
   // Play on this Scroll: the person's own calls, sparks and combo, kept unless recording is paused (D-063, D-083).
   const play = useStagePlay(scroll);
   const wayOn = moves.nextPart ?? moves.related;
+  const openMoment = () => {
+    setMomentStop(reader.current?.capture()?.stopId);
+    setSharingMoment(true);
+  };
+  const openReport = () => {
+    const stopId = reader.current?.capture()?.stopId;
+    setReporting({
+      kind: 'asset',
+      assetId: scroll.assetId,
+      assetRevision: scroll.assetRevision,
+      title: document.title,
+      format: 'scroll',
+      ...(stopId === undefined ? {} : { anchor: { kind: 'scroll' as const, blockId: stopId } }),
+    });
+  };
+  const openMore = () => {
+    setMomentStop(reader.current?.capture()?.stopId);
+    setReaderView(reader.current?.view());
+    setMoreOpen(true);
+  };
   return (
     <View style={styles.page}>
       <View style={[styles.column, breakpoint === 'compact' ? null : styles.wide]}>
         <StageReader
           document={document}
           observer={observer}
-          paused={paused === true || moreOpen || challenging || sharingMoment || reporting !== undefined}
+          paused={
+            paused === true || moreOpen || challenging || sharingMoment || smallPrintOpen || reporting !== undefined
+          }
           initialStopId={initialStopId}
           handleRef={readerRef}
           onStopChange={onStopChange}
@@ -144,6 +177,10 @@ export function StageReaderSurface({
             previousPart: moves.previousPart,
             nextTopic: moves.nextTopic,
             challenge: canChallenge ? () => setChallenging(true) : undefined,
+            save: moves.save?.onPress,
+            shareMoment: openMoment,
+            smallPrint: limits === undefined ? undefined : () => setSmallPrintOpen(true),
+            report: openReport,
             askAbout:
               quick === undefined ? undefined : (stopId, passage) => void quick.session.ask({ stopId, passage }),
           }}
@@ -190,62 +227,42 @@ export function StageReaderSurface({
           }
           dock={
             <View style={{ paddingBottom: bottomInset }}>
-              <ReaderDock
-                onAsk={moves.ask}
-                sparks={play?.sparks}
-                onMore={() => {
-                  setMomentStop(reader.current?.capture()?.stopId);
-                  setMoreOpen(true);
-                }}
-                nextPart={wayOn}
-              />
+              <ReaderDock onAsk={moves.ask} sparks={play?.sparks} onMore={openMore} nextPart={wayOn} />
             </View>
           }
         />
       </View>
       <BottomSheet visible={moreOpen} title="More" onClose={() => setMoreOpen(false)}>
-        <View style={styles.more}>
-          <Button
-            label="Simpler (this screen)"
-            icon="info"
-            size="sm"
-            onPress={() => {
-              setMoreOpen(false);
-              reader.current?.toggleSimpler();
-            }}
-            testID="more-simpler"
-          />
-          {canChallenge ? (
-            <Button
-              label="Challenge a friend"
-              icon="send"
-              size="sm"
-              onPress={() => {
-                setMoreOpen(false);
-                setChallenging(true);
-              }}
-              testID="more-challenge"
-            />
-          ) : null}
-          <Button
-            label="Share a moment"
-            icon="share"
-            size="sm"
-            disabled={noMoment !== undefined}
-            accessibilityHint={noMoment === undefined ? undefined : noMomentWords(noMoment)}
-            onPress={() => {
-              setMoreOpen(false);
-              setSharingMoment(true);
-            }}
-            testID="more-share-moment"
-          />
-          {noMoment === undefined ? null : (
-            <Text variant="meta" color={content.ink2} testID="more-share-moment-reason">
-              {noMomentWords(noMoment)}
-            </Text>
-          )}
+        <MoreSheetBody
+          onClose={() => setMoreOpen(false)}
+          input={{
+            save: moves.save,
+            noMoment,
+            canChallenge,
+            hasSmallPrint: limits !== undefined,
+            view: readerView,
+            act: {
+              shareMoment: () => setSharingMoment(true),
+              challenge: () => setChallenging(true),
+              toggleTextVersion: () => void reader.current?.toggleTextVersion(),
+              toggleSimpler: () => void reader.current?.toggleSimpler(),
+              smallPrint: () => setSmallPrintOpen(true),
+              report: openReport,
+            },
+          }}
+        >
           {moreBody?.(() => setMoreOpen(false))}
-        </View>
+        </MoreSheetBody>
+      </BottomSheet>
+      <BottomSheet visible={smallPrintOpen} title="Small print" onClose={() => setSmallPrintOpen(false)}>
+        {limits === undefined ? null : (
+          <View style={styles.smallPrint} testID="more-small-print">
+            <Text variant="label" color={content.ink2} heading={3}>
+              {limits.title}
+            </Text>
+            <Text variant="bodyS">{limits.text}</Text>
+          </View>
+        )}
       </BottomSheet>
       <BottomSheet visible={sharingMoment} title="Share a moment" onClose={() => setSharingMoment(false)}>
         <ShareStopSheet
@@ -271,5 +288,5 @@ const styles = StyleSheet.create({
   page: { flex: 1, minHeight: 0, backgroundColor: content.paper, alignItems: 'center' },
   column: { flex: 1, minHeight: 0, width: '100%' },
   wide: { maxWidth: layout.measureDesktop + 2 * layout.gutter + spacing[8] },
-  more: { gap: spacing[3], alignItems: 'flex-start' },
+  smallPrint: { gap: spacing[2] },
 });

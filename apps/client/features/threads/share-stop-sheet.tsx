@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { threadRowView, threadsHolding, type AccountScope, type ThreadsHolding } from '@knowscroll/client-core';
 import type { ContentThreadRef, ThreadSummary } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, Skeleton, Text, useFocusRing, useTypeStyle } from '@knowscroll/ui';
+import { Banner, Button, Skeleton, Stage, Text, useFocusRing, useTypeStyle } from '@knowscroll/ui';
 import { momentAnchorOf, momentOf, whyNoMoment, type NoMoment } from '@knowscroll/scroll-model';
 import { newCommandId } from '../../platform/command-id';
 import { useAccountScope } from '../../providers/account-scope';
@@ -150,12 +150,6 @@ function SendMoment({
   const sending = send.status === 'sending';
   return (
     <View style={styles.step}>
-      <Text variant="monoXs" color={content.ink2}>
-        This stop · {scroll.document.title}
-      </Text>
-      <Text variant="bodyS" style={styles.quote} testID="moment-quote">
-        “{moment.quote}”
-      </Text>
       <View style={styles.field}>
         <Text variant="uiS">Message (optional)</Text>
         <TextInput
@@ -217,6 +211,32 @@ function SendMoment({
 }
 
 /**
+ * What is about to be shared, shown before any thread is chosen (V3 G5, "This stop, with its picture"): the stop's picture
+ * as the reader draws it at that stop, when the Scroll has one, and the words the card will quote. The picture is the
+ * reader's own drawing, so nothing about it is sent; the card carries the stop and a hash (D-292).
+ */
+function MomentPreview({ scroll, stopId }: { readonly scroll: OpenedStageScroll; readonly stopId: string }) {
+  const moment = momentOf(scroll.document, stopId);
+  const { stage, stops, title } = scroll.document;
+  if (moment === undefined) return null;
+  return (
+    <View style={styles.preview} testID="moment-preview">
+      {stage === undefined ? null : (
+        <View style={styles.picture} testID="moment-picture">
+          <Stage document={{ stops, stage }} stopId={stopId} reducedMotion height={PICTURE_HEIGHT} />
+        </View>
+      )}
+      <Text variant="monoXs" color={content.ink2}>
+        This stop · {title}
+      </Text>
+      <Text variant="bodyS" style={styles.quote} testID="moment-quote">
+        “{moment.quote}”
+      </Text>
+    </View>
+  );
+}
+
+/**
  * Share a moment (V3 G5 "Share a moment: this stop, with its picture", D-292, D-293): the read stop on screen, sent into a
  * thread as a snippet. The message carries the exact revision and an anchor with a hash of the stop's words, never the words
  * themselves; the card's quote is read from the revision. Inside a thread the thread is known; anywhere else the person
@@ -248,15 +268,31 @@ export function ShareStopSheet({
         <Button label="Close" variant="ghost" fullWidth onPress={onClose} />
       </View>
     );
-  return chosen === undefined ? (
-    <ThreadChoice scope={state.scope} assetId={scroll.assetId} onChoose={setChosen} />
-  ) : (
-    <SendMoment scope={state.scope} scroll={scroll} stopId={stopId} thread={chosen} onClose={onClose} />
+  return (
+    <View style={styles.step}>
+      <MomentPreview scroll={scroll} stopId={stopId} />
+      {chosen === undefined ? (
+        <ThreadChoice scope={state.scope} assetId={scroll.assetId} onChoose={setChosen} />
+      ) : (
+        <SendMoment scope={state.scope} scroll={scroll} stopId={stopId} thread={chosen} onClose={onClose} />
+      )}
+    </View>
   );
 }
 
+const PICTURE_HEIGHT = 150;
+
 const styles = StyleSheet.create({
   step: { gap: spacing[3] },
+  preview: { gap: spacing[2] },
+  picture: {
+    overflow: 'hidden',
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+    borderRadius: radius.md,
+    // The stage draws its own rule under the picture.
+    borderBottomWidth: 0,
+  },
   choice: {
     gap: spacing[1],
     padding: spacing[3],

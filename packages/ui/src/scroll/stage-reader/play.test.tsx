@@ -398,6 +398,30 @@ describe('the payoff at the end (E1, D-189)', () => {
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 
+  it('says where the person will start next time when a next Part was admitted, and promises nothing otherwise (V3 E2)', async () => {
+    const withPart = await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <StageReader
+          document={document}
+          commands={{}}
+          nextPart={{ label: 'Part 2', title: 'Fixture part two', onPress: jest.fn() }}
+          play={playing([lockedFinal()], false, gold).play}
+        />
+      </DisplayProvider>,
+    );
+    await fireEvent.press(screen.getByRole('button', { name: 'Done for today' }));
+    expect(screen.getByTestId('done-next-time')).toHaveTextContent('Next time you’ll start at Part 2.');
+    await withPart.unmount();
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <StageReader document={document} commands={{}} play={playing([lockedFinal()], false, gold).play} />
+      </DisplayProvider>,
+    );
+    await fireEvent.press(screen.getByRole('button', { name: 'Done for today' }));
+    expect(screen.getByText('A good place to stop.')).toBeOnTheScreen();
+    expect(screen.queryByTestId('done-next-time')).not.toBeOnTheScreen();
+  });
+
   it('moves nowhere by itself: no way on is taken until a button is pressed', async () => {
     jest.useFakeTimers();
     try {

@@ -11,10 +11,11 @@ function useActionProps(
   session: EncounterSession,
   dense = false,
   beforeOverlay?: () => void,
+  available: readonly EncounterAction[] = AVAILABLE,
 ) {
   return {
     dense,
-    available: AVAILABLE,
+    available,
     liked: entry.context.actions.liked,
     saved: entry.context.actions.saved,
     saving: state.actionPending,
@@ -59,13 +60,16 @@ export function EncounterStrip({
   session,
   align,
   beforeOverlay,
+  available,
 }: {
   readonly entry: EncounterEntry;
   readonly state: EncounterState;
   readonly session: EncounterSession;
   readonly align?: 'start' | 'end';
+  /** Only these actions, where another control already holds the rest (the ••• sheet keeps Save as its own row). */
+  readonly available?: readonly EncounterAction[];
   /** Called just before Share or Ask opens its sheet, so a sheet this strip sits in can step aside first. */
   readonly beforeOverlay?: () => void;
 }) {
-  return <ActionStrip {...useActionProps(entry, state, session, false, beforeOverlay)} align={align} />;
+  return <ActionStrip {...useActionProps(entry, state, session, false, beforeOverlay, available)} align={align} />;
 }
