@@ -53,6 +53,7 @@ const pushesBack: FixtureScenario = {
   text: JSON.stringify({
     kind: 'assumption',
     text: 'Does that assume the Moon is the only thing pulling on the oceans?',
+    cites: ['e1'],
   }),
 };
 
