@@ -34,6 +34,8 @@ export interface RoleReceipt {
    */
   readonly copied?: number;
   readonly leaning?: number;
+  /** For an `answer_trimmed` receipt: how many limits callouts the writer sent that code replaced with its own line (D-371). A number, never a word. */
+  readonly limitsReplaced?: number;
   /** For an `answer_trimmed` or a `sentences_dropped` receipt: whether code replaced the title or the dek with its own line (D-351). */
   readonly titleReplaced?: boolean;
   readonly dekReplaced?: boolean;

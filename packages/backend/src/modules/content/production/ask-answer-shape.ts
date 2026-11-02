@@ -6,7 +6,8 @@ import { placedSentencesOfAnswer } from './ask-support.js';
 /**
  * The shape of the answer to a person's question (D-308, D-309, D-350). Pure; the writer's validator applies the length to the draft
  * after code has taken out what it can (`ask-answer-trim.ts`), and the production job to the answer it serves.
- * "Reading text" is every sentence that is not a title, a heading or a callout's title, the dek included.
+ * "Reading text" is every sentence that is not a title, a heading or a callout's title, the dek included; the limits callout that code
+ * wrote (D-371) has none.
  */
 
 /** The length the writer is asked for: 8 to 12 sentences of reading text. It is an instruction, not what code refuses. */
@@ -36,7 +37,7 @@ export const DIRECT_ANSWER_LOST_CODE = 'direct_answer_lost';
  * writer's words.
  */
 export function answerLengthHint(): string {
-  return `The answer must have ${String(ASK_ANSWER_MIN_SENTENCES)} to ${String(ASK_ANSWER_MAX_SENTENCES)} sentences of reader text (a title, a heading and a callout title do not count): the direct answer, at most two short sections and the closing callout.`;
+  return `The answer must have ${String(ASK_ANSWER_MIN_SENTENCES)} to ${String(ASK_ANSWER_MAX_SENTENCES)} sentences of reader text (a title, a heading and a callout title do not count): the direct answer and at most two short sections. Code adds the closing limits line, so write no callout of kind limit.`;
 }
 
 /** The fixed repair hint for an opening paragraph whose every sentence repeated the passages, so none could be kept. */

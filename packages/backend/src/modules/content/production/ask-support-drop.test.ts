@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { MIN_SERVED_SENTENCES, type SentenceVerdict } from '../domain/ask-support.js';
+import { LIMITS_TEXT, LIMITS_TITLE } from './ask-answer-limits.js';
 import { NEUTRAL_DEK } from './ask-answer-shape.js';
 import { dropFlagged, onlyTitleOrDekFlagged } from './ask-support-drop.js';
 import { placedSentencesOfAnswer } from './ask-support.js';
 
 /**
  * Taking out the sentences a support check still found unsupported (D-310). Labelled CI text about an invented lighthouse: never
- * provider output and never product content. The verdicts are written by hand, since the rule is code's and needs no model.
+ * provider output and never product content. The verdicts are written by hand, since the rule is code's and needs no model. The
+ * answer ends with the limits callout code wrote (D-371), which has no sentence in the check.
  */
 const ANSWER = AuthoredScroll.parse({
   title: 'How a lamp and a prism ring guide sailors',
@@ -35,15 +37,17 @@ const ANSWER = AuthoredScroll.parse({
       cites: ['e4'],
       items: ['Fog scatters light in every direction.', 'A sound signal carries through fog.'],
     },
-    {
-      type: 'callout',
-      cites: ['e4'],
-      kind: 'limit',
-      title: 'Where this stops',
-      text: 'This picture ignores radio and satellite navigation. Nothing here explains the cost of building a tower.',
-    },
+    { type: 'callout', cites: ['e1', 'e2', 'e3', 'e4', 'e6'], kind: 'limit', title: LIMITS_TITLE, text: LIMITS_TEXT },
   ],
 });
+/** A limits callout as a writer would have written it: a claim about its own answer, which only the writer's words can carry. */
+const WRITERS_LIMITS = {
+  type: 'callout',
+  cites: ['e4'],
+  kind: 'limit',
+  title: 'What this does not explain',
+  text: 'This picture ignores radio and satellite navigation. Nothing here explains the cost of building a tower.',
+} as const;
 const SENTENCES = placedSentencesOfAnswer(ANSWER);
 
 /** The verdicts for the sentences of `answer`: all supported, except the sentences that start with the words named. */
@@ -79,14 +83,15 @@ const refusedWith = (marks: Parameters<typeof verdictsFor>[1], answer = ANSWER) 
 const textsOf = (answer: AuthoredScroll) => placedSentencesOfAnswer(answer).map((sentence) => sentence.text);
 
 describe('the fixture', () => {
-  it('has twelve sentences of reading text, in the places the rules below name', () => {
-    expect(SENTENCES.filter((sentence) => sentence.label !== true)).toHaveLength(12);
+  it('has ten sentences of reading text, in the places the rules below name, and none for the callout code wrote', () => {
+    expect(SENTENCES.filter((sentence) => sentence.label !== true)).toHaveLength(10);
     expect(SENTENCES.filter((sentence) => sentence.label === true).map((sentence) => sentence.text)).toEqual([
       'How a lamp and a prism ring guide sailors',
       'The beam',
       'The upkeep',
-      'Where this stops',
     ]);
+    expect(SENTENCES.map((sentence) => sentence.text).join(' ')).not.toContain(LIMITS_TEXT);
+    expect(SENTENCES.map((sentence) => sentence.text)).not.toContain(LIMITS_TITLE);
   });
 });
 
@@ -173,21 +178,14 @@ describe('a sentence the check still found unsupported', () => {
     expect(none.authored.blocks.map((block) => block.type)).not.toContain('list');
   });
 
-  it('takes out a callout title that failed, and a sentence of the callout text, and keeps the limit callout last', () => {
-    const title = kept({ flagged: ['Where this stops'] });
-    const callout = title.authored.blocks.at(-1);
-    expect(callout).toEqual({
-      type: 'callout',
-      cites: ['e4'],
-      kind: 'limit',
-      text: 'This picture ignores radio and satellite navigation. Nothing here explains the cost of building a tower.',
+  it('serves the callout code wrote as it is, last, whatever else is taken out (D-371)', () => {
+    const everything = kept({
+      flagged: ['A ring of prisms', 'By counting', 'The keeper once', 'Fog scatters', 'A sound signal'],
     });
-    const text = kept({ flagged: ['Nothing here explains'] });
-    expect(text.authored.blocks.at(-1)).toMatchObject({
-      kind: 'limit',
-      title: 'Where this stops',
-      text: 'This picture ignores radio and satellite navigation.',
-    });
+    expect(everything.authored.blocks.at(-1)).toEqual(ANSWER.blocks.at(-1));
+    // The callout has no sentence, so it has no verdict and takes no part in the count of what was dropped.
+    expect(verdictsFor(ANSWER, {})).toHaveLength(SENTENCES.length);
+    expect(everything.dropped).toBe(5);
   });
 
   it('removes a heading with nothing left in its section but never counts the closing limits callout as that section', () => {
@@ -244,22 +242,14 @@ describe('a kept sentence that leans on one that was taken out (D-309, D-310)', 
   });
 
   it('is taken out before the floors are counted, so a supported sentence that leans does not count among the five', () => {
-    // Thirteen sentences of reading text; seven are flagged. If the two pointers stayed, six would be supported. They go with the
+    // Eleven sentences of reading text; five are flagged. If the two pointers stayed, six would be supported. They go with the
     // sentence they lean on, so four are, one fewer than it takes.
     const marks = {
-      flagged: [
-        'Because the beam turns',
-        'The keeper once',
-        'Today a small motor',
-        'Fog scatters',
-        'A sound signal',
-        'The beam sweeps',
-        'Each tower repeats',
-      ],
+      flagged: ['Because the beam turns', 'The keeper once', 'Today a small motor', 'Fog scatters', 'A sound signal'],
     };
     expect(refusedWith(marks, pointing)).toBe('too_few_supported');
     // The same marks on the plain fixture leave exactly five, and that is served.
-    expect(kept(marks).dropped).toBe(7);
+    expect(kept(marks).dropped).toBe(5);
   });
 
   it('leaves a leaning sentence alone when it opens its block, since nothing before it was taken out of the block', () => {
@@ -306,15 +296,15 @@ describe('a title or a dek the check found unsupported (D-351)', () => {
   });
 
   it('does not count a dek that code wrote among the five supported sentences, whatever the checker said of it', () => {
-    // Twelve sentences of reading text. The dek is code's and says "supported" (a check can say so of a line it was shown); six
+    // Ten sentences of reading text. The dek is code's and says "supported" (a check can say so of a line it was shown); five
     // others are flagged or state no fact, so the five that remain are four writer sentences and the dek, which does not count.
     const neutral = AuthoredScroll.parse({ ...ANSWER, dek: NEUTRAL_DEK });
     const marks = {
       flagged: ['By counting', 'The keeper once', 'A sound signal'],
-      noClaim: ['Each tower', 'Today a small', 'Fog scatters', 'This picture ignores'],
+      noClaim: ['Each tower', 'Today a small'],
     };
     const verdicts = verdictsFor(neutral, marks);
-    expect(verdicts.filter((verdict) => verdict.verdict === 'supported')).toHaveLength(9);
+    expect(verdicts.filter((verdict) => verdict.verdict === 'supported')).toHaveLength(8);
     expect(dropFlagged(neutral, verdicts, LINES)).toEqual({ kind: 'refused', code: 'too_few_supported' });
     // With the dek among the five it would have been served: the same answer with a dek of the writer's own is.
     expect(dropFlagged(AuthoredScroll.parse({ ...ANSWER }), verdictsFor(ANSWER, marks), LINES).kind).toBe('kept');
@@ -356,30 +346,35 @@ describe('what is left must be enough to serve (D-310)', () => {
 
   it('refuses an answer with fewer than five supported sentences of reading text, and serves one with five', () => {
     expect(MIN_SERVED_SENTENCES).toBe(5);
-    // Twelve sentences: three flagged, five stating no fact, four supported.
+    // Ten sentences: three flagged, three stating no fact, four supported.
     const four = {
       flagged: ['By counting', 'The keeper once', 'A sound signal'],
-      noClaim: ['Each tower', 'Today a small', 'Fog scatters', 'This picture ignores', 'Nothing here'],
+      noClaim: ['Each tower', 'Today a small', 'Fog scatters'],
     };
     expect(refusedWith(four)).toBe('too_few_supported');
-    // The same with one more supported (Nothing here is supported again): five.
-    expect(kept({ flagged: four.flagged, noClaim: four.noClaim.slice(0, 4) }).dropped).toBe(3);
+    // The same with one more supported (Fog scatters is supported again): five.
+    expect(kept({ flagged: four.flagged, noClaim: four.noClaim.slice(0, 2) }).dropped).toBe(3);
   });
 
   it('does not count a title, a heading or a callout title that is supported among the five', () => {
-    // Only four sentences of reading text are supported, beside four supported labels: still too few.
+    // Only four sentences of reading text are supported, beside three supported labels: still too few.
     const marks = {
       flagged: ['By counting', 'The keeper once', 'A sound signal'],
-      noClaim: ['Each tower', 'Today a small', 'Fog scatters', 'This picture ignores', 'Nothing here'],
+      noClaim: ['Each tower', 'Today a small', 'Fog scatters'],
     };
-    // Eight verdicts say "supported" in all, the four labels among them, and that is not what the rule counts.
-    expect(verdictsFor(ANSWER, marks).filter((verdict) => verdict.verdict === 'supported')).toHaveLength(8);
+    // Seven verdicts say "supported" in all, the three labels among them, and that is not what the rule counts.
+    expect(verdictsFor(ANSWER, marks).filter((verdict) => verdict.verdict === 'supported')).toHaveLength(7);
     expect(refusedWith(marks)).toBe('too_few_supported');
   });
 
-  it('refuses an answer whose limits callout did not survive', () => {
-    expect(refusedWith({ flagged: ['This picture ignores', 'Nothing here explains'] })).toBe('no_limit_callout');
-    // A limits callout that is not the last block does not count either.
+  it('refuses an answer that code did not close with its own callout, whatever the check said (D-371)', () => {
+    // A callout the writer wrote is not code's line, even in the last place: its sentences would need a verdict code does not ask for.
+    const writers = AuthoredScroll.parse({ ...ANSWER, blocks: [...ANSWER.blocks.slice(0, 6), WRITERS_LIMITS] });
+    expect(refusedWith({}, writers)).toBe('no_limit_callout');
+    // No callout at all.
+    const none = AuthoredScroll.parse({ ...ANSWER, blocks: ANSWER.blocks.slice(0, 6) });
+    expect(refusedWith({}, none)).toBe('no_limit_callout');
+    // The callout code wrote, but not last, does not count either.
     const buried = AuthoredScroll.parse({
       ...ANSWER,
       blocks: [...ANSWER.blocks.slice(0, 6), ANSWER.blocks[6]!, { type: 'paragraph', cites: ['e1'], text: 'A coda.' }],

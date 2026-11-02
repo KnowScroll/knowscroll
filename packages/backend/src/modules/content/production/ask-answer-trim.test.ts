@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FIELD_LIMITS } from '@knowscroll/scroll-model';
 import { AuthoredScroll, COPY_RUN_WORDS, copyMaterial } from '@knowscroll/scroll-model/producer';
+import { LIMITS_TEXT, LIMITS_TITLE } from './ask-answer-limits.js';
 import { DIRECT_ANSWER_LOST_CODE, NEUTRAL_DEK } from './ask-answer-shape.js';
 import {
   copiedSentenceNumbers,
@@ -14,8 +15,8 @@ import {
 import { placedSentencesOfAnswer } from './ask-support.js';
 
 /**
- * What code takes out of the writer's draft before it is checked (D-348 to D-351). Labelled CI text about an invented lighthouse:
- * never provider output and never product content.
+ * What code takes out of the writer's draft before it is checked (D-348 to D-351), and the limits callout it writes in place of the
+ * writer's (D-371). Labelled CI text about an invented lighthouse: never provider output and never product content.
  */
 const SOURCE = [
   'The Skerry lighthouse keeper winds the lamp clockwork every four hours through the long winter nights.',
@@ -29,13 +30,24 @@ const RULES = { copyMaterial: MATERIAL, lines: LINES };
 const TITLE = 'How a lamp and a prism ring guide sailors';
 const DEK = 'A ring of glass shapes one beam, and the clockwork turns it so sailors can read the coast.';
 const paragraph = (text: string) => ({ type: 'paragraph' as const, cites: ['e1'], text });
-const limit = {
+/** A limits callout as a writer would still send one: code replaces it. */
+const writersLimit = {
   type: 'callout' as const,
   cites: ['e1'],
   kind: 'limit' as const,
-  title: 'Where this stops',
+  title: 'What this does not explain',
   text: 'Radio is not covered.',
 };
+/** The callout code writes, citing what the other blocks of the answer cite. */
+const codeLimit = (cites: string[] = ['e1']) => ({
+  type: 'callout' as const,
+  cites,
+  kind: 'limit' as const,
+  title: LIMITS_TITLE,
+  text: LIMITS_TEXT,
+});
+/** The blocks of a prepared answer without the callout code put last. */
+const withoutClosing = (answer: AuthoredScroll) => answer.blocks.slice(0, -1);
 const answerOf = (blocks: unknown[], head: { title?: string; dek?: string } = {}) =>
   AuthoredScroll.parse({ title: head.title ?? TITLE, dek: head.dek ?? DEK, blocks });
 const trimmed = (
@@ -56,14 +68,16 @@ describe('a draft with nothing to take out', () => {
       paragraph('A ring of glass bends the light. Sailors read the flashes.'),
       { type: 'heading', text: 'The beam' },
       paragraph('The beam turns slowly. It is seen as a flash.'),
-      limit,
     ]);
     const prepared = trimAskAnswer(answer, RULES);
-    expect(prepared.authored).toBe(answer);
-    expect(prepared).toEqual(unchanged(answer));
+    expect(prepared.authored).toEqual({ ...answer, blocks: [...answer.blocks, codeLimit()] });
+    expect(withoutClosing(prepared.authored)).toEqual(answer.blocks);
     expect(prepared.counts).toBeUndefined();
+    // Code's callout is located one past the writer's last block.
     expect(prepared.blockOrigin).toEqual([0, 1, 2, 3]);
     expect(prepared.issues).toEqual([]);
+    // Another kind of mode leaves a draft alone.
+    expect(unchanged(answer).authored).toBe(answer);
   });
 });
 
@@ -72,19 +86,25 @@ describe('a sentence that copies a run of nine words of a passage (D-348)', () =
     const answer = answerOf([
       paragraph('A ring of glass bends the light.'),
       paragraph(`Sailors read the flashes. ${COPIED} The beam turns slowly.`),
-      limit,
     ]);
     const prepared = trimmed(answer);
-    expect(prepared.counts).toEqual({ copied: 1, leaning: 0, titleReplaced: false, dekReplaced: false });
+    expect(prepared.counts).toEqual({
+      copied: 1,
+      leaning: 0,
+      titleReplaced: false,
+      dekReplaced: false,
+      limitsReplaced: 0,
+    });
     expect(prepared.authored.blocks[1]).toEqual({
       ...answer.blocks[1],
       text: 'Sailors read the flashes. The beam turns slowly.',
     });
     expect(prepared.authored.title).toBe(TITLE);
     expect(prepared.authored.dek).toBe(DEK);
-    expect(prepared.authored.blocks.filter((_block, index) => index !== 1)).toEqual(
+    expect(withoutClosing(prepared.authored).filter((_block, index) => index !== 1)).toEqual(
       answer.blocks.filter((_block, index) => index !== 1),
     );
+    expect(prepared.authored.blocks.at(-1)).toEqual(codeLimit());
     expect(prepared.issues).toEqual([]);
   });
 
@@ -93,7 +113,7 @@ describe('a sentence that copies a run of nine words of a passage (D-348)', () =
       .slice(0, COPY_RUN_WORDS - 1)
       .join(' ');
     const nine = COPIED.split(' ').slice(0, COPY_RUN_WORDS).join(' ');
-    const base = (sentence: string) => answerOf([paragraph(`A ring of glass bends the light. ${sentence}.`), limit]);
+    const base = (sentence: string) => answerOf([paragraph(`A ring of glass bends the light. ${sentence}.`)]);
     expect(trimAskAnswer(base(eight), RULES).counts).toBeUndefined();
     expect(trimmed(base(nine)).counts.copied).toBe(1);
   });
@@ -104,7 +124,6 @@ describe('a sentence that copies a run of nine words of a passage (D-348)', () =
       paragraph(
         'A ring of glass bends the light. The prism ring gathers light. Then the beam sweeps across the sea. Sailors read the flashes.',
       ),
-      limit,
     ]);
     const sentences = placedSentencesOfAnswer(answer);
     const copied = copiedSentenceNumbers(sentences, MATERIAL);
@@ -129,7 +148,6 @@ describe('a sentence that copies a run of nine words of a passage (D-348)', () =
         items: ['A prism ring around the flame gathers', 'the light into a single beam that sweeps across the water.'],
       },
       paragraph('Sailors read the flashes.'),
-      limit,
     ]);
     const prepared = trimmed(answer);
     expect(prepared.counts.copied).toBe(2);
@@ -140,7 +158,6 @@ describe('a sentence that copies a run of nine words of a passage (D-348)', () =
       answerOf([
         paragraph('A ring of glass bends the light.'),
         { type: 'list', cites: ['e4'], items: ['Fog hides the beam.', COPIED, 'A horn carries the warning.'] },
-        limit,
       ]),
     );
     expect(three.authored.blocks[1]).toEqual({
@@ -152,7 +169,6 @@ describe('a sentence that copies a run of nine words of a passage (D-348)', () =
       answerOf([
         paragraph('A ring of glass bends the light.'),
         { type: 'list', cites: ['e4'], items: ['Fog hides the beam.', COPIED] },
-        limit,
       ]),
     );
     expect(two.authored.blocks[1]).toEqual({ type: 'paragraph', cites: ['e4'], text: 'Fog hides the beam.' });
@@ -165,7 +181,6 @@ describe('a sentence that copies a run of nine words of a passage (D-348)', () =
       paragraph(COPIED),
       { type: 'heading', text: 'The upkeep' },
       paragraph('The keeper once wound the clockwork by hand.'),
-      limit,
     ]);
     const prepared = trimmed(answer);
     expect(prepared.authored.blocks.map((block) => block.type)).toEqual([
@@ -178,15 +193,18 @@ describe('a sentence that copies a run of nine words of a passage (D-348)', () =
     expect(prepared.blockOrigin).toEqual([0, 3, 4, 5]);
   });
 
-  it('serves a callout without its copied sentence, and takes out a callout that was all copied', () => {
-    const answer = answerOf([
-      paragraph('A ring of glass bends the light.'),
-      { ...limit, text: `Radio is not covered. ${COPIED}` },
-    ]);
-    expect(trimmed(answer).authored.blocks.at(-1)).toMatchObject({ kind: 'limit', text: 'Radio is not covered.' });
-    const whole = trimmed(answerOf([paragraph('A ring of glass bends the light.'), { ...limit, text: COPIED }]));
-    // The compile refuses an answer that no longer ends with the limits callout; the trim does not.
-    expect(whole.authored.blocks.map((block) => block.type)).toEqual(['paragraph']);
+  it('serves a callout of another kind without its copied sentence, and takes out one that was all copied', () => {
+    const note = {
+      type: 'callout' as const,
+      cites: ['e1'],
+      kind: 'note' as const,
+      text: `A note on rhythm. ${COPIED}`,
+    };
+    const half = trimmed(answerOf([paragraph('A ring of glass bends the light.'), note]));
+    expect(half.authored.blocks[1]).toMatchObject({ kind: 'note', text: 'A note on rhythm.' });
+    const whole = trimmed(answerOf([paragraph('A ring of glass bends the light.'), { ...note, text: COPIED }]));
+    expect(whole.authored.blocks.map((block) => block.type)).toEqual(['paragraph', 'callout']);
+    expect(whole.authored.blocks.at(-1)).toEqual(codeLimit());
   });
 
   it('is refused by a finding at the opening paragraph when none of its sentences is left', () => {
@@ -194,7 +212,6 @@ describe('a sentence that copies a run of nine words of a passage (D-348)', () =
       { type: 'heading', text: 'The short answer' },
       paragraph(`${COPIED} ${SOURCE[0]}`),
       paragraph('Sailors read the flashes.'),
-      limit,
     ]);
     const prepared = trimmed(answer);
     expect(prepared.issues).toEqual([{ code: DIRECT_ANSWER_LOST_CODE, path: 'blocks.1' }]);
@@ -204,25 +221,37 @@ describe('a sentence that copies a run of nine words of a passage (D-348)', () =
   });
 
   it('is kept as the writer’s direct answer when one of its sentences is left', () => {
-    const answer = answerOf([paragraph(`${COPIED} A ring of glass bends the light.`), limit]);
+    const answer = answerOf([paragraph(`${COPIED} A ring of glass bends the light.`)]);
     expect(trimmed(answer).issues).toEqual([]);
   });
 });
 
 describe('a title or a dek that copies a passage (D-351)', () => {
   it('is replaced by the line code wrote, and nothing else is changed', () => {
-    const answer = answerOf([paragraph('A ring of glass bends the light.'), limit], { title: SOURCE[0]!.slice(0, 80) });
+    const answer = answerOf([paragraph('A ring of glass bends the light.')], { title: SOURCE[0]!.slice(0, 80) });
     const title = trimmed(answer);
-    expect(title.counts).toEqual({ copied: 0, leaning: 0, titleReplaced: true, dekReplaced: false });
-    expect(title.authored).toEqual({ ...answer, title: LINES.title });
-    const dek = trimmed(answerOf([paragraph('A ring of glass bends the light.'), limit], { dek: COPIED }));
-    expect(dek.counts).toEqual({ copied: 0, leaning: 0, titleReplaced: false, dekReplaced: true });
+    expect(title.counts).toEqual({
+      copied: 0,
+      leaning: 0,
+      titleReplaced: true,
+      dekReplaced: false,
+      limitsReplaced: 0,
+    });
+    expect(title.authored).toEqual({ ...answer, title: LINES.title, blocks: [...answer.blocks, codeLimit()] });
+    const dek = trimmed(answerOf([paragraph('A ring of glass bends the light.')], { dek: COPIED }));
+    expect(dek.counts).toEqual({
+      copied: 0,
+      leaning: 0,
+      titleReplaced: false,
+      dekReplaced: true,
+      limitsReplaced: 0,
+    });
     expect(dek.authored.dek).toBe(NEUTRAL_DEK);
     expect(dek.authored.title).toBe(TITLE);
   });
 
   it('is replaced whole, however few of its sentences copy', () => {
-    const answer = answerOf([paragraph('A ring of glass bends the light.'), limit], {
+    const answer = answerOf([paragraph('A ring of glass bends the light.')], {
       dek: `${COPIED} Sailors read the coast.`,
     });
     expect(trimmed(answer).authored.dek).toBe(NEUTRAL_DEK);
@@ -234,7 +263,6 @@ describe('a sentence that leans (D-349)', () => {
     const answer = answerOf([
       paragraph('The beam turns slowly. This is why sailors see a flash. It also lets them name the tower.'),
       paragraph('This block opens with a pointer. The beam is thin.'),
-      limit,
     ]);
     // The first paragraph's first sentence does not lean, and a block's first sentence is exempt but for the answer's own.
     expect(trimAskAnswer(answer, RULES).counts).toBeUndefined();
@@ -244,10 +272,15 @@ describe('a sentence that leans (D-349)', () => {
     const answer = answerOf([
       { type: 'heading', text: 'The beam' },
       paragraph('This is the lamp of the Skerry. A ring of glass bends the light. It is thin.'),
-      limit,
     ]);
     const prepared = trimmed(answer);
-    expect(prepared.counts).toEqual({ copied: 0, leaning: 1, titleReplaced: false, dekReplaced: false });
+    expect(prepared.counts).toEqual({
+      copied: 0,
+      leaning: 1,
+      titleReplaced: false,
+      dekReplaced: false,
+      limitsReplaced: 0,
+    });
     // "It is thin." leans on the sentence now first, which is kept: only the opening pointer goes.
     expect((prepared.authored.blocks[1] as { text: string }).text).toBe('A ring of glass bends the light. It is thin.');
   });
@@ -258,10 +291,15 @@ describe('a sentence that leans (D-349)', () => {
       paragraph(
         `${COPIED} This is why sailors see a flash. It also lets them name the tower. Each tower repeats its rhythm.`,
       ),
-      limit,
     ]);
     const prepared = trimmed(answer);
-    expect(prepared.counts).toEqual({ copied: 1, leaning: 2, titleReplaced: false, dekReplaced: false });
+    expect(prepared.counts).toEqual({
+      copied: 1,
+      leaning: 2,
+      titleReplaced: false,
+      dekReplaced: false,
+      limitsReplaced: 0,
+    });
     expect((prepared.authored.blocks[1] as { text: string }).text).toBe('Each tower repeats its rhythm.');
   });
 
@@ -270,7 +308,6 @@ describe('a sentence that leans (D-349)', () => {
       paragraph('A ring of glass bends the light.'),
       paragraph(COPIED),
       paragraph('This opens the next block. The beam is thin.'),
-      limit,
     ]);
     const prepared = trimmed(answer);
     expect((prepared.authored.blocks[1] as { text: string }).text).toBe('This opens the next block. The beam is thin.');
@@ -278,8 +315,109 @@ describe('a sentence that leans (D-349)', () => {
   });
 
   it('a copied opening sentence counts as copied, not as leaning', () => {
-    const answer = answerOf([paragraph(`${COPIED} This is why. A ring of glass bends the light.`), limit]);
+    const answer = answerOf([paragraph(`${COPIED} This is why. A ring of glass bends the light.`)]);
     expect(trimmed(answer).counts).toMatchObject({ copied: 1, leaning: 1 });
+  });
+});
+
+describe('the limits callout is code’s (D-371)', () => {
+  const body = [paragraph('A ring of glass bends the light.'), { type: 'heading' as const, text: 'The beam' }];
+
+  it('is put last when the writer wrote none, and counts as nothing replaced', () => {
+    const prepared = trimAskAnswer(answerOf([...body, paragraph('The beam turns slowly.')]), RULES);
+    expect(prepared.authored.blocks.at(-1)).toEqual(codeLimit());
+    expect(prepared.counts).toBeUndefined();
+  });
+
+  it('replaces the limits callout the writer sent, whatever it says, and counts it', () => {
+    const answer = answerOf([...body, paragraph('The beam turns slowly.'), writersLimit]);
+    const prepared = trimmed(answer);
+    expect(prepared.authored.blocks).toEqual([...answer.blocks.slice(0, -1), codeLimit()]);
+    expect(prepared.counts).toEqual({
+      copied: 0,
+      leaning: 0,
+      titleReplaced: false,
+      dekReplaced: false,
+      limitsReplaced: 1,
+    });
+    expect(textsOf(prepared.authored).join(' ')).not.toContain('Radio is not covered');
+    // Code's callout is located one past the writer's last block, whether or not the writer sent one.
+    expect(prepared.blockOrigin).toEqual([0, 1, 2, 4]);
+  });
+
+  it('replaces a limits callout that is not the last block, and every one of several', () => {
+    const answer = answerOf([writersLimit, ...body, paragraph('The beam turns slowly.'), writersLimit]);
+    const prepared = trimmed(answer);
+    expect(prepared.authored.blocks.map((block) => block.type)).toEqual([
+      'paragraph',
+      'heading',
+      'paragraph',
+      'callout',
+    ]);
+    expect(prepared.authored.blocks.filter((block) => block.type === 'callout')).toEqual([codeLimit()]);
+    expect(prepared.counts.limitsReplaced).toBe(2);
+    expect(prepared.blockOrigin).toEqual([1, 2, 3, 5]);
+  });
+
+  it('takes no part in the other counts: its copied and leaning sentences are not counted, and it never leans on anything', () => {
+    const copiedAndLeaning = { ...writersLimit, text: `${COPIED} This is why it ends. Radio is not covered.` };
+    const prepared = trimmed(answerOf([...body, paragraph('The beam turns slowly.'), copiedAndLeaning]));
+    expect(prepared.counts).toEqual({
+      copied: 0,
+      leaning: 0,
+      titleReplaced: false,
+      dekReplaced: false,
+      limitsReplaced: 1,
+    });
+    expect(prepared.issues).toEqual([]);
+  });
+
+  it('is not the first sentence of the answer, so a leaning writer’s callout cannot be taken for the opening', () => {
+    const prepared = trimmed(
+      answerOf([
+        { ...writersLimit, text: 'This is where it stops.' },
+        paragraph('A ring of glass bends the light. It is thin.'),
+      ]),
+    );
+    expect(prepared.counts.leaning).toBe(0);
+    expect(prepared.counts.limitsReplaced).toBe(1);
+  });
+
+  it('is left as it is, once, when the draft is one that code prepared (a revision shows the writer its previous draft)', () => {
+    const answer = answerOf([...body, paragraph('The beam turns slowly.'), codeLimit()]);
+    const prepared = trimAskAnswer(answer, RULES);
+    expect(prepared.authored).toEqual(answer);
+    expect(prepared.counts).toBeUndefined();
+    expect(prepared.authored.blocks.filter((block) => block.type === 'callout')).toHaveLength(1);
+    // A trim of the same draft with a sentence taken out does not count it either.
+    const withCopied = trimmed(
+      answerOf([...body, paragraph(COPIED), paragraph('The beam turns slowly.'), codeLimit()]),
+    );
+    expect(withCopied.counts.limitsReplaced).toBe(0);
+    expect(withCopied.authored.blocks.filter((block) => block.type === 'callout')).toHaveLength(1);
+  });
+
+  it('cites the passages the other blocks cite, each once, and no more', () => {
+    const prepared = trimAskAnswer(
+      answerOf([
+        { type: 'paragraph', cites: ['e2', 'e1'], text: 'A ring of glass bends the light.' },
+        { type: 'paragraph', cites: ['e1', 'e3'], text: 'The beam turns slowly.' },
+        { ...writersLimit, cites: ['e9'] },
+      ]),
+      RULES,
+    );
+    expect(prepared.authored.blocks.at(-1)).toMatchObject({ cites: ['e2', 'e1', 'e3'] });
+  });
+
+  it('is not added to an answer whose blocks cite nothing, which has no sentence to serve', () => {
+    const prepared = trimAskAnswer(answerOf([{ type: 'heading', text: 'The beam' }, writersLimit]), RULES);
+    expect(prepared.authored.blocks.map((block) => block.type)).toEqual(['heading']);
+  });
+
+  it('is exactly the line the design words and the callout schema allows', () => {
+    expect(LIMITS_TITLE).toBe('Where this stops');
+    expect(LIMITS_TEXT.length).toBeLessThanOrEqual(FIELD_LIMITS.calloutChars);
+    expect(LIMITS_TITLE.length).toBeLessThanOrEqual(FIELD_LIMITS.calloutTitleChars);
   });
 });
 
