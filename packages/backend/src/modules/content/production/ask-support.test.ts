@@ -15,7 +15,7 @@ import {
   verdictsOf,
 } from './ask-support.js';
 import type { EvidencePassage } from './evidence.js';
-import { QUESTION_WRITER_PROMPT_VERSION } from './writer.js';
+import { COPY_RULE_EXAMPLE, QUESTION_WRITER_PROMPT_VERSION } from './writer.js';
 
 /** Labelled CI text about an invented lighthouse: never provider output and never product content. */
 const passage = (n: number, text: string): EvidencePassage => ({
@@ -779,6 +779,20 @@ describe('the one repair an unsupported sentence earns', () => {
     expect(repair.instructions.startsWith('WRITER RULES\n\nREVISION AFTER A SUPPORT CHECK')).toBe(true);
     expect(repair.outputSchema).toBe(writer.outputSchema);
   });
+
+  it('reminds the writer that a sentence it rewrites must not copy a passage either, with the rule’s own number (D-294)', () => {
+    const repair = supportRepairRole({
+      id: 'content.scroll-writer',
+      version: QUESTION_WRITER_PROMPT_VERSION,
+      instructions: 'WRITER RULES',
+      outputSchema: AuthoredScroll,
+      maxOutputTokens: 1000,
+    });
+    expect(repair.instructions).toContain(
+      `A revision that repeats ${String(COPY_RUN_WORDS)} or more words in a row from a passage is refused.`,
+    );
+    expect(repair.instructions).toContain('never the passage’s sentence with a word changed');
+  });
 });
 
 /**
@@ -830,5 +844,19 @@ describe('a paraphrase that keeps the passages’ key terms passes the copy rule
 
   it('can fail: a sentence copied from a passage trips the copy rule, so passing it is a real property of the paraphrases', () => {
     expect(copiedRuns(PASSAGES[1]!.text, sources, COPY_RUN_WORDS).length).toBeGreaterThan(0);
+  });
+
+  it('holds for the writer’s own worked example too: the rebuilt sentence has a quote that carries its key words, and the copy has no such luck with the copy rule (D-294)', () => {
+    const { passage: exampleText, copied, rebuilt } = COPY_RULE_EXAMPLE;
+    const quote =
+      'letting water into a closed chamber until the water level inside matches the higher stretch of the canal';
+    expect(exampleText).toContain(quote);
+    expect(copiedRuns(rebuilt, [exampleText], COPY_RUN_WORDS)).toEqual([]);
+    expect(copiedRuns(copied, [exampleText], COPY_RUN_WORDS).length).toBeGreaterThan(0);
+    expect(sharedStems(quote, rebuilt)).toBeGreaterThanOrEqual(2);
+    const verdicts = askSupportSchema([{ number: 1, text: rebuilt, cites: ['e1'] }], [passage(1, exampleText)]).parse({
+      sentences: [{ n: 1, verdict: 'supported', quote }],
+    }).sentences;
+    expect(verdicts.map((verdict) => verdict.verdict)).toEqual(['supported']);
   });
 });

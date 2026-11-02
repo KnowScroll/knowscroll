@@ -100,7 +100,13 @@ function ReaderBody({
       stage={(scroll) => (
         <>
           {started}
-          <ThreadStageScroll scope={scope} scroll={scroll} onBack={leave} endSlot={finish} />
+          <ThreadStageScroll
+            scope={scope}
+            scroll={scroll}
+            onBack={leave}
+            endSlot={finish}
+            thread={{ ref: thread, name: 'this thread' }}
+          />
         </>
       )}
     >

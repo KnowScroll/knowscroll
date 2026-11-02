@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { talkFailure, type AccountScope } from '@knowscroll/client-core';
+import { apiProblem, talkFailure, type AccountScope } from '@knowscroll/client-core';
 import type { ContentThreadRef, SendThreadBody } from '@knowscroll/contracts';
 import { newCommandId } from '../../platform/command-id';
 
@@ -34,6 +34,12 @@ export function useSnippetSend(scope: AccountScope, thread: ContentThreadRef) {
     } catch (error) {
       const kind = talkFailure(error);
       if (kind === 'ended') return;
+      // The server says this thread does not hold the content or the anchor does not fit: a definite no, not a fault.
+      if (apiProblem(error)?.code === 'INVALID_REQUEST') {
+        intent.current = undefined;
+        setStatus('invalid');
+        return;
+      }
       if (kind === 'unavailable') intent.current = undefined;
       setStatus(kind === 'unavailable' ? 'unavailable' : kind === 'offline' ? 'unconfirmed' : 'failed');
     }

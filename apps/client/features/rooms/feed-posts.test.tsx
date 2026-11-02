@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { PostOutcome, RoomFeedController, RoomFeedState } from '@knowscroll/client-core';
 import type { ConversationContentProjection, RoomFeed, RoomFeedPost } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
-import { RoomFeedScreen } from './feed-screen';
+import { RoomFeedPanel } from './feed-screen';
 import { FeedPost } from './feed-post';
 import { PostSheet } from './post-sheet';
 
@@ -127,7 +127,7 @@ const show = (
   patch: Partial<RoomFeedState> = {},
 ) => {
   mockFeed.current = { controller, state: stateOf({ view, ...patch }) };
-  return wrap(<RoomFeedScreen roomId={roomId} />);
+  return wrap(<RoomFeedPanel scope={{ active: true } as never} roomId={roomId} />);
 };
 const has = (text: string) => new RegExp(text.replaceAll(/[.*+?^${}()|[\]\\]/g, (character) => `\\${character}`));
 

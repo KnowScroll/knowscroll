@@ -97,7 +97,7 @@ async function openFeed(page: Page, size: { width: number; height: number }, wor
   await page.goto(address);
   // The Feed chip is on the Now strip at every width, whatever the strip says of what happened lately.
   await page.getByTestId('now-feed-open').click();
-  await expect(page).toHaveURL(/\/feed$/);
+  await expect(page.getByTestId('room-tab-feed')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('feed-screen')).toBeVisible();
   return { calls };
 }

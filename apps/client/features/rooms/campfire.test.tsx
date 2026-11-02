@@ -291,7 +291,7 @@ describe('the campfire band', () => {
 describe('General and the AI notice', () => {
   it('lands in General and shows the AI notice until it has been read, once', async () => {
     const c = controller();
-    await wrap(<GeneralStage scope={scope} view={member()} controller={c} state={roomState()} header={null} />);
+    await wrap(<GeneralStage scope={scope} view={member()} controller={c} state={roomState()} />);
     expect(screen.getByTestId('general-discussion')).toHaveTextContent(id(5));
     expect(screen.getByTestId('ai-notice')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('ai-notice-ack'));
@@ -300,7 +300,7 @@ describe('General and the AI notice', () => {
 
   it('shows no notice once it has been read: from then on it is only in the room menu', async () => {
     const view = member({ you: { aiLevel: 'lively', keepOut: false, noticeSeenAt: '2026-10-24T08:00:00.000Z' } });
-    await wrap(<GeneralStage scope={scope} view={view} controller={controller()} state={roomState()} header={null} />);
+    await wrap(<GeneralStage scope={scope} view={view} controller={controller()} state={roomState()} />);
     expect(screen.queryByTestId('ai-notice')).not.toBeOnTheScreen();
     expect(screen.getByTestId('general-discussion')).toBeOnTheScreen();
   });
@@ -355,6 +355,7 @@ describe('the room menu', () => {
         visible
         onClose={jest.fn()}
         onShare={jest.fn()}
+        onOpenFeed={jest.fn()}
       />,
     );
 
@@ -427,6 +428,7 @@ describe('the room menu', () => {
         visible
         onClose={onClose}
         onShare={jest.fn()}
+        onOpenFeed={jest.fn()}
       />,
     );
     await fireEvent.press(screen.getByTestId('menu-topics'));
@@ -490,7 +492,7 @@ describe('the Launch in the room', () => {
     };
   };
   const stage = (view: Member) => (
-    <GeneralStage scope={scope} view={view} controller={controller()} state={roomState()} header={null} />
+    <GeneralStage scope={scope} view={view} controller={controller()} state={roomState()} />
   );
 
   it('puts the stage above General while a Launch is on, with the conversation still there as the crowd, and a mark on the band', async () => {
@@ -558,15 +560,7 @@ describe('the quiet room', () => {
     view: Member,
     actions: Partial<Record<'setQuestionNotice' | 'leaveQuestion', jest.Mock>> = {},
     inScope: AccountScope = scope,
-  ) => (
-    <GeneralStage
-      scope={inScope}
-      view={view}
-      controller={{ ...controller(), ...actions }}
-      state={roomState()}
-      header={null}
-    />
-  );
+  ) => <GeneralStage scope={inScope} view={view} controller={{ ...controller(), ...actions }} state={roomState()} />;
   const quietView = (day: string, patch: Partial<Member> = {}) =>
     member({
       you: { aiLevel: 'lively', keepOut: false, ...READ },
@@ -708,7 +702,7 @@ describe('Watch together in the room', () => {
     };
   };
   const stage = (view: Member) => (
-    <GeneralStage scope={scope} view={view} controller={controller()} state={roomState()} header={null} />
+    <GeneralStage scope={scope} view={view} controller={controller()} state={roomState()} />
   );
   const seen = { you: { aiLevel: 'lively' as const, keepOut: false, noticeSeenAt: '2026-10-24T08:00:00.000Z' } };
 

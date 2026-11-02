@@ -1,6 +1,8 @@
 export { DisplayProvider, DisplayRoot, useDisplay, type Display } from './display/display';
 export { Text, useTypeStyle, type TextProps } from './text/text';
+export { FocusHaloProvider } from './display/focus-halo';
 export { useFocusRing } from './display/focus-ring';
+export { linkPress } from './display/link';
 export {
   dialogHostSemantics,
   dialogSemantics,

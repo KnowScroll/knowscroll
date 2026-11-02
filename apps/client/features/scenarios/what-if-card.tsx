@@ -6,6 +6,7 @@ import {
   answerStage,
   clockTime,
   madeInSeconds,
+  statementsInWords,
   type AnswerStage,
 } from '@knowscroll/client-core';
 import type { ScenarioCard } from '@knowscroll/contracts';
@@ -93,10 +94,8 @@ function Answer({ card, answer }: { readonly card: ScenarioCard; readonly answer
   return (
     <View style={styles.body}>
       <Line name="ASSUMED" words={answer.assumption} tone="assumed" />
-      <Line name="CHANGED" words={card.changes.map((change) => change.statement).join('. ')} tone="changed" />
-      {card.kept.length === 0 ? null : (
-        <Line name="KEPT" words={card.kept.map((kept) => kept.statement).join('. ')} tone="kept" />
-      )}
+      <Line name="CHANGED" words={statementsInWords(card.changes)} tone="changed" />
+      {card.kept.length === 0 ? null : <Line name="KEPT" words={statementsInWords(card.kept)} tone="kept" />}
       <Text variant="bodyS" color={universe.ink} testID="what-if-answer">
         {answer.answer}
       </Text>

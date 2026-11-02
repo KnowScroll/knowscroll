@@ -273,7 +273,7 @@ Status: **implemented**; runtime-verified on real PostgreSQL with labelled fixtu
   Keep position targets use a v2 Scroll's stop ids.
 - **Series total** (`readSeriesTotal`): the exposure context's `series.total` is the count of
   `series_units` of the series revision (D-130).
-- **Planned.** Snippet anchors for v2 passages (`snippet-anchors.ts` is v1 only), the reader (S-1c).
+- **Snippet anchors for v2 (D-292).** A v2 Scroll has stops, not blocks. `snippet-anchors.ts` validates a snippet of one as a *moment*: exactly one whole read stop (`momentOf`, `anchorIsMoment` in scroll-model), in the v1 `scroll_passage` shape with the stop's id as the block, the whole text as the range and the hash of the words. A call stop, part of a stop, a changed hash and a block anchor are `invalid`. The quote is read from the exact revision and stored with the message. After a correction a moment is `changed` (no anchor map for stops). *Implemented; runtime-verified locally on real PostgreSQL, not yet on dev.*
 
 ## Discovery candidates and continuity
 

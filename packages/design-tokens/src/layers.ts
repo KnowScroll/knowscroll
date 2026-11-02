@@ -27,4 +27,11 @@ export const focusRing = {
 
 export type FocusTone = keyof typeof focusRing;
 
+/**
+ * Where cobalt alone cannot reach 3:1 (a dark or mid-tone ground such as a room's), the same ring is drawn between two bands of
+ * a halo, `extra` px wide, that does: white on a dark ground, black on a mid one. On paper the halo is not drawn.
+ */
+export const focusHalo = { light: '#FFFFFF', dark: '#000000', extra: 2 } as const;
+export type FocusHalo = 'light' | 'dark';
+
 export const highlightRing = { width: 3, color: '#FFE44D' } as const;

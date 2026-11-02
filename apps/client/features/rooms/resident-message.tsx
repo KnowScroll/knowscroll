@@ -10,6 +10,7 @@ import { content, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 import { AiLabel } from './ai-label';
 import { ResidentMark } from './identity/room-emblem';
+import { useGroundInk, useQuietButton } from './identity/room-ground';
 import { askedLine } from './ask-words';
 
 /** What an AI contribution is, in words: "A counterexample", never a score. */
@@ -61,32 +62,37 @@ export function ResidentHeader({
   /** "Sent by Asha": who a scout's note is signed by (D-259). A resident has none. */
   readonly signature?: string | undefined;
 }) {
+  // Straight on the room's ground (General) these lines take the kit's ink; on a plain page they keep paper's.
+  const ink = useGroundInk(content.ink);
+  const inkSoft = useGroundInk(content.ink2);
   return (
     <View style={styles.head} testID="resident-header">
       <View style={styles.line}>
         {kit === undefined || inhabitant === undefined ? null : (
           <ResidentMark kit={kit} resident={inhabitant} testID="resident-mark" />
         )}
-        <Text variant="ui">{name}</Text>
+        <Text variant="ui" color={ink}>
+          {name}
+        </Text>
         <AiLabel label={label} />
         {suggestion === undefined ? null : (
-          <Text variant="metaS" color={content.ink2}>
+          <Text variant="metaS" color={inkSoft}>
             {KIND_WORDS[suggestion]}
           </Text>
         )}
       </View>
       {signature === undefined ? null : (
-        <Text variant="metaS" testID="scout-signature">
+        <Text variant="metaS" color={ink} testID="scout-signature">
           {signature}
         </Text>
       )}
       {trigger === undefined ? null : (
-        <Text variant="metaS" color={content.ink2} testID="resident-why">
+        <Text variant="metaS" color={inkSoft} testID="resident-why">
           {WHY_WORDS[trigger]}
         </Text>
       )}
       {ask === undefined ? null : (
-        <Text variant="metaS" color={content.ink2} testID="resident-asked">
+        <Text variant="metaS" color={inkSoft} testID="resident-asked">
           {askedLine(ask, ownPersonId)}
         </Text>
       )}
@@ -98,12 +104,14 @@ export function ResidentHeader({
  * The one line a Quieter reader sees in place of a resident's unprompted message. The words are one tap away.
  */
 export function FoldedResident({ name, onShow }: { readonly name: string; readonly onShow: () => void }) {
+  const ink = useGroundInk(content.ink2);
+  const quiet = useQuietButton();
   return (
     <View style={styles.line} testID="resident-folded">
-      <Text variant="metaS" color={content.ink2}>
+      <Text variant="metaS" color={ink}>
         {name} added something.
       </Text>
-      <Button label="Show" size="sm" variant="ghost" onPress={onShow} testID="resident-show" />
+      <Button label="Show" size="sm" variant={quiet} onPress={onShow} testID="resident-show" />
     </View>
   );
 }

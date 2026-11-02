@@ -572,10 +572,10 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       expect(await counts()).toEqual(after);
       expect(await produceJobsFor(recipe)).toHaveLength(1);
 
-      // A draft is chosen once: another command on it is refused and orders nothing.
+      // A draft is chosen once: another command on it is refused (as stale, so the member is told) and orders nothing.
       expect(await choose(a, aRef, draftId, { kind: 'suggestion', optionId: 'o2' })).toEqual({
         kind: 'refused',
-        code: 'unavailable',
+        code: 'stale_revision',
       });
       expect(await counts()).toEqual(after);
       expect(unwrap(await readDraft(a, aRef, draftId))).toMatchObject({ status: 'chosen', nodeId: first.node.nodeId });
@@ -619,6 +619,20 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       // Ravi’s draft points at the shared branch; both see one card.
       expect(unwrap(await readDraft(b, bRef, forRavi))).toMatchObject({ status: 'chosen', nodeId: first.node.nodeId });
       expect(await cards(b, bRef)).toHaveLength(1);
+    });
+
+    it('tells the member their own draft timed out, and says nothing of anyone else’s', async () => {
+      const { a, b, aRef, bRef, root } = await begun();
+      const draftId = await drafted(a, aRef, root);
+      await database.db
+        .updateTable('scenarios.drafts')
+        .set({ created_at: new Date(Date.now() - 3 * 3_600_000), expires_at: new Date(Date.now() - 1000) })
+        .where('draft_id', '=', draftId)
+        .execute();
+      const before = await counts();
+      expect(await choose(a, aRef, draftId)).toEqual({ kind: 'refused', code: 'stale_revision' });
+      expect(await choose(b, bRef, draftId)).toEqual({ kind: 'refused', code: 'unavailable' });
+      expect(await counts()).toEqual(before);
     });
 
     it('refuses what the step rules refuse, another member’s draft and a stale parent, writing nothing', async () => {
