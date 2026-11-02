@@ -4330,3 +4330,57 @@ Confirmed by: `part-peek.test.tsx` (the tab, its name and its press), `e2e/scrol
 - **What the frames ask.** F12 and E3 draw the landmark standing on the planet, and a card "Earth & sky · Seasons / The Leaning Axis stands here now" after the landing.
 - **Why it waits.** The Universe files govern the map. D-214 already puts a landmark as a small pennant on the planet it belongs to, and keeps a waiting one in a tray. How it should look and where the landing card sits is a map decision. The Scroll slice does not change the map.
 - **Left for the owner.** Whether the pennant should become the frame's standing mark, and whether the landing card is wanted. Until then D-214 stands.
+
+## D-371 · 2026-11-02 · The limits callout of an ask answer is written by code, as one fixed line (v3 S-7h, #645)
+
+**Builds on** D-218, D-308 and D-310. **Amends** D-308 (the answer was a direct answer, at most two short sections and a limits callout the writer wrote) and the question writer's rule "End with the callout of kind limit".
+
+- **The gap.** On dev (2 Nov, `question-writer.v8`, `ask-support-check.v5`) three of the four failed asks ended `support_drop_no_limit_callout`: the check flagged the limits callout, the drop took it out, and the floor "the limits callout last" refused the answer (#645). The callout says what the answer cannot tell. No source can support a sentence about the answer's own limits, so asking it to pass the check asked for something that cannot be met. It was not a factual safeguard.
+- **The rule.** The trim of D-348 takes out every callout of kind `limit` the writer sent, wherever it stands and whatever it says, and puts one fixed callout last. Title: "Where this stops", the v3 design's word for the aside; the client draws its "Limits" label from the kind. Text: "This answer uses only what the library's sources say. It may not cover every case." The callout cites the passages the other blocks already cite, so it claims none the answer does not use. An answer whose blocks cite nothing gets none, and is refused for its length anyway.
+- **Honest.** The line claims nothing about the subject. It says the answer rests on the library's sources and may not cover every case, which is true of every ask answer.
+- **Not changed.** The what-if, the perspective and the library keep the limits callout the writer writes, and their instructions. The Quick answer and residents never had one.
+- **Limits.** A fixed line cannot say where this answer in particular stops. Where the passages do not give what was asked, the answer's own sentences must say so, and those are checked.
+
+Confirmed by: `ask-answer-limits.test.ts` (the title and line fit the callout schema; code's callout is told from a writer's by kind, title and text; every limits callout is taken out and one is put last, citing what the other blocks cite, at most twelve handles, none for an answer that cites nothing), `ask-answer-trim.test.ts` (a draft with no callout gets one; a callout the writer sent is replaced wherever it stands, one or several; its sentences take no part in the copied or leaning counts), `writer.test.ts` (the validator accepts a draft with no callout and judges nothing in a callout it replaces, not its words, a source name or a copied run; the answer compiles and is admitted with the line last) and `supply-ask.test.ts` on real PostgreSQL with a labelled fixture model (the stored document has exactly one limits callout, last, with the fixed title and line, whether the writer sent one or not). Shown failing when the writer's callout was kept and when the callout was put first.
+
+## D-372 · 2026-11-02 · The limits line code wrote has no sentence in the check and counts in no floor (v3 S-7h, #645)
+
+**Builds on** D-356. **Amends** D-308 and D-310 (the callout text counted among the sentences of reading text, and was checked like any sentence).
+
+- **The rule.** `placedSentencesOfAnswer` leaves out a callout that is exactly code's: kind `limit`, the fixed title, the fixed text. So the line is never shown to the support check, never given a verdict, never in a batch, and never among the 5 to 20 sentences of reading text or the five supported sentences. The drop cannot take it out, because it has no sentence to flag.
+- **How it is told.** By exact kind, title and text, as the dek of D-356 is told by its exact text. A callout of the writer's own, even of the same kind, or with the same words under another kind, is a statement like any other and is checked and counted.
+- **Why.** The line states nothing about the subject and nothing checked it. If it counted, it could fill a floor of five with a sentence no passage supports.
+- **Limits.** A writer that sent exactly the fixed line would lose one counted sentence. It was never shown the line.
+
+Confirmed by: `ask-support.test.ts` (the sentences the check reads have no number for the line, it is not in what the checker is sent, and the same words under another kind of callout are shown), `ask-answer-shape.test.ts` (it is not counted, an answer needs five sentences of its own beside it, and a callout of the writer's own still counts), `ask-support-drop.test.ts` (it does not count among the five, whatever else is flagged) and `supply-ask.test.ts` on real PostgreSQL (a checker that flags every sentence of a limits callout it is shown no longer fails an ask, because it is never shown one; no support request holds a word of the line; a draft of four sentences of its own is refused although the writer sent a callout). Shown failing when the line was shown to the check (seven unit tests, four integration tests).
+
+## D-373 · 2026-11-02 · The drop's floor "the limits callout last" is "code placed its callout last" (v3 S-7h, #645)
+
+**Builds on** D-310 and D-371. **Amends** D-310 (`no_limit_callout`: the limits callout did not survive).
+
+- **The rule.** `dropFlagged` refuses `no_limit_callout` unless the last block of what is left is the callout code wrote. The check cannot cause that any more: the line has no sentence to flag, so the drop never takes it out. The refusal stays as a guard for an answer code did not prepare (no callout, one of the writer's own, one that is not last), so a bug shows as a named refusal and not as an unchecked sentence served.
+- **Every other floor holds.** The direct answer keeps a supported sentence, at least five sentences of reading text are supported, and what is left reads back as exactly the sentences that were kept. Nothing unchecked or unsupported is served apart from the fixed line and the code-made title and dek.
+- **No loosening after this.** This removes one refusal that could not be met. It does not change the direct answer, the five or the read-back.
+
+Confirmed by: `ask-support-drop.test.ts` (an answer ending in a callout of the writer's, in no callout, or in code's callout with a block after it is refused `no_limit_callout`; code's callout is served as it is, last, whatever else is taken out; the direct answer, the five and the read-back are refused as before) and `supply-ask.test.ts` (an answer whose direct answer is flagged, with every callout sentence flagged too, still ends `support_drop_no_direct_answer`). Shown failing when the floor accepted a callout of the writer's, and when the direct answer floor was removed.
+
+## D-374 · 2026-11-02 · The question writer v9 is told not to write the limits callout, and is paired with the unchanged checker v5 (v3 S-7h, #645)
+
+**Builds on** D-355. **Amends** D-355 (`question-writer.v8`).
+
+- **The instructions.** The last rule becomes "Do not write a callout of kind limit... Code puts one fixed line of its own at the end and replaces any such callout you write. Say plainly, inside the answer, what the passages do not cover where that matters to the question." The shape rule drops "and the closing callout" and says to ignore the library's instruction to end with a callout. The length hint says code adds the closing line. The revision is told the draft it sees has a callout that code wrote and is not to be written again. The one finding left for a missing callout (no block cites a passage) has a hint that asks for cited paragraphs.
+- **A callout the writer still sends** is replaced, not refused and not repaired, and nothing in it is judged (not its words, a source name or a copied run), since none of it is served.
+- **The pair.** `question-writer.v9` with `ask-support-check.v5`, whose text is unchanged. `versions.test.ts` holds the pair.
+- **Not changed.** `SCROLL_PRODUCTION_VERSION`, `REQUEST_BOUND_ASK_ORDER` (14), `PRODUCE_ANSWER_CLAIM_SECONDS` (4,660 s) and the what-if, perspective and library instructions and versions. The trim adds no request. No migration.
+
+Confirmed by: `versions.test.ts` (the pair), `writer.test.ts` (the instructions tell the writer not to write one and no longer tell it to end with one, the what-if and perspective still do; the hint for the one remaining finding; the library's own `plain` format keeps its hint) and `ask-support.test.ts` (the revision's reminder). Shown failing when the old rule was put back.
+
+## D-375 · 2026-11-02 · The job and the replay count the limits callouts code replaced, as a number (v3 S-7h, #645)
+
+**Builds on** D-354 and D-371.
+
+- **What is recorded.** The `answer_trimmed` receipt adds `limitsReplaced`: how many limits callouts the writer sent that code replaced. A writer that sent none leaves no receipt of its own for this. The receipt holds the number and never a word of the callout, so the job still outlives an erasure of the question.
+- **The replay.** `content ask-check` prints `limitsReplaced` on the line of an answer whose served draft had one replaced, and omits it otherwise. It replays the stored answer, which holds code's line, and that line is not sent to the checker. An answer stored before this change still has the writer's callout in it, and the replay sends it, as it was served.
+- **Why.** After v9 it shows whether the writer still writes the callout, without reading any answer.
+
+Confirmed by: `ask-answer-trim.test.ts` (the count; none for a callout equal to code's), `supply-ask.test.ts` (the receipt of a draft whose callout was replaced holds `limitsReplaced: 1` and no word of it; no receipt when the writer sent none) and `ask-support-replay.test.ts` (the count on the line; none on an answer written without one; the replay never sends the line). Shown failing when the count was not written.
