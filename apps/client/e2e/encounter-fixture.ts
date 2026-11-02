@@ -61,6 +61,9 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       : [{ kind: other, status: 'unavailable' }];
   let current = 0;
   let intentRevision = 1;
+  /** The Part each entry is, once a series step has been taken to it (the first is Part 1). */
+  const partOf = new Map<number, number>();
+  const partAt = (n: number) => partOf.get(n) ?? 1;
   let saved = true;
   const commands: { path: string; body: Record<string, unknown> }[] = [];
   /** Every observation event the page sent, in order. */
@@ -153,7 +156,10 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       summary: 'HTTP fixture only',
       language: 'en',
     },
-    relation: { kind: 'discovery' },
+    relation:
+      partAt(n) > 1
+        ? { kind: 'series_step', seriesId: 'ci-series', seriesRevision: 1, part: partAt(n) }
+        : { kind: 'discovery' },
     variants: variantsOf(n),
   });
   const directContext = (
@@ -386,8 +392,16 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
     if (path === '/v1/experience/open' || path === '/v1/experience/navigate') {
       commands.push({ path, body });
       if (path.endsWith('/navigate')) {
-        current += 1;
+        const intent = body.intent as { mode?: string; direction?: string } | undefined;
+        const before = current;
+        current =
+          series && intent?.mode === 'series' && intent.direction === 'previous'
+            ? Math.max(0, current - 1)
+            : current + 1;
         intentRevision += 1;
+        // A series step to the next Part names its Part (the way the server's offer does); anything else is a new subject.
+        if (series && intent?.mode === 'series' && intent.direction !== 'previous')
+          partOf.set(current, partAt(before) + 1);
       }
       await route.fulfill({
         json: {
@@ -436,10 +450,19 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
         revision: intentRevision,
         session: { sessionId: id(3), intentRevision },
         actions: { saved: false, liked: false, hidden: false },
-        ...(series ? { series: { seriesId: 'ci-series', seriesRevision: 1, part: 1, total: 2 } } : {}),
+        ...(series ? { series: { seriesId: 'ci-series', seriesRevision: 1, part: partAt(n), total: 2 } } : {}),
         variants: variantsOf(n),
         continuations: {
-          seriesPrevious: { status: 'unavailable', reason: 'series_boundary' },
+          seriesPrevious:
+            series && partAt(n) > 1
+              ? {
+                  status: 'ready',
+                  linkId: id(600 + n),
+                  target: { assetId: id(299 + n), assetRevision: document.revision },
+                  metadata: { kind, title: 'CI series part 1', summary: 'CI series link', language: 'en' },
+                  relation: { kind: 'series_step', seriesId: 'ci-series', seriesRevision: 1, part: partAt(n) - 1 },
+                }
+              : { status: 'unavailable', reason: 'series_boundary' },
           seriesNext: series
             ? {
                 status: 'ready',

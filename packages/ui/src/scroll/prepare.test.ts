@@ -107,6 +107,9 @@ describe('the renderer on the device', () => {
       'TILT_RANGE',
       'physicsAtTilt',
       'describeStageAtTilt',
+      // The recap picture's months and words (V3 F10): derived from the states a document already holds.
+      'recapMonths',
+      'describeStageRecap',
       // The other drawing kits' physics (D-194): the same derivations the text versions use, at one state, with no admission.
       'brightnessAt',
       'greenhouseParts',

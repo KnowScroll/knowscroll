@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { StyleSheet, View, type Animated, type LayoutChangeEvent } from 'react-native';
 import { layout, spacing } from '@knowscroll/design-tokens';
 import type { CallItStop, FinalCallStop, ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import type { CallState } from './call-state';
@@ -52,6 +52,8 @@ export interface StopListProps {
   readonly endSlot?: ReactNode;
   /** What the screen draws under a read stop's words: a Quick answer (V3 D2). Nothing for a call. */
   readonly stopFooter?: ((stopId: string) => ReactNode) | undefined;
+  /** How far a pull up from the end has got (0 to 1), for the meter of the end tray's handle. */
+  readonly pull?: Animated.Value | undefined;
   /** A footer was laid out under a stop: its section's index and its height with the section's bottom padding. */
   readonly onStopFooterLayout?: ((index: number, height: number) => void) | undefined;
 }
@@ -125,6 +127,7 @@ export function StopList(props: StopListProps) {
           onPlayFinal={props.onPlayFinal}
           onChallenge={props.onChallenge}
           endSlot={props.endSlot}
+          pull={props.pull}
         />
       </View>
     </>

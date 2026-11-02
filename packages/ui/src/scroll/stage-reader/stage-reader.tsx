@@ -8,8 +8,18 @@ import {
   type ReactNode,
   type Ref,
 } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
-import { borderWidth, content, spacing } from '@knowscroll/design-tokens';
+import {
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+  type ScrollViewInstance,
+} from 'react-native';
+import { borderWidth, content, motion, spacing } from '@knowscroll/design-tokens';
 import { AXIAL_TILT_DEGREES, callsOf, finalBonusReady, type ScrollDocumentV2 } from '../model';
 import { toggleSemantics } from '../../display/semantics';
 import { useDisplay } from '../../display/display';
@@ -18,8 +28,13 @@ import { Text } from '../../text/text';
 import { Stage } from '../stage';
 import type { FinalCallPlay } from './call-view';
 import type { NextPartPeek, SmallPrint } from './end-tray';
-import type { PartMove } from './part-gesture';
+import { PartBackTab, PartArrivalBar, type PartArrival } from './part-arrival';
+import { PartEdgePeek } from './part-edge-peek';
+import type { PartDrag, PartMove } from './part-gesture';
+import { partSwipeJustCommitted } from './part-handoff';
+import { PartPeekPanel } from './part-peek';
 import { PartSwipe } from './part-swipe';
+import { usePartPeek } from './use-part-peek';
 import { payoffOf } from './payoff';
 import { passageOf } from './passage';
 import { SelectionMenu } from './selection-menu';
@@ -73,6 +88,15 @@ export interface StageReaderProps {
   readonly nextPart?: NextPartPeek | undefined;
   /** Another angle on the same idea, offered at the end beside the next Part (D-184). */
   readonly related?: NextPartPeek | undefined;
+  /**
+   * The Part before, when one was admitted: the tab at the picture's left edge on the first stop, and the Part a swipe
+   * right brings in. The same move is `commands.previousPart`.
+   */
+  readonly previousPart?: NextPartPeek | undefined;
+  /** A note laid over the top of the picture and text, below the header however tall it is (the "Next topic" note, V3 G4). */
+  readonly topNote?: ReactNode;
+  /** Set when this reader was opened by a move to the next Part: says where the person's place in the one left went. */
+  readonly arrival?: PartArrival | undefined;
   readonly onDone?: (() => void) | undefined;
   /**
    * Play on this Scroll: what was locked, the sparks, and how to lock another (D-063). The app passes
@@ -138,13 +162,17 @@ export function StageReader({
   commands,
   nextPart,
   related,
+  previousPart,
+  arrival,
+  topNote,
   onDone,
   play: appPlay,
   endSlot,
   stopFooter,
 }: StageReaderProps) {
   const { reducedMotion, breakpoint } = useDisplay();
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const [pull] = useState(() => new Animated.Value(0));
   const dots = useMemo(() => spineOf(document), [document]);
   const calls = useMemo(() => callsOf(document), [document]);
   const scroller = useRef<ScrollViewInstance>(null);
@@ -154,8 +182,22 @@ export function StageReader({
     startAt: Math.max(0, indexOfStop(document.stops, initialStopId)),
     reducedMotion,
     onPullPastEnd: commands.nextTopic,
+    onPull: (progress) => pull.setValue(progress),
   });
   const { current, jump } = text;
+  const peek = usePartPeek({ next: nextPart ?? related, previous: previousPart, reducedMotion });
+  // A Part that opens from the one before slides in from the right, unless a swipe has just shown it coming in.
+  const [enter] = useState(
+    () => new Animated.Value(arrival !== undefined && !reducedMotion && !partSwipeJustCommitted() ? 1 : 0),
+  );
+  useEffect(() => {
+    Animated.timing(enter, {
+      toValue: 0,
+      duration: motion.thread.duration,
+      easing: Easing.bezier(...motion.thread.easing),
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, [enter]);
   const activeStopId = current < document.stops.length ? document.stops[current]?.id : undefined;
   const reading = useStopReading(observer, activeStopId, paused);
   const ownPlay = useLocalStagePlay(calls, document.landmark);
@@ -248,6 +290,18 @@ export function StageReader({
     const at = latestCommands.current;
     run(part === 'next-part' ? at.wayOn : part === 'previous-part' ? at.previousPart : at.nextTopic);
   }, []);
+  const { onDrag: showPart } = peek;
+  const onDrag = useCallback(
+    (drag: PartDrag) => {
+      if (drag.kind === 'pull') pull.setValue(drag.progress);
+      else {
+        if (drag.kind === 'end') pull.setValue(0);
+        showPart(drag);
+      }
+    },
+    [pull, showPart],
+  );
+  const peeked = peek.side === 'next' ? (nextPart ?? related) : previousPart;
   const onKey = (key: ReaderKey): boolean =>
     actOnKey(key, {
       stops: document.stops,
@@ -265,72 +319,98 @@ export function StageReader({
     });
 
   const wide = breakpoint === 'tablet' || breakpoint === 'desktop';
+  /** The reader is on the end tray: the picture becomes the recap and the next Part peeks in from the edge. */
+  const atEnd = current >= document.stops.length;
   const stopId = document.stops[Math.min(current, document.stops.length - 1)]?.id ?? '';
   return (
     <ReaderFocus onKey={onKey}>
       {header}
-      {document.stage === undefined ? null : (
-        <View>
-          <Stage
-            document={{ stops: document.stops, stage: document.stage }}
-            stopId={stopId}
-            reducedMotion={reducedMotion}
-            textVersion={textVersion}
-            tilt={tiltBound && activeStopId === finalCall?.id ? tilt : undefined}
-            height={stageHeightFor(windowHeight, wide)}
-          />
-          <TextVersionSwitch on={textVersion} onPress={() => setTextVersion((now) => !now)} />
-        </View>
-      )}
-      <View style={styles.body}>
-        <PartSwipe onMove={move}>
-          <ScrollView
-            ref={scroller}
-            testID="stop-scroller"
-            style={styles.scroller}
-            contentContainerStyle={styles.content}
-            {...text.scrollProps}
-          >
-            <StopList
-              document={document}
-              textVersion={textVersion}
-              dots={dots}
-              calls={calls}
-              sectionHeight={text.viewport > 0 ? Math.round(text.viewport * 0.8) : 320}
-              measureSection={text.measureSection}
-              stateOf={played.stateOf}
-              lockOf={(callId) => lockOf(play, callId)}
-              onRevealLayout={text.reportReveal}
-              paused={play.paused}
-              pick={played.pick}
-              lock={lockCall}
-              opened={opened}
-              onToggleAside={toggleAside}
-              final={final}
-              payoff={payoffOf(calls, play)}
-              smallPrint={smallPrint}
-              endSlot={endSlot}
-              stopFooter={stopFooter}
-              onStopFooterLayout={(index, height) => {
-                // A card that appears or grows under a stop is brought on screen, never scrolling the reader back up.
-                text.revealIn(index);
-                text.reportReveal(index, height);
-              }}
-              nextPart={nextPart}
-              related={related}
-              onDone={onDone}
-              onNextTopic={commands.nextTopic}
-              onUniverse={commands.universe}
-              onPlayFinal={
-                finalCall === undefined ? undefined : () => jump(indexOfStop(document.stops, finalCall.id), false)
-              }
-              onChallenge={commands.challenge}
-              simplerStops={simplerStops}
-              onToggleSimpler={toggleSimpler}
-            />
-          </ScrollView>
-        </PartSwipe>
-        <Spine dots={dots} current={current} onJump={(index) => jump(index, false)} />
+      <View style={styles.middle} onLayout={peek.onAreaLayout} testID="reader-middle">
+        <Animated.View
+          style={[
+            styles.slide,
+            { transform: [{ translateX: enter.interpolate({ inputRange: [0, 1], outputRange: [0, windowWidth] }) }] },
+          ]}
+        >
+          {document.stage === undefined ? null : (
+            <View>
+              <Stage
+                document={{ stops: document.stops, stage: document.stage }}
+                stopId={stopId}
+                reducedMotion={reducedMotion}
+                textVersion={textVersion}
+                tilt={tiltBound && activeStopId === finalCall?.id ? tilt : undefined}
+                recap={atEnd}
+                height={stageHeightFor(windowHeight, wide)}
+              />
+              <TextVersionSwitch on={textVersion} onPress={() => setTextVersion((now) => !now)} />
+            </View>
+          )}
+          <View style={styles.body}>
+            <PartSwipe onMove={move} onDrag={onDrag}>
+              <ScrollView
+                ref={scroller}
+                testID="stop-scroller"
+                style={styles.scroller}
+                contentContainerStyle={styles.content}
+                {...text.scrollProps}
+              >
+                <StopList
+                  document={document}
+                  textVersion={textVersion}
+                  dots={dots}
+                  calls={calls}
+                  sectionHeight={text.viewport > 0 ? Math.round(text.viewport * 0.8) : 320}
+                  measureSection={text.measureSection}
+                  stateOf={played.stateOf}
+                  lockOf={(callId) => lockOf(play, callId)}
+                  onRevealLayout={text.reportReveal}
+                  paused={play.paused}
+                  pick={played.pick}
+                  lock={lockCall}
+                  opened={opened}
+                  onToggleAside={toggleAside}
+                  final={final}
+                  payoff={payoffOf(calls, play)}
+                  smallPrint={smallPrint}
+                  endSlot={endSlot}
+                  pull={pull}
+                  stopFooter={stopFooter}
+                  onStopFooterLayout={(index, height) => {
+                    // A card that appears or grows under a stop is brought on screen, never scrolling the reader back up.
+                    text.revealIn(index);
+                    text.reportReveal(index, height);
+                  }}
+                  nextPart={nextPart}
+                  related={related}
+                  onDone={onDone}
+                  onNextTopic={commands.nextTopic}
+                  onUniverse={commands.universe}
+                  onPlayFinal={
+                    finalCall === undefined ? undefined : () => jump(indexOfStop(document.stops, finalCall.id), false)
+                  }
+                  onChallenge={commands.challenge}
+                  simplerStops={simplerStops}
+                  onToggleSimpler={toggleSimpler}
+                />
+              </ScrollView>
+            </PartSwipe>
+            <Spine dots={dots} current={current} onJump={(index) => jump(index, false)} />
+          </View>
+        </Animated.View>
+        {previousPart === undefined || current !== 0 ? null : <PartBackTab previous={previousPart} />}
+        {nextPart === undefined || !atEnd ? null : (
+          <PartEdgePeek peek={nextPart} top={stageHeightFor(windowHeight, wide) * 0.3} />
+        )}
+        {arrival === undefined ? null : <PartArrivalBar arrival={arrival} />}
+        {topNote === undefined ? null : (
+          <View style={styles.topNote} pointerEvents="box-none">
+            {topNote}
+          </View>
+        )}
+        {peek.side === undefined || peeked === undefined ? null : (
+          <PartPeekPanel side={peek.side} peek={peeked} dx={peek.dx} width={peek.width} past={peek.past} />
+        )}
       </View>
       <SelectionMenu onSimpler={toggleSimpler} onAsk={commands.askAbout === undefined ? undefined : askAboutWords} />
       {dock}
@@ -356,6 +436,9 @@ function TextVersionSwitch({ on, onPress }: { readonly on: boolean; readonly onP
 }
 
 const styles = StyleSheet.create({
+  middle: { flex: 1, minHeight: 0, overflow: 'hidden' },
+  slide: { flex: 1, minHeight: 0 },
+  topNote: { position: 'absolute', top: spacing[2], left: spacing[4], right: spacing[4] },
   body: { flex: 1, minHeight: 0, flexDirection: 'row' },
   scroller: { flex: 1 },
   content: { paddingBottom: spacing[12] },

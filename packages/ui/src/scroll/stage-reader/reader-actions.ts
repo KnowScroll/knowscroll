@@ -17,6 +17,8 @@ export interface ReaderCommands {
   readonly shareMoment?: (() => void) | undefined;
   readonly smallPrint?: (() => void) | undefined;
   readonly report?: (() => void) | undefined;
+  /** Goes back to the Scroll a new topic left (V3 G4), while the note that offers it is showing. */
+  readonly undo?: (() => void) | undefined;
   /** Opens Ask from here anchored to a stop, with the passage the reader selected as the draft question (D-244). */
   readonly askAbout?: ((stopId: string, passage: string) => void) | undefined;
 }
@@ -81,6 +83,8 @@ export function actOnKey(key: ReaderKey, at: KeyTargets): boolean {
       return run(at.commands.smallPrint);
     case 'report':
       return run(at.commands.report);
+    case 'undo':
+      return run(at.commands.undo);
     case 'simpler':
       return stop?.kind === 'read' && at.toggleSimpler(stop.id);
     case 'text-version':

@@ -1,6 +1,6 @@
 import { useRef, type ReactNode } from 'react';
 import { scrolledToEnd } from './current-stop';
-import { partMoveOf, type PartMove } from './part-gesture';
+import { dragOf, partMoveOf, type PartDrag, type PartMove } from './part-gesture';
 
 /** A control that takes its own drag: a swipe that starts on one is the control's. */
 const OWN_DRAG = 'input,select,textarea,[role="slider"],[contenteditable="true"]';
@@ -25,6 +25,8 @@ interface Press {
   readonly x: number;
   readonly y: number;
   readonly atEnd: boolean;
+  /** The drag has been shown to the screen (`onDrag`), so a return to rest has to be shown too. */
+  shown: boolean;
 }
 
 /**
@@ -33,21 +35,42 @@ interface Press {
  * for a new topic; on a desktop every move is a button and a key. A finger is read from touch events
  * because `touch-action: pan-y` hands the vertical movement to the browser (which then cancels the
  * pointer) while a sideways swipe or a pull still reach us. One drag is one intent, decided at release
- * by `partMoveOf`.
+ * by `partMoveOf`; while it is under way `onDrag` says what it looks like so far (`dragOf`), for what the
+ * screen draws under the finger.
  */
 export function PartSwipe({
   children,
   onMove,
+  onDrag,
 }: {
   readonly children: ReactNode;
   readonly onMove: (move: PartMove) => void;
+  readonly onDrag?: ((drag: PartDrag) => void) | undefined;
 }) {
   const press = useRef<Press | undefined>(undefined);
   const begin = (x: number, y: number, target: EventTarget | null, surface: Element) => {
     press.current =
       target instanceof Element && target.closest(OWN_DRAG) !== null
         ? undefined
-        : { x, y, atEnd: textUnderFingerAtEnd(target, surface) };
+        : { x, y, atEnd: textUnderFingerAtEnd(target, surface), shown: false };
+  };
+  const follow = (x: number, y: number) => {
+    const from = press.current;
+    if (from === undefined || onDrag === undefined) return;
+    const drag = dragOf({ dx: x - from.x, dy: y - from.y, startedAtEnd: from.atEnd });
+    if (drag !== undefined) {
+      from.shown = true;
+      onDrag(drag);
+    } else if (from.shown) {
+      from.shown = false;
+      onDrag({ kind: 'part', dx: 0 });
+      onDrag({ kind: 'pull', progress: 0 });
+    }
+  };
+  /** A drag that stops being one finger (a second touch, a cancel) is over without a move: what was drawn for it is put away. */
+  const abandon = () => {
+    if (press.current?.shown === true) onDrag?.({ kind: 'end', move: undefined });
+    press.current = undefined;
   };
   const finish = (x: number, y: number) => {
     const from = press.current;
@@ -55,6 +78,7 @@ export function PartSwipe({
     if (from === undefined) return;
     const move = partMoveOf({ dx: x - from.x, dy: y - from.y, startedAtEnd: from.atEnd });
     if (move !== undefined) onMove(move);
+    if (from.shown) onDrag?.({ kind: 'end', move });
   };
   return (
     <div
@@ -64,15 +88,18 @@ export function PartSwipe({
         const touch = event.touches[0];
         if (touch !== undefined && event.touches.length === 1)
           begin(touch.clientX, touch.clientY, event.target, event.currentTarget);
-        else press.current = undefined;
+        else abandon();
+      }}
+      onTouchMove={(event) => {
+        const touch = event.touches[0];
+        if (touch !== undefined && event.touches.length === 1) follow(touch.clientX, touch.clientY);
+        else abandon();
       }}
       onTouchEnd={(event) => {
         const touch = event.changedTouches[0];
         if (touch !== undefined) finish(touch.clientX, touch.clientY);
       }}
-      onTouchCancel={() => {
-        press.current = undefined;
-      }}
+      onTouchCancel={abandon}
     >
       {children}
     </div>

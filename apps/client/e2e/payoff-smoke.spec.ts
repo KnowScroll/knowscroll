@@ -133,7 +133,9 @@ for (const viewport of [phone, desktop]) {
     await expect(card).toHaveAttribute('data-ks-landmark-tier', 'gold');
     await expect(card).toContainText('Gold landmark');
     await expect(card).toContainText('The Leaning Axis');
-    await expect(page.getByTestId('part-peek')).toContainText('Part 2');
+    // The next Part peeks in from the picture's right edge, no longer a card in the tray (V3 F10).
+    await expect(page.getByTestId('part-edge-peek')).toContainText('PART 2');
+    await expect(page.getByTestId('part-peek')).toHaveCount(0);
     await shoot(page, `payoff-gold-${name}`);
     // The tray is longer than one screen on a phone: everything in it is reachable by scrolling it.
     await page.getByRole('button', { name: 'Small print', exact: true }).scrollIntoViewIfNeeded();
@@ -141,12 +143,10 @@ for (const viewport of [phone, desktop]) {
     await shoot(page, `payoff-gold-bottom-${name}`);
     await page.getByTestId('landmark-card').scrollIntoViewIfNeeded();
 
-    // "Done for today" is the same size as "Something new" and as heavy as Continue (a button of its own, not a link).
+    // "Done for today" is the same size as "Something new" (a button of its own, not a link).
     const done = await page.getByRole('button', { name: 'Done for today' }).boundingBox();
     const next = await page.getByRole('button', { name: 'Something new' }).boundingBox();
-    const keepGoing = await page.getByRole('button', { name: 'Continue Part 2' }).boundingBox();
     expect(done && next && done.height === next.height).toBe(true);
-    expect(done && keepGoing && done.height >= keepGoing.height - 4).toBe(true);
 
     expect(await audit(page)).toEqual([]);
   });
@@ -300,7 +300,9 @@ test('with reduced motion the payoff is drawn in its final state, and a screen r
   await lockFinal(page);
   await dot(page, 'The end of this Scroll').click();
   await expect(page.getByTestId('landmark-card')).toBeVisible();
-  // The text version describes the tilt that was left on the picture (the end shows the picture as it was built).
+  // At the end the picture is the recap of the journey (D-368), so its text version says that; the tilt belongs to the Final call's own stop.
   await page.getByRole('button', { name: 'Text version' }).click();
-  await expect(page.getByTestId('stage')).toContainText(/Earth’s axis is tilted by 23.4 degrees/);
+  await expect(page.getByTestId('stage')).toContainText(/The picture you built: Earth circles the Sun/);
+  await dot(page, 'Final call').click();
+  await expect(page.getByTestId('stage')).toContainText(/Earth’s axis is not tilted: it stands straight up/);
 });

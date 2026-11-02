@@ -4173,8 +4173,6 @@ Confirmed by: `friend-picker.test.tsx`.
 
 Confirmed by: `share-stop-sheet.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (the picture and the quote before any thread is chosen, with axe).
 
-
-
 ## D-341 · 2026-11-02 · The sky lists each star's moment, read for the reader from the act's own rows (v3 R-11, #631)
 
 **Amends** D-176 ("a star that is tapped names no person") and D-168 ("an author sees no mark and no count"), which R3 F4 and E5 draw otherwise. **Builds on** D-174, D-221 and R3 E5 ("How each star was earned").
@@ -4252,3 +4250,83 @@ Confirmed by: `rooms-flair.test.ts` ("a marked answer's +1 star": its place amon
 
 Confirmed by: `rooms/flair-wall.test.ts` (both walls, each shown to be able to fail), `write-boundary.test.ts`, `rooms-flair.test.ts` ("writes nothing to a person's own universe"). Shown failing when a file outside Rooms named a table of flair and when a flair file imported a personal module.
 
+## D-364 · 2026-11-02 · After a new topic lands on a Scroll, a note offers the Reel and Undo; the format still stays (v3 Scrolls fidelity, #497)
+
+**Amends** D-132 only in showing it: the format still stays the one the person is in, and now the card says so (V3 G4).
+
+- **When.** For a Scroll that a new topic (Next ↑, a pull past the end, N) landed on from another Scroll. Not for the first open, a Part, a related move, a format switch, a Back, or after a Reel.
+- **What it says.** "NEXT TOPIC · AS A SCROLL", the title, and what the document itself says about it (its kicker, its reading minutes and its calls: `measures.readingMinutes` and the call stops, so nothing is invented). Under it, a bar and "Seasons Part 1 is kept at 4 of 10": the Scroll just left and the stop it was on, which is true because the entry stays in the trail with its place.
+- **Two moves.** "Switch to Reel" (key F), only when the Reel of this topic is ready: it is the same move as the F key. "Undo" (key Esc) goes back to the Scroll that was left, as Back does. The Esc key does this only while the note is showing.
+- **Where.** Over the top of the reader, below its header however tall that is (at 320 px the header wraps, and the note never covers its controls).
+- **Keys.** Focus moves into the note when it appears, so F and Esc act at once, from the note itself; focus goes back to the reader when it goes.
+- **It goes by itself.** After nine seconds, or when either move is made, but not while it has focus or the pointer is over it (WCAG 2.2.1): its time starts again after. It is shown once per Scroll, even if the screen is drawn again. It asks for nothing and takes no reading time.
+- **Not built.** The slide up from below that the frame draws for the new topic: the new Scroll appears as before. Nor the same note for a Reel that a new topic lands on ("AS A REEL · Switch to Scroll"): the Reel surface has its own gesture stage and keys (D-246, Q16: nothing else in a Reel changes), so a note over the video is a design call for the owner, not a cheap mirror.
+
+Confirmed by: `format-note.test.tsx` (what the note says from two entries; no switch without a ready Reel; none for the first open, a Part, a related move, a format switch, a Reel left behind), `reader-keys.test.ts`, `e2e/scroll-motion-smoke.spec.ts` (Next ↑ shows it at 390 and 1440, Undo and Esc go back, a Part does not show it, axe).
+
+## D-365 · 2026-11-02 · The end of a Scroll has a pull handle whose meter fills with the pull (v3 Scrolls fidelity, #497)
+
+**Builds on** D-134 (the pull of 96 px from the end) and D-189.
+
+- **The handle.** At the foot of the end tray: "KEEP PULLING · NEXT TOPIC" and a meter. It is drawn only where a new topic can be asked for and a pull can fill it: on iOS (the scroll view's bounce, D-134) and on a touch screen on the web. On Android, where D-134 reads no overscroll, and on a mouse alone it is absent, because nothing there is pulled; "Something new" and N do the same.
+- **The meter.** It fills as the finger pulls up from the very end, full at the distance a release needs (96 px; on iOS the bounce's 72 px). It empties when the finger lets go or the pull turns back. It fills under reduced motion, because it is feedback and travels nowhere.
+- **Nothing else changes.** What a release does is D-134's rule, read by the same function. The handle is hidden from assistive technology.
+- **Not built.** The Universe and Next topic tiles of the frame: D-189 keeps every way on at one weight.
+
+Confirmed by: `part-gesture.test.ts` (the drag the meter shows is the one the release takes), `part-peek.test.tsx`, `e2e/scroll-motion-smoke.spec.ts` (the meter grows with a finger held 48 px and 80 px up, empties on a short pull, nothing moves).
+
+## D-366 · 2026-11-02 · The next Part comes in under the finger during a swipe, and a Part that opens slides in unless a swipe showed it (v3 Scrolls fidelity, #497)
+
+**Amends** D-134 ("The Part 2 entry animation ... not decided here").
+
+- **During the swipe.** A sideways finger drag of 12 px or more brings a panel in from the edge that Part waits at (the next from the right, the one before from the left), following the finger. It carries what is known before the Part opens: its label and title, never its text. A bar along its top fills as the drag goes on, with a notch at the distance a release needs: "KEEP GOING · PART 2", then "PAST THE NOTCH · LET GO TO CONTINUE". Only for a Part that was admitted.
+- **A second finger** ends the drag at once, with no move, and puts the panel away; the lifts that follow move nothing.
+- **After it.** A release that counts settles the panel over the area and holds it until the Part opens (put away after six seconds if none does). A release that does not count sends it back to its edge.
+- **A Part that opens by button, key or tab** slides in from the right (360 px, `motion.thread`). One that a swipe has just shown arriving does not slide a second time: the reader that is left notes the commit and the one that opens asks (a timestamp of eight seconds, which decides only whether to animate).
+- **Reduced motion.** No panel and no slide: a plain change, with the same bar and tab (D-367).
+- **Not built.** The frame's Cancel and Continue buttons under the drag: a finger cannot press them; the dock's Part 2 button and the → key are the equivalents.
+- **No decision moves.** The release is still `partMoveOf` (D-134); the panel is drawn for the eye alone and hidden from assistive technology.
+
+Confirmed by: `part-gesture.test.ts`, `part-peek.test.tsx`, `e2e/scroll-motion-smoke.spec.ts` (the panel follows a finger held 30 px and 110 px, a short drag puts it back, nothing before the first Part, reduced motion draws none, axe).
+
+## D-367 · 2026-11-02 · A Part that opens from the one before says its place there is kept, and has a tab back (v3 Scrolls fidelity, #497)
+
+**Amends** D-134 ("not decided here") with D-366.
+
+- **The bar.** "Part 2 · your place in Part 1 is kept" over the top of the text for four seconds, as a polite status. It is said once per step forward (Back, a tab return or an Undo that returns to the Part does not say it or slide it in again), and only when the Scroll opened by a step forward in its series from an earlier Part of the same series: in Explore from the trail; on `/scroll/<id>` from a note kept in memory by a step forward in a series (never a related move), held per account scope so that an account switch, a logout and a privacy reset leave none, kept a minute, matched to the series and taken once by the Scroll that opens (nothing goes in the address, so a link, a reload or a later visit says nothing).
+- **Why it is true.** The Part left stays in the trail with its stop (Back returns to it), and its resume place is kept for its address. The bar names no stop.
+- **The tab.** "← Part 1" at the left edge of the picture, on the first stop, whenever a Part before was admitted (not only on arrival). It is the visible form of swipe right and the ← key, and is named "Back to Part 1: its title".
+- **Fixture.** The e2e Explore fixture now names the Part of an entry reached by a series step and offers the Part before, as the server does.
+
+Confirmed by: `part-peek.test.tsx` (bar text and timeout, the tab and its name, shown only when there is something to say), `continuation-moves.test.ts` (the previous Part as a named move), `e2e/scroll-motion-smoke.spec.ts` (a swipe and the button open Part 2 with the bar and tab; the tab goes back to Part 1).
+
+## D-368 · 2026-11-02 · At the end of a Scroll the picture becomes the recap of the journey, where the kit can draw one (v3 Scrolls fidelity, #497)
+
+**Amends** D-189 ("The stage keeps its last picture").
+
+- **The recap.** When the reader is on the end tray, the pinned picture of the Earth & sky kit turns into the orbit seen from above with an Earth numbered at each month the orbit views of this Scroll stand at, in the order the Scroll shows them, each once (V3 F10, E1). It is made of the states the document already holds: no new text, no new figure, no model call.
+- **Where the words come from.** The picture is named, and its text version says, "The picture you built: Earth circles the Sun, seen from above, with Earth marked 1 in June, 2 in January and 3 in March, numbered in the order the Scroll shows them. The axis leans the same way in every one." The months and numbers come from the same function that draws them, so the words cannot disagree with the picture.
+- **When there is none.** With fewer than two places to number (a Scroll whose orbit views stand at one month, or none), there is no honest picture of a journey. The stage then keeps its last state, as D-189 said. The eight other kits have no recap yet: each keeps its last state, and "The picture you built" over the captions still means the stage as it ended.
+- **Inside the frame.** Every Earth and every number badge stays whole inside the 320 × 200 frame, for every month, and clear of the right 62 px where the next Part's tab sits at the narrowest phone (D-369). The geometry is one function, tested for all twelve months, so a wide screen cannot cut a badge.
+- **Moving.** Between the last state and the recap the picture tweens when both are orbit views, and cross-fades otherwise. Under reduced motion it cross-fades, as every stage change does. Going back up to a stop gives that stop's picture again.
+- **Not built.** Ray and the landmark flying to the Universe, which the frame draws on the recap: Ray is a guide of a stop, and the flight is the S-4 overlay (D-189).
+
+Confirmed by: `kit.test.ts` of scroll-model (`recapMonths` once each in order, none without orbit views; `describeStageRecap`), `earth-sky-scene.test.ts` (the numbered Earths, no recap under two places), `stage.test.tsx` (the stage becomes the recap with its words, and the text version), `e2e/scroll-ending-smoke.spec.ts` (three numbered Earths and the words at 390 × 844 and 1440 × 900, back to a stop's own picture, reduced motion, axe).
+
+## D-369 · 2026-11-02 · The next Part peeks in from the right edge of the picture at the end, and the tray's Part card is gone (v3 Scrolls fidelity, #497)
+
+**Amends** D-189 ("the peek at the next Part" as a card in the tray, at the weight of the other ways on).
+
+- **The peek.** A yellow tab on the right edge of the picture, "PART 2 →", drawn only when the reader is on the end tray and a next Part was admitted. It does what the dock's Part 2 button, the → key and a swipe left do, and is named "Continue Part 2" with the Part's title as its hint. A related move alone has no peek: it stays the dashed row in the tray.
+- **The tray.** Its Part card and its "Continue Part 2" button are gone. "Done for today" and "Something new" stay side by side at one size. The yellow of the continuation (D-006 b) now has one place at the end, the edge.
+- **It names the Part and nothing else.** The context carries no teaser (D-072), so the frame's cliffhanger text is not drawn.
+
+Confirmed by: `part-peek.test.tsx` (the tab, its name and its press), `e2e/scroll-ending-smoke.spec.ts` (it sits on the picture's right edge only at the end, opens Part 2, and the tray has no Part card), `e2e/payoff-smoke.spec.ts`, `e2e/reader-nav-smoke.spec.ts`.
+
+## D-370 · 2026-11-02 · The landmark standing on the planet map is an owner call, not built here (v3 Scrolls fidelity, #497)
+
+**Builds on** D-214.
+
+- **What the frames ask.** F12 and E3 draw the landmark standing on the planet, and a card "Earth & sky · Seasons / The Leaning Axis stands here now" after the landing.
+- **Why it waits.** The Universe files govern the map. D-214 already puts a landmark as a small pennant on the planet it belongs to, and keeps a waiting one in a tray. How it should look and where the landing card sits is a map decision. The Scroll slice does not change the map.
+- **Left for the owner.** Whether the pennant should become the frame's standing mark, and whether the landing card is wanted. Until then D-214 stands.

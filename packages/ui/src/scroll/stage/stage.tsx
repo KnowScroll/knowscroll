@@ -22,6 +22,11 @@ export interface StageProps {
    * state, moved between states as usual.
    */
   readonly tilt?: number | undefined;
+  /**
+   * The reader is at the end: a kit that can draw the picture of the whole journey shows it instead of the last state
+   * (V3 F10, "the picture you built"). A kit that cannot keeps its last state.
+   */
+  readonly recap?: boolean | undefined;
   readonly height: number;
 }
 
@@ -31,13 +36,26 @@ export interface StageProps {
  * screen reader hears exactly what the picture draws. The drawing is the kit's (the stage names which,
  * D-194); this component only picks the state for the current stop and moves between states.
  */
-export function Stage({ document, stopId, reducedMotion, textVersion = false, tilt, height }: StageProps) {
+export function Stage({
+  document,
+  stopId,
+  reducedMotion,
+  textVersion = false,
+  tilt,
+  recap = false,
+  height,
+}: StageProps) {
   const kitId = document.stage.kit;
   const kit = KIT_PICTURES[kitId];
   const entry = stageEntryAt(document.stage, document.stops, stopId);
+  const states = useMemo(() => document.stage.states.map((held) => held.state), [document.stage]);
+  const recapScene = useMemo(() => (recap ? kit.recap?.sceneOf(states) : undefined), [kit, recap, states]);
   const target = useMemo(
-    () => ({ key: `${kitId}/${entry.stop}`, kit: kitId, scene: kit.sceneOf(entry.state) }),
-    [entry, kit, kitId],
+    () =>
+      recapScene === undefined
+        ? { key: `${kitId}/${entry.stop}`, kit: kitId, scene: kit.sceneOf(entry.state) }
+        : { key: `${kitId}/recap`, kit: kitId, scene: recapScene },
+    [entry, kit, kitId, recapScene],
   );
   const { layers: moving, transition } = useStagePictures(target, reducedMotion, kit);
   // A turned axis is drawn at once, so the picture follows the slider under the finger; it needs no move between states.
@@ -46,13 +64,18 @@ export function Stage({ document, stopId, reducedMotion, textVersion = false, ti
     turning === undefined
       ? moving
       : [{ key: target.key, scene: turning.kit.sceneOf(entry.state, turning.tilt), opacity: 1 }];
-  const alt = turning === undefined ? entry.alt : turning.kit.describe(entry.state, turning.tilt);
+  const alt =
+    turning !== undefined
+      ? turning.kit.describe(entry.state, turning.tilt)
+      : recapScene !== undefined
+        ? (kit.recap?.describe(states) ?? entry.alt)
+        : entry.alt;
   return (
     <View
       testID="stage"
       style={[styles.frame, { height }]}
       {...dataSet({
-        ksStageState: entry.stop,
+        ksStageState: recapScene === undefined ? entry.stop : 'recap',
         ksStageTransition: transition,
         ...(turning === undefined ? {} : { ksStageTilt: String(turning.tilt) }),
       })}

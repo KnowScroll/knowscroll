@@ -10,6 +10,7 @@ import {
   Text,
   useDisplay,
   type NextPartPeek,
+  type PartArrival,
   type StageReaderHandle,
   type StageReaderView,
   type StageReadingObserver,
@@ -38,10 +39,14 @@ export interface StageMoves {
   /** Another angle on the idea. With no next Part it is the way on (the dock, the → key, a swipe left) (D-184). */
   readonly related?: NextPartPeek | undefined;
   readonly previousPart?: (() => void) | undefined;
+  /** The Part before as it is named and titled: the tab at the picture's left edge and what a swipe right brings in. */
+  readonly previous?: NextPartPeek | undefined;
   readonly ask?: (() => void) | undefined;
   /** The Reel/Scroll switch; `format` is the key that moves to the other format. */
   readonly formatSwitch?: ReactNode;
   readonly format?: (() => void) | undefined;
+  /** Goes back to the Scroll a new topic left; given only while the note that offers it is on screen (V3 G4). */
+  readonly undo?: (() => void) | undefined;
   readonly done?: (() => void) | undefined;
   /**
    * "Make it a full Scroll" under a Quick answer: opens Ask from here anchored to a stop, with the words the reader selected as
@@ -77,6 +82,8 @@ export function StageReaderSurface({
   moreBody,
   headerNote,
   endSlot,
+  arrival,
+  topNote,
   momentThread,
   topInset,
   bottomInset,
@@ -99,6 +106,10 @@ export function StageReaderSurface({
   readonly headerNote?: ReactNode;
   /** Drawn at the end of the Scroll, before the ways on (a thread's "I've finished this part"). */
   readonly endSlot?: ReactNode;
+  /** Set when this Scroll was opened by a move from the Part before: it comes in from the right and says the place there is kept. */
+  readonly arrival?: PartArrival | undefined;
+  /** A note over the top of the reader, below its header (Explore's "Next topic" note). */
+  readonly topNote?: ReactNode;
   /** The thread this Scroll is read in, so "Share a moment" sends into it; elsewhere the person chooses one of theirs. */
   readonly momentThread?: MomentThread | undefined;
   readonly topInset: number;
@@ -166,6 +177,9 @@ export function StageReaderSurface({
           onStopChange={onStopChange}
           nextPart={moves.nextPart}
           related={moves.related}
+          previousPart={moves.previous}
+          arrival={arrival}
+          topNote={topNote}
           onDone={moves.done}
           endSlot={endSlot}
           play={play}
@@ -181,6 +195,7 @@ export function StageReaderSurface({
             shareMoment: openMoment,
             smallPrint: limits === undefined ? undefined : () => setSmallPrintOpen(true),
             report: openReport,
+            undo: moves.undo,
             askAbout:
               quick === undefined ? undefined : (stopId, passage) => void quick.session.ask({ stopId, passage }),
           }}

@@ -70,6 +70,7 @@ export const KEYBOARD_MAP: readonly ShortcutGroup[] = [
       { keys: ['⇧S'], spoken: 'Shift and S', action: 'Say the stop on screen in plainer words, or undo it' },
       { keys: ['P'], spoken: 'P', action: 'Small print: where this stops working' },
       { keys: ['R'], spoken: 'R', action: 'Report something wrong here' },
+      { keys: ['Esc'], spoken: 'Escape', action: 'Undo the new topic, while its note says so' },
       { keys: ['1', '2', '3', '4'], spoken: 'Number keys one to four', action: 'Pick an option in a call' },
       { keys: ['Enter'], spoken: 'Enter', action: 'Lock in the pick in a call' },
     ],

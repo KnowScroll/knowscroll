@@ -34,3 +34,30 @@ export function partMoveOf({ dx, dy, startedAtEnd, startX, screenWidth }: DragEn
   if (startedAtEnd && dy <= -PULL_DISTANCE && Math.abs(dy) >= Math.abs(dx) * 1.5) return 'next-topic';
   return undefined;
 }
+
+/** A drag has to be this far along before it is shown: a nudge shows nothing (the first two thirds of `SWIPE_DISTANCE`). */
+export const DRAG_SHOWS_AT = 12;
+
+/**
+ * Where a drag stands while it is still under way, for what the screen draws under the finger. It is
+ * `partMoveOf`'s sibling: the same reading of "clearly sideways" and "a pull from the end", but asked
+ * at every move, not once at release. A `part` drag is the next Part when `dx` is negative, the one
+ * before when it is positive.
+ */
+export type PartDrag =
+  | { readonly kind: 'part'; readonly dx: number }
+  | { readonly kind: 'pull'; readonly progress: number }
+  /** The finger is up. `move` is what the release meant, so the screen can settle what it drew. */
+  | { readonly kind: 'end'; readonly move: PartMove | undefined };
+
+/** How far a pull from the end has got, from 0 to 1 (1 is the distance a release needs). */
+export function pullProgress(dy: number): number {
+  return Math.min(1, Math.max(0, -dy / PULL_DISTANCE));
+}
+
+/** What a drag in progress shows, or nothing for a nudge and for reading. */
+export function dragOf({ dx, dy, startedAtEnd }: DragEnd): Exclude<PartDrag, { kind: 'end' }> | undefined {
+  if (Math.abs(dx) >= Math.abs(dy) * 1.2 && Math.abs(dx) >= DRAG_SHOWS_AT) return { kind: 'part', dx };
+  if (startedAtEnd && dy < 0 && Math.abs(dy) >= Math.abs(dx) * 1.5) return { kind: 'pull', progress: pullProgress(dy) };
+  return undefined;
+}
