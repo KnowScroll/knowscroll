@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { content, spacing } from '@knowscroll/design-tokens';
-import { Button, useDisplay, type PartArrival, type StageReaderHandle } from '@knowscroll/ui';
+import { Button, useDisplay, type StageReaderHandle } from '@knowscroll/ui';
 import { StageReaderSurface } from '../scroll/stage-reader-surface';
 import { isStageScroll, type OpenedStageScroll } from '../scroll/scroll-session';
 import { continuationIntent } from './continuation-intent';
@@ -15,6 +15,7 @@ import { encounterOrigin } from './encounter-origin';
 import { EncounterOriginChip } from './encounter-origin-chip';
 import type { EncounterSession, EncounterState } from './encounter-session';
 import { EncounterFormatSwitch } from './encounter-top-bar';
+import { arrivalToSay, markArrivalSaid } from './part-arrival';
 import { formatNoteOf } from './format-note';
 import { FormatNoteCard } from './format-note-card';
 
@@ -26,21 +27,6 @@ export type StageEntry = Extract<EncounterEntry, { kind: 'scroll' }> & { readonl
 /** Whether a Scroll entry holds a v2 document. The entry itself is kept: the session tracks entries by identity. */
 export function isStageEntry(entry: Extract<EncounterEntry, { kind: 'scroll' }>): entry is StageEntry {
   return isStageScroll(entry.scroll);
-}
-
-/**
- * Whether this Scroll was opened by a move forward in its series: the Scroll before it in the trail is the same
- * series' earlier Part. Only then does the reader say "Part 2 · your place in Part 1 is kept" (V3 G2), which is
- * true because that entry is kept in the trail with its place (Back, and the tab, return to it).
- */
-export function partArrival(trail: readonly EncounterEntry[], entry: StageEntry): PartArrival | undefined {
-  const before = trail.at(-2);
-  const now = entry.context.series;
-  const left = before?.context.series;
-  if (trail.at(-1) !== entry || entry.offer.relation.kind !== 'series_step') return undefined;
-  if (before?.kind !== 'scroll' || now === undefined || left === undefined) return undefined;
-  if (now.seriesId !== left.seriesId || now.part <= left.part) return undefined;
-  return { part: `Part ${String(now.part)}`, from: `Part ${String(left.part)}` };
 }
 
 /**
@@ -79,6 +65,11 @@ export function StageEncounter({
   const switchToReel = () =>
     reel?.status === 'ready' ? session.navigate({ mode: 'variant', to: 'reel' }) : session.openRequest('reel');
   // "Next topic · as a Scroll" (V3 G4): once, for the Scroll a new topic just landed on.
+  // "Part 2 · your place in Part 1 is kept" and the slide in are for the step forward, once: not for a Back or an Undo that returns here.
+  const [arrival] = useState(() => arrivalToSay(state.trail, entry));
+  useEffect(() => {
+    markArrivalSaid(entry);
+  }, [entry]);
   const [note, setNote] = useState(() => (noted.has(entry) ? undefined : formatNoteOf(state.trail, entry)));
   useEffect(() => {
     noted.add(entry);
@@ -111,7 +102,7 @@ export function StageEncounter({
         paused={!playable}
         initialStopId={entry.position?.kind === 'scroll' ? entry.position.value.blockId : undefined}
         handleRef={reader}
-        arrival={partArrival(state.trail, entry)}
+        arrival={arrival}
         partLabel={series === undefined ? undefined : `Part ${String(series.part)} of ${String(series.total)}`}
         moves={{
           universe: () => router.navigate('/universe'),
