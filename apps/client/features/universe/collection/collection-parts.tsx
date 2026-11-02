@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { radius, space, spacing } from '@knowscroll/design-tokens';
 import { Button, Icon, IconButton, Text, useDisplay, useFocusRing } from '@knowscroll/ui';
 import { PlaceRow, RowGroup, SIMPLE } from '../simple/place-rows';
-import type { CollectionView, LandmarkRow } from './collection-view';
+import { isNewLandmark, type CollectionView, type LandmarkRow } from './collection-view';
 import type { ResumeOffer } from '@knowscroll/client-core';
 
 /** The one gentle line under the Orbit (V3 design, p9): nothing the person owns depends on the week. */
@@ -32,6 +32,9 @@ export function cardSubjectOf(view: CollectionView): CardSubject | undefined {
   if (view.resume) return 'resume';
   return view.orbitText ? 'week' : undefined;
 }
+
+/** "New landmark" while the newest landmark is recent, "Latest landmark" after. */
+const landmarkHeading = (row: LandmarkRow) => (isNewLandmark(row) ? 'New landmark' : 'Latest landmark');
 
 /** "from Seasons · gold finish": where the newest landmark stands, or that it waits for its planet. */
 function fromLine(row: LandmarkRow): string {
@@ -104,7 +107,7 @@ function OpenLandmark({
   const resumeNow = useResume(view);
   const [newest] = view.rows;
   const { resume, orbitText } = view;
-  const heading = subject === 'landmark' ? 'New landmark' : subject === 'resume' ? 'Next part' : 'This week';
+  const heading = subject === 'landmark' ? landmarkHeading(newest!) : subject === 'resume' ? 'Next part' : 'This week';
   const title = newest && subject === 'landmark' ? newest.name : subject === 'resume' ? resume!.title : orbitText!;
   const line =
     newest && subject === 'landmark'
@@ -136,9 +139,10 @@ function OpenLandmark({
             </Text>
           ) : null}
         </View>
-        {subject === 'landmark' || subject === 'week' ? (
-          <Button label="See it" variant="ink" size="sm" accessibilityLabel="See your landmarks" onPress={onSee} />
-        ) : resumeNow ? (
+        {subject === 'landmark' ? (
+          // The name holds the visible words (WCAG 2.5.3) and says what opens.
+          <Button label="See it" variant="ink" size="sm" accessibilityLabel="See it, your landmarks" onPress={onSee} />
+        ) : subject === 'resume' && resumeNow ? (
           <Button
             label="Resume"
             variant="ink"
@@ -183,7 +187,7 @@ function FoldedLandmark({
   const resuming = subject === 'resume' && resumeNow !== undefined;
   const text =
     subject === 'landmark'
-      ? `New landmark · ${newest!.name}`
+      ? `${landmarkHeading(newest!)} · ${newest!.name}`
       : subject === 'resume'
         ? resumeLabel(resume!.part, resume!.total)
         : orbitText!;
@@ -191,7 +195,9 @@ function FoldedLandmark({
     <Pressable
       testID="universe-landmark-chip"
       accessibilityRole="button"
-      accessibilityLabel={resuming ? `${text}: ${resume!.title}` : `${text}. See your landmarks`}
+      accessibilityLabel={
+        resuming ? `${text}: ${resume!.title}` : subject === 'landmark' ? `${text}. See your landmarks` : text
+      }
       onPress={resuming ? resumeNow : onSee}
       {...focus.props}
       style={[styles.chip, resuming ? styles.chipResume : null, focus.style]}

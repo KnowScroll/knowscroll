@@ -14,6 +14,8 @@ export interface LandmarkRow {
   readonly tier: 'gold' | 'plain';
   /** "Gold finish" or "Plain finish": a finish is a keepsake, never a score. */
   readonly finish: string;
+  /** When it was earned (an ISO time). */
+  readonly earnedAt: string;
   /** The planet it stands on, or undefined while it waits for that planet to form. */
   readonly planet: { readonly id: string; readonly name: string } | undefined;
 }
@@ -29,6 +31,15 @@ export interface CollectionView {
   /** "Orbit · 1 of 3 days this week", or nothing when there is nothing to say yet. */
   readonly orbitText: string | undefined;
   readonly resume: ResumeOffer | null;
+}
+
+/** How long a landmark is called new (the card says "Latest landmark" after). */
+export const NEW_LANDMARK_DAYS = 7;
+
+/** Whether a landmark was earned within {@link NEW_LANDMARK_DAYS} of `now`. A time that cannot be read counts as not new. */
+export function isNewLandmark(row: Pick<LandmarkRow, 'earnedAt'>, now: number = Date.now()): boolean {
+  const earned = Date.parse(row.earnedAt);
+  return Number.isFinite(earned) && now - earned <= NEW_LANDMARK_DAYS * 86_400_000;
 }
 
 const idOf = (landmark: CollectionLandmark) => `${landmark.assetId}:${String(landmark.revision)}`;
@@ -57,6 +68,7 @@ export function collectionViewOf(collection: Collection, index: UniverseIndex): 
     name: landmark.name,
     tier: landmark.tier,
     finish: landmark.tier === 'gold' ? 'Gold finish' : 'Plain finish',
+    earnedAt: landmark.earnedAt,
     planet: planetOf.get(idOf(landmark)),
   }));
   const orbit = collection.orbit;

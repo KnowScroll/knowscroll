@@ -59,7 +59,8 @@ const earned = (over: Record<string, unknown> = {}) => ({
   tier: 'gold',
   assetId: fixtureId(500),
   revision: 1,
-  earnedAt: '2026-11-02T10:00:00.000Z',
+  // Earned now: the card calls a landmark new for a week, so a fixed date would age out of this test.
+  earnedAt: new Date().toISOString(),
   topicId: 'earth.seasons',
   ...over,
 });
@@ -96,9 +97,9 @@ it('says a landmark is new while its planet has not formed, with the Orbit as te
   expect(screen.getByText('The Leaning Axis')).toBeOnTheScreen();
   expect(screen.getByText('Gold finish · waits for its planet')).toBeOnTheScreen();
   expect(screen.getByTestId('universe-orbit')).toHaveTextContent('Orbit · 1 of 3 days this week');
-  // The map itself carries no chip of the collection (the Universe set draws none).
-  expect(screen.queryByTestId('universe-landmarks')).toBeNull();
-  await fireEvent.press(screen.getByRole('button', { name: 'See your landmarks' }));
+  // The map itself carries no chip of the collection (the Universe set draws none): the card is not folded here.
+  expect(screen.queryByTestId('universe-landmark-chip')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'See it, your landmarks' }));
   expect(await screen.findByTestId('universe-collection-sheet')).toBeOnTheScreen();
   expect(screen.getByText('Gold finish · Waiting for its planet')).toBeOnTheScreen();
   expect(
@@ -108,6 +109,26 @@ it('says a landmark is new while its planet has not formed, with the Orbit as te
   expect(h.calls.every(universeRead)).toBe(true);
   await act(() => h.scope.end());
   await v.unmount();
+});
+
+it('calls a landmark new for a week and the latest after, and has no See it on a week with no landmark', async () => {
+  const h = universeHarness();
+  h.world.collection.landmarks = [earned({ earnedAt: '2026-01-02T10:00:00.000Z' })];
+  const old = await open(h);
+  await waitFor(() => expect(screen.getByTestId('universe-landmark-card')).toBeOnTheScreen());
+  expect(screen.getByText('Latest landmark')).toBeOnTheScreen();
+  expect(screen.queryByText('New landmark')).toBeNull();
+  await act(() => h.scope.end());
+  await old.unmount();
+  // Only the week to say: the card has nothing to open, so it offers no button that promises landmarks.
+  const quiet = universeHarness();
+  quiet.world.collection.orbit = { days: 1, goal: 3, weekStart: '2026-11-02', closed: false };
+  const week = await open(quiet);
+  await waitFor(() => expect(screen.getByTestId('universe-landmark-card')).toBeOnTheScreen());
+  expect(screen.getByText('This week')).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: /landmarks/i })).toBeNull();
+  await act(() => quiet.scope.end());
+  await week.unmount();
 });
 
 it('stands the landmark on its planet once that planet has formed: nothing waits, and the globe paints it', async () => {
