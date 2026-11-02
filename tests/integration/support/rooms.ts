@@ -1,5 +1,6 @@
 /** Labelled fixtures for idea-room tests: the real use cases over the test database, no HTTP. */
 import { randomUUID } from 'node:crypto';
+import { ROOM_STARS_PER_DAY_DEFAULT } from '@knowscroll/contracts';
 import { sql, type Kysely } from 'kysely';
 import type { PgBoss } from 'pg-boss';
 import { expect } from 'vitest';
@@ -23,16 +24,20 @@ import {
   identityScopeOwnerProviders,
 } from '@knowscroll/backend/modules/identity/nest-providers';
 import type { CheckPersonalOwnerActive } from '@knowscroll/backend/modules/identity';
+import type { ReadGround } from '@knowscroll/backend/modules/rooms/nest-providers';
 import {
   castDueQueue,
   DEFAULT_CAST,
   castPassQueue,
   contributeQueue,
+  launchSettleQueue,
   libraryRoomSeeds,
+  SETTLE_LAUNCH,
   summariseQueue,
   type CastDueJob,
   type CastPassJob,
   type ContributeJob,
+  type LaunchSettleJob,
   type RoomSeed,
   type SummariseJob,
 } from '@knowscroll/backend/modules/rooms';
@@ -41,8 +46,10 @@ import {
   decideCast,
   roomUseCases,
   runCastPass,
+  roomsWorkerProviders,
   runSummarise,
   seedRooms,
+  settleLaunch,
   setRoomModerator,
 } from '@knowscroll/backend/modules/rooms/nest-providers';
 import {
@@ -53,6 +60,7 @@ import {
 import { makeCheckAssetAudience } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
 import type {
   ProductionReasoningHarness,
+  ProposeOutcome,
   RecordingReasoningHarness,
   WithProductionScope,
 } from '@knowscroll/backend/reasoning';
@@ -87,9 +95,15 @@ export interface RoomWorld {
   readonly castPasses: { readonly job: CastPassJob; readonly startAfter: Date | undefined }[];
   /** The model calls that write a window's "while you were away", as queued, in order. */
   readonly summaries: SummariseJob[];
+  /** The settlements of Launches, as queued (with when they were asked to run), in order. */
+  readonly launchSettles: { readonly job: LaunchSettleJob; readonly startAfter: Date | undefined }[];
   readonly boss: PgBoss;
   /** The worker's consumer over the recording-aware harness (a fixture model in tests). */
   contribute(harness: RecordingReasoningHarness): (job: ContributeJob, signal?: AbortSignal) => Promise<void>;
+  /** The worker's settlement of a Launch whose play time ended (no model, no harness). */
+  settle(): (job: LaunchSettleJob) => Promise<void>;
+  /** The same consumer built by the worker's provider from a worker configuration, to show the configuration reaches it. */
+  settleAsProvided(config: { readonly roomStarsPerDay: number }): (job: LaunchSettleJob) => Promise<void>;
   /** The worker's check of whether a resident answers a message (no model, no harness). */
   decide(): (job: CastDueJob) => Promise<void>;
   /** The worker's model call of an allowed unprompted turn, over a rooms-scope harness. */
@@ -105,7 +119,91 @@ export interface RoomWorld {
   close(): Promise<void>;
 }
 
+/** The roles of a room's support check (D-301): one for a member's ask, one for a resident speaking on its own. */
+const ASKED_CHECK_ROLE = 'rooms.inhabitant-support';
+const AMBIENT_CHECK_ROLE = 'rooms.ambient-support';
+
+/**
+ * CI FIXTURE: the passages every room test is offered unless it brings its own (`RoomWorldOptions.ground`). One invented
+ * passage, whatever the question is, so a test about a router cap or a keep-out choice has ground to stand on. It is not library
+ * text. The real choice of passages is tested in rooms-answer-support.test.ts over admitted CI Scrolls.
+ */
+export const ciGround: ReadGround = () =>
+  Promise.resolve([
+    {
+      handle: 'e1',
+      assetId: '00000000-0000-4000-8000-000000000620',
+      assetRevision: 1,
+      blockId: 's1',
+      text: 'CI fixture passage: serving a model batches requests together, which raises throughput but can add latency. A hundred requests a second is a CI figure.',
+    },
+  ]);
+
+/** A reply that finds every sentence listed in the checker's request supported. The quote is a placeholder: nothing reads it. */
+function everythingSupported<T>(context: {
+  readonly items: readonly { readonly ref: string; readonly text: string }[];
+}): ProposeOutcome<T> {
+  const lines = context.items.find((item) => item.ref === 'support:sentences')?.text.split('\n') ?? [];
+  const sentences = lines.map((line) => ({
+    number: (JSON.parse(line) as { n: number }).n,
+    verdict: 'supported',
+    quote: 'fixture',
+  }));
+  return {
+    kind: 'proposed',
+    output: { sentences } as T,
+    attemptId: randomUUID(),
+    usage: { inputTokens: null, outputTokens: null, reasoningTokens: null, cachedTokens: null },
+    repaired: false,
+    reconciled: false,
+  };
+}
+
+/**
+ * CI FIXTURE: a recording harness whose support check finds every sentence supported, without a model, a run or a ledger row. The
+ * writer's calls go through as they are. A room test that is about something other than the check (a cap, keep-out, a pause)
+ * uses it, so what it counts and what it scripts stay what they were; the check itself is tested with the real one.
+ */
+function clearingRecording(harness: RecordingReasoningHarness): RecordingReasoningHarness {
+  const fabricated = new Set<string>();
+  return {
+    ...harness,
+    proposePersonal: (input, signal) => {
+      if (input.role.id !== ASKED_CHECK_ROLE) return harness.proposePersonal(input, signal);
+      fabricated.add(input.run.id);
+      return Promise.resolve(everythingSupported(input.context));
+    },
+    closePersonalRun: (scope, run) =>
+      fabricated.has(run.runId) ? Promise.resolve('closed' as const) : harness.closePersonalRun(scope, run),
+  };
+}
+
+/** The same fixture for the room scope's harness: the checks of a resident speaking on its own. */
+function clearingProduction(harness: ProductionReasoningHarness): ProductionReasoningHarness {
+  const fabricated = new Set<string>();
+  return {
+    ...harness,
+    proposeProduction: (input, signal) => {
+      if (input.role.id !== AMBIENT_CHECK_ROLE) return harness.proposeProduction(input, signal);
+      fabricated.add(input.run.id);
+      return Promise.resolve(everythingSupported(input.context));
+    },
+    closeProductionRun: (scope, run) =>
+      fabricated.has(run.runId) ? Promise.resolve('closed' as const) : harness.closeProductionRun(scope, run),
+  };
+}
+
 export interface RoomWorldOptions {
+  /**
+   * The passages a resident may rest an answer on. Default: `ciGround`, one fixture passage for every question. A test of the
+   * choice and the check brings the real reader over admitted CI Scrolls.
+   */
+  readonly ground?: ReadGround;
+  /**
+   * Run the real support check over the harness the test gives (a fixture model plays the checker). Default: a fixture that
+   * finds every sentence supported, for tests that are about something else.
+   */
+  readonly realSupport?: boolean;
   /** Residents may speak unprompted (`KS_REASONING_ROOM_ENABLED`). Off by default, as in a world that has not turned them on. */
   readonly residentsEnabled?: boolean;
   /** Members may send scouts (`KS_ROOMS_SCOUTS_ENABLED`). Off by default, as in a world that has not turned them on. */
@@ -128,6 +226,7 @@ export async function roomWorld(
   const castChecks: RoomWorld['castChecks'] = [];
   const castPasses: RoomWorld['castPasses'] = [];
   const summaries: SummariseJob[] = [];
+  const launchSettles: RoomWorld['launchSettles'] = [];
   const enqueue: EnqueueJob = async (scope, queue, payload, enqueueOptions) => {
     if (queue.name === contributeQueue.name) queued.push(payload as ContributeJob);
     if (queue.name === castDueQueue.name)
@@ -135,7 +234,19 @@ export async function roomWorld(
     if (queue.name === castPassQueue.name)
       castPasses.push({ job: payload as CastPassJob, startAfter: enqueueOptions?.startAfter });
     if (queue.name === summariseQueue.name) summaries.push(payload as SummariseJob);
-    await forwarding(scope, queue, payload, enqueueOptions);
+    if (queue.name === launchSettleQueue.name)
+      launchSettles.push({ job: payload as LaunchSettleJob, startAfter: enqueueOptions?.startAfter });
+    // The queue refuses a start more than a day ahead of now: the same rule is held against the test clock, so a job queued too far
+    // ahead still fails here. The test clock itself runs ahead of the real one and nothing consumes these jobs, so a start that is
+    // valid by the test clock is forwarded as "now" to pass the real queue's check against the real time.
+    const startAfter = enqueueOptions?.startAfter;
+    if (startAfter !== undefined && startAfter.getTime() > clock.now.getTime() + 86_400_000)
+      throw new Error('JOB_START_AFTER_INVALID');
+    const forwarded =
+      startAfter !== undefined && startAfter.getTime() > Date.now()
+        ? { ...enqueueOptions, startAfter: new Date() }
+        : enqueueOptions;
+    await forwarding(scope, queue, payload, forwarded);
   };
   const access = accountAccessUseCases({ db: database.db, lockTimeoutMs: 10_000 });
   const deps = {
@@ -158,7 +269,7 @@ export async function roomWorld(
     now: () => clock.now,
     residentsEnabled: options.residentsEnabled ?? false,
     scoutsEnabled: options.scoutsEnabled ?? false,
-    ...(options.starsPerDay === undefined ? {} : { starsPerDay: options.starsPerDay }),
+    starsPerDay: options.starsPerDay ?? ROOM_STARS_PER_DAY_DEFAULT,
     ...(options.launchGapMinutes === undefined ? {} : { launchGapMinutes: options.launchGapMinutes }),
   };
   const ownerActive: CheckPersonalOwnerActive = identityScopeOwnerProviders()[0]!.useValue;
@@ -172,8 +283,38 @@ export async function roomWorld(
     queued,
     castChecks,
     castPasses,
+    launchSettles,
     summaries,
     boss,
+    settle() {
+      const run = settleLaunch({ ...deps, enqueue, ownerActive });
+      return (job) => run(job);
+    },
+    settleAsProvided(config) {
+      const provider = roomsWorkerProviders({
+        withPersonalScope: Symbol('withPersonalScope'),
+        workerConfig: Symbol('workerConfig'),
+        enqueueJob: Symbol('enqueueJob'),
+      }).find((entry) => entry.provide === SETTLE_LAUNCH)!;
+      // The arguments follow the provider's `inject` list: the use cases' own dependencies, then the queue and the config.
+      const make = provider.useFactory as unknown as (...args: unknown[]) => (job: LaunchSettleJob) => Promise<void>;
+      return make(
+        deps.withScope,
+        deps.fenceOwn,
+        deps.readPeople,
+        deps.readFriends,
+        deps.readContent,
+        deps.readSequence,
+        deps.readVisited,
+        deps.validateSnippet,
+        deps.resolveSnippet,
+        deps.checkAudience,
+        deps.readBlocked,
+        ownerActive,
+        enqueue,
+        { reasoning: { roomEnabled: false }, ...config },
+      );
+    },
     decide() {
       const decision = decideCast({ ...deps, enqueue, ownerActive, residentsEnabled: true });
       return (job) => decision(job);
@@ -182,7 +323,8 @@ export async function roomWorld(
       const consume = runCastPass({
         ...deps,
         enqueue,
-        harness,
+        harness: options.realSupport === true ? harness : clearingProduction(harness),
+        readGround: options.ground ?? ciGround,
         withRoomScope,
         ownerActive,
         model: 'fixture-model-v1',
@@ -205,7 +347,13 @@ export async function roomWorld(
       return (job, signal = new AbortController().signal) => consume(job, signal);
     },
     contribute(harness) {
-      const consume = contributeAsInhabitant({ ...deps, harness, ownerActive, model: 'fixture-model-v1' });
+      const consume = contributeAsInhabitant({
+        ...deps,
+        harness: options.realSupport === true ? harness : clearingRecording(harness),
+        readGround: options.ground ?? ciGround,
+        ownerActive,
+        model: 'fixture-model-v1',
+      });
       return (job, signal = new AbortController().signal) => consume(job, signal);
     },
     close: () => boss.stop({ graceful: false }),

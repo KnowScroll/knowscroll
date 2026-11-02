@@ -46,8 +46,8 @@ const viewerOf = (entered: EnteredRoom) => ({
 });
 
 /**
- * What people's votes made of a post, for its own page (D-273): only a discussion of the Feed (a find, a member's post or a resident's
- * introduction) has any. A member cannot vote on their own post, and nobody is told who voted.
+ * What people's votes made of a post, for its own page (D-273): only a find (a resident's, a scout's or a member's post) has any; a
+ * resident's introduction takes no votes (D-300). A member cannot vote on their own post, and nobody is told who voted.
  */
 async function postFigures(
   p: RoomPorts,
@@ -55,7 +55,7 @@ async function postFigures(
   discussion: DiscussionRow,
   readerAccountId: string,
 ): Promise<{ votes: number; youVoted: boolean; canVote: boolean } | undefined> {
-  if (discussion.kind !== 'find' && discussion.kind !== 'intro') return undefined;
+  if (discussion.kind !== 'find') return undefined;
   const { votes, voted } = await p.posts.voteView(lock, discussion.discussionId, readerAccountId);
   const own = discussion.personPost && discussion.startedByAccountId === readerAccountId;
   return { votes, youVoted: voted, canVote: !own };

@@ -20,6 +20,7 @@ import type { ActivityKind, ActivityState, StoredDefinition } from '../domain/ac
 import type { LaunchRow, ReadyDeck, StoredAnswer } from './launch-ports.js';
 import type { WatchSessionRow } from './watch-ports.js';
 import type { UnnoticedQuestion } from './question-ports.js';
+import type { AnswerSupportRecord } from '../domain/answer-support.js';
 import type { AskKind } from '../domain/asks.js';
 import type { CastMember } from '../domain/cast.js';
 import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
@@ -27,7 +28,7 @@ import type { AiLevel, EarlierPlace, JoinRule, RoomRole, RoomStatus } from '../d
 import type { CapCounts, RefusalCap } from '../domain/router.js';
 import type { StarAct } from '../domain/sky.js';
 import type { MessageTrigger, SpeechTrigger } from '../domain/triggers.js';
-import type { CastDueJob, CastPassJob, SummariseJob } from '../events.js';
+import type { CastDueJob, CastPassJob, LaunchSettleJob, SummariseJob } from '../events.js';
 import type { FindQuery, FindRow, LiveEventRow, MemoryStaleCause, MemoryView, ResidentFacts } from './feed-ports.js';
 import type { ScoutCadence } from '../domain/scout.js';
 
@@ -419,11 +420,19 @@ export type TurnTrigger = 'asked' | SpeechTrigger;
 
 export type TurnState = 'queued' | 'completed' | 'declined' | 'failed' | 'refused';
 
-/** An answer the model already gave and the room paid for, kept on its turn while posting is put off for someone typing. */
+/**
+ * An answer the model already gave, that passed its checks, and the room paid for, kept on its turn while posting is put off
+ * for someone typing. It is posted as it is; nothing is checked or asked again.
+ */
 export interface HeldAnswer {
   readonly kind: ContributionKind;
   readonly text: string;
   readonly attemptId: string;
+  /**
+   * How the answer came out (D-301). Every answer this code holds has it, and says it cleared. A held answer without it was held
+   * by a worker from before the check; it is never posted, because nothing is known about it (`cast-pass.ts`).
+   */
+  readonly support?: AnswerSupportRecord;
 }
 
 export interface AiTurnRow {
@@ -458,14 +467,23 @@ export interface AiProvenance {
   readonly attemptId: string | undefined;
 }
 
-/** The result of settling a queued turn. */
+/**
+ * The result of settling a queued turn. `support` is how the answer came out (D-301): kept with the turn, it holds IDs of public
+ * library passages and counts and never a word.
+ */
 export type TurnOutcome =
-  | { readonly state: 'declined' | 'failed'; readonly at: Date; readonly dispatched: boolean }
+  | {
+      readonly state: 'declined' | 'failed';
+      readonly at: Date;
+      readonly dispatched: boolean;
+      readonly support?: AnswerSupportRecord;
+    }
   | {
       readonly state: 'completed';
       readonly at: Date;
       readonly messageId: string;
       readonly provenance: AiProvenance;
+      readonly support?: AnswerSupportRecord;
     };
 
 /** An unprompted turn the router decided: allowed (queued for the worker) or refused (settled at once, posts nothing). */
@@ -1029,7 +1047,7 @@ export interface PostStore {
     link: { readonly kind: 'content'; readonly assetId: string } | { readonly kind: 'source'; readonly url: string },
   ): Promise<string | undefined>;
   /**
-   * A post that people may vote on: a find of this room whose first message is shown. Its author is the member who wrote it, or
+   * A post that people may vote on: a find of this room whose first message is shown (a resident's introduction takes no votes, D-300). Its author is the member who wrote it, or
    * none for a resident's or a scout's find.
    */
   votable(lock: RoomLock, discussionId: string): Promise<{ readonly authorAccountId: string | null } | undefined>;
@@ -1148,6 +1166,8 @@ export interface RoomPorts {
   /** The caller's own map, to place stations beside the systems it holds. */
   readonly readGeography: ReadGeographySceneInput;
   newId(): string;
+  /** A UUID derived from a name: the same name is the same ID, so a redelivered job names the same model runs again. */
+  readonly idFor: (name: string) => string;
   hash(operation: string, input: unknown): string;
   now(): Date;
   /** Queues the contribution job in the caller's open transaction. */
@@ -1165,6 +1185,8 @@ export interface RoomPorts {
   readonly launchGapMs: number;
   /** Queues the check that decides whether a resident answers a message, to run at `startAfter`. */
   enqueueCastDue(scope: PersonalScopeTx, job: CastDueJob, startAfter: Date): Promise<void>;
+  /** Queues the settlement of a Launch to run at `startAfter`, its end, in the caller's open transaction. */
+  enqueueLaunchSettle(scope: PersonalScopeTx, job: LaunchSettleJob, startAfter: Date): Promise<void>;
   /** Queues the model call of an allowed unprompted turn, now or at `startAfter`. */
   enqueueCastPass(scope: PersonalScopeTx, job: CastPassJob, startAfter?: Date): Promise<void>;
   /** Queues the model call that writes one window's "while you were away", in the caller's open transaction. */

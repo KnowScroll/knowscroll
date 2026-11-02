@@ -122,7 +122,7 @@ export function ResidentSheet({
               </Text>
               {profile?.lastAt === undefined ? null : (
                 <Text variant="monoXs" color={content.ink2} testID="resident-last">
-                  {`LAST ${timeOfDayWords(profile.lastAt)}`}
+                  {`LAST ${agoWords(now - new Date(profile.lastAt).getTime())}`}
                 </Text>
               )}
             </View>

@@ -1,5 +1,6 @@
 import { sql } from 'kysely';
 import { sharedTransactionOf, transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import { AnswerSupportRecordSchema, type AnswerSupportRecord } from '../domain/answer-support.js';
 import { QUEUED_ASK_LAPSES_MS } from '../domain/contribution.js';
 import type { CapCounts } from '../domain/router.js';
 import type { AiStore, AiTurnRow } from '../application/ports.js';
@@ -21,6 +22,7 @@ interface TurnColumns {
   attempt_id: string | null;
   held_kind: string | null;
   held_text: string | null;
+  answer_support: unknown;
 }
 
 /** The columns of a turn as `turnOf` reads them. */
@@ -38,7 +40,24 @@ const TURN_COLUMNS = [
   'attempt_id',
   'held_kind',
   'held_text',
+  'answer_support',
 ] as const;
+
+/** How a stored answer came out, read back through its schema; none for a row that has none or one that is not a record. */
+function supportOf(value: unknown): AnswerSupportRecord | undefined {
+  const parsed = AnswerSupportRecordSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/** The `support` property of a held answer, present only when the row has a record. */
+const supportField = (value: unknown): { readonly support?: AnswerSupportRecord } => {
+  const support = supportOf(value);
+  return support === undefined ? {} : { support };
+};
+
+/** What is written for a record: the JSON value of the column, or null. */
+const supportValue = (support: AnswerSupportRecord | undefined) =>
+  support === undefined ? null : JSON.stringify(support);
 
 /** The discussion of a turn an ask or the router made: every such turn has one. Finds and refreshes are never read here. */
 function discussionOf(row: TurnColumns): string {
@@ -60,7 +79,12 @@ const turnOf = (row: TurnColumns): AiTurnRow => ({
   held:
     row.held_kind === null || row.held_text === null || row.attempt_id === null
       ? null
-      : { kind: contributionKindOf(row.held_kind), text: row.held_text, attemptId: row.attempt_id },
+      : {
+          kind: contributionKindOf(row.held_kind),
+          text: row.held_text,
+          attemptId: row.attempt_id,
+          ...supportField(row.answer_support),
+        },
 });
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -197,6 +221,7 @@ export const aiStore: AiStore = {
           dispatched: true,
           held_kind: null,
           held_text: null,
+          answer_support: supportValue(outcome.support),
         })
         .execute();
       return;
@@ -209,6 +234,7 @@ export const aiStore: AiStore = {
         dispatched: sql<boolean>`dispatched or ${outcome.dispatched}`,
         held_kind: null,
         held_text: null,
+        answer_support: supportValue(outcome.support),
       })
       .execute();
   },
@@ -216,7 +242,13 @@ export const aiStore: AiStore = {
   async hold(lock, turnId, held) {
     await sharedTransactionOf(lock.shared)
       .updateTable('rooms.ai_turns')
-      .set({ held_kind: held.kind, held_text: held.text, attempt_id: held.attemptId, dispatched: true })
+      .set({
+        held_kind: held.kind,
+        held_text: held.text,
+        attempt_id: held.attemptId,
+        dispatched: true,
+        answer_support: supportValue(held.support),
+      })
       .where('turn_id', '=', turnId)
       .where('room_id', '=', lock.roomId)
       .where('state', '=', 'queued')
@@ -241,6 +273,7 @@ export const aiStore: AiStore = {
         'turn.attempt_id',
         'turn.held_kind',
         'turn.held_text',
+        'turn.answer_support',
       ])
       .where('turn.turn_id', '=', turnId)
       .where('turn.trigger', '=', 'asked')

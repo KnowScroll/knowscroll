@@ -1,4 +1,6 @@
+import { numericTokens } from '../../text.js';
 import { MAGNITUDES, type Magnitude } from '../../v2/blocks.js';
+import { unstatedSpelledFigures } from './spelled-figures.js';
 
 /**
  * How a passage writes one figure of a scale or a chart (D-208). A value is the figure as a passage writes
@@ -64,8 +66,16 @@ function readingAfter(text: string, end: number): Reading {
 
 interface Occurrence {
   readonly reading: Reading;
+  /** A minus sign stands before the figure ("-3.8", "−3.8"); a hyphen or dash between two figures is a range, not a sign. */
+  readonly negative: boolean;
   /** For one end of a range ("8 to 10 million"), the other end. The word after the range scales both ends. */
   readonly otherEnd?: string;
+}
+
+/** Whether a minus sign, and not a hyphen in a word or a dash in a range, stands just before the figure at `index`. */
+function isNegative(text: string, index: number): boolean {
+  if (!/[-\u2212\u2013]/u.test(text.charAt(index - 1))) return false;
+  return index < 2 || !/[\p{L}\p{N}]/u.test(text.charAt(index - 2));
 }
 
 /** Every way the cited passages write `figure`. */
@@ -75,22 +85,23 @@ export function readingsOf(figure: string, quotes: readonly string[]): readonly 
     for (const match of quote.matchAll(NUMBER)) {
       if (plainFigure(match[0]) !== figure) continue;
       const end = match.index + match[0].length;
+      const negative = isNegative(quote, match.index);
       // The "10" and the exponent of a power of ten are part of the scaled figure, never a figure of their own.
       const lead = quote.slice(0, match.index);
       if (
         POWER_BEFORE.test(lead) ||
         (figure === '10' && TEN_BEFORE.test(lead) && EXPONENT_AFTER.test(quote.slice(end)))
       ) {
-        found.push({ reading: 'unknown' });
+        found.push({ reading: 'unknown', negative });
         continue;
       }
       const next = RANGE_AFTER.exec(quote.slice(end));
       const before = RANGE_BEFORE.exec(quote.slice(0, match.index));
       if (next?.[1] !== undefined)
-        found.push({ reading: readingAfter(quote, end + next[0].length), otherEnd: plainFigure(next[1]) });
+        found.push({ reading: readingAfter(quote, end + next[0].length), otherEnd: plainFigure(next[1]), negative });
       else if (before?.[1] !== undefined)
-        found.push({ reading: readingAfter(quote, end), otherEnd: plainFigure(before[1]) });
-      else found.push({ reading: readingAfter(quote, end) });
+        found.push({ reading: readingAfter(quote, end), otherEnd: plainFigure(before[1]), negative });
+      else found.push({ reading: readingAfter(quote, end), negative });
     }
   return found;
 }
@@ -112,6 +123,46 @@ export function pointAgrees(
   const stated = (entry: Occurrence): boolean => entry.otherEnd === undefined || itemFigures.has(entry.otherEnd);
   const wanted: Reading = point.magnitude ?? 'bare';
   return readings.some((entry) => entry.reading === wanted && stated(entry));
+}
+
+/** Digits the matcher above does not read: fractions such as ½, superscripts and the digits of other scripts. */
+const OTHER_NUMERALS = /\p{N}/gu;
+const ASCII_DIGITS = /[0-9]/u;
+
+/**
+ * The figures of a text that the passages do not state the way the text writes them (D-208, D-302), in order and without
+ * repeats. This is the rule for a figure in prose, as `pointAgrees` is for a point of a scale or a chart: a figure is
+ * the number as a person reads it (thousands separators dropped, the decimal part kept, a minus sign kept: "-3.8" is not
+ * "3.8"), and it is stated when some passage writes that same figure the same way: with the same word after it
+ * ("1.25 million" is not "1.25"), the same other end of a range, or the same notation. A figure no passage holds is
+ * unstated, and so is one that the passages only ever write another way. A numeral the matcher cannot read is stated only when
+ * a passage holds it character for character, so it cannot slip past as a word.
+ *
+ * A number written in words is a figure too when it is a magnitude word (hundred to trillion: "a million") or number words
+ * with a unit ("one point two five million metres"): it is stated only when a passage holds the same words
+ * (`unstatedSpelledFigures`). "One clear example" and "two bulges" are words.
+ */
+export function unstatedFigures(text: string, passages: readonly string[]): readonly string[] {
+  const unstated = new Set<string>();
+  for (const match of text.matchAll(NUMBER)) {
+    const figure = plainFigure(match[0]);
+    const stated = readingsOf(figure, passages);
+    const unmatched = readingsOf(figure, [text]).filter(
+      (way) =>
+        !stated.some(
+          (entry) =>
+            entry.reading === way.reading && entry.otherEnd === way.otherEnd && entry.negative === way.negative,
+        ),
+    );
+    for (const way of unmatched) unstated.add(way.negative ? `-${figure}` : figure);
+  }
+  for (const [start, end] of numericTokens(text)) {
+    const token = text.slice(start, end);
+    for (const numeral of token.match(OTHER_NUMERALS) ?? [])
+      if (!ASCII_DIGITS.test(numeral) && !passages.some((passage) => passage.includes(numeral))) unstated.add(numeral);
+  }
+  for (const spelled of unstatedSpelledFigures(text, passages)) unstated.add(spelled);
+  return [...unstated];
 }
 
 /** The words of a unit that carry meaning: letters only, short joining words and plurals set aside. */

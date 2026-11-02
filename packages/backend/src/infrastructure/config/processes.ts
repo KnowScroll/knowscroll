@@ -1,3 +1,4 @@
+import { ROOM_STARS_PER_DAY_DEFAULT, ROOM_STARS_PER_DAY_MAX } from '@knowscroll/contracts';
 import { z } from 'zod';
 import {
   ConfigurationError,
@@ -168,6 +169,8 @@ export interface WorkerConfig extends ReleaseIdentity {
   readonly supplyQuickAnswerPersonDailyCap: number;
   /** The production scope generation the `content.produce-scroll` consumer works under. */
   readonly scrollProductionGeneration: number;
+  /** `KS_ROOMS_STARS_PER_DAY`, as the API reads it: the job that settles a Launch awards its star under the same cap (D-174, D-298). */
+  readonly roomStarsPerDay: number;
   readonly database: DatabaseSettings;
   readonly shutdownGraceMs: number;
   /** Personal-scope lock wait; always shorter than the statement timeout. */
@@ -368,7 +371,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP: supplyScenarioThreadCapVariable,
       KS_REASONING_ROOM_ENABLED: z.enum(['0', '1']).default('0'),
       KS_ROOMS_SCOUTS_ENABLED: z.enum(['0', '1']).default('0'),
-      KS_ROOMS_STARS_PER_DAY: positiveInteger(3, 50),
+      KS_ROOMS_STARS_PER_DAY: positiveInteger(ROOM_STARS_PER_DAY_DEFAULT, ROOM_STARS_PER_DAY_MAX),
       KS_ROOMS_LAUNCH_GAP_MINUTES: positiveInteger(120, 1440),
       KS_COMPOSER_POLICY: composerPolicyVariable,
     }),
@@ -790,6 +793,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         KS_SUPPLY_QUICK_ANSWER_DAILY_CAP: supplyQuickAnswerDailyCapVariable,
         KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP: supplyQuickAnswerPersonCapVariable,
         KS_SCROLL_PRODUCTION_GENERATION: positiveInteger(1, 2_147_483_647),
+        KS_ROOMS_STARS_PER_DAY: positiveInteger(ROOM_STARS_PER_DAY_DEFAULT, ROOM_STARS_PER_DAY_MAX),
         KS_DB_POOL_MAX: positiveInteger(5, 100),
         KS_SHUTDOWN_GRACE_SECONDS: positiveInteger(20, 300),
         KS_SCOPE_LOCK_TIMEOUT_MS: positiveInteger(5_000, 60_000),
@@ -806,6 +810,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         'KS_SUPPLY_QUICK_ANSWER_DAILY_CAP',
         'KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP',
         'KS_SCROLL_PRODUCTION_GENERATION',
+        'KS_ROOMS_STARS_PER_DAY',
         'DATABASE_URL',
         'KS_DB_STATEMENT_TIMEOUT_MS',
         'KS_DB_POOL_MAX',
@@ -834,6 +839,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     supplyQuickAnswerDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_QUICK_ANSWER_DAILY_CAP, release.world),
     supplyQuickAnswerPersonDailyCap: parsed.KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP,
     scrollProductionGeneration: parsed.KS_SCROLL_PRODUCTION_GENERATION,
+    roomStarsPerDay: parsed.KS_ROOMS_STARS_PER_DAY,
     database: databaseSettings(parsed, `knowscroll-worker-${release.world}`, parsed.KS_DB_POOL_MAX),
     shutdownGraceMs: parsed.KS_SHUTDOWN_GRACE_SECONDS * 1000,
     scopeLockTimeoutMs: parsed.KS_SCOPE_LOCK_TIMEOUT_MS,

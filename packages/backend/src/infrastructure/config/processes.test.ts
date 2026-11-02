@@ -279,6 +279,12 @@ describe('process configuration', () => {
     expect(api({ KS_ROOMS_STARS_PER_DAY: '12' }).roomStarsPerDay).toBe(12);
     for (const bad of ['0', '51', '2.5', 'many'])
       expect(configurationError(() => api({ KS_ROOMS_STARS_PER_DAY: bad })).problems).toHaveLength(1);
+    // The worker settles a finished Launch, so it reads the same cap (D-298).
+    const worker = (extra: Record<string, string>) =>
+      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', ...extra });
+    expect(worker({}).roomStarsPerDay).toBe(3);
+    expect(worker({ KS_ROOMS_STARS_PER_DAY: '12' }).roomStarsPerDay).toBe(12);
+    expect(configurationError(() => worker({ KS_ROOMS_STARS_PER_DAY: '51' })).problems).toHaveLength(1);
   });
 
   it('keeps half of every daily cap for roles a person asks for, and reads the share as whole percent', () => {

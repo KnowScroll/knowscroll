@@ -7,14 +7,20 @@ import { transactionOf } from '../../../infrastructure/postgres/personal-scope.j
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { NEUTRAL_POST_TITLE } from '../domain/posts.js';
 import { NEUTRAL_TOPIC_TITLE } from '../domain/titles.js';
-import { castDueQueue, castPassQueue, contributeQueue, summariseQueue } from '../events.js';
+import { castDueQueue, castPassQueue, contributeQueue, launchSettleQueue, summariseQueue } from '../events.js';
 import { staleMemoryOf } from './postgres-feed.js';
 
 /**
- * The queues whose payloads name a universe: the ask, the check whether a resident answers, the call it may lead to and the
- * call that writes a window's "while you were away".
+ * The queues whose payloads name a universe: the ask, the check whether a resident answers, the call it may lead to, the
+ * call that writes a window's "while you were away" and the settling of a Launch.
  */
-const QUEUES = [contributeQueue.name, castDueQueue.name, castPassQueue.name, summariseQueue.name];
+const QUEUES = [
+  contributeQueue.name,
+  castDueQueue.name,
+  castPassQueue.name,
+  summariseQueue.name,
+  launchSettleQueue.name,
+];
 
 /**
  * Every Rooms store is keyed by account, not universe: a room, its members and its discussions are
@@ -75,7 +81,7 @@ const LIFECYCLE = {
 /**
  * Ends the turns that are still queued and whose job is being erased with this universe: the asks of its account, and
  * the unprompted turns whose model call (`rooms.cast-pass`) was queued under its universe. Without this the row would stay
- * queued, keep a discussion looking busy for fifteen minutes and count toward the caps for a call nobody will make. A
+ * queued, keep a discussion looking busy until the ask lapses and count toward the caps for a call nobody will make. A
  * queued turn may already have its model call running, so it stays counted (`dispatched`): a Clear does not hand a turn
  * back. A held answer is dropped with it.
  */
@@ -152,6 +158,10 @@ export const roomsErasure: ModuleErasure = declareErasure({
     {
       name: `pgboss/${summariseQueue.name}`,
       description: "Queued, active, retained and dead-lettered model calls that write a window's summary (IDs).",
+    },
+    {
+      name: `pgboss/${launchSettleQueue.name}`,
+      description: 'Queued, active, retained and dead-lettered settlements of a Launch at its end (IDs).',
     },
   ],
   accountTables: [

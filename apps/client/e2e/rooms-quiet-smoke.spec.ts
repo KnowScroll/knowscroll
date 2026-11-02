@@ -160,6 +160,15 @@ for (const { name, size } of VIEWPORTS) {
     await page.getByTestId('question-text').fill('How do astronomers know how far away a star is?');
     await expect(page.getByRole('switch', { name: 'Ask Nova to answer now' })).toBeChecked();
     await expect(page.getByRole('switch', { name: 'Tell me when a person answers' })).toBeChecked();
+    // The whole row is the switch: its words toggle it, not only the track.
+    await page.getByText('Ask Nova to answer now').click();
+    await expect(page.getByRole('switch', { name: 'Ask Nova to answer now' })).not.toBeChecked();
+    await page.getByText(/People can still add more/).click();
+    await expect(page.getByRole('switch', { name: 'Ask Nova to answer now' })).toBeChecked();
+    await page.getByText('Tell me when a person answers').click();
+    await expect(page.getByRole('switch', { name: 'Tell me when a person answers' })).not.toBeChecked();
+    await page.getByText(/A resident’s answer never counts/).click();
+    await expect(page.getByRole('switch', { name: 'Tell me when a person answers' })).toBeChecked();
     await shoot(page, `${name}-7-leave-question`);
     expect(await seriousViolations(page)).toEqual([]);
     await page.getByTestId('question-submit').click();

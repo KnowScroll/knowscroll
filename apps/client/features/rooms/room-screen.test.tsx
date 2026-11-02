@@ -291,9 +291,11 @@ describe('a room’s optional activity (R03) on its page', () => {
 describe('a room in Talk', () => {
   it('words a joined room and an invitation without any count or activity, and opens the room', async () => {
     mockPush.mockClear();
-    expect(roomRowSubtitle({ room, standing: 'member' })).toBe('A room about machine learning');
+    expect(roomRowSubtitle({ room, standing: 'member' })).toBe('How computers learn patterns from data.');
     expect(roomRowSubtitle({ room, standing: 'invited' })).toBe('You’re invited to this room');
-    expect(roomRowSubtitle({ room: { ...room, status: 'paused' }, standing: 'moderator' })).toBe('A room · paused');
+    expect(roomRowSubtitle({ room: { ...room, status: 'paused' }, standing: 'moderator' })).toBe(
+      'Paused · How computers learn patterns from data.',
+    );
     await wrap(<RoomRow item={{ room, standing: 'invited' }} />);
     expect(screen.getByText('Invited')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId(`talk-room-${id(1)}`));

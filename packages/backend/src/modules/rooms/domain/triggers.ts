@@ -19,6 +19,9 @@ const wordCount = (text: string): number => text.split(/\s+/u).filter((word) => 
 const INTERROGATIVE =
   /^(?:who|whom|whose|what|when|where|which|why|how|is|are|was|were|do|does|did|can|could|would|should|will|has|have|had|isn't|aren't|doesn't|don't|didn't|can't|won't)\b/iu;
 
+/** Whether a text opens with an interrogative word ("why", "how", "can", "isn't"), whatever its length. */
+export const opensWithInterrogative = (text: string): boolean => INTERROGATIVE.test(text.trim());
+
 /**
  * Whether a message reads as a question to the room: it ends in a question mark (three words or more), or opens
  * with an interrogative word and runs to five words or more. A link or a pasted line of code is not a question.

@@ -328,22 +328,17 @@ describe('a Launch on the client', () => {
     });
   });
 
-  it('tells the server once that the Launch is over, and reads the podium again for its star', async () => {
-    let settled = false;
+  it('sends no command when it finds the Launch over, however often it is read (the server settles it by itself)', async () => {
     const scope = scopeOf({
-      launch: () => Promise.resolve(ready({ ...podium, star: settled })),
-      finishLaunch: () => {
-        settled = true;
-        return Promise.resolve({ outcome: 'accepted', launchId });
-      },
+      launch: () => Promise.resolve(ready({ ...podium, star: true })),
+      finishLaunch: () => Promise.resolve({ outcome: 'accepted', launchId }),
     });
     const controller = createRoomLaunch({ scope, roomId, newId, clock: () => 0 });
     await controller.load();
+    await controller.load();
+    await controller.load();
     expect(controller.getState().view?.launch).toMatchObject({ phase: 'finished', star: true });
-    await controller.load();
-    await controller.load();
-    expect(scope.calls.filter((call) => call.name === 'finishLaunch')).toHaveLength(1);
-    expect(scope.calls.find((call) => call.name === 'finishLaunch')?.input).not.toHaveProperty('recordingGeneration');
+    expect(scope.calls.map((call) => call.name)).toEqual(['launch', 'launch', 'launch']);
   });
 
   it('keeps what it had when a read cannot reach the server', async () => {
