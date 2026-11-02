@@ -46,7 +46,29 @@ const STALE =
   'This idea changed, was already used, or took too long (an idea is kept for two hours). Nothing was made. Close this and start again from the thread.';
 
 type Api = Record<string, (input: never) => Promise<unknown>>;
-function scopeOf(api: Api) {
+/** A recording setting as the sheet reads it: paused until `set(true)` is accepted. */
+function pausedRecording() {
+  let state = { status: 'current', policy: { on: false } };
+  const listeners = new Set<() => void>();
+  const set = jest.fn((on: boolean) => {
+    state = { status: 'current', policy: { on } };
+    for (const listener of [...listeners]) listener();
+    return Promise.resolve(true);
+  });
+  return {
+    set,
+    recording: {
+      getState: () => state,
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => void listeners.delete(listener);
+      },
+      set,
+    },
+  };
+}
+
+function scopeOf(api: Api, recording?: unknown) {
   const calls: { name: string; input: Record<string, unknown> }[] = [];
   const stored = new Map<string, string>();
   const wrapped = Object.fromEntries(
@@ -61,6 +83,7 @@ function scopeOf(api: Api) {
   const scope = {
     active: true,
     api: { scenarios: wrapped },
+    recording,
     storage: {
       get: (key: string) => stored.get(key),
       set: (key: string, value: string) => void stored.set(key, value),
@@ -72,9 +95,14 @@ function scopeOf(api: Api) {
 
 async function open(
   api: Api,
-  callbacks: { onClose?: () => void; onChosen?: (card: ScenarioCard) => void; start?: ScenarioStart } = {},
+  callbacks: {
+    onClose?: () => void;
+    onChosen?: (card: ScenarioCard) => void;
+    start?: ScenarioStart;
+    recording?: unknown;
+  } = {},
 ) {
-  const harness = scopeOf(api);
+  const harness = scopeOf(api, callbacks.recording);
   const onChosen = callbacks.onChosen ?? jest.fn();
   await render(
     <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
@@ -416,6 +444,33 @@ describe('the What if… sheet', () => {
     expect(await screen.findByText(/We couldn’t think of directions this time\./)).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Write my own version' }));
     expect(screen.getByLabelText('What changes 1')).toBeOnTheScreen();
+  });
+
+  it('says suggestions need recording on when it is paused, and Resume asks again with the same words', async () => {
+    const paused = pausedRecording();
+    let reads = 0;
+    const { calls } = await open(
+      {
+        draft: () => Promise.resolve({ draftId: id(7) }),
+        readDraft: () =>
+          Promise.resolve(
+            ++reads === 1
+              ? { status: 'failed', reason: 'recording_paused' }
+              : { status: 'ready', mode: 'options', options: [option, second] },
+          ),
+      },
+      { recording: paused.recording },
+    );
+    await ask();
+    expect(await screen.findByText('Recording is paused.')).toBeOnTheScreen();
+    expect(screen.getByText(/What-if suggestions need recording on\./)).toBeOnTheScreen();
+    expect(screen.queryByText(/We couldn’t think of directions/)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Resume and ask again' }));
+    expect(await screen.findByText(option.title)).toBeOnTheScreen();
+    expect(paused.set).toHaveBeenCalledWith(true);
+    const drafts = calls.filter((call) => call.name === 'draft');
+    expect(drafts).toHaveLength(2);
+    expect(drafts[1]?.input['text']).toBe('What if traffic increases tenfold?');
   });
 
   it('says when today’s What-ifs are used up and when they come back', async () => {

@@ -156,8 +156,10 @@ describe('what a draft and a branch show', () => {
     expect(ScenarioOptionSchema.safeParse({ ...option, changes: [{ ...traffic, replaces: 'T' }] }).success).toBe(false);
     expect(ScenarioOptionSchema.safeParse({ ...option, changes: [{ ...traffic, extra: 1 }] }).success).toBe(false);
   });
-  it('says a failed draft failed in one of two ways, and an unavailable one nothing else', () => {
+  it('says a failed draft failed in one of three ways, and an unavailable one nothing else', () => {
     const base = { version: 'scenario.v1', readId: id(9), scope };
+    for (const reason of ['budget_unavailable', 'recording_paused'])
+      expect(ScenarioDraftViewSchema.safeParse({ ...base, status: 'failed', draft: summary, reason }).success).toBe(true);
     expect(
       ScenarioDraftViewSchema.safeParse({ ...base, status: 'failed', draft: summary, reason: 'could_not_suggest' })
         .success,

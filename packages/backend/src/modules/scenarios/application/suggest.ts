@@ -51,7 +51,8 @@ type Prepared =
  * (3) one transaction under the recording fence closes the run, rechecks the draft is still waiting and the member still takes
  * part, and stores the outcome. A member who left meanwhile gets nothing stored: the late answer is dropped. So is a
  * reply that comes back after the person paused, resumed or cleared recording: the draft then closes as `could_not_suggest`
- * (a Clear leaves nothing to close), and while recording is paused the draft is refused without a call.
+ * (a Clear leaves nothing to close), and while recording is paused the draft is refused without a call and closes as
+ * `recording_paused`.
  * Failure/retry: the run ID is the draft ID, so a redelivery answers from the ledger and never pays
  * twice, and an attempt of unknown outcome is never resent: the draft closes as `could_not_suggest`
  * and the run stays open for an operator.
@@ -139,6 +140,11 @@ export function makeSuggestDraft(p: DraftWorkerPorts, harness: RecordingReasonin
           ? p.store.deleteDraft(scope, job.draftId)
           : apply(scope, job.draftId, { kind: 'failed', failure: 'could_not_suggest' }),
       );
+      return;
+    }
+    // Recording is paused: no run and no model call, and the draft says so (D-388), because the person's own pause is theirs to know.
+    if (value.owner === undefined) {
+      await p.withScope(authority, (scope) => apply(scope, job.draftId, { kind: 'failed', failure: 'recording_paused' }));
       return;
     }
     const { outcome, purpose } = await proposeWhenRecording(
