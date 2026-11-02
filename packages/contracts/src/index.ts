@@ -41,6 +41,7 @@ export * from './room-launch.js';
 export * from './room-posts.js';
 export * from './room-quiet.js';
 export * from './room-watch.js';
+export * from './room-flair.js';
 export * from './room-sky.js';
 export * from './rooms.js';
 export * from './scenarios.js';

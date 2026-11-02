@@ -205,11 +205,15 @@ export {
 } from './room-activity';
 export {
   CONSTELLATION_POINTS,
-  STAR_ACT_WORDS,
+  FLAIR_HOW,
+  FLAIR_WORDS,
   createRoomSky,
   createRoomToday,
   currentConstellation,
+  flairProgressWords,
+  momentsOfCurrent,
   skyLine,
+  starMomentWords,
   starsOfCurrent,
   stationCaption,
   stationMapCaption,

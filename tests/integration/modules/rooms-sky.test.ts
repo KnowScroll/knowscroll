@@ -165,7 +165,13 @@ describe('Today and the sky (real PostgreSQL)', () => {
       const view = await skyOf(world, kenji, roomId);
       expect(view.status === 'ready' && view.sky).toMatchObject({ lit: 1, of: 7, state: 'forming', finished: 0 });
       expect(view.status === 'ready' && view.stars).toEqual([
-        { act: 'answer_useful', day: dayOf(START), constellation: 1 },
+        {
+          act: 'answer_useful',
+          day: dayOf(START),
+          constellation: 1,
+          by: asha.person,
+          opens: { discussionId: today },
+        },
       ]);
     });
 
@@ -781,18 +787,31 @@ describe('Today and the sky (real PostgreSQL)', () => {
       );
     });
 
-    it('names no person, message or title in a star, and reads the same to someone who blocked a member', async () => {
+    it('stores no account, text or title in a star, and names no one to the reader who blocked them', async () => {
       at(170);
       const { roomId } = await seedRoom(world);
       const [asha, ravi, kenji] = (await joined(world, roomId, 3)) as [Friend, Friend, Friend];
       await usefulAnswer(world, roomId, asha, ravi, 'A distinctive answer to remember');
+      // What is stored holds an act, a source and a day, and no person (D-174); the moment is read from the act's own rows (D-341).
+      const stored = await world.db.selectFrom('rooms.stars').selectAll().where('room_id', '=', roomId).execute();
+      expect(JSON.stringify(stored)).not.toContain(asha.accountId);
+      expect(Object.keys(stored[0]!).sort()).toEqual([
+        'act',
+        'constellation_no',
+        'earned_at',
+        'earned_on',
+        'room_id',
+        'source_key',
+        'star_id',
+      ]);
       unwrap(await friendCommand(world.friends, kenji, asha, 'block'));
       const [seenByBlocker, seenByOther] = await Promise.all([skyOf(world, kenji, roomId), skyOf(world, ravi, roomId)]);
-      const { readId: _a, scope: _scopeA, ...blockerView } = seenByBlocker as Record<string, unknown>;
-      const { readId: _b, scope: _scopeB, ...otherView } = seenByOther as Record<string, unknown>;
-      expect(blockerView).toEqual(otherView);
-      const text = JSON.stringify(seenByBlocker);
-      for (const secret of [asha.accountId, ravi.accountId, 'distinctive', asha.person.handle])
+      // The blocker is not told whose answer it was; the other reader is. Nothing else differs, and who marked it is never said.
+      const star = (view: typeof seenByBlocker) => view.status === 'ready' && view.stars[0];
+      expect(star(seenByBlocker)).toEqual({ act: 'answer_useful', day: dayOf(world.clock.now), constellation: 1 });
+      expect(star(seenByOther)).toMatchObject({ by: asha.person });
+      const text = JSON.stringify([star(seenByBlocker), star(seenByOther)]);
+      for (const secret of [asha.accountId, ravi.accountId, 'distinctive', ravi.person.handle, ravi.person.personId])
         expect(text).not.toContain(secret);
     });
   });

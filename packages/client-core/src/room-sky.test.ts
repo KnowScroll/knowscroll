@@ -4,10 +4,15 @@ import { problemDetails, type RoomSky } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
 import {
   CONSTELLATION_POINTS,
+  FLAIR_HOW,
+  FLAIR_WORDS,
   createRoomSky,
   createRoomToday,
   currentConstellation,
+  flairProgressWords,
+  momentsOfCurrent,
   skyLine,
+  starMomentWords,
   starsOfCurrent,
   stationCaption,
   stationMapCaption,
@@ -252,5 +257,138 @@ describe('the name vote on the client', () => {
     expect(controller.getState().refused).toBe(true);
     // A refusal reads the sky again, so the sheet shows the constellation that is open now.
     expect(scope.calls.some((call) => call.name === 'sky')).toBe(true);
+  });
+});
+
+describe('what earned each star, in words (R3 E5)', () => {
+  const asha = {
+    kind: 'person' as const,
+    personId: id(7),
+    handle: 'ci.asha',
+    displayName: 'Asha',
+  };
+
+  it('names a person only where the server named one, a debate by its title, and a Launch by how many played', () => {
+    expect(starMomentWords({ act: 'answer_useful', day: '2026-10-25', constellation: 1, by: asha })).toBe(
+      'Asha\u2019s answer marked useful \u00b7 25 Oct',
+    );
+    expect(starMomentWords({ act: 'answer_useful', day: '2026-10-25', constellation: 1 })).toBe(
+      'An answer marked useful \u00b7 25 Oct',
+    );
+    expect(
+      starMomentWords({ act: 'debate_closed', day: '2026-10-24', constellation: 1, title: 'Is Pluto a planet?' }),
+    ).toBe('Debate closed: Is Pluto a planet? \u00b7 24 Oct');
+    expect(starMomentWords({ act: 'debate_closed', day: '2026-10-24', constellation: 1 })).toBe(
+      'Debate closed \u00b7 24 Oct',
+    );
+    expect(starMomentWords({ act: 'daily_solved', day: '2026-10-23', constellation: 1 })).toBe(
+      'Spot the flaw found \u00b7 23 Oct',
+    );
+    expect(starMomentWords({ act: 'launch_finished', day: '2026-10-26', constellation: 1, played: 5 })).toBe(
+      'Launch, 26 Oct \u00b7 5 played',
+    );
+    expect(starMomentWords({ act: 'launch_finished', day: '2026-10-26', constellation: 1 })).toBe('Launch, 26 Oct');
+  });
+
+  it('reads a day in UTC, so a star keeps its day wherever the reader is', () => {
+    expect(starMomentWords({ act: 'daily_solved', day: '2026-11-01', constellation: 1 })).toBe(
+      'Spot the flaw found \u00b7 1 Nov',
+    );
+  });
+
+  it('lists the constellation being made, newest first', () => {
+    const stars = [
+      { act: 'daily_solved' as const, day: '2026-10-31', constellation: 1 },
+      { act: 'debate_closed' as const, day: '2026-10-30', constellation: 1 },
+      { act: 'answer_useful' as const, day: '2026-10-29', constellation: 1 },
+    ];
+    expect(momentsOfCurrent({ sky: sky({ lit: 3 }), stars }).map((star) => star.day)).toEqual([
+      '2026-10-31',
+      '2026-10-30',
+      '2026-10-29',
+    ]);
+    // The view's own list is newest first and is not turned over by the reader.
+    expect(stars[0]?.day).toBe('2026-10-31');
+  });
+});
+
+describe('flair on the client (R3 E5)', () => {
+  const card = (patch: object = {}) => ({
+    status: 'ready',
+    earned: ['first_answer'],
+    coming: [{ flair: 'flaw_finder', have: 2, of: 3 }],
+    shown: 'first_answer',
+    ...patch,
+  });
+  const skyView = { status: 'ready', sky: sky({ lit: 1 }), stars: [] };
+
+  it('says each mark in fixed words, and how far a partway one is, with the server\u2019s number', () => {
+    expect(FLAIR_WORDS).toEqual({
+      first_answer: 'First answer',
+      good_question: 'Good question',
+      flaw_finder: 'Flaw finder',
+      launch_regular: 'Launch regular',
+    });
+    expect(Object.keys(FLAIR_HOW)).toEqual(Object.keys(FLAIR_WORDS));
+    expect(flairProgressWords({ flair: 'flaw_finder', have: 2, of: 3 })).toBe('Flaw finder \u00b7 2/3');
+  });
+
+  it('reads the card with the sky, and a card that cannot be read leaves the sky', async () => {
+    const scope = scopeOf({ sky: () => Promise.resolve(skyView), flair: () => Promise.resolve(card()) });
+    const controller = createRoomSky({ scope, roomId, newId });
+    await controller.load();
+    expect(controller.getState()).toMatchObject({ phase: 'ready', flair: { earned: ['first_answer'] } });
+    const broken = scopeOf({ sky: () => Promise.resolve(skyView), flair: () => Promise.reject(offline()) });
+    const alone = createRoomSky({ scope: broken, roomId, newId });
+    await alone.load();
+    expect(alone.getState().phase).toBe('ready');
+    expect(alone.getState().flair).toBeUndefined();
+  });
+
+  it('shows no card for a room that is unavailable', async () => {
+    const scope = scopeOf({
+      sky: () => Promise.resolve({ status: 'unavailable' }),
+      flair: () => Promise.resolve({ status: 'unavailable' }),
+    });
+    const controller = createRoomSky({ scope, roomId, newId });
+    await controller.load();
+    expect(controller.getState()).toMatchObject({ phase: 'unavailable', flair: undefined });
+  });
+
+  it('chooses what shows and reads the card again, as the same command if it has to be sent twice', async () => {
+    let shown: string | undefined = 'first_answer';
+    let failing = true;
+    const scope = scopeOf({
+      sky: () => Promise.resolve(skyView),
+      flair: () => Promise.resolve(card({ ...(shown === undefined ? { shown: undefined } : { shown }) })),
+      chooseFlair: () => {
+        if (failing) return Promise.reject(offline());
+        shown = undefined;
+        return Promise.resolve({});
+      },
+    });
+    const controller = createRoomSky({ scope, roomId, newId });
+    await controller.load();
+    expect(await controller.chooseFlair('none')).toBe(false);
+    failing = false;
+    expect(await controller.chooseFlair('none')).toBe(true);
+    const sent = scope.calls
+      .filter((call) => call.name === 'chooseFlair')
+      .map((call) => call.input as { commandId: string; flair: string });
+    expect(sent.map((call) => call.flair)).toEqual(['none', 'none']);
+    expect(sent[0]!.commandId).toBe(sent[1]!.commandId);
+    expect(controller.getState().flair?.shown).toBeUndefined();
+  });
+
+  it('says a refused choice plainly by reading the card again', async () => {
+    const scope = scopeOf({
+      sky: () => Promise.resolve(skyView),
+      flair: () => Promise.resolve(card()),
+      chooseFlair: () => Promise.reject(refused()),
+    });
+    const controller = createRoomSky({ scope, roomId, newId });
+    await controller.load();
+    expect(await controller.chooseFlair('launch_regular')).toBe(false);
+    expect(scope.calls.filter((call) => call.name === 'flair')).toHaveLength(2);
   });
 });

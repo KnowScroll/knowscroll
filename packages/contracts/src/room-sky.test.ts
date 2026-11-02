@@ -129,6 +129,7 @@ describe('every number a room shows about its sky', () => {
       'sky.finished',
       'sky.lit',
       'stars.constellation',
+      'stars.played',
       'starsPerDay',
     ]);
     expect(of(RoomDebateSchema)).toEqual(['sides.votes']);
