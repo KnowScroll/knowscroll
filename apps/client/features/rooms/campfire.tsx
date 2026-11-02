@@ -313,6 +313,7 @@ export function GeneralStage({
           <NowStrip
             scope={scope}
             roomId={roomId}
+            roomName={view.room.name}
             today={view.today}
             sky={view.sky}
             launch={strip}

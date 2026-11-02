@@ -28,6 +28,11 @@ const text = (sequence: number, author: typeof asha, value: string): RoomMessage
   recordedAt: at,
   body: { kind: 'text', text: value },
 });
+/** A message of the fixture with the mark a person chose beside their name, or the star it earned the room (R3 E5, F4). */
+const marked = (
+  message: RoomMessage,
+  patch: Partial<Pick<Extract<RoomMessage, { status: 'available' }>, 'flair' | 'star'>>,
+): RoomMessage => ({ ...(message as Extract<RoomMessage, { status: 'available' }>), ...patch });
 const skeptic: RoomMessage = {
   messageId: id(200),
   sequence: 3,
@@ -192,6 +197,32 @@ describe('room messages', () => {
     expect(screen.getByText('Ravi')).toBeOnTheScreen();
     expect(screen.getByText('Message removed by the moderator')).toBeOnTheScreen();
     expect(screen.getByText('Message removed')).toBeOnTheScreen();
+  });
+
+  it('draws the mark a person chose beside their name, and none beside an AI’s label or on a message without one (R3 E5)', async () => {
+    await show([
+      marked(text(1, ravi, 'Parallax for the near ones'), { flair: 'first_answer' }),
+      text(2, ravi, 'And no mark on this author’s other message'),
+      skeptic,
+    ]);
+    expect(screen.getAllByTestId(/^flair-/)).toHaveLength(1);
+    expect(screen.getByLabelText('First answer')).toBeOnTheScreen();
+    // The mark is words in mono caps, never a number or a rank.
+    expect(screen.queryByText(/karma|rank|level|points/i)).not.toBeOnTheScreen();
+  });
+
+  it('draws no mark on the reader’s own messages, which carry no name', async () => {
+    await show([marked(text(1, asha, 'My own answer'), { flair: 'first_answer' })]);
+    expect(screen.queryByTestId(/^flair-/)).not.toBeOnTheScreen();
+  });
+
+  it('draws "+1 star for the room" under an answer that earned one, with its place among the seven (R3 F4)', async () => {
+    await show([marked(text(1, ravi, 'A clear answer'), { star: { place: 6 } }), text(2, ravi, 'Just chat')]);
+    expect(screen.getAllByTestId('star-card')).toHaveLength(1);
+    expect(screen.getByText('+1 star for the room')).toBeOnTheScreen();
+    expect(screen.getByText('Someone found this answer useful. Star 6 of 7.')).toBeOnTheScreen();
+    // It names nobody: who marked an answer is never said.
+    expect(screen.queryByText(/marked by|found by/i)).not.toBeOnTheScreen();
   });
 
   it('collapses a message from someone the reader blocked into a marker that keeps its place and shows no words', async () => {

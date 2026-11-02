@@ -1,9 +1,11 @@
 import {
   ROOM_STARS_PER_CONSTELLATION,
+  type RoomFlairChoice,
+  type RoomFlairKind,
+  type RoomFlairView,
   type RoomSky,
   type RoomSkyView,
   type RoomStar,
-  type RoomStarAct,
   type RoomStation,
   type RoomToday,
 } from '@knowscroll/contracts';
@@ -15,6 +17,7 @@ const VERSION = 'rooms.v1' as const;
 
 type TodayReady = Extract<RoomToday, { status: 'ready' }>;
 type SkyReady = Extract<RoomSkyView, { status: 'ready' }>;
+type FlairReady = Extract<RoomFlairView, { status: 'ready' }>;
 
 // --- Words and shape (pure) -----------------------------------------------------------------
 
@@ -71,13 +74,49 @@ export function stationMapCaption(sky: Pick<RoomSky, 'lit'>, live: RoomStation['
   return words === undefined ? skyLine(sky) : `${skyLine(sky)} · ${words}`;
 }
 
-/** What a star is, in the act's own words: fixed text, never a message, a title or a person. */
-export const STAR_ACT_WORDS: Record<RoomStarAct, string> = {
-  answer_useful: 'An answer someone found useful',
-  debate_closed: 'A debate closed by vote',
-  daily_solved: 'The day’s Spot the flaw found',
-  launch_finished: 'A Launch finished',
+/** A UTC day as the sky's list says it: "25 Oct" (a star's day is a UTC day, so it is read in UTC). */
+const shortDay = (day: string): string =>
+  new Date(`${day}T12:00:00.000Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+/**
+ * What earned a star, in the words R3 E5 uses under the sky ("Asha’s answer marked useful · 25 Oct"). A person is named only
+ * where the server named one for this reader; a debate by its title; a Launch by how many played and nobody by name. Without a
+ * moment the act's own words stand in, so an answer that was removed or whose author the reader blocked still reads as one found
+ * useful.
+ */
+export function starMomentWords(star: RoomStar): string {
+  const day = shortDay(star.day);
+  switch (star.act) {
+    case 'answer_useful':
+      return `${star.by === undefined ? 'An answer' : `${star.by.displayName}’s answer`} marked useful · ${day}`;
+    case 'debate_closed':
+      return `${star.title === undefined ? 'Debate closed' : `Debate closed: ${star.title}`} · ${day}`;
+    case 'daily_solved':
+      return `Spot the flaw found · ${day}`;
+    case 'launch_finished':
+      return star.played === undefined ? `Launch, ${day}` : `Launch, ${day} · ${String(star.played)} played`;
+  }
+}
+
+/** The marks a person can earn, as a chip says them (R3 E5). Fixed words, never a model's. */
+export const FLAIR_WORDS: Record<RoomFlairKind, string> = {
+  first_answer: 'First answer',
+  good_question: 'Good question',
+  flaw_finder: 'Flaw finder',
+  launch_regular: 'Launch regular',
 };
+
+/** What earns each mark, in one line, for the person's own card. The numbers are the server's (`of`), never stated here. */
+export const FLAIR_HOW: Record<RoomFlairKind, string> = {
+  first_answer: 'You answered a question, or Today’s.',
+  good_question: 'Questions you left that someone found useful.',
+  flaw_finder: 'Flaws you found in Spot the flaw.',
+  launch_regular: 'Launches you played this week.',
+};
+
+/** A mark that is partway: "Flaw finder · 2/3". */
+export const flairProgressWords = (coming: FlairReady['coming'][number]): string =>
+  `${FLAIR_WORDS[coming.flair]} · ${String(coming.have)}/${String(coming.of)}`;
 
 /**
  * The constellation being made now: the finished one while it is at seven (it stays full until the next star), the next
@@ -94,6 +133,13 @@ export function starsOfCurrent(view: Pick<SkyReady, 'sky' | 'stars'>): readonly 
     .reverse()
     .slice(0, ROOM_STARS_PER_CONSTELLATION);
 }
+
+/**
+ * The stars of the constellation being made, newest first, for the list under the art ("How each star was earned"). Each is
+ * the moment as the server read it for this reader, so the sheet never builds a name or a title of its own.
+ */
+export const momentsOfCurrent = (view: Pick<SkyReady, 'sky' | 'stars'>): readonly RoomStar[] =>
+  [...starsOfCurrent(view)].reverse();
 
 // --- Today ----------------------------------------------------------------------------------
 
@@ -225,6 +271,11 @@ export function createRoomToday(options: RoomTodayOptions): RoomTodayController 
 export interface RoomSkyState {
   readonly phase: 'loading' | 'ready' | 'unavailable' | 'failed';
   readonly view: SkyReady | undefined;
+  /**
+   * The person's own flair card for the room (R3 E5), read with the sky. Absent while it loads or when it could not be read: the
+   * sky does not wait for it, and a sheet without it simply has no card.
+   */
+  readonly flair: FlairReady | undefined;
   readonly offline: boolean;
   readonly working: boolean;
   readonly refused: boolean;
@@ -240,9 +291,21 @@ export interface RoomSkyController {
    * for nothing and the sky is read again.
    */
   readonly name: (constellation: number, candidate: number) => Promise<boolean>;
+  /**
+   * Chooses what shows beside the person's name: a mark they have earned, `none` to hide it, or `auto`. The same choice again is
+   * accepted; a mark that is no longer earned is refused and the card is read again to say so.
+   */
+  readonly chooseFlair: (choice: RoomFlairChoice | 'auto') => Promise<boolean>;
 }
 
-const initialSky: RoomSkyState = { phase: 'loading', view: undefined, offline: false, working: false, refused: false };
+const initialSky: RoomSkyState = {
+  phase: 'loading',
+  view: undefined,
+  flair: undefined,
+  offline: false,
+  working: false,
+  refused: false,
+};
 
 /** One room's sky for a member: its stars, its constellation, and the name vote while one is open. */
 export function createRoomSky(options: RoomTodayOptions): RoomSkyController {
@@ -256,19 +319,34 @@ export function createRoomSky(options: RoomTodayOptions): RoomSkyController {
     for (const listener of [...listeners]) listener();
   };
 
-  async function load(): Promise<void> {
+  /** The flair card is read beside the sky and never holds it up: a card that cannot be read is no card, and the sky is still there. */
+  async function loadFlair(): Promise<void> {
+    try {
+      const card = await scope.api.rooms.flair({ version: VERSION, readId: newId(), roomId });
+      publish({ flair: card.status === 'ready' ? card : undefined });
+    } catch {
+      // Not a failure of the sky; the card stays as it was.
+    }
+  }
+
+  async function loadSky(): Promise<void> {
     try {
       const answer = await scope.api.rooms.sky({ version: VERSION, readId: newId(), roomId });
-      if (answer.status === 'unavailable') publish({ phase: 'unavailable', view: undefined, offline: false });
+      if (answer.status === 'unavailable')
+        publish({ phase: 'unavailable', view: undefined, flair: undefined, offline: false });
       else publish({ phase: 'ready', view: answer, offline: false });
     } catch (error) {
       const failure = talkFailure(error);
       if (failure === 'ended') return;
-      if (failure === 'unavailable') publish({ phase: 'unavailable', view: undefined });
+      if (failure === 'unavailable') publish({ phase: 'unavailable', view: undefined, flair: undefined });
       else if (state.phase === 'loading') publish({ phase: 'failed', offline: failure === 'offline' });
       else publish({ offline: true });
     }
   }
+
+  const load = async (): Promise<void> => {
+    await Promise.all([loadSky(), loadFlair()]);
+  };
 
   return {
     getState: () => state,
@@ -291,6 +369,21 @@ export function createRoomSky(options: RoomTodayOptions): RoomSkyController {
       }
       if (outcome.kind === 'refused') publish({ refused: true });
       await load();
+      return outcome.kind === 'ok';
+    },
+    async chooseFlair(choice) {
+      if (state.working) return false;
+      publish({ working: true });
+      const outcome = await run(`flair:${choice}`, (commandId) =>
+        scope.api.rooms.chooseFlair({ version: VERSION, commandId, roomId, flair: choice }),
+      );
+      publish({ working: false });
+      if (outcome.kind === 'ended') return false;
+      if (outcome.kind === 'offline') {
+        publish({ offline: true });
+        return false;
+      }
+      await loadFlair();
       return outcome.kind === 'ok';
     },
   };

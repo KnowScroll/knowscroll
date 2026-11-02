@@ -279,10 +279,136 @@ describe('the Now strip and the room’s sky', () => {
     expect(screen.getByTestId('sky-moment')).toHaveTextContent('Tap a star to see the moment that earned it.');
     await fireEvent.press(screen.getByRole('button', { name: 'Star 1 of 7' }));
     // Stars are shown oldest first: the first earned was an answer someone found useful, on 25 Oct.
-    expect(screen.getByTestId('sky-moment')).toHaveTextContent('An answer someone found useful · Sun 25 Oct');
+    expect(screen.getByTestId('sky-moment')).toHaveTextContent('An answer marked useful · 25 Oct');
     expect(screen.getByText(/4 more stars light the station on its members’ maps/)).toBeOnTheScreen();
     // The cap is the server's number, not the screen's.
     expect(screen.getByText(/up to 3 a day/)).toBeOnTheScreen();
+  });
+
+  describe('how each star was earned, and flair (R3 E5)', () => {
+    const asha = { kind: 'person' as const, personId: id(70), handle: 'ci.asha', displayName: 'Asha' };
+    const moments = [
+      { act: 'launch_finished', day: '2026-10-26', constellation: 1, played: 5 },
+      { act: 'answer_useful', day: '2026-10-25', constellation: 1, by: asha, opens: { discussionId: id(80) } },
+      {
+        act: 'debate_closed',
+        day: '2026-10-24',
+        constellation: 1,
+        title: 'Is Pluto a planet?',
+        opens: { discussionId: id(81) },
+      },
+      { act: 'daily_solved', day: '2026-10-23', constellation: 1 },
+      { act: 'answer_useful', day: '2026-10-22', constellation: 1 },
+    ];
+    const openSky = async (state: Partial<RoomSkyState>, controller: Partial<RoomSkyController> = {}) => {
+      mockSky.current = {
+        controller,
+        state: {
+          phase: 'ready',
+          working: false,
+          view: skyView({ sky: sky({ lit: 5 }), stars: moments }) as never,
+          ...state,
+        },
+      };
+      await wrap(
+        <NowStrip scope={scope} roomId={id(1)} roomName="Space room" today={undefined} sky={sky({ lit: 5 })} />,
+      );
+      await fireEvent.press(screen.getByTestId('now-sky'));
+    };
+    const card = (patch: Record<string, unknown> = {}) =>
+      ({
+        status: 'ready',
+        earned: ['first_answer', 'launch_regular'],
+        coming: [
+          { flair: 'flaw_finder', have: 2, of: 3 },
+          { flair: 'good_question', have: 1, of: 3 },
+        ],
+        shown: 'first_answer',
+        ...patch,
+      }) as never;
+
+    it('lists each lit star’s moment below the art, newest first, in the words the server read for this reader', async () => {
+      await openSky({});
+      const lines = [
+        'Launch, 26 Oct · 5 played',
+        'Asha’s answer marked useful · 25 Oct',
+        'Debate closed: Is Pluto a planet? · 24 Oct',
+        'Spot the flaw found · 23 Oct',
+        'An answer marked useful · 22 Oct',
+      ];
+      lines.forEach((words, index) =>
+        expect(screen.getByTestId(`star-moment-${String(index)}`)).toHaveTextContent(words),
+      );
+      expect(screen.getByText('How each star was earned')).toBeOnTheScreen();
+    });
+
+    it('opens the discussion of a moment that has one, and leaves the others as words', async () => {
+      await openSky({});
+      expect(screen.queryByRole('link', { name: /Launch, 26 Oct/ })).not.toBeOnTheScreen();
+      expect(screen.queryByRole('link', { name: /An answer marked useful · 22 Oct/ })).not.toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('link', { name: 'Asha’s answer marked useful · 25 Oct, open it' }));
+      expect(mockPush).toHaveBeenLastCalledWith(`/rooms/${id(1)}/t/${id(80)}`);
+    });
+
+    it('opens a debate’s discussion from its moment, and closes the sheet first', async () => {
+      await openSky({});
+      await fireEvent.press(screen.getByRole('link', { name: 'Debate closed: Is Pluto a planet? · 24 Oct, open it' }));
+      expect(mockPush).toHaveBeenLastCalledWith(`/rooms/${id(1)}/t/${id(81)}`);
+      expect(screen.queryByTestId('star-moments')).not.toBeOnTheScreen();
+    });
+
+    it('says the same words when a star is tapped in the art', async () => {
+      await openSky({});
+      await fireEvent.press(screen.getByRole('button', { name: 'Star 3 of 7' }));
+      expect(screen.getByTestId('sky-moment')).toHaveTextContent('Debate closed: Is Pluto a planet? · 24 Oct');
+    });
+
+    it('draws the person’s own flair: the one showing, the ones earned and the ones partway with how far', async () => {
+      await openSky({ flair: card() });
+      expect(screen.getByText('You in Space room')).toBeOnTheScreen();
+      expect(screen.getByTestId('flair-shown')).toHaveTextContent('First answer · Showing');
+      expect(screen.getByTestId('flair-earned-launch_regular')).toHaveTextContent('Launch regular');
+      expect(screen.getByTestId('flair-coming-flaw_finder')).toHaveTextContent('Flaw finder · 2/3');
+      expect(screen.getByTestId('flair-coming-good_question')).toHaveTextContent('Good question · 1/3');
+      expect(screen.getByText('Only you see this card. Others see the one mark beside your name.')).toBeOnTheScreen();
+      // No karma, no total, no ranking of people.
+      expect(screen.queryByText(/karma|leaderboard|rank|level|points|total/i)).not.toBeOnTheScreen();
+    });
+
+    it('says how flair is earned when there is none yet, and offers no choice', async () => {
+      await openSky({ flair: card({ earned: [], coming: [], shown: undefined }) });
+      expect(screen.getByTestId('flair-empty')).toBeOnTheScreen();
+      expect(screen.queryByTestId('flair-choose')).not.toBeOnTheScreen();
+    });
+
+    it('chooses what shows beside the name: a mark, the first earned, or nothing, as a radio group', async () => {
+      const chooseFlair = jest.fn(() => Promise.resolve(true));
+      await openSky({ flair: card() }, { chooseFlair });
+      expect(screen.queryByTestId('flair-chooser')).not.toBeOnTheScreen();
+      await fireEvent.press(screen.getByTestId('flair-choose'));
+      expect(screen.getByRole('radio', { name: 'The first one I earned' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'First answer' })).not.toBeChecked();
+      await fireEvent.press(screen.getByRole('radio', { name: 'Launch regular' }));
+      expect(chooseFlair).toHaveBeenLastCalledWith('launch_regular');
+      await fireEvent.press(screen.getByRole('radio', { name: 'Nothing' }));
+      expect(chooseFlair).toHaveBeenLastCalledWith('none');
+      await fireEvent.press(screen.getByRole('radio', { name: 'The first one I earned' }));
+      expect(chooseFlair).toHaveBeenLastCalledWith('auto');
+    });
+
+    it('says it plainly when the flair is hidden, and checks the choice that was made', async () => {
+      await openSky({ flair: card({ choice: 'none', shown: undefined }) });
+      expect(screen.getByTestId('flair-hidden')).toBeOnTheScreen();
+      expect(screen.queryByTestId('flair-shown')).not.toBeOnTheScreen();
+      await fireEvent.press(screen.getByTestId('flair-choose'));
+      expect(screen.getByRole('radio', { name: 'Nothing' })).toBeChecked();
+    });
+
+    it('still shows the sky when the flair card could not be read', async () => {
+      await openSky({ flair: undefined });
+      expect(screen.queryByTestId('flair-card')).not.toBeOnTheScreen();
+      expect(screen.getByTestId('sky-line')).toHaveTextContent('5 of 7 stars');
+    });
   });
 
   it('offers three names while a vote is open, chooses one, and shows counts only to a member who has voted', async () => {

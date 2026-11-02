@@ -1,13 +1,18 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import type { AccountScope, RoomSkyController, RoomSkyState } from '@knowscroll/client-core';
-import { STAR_ACT_WORDS, skyLine, starsOfCurrent } from '@knowscroll/client-core';
+import { momentsOfCurrent, skyLine, starMomentWords, starsOfCurrent } from '@knowscroll/client-core';
 import type { RoomNaming, RoomSky } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, BottomSheet, Skeleton, Text } from '@knowscroll/ui';
+import { closeThen } from '../../platform/close-then';
 import { ChoiceRow } from './choice-row';
 import { ConstellationView } from './constellation-view';
-import { closesWords, dayHeading } from './today-words';
+import { FlairCard } from './flair-card';
+import { discussionHref } from './room-links';
+import { StarMoments } from './star-moments';
+import { closesWords } from './today-words';
 import { useRoomSky } from './use-room';
 
 /** What the sky means right now, in plain words: how many stars are left, or that the station is lit. */
@@ -73,7 +78,17 @@ function NamingVote({
   );
 }
 
-function SkyBody({ state, controller }: { readonly state: RoomSkyState; readonly controller: RoomSkyController }) {
+function SkyBody({
+  state,
+  controller,
+  roomName,
+  onOpenMoment,
+}: {
+  readonly state: RoomSkyState;
+  readonly controller: RoomSkyController;
+  readonly roomName: string | undefined;
+  readonly onOpenMoment: (discussionId: string) => void;
+}) {
   const [selected, setSelected] = useState<number>();
   const view = state.view;
   if (view === undefined)
@@ -86,6 +101,9 @@ function SkyBody({ state, controller }: { readonly state: RoomSkyState; readonly
   const star = selected === undefined ? undefined : stars[selected];
   return (
     <View style={styles.body}>
+      {state.flair === undefined ? null : (
+        <FlairCard roomName={roomName} card={state.flair} controller={controller} working={state.working} />
+      )}
       <Text variant="ui" testID="sky-line">{`${skyLine(view.sky)} stars`}</Text>
       <ConstellationView
         lit={view.sky.lit}
@@ -95,11 +113,10 @@ function SkyBody({ state, controller }: { readonly state: RoomSkyState; readonly
       />
       <View accessibilityLiveRegion="polite" testID="sky-moment">
         <Text variant="bodyS" color={content.ink2}>
-          {star === undefined
-            ? 'Tap a star to see the moment that earned it.'
-            : `${STAR_ACT_WORDS[star.act]} · ${dayHeading(star.day)}`}
+          {star === undefined ? 'Tap a star to see the moment that earned it.' : starMomentWords(star)}
         </Text>
       </View>
+      <StarMoments stars={momentsOfCurrent(view)} onOpen={onOpenMoment} />
       <Text variant="bodyS">{skySentence(view.sky)}</Text>
       {view.naming === undefined ? null : <NamingVote naming={view.naming} controller={controller} state={state} />}
       <Text variant="metaS" color={content.ink2}>
@@ -111,34 +128,73 @@ function SkyBody({ state, controller }: { readonly state: RoomSkyState; readonly
 }
 
 /**
- * The room's sky (R3 E): the constellation being made, a tap on a star for its moment, and the name vote while one is open.
- * Room-level facts only: a star says what happened and on which day, never who did it, and no number counts people.
+ * The room's sky (R3 E5): the person's own flair, the constellation being made, a tap on a star for its moment, how each star was
+ * earned and the name vote while one is open. A star says what happened, on which day and, where the room names them, whose answer
+ * it was; no number counts people.
  */
 export function SkySheet({
   scope,
   roomId,
+  roomName,
   visible,
   onClose,
 }: {
   readonly scope: AccountScope;
   readonly roomId: string;
+  readonly roomName?: string | undefined;
   readonly visible: boolean;
   readonly onClose: () => void;
 }) {
+  const router = useRouter();
   return (
-    <BottomSheet visible={visible} title="Room sky" onClose={onClose} testID="sky-sheet">
-      <SkyContent scope={scope} roomId={roomId} />
+    // `fit`: the title and Close stay in view and the sky scrolls under them, whatever the text size (the flair card and the list of
+    // moments make it taller than a phone).
+    <BottomSheet visible={visible} title="Room sky" onClose={onClose} testID="sky-sheet" fit>
+      <SkyContent
+        scope={scope}
+        roomId={roomId}
+        roomName={roomName}
+        onOpenMoment={(discussionId) => closeThen(onClose, () => router.push(discussionHref(roomId, discussionId)))}
+      />
     </BottomSheet>
   );
 }
 
-/** Reads the sky while the sheet is open: a closed sheet mounts nothing, so a room that never opens it never asks. */
-export function SkyContent({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
+/**
+ * Reads the sky while the sheet is open: a closed sheet mounts nothing, so a room that never opens it never asks. `onOpenMoment`
+ * opens the discussion a star's moment lives in; the caller closes the sheet it sits in first.
+ */
+export function SkyContent({
+  scope,
+  roomId,
+  roomName,
+  onOpenMoment,
+}: {
+  readonly scope: AccountScope;
+  readonly roomId: string;
+  readonly roomName?: string | undefined;
+  readonly onOpenMoment: (discussionId: string) => void;
+}) {
   const { controller, state } = useRoomSky(scope, roomId);
-  return <SkyBody state={state} controller={controller} />;
+  return (
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.scrolled}
+      testID="sky-scroll"
+      // A region that scrolls is reachable by keyboard (axe: scrollable-region-focusable).
+      tabIndex={0}
+      role="region"
+      aria-label="Room sky"
+      showsVerticalScrollIndicator={false}
+    >
+      <SkyBody state={state} controller={controller} roomName={roomName} onOpenMoment={onOpenMoment} />
+    </ScrollView>
+  );
 }
 
 const styles = StyleSheet.create({
+  scroll: { flexShrink: 1, minHeight: 0 },
+  scrolled: { paddingBottom: spacing[2] },
   body: { gap: spacing[3] },
   naming: {
     gap: spacing[2],

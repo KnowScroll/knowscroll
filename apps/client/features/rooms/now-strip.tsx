@@ -81,6 +81,7 @@ function Chip({
 export function NowStrip({
   scope,
   roomId,
+  roomName,
   today,
   sky,
   launch,
@@ -97,6 +98,8 @@ export function NowStrip({
 }: {
   readonly scope: AccountScope;
   readonly roomId: string;
+  /** The room's name, for the person's own flair card in the sky ("You in Space room"). */
+  readonly roomName?: string | undefined;
   readonly today: RoomTodayStrip | undefined;
   readonly sky: RoomSky;
   readonly launch?: RoomLaunchStrip | undefined;
@@ -194,7 +197,7 @@ export function NowStrip({
           testID="now-sky"
         />
       </ScrollView>
-      <SkySheet scope={scope} roomId={roomId} visible={open} onClose={() => setOpen(false)} />
+      <SkySheet scope={scope} roomId={roomId} roomName={roomName} visible={open} onClose={() => setOpen(false)} />
     </View>
   );
 }
