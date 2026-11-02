@@ -40,7 +40,8 @@ function MoreRowView({ row }: { readonly row: MoreRow }) {
         </Text>
       </View>
       <View style={styles.key} aria-hidden>
-        <Text variant="monoXs">{row.keyName}</Text>
+        {/* U+FE0E asks for the plain glyph: some systems draw a bare ⇧ as a coloured emoji. */}
+        <Text variant="monoXs">{row.keyName.replace('⇧', '⇧︎')}</Text>
       </View>
     </Pressable>
   );

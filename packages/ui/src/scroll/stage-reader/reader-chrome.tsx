@@ -4,7 +4,7 @@ import { borderWidth, content, layout, spacing } from '@knowscroll/design-tokens
 import { Button } from '../../actions/button';
 import { IconButton } from '../../actions/icon-button';
 import { useDisplay } from '../../display/display';
-import { Text } from '../../text/text';
+import { Text, useTypeStyle } from '../../text/text';
 import type { NextPartPeek } from './end-tray';
 import { SparkChip } from './play-chips';
 
@@ -40,14 +40,21 @@ export function ReaderTopBar({
   const wide = breakpoint === 'tablet' || breakpoint === 'desktop';
   const roomForWord = useRoomForNextWord(`${title}|${breakpoint}`);
   const showWord = wide || (breakpoint === 'phone' && roomForWord.fits);
+  // While the word is tried on a phone the title may be squeezed further than usual: it must still fit its two lines.
+  const trying = !wide && showWord;
   const where = [kicker, partLabel].filter((part) => part !== undefined && part !== '').join(' · ');
   return (
     <View style={styles.top} testID="reader-top-bar">
       <IconButton icon="universe" label="Your Universe" variant="paper" onPress={onUniverse} />
-      <View style={styles.where} onLayout={roomForWord.onWhereLayout} testID="reader-top-title">
+      <View
+        style={[styles.where, trying ? styles.whereTrying : null]}
+        onLayout={roomForWord.onWhereLayout}
+        testID="reader-top-title"
+      >
         <Text variant="uiS" heading={1} numberOfLines={2}>
           {title}
         </Text>
+        {trying ? <TitleProbe title={title} onHeight={roomForWord.onProbeHeight} /> : null}
         {where === '' ? null : (
           <Text variant="monoXs" color={content.ink2} numberOfLines={2}>
             {where}
@@ -74,18 +81,25 @@ export function ReaderTopBar({
 }
 
 /**
- * Whether Next may say its word beside this title on a phone. The bar is laid out with the word first; when the
- * controls have wrapped under the title (they sit wholly below it), the word is taken back for this title and width
- * and the arrow alone is drawn. A layout that has not been measured yet counts as fitting.
+ * Whether Next may say its word beside this title on a phone. The bar is laid out with the word first, and the word
+ * is taken back for this title and width when the controls have wrapped under the title (they sit wholly below it) or
+ * the title no longer fits its two lines in the room that is left. A layout that has not been measured yet counts as
+ * fitting.
  */
 function useRoomForNextWord(key: string) {
   const [lostFor, setLostFor] = useState<string | undefined>();
+  const lineHeight = useTypeStyle('uiS').lineHeight;
   const where = useRef<{ readonly y: number; readonly height: number } | undefined>(undefined);
   const controls = useRef<number | undefined>(undefined);
-  // Layout events report only what changed, so each one is judged against the last known position of the other.
+  const probe = useRef<number | undefined>(undefined);
+  // Layout events report only what changed, so each one is judged against the last known position of the others.
   const judge = () => {
-    if (where.current === undefined || controls.current === undefined) return;
-    if (controls.current >= where.current.y + where.current.height - 1) setLostFor(key);
+    const wrapped =
+      where.current !== undefined &&
+      controls.current !== undefined &&
+      controls.current >= where.current.y + where.current.height - 1;
+    const tooTall = probe.current !== undefined && probe.current > lineHeight * 2 + 2;
+    if (wrapped || tooTall) setLostFor(key);
   };
   return {
     fits: lostFor !== key,
@@ -98,7 +112,27 @@ function useRoomForNextWord(key: string) {
       controls.current = event.nativeEvent.layout.y;
       judge();
     },
+    onProbeHeight: (height: number) => {
+      probe.current = height;
+      judge();
+    },
   };
+}
+
+/** The title at the width the bar gives it, uncut and unseen: its height says how many lines it needs. */
+function TitleProbe({ title, onHeight }: { readonly title: string; readonly onHeight: (height: number) => void }) {
+  return (
+    <View
+      aria-hidden
+      importantForAccessibility="no-hide-descendants"
+      pointerEvents="none"
+      style={styles.probe}
+      testID="reader-top-title-probe"
+      onLayout={(event) => onHeight(event.nativeEvent.layout.height)}
+    >
+      <Text variant="uiS">{title}</Text>
+    </View>
+  );
 }
 
 /**
@@ -167,6 +201,9 @@ const styles = StyleSheet.create({
   },
   /** Takes what the Universe button and the controls leave; below 84 px the controls wrap to their own line. */
   where: { flex: 1, minWidth: 84 },
+  /** While Next's word is tried the title may take less; the probe tells whether it still fits. */
+  whereTrying: { minWidth: 56 },
+  probe: { position: 'absolute', left: 0, right: 0, top: 0, opacity: 0 },
   controls: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginLeft: 'auto', maxWidth: '100%' },
   dock: {
     flexDirection: 'row',

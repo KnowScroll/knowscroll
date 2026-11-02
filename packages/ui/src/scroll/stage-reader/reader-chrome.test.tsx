@@ -52,6 +52,27 @@ describe('Next in the top bar', () => {
   });
 });
 
+describe('Next in the top bar, with a title that needs more than two lines beside it', () => {
+  it('takes its word back, because the title would be cut', async () => {
+    await bar(390, 'A title that needs three lines');
+    expect(screen.getByText('Next')).toBeOnTheScreen();
+    // Two lines of the title's type, and a little: the title fits.
+    await fireEvent(
+      screen.getByTestId('reader-top-title-probe', { includeHiddenElements: true }),
+      'layout',
+      layout(0, 36),
+    );
+    expect(screen.getByText('Next')).toBeOnTheScreen();
+    await fireEvent(
+      screen.getByTestId('reader-top-title-probe', { includeHiddenElements: true }),
+      'layout',
+      layout(0, 80),
+    );
+    expect(screen.queryByText('Next')).not.toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Next topic' })).toBeOnTheScreen();
+  });
+});
+
 describe('Ask in the dock', () => {
   it('is the blue sparkle on a tinted pill', async () => {
     await render(

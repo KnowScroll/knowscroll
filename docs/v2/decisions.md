@@ -3827,3 +3827,99 @@ Confirmed by: `versions.test.ts` (the bound of 14 and both claims, written out a
 - **What they do take.** A quote may come from any passage the answer cites (D-305); for them it is the same list for every sentence. Neither takes the drop (D-310): a Quick answer has nothing to spare, and a resident's answer is one rewrite and then posted whole or not at all (D-301).
 
 Confirmed by: `quick-answer-support.test.ts` (a short claim is not "no fact", a quote with one key word is not about the sentence, the checker is not told otherwise), `rooms/application/answer-check.test.ts` (the same for both of a room's roles), `domain/ask-support.test.ts` and `ask-support.test.ts` (the strict rules by default, the soft ones with the option, the two sets of instructions). Shown failing when the options were on for every caller.
+
+## D-329 · 2026-11-02 · The ••• sheet of a Scroll is the design's seven rows (v3 Scrolls fidelity, #497)
+
+**Builds on** round 1 (#548: Like and Ask live only in Explore), D-244 and D-292. **Amends** the sheet's three pill buttons and icon row.
+
+- **The rows.** Save, Share a moment, Challenge a friend, Text version, Simpler (this screen), Small print, Report, in that order, as one list. Each has a sub-line and the key that does the same (V3 G5).
+- **A row that cannot work here is left out.** No Save on a reader that keeps nothing (a thread's). No Challenge on a Scroll with no call. No Text version on a Scroll with no picture or play block. No Small print without a limits aside.
+- **A row that cannot work on this stop is dimmed and says why.** Share a moment on a call. Simpler on a call or the end.
+- **What stays under the list.** Explore keeps Like, Share and Ask and "Your path and more options" (round 1). `/scroll/<id>` keeps Share and the save notices. Save moved up into the list on both.
+- **Two sub-lines differ from the frame, on purpose.** Simpler says "This stop in plainer words", not "Quick answer · not a checked Scroll": the plainer words are the stop's own authored text (D-085), not a model's. Challenge says "Send one of its calls to a friend", not "to a thread": a challenge goes into a direct conversation (D-245).
+
+Confirmed by: `more-rows.test.ts` (the seven rows in order with a sub-line and a key; rows left out; rows dimmed with the reason; the Saved and switched-on states) and `e2e/scroll-fidelity-smoke.spec.ts` (the seven rows and their keys at 390 × 844 and 1440 × 900, each row doing its work, axe).
+
+## D-330 · 2026-11-02 · Each row of the ••• sheet has a key, and Shift + S is Simpler (v3 Scrolls fidelity, #497)
+
+**Builds on** D-134 and D-053.
+
+- **Keys.** S Save, H Share a moment, C Challenge a friend, Shift + S Simpler, P Small print, R Report. T (Text version) was already there. They work while the reader has focus, like every reader key, and run the same command as the row.
+- **Shift is read from the event's own flag**, not from the letter's case, so Caps Lock changes nothing: S stays Save.
+- **No command, no effect.** A key whose screen offers nothing (S in a thread's reader) does nothing and is not held back from the browser.
+- **The keyboard map lists each.** The existing test that fails when a reader key has no row covers them.
+
+Confirmed by: `reader-keys.test.ts`, `reader-actions.test.ts`, `keyboard-map.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (each key opens or toggles what its row does).
+
+## D-331 · 2026-11-02 · Small print opens from ••• as a sheet, and stays a chip on the end tray (v3 Scrolls fidelity, #497)
+
+**Builds on** D-189 ("Small print opens where it stands").
+
+- **From ••• or P.** The sheet shows the limits aside's title and text. It reads the same aside the end tray's chip opens (`recap.smallPrintAside`), so the two cannot differ.
+- **The end tray is unchanged.** Its chip still opens the aside in place (D-189). The sheet is for a person who is mid-read and asks.
+- **Reading time stops** while the sheet is open, as for every sheet over the reader.
+
+Confirmed by: `e2e/scroll-fidelity-smoke.spec.ts` (the row and the P key open the aside's text) and `e2e/payoff-smoke.spec.ts` (the chip is unchanged).
+
+## D-332 · 2026-11-02 · Next says its word when the bar has room, and keeps to its arrow when it does not (v3 Scrolls fidelity, #497)
+
+**Amends** D-185 ("Below tablet width Next is its arrow alone").
+
+- **The word.** From tablet width Next says "Next ↑" always. On a phone (361 px and up) it is laid out with the word first, and the word is taken back for that title and width when the controls would wrap under the title or the title would no longer fit its two lines beside them. At 320 to 360 px it is the arrow alone, as D-185 says.
+- **How it is judged.** From layout, not from the title's length: the controls' position against the title's, and the height of an unseen copy of the title at the width the bar gives it. A larger text size therefore takes the word back sooner.
+- **The name is the same.** "Next topic" for a screen reader, with or without the word.
+
+Confirmed by: `reader-chrome.test.tsx` (the word at 390 and 834; the arrow at 320 and 360; taken back on a wrap and on a title that needs three lines) and `e2e/scroll-fidelity-smoke.spec.ts` (a short title keeps the word at 390 × 844; a long one gives it back and the bar stays one line; 1440 and 320).
+
+## D-333 · 2026-11-02 · "Done for today" says where next time starts, only when a next Part is admitted (v3 Scrolls fidelity, #497)
+
+**Builds on** D-189 and D-216.
+
+- **The line.** "Next time you’ll start at Part 2." in the Done for today panel (V3 E2). It is said only when a next Part was admitted for this Scroll. A related move is not a next Part, so nothing is said then.
+- **Why it is true.** The Universe offers "Resume Part 2 of 3" for the next unopened Part of a series the person started (D-216). The line promises that, no more. The frame's "right where the cliffhanger left off" is not drawn: the context carries no teaser (D-189, D-072).
+
+Confirmed by: `play.test.tsx` (the line with a next Part, none without) and `e2e/scroll-fidelity-smoke.spec.ts`.
+
+## D-334 · 2026-11-02 · The dock's Ask is a blue sparkle on a tinted pill (v3 Scrolls fidelity, #497)
+
+**Builds on** V3 P3 and G1.
+
+- **The look.** The Scroll dock's Ask pill is the sunken cream (`paper2`) with ink edges and no offset shadow, and a four-point sparkle in the accent blue before "Ask about this". The speech-box icon stays on the Reel and Explore action sets, which the frames do not change.
+- **The name is the same:** "Ask about this".
+
+Confirmed by: `reader-chrome.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (fill and sparkle colour at 390 and 1440).
+
+## D-335 · 2026-11-02 · The Final call's mark on the spine is a star (v3 Scrolls fidelity, #497)
+
+**Builds on** D-133 and V3 A1.
+
+- **The mark.** A star with an ink edge: yellow, or blue where the reader is. The Call it mark is a diamond, a read stop a circle and the end a square, as before.
+- **The name is the same:** "Final call", and "you are here" on it.
+
+Confirmed by: `stage-reader.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts`.
+
+## D-336 · 2026-11-02 · The picture says the tilt it is turned to while a Final call binds a tilt (v3 Scrolls fidelity, #497)
+
+**Builds on** D-187.
+
+- **The tag.** "TILT 23.4°" or "TILT 0°" in a dark pill at the bottom left of the pinned picture, drawn only while the tilt control is bound and the reader is at that Final call. It follows the slider. The text version leaves it out, because that already says the tilt in words.
+- **For the eye alone.** The control's own readout is what a screen reader hears, so the tag is hidden from assistive technology.
+
+Confirmed by: `stage.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts`.
+
+## D-337 · 2026-11-02 · The friend list of a sheet loads as a skeleton row (v3 Scrolls fidelity, #497)
+
+**Builds on** D-245.
+
+- **What changed.** The Challenge sheet and the Share sheet draw a skeleton row named "Loading your friends" while the list loads, instead of a line of text. The send button stays disabled until a friend is chosen, as before.
+
+Confirmed by: `friend-picker.test.tsx`.
+
+## D-338 · 2026-11-02 · Share a moment shows the stop and its picture before a thread is chosen (v3 Scrolls fidelity, #497)
+
+**Builds on** D-292.
+
+- **The preview.** The sheet opens with the stop's picture, as the reader draws it at that stop (only for a Scroll with a stage), and the words the card will quote. It stays through the thread choice and the message.
+- **Nothing more is sent.** The picture is drawn from the document on the device. The message carries the stop and a hash, as before (D-292).
+
+Confirmed by: `share-stop-sheet.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (the picture and the quote before any thread is chosen, with axe).
