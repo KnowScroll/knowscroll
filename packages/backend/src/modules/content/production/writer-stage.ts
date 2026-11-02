@@ -18,7 +18,7 @@ import {
 } from '../domain/ask-support.js';
 import { callsOfStoredDocument, type CallUnderCheck } from './answer-check.js';
 import { makeAnswerCheckStep } from './answer-check-step.js';
-import { dropFlagged, onlyTitleOrDekFlagged } from './ask-support-drop.js';
+import { dropFlagged, onlyTitleOrDekFlagged, type DropOutcome } from './ask-support-drop.js';
 import { hasSupportCheck, sentencesOfAnswer } from './ask-support.js';
 import { makeAskSupportStep } from './ask-support-step.js';
 import { EvidenceRefusal, evidencePassages, evidenceText, type EvidencePassage } from './evidence.js';
@@ -272,8 +272,8 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
   /**
    * Asks the support checker about the answer to a question and acts on the verdicts (D-250). Nothing unsupported:
    * the Scroll is published. An unsupported sentence in the first draft earns the writer one revision, whether or not the
-   * validator had repaired that draft; none when only the title or the dek is unsupported, since code writes its own line for
-   * either (D-351, D-352). A sentence still unsupported after the revision is taken out and the rest is served, if
+   * validator had repaired that draft; none when only the title or the dek is unsupported and the drop would serve the draft, since
+   * code writes its own line for either (D-351, D-352). A sentence still unsupported after the revision is taken out and the rest is served, if
    * enough of it is left (D-310); otherwise the job ends. A check that gave no usable answer ends the job: nobody reads an ask
    * order before the person who asked, so it is never served unchecked.
    */
@@ -308,9 +308,14 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
         ...history.closing,
         ...checked.runs,
       ]);
-    // Only the title or the dek failing the check is no reason for a revision: code writes its own line for either (D-351, D-352).
-    if (draft.number === 2 || onlyTitleOrDekFlagged(draft.authored as AuthoredScroll, checked.verdicts))
+    if (draft.number === 2)
       return publishWithoutFlagged(stage, draft, checked.verdicts, receipts, history, checked.runs);
+    // Only the title or the dek failing the check is no reason for a revision when code can serve the draft with its own line for
+    // either under the floors of D-310. When it cannot, the revision runs as it always has (D-352).
+    if (onlyTitleOrDekFlagged(draft.authored as AuthoredScroll, checked.verdicts)) {
+      const served = dropAndCompile(stage, draft, checked.verdicts);
+      if (served.kind === 'served') return publishDropped(stage, draft, served, receipts, history, checked.runs);
+    }
     // The unsupported first draft is superseded: its writer receipt is kept as history, not as the Scroll's writer.
     // It earns the revision even when the validator already repaired it, since that repair was for another finding (D-297).
     const earlier: History = {
@@ -327,9 +332,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
 
   /**
    * Serves the revision without the sentences its check still found unsupported, when what is left is enough (D-310), and ends the
-   * job when it is not. The sentences left each have the verdict they were checked with; nothing is checked again. The answer stored
-   * and compiled is the one served, and the receipts say how many sentences were taken out and whether the title or the dek was
-   * replaced by code's own line, never which sentences.
+   * job when it is not. The sentences left each have the verdict they were checked with; nothing is checked again.
    */
   async function publishWithoutFlagged(
     stage: Stage,
@@ -339,24 +342,55 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     history: History,
     checkRuns: readonly ClosingRun[],
   ): Promise<ProduceScrollResult> {
-    const { row } = stage;
-    const fail = (...why: readonly string[]) =>
-      ops.end(row, 'rejected', ['support_check_failed', ...why], receipts, [
-        ...history.closing,
-        { runId: draft.runId, state: 'failed' },
-        ...checkRuns,
-      ]);
+    const served = dropAndCompile(stage, draft, verdicts);
+    if (served.kind === 'served') return publishDropped(stage, draft, served, receipts, history, checkRuns);
+    return ops.end(stage.row, 'rejected', ['support_check_failed', served.why], receipts, [
+      ...history.closing,
+      { runId: draft.runId, state: 'failed' },
+      ...checkRuns,
+    ]);
+  }
+
+  /**
+   * The draft without the sentences its check found unsupported, compiled as the answer to serve, or why it cannot be served
+   * (`support_drop_<code>`). Pure of any write: the caller decides whether a draft that cannot be served ends the job (a revision) or
+   * earns a revision (a first draft whose only flags are the title and the dek, D-352).
+   */
+  function dropAndCompile(
+    stage: Stage,
+    draft: Draft,
+    verdicts: readonly SentenceVerdict[],
+  ):
+    | { readonly kind: 'served'; readonly dropped: Extract<DropOutcome, { kind: 'kept' }>; readonly compiled: Compiled }
+    | { readonly kind: 'unserved'; readonly why: string } {
     const dropped = dropFlagged(draft.authored as AuthoredScroll, verdicts, stage.plan.askLines);
-    if (dropped.kind === 'refused') return fail(`support_drop_${dropped.code}`);
+    if (dropped.kind === 'refused') return { kind: 'unserved', why: `support_drop_${dropped.code}` };
     const compiled = stage.plan.compile(dropped.authored, {
       runId: draft.runId,
       attemptIds: draft.attemptIds,
       model: deps.model,
     });
-    if (compiled.kind === 'refused') return fail('support_drop_compile_refused');
+    if (compiled.kind === 'refused') return { kind: 'unserved', why: 'support_drop_compile_refused' };
+    return { kind: 'served', dropped, compiled };
+  }
+
+  /**
+   * Publishes the draft served without the sentences its check found unsupported. The answer stored and compiled is the one served,
+   * and the receipts say how many sentences were taken out and whether the title or the dek was replaced by code's own line, never
+   * which sentences.
+   */
+  function publishDropped(
+    stage: Stage,
+    draft: Draft,
+    served: Extract<ReturnType<typeof dropAndCompile>, { kind: 'served' }>,
+    receipts: readonly RoleReceipt[],
+    history: History,
+    checkRuns: readonly ClosingRun[],
+  ): Promise<ProduceScrollResult> {
+    const { dropped } = served;
     return ops.publish(
       stage.subject,
-      row,
+      stage.row,
       [
         ...receipts,
         {
@@ -368,7 +402,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
         },
       ],
       dropped.authored,
-      compiled,
+      served.compiled,
       draft.runId,
       [...history.closing, ...checkRuns],
     );

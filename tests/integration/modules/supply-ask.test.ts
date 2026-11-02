@@ -1942,6 +1942,33 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
       });
 
+      it('earns the revision as before when only the title is unsupported but the floors would refuse the draft without it (D-352)', async () => {
+        await setup();
+        const { order } = await orderedAsk();
+        let writes = 0;
+        // The opening paragraph is two short signposts the check may call "no fact": no sentence of it is supported, so code cannot
+        // serve the draft with its own title, though the title is the only sentence found unsupported.
+        const signposts = withBlocks({ 0: paragraphOf(0, 'The beam turns slowly. Sailors count the flashes.') });
+        writer = () => {
+          writes += 1;
+          return writes === 1 ? signposts : answerWith(fixtureAnswer());
+        };
+        supportScript = (check, call) =>
+          check <= BATCHES
+            ? supportReply(call, {
+                unsupported: { 1: { kind: 'not_stated', problem: 'No passage says that, a CI note.' } },
+                noClaim: [3, 4],
+              })
+            : supportReply(call);
+
+        expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published', take: 1 } });
+
+        expect(production.writerCalls).toHaveLength(2);
+        expect(production.writerCalls[1]!.request.system).toContain('REVISION AFTER A SUPPORT CHECK');
+        expect(production.supportCalls).toHaveLength(2 * BATCHES);
+        expect(JSON.stringify((await storedAnswer(order.assetId))?.document)).toContain('A ring of prisms');
+      });
+
       it('is replaced when only the dek is unsupported, and every other sentence is the writer’s own', async () => {
         await setup();
         const { order } = await orderedAsk();
