@@ -175,6 +175,9 @@ test('Privacy by keyboard on a desktop: the recording switch is a switch, and th
   await signedInAccount(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/account/privacy');
+  // The Clear card reads its status on opening and draws its checkbox again when the answer is in; a
+  // control focused before that is replaced under the key press. The plain line is that answer.
+  await expect(page.getByText('No clear request is recorded for this account.')).toBeVisible();
   const recording = page.getByRole('switch', { name: 'Shape my universe from what I watch' });
   await recording.focus();
   await expect(recording).toBeFocused();
