@@ -3663,6 +3663,7 @@ Confirmed by: `answer-support.test.ts` (the bound, the claim, the fit of a seven
 
 Confirmed by: `rooms-answer-support.test.ts` ("says nothing, and is counted, when its answer is still flagged after the one rewrite", "makes no call, and hands the turn back, when no passage fits what was asked"). Shown failing when a resident that spoke on its own posted the line.
 
+
 ## D-298 · 2026-11-02 · A Launch is settled by a job at its end, not by a device that opens the room (v3 dev check fixes, #619)
 
 **Amends** D-178 ("no job") and D-223 ("a device says the Launch is over once").
@@ -3693,3 +3694,101 @@ Confirmed by: `feed.test.ts` (`repliesShownTo`), `rooms-posts.test.ts` ("the rep
 - **Not changed.** A reply written under it by any other way still shows in its thread; the live strip still opens it.
 
 Confirmed by: `rooms-people.test.ts` ("takes no vote, can be replied under"), `feed-people.test.tsx` (an introduction in the feed carries no vote and no talk). Shown failing while the vote was accepted and drawn.
+
+## D-305 · 2026-11-02 · A quote may come from any passage the answer cites (v3 S-7f, #624)
+
+**Builds on** D-250, D-263, D-265 and D-267. **Amends** D-250 ("is found, word for word, in a passage that sentence cites") and D-267 ("a batch carries the passages its own sentences cite").
+
+- **The gap.** On dev (2 Nov, writer v6, checker v4) four of five real asks ended `support_check_failed`. About half of the flags were code set-asides, among them `quote_not_in_cited_passages`. The checker had quoted a passage that another paragraph of the same answer cites, where the sentence's own paragraph cites a different one. Code set the sentence aside.
+- **The rule.** A quote must be in a passage that some block of the answer cites. The sentence's own block is still the first place to look: each sentence is still shown with its `cites`, and the checker's instructions say to look there first. Every batch of a long answer is shown all the passages the whole answer cites (`askSupportContext(batch, passages, answer)`), because a batch alone would hide a passage that another batch's sentences cite.
+- **Not changed.** A Quick answer and a resident's answer cite one list for all their sentences, so for them nothing differs. "No fact" is still judged against the passages of the sentence's own block.
+- **Limits.** A sentence can now be supported by a passage its own block does not cite. The blocks and their `cites` stay as the writer wrote them. Whether the quoted words support the sentence is still the checker's judgement (D-250).
+
+Confirmed by: `domain/ask-support.test.ts` (a quote from a passage another sentence cites is accepted, one from a passage nobody cites is `quote_not_in_cited_passages`, a batch told the whole answer accepts a quote from another batch's passage), `ask-support.test.ts` and `ask-support-step.test.ts` (every batch is shown every passage the answer cites and none it does not), and `supply-ask.test.ts` on real PostgreSQL with a labelled fixture model (a quote from another paragraph's passage serves the answer with no revision). Shown failing when the rule looked at the sentence's own passages only.
+
+## D-306 · 2026-11-02 · A quote is about a sentence of eight key words or fewer when it shares one (v3 S-7f, #624)
+
+**Builds on** D-250 and D-265. **Amends** D-250 ("it carries at least two of the sentence's key words").
+
+- **The gap.** `quote_not_about_sentence` set aside sound paraphrases. A good paraphrase often keeps one of the sentence's key words and changes the others.
+- **The rule.** A sentence of at most eight key words (`SHORT_SENTENCE_KEY_WORDS`) needs one shared key word from its quote. A sentence of more needs two, as before. A sentence with fewer key words than it needs still needs all of them. The new function is `isAboutSentence`. `isAbout` is unchanged: the library check, a room's passages and a Quick answer's question still use it.
+- **Limits.** The cheap case D-250 named gets through for a short sentence. The quote "the Sun is" now passes for "The Sun is nearly overhead at the pole in summer", which has five key words, and is the checker's judgement alone. For a sentence of more than eight key words it is still refused. Three words (`MIN_QUOTE_WORDS`) are still the least a quote may have. The replay's `codes` shows how often the rule decides.
+
+Confirmed by: `domain/ask-support.test.ts` (one key word is enough for five, two are needed for ten, a quote with none is `quote_not_about_sentence`, a heading of one key word needs one), `ask-support.test.ts` (the dev run's "the Sun is" is refused for a long sentence and accepted for a short one) and `supply-ask.test.ts` (a quote with one key word serves a short sentence). Shown failing when two key words were demanded of every sentence.
+
+## D-307 · 2026-11-02 · A sentence of eight words or fewer with no figure may be "no fact" (v3 S-7f, #624)
+
+**Builds on** D-265 and D-266. **Amends** D-266 ("a figure-free sentence that shares no key word with its passages").
+
+- **The gap.** `no_claim_without_ground` set aside short signposts that name the topic ("Here is why the tilt matters."). They share a key word with the passages, so D-266 judged them as statements.
+- **The rule.** A new ground, `short` (`MAX_SHORT_NO_CLAIM_WORDS` = 8): a sentence that is not a label, has no figure in digits or in words, and has at most eight words may be marked `no_claim` whatever it shares with its passages. A label keeps its own four-word rule. A question and a plain admission of a gap keep theirs.
+- **The share.** `short` counts with `unshared` toward D-265's rule that more than half of a request marked "no fact" on the weakest grounds is not believed. A request that is only the end of a longer answer may hold one such sentence whatever its size. Otherwise the limits line alone in the last batch would be set aside. The rule is as strict as before for an answer checked whole.
+- **The checker is told** to use `no_claim` only for a sentence that adds no fact, even where code would accept it for a short one.
+- **Limits.** A short sentence that states a fact ("Fog hides the beam.") passes as `no_claim` if the checker calls it so. Two things bound it: the checker's instructions, and D-310, which needs five supported sentences and a supported direct answer before a trimmed answer is served. The replay counts `no_claim_short`.
+
+Confirmed by: `domain/ask-support.test.ts` (the ground, its figure and label limits, the share, the last batch), `ask-support.test.ts` (the instructions say it) and `supply-ask.test.ts` (an answer with a short signpost marked "no fact" is served with no revision). Shown failing when the ground was removed and when the last batch had no tolerance.
+
+## D-308 · 2026-11-02 · An ask answer is 8 to 12 sentences of reading text, and a revision may be shorter, to five (v3 S-7f, #624)
+
+**Builds on** D-218 and D-250. **Amends** D-218 ("about 230 to 340 words in one to three short sections").
+
+- **The gap.** The five real answers on dev had 18 to 21 sentences. Each check flagged 6 to 11 of them. A rule that every sentence passes leaves such answers unusable.
+- **The rule.** "Reading text" is every sentence that is not a title, a heading or a callout's title: the dek, paragraphs, list items and callout text. The writer's draft has 8 to 12 of them (`ASK_ANSWER_MIN_SENTENCES`, `ASK_ANSWER_MAX_SENTENCES`). Code refuses any other count with `answer_sentences_out_of_brief` and a fixed hint, for the harness's one repair, as it refuses a missing limits callout. The writer is asked for a direct answer in its opening paragraph, at most two short sections and the limits callout. Those three are asked, not counted by code.
+- **The revision.** A revision after a support check is told to remove or rewrite a flagged sentence, and an answer served after a drop has fewer on purpose (D-310). Both are held to 5 (`MIN_SERVED_SENTENCES`) to 12, by a writer role built for them (`WriterPlan.afterCheckRole`, stage `after_check`).
+- **The length hint.** The reading-time target (one to two minutes) stays, and its hint now names the sentences.
+- **Batches.** A checked answer has about 15 to 17 sentences with its labels, so two requests. `ASK_SUPPORT_MAX_BATCHES` stays at four because code does not cap the headings.
+- **Limits.** Length in sentences is not length in words. Long sentences can still make a long answer. The reading-time check (two minutes at most) holds that end.
+
+Confirmed by: `ask-answer-shape.test.ts` (7 refused, 8 and 12 allowed, 13 refused; the lower floor of 5; list items, callout text and labels), `writer.test.ts` (the findings through the real compile, the instructions, the fixed hints of at most 256 characters) and `supply-ask.test.ts` (an answer of four sentences is repaired once with the hint). Shown failing when the count included the labels and when the revision had the draft's floor.
+
+## D-309 · 2026-11-02 · A sentence after the first of its block must not open with This, That, These, Those, It or They (v3 S-7f, #624)
+
+**Builds on** D-266 and D-282.
+
+- **Why.** D-310 takes a sentence out of an answer. A sentence that leans on the one before it ("This is why...") would then point at nothing.
+- **The rule.** In a paragraph, a list (its items are read in order as one block) or a callout's text, no sentence after the first begins with This, That, These, Those, It or They (also "It's" and the like). The first sentence of a block is exempt. Labels are not looked at. The finding is `sentence_leans_on_previous`, one for each block, with a fixed hint for the harness's one repair. The writer is told the rule and why.
+- **Limits.** Code sees the opening word only. "Because of this, ..." leans too and passes. An "It" that does not point back ("It takes eight minutes for light to arrive.") is refused, and costs one repair. The list of words is short on purpose: a longer one would refuse more good sentences.
+
+Confirmed by: `ask-answer-shape.test.ts` (each word and "It's", the near words "Thistles", "Items" and "Its" allowed, the first sentence of a block, a list item, callout text, one finding for each block) and `supply-ask.test.ts` (a draft whose second sentence leans is repaired once with the hint and then checked and served; one that leans again ends the job with no check). Shown failing when the first sentence of a block was not exempt.
+
+## D-310 · 2026-11-02 · After the one revision, sentences that still fail are taken out, and the rest is served when enough is left (v3 S-7f, #624)
+
+**Builds on** D-250, D-297, D-308 and D-309. **Amends** D-250 ("any unsupported sentence that stands after the revision ends the job") and D-297.
+
+- **The gap.** On dev the check flagged 6 to 11 of 18 to 21 sentences before and after the revision. Four of five asks ended `support_check_failed`. Most of what was refused was sound.
+- **The rule.** After the one revision and its check, code takes out every sentence still `unsupported`. It rebuilds the blocks (`dropFlagged`, pure): a block left with no sentence is removed, a list left with one item becomes a paragraph, and a section heading with nothing left under it is removed. The closing limits callout belongs to no section. Code serves the rest only if all of these hold:
+  - the title and the dek were not flagged, since neither can be taken out;
+  - the first paragraph, the direct answer, keeps at least one **supported** sentence;
+  - at least five sentences of reading text are **supported** (`MIN_SERVED_SENTENCES`). A sentence that states no fact, a title, a heading and a callout's title do not count;
+  - the limits callout is still the last block; and
+  - what is left is a valid answer whose sentences read back as exactly the ones kept.
+
+  Otherwise the job ends `support_check_failed` with `support_drop_<reason>` beside it: `verdicts_incomplete`, `title_or_dek_flagged`, `no_direct_answer`, `too_few_supported`, `no_limit_callout` or `rebuilt_invalid`.
+- **Never unchecked.** Nothing is asked again. Each sentence served has the verdict it was checked with, and no sentence is served unsupported. The rebuilt answer is compiled by the writer's own compile (stage `after_check`), with the attempt identities of the revision. If that refuses, the job ends.
+- **Only the second draft.** The first draft's flags still earn the revision. An unusable check still ends the job. A draft that passes is served whole.
+- **Quick answer and residents do not get it.** A Quick answer has two to four sentences and nothing to spare (D-253). A resident's answer is one rewrite and then posted whole or not at all (D-301). Both would need a floor of their own. The drop is for asks, where a person waits for a whole answer and there is room.
+- **Limits.** A trimmed answer can read thinner than the one the writer wrote. The floor of five supported sentences and the direct answer are what keep it an answer. The coordinator reads the answers on dev.
+
+Confirmed by: `ask-support-drop.test.ts` (each way a sentence is taken out and each refusal, with the rebuilt answer's sentences read back) and `supply-ask.test.ts` on real PostgreSQL with a labelled fixture model (two sentences flagged after the revision are served without them; five flagged leave five supported and are served, with the heading of an emptied section gone; six flagged leave four supported and are refused; both sentences of the direct answer flagged, a lost limits callout and a flagged title are refused; every run closed). Shown failing when a flagged sentence was kept, when the floor was four, when the direct answer was not required and when labels counted among the five.
+
+## D-311 · 2026-11-02 · The job records how many sentences it took out, never which, and the replay prints the count (v3 S-7f, #624)
+
+**Builds on** D-231, D-252 and D-310.
+
+- **What is recorded.** A job that served an answer without some sentences adds a receipt `{role: 'checks', kind: 'sentences_dropped', dropped: n}`. The job's `writer_output` is the answer that was served, so the replay reads what the person read. A receipt holds a number and never a word, so the job still outlives an erasure of the question (D-231).
+- **The replay.** `content ask-check` prints `dropped` on the line of an answer whose job took sentences out, and omits it otherwise. A clean replay of a trimmed answer then says that it is trimmed.
+- **Not changed.** The `support_check` receipts keep sentence numbers, kinds and rule codes of both drafts.
+
+Confirmed by: `supply-ask.test.ts` (the receipt, no words in the receipts) and `ask-support-replay.test.ts` (the count on the line, the served answer replayed, no `dropped` on an answer served whole). Shown failing when the stored answer was the writer's and not the served one.
+
+## D-312 · 2026-11-02 · The writer v7 and the checker v5 are a pair, the revision's repair covers the new findings, and the bounds stay (v3 S-7f, #624)
+
+**Builds on** D-250, D-267 and D-297. **Amends** D-297 ("only when every finding of its refusal is `copied_passage`").
+
+- **The pair.** `question-writer.v7` and `ask-support-check.v5` change together (`versions.test.ts`). The checker's instructions say what D-305 to D-307 changed. The writer's say what D-308 and D-309 ask. `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14` for the reason in D-250.
+- **The revision's one repair.** It follows a refusal whose findings are all `copied_passage`, `answer_sentences_out_of_brief` or `sentence_leans_on_previous`. A revision that takes out or rewrites a sentence can break either new rule, and ending the job for it would waste an answer. Any other refusal of the revision still ends the job.
+- **The bounds.** The drop adds no request. `REQUEST_BOUND_ASK_ORDER` stays 14 and `PRODUCE_ANSWER_CLAIM_SECONDS` stays 4,660 s, the README's formula (14 x 320 + 180). A real answer needs two batches, not four, so the ceiling is looser than a take needs. It is not lowered, because the headings are not capped and a lower claim would end a long answer's job early.
+- **The shared checker.** The Quick answer and a room's resident use the same role, so they take the v5 rules of D-305 to D-307. Their writers, their bounds (six) and their claims are unchanged.
+- **No migration.**
+
+Confirmed by: `versions.test.ts` (the pair, the bound and both claims) and `supply-ask.test.ts` (a revision whose rewritten sentence leans is repaired once, in its own run, then checked and served). Shown failing when the revision's repair covered copying only.

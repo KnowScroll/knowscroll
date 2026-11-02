@@ -68,46 +68,47 @@ flags are not yet seen on a real model).
   writer or the job's steps change (`versions.test.ts` pairs it with the writer's version), and the older version's jobs do not count.
   `regenerationStanding` and `planRegeneration` (`domain/library/serving.ts`) are the pure rules.
 
-## The support check of an ask order's answer (S-7b to S-7d, D-250 to D-252, D-263, D-265 to D-267, D-280 to D-282)
+## The support check of an ask order's answer (S-7b to S-7f, D-250 to D-252, D-263, D-265 to D-267, D-280 to D-282, D-305 to D-312)
 
 Status: **implemented**, runtime-verified with labelled CI fixture models on real PostgreSQL. **Measured on real MiniMax (1 Nov, v3):** every answer checked and both known
 errors flagged, but 59 of 101 sentences `unsupported`, almost all sound. **Planned:** v4 and writer v5 are live on dev with S-7d (D-281) and are measured by the same replay right after. The acceptance is in
 #605: both known errors stay `unsupported`, the Big O answer has at most three `unsupported` sentences, and the share falls well below a third. If it fails, a revised text is tried as a
 candidate file (D-280), and then the next pair is released or v4 and writer v5 are reverted. **S-7e (D-294, D-297):** five real asks on dev then closed on `copied_passage` (four of the six refusals in the ledger were the revision
 `question-writer.v5.fix`), so the writer is `question-writer.v6` (still paired with checker v4): the copy rule has a worked example, a copy refusal's repair names each copied run, and the revision has a repair of its own for copying. Implemented; runtime-verified on dev is the next check (#615).
+**S-7f (D-305 to D-312, #624):** four of five real asks then ended `support_check_failed`, because every one of about twenty sentences had to pass. The pair is now `question-writer.v7` with `ask-support-check.v5`: the answer is 8 to 12 sentences with standalone openings (code-enforced), three code rules are softer where they misfired, and after the one revision code takes out the sentences that still fail and serves the rest when enough is left. Implemented, CI-verified with labelled fixture models on real PostgreSQL; runtime-verified on dev is the next check.
 
 - **The check** (`ask-support.ts`, `ask-support-step.ts`, `writer-stage.ts`, `domain/ask-support.ts`). For the answer to a question (mode `question`),
-  after the writer's answer has passed the validator and compiled, the role `content.ask-support-check` (`ask-support-check.v4`) is shown the
+  after the writer's answer has passed the validator and compiled, the role `content.ask-support-check` (`ask-support-check.v5`) is shown the
   passages the answer cites and the answer's numbered sentences, and no question, brief or stop. The title, the dek, each heading and a callout's title
-  are sentences too and rest on everything the answer cites; every other sentence rests on the passages its own block cites. The title, the headings
+  are sentences too and rest on everything the answer cites; every other sentence rests on the passages its own block cites, and a quote may come from any passage the answer cites (D-305). The title, the headings
   and the callouts' titles are **labels** (`label: true`). It replies `{sentences: [...]}`, one verdict for each sentence in order: `supported` with a
   quote, `unsupported` with a fixed `kind` and a short problem, or `no_claim`. **What the three mean (D-281):** `supported` is stated by the cited passages, said in other words
   or directly implied (one plain step; putting two of their statements together counts when it says no more than the two mean); `unsupported` is a fact, figure,
   cause, comparison or example they neither state nor imply, a wider scope or stronger word than they use, or what they contradict; `no_claim` adds no fact (a transition, a signpost). A join of two
   statements is supported only when every part is stated. The instructions carry five short invented worked examples, and a test holds that each supported example passes the code rules.
 - **Batches (D-267).** A long answer is checked a batch of at most ten sentences at a time (`ASK_SUPPORT_BATCH_SENTENCES`), one request and one run each
-  (`askSupportRunId(job, draft, batch)`), in order. A batch carries the passages its own sentences cite and keeps its sentences' own numbers. The first
+  (`askSupportRunId(job, draft, batch)`), in order. A batch carries every passage the whole answer cites (D-305) and keeps its sentences' own numbers. The first
   batch with no usable reply makes the whole check unusable and the later batches are not asked. The harness repairs one unusable reply in the whole
-  check, wherever it happens, so a draft costs its batches plus one. An answer of more than four batches (`ASK_SUPPORT_MAX_BATCHES`, 40 sentences; the
-  real answers of the 1 Nov check had 21) is not checked: `support_check_answer_too_long`, with no request sent.
+  check, wherever it happens, so a draft costs its batches plus one. An answer of more than four batches (`ASK_SUPPORT_MAX_BATCHES`, 40 sentences) is not checked: `support_check_answer_too_long`, with no request sent.
+  An answer of 8 to 12 sentences of reading text has about 15 to 17 in all, labels included, so two batches (the real answers of the 1 Nov check had 21; the ceiling of four stays, since the sections are not capped by code).
 - **What code checks, and what it cannot (D-263, D-265, D-266).** Two kinds of rule. **The shape of the reply** refuses it whole (one harness repair): not valid JSON or cut
   off, a verdict that is not well formed, a sentence skipped, repeated or reordered. **Each verdict is judged on its own sentence**, and a verdict that
   breaks a rule makes *that sentence* `unsupported` (kind `not_stated`, a fixed note, the rule's code kept) while every other verdict stands:
   `quote_too_short` (fewer than three words, letters and numbers count, a dash does not; with an ellipsis, two words in each part),
-  `quote_not_in_cited_passages` (the quote is not, word for word, in a passage that sentence cites: curly or straight quotes, any dash, non-breaking or
+  `quote_not_in_cited_passages` (the quote is not, word for word, in a passage the answer cites: curly or straight quotes, any dash, non-breaking or
   repeated spaces, case, an ellipsis for words left out and `4,096` for `4096` make no difference; with an ellipsis every part must stand in one sentence of the passage and the words left out must hold no negation), `quote_not_about_sentence` (it must carry at least
-  two of the sentence's key words: uncommon words of three letters or more, compared by their first five letters, or all of them when there are fewer),
+  one of the sentence's key words when the sentence has eight or fewer, and two when it has more (D-306): uncommon words of three letters or more, compared by their first five letters, or all of them when there are fewer),
   `no_claim_without_ground` and `too_many_no_claim`. `no_claim` has a ground code can see: a question; a title, heading or callout title of at most four words with no figure (a longer one states something and is judged), or the title of a limits callout ("What this does not explain"); a
   plain admission of a gap that is the *whole sentence* (`namesTheGap`, a small fixed list: "The pages do not say...", "This answer cannot tell...", "That detail
-  remains unspecified here"; a sentence with a number, or one that goes on after the admission with a semicolon, "but" or a second clause, is judged); or a figure-free sentence that shares no key word with its
-  passages. When more than half the sentences of a request are marked `no_claim` on that last, weakest ground, those sentences are set aside.
+  remains unspecified here"; a sentence with a number, or one that goes on after the admission with a semicolon, "but" or a second clause, is judged); or a figure-free sentence of eight words or fewer (D-307), or a longer one that shares no key word with its
+  passages. When more than half the sentences of a request are marked `no_claim` on those last, weakest grounds, those sentences are set aside (a request that is only the end of a longer answer may hold one in any case).
   **Whether the quoted words support the sentence is the checker model's judgement**, which code cannot check; it is measured on dev with the replay
   before anything relies on it (D-250, D-252, D-263 to D-267).
 - **Code decides.** Nothing unsupported: the Scroll is published. An unsupported sentence, the checker's or one code set aside, earns the writer **one**
   repair in a run of its own (the revision), with the fixed hint of each kind, the sentence's words and the note (the checker's, or the rule's fixed one) as data, and
-  its draft, whether or not the harness already repaired the draft for the validator (D-297). The revision has one repair of its own, for copying a passage alone
-  (`repairOnlyFor`, with the copy notes of D-294); any other refusal of it ends the job (`support_repair_invalid_output`). The revised draft is checked in turn; a sentence that stands ends
-  the job rejected (`support_check_failed`).
+  its draft, whether or not the harness already repaired the draft for the validator (D-297). The revision has one repair of its own, for copying a passage, a length out of range or a sentence that leans on the one before
+  (`repairOnlyFor`, with the copy notes of D-294); any other refusal of it ends the job (`support_repair_invalid_output`). The revised draft is checked in turn.
+  **A sentence that still fails is taken out, not fatal (D-310).** `ask-support-drop.ts` (`dropFlagged`, pure) removes every sentence still `unsupported` from its text, rebuilds the blocks (a block left with no sentence goes; a list left with one item becomes a paragraph; a section heading with nothing left under it goes; the closing limits callout belongs to no section), and `writer-stage.ts` compiles the result as the answer to publish. It is served only if the title and the dek were not flagged, the first paragraph (the direct answer) keeps a **supported** sentence, at least five sentences of reading text are **supported** (labels do not count, `MIN_SERVED_SENTENCES`), the limits callout is still the last block, and what is left is a valid answer that reads back as exactly the sentences that were kept; otherwise the job ends `support_check_failed` with the reason (`support_drop_<code>`). Nothing is checked again: each sentence served has the verdict it was checked with. The job records `{role: 'checks', kind: 'sentences_dropped', dropped: n}` and keeps the answer that was served as its `writer_output`; the replay prints `dropped` (D-311).
   **A check that gave nothing usable refuses the answer** (`support_check_<code>`; unknown outcome ends the job `unknown`, never resent): no
   one reads an ask order, so it is never served unchecked, unlike a library Scroll (D-198). A spent budget or quota pauses the job, also between two
   batches, and the writer's kept answer and the batches already answered are read from the ledger on resume. The person sees the existing honest state and
@@ -130,7 +131,8 @@ candidate file (D-280), and then the next pair is released or v4 and writer v5 a
   the same role, in the same batches, over stored answers (the authored answer and the research the job kept), through the production harness, writing
   nothing to content. Counts go to stdout, including how many sentences each rule code set aside and how many `no_claim` verdicts passed on each ground (`codes`) and the batches; sentences, cited passages,
   verdicts and each sentence's rule code go to the file. Runbook: [scroll-production.md](../../../../../../docs/v2/operations/scroll-production.md).
-- **Versions.** `question-writer.v6` and `ask-support-check.v4` are a pair (`versions.test.ts`). `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14`
+- **The shape of the answer (D-308, D-309)** (`ask-answer-shape.ts`, applied by `compileGeneratedScroll` to the `plain` format). 8 to 12 sentences of reading text (the dek, paragraphs, list items and callout text; not the title, a heading or a callout's title) for the writer's draft, finding `answer_sentences_out_of_brief`; 5 to 12 for the revision a support check earned and for the answer served after a drop (`AnswerStage` `after_check`, the plan's `afterCheckRole`); and no sentence after the first of its block (a list counts as one block) begins with This, That, These, Those, It or They, finding `sentence_leans_on_previous` at the block. Each has a fixed repair hint of at most 256 characters. The writer is told both (`question-writer.v7`). Whether a sentence "stands on its own" in meaning is not something code can check; the opening is the cheap signal.
+- **Versions.** `question-writer.v7` and `ask-support-check.v5` are a pair (`versions.test.ts`). `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14`
   because an order has a job of its own and the version is shared with v1 library recipes and what-ifs.
 
 ## Jobs, takes and who sends them
@@ -299,8 +301,8 @@ ledger are the same; what differs is:
   quantities in words, end with a limit). The prompt version is `scenario-writer.v1`; the library's is unchanged.
 - **The answer to a question (mode `question`, S-7, D-218).** A person's question about the Scroll they are reading is an order too.
   `writerInstructions('plain', 'question')` appends the question rules (answer exactly the question from the cited passages,
-  about 230 to 340 words in prose only, say what the passages do not cover, end with a limit callout; the question is data). Code enforces the ending: an answer whose last block is not the limit callout is refused (`limit_callout_required`, with a fixed repair hint).
-  The prompt version is `question-writer.v6` (D-294: the copy rule comes with one worked example, `COPY_RULE_EXAMPLE`, and the revision after a support check is told a rewritten sentence must not copy either; D-250: the reason a "why" question asks for comes from the passages, a gap is said in one sentence;
+  8 to 12 sentences of prose only, each one standing on its own (D-308, D-309), say what the passages do not cover, end with a limit callout; the question is data). Code enforces the ending: an answer whose last block is not the limit callout is refused (`limit_callout_required`, with a fixed repair hint).
+  The prompt version is `question-writer.v7` (D-308, D-309: 8 to 12 sentences, a direct answer, at most two short sections and the limits callout, and no sentence after the first of its block that opens with This, That, These, Those, It or They; D-294: the copy rule comes with one worked example, `COPY_RULE_EXAMPLE`, and the revision after a support check is told a rewritten sentence must not copy either; D-250: the reason a "why" question asks for comes from the passages, a gap is said in one sentence;
   D-266: a title or a heading that only names what follows needs no passage, and a plain admission of a gap stands alone as a sentence that begins with it;
   D-282: a fact keeps the passages' own terms but never as a copied run of `COPY_RUN_WORDS` words, named in the text from the rule's constant, and a link between two ideas is short and plain or begins the next fact). The reading target is one to two minutes (`targetMinutesOf`), with its own repair
   hint, and the format `plain` asks for no rich block. The brief is built by supply (`askBrief`): the question, the Scroll's title and

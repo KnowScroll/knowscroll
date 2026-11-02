@@ -9,6 +9,7 @@ import {
   askSupportSchema,
   citedPassages,
   hasSupportCheck,
+  placedSentencesOfAnswer,
   sentencesOfAnswer,
   supportRepairItems,
   supportRepairRole,
@@ -121,6 +122,34 @@ describe('the sentences a support check reads', () => {
     ]);
   });
 
+  it('know where they stand, so one can be taken out of its text (D-310)', () => {
+    expect(placedSentencesOfAnswer(ANSWER).map((sentence) => sentence.place)).toEqual([
+      { field: 'title' },
+      { field: 'dek' },
+      { field: 'heading', block: 0 },
+      { field: 'paragraph', block: 1 },
+      { field: 'paragraph', block: 1 },
+      { field: 'item', block: 2, item: 0 },
+      { field: 'item', block: 2, item: 1 },
+      { field: 'callout-title', block: 3 },
+      { field: 'callout-text', block: 3 },
+    ]);
+    // What the checker is shown has no place: the places are the job's, not the model's.
+    expect(sentences.every((sentence) => !('place' in sentence))).toBe(true);
+    expect(sentences.map((sentence) => sentence.text)).toEqual(
+      placedSentencesOfAnswer(ANSWER).map((sentence) => sentence.text),
+    );
+  });
+
+  it('are shown with the passages the whole answer cites when they are one batch of it, so a quote may come from any of them (D-305)', () => {
+    const batch = sentences.slice(5, 7);
+    expect(askSupportContext(batch, PASSAGES)[0]!.text).toBe(`[e3] ${PASSAGES[2]!.text}`);
+    const whole = askSupportContext(batch, PASSAGES, sentences)[0]!.text.split(/\n/u);
+    expect(whole.map((line) => line.slice(0, 4))).toEqual(['[e1]', '[e2]', '[e3]', '[e4]']);
+    // The sentences listed are still the batch's own.
+    expect(askSupportContext(batch, PASSAGES, sentences)[1]!.text.split(/\n/u)).toHaveLength(2);
+  });
+
   it('are checked only for the answer to a question', () => {
     expect(hasSupportCheck({ mode: 'question' })).toBe(true);
     for (const mode of ['library', 'what_if', 'perspective'] as const) expect(hasSupportCheck({ mode })).toBe(false);
@@ -176,9 +205,15 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
     expect(batchSchema.safeParse(numbered(1)).success).toBe(false);
   });
 
-  it('turns a supported sentence whose quote is not in a passage that sentence cites into unsupported for that sentence alone, even if the words are in another passage', () => {
-    // The words are real, but they come from e3, which sentence 1 does not cite; the reply is not refused, the other verdicts stand.
-    const result = parse([supported(1, 'light cannot cross a thick bank'), good[1], good[2]]);
+  it('accepts a quote from a passage another sentence of the answer cites, and a quote from no passage the answer cites is unsupported for that sentence alone (D-305)', () => {
+    // The words are real and come from e3, which sentence 1 does not cite but sentence 3 does: the answer cites it.
+    expect(outcomes(parse([supported(1, 'light cannot cross a thick bank'), good[1], good[2]]))).toEqual([
+      'supported',
+      'supported',
+      'no_claim',
+    ]);
+    // The words are real and come from e5, which no sentence cites; the reply is not refused, the other verdicts stand.
+    const result = parse([supported(1, 'Near the poles the Sun is never directly overhead'), good[1], good[2]]);
     expect(outcomes(result)).toEqual(['quote_not_in_cited_passages', 'supported', 'no_claim']);
     expect(outcomes(parse([supported(1, 'a single invented beam'), good[1], good[2]]))).toEqual([
       'quote_not_in_cited_passages',
@@ -191,6 +226,20 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
       'supported',
       'no_claim',
     ]);
+  });
+
+  it('lets a batch quote a passage that only another batch cites, when it is told the whole answer (D-305)', () => {
+    // Sentence 1 cites e2; the answer cites e3 only in a sentence of another batch. The quote is e3's, about sentence 1's "light".
+    const batch = sentences.slice(0, 1);
+    const crossQuote = [supported(1, 'light cannot cross a thick bank')];
+    const own = askSupportSchema(batch, PASSAGES).safeParse({ sentences: crossQuote });
+    expect(own.success && verdictsOf(own.data)[0]).toMatchObject({ code: 'quote_not_in_cited_passages' });
+    const told = askSupportSchema(batch, PASSAGES, sentences).safeParse({ sentences: crossQuote });
+    expect(told.success && verdictsOf(told.data)[0]).toMatchObject({ verdict: 'supported' });
+    // The role carries the same schema.
+    const role = askSupportRole(batch, PASSAGES, sentences);
+    expect(role.outputSchema.safeParse({ sentences: crossQuote }).success).toBe(true);
+    expect(verdictsOf(role.outputSchema.parse({ sentences: crossQuote }))[0]).toMatchObject({ verdict: 'supported' });
   });
 
   it('turns a sentence with a number marked as stating no fact into unsupported for that sentence', () => {
@@ -382,9 +431,9 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
     it('sets aside exactly half the sentences marked as stating no fact when nothing shows that they state none', () => {
       const answer: readonly SentenceUnderCheck[] = [
         prism,
-        { number: 0, text: 'The beam sweeps across the water.', cites: ['e2'] },
+        { number: 0, text: 'The beam sweeps across the open water of the bay each night.', cites: ['e2'] },
         tower,
-        { number: 0, text: 'Fog stops the light quickly.', cites: ['e3'] },
+        { number: 0, text: 'Fog stops the light quickly and ships wait in harbour until it lifts.', cites: ['e3'] },
       ];
       const result = reply(answer, [supportedPair[0]!, noClaim, supportedPair[1]!, noClaim]);
       expect(outcomes(result)).toEqual([
@@ -406,7 +455,11 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
     });
 
     it.each([
-      ['a sentence that shares a key word with its passages', 'The beam is narrow and bright.', 'e2'],
+      [
+        'a sentence of more than eight words that shares a key word with its passages',
+        'The beam is narrow and bright and reaches every ship nearby.',
+        'e2',
+      ],
       ['a figure written in words', 'Twenty-one crows nested there.', 'e1'],
       ['a figure written in words, larger', 'A hundred crows nested there.', 'e1'],
       ['a figure in digits', '21 crows nested there.', 'e1'],
@@ -496,10 +549,25 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
     const sunReply = (quote: string) =>
       askSupportSchema(sun, PASSAGES).safeParse({ sentences: [{ n: 1, verdict: 'supported', quote }] });
 
-    it('sets aside the false sentence of the dev run marked supported with the three words "the Sun is"', () => {
+    it('sets aside the false sentence of the dev run marked supported with the three words "the Sun is", once the sentence has more than eight key words (D-306)', () => {
+      const long: readonly SentenceUnderCheck[] = [
+        {
+          number: 1,
+          text: 'The Sun is nearly overhead at the pole in summer, so every glacier melts under bright weather somewhere.',
+          cites: ['e5'],
+        },
+      ];
+      const longReply = (quote: string) =>
+        askSupportSchema(long, PASSAGES).safeParse({ sentences: [{ n: 1, verdict: 'supported', quote }] });
       // The words are in the passage, and they say nothing about "nearly overhead", the pole or the summer.
-      expect(outcomes(sunReply('the Sun is'))).toEqual(['quote_not_about_sentence']);
-      expect(outcomes(sunReply('Sun is never directly'))).toEqual(['quote_not_about_sentence']);
+      expect(outcomes(longReply('the Sun is'))).toEqual(['quote_not_about_sentence']);
+      expect(outcomes(longReply('Sun is never directly'))).toEqual(['quote_not_about_sentence']);
+    });
+
+    it('lets a sentence of eight key words or fewer be supported by a quote with one of them, which is then the checker’s judgement alone (D-306)', () => {
+      expect(outcomes(sunReply('the Sun is'))).toEqual(['supported']);
+      // A quote with none of them is still about something else.
+      expect(outcomes(sunReply('the planet’s axis is tilted'))).toEqual(['quote_not_about_sentence']);
     });
 
     it('sets aside a quote that leaves the "never" out with an ellipsis, so it cannot turn the passage round (D-263)', () => {
@@ -611,9 +679,9 @@ describe('the role', () => {
  * is that they say what each verdict means, still tell the checker the rules code applies to its reply, and that the worked
  * examples they carry are consistent with those rules.
  */
-describe('the instructions of ask-support-check.v4 (D-281)', () => {
-  it('is version 4', () => {
-    expect(ASK_SUPPORT_CHECK_VERSION).toBe('ask-support-check.v4');
+describe('the instructions of ask-support-check.v5 (D-281, D-305 to D-307)', () => {
+  it('is version 5', () => {
+    expect(ASK_SUPPORT_CHECK_VERSION).toBe('ask-support-check.v5');
   });
 
   it('says supported covers what the passages state, say in other words or directly imply, and that putting two statements together counts', () => {
@@ -641,20 +709,22 @@ describe('the instructions of ask-support-check.v4 (D-281)', () => {
       'a question put to the reader',
       'a label of at most four words',
       'a plain admission of what the pages or this answer do not cover',
+      'a sentence of eight words or fewer with no number',
       'any other sentence with no number that shares no key word with the passages it cites',
+      'Use "no_claim" only for a sentence that adds no fact',
       'A sentence that has a number',
     ])
       expect(ASK_SUPPORT_INSTRUCTIONS).toContain(ground);
   });
 
-  it('keeps the rules code holds the quote to: real words, in one sentence, no dropped negation, two of the sentence’s key words', () => {
+  it('keeps the rules code holds the quote to: real words of any passage the answer cites, in one sentence, no dropped negation, one or two of the sentence’s key words', () => {
     for (const rule of [
-      'three to twenty-five words copied exactly from a cited passage',
+      'three to twenty-five words copied exactly from a cited passage (any passage listed, not only those the sentence cites)',
       'keep at least two words on each side of it',
       'keep all of it inside one sentence of the passage',
       'never leave out a "not", "never", "no" or "without"',
       'Never join words of two passages and never change a word',
-      'at least two of the sentence’s own key words',
+      'at least one of the sentence’s own key words when the sentence has eight or fewer key words, and at least two when it has more',
     ])
       expect(ASK_SUPPORT_INSTRUCTIONS).toContain(rule);
   });
@@ -696,7 +766,7 @@ describe('the instructions of ask-support-check.v4 (D-281)', () => {
       const sentence = { number: 1, text: first!.sentence, cites: ['e1'] };
       const schema = askSupportSchema([sentence], [{ handle: 'e1', text: `${first!.passage} A pump lifts water.` }]);
       const [verdict] = schema.parse({
-        sentences: [{ n: 1, verdict: 'supported', quote: 'A pump lifts water.' }],
+        sentences: [{ n: 1, verdict: 'supported', quote: 'A pump lifts' }],
       }).sentences;
       expect(verdict).toMatchObject({ verdict: 'unsupported', code: 'quote_not_about_sentence' });
     });

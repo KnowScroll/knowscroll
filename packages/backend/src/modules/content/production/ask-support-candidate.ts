@@ -90,9 +90,10 @@ export function candidateCheckerRole(
   candidate: CandidateCheckerInstructions,
   sentences: readonly SentenceUnderCheck[],
   passages: readonly SupportPassage[],
+  answer: readonly SentenceUnderCheck[] = sentences,
 ): ReasoningRole<AskSupportAnswer> {
   return {
-    ...askSupportRole(sentences, passages),
+    ...askSupportRole(sentences, passages, answer),
     id: CANDIDATE_ROLE_ID,
     version: candidate.version,
     instructions: candidate.text,

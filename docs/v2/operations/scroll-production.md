@@ -190,7 +190,9 @@ Usual findings and what they mean:
 
 | Finding | Meaning |
 |---|---|
-| `copied_passage` | Nine words in a row match a source passage. The repair is told, for each block, the passage words it copied (at most six runs of twenty words, `<repair-notes>`, D-294). The one revision after an ask's support check has no repair: a copy there ends the job. |
+| `copied_passage` | Nine words in a row match a source passage. The repair is told, for each block, the passage words it copied (at most six runs of twenty words, `<repair-notes>`, D-294). The revision after an ask's support check has one repair of its own, for this finding and the two below (D-312); any other refusal of it ends the job. |
+| `answer_sentences_out_of_brief` | An ask answer has fewer than 8 or more than 12 sentences of reading text (the dek, paragraphs, list items and callout text; not the title, a heading or a callout's title). The revision after a support check and the answer served after a drop may have 5 to 12 (D-308). |
+| `sentence_leans_on_previous` | A sentence after the first of its paragraph, list or callout begins with This, That, These, Those, It or They (D-309). The finding names the block. |
 | `authoring_number_not_in_evidence` | A figure (or a plotted chart value) is in no passage the block cites. |
 | `too_big` / `too_small` at a field | A length limit; the finding names the field and the limit. |
 | `OUTPUT_NOT_ONE_JSON_OBJECT` | The reply is not one JSON object; the detail says where it stopped being JSON. |
@@ -424,11 +426,12 @@ node dist/operator.js content production-status --only seasons,seasons-hemispher
 
 **Leaving a wave.** Record the yield (recipes held, released, rejected, unchecked), the tokens (sum the `attempts` of `production-status`) and the top findings of `reasoning rejected` in the tracker.
 
-## Checking stored ask answers (S-7b to S-7d, D-250 to D-252, D-263, D-265, D-280 to D-282)
+## Checking stored ask answers (S-7b to S-7f, D-250 to D-252, D-263, D-265, D-280 to D-282, D-305 to D-312)
 
 A person's question from a Scroll becomes a short answer made for them (an ask order, D-218). Nobody reads it first, so its job runs a second model, the **support
-check**, which reads each sentence against the passages the answer cites; an answer with a sentence they do not support is repaired once or refused, and
-the person gets the honest "could not prepare" state, never an unchecked answer. How it works: [content/production README](../../../packages/backend/src/modules/content/production/README.md).
+check**, which reads each sentence against the passages the answer cites. An answer is 8 to 12 sentences (`question-writer.v7`, paired with `ask-support-check.v5`). A sentence they do not support earns one revision;
+the sentences that still fail after it are taken out and the rest is served if the direct answer keeps a supported sentence, at least five sentences of reading text are supported and the limits callout remains (D-310); otherwise
+the person gets the honest "could not prepare" state. A sentence that was never checked or is unsupported is never served. How it works: [content/production README](../../../packages/backend/src/modules/content/production/README.md).
 
 `content ask-check` runs the same checker again over answers that were already made, to see what it says. It publishes, stores and changes nothing, and it
 never reads a person's question (the check does not use one). It calls the production harness, so every request is an attempt in the ledger and spends the
@@ -459,7 +462,7 @@ high `quote_not_about_sentence` or `no_claim_without_ground` count is the code's
 - **Standard output** is one JSON line for each answer: its asset ID, `outcome` (`checked`, `unchecked` with a `code`, `paused`, `not_replayable`), the counts of
   sentences, supported, unsupported and no-claim, the batches (a long answer is checked ten sentences at a time), the requests sent (one for each batch, and one
   more when the harness repaired an unusable reply) and `codes`: how many sentences code set aside as unsupported, for each rule that did it
-  (`quote_not_in_cited_passages`, `quote_not_about_sentence`, `quote_too_short`, `no_claim_without_ground`, `too_many_no_claim`), and how many `no_claim` verdicts passed on each ground (`no_claim_label`, `no_claim_gap`, `no_claim_question`, `no_claim_unshared`): a high `no_claim_label` or `no_claim_unshared` is the place to look for a checker that waves sentences through. No sentence, title or question is
+  (`quote_not_in_cited_passages`, `quote_not_about_sentence`, `quote_too_short`, `no_claim_without_ground`, `too_many_no_claim`), and how many `no_claim` verdicts passed on each ground (`no_claim_label`, `no_claim_gap`, `no_claim_question`, `no_claim_short`, `no_claim_unshared`): a high `no_claim_label`, `no_claim_short` or `no_claim_unshared` is the place to look for a checker that waves sentences through. `dropped` is how many sentences the production job took out of the answer it served (D-310, D-311): the answer replayed is the served one, so these sentences are not in the file. It is absent for an answer served whole. No sentence, title or question is
   printed, so the output may be pasted into an issue.
 - **The file** gets one JSON line for each checked answer: its title, and every sentence with the passages it cites and the checker's verdict (the quote for a supported
   sentence; the kind and the note for an unsupported one, and the rule's `code` when code set it aside). It holds the answer's own words, which can echo a person's question, so read it from the server shell, never paste it into an issue, and **delete the file as soon as you have read it** (`shred -u <file>` or `rm <file>`). The command creates it readable by its owner only.

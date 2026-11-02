@@ -19,6 +19,7 @@ import {
   type UnsupportedVerdict,
 } from '../domain/ask-support.js';
 import { pauseCode, uncheckedCode } from './answer-check-step.js';
+import { ANSWER_LENGTH_CODE, LEANING_SENTENCE_CODE } from './ask-answer-shape.js';
 import {
   askSupportContext,
   askSupportRole,
@@ -43,8 +44,11 @@ export const askSupportRunId = (jobId: string, draft: 1 | 2, batch: number): str
 /** The run of the one writer repair an unsupported sentence earns, derived from the job for the same reason. */
 export const askSupportRepairRunId = (jobId: string): string => stableUuid(`content.ask-support-repair:${jobId}`);
 
-/** The finding of the copy rule, the one refusal the revision's own repair is for (D-297). */
-const COPIED_PASSAGE_CODE = 'copied_passage';
+/**
+ * The findings the revision's own repair is for: copying a passage (D-297), and the two rules of the answer's shape, since a
+ * revision that takes sentences out or rewrites one can break them (D-312). Any other refusal of it ends the job.
+ */
+const REVISION_REPAIRABLE_CODES = ['copied_passage', ANSWER_LENGTH_CODE, LEANING_SENTENCE_CODE] as const;
 
 /** What asking the checker about one batch came to. */
 type BatchOutcome =
@@ -59,10 +63,14 @@ export interface AskSupportStepDependencies {
   readonly harness: ProductionReasoningHarness;
 }
 
-/** The checker's role for one batch of sentences. Production always uses {@link askSupportRole}. */
+/**
+ * The checker's role for one batch of sentences of an answer (`answer` is all of them, D-305). Production always uses
+ * {@link askSupportRole}.
+ */
 export type CheckerRoleOf = (
   sentences: readonly SentenceUnderCheck[],
   passages: readonly SupportPassage[],
+  answer: readonly SentenceUnderCheck[],
 ) => ReasoningRole<AskSupportAnswer>;
 
 /** What asking the checker about one draft came to. */
@@ -158,10 +166,10 @@ export function makeAskSupportStep(deps: AskSupportStepDependencies, checkerRole
           purpose: 'ask-support-check',
           policyVersion: input.policyVersion,
         },
-        role: checkerRoleOf(batch, input.passages),
+        role: checkerRoleOf(batch, input.passages, input.sentences),
         context: {
           bundleRef: `scroll:${input.jobId}:ask-support:${String(input.draft)}:${String(batchIndex)}`,
-          items: askSupportContext(batch, input.passages),
+          items: askSupportContext(batch, input.passages, input.sentences),
         },
         limits: { allowRepair: repairAllowed },
       },
@@ -246,8 +254,8 @@ export function makeAskSupportStep(deps: AskSupportStepDependencies, checkerRole
           bundleRef: `scroll:${input.jobId}:ask-support-repair`,
           items: [...input.writerItems, ...supportRepairItems(input.sentences, input.unsupported, input.previousDraft)],
         },
-        // The revision may be repaired once, and only for copying a passage (D-297): any other refusal of it ends the job.
-        limits: { repairOnlyFor: [COPIED_PASSAGE_CODE] },
+        // The revision may be repaired once, and only for the findings above: any other refusal of it ends the job.
+        limits: { repairOnlyFor: REVISION_REPAIRABLE_CODES },
       },
       input.signal,
     );

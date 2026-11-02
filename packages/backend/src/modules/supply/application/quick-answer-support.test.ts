@@ -85,12 +85,19 @@ describe('the checker’s role for a Quick answer', () => {
     // A reply that skips a sentence, or gives them out of order, is refused whole.
     expect(role.outputSchema.safeParse(reply(good.sentences[0])).success).toBe(false);
     expect(role.outputSchema.safeParse(reply(good.sentences[1], good.sentences[0])).success).toBe(false);
-    // "States no fact" is accepted only where code can see the sentence states none: this one has a subject in the passage.
+    // "States no fact" is accepted only where code can see the sentence states none: this one has a subject in the passage and is
+    // longer than eight words.
+    expect(
+      judged(good.sentences[0], { n: 2, verdict: 'no_claim' }).map((verdict) =>
+        verdict.verdict === 'unsupported' ? verdict.code : verdict.verdict,
+      ),
+    ).toEqual(['supported', 'no_claim_without_ground']);
+    // The first sentence has seven words and no figure, so it may be marked, as in an ask order's answer (D-307).
     expect(
       judged({ n: 1, verdict: 'no_claim' }, good.sentences[1]).map((verdict) =>
         verdict.verdict === 'unsupported' ? verdict.code : verdict.verdict,
       ),
-    ).toEqual(['no_claim_without_ground', 'supported']);
+    ).toEqual(['no_claim', 'supported']);
   });
 
   it('is asked about no more sentences than one request carries, because a Quick answer is checked in one request', () => {

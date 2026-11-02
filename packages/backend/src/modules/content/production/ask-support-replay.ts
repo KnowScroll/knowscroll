@@ -1,4 +1,5 @@
 import { sql, type Kysely } from 'kysely';
+import { z } from 'zod';
 import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
@@ -54,6 +55,11 @@ export interface ReplayLine {
    * pass on a label's word and how many on a gap line. The sentences' words are never here.
    */
   readonly codes: Readonly<Record<string, number>>;
+  /**
+   * How many sentences the production job took out of this answer before serving it (D-311), from its receipts: a number, never a
+   * sentence. The answer replayed is the one served, so these sentences are not in it. Absent when the job dropped none.
+   */
+  readonly dropped?: number;
   /** Why the check gave no usable answer, when it did not. */
   readonly code?: string;
   readonly runIds?: readonly string[];
@@ -107,6 +113,7 @@ interface StoredAnswer {
   readonly asset_id: string;
   readonly research: readonly ResearchPage[];
   readonly writer_output: unknown;
+  readonly outcomes: unknown;
 }
 
 const emptyLine = (assetId: string, outcome: ReplayOutcome, code?: string): ReplayLine => ({
@@ -144,6 +151,17 @@ function codeCounts(
   return counts;
 }
 
+const DroppedReceipt = z.object({ kind: z.literal('sentences_dropped'), dropped: z.number().int().min(0) });
+
+/** How many sentences the job's receipts say it took out of the answer it served (D-311). */
+function droppedOf(outcomes: unknown): number {
+  if (!Array.isArray(outcomes)) return 0;
+  return outcomes.reduce<number>((total, receipt: unknown) => {
+    const parsed = DroppedReceipt.safeParse(receipt);
+    return parsed.success ? total + parsed.data.dropped : total;
+  }, 0);
+}
+
 /** Whether an asset id is a UUID, so it can be matched without a cast failing the whole read. */
 export const isAssetId = (value: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(value);
@@ -152,7 +170,7 @@ export const isAssetId = (value: string): boolean =>
 async function storedAnswers(db: Kysely<Database>, target: ReplayTarget): Promise<readonly StoredAnswer[]> {
   const named = target.kind === 'assets' ? sql`and run.asset_id = any(${target.assetIds}::uuid[])` : sql``;
   const limit = target.kind === 'assets' ? ASK_SUPPORT_REPLAY_MAX : target.count;
-  const result = await sql<StoredAnswer>`select run.asset_id, run.research, run.writer_output
+  const result = await sql<StoredAnswer>`select run.asset_id, run.research, run.writer_output, run.outcomes
     from content.scroll_production_runs run
     join content.made_to_order_scrolls ordered on ordered.recipe = run.topic and ordered.mode = 'question'
     where run.state = 'published' and run.asset_id is not null ${named}
@@ -176,7 +194,7 @@ export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
     deps,
     candidate === undefined
       ? askSupportRole
-      : (sentences, passages) => candidateCheckerRole(candidate, sentences, passages),
+      : (sentences, passages, answer) => candidateCheckerRole(candidate, sentences, passages, answer),
   );
   /** A candidate replay marks everything it produces, so its output can never be read as the production checker's. */
   const labelled = (result: ReplayResult): ReplayResult => {
@@ -221,6 +239,7 @@ export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
     const verdicts = new Map(checked.verdicts.map((verdict) => [verdict.number, verdict]));
     const count = (kind: SentenceVerdict['verdict']) =>
       checked.verdicts.filter((verdict) => verdict.verdict === kind).length;
+    const dropped = droppedOf(stored.outcomes);
     const line: ReplayLine = {
       assetId,
       outcome: checked.record.kind,
@@ -232,6 +251,7 @@ export function makeAskSupportReplay(deps: AskSupportReplayDeps) {
       requests: checked.receipt.attempts?.length ?? 0,
       codes: codeCounts(checked.verdicts, sentences, passages),
       runIds,
+      ...(dropped === 0 ? {} : { dropped }),
       ...(checked.record.code === undefined ? {} : { code: checked.record.code }),
     };
     if (checked.record.kind !== 'checked') return { line };
