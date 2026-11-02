@@ -163,7 +163,7 @@ for (const { name, size } of VIEWPORTS) {
     // The whole row is the switch: its words toggle it, not only the track.
     await page.getByText('Ask Nova to answer now').click();
     await expect(page.getByRole('switch', { name: 'Ask Nova to answer now' })).not.toBeChecked();
-    await page.getByText(/People can still add more/).click();
+    await page.getByText(/people in the room can answer either way/).click();
     await expect(page.getByRole('switch', { name: 'Ask Nova to answer now' })).toBeChecked();
     await page.getByText('Tell me when a person answers').click();
     await expect(page.getByRole('switch', { name: 'Tell me when a person answers' })).not.toBeChecked();

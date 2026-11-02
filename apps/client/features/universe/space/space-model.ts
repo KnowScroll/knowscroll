@@ -163,13 +163,23 @@ function placeStation(station: RoomStation, system: SpaceSystemDefinition, latel
   };
 }
 
+/** Half the area framed around the single dust cloud of U01 Emerging, in scene units (its radius is 4.6). */
+const LONE_DUST_FRAME = 3.4;
+
 /** The centre and half extents of everything the whole-universe views must fit. */
-function universeBounds(systems: readonly SpaceSystemDefinition[]): {
+function universeBounds(
+  systems: readonly SpaceSystemDefinition[],
+  loneDust: boolean,
+): {
   center: { x: number; z: number };
   halfWidth: number;
   halfDepth: number;
 } {
-  if (systems.length === 0) return { center: { x: 0, z: 0 }, halfWidth: 6, halfDepth: 6 };
+  // The lone cloud of U01 Emerging is drawn past both edges of a phone, so it is framed tighter than its radius.
+  if (systems.length === 0) {
+    const half = loneDust ? LONE_DUST_FRAME : 6;
+    return { center: { x: 0, z: 0 }, halfWidth: half, halfDepth: half };
+  }
   const reach = (system: SpaceSystemDefinition): number => outerOrbitOf(system) + 1;
   const left = Math.min(...systems.map((system) => system.position.x - reach(system)));
   const right = Math.max(...systems.map((system) => system.position.x + reach(system)));
@@ -241,7 +251,7 @@ export function layOutUniverse(input: UniverseSpaceInput): UniverseSpace {
     const home = byId.get(station.placement.systemId);
     return home === undefined ? [] : [placeStation(station, home, lately)];
   });
-  const bounds = universeBounds(systems);
+  const bounds = universeBounds(systems, input.dustCueIds.length === 1);
   const shipPlanetId = lately ? undefined : shipPlanetOf(index, input.lastPlaceId);
   return {
     definition: {

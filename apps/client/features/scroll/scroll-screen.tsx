@@ -77,6 +77,7 @@ function KeepActions({
   capture,
   degraded,
   onShare,
+  saveInStrip = true,
 }: {
   readonly kept: KeepState;
   readonly isKept: boolean;
@@ -84,26 +85,30 @@ function KeepActions({
   readonly degraded: boolean;
   /** Opens the Share sheet; without it the strip holds Save only. */
   readonly onShare?: () => void;
+  /** False where Save is a row of its own (the Stage + Spine reader's ••• sheet): the strip holds Share alone. */
+  readonly saveInStrip?: boolean;
 }) {
   return (
     <View style={{ gap: spacing[3] }}>
       {degraded ? (
         <Banner kind="info" lead="Part of this Scroll needs an app update." message="It is shown here as text." />
       ) : null}
-      <ActionStrip
-        available={onShare === undefined ? ['save'] : ['save', 'share']}
-        saved={isKept}
-        saving={kept.state.save === 'sending'}
-        onAction={(action) => {
-          if (action === 'share') {
-            onShare?.();
-            return;
-          }
-          if (isKept) return;
-          capture();
-          void kept.surface.save();
-        }}
-      />
+      {onShare === undefined && !saveInStrip ? null : (
+        <ActionStrip
+          available={[...(saveInStrip ? ['save' as const] : []), ...(onShare === undefined ? [] : ['share' as const])]}
+          saved={isKept}
+          saving={kept.state.save === 'sending'}
+          onAction={(action) => {
+            if (action === 'share') {
+              onShare?.();
+              return;
+            }
+            if (isKept) return;
+            capture();
+            void kept.surface.save();
+          }}
+        />
+      )}
       {kept.state.save === 'unavailable' ? (
         <Banner kind="info" lead="Couldn't save yet." message="Earlier saves still need confirming." />
       ) : null}
@@ -319,6 +324,15 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
         partLabel={partLabel}
         moves={{
           universe: () => router.navigate('/universe'),
+          save: {
+            saved: isKept,
+            busy: kept.state.save === 'sending',
+            onPress: () => {
+              if (isKept) return;
+              capture();
+              void kept.surface.save();
+            },
+          },
           nextTopic: () => router.navigate('/explore'),
           nextPart: moves.nextPart,
           related: moves.related,
@@ -343,6 +357,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
             isKept={isKept}
             capture={capture}
             degraded={false}
+            saveInStrip={false}
             onShare={() => {
               close();
               setSharing(true);

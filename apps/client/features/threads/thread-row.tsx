@@ -3,12 +3,12 @@ import { StyleSheet, View } from 'react-native';
 import { listTime, threadRowView } from '@knowscroll/client-core';
 import type { ThreadSummary } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
-import { Icon, RowLink, Text } from '@knowscroll/ui';
+import { Icon, RowLink, Tag, Text } from '@knowscroll/ui';
 import { threadHref } from './thread-links';
 import { useTalkListLook } from '../conversations/talk-list-look';
 
 /** A thread in Talk: the content it is about, who invited or what was said last. Reading it records nothing about anyone. */
-export function ThreadRow({ item }: { readonly item: ThreadSummary }) {
+export function ThreadRow({ item, current = false }: { readonly item: ThreadSummary; readonly current?: boolean }) {
   const router = useRouter();
   const view = threadRowView(item);
   const href = threadHref(item.thread);
@@ -23,9 +23,10 @@ export function ThreadRow({ item }: { readonly item: ThreadSummary }) {
   return (
     <View style={[styles.rowFrame, { borderBottomColor: look.rule }]}>
       <RowLink
-        label={`Thread ${view.title}${view.unread ? ', unread' : ''}, ${view.subtitle}, ${time}`}
+        label={`Thread ${view.title}${item.series === undefined ? '' : `, part ${String(item.series.part)} of ${String(item.series.total)}`}${view.unread ? ', unread' : ''}, ${view.subtitle}, ${time}`}
         href={href}
         onPress={() => router.push(href)}
+        current={current}
         tint={look.tint}
         focusTone={look.focusTone}
         testID={`talk-thread-${item.thread.threadId}`}
@@ -39,6 +40,13 @@ export function ThreadRow({ item }: { readonly item: ThreadSummary }) {
               <Text variant={view.unread ? 'ui' : 'bodyS'} color={look.text} numberOfLines={1} style={styles.grow}>
                 {view.title}
               </Text>
+              {item.series === undefined ? null : (
+                <Tag
+                  variant="part"
+                  label={`Part ${String(item.series.part)} of ${String(item.series.total)}`}
+                  testID={`talk-thread-part-${item.thread.threadId}`}
+                />
+              )}
             </View>
             <Text variant="meta" color={look.quiet} numberOfLines={1}>
               {view.subtitle}

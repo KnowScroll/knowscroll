@@ -1,10 +1,11 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { ThreadCall, ThreadEpisode, ThreadPlace } from '@knowscroll/contracts';
-import { borderWidth, content, radius, spacing, target } from '@knowscroll/design-tokens';
+import { borderWidth, content, radius, spacing, target, universe } from '@knowscroll/design-tokens';
 import { Icon, Tag, Text, useFocusRing } from '@knowscroll/ui';
 import { CallChip } from './call-together';
 import { episodeKeys, episodeLabel, episodePlace } from './episode-navigator';
 import { PartFaces, partPlacesWords } from './party';
+import { hasPartWorld, PartWorldDisc } from './part-world';
 
 function EpisodeRow({
   episode,
@@ -44,9 +45,15 @@ function EpisodeRow({
         ]}
         testID={`episode-${episode.assetId}`}
       >
-        <View style={styles.tile}>
-          <Icon name={episode.kind === 'reel' ? 'reel' : 'scroll'} size={20} color={content.paper} />
-        </View>
+        {series && episode.part !== undefined && hasPartWorld(episode) ? (
+          <View style={styles.world}>
+            <PartWorldDisc assetId={episode.assetId} size={58} />
+          </View>
+        ) : (
+          <View style={styles.tile}>
+            <Icon name={episode.kind === 'reel' ? 'reel' : 'scroll'} size={20} color={content.paper} />
+          </View>
+        )}
         <View style={styles.text}>
           <Text variant="monoXs" color={content.ink2}>
             {episodePlace(episode, series)}
@@ -162,6 +169,16 @@ const styles = StyleSheet.create({
     backgroundColor: content.ink,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  /** The painted world of a part: the sky behind it, so its colours read on the paper row. */
+  world: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: universe.sky,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   text: { flex: 1, gap: spacing[0.5] },
   states: { flexDirection: 'row', alignItems: 'center', gap: spacing[1.5] },

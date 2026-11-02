@@ -77,7 +77,7 @@ uses the same command. Runtime variables:
 | Script | Runs |
 |---|---|
 | `pnpm format` / `pnpm format:check` | Prettier over workspace code and config (`.prettierignore` limits it to what the workspace owns) |
-| `pnpm lint` | ESLint with typescript-eslint type information, zero warnings |
+| `pnpm lint` | ESLint with typescript-eslint type information, zero warnings. `scripts/lint.mjs` runs it in parts, one process each with a 6 GB heap, so typed linting fits its memory as the code grows; every file is linted once, and a new folder falls into the last part |
 | `pnpm typecheck` | `tsc` per package |
 | `pnpm boundaries` | dependency-cruiser rules (`.dependency-cruiser.cjs`) |
 | `pnpm boundaries:probe` | writes deliberately forbidden imports, checks each is rejected by the expected rule, removes them |

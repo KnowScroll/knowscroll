@@ -74,6 +74,15 @@ export const iconShapes = {
   retry: [path('M20 12a8 8 0 1 1-2.3-5.7'), path('M20 4v5h-5')],
   clock: [circle(12, 12, 9), path('M12 7v5l3 2')],
   offline: [path('M3 3l18 18'), path('M7 18H6a4 4 0 0 1-.6-8'), path('M10.5 6.2A6 6 0 0 1 18 10a4 4 0 0 1 2 7')],
+  // A wifi fan with a slash (Universe "Offline"), and the eight-spoke spark of a quiet notice (Universe "Notice").
+  wifiOff: [
+    path(
+      'M2 8.8a15 15 0 0 1 4.2-2.6M9.6 5.3A15 15 0 0 1 22 8.8M5 12.9a10 10 0 0 1 3.5-2.3M14.5 10.3A10 10 0 0 1 19 12.9M8.5 16.4a5 5 0 0 1 7 0M12 20h.01M3 3l18 18',
+    ),
+  ],
+  spark: [path('M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6')],
+  // Two sliders: the orbit dial's filters.
+  filter: [path('M4 7h9M17 7h3M4 17h3M11 17h9'), circle(15, 7, 2), circle(9, 17, 2)],
   alert: [circle(12, 12, 9), path('M12 7v6M12 16.5v.1')],
   info: [circle(12, 12, 9), path('M12 8v5M12 16v.1')],
   // Semantics.
@@ -92,6 +101,8 @@ export const iconShapes = {
   person: [circle(12, 8, 3.5), path('M5 20c.9-3.5 3.6-5.5 7-5.5s6.1 2 7 5.5')],
   // The play layer's spark (the V3 Scrolls dock and reveal); the v2.1 export has no star.
   star: [path('M12 3l2.7 5.8 6.3.8-4.6 4.4 1.2 6.3-5.6-3.1-5.6 3.1 1.2-6.3L3 9.6l6.3-.8z', true)],
+  // The V3 Ask pill's four-point sparkle (G1, P3): the dock's Ask about this.
+  sparkle: [path('M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z', true)],
   // Scroll blocks (E03 Copy): from the export's copy icon.
   copy: [{ kind: 'rect', x: 8, y: 8, width: 12, height: 12, rx: 2 }, path('M16 8V4H4v12h4')],
   // Talk (T3): answering a message, and reporting one.

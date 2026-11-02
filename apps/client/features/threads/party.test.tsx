@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { ThreadEpisode, ThreadParticipant, ThreadPlace } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
 import { EpisodeList } from './episode-list';
+import { partWorldLook } from './part-world';
 import { MembersSection, PartFaces, PartWorlds, PartyLine, SeriesTabs, partPlacesWords } from './party';
 
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -46,6 +47,20 @@ describe('the part worlds in the header', () => {
     expect(face(ravi)).toBeOnTheScreen();
     expect(face(kenji)).toBeOnTheScreen();
     expect(face(asha)).toBeOnTheScreen();
+  });
+
+  it('paints each part as a world from its Scroll, and only a part with no Scroll keeps its number', async () => {
+    const gone: ThreadEpisode = { ...episode(3), state: 'unavailable' };
+    await render(inDisplay(<PartWorlds episodes={[episode(1), episode(2), gone]} places={[]} selected={undefined} />));
+    expect(screen.getAllByTestId('painted-world', { includeHiddenElements: true })).toHaveLength(2);
+    expect(screen.getByText('3', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.queryByText('1', { includeHiddenElements: true })).toBeNull();
+  });
+
+  it('paints the same world for the same Scroll every time, from nothing but its ID', () => {
+    expect(partWorldLook(id(301))).toEqual(partWorldLook(id(301)));
+    const types = new Set(Array.from({ length: 24 }, (_, index) => partWorldLook(id(400 + index)).type));
+    expect(types.size).toBeGreaterThan(2);
   });
 
   it('names each world for a screen reader with who is on it or finished it, never watching', async () => {

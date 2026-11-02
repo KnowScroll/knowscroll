@@ -247,6 +247,7 @@ Covered by `ask-sheet.test.tsx`, `ask-puzzle.test.tsx`, `puzzle-pick.test.ts`, `
 
 - **Simpler and the selection menu** (D-244; status: **implemented**, web smoke-tested; native by unit tests only). A read stop swaps to its own authored plainer words in place, with Undo, from the button under the stop, from the ••• item "Simpler (this screen)" and from the web toolbar over selected words (`SelectionMenu`, "Simpler" and "Ask"). It is the stop's `simple` text, so no request leaves the device. "Ask" asks for a Quick answer (below). A call, the Final call and the end are never offered the menu. A phone's own selection menu cannot be extended, so a phone uses the button and •••. Covered by `e2e/simpler-smoke.spec.ts`.
 - **Quick answer** (D-086, D-253 to D-255; status: **implemented**, web smoke-tested; native by unit tests only, and the real model is the coordinator's run on dev). "Ask" on selected words sends one capped command (`useQuickAnswers`, the scope's `quickAnswerSessionFor`) and a card appears under the stop (`QuickAnswerCard` through the reader's `stopFooter`), labelled "Quick answer · not a checked Scroll". It says it is working, then shows the question it answers and the answer, with "Make it a full Scroll" (Ask from here at the stop, with the answer's question as the draft, in `encounter-stage.tsx`; `/scroll/<id>` has the same Ask (D-262), so its card has the button too), "Ask a follow-up" (another Quick answer on the same words), "Report" (the content-error form with the answer's ID, D-255) and Close (the server erases its words). The reader brings a card that appears or grows on screen. When there is no answer it says why in plain words (`quick-answer-copy.ts`): the day or the person's limit is used up, the queue is full, recording is paused (nothing is sent), it failed, or the connection is down. Words inside a card are never offered another Ask. Covered by `e2e/quick-answer-smoke.spec.ts` at 390 by 844 and 1440 by 900 with axe.
+- **The ••• sheet of a Scroll** (D-331 to D-333; status: **implemented**, web smoke-tested; native by unit tests only). `StageReaderSurface` draws seven rows (`more-rows.ts`, `more-sheet.tsx`): Save, Share a moment, Challenge a friend, Text version, Simpler (this screen), Small print and Report, each with a sub-line and a key (S, H, C, T, Shift + S, P, R). A row that cannot work on the Scroll or screen is left out; one that cannot work on this stop is dimmed and says why. Save is the screen's (`StageMoves.save`: Explore's session, `/scroll/<id>`'s Keep surface; none in a thread's reader). Explore adds Like, Share, Ask and "Your path and more options" under the list. Small print opens the limits aside in a sheet. Share a moment opens with the stop and its picture (`MomentPreview`). The friend list of the Challenge and Share sheets loads as a skeleton row. Covered by `more-rows.test.ts`, `share-stop-sheet.test.tsx`, `friend-picker.test.tsx` and `e2e/scroll-fidelity-smoke.spec.ts` (390 × 844 and 1440 × 900, axe).
 - **Challenge a friend** (D-245; status: **implemented**, web smoke-tested with two browsers over labelled fixtures; not runtime-verified on dev). "Challenge a friend" is in the ••• menu and at the end of a Scroll that has a call. `features/sharing/challenge-sheet.tsx` shows the Scroll's Final call (else its first Call it, `challenge-call.ts`), the sender's own call first, and a friend to send it to; the card goes into a direct conversation and the sender's pick is locked after it. In Talk, `conversations/challenge-block.tsx` draws the card under the shared Scroll: the options to call before the person has called, their own pick while they wait, and both picks, the answer and why once both have called. A right call is a spark, a wrong one a plot twist. While recording is paused the card says the pick is not saved. Covered by `e2e/challenge-smoke.spec.ts` (two people in two browser contexts at 390 by 844 and 1440 by 900, axe).
 - **The Reels top bar** (D-246; status: **implemented**, web smoke-tested). A Reel's bar has Your Universe at the left and Next topic at the right, as the Scroll reader's bar does; the desktop Reel card has Your Universe before Previous subject. Covered by `e2e/simpler-smoke.spec.ts` (390, 320 and 1440 px).
 
@@ -367,14 +368,17 @@ float over it.
   offers land that has not formed. `/` opens it from the focused map.
 - **The orbit dial** (`dial/`, D-112) replaces the List view on phones and tablets. Touch the system row to open the
   wheel of systems, turn it (drag, or the arrow keys on the focused wheel), let go to choose; the chosen system's
-  planet at the top of its dial is shown big as its real globe, and a tap lands on its map. Filters All, Lately (not
-  quiet), With rooms and A–Z; one search for systems (wheel open) and one for planets (in this system or everywhere).
+  planet at the top of its dial is shown big as its real globe, and a tap lands on its map. The chosen system is its
+  name and a chevron, with no arrow into the system (D-317). Filters All, Lately (not quiet), With rooms and A–Z are plain
+  words with counts behind the filter button of the open wheel, and shown while systems are searched; one search for systems
+  (wheel open) and one for planets (in this system or everywhere), whose matches are a paper card under "In <system> / Everywhere".
   It is built from the reads the Universe holds (`buildDial`): nothing is fetched or written, and land not reached yet
   is neither listed nor counted. The design's "N uncharted" chip is not drawn (D-109).
 - **Simple drawing** (`simple/`, D-111). The whole tab as the two lists of `simple-views-finalized.html`. It is on by
   the setting ("Simple view" on the dial, "Simple drawing" in the desktop panel; remembered on the device with the
   camera) and by itself when WebGL is missing, the context is lost, a frame fails, the system warns of low memory or
-  the browser says it has 1 GB or less. Turning the switch off tries 3D again.
+  the browser says it has 1 GB or less. Turning the switch off tries 3D again. Its rows are plain: no boxes, no chevrons,
+  a thin line between them, and a green switch. At 1024 px and up the panel's "Simple drawing" switch is the only one.
 - **Desktop D02** (`universe-panel.tsx`). From 1024 px the panel is always open: counts, search, the picked planet's
   card (Land goes straight to its map, Close), the Lately and Simple drawing switches, then the same lists as the
   Simple view (systems with planets and rooms). On a system a tap on a planet picks it and it glows; key hints and
@@ -384,10 +388,16 @@ float over it.
   week's Orbit, the next Part to resume and the topic of each planet (`readCollection` in client-core) when the tab comes to
   the front and when the map's geography changes. A landmark stands on the planet of its Scroll's topic as a small pennant
   (gold or cream) painted on the globe and the landed map at places `landmarkSpots` picks; with no such planet on the map it
-  waits in the tray ("Your landmark is waiting", with "See it") and the Landmarks chip opens the sheet that lists every one
-  with its finish and where it stands. The Orbit is one quiet line of text ("Orbit · 1 of 3 days this week"; never a ring on
-  the map, D-087) and the resume chip ("Resume Part 2 of 3") opens the next Part by its address. On desktop the panel carries
-  the same as a paper list, and so does the Simple drawing, so the landmarks are readable without the drawing. The markers
+  waits ("Gold finish · waits for its planet"). The map carries no chips of the collection (the Universe set draws none): the
+  newest landmark is a paper card over the bottom of the map ("New landmark" for a week after it was earned, "Latest landmark"
+  after, D-363; its name, "from <planet> · gold finish", "See it"), and "See it" opens the sheet that lists every one with its finish
+  and where it stands. The card is one line where a full card would reach the picture (D-319): on a globe, where it sits under
+  Back above the globe so it clears the planet's name and hint, on a landed map, and on a screen under 760 px tall, where a
+  full card would reach the sun. With only the week to say the card has no button. The Orbit is one quiet line of
+  text inside the card ("Orbit · 1 of 3 days this week"; never a ring on the map, D-087) and the yellow chip ("Resume Part 2
+  of 3") beside it opens the next Part by its address. With no landmark yet the card speaks of the next Part, or of the week.
+  On desktop the panel carries the same as a paper list and the map carries no card, and so does the Simple drawing, so the
+  landmarks are readable without the drawing. The markers
   do not move, so reduced motion changes nothing about them. A friend's universe is never given a collection. Cloud thinning
   and an Orbit ring were not built (D-088, D-087).
 - **Return.** The camera, lens and ship's place persist per device in the account scope's storage
@@ -654,6 +664,12 @@ Routes: `/threads/<id>` (C04, `?m=<membership>&r=<revision>` from Talk or the sh
 (the snippet viewer) and `/threads/<id>/read/<assetId>` (a Scroll read inside the thread). Talk (`/conversations`) lists
 direct conversations and threads together; a thread row shows its people, the last message and an invitation badge.
 
+- Talk fidelity (v3, #497, D-326 to D-330; status: **implemented** (web smoke over labelled fixtures; native by unit tests only), not yet runtime-verified on dev). The Talk list
+  (`conversations-screen.tsx`) has THREADS, PEOPLE and ROOMS and a "Part 2 of 3" chip on a thread row. It is the first column beside a conversation from 1024 px and beside a thread from
+  1280 px (`conversations/talk-inbox-pane.tsx`, `talk-columns.ts`). A conversation has the "In this chat"
+  rail from about 1210 px, while its chat keeps 400 px (`chat-rail.tsx`, `shared-here.ts`). A part is painted as a world from its Scroll's ID (`threads/part-world.tsx`) in the
+  header and the Series sheet. `NewSinceDivider` (`message-views.tsx`) draws "New since you were here" over what came after the
+  person's own stored read position. Covered by `talk-smoke.spec.ts` and `thread-party-smoke.spec.ts` (390 and 1440, axe).
 - `features/threads/thread-screen.tsx` is C04 (T3, D-140 to D-144): `thread-chrome.tsx` (the 72 px `ThreadStrip`, people, options,
   invitation; `ThreadHeader` stays for rooms), `series-sections.tsx` and `episode-list.tsx` (the parts as rows, in the
   Series sheet on a phone and in the panel on a desktop; the arrow keys step between rows), `episode-navigator.tsx` (the

@@ -537,6 +537,8 @@ export function talkServer() {
     peerReadsThrough(sequence: number | undefined) {
       peerRead = sequence;
     },
+    /** How far this person has read, as the server holds it (their own position, set by mark-read). */
+    readThrough: () => readThrough,
     reactionsOn: (sequence: number) => messages.find((candidate) => candidate.sequence === sequence)?.reactions ?? [],
     /** The server turns a message into a tombstone with a new change number. */
     tombstone(sequence: number) {

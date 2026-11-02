@@ -109,10 +109,10 @@ export function UniverseSearchPanel({
           )
         ) : (
           <View style={styles.empty}>
-            <Text variant="heading" heading={2}>
+            <Text variant="title" heading={2} style={styles.emptyTitle}>
               Find any place you’ve been
             </Text>
-            <Text variant="body" color={content.ink2}>
+            <Text variant="bodyS" color={content.ink2}>
               Choosing a result flies you there. Back returns you to where you were looking.
             </Text>
             <View style={styles.kinds}>
@@ -194,6 +194,8 @@ const styles = StyleSheet.create({
   },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing[3] },
   empty: { gap: spacing[2] },
+  /** The file's card heading is 18 px, a size of its own. */
+  emptyTitle: { fontSize: 18, lineHeight: 22 },
   kinds: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[5], paddingTop: spacing[1] },
   results: { maxHeight: 340 },
   result: {

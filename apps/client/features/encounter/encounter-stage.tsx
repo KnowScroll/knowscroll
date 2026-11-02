@@ -86,6 +86,14 @@ export function StageEncounter({
         partLabel={series === undefined ? undefined : `Part ${String(series.part)} of ${String(series.total)}`}
         moves={{
           universe: () => router.navigate('/universe'),
+          save: {
+            saved: entry.context.actions.saved,
+            busy: state.actionPending === true,
+            onPress: () => {
+              if (state.actionPending || state.actionFailed) return;
+              session.act(entry.context.actions.saved ? 'unsave' : 'save');
+            },
+          },
           nextTopic: () => session.navigate({ mode: 'vertical', direction: 'next' }),
           ...moves,
           // Ask from here (D1): the question is anchored to the stop on screen, or the last one at the end of the Scroll.
@@ -107,7 +115,14 @@ export function StageEncounter({
         }}
         moreBody={(close) => (
           <View style={styles.more}>
-            <EncounterStrip entry={entry} state={state} session={session} align="start" beforeOverlay={close} />
+            <EncounterStrip
+              entry={entry}
+              state={state}
+              session={session}
+              align="start"
+              beforeOverlay={close}
+              available={['like', 'share', 'ask']}
+            />
             <Button
               label="Your path and more options"
               onPress={() => {

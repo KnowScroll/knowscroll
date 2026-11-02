@@ -19,3 +19,19 @@ export function awayAfter<T extends { readonly sequence: number }>(
     ? lostAfter
     : undefined;
 }
+
+/**
+ * T3 "new since you were here": on opening a thread or a conversation, what others said after the person's own
+ * stored read position sits under a marked line. `readThrough` is the position the server held when the person
+ * opened it (their own, never shown to anyone else). Returns the sequence the line follows, or `undefined` when
+ * the person has never read here (then everything would be "new") or nothing from anyone else came after it.
+ */
+export function newSinceAfter<T extends { readonly sequence: number }>(
+  readThrough: number,
+  messages: readonly T[],
+  isOwn: (message: T) => boolean,
+): number | undefined {
+  return readThrough > 0 && messages.some((message) => message.sequence > readThrough && !isOwn(message))
+    ? readThrough
+    : undefined;
+}
