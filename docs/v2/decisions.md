@@ -4396,3 +4396,43 @@ Confirmed by: `ask-answer-trim.test.ts` (the count; none for a callout equal to 
 - **Limits.** Part (2) counts the handles the blocks cite. A handle that names no passage is still the compile's own finding.
 
 Confirmed by: `ask-support-drop.test.ts` (the line cites what the draft cites when nothing is taken out; after the only blocks that cite two passages are taken out it cites neither; blocks that cite nothing are refused `rebuilt_invalid`), `writer.test.ts` (the line cites five passages and the other blocks two or three: refused `authoring_too_few_cites`, once; four: compiled; a writer's own callout in the same answer keeps the library's rule) and `supply-ask.test.ts` on real PostgreSQL with a labelled fixture model (a drop that leaves only blocks citing two passages ends `support_check_failed` with `support_drop_compile_refused` and serves nothing). Shown failing when the drop did not close again (two unit tests) and when the compile counted the line (one unit test); with both removed the integration test failed.
+
+## D-377 · 2026-11-03 · A picked region's name stays above the card, measured once the card is drawn (v3 fidelity, #648)
+
+**Builds on** the region card of the Universe (v3 U-4, U-5): only where the name pill stands when the card is tall.
+
+- **The gap.** The camera centres a picked region in a band scaled by the screen's height. A card has a fixed height, so on a 390 x 664 phone the card covered half of the name pill, and on 360 x 640 all of it.
+- **The rule.** The surface measures the card once it is drawn and tells the planet map how far up from the bottom it reaches. The pill is lifted to stand 8 px above the card's top edge, and never higher than the header row. Where the label already clears the card (844 and taller) the pill is where it was. Before the card is measured, nothing moves.
+- **Not changed.** The camera and the region's drawing: on a short phone part of the region sits under the card, as the card sits over the map on every phone.
+
+Confirmed by: `planet-plan.test.ts` (the pill's top at 390 x 664, 360 x 640 and 844, and unmeasured), `e2e/universe-planet-smoke.spec.ts` (the pill is whole and above a three-line card at 390 x 664, 360 x 640 and 390 x 844). Shown failing when the lift was removed.
+
+## D-378 · 2026-11-03 · A Part with no picture keeps its "Back to Part N" tab in a row of its own (v3 fidelity, #648)
+
+**Amends** D-367 for a Part whose document has no pinned picture.
+
+- **The gap.** The tab stands on the picture's left edge. With no picture it floated over the first stop's text and hid its first letters.
+- **The rule.** Without a pinned picture and with a Part before it, the reader draws the tab in a 52 px row above the text, at the left, on every stop, so the text does not jump when the person scrolls off the first stop. With a picture nothing changes. The arrival bar ("Part 3 · your place in Part 2 is kept") stands under the row while it shows.
+
+Confirmed by: `part-peek.test.tsx` (the row, the tab's position and the bar's offset, with and without a picture), `e2e/scroll-motion-smoke.spec.ts`. Shown failing when the row was switched off.
+
+## D-379 · 2026-11-03 · The "Next topic" note takes no focus; the reader keeps F and Esc (v3 fidelity, #648)
+
+**Amends** D-364, its "Keys" and "It goes by itself" lines.
+
+- **The gap.** Focus was moved into the note when it appeared, and the note waits while it has focus (WCAG 2.2.1). The code's own move therefore held the note for good: it was still up 14 s later, not 9.
+- **The rule.** Nothing moves focus into the note. It is a polite status, so it is announced. It waits only while the pointer is over it or the person tabs into it, and its nine seconds start again after. F and Esc act from the reader group, which is given focus only when the person's focus was lost or sat on a control of the reader that the move replaced (the Next button they pressed), and from the note's own buttons when the person is there. Focus that the person put elsewhere stays.
+- **Not changed.** The note's words, its two moves, and that it is shown once per Scroll.
+
+Confirmed by: `e2e/scroll-motion-smoke.spec.ts` (gone after nine seconds at 390 and 1440 with no focus inside it; held by hover and by focus, then gone; Esc from the reader), `format-note.test.tsx` (timer and holds). Shown failing against the focus move.
+
+## D-380 · 2026-11-03 · "New since you were here" also follows the person's own last message when they never read there (v3 fidelity, #648)
+
+**Amends** D-329, its "never read there" rule.
+
+- **The gap.** A message sent without the thread or conversation open (a share sheet) moves no read position, so a person who wrote there and never opened it had position 0, read as "never read here", and saw no line over the reply. That is the first-open miss seen once on dev. It was not reproduced there; the code gap is certain and the evidence fits it.
+- **The rule.** When the stored position is 0, the line follows the person's own last message instead, if anyone else wrote after it. A stored position, when there is one, governs as before. With neither a position nor a message of their own the line is still not drawn, as everything would be new.
+- **Not changed.** No contract, SQL, erasure or export change; the line is still set once per opening and never sent to anyone.
+- **Seen, not changed.** A screen kept under another (a Scroll opened from a thread) still counts new messages read while the person is on the other screen. That is a separate gap.
+
+Confirmed by: `away-divider.test.ts`, `content-thread.test.ts`, `conversation-thread.test.ts` (wrote, never read, the peer replied: the line follows the person's message), `e2e/talk-smoke.spec.ts` (a conversation with position 0 draws the line). Shown failing without the rule.
