@@ -135,7 +135,7 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     const { results, summary } = await replayed({ kind: 'assets', assetIds: [answer.assetId] });
 
     expect(summary).toEqual({ answers: 1, stopped: false });
-    // The answer has 19 sentences: two requests, ten sentences and nine (D-267).
+    // The answer has 15 sentences: two requests, ten sentences and five (D-267).
     expect(worker.supportCalls.length - callsBefore).toBe(2);
     const [only] = results;
     expect(only!.line).toMatchObject({
@@ -180,6 +180,37 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
       expect(run.closed_at).not.toBeNull();
     }
     support = (_check, call) => supportReply(call);
+  });
+
+  it('says how many sentences the job took out of the answer it served, as a number, and replays the answer that was served (D-310, D-311)', async () => {
+    // The checker finds two sentences unsupported when the answer is made, in the first check and in the revision's.
+    support = (_check, call) => {
+      const { sentences } = supportRequestOf(call);
+      const unsupported = Object.fromEntries(
+        sentences
+          .filter((one) =>
+            ['Because the beam turns', 'Today a small motor'].some((start) => one.text.startsWith(start)),
+          )
+          .map((one) => [one.n, { kind: 'not_stated', problem: 'No passage says that, a CI note.' }]),
+      );
+      return supportReply(call, { unsupported });
+    };
+    const trimmed = await producedOrder('question');
+    support = (_check, call) => supportReply(call);
+    const whole = await producedOrder('question');
+
+    const { results } = await replayed({ kind: 'assets', assetIds: [trimmed.assetId, whole.assetId] });
+
+    const byAsset = new Map(results.map((result) => [result.line.assetId, result]));
+    const dropped = byAsset.get(trimmed.assetId)!;
+    expect(dropped.line).toMatchObject({ outcome: 'checked', dropped: 2, unsupported: 0 });
+    // The answer replayed is the one served: it has fewer sentences, and none of the two that were taken out.
+    expect(dropped.line.sentences).toBe(byAsset.get(whole.assetId)!.line.sentences - 2);
+    expect(JSON.stringify(dropped.detail)).not.toContain('Because the beam turns');
+    expect(JSON.stringify(dropped.detail)).not.toContain('Today a small motor');
+    // The line holds the count and no sentence; an answer served whole has no such field.
+    expect(JSON.stringify(dropped.line)).not.toContain('beam turns');
+    expect(byAsset.get(whole.assetId)!.line).not.toHaveProperty('dropped');
   });
 
   it('counts the no_claim verdicts by the ground they passed on, so the replay shows how many pass on a label or a gap line (D-266)', async () => {

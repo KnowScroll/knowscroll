@@ -19,9 +19,10 @@ import {
   type UnsupportedVerdict,
 } from '../domain/ask-support.js';
 import { pauseCode, uncheckedCode } from './answer-check-step.js';
+import { ANSWER_LENGTH_CODE, LEANING_SENTENCE_CODE } from './ask-answer-shape.js';
 import {
   askSupportContext,
-  askSupportRole,
+  askOrderCheckerRole,
   supportRepairItems,
   supportRepairRole,
   verdictsOf,
@@ -43,8 +44,11 @@ export const askSupportRunId = (jobId: string, draft: 1 | 2, batch: number): str
 /** The run of the one writer repair an unsupported sentence earns, derived from the job for the same reason. */
 export const askSupportRepairRunId = (jobId: string): string => stableUuid(`content.ask-support-repair:${jobId}`);
 
-/** The finding of the copy rule, the one refusal the revision's own repair is for (D-297). */
-const COPIED_PASSAGE_CODE = 'copied_passage';
+/**
+ * The findings the revision's own repair is for: copying a passage (D-297), and the two rules of the answer's shape, since a
+ * revision that takes sentences out or rewrites one can break them (D-314). Any other refusal of it ends the job.
+ */
+const REVISION_REPAIRABLE_CODES = ['copied_passage', ANSWER_LENGTH_CODE, LEANING_SENTENCE_CODE] as const;
 
 /** What asking the checker about one batch came to. */
 type BatchOutcome =
@@ -59,10 +63,14 @@ export interface AskSupportStepDependencies {
   readonly harness: ProductionReasoningHarness;
 }
 
-/** The checker's role for one batch of sentences. Production always uses {@link askSupportRole}. */
+/**
+ * The checker's role for one batch of sentences of an answer (`answer` is all of them, D-305). Production always uses
+ * {@link askOrderCheckerRole}.
+ */
 export type CheckerRoleOf = (
   sentences: readonly SentenceUnderCheck[],
   passages: readonly SupportPassage[],
+  answer: readonly SentenceUnderCheck[],
 ) => ReasoningRole<AskSupportAnswer>;
 
 /** What asking the checker about one draft came to. */
@@ -130,10 +138,13 @@ export interface SupportRepairInput {
  * so each request has an attempt in the ledger and counts against the production caps; neither holds a transaction.
  * They return what happened and decide nothing: the writer stage does.
  *
- * `checkerRoleOf` says which role asks the checker. The production job and the Quick answer leave it out and get the
- * production role; only the operator's replay passes another, to try candidate instructions (D-280).
+ * `checkerRoleOf` says which role asks the checker. The production job leaves it out and gets the ask order's role (the soft
+ * rules of D-306 and D-307, whose backstop is the drop of D-310); only the operator's replay passes another, to try candidate instructions (D-280).
  */
-export function makeAskSupportStep(deps: AskSupportStepDependencies, checkerRoleOf: CheckerRoleOf = askSupportRole) {
+export function makeAskSupportStep(
+  deps: AskSupportStepDependencies,
+  checkerRoleOf: CheckerRoleOf = askOrderCheckerRole,
+) {
   /** Every paid attempt of a run with its usage, for the job's receipt; none when the ledger cannot say. */
   async function attemptsOf(runId: string) {
     const accounted = await deps.withScope(deps.authority, (scope) =>
@@ -158,10 +169,10 @@ export function makeAskSupportStep(deps: AskSupportStepDependencies, checkerRole
           purpose: 'ask-support-check',
           policyVersion: input.policyVersion,
         },
-        role: checkerRoleOf(batch, input.passages),
+        role: checkerRoleOf(batch, input.passages, input.sentences),
         context: {
           bundleRef: `scroll:${input.jobId}:ask-support:${String(input.draft)}:${String(batchIndex)}`,
-          items: askSupportContext(batch, input.passages),
+          items: askSupportContext(batch, input.passages, input.sentences),
         },
         limits: { allowRepair: repairAllowed },
       },
@@ -246,8 +257,8 @@ export function makeAskSupportStep(deps: AskSupportStepDependencies, checkerRole
           bundleRef: `scroll:${input.jobId}:ask-support-repair`,
           items: [...input.writerItems, ...supportRepairItems(input.sentences, input.unsupported, input.previousDraft)],
         },
-        // The revision may be repaired once, and only for copying a passage (D-297): any other refusal of it ends the job.
-        limits: { repairOnlyFor: [COPIED_PASSAGE_CODE] },
+        // The revision may be repaired once, and only for the findings above: any other refusal of it ends the job.
+        limits: { repairOnlyFor: REVISION_REPAIRABLE_CODES },
       },
       input.signal,
     );

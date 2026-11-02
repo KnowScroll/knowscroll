@@ -74,6 +74,7 @@ export function DialTop({
             label="Filter systems"
             variant="onSpace"
             onPress={dial.toggleFilters}
+            pressed={dial.filtersShown}
             testID="dial-filter"
           />
         ) : null}

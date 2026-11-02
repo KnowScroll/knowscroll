@@ -367,14 +367,17 @@ float over it.
   offers land that has not formed. `/` opens it from the focused map.
 - **The orbit dial** (`dial/`, D-112) replaces the List view on phones and tablets. Touch the system row to open the
   wheel of systems, turn it (drag, or the arrow keys on the focused wheel), let go to choose; the chosen system's
-  planet at the top of its dial is shown big as its real globe, and a tap lands on its map. Filters All, Lately (not
-  quiet), With rooms and A–Z; one search for systems (wheel open) and one for planets (in this system or everywhere).
+  planet at the top of its dial is shown big as its real globe, and a tap lands on its map. The chosen system is its
+  name and a chevron, with no arrow into the system (D-317). Filters All, Lately (not quiet), With rooms and A–Z are plain
+  words with counts behind the filter button of the open wheel, and shown while systems are searched; one search for systems
+  (wheel open) and one for planets (in this system or everywhere), whose matches are a paper card under "In <system> / Everywhere".
   It is built from the reads the Universe holds (`buildDial`): nothing is fetched or written, and land not reached yet
   is neither listed nor counted. The design's "N uncharted" chip is not drawn (D-109).
 - **Simple drawing** (`simple/`, D-111). The whole tab as the two lists of `simple-views-finalized.html`. It is on by
   the setting ("Simple view" on the dial, "Simple drawing" in the desktop panel; remembered on the device with the
   camera) and by itself when WebGL is missing, the context is lost, a frame fails, the system warns of low memory or
-  the browser says it has 1 GB or less. Turning the switch off tries 3D again.
+  the browser says it has 1 GB or less. Turning the switch off tries 3D again. Its rows are plain: no boxes, no chevrons,
+  a thin line between them, and a green switch. At 1024 px and up the panel's "Simple drawing" switch is the only one.
 - **Desktop D02** (`universe-panel.tsx`). From 1024 px the panel is always open: counts, search, the picked planet's
   card (Land goes straight to its map, Close), the Lately and Simple drawing switches, then the same lists as the
   Simple view (systems with planets and rooms). On a system a tap on a planet picks it and it glows; key hints and
