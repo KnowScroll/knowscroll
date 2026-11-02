@@ -374,7 +374,7 @@ node dist/operator.js content production-status --only seasons
 # 4. Read it against its source (asset id af2628f1-98a7-4c39-9f81-628506d247a1).
 node dist/operator.js content review-list
 node dist/operator.js content review-show --asset af2628f1-98a7-4c39-9f81-628506d247a1 --sources
-# 5. Release the revision you read, or reject it to free the next take.
+# 5. Release the revision you read, or reject it to free the next take. Read "Before you release" below first.
 node dist/operator.js content release --asset af2628f1-98a7-4c39-9f81-628506d247a1 --revision <n>
 # 6. Admit the series again for the new revision, then decide coverage again (idempotent).
 node dist/operator.js content admit-continuity --dry-run
@@ -382,6 +382,8 @@ node dist/operator.js content admit-continuity
 node dist/operator.js content readmit-coverage --dry-run
 node dist/operator.js content readmit-coverage
 ```
+
+**Before you release: native readers.** The document schema is strict. A native build made before this change parses a document that carries `figures` or `revealStage` as invalid, so that app cannot open the Scroll. There is no capability gate: the server offers the revision to every client that declares `scroll-document.v2`, exactly as for any other v2 Scroll, and cannot tell an older native build from a newer one. So release the new revision only when no native build older than this change is in use (D-384). The web reader ships with the server and needs nothing. D-210 recorded that there were no native users; check that is still so before you release.
 
 What to read for, besides the list above: each `PICTURE:` line says the figures a state shows, and every number, unit and place in it must be in a passage the stop cites (`--sources`). The page of `seasons` states the distances in miles and no hours of daylight, so expect the distances in miles and no daylight bands; a figure that is not there was left out on purpose and is no fault. `review-show` also prints, under the first call, "After a wrong pick the picture turns to:", which must be the true picture of the call (the nearest and farthest points of the orbit), and the picture must stand on the orbit at two months at least. The Part 2 and Part 3 Scrolls are not changed and need no new take.
 
