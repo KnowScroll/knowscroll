@@ -181,6 +181,9 @@ export async function answerAndCheck(
   // A rewrite that is no usable answer, or that says nothing supported is left, leaves the library without an answer.
   if (second.kind === 'nothing_to_add' || second.kind === 'invalid')
     return notCovered(runs, [flaggedFirst], first.attemptId);
+  // The writer and the first check were paid for. A rewrite that was refused, ran out of budget or was never sent therefore
+  // leaves the turn counted: the ask is not handed back to the asked bounds, nor the turn to the unprompted caps.
+  if (second.kind === 'failed') return { verdict: { ...second.verdict, dispatched: true }, support: undefined, runs };
   if (second.kind !== 'draft') return endedWithout(second, runs, [flaggedFirst]);
 
   const secondLook = await examine(model, input, second.answer, 2, false, runs, signal);

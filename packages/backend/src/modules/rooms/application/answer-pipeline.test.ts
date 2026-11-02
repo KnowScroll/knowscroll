@@ -229,6 +229,41 @@ describe('a flagged sentence earns one rewrite', () => {
   });
 });
 
+describe('a rewrite that is never sent', () => {
+  const draft = `${SUPPORTED} ${ANOTHER_CLAIM}`;
+
+  it('still counts the turn, because the draft and its check were paid for', async () => {
+    const cases = [
+      [
+        { kind: 'budget_exhausted', dimension: 'role', limit: 'requests' },
+        { kind: 'failed', dispatched: true, end: 'cancelled' },
+      ],
+      [
+        { kind: 'quota_unavailable', attemptId: 'x' },
+        { kind: 'failed', dispatched: true, end: 'cancelled' },
+      ],
+      [
+        { kind: 'refused', reason: 'scope_refused' },
+        { kind: 'failed', dispatched: true },
+      ],
+      [
+        { kind: 'unknown', attemptId: 'x' },
+        { kind: 'failed', dispatched: true },
+      ],
+    ] as const;
+    for (const [reply, verdict] of cases) {
+      const { model, calls } = scripted(writes('explanation', draft), checks(2, [2]), reply);
+      expect((await run(model)).verdict).toEqual(verdict);
+      expect(calls).toHaveLength(3);
+    }
+  });
+
+  it('is handed back only when nothing was paid for: the first writer refused before it was sent', async () => {
+    const { model } = scripted({ kind: 'refused', reason: 'scope_refused' });
+    expect((await run(model)).verdict).toEqual({ kind: 'failed', dispatched: false });
+  });
+});
+
 describe('the figure rule (D-208)', () => {
   it('flags a figure no cited passage writes even when the checker finds the sentence supported', async () => {
     const { model, calls } = scripted(
