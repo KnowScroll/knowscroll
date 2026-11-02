@@ -123,7 +123,7 @@ function Compose({
         description={
           keptOut
             ? 'You keep your messages out of what AI reads, so no resident can read this one.'
-            : 'It writes an answer straight away and says it is AI. People can still add more.'
+            : 'It answers straight away when the library covers your question, and says it is AI. The library may not cover it; people in the room can answer either way.'
         }
         on={askNow && !keptOut}
         onChange={setAskNow}
