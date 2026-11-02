@@ -12,8 +12,9 @@ import {
 import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { makeProduceScroll } from '../../../packages/backend/src/modules/content/production/produce.js';
 import {
+  ASK_ORDER_CHECK_RULES,
   hasEnoughWords,
-  isAbout,
+  isAboutSentence,
   noClaimGround,
   sharedStems,
 } from '../../../packages/backend/src/modules/content/domain/ask-support.js';
@@ -160,8 +161,10 @@ export function fixtureAuthored(
 /**
  * The answer to a question, authored about the same invented lighthouse as the sources above: every sentence is written
  * from the passages its block cites, so a support check that reads it finds words of those passages that are about the
- * sentence. It is a labelled CI fixture, never product content. `sentence` replaces one sentence of the answer, the title
- * included (the support check's repair).
+ * sentence. It has the shape the question writer is asked for (D-308, D-309): a direct answer, two short sections and the limits callout,
+ * eleven sentences of reading text (the dek included) and fifteen sentences in all, which a check reads in two requests (10 + 5).
+ * No sentence after the first of its block begins with a pointer to the one before. It is a labelled CI fixture, never product
+ * content. `sentence` replaces one sentence of the answer, the title included (the support check's repair).
  */
 export function fixtureAnswer(overrides: { readonly sentence?: readonly [string, string] } = {}) {
   const say = (text: string) => (overrides.sentence?.[0] === text ? overrides.sentence[1] : text);
@@ -169,16 +172,19 @@ export function fixtureAnswer(overrides: { readonly sentence?: readonly [string,
     title: say('How a lamp and a prism ring guide sailors'),
     dek: 'A ring of glass shapes one beam, and the lamp clockwork turns it so sailors can read the coast.',
     blocks: [
-      { type: 'heading', text: 'The beam' },
       {
         type: 'paragraph',
         cites: ['e2', 'e3'],
         text: [
           'A ring of prisms around the flame bends the light into one narrow beam.',
           say('Because the beam turns, sailors see it only as a flash, once each turn.'),
-          'By counting the seconds between flashes, sailors learn which lighthouse they are near.',
-          'Each tower repeats its own rhythm, so a pattern of flashes cannot be mistaken for the next coast along.',
         ].join(' '),
+      },
+      { type: 'heading', text: 'The beam' },
+      {
+        type: 'paragraph',
+        cites: ['e2', 'e3'],
+        text: 'By counting the seconds between flashes, sailors learn which lighthouse they are near.',
       },
       { type: 'heading', text: 'The upkeep' },
       {
@@ -187,7 +193,6 @@ export function fixtureAnswer(overrides: { readonly sentence?: readonly [string,
         text: [
           'Someone had to keep that turning going, and the keeper once wound the lamp clockwork by hand every few hours.',
           'Today a small motor does that work, though the glass prisms are the original ones.',
-          'So the keeper no longer winds the clockwork every few hours.',
         ].join(' '),
       },
       {
@@ -195,17 +200,15 @@ export function fixtureAnswer(overrides: { readonly sentence?: readonly [string,
         cites: ['e4'],
         text: [
           'Thick fog scatters light in every direction, so the beam fades after a short distance.',
-          'That is why a lighthouse also needs a sound signal, which fog does not stop.',
+          'A lighthouse therefore also needs a sound signal, which fog does not stop.',
         ].join(' '),
       },
-      { type: 'heading', text: 'Putting it together' },
       {
         type: 'paragraph',
         cites: ['e5', 'e6'],
         text: [
           'Height helps too, because a lamp set high above the sea can clear distant waves.',
           'The tower in this story is twenty-one metres tall.',
-          'Each part solves a different problem, and the whole is only as reliable as its weakest piece.',
         ].join(' '),
       },
       {
@@ -296,7 +299,7 @@ export function quoteAbout(sentence: string, passages: readonly string[]): strin
     for (let from = 0; from < words.length; from += 1)
       for (let to = from + 2; to < Math.min(words.length, from + 25); to += 1) {
         const quote = words.slice(from, to + 1).join(' ');
-        if (!hasEnoughWords(quote) || !isAbout(quote, sentence)) continue;
+        if (!hasEnoughWords(quote) || !isAboutSentence(quote, sentence, ASK_ORDER_CHECK_RULES)) continue;
         const shared = sharedStems(quote, sentence);
         if (best === undefined || shared > best.shared || (shared === best.shared && to - from < best.length))
           best = { quote, shared, length: to - from };
@@ -322,7 +325,11 @@ export function supportReply(call: FixtureCall, script: SupportScript = {}): Fix
       if (quote !== undefined) return { n: sentence.n, verdict: 'supported', quote };
       // A sentence no passage is about may state no fact only where code can see it; a fixture answer must not need more.
       if (
-        noClaimGround({ text: sentence.text, ...(sentence.label === true ? { label: true } : {}) }, cited) === undefined
+        noClaimGround(
+          { text: sentence.text, ...(sentence.label === true ? { label: true } : {}) },
+          cited,
+          ASK_ORDER_CHECK_RULES,
+        ) === undefined
       )
         throw new Error(`CI fixture: sentence ${String(sentence.n)} has no words of its passages about it`);
       return { n: sentence.n, verdict: 'no_claim' };

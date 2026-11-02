@@ -32,7 +32,11 @@ describe('links you’ve shared (labelled in-memory server)', () => {
       copyText: () => Promise.resolve(),
     }).copyLink();
     server.failNext('/v1/social/content-shares/list', 'network');
-    const clear = { title: 'Clearing', text: 'Your exploration history and universe are being removed.' };
+    const clear = {
+      title: 'Clearing',
+      text: 'Your exploration history and universe are being removed.',
+      removing: true,
+    };
     const asked = jest.fn();
     const view = (progress: typeof clear | undefined) => (
       <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
@@ -48,6 +52,24 @@ describe('links you’ve shared (labelled in-memory server)', () => {
     expect(await screen.findByText('What one answer costs to serve')).toBeOnTheScreen();
     expect(screen.queryByText('Clearing exploration.')).toBeNull();
     await screen.unmount();
+    server.scope.end();
+  });
+
+  it('does not read the links again when only the status check that its own failure started has finished', async () => {
+    const server = talkServer();
+    server.failNext('/v1/social/content-shares/list', 'network');
+    const checking = { title: 'Checking', text: 'Checking the latest removal status…', removing: false };
+    const view = (progress: typeof checking | undefined) => (
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <SharedLinksPanel scope={server.scope} clear={progress} />
+      </DisplayProvider>
+    );
+    const rendered = await render(view(checking));
+    expect(await screen.findByText('Clearing exploration.')).toBeOnTheScreen();
+    await rendered.rerender(view(undefined));
+    expect(await screen.findByText('Couldn’t load your links.')).toBeOnTheScreen();
+    expect(server.requests.filter((request) => request.path === '/v1/social/content-shares/list')).toHaveLength(1);
+    await rendered.unmount();
     server.scope.end();
   });
 

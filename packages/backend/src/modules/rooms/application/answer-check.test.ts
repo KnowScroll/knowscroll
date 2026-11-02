@@ -113,6 +113,28 @@ describe('the checker’s roles', () => {
     expect(asked.version).toMatch(/^ask-support-check\./u);
   });
 
+  it('keeps the strict rules of v4 for both: a short claim is never “no fact”, and a quote with one key word of the sentence is not about it (D-306, D-307)', () => {
+    const batch = sentencesOf({ text: 'The moon recedes slowly. The moon is small.', cites: ['e1'] });
+    const reply = {
+      sentences: [
+        { n: 1, verdict: 'supported', quote: 'moon of Veld drifts away' },
+        { n: 2, verdict: 'no_claim' },
+      ],
+    };
+    for (const origin of ['asked', 'unprompted'] as const) {
+      const role = supportRole(origin, batch, PASSAGES);
+      // The quote shares "moon" with the first sentence and has key words of its own; the second sentence is four words with no
+      // figure. An ask order may be given both; a room's answer has no drop behind it, so neither.
+      expect(
+        role.outputSchema
+          .parse(reply)
+          .sentences.map((verdict) => (verdict.verdict === 'unsupported' ? verdict.code : verdict.verdict)),
+      ).toEqual(['quote_not_about_sentence', 'no_claim_without_ground']);
+      expect(role.instructions).not.toContain('eight words or fewer');
+      expect(role.instructions).not.toContain('eight or fewer key words');
+    }
+  });
+
   it('is shown the passages the sentences cite and the sentences', () => {
     const context = supportContext('turn', 1, sentences, PASSAGES);
     expect(context.bundleRef).toBe('rooms-answer-support:turn:1');
