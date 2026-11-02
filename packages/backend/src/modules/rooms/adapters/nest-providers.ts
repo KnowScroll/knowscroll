@@ -299,7 +299,7 @@ export function contributeAsInhabitant(
     readonly harness: RecordingReasoningHarness;
     readonly ownerActive: CheckPersonalOwnerActive;
     readonly model: string;
-    /** The library passages an answer may rest on (D-298). */
+    /** The library passages an answer may rest on (D-301). */
     readonly readGround: ReadGround;
   },
 ): ContributeAsInhabitant {
@@ -326,7 +326,7 @@ export function runCastPass(
     readonly ownerActive: CheckPersonalOwnerActive;
     readonly model: string;
     readonly generation: number;
-    /** The library passages an answer may rest on (D-298). */
+    /** The library passages an answer may rest on (D-301). */
     readonly readGround: ReadGround;
   },
 ): RunCastPass {

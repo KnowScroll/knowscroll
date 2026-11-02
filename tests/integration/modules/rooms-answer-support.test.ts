@@ -1,5 +1,5 @@
 /**
- * A resident's answer passes the support check before it is posted (v3 #620, D-298) over real PostgreSQL, the real reasoning
+ * A resident's answer passes the support check before it is posted (v3 #620, D-301) over real PostgreSQL, the real reasoning
  * harness and ledger, and a CI fixture model (never provider output) that plays the writer and the checker. The library is a
  * labelled fixture of invented Scroll text, read through the real choice of passages. An answer that states a fact rests on
  * passages chosen by code and cites them; a figure no cited passage writes is caught by code; an unsupported sentence earns one

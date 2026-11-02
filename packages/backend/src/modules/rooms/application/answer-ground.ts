@@ -17,7 +17,7 @@ import type { ContributionMaterial } from './inhabitant-role.js';
 import type { RoomRow } from './ports.js';
 
 /**
- * The library passages a resident may rest an answer on (D-298): read from admitted library Scrolls under the room's topic and
+ * The library passages a resident may rest an answer on (D-301): read from admitted library Scrolls under the room's topic and
  * chosen by code for the words being answered. Reads shared public content outside every transaction; nothing here names a
  * person, a room or a message to the library.
  */

@@ -77,7 +77,7 @@ describe('the stretch of a stop a question is shown', () => {
   });
 });
 
-describe('the passages chosen for a question (D-298)', () => {
+describe('the passages chosen for a question (D-301)', () => {
   const library = [
     source('00000000-0000-4000-8000-00000000000a', 'Tides', TIDES),
     source('00000000-0000-4000-8000-00000000000b', 'Drift', DRIFT),

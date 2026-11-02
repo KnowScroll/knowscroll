@@ -142,5 +142,5 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
     name: '0100_exposures_made_while_paused',
     sha256: '87ff6ea461cc580785224d8d266d2dabd5642519da0386ab2b9d2beafcabb835',
   },
-  { name: '0101_resident_answer_support', sha256: '1f4601277b9e0ebbe5f48f8a1b2a34bdbf80ec3be7dcd71db7c46648be9131cc' },
+  { name: '0101_resident_answer_support', sha256: '06b4b70ef5e9bf53ab80321a2b8d6b23ebfdacaf3f0d7cac20d61a0c942c3faf' },
 ];

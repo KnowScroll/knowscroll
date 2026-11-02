@@ -1,4 +1,4 @@
--- #620 (v3) A resident's answer passes the support check before it is posted (D-298).
+-- #620 (v3) A resident's answer passes the support check before it is posted (D-301).
 --
 -- Owner: rooms (`rooms.ai_turns`).
 -- Before: a resident's answer rested on nothing but the model, and the turn's row said who asked, which cap decided it and

@@ -13,7 +13,7 @@ function refusedWith(inhabitant: 'explainer' | 'skeptic', answer: unknown): stri
   return params?.safeCode ?? 'shape';
 }
 
-describe('the answer of a resident that rests on passages (D-298)', () => {
+describe('the answer of a resident that rests on passages (D-301)', () => {
   it('accepts a contribution that cites one to three of the passages offered', () => {
     expect(refusedWith('explainer', { kind: 'explanation', text: 'It drifts.', cites: ['e1'] })).toBeUndefined();
     expect(

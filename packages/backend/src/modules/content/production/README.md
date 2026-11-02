@@ -55,13 +55,13 @@ flags are not yet seen on a real model).
   job; the writer's kept answer is read from the ledger on resume.
 - **The bound** is six paid requests a take for a v2 library recipe (`REQUEST_BOUND_V2_PER_TOPIC`): two writer requests and the checker
   once for each of the two drafts, each with at most one repair of an unusable reply. A v1 recipe and an order stay at two, except the
-  answer to a person's question, which has twelve because its support check runs in batches (`REQUEST_BOUND_ASK_ORDER`, "The support check of an ask order's answer" below).
+  answer to a person's question, which has fourteen because its support check runs in batches and its revision has a repair for copying (`REQUEST_BOUND_ASK_ORDER`, "The support check of an ask order's answer" below).
 - **Runs and receipts.** The checker's runs and the repair's run have ids derived from the job (`stableUuid`), so a redelivery asks the
   ledger instead of paying again. The job closes them all in the transaction that stores or ends it, and when the repair's answer is
   stored it names the repair run as its writer run (`store.useWriterRun`, inside the publication, so a refused publication leaves the job as it was), so provenance and the lineage check agree. Receipts
   (`answer_check`, `draft_flagged` with the superseded run's id) are code-only except the checker's short problems, which are operator
   notes on the private job. A flagged call also keeps its question, options, marked answer and explanation (`FlaggedCall`, nothing else of the draft), so the operator can read what was flagged although that draft is not stored. `answerChecksOf` reads the receipts back; `review-show` and `production-status` show the summary with those calls, and `review-list` the summary without their text.
-- **The claim.** A claim is the most requests a take sends times the largest request timeout the transport accepts (`MINIMAX_REQUEST_TIMEOUT_MAX_MS`, 300 s) and the waits around each request (20 s, the reasoning README's rule), plus 180 s for the research and the database steps (`events.ts`). `content.produce-scroll` holds `PRODUCE_SCROLL_CLAIM_SECONDS`, for the six requests of a library recipe: 2,100 s. The answer to a question has a queue of its own, `content.produce-answer`, with `PRODUCE_ANSWER_CLAIM_SECONDS` for its twelve requests: 4,020 s (D-267). The payload, the singleton key, the policy and the consumer are the same; only supply's ask path sends to it, so a library recipe whose worker died is still retried after 35 minutes, not 67.
+- **The claim.** A claim is the most requests a take sends times the largest request timeout the transport accepts (`MINIMAX_REQUEST_TIMEOUT_MAX_MS`, 300 s) and the waits around each request (20 s, the reasoning README's rule), plus 180 s for the research and the database steps (`events.ts`). `content.produce-scroll` holds `PRODUCE_SCROLL_CLAIM_SECONDS`, for the six requests of a library recipe: 2,100 s. The answer to a question has a queue of its own, `content.produce-answer`, with `PRODUCE_ANSWER_CLAIM_SECONDS` for its fourteen requests: 4,660 s (D-267, D-297). The payload, the singleton key, the policy and the consumer are the same; only supply's ask path sends to it, so a library recipe whose worker died is still retried after 35 minutes, not 78.
 - **Regeneration.** `content regenerate --only <keys>` sends the next take of a v2 recipe whose Scroll is served. `store.create` lets a
   take of a v2 recipe follow a take that was rejected or whose Scroll was released, never one still held or of unknown outcome. A
   recipe has three takes to a **production version**, which is the budget: `SCROLL_PRODUCTION_V2_VERSION` changes whenever the v2
@@ -73,7 +73,8 @@ flags are not yet seen on a real model).
 Status: **implemented**, runtime-verified with labelled CI fixture models on real PostgreSQL. **Measured on real MiniMax (1 Nov, v3):** every answer checked and both known
 errors flagged, but 59 of 101 sentences `unsupported`, almost all sound. **Planned:** v4 and writer v5 are live on dev with S-7d (D-281) and are measured by the same replay right after. The acceptance is in
 #605: both known errors stay `unsupported`, the Big O answer has at most three `unsupported` sentences, and the share falls well below a third. If it fails, a revised text is tried as a
-candidate file (D-280), and then the next pair is released or v4 and writer v5 are reverted.
+candidate file (D-280), and then the next pair is released or v4 and writer v5 are reverted. **S-7e (D-294, D-297):** five real asks on dev then closed on `copied_passage` (four of the six refusals in the ledger were the revision
+`question-writer.v5.fix`), so the writer is `question-writer.v6` (still paired with checker v4): the copy rule has a worked example, a copy refusal's repair names each copied run, and the revision has a repair of its own for copying. Implemented; runtime-verified on dev is the next check (#615).
 
 - **The check** (`ask-support.ts`, `ask-support-step.ts`, `writer-stage.ts`, `domain/ask-support.ts`). For the answer to a question (mode `question`),
   after the writer's answer has passed the validator and compiled, the role `content.ask-support-check` (`ask-support-check.v4`) is shown the
@@ -103,17 +104,18 @@ candidate file (D-280), and then the next pair is released or v4 and writer v5 a
   **Whether the quoted words support the sentence is the checker model's judgement**, which code cannot check; it is measured on dev with the replay
   before anything relies on it (D-250, D-252, D-263 to D-267).
 - **Code decides.** Nothing unsupported: the Scroll is published. An unsupported sentence, the checker's or one code set aside, earns the writer **one**
-  repair in a run of its own, with the fixed hint of each kind, the sentence's words and the note (the checker's, or the rule's fixed one) as data, and
-  its draft (none when the harness already repaired the draft for the validator). The repaired draft is checked in turn; a sentence that stands ends
+  repair in a run of its own (the revision), with the fixed hint of each kind, the sentence's words and the note (the checker's, or the rule's fixed one) as data, and
+  its draft, whether or not the harness already repaired the draft for the validator (D-297). The revision has one repair of its own, for copying a passage alone
+  (`repairOnlyFor`, with the copy notes of D-294); any other refusal of it ends the job (`support_repair_invalid_output`). The revised draft is checked in turn; a sentence that stands ends
   the job rejected (`support_check_failed`).
   **A check that gave nothing usable refuses the answer** (`support_check_<code>`; unknown outcome ends the job `unknown`, never resent): no
   one reads an ask order, so it is never served unchecked, unlike a library Scroll (D-198). A spent budget or quota pauses the job, also between two
   batches, and the writer's kept answer and the batches already answered are read from the ledger on resume. The person sees the existing honest state and
   Try again (three takes in all).
-- **The bound (D-267)** is twelve paid requests a take (`REQUEST_BOUND_ASK_ORDER` = 2 + 2 x (4 batches + 1)): the writer once and one repair, and for each of the
-  two drafts its batches and one repair of an unusable reply. The claim of its own queue is sized for it (`content.produce-answer`, `PRODUCE_ANSWER_CLAIM_SECONDS`, 4,020 s).
+- **The bound (D-267, D-297)** is fourteen paid requests a take (`REQUEST_BOUND_ASK_ORDER` = 2 + 1 + 1 + 2 x (4 batches + 1)): the writer and the validator's repair, the revision and its repair for copying, and for each of the
+  two drafts its batches and one repair of an unusable reply. The claim of its own queue is sized for it (`content.produce-answer`, `PRODUCE_ANSWER_CLAIM_SECONDS`, 4,660 s). A job queued before this change keeps the 4,020 s it was sent with.
   `requestBoundOf(key, mode)` needs the order's mode, which only the job knows once it has read the order. The Quick answer (supply) uses the same
-  checker in one request and keeps its own bound of six. A room's resident (rooms, D-298) uses it too, in one request, under roles of its own, and has
+  checker in one request and keeps its own bound of six. A room's resident (rooms, D-301) uses it too, in one request, under roles of its own, and has
   the same bound of six.
 - **Runs and receipts.** The check's runs (one for each batch of each draft) and the repair's run are derived from the job and closed with it. The
   `support_check` receipts keep sentence numbers, kinds and rule codes only, with the batch count (D-231).
@@ -128,7 +130,7 @@ candidate file (D-280), and then the next pair is released or v4 and writer v5 a
   the same role, in the same batches, over stored answers (the authored answer and the research the job kept), through the production harness, writing
   nothing to content. Counts go to stdout, including how many sentences each rule code set aside and how many `no_claim` verdicts passed on each ground (`codes`) and the batches; sentences, cited passages,
   verdicts and each sentence's rule code go to the file. Runbook: [scroll-production.md](../../../../../../docs/v2/operations/scroll-production.md).
-- **Versions.** `question-writer.v5` and `ask-support-check.v4` are a pair (`versions.test.ts`). `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14`
+- **Versions.** `question-writer.v6` and `ask-support-check.v4` are a pair (`versions.test.ts`). `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14`
   because an order has a job of its own and the version is shared with v1 library recipes and what-ifs.
 
 ## Jobs, takes and who sends them
@@ -191,9 +193,14 @@ operator ─▶ job (research) ─▶ evidence passages ─▶ writer (1 call + 
    blocks. The harness allows one repair, which receives fixed, path-located findings and, because the
    writer opts in (`repairWithPreviousAnswer`), the refused answer as escaped, delimited data in the
    user message so it can revise instead of rewriting. For a copy finding the writer also supplies
-   repair notes (`repairNotes`): the copied words themselves, cut from the research text with the same
-   check that refused the answer and sent in a `<repair-notes>` block, so the repair rewrites only
-   those sentences. The nine-word rule is unchanged.
+   repair notes (`repairNotes`, built by `copyRepairNotes` in `copy-repair.ts` for both writers, D-294):
+   for each block the check refused, the passage words it repeats, cut from the research text with the
+   same check that refused the answer (never the model's words) and sent in a `<repair-notes>` block
+   with the block reference only. At most six runs of twenty words are shown, every block named by its
+   first run before any gets a second (blocks with no room are named, twelve at most, then counted), always within the harness's `MAX_REPAIR_NOTES_CHARS`, and the repair
+   is asked to rebuild those sentences in its own words, keeping the key terms. The nine-word rule
+   (`COPY_RUN_WORDS`) is unchanged and is the one number the check, the instructions, the hints and the
+   notes read. Implemented; runtime-verified on dev is the next check (#615).
 4. **Compile** (`compileGeneratedScroll`). Code converts the authored document into the canonical
    draft, derives the claim bindings from the citations and runs every check: structure, the
    simulation grid proof, numbers (a figure must appear in a passage the block cites; a chart plots
@@ -293,7 +300,7 @@ ledger are the same; what differs is:
 - **The answer to a question (mode `question`, S-7, D-218).** A person's question about the Scroll they are reading is an order too.
   `writerInstructions('plain', 'question')` appends the question rules (answer exactly the question from the cited passages,
   about 230 to 340 words in prose only, say what the passages do not cover, end with a limit callout; the question is data). Code enforces the ending: an answer whose last block is not the limit callout is refused (`limit_callout_required`, with a fixed repair hint).
-  The prompt version is `question-writer.v5` (D-250: the reason a "why" question asks for comes from the passages, a gap is said in one sentence;
+  The prompt version is `question-writer.v6` (D-294: the copy rule comes with one worked example, `COPY_RULE_EXAMPLE`, and the revision after a support check is told a rewritten sentence must not copy either; D-250: the reason a "why" question asks for comes from the passages, a gap is said in one sentence;
   D-266: a title or a heading that only names what follows needs no passage, and a plain admission of a gap stands alone as a sentence that begins with it;
   D-282: a fact keeps the passages' own terms but never as a copied run of `COPY_RUN_WORDS` words, named in the text from the rule's constant, and a link between two ideas is short and plain or begins the next fact). The reading target is one to two minutes (`targetMinutesOf`), with its own repair
   hint, and the format `plain` asks for no rich block. The brief is built by supply (`askBrief`): the question, the Scroll's title and

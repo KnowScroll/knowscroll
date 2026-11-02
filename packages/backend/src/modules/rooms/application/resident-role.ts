@@ -29,7 +29,7 @@ const INSTRUCTIONS: Readonly<Record<InhabitantId, string>> = {
 };
 
 /**
- * The role of a resident speaking on its own (D-162, D-164) over the passages it was offered (D-298). A separate role from the
+ * The role of a resident speaking on its own (D-162, D-164) over the passages it was offered (D-301). A separate role from the
  * asked one: its own ID, so its daily role cap and its failure brake can never take what a person asked for, and the `ambient`
  * budget class, so its spend stays within its share of the global cap and the room scope's own caps. One call, no tool loop.
  */

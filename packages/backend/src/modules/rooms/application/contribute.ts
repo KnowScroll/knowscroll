@@ -32,7 +32,7 @@ export interface ContributePorts extends RoomPorts {
   readonly ownerActive: CheckPersonalOwnerActive;
   /** The model the worker is configured for; recorded on every contribution. */
   readonly model: string;
-  /** The library passages an answer may rest on, read outside any transaction (D-298). */
+  /** The library passages an answer may rest on, read outside any transaction (D-301). */
   readonly readGround: ReadGround;
 }
 
@@ -173,7 +173,7 @@ async function answer(
  * the message it is about as the turn's focus; if that message is gone or kept out, the ask ends without a call.
  *
  * An answer that states a fact rests on library passages chosen by code for the room and the question, and is posted only after
- * it passed the shared support check (D-298). Steps: (1) one transaction rechecks authority, reads this room's own discussion and
+ * it passed the shared support check (D-301). Steps: (1) one transaction rechecks authority, reads this room's own discussion and
  * reduces it to the bounded context, and learns the generation the asker's recording is at; (2) outside any transaction the
  * passages are read and chosen, and the recording-aware harness makes the writer's call (one repair), the check of its answer (one
  * repair) and, when a sentence is flagged, one rewrite and its check, at most `ANSWER_PAID_ATTEMPTS` paid attempts in all, each on

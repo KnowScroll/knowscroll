@@ -13,7 +13,7 @@ import type { GroundPassage } from '../domain/answer-support.js';
 import type { InhabitantAnswer } from './inhabitant-role.js';
 
 /**
- * The pieces of a resident's support check (D-298, D-299): the sentences of an answer, the figure rule, the checker's roles and what a
+ * The pieces of a resident's support check (D-301, D-302): the sentences of an answer, the figure rule, the checker's roles and what a
  * rewrite is told. The checker is the shared one the answer to an ask order goes through (D-250); a room gives
  * it roles of its own, so its failure brake and its budget never touch an ask order's, and the unprompted one is `ambient`.
  */
@@ -68,7 +68,7 @@ export interface FlaggedSentence {
 export const FIGURE_HINT =
   "A figure may appear only where a passage you cite writes that same number the same way. Use the passage's own figure, or say it without a number.";
 
-/** The sentences whose figures a cited passage does not state (D-208, D-299). Pure; no model. */
+/** The sentences whose figures a cited passage does not state (D-208, D-302). Pure; no model. */
 export function figureFlags(
   sentences: readonly SentenceUnderCheck[],
   passages: readonly SupportPassage[],

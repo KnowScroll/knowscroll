@@ -107,7 +107,7 @@ export interface RoomWorld {
   close(): Promise<void>;
 }
 
-/** The roles of a room's support check (D-298): one for a member's ask, one for a resident speaking on its own. */
+/** The roles of a room's support check (D-301): one for a member's ask, one for a resident speaking on its own. */
 const ASKED_CHECK_ROLE = 'rooms.inhabitant-support';
 const AMBIENT_CHECK_ROLE = 'rooms.ambient-support';
 

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * What a resident's answer must rest on before it is posted (D-298): library passages chosen by code, cited by the
+ * What a resident's answer must rest on before it is posted (D-301): library passages chosen by code, cited by the
  * writer, read again by the support check. Pure rules and constants; the model calls and the reads are in `application/`.
  */
 
@@ -82,7 +82,7 @@ export const AnswerSupportRecordSchema: z.ZodType<AnswerSupportRecord> = z.stric
 });
 
 /**
- * The most paid model attempts one answer may make (D-300), and so the request bound its job's claim is sized from (reasoning
+ * The most paid model attempts one answer may make (D-303), and so the request bound its job's claim is sized from (reasoning
  * README, "Queue settings for a job that calls `propose`"): the writer's draft and the harness's one repair of an invalid
  * reply (2), the support check of it and its one repair (2), the one rewrite an unsupported sentence earns, which has no repair
  * of its own (1), and the check of the rewrite, which has none either (1). An answer is at most `ANSWER_MAX_SENTENCES`

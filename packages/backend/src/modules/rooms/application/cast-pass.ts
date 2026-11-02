@@ -35,7 +35,7 @@ export interface CastPassPorts extends RoomPorts {
   readonly model: string;
   /** The generation of the `rooms` root this worker works under. */
   readonly generation: number;
-  /** The library passages an answer may rest on, read outside any transaction (D-298). */
+  /** The library passages an answer may rest on, read outside any transaction (D-301). */
   readonly readGround: ReadGround;
 }
 
@@ -271,12 +271,12 @@ async function closeSteps(
  * allowed the turn. Three steps, the model calls outside any transaction: (1) one transaction rechecks authority and
  * that the turn is still wanted and reduces the room to the bounded material; (2) the passages for the message are read and
  * chosen by code, and the harness makes the writer's call (one repair), the check of its answer (one repair) and, when a
- * sentence is flagged, one rewrite and its check, at most `ANSWER_PAID_ATTEMPTS` paid attempts in all (D-298), under the
+ * sentence is flagged, one rewrite and its check, at most `ANSWER_PAID_ATTEMPTS` paid attempts in all (D-301), under the
  * nonpersonal `rooms` scope, as `ambient` roles, each on a run whose ID is derived from the turn's, so a redelivery never pays
  * twice; (3) one transaction stores the message and settles the turn, and the runs are closed.
  *
  * What a resident posts on its own passed the figure rule and the shared support check. A resident whose answer the library does
- * not support, or whose draft is flagged again after its one rewrite, says nothing (D-301): the turn is declined and counted, and
+ * not support, or whose draft is flagged again after its one rewrite, says nothing (D-304): the turn is declined and counted, and
  * the fixed line a member who asked is given is not posted unasked.
  *
  * Failure/retry: a turn that stopped being wanted (the room paused, a person answered, the message was removed,

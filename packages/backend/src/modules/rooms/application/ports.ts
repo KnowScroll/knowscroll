@@ -428,7 +428,7 @@ export interface HeldAnswer {
   readonly kind: ContributionKind;
   readonly text: string;
   readonly attemptId: string;
-  /** How the answer came out (D-298); none for an answer held before there was a check. */
+  /** How the answer came out (D-301); none for an answer held before there was a check. */
   readonly support?: AnswerSupportRecord;
 }
 
@@ -465,7 +465,7 @@ export interface AiProvenance {
 }
 
 /**
- * The result of settling a queued turn. `support` is how the answer came out (D-298): kept with the turn, it holds IDs of public
+ * The result of settling a queued turn. `support` is how the answer came out (D-301): kept with the turn, it holds IDs of public
  * library passages and counts and never a word.
  */
 export type TurnOutcome =

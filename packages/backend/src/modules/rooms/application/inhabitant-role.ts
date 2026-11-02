@@ -27,7 +27,7 @@ export const SAFE_HINTS = {
     'You are an AI inhabitant. Never describe yourself as a person, student or engineer; write about the idea, not about yourself.',
 } as const;
 
-/** What an answer that rests on library passages can also get wrong, each with a fixed hint for the one repair (D-298). */
+/** What an answer that rests on library passages can also get wrong, each with a fixed hint for the one repair (D-301). */
 export type GroundingProblem = 'too_many_sentences' | 'cites_missing' | 'too_many_cites' | 'unknown_citation';
 
 /** The hints of an answer's roles: the contribution rules above and the citation rules. Never model text. */
@@ -66,7 +66,7 @@ function groundingProblem(cites: readonly string[], offered: ReadonlySet<string>
  * Explainer cannot challenge and a Skeptic cannot explain. The text rules (length, no links, no claim to be a person, a few
  * sentences) and the citation rules (one to three of the handles offered) refuse with a fixed hint for the one repair instead
  * of reaching the check or a room. Whether the passages state what the text says is not a rule of the schema: the figure rule
- * and the support check judge that (D-298).
+ * and the support check judge that (D-301).
  */
 export function answerSchema(inhabitant: InhabitantId, handles: readonly string[]): z.ZodType<InhabitantAnswer> {
   const kinds = ['nothing_to_add', 'not_covered', ...KINDS_OF[inhabitant]] as const satisfies readonly string[];
@@ -88,7 +88,7 @@ export function answerSchema(inhabitant: InhabitantId, handles: readonly string[
     });
 }
 
-/** What both kinds of resident are told about the passages they may rest an answer on (D-298). */
+/** What both kinds of resident are told about the passages they may rest an answer on (D-301). */
 export const GROUNDING_LINES = [
   'The "passage" items are the only facts you may use: public passages from the KnowScroll library, each under a handle such as e1. State a fact, a cause, a figure or an example only if a passage states it, in the passage\'s own terms. Never add what you know from elsewhere, and never write a number that no passage you cite writes. Put the handles of the passages your answer rests on in "cites" (one to three, each once).',
   'If the passages do not cover what was asked, answer {"kind":"not_covered","text":"","cites":[]} and do not guess.',
@@ -180,7 +180,7 @@ const clip = (text: string): string => [...text].slice(0, CONTEXT_MESSAGE_CHARS)
 
 /**
  * The bounded context: prepared words only, with no names, handles, IDs, positions or private conversation, and the library
- * passages the answer may rest on (D-298), each under its handle.
+ * passages the answer may rest on (D-301), each under its handle.
  */
 export function contributionContext(
   material: ContributionMaterial,
