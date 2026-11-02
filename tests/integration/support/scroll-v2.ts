@@ -96,6 +96,10 @@ export function orrinResearchFor(url: string): ResearchPage {
 /** The Orrin answer for a plain Scroll: the same writing, with no picture (a plain recipe is told to write none). */
 export function plainOrrin(): AuthoredScrollV2 {
   const draft = JSON.parse(JSON.stringify(fixtureAuthoredV2())) as { items: Record<string, unknown>[] };
-  for (const item of draft.items) delete item['stage'];
+  for (const item of draft.items) {
+    delete item['stage'];
+    // A call that turns the picture needs a picture to turn (D-382).
+    delete item['revealsNext'];
+  }
   return AuthoredScrollV2.parse(draft);
 }
