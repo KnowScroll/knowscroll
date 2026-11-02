@@ -15,6 +15,11 @@ import {
   onCircle,
   pinPoint,
   recapSceneOf,
+  recapPlaces,
+  RECAP_FRAME,
+  SCENE_HEIGHT,
+  SCENE_WIDTH,
+  MONTH_ANGLE_DEGREES,
   describeRecap,
   sceneOf,
 } from './earth-sky-scene';
@@ -159,7 +164,7 @@ describe('the picture when the reader turns the axis at the Final call (D-187)',
 describe('the recap of an Earth & sky stage (V3 F10)', () => {
   const at = (view: StageState['view'], earthAt: StageState['earthAt']) => state({ view, earthAt });
 
-  it('numbers an Earth at each month the orbit views stood at, in the order they were met, on the plain orbit', () => {
+  it('numbers an Earth at each month the orbit views stood at, in the order the Scroll shows them, on the plain orbit', () => {
     const scene = recapSceneOf([
       at('sun-earth', 'jun'),
       at('orbit', 'jun'),
@@ -184,5 +189,30 @@ describe('the recap of an Earth & sky stage (V3 F10)', () => {
 
   it('is described by the same months it draws', () => {
     expect(describeRecap([at('orbit', 'jun'), at('orbit', 'dec')])).toMatch(/marked 1 in June and 2 in December/);
+  });
+});
+
+describe('where the recap puts each Earth and its badge (V3 F10)', () => {
+  const months = Object.keys(MONTH_ANGLE_DEGREES) as StageState['earthAt'][];
+  const marks = months.map((month, index) => ({ month, n: index + 1, angle: MONTH_ANGLE_DEGREES[month] }));
+  const places = recapPlaces({ orbitRatio: sceneOf(state({ view: 'orbit' })).orbitRatio }, marks);
+
+  /** Every Earth and badge as a circle: where it is, how big, and which month it is. */
+  const circles = places.flatMap(({ mark, earth, badge }) => [
+    { month: mark.month, at: earth, radius: RECAP_FRAME.earthRadius },
+    { month: mark.month, at: badge, radius: RECAP_FRAME.badgeRadius },
+  ]);
+
+  it('keeps every Earth and every badge whole inside the frame, for every month, so no wide screen cuts one', () => {
+    const cut = circles.filter(
+      ({ at, radius }) =>
+        at.x - radius < 0 || at.x + radius > SCENE_WIDTH || at.y - radius < 0 || at.y + radius > SCENE_HEIGHT,
+    );
+    expect(cut.map((circle) => circle.month)).toEqual([]);
+  });
+
+  it('leaves the right edge clear for the next Part’s tab, so the peek never covers an Earth or a badge', () => {
+    const covered = circles.filter(({ at, radius }) => at.x + radius > SCENE_WIDTH - RECAP_FRAME.peekClearance);
+    expect(covered.map((circle) => circle.month)).toEqual([]);
   });
 });

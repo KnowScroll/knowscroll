@@ -9,11 +9,15 @@ import {
   onCircle,
   onEllipse,
   pinPoint,
+  RECAP_FRAME,
+  recapHalfHeight,
+  recapPlaces,
   SCENE_HEIGHT,
   SCENE_WIDTH,
   type EarthSkyScene,
   type Point,
   type RecapMark,
+  type RecapPlace,
 } from './earth-sky-scene';
 
 /**
@@ -214,33 +218,28 @@ function MonthLabel({ at, text, bold }: { readonly at: Point; readonly text: str
   );
 }
 
-/** One Earth of the recap, with the number of the meeting it was: a yellow badge on the outer side of the orbit. */
+/** One Earth of the recap, with its number: a yellow badge on the outer side of the orbit. */
 function RecapEarth({
   scene,
-  mark,
-  at,
+  place,
   sun,
-  centre,
 }: {
   readonly scene: EarthSkyScene;
-  readonly mark: RecapMark;
-  readonly at: Point;
+  readonly place: RecapPlace;
   readonly sun: Point;
-  readonly centre: Point;
 }) {
-  const outward = Math.atan2(at.y - centre.y, at.x - centre.x);
-  const badge = { x: at.x + Math.cos(outward) * 24, y: at.y + Math.sin(outward) * 22 };
+  const { mark, earth, badge } = place;
   return (
     <G testID={`recap-earth-${String(mark.n)}`}>
       <Earth
         scene={scene}
-        at={at}
-        radius={14}
-        sunward={(Math.atan2(-(sun.y - at.y), sun.x - at.x) * 180) / Math.PI}
+        at={earth}
+        radius={RECAP_FRAME.earthRadius}
+        sunward={(Math.atan2(-(sun.y - earth.y), sun.x - earth.x) * 180) / Math.PI}
         clipId={`ks-earth-recap-${String(mark.n)}`}
         pins={false}
       />
-      <Circle cx={badge.x} cy={badge.y} r={8} fill={SUN} stroke={INK} strokeWidth={2} />
+      <Circle cx={badge.x} cy={badge.y} r={RECAP_FRAME.badgeRadius} fill={SUN} stroke={INK} strokeWidth={2} />
       <SvgText x={badge.x} y={badge.y + 3.4} fontSize={10} fontFamily={fontFamily.mono} fill={INK} textAnchor="middle">
         {String(mark.n)}
       </SvgText>
@@ -248,13 +247,10 @@ function RecapEarth({
   );
 }
 
-/** The recap view: the orbit, the Sun, and an Earth numbered at each place the reader met it. */
+/** The recap view: the orbit, the Sun, and an Earth numbered at each place the Scroll shows it. */
 function RecapView({ scene, marks }: { readonly scene: EarthSkyScene; readonly marks: readonly RecapMark[] }) {
-  // Drawn a little left of the middle: the next Part peeks in from the right edge of the picture and must not cover an Earth.
-  const centre = { x: SCENE_WIDTH / 2 - 22, y: SCENE_HEIGHT / 2 + 4 };
-  const halfWidth = 94;
-  const halfHeight = halfWidth * scene.orbitRatio * 0.78;
-  const sun = { x: centre.x, y: centre.y };
+  const { centre, halfWidth } = RECAP_FRAME;
+  const halfHeight = recapHalfHeight(scene);
   return (
     <G>
       <Path
@@ -264,16 +260,9 @@ function RecapView({ scene, marks }: { readonly scene: EarthSkyScene; readonly m
         strokeWidth={1.6}
         strokeDasharray="6 5"
       />
-      <Sun at={sun} radius={18} focused={false} />
-      {marks.map((mark) => (
-        <RecapEarth
-          key={mark.n}
-          scene={scene}
-          mark={mark}
-          at={onEllipse(centre, halfWidth, halfHeight, mark.angle)}
-          sun={sun}
-          centre={centre}
-        />
+      <Sun at={centre} radius={18} focused={false} />
+      {recapPlaces(scene, marks).map((place) => (
+        <RecapEarth key={place.mark.n} scene={scene} place={place} sun={centre} />
       ))}
     </G>
   );

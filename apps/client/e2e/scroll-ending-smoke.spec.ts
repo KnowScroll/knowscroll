@@ -48,7 +48,7 @@ const end = (page: Page) => page.getByRole('button', { name: 'The end of this Sc
 for (const viewport of [phone, desktop]) {
   const name = `${String(viewport.width)}x${String(viewport.height)}`;
 
-  test(`at the end the picture is the journey: an Earth numbered at each month met, and the next Part peeks in, at ${name}`, async ({
+  test(`at the end the picture is the journey: an Earth numbered at each month the Scroll shows, and the next Part peeks in, at ${name}`, async ({
     page,
   }) => {
     await open(page, viewport);
@@ -58,7 +58,7 @@ for (const viewport of [phone, desktop]) {
     await expect(stage(page)).toHaveAttribute('data-ks-stage-state', 'recap');
     // The fixture meets June, January (the stretched orbit) and March on its orbit views, in that order.
     await expect(stage(page).getByRole('img')).toHaveAccessibleName(
-      /The picture you built: .*marked 1 in June, 2 in January and 3 in March, numbered in the order you met them/,
+      /The picture you built: .*marked 1 in June, 2 in January and 3 in March, numbered in the order the Scroll shows them/,
     );
     for (const n of [1, 2, 3]) await expect(stage(page).getByTestId(`recap-earth-${String(n)}`)).toBeVisible();
     await expect(stage(page).getByTestId('recap-earth-4')).toHaveCount(0);
@@ -101,3 +101,39 @@ test('the text version at the end says the journey in words, and reduced motion 
   await expect(stage(page)).toContainText('The picture you built: Earth circles the Sun');
   await expect(stage(page).getByTestId('recap-earth-1')).toHaveCount(0);
 });
+
+for (const viewport of [
+  { width: 320, height: 640 },
+  { width: 1024, height: 768 },
+  { width: 1440, height: 900 },
+]) {
+  test(`the recap is whole inside the picture and the next Part's tab covers none of it, at ${String(viewport.width)} px`, async ({
+    page,
+  }) => {
+    await open(page, viewport);
+    await end(page).click();
+    await expect(stage(page)).toHaveAttribute('data-ks-stage-state', 'recap');
+    const frame = await stage(page).boundingBox();
+    const tab = await page.getByTestId('part-edge-peek').boundingBox();
+    if (frame === null || tab === null) throw new Error('the picture and the tab are drawn');
+    for (const n of [1, 2, 3]) {
+      const earth = await stage(page)
+        .getByTestId(`recap-earth-${String(n)}`)
+        .boundingBox();
+      if (earth === null) throw new Error(`Earth ${String(n)} is drawn`);
+      // Whole inside the picture, in both directions.
+      expect(earth.x).toBeGreaterThanOrEqual(frame.x);
+      expect(earth.y).toBeGreaterThanOrEqual(frame.y);
+      expect(earth.x + earth.width).toBeLessThanOrEqual(frame.x + frame.width);
+      expect(earth.y + earth.height).toBeLessThanOrEqual(frame.y + frame.height);
+      // Clear of the tab: the two boxes do not overlap.
+      const overlaps =
+        earth.x < tab.x + tab.width &&
+        earth.x + earth.width > tab.x &&
+        earth.y < tab.y + tab.height &&
+        earth.y + earth.height > tab.y;
+      expect(overlaps, `Earth ${String(n)} under the tab`).toBe(false);
+    }
+    await shot(page, `recap-${String(viewport.width)}`);
+  });
+}

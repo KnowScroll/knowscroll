@@ -72,7 +72,7 @@ const ORBIT_SHAPE: Readonly<Record<'orbit' | 'orbit-stretched', { ratio: number;
   'orbit-stretched': { ratio: 0.62, sunOffset: 0.42 },
 };
 
-/** One numbered Earth of the recap: where on the orbit the reader met it, and which meeting it was. */
+/** One numbered Earth of the recap: where on the orbit the Scroll shows it, and which of them it is. */
 export interface RecapMark {
   readonly angle: number;
   readonly n: number;
@@ -81,7 +81,7 @@ export interface RecapMark {
 
 export interface EarthSkyScene {
   readonly view: StageView;
-  /** Set only for the recap picture (V3 F10): Earth numbered at each place the reader met it, in place of the Earth of one month. */
+  /** Set only for the recap picture (V3 F10): Earth numbered at each place the Scroll shows it, in place of the Earth of one month. */
   readonly recap?: readonly RecapMark[];
   readonly parts: readonly StagePart[];
   /** Earth's place on the orbit, degrees. */
@@ -163,7 +163,7 @@ export function sceneOf(state: StageState, tiltDegrees: number = AXIAL_TILT_DEGR
 }
 
 /**
- * The recap picture of a Scroll's stage: the orbit seen from above with an Earth numbered at each month the reader met, in
+ * The recap picture of a Scroll's stage: the orbit seen from above with an Earth numbered at each month the Scroll shows, in
  * order (V3 F10, "the picture you built"). It is made of the states the document already holds and nothing else, so it adds
  * no text and no figure. It needs two places to be a picture of a journey: with fewer, there is no recap and the stage keeps
  * its last state.
@@ -176,6 +176,51 @@ export function recapSceneOf(states: readonly StageState[]): EarthSkyScene | und
     ...sceneOf({ ...last, view: 'orbit', moonAt: 'off', focus: 'none' }),
     recap: months.map((month, index) => ({ angle: MONTH_ANGLE_DEGREES[month], n: index + 1, month })),
   };
+}
+
+/**
+ * Where the recap draws the orbit and each numbered Earth. The orbit is drawn a little left of the middle, because the next Part
+ * peeks in from the right edge of the picture, and every Earth and its badge stays inside the 320 × 200 frame and clear of the
+ * last 62 px at the right, where that tab sits at the narrowest phone. The badge is on the outer side of the orbit.
+ */
+export const RECAP_FRAME = {
+  centre: { x: SCENE_WIDTH / 2 - 30, y: SCENE_HEIGHT / 2 },
+  halfWidth: 94,
+  earthRadius: 14,
+  badgeRadius: 8,
+  /** How far from an Earth's centre its badge's centre sits, across and down the screen. */
+  badgeReach: { x: 24, y: 22 },
+  /** The width the next Part's tab takes at the right edge of the frame at the narrowest phone. */
+  peekClearance: 62,
+} as const;
+
+export interface RecapPlace {
+  readonly mark: RecapMark;
+  readonly earth: Point;
+  readonly badge: Point;
+}
+
+/** The half-height of the recap's orbit, from how flat the scene draws it. */
+export function recapHalfHeight(scene: Pick<EarthSkyScene, 'orbitRatio'>): number {
+  return RECAP_FRAME.halfWidth * scene.orbitRatio * 0.72;
+}
+
+/** Each numbered Earth of a recap scene, with where its badge goes. */
+export function recapPlaces(
+  scene: Pick<EarthSkyScene, 'orbitRatio'>,
+  marks: readonly RecapMark[],
+): readonly RecapPlace[] {
+  const { centre, halfWidth, badgeReach } = RECAP_FRAME;
+  const halfHeight = recapHalfHeight(scene);
+  return marks.map((mark) => {
+    const earth = onEllipse(centre, halfWidth, halfHeight, mark.angle);
+    const outward = Math.atan2(earth.y - centre.y, earth.x - centre.x);
+    return {
+      mark,
+      earth,
+      badge: { x: earth.x + Math.cos(outward) * badgeReach.x, y: earth.y + Math.sin(outward) * badgeReach.y },
+    };
+  });
 }
 
 /** The words for the recap picture, or none where there is no recap. */

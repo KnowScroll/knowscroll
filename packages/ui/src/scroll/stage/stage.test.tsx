@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react-native';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import tides from '@knowscroll/scroll-model/fixtures/tides-stage-ci.json';
 import { Stage } from './stage';
+import { stageEntryAt } from './stage-state';
 
 const document = seasons as unknown as ScrollDocumentV2;
 const stage = document.stage;
@@ -60,5 +62,21 @@ describe('the stage at the end of a Scroll (V3 F10)', () => {
     ).toBeOnTheScreen();
     await view.rerender(<Stage {...props} stopId="the-year" recap textVersion />);
     expect(screen.getByText(/The picture you built: /)).toBeOnTheScreen();
+  });
+});
+
+describe('a kit that has no recap, at the end of its Scroll (V3 F10)', () => {
+  it('keeps its last state and says so in the same words as before', async () => {
+    const other = tides as unknown as ScrollDocumentV2;
+    const stageOf = other.stage;
+    if (stageOf === undefined) throw new Error('the fixture has a stage');
+    const last = other.stops.at(-1)!.id;
+    const own = { document: { stops: other.stops, stage: stageOf }, stopId: last, reducedMotion: true, height: 240 };
+    const view = await render(<Stage {...own} />);
+    const expected = stageEntryAt(stageOf, other.stops, last).alt;
+    expect(screen.getByLabelText(expected)).toBeOnTheScreen();
+    await view.rerender(<Stage {...own} recap />);
+    expect(screen.getByLabelText(expected)).toBeOnTheScreen();
+    expect(screen.queryByLabelText(/The picture you built/)).not.toBeOnTheScreen();
   });
 });
