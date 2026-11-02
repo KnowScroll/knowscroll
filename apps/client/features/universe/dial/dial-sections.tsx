@@ -128,7 +128,7 @@ export function SystemWheel({ dial }: { readonly dial: OrbitDialState }) {
             )}
             aria-current={chosen ? 'true' : undefined}
             onPress={() => dial.chooseSystem(entry.id)}
-            style={[styles.sunItem, { opacity: Math.max(0.4, 1 - distance * 0.3) }]}
+            style={[styles.sunItem, { height: open ? 150 : 74, opacity: Math.max(0.4, 1 - distance * 0.3) }]}
           >
             <SunDisc
               size={(open ? 40 : 22) * (chosen ? 1.35 : 1 - Math.min(distance, 2) * 0.15)}
@@ -327,7 +327,8 @@ const styles = StyleSheet.create({
     borderColor: space.focus,
   },
   input: { flex: 1, minHeight: target.comfortable, color: content.ink, fontSize: 16, outlineStyle: 'none' as never },
-  sunItem: { alignItems: 'center', justifyContent: 'center', minWidth: 96, minHeight: 64 },
+  // The sun's haze is wider than the wheel is tall: the button is the wheel's height and clips it, so its box never reaches the header.
+  sunItem: { alignItems: 'center', justifyContent: 'center', minWidth: 96, minHeight: 64, overflow: 'hidden' },
   centre: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing[2] },
   systemPill: {
     flexDirection: 'row',
