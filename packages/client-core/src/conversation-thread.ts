@@ -6,7 +6,7 @@ import type {
   SendConversationMessage,
 } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
-import { awayAfter, newestSequence } from './away-divider';
+import { awayAfter, newestSequence, newSinceAfter } from './away-divider';
 import { talkFailure } from './talk-failure';
 
 const VERSION = 'direct-conversation.v1' as const;
@@ -54,6 +54,11 @@ export interface ThreadState {
   readonly offline: boolean;
   /** After a lost connection returned with new messages: the sequence the "While you were away" divider follows. */
   readonly awayAfterSequence: number | undefined;
+  /**
+   * The person's own stored read position when they opened the conversation, when others wrote after it: the
+   * "New since you were here" line follows it. Set once per opening and kept while it is open.
+   */
+  readonly newSinceSequence: number | undefined;
   /** The challenge card whose pick is on its way, so the card can show it is sending (D-245). */
   readonly lockingChallenge: string | undefined;
   /**
@@ -149,6 +154,7 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
     peerReadThrough: undefined,
     offline: false,
     awayAfterSequence: undefined,
+    newSinceSequence: undefined,
     lockingChallenge: undefined,
     challengeNotice: undefined,
   };
@@ -156,6 +162,7 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
   let catchUpCursor: string | undefined;
   let olderCursor: string | undefined;
   let readThrough = 0;
+  let readOnce = false;
   let active = false;
   let syncing: Promise<void> | undefined;
   let syncAgain = false;
@@ -194,6 +201,18 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
     return away === undefined ? {} : { awayAfterSequence: away };
   }
 
+  /** The "new since you were here" patch, for the first read of an opening only: later reads follow a position this opening moved. */
+  function newSinceOnOpen(
+    position: number,
+    messages: readonly ConversationMessage[],
+    peerId: string | undefined,
+  ): Partial<ThreadState> {
+    const isOwn = (message: ConversationMessage) =>
+      message.status === 'available' && peerId !== undefined && message.author.personId !== peerId;
+    const after = newSinceAfter(position, messages, isOwn);
+    return after === undefined ? {} : { newSinceSequence: after };
+  }
+
   async function load(): Promise<void> {
     try {
       const snapshot = await api.read({ version: VERSION, readId: newId(), conversation, limit: SNAPSHOT_LIMIT });
@@ -204,6 +223,8 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
       catchUpCursor = snapshot.catchUpCursor;
       olderCursor = snapshot.history.kind === 'more' ? snapshot.history.cursor : undefined;
       readThrough = snapshot.own.readThroughSequence;
+      const newSince = readOnce ? {} : newSinceOnOpen(snapshot.own.readThroughSequence, snapshot.messages, snapshot.peer?.personId);
+      readOnce = true;
       publish({
         phase: 'ready',
         peer: snapshot.peer,
@@ -215,6 +236,7 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
         peerReadThrough: snapshot.peerRead?.throughSequence,
         offline: false,
         ...returned(snapshot.messages),
+        ...newSince,
       });
       void markRead();
     } catch (error) {

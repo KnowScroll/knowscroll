@@ -28,6 +28,7 @@ const state = (patch: Partial<ContentThreadState>): ContentThreadState => ({
   loadingOlder: false,
   offline: false,
   awayAfterSequence: undefined,
+  newSinceSequence: undefined,
   responding: false,
   ...patch,
 });

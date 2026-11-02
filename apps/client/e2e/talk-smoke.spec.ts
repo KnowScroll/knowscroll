@@ -1,6 +1,7 @@
-import { readFileSync } from 'node:fs';
+import AxeBuilder from '@axe-core/playwright';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { conversation, talkFixture, thread } from './talk-fixture';
 
 /**
@@ -17,6 +18,27 @@ const crossings = [
   { width: 1023, height: 700 },
   { width: 1280, height: 800 },
 ] as const;
+
+/** Screenshots are written only when `KS_TALK_SHOTS` names a folder (outside the repository). */
+async function shot(page: Page, name: string) {
+  const folder = process.env['KS_TALK_SHOTS'];
+  if (folder === undefined) return;
+  mkdirSync(folder, { recursive: true });
+  await page.waitForTimeout(450);
+  await page.screenshot({ path: join(folder, `${name}.png`) });
+}
+
+async function seriousViolations(page: Page) {
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
+    .analyze();
+  return results.violations
+    .filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
+    .map((violation) => ({
+      rule: violation.id,
+      targets: violation.nodes.slice(0, 3).map((node) => `${node.target.join(' ')} ${node.html.slice(0, 120)}`),
+    }));
+}
 
 const threadAddress = `/threads/${thread.threadId}?m=${thread.membershipId}&r=1`;
 const conversationAddress = `/conversations/${conversation.conversationId}?m=${conversation.membershipId}&r=1`;
@@ -129,4 +151,55 @@ test('crossing 1024 px keeps the open conversation: one read, the draft and focu
     expect(count('/v1/social/conversations/read')).toBe(reads);
     expect(count('/v1/social/conversations/mark-read')).toBe(marks);
   }
+});
+
+test('a content thread keeps Talk’s list as its first column, grouped, with the thread’s own row and its part chip', async ({
+  page,
+}) => {
+  await talkFixture(page, { width: 1440, height: 900 }, { listThread: true });
+  await page.goto(threadAddress);
+  await expect(page.getByRole('heading', { level: 1, name: 'CI series' })).toBeVisible();
+  const list = page.getByRole('complementary', { name: 'Conversations' });
+  await expect(list.getByText('THREADS')).toBeVisible();
+  await expect(list.getByText('PEOPLE')).toBeVisible();
+  await expect(list.getByRole('link', { name: /^Thread CI series/ })).toHaveAttribute('aria-current', 'page');
+  await expect(list.getByText('Part 1 of 3')).toBeVisible();
+  // The list is the first column, then the conversation, then the series panel.
+  const listBox = await list.boundingBox();
+  const chat = await page.getByRole('region', { name: 'Conversation' }).boundingBox();
+  const panel = await page.getByRole('region', { name: 'Thread' }).boundingBox();
+  if (!listBox || !chat || !panel) throw new Error('The three columns are measurable');
+  expect(listBox.x + listBox.width).toBeLessThanOrEqual(chat.x + 1);
+  expect(chat.x + chat.width).toBeLessThanOrEqual(panel.x + 1);
+  // Each part is a painted world, not a number.
+  await expect(page.getByTestId('part-worlds').getByTestId('painted-world')).toHaveCount(3);
+  await shot(page, 'thread-1440-columns');
+  expect(await seriousViolations(page)).toEqual([]);
+});
+
+test('a conversation on a desktop has the "In this chat" rail: what was shared, and a thread to start from it', async ({
+  page,
+}) => {
+  await talkFixture(page, { width: 1440, height: 900 }, { sharedCard: true, listThread: true });
+  await page.goto(conversationAddress);
+  const rail = page.getByRole('complementary', { name: 'In this chat' });
+  await expect(rail.getByText('SHARED HERE · 1')).toBeVisible();
+  await expect(rail.getByText('CI why the Moon and Sun make tides')).toBeVisible();
+  await expect(rail.getByRole('button', { name: 'Start a thread from this' })).toBeVisible();
+  await expect(rail.getByRole('button', { name: /^Visit Ravi fixture/ })).toBeVisible();
+  await shot(page, 'dm-1440-rail');
+  expect(await seriousViolations(page)).toEqual([]);
+  await rail.getByRole('button', { name: 'Start a thread from this' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+});
+
+test('a phone conversation has no rail, and opens with the "New since you were here" line over what the other person sent', async ({
+  page,
+}) => {
+  await talkFixture(page, { width: 390, height: 844 }, { sharedCard: true });
+  await page.goto(conversationAddress);
+  await expect(page.getByText('NEW SINCE YOU WERE HERE')).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'In this chat' })).toHaveCount(0);
+  await shot(page, 'dm-390-new-since');
+  expect(await seriousViolations(page)).toEqual([]);
 });

@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
+import { emptyInbox, isInboxPath } from './empty-inbox';
 import { id } from './encounter-fixture';
 
 /**
@@ -93,8 +94,17 @@ export const PARTY_CALL = {
  * `call`: the thread has a call before Part 2 (D-155). The places-only tests of T-D leave it off, so their layout is unchanged.
  * `scrolls`: the three parts are Scrolls (the labelled v2 fixture `seasons-stage-ci`, which the thread's reader draws as the
  * Stage + Spine reader) instead of Reels.
+ * `listed`: Talk's list (beside the thread on a desktop) holds this thread, started on Part 1 of 3.
+ * `readThrough`: where the opening person had read to (their own stored position); omitted, they have read it all.
  */
-export function partyWorld(options: { readonly call?: boolean; readonly scrolls?: boolean } = {}) {
+export function partyWorld(
+  options: {
+    readonly call?: boolean;
+    readonly scrolls?: boolean;
+    readonly listed?: boolean;
+    readonly readThrough?: number;
+  } = {},
+) {
   const episodes = episodesOf(options.scrolls === true ? 'scroll' : 'reel');
   const places = new Map<Member, StoredPlace>();
   const hidden: Record<Member, boolean> = { asha: false, ravi: false, meera: false };
@@ -230,7 +240,7 @@ export function partyWorld(options: { readonly call?: boolean; readonly scrolls?
                 })),
                 sequence: { kind: 'series', total: 3 },
                 episodes,
-                own: { readThroughSequence: messages.length, muted: false },
+                own: { readThroughSequence: options.readThrough ?? messages.length, muted: false },
                 latestMessageSequence: messages.length,
                 messages,
                 limit: 30,
@@ -261,7 +271,36 @@ export function partyWorld(options: { readonly call?: boolean; readonly scrolls?
               },
             };
           case '/v1/social/threads/inbox':
-            return { json: { ...base(body), status: 'ready', limit: body['limit'], viewRevision: 1, items: [] } };
+            return {
+              json: {
+                ...base(body),
+                status: 'ready',
+                limit: body['limit'],
+                viewRevision: 1,
+                items:
+                  options.listed === true
+                    ? [
+                        {
+                          thread: membership(who),
+                          name: 'CI series',
+                          root: {
+                            status: 'available',
+                            target: { assetId: episodes[0]!.assetId, assetRevision: 1 },
+                            metadata: { kind: episodes[0]!.kind, title: 'CI part 1', summary: '', language: 'en' },
+                          },
+                          series: { part: 1, total: 3 },
+                          state: 'joined',
+                          ownPersonId: people[who].personId,
+                          people: [people[who === 'asha' ? 'ravi' : 'asha']],
+                          latestMessageSequence: messages.length,
+                          own: { readThroughSequence: messages.length, muted: false },
+                          lastActivityAt: '2026-10-24T08:00:00.000Z',
+                          lastMessage: messages.at(-1),
+                        },
+                      ]
+                    : [],
+              },
+            };
           case '/v1/social/threads/places/read':
             return {
               json: {
@@ -430,6 +469,7 @@ export function partyWorld(options: { readonly call?: boolean; readonly scrolls?
                 },
               };
             }
+            if (isInboxPath(path)) return { json: emptyInbox(path, body, accounts[who].accountId) };
             return { status: 404, json: {} };
           }
         }

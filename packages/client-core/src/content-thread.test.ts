@@ -234,6 +234,37 @@ describe('a content thread on the client', () => {
     expect(controller.getState().awayAfterSequence).toBe(1);
   });
 
+  it('marks what others wrote after the person’s own read position on opening, once, and not again after it moves', async () => {
+    let readThrough = 1;
+    const stored = [text(1, 'one'), text(2, 'two', ravi), text(3, 'three', ravi)];
+    const scope = scopeOf({
+      read: () => Promise.resolve(readyView(stored, { own: { readThroughSequence: readThrough, muted: false } })),
+      markRead: () => {
+        readThrough = 3;
+        return Promise.resolve({ acceptedThroughSequence: 3 });
+      },
+    });
+    const controller = createContentThread({ scope, thread, newId });
+    await controller.load();
+    expect(controller.getState().newSinceSequence).toBe(1);
+    // Coming back to the screen reads again; the server's position has moved, and the line stays where it was.
+    await controller.load();
+    expect(controller.getState().newSinceSequence).toBe(1);
+  });
+
+  it('marks nothing when the person has read to the end, or never read here', async () => {
+    const stored = [text(1, 'one', ravi), text(2, 'two', ravi)];
+    for (const readThroughSequence of [2, 0]) {
+      const scope = scopeOf({
+        read: () => Promise.resolve(readyView(stored, { own: { readThroughSequence, muted: false } })),
+        markRead: () => Promise.resolve({ acceptedThroughSequence: 2 }),
+      });
+      const controller = createContentThread({ scope, thread, newId });
+      await controller.load();
+      expect(controller.getState().newSinceSequence).toBeUndefined();
+    }
+  });
+
   it('draws no divider for the person’s own message that only settled after the reconnect', async () => {
     let lost = false;
     const stored = [text(1, 'one')];
