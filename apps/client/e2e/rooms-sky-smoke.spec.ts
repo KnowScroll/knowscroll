@@ -258,7 +258,7 @@ for (const { name, size } of VIEWPORTS) {
 
     // Choosing: hide it, then show another earned mark. Each is one command, and the card reads again.
     await page.getByTestId('flair-choose').click();
-    await expect(page.getByRole('radio', { name: 'The first one I earned' })).toBeChecked();
+    await expect(page.getByRole('radio', { name: 'The first on the card' })).toBeChecked();
     await shoot(page, `${name}-sky-flair-choosing`);
     expect(await seriousViolations(page)).toEqual([]);
     await page.getByRole('radio', { name: 'Nothing' }).click();
@@ -285,6 +285,70 @@ for (const { name, size } of VIEWPORTS) {
     expect(await seriousViolations(page)).toEqual([]);
   });
 }
+
+/**
+ * The sky's own scroller must not scroll sideways, and the art, with the whole touch target of its seventh star, must lie inside it
+ * (a 320 px screen leaves the sheet's column 280 px, and the art is up to 288).
+ */
+async function expectSkyFits(page: Page) {
+  const scroll = page.getByTestId('sky-scroll');
+  await expect(page.getByTestId('star-6')).toBeVisible();
+  const widths = await scroll.evaluate((element) => ({
+    scrollWidth: element.scrollWidth,
+    clientWidth: element.clientWidth,
+  }));
+  expect(widths.scrollWidth).toBeLessThanOrEqual(widths.clientWidth);
+  const frame = (await scroll.boundingBox())!;
+  const art = (await page.getByTestId('constellation').boundingBox())!;
+  const last = (await page.getByTestId('star-6').boundingBox())!;
+  const within = (inner: { x: number; width: number }, outer: { x: number; width: number }) =>
+    inner.x >= outer.x - 0.5 && inner.x + inner.width <= outer.x + outer.width + 0.5;
+  expect({
+    artInFrame: within(art, frame),
+    lastStarInArt: within(last, art),
+    lastStarInFrame: within(last, frame),
+  }).toEqual({
+    artInFrame: true,
+    lastStarInArt: true,
+    lastStarInFrame: true,
+  });
+  // The target is the full 44 px a finger needs, not a part of it.
+  expect(last.width).toBeGreaterThanOrEqual(44);
+  expect(last.height).toBeGreaterThanOrEqual(44);
+}
+
+test('320 px: the sky fits the sheet and the room menu page, with the whole target of the seventh star', async ({
+  page,
+}) => {
+  const world = skyWorld(7);
+  const { address } = await roomFixture(
+    page,
+    { width: 320, height: 568 },
+    {
+      others: 1,
+      lastMessageMinutesAgo: 5,
+      noticeSeen: true,
+      sky: () => skyOf(world),
+      today: TODAY_STRIP,
+    },
+  );
+  await skyRoutes(page, world, scope);
+  await page.goto(address);
+  await page.getByTestId('now-sky').click();
+  await expect(page.getByTestId('flair-card')).toBeVisible();
+  await expectSkyFits(page);
+  await shoot(page, 'small-sky-sheet');
+  expect(await seriousViolations(page)).toEqual([]);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('sky-sheet')).toHaveCount(0);
+  // The room menu's page holds the same content.
+  await page.getByTestId('room-menu-open').click();
+  await page.getByTestId('menu-sky').click();
+  await expect(page.getByTestId('sky-line')).toHaveText('7 of 7 stars');
+  await expectSkyFits(page);
+  await shoot(page, 'small-sky-menu');
+  expect(await seriousViolations(page)).toEqual([]);
+});
 
 test('phone: while recording is paused a tap on Spot the flaw is not sent, and the card says why', async ({ page }) => {
   const world = skyWorld(2);

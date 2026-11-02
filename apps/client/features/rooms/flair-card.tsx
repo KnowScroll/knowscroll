@@ -11,14 +11,14 @@ import { FlairChip } from './flair-chip';
 type Card = Extract<RoomFlairView, { status: 'ready' }>;
 
 /** The words of the chooser's two rows that are not a mark. */
-const AUTOMATIC = { text: 'The first one I earned', detail: 'Shows beside your name while you have one.' };
+const AUTOMATIC = { text: 'The first on the card', detail: 'Shows the first mark on this card that you have earned.' };
 const NOTHING = { text: 'Nothing', detail: 'No flair beside your name. Only you can change this.' };
 
 /** What the person's choice says as a chooser row: `auto` when they never chose, a mark, or `none`. */
 const chosen = (card: Card): RoomFlairChoice | 'auto' => card.choice ?? 'auto';
 
 /**
- * Where a person picks what shows beside their name: the first mark they earned, one of the ones they earned, or nothing.
+ * Where a person picks what shows beside their name: the first mark on the card that they earned, one of the ones they earned, or nothing.
  * One radio group, so a keyboard and a screen reader reach it as they do the room's other choices.
  */
 function FlairChooser({

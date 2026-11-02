@@ -77,12 +77,12 @@ export const comingFlair = (acts: FlairActs): readonly { flair: FlairKind; have:
     return SHOWS_PROGRESS[kind] && have > 0 && have < of ? [{ flair: kind, have, of }] : [];
   });
 
-/** What a person chose to show beside their name. Absent (`null`) is automatic: the first mark they have earned. */
+/** What a person chose to show beside their name. Absent (`null`) is automatic: the first mark they have earned in card order (`FLAIR_ORDER`; a mark carries no time). */
 export type FlairChoice = FlairKind | 'none' | null;
 
 /**
  * What shows beside their name. `none` hides it. A chosen mark shows only while it is earned (one that has faded, such as a
- * Launch regular who stopped playing, shows nothing rather than another mark they did not choose). Automatic shows the first earned.
+ * Launch regular who stopped playing, shows nothing rather than another mark they did not choose). Automatic shows the first earned in card order.
  */
 export function shownFlair(choice: FlairChoice, earned: readonly FlairKind[]): FlairKind | undefined {
   if (choice === 'none') return undefined;

@@ -1,21 +1,28 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { CONSTELLATION_POINTS } from '@knowscroll/client-core';
 import { space } from '@knowscroll/design-tokens';
 
-const WIDTH = 288;
-const HEIGHT = 168;
+/** The art is at most this wide and keeps this shape; on a narrower column it shrinks with it (a 320 px screen has 280 px). */
+const MAX_WIDTH = 288;
+const ASPECT = 168 / 288;
 const TARGET = 44;
 const DOT = 18;
 
-const at = (index: number): { readonly x: number; readonly y: number } => {
+/**
+ * Where star `index` is drawn in an art `width` wide. The points are spread over the box inside the 44 px touch targets, so a star at
+ * the edge keeps its whole target inside the art and nothing hangs out of a narrow column.
+ */
+const at = (index: number, width: number): { readonly x: number; readonly y: number } => {
   const [x, y] = CONSTELLATION_POINTS[index]!;
-  return { x: x * WIDTH, y: y * HEIGHT };
+  const height = width * ASPECT;
+  return { x: TARGET / 2 + x * (width - TARGET), y: TARGET / 2 + y * (height - TARGET) };
 };
 
 /** A thin straight line between two lit stars, drawn as a turned strip centred on their midpoint. */
-function Segment({ from, to }: { readonly from: number; readonly to: number }) {
-  const first = at(from);
-  const second = at(to);
+function Segment({ from, to, width }: { readonly from: number; readonly to: number; readonly width: number }) {
+  const first = at(from, width);
+  const second = at(to, width);
   const length = Math.hypot(second.x - first.x, second.y - first.y);
   const angle = Math.atan2(second.y - first.y, second.x - first.x);
   return (
@@ -37,7 +44,8 @@ function Segment({ from, to }: { readonly from: number; readonly to: number }) {
 /**
  * The constellation being made (R3 E "Room sky"): seven fixed points on the night sky, the lit ones filled and joined by
  * straight lines, the rest small and hollow. Flat shapes and no sparkles. Each lit star is a button that says which moment
- * it was; an unlit one is only a mark. Stars appear in the order they were earned.
+ * it was; an unlit one is only a mark. Stars appear in the order they were earned. The art is as wide as its column up to 288 px
+ * and keeps its shape, so on a 320 px screen it neither overflows nor loses the edge of its last star.
  */
 export function ConstellationView({
   lit,
@@ -51,13 +59,18 @@ export function ConstellationView({
   /** What a screen reader says of the whole drawing. */
   readonly label: string;
 }) {
+  const [width, setWidth] = useState(MAX_WIDTH);
+  const measure = (event: LayoutChangeEvent) => {
+    const measured = Math.round(event.nativeEvent.layout.width);
+    if (measured > 0) setWidth(measured);
+  };
   return (
-    <View style={styles.sky} role="group" accessibilityLabel={label} testID="constellation">
+    <View style={styles.sky} onLayout={measure} role="group" accessibilityLabel={label} testID="constellation">
       {Array.from({ length: Math.max(0, lit - 1) }, (_, index) => (
-        <Segment key={index} from={index} to={index + 1} />
+        <Segment key={index} from={index} to={index + 1} width={width} />
       ))}
       {CONSTELLATION_POINTS.map((_, index) => {
-        const point = at(index);
+        const point = at(index, width);
         const on = index < lit;
         const frame = [styles.target, { left: point.x - TARGET / 2, top: point.y - TARGET / 2 }];
         const dot = [styles.dot, on ? styles.dotLit : styles.dotDim, selected === index ? styles.dotSelected : null];
@@ -84,8 +97,9 @@ export function ConstellationView({
 
 const styles = StyleSheet.create({
   sky: {
-    width: WIDTH,
-    height: HEIGHT,
+    width: '100%',
+    maxWidth: MAX_WIDTH,
+    aspectRatio: 1 / ASPECT,
     alignSelf: 'center',
     borderRadius: 16,
     backgroundColor: space.s0,

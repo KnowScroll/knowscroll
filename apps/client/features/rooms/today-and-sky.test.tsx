@@ -379,18 +379,18 @@ describe('the Now strip and the room’s sky', () => {
       expect(screen.queryByTestId('flair-choose')).not.toBeOnTheScreen();
     });
 
-    it('chooses what shows beside the name: a mark, the first earned, or nothing, as a radio group', async () => {
+    it('chooses what shows beside the name: a mark, the first on the card, or nothing, as a radio group', async () => {
       const chooseFlair = jest.fn(() => Promise.resolve(true));
       await openSky({ flair: card() }, { chooseFlair });
       expect(screen.queryByTestId('flair-chooser')).not.toBeOnTheScreen();
       await fireEvent.press(screen.getByTestId('flair-choose'));
-      expect(screen.getByRole('radio', { name: 'The first one I earned' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'The first on the card' })).toBeChecked();
       expect(screen.getByRole('radio', { name: 'First answer' })).not.toBeChecked();
       await fireEvent.press(screen.getByRole('radio', { name: 'Launch regular' }));
       expect(chooseFlair).toHaveBeenLastCalledWith('launch_regular');
       await fireEvent.press(screen.getByRole('radio', { name: 'Nothing' }));
       expect(chooseFlair).toHaveBeenLastCalledWith('none');
-      await fireEvent.press(screen.getByRole('radio', { name: 'The first one I earned' }));
+      await fireEvent.press(screen.getByRole('radio', { name: 'The first on the card' }));
       expect(chooseFlair).toHaveBeenLastCalledWith('auto');
     });
 

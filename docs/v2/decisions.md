@@ -3897,7 +3897,7 @@ Confirmed by: `rooms-flair.test.ts` ("lets Launch regular fade with the seven da
 
 **Builds on** D-342 and the member's other settings (`ai_level`, `keep_out`). Migration 0102.
 
-- **One column.** `rooms.members.flair_choice`: empty shows the first mark they earned, `none` shows nothing, a mark shows that mark while it is earned. A command (`rooms.flair-choose`) sets it. The same choice again is accepted. A mark they have not earned is refused, so a client cannot show one they did not earn.
+- **One column.** `rooms.members.flair_choice`: empty shows the first mark they earned in card order (a mark carries no time, so no other order exists), `none` shows nothing, a mark shows that mark while it is earned. A command (`rooms.flair-choose`) sets it. The same choice again is accepted. A mark they have not earned is refused, so a client cannot show one they did not earn.
 - **Hiding is never undone.** Leaving, removal and a Clear keep the choice, as they keep the AI level and the keep-out choice. A person who left shows no mark to anyone, so keeping it reveals nothing. An account deletion deletes the membership row and the choice with it. The export lists it with the person's other settings in that room.
 - **Where it shows.** Beside the name of a person's message in the room (R3 E5 "next to your name"), and on their own card in the sky sheet ("You in Space room"). Never on their own messages, which carry no name, and never on an AI's label.
 

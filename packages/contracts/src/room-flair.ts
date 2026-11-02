@@ -75,7 +75,7 @@ export type RoomFlairView = z.infer<typeof RoomFlairViewSchema>;
 
 /**
  * Chooses what shows beside the member's name: a flair they have earned, `none` to hide it, or `auto` for the first they have
- * earned. The same choice again is accepted. A flair not earned is refused.
+ * earned in the card's order. The same choice again is accepted. A flair not earned is refused.
  */
 export const ChooseRoomFlairSchema = z.strictObject({
   ...Command,

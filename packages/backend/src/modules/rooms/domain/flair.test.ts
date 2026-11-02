@@ -59,7 +59,7 @@ describe('which acts earn which flair (R3 E5)', () => {
 describe('what shows beside a name', () => {
   const earned = ['first_answer', 'flaw_finder'] as const;
 
-  it('shows the first earned mark while the choice is automatic', () => {
+  it('shows the first earned mark in card order while the choice is automatic', () => {
     expect(shownFlair(null, earned)).toBe('first_answer');
     expect(shownFlair(null, [])).toBeUndefined();
   });
