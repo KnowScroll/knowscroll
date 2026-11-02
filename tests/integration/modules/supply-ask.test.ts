@@ -1526,7 +1526,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     });
   });
 
-  describe('an answer that passes after the one revision (D-305 to D-312)', () => {
+  describe('an answer that passes after the one revision (D-305 to D-316)', () => {
     async function orderedAsk() {
       const { person, exposure } = await reader();
       const requestId = await ask(person, askCommand(exposure, suggestions[0]!));

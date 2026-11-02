@@ -15,7 +15,7 @@ import {
 } from '../domain/ask-support.js';
 
 /**
- * The support check of an ask order's answer (D-250, D-263, D-265 to D-267, D-281, D-305 to D-307, D-310): a second model role that reads each
+ * The support check of an ask order's answer (D-250, D-263, D-265 to D-267, D-281, D-305 to D-307, D-310, D-313, D-316): a second model role that reads each
  * sentence of the answer against the passages the answer cites and says which sentences those passages do not support. The writer's
  * validator cannot see that: it proves that digits come from a cited passage and that nine words are not copied, not
  * that a sentence about a cause or a direction says what the passage says. The checker only proposes. Code validates
@@ -184,7 +184,7 @@ export function askSupportContext(
  * moves the reader along; it is unsupported when it brings in a fact, figure, cause, comparison or example the passages do
  * not hold. The worked examples are invented and share no subject with a library Scroll or a person's question.
  *
- * The text tells the checker only the rules code applies for these `rules` (D-306, D-307): a Quick answer and a resident's answer
+ * The text tells the checker only the rules code applies for these `rules` (D-306, D-307, D-316): a Quick answer and a resident's answer
  * are not told that a short sentence may be "no fact" or that one key word is enough, because code would set the sentence aside.
  */
 export function askSupportInstructions(rules: CheckerRules): string {
@@ -308,7 +308,7 @@ export type AskSupportAnswer = z.infer<ReturnType<typeof askSupportSchema>>;
 /**
  * The checker role for these sentences (one batch of an answer). Interactive budget class: a production job waits on it. The
  * strict rules of v4 are the default, so a caller that does not say otherwise (a Quick answer, a resident's answer) never gets a soft
- * rule; an ask order's check asks for its rules with {@link askOrderCheckerRole} (D-306, D-307).
+ * rule; an ask order's check asks for its rules with {@link askOrderCheckerRole} (D-306, D-307, D-316).
  */
 export function askSupportRole(
   sentences: readonly SentenceUnderCheck[],

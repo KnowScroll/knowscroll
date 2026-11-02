@@ -190,7 +190,7 @@ Usual findings and what they mean:
 
 | Finding | Meaning |
 |---|---|
-| `copied_passage` | Nine words in a row match a source passage. The repair is told, for each block, the passage words it copied (at most six runs of twenty words, `<repair-notes>`, D-294). The revision after an ask's support check has one repair of its own, for this finding and the two below (D-312); any other refusal of it ends the job. |
+| `copied_passage` | Nine words in a row match a source passage. The repair is told, for each block, the passage words it copied (at most six runs of twenty words, `<repair-notes>`, D-294). The revision after an ask's support check has one repair of its own, for this finding and the two below (D-314); any other refusal of it ends the job. |
 | `answer_sentences_out_of_brief` | An ask answer has fewer than 8 or more than 12 sentences of reading text (the dek, paragraphs, list items and callout text; not the title, a heading or a callout's title). The revision after a support check and the answer served after a drop may have 5 to 12 (D-308). |
 | `sentence_leans_on_previous` | A sentence after the first of its paragraph, list or callout begins with This, That, These, Those, It or They (D-309). The finding names the block. |
 | `authoring_number_not_in_evidence` | A figure (or a plotted chart value) is in no passage the block cites. |
@@ -426,7 +426,7 @@ node dist/operator.js content production-status --only seasons,seasons-hemispher
 
 **Leaving a wave.** Record the yield (recipes held, released, rejected, unchecked), the tokens (sum the `attempts` of `production-status`) and the top findings of `reasoning rejected` in the tracker.
 
-## Checking stored ask answers (S-7b to S-7f, D-250 to D-252, D-263, D-265, D-280 to D-282, D-305 to D-312)
+## Checking stored ask answers (S-7b to S-7f, D-250 to D-252, D-263, D-265, D-280 to D-282, D-305 to D-316)
 
 A person's question from a Scroll becomes a short answer made for them (an ask order, D-218). Nobody reads it first, so its job runs a second model, the **support
 check**, which reads each sentence against the passages the answer cites. An answer is 8 to 12 sentences (`question-writer.v7`, paired with `ask-support-check.v5`). A sentence they do not support earns one revision;

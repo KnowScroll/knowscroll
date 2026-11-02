@@ -1,5 +1,5 @@
 /**
- * The support check of an ask order's answer (D-250, D-263, D-265 to D-267, D-305 to D-307, D-310): after the writer, a second model reads each
+ * The support check of an ask order's answer (D-250, D-263, D-265 to D-267, D-305 to D-307, D-310, D-313, D-316): after the writer, a second model reads each
  * sentence of the answer against the passages the answer cites and says which sentences those passages do not support. It only proposes.
  * Code validates the shape of its reply, judges each verdict on its own sentence, decides what a verdict changes and never
  * edits an answer. Pure; the production job asks the model.
@@ -292,7 +292,7 @@ export function isAbout(quote: string, text: string): boolean {
 }
 
 /**
- * Which of the softer rules of an ask order's answer a check applies (D-306, D-307). Only an ask order's answer has a backstop for
+ * Which of the softer rules of an ask order's answer a check applies (D-306, D-307, D-316). Only an ask order's answer has a backstop for
  * them: it is 8 to 12 sentences that must keep five supported ones and a supported direct answer (D-310), so a sentence the checker
  * waves through on a soft rule is one among many. A Quick answer (two to four sentences) and a resident's answer have none, and keep the
  * strict rules of ask-support-check.v4. The rules are chosen where the role is made and never by the checker's reply.
@@ -493,7 +493,7 @@ const setAside = (number: number, code: RuleCode): SentenceVerdict => ({
  *
  * A reply in which more than half of its sentences are marked "no fact" on the weakest grounds (short, or sharing no
  * key word with their passages: not a title, a question or an admission code can see) is not credible: those sentences are set
- * aside too. A reply for part of a longer answer may hold one such sentence in any case (D-307).
+ * aside too. A reply for part of a longer answer may hold one such sentence in any case (D-313).
  *
  * @param verdicts one for each sentence, in order (the shape is checked before this)
  * @param passageTexts the words of each passage by handle

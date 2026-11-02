@@ -603,7 +603,7 @@ describe('what a verdict that breaks a rule does to its own sentence (D-265)', (
     expect(outcomes(lazy)).toEqual(['too_many_no_claim', 'too_many_no_claim', 'no_claim', 'too_many_no_claim']);
   });
 
-  it('allows "no fact" for a short sentence that shares key words with its passages, and counts it toward the share marked (D-307)', () => {
+  it('allows "no fact" for a short sentence that shares key words with its passages, and counts it toward the share marked (D-307, D-313)', () => {
     const short = numbered([
       sentence(1, 'The beam is narrow.', ['e2']),
       sentence(2, 'The ring is glass.', ['e2']),
@@ -624,7 +624,7 @@ describe('what a verdict that breaks a rule does to its own sentence (D-265)', (
     expect(outcomes(judgeVerdicts(oneMarked, short, texts))[0]).toBe('no_claim_without_ground');
   });
 
-  it('lets the last batch of a longer answer hold one sentence marked “no fact” on a weak ground, however small the batch (D-307)', () => {
+  it('lets the last batch of a longer answer hold one sentence marked “no fact” on a weak ground, however small the batch (D-313)', () => {
     const answer = numbered([
       prism,
       sentence(2, 'A prism ring gathers the light into one beam.', ['e2']),
