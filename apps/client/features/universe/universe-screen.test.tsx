@@ -2,7 +2,7 @@ import type * as React from 'react';
 import type * as FakeGpu from './space/fake-space-gpu';
 import { type EffectCallback, StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { AppState } from 'react-native';
+import { AppState, StyleSheet } from 'react-native';
 import { UniverseScreen, unavailableWords } from './universe-screen';
 import { fakeGpu, resetFakeGpu } from './space/fake-space-gpu';
 import { COLLECTION_READS, fixtureAccount, fixtureId, sceneFixture, universeHarness } from './universe.fixture';
@@ -727,6 +727,27 @@ it('says plainly, with its apostrophes, when there is no map to draw: offline, n
   await waitFor(() => expect(screen.getByText('Your map is no longer available.')).toBeOnTheScreen());
   await refused.unmount();
   gone.scope.end();
+});
+
+it('stacks Refresh map over Go to Explore on a phone, and sets them side by side on a desktop (#648)', async () => {
+  const at = (width: number) => (
+    <DisplayProvider value={{ width, textScale: 1, reducedMotion: true }}>
+      <UniverseScreen />
+    </DisplayProvider>
+  );
+  for (const [width, direction] of [
+    [390, 'column'],
+    [1440, 'row'],
+  ] as const) {
+    const h = universeHarness();
+    mockScope = h.scope;
+    h.network(true);
+    const view = await render(at(width));
+    const actions = await screen.findByTestId('universe-offline-actions');
+    expect(StyleSheet.flatten(actions.props.style).flexDirection).toBe(direction);
+    await view.unmount();
+    h.scope.end();
+  }
 });
 
 it('words every reason there is no map, and none of the words carries a broken character', () => {

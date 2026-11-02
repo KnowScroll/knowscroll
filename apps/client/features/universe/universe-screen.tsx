@@ -147,6 +147,7 @@ function Unavailable({
   onExplore: () => void;
 }) {
   const { read } = state;
+  const { breakpoint } = useDisplay();
   if (['idle', 'loading'].includes(read.status)) return <QuietGround label="Loading your universe" />;
   const { heading, message } = unavailableWords(read);
   return (
@@ -168,7 +169,11 @@ function Unavailable({
         <Text variant="body" color={space.label2} align="center">
           {message}
         </Text>
-        <View style={styles.actions}>
+        {/* Error · Offline draws the two buttons stacked on a phone; from a tablet up they sit side by side. */}
+        <View
+          testID="universe-offline-actions"
+          style={[styles.actions, breakpoint === 'compact' || breakpoint === 'phone' ? styles.actionsStacked : null]}
+        >
           <Button
             label="Refresh map"
             variant="space"
@@ -230,4 +235,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], justifyContent: 'center', marginTop: spacing[2] },
+  actionsStacked: { flexDirection: 'column', alignItems: 'center' },
 });
