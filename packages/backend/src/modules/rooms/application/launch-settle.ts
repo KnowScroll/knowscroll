@@ -15,7 +15,7 @@ export interface LaunchSettlePorts extends RoomPorts {
  * its star when two people answered, and the room hears of it so a podium on screen can say so.
  *
  * Authority: the worker acts as a system actor for the universe and epoch of the member who started the Launch, only to take the
- * room lock in the blueprint's order and to stop when that person is gone (a deleted account or a privacy reset ends the job). A
+ * room lock (FOR SHARE, as `finishLaunch` takes it; the Launch row and then the sky lock follow) and to stop when that person is gone (a deleted account or a privacy reset ends the job). A
  * Launch it leaves is settled by the room's next member command, counted from its end exactly as this would have.
  *
  * Failure/retry: a Launch that is not the room's latest one, is already finished or is not over yet is left alone, so a
@@ -30,7 +30,7 @@ export function makeLaunchSettle(p: LaunchSettlePorts): LaunchSettle {
     };
     await p.withScope(authority, async (scope) => {
       if (!(await p.ownerActive(scope))) return;
-      const lock = await p.rooms.lock(scope, job.roomId, 'write');
+      const lock = await p.rooms.lock(scope, job.roomId, 'read');
       if (!lock) return;
       const latest = await p.launches.latest(lock);
       if (latest?.launchId !== job.launchId) return;

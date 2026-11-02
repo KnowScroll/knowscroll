@@ -30,6 +30,7 @@ import {
   contributeQueue,
   launchSettleQueue,
   libraryRoomSeeds,
+  SETTLE_LAUNCH,
   summariseQueue,
   type CastDueJob,
   type CastPassJob,
@@ -43,6 +44,7 @@ import {
   decideCast,
   roomUseCases,
   runCastPass,
+  roomsWorkerProviders,
   runSummarise,
   seedRooms,
   settleLaunch,
@@ -97,6 +99,8 @@ export interface RoomWorld {
   contribute(harness: RecordingReasoningHarness): (job: ContributeJob, signal?: AbortSignal) => Promise<void>;
   /** The worker's settlement of a Launch whose play time ended (no model, no harness). */
   settle(): (job: LaunchSettleJob) => Promise<void>;
+  /** The same consumer built by the worker's provider from a worker configuration, to show the configuration reaches it. */
+  settleAsProvided(config: { readonly roomStarsPerDay: number }): (job: LaunchSettleJob) => Promise<void>;
   /** The worker's check of whether a resident answers a message (no model, no harness). */
   decide(): (job: CastDueJob) => Promise<void>;
   /** The worker's model call of an allowed unprompted turn, over a rooms-scope harness. */
@@ -145,8 +149,12 @@ export async function roomWorld(
     if (queue.name === summariseQueue.name) summaries.push(payload as SummariseJob);
     if (queue.name === launchSettleQueue.name)
       launchSettles.push({ job: payload as LaunchSettleJob, startAfter: enqueueOptions?.startAfter });
-    // The test clock runs ahead of the real one; the queue refuses a start more than a day past the real time, and nothing consumes these jobs here.
+    // The queue refuses a start more than a day ahead of now: the same rule is held against the test clock, so a job queued too far
+    // ahead still fails here. The test clock itself runs ahead of the real one and nothing consumes these jobs, so a start that is
+    // valid by the test clock is forwarded as "now" to pass the real queue's check against the real time.
     const startAfter = enqueueOptions?.startAfter;
+    if (startAfter !== undefined && startAfter.getTime() > clock.now.getTime() + 86_400_000)
+      throw new Error('JOB_START_AFTER_INVALID');
     const forwarded =
       startAfter !== undefined && startAfter.getTime() > Date.now()
         ? { ...enqueueOptions, startAfter: new Date() }
@@ -194,6 +202,31 @@ export async function roomWorld(
     settle() {
       const run = settleLaunch({ ...deps, enqueue, ownerActive });
       return (job) => run(job);
+    },
+    settleAsProvided(config) {
+      const provider = roomsWorkerProviders({
+        withPersonalScope: Symbol('withPersonalScope'),
+        workerConfig: Symbol('workerConfig'),
+        enqueueJob: Symbol('enqueueJob'),
+      }).find((entry) => entry.provide === SETTLE_LAUNCH)!;
+      // The arguments follow the provider's `inject` list: the use cases' own dependencies, then the queue and the config.
+      const make = provider.useFactory as unknown as (...args: unknown[]) => (job: LaunchSettleJob) => Promise<void>;
+      return make(
+        deps.withScope,
+        deps.fenceOwn,
+        deps.readPeople,
+        deps.readFriends,
+        deps.readContent,
+        deps.readSequence,
+        deps.readVisited,
+        deps.validateSnippet,
+        deps.resolveSnippet,
+        deps.checkAudience,
+        deps.readBlocked,
+        ownerActive,
+        enqueue,
+        { reasoning: { roomEnabled: false }, ...config },
+      );
     },
     decide() {
       const decision = decideCast({ ...deps, enqueue, ownerActive, residentsEnabled: true });

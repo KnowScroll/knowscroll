@@ -5,7 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eraseCurrentAccount, exportCurrentPerson } from '@knowscroll/backend/erasure-registry';
 import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
@@ -511,7 +511,8 @@ describe('the Launch (real PostgreSQL, labelled CI fixtures)', () => {
   });
 
   describe('the settling job', () => {
-    it('is queued at the start to run at the end, and settles a Launch nobody opened and no device finished', async () => {
+    /** A two-person Launch with both people having answered round one, and the job its start queued. */
+    async function launchWithJob() {
       const t0 = begin();
       const { roomId, people } = await readyRoom(2);
       const [asha, ravi] = people as [Friend, Friend];
@@ -520,12 +521,26 @@ describe('the Launch (real PostgreSQL, labelled CI fixtures)', () => {
       if (started.outcome !== 'accepted') throw new Error('expected accepted');
       const open = opensAt(t0).getTime() - t0.getTime();
       const queued = world.launchSettles.slice(queuedBefore);
-      expect(queued).toHaveLength(1);
-      expect(queued[0]!.job).toMatchObject({ roomId, launchId: started.launchId });
-      expect(queued[0]!.startAfter!.getTime()).toBeGreaterThanOrEqual(t0.getTime() + open + PLAY_MS);
       at(open + 500, t0);
       unwrap(await answer(asha, roomId, started.launchId, 1, KEY[0]));
       unwrap(await answer(ravi, roomId, started.launchId, 1, KEY[0]));
+      const ended = new Date(t0.getTime() + open + PLAY_MS);
+      return { t0, open, roomId, launchId: started.launchId, queued, ended };
+    }
+    const rowOf = (launchId: string) =>
+      world.db
+        .selectFrom('rooms.launches')
+        .select(['state', 'played', 'star', 'finished_at'])
+        .where('launch_id', '=', launchId)
+        .executeTakeFirstOrThrow();
+
+    it('is queued at the start to run just after the end, and settles a Launch nobody opened and no device finished, at its end', async () => {
+      const { t0, open, roomId, launchId, queued, ended } = await launchWithJob();
+      expect(queued).toHaveLength(1);
+      expect(queued[0]!.job).toMatchObject({ roomId, launchId });
+      const runsAt = queued[0]!.startAfter!.getTime();
+      expect(runsAt).toBeGreaterThanOrEqual(ended.getTime());
+      expect(runsAt).toBeLessThanOrEqual(ended.getTime() + 5_000);
       const settle = world.settle();
       // Run early, the job leaves the Launch alone.
       at(open + PLAY_MS - 1_000, t0);
@@ -536,12 +551,45 @@ describe('the Launch (real PostgreSQL, labelled CI fixtures)', () => {
       await settle(queued[0]!.job);
       await settle(queued[0]!.job);
       expect(await starCount(roomId)).toBe(1);
-      const row = await world.db
-        .selectFrom('rooms.launches')
-        .select(['state', 'played', 'star'])
-        .where('launch_id', '=', started.launchId)
-        .executeTakeFirstOrThrow();
-      expect(row).toEqual({ state: 'finished', played: 2, star: true });
+      const row = await rowOf(launchId);
+      expect(row).toMatchObject({ state: 'finished', played: 2, star: true });
+      expect(new Date(row.finished_at!).toISOString()).toBe(ended.toISOString());
+    });
+
+    it('leaves the Launch to the room’s next command when the person who started it is gone', async () => {
+      const { t0, open, roomId, launchId, queued } = await launchWithJob();
+      at(open + PLAY_MS + 1_500, t0);
+      // A privacy reset moved the universe's epoch on: the job's authority is stale and it stops.
+      await world.settle()({ ...queued[0]!.job, privacyEpoch: queued[0]!.job.privacyEpoch + 1 });
+      expect((await rowOf(launchId)).state).toBe('live');
+      expect(await starCount(roomId)).toBe(0);
+    });
+
+    it('settles only the Launch it was queued for, not a different one', async () => {
+      const { t0, open, roomId, launchId, queued } = await launchWithJob();
+      at(open + PLAY_MS + 1_500, t0);
+      await world.settle()({ ...queued[0]!.job, launchId: randomUUID() });
+      expect((await rowOf(launchId)).state).toBe('live');
+      expect(await starCount(roomId)).toBe(0);
+    });
+
+    it('awards its star under the cap the worker’s configuration gives, as the provider wires it', async () => {
+      const { t0, open, roomId, launchId, queued, ended } = await launchWithJob();
+      // The room already earned its one star of the day, and this worker's cap is one.
+      await sql`insert into rooms.stars (star_id, room_id, act, source_key, earned_at, earned_on, constellation_no)
+        values (${randomUUID()}::uuid, ${roomId}::uuid, 'answer_useful', ${randomUUID()}::uuid, ${ended}, ${dayOf(ended)}::date, 1)`.execute(
+        world.db,
+      );
+      at(open + PLAY_MS + 1_500, t0);
+      // The provider builds the consumer on the real clock, as a worker has it: only the date is moved to the test's time here.
+      vi.useFakeTimers({ toFake: ['Date'], now: world.clock.now });
+      try {
+        await world.settleAsProvided({ roomStarsPerDay: 1 })(queued[0]!.job);
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(await rowOf(launchId)).toMatchObject({ state: 'finished', played: 2, star: false });
+      expect(await starCount(roomId)).toBe(0);
     });
   });
 
