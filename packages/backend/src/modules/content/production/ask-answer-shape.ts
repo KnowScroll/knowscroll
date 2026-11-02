@@ -4,7 +4,7 @@ import { MIN_SERVED_SENTENCES } from '../domain/ask-support.js';
 import { placedSentencesOfAnswer } from './ask-support.js';
 
 /**
- * The shape of the answer to a person's question (D-308, D-309, D-349). Pure; the writer's validator applies the length to the draft
+ * The shape of the answer to a person's question (D-308, D-309, D-350). Pure; the writer's validator applies the length to the draft
  * after code has taken out what it can (`ask-answer-trim.ts`), and the production job to the answer it serves.
  * "Reading text" is every sentence that is not a title, a heading or a callout's title, the dek included.
  */
@@ -14,7 +14,7 @@ export const ASK_ANSWER_MIN_SENTENCES = 8;
 export const ASK_ANSWER_MAX_SENTENCES = 12;
 
 /**
- * What code refuses (D-349): an answer of fewer sentences than the fewest a trimmed answer may be served with
+ * What code refuses (D-350): an answer of fewer sentences than the fewest a trimmed answer may be served with
  * ({@link MIN_SERVED_SENTENCES}) or of more than {@link ASK_ANSWER_CEILING_SENTENCES}. The writer's range is asked for; this
  * is the wider range that a draft and a revision are both held to, since code takes sentences out of either.
  */

@@ -21,11 +21,11 @@ export interface WriterPlan {
   readonly promptVersion: string;
   /**
    * For the answer to a question: the title and the dek code writes when the writer's cannot be served, whether copied (the
-   * trim) or flagged by the support check (the drop) (D-350). Absent for every other Scroll.
+   * trim) or flagged by the support check (the drop) (D-351). Absent for every other Scroll.
    */
   readonly askLines?: CodeMadeLines;
   /**
-   * Takes out of the harness's accepted answer what code can take out before the answer is compiled and checked (D-347): the
+   * Takes out of the harness's accepted answer what code can take out before the answer is compiled and checked (D-348): the
    * answer to a question loses its sentences that copy a passage and the ones that lean. `counts` says how much, as numbers;
    * `issues` are findings only the writer can put right. Every other Scroll is returned as it is.
    */

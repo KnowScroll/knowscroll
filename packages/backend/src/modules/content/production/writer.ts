@@ -65,7 +65,7 @@ export const SCENARIO_WRITER_PROMPT_VERSION = 'scenario-writer.v1';
  * keeps the key terms and passes), and the revision after a support check is told that a rewritten sentence must not copy
  * either. v7 (D-308, D-309): the answer is 8 to 12 sentences (a direct answer, at most two short sections and the limits callout) and each
  * sentence after the first of its block stands on its own, so a sentence that fails the check can be taken out (D-310) without
- * the next one losing its meaning. v8 (D-347 to D-349): the instructions say what code now does instead of refusing the draft:
+ * the next one losing its meaning. v8 (D-348 to D-350): the instructions say what code now does instead of refusing the draft:
  * a sentence that copies a run of `COPY_RUN_WORDS` words is taken out, so is a leaning sentence after one that was taken out and a
  * leaning first sentence of the answer, and only an answer under 5 or over 20 sentences is refused (8 to 12 is still asked for).
  * `versions.test.ts` pairs it with the support check's version.
@@ -422,7 +422,7 @@ function moduleIssues(authored: AuthoredScroll, format: WriterFormat, names: rea
   const last = authored.blocks.at(-1);
   if (format === 'plain' && !(last?.type === 'callout' && last.kind === 'limit'))
     issues.push({ code: 'limit_callout_required', path: '$' });
-  // The answer to a question is held to a range of sentences (D-308, D-349).
+  // The answer to a question is held to a range of sentences (D-308, D-350).
   if (format === 'plain') issues.push(...answerShapeIssues(authored));
   const allowed = allowedBlockTypes(format);
   authored.blocks.forEach((block, index) => {
@@ -443,7 +443,7 @@ function moduleIssues(authored: AuthoredScroll, format: WriterFormat, names: rea
  * (the requested format is present, no source names, and for an answer to a question its length) and the
  * stored-document admission. Pure and deterministic; the same input gives the same outcome. Findings are located at the authored
  * block, heading or header they concern. It refuses every copied run: the answer to a question is taken through the trim of
- * `trimAskAnswer` first, which takes out the sentences that hold one (D-347).
+ * `trimAskAnswer` first, which takes out the sentences that hold one (D-348).
  */
 export function compileGeneratedScroll(
   authored: AuthoredScroll,
@@ -475,7 +475,7 @@ export function compileGeneratedScroll(
 }
 
 /**
- * What an answer to a question is trimmed with (D-347 to D-350), from the job's evidence and the person's own words: the copy
+ * What an answer to a question is trimmed with (D-348 to D-351), from the job's evidence and the person's own words: the copy
  * check's material, and the title and dek code puts in when the writer's cannot be served. The title is the person's question cut
  * at a word to the title limit, or a fixed title when the question could not stand as one (a figure no passage states, a source
  * name, a web address, or words of a passage); no word of it is the model's.
@@ -530,7 +530,7 @@ function draftFindings(
 /**
  * What the repair is told about a copy finding: for each block the check refused, the words of the passages that its text
  * repeats (`copyRepairNotes`). Rebuilt from the refused answer as it would be served, with the same compile that refused it, so it
- * names exactly the blocks the findings name; the sentences code takes out for copying (D-347) are not named, since they cost
+ * names exactly the blocks the findings name; the sentences code takes out for copying (D-348) are not named, since they cost
  * nothing. The harness sends the notes as delimited data.
  */
 function copyNotes(
@@ -566,7 +566,7 @@ function copyNotes(
  * Scroll. The schema is the authored shape plus every producer and module check, so a refusal
  * reaches the harness as fixed, path-located findings for its single repair. The answer to a question is checked as it would be
  * served: after code has taken out the sentences that copy a passage and the ones that lean (`trimAskAnswer`), so the repair is
- * never spent on what code can take out itself (D-347).
+ * never spent on what code can take out itself (D-348).
  */
 export function writerRole(input: {
   readonly provenance: DraftProvenance;

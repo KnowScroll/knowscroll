@@ -3828,20 +3828,20 @@ Confirmed by: `versions.test.ts` (the bound of 14 and both claims, written out a
 
 Confirmed by: `quick-answer-support.test.ts` (a short claim is not "no fact", a quote with one key word is not about the sentence, the checker is not told otherwise), `rooms/application/answer-check.test.ts` (the same for both of a room's roles), `domain/ask-support.test.ts` and `ask-support.test.ts` (the strict rules by default, the soft ones with the option, the two sets of instructions). Shown failing when the options were on for every caller.
 
-## D-347 · 2026-11-02 · A sentence that copies a passage is taken out of an ask answer before it is checked, and the draft is not refused (v3 S-7g, #636)
+## D-348 · 2026-11-02 · A sentence that copies a passage is taken out of an ask answer before it is checked, and the draft is not refused (v3 S-7g, #636)
 
 **Builds on** D-013 (the nine-word rule), D-250, D-294 and D-310. **Amends** D-294 and D-297 (a copied run refused the whole draft, and the revision had a repair for it).
 
 - **The gap.** On dev (2 Nov, `question-writer.v7` with `ask-support-check.v5`) none of three admitted asks was served. One first draft was refused whole, and one revision was refused whole after the check had flagged 8 of 14 (#636). The writer-stage rules refuse a whole draft for one copied run, and the repair tripped them again.
 - **The rule.** Before a draft is compiled or checked, code takes out every sentence that holds a word of a run of `COPY_RUN_WORDS` words copied from a passage (`trimAskAnswer`, pure). The writer's validator runs the same trim, so its one repair is never spent on a copy. The job's accepted draft is the trimmed one, so the support check reads what could be served. A block left with no sentence goes, a list left with one item becomes a paragraph, and a heading with nothing left under it goes, as in D-310.
 - **A run may cross a full stop.** The copy check works on the whole text of a paragraph, a callout or a list. The trim finds the copied words over that whole text and marks every sentence that holds one, so two sentences that each hold fewer than nine words of a run both go. A list is read as one text, as the compile reads it.
-- **No copied run is served.** The compile still refuses any copied run. If the trim could not place one, the draft is refused with `copied_passage` and the repair is told where, as before (D-294, D-352).
+- **No copied run is served.** The compile still refuses any copied run. If the trim could not place one, the draft is refused with `copied_passage` and the repair is told where, as before (D-294, D-353).
 - **Not changed.** The library, the what-if and the perspective still refuse a copied block. A Quick answer and a resident's answer are not written by this writer (D-316).
-- **Limits.** Copying is judged on words, not meaning. A draft that copies a great deal ends with too few sentences and is refused for its length (D-349) or its opening paragraph (D-352).
+- **Limits.** Copying is judged on words, not meaning. A draft that copies a great deal ends with too few sentences and is refused for its length (D-350) or its opening paragraph (D-353).
 
 Confirmed by: `ask-answer-trim.test.ts` (a copied sentence is taken out and the others stay word for word; a run of nine words and not of eight; a run across a full stop takes out both sentences; a list is one text; a heading whose section was copied goes; a callout loses its copied sentence), `writer.test.ts` (a copying draft passes the validator and its repair has no copy notes) and `supply-ask.test.ts` on real PostgreSQL with a labelled fixture model (a draft with a copied sentence is served after one writer request, the checker is never shown the sentence, and the stored answer has none of its words; the same for the revision a support check earned). Shown failing when the sentences were not taken out, when each sentence was judged alone and when a list item was judged alone.
 
-## D-348 · 2026-11-02 · A leaning sentence is never refused by the writer's validator: it goes with a sentence taken out, or when it opens the answer (v3 S-7g, #636)
+## D-349 · 2026-11-02 · A leaning sentence is never refused by the writer's validator: it goes with a sentence taken out, or when it opens the answer (v3 S-7g, #636)
 
 **Builds on** D-309 and D-310. **Amends** D-309 (the finding `sentence_leans_on_previous` is gone).
 
@@ -3852,7 +3852,7 @@ Confirmed by: `ask-answer-trim.test.ts` (a copied sentence is taken out and the 
 
 Confirmed by: `ask-answer-trim.test.ts` (a leaning sentence after a kept one stays; the first sentence of the answer goes and the next is judged on its own; a leaning sentence after a copied one goes with it, and the next that leans on that; a block's first sentence is exempt after a block that was taken out), `ask-answer-shape.test.ts` (a draft whose sentences lean has no shape finding), `writer.test.ts` (the validator accepts a leaning draft and has no hint for it) and `supply-ask.test.ts` (a leaning second sentence is served as written; a leaning first sentence is taken out and counted as leaning; a leaning sentence after one the check still found unsupported goes with it). Shown failing when the first sentence was kept and when the cascade was removed.
 
-## D-349 · 2026-11-02 · An ask answer is asked to be 8 to 12 sentences and refused only below 5 or above 20, for a draft and a revision alike (v3 S-7g, #636)
+## D-350 · 2026-11-02 · An ask answer is asked to be 8 to 12 sentences and refused only below 5 or above 20, for a draft and a revision alike (v3 S-7g, #636)
 
 **Builds on** D-308 and D-310. **Amends** D-308 (8 to 12 for the draft, 5 to 12 for the revision and the served answer) and D-314 (the repair's range).
 
@@ -3863,7 +3863,7 @@ Confirmed by: `ask-answer-trim.test.ts` (a leaning sentence after a kept one sta
 
 Confirmed by: `ask-answer-shape.test.ts` (4 and 21 refused; 5, 8, 12, 13 and 20 allowed; the hint names 8 to 12), `writer.test.ts` (the validator refuses 4 and 21 and allows 5 and 20 sentences; a draft of 21 with one copied sentence is allowed, since it is counted after the trim) and `supply-ask.test.ts` (a draft of 15 is served after one request; a draft of 22 and a remainder of 4 after the trim are refused with the hint after the one repair and no check; a draft of 4 is repaired once; a revision of 4 is repaired once). Shown failing when the floor was 8 and when the ceiling was 12.
 
-## D-350 · 2026-11-02 · A title or dek that cannot be served is replaced by a line code writes, and the answer is not refused for it (v3 S-7g, #636)
+## D-351 · 2026-11-02 · A title or dek that cannot be served is replaced by a line code writes, and the answer is not refused for it (v3 S-7g, #636)
 
 **Builds on** D-266, D-310 and D-218 (the kicker "You asked"). **Amends** D-310 (a flagged title or dek ended the job with `title_or_dek_flagged`) and D-266 (the writer repaired a flagged title once).
 
@@ -3875,9 +3875,9 @@ Confirmed by: `ask-answer-shape.test.ts` (4 and 21 refused; 5, 8, 12, 13 and 20 
 
 Confirmed by: `ask-answer-trim.test.ts` (the question as a title, cut at a word to the limit, the fixed title when there are no words or the question cannot stand; a copied title and a copied dek are replaced whole), `ask-support-drop.test.ts` (a flagged title or dek is replaced and every other sentence is the writer's own; without lines it is still refused; a dek that code wrote does not count among the five), `writer.test.ts` (a question with a figure, a source name, a web address or a run of a passage gets the fixed title; the answer with both lines in place compiles) and `supply-ask.test.ts` (a copied title and dek are replaced by the asked question and the fixed line; a flagged title or dek is replaced; the stored title is the suggested question the order was made from; the brief supply stored gives that question back). Shown failing when a copied title was kept, when a copied dek was kept, when a flagged title still refused the answer, when the replaced title was not used and when a dek that code wrote counted as supported.
 
-## D-351 · 2026-11-02 · A first draft whose only unsupported sentences are the title and the dek earns no revision (v3 S-7g, #636)
+## D-352 · 2026-11-02 · A first draft whose only unsupported sentences are the title and the dek earns no revision (v3 S-7g, #636)
 
-**Builds on** D-297 and D-350. **Amends** D-250 ("an unsupported sentence in the first draft earns the writer one revision").
+**Builds on** D-297 and D-351. **Amends** D-250 ("an unsupported sentence in the first draft earns the writer one revision").
 
 - **The rule.** When every sentence the check found unsupported in the first draft is the title or the dek, code serves the draft with its own lines in their place, under the floors of D-310. It asks the writer for nothing: the revision could only write a line that code replaces anyway. Any other unsupported sentence still earns the revision, which sees the title among its findings.
 - **Saves.** One writer request and the second check, which is three paid requests of the fourteen (the revision and the two batches of its check).
@@ -3885,9 +3885,9 @@ Confirmed by: `ask-answer-trim.test.ts` (the question as a title, cut at a word 
 
 Confirmed by: `supply-ask.test.ts` (an unsupported title and, separately, an unsupported dek are replaced after one writer request and one check; a title set aside by code for being "no fact" without a ground is replaced with no revision; a draft with the title and another sentence unsupported earns the revision, and the title is replaced after it) and `ask-support-drop.test.ts` (the title and dek alone are told apart from any other flag). Shown failing when the draft still earned a revision.
 
-## D-352 · 2026-11-02 · The trim leaves the writer's one repair for what only the writer can fix (v3 S-7g, #636)
+## D-353 · 2026-11-02 · The trim leaves the writer's one repair for what only the writer can fix (v3 S-7g, #636)
 
-**Builds on** D-297, D-314 and D-347. **Amends** D-314 (the revision's repair covered `copied_passage`, `answer_sentences_out_of_brief` and `sentence_leans_on_previous`).
+**Builds on** D-297, D-314 and D-348. **Amends** D-314 (the revision's repair covered `copied_passage`, `answer_sentences_out_of_brief` and `sentence_leans_on_previous`).
 
 - **The findings left.** The validator makes three findings for an ask answer that code cannot fix: `answer_sentences_out_of_brief` (the answer as it would be served has fewer than 5 or more than 20 sentences), `direct_answer_lost` (every sentence of the writer's opening paragraph was taken out) and a `copied_passage` the trim could not place. The first draft's harness repair covers any finding, as before. The revision's repair (`repairOnlyFor`) covers these three and nothing else; any other refusal of the revision ends the job.
 - **The direct answer.** The direct answer is the first paragraph, as in D-310. If the trim takes out all of it, the draft is refused with `direct_answer_lost` and a fixed hint, at that block. A later paragraph is not taken for it.
@@ -3896,7 +3896,7 @@ Confirmed by: `supply-ask.test.ts` (an unsupported title and, separately, an uns
 
 Confirmed by: `ask-answer-trim.test.ts` (the opening paragraph taken out whole is a finding at its block, a paragraph after it is not taken for it), `writer.test.ts` (the validator reports a draft left too short and a lost direct answer with their fixed codes, locates a finding at the draft's block though an earlier block was taken out, and names no copied run for what the trim takes out) and `supply-ask.test.ts` (a draft whose opening paragraph is all copied is repaired once with the fixed hint and no copy notes; a repair that loses it again ends the job with no check; a revision that is too short is repaired once). Shown failing when the finding was removed.
 
-## D-353 · 2026-11-02 · The job records what the trim took out as counts, and the replay prints them (v3 S-7g, #636)
+## D-354 · 2026-11-02 · The job records what the trim took out as counts, and the replay prints them (v3 S-7g, #636)
 
 **Builds on** D-231 and D-311.
 
@@ -3905,7 +3905,7 @@ Confirmed by: `ask-answer-trim.test.ts` (the opening paragraph taken out whole i
 
 Confirmed by: `supply-ask.test.ts` (the receipts of a trimmed draft, a trimmed revision, a leaning first sentence and a replaced title and dek; none holds a word of a sentence) and `ask-support-replay.test.ts` (the count on the line; none on an answer served whole). Shown failing when the receipt was not written.
 
-## D-354 · 2026-11-02 · The question writer v8 and the ask check v5 are a pair; the bound of 14 stays (v3 S-7g, #636)
+## D-355 · 2026-11-02 · The question writer v8 and the ask check v5 are a pair; the bound of 14 stays (v3 S-7g, #636)
 
 **Builds on** D-312 and D-315.
 

@@ -210,7 +210,7 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     support = (_check, call) => supportReply(call);
   });
 
-  it('says how many sentences code took out of the writer’s draft before it was checked, as a number (D-347)', async () => {
+  it('says how many sentences code took out of the writer’s draft before it was checked, as a number (D-348)', async () => {
     const trimmed = await producedOrder('question', true);
     const whole = await producedOrder('question');
 

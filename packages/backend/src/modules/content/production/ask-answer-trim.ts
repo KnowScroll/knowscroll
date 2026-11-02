@@ -7,7 +7,7 @@ import { placedSentencesOfAnswer, type PlacedSentence, type StatementPlace } fro
 
 /**
  * What code takes out of the writer's draft of the answer to a question, and puts in its place, before the draft is compiled and
- * checked (D-347 to D-350). The support check then reads what could be served. Pure: no model, no clock.
+ * checked (D-348 to D-351). The support check then reads what could be served. Pure: no model, no clock.
  */
 
 /** The title given to an answer whose own title cannot be served when the person's question cannot stand as one. */
@@ -111,7 +111,7 @@ export function copiedSentenceNumbers(
 }
 
 /**
- * The draft without what code can take out of it (D-347 to D-350):
+ * The draft without what code can take out of it (D-348 to D-351):
  * - every sentence that holds a word of a run of `COPY_RUN_WORDS` words copied from a passage (a copied title or dek is replaced
  *   by the code-made line instead);
  * - the first sentence of the answer when it opens with a pointer, since it has nothing before it to lean on;

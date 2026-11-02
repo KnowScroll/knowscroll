@@ -14,7 +14,7 @@ import {
 import { placedSentencesOfAnswer } from './ask-support.js';
 
 /**
- * What code takes out of the writer's draft before it is checked (D-347 to D-350). Labelled CI text about an invented lighthouse:
+ * What code takes out of the writer's draft before it is checked (D-348 to D-351). Labelled CI text about an invented lighthouse:
  * never provider output and never product content.
  */
 const SOURCE = [
@@ -67,7 +67,7 @@ describe('a draft with nothing to take out', () => {
   });
 });
 
-describe('a sentence that copies a run of nine words of a passage (D-347)', () => {
+describe('a sentence that copies a run of nine words of a passage (D-348)', () => {
   it('is taken out of its paragraph, and the other sentences stay in order and word for word', () => {
     const answer = answerOf([
       paragraph('A ring of glass bends the light.'),
@@ -209,7 +209,7 @@ describe('a sentence that copies a run of nine words of a passage (D-347)', () =
   });
 });
 
-describe('a title or a dek that copies a passage (D-350)', () => {
+describe('a title or a dek that copies a passage (D-351)', () => {
   it('is replaced by the line code wrote, and nothing else is changed', () => {
     const answer = answerOf([paragraph('A ring of glass bends the light.'), limit], { title: SOURCE[0]!.slice(0, 80) });
     const title = trimmed(answer);
@@ -229,7 +229,7 @@ describe('a title or a dek that copies a passage (D-350)', () => {
   });
 });
 
-describe('a sentence that leans (D-348)', () => {
+describe('a sentence that leans (D-349)', () => {
   it('is kept in the middle of a block, because the sentence it leans on is kept', () => {
     const answer = answerOf([
       paragraph('The beam turns slowly. This is why sailors see a flash. It also lets them name the tower.'),
@@ -283,7 +283,7 @@ describe('a sentence that leans (D-348)', () => {
   });
 });
 
-describe('the title code makes from the person’s question (D-350)', () => {
+describe('the title code makes from the person’s question (D-351)', () => {
   const usable = () => true;
 
   it('is their words, one line, as they asked', () => {

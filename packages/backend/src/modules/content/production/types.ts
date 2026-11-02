@@ -30,11 +30,11 @@ export interface RoleReceipt {
   readonly dropped?: number;
   /**
    * For an `answer_trimmed` receipt: how many sentences code took out of the writer's draft before it was checked, because they copied
-   * a passage (`copied`) or leaned on a sentence that was taken out or on nothing (`leaning`) (D-347, D-348). Numbers only, never a sentence.
+   * a passage (`copied`) or leaned on a sentence that was taken out or on nothing (`leaning`) (D-348, D-349). Numbers only, never a sentence.
    */
   readonly copied?: number;
   readonly leaning?: number;
-  /** For an `answer_trimmed` or a `sentences_dropped` receipt: whether code replaced the title or the dek with its own line (D-350). */
+  /** For an `answer_trimmed` or a `sentences_dropped` receipt: whether code replaced the title or the dek with its own line (D-351). */
   readonly titleReplaced?: boolean;
   readonly dekReplaced?: boolean;
   readonly attemptId?: string;

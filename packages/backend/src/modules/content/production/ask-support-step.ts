@@ -46,8 +46,8 @@ export const askSupportRepairRunId = (jobId: string): string => stableUuid(`cont
 
 /**
  * The findings the revision's own repair is for: a length out of range and an opening paragraph that code took out whole, since a
- * revision that takes sentences out or rewrites one can break them (D-314, D-352), and a copied run that the trim could not place in
- * a sentence (D-297). Code takes out the sentences that copy or lean itself (D-347, D-348), so none of those costs the repair. Any
+ * revision that takes sentences out or rewrites one can break them (D-314, D-353), and a copied run that the trim could not place in
+ * a sentence (D-297). Code takes out the sentences that copy or lean itself (D-348, D-349), so none of those costs the repair. Any
  * other refusal of the revision ends the job.
  */
 const REVISION_REPAIRABLE_CODES = ['copied_passage', ANSWER_LENGTH_CODE, DIRECT_ANSWER_LOST_CODE] as const;

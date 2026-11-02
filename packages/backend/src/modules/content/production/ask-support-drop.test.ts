@@ -278,7 +278,7 @@ describe('a kept sentence that leans on one that was taken out (D-309, D-310)', 
   });
 });
 
-describe('a title or a dek the check found unsupported (D-350)', () => {
+describe('a title or a dek the check found unsupported (D-351)', () => {
   /** The lines code writes: the question of the person who asked, and the neutral dek. Labelled CI text. */
   const LINES = { title: 'How does a lighthouse guide ships?', dek: NEUTRAL_DEK };
   const withLines = (marks: Parameters<typeof verdictsFor>[1], answer = ANSWER) => {

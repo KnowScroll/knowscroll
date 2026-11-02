@@ -190,9 +190,9 @@ Usual findings and what they mean:
 
 | Finding | Meaning |
 |---|---|
-| `copied_passage` | Nine words in a row match a source passage. The repair is told, for each block, the passage words it copied (at most six runs of twenty words, `<repair-notes>`, D-294). For an ask answer code takes out the copying sentences itself before the check (D-347), so the finding appears only for a copied run it could not place; the revision after an ask's support check has one repair of its own, for this finding and the two below (D-314, D-352); any other refusal of it ends the job. |
-| `answer_sentences_out_of_brief` | An ask answer, as it would be served, has fewer than 5 or more than 20 sentences of reading text (the dek, paragraphs, list items and callout text; not the title, a heading or a callout's title). The writer is asked for 8 to 12 (D-308, D-349). |
-| `direct_answer_lost` | Every sentence of an ask answer's opening paragraph repeated a passage and was taken out (D-347). The finding names the block; a fixed hint asks for at least one sentence in the writer's own words. |
+| `copied_passage` | Nine words in a row match a source passage. The repair is told, for each block, the passage words it copied (at most six runs of twenty words, `<repair-notes>`, D-294). For an ask answer code takes out the copying sentences itself before the check (D-348), so the finding appears only for a copied run it could not place; the revision after an ask's support check has one repair of its own, for this finding and the two below (D-314, D-353); any other refusal of it ends the job. |
+| `answer_sentences_out_of_brief` | An ask answer, as it would be served, has fewer than 5 or more than 20 sentences of reading text (the dek, paragraphs, list items and callout text; not the title, a heading or a callout's title). The writer is asked for 8 to 12 (D-308, D-350). |
+| `direct_answer_lost` | Every sentence of an ask answer's opening paragraph repeated a passage and was taken out (D-348). The finding names the block; a fixed hint asks for at least one sentence in the writer's own words. |
 | `authoring_number_not_in_evidence` | A figure (or a plotted chart value) is in no passage the block cites. |
 | `too_big` / `too_small` at a field | A length limit; the finding names the field and the limit. |
 | `OUTPUT_NOT_ONE_JSON_OBJECT` | The reply is not one JSON object; the detail says where it stopped being JSON. |
@@ -426,10 +426,10 @@ node dist/operator.js content production-status --only seasons,seasons-hemispher
 
 **Leaving a wave.** Record the yield (recipes held, released, rejected, unchecked), the tokens (sum the `attempts` of `production-status`) and the top findings of `reasoning rejected` in the tracker.
 
-## Checking stored ask answers (S-7b to S-7g, D-250 to D-252, D-263, D-265, D-280 to D-282, D-305 to D-316, D-347 to D-354)
+## Checking stored ask answers (S-7b to S-7g, D-250 to D-252, D-263, D-265, D-280 to D-282, D-305 to D-316, D-348 to D-355)
 
 A person's question from a Scroll becomes a short answer made for them (an ask order, D-218). Nobody reads it first, so its job runs a second model, the **support
-check**, which reads each sentence against the passages the answer cites. The writer is asked for 8 to 12 sentences (`question-writer.v8`, paired with `ask-support-check.v5`). Before the check, code takes out the sentences that copy a passage, a leaning first sentence and the leaning sentences after a removed one (D-347, D-348), and puts the person's question in place of a copied title (D-350); only an answer outside 5 to 20 sentences is refused (D-349). A sentence they do not support earns one revision (none when only the title or the dek failed, D-351);
+check**, which reads each sentence against the passages the answer cites. The writer is asked for 8 to 12 sentences (`question-writer.v8`, paired with `ask-support-check.v5`). Before the check, code takes out the sentences that copy a passage, a leaning first sentence and the leaning sentences after a removed one (D-348, D-349), and puts the person's question in place of a copied title (D-351); only an answer outside 5 to 20 sentences is refused (D-350). A sentence they do not support earns one revision (none when only the title or the dek failed, D-352);
 the sentences that still fail after it are taken out and the rest is served if the direct answer keeps a supported sentence, at least five sentences of reading text are supported and the limits callout remains (D-310); otherwise
 the person gets the honest "could not prepare" state. A sentence that was never checked or is unsupported is never served. How it works: [content/production README](../../../packages/backend/src/modules/content/production/README.md).
 

@@ -111,8 +111,8 @@ const isResult = (value: Draft | ProduceScrollResult): value is ProduceScrollRes
  * harness's repair, or with the one repair a flag earns) and at most two checks (one for each draft), and
  * holds no transaction while a request is out. The answer to a question may send four: the first draft and its
  * repair, then the revision a support check earns and its repair for a length out of range, an opening paragraph taken out whole
- * or a copied run the trim could not place (D-297, D-352). Before either draft is checked, code takes out of it the sentences it can
- * (the ones that copy a passage or lean, D-347, D-348), so the check reads what could be served.
+ * or a copied run the trim could not place (D-297, D-353). Before either draft is checked, code takes out of it the sentences it can
+ * (the ones that copy a passage or lean, D-348, D-349), so the check reads what could be served.
  */
 export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperations) {
   const answerCheck = makeAnswerCheckStep(deps);
@@ -154,13 +154,13 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     if (attempts === undefined) return refuse(['accounting_unavailable'], receipt);
     const paidAttemptIds = attempts.filter(isSentAttempt).map((attempt) => attempt.attemptId);
     // The first draft has the harness's repair. The second is the repair a flag earned and has none of its own, except
-    // the revision after a support check, which has one for the findings of D-352.
+    // the revision after a support check, which has one for the findings of D-353.
     const mostPaidAttempts = number === 1 || hasSupportCheck(stage.subject) ? 2 : 1;
     if (paidAttemptIds.length < 1 || paidAttemptIds.length > mostPaidAttempts)
       return refuse(['attempt_bound_exceeded'], receipt);
     const recorded = withAccounting(receipt, attempts);
     // Code takes out what it can (the sentences that copy a passage or lean) before the draft is compiled and checked, so the check
-    // reads what could be served (D-347). The validator ran the same trim, so what is left is what it accepted.
+    // reads what could be served (D-348). The validator ran the same trim, so what is left is what it accepted.
     const prepared = stage.plan.prepare(writer.output);
     if (prepared.issues.length > 0)
       return refuse(
@@ -273,7 +273,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
    * Asks the support checker about the answer to a question and acts on the verdicts (D-250). Nothing unsupported:
    * the Scroll is published. An unsupported sentence in the first draft earns the writer one revision, whether or not the
    * validator had repaired that draft; none when only the title or the dek is unsupported, since code writes its own line for
-   * either (D-350, D-351). A sentence still unsupported after the revision is taken out and the rest is served, if
+   * either (D-351, D-352). A sentence still unsupported after the revision is taken out and the rest is served, if
    * enough of it is left (D-310); otherwise the job ends. A check that gave no usable answer ends the job: nobody reads an ask
    * order before the person who asked, so it is never served unchecked.
    */
@@ -308,7 +308,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
         ...history.closing,
         ...checked.runs,
       ]);
-    // Only the title or the dek failing the check is no reason for a revision: code writes its own line for either (D-350, D-351).
+    // Only the title or the dek failing the check is no reason for a revision: code writes its own line for either (D-351, D-352).
     if (draft.number === 2 || onlyTitleOrDekFlagged(draft.authored as AuthoredScroll, checked.verdicts))
       return publishWithoutFlagged(stage, draft, checked.verdicts, receipts, history, checked.runs);
     // The unsupported first draft is superseded: its writer receipt is kept as history, not as the Scroll's writer.
@@ -376,7 +376,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
 
   /**
    * The one revision an unsupported first draft earns: the writer sees the findings and its draft, and the new draft is checked
-   * in turn. A revision refused for a length out of range, an opening paragraph taken out whole or a copied run the trim could not place has one repair of its own; any other refusal of it ends the job (D-297, D-352).
+   * in turn. A revision refused for a length out of range, an opening paragraph taken out whole or a copied run the trim could not place has one repair of its own; any other refusal of it ends the job (D-297, D-353).
    */
   async function repairUnsupported(
     stage: Stage,

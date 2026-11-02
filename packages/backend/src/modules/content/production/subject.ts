@@ -32,7 +32,7 @@ export interface ProductionSubject {
   readonly scrollV2?: ScrollV2Plan;
   /** The kit that draws this recipe's subject, when the plan names one (D-125, D-194). Only a `stage` Scroll uses it. */
   readonly stageKit?: StageKitId;
-  /** For the answer to a question: the person's own words, read from the brief. Code may use them as the title (D-350); never the model's. */
+  /** For the answer to a question: the person's own words, read from the brief. Code may use them as the title (D-351); never the model's. */
   readonly question?: string;
 }
 

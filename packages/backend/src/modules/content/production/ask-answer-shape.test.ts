@@ -34,7 +34,7 @@ const withSentences = (count: number) =>
     limit,
   ]);
 
-describe('the length of the answer to a question (D-308, D-349)', () => {
+describe('the length of the answer to a question (D-308, D-350)', () => {
   it('is asked for as 8 to 12 sentences of reading text, and the hint names that range', () => {
     expect([ASK_ANSWER_MIN_SENTENCES, ASK_ANSWER_MAX_SENTENCES]).toEqual([8, 12]);
     expect(answerLengthHint()).toContain('must have 8 to 12 sentences');
@@ -97,7 +97,7 @@ describe('a sentence that leans on the one before it (D-309)', () => {
       expect(leansOnPrevious(sentence), sentence).toBe(false);
   });
 
-  it('is no finding of the shape: a draft whose sentences lean is not refused (D-348)', () => {
+  it('is no finding of the shape: a draft whose sentences lean is not refused (D-349)', () => {
     const answer = answerOf([
       paragraph('This lamp is old. It was lit by hand. They kept it burning.'),
       paragraph('The beam turns. That is why sailors see a flash.'),

@@ -3,7 +3,7 @@ import { leansOnPrevious } from './ask-answer-shape.js';
 import type { PlacedSentence, StatementPlace } from './ask-support.js';
 
 /**
- * Taking sentences out of the answer to a question (D-310, D-347). Two steps share these pure functions: the trim of the
+ * Taking sentences out of the answer to a question (D-310, D-348). Two steps share these pure functions: the trim of the
  * writer's draft before it is checked, and the drop of the sentences a check still found unsupported. Both name the sentences to
  * take out by their number in `placedSentencesOfAnswer`; this file removes them from the text and rebuilds the blocks.
  */

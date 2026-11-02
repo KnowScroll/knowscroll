@@ -1153,7 +1153,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(production.supportCalls).toHaveLength(BATCHES);
     });
 
-    it('does not take the title for a label that states no fact: marked so, it is unsupported, and code puts the question in its place (D-266, D-350)', async () => {
+    it('does not take the title for a label that states no fact: marked so, it is unsupported, and code puts the question in its place (D-266, D-351)', async () => {
       await setup();
       const { order, question } = await orderedAsk();
       supportScript = (check, call) =>
@@ -1538,7 +1538,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     });
   });
 
-  describe('an ask answer that code trims before it is checked, instead of refusing the draft (D-347 to D-352)', () => {
+  describe('an ask answer that code trims before it is checked, instead of refusing the draft (D-348 to D-353)', () => {
     async function orderedAsk() {
       const { person, exposure } = await reader();
       const requestId = await ask(person, askCommand(exposure, suggestions[0]!));
@@ -1589,7 +1589,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       ),
     });
 
-    describe('a sentence that copies a run of a passage (D-347)', () => {
+    describe('a sentence that copies a run of a passage (D-348)', () => {
       it('is taken out: the draft is served without it after one writer request, and the check reads only what could be served', async () => {
         await setup();
         const { person, requestId, order } = await orderedAsk();
@@ -1748,7 +1748,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       });
     });
 
-    describe('a sentence that leans on the one before it (D-348)', () => {
+    describe('a sentence that leans on the one before it (D-349)', () => {
       it('is kept when the sentence before it is kept: nothing is refused and nothing is taken out', async () => {
         await setup();
         const { order } = await orderedAsk();
@@ -1803,7 +1803,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       });
     });
 
-    describe('the length (D-349)', () => {
+    describe('the length (D-350)', () => {
       it('is asked for as 8 to 12 sentences but refused only above 20: a draft of 15 is served', async () => {
         await setup();
         const { order } = await orderedAsk();
@@ -1884,7 +1884,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       });
     });
 
-    describe('a title or a dek that cannot be served (D-350, D-351)', () => {
+    describe('a title or a dek that cannot be served (D-351, D-352)', () => {
       it('is replaced when it copies a passage: the title by the question the person asked, the dek by a fixed line', async () => {
         await setup();
         const { person, requestId, order, question } = await orderedAsk();

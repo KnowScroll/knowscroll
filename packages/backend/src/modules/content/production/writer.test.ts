@@ -210,7 +210,7 @@ describe('the instructions for the answer to one question (D-218)', () => {
     // D-309: each sentence stands on its own, so one can be taken out without the next losing its meaning.
     expect(text).toContain('Make every sentence stand on its own');
     expect(text).toContain('must not begin with “This”, “That”, “These”, “Those”, “It” or “They”');
-    // D-347 to D-349: the instructions say what code does, never that the answer is refused for what code takes out.
+    // D-348 to D-350: the instructions say what code does, never that the answer is refused for what code takes out.
     expect(text).toContain('Only an answer of fewer than 5 or more than 20 sentences is refused');
     expect(text).toContain(
       'is taken out whenever the sentence before it is, and so is the first sentence of the answer',
@@ -390,7 +390,7 @@ describe('the instructions for the answer to one question (D-218)', () => {
     expect(notes).toContain('keep its key terms');
   });
 
-  it('gives the answer to a question no copy notes for what code takes out, and locates a finding at the block of the draft (D-347)', () => {
+  it('gives the answer to a question no copy notes for what code takes out, and locates a finding at the block of the draft (D-348)', () => {
     const role = writerRole({ provenance: questionProvenance, passages, format: 'plain', mode: 'question' });
     const copying = scroll([
       ASKED_BODY[0]!,
@@ -429,7 +429,7 @@ describe('the instructions for the answer to one question (D-218)', () => {
     );
   });
 
-  it('hold the answer to 5 to 20 sentences of reading text, and ask for 8 to 12, the title, the headings and a callout title not counted (D-308, D-349)', () => {
+  it('hold the answer to 5 to 20 sentences of reading text, and ask for 8 to 12, the title, the headings and a callout title not counted (D-308, D-350)', () => {
     // The dek is one sentence and the limit callout's text another; the title, the heading and the callout title are labels.
     const withParagraphs = (count: number) => [
       ...Array.from({ length: count }, (_unused, index) =>
@@ -450,7 +450,7 @@ describe('the instructions for the answer to one question (D-218)', () => {
     expect(lengthCodes(withParagraphs(19))).toEqual(['$']);
   });
 
-  it('accept a draft whose sentences lean: leaning is the trim’s business, never a finding of the writer’s validator (D-348)', () => {
+  it('accept a draft whose sentences lean: leaning is the trim’s business, never a finding of the writer’s validator (D-349)', () => {
     const role = writerRole({ provenance: questionProvenance, passages, format: 'plain', mode: 'question' });
     const leaning = scroll([
       prose('Glass rings bend the glow. This is the way a beam is made. It is thin. They are glass.', ['e2']),
@@ -469,7 +469,7 @@ describe('the instructions for the answer to one question (D-218)', () => {
     expect(role.safeCustomIssues).not.toHaveProperty('sentence_leans_on_previous');
   });
 
-  it('checks the draft as it would be served: copied sentences are taken out first, and a draft left too short is refused (D-347)', () => {
+  it('checks the draft as it would be served: copied sentences are taken out first, and a draft left too short is refused (D-348)', () => {
     const role = writerRole({ provenance: questionProvenance, passages, format: 'plain', mode: 'question' });
     const codes = (answer: AuthoredScroll) => {
       const parsed = role.outputSchema.safeParse(answer);
@@ -509,7 +509,7 @@ describe('the instructions for the answer to one question (D-218)', () => {
     expect(role.outputSchema.safeParse(copiedOne).success).toBe(true);
   });
 
-  it('give the writer a fixed hint for each shape finding, short enough for the harness, and no model text (D-308, D-347)', () => {
+  it('give the writer a fixed hint for each shape finding, short enough for the harness, and no model text (D-308, D-348)', () => {
     const role = writerRole({ provenance: questionProvenance, passages, format: 'plain', mode: 'question' });
     expect(role.safeCustomIssues?.['answer_sentences_out_of_brief']).toContain('must have 8 to 12 sentences');
     expect(role.safeCustomIssues?.['direct_answer_lost']).toContain('opening paragraph');
@@ -519,7 +519,7 @@ describe('the instructions for the answer to one question (D-218)', () => {
     expect(role.safeCustomIssues?.['reading_length_out_of_brief']).toContain('8 to 12');
   });
 
-  describe('the lines code writes when the writer’s title or dek cannot be served (D-350)', () => {
+  describe('the lines code writes when the writer’s title or dek cannot be served (D-351)', () => {
     const titleFor = (question: string | undefined, over = questionProvenance) =>
       askTrimRules(over, question).lines.title;
 

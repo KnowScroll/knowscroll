@@ -67,7 +67,7 @@ export interface ReplayLine {
   readonly dropped?: number;
   /**
    * How many sentences the production job took out of the writer's draft before it was checked, because they copied a passage or leaned
-   * on a sentence that was taken out (D-347, D-348), from its receipts: a number, never a sentence. Absent when it took out none.
+   * on a sentence that was taken out (D-348, D-349), from its receipts: a number, never a sentence. Absent when it took out none.
    */
   readonly trimmed?: number;
   /** Why the check gave no usable answer, when it did not. */
@@ -180,7 +180,7 @@ const TrimmedReceipt = z.object({
 });
 const CheckedDraftReceipt = z.object({ role: z.literal('support_check'), draft: z.number().int() });
 
-/** How many sentences the job's receipts say code took out of the draft that was served, before it was checked (D-347). */
+/** How many sentences the job's receipts say code took out of the draft that was served, before it was checked (D-348). */
 function trimmedOf(outcomes: unknown): number {
   if (!Array.isArray(outcomes)) return 0;
   const drafts = outcomes.flatMap((receipt: unknown) => {

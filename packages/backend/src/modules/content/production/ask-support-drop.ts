@@ -6,7 +6,7 @@ import { placedSentencesOfAnswer, type PlacedSentence } from './ask-support.js';
 
 /**
  * Why an answer with sentences that still fail the support check cannot be served without them (D-310). Each is a code, never a
- * sentence. `title_or_dek_flagged`: the title or the dek was flagged and no line was given to replace it (D-350).
+ * sentence. `title_or_dek_flagged`: the title or the dek was flagged and no line was given to replace it (D-351).
  * `no_direct_answer`: no sentence of the opening paragraph is supported. `too_few_supported`: fewer than {@link MIN_SERVED_SENTENCES}
  * sentences of reading text are supported. `no_limit_callout`: the limits callout did not survive. `rebuilt_invalid`: what is left
  * is not a valid answer that reads back as the sentences that were kept.
@@ -37,7 +37,7 @@ const refused = (code: DropRefusal): DropOutcome => ({ kind: 'refused', code });
 
 /**
  * Whether the only sentences the check found unsupported are the title and the dek: the two lines code can replace without the
- * writer (D-350, D-351). False when nothing was flagged.
+ * writer (D-351, D-352). False when nothing was flagged.
  */
 export function onlyTitleOrDekFlagged(answer: AuthoredScroll, verdicts: readonly SentenceVerdict[]): boolean {
   const flagged = placedSentencesOfAnswer(answer).filter(
@@ -56,7 +56,7 @@ export function onlyTitleOrDekFlagged(answer: AuthoredScroll, verdicts: readonly
  * kept sentence that opens with a pointer ("This is why...", D-309) right after one that was taken out, since it would point at
  * nothing; that repeats until none is left. The blocks are rebuilt: a block left with no sentence is removed (a list left with one
  * item becomes a paragraph), and so is a heading with nothing left in its section. The closing limits callout belongs to no section.
- * A title or a dek that was flagged cannot be taken out, so it is replaced by the line in `lines` (D-350); without `lines` the answer
+ * A title or a dek that was flagged cannot be taken out, so it is replaced by the line in `lines` (D-351); without `lines` the answer
  * is refused. The answer is served only if
  * - the first paragraph, the direct answer, keeps at least one supported sentence,
  * - at least {@link MIN_SERVED_SENTENCES} sentences of reading text (not a title, a heading or a callout's title, and not a dek that
