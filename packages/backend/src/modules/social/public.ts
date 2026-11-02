@@ -293,16 +293,11 @@ export const READ_FRIEND_ACCOUNTS = Symbol('social.readFriendAccounts');
  * Port: of these accounts, the ones the caller has blocked. Read inside the caller's personal
  * transaction. Another module uses it to collapse a blocked person's words for the blocker; it says
  * nothing of who blocked the caller, so it can never tell a person they were blocked.
- *
- * `direction: 'either'` also answers the accounts that have blocked the caller. It is for the one kind of
- * mask that must hold in both directions and whose absence says nothing (a person's optional flair in a
- * room, D-342): the answer is used to leave something out of a read, never sent to the caller.
  */
 export type ReadBlockedAmong = (
   scope: PersonalScopeTx,
   accountId: string,
   candidates: readonly string[],
-  direction?: 'own' | 'either',
 ) => Promise<ReadonlySet<string>>;
 export const READ_BLOCKED_AMONG = Symbol('social.readBlockedAmong');
 

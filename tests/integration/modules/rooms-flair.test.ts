@@ -12,7 +12,6 @@ import { makeWithPersonalScope } from '@knowscroll/backend/infrastructure/postgr
 import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
-import { readBlockedAmong } from '@knowscroll/backend/modules/social/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import {
@@ -295,17 +294,19 @@ describe('flair and the sky’s star moments (real PostgreSQL)', () => {
       expect(await flairBesideName(ravi, roomId, today, words.messageId)).toBeUndefined();
     });
 
-    it('gives Good question for three questions someone found useful, and shows the way there', async () => {
+    it('gives Good question for three questions someone found useful, and tells the asker no count before that (D-168)', async () => {
       begin();
       const { roomId } = await seedRoom(world);
       const [asha, ravi] = (await joined(world, roomId, 2)) as [Friend, Friend];
-      for (const [index, expected] of [1, 2, 3].entries()) {
+      for (const index of [1, 2, 3]) {
         const question = await leaveQuestion(asha, roomId, `Question number ${String(index)}?`);
         unwrap(await markUseful(world, ravi, roomId, question, await firstMessageOf(question)));
         const card = await flairCard(asha, roomId);
-        if (expected < 3)
-          expect(card).toMatchObject({ earned: [], coming: [{ flair: 'good_question', have: expected, of: 3 }] });
+        // An author never sees how many of their questions were marked: the card has a partway line for marks built from the
+        // person's own acts, and none for this one until it is earned.
+        if (index < 3) expect(card).toMatchObject({ earned: [], coming: [] });
         else expect(card).toMatchObject({ earned: ['good_question'], coming: [] });
+        expect(JSON.stringify(card)).not.toMatch(/"have"/);
       }
     });
 
@@ -314,13 +315,19 @@ describe('flair and the sky’s star moments (real PostgreSQL)', () => {
       const { roomId } = await seedRoom(world);
       const [asha, ravi] = (await joined(world, roomId, 2)) as [Friend, Friend];
       const unmarked = await leaveQuestion(asha, roomId, 'Nobody marked this one?');
-      const marked = await leaveQuestion(asha, roomId, 'Somebody marked this one?');
-      unwrap(await markUseful(world, ravi, roomId, marked, await firstMessageOf(marked)));
       // Their own mark on their own message is refused, and a mark on a later message of the question is not the question's.
       expect((await markUseful(world, asha, roomId, unmarked, await firstMessageOf(unmarked))).kind).toBe('refused');
       const later = unwrap(await say(world, asha, roomId, unmarked, 'More words'));
       unwrap(await markUseful(world, ravi, roomId, unmarked, later.messageId));
-      expect((await flairCard(asha, roomId)).coming).toEqual([{ flair: 'good_question', have: 1, of: 3 }]);
+      for (const index of [1, 2]) {
+        const marked = await leaveQuestion(asha, roomId, `Somebody marked question ${String(index)}?`);
+        unwrap(await markUseful(world, ravi, roomId, marked, await firstMessageOf(marked)));
+      }
+      // Three questions have something marked, but only two have their first message marked: not yet.
+      expect((await flairCard(asha, roomId)).earned).toEqual([]);
+      const third = await leaveQuestion(asha, roomId, 'Somebody marked the third one?');
+      unwrap(await markUseful(world, ravi, roomId, third, await firstMessageOf(third)));
+      expect((await flairCard(asha, roomId)).earned).toEqual(['good_question']);
     });
 
     it('gives Flaw finder for three right taps on Spot the flaw, and not for a wrong one', async () => {
@@ -486,8 +493,8 @@ describe('flair and the sky’s star moments (real PostgreSQL)', () => {
     });
   });
 
-  describe('blocks', () => {
-    it('hide a mark in both directions and are lifted with the block', async () => {
+  describe('blocks (D-051, D-345)', () => {
+    it('hide the blocked person’s mark from the one who blocked them, and change nothing for the blocked person or anyone else', async () => {
       begin();
       const { roomId } = await seedRoom(world);
       const [asha, ravi, kenji] = (await joined(world, roomId, 3)) as [Friend, Friend, Friend];
@@ -503,44 +510,30 @@ describe('flair and the sky’s star moments (real PostgreSQL)', () => {
         );
       }
       unwrap(await friendCommand(world.friends, kenji, asha, 'block'));
-      // Kenji blocked Asha: Kenji reads Asha's words collapsed, and Asha, who is blocked, no longer sees Kenji's mark.
+      // Kenji blocked Asha: Kenji reads Asha's words collapsed, so no mark beside them.
       expect((await messageAs(kenji, roomId, today, ashas.messageId)).status).toBe('blocked');
-      expect(await flairBesideName(asha, roomId, today, kenjis.messageId)).toBeUndefined();
-      // The room is the same for everyone else, and the person who is blocked still sees what they saw of the words.
+      // Asha, who is blocked, sees the room as before, Kenji's mark included: nothing tells her.
+      expect((await messageAs(asha, roomId, today, kenjis.messageId)).status).toBe('available');
+      expect(await flairBesideName(asha, roomId, today, kenjis.messageId)).toBe('first_answer');
+      // Everyone else sees both marks.
       expect(await flairBesideName(ravi, roomId, today, ashas.messageId)).toBe('first_answer');
       expect(await flairBesideName(ravi, roomId, today, kenjis.messageId)).toBe('first_answer');
-      expect((await messageAs(asha, roomId, today, kenjis.messageId)).status).toBe('available');
       unwrap(await friendCommand(world.friends, kenji, asha, 'unblock'));
-      expect(await flairBesideName(asha, roomId, today, kenjis.messageId)).toBe('first_answer');
+      expect(await flairBesideName(kenji, roomId, today, ashas.messageId)).toBe('first_answer');
     });
-  });
 
-  describe('the block list the mark uses', () => {
-    it('answers who the caller blocked, and who blocked them only when asked for both ways', async () => {
+    it('leave a moderator who blocked a member with the words to moderate and no mark beside them', async () => {
       begin();
-      const { roomId } = await seedRoom(world);
-      const [asha, kenji, ravi] = (await joined(world, roomId, 3)) as [Friend, Friend, Friend];
-      unwrap(await friendCommand(world.friends, kenji, asha, 'block'));
-      const among = async (reader: Friend, others: readonly Friend[], direction?: 'own' | 'either') => {
-        const result = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(reader.authority, (scope) =>
-          readBlockedAmong(
-            scope,
-            reader.accountId,
-            others.map((other) => other.accountId),
-            direction,
-          ),
-        );
-        if (result.kind !== 'entered') throw new Error('scope refused');
-        return [...result.value].sort();
-      };
-      // Kenji blocked Asha. Asked the old way, only Kenji's own side says so: the blocked person is never told.
-      expect(await among(kenji, [asha, ravi])).toEqual([asha.accountId]);
-      expect(await among(asha, [kenji, ravi])).toEqual([]);
-      expect(await among(asha, [kenji, ravi], 'own')).toEqual([]);
-      // Asked for both ways, either side of the block says so, and a person with no block with the caller is never in it.
-      expect(await among(asha, [kenji, ravi], 'either')).toEqual([kenji.accountId]);
-      expect(await among(kenji, [asha, ravi], 'either')).toEqual([asha.accountId]);
-      expect(await among(ravi, [asha, kenji], 'either')).toEqual([]);
+      const { roomId, slug } = await seedRoom(world);
+      const [asha, moderator] = (await joined(world, roomId, 2)) as [Friend, Friend];
+      await makeModerator(world, slug, moderator);
+      const today = await todayOf(roomId);
+      const ashas = unwrap(await say(world, asha, roomId, today, 'Asha answers'));
+      expect(await flairBesideName(moderator, roomId, today, ashas.messageId)).toBe('first_answer');
+      unwrap(await friendCommand(world.friends, moderator, asha, 'block'));
+      const message = await messageAs(moderator, roomId, today, ashas.messageId);
+      expect(message).toMatchObject({ status: 'available', blockedByYou: true });
+      expect(message).not.toHaveProperty('flair');
     });
   });
 
@@ -587,7 +580,11 @@ describe('flair and the sky’s star moments (real PostgreSQL)', () => {
       // Ravi blocked Asha: her star is a bare moment for him and still names Kenji's.
       expect(blockedStar).toEqual({ act: 'answer_useful', day: dayOf(world.clock.now), constellation: 1 });
       expect(plainStar).toMatchObject({ by: kenji.person, opens: { discussionId: second.today } });
-      // Another reader still sees Asha's.
+      // Asha, who is blocked, and everyone else read the sky as before: both answers are named.
+      expect([...(await skyOf(asha, roomId)).stars].reverse()).toMatchObject([
+        { by: asha.person },
+        { by: kenji.person },
+      ]);
       expect([...(await skyOf(kenji, roomId)).stars].reverse()[0]).toMatchObject({ by: asha.person });
       unwrap(await friendCommand(world.friends, ravi, asha, 'unblock'));
       // A moderator removes Kenji's answer: nobody is named for it and it opens nothing.

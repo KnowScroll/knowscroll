@@ -623,7 +623,7 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
           aiLevel: row.ai_level,
           keepMessagesOutOfAi: row.keep_out,
           ...(row.notice_seen_at === null ? {} : { aiNoticeSeenAt: row.notice_seen_at.toISOString() }),
-          // The person's own choice of what shows beside their name (D-342); flair itself is read from rows the file already holds.
+          // The person's own choice of what shows beside their name (D-344); flair itself is read from rows the file already holds.
           ...(row.flair_choice === null ? {} : { flairChoice: row.flair_choice }),
         })),
         discussionsStarted: started.rows.map((row) => ({

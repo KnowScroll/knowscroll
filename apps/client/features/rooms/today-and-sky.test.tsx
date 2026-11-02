@@ -319,10 +319,8 @@ describe('the Now strip and the room’s sky', () => {
       ({
         status: 'ready',
         earned: ['first_answer', 'launch_regular'],
-        coming: [
-          { flair: 'flaw_finder', have: 2, of: 3 },
-          { flair: 'good_question', have: 1, of: 3 },
-        ],
+        // The server sends a partway count only for a mark made of the person's own acts (D-342), never Good question.
+        coming: [{ flair: 'flaw_finder', have: 2, of: 3 }],
         shown: 'first_answer',
         ...patch,
       }) as never;
@@ -363,13 +361,13 @@ describe('the Now strip and the room’s sky', () => {
       expect(screen.getByTestId('sky-moment')).toHaveTextContent('Debate closed: Is Pluto a planet? · 24 Oct');
     });
 
-    it('draws the person’s own flair: the one showing, the ones earned and the ones partway with how far', async () => {
+    it('draws the person’s own flair: the one showing, the ones earned and the one partway with how far', async () => {
       await openSky({ flair: card() });
       expect(screen.getByText('You in Space room')).toBeOnTheScreen();
       expect(screen.getByTestId('flair-shown')).toHaveTextContent('First answer · Showing');
       expect(screen.getByTestId('flair-earned-launch_regular')).toHaveTextContent('Launch regular');
       expect(screen.getByTestId('flair-coming-flaw_finder')).toHaveTextContent('Flaw finder · 2/3');
-      expect(screen.getByTestId('flair-coming-good_question')).toHaveTextContent('Good question · 1/3');
+      expect(screen.queryByTestId('flair-coming-good_question')).not.toBeOnTheScreen();
       expect(screen.getByText('Only you see this card. Others see the one mark beside your name.')).toBeOnTheScreen();
       // No karma, no total, no ranking of people.
       expect(screen.queryByText(/karma|leaderboard|rank|level|points|total/i)).not.toBeOnTheScreen();

@@ -58,9 +58,9 @@ export interface ViewLookups {
   readonly topics: ReadonlyMap<string, { readonly title: string; readonly tag: TopicTag | null }>;
   /** The messages of the page the reader marked Useful. */
   readonly useful: ReadonlySet<string>;
-  /** The flair each person author of the page shows to this reader (D-341): absent for anyone whose flair is hidden, masked or unearned. */
+  /** The flair each person author of the page shows to this reader (D-342): absent for anyone whose flair is hidden, masked or unearned. */
   readonly flair: ReadonlyMap<string, RoomFlairKind>;
-  /** Where the answers of the page that earned the room a star stand among their constellation's seven (D-344). */
+  /** Where the answers of the page that earned the room a star stand among their constellation's seven (D-346). */
   readonly starPlaces: ReadonlyMap<string, number>;
 }
 

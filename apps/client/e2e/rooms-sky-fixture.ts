@@ -39,10 +39,8 @@ export const skyWorld = (stars: number): SkyWorld => ({
   solves: [],
   flair: {
     earned: ['first_answer', 'launch_regular'],
-    coming: [
-      { flair: 'flaw_finder', have: 2, of: 3 },
-      { flair: 'good_question', have: 1, of: 3 },
-    ],
+    // A partway count is only for a mark made of the person's own acts (D-342); Good question shows once it is earned.
+    coming: [{ flair: 'flaw_finder', have: 2, of: 3 }],
     choice: undefined,
   },
 });

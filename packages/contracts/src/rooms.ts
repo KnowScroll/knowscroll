@@ -1046,11 +1046,11 @@ export const RoomMessageSchema = z.discriminatedUnion('status', [
     /** The reader marked this message Useful. No count is ever sent with a message, and an author is never told who marked theirs. */
     usefulByYou: z.literal(true).optional(),
     /**
-     * The flair the author chose to show beside their name (R3 E5, D-341): present only on a person's message, only while they are
+     * The flair the author chose to show beside their name (R3 E5, D-342, D-344): present only on a person's message, only while they are
      * a member, and never for a person the reader has blocked or who has blocked the reader. An AI inhabitant or a scout never has one.
      */
     flair: RoomFlairKindSchema.optional(),
-    /** This answer earned the room a star, and it was the `place`th of its constellation (R3 F4, D-344). */
+    /** This answer earned the room a star, and it was the `place`th of its constellation (R3 F4, D-346). */
     star: RoomMessageStarSchema.optional(),
     /**
      * The reader is a moderator who has blocked the author. A block collapses the author's words for the
@@ -1641,7 +1641,7 @@ export const UsefulAcceptanceSchema = z.strictObject({
   discussionId: UuidSchema,
   messageId: UuidSchema,
   useful: z.boolean(),
-  /** This mark earned the room a star, so the message now carries one (D-344). Absent otherwise, and on a replay. */
+  /** This mark earned the room a star, so the message now carries one (D-346). Absent otherwise, and on a replay. */
   star: z.literal(true).optional(),
 });
 

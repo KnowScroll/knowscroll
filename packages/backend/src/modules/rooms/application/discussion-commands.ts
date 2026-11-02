@@ -406,7 +406,7 @@ export function makeDiscussionCommands(p: RoomPorts) {
             await p.discussions.setUseful(lock, command.messageId, owner.accountId, command.useful, now);
             // A human answer another member found useful earns the room a star, once, and the star stays if the mark is taken
             // back: nobody owns a star, so nobody loses one (D-174). The acceptance says when this mark earned it, so the
-            // maker's screen shows the star at once (D-344).
+            // maker's screen shows the star at once (D-346).
             const earnsStar =
               command.useful &&
               usefulEarnsStar({

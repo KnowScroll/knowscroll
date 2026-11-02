@@ -13,10 +13,11 @@ import { enterRoom } from './gate.js';
 import { ok, refuse, roomEnvelope, type Result, type RoomLock, type RoomPorts } from './ports.js';
 
 /**
- * The flair each of these people shows beside their name to this reader (R3 E5, D-341 to D-343): only a current member who has
- * earned a mark and has not hidden it, and not someone the reader blocked or who blocked the reader, whose absence says nothing
- * because flair is optional, hideable and often unearned. Counts the acts of the authors of one page, never more than a mark needs.
- * Only person authors are asked about, so an AI inhabitant or a scout never reaches here.
+ * The flair each of these people shows beside their name to this reader (R3 E5, D-342 to D-344): only a current member who has
+ * earned a mark and has not hidden it, and not someone the reader blocked. A block is the blocker's own wish, as everywhere in a
+ * room (D-051): the blocked person's reads are unchanged and nothing here asks who blocked the reader (D-345). Counts the acts of
+ * the authors of one page, never more than a mark needs. Only person authors are asked about, so an AI inhabitant or a scout never
+ * reaches here.
  */
 export async function flairShownTo(
   p: RoomPorts,
@@ -27,7 +28,7 @@ export async function flairShownTo(
 ): Promise<ReadonlyMap<string, RoomFlairKind>> {
   const others = authorAccountIds.filter((accountId) => accountId !== viewerAccountId);
   if (others.length === 0) return new Map();
-  const masked = await p.blocked(scope, viewerAccountId, others, 'either');
+  const masked = await p.blocked(scope, viewerAccountId, others);
   const visible = others.filter((accountId) => !masked.has(accountId));
   const members = await p.flair.membersOf(lock, visible, { shownOnly: true });
   return new Map(

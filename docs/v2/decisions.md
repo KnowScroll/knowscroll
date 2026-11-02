@@ -3830,17 +3830,17 @@ Confirmed by: `quick-answer-support.test.ts` (a short claim is not "no fact", a 
 
 ## D-341 · 2026-11-02 · The sky lists each star's moment, read for the reader from the act's own rows (v3 R-11, #631)
 
-**Amends** D-176 ("a star that is tapped names no person") and D-168 ("an author sees no mark"). **Builds on** D-174, D-221 and R3 E5 ("How each star was earned").
+**Amends** D-176 ("a star that is tapped names no person") and D-168 ("an author sees no mark and no count"), which R3 F4 and E5 draw otherwise. **Builds on** D-174, D-221 and R3 E5 ("How each star was earned").
 
 - **What is stored does not change.** A star still holds an act, a source, a UTC day and a constellation number, and no account, text or title. The moment is read from the act's own rows when a member reads the sky, so it shows what those rows say for that reader now.
 - **An answer found useful** names the person who wrote it, as R3 draws ("Asha's answer marked useful"), and opens the discussion it is in. It names no one, and opens nothing, when the answer was removed, when its author's account is gone or when the reader blocked the author (D-051).
 - **A debate that closed** shows its title, by the title rules of a topic (D-168), and opens the topic.
 - **A Spot the flaw found** says only that, and opens nothing: that day's item is no longer open.
 - **A Launch** says how many people answered and names nobody. R3 draws the winner, but the podium is gone after the night (D-221) and the players are deleted after seven days (D-220), so a name would outlive what it came from.
-- **Who marked an answer is never said.** The list says an answer was found useful and by whom it was written, not who found it so.
+- **What D-168 keeps.** The author of an answer may now learn that it was found useful: the list names them and says so. They are never shown how many marks it has, a count of marks, or who marked it, and a star holds neither. One answer earns one star however many people mark it, so the list is no count either.
 - **The list** is the constellation being made, newest first, under the art. A tap on a star in the art says the same words.
 
-Confirmed by: `rooms-flair.test.ts` ("the sky's star moments": the author named and the answer opened, nobody who marked it, a blocked author and a removed answer and a deleted account named no one, a debate's title, a Launch's count and no name, a stranger reads no sky), `rooms-sky.test.ts` ("stores no account, text or title in a star, and names no one to the reader who blocked them"), `room-sky.test.ts` (the words), `today-and-sky.test.tsx` and `rooms-sky-smoke.spec.ts` (the list and its links at 390 and 1440). Shown failing when a blocked author was still named.
+Confirmed by: `rooms-flair.test.ts` ("the sky's star moments": the author named and the answer opened, nobody who marked it, a blocked author and a removed answer and a deleted account named no one, a debate's title, a Launch's count and no name, a stranger reads no sky), `rooms-sky.test.ts` ("stores no account, text or title in a star, and names no one to the reader who blocked them"), `room-sky.test.ts` (the words), `today-and-sky.test.tsx` and `rooms-sky-smoke.spec.ts` (the list and its links at 390 and 1440). Shown failing when a blocked author was still named. A person who blocked the author is told nothing about them; the blocked author, and everyone else, read the list as before (D-345).
 
 ## D-342 · 2026-11-02 · Flair is four marks worked out from a person's own acts in the room; nothing is stored but their choice (v3 R-11, #631)
 
@@ -3850,10 +3850,11 @@ Confirmed by: `rooms-flair.test.ts` ("the sky's star moments": the author named 
 - **Worked out when read.** Each mark is a bounded count over rows that already exist (messages, Useful marks, taps, Launch answers), stopped at what the mark needs. No model, no job and no new table.
 - **People only.** Every count is of one account's own rows. A resident, a scout and the Launch's host have no account on those rows, so none of them can earn a mark or has one shown.
 - **No number and no rank.** A person sees only their own card: the marks they have and how far they are on the ones they have started ("Flaw finder, 2/3", the rule's own number from the server). Everyone else sees at most one mark beside a name. There is no karma, no total, no leaderboard and no comparison of people.
+- **A partway count is of the person's own acts only.** "Flaw finder, 2/3" counts their own taps and "Launch regular, 2/3" their own Launches. "Good question, 2/3" would tell an author how many of their questions others marked useful, which is a count of marks, and D-168 says an author never sees one. So Good question shows only once it is earned, which tells them no more than that three of their questions were found useful. R3 E5 draws "Good question 1/3"; that is the one line not built (the contract carries no partway count for it).
 - **Not built, with reasons.** "Called it" counts calls in Scrolls, which a room never reads (D-063). "Room founder": a room is seeded by an operator and has no founder. "11 this week" is a person's own score, a total.
 - **Erasure follows the rows.** A Clear erases a mark made of taps and Launch answers (play results, D-082) and keeps one made of words and Useful marks (conversation, D-042). Leaving or removal shows no mark. An account deletion tombstones the words and deletes the taps, so nothing is left to show.
 
-Confirmed by: `domain/flair.test.ts` (which acts earn which mark, the order, the cap of a count), `rooms-flair.test.ts` ("which acts earn which mark": each of the four with its near misses, a removed answer takes its mark back; "who never earns one": a resident's message and a scout's note carry none and a scout's note counts for nobody), `rooms-flair.test.ts` ("what a person takes back"). Shown failing when a scout's note carried its owner's mark, and when a threshold was lowered.
+Confirmed by: `domain/flair.test.ts` (which acts earn which mark, the order, the cap of a count), `rooms-flair.test.ts` ("which acts earn which mark": each of the four with its near misses, a removed answer takes its mark back; "who never earns one": a resident's message and a scout's note carry none and a scout's note counts for nobody), `rooms-flair.test.ts` ("what a person takes back"). `domain/flair.test.ts` and `rooms-flair.test.ts` ("gives Good question for three questions someone found useful, and tells the asker no count before that": the card holds no partway count for it, and a decoy mark on a later message is not counted). Shown failing when a scout's note carried its owner's mark, when a threshold was lowered and when Good question was given a partway count.
 
 ## D-343 · 2026-11-02 · Launch regular is a recent habit, and a chosen mark that is no longer earned shows nothing (v3 R-11, #631)
 
@@ -3874,21 +3875,22 @@ Confirmed by: `rooms-flair.test.ts` ("lets Launch regular fade with the seven da
 
 Confirmed by: `rooms-flair.test.ts` ("what shows beside a name": the first earned, a choice, hidden, back to automatic, an unearned mark refused, the same command again; "what a person takes back": the choice survives a removal, is listed in the export and goes with the account), `flair-card` through `today-and-sky.test.tsx`, `rooms-sky-smoke.spec.ts`.
 
-## D-345 · 2026-11-02 · A block hides flair in both directions (v3 R-11, #631)
+## D-345 · 2026-11-02 · A block hides a blocked person's flair from the blocker, and from no one else (v3 R-11, #631)
 
-**Amends** D-051, which says a block is the blocker's own wish and the blocked person sees the room as before. For flair alone it is both ways, as the issue asks.
+**Builds on** D-051. Nothing is amended. The issue first said "both ways"; the coordinator ruled that wrong.
 
-- **The rule.** A reader sees no mark beside a person they blocked or who blocked them. Social's `ReadBlockedAmong` takes `direction: 'either'` for it, and rooms use it for nothing else. Words and names keep D-051's one-way mask.
-- **Why this tells nobody.** A mark is optional, can be hidden and is often not earned, so its absence says nothing. The answer is used to leave something out of a read and is never sent to the reader.
+- **The rule.** A reader who blocked someone sees no mark beside them (and, for a moderator who blocked a member and still reads their words to moderate them, none beside those words). The blocked person sees every mark as before, and so does everyone else.
+- **Why one way.** D-051: a block is the blocker's own wish, and nothing tells the blocked person. Social's block read "answers which of some accounts the caller blocked and never who blocked the caller", so no rooms code can ask the other question, and a mark that vanished for the blocked person would be a sign they were blocked. The read is unchanged and has no direction option.
+- **The same mask as the words.** A blocker reads a blocked person's message collapsed, so no mark sits there; the sky names no blocked person (D-341).
 
-Confirmed by: `rooms-flair.test.ts` ("blocks": hidden both ways, lifted with the block, the room unchanged for everyone else; "the block list the mark uses": the old answer is unchanged and the new one is asked for by name). Shown failing when the block counted one way only.
+Confirmed by: `rooms-flair.test.ts` ("blocks": the blocker sees no mark and the blocked person sees the blocker's, as before, with everyone else seeing both; a moderator who blocked a member reads the words with no mark; the sky names the blocker's and the blocked person's answers to the blocked person, and hides only the blocked person's from the blocker). Shown failing when the mask was dropped (the moderator's case: an ordinary blocker's words are collapsed, so no mark could sit there anyway).
 
 ## D-346 · 2026-11-02 · An answer that earned the room a star carries "+1 star for the room" (v3 R-11, #631)
 
-**Amends** D-168 ("an author sees no mark and no count") and D-242, which left the card unbuilt. **Builds on** D-174.
+**Amends** D-168 ("an author sees no mark and no count") and D-242, which left the card unbuilt. **Builds on** D-174 and D-341.
 
 - **The card.** R3 F4 has a Keeper post it. There is no Keeper in the cast, and an AI voice for a fixed line would be a fake speaker, so the card is the product's own words under the answer: "+1 star for the room", and which of the seven it lit.
-- **Who sees it.** Everyone who reads the answer, its author included. The author learns the answer was found useful, as the star list already says (D-341), and never who found it.
+- **Who sees it.** Everyone who reads the answer, its author included, as R3 F4 draws it. The author learns the answer was found useful, as the star list already says (D-341). No count of marks and no marker is ever shown to them: the card says "someone found this answer useful" and which of the room's seven stars it lit (a count of the room's stars, not of marks), and the answer is one star however many people mark it.
 - **It stays.** Taking the mark back does not take the star (D-174), so the card stays. A resident's answer earns no star and has no card.
 - **Reading.** The mark's acceptance says when it earned the star (`star: true`), so the maker's screen reads the discussion again at once. Others see the card on their next fresh read.
 

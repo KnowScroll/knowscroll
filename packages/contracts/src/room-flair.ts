@@ -4,7 +4,7 @@ import { CommandIdSchema, UuidSchema } from './ids.js';
 import { ROOM_STARS_PER_CONSTELLATION } from './room-sky.js';
 
 /**
- * Flair (v3 R-11, R3 E5, D-341 to D-346): a small mark a person earns in one room by their own acts there. It is worked out when
+ * Flair (v3 R-11, R3 E5, D-342 to D-346): a small mark a person earns in one room by their own acts there. It is worked out when
  * it is read, by code, from rows that already exist; no model, no score and no total. It is for people only: an AI inhabitant,
  * a scout and a resident never earn one. It is not evidence for anyone and never feeds ranking, planning or formation (D-063).
  * "Called it" is not here: it counts calls in Scrolls, which a room never reads.
@@ -48,7 +48,7 @@ export const ReadRoomFlairSchema = z.strictObject({ ...Read, roomId: UuidSchema 
 /**
  * A member's own flair card for one room (R3 E5): what they have earned, what they are partway to and what shows beside
  * their name. Only they read it: another member sees `flair` on a message and nothing else. `coming` lists a flair they have
- * started and not earned, with how far; `of` is the rule's own number, so a screen never states one.
+ * started and not earned, with how far, only for a mark made of their own acts (never Good question, D-342); `of` is the rule's own number, so a screen never states one.
  */
 export const RoomFlairViewSchema = z.discriminatedUnion('status', [
   z.strictObject({ ...ScopedRead, status: z.literal('unavailable') }),

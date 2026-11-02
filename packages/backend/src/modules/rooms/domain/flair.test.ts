@@ -24,9 +24,8 @@ describe('which acts earn which flair (R3 E5)', () => {
     expect(earnedFlair(acts({ answers: 40 }))).toEqual(['first_answer']);
   });
 
-  it('gives the others for three acts, and shows the way there for one or two', () => {
+  it('gives the others for three acts, and shows the way there for one or two of the person’s own acts', () => {
     for (const [kind, key] of [
-      ['good_question', 'goodQuestions'],
       ['flaw_finder', 'flawsFound'],
       ['launch_regular', 'launchesPlayed'],
     ] as const) {
@@ -35,6 +34,15 @@ describe('which acts earn which flair (R3 E5)', () => {
       expect(earnedFlair(acts({ [key]: 3 })), kind).toEqual([kind]);
       expect(comingFlair(acts({ [key]: 3 })), kind).toEqual([]);
     }
+  });
+
+  it('gives Good question for three marked questions, and says nothing of how many are marked before that (D-168)', () => {
+    for (const marked of [1, 2]) {
+      expect(earnedFlair(acts({ goodQuestions: marked })), String(marked)).toEqual([]);
+      expect(comingFlair(acts({ goodQuestions: marked })), String(marked)).toEqual([]);
+    }
+    expect(earnedFlair(acts({ goodQuestions: 3 }))).toEqual(['good_question']);
+    expect(comingFlair(acts({ goodQuestions: 3 }))).toEqual([]);
   });
 
   it('lists what is earned in the card’s order whatever the order of the acts', () => {

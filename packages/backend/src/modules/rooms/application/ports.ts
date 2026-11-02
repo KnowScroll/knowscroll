@@ -757,7 +757,7 @@ export interface SkyStore {
     keys: { readonly answers: readonly string[]; readonly launches: readonly string[] },
   ): Promise<StarSources>;
   /**
-   * Where each of these messages stands among the stars of its constellation, for the answers that earned one (D-344): the
+   * Where each of these messages stands among the stars of its constellation, for the answers that earned one (D-346): the
    * first star of a constellation is place 1. A message that earned none is absent.
    */
   placesOf(lock: RoomLock, messageIds: readonly string[]): Promise<ReadonlyMap<string, number>>;
@@ -1006,15 +1006,11 @@ export interface PersonLookup {
   hasProfile(scope: PersonalScopeTx, accountId: string): Promise<boolean>;
 }
 
-/**
- * Which of these accounts the caller has blocked (their words are collapsed for the caller only). `either` also answers who
- * blocked the caller; only flair uses it, to leave a mark out in both directions (D-342).
- */
+/** Which of these accounts the caller has blocked (their words are collapsed for the caller only). */
 export type BlockedLookup = (
   scope: PersonalScopeTx,
   accountId: string,
   candidates: readonly string[],
-  direction?: 'own' | 'either',
 ) => Promise<ReadonlySet<string>>;
 
 export interface FriendLookup {

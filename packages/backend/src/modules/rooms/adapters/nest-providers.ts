@@ -204,7 +204,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
         return (await deps.readPeople(scope, { accountIds: [accountId] })).length > 0;
       },
     },
-    blocked: (scope, accountId, candidates, direction) => deps.readBlocked(scope, accountId, candidates, direction),
+    blocked: (scope, accountId, candidates) => deps.readBlocked(scope, accountId, candidates),
     friends: {
       async accounts(scope, accountId, limit) {
         return (await deps.readFriends(scope, accountId, { limit })).map((friend) => friend.accountId);

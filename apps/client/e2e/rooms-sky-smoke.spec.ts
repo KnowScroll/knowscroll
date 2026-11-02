@@ -235,13 +235,13 @@ for (const { name, size } of VIEWPORTS) {
     await page.goto(address);
     await page.getByTestId('now-sky').click();
 
-    // The person's own flair: the one showing, the one earned, and the two partway with how far. No total, no rank.
+    // The person's own flair: the one showing, the one earned, and the one partway with how far. No total, no rank.
     await expect(page.getByTestId('flair-card')).toBeVisible();
     await expect(page.getByText('You in Space room')).toBeVisible();
     await expect(page.getByTestId('flair-shown')).toHaveText('First answer · Showing');
     await expect(page.getByTestId('flair-earned-launch_regular')).toHaveText('Launch regular');
     await expect(page.getByTestId('flair-coming-flaw_finder')).toHaveText('Flaw finder · 2/3');
-    await expect(page.getByTestId('flair-coming-good_question')).toHaveText('Good question · 1/3');
+    await expect(page.getByTestId('flair-coming-good_question')).toHaveCount(0);
     await expect(page.getByText(/karma|leaderboard|rank|level|points/i)).toHaveCount(0);
 
     // Each lit star says what earned it, newest first, naming a person only where the room does, and never who marked it.

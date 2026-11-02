@@ -1,5 +1,5 @@
 /**
- * Flair: small marks a person earns in one room by their own acts there (v3 R-11, R3 E5, D-341 to D-343). Pure: the rules say
+ * Flair: small marks a person earns in one room by their own acts there (v3 R-11, R3 E5, D-342, D-343). Pure: the rules say
  * which acts earn which mark and what shows beside a name; reading the acts and storing the choice are the adapters' work.
  *
  * Nothing here is a score. A mark is earned or it is not, there is no total across marks and no rank between people, and what
@@ -14,7 +14,7 @@ export const FLAIR_ORDER: readonly FlairKind[] = ['first_answer', 'good_question
 
 /**
  * How many acts earn each mark. `first_answer` is the first time; the others are a few times, so a single lucky moment is not
- * a habit. The numbers are R3 E5's (2 of 3 found, 1 of 3 good questions) and the days a Launch's answers are kept bound
+ * a habit. The three is R3 E5's ("Flaw finder 2/3") and the days a Launch's answers are kept bound
  * `launch_regular`: it is a recent habit, not a trophy (D-343).
  */
 export const FLAIR_NEEDED: Readonly<Record<FlairKind, number>> = {
@@ -22,6 +22,18 @@ export const FLAIR_NEEDED: Readonly<Record<FlairKind, number>> = {
   good_question: 3,
   flaw_finder: 3,
   launch_regular: 3,
+};
+
+/**
+ * Whether a partway count is shown for a mark (only to the person, D-342). A count is shown only when it is made of the person's
+ * own acts (their taps, their Launches). How many of their questions others marked useful is a count of marks, and an author never
+ * sees one (D-168), so Good question appears only once it is earned.
+ */
+const SHOWS_PROGRESS: Readonly<Record<FlairKind, boolean>> = {
+  first_answer: true,
+  good_question: false,
+  flaw_finder: true,
+  launch_regular: true,
 };
 
 /**
@@ -55,14 +67,14 @@ export const earnedFlair = (acts: FlairActs): readonly FlairKind[] =>
   FLAIR_ORDER.filter((kind) => progressOf(kind, acts) >= FLAIR_NEEDED[kind]);
 
 /**
- * The marks they have started and not earned, with how far. A mark whose first step is the whole of it (`first_answer`) never
- * appears: there is no "0 of 1" to show. Only the person reads this.
+ * The marks they have started and not earned, with how far, for the marks whose count is of their own acts (`SHOWS_PROGRESS`). A
+ * mark whose first step is the whole of it (`first_answer`) never appears: there is no "0 of 1" to show. Only the person reads this.
  */
 export const comingFlair = (acts: FlairActs): readonly { flair: FlairKind; have: number; of: number }[] =>
   FLAIR_ORDER.flatMap((kind) => {
     const have = progressOf(kind, acts);
     const of = FLAIR_NEEDED[kind];
-    return have > 0 && have < of ? [{ flair: kind, have, of }] : [];
+    return SHOWS_PROGRESS[kind] && have > 0 && have < of ? [{ flair: kind, have, of }] : [];
   });
 
 /** What a person chose to show beside their name. Absent (`null`) is automatic: the first mark they have earned. */
