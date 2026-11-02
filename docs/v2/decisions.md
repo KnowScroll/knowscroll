@@ -4436,3 +4436,13 @@ Confirmed by: `e2e/scroll-motion-smoke.spec.ts` (gone after nine seconds at 390 
 - **Seen, not changed.** A screen kept under another (a Scroll opened from a thread) still counts new messages read while the person is on the other screen. That is a separate gap.
 
 Confirmed by: `away-divider.test.ts`, `content-thread.test.ts`, `conversation-thread.test.ts` (wrote, never read, the peer replied: the line follows the person's message), `e2e/talk-smoke.spec.ts` (a conversation with position 0 draws the line). Shown failing without the rule.
+
+## D-381 · 2026-11-03 · A thread or conversation counts messages as read only while its screen is the one in view (v3 fidelity, #648)
+
+**Builds on** D-066, D-150 and D-329. **Amends** the hooks' "while the screen is open" rule.
+
+- **The gap.** A thread or conversation screen kept under another (a Scroll or Reel opened from it) kept its controller active. A message that arrived meanwhile was caught up and marked read. Mark-read stores the person's position, and with both people sharing read marks it is also what the other person is shown as "seen" (D-150), so the other person could be told the message was seen when it was not. It also hid "New since you were here" on return.
+- **The rule.** The controller is active only while the app is in the foreground and its screen is focused (`useReadingWhileInView`). Covered or in the background, new messages are still caught up and shown, but nothing is marked. On return, what is there is marked, and the line (D-329) can draw.
+- **Not changed.** The controllers' own rules; no contract, SQL, erasure or export change.
+
+Confirmed by: `use-conversation-thread.test.tsx` (both hooks; shown failing against the old AppState-only rule), `use-reading-while-in-view.test.tsx`, `conversation-thread.test.ts` (a message that arrives while inactive is not marked; reopening marks it).
