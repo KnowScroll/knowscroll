@@ -44,6 +44,10 @@ import {
   fixtureResearchPageV2,
 } from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
+import {
+  LIMITS_TEXT,
+  LIMITS_TITLE,
+} from '../../../packages/backend/src/modules/content/production/ask-answer-limits.js';
 import { NEUTRAL_DEK } from '../../../packages/backend/src/modules/content/production/ask-answer-shape.js';
 import { madeToOrderSubject } from '../../../packages/backend/src/modules/content/production/subject.js';
 import { madeToOrderKey } from '../../../packages/backend/src/modules/content/domain/order-key.js';
@@ -107,6 +111,25 @@ const libraryReply = (scroll: string | null, quote: string | null): FixtureScena
 const isLibraryCall = (call: FixtureCall): boolean => call.request.system.includes('supply.ask-library');
 /** Words of the labelled library Scroll's first paragraph (the CI lighthouse text). */
 const LIBRARY_QUOTE = 'a way to know where the land begins';
+
+/** The blocks of a stored document in reading order, with the plain text of the callouts. */
+const blocksOf = (document: unknown) =>
+  (
+    document as {
+      sections: { blocks: { type: string; data: { kind?: string; title?: string; spans?: { text: string }[] } }[] }[];
+    }
+  ).sections.flatMap((section) => section.blocks);
+/** What the person reads as the answer's limits: every callout of kind limit, and whether the answer ends with one. */
+const limitsOf = (document: unknown) => {
+  const blocks = blocksOf(document);
+  const callouts = blocks.filter((block) => block.type === 'callout' && block.data.kind === 'limit');
+  return {
+    count: callouts.length,
+    last: blocks.at(-1) === callouts.at(-1),
+    title: callouts[0]?.data.title,
+    text: callouts[0]?.data.spans?.map((span) => span.text).join(''),
+  };
+};
 
 describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
   let database: TestDatabase<Database>;
@@ -687,7 +710,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(ready.status === 'ready' ? ready.content.metadata.title : '').not.toBe('');
       // The writer and the support check ran for the order; the question's scope was never asked for a suggested question.
       expect(production.writerCalls).toHaveLength(1);
-      // The answer has 15 sentences, labels included: the check is two requests (D-267).
+      // The answer has 13 sentences, labels included, and code's limits line is not among them: the check is two requests (D-267).
       expect(production.supportCalls).toHaveLength(2);
       expect(scopeModel.calls).toHaveLength(0);
       expect(
@@ -778,7 +801,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     const numberOf = (start: string) =>
       sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer())).find((sentence) => sentence.text.startsWith(start))!
         .number;
-    /** The default fixture answer has 15 sentences in all, so a check of it is two requests (10 + 5 sentences, D-267). */
+    /** The default fixture answer has 13 sentences in all, so a check of it is two requests (10 + 3 sentences, D-267). */
     const BATCHES = batchesOf(sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer()))).length;
     /** The ids of the runs of the checks of a draft: one for each batch. */
     const checkRuns = (jobId: string, draft: 1 | 2) =>
@@ -841,8 +864,20 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       }
       // Together the batches carry every sentence of the answer once, in order, ten at most to a request.
       const asked = production.supportCalls.map((call) => supportRequestOf(call).sentences.map((one) => one.n));
-      expect(asked.map((numbers) => numbers.length)).toEqual([10, 5]);
-      expect(asked.flat()).toEqual(Array.from({ length: 15 }, (_unused, index) => index + 1));
+      expect(asked.map((numbers) => numbers.length)).toEqual([10, 3]);
+      expect(asked.flat()).toEqual(Array.from({ length: 13 }, (_unused, index) => index + 1));
+      // The limits callout is code's line (D-371): it is not among the sentences, and no request holds a word of it.
+      for (const call of production.supportCalls) {
+        expect(call.request.user).not.toContain("the library's sources");
+        expect(call.request.user).not.toContain(LIMITS_TITLE);
+      }
+      // The answer the person reads ends with it, and it is the only limits callout.
+      expect(limitsOf((await storedAnswer(order.assetId))?.document)).toEqual({
+        count: 1,
+        last: true,
+        title: LIMITS_TITLE,
+        text: LIMITS_TEXT,
+      });
 
       await resolve(job(person, requestId));
       expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
@@ -1135,19 +1170,18 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       },
     );
 
-    it('accepts the short headings and a limits line as stating no fact, and serves the answer when the rest is supported', async () => {
+    it('accepts the short headings as stating no fact, and serves the answer when the rest is supported', async () => {
       await setup();
       const { order } = await orderedAsk();
       const numbers = sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer()));
       const short = numbers
         .filter((one) => one.label === true && wordsOf(one.text).length <= MAX_LABEL_WORDS)
         .map((one) => one.number);
-      const limits = numbers.find((one) => one.text.startsWith('This picture ignores'))!.number;
-      // The two headings and the callout's title are short; the title is not and is judged by a quote like a sentence.
-      expect(short).toHaveLength(3);
+      // The two headings are short; the title is not and is judged by a quote like a sentence. The callout is code's and is not asked about.
+      expect(short).toHaveLength(2);
       supportScript = (_check, call) => {
         let reply = supportReply(call);
-        for (const n of [...short, limits])
+        for (const n of short)
           if (supportRequestOf(call).sentences.some((one) => one.n === n))
             reply = withVerdict(reply, n, { verdict: 'no_claim' });
         return reply;
@@ -1174,7 +1208,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     it('checks an answer of 21 sentences in three requests of at most ten, each with every passage the answer cites, and closes every run', async () => {
       await setup();
       const { order } = await orderedAsk();
-      // Twelve sentences of reading text and a heading above every block but the first: the most a take can send to three requests.
+      // 21 sentences in all (13 of reading text, the title and 7 headings), code's limits line not among them: the most a take can send to three requests.
       const base = fixtureAnswer();
       const paragraphs = [
         ...base.blocks.filter((block) => block.type === 'paragraph'),
@@ -1380,7 +1414,13 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(stored).not.toContain('Today a small motor');
       expect(stored).toContain('A ring of prisms around the flame bends the light into one narrow beam.');
       expect(stored).toContain('Someone had to keep that turning going');
-      expect(stored).toContain('This picture ignores radio and satellite navigation');
+      // The limits line is code's, last and not dropped, whatever else was.
+      expect(limitsOf((await storedAnswer(order.assetId))?.document)).toEqual({
+        count: 1,
+        last: true,
+        title: LIMITS_TITLE,
+        text: LIMITS_TEXT,
+      });
       // The job keeps the answer that was served, so the replay reads what the person read.
       const authored = await authoredOf(order.recipe);
       expect(authored).not.toContain('Because the beam turns');
@@ -1466,15 +1506,96 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(runs.every((run) => run.closed_at !== null)).toBe(true);
     });
 
-    it('refuses an answer whose limits callout would be lost', async () => {
-      await setup();
-      const { order } = await orderedAsk();
-      flagging('This picture ignores');
+    describe('the limits callout is written by code (D-371)', () => {
+      /** The words of the limits callout, as code writes it and as an older writer wrote it. */
+      const LIMIT_WORDS = ['Where this stops', 'This answer uses only', 'It may not cover', 'This picture ignores'];
+      const flaggedNote = { kind: 'not_stated', problem: 'No passage says that, a CI note.' };
+      /** The sentences of a request that are part of a limits callout, by number. */
+      const calloutSentencesOf = (call: FixtureCall) =>
+        supportRequestOf(call)
+          .sentences.filter((one) => LIMIT_WORDS.some((start) => one.text.startsWith(start)))
+          .map((one) => one.n);
+      /** A checker that flags every sentence of a limits callout it is shown, and nothing else. */
+      const flaggingEveryCallout: typeof supportScript = (_check, call) =>
+        supportReply(call, {
+          unsupported: Object.fromEntries(calloutSentencesOf(call).map((n) => [n, flaggedNote])),
+        });
 
-      expect(await publish(order.recipe)).toMatchObject({
-        result: { outcome: 'rejected', codes: ['support_check_failed', 'support_drop_no_limit_callout'] },
+      it('is served although a checker would flag every sentence of a callout: it is never asked about the line', async () => {
+        await setup();
+        const { person, requestId, order } = await orderedAsk();
+        supportScript = flaggingEveryCallout;
+
+        expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published', take: 1 } });
+
+        // No revision, nothing dropped: the checker had nothing to flag in what it was shown.
+        expect(production.writerCalls).toHaveLength(1);
+        expect(production.supportCalls).toHaveLength(BATCHES);
+        for (const call of production.supportCalls) expect(calloutSentencesOf(call)).toEqual([]);
+        expect((await receiptsOf(order.recipe)).filter((receipt) => receipt.kind === 'sentences_dropped')).toEqual([]);
+        expect(limitsOf((await storedAnswer(order.assetId))?.document)).toEqual({
+          count: 1,
+          last: true,
+          title: LIMITS_TITLE,
+          text: LIMITS_TEXT,
+        });
+        await resolve(job(person, requestId));
+        expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
       });
-      expect(await storedAnswer(order.assetId)).toBeUndefined();
+
+      it('replaces a limits callout the writer still sends, and the checker never reads its words', async () => {
+        await setup();
+        const { order } = await orderedAsk();
+        writer = () => answerWith(fixtureAnswer({ writersLimits: true }));
+        supportScript = flaggingEveryCallout;
+
+        expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published', take: 1 } });
+
+        expect(production.writerCalls).toHaveLength(1);
+        for (const call of production.supportCalls) {
+          expect(call.request.user).not.toContain('radio and satellite navigation');
+          expect(call.request.user).not.toContain('What this does not explain');
+        }
+        // What the person reads and what the job keeps hold code's line and none of the writer's words.
+        const served = (await storedAnswer(order.assetId))?.document;
+        expect(limitsOf(served)).toEqual({ count: 1, last: true, title: LIMITS_TITLE, text: LIMITS_TEXT });
+        expect(JSON.stringify(served)).not.toContain('radio and satellite navigation');
+        expect(await authoredOf(order.recipe)).not.toContain('radio and satellite navigation');
+        // The receipt counts the callout replaced and holds none of its words.
+        const receipts = await receiptsOf(order.recipe);
+        expect(receipts).toContainEqual(
+          expect.objectContaining({ role: 'checks', kind: 'answer_trimmed', draft: 1, copied: 0, limitsReplaced: 1 }),
+        );
+        expect(JSON.stringify(receipts)).not.toContain('radio');
+        // The checker read the same sentences as for a writer that sent none.
+        expect(production.supportCalls.map((call) => supportRequestOf(call).sentences.length)).toEqual([10, 3]);
+      });
+
+      it('records no replacement when the writer sent no limits callout, as it is told', async () => {
+        await setup();
+        const { order } = await orderedAsk();
+
+        expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+
+        expect((await receiptsOf(order.recipe)).filter((receipt) => receipt.kind === 'answer_trimmed')).toEqual([]);
+      });
+
+      it('still refuses an answer whose direct answer is flagged, whatever the checker says of the callout', async () => {
+        await setup();
+        const { order } = await orderedAsk();
+        supportScript = (_check, call) =>
+          supportReply(call, {
+            unsupported: {
+              ...Object.fromEntries(['A ring of prisms', BEFORE].map((start) => [numberOf(start), flaggedNote])),
+              ...Object.fromEntries(calloutSentencesOf(call).map((n) => [n, flaggedNote])),
+            },
+          });
+
+        expect(await publish(order.recipe)).toMatchObject({
+          result: { outcome: 'rejected', codes: ['support_check_failed', 'support_drop_no_direct_answer'] },
+        });
+        expect(await storedAnswer(order.assetId)).toBeUndefined();
+      });
     });
 
     it('never serves a sentence it did not check: a draft that passes its first check is served whole, and nothing is dropped', async () => {
@@ -1558,7 +1679,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         .executeTakeFirst();
     const sentences = sentencesOfAnswer(AuthoredScroll.parse(fixtureAnswer()));
     const numberOf = (start: string) => sentences.find((sentence) => sentence.text.startsWith(start))!.number;
-    /** The default answer has 15 sentences, so a check of it is two requests; so is the check of one with a sentence less. */
+    /** The default answer has 13 sentences, so a check of it is two requests; so is the check of one with a sentence less. */
+    const writersLimits = fixtureAnswer({ writersLimits: true }).blocks.at(-1)!;
     const BATCHES = batchesOf(sentences).length;
     const hintOf = (call: FixtureCall) => call.request.user + call.request.system;
     const receiptsOf = async (recipe: string) =>
@@ -1602,11 +1724,11 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         const done = await publish(order.recipe);
 
         expect(done).toMatchObject({ kind: 'finished', result: { outcome: 'published', take: 1 } });
-        // No repair was paid for, and the checker was never shown the copied sentence: 14 of the 15 sentences were left.
+        // No repair was paid for, and the checker was never shown the copied sentence: 12 of the 13 sentences were left.
         expect(production.writerCalls).toHaveLength(1);
         expect(production.supportCalls).toHaveLength(BATCHES);
         const asked = production.supportCalls.map((call) => supportRequestOf(call).sentences.map((one) => one.n));
-        expect(asked.flat()).toEqual(Array.from({ length: 14 }, (_unused, index) => index + 1));
+        expect(asked.flat()).toEqual(Array.from({ length: 12 }, (_unused, index) => index + 1));
         for (const call of production.supportCalls)
           expect(supportRequestOf(call).sentences.map((one) => one.text)).not.toContain(COPIED);
         // What the person gets keeps every other sentence word for word, and no copied run.
@@ -1630,7 +1752,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         );
         expect(JSON.stringify(receipts)).not.toContain('prism ring');
         expect(row!.outcomes).toContainEqual(
-          expect.objectContaining({ role: 'support_check', kind: 'checked', draft: 1, sentences: 14, unsupported: [] }),
+          expect.objectContaining({ role: 'support_check', kind: 'checked', draft: 1, sentences: 12, unsupported: [] }),
         );
         await resolve(job(person, requestId));
         expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
@@ -1710,8 +1832,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
           .orderBy('reserved_at')
           .execute();
         expect(attempts).toEqual([
-          { role_version: 'question-writer.v8', step: 'primary', state: 'succeeded' },
-          { role_version: 'question-writer.v8', step: 'repair', state: 'succeeded' },
+          { role_version: 'question-writer.v9', step: 'primary', state: 'succeeded' },
+          { role_version: 'question-writer.v9', step: 'repair', state: 'succeeded' },
         ]);
       });
 
@@ -1731,14 +1853,16 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       it('is a refusal for length when four sentences of reading text are left, as served, and the repair names the range asked for', async () => {
         await setup();
         const { order } = await orderedAsk();
-        // The dek, the opening paragraph's two sentences and the limit line stand; the three sentences between them are copied.
+        // The dek, the opening paragraph's two sentences and one more stand; the three sentences between them are copied. The writer's
+        // limits callout is code's to replace and counts as none, so four sentences of reading text are left.
         writer = () =>
           answerWith({
             ...base,
             blocks: [
               base.blocks[0],
+              base.blocks[2],
               { type: 'paragraph', cites: ['e2', 'e3', 'e4'], text: `${COPIED} ${COPIED_TOO} ${COPIED_THIRD}` },
-              base.blocks.at(-1),
+              writersLimits,
             ],
           });
 
@@ -1778,7 +1902,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         const asked = production.supportCalls.flatMap((call) =>
           supportRequestOf(call).sentences.map((one) => one.text),
         );
-        expect(asked).toHaveLength(14);
+        expect(asked).toHaveLength(12);
         expect(asked).not.toContain('This ring of prisms bends the light into one beam.');
         const stored = JSON.stringify((await storedAnswer(order.assetId))?.document);
         expect(stored).not.toContain('This ring of prisms');
@@ -1811,11 +1935,11 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       it('is asked for as 8 to 12 sentences but refused only above 20: a draft of 15 is served', async () => {
         await setup();
         const { order } = await orderedAsk();
-        // The default answer has 11 sentences of reading text; two more paragraphs of two sentences make 15.
+        // The default answer has 9 sentences of reading text; three more paragraphs of two sentences make 15.
         writer = () =>
           answerWith({
             ...base,
-            blocks: [...base.blocks.slice(0, -1), base.blocks[5], base.blocks[6], base.blocks.at(-1)],
+            blocks: [...base.blocks, base.blocks[4], base.blocks[5], base.blocks[6]],
           });
 
         expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published', take: 1 } });
@@ -1825,12 +1949,14 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       it('does not count the dek code wrote among the five: a draft whose own dek copied a passage needs five sentences of its own (D-356)', async () => {
         await setup();
         const { order } = await orderedAsk();
-        // The opening paragraph's first sentence, one of the upkeep, one of the fog paragraph and the limit line: four besides the dek.
+        // The opening paragraph's first sentence, one of the upkeep, one of the fog paragraph and one of the height paragraph: four
+        // besides the dek. The writer's limits callout is replaced by code's line and counts as none.
         const four = [
           paragraphOf(0, 'A ring of prisms around the flame bends the light into one narrow beam.'),
           paragraphOf(4, KEEP),
           paragraphOf(5, 'Thick fog scatters light in every direction, so the beam fades after a short distance.'),
-          base.blocks.at(-1),
+          paragraphOf(6, 'Height helps too, because a lamp set high above the sea can clear distant waves.'),
+          writersLimits,
         ];
         // With the writer's own dek they are five sentences and the draft is served.
         writer = () => answerWith({ ...base, blocks: four });
@@ -1845,7 +1971,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
           paragraphOf(0, 'A ring of prisms around the flame bends the light into one narrow beam.'),
           paragraphOf(4, KEEP),
           paragraphOf(5, 'Thick fog scatters light in every direction, so the beam fades after a short distance.'),
-          base.blocks.at(-1),
+          paragraphOf(6, 'Height helps too, because a lamp set high above the sea can clear distant waves.'),
+          writersLimits,
         ];
         writer = () => answerWith({ ...base, dek: COPIED_TOO, blocks: four });
 
@@ -1861,13 +1988,13 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       it('is refused above 20 sentences of reading text, with the fixed hint naming the range asked for', async () => {
         await setup();
         const { order } = await orderedAsk();
-        // The dek, 10 paragraphs of two sentences and the limit line: 22 sentences of reading text.
+        // The dek and 10 paragraphs of two sentences: 21 sentences of reading text, the writer's limits callout counting as none.
         const crowd = Array.from({ length: 10 }, (_unused, index) => ({
           type: 'paragraph',
           cites: [`e${String((index % 5) + 1)}`],
           text: `Ships learn from lamp ${String.fromCharCode(97 + index).repeat(3)} on the coast. Sailors watch lamp ${String.fromCharCode(97 + index).repeat(3)} turn.`,
         }));
-        writer = () => answerWith({ ...base, blocks: [...crowd, base.blocks.at(-1)] });
+        writer = () => answerWith({ ...base, blocks: [...crowd, writersLimits] });
 
         expect(await publish(order.recipe)).toMatchObject({
           result: { outcome: 'rejected', codes: ['invalid_output'] },
@@ -1883,8 +2010,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         let writes = 0;
         writer = () => {
           writes += 1;
-          // The direct answer, the limits callout and the dek: four sentences of reading text.
-          return answerWith(writes === 1 ? { ...base, blocks: [base.blocks[0], base.blocks.at(-1)] } : base);
+          // The direct answer, one more sentence and the dek: four sentences of reading text, the limits callout counting as none.
+          return answerWith(writes === 1 ? { ...base, blocks: [base.blocks[0], base.blocks[2], writersLimits] } : base);
         };
 
         expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
@@ -1897,13 +2024,15 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         await setup();
         const { order } = await orderedAsk();
         let writes = 0;
-        // The dek, one sentence of the opening paragraph, one of the upkeep and the limit line: four, from five passages.
+        // The dek, one sentence of the opening paragraph, one of the upkeep and one of the fog paragraph: four, besides a limits
+        // callout that counts as none.
         const short = answerWith({
           ...base,
           blocks: [
             paragraphOf(0, 'A ring of prisms around the flame bends the light into one narrow beam.'),
             paragraphOf(4, KEEP),
-            base.blocks.at(-1),
+            paragraphOf(5, 'Thick fog scatters light in every direction, so the beam fades after a short distance.'),
+            writersLimits,
           ],
         });
         writer = () => {
