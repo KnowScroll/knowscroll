@@ -10,6 +10,9 @@ import {
   Span,
   richText,
   copiedRuns,
+  copiedWordMask,
+  copyMaterial,
+  copyWords,
   countWords,
   isGraphemeBoundary,
   isUnitExponent,
@@ -433,6 +436,42 @@ describe('copied runs', () => {
     const other = 'Sailors count the seconds between flashes to learn which lighthouse they are approaching.';
     const text = `${other.slice(0, 60)} and then something new, then ${source.slice(0, 66)}.`;
     expect(copiedRuns(text, [source, other], 9)).toHaveLength(2);
+  });
+});
+
+describe('copied words', () => {
+  const source = 'Each lunar month contains two sets of spring tides and two sets of neap tides, as the Moon circles.';
+
+  it('reads words the way the copy check does: lower case, letters and digits only', () => {
+    expect(copyWords('Notice: Two sets of spring-tides, 4,096 of them!')).toEqual([
+      'notice',
+      'two',
+      'sets',
+      'of',
+      'spring',
+      'tides',
+      '4',
+      '096',
+      'of',
+      'them',
+    ]);
+  });
+
+  it('marks each word that lies in a stretch of at least the size, even across a full stop', () => {
+    const material = copyMaterial([source], 9);
+    // The stretch starts in one sentence and ends in the next, so no sentence holds the nine words alone.
+    const words = copyWords(
+      'Other words first. Each lunar month contains two. Sets of spring tides and two sets. Then more.',
+    );
+    const mask = copiedWordMask(words, material, 9);
+    expect(words.filter((_word, index) => mask[index])).toEqual(
+      copyWords('Each lunar month contains two. Sets of spring tides and two sets.'),
+    );
+    expect(mask.filter(Boolean)).toHaveLength(12);
+    // Eight words in a row are not a stretch.
+    expect(copiedWordMask(copyWords('Each lunar month contains two sets of spring'), material, 9).some(Boolean)).toBe(
+      false,
+    );
   });
 });
 

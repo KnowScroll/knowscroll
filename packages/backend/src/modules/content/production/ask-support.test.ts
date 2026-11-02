@@ -913,7 +913,7 @@ describe('the one repair an unsupported sentence earns', () => {
       maxOutputTokens: 1000,
     });
     expect(repair.instructions).toContain(
-      `A revision that repeats ${String(COPY_RUN_WORDS)} or more words in a row from a passage is refused.`,
+      `A sentence that repeats ${String(COPY_RUN_WORDS)} or more words in a row from a passage is taken out of the revision, and the revision is refused if too little is left.`,
     );
     expect(repair.instructions).toContain('never the passage’s sentence with a word changed');
   });
