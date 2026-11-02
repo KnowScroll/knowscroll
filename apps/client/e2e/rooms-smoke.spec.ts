@@ -395,13 +395,13 @@ test('from any message a member can ask a resident about it, challenge it, hear 
   });
 });
 
-test('a resident’s "library does not cover that" line offers no Challenge or Other side, in the row or the menu', async ({
-  page,
-}) => {
-  for (const [name, size] of [
-    ['phone', phone],
-    ['desktop', desktop],
-  ] as const) {
+for (const [name, size] of [
+  ['phone', phone],
+  ['desktop', desktop],
+] as const)
+  test(`${name}: a resident’s "library does not cover that" line offers no Challenge or Other side, in the row or the menu`, async ({
+    page,
+  }) => {
     const { address } = await roomFixture(page, size, {
       others: 1,
       lastMessageMinutesAgo: 2,
@@ -419,8 +419,7 @@ test('a resident’s "library does not cover that" line offers no Challenge or O
     await expect(page.getByTestId('option-useful')).toBeVisible();
     for (const testID of ['option-ask-about', 'option-ask-other_side', 'option-ask-challenge'])
       await expect(page.getByTestId(testID)).toHaveCount(0);
-  }
-});
+  });
 
 test('an answer to an ask says who asked and what, and a topic card opens the topic with its figures', async ({
   page,
