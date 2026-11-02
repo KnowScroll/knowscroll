@@ -355,6 +355,9 @@ test('search, the orbit dial and the Simple view work over the real map; search 
   await expect(page.getByTestId('dial-planet-facts')).toBeVisible();
   await page.getByTestId('dial-system-pill').click();
   await expect(page.getByTestId('dial-system-facts')).toContainText('System 1 of 1');
+  // The filters stay behind their button until it is pressed (O1), then are plain words with counts.
+  await expect(page.getByRole('button', { name: 'With rooms, 1', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Filter systems', exact: true }).click();
   await page.getByRole('button', { name: 'With rooms, 1', exact: true }).click();
   await expect(page.getByTestId('dial-system-facts')).toContainText('1 room');
   await page.getByRole('button', { name: 'CI system 0, a system, 2 planets', exact: true }).click();

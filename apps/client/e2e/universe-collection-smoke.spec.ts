@@ -23,7 +23,11 @@ const landmark = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-async function openUniverse(page: Page, size: { width: number; height: number }, options: { formed: boolean }) {
+async function openUniverse(
+  page: Page,
+  size: { width: number; height: number },
+  options: { formed: boolean; formationUnavailable?: boolean },
+) {
   const world = sceneFixture(5, 1, 3);
   world.collection.landmarks = [
     landmark(),
@@ -62,7 +66,9 @@ async function openUniverse(page: Page, size: { width: number; height: number },
           recordedAt: '2026-10-22T00:00:00.000Z',
           currentGeography: { revision: 3, structureRevision: 3, activityRevision: 0 },
           sceneRevision: 7,
-          status: 'none',
+          ...(options.formationUnavailable
+            ? { status: 'unavailable', reason: 'temporarily_unavailable' }
+            : { status: 'none' }),
         },
       });
     if (path.startsWith('/v1/universe/') || path.startsWith('/v1/play/') || path === '/v1/experience/resume/read')
@@ -117,6 +123,19 @@ test.describe('a phone, 390 x 844', () => {
     expect(
       calls.filter((call) => call.method !== 'POST' || /activate|observations|actions|lock/.test(call.path)),
     ).toEqual([]);
+  });
+
+  test('the notice that new-place views are unavailable sits above the landmark card and covers none of it', async ({
+    page,
+  }) => {
+    await openUniverse(page, size, { formed: false, formationUnavailable: true });
+    const notice = page.getByTestId('formation-notice');
+    const card = page.getByTestId('universe-landmark-tray');
+    await expect(notice).toBeVisible();
+    await expect(card).toBeVisible();
+    const [noticeBox, cardBox] = [await notice.boundingBox(), await card.boundingBox()];
+    expect(noticeBox!.y + noticeBox!.height).toBeLessThanOrEqual(cardBox!.y + 1);
+    await shot(page, 'notice-phone');
   });
 
   test('the landmark stands on its planet once that planet has formed, painted on the globe and listed in words', async ({

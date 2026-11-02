@@ -276,7 +276,7 @@ function SelectedName({ at, text, width }: { at: { x: number; y: number } | unde
   const left = Math.min(width - pill - 14, Math.max(14, at.x - pill / 2));
   return (
     <View pointerEvents="none" style={[styles.selectedPill, { left, top: at.y - 15, width: pill }]}>
-      <Text variant="uiS" color="#111111" numberOfLines={1}>
+      <Text variant="uiS" color="#111111" numberOfLines={1} testID="universe-region-name">
         {text}
       </Text>
     </View>

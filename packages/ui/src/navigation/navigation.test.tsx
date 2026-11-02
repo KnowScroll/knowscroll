@@ -64,9 +64,21 @@ describe('TabBar', () => {
     expect(screen.getByRole('tab', { name: 'Universe' })).toHaveStyle({ backgroundColor: content.accent });
     expect(screen.getByLabelText('Primary')).toHaveStyle({ backgroundColor: space.s1 });
   });
+
+  it('marks the current item with the 13 % white glass pill on the dark bar of the Universe (Universe set)', async () => {
+    await renderOn(<TabBar active="universe" onSelect={() => undefined} tone="space" mark="glass" />);
+    expect(screen.getByRole('tab', { name: 'Universe' })).toHaveStyle({ backgroundColor: 'rgba(255,255,255,0.13)' });
+    expect(screen.getByRole('tab', { name: 'Explore' })).not.toHaveStyle({ backgroundColor: content.accent });
+  });
 });
 
 describe('NavRail', () => {
+  it('can mark the current destination with a bold word and a yellow dot instead of a pill (D02)', async () => {
+    await renderOn(<NavRail active="universe" onSelect={() => undefined} size="desktop" tone="space" mark="dot" />);
+    expect(screen.getByRole('tab', { name: 'Universe' })).not.toHaveStyle({ backgroundColor: content.accent });
+    expect(screen.getByText('Universe')).toHaveStyle({ fontWeight: '800' });
+  });
+
   it('is 76 px on tablets, without the account avatar', async () => {
     await renderOn(<NavRail active="explore" onSelect={() => undefined} size="tablet" />, { width: 834 });
     expect(screen.getAllByRole('tab')).toHaveLength(4);
