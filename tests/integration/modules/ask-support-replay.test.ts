@@ -259,6 +259,31 @@ describe('replaying the support check over stored ask answers (labelled CI fixtu
     expect(byAsset.get(whole.assetId)!.line).not.toHaveProperty('limitsReplaced');
   });
 
+  it('replays an answer stored before the limits line was code’s, whose kept answer holds the writer’s own callout, as it was served (D-371)', async () => {
+    const answer = await producedOrder('question');
+    const whole = await replayed({ kind: 'assets', assetIds: [answer.assetId] });
+    // What the job kept before this change: the draft as the writer wrote it, with its own limits callout, and no receipt of a replacement.
+    await sql`update content.scroll_production_runs set writer_output = ${JSON.stringify(fixtureAnswer({ writersLimits: true }))}::jsonb
+      where asset_id = ${answer.assetId}::uuid`.execute(database.db);
+    const callsBefore = worker.supportCalls.length;
+
+    const { results } = await replayed({ kind: 'assets', assetIds: [answer.assetId] });
+
+    const [only] = results;
+    expect(only!.line).toMatchObject({ outcome: 'checked', unsupported: 0 });
+    expect(only!.line).not.toHaveProperty('limitsReplaced');
+    // The callout is the writer's, so it has sentences like any other: its title and its one sentence are two more than the answer
+    // with code's line, and the checker is sent them, as it was before.
+    expect(only!.line.sentences).toBe(whole.results[0]!.line.sentences + 2);
+    const sent = worker.supportCalls
+      .slice(callsBefore)
+      .map((call) => call.request.user)
+      .join('\n');
+    expect(sent).toContain('radio and satellite navigation');
+    expect(sent).toContain('What this does not explain');
+    expect(sent).not.toContain("the library's sources");
+  });
+
   it('says how many sentences the job took out of the answer it served, as a number, and replays the answer that was served (D-310, D-311)', async () => {
     // The checker finds two sentences unsupported when the answer is made, in the first check and in the revision's.
     support = (_check, call) => {
