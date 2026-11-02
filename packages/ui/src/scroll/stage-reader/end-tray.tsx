@@ -113,10 +113,13 @@ export function EndTray(props: EndTrayProps) {
   );
 }
 
-/** Whether a finger can pull up from the end here: a phone or tablet (and a touch screen on the web), not a mouse alone. */
+/**
+ * Whether a pull up from the end can fill a meter here: iOS (the scroll view's own bounce, D-134) and a touch screen on the
+ * web (the drag itself). Android has no overscroll to read, and a mouse alone pulls nothing: "Something new" and N do it there.
+ */
 function pullsByTouch(): boolean {
-  if (Platform.OS !== 'web') return true;
-  return typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+  if (Platform.OS === 'ios') return true;
+  return Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
 }
 
 /**
