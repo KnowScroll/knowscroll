@@ -74,6 +74,19 @@ describe('conversation thread (labelled in-memory server)', () => {
     expect(reopened.getState().newSinceSequence).toBe(2);
   });
 
+  it('draws the line from the person’s own last message when they wrote without the conversation open, then the peer replied (#648)', async () => {
+    const { server, thread } = setup();
+    // The person sends first from somewhere that is not this screen: no one reads, so the server's position stays 0.
+    await thread.send(text('shared from the sheet'));
+    expect(server.readThrough()).toBe(0);
+    server.peerSays('a reply');
+    server.peerSays('and another');
+    const opened = createConversationThread({ scope: server.scope, conversation, newId });
+    opened.setActive(true);
+    await opened.load();
+    expect(opened.getState().newSinceSequence).toBe(1);
+  });
+
   it('catches up from its cursor and keeps messages in order, ignoring a repeated refresh', async () => {
     const { server, thread } = setup();
     server.peerSays('before');
