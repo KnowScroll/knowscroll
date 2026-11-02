@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NO_COLLECTION } from '@knowscroll/client-core';
 import type { RoomStation } from '@knowscroll/contracts';
@@ -30,6 +30,12 @@ import { lowMemoryDevice } from './space/low-memory-device';
 import { looksById, looksOfState } from './space/space-model';
 import type { SpaceFailure } from './space/space-surface';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
+
+/**
+ * Below this height a screen cannot hold the full landmark card under the map's sun and above its chips (Safari on a
+ * 390 x 664 phone, Android Chrome at 360 x 640), so the card is one line there.
+ */
+const FULL_CARD_MIN_HEIGHT = 760;
 
 /** The colour of the globe's hint, from the design. */
 const HINT_COLOUR = '#B8E2E3';
@@ -75,6 +81,7 @@ export function UniverseSurface({
 }) {
   const { breakpoint } = useDisplay();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   // From 1024 px the outline sits beside the map, once there is anything to list (D02).
   const wide = breakpoint === 'desktop';
   const view = viewFor(index, state.focusId, state.landed);
@@ -168,6 +175,23 @@ export function UniverseSurface({
     <CollectionSection view={collection} onPlanet={(planetId) => void session.focus(planetId)} />
   );
 
+  // The landmark card (D-089, D-319). On the desktop the panel lists the collection, so the map carries none, and a card or
+  // the list in front of it takes its place. It is one line wherever a long card would reach the picture: on a globe (under
+  // Back, above the globe, clear of its name and hint, which fill the lower half) and on a short screen, where a full card
+  // would reach the sun.
+  const landmarkAllowed = !visitor && !panel && !card && !sheet && !searching;
+  const onGlobe = (shown: UniverseView) => shown.kind === 'planet' && !shown.landed && !simple;
+  const landmarkOf = (shown: UniverseView): ReactNode =>
+    landmarkAllowed && !onGlobe(shown) ? (
+      <LandmarkCard
+        view={collection}
+        folded={shown.kind === 'planet' || windowHeight < FULL_CARD_MIN_HEIGHT}
+        onSee={openCollection}
+      />
+    ) : null;
+  const globeLandmarkOf = (shown: UniverseView): ReactNode =>
+    landmarkAllowed && onGlobe(shown) ? <LandmarkCard view={collection} folded onSee={openCollection} /> : null;
+
   const headerOf = (shown: UniverseView): ReactNode =>
     searching ? (
       <UniverseSearchPanel
@@ -177,16 +201,19 @@ export function UniverseSurface({
         {...(onStation ? { onStation } : {})}
       />
     ) : (
-      <UniverseHeader
-        session={session}
-        state={state}
-        view={shown}
-        hasPlaces={places.length > 0 || state.dust.cues.length > 0}
-        onSearch={openSearch}
-        {...(visitor ? { visitor: { ownerName: visitor.ownerName } } : {})}
-        {...(systemFacts ? { systemFacts } : {})}
-        searchInPanel={panel}
-      />
+      <View style={styles.headerStack}>
+        <UniverseHeader
+          session={session}
+          state={state}
+          view={shown}
+          hasPlaces={places.length > 0 || state.dust.cues.length > 0}
+          onSearch={openSearch}
+          {...(visitor ? { visitor: { ownerName: visitor.ownerName } } : {})}
+          {...(systemFacts ? { systemFacts } : {})}
+          searchInPanel={panel}
+        />
+        {globeLandmarkOf(shown)}
+      </View>
     );
   const header = headerOf(view);
 
@@ -263,12 +290,6 @@ export function UniverseSurface({
       </View>
     ) : null;
   const chips = chipsOf(view);
-  // The landmark card (D-089): over the bottom of the map, folded to one line while a globe or a landed map is in view.
-  // On the desktop the panel lists the collection, so the map carries none. A card or the list in front of it takes its place.
-  const landmarkOf = (shown: UniverseView): ReactNode =>
-    !visitor && !panel && !card && !sheet && !searching ? (
-      <LandmarkCard view={collection} folded={shown.kind === 'planet'} onSee={openCollection} />
-    ) : null;
   const landmarkCard = landmarkOf(view);
   // The screen being left stays on screen, fading, under the destination's chrome as it rises (design: "Rules for all of them").
   const leaving = step?.from;
@@ -571,6 +592,7 @@ const styles = StyleSheet.create({
   stageHost: { flex: 1, overflow: 'hidden' },
   top: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: layout.topControlsInset, gap: spacing[2] },
   status: { alignItems: 'flex-end' },
+  headerStack: { gap: spacing[3] },
   /** The map stays in view under the search card, dimmed (U08). */
   searchDim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(2,3,8,0.5)' },
   bottom: {
