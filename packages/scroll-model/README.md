@@ -507,7 +507,7 @@ The design's block table lists 12 new, 5 kept and 6 changed blocks. *Implemented
 | `paragraph` | kept | implemented, inside a stop |
 | `heading` | changed | implemented, inside a stop (level 1 or 2, rare) |
 | `aside` | new | implemented (a limits aside is required and never last) |
-| `stage` | new | implemented; runtime-verified on dev for Earth & sky and tides (web, 2 Nov, fidelity-v3), the other kits not seen there: seven kits (Earth & sky, D-124; tides, greenhouse, star and transit, D-194; circulation and nerve, D-201), each with its physics derived by code (D-195, D-202), drawn by the stage engine (S-1c) |
+| `stage` | new | implemented; runtime-verified on dev for Earth & sky (the Seasons Scrolls, web, 2 Nov, fidelity-v3); the other kits (tides, greenhouse, star and transit, circulation and nerve) were not seen on dev: seven kits (Earth & sky, D-124; tides, greenhouse, star and transit, D-194; circulation and nerve, D-201), each with its physics derived by code (D-195, D-202), drawn by the stage engine (S-1c) |
 | `call_it` | new | implemented as a stop (runtime-verified on dev, 1 Nov, journeys-v3); locking in, sparks, combo and the Plot twist reveal are play, implemented (S-2: `modules/play`, `packages/client-core/src/play-session.ts`) |
 | `final_call` | new | implemented as the last stop (S-3; runtime-verified on dev, 1 Nov, journeys-v3: the combo and the gold landmark): judged on the server like a Call it, a combo bonus (`sparksEarned`, D-187), an optional `binding: tilt` that hands the reader Earth's tilt on the stage, and the document's `landmark` it awards (D-188). No `bind_stage` for other kits and no simulation formulas for it: the tilt is the kit's physics in code |
 | `recap` | new | implemented |
