@@ -3,7 +3,7 @@ import { Animated, Platform } from 'react-native';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { DisplayProvider } from '../../display/display';
-import { PartArrivalBar, PartBackTab } from './part-arrival';
+import { PartArrivalBar, PartBackTab, TAB_ROW_HEIGHT } from './part-arrival';
 import { notePartSwipeCommitted, partSwipeJustCommitted } from './part-handoff';
 import { PartEdgePeek } from './part-edge-peek';
 import { PartPeekPanel } from './part-peek';
@@ -77,6 +77,32 @@ describe('arriving at the next Part (V3 G2, F11)', () => {
     );
     expect(screen.getByTestId('part-back-tab')).toBeOnTheScreen();
     expect(screen.getByTestId('part-arrival')).toBeOnTheScreen();
+  });
+
+  it('gives the tab a row of its own above the text on a Part with no picture, and keeps it on the picture’s edge otherwise (#648)', async () => {
+    const previousPart = { label: 'Part 2', title: 'It tilts', onPress: jest.fn() };
+    const pictureless = { ...document, stage: undefined } as ScrollDocumentV2;
+    const view = await render(wrap(<StageReader document={pictureless} commands={{}} previousPart={previousPart} />));
+    const row = screen.getByTestId('part-back-tab-row');
+    expect(row).toBeOnTheScreen();
+    // In the flow: the tab is not laid over the text, and the arrival bar is told to stand under it.
+    expect(screen.getByTestId('part-back-tab')).toHaveStyle({ position: 'relative' });
+    await view.rerender(
+      wrap(
+        <StageReader
+          document={pictureless}
+          commands={{}}
+          previousPart={previousPart}
+          arrival={{ part: 'Part 3', from: 'Part 2' }}
+        />,
+      ),
+    );
+    const bar = screen.getByTestId('part-arrival-slot');
+    expect(bar).toHaveStyle({ top: TAB_ROW_HEIGHT + 8 });
+    // With a picture there is no row: the tab stands on the picture's edge.
+    await view.rerender(wrap(<StageReader document={document} commands={{}} previousPart={previousPart} />));
+    expect(screen.queryByTestId('part-back-tab-row')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('part-back-tab')).toHaveStyle({ position: 'absolute' });
   });
 
   it('remembers that a swipe has just moved, so the Part that opens does not slide in a second time', () => {

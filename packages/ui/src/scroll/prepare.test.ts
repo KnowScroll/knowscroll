@@ -88,6 +88,7 @@ describe('the renderer on the device', () => {
       'defaultBlockState',
       'fallbackTextOf',
       'findBlock',
+      'formatFigure',
       'isGraphemeBoundary',
       'isInteractiveBlock',
       'negotiate',

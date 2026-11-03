@@ -257,6 +257,19 @@ describe('a content thread on the client', () => {
     expect(controller.getState().newSinceSequence).toBe(1);
   });
 
+  it('follows the person’s own last message when they wrote here without opening it, so the first open draws the line (#648)', async () => {
+    // Ravi replied to a message the person sent from a share sheet: sending moved no read position (it is still 0).
+    const stored = [text(1, 'shared from the sheet'), text(2, 'a reply', ravi), text(3, 'and another', ravi)];
+    const scope = scopeOf({
+      read: () => Promise.resolve(readyView(stored, { own: { readThroughSequence: 0, muted: false } })),
+      markRead: () => Promise.resolve({ acceptedThroughSequence: 3 }),
+    });
+    const controller = createContentThread({ scope, thread, newId });
+    controller.setActive(true);
+    await controller.load();
+    expect(controller.getState().newSinceSequence).toBe(1);
+  });
+
   it('marks nothing when the person has read to the end, or never read here', async () => {
     const stored = [text(1, 'one', ravi), text(2, 'two', ravi)];
     for (const readThroughSequence of [2, 0]) {

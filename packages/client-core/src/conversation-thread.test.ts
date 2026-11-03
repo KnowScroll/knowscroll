@@ -74,6 +74,37 @@ describe('conversation thread (labelled in-memory server)', () => {
     expect(reopened.getState().newSinceSequence).toBe(2);
   });
 
+  it('draws the line from the person’s own last message when they wrote without the conversation open, then the peer replied (#648)', async () => {
+    const { server, thread } = setup();
+    // The person sends first from somewhere that is not this screen: no one reads, so the server's position stays 0.
+    await thread.send(text('shared from the sheet'));
+    expect(server.readThrough()).toBe(0);
+    server.peerSays('a reply');
+    server.peerSays('and another');
+    const opened = createConversationThread({ scope: server.scope, conversation, newId });
+    opened.setActive(true);
+    await opened.load();
+    expect(opened.getState().newSinceSequence).toBe(1);
+  });
+
+  it('does not mark a message read while the conversation is kept but not the screen in view, and marks it on reopening (#648)', async () => {
+    const { server, thread } = setup();
+    server.peerSays('one');
+    thread.setActive(true);
+    await thread.load();
+    await vi.waitFor(() => expect(server.readThrough()).toBe(1));
+    // The screen stays mounted under a Scroll: not active. A message arrives and the thread catches up.
+    thread.setActive(false);
+    server.peerSays('two');
+    await thread.refresh();
+    expect(thread.getState().messages.map((message) => message.sequence)).toEqual([1, 2]);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(server.readThrough()).toBe(1);
+    // The person comes back to it: now it counts as read.
+    thread.setActive(true);
+    await vi.waitFor(() => expect(server.readThrough()).toBe(2));
+  });
+
   it('catches up from its cursor and keeps messages in order, ignoring a repeated refresh', async () => {
     const { server, thread } = setup();
     server.peerSays('before');

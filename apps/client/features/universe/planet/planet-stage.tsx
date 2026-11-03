@@ -32,6 +32,7 @@ export function PlanetStage({
   onRefused,
   arrival,
   landmarks,
+  coveredBottom,
 }: SceneProps & {
   readonly planet: SceneDescriptor;
   readonly landed: boolean;
@@ -44,6 +45,8 @@ export function PlanetStage({
   readonly arrival?: { readonly names: Animated.Value; readonly clouds: Animated.Value };
   /** The landmarks standing on this planet (D-089). Never given on a friend's universe. */
   readonly landmarks?: readonly CollectionLandmark[];
+  /** How far up from the stage's bottom the open card reaches, once measured. */
+  readonly coveredBottom?: number | undefined;
 }) {
   const looks = looksOfState(state);
   const plan = useMemo(
@@ -123,6 +126,7 @@ export function PlanetStage({
       hypothetical={hypothetical}
       markers={markers}
       onChoose={choose}
+      {...(coveredBottom === undefined ? {} : { coveredBottom })}
       {...(arrival ? { arrival } : {})}
     />
   );

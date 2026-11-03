@@ -26,6 +26,16 @@ const document = compiled.document;
 describe('reading facts v3 of the labelled Orrin fixture', () => {
   const facts = readingFactsOfV2(document);
 
+  it('knows nothing of the picture a wrong answer turns the stage to, or of a figure on a picture (D-063, D-383)', () => {
+    const call = document.stops.find((stop) => stop.kind === 'call_it');
+    if (call?.kind !== 'call_it' || call.revealStage === undefined) throw new Error('CI fixture has a reveal');
+    const without = JSON.parse(JSON.stringify(document)) as ScrollDocumentV2;
+    for (const stop of without.stops) if (stop.kind === 'call_it') delete stop.revealStage;
+    // The same Scroll with the reveal taken off has the same reading facts: the picture is for the reader, never for the record.
+    expect(readingFactsOfV2(without)).toEqual(facts);
+    expect(JSON.stringify(facts)).not.toMatch(/revealStage|figures|nearest|farthest/u);
+  });
+
   it('makes every stop and call a unit, but only read stops weigh: playing never stands in for reading', () => {
     expect(facts.v).toBe(3);
     expect(facts.blocks.map((block) => block.id)).toEqual(document.stops.map((stop) => stop.id));

@@ -24,6 +24,8 @@ export const V2_REASON_CODES = [
   'call_options_duplicate',
   'final_call_restates_call',
   'final_call_binding_invalid',
+  'call_reveal_invalid',
+  'call_reveal_missing',
   'common_guess_invalid',
   'common_guess_missing',
   'common_guess_unexpected',
@@ -47,6 +49,7 @@ export const V2_REASON_CODES = [
   'stage_state_on_call',
   'earth_axis_sideways',
   'stage_state_unsettled',
+  'stage_months_too_few',
   // The play blocks of a read stop and the guide (D-207).
   'interactive_budget_exceeded',
   'sort_order_invalid',

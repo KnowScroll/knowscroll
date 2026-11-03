@@ -98,6 +98,7 @@ export function UniverseStage({
   animation,
   onSize,
   landmarksByPlanet,
+  coveredBottom,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -120,6 +121,8 @@ export function UniverseStage({
   readonly onSize: (size: Size) => void;
   /** The landmarks standing on each planet (D-089). Empty on a friend's universe. */
   readonly landmarksByPlanet?: ReadonlyMap<string, readonly CollectionLandmark[]>;
+  /** How far up from the stage's bottom the open card reaches, once measured: a picked region's name stays above it. */
+  readonly coveredBottom?: number;
 }) {
   const [size, setSize] = useState<Size>({ width: 390, height: 640 });
   const view = viewFor(index, state.focusId, state.landed);
@@ -204,6 +207,7 @@ export function UniverseStage({
             selectedRegion={view.selectedRegion}
             visitor={visitor === true}
             onRefused={onRefused}
+            coveredBottom={coveredBottom}
             {...(landmarksByPlanet?.get(view.planet.objectId)
               ? { landmarks: landmarksByPlanet.get(view.planet.objectId)! }
               : {})}

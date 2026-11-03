@@ -69,6 +69,8 @@ export interface TalkFixtureOptions {
   readonly sharedCard?: boolean;
   /** Talk's list holds the content thread, started on Part 1 of a series of three. */
   readonly listThread?: boolean;
+  /** Where the person had read to in the direct conversation (their own stored position); 2 when omitted, 0 for never opened. */
+  readonly readThrough?: number;
 }
 
 export async function talkFixture(
@@ -146,7 +148,7 @@ export async function talkFixture(
           status: 'ready',
           conversation,
           peer: ravi,
-          own: { readThroughSequence: 2, muted: false },
+          own: { readThroughSequence: options.readThrough ?? 2, muted: false },
           latestMessageSequence: options.sharedCard === true ? 3 : 2,
           messages: [
             {

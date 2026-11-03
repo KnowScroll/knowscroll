@@ -24,6 +24,12 @@ export const REPAIR_HINTS_V2: Readonly<Record<string, string>> = Object.freeze({
     'The final_call asks again what an earlier call asked. Make it a new case that uses the whole idea, with a new question and a new correct answer.',
   final_call_binding_invalid:
     'The final_call lets the reader turn Earth’s tilt, so end on a June or December picture (earthAt jun or dec) in the sun-earth, earth-close or orbit view: in March, September or the Moon view the tilt changes nothing.',
+  call_reveal_invalid:
+    'A call may show the picture of the stop right after it when the guess was wrong, and only if that stop changes the picture. Put the stage change on the stop right after the call, or take the reveal off.',
+  call_reveal_missing:
+    'The first call_it must show the true picture when the guess is wrong: set "revealsNext" to true on it, and change the picture on the stop right after it.',
+  stage_months_too_few:
+    'The picture must show Earth on its orbit seen from above (view "orbit" or "orbit-stretched") at two different months at least, the months the stops discuss. Add the second orbit view where a stop talks about another time of year.',
   aside_before_stop: 'An aside belongs to the stop before it. Put it after the stop it comments on.',
   aside_after_final_call: 'Put asides before the final_call, never after it.',
   aside_anchor_unknown: 'An aside must follow a stop or a call.',

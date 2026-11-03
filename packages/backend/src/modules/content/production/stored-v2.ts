@@ -79,6 +79,17 @@ export function storedScrollV2(
     checks: [
       { name: 'authoring', version: 'scroll-authoring.v2', verdict: 'pass', reasonCodes: [] },
       { name: 'document', version: document.limitsVersion, verdict: 'pass', reasonCodes: [] },
+      // A figure no cited passage stated was left out of the picture (D-382): the operator can see that it was asked for.
+      ...(generated.leftOut.length === 0
+        ? []
+        : [
+            {
+              name: 'stage-figures',
+              version: 'stage-figures.v1',
+              verdict: 'pass' as const,
+              reasonCodes: ['stage_figure_left_out'],
+            },
+          ]),
     ],
     production: {
       kind: 'model',
