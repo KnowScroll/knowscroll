@@ -2265,6 +2265,24 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await queuedProduction()).toEqual([]);
     });
 
+    it('keeps a limit only on a request closed as budget_unavailable (migration 0103)', async () => {
+      await setup({ perDay: 50, perPerson: 5 });
+      const { person, exposure } = await reader();
+      const waiting = await ask(person, askCommand(exposure, suggestions[0]!));
+      // A request that is still preparing has no reason: a limit on it is refused, though `reason = ...` alone would be null.
+      await expect(
+        database.db.updateTable('supply.requests').set({ ask_limit: 'world' }).where('id', '=', waiting).execute(),
+      ).rejects.toThrow(/requests_ask_limit_check/);
+
+      await setup({ perDay: 0, perPerson: 5 });
+      const other = await reader();
+      const closed = await ask(other.person, askCommand(other.exposure, suggestions[0]!));
+      expect(await requestRow(closed)).toMatchObject({ reason: 'budget_unavailable', ask_limit: 'off' });
+      await expect(
+        database.db.updateTable('supply.requests').set({ ask_limit: 'everyone' }).where('id', '=', closed).execute(),
+      ).rejects.toThrow(/requests_ask_limit_check/);
+    });
+
     it('closes as could-not-prepare when the writer is refused, and Try again sends the next take for the same request', async () => {
       await setup();
       const { person, exposure } = await reader();

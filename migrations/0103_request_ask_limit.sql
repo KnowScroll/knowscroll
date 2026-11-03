@@ -16,7 +16,8 @@ set local statement_timeout = '60s';
 alter table supply.requests
   add column ask_limit text,
   add constraint requests_ask_limit_check
-    check (ask_limit is null or (ask_limit in ('person', 'world', 'off') and reason = 'budget_unavailable')) not valid;
--- The new column is null for every existing row, so the check holds.
+    check (ask_limit is null or (ask_limit in ('person', 'world', 'off') and reason is not distinct from 'budget_unavailable')) not valid;
+-- The new column is null for every existing row, so the check holds. `is not distinct from` makes a limit with no reason fail
+-- (a plain `=` would be null there, and a null check passes).
 -- squawk-ignore constraint-missing-not-valid
 alter table supply.requests validate constraint requests_ask_limit_check;
