@@ -5,6 +5,7 @@ import { ComposeStep } from './compose-step';
 import { ConfirmStep, OptionsStep, SummaryStep } from './direction-steps';
 import { BlockedStep, ChosenStep, NoSuggestionsStep, ThinkingStep } from './outcome-steps';
 import { OwnRequestForm } from './own-request-form';
+import { RecordingPausedStep } from './paused-step';
 import type { KindedStart, OfferStart } from './scenario-start';
 import { useScenarioComposer } from './use-scenarios';
 
@@ -155,6 +156,16 @@ export function SheetBody({
       />
     );
   if (state.phase === 'sending' || state.phase === 'thinking') return <ThinkingStep onOwn={writeOwn} />;
+  if (state.phase === 'failed' && state.failure === 'recording_paused') {
+    const { ask } = state;
+    return (
+      <RecordingPausedStep
+        scope={scope}
+        onAskAgain={ask === undefined ? undefined : () => void controller.begin(ask)}
+        onClose={onClose}
+      />
+    );
+  }
   if (state.phase === 'failed') return <NoSuggestionsStep reason={state.failure} onOwn={writeOwn} onClose={onClose} />;
   return (
     <Directions

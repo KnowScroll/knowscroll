@@ -1,21 +1,28 @@
 import type { ContentRef, ScrollAskFacts } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { ASK_KICKER, askBrief } from '../domain/ask-order.js';
-import type { AskOrderLink, SupplyPorts } from './ports.js';
+import type { AskLimitKind, AskOrderLink, SupplyPorts } from './ports.js';
 
 const UTC_DAY_MS = 86_400_000;
 
 export type AskCommission =
   /** The order is recorded and its production job is sent in the caller's transaction. */
   | { readonly kind: 'commissioned'; readonly order: AskOrderLink }
-  /** `budget_unavailable`: a day's cap is full (or ask orders are off). `could_not_prepare`: nothing to research the answer from. */
-  | { readonly kind: 'unavailable'; readonly reason: 'budget_unavailable' | 'could_not_prepare' };
+  /** A day's cap is full or ask orders are off: `limit` names which, so the person is told the truth (D-387). */
+  | { readonly kind: 'unavailable'; readonly reason: 'budget_unavailable'; readonly limit: AskLimitKind }
+  /** Nothing to research the answer from. */
+  | { readonly kind: 'unavailable'; readonly reason: 'could_not_prepare' };
 
 /** What one ask order is made from: the Scroll and stop the person asked from, and their words. */
 export interface AskOrderInput {
   readonly source: ContentRef;
   readonly facts: ScrollAskFacts;
   readonly question: string;
+}
+
+/** The `askLimit` field of a refused commission, or nothing when the refusal has no limit. */
+export function askLimitOf(refused: Extract<AskCommission, { kind: 'unavailable' }>): { askLimit?: AskLimitKind } {
+  return refused.reason === 'budget_unavailable' ? { askLimit: refused.limit } : {};
 }
 
 /**
@@ -38,10 +45,11 @@ export async function commissionAskOrder(
 ): Promise<AskCommission> {
   await p.store.lockCommissioning(scope);
   const startOfDay = new Date(Math.floor(p.now().getTime() / UTC_DAY_MS) * UTC_DAY_MS);
+  if (p.askCaps.perDay === 0) return { kind: 'unavailable', reason: 'budget_unavailable', limit: 'off' };
   if ((await p.askLedger.countSince(scope, startOfDay)) >= p.askCaps.perDay)
-    return { kind: 'unavailable', reason: 'budget_unavailable' };
+    return { kind: 'unavailable', reason: 'budget_unavailable', limit: 'world' };
   if ((await p.store.countAskOrdersSince(scope, startOfDay)) >= p.askCaps.perPersonPerDay)
-    return { kind: 'unavailable', reason: 'budget_unavailable' };
+    return { kind: 'unavailable', reason: 'budget_unavailable', limit: 'person' };
   const pages = await p.readSourcePages(scope, input.source);
   if (pages.length === 0) return { kind: 'unavailable', reason: 'could_not_prepare' };
   const order = { orderId: p.newId(), assetId: p.newId() };

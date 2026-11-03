@@ -4490,3 +4490,48 @@ Confirmed by: `v2/validate.test.ts` (accepted when it names the next read stop w
 - **Regeneration is the coordinator's.** After this reaches dev, `content regenerate --only seasons` makes the next take; it is read, released and the series admitted again (runbook, "Seasons Part 1 after the stage plan"). This change makes no model call.
 
 Confirmed by: `writer-v2.test.ts` (the Seasons recipe is asked for all three and no other recipe is; removing the plan removes the words; the role refuses a recorded answer that ignores it with fixed findings), `library.test.ts` (the plan, its slots in step with scroll-model, only on an Earth & sky stage recipe), `versions.test.ts` (the pair), `producer/v2/stage-figures.test.ts` (one month and the same month twice are refused, two are accepted) and `scroll-v2-stage-plan.test.ts` on real PostgreSQL (a Scroll with two orbit months, the reveal and the stated figure publishes held after one request; an answer that ignores the plan gets one repair carrying the two fixed hints and then publishes). Shown failing when the months rule or the reveal rule was off and when the writer's pair row was removed.
+
+## D-387 · 2026-11-03 · An ask closed by a daily limit says which limit, with a closed detail on the request (v3, #653)
+
+**Amends** D-218, its "A full cap closes the request `budget_unavailable`" line, which gave one sentence for three causes.
+
+- **The gap.** A question asked from a Scroll closed as `budget_unavailable` for three different reasons: the person's own daily cap, the world's daily cap, or ask orders being off. The screen said "We can't prepare new explanations right now" for all three, so the person could not tell whether to wait, or whether it was them.
+- **The rule.** The closed status carries an optional `limit`: `person` (with the size of the person's cap), `world`, or `off`. It is a closed set. It carries no count of other people's asks and no spend. The world's cap is checked first, then the person's, as before; a cap of zero reads as `off`.
+- **Words.** `person`: "You've asked for N new explanations today, the most for one day. You can ask again tomorrow." `world`: "New explanations are full for today. You can ask again tomorrow." `off`: "New explanations are switched off right now." Each ends "Your request is closed, so nothing is waiting." The world's words say nothing about other people.
+- **Stored.** Migration 0103 adds `supply.requests.ask_limit`, set only with `budget_unavailable`. A request closed before it, or by a Create cap, has none and keeps the general words. A retry clears it.
+- **When.** "Today", "tomorrow" and "right now" are true only on the UTC day the request closed (its `updatedAt`). On a later day, such as in Your requests, the same cause is told without a time ("This was closed because new explanations were full that day.").
+- **Not changed.** The caps, their counting and the reasons.
+
+Confirmed by: `supply-ask.test.ts` (each of the three closes with its `limit`), `supply.test.ts` in contracts (the set is closed; a count or an unknown kind is refused), `ask-sheet.test.tsx` (each sentence; none names other people; shown failing without the detail).
+
+## D-388 · 2026-11-03 · A What-if draft taken up while recording is paused says so, and offers Resume (v3, #653)
+
+**Amends** D-270, its "Still refused while paused" line for the draft: the refusal is kept; what the person is told changes.
+
+- **The gap.** While recording is paused the draft is refused without a model call (D-270) and closed as `could_not_suggest`, so the sheet said "No suggestions. We couldn't think of directions this time." The pause is the person's own, and they were not told.
+- **The rule.** A draft refused because recording was off when it was taken up closes as `recording_paused` (migration 0104 widens the check). The draft read returns it. A reply that comes back after a pause is still dropped as `could_not_suggest`, as before.
+- **The sheet.** It says suggestions for a What if or another perspective need recording on, and shows Resume. Resume sets the person's own recording setting and then asks again with the words they wrote. No model call is made by Resume. If recording is already on again, it offers Ask again. Resume works only on a setting read back as current; if it is not accepted, the sheet says nothing changed. Without recording controls it points to Privacy. "Write my own version" is not offered here, because the short answer would be refused too.
+- **Not changed.** No What-if is refused at create. The branch's short answer while paused (D-270).
+
+Confirmed by: `scenario-answers.test.ts` (the paused draft closes `recording_paused`, no run, no call), `scenarios.test.ts` in contracts, `scenario-sheet.test.tsx` (the words, Resume, the same words asked again; shown failing without the step).
+
+## D-389 · 2026-11-03 · A reveal opens in the thread when it arrives, ahead of the next call (v3, #653)
+
+**Builds on** D-155. **Amends** the bar's order only in what the thread opens by itself; the reveal rules are not touched.
+
+- **The gap.** When the party finished Part 2, the bar above the composer offered the open call before Part 3 first, so the reveal of Part 2 was reached only through Series ("Revealed").
+- **The rule.** A revealed call this device has not shown yet opens in the thread as its card, when it arrives, only if the reader's **own** shared place says they finished that part (they are on a later part, or finished it). A member who hides their place or has none is not shown it unasked (D-155 does not wait for them either): the reveal stays on the bar as "Revealed". With several unseen reveals only the newest (the latest part) opens by itself; the others stay on the bar. It never replaces a call the person already has open: it waits and opens when that card is closed, so a choice they were making is not lost. It is marked as shown when it appears. Closing it brings back the bar, with the next call. The card is the one already drawn for a reveal.
+- **What decides the reveal.** The server, as D-155 says: the card carries picks only for a call revealed to this reader. The client shows what it was sent and decides nothing about who finished.
+- **Not drawn.** The system line "ALL N FINISHED PART 2 · time" of T3 frame 5. The server does not say whether a reveal came from everyone finishing or from the two-day clock, so the line could be false, and no time is sent.
+
+Confirmed by: `e2e/thread-calls-smoke.spec.ts` (while one member still shares Part 1 no card and no pick is shown; when they finish, the reveal opens by itself ahead of the Part 3 call, and is not shown again after it is closed; a reveal that arrives while the Part 3 card is open leaves that card and its choice alone, then opens on close; a member who hides their place sees it on the bar), `call-words.test.ts` (`revealToOpen`: own place, newest only). Each shown failing when the rule is removed.
+
+## D-390 · 2026-11-03 · A What-if on a Scroll that cannot be explored says why and what to do (v3, #653)
+
+**Builds on** D-006 i. It leaves the refusal where it is.
+
+- **The gap.** A thread whose Scroll has no recorded sources, such as an older or imported one, refuses What-if and Another perspective with "nothing it rests on can be looked up". The words were plain but gave the person nothing to do.
+- **Why it is not hidden.** Offering What-if only where it works needs the thread to know the Scroll has sources. That is a research-source read of the Scroll on every thread read, which the thread does not make today. The refusal is checked first on a draft, before anything is written, so the person loses only the words they typed.
+- **The words.** "Can't explore this one yet. This Scroll doesn't have what KnowScroll needs to check a new idea against, so a branch can't be made from it yet. Nothing was made. You can keep talking about it here, or try it on another Scroll." It serves What if and Another perspective alike. There is no retry.
+
+Confirmed by: `scenario-sheet.test.tsx` (the refusal shows these words and no Try again; shown failing when they change).

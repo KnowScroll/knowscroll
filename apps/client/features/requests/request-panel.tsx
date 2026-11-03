@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { OpenedStageScroll } from '../scroll/scroll-session';
 import { AskSheet } from './ask-sheet';
 import { RequestChoices } from './request-choices';
-import { unavailableCopy } from './request-copy';
+import { unavailableMessage } from './request-copy';
 import { suggestions, type RequestSession } from './request-session';
 
 /**
@@ -204,7 +204,7 @@ export function RequestPanel({
                 We couldn&apos;t prepare this one
               </Text>
             ) : null}
-            <Text variant="body">{unavailableCopy[status.reason]}</Text>
+            <Text variant="body">{unavailableMessage(status)}</Text>
           </View>
         ) : null}
         {couldBePreparedAgain && state.error === 'too_many_open' ? (

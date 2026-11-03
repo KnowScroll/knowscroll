@@ -173,7 +173,7 @@ what-if branch standing with its short answer still being made.
 |---|---|---|
 | The run is stamped with the generation at step start, and the result is stored in the transaction that closes the run, under the fence | `application/suggest.ts`, `application/write-answer.ts` | implemented, CI-verified on real PostgreSQL with labelled fixture models |
 | A reply that comes back after a pause, a resume or a Clear is dropped: the draft fails as `could_not_suggest`, the card ends with no short answer, and after a Clear nothing is written | the same | implemented, CI-verified |
-| While recording is paused no run and no call is made; the draft fails and the card has no short answer, as before | the same | implemented, CI-verified |
+| While recording is paused no run and no call is made; the draft fails as `recording_paused` (D-388, so the sheet says suggestions need recording on and offers Resume) and the card has no short answer, as before | the same | implemented, CI-verified |
 
 ## Failure and recovery
 
