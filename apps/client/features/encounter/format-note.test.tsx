@@ -96,7 +96,7 @@ describe('the note on a library article (D-391)', () => {
 describe('the note card', () => {
   const note = formatNoteOf([entry('discovery'), entry('discovery')], entry('discovery'));
 
-  function card(onSwitch = jest.fn(), onUndo = jest.fn(), onExpire = jest.fn()) {
+  function card(onSwitch = jest.fn(), onUndo = jest.fn(), onExpire = jest.fn(), keys = true) {
     const left = entry('discovery');
     const now = entry('discovery');
     return render(
@@ -106,10 +106,27 @@ describe('the note card', () => {
           onSwitch={onSwitch}
           onUndo={onUndo}
           onExpire={onExpire}
+          keys={keys}
         />
       </DisplayProvider>,
     );
   }
+
+  const hidden = { includeHiddenElements: true };
+
+  it('shows the F and Esc chips where the reader has those keys', async () => {
+    await card();
+    expect(screen.getByText('F', hidden)).toBeTruthy();
+    expect(screen.getByText('Esc', hidden)).toBeTruthy();
+  });
+
+  it('shows no F or Esc chip on an article, which has no keyed reader, and keeps the buttons (D-391)', async () => {
+    await card(jest.fn(), jest.fn(), jest.fn(), false);
+    expect(screen.queryByText('F', hidden)).toBeNull();
+    expect(screen.queryByText('Esc', hidden)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Switch to Reel' })).toBeTruthy();
+  });
 
   it('offers Switch to Reel and Undo, each doing its own move', async () => {
     const onSwitch = jest.fn();

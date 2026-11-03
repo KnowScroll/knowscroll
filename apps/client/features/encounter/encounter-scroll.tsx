@@ -117,6 +117,7 @@ function ArticleEncounter({
           {note === undefined ? null : (
             <FormatNoteCard
               note={note}
+              keys={false}
               onSwitch={() => {
                 putNoteAway();
                 switchToReel();

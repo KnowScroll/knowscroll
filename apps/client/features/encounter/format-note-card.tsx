@@ -41,8 +41,11 @@ export function FormatNoteCard({
   onSwitch,
   onUndo,
   onExpire,
+  keys = true,
 }: {
   readonly note: FormatNote;
+  /** Show the F and Esc key chips: only where the reader has those keys (the stage reader), not on an article (D-391). */
+  readonly keys?: boolean;
   readonly onSwitch: () => void;
   readonly onUndo: () => void;
   readonly onExpire: () => void;
@@ -94,12 +97,12 @@ export function FormatNoteCard({
         {note.canSwitchToReel ? (
           <View style={styles.action}>
             <Button label="Switch to Reel" size="sm" onPress={onSwitch} testID="format-note-switch" />
-            <KeyChip name="F" />
+            {keys ? <KeyChip name="F" /> : null}
           </View>
         ) : null}
         <View style={styles.action}>
           <Button label="Undo" size="sm" onPress={onUndo} testID="format-note-undo" />
-          <KeyChip name="Esc" />
+          {keys ? <KeyChip name="Esc" /> : null}
         </View>
       </View>
       <Text variant="meta" color={content.ink2} testID="format-note-kept">
