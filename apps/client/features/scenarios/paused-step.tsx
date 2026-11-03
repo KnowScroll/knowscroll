@@ -69,14 +69,16 @@ export function RecordingPausedStep({
         />
       )}
       {policy === undefined || known || state?.status === 'checking' ? null : (
-        <Text variant="meta" role="status">
-          We couldn’t read your recording setting just now. Try again in a moment, or turn it on in Privacy.
-        </Text>
+        <View role="status">
+          <Text variant="meta">
+            We couldn’t read your recording setting just now. Try again in a moment, or turn it on in Privacy.
+          </Text>
+        </View>
       )}
       {refused ? (
-        <Text variant="meta" role="alert">
-          Recording didn’t turn on. Nothing changed. Try again.
-        </Text>
+        <View role="alert">
+          <Text variant="meta">Recording didn’t turn on. Nothing changed. Try again.</Text>
+        </View>
       ) : null}
       <Button label="Close" variant="ghost" fullWidth onPress={onClose} />
     </View>

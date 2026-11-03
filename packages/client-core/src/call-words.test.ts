@@ -129,7 +129,7 @@ describe('which reveal the thread opens by itself (D-389)', () => {
     expect(unseenReveal([one, two], none)).toBe(one);
     expect(unseenReveal([one, two], new Set([callKey(one)]))).toBe(two);
     expect(unseenReveal([one, two], new Set([callKey(one), callKey(two)]))).toBeUndefined();
-    expect(unseenReveal([{ ...base, stage: 'open' } as ThreadCall], none)).toBeUndefined();
+    expect(unseenReveal([{ ...base, stage: 'open' }], none)).toBeUndefined();
   });
 
   it('opens only when the reader’s own shared place says they finished that part', () => {
