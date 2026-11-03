@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { fixtureAccount, fixtureId, sceneFixture } from '../features/universe/universe.fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
 import { tapOrbitingTarget } from './orbiting-target';
@@ -35,9 +35,9 @@ const apart = (one: Box, other: Box) =>
 async function openUniverse(
   page: Page,
   size: { width: number; height: number },
-  options: { formed: boolean; formationUnavailable?: boolean; firstLandmarkName?: string },
+  options: { formed: boolean; formationUnavailable?: boolean; firstLandmarkName?: string; objects?: number },
 ) {
-  const world = sceneFixture(5, 1, 3);
+  const world = options.objects === undefined ? sceneFixture(5, 1, 3) : sceneFixture(options.objects);
   world.collection.landmarks = [
     landmark(options.firstLandmarkName ? { name: options.firstLandmarkName } : {}),
     landmark({ key: 'the-turning-halves', name: 'The Turning Halves', tier: 'plain', assetId: fixtureId(501) }),
@@ -282,6 +282,87 @@ for (const size of [
     });
   });
 }
+
+/** The narrowest, shortest phone (D-392): the landmark's name is whole and the globe's hint stays above List view. */
+test.describe('the smallest phone, 320 x 568', () => {
+  const size = { width: 320, height: 568 };
+  const name = 'The Returning Glow';
+
+  /**
+   * The words of the box are all shown. An ellipsis hides how long the text is, so the text is measured as a copy with room
+   * to spare, and as many lines as it takes at the box's own width.
+   */
+  const whole = (locator: Locator) =>
+    locator.evaluate((node) => {
+      const copy = node.cloneNode(true) as HTMLElement;
+      Object.assign(copy.style, {
+        position: 'absolute',
+        visibility: 'hidden',
+        width: `${String(node.clientWidth)}px`,
+        maxWidth: 'none',
+        overflow: 'visible',
+        textOverflow: 'clip',
+        whiteSpace: 'normal',
+        display: 'block',
+        webkitLineClamp: 'unset',
+      });
+      node.parentElement!.appendChild(copy);
+      const needed = copy.getBoundingClientRect().height;
+      copy.remove();
+      return needed <= node.getBoundingClientRect().height + 1;
+    });
+
+  test('the landmark line keeps the whole name on the overview and on a globe', async ({ page }) => {
+    await openUniverse(page, size, { formed: true, firstLandmarkName: name });
+    const chip = page.getByTestId('universe-landmark-chip');
+    await expect(chip).toContainText(`New landmark · ${name}`);
+    const words = chip.getByText(`New landmark · ${name}`);
+    expect(await whole(words)).toBe(true);
+    const box = (await chip.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(size.width);
+    await shot(page, 'landmark-line-320-overview');
+    await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click();
+    await tapOrbitingTarget(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }));
+    await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
+    expect(await whole(words)).toBe(true);
+    await shot(page, 'landmark-line-320-globe');
+  });
+
+  // One planet alone (List view is the only chip), and a planet with a route (a second row of chips).
+  for (const [what, objects] of [
+    ['a planet with only List view under it', 3],
+    ['a planet with a route chip as well', 5],
+  ] as const) {
+    test(`on a globe the hint never touches the chips, the name or the landmark line: ${what}`, async ({ page }) => {
+      await openUniverse(page, size, { formed: true, firstLandmarkName: name, objects });
+      await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click();
+      await tapOrbitingTarget(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }));
+      const title = page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true });
+      await expect(title).toBeVisible();
+      const hint = page.getByText('Drag to rotate · tap to land');
+      const list = page.getByTestId('universe-list');
+      await expect(list).toBeVisible();
+      const chips = [list, ...(objects === 5 ? [page.getByTestId(/^universe-route-/)] : [])];
+      const [hintBox, chipBox, titleBox] = [
+        (await hint.boundingBox())!,
+        (await page.getByTestId('universe-landmark-chip').boundingBox())!,
+        (await title.boundingBox())!,
+      ];
+      for (const chip of chips) {
+        const box = (await chip.boundingBox())!;
+        expect(apart(hintBox, box)).toBe(true);
+        expect(apart(titleBox, box)).toBe(true);
+        expect(box.y + box.height).toBeLessThanOrEqual(size.height);
+      }
+      expect(apart(chipBox, hintBox)).toBe(true);
+      expect(apart(chipBox, titleBox)).toBe(true);
+      expect(hintBox.y + hintBox.height).toBeLessThanOrEqual((await list.boundingBox())!.y);
+      await shot(page, `globe-hint-320-${String(objects)}`);
+      await expectNoSeriousViolations(page);
+    });
+  }
+});
 
 test.describe('a desktop, 1440 x 900', () => {
   const size = { width: 1440, height: 900 };

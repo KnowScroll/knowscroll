@@ -204,7 +204,7 @@ function FoldedLandmark({
       style={[styles.chip, resuming ? styles.chipResume : null, focus.style]}
     >
       <Icon name={resuming ? 'play' : 'flag'} size={16} color={PAPER_INK} />
-      <Text variant="uiS" color={PAPER_INK} numberOfLines={1} style={styles.chipText}>
+      <Text variant="uiS" color={PAPER_INK} style={styles.chipText}>
         {text}
       </Text>
     </Pressable>
@@ -369,6 +369,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     maxWidth: '100%',
     paddingHorizontal: spacing[4],
+    paddingVertical: spacing[2],
     borderRadius: radius.pill,
     backgroundColor: PAPER,
     cursor: 'pointer' as const,
