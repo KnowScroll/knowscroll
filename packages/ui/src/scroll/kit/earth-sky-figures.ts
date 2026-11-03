@@ -1,14 +1,7 @@
 import { formatFigure, type StageFigure } from '../model';
-import {
-  CARDINAL_MONTHS,
-  MONTH_ANGLE_DEGREES,
-  onEllipse,
-  orbitFrame,
-  SCENE_HEIGHT,
-  SCENE_WIDTH,
-  type EarthSkyScene,
-  type Point,
-} from './earth-sky-scene';
+import { orbitFrame, SCENE_HEIGHT, SCENE_WIDTH, type EarthSkyScene, type Point } from './earth-sky-scene';
+import { firstFree, inflate, LABEL_CHARACTER_PX, labelBox, type Box, type SceneLabel } from './earth-sky-boxes';
+import { orbitLayout } from './earth-sky-orbit-layout';
 
 /**
  * Where the picture sets the figures a stop gave it (D-382, V3 F4 and F7): the nearest and farthest distance on the orbit views, beside
@@ -16,51 +9,6 @@ import {
  * All of it is placed from the scene alone, so a test can check every label against the frame and against the others. The words are the
  * passage's (its number, unit and place); the picture adds only its own fixed words and never a figure of its own.
  */
-
-export type Anchor = 'start' | 'middle' | 'end';
-
-/** A line of mono text at 8.5 px, anchored at its start, middle or end. */
-export interface SceneLabel {
-  readonly text: string;
-  readonly x: number;
-  readonly y: number;
-  readonly anchor: Anchor;
-}
-
-/** The mono face at 8.5 px is about this many frame units a character (the layout tests keep a margin). */
-export const LABEL_CHARACTER_PX = 5.4;
-const LABEL_HEIGHT = 9.5;
-
-export interface Box {
-  readonly left: number;
-  readonly right: number;
-  readonly top: number;
-  readonly bottom: number;
-}
-
-/** The box a label takes, estimated from its text. */
-export function labelBox(label: SceneLabel): Box {
-  const width = label.text.length * LABEL_CHARACTER_PX;
-  const left = label.anchor === 'start' ? label.x : label.anchor === 'end' ? label.x - width : label.x - width / 2;
-  return { left, right: left + width, top: label.y - 8, bottom: label.y - 8 + LABEL_HEIGHT };
-}
-
-const overlap = (first: Box, second: Box): boolean =>
-  first.left < second.right && second.left < first.right && first.top < second.bottom && second.top < first.bottom;
-
-/** The phone's TEXT pill covers the lower right corner of the frame, from this x and y on. */
-export const TEXT_PILL = { left: 272, top: 186 } as const;
-
-/** A label sits inside the frame and clear of the TEXT pill. */
-function fits(box: Box): boolean {
-  return (
-    box.left >= 2 &&
-    box.right <= SCENE_WIDTH - 2 &&
-    box.top >= 0 &&
-    box.bottom <= SCENE_HEIGHT &&
-    !(box.right > TEXT_PILL.left && box.bottom > TEXT_PILL.top)
-  );
-}
 
 const SHORT_UNITS: Readonly<Record<string, string>> = {
   kilometres: 'km',
@@ -108,13 +56,13 @@ export interface DistanceMarks {
 
 const MONTH_TEXT = (month: EarthSkyScene['month']): string => month.toUpperCase();
 
-/** The labels the orbit views already draw (a month at each of the four turning points), so the new ones keep clear of them. */
-function monthLabels(scene: Pick<EarthSkyScene, 'orbitRatio' | 'sunOffset' | 'earthAngle'>): SceneLabel[] {
-  const { centre, halfWidth, halfHeight } = orbitFrame(scene);
-  return CARDINAL_MONTHS.map((month) => {
-    const at = onEllipse(centre, halfWidth + 22, halfHeight + 16, MONTH_ANGLE_DEGREES[month]);
-    return { text: MONTH_TEXT(month), x: at.x, y: at.y + 3, anchor: 'middle' as const };
-  });
+/** What the orbit view already draws and the new marks keep clear of: the months' names and the Earths with their axes. */
+function orbitObstacles(scene: EarthSkyScene): readonly Box[] {
+  const layout = orbitLayout(scene);
+  return [
+    ...layout.months.flatMap((mark) => [labelBox(mark.label), ...(mark.pale ? [mark.pale.extent] : [])]),
+    inflate(layout.earth, 2),
+  ];
 }
 
 function endOf(scene: EarthSkyScene, figure: StageFigure | undefined, side: 'left' | 'right'): OrbitEnd | undefined {
@@ -160,21 +108,16 @@ function centred(text: string, x: number, y: number): SceneLabel {
   return { text, x: Math.min(SCENE_WIDTH - 2 - half, Math.max(2 + half, x)), y, anchor: 'middle' };
 }
 
-/** The first candidate that fits the frame and covers none of the boxes; with none, the first (the layout tests would say so). */
-function firstFree(candidates: readonly SceneLabel[], obstacles: readonly Box[]): SceneLabel {
-  const free = candidates.find((candidate) => {
-    const box = labelBox(candidate);
-    return fits(box) && obstacles.every((other) => !overlap(box, other));
-  });
-  return free ?? candidates[0]!;
-}
-
-/** The words about the Sun stand below it, or above it where Earth, a label or the frame is in the way. */
+/**
+ * The words about the Sun stand below it, or above it where an Earth, a label or the frame is in the way, and then a little to
+ * one side of it, nearest first, where a pale Earth stands under or over the Sun.
+ */
 function sunCaptionOf(scene: EarthSkyScene, obstacles: readonly Box[]): SceneLabel {
   const { sun, sunRadius } = orbitFrame(scene);
   const text = 'SUN NOT TO SCALE';
+  const rows = [sun.y + sunRadius + 18, sun.y - sunRadius - 14];
   return firstFree(
-    [centred(text, sun.x, sun.y + sunRadius + 18), centred(text, sun.x, sun.y - sunRadius - 14)],
+    [0, -24, 24, -48, 48, -72, 72].flatMap((shift) => rows.map((y) => centred(text, sun.x + shift, y))),
     obstacles,
   );
 }
@@ -182,38 +125,52 @@ function sunCaptionOf(scene: EarthSkyScene, obstacles: readonly Box[]): SceneLab
 /** How high the pin and the room it needs above Earth, in frame units. */
 const PIN_HEIGHT = 13;
 
+/** How far sideways, in frame units, the "you are here" words are tried from straight above or below Earth, at most. */
+const HERE_SHIFTS = [0, 15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90, 120, -120, 150, -150] as const;
+
 /**
  * The pin on Earth and the "you are here" words. The pin stands above Earth, or below it, upside down, when Earth is so high
- * in the frame that it would be cut off. The words go beyond the pin, then on the other side of Earth, then beside it, each
- * kept inside the frame, and take the first place that covers nothing.
+ * in the frame that the pin and its words would be cut off. The words are tried beyond the pin, then on the other side of Earth,
+ * then beside it, each moved sideways a step at a time, nearest to Earth first, and then in any row of the frame, and take the
+ * first place that fits the frame and covers nothing.
  */
 function hereOf(scene: EarthSkyScene, obstacles: readonly Box[]): DistanceMarks['here'] {
   const { earth, earthRadius } = orbitFrame(scene);
   const text = `YOU ARE HERE · ${MONTH_TEXT(scene.month)}`;
-  const up = earth.y - earthRadius - 4 - PIN_HEIGHT >= 1;
-  const beyond = up ? earth.y - earthRadius - PIN_HEIGHT - 12 : earth.y + earthRadius + PIN_HEIGHT + 16;
-  const opposite = up ? earth.y + earthRadius + 16 : earth.y - earthRadius - 12;
-  // Above or below Earth first, then beside it, then moved sideways and further out.
+  const wordsHeight = 12;
+  const up = earth.y - earthRadius - 4 - PIN_HEIGHT - wordsHeight - 8 >= 0;
+  const beyond = up ? earth.y - earthRadius - PIN_HEIGHT - wordsHeight : earth.y + earthRadius + PIN_HEIGHT + 16;
+  // On the far side of Earth the words stand just off the end of its axis.
+  const extent = orbitLayout(scene).earth;
+  const opposite = up ? extent.bottom + 11 : extent.top - 4;
   const outward = up ? -22 : 22;
   const rows = [beyond, opposite, beyond + outward, opposite - outward];
-  const label = firstFree(
-    [
-      centred(text, earth.x, beyond),
-      centred(text, earth.x, opposite),
-      { text, x: earth.x + earthRadius + 7, y: earth.y + 3, anchor: 'start' },
-      { text, x: earth.x - earthRadius - 7, y: earth.y + 3, anchor: 'end' },
-      ...[45, -45, 90, -90].flatMap((shift) => rows.map((y) => centred(text, earth.x + shift, y))),
-      ...rows.slice(2).map((y) => centred(text, earth.x, y)),
-    ],
-    obstacles,
+  const beside: SceneLabel[] = [
+    { text, x: earth.x + earthRadius + 7, y: earth.y + 3, anchor: 'start' },
+    { text, x: earth.x - earthRadius - 7, y: earth.y + 3, anchor: 'end' },
+  ];
+  // Each place is weighed by how far it is from straight above (or below) Earth and how many rows out it is.
+  const above = rows.flatMap((y, row) =>
+    HERE_SHIFTS.map((shift) => ({ label: centred(text, earth.x + shift, y), cost: Math.abs(shift) + row * 20 })),
   );
+  // Where none of those is free, any row of the frame, nearest to Earth first.
+  const anywhere = Array.from({ length: 31 }, (_, row) => 8 + row * 6).flatMap((y) =>
+    HERE_SHIFTS.map((shift) => ({
+      label: centred(text, earth.x + shift, y),
+      cost: 100 + Math.abs(y - earth.y) + Math.abs(shift),
+    })),
+  );
+  const candidates = [...above, ...beside.map((label) => ({ label, cost: 25 })), ...anywhere]
+    .sort((first, second) => first.cost - second.cost)
+    .map(({ label }) => label);
+  const label = firstFree(candidates, obstacles);
   return { pin: { x: earth.x, y: earth.y + (up ? -earthRadius - 4 : earthRadius + 4) }, pinUp: up, label };
 }
 
 /**
  * The marks of a distance picture, or none when the state carries no distance (D-382). Both ends are drawn when both are
  * stated; one figure gets its own end and the dotted line still runs through the Sun. Everything is placed clear of what the
- * orbit view already draws (the month labels, the Sun, Earth and the line through the Sun) and of the other marks.
+ * orbit view already draws (the month names, the pale Earths, the Earth of the month, the Sun and the line through the Sun) and of the other marks.
  */
 export function distanceMarks(scene: EarthSkyScene): DistanceMarks | undefined {
   const near = figureOf(scene, 'nearest');
@@ -223,17 +180,16 @@ export function distanceMarks(scene: EarthSkyScene): DistanceMarks | undefined {
   const { centre, halfWidth, sun, sunRadius, earth, earthRadius } = orbitFrame(scene);
   const nearest = endOf(scene, near, 'left');
   const farthest = endOf(scene, far, 'right');
-  const earthBox = boxAround(earth, earthRadius + 3);
   const sunBox = boxAround(sun, sunRadius + 10);
   const axisBox: Box = { left: 0, right: SCENE_WIDTH, top: centre.y - 2, bottom: centre.y + 2 };
   const fixed = [
-    ...monthLabels(scene).map(labelBox),
+    ...orbitObstacles(scene),
     ...[nearest, farthest].flatMap((end) =>
       end === undefined ? [] : [labelBox(end.name), labelBox(end.value), ...leaderBoxes(end.leader)],
     ),
   ];
-  const sunCaption = sunCaptionOf(scene, [...fixed, earthBox]);
-  const here = hereOf(scene, [...fixed, labelBox(sunCaption), sunBox, axisBox, earthBox]);
+  const sunCaption = sunCaptionOf(scene, fixed);
+  const here = hereOf(scene, [...fixed, labelBox(sunCaption), sunBox, axisBox]);
   const standingOn = (end: OrbitEnd | undefined): OrbitEnd | undefined =>
     end === undefined
       ? end

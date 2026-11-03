@@ -40,6 +40,12 @@ export const MONTH_ANGLE_DEGREES: Readonly<Record<StageState['earthAt'], number>
   dec: 180,
 };
 
+/** How far the axis reaches past an Earth, in radii, and the radius of the dot at its north end. */
+export const AXIS_REACH = 1.45;
+export const AXIS_DOT_RADIUS = 2.6;
+/** The pale Earths of the orbit views are this share of the size of the Earth of the month. */
+export const PALE_EARTH_SHARE = 0.82;
+
 /** The four moments the orbit views show as pale Earths, so that the one same lean can be seen in all of them. */
 export const CARDINAL_MONTHS = ['dec', 'mar', 'jun', 'sep'] as const satisfies readonly StageState['earthAt'][];
 
@@ -169,13 +175,20 @@ export function sceneOf(state: StageState, tiltDegrees: number = AXIAL_TILT_DEGR
 }
 
 /**
+ * The most the orbit rises above or falls below its centre, in frame units. The month at the top and the one at the bottom each
+ * have an Earth with its axis and then their name beyond it; with 63 the tallest of them, the Earth of the month with its axis
+ * (35 units from the orbit to the far edge of the name), still lies inside the 200-unit frame (D-393).
+ */
+export const ORBIT_MAX_HALF_HEIGHT = 63;
+
+/**
  * Where the orbit views draw the orbit, the Sun and Earth. It is one place, so that the figures and the tag the picture sets
  * beside them (`earth-sky-figures.ts`) stand where the drawing is.
  */
 export function orbitFrame(scene: Pick<EarthSkyScene, 'orbitRatio' | 'sunOffset' | 'earthAngle'>) {
-  const centre = { x: SCENE_WIDTH / 2, y: SCENE_HEIGHT / 2 + 4 };
+  const centre = { x: SCENE_WIDTH / 2, y: SCENE_HEIGHT / 2 };
   const halfWidth = 112;
-  const halfHeight = halfWidth * scene.orbitRatio * 0.78;
+  const halfHeight = Math.min(halfWidth * scene.orbitRatio * 0.78, ORBIT_MAX_HALF_HEIGHT);
   return {
     centre,
     halfWidth,
@@ -207,46 +220,27 @@ export function recapSceneOf(states: readonly StageState[]): EarthSkyScene | und
 /**
  * Where the recap draws the orbit and each numbered Earth. The orbit is drawn a little left of the middle, because the next Part
  * peeks in from the right edge of the picture, and every Earth and its badge stays inside the 320 × 200 frame and clear of the
- * last 62 px at the right, where that tab sits at the narrowest phone. The badge is on the outer side of the orbit.
+ * last 62 px at the right, where that tab sits at the narrowest phone. Earths of neighbouring months are 30° apart on the orbit;
+ * the Earth is small and its axis short enough (`axisReach`, in radii) that two of them never touch, and each badge takes the
+ * first free place round its Earth (`earth-sky-orbit-layout.ts`).
  */
 export const RECAP_FRAME = {
   centre: { x: SCENE_WIDTH / 2 - 30, y: SCENE_HEIGHT / 2 },
   halfWidth: 94,
-  earthRadius: 14,
+  /** How tall the recap's orbit is drawn, as a share of its width times the plain orbit's flatness. */
+  heightShare: 0.82,
+  earthRadius: 12,
+  axisReach: 1.3,
   badgeRadius: 8,
-  /** How far from an Earth's centre its badge's centre sits, across and down the screen. */
-  badgeReach: { x: 24, y: 22 },
+  /** The air between a badge and the Earth or badge it stands beside. */
+  badgeGap: 3,
   /** The width the next Part's tab takes at the right edge of the frame at the narrowest phone. */
   peekClearance: 62,
 } as const;
 
-export interface RecapPlace {
-  readonly mark: RecapMark;
-  readonly earth: Point;
-  readonly badge: Point;
-}
-
 /** The half-height of the recap's orbit, from how flat the scene draws it. */
 export function recapHalfHeight(scene: Pick<EarthSkyScene, 'orbitRatio'>): number {
-  return RECAP_FRAME.halfWidth * scene.orbitRatio * 0.72;
-}
-
-/** Each numbered Earth of a recap scene, with where its badge goes. */
-export function recapPlaces(
-  scene: Pick<EarthSkyScene, 'orbitRatio'>,
-  marks: readonly RecapMark[],
-): readonly RecapPlace[] {
-  const { centre, halfWidth, badgeReach } = RECAP_FRAME;
-  const halfHeight = recapHalfHeight(scene);
-  return marks.map((mark) => {
-    const earth = onEllipse(centre, halfWidth, halfHeight, mark.angle);
-    const outward = Math.atan2(earth.y - centre.y, earth.x - centre.x);
-    return {
-      mark,
-      earth,
-      badge: { x: earth.x + Math.cos(outward) * badgeReach.x, y: earth.y + Math.sin(outward) * badgeReach.y },
-    };
-  });
+  return RECAP_FRAME.halfWidth * scene.orbitRatio * RECAP_FRAME.heightShare;
 }
 
 /** The words for the recap picture, or none where there is no recap. */
