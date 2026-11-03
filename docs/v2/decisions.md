@@ -4490,3 +4490,37 @@ Confirmed by: `v2/validate.test.ts` (accepted when it names the next read stop w
 - **Regeneration is the coordinator's.** After this reaches dev, `content regenerate --only seasons` makes the next take; it is read, released and the series admitted again (runbook, "Seasons Part 1 after the stage plan"). This change makes no model call.
 
 Confirmed by: `writer-v2.test.ts` (the Seasons recipe is asked for all three and no other recipe is; removing the plan removes the words; the role refuses a recorded answer that ignores it with fixed findings), `library.test.ts` (the plan, its slots in step with scroll-model, only on an Earth & sky stage recipe), `versions.test.ts` (the pair), `producer/v2/stage-figures.test.ts` (one month and the same month twice are refused, two are accepted) and `scroll-v2-stage-plan.test.ts` on real PostgreSQL (a Scroll with two orbit months, the reveal and the stated figure publishes held after one request; an answer that ignores the plan gets one repair carrying the two fixed hints and then publishes). Shown failing when the months rule or the reveal rule was off and when the writer's pair row was removed.
+
+## D-391 · 2026-11-03 · The "Next topic" note shows on a library article too (v3 fidelity, #656)
+
+**Amends** D-364, its "When" line.
+
+- **The gap.** The note was built into the stage reader only. A v1 library article (the reader without a stage) never showed it, so "Next topic" looked missing on two of five Next ↑ runs on dev. D-364 did not mean that: the format stays a Scroll, and the note says so.
+- **The rule.** The note shows for any Scroll that a new topic landed on from another Scroll, whichever reader draws it. For an article it says the kicker and the reading minutes (an article has no calls), and "<title> is kept." with no place, because an article has no stops. Switch to Reel appears only when the Reel is ready. Undo goes back, as Back does.
+- **Where.** Over the top of the article, below its header, in the same row as the other notices. The keys F and Esc act from the note's own buttons; an article has no reader group with keys.
+- **Not changed.** The other limits of D-364: not for the first open, a Part, a related move, a format switch, a Back or after a Reel. Once per entry. Nine seconds.
+
+Confirmed by: `format-note.test.tsx` (an article gets the note from a stage Scroll and from another article; none for the cases above), `e2e/scroll-motion-smoke.spec.ts` (Next from an article shows it, below Back, with Undo, at 320, 390 and 1440; axe). Shown failing when the note was limited to stage Scrolls again.
+
+## D-392 · 2026-11-03 · On the smallest phone the landmark line wraps instead of cutting, and a globe's name and hint stay above the chips (v3 fidelity, #656)
+
+**Amends** D-319 (the folded line) and the caption of a planet's globe.
+
+- **The gap.** At 320 x 568 the folded landmark line cut the name ("The Returning Glo...") and the hint "Drag to rotate · tap to land" stood on List view.
+- **The folded line.** It has no line limit now. On one line it is as before (44 px). When the words do not fit, it wraps to a second line and grows, as the open card's name wraps to three at 320 px. A name is never cut.
+- **The globe's caption.** The planet's name and hint start under the globe. When the room between there and the stack of chips below is less than 112 px (a 568 px phone), the caption is set smaller: a 26 px name and a 20 px hint mark with tighter gaps. If it still would reach the chips, it stands on them, over the lower edge of the globe, so it never covers a button. The chips and the hint are not hidden.
+- **Not changed.** Taller phones: the same positions as before.
+
+Confirmed by: `e2e/universe-collection-smoke.spec.ts` (at 320 x 568 the whole name shows on the overview and on a globe; the hint, the name and the landmark line are clear of List view and of a route chip; axe). Shown failing before the change.
+
+## D-393 · 2026-11-03 · The orbit pictures are laid out by one pure function, and nothing in them overlaps (v3 fidelity, #656)
+
+**Builds on** D-133, D-368 and D-382. The recap's honesty rules do not change: it is made of the document's own states and adds no text and no figure.
+
+- **The gap.** On the stretched orbit the September Earth covered "SUN NOT TO SCALE", the December and January Earths overlapped, and in the recap Earths 1 and 3 overlapped with a badge on top.
+- **The layout.** `earth-sky-orbit-layout.ts` works out, from the scene alone, the places of the month names, the pale Earths, the Earth of the month, the Sun and the recap's Earths and badges. An Earth is the box round its disc and its axis. The drawing and the figures read the same places.
+- **The rules.** A month's name stands beyond its Earth, on the side away from the orbit's middle. The pale Earth that the Earth of the month would touch is left out. The words about the Sun and "you are here" try nearer places first and then any row of the frame, and take the first that fits. The orbit is at most 63 units tall, so the top and bottom Earths keep their names inside the frame. In the recap an Earth is smaller (12) with a shorter axis, and each badge takes the first free place round its Earth.
+- **Not changed.** The figures, the words of the recap and its numbering, the to-scale orbit and the stretched one's flatness (the plain orbit is 63 tall where it was 82).
+- **Known.** An Earth's axis may cross a hairline ray of the Sun (the stretched October). No Earth touches the disc.
+
+Confirmed by: `earth-sky-orbit-layout.test.ts` (both orbits, every month, with and without distances: no word covers another word, an Earth or the Sun; Earths clear of each other and inside the frame; the recap for every pair of months in both orders, every three months and all twelve: no Earth or badge touches another, all inside the frame and clear of the next Part's tab; the geometry is sampled by the test, not read from the layout), `earth-sky-figures.test.tsx`, and `e2e/scroll-orbit-layout-smoke.spec.ts` (boxes measured on the page at 320, 390, 1024 and 1440, the recap and eight months). Shown failing when the names were set on their Earths and the badges had one place to try.

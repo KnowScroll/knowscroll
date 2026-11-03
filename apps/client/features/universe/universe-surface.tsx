@@ -241,7 +241,11 @@ export function UniverseSurface({
   const captionOf = (shown: UniverseView): ReactNode =>
     shown.kind === 'planet' && !shown.landed && !simple ? (
       <View
-        style={[styles.caption, compactCaption ? styles.captionCompact : null, captionHeight > 0 ? { top: captionTop } : null]}
+        style={[
+          styles.caption,
+          compactCaption ? styles.captionCompact : null,
+          captionHeight > 0 ? { top: captionTop } : null,
+        ]}
         pointerEvents="none"
         onLayout={(event) => setCaptionHeight(event.nativeEvent.layout.height)}
       >
@@ -645,7 +649,13 @@ const styles = StyleSheet.create({
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], alignItems: 'center' },
   leaving: { position: 'absolute', left: 0, right: 0, top: 0 },
-  caption: { position: 'absolute', left: spacing[6], right: spacing[6], top: `${CAPTION_TOP_SHARE * 100}%`, gap: spacing['1.5'] },
+  caption: {
+    position: 'absolute',
+    left: spacing[6],
+    right: spacing[6],
+    top: `${CAPTION_TOP_SHARE * 100}%`,
+    gap: spacing['1.5'],
+  },
   captionTitle: { fontSize: 30, lineHeight: 34 },
   captionCompact: { gap: 2 },
   captionTitleCompact: { fontSize: 26, lineHeight: 28 },
