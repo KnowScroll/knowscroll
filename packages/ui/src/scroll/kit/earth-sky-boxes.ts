@@ -60,11 +60,15 @@ export function fitsFrame(box: Box): boolean {
   );
 }
 
-/** The first label that fits the frame and covers none of the boxes; with none, the first (the layout tests would say so). */
-export function firstFree(candidates: readonly SceneLabel[], obstacles: readonly Box[]): SceneLabel {
-  const free = candidates.find((candidate) => {
+/** The first label that fits the frame and covers none of the boxes, or none. */
+export function freeAmong(candidates: readonly SceneLabel[], obstacles: readonly Box[]): SceneLabel | undefined {
+  return candidates.find((candidate) => {
     const box = labelBox(candidate);
     return fitsFrame(box) && obstacles.every((other) => !boxesOverlap(box, other));
   });
-  return free ?? candidates[0]!;
+}
+
+/** The first label that fits the frame and covers none of the boxes; with none, the first (the layout tests would say so). */
+export function firstFree(candidates: readonly SceneLabel[], obstacles: readonly Box[]): SceneLabel {
+  return freeAmong(candidates, obstacles) ?? candidates[0]!;
 }

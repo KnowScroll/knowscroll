@@ -86,6 +86,14 @@ function nameBeside(text: string, side: 'above' | 'below' | 'left' | 'right', ex
   return { text, x: extent.right + NAME_GAP, y: at.y + 3, anchor: 'start' };
 }
 
+/** The dashed orbit as small boxes along it, so that no words are set across it. */
+export function orbitLine(frame: Pick<OrbitLayout['frame'], 'centre' | 'halfWidth' | 'halfHeight'>): Box[] {
+  return Array.from({ length: 96 }, (_, step) => {
+    const at = onEllipse(frame.centre, frame.halfWidth, frame.halfHeight, (step * 360) / 96);
+    return { left: at.x - 2.5, right: at.x + 2.5, top: at.y - 2.5, bottom: at.y + 2.5 };
+  });
+}
+
 /** The Sun and the rays that stand off it. */
 function sunExtent(sun: Point, radius: number): Box {
   const reach = radius + 9 + STROKE_HALF;

@@ -1,7 +1,15 @@
 import { formatFigure, type StageFigure } from '../model';
 import { orbitFrame, SCENE_HEIGHT, SCENE_WIDTH, type EarthSkyScene, type Point } from './earth-sky-scene';
-import { firstFree, inflate, LABEL_CHARACTER_PX, labelBox, type Box, type SceneLabel } from './earth-sky-boxes';
-import { orbitLayout } from './earth-sky-orbit-layout';
+import {
+  firstFree,
+  freeAmong,
+  inflate,
+  LABEL_CHARACTER_PX,
+  labelBox,
+  type Box,
+  type SceneLabel,
+} from './earth-sky-boxes';
+import { orbitLayout, orbitLine } from './earth-sky-orbit-layout';
 
 /**
  * Where the picture sets the figures a stop gave it (D-382, V3 F4 and F7): the nearest and farthest distance on the orbit views, beside
@@ -109,16 +117,22 @@ function centred(text: string, x: number, y: number): SceneLabel {
 }
 
 /**
- * The words about the Sun stand below it, or above it where an Earth, a label or the frame is in the way, and then a little to
- * one side of it, nearest first, where a pale Earth stands under or over the Sun.
+ * The words about the Sun stand below it, or above it where an Earth, a label or the frame is in the way, then a little to one
+ * side of it, nearest first, and then beside the Sun on the right, above or below the dotted line, where the stretched orbit is too
+ * narrow for words under the Sun. They keep off the dashed orbit where there is room for that, and cross it where there is not.
  */
 function sunCaptionOf(scene: EarthSkyScene, obstacles: readonly Box[]): SceneLabel {
-  const { sun, sunRadius } = orbitFrame(scene);
+  const { centre, sun, sunRadius } = orbitFrame(scene);
   const text = 'SUN NOT TO SCALE';
   const rows = [sun.y + sunRadius + 18, sun.y - sunRadius - 14];
-  return firstFree(
-    [0, -24, 24, -48, 48, -72, 72].flatMap((shift) => rows.map((y) => centred(text, sun.x + shift, y))),
-    obstacles,
+  const beside = (y: number): SceneLabel => ({ text, x: sun.x + sunRadius + 14, y, anchor: 'start' });
+  const candidates = [
+    ...[0, -24, 24, -48, 48, -72, 72].flatMap((shift) => rows.map((y) => centred(text, sun.x + shift, y))),
+    beside(centre.y - 5),
+    beside(centre.y + 13),
+  ];
+  return (
+    freeAmong(candidates, [...obstacles, ...orbitLine(orbitLayout(scene).frame)]) ?? firstFree(candidates, obstacles)
   );
 }
 
@@ -163,7 +177,8 @@ function hereOf(scene: EarthSkyScene, obstacles: readonly Box[]): DistanceMarks[
   const candidates = [...above, ...beside.map((label) => ({ label, cost: 25 })), ...anywhere]
     .sort((first, second) => first.cost - second.cost)
     .map(({ label }) => label);
-  const label = firstFree(candidates, obstacles);
+  const line = orbitLine(orbitLayout(scene).frame);
+  const label = freeAmong(candidates, [...obstacles, ...line]) ?? firstFree(candidates, obstacles);
   return { pin: { x: earth.x, y: earth.y + (up ? -earthRadius - 4 : earthRadius + 4) }, pinUp: up, label };
 }
 
@@ -188,7 +203,7 @@ export function distanceMarks(scene: EarthSkyScene): DistanceMarks | undefined {
       end === undefined ? [] : [labelBox(end.name), labelBox(end.value), ...leaderBoxes(end.leader)],
     ),
   ];
-  const sunCaption = sunCaptionOf(scene, fixed);
+  const sunCaption = sunCaptionOf(scene, [...fixed, axisBox]);
   const here = hereOf(scene, [...fixed, labelBox(sunCaption), sunBox, axisBox]);
   const standingOn = (end: OrbitEnd | undefined): OrbitEnd | undefined =>
     end === undefined

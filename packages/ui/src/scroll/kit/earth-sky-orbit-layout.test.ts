@@ -156,6 +156,20 @@ describe('the orbit views lay every Earth and word out clear of each other, for 
     expect(problems).toEqual([]);
   });
 
+  it('keeps every word off the dashed orbit', () => {
+    const problems: string[] = [];
+    for (const { name, scene } of everyOrbitScene) {
+      const { frame } = orbitLayout(scene);
+      const line: Point[] = Array.from({ length: 360 }, (_, degrees) => ({
+        x: frame.centre.x + frame.halfWidth * Math.cos((degrees * Math.PI) / 180),
+        y: frame.centre.y + frame.halfHeight * Math.sin((degrees * Math.PI) / 180),
+      }));
+      for (const { name: word, label } of drawn(scene).labels)
+        if (line.some((point) => inside(point, labelBox(label)))) problems.push(`${name}: "${word}" is on the orbit`);
+    }
+    expect(problems).toEqual([]);
+  });
+
   it('keeps every Earth clear of every other Earth, of the Sun and inside the frame', () => {
     const problems: string[] = [];
     for (const { name, scene } of everyOrbitScene) {

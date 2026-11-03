@@ -33,15 +33,16 @@ const viewports = [
 /** The labelled fixture with distances on its orbit stops, and the stretched stop standing at `month`. */
 function withDistances(month: StageState['earthAt']): ScrollDocumentV2 {
   const document = structuredClone(seasons) as unknown as ScrollDocumentV2;
+  // The Seasons fixture is an Earth & sky document, so every state of its stage is one of that kit's.
   for (const entry of document.stage?.states ?? []) {
-    if (entry.state.view !== 'orbit' && entry.state.view !== 'orbit-stretched') continue;
+    const before = entry.state as unknown as StageState;
+    if (before.view !== 'orbit' && before.view !== 'orbit-stretched') continue;
     const state = settleStageState({
-      ...entry.state,
-      earthAt: entry.state.view === 'orbit-stretched' ? month : entry.state.earthAt,
+      ...before,
+      earthAt: before.view === 'orbit-stretched' ? month : before.earthAt,
       figures: FIGURES,
     });
-    entry.state = state;
-    entry.alt = describeStageState(state);
+    Object.assign(entry, { state, alt: describeStageState(state) });
   }
   return document;
 }
