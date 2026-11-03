@@ -472,7 +472,7 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
 - Both conversation and content-thread state carry `awayAfterSequence`: set when a lost connection returned and
   something arrived after the last message the person had, so the screen draws "While you were away" there. It only
   places the divider and never moves the scroll.
-- They also carry `newSinceSequence` (D-329; **implemented**; runtime-verified on dev, 2 Nov, fidelity-v3, with one first-try miss on a chat never opened, fixed in #650): the person's own stored read position as the first read of an
+- They also carry `newSinceSequence` (D-329; **implemented**; runtime-verified on dev, 2 Nov, fidelity-v3, with one first-try miss on a chat never opened, believed fixed in #650 (the cause was inferred from code, not reproduced), not re-shot): the person's own stored read position as the first read of an
   opening returned it, when others wrote after it (D-380: with no stored position, after the person's own last message). The
   screen draws "New since you were here" there; it is set once per opening, is never sent to anyone, and `newSinceAfter`
   (`away-divider.ts`) holds the rule.
