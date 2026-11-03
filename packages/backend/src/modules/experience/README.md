@@ -3,6 +3,8 @@
 Owns: `experience.saved_items`, `experience.actions` (migration `0004_experience_actions`) and
 `experience.exposures` (migration `0011_experience_exposures`).
 
+A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
+
 | Operation | Route | Authority, effects, failure |
 |---|---|---|
 | `applyAction(authority, {commandId, kind, target})` | `POST /v1/actions` | Caller's account + universe at its privacy epoch, rechecked under the personal lock. One transaction: receipt lookup (replay / `COMMAND_KEY_REUSED` for a reused key, a receipt from before a privacy reset or a retired outcome shape / 503 for a receipt written by a newer release) → asset admitted at `assetRevision` (`ASSET_NOT_FOUND` 404 / `ASSET_REVISION_STALE` 409) → receipt → saved-state change (`decideActionEffect`) → action row → `evidence.apply-action` job → if the saved state changed, universe revision advanced and notified (the command's own watermark, returned as `revision`; a no-op save returns the current revision and notifies nothing) → outcome. All or nothing; refusals write nothing. |
@@ -118,7 +120,7 @@ session facts, and Hide). A subject move (vertical) never offers the explanation
 starts from.
 
 **A vertical move is a new topic in the same format** (D-131, D-132, D-136; implemented, CI-tested against real
-PostgreSQL, not yet run on dev). `subjectMoveRules` and `relatedAssetIdsOf` in `navigation-prepare.ts` turn the intent into
+PostgreSQL, runtime-verified on dev: Next topic from a Scroll and a series Part, 1 and 2 Nov, journeys-v3 and fidelity-v3). `subjectMoveRules` and `relatedAssetIdsOf` in `navigation-prepare.ts` turn the intent into
 snapshot inputs: leave the source's series (`excludeSourceSeries`), leave what the thread's Related tab reaches
 (`relatedAssetIds`, read with `readRelatedAssetIds`) and stay in `intent.format` (`stickyFormat`, read first by
 `readVerticalCandidates`). A move inside a region takes none of them. A buffer
@@ -447,7 +449,7 @@ activated Scroll exposures of the last 30 days (the newest eight, `adapters/resu
 has a next Part (`readContinuations`) that is admitted, not hidden and not yet opened by the caller, with its title
 and the part and total counted from the admitted series. It reads only the caller's own `experience.exposures` and
 Content's public series reads, so it names no other person's position and no place inside a Scroll. A read: it opens,
-writes and enqueues nothing; the client opens the Part by its address. *Implemented; runtime-verified locally
+writes and enqueues nothing; the client opens the Part by its address. *Implemented; runtime-verified locally and on dev (2 Nov, fidelity-v3: the Resume card in the Universe)
 (`tests/integration/modules/universe-resume.test.ts`).*
 
 ## Not interested (#250, D-055)
@@ -474,7 +476,7 @@ never blocked by a mark**: Saved, a finished request's open, a `return` (with or
 related link, and a pin opened on an encounter the person chose. Activating an offer that was issued rechecks Hide only.
 No action row, no observation, no job and no hint; Personal Context, the Planner and the Cartographer never read the
 table. Clear and full erasure delete the rows; the export lists the title and when it lapses.
-*Implemented; CI-verified against PostgreSQL; not yet run on dev.*
+*Implemented; runtime-verified on dev (1 Nov, journeys-v3 P03: Not interested, Undo, and a saved Scroll still opens).*
 
 
 ## What was opened while recording is paused (D-284)
@@ -487,4 +489,4 @@ taken back. The reads that tell a person what they opened leave a marked exposur
 (`readVisitedAssets`). The gates that serve the open item (`hasActivatedExposure`, the document and media reads) still count it. The
 Composer reads no exposure: its routing history reads `encounter_lineage` and `recording_segments`, and a paused-time
 opening writes neither, so repeat avoidance already ignores it.
-*Implemented; CI-verified against PostgreSQL; not yet run on dev.*
+*Implemented; CI-verified against PostgreSQL; runtime-verified on dev (2 Nov, journeys-final: four opens made while paused are absent from the export's encounters, and the next open after Resume appears).*

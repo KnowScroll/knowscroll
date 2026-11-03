@@ -5,6 +5,8 @@ factory, and the AccountScope (#226: account + privacy epoch ownership of the qu
 API client, the hint socket and local stores) with the sign-in client, and the interaction recorder
 (#229) whose durable outbox belongs to the scope.
 
+A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
+
 | File | Contents |
 |---|---|
 | `src/api-client.ts` | `resolveApiOrigin()` (D-008: the page origin on the web; the configured world origin on native, HTTPS only; a development build, `allowDevelopmentHttp: __DEV__`, may also use plain HTTP to localhost / 127.0.0.1 / 10.0.2.2), `createApiClient()` (oRPC `OpenAPILink` over `apiContract`; RFC 9457 problems become `ORPCError`s carrying the problem document), `apiProblem()` |
@@ -430,7 +432,7 @@ they end with the scope. *Implemented; exercised in browsers locally, not yet on
 
 ## Content threads and snippets (#243, D-046)
 
-Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemented; exercised in browsers locally, not yet on dev.*
+Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemented; exercised in browsers locally; runtime-verified on dev (1 Nov, journeys-v3).*
 
 - `createContentThread({scope, thread, newId})`: `load` reads a snapshot (an invitation, an unavailable answer, or the
   ready thread with messages, people, episodes and the caller's own visited markers); `refresh` catches up from the
@@ -449,8 +451,8 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
   so `setHidden` simply calls again. A failed read leaves the thread
   without places; it is a nicety. `party-lines.ts` holds the words: `placeWords` ("On Part 2", "Finished Part 1", "Finished
   all 3 parts"), `placeDay` (the day as a date, "Sat 24 Oct", never a time or "today"), `partyLine` ("Ravi is on Part 2 ·
-  Asha and Kenji on Part 1", "All finished"), `facesByPart`. No line says "watching". _Implemented; exercised in browsers
-  locally, not yet on dev._
+  Asha and Kenji on Part 1", "All finished"), `facesByPart`. No line says "watching". _Implemented; runtime-verified on dev (1 Nov, journeys-v3); exercised in browsers
+  locally._
 - Challenge a friend (S-9, D-244, D-245). `createShareSession({ ..., challenge: { stopId } })` makes the share a challenge: `send()` sends the card with the stop and no pick, then locks the sender's own pick (`setPick`) as a second command and puts `pick: 'kept' | 'paused' | 'not_kept'` on the sent state; a pick that cannot be kept never undoes the send. `createConversationThread(...).lockChallenge(messageId, option)` locks the person's pick on a card with the recording generation, sends nothing while the policy says paused (`challengeNotice`), reads the policy again and sends once more on a stale generation, and catches the thread up so the card shows what the server holds. `challengeStatusWords`, `challengeRevealWords` and `challengeNoticeWords` word the card (a right call a spark, a wrong one a plot twist, no loss). Covered by `challenge-client.test.ts` and `challenge-words.test.ts`. _Implemented._
 - `createThreadCalls({scope, thread, newId})` (`thread-calls.ts`, Call it together, D-155 to D-157): `load` reads the calls this person
   may see (one per part with an authored question, each in the stage it is in: counts, the person's own pick, or the reveal);
@@ -460,7 +462,7 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
   The calls are read again after every answer. A failed read keeps what was shown. When the account scope ends the controller
   drops what it read, other members' revealed picks included, and shows nothing more. `call-words.ts` holds the words
   (`callSummaryWords`, `callChipWords`, `revealWords`: "Called it!" with a spark, or "Plot twist!" and no loss) and `callForBar`.
-  _Implemented; exercised in browsers locally, not yet on dev._
+  _Implemented; exercised in browsers locally; runtime-verified on dev (1 Nov, dev-check-4)._
 - `createExploreWithFriends(...)`: lists friends (`friends.recentCount` of the first items are people the person already talks to), creates the thread with one command ID per intent, and reports
   `created`, `unavailable` or `unconfirmed` (retry sends the identical command, so it cannot make two threads).
 - `readThreadSummaries`, `findThread`, `threadRowView`, `describeThreadMessage`: Talk rows for threads.
@@ -470,7 +472,7 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
 - Both conversation and content-thread state carry `awayAfterSequence`: set when a lost connection returned and
   something arrived after the last message the person had, so the screen draws "While you were away" there. It only
   places the divider and never moves the scroll.
-- They also carry `newSinceSequence` (D-329; **implemented**): the person's own stored read position as the first read of an
+- They also carry `newSinceSequence` (D-329; **implemented**; runtime-verified on dev, 2 Nov, fidelity-v3, with one first-try miss on a chat never opened, believed fixed in #650 (the cause was inferred from code, not reproduced), not re-shot): the person's own stored read position as the first read of an
   opening returned it, when others wrote after it (D-380: with no stored position, after the person's own last message). The
   screen draws "New since you were here" there; it is set once per opening, is never sent to anyone, and `newSinceAfter`
   (`away-divider.ts`) holds the rule.
@@ -480,7 +482,7 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
 
 ## What if and Another perspective (#244, D-049)
 
-Pure controllers over `scope.api.scenarios`. *Implemented; exercised in tests and a browser locally, not on dev.*
+Pure controllers over `scope.api.scenarios`. *Implemented; exercised in tests and a browser locally; runtime-verified on dev (1 Nov, journeys-v3: a draft, the card, Open).*
 
 - `createScenarioBoard({scope, thread, newId})`: `load` reads the thread's branch cards (every read is "ask again", so a
   lost hint only delays an update; `state.opened` lists the branches whose Scroll this member opened, from their own history only);

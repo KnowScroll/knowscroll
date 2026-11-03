@@ -7,7 +7,7 @@ and see whether they are around. Nothing here is consumption evidence: sending, 
 card, visiting a universe and being shown as online never create an exposure, an observation or a Keep.
 
 Status marks: **implemented** means merged with tests against real PostgreSQL. **Runtime-verified**
-means used on a running dev system. Nothing in this module is runtime-verified yet.
+means used on a running dev system. Dev marks name the day and the run folder of the check (`journeys-v3`, `dev-check-N`, `fidelity-v3`); those folders are on the coordinator's machine, not in the repository.
 
 ## What the module owns
 
@@ -17,13 +17,13 @@ means used on a running dev system. Nothing in this module is runtime-verified y
 | Rosters and invitations                          | `roster_entries`, `roster_heads`, `invites`                                                                                                                            | `SOCIAL_USE_CASES`: friend and request pages, invite create, revoke, status, resolve                                                                 | Implemented                              |
 | Conversations                                    | `conversations`, `conversation_members`, `messages`, `inbox_heads`                                                                                                     | `CONVERSATION_USE_CASES.conversations`: start, inbox, read, history, changes, send, read of a send, mark read, mute, leave                           | Implemented                              |
 | Share links                                      | `content_shares`                                                                                                                                                       | `CONVERSATION_USE_CASES.shares`: create, revoke, read own, list own, resolve, public preview                                                         | Implemented                              |
-| Content threads                                  | `content_threads`, `message_snippets` (and `conversations`, `conversation_members`, `messages`, `inbox_heads` with `kind = 'thread'`)                                  | `THREAD_USE_CASES`: create, read, history, changes, send, react, respond, mark read, leave, inbox, open snippet                                      | Implemented; not runtime-verified on dev |
-| Replies and reactions (T-B, D-146, D-147)        | `messages.reply_to_sequence`, `message_reactions` (one row per person, kind and message)                                                                               | `conversations.send` and `threads.send` with `replyTo`; `conversations.react` and `threads.react`                                                    | Implemented; not runtime-verified on dev |
-| SEEN in direct conversations (T-C, D-066, D-150) | `visibility_settings.share_read_state` and `read_state_revision`, and `conversation_members.shared_read_through_sequence` (migration 0078; the member's own read position `read_through_sequence` is unchanged) | `VISIBILITY_USE_CASES`: read and set the SEEN switch; `conversations.read` and `conversations.changes` carry `peerRead`                              | Implemented; not runtime-verified on dev |
-| Party places in threads (T-D, D-065, D-152) | `thread_places`, and `conversation_members.place_hidden` (migration 0080) | `THREAD_USE_CASES`: `places` (read), `setPlace`, `setPlaceHidden` | Implemented; not runtime-verified |
-| Call it together in threads (T-E, D-155 to D-157) | `thread_calls` (migration 0083) | `THREAD_USE_CASES`: `calls` (read), `lockCall` | Implemented; not runtime-verified |
-| Challenge a friend in a direct conversation (S-9, D-245) | `messages.challenge_stop` (migration 0090); each person's pick is a `thread_calls` row keyed by the direct conversation | `CONVERSATION_USE_CASES`: `conversations.send` (a content card with `challenge: { stopId }`), `conversations.lockChallenge`; the card comes back on the messages of `read`, `history` and `changes` | Implemented; not runtime-verified |
-| Visibility, availability and visits              | `visibility_settings`, `visibility_audience`, `presence`, `visit_publications`, `visit_systems`, `visit_planets`                                                       | `VISIBILITY_USE_CASES`: read and set visibility, read and set the availability choice, read a visit; `RECORD_HEARTBEAT`; `REFRESH_VISIT_PUBLICATION` | Implemented                              |
+| Content threads                                  | `content_threads`, `message_snippets` (and `conversations`, `conversation_members`, `messages`, `inbox_heads` with `kind = 'thread'`)                                  | `THREAD_USE_CASES`: create, read, history, changes, send, react, respond, mark read, leave, inbox, open snippet                                      | Implemented; runtime-verified (dev, 1 Nov, journeys-v3: one thread per create, joining from Talk) |
+| Replies and reactions (T-B, D-146, D-147)        | `messages.reply_to_sequence`, `message_reactions` (one row per person, kind and message)                                                                               | `conversations.send` and `threads.send` with `replyTo`; `conversations.react` and `threads.react`                                                    | Implemented; the long-press menu with five reactions and Reply was seen on dev (2 Nov, fidelity-v3); a reaction or a reply being sent was not checked |
+| SEEN in direct conversations (T-C, D-066, D-150) | `visibility_settings.share_read_state` and `read_state_revision`, and `conversation_members.shared_read_through_sequence` (migration 0078; the member's own read position `read_through_sequence` is unchanged) | `VISIBILITY_USE_CASES`: read and set the SEEN switch; `conversations.read` and `conversations.changes` carry `peerRead`                              | Implemented; the "SEEN" word under the last bubble was seen on dev (2 Nov, fidelity-v3); the switch and what it hides were not checked |
+| Party places in threads (T-D, D-065, D-152) | `thread_places`, and `conversation_members.place_hidden` (migration 0080) | `THREAD_USE_CASES`: `places` (read), `setPlace`, `setPlaceHidden` | Implemented; runtime-verified (dev, 1 Nov, journeys-v3 and dev-check-3: on, finished, faces on the part, Hide where I am) |
+| Call it together in threads (T-E, D-155 to D-157) | `thread_calls` (migration 0083) | `THREAD_USE_CASES`: `calls` (read), `lockCall` | Implemented; runtime-verified (dev, 1 Nov, journeys-v3, dev-check-3 and journeys-final: a call before Part 2, answers hidden, revealed together when both finished Part 2; 2 Nov at 390 and 1440) |
+| Challenge a friend in a direct conversation (S-9, D-245) | `messages.challenge_stop` (migration 0090); each person's pick is a `thread_calls` row keyed by the direct conversation | `CONVERSATION_USE_CASES`: `conversations.send` (a content card with `challenge: { stopId }`), `conversations.lockChallenge`; the card comes back on the messages of `read`, `history` and `changes` | Implemented; runtime-verified (dev, 1 Nov, dev-check-4 and journeys-v3) |
+| Visibility, availability and visits              | `visibility_settings`, `visibility_audience`, `presence`, `visit_publications`, `visit_systems`, `visit_planets`                                                       | `VISIBILITY_USE_CASES`: read and set visibility, read and set the availability choice, read a visit; `RECORD_HEARTBEAT`; `REFRESH_VISIT_PUBLICATION` | Implemented; the friend visit runtime-verified (dev, 1 Nov, dev-check-3 and journeys-v3) |
 
 Idea rooms (`modules/rooms`) read people and friends through two public ports here, `READ_PUBLIC_PEOPLE` (claimed
 profiles of active accounts, by account or public person ID) and `READ_FRIEND_ACCOUNTS` (the caller's current friends), `READ_BLOCKED_AMONG` (which of some accounts the caller has blocked, never who blocked the caller),
@@ -229,7 +229,7 @@ In a series thread each member may tell the others which part they are on. A pla
 a day. It is the one thing about where a member is in a series that the server holds, and it is coarse on purpose:
 there is no column for a playhead, a branch, a selected episode, a seen marker or a time of day, and `day` is a
 `date`. It is not consumption evidence: nothing here writes Experience, Composer, Planning or Geography, and nothing
-here reads another member's Experience. _Implemented; not runtime-verified._
+here reads another member's Experience. _Implemented; runtime-verified (dev, 1 Nov, journeys-v3)._
 
 - **Write** (`threads/places/set`, `setPlace`). Only the caller's own row, from their own client: the command has no
   field for whose place it is. The part must be one of the series' parts (`invalid_input` otherwise, and for a thread on
@@ -269,7 +269,7 @@ A content card in a direct conversation can name one call of its exact Scroll re
 - **The card** (`application/challenge-cards.ts`, `domain/challenges.ts`). Built on every read from the immutable revision and the two people's pick rows: `open`, `locked` (own pick only) or `revealed` (both picks, the answer, why, and the twist after a wrong pick). A read writes nothing and works while recording is paused.
 - **Stored.** `messages.challenge_stop` and the pick rows of `thread_calls` (keyed by the conversation, revision and stop, so one set of picks per call per conversation). Never whether a pick was right.
 - **Removal.** Clear and account deletion erase the person's picks (`erasePicks`); a deleted sender's message becomes a tombstone and clears `challenge_stop`; the export lists the person's own pick in words with `challengeFromConversation`.
-- Covered by `social-challenges.test.ts` (real PostgreSQL), `domain/challenges.test.ts` and the wall tests below. _Implemented; not runtime-verified on dev._
+- Covered by `social-challenges.test.ts` (real PostgreSQL), `domain/challenges.test.ts` and the wall tests below. _Implemented; runtime-verified (dev, 1 Nov, dev-check-4)._
 
 ## Call it together (T-E, D-155 to D-157)
 
@@ -278,7 +278,7 @@ another's pick until they have locked their own and the party has finished the p
 it is shown to the thread's members after the reveal and to the person in their export, and nothing reads it for
 ranking, planning, evidence, formation or the Composer. It is stored here, and not in `play`, because it needs the
 thread's lock, the member's standing, the places that decide the reveal and the blocks between members (D-156).
-No model is called. _Implemented; not runtime-verified._
+No model is called. _Implemented; runtime-verified (dev, 1 and 2 Nov, journeys-v3, dev-check-3 and journeys-final: the reveal)._
 
 - **The call of a part** is the first Call it of the part's Scroll (`threadCallOf`), found through Content's
   `READ_CONTENT_SEQUENCE` and `READ_SCROLL_PLAY_FACTS`. A Reel, a Scroll without a call and a single-item thread have none.
@@ -367,7 +367,7 @@ read (`stale_revision` otherwise) and replay the same ID and body. Choosing a fr
 (or yourself), or a system that is not the caller's own factual system, is `invalid_input` and changes nothing.
 
 Status: implemented with tests against real PostgreSQL (`tests/integration/modules/social-visibility.test.ts`)
-and the installed API (`tests/integration/release/visits-http.test.ts`). Not runtime-verified on dev.
+and the installed API (`tests/integration/release/visits-http.test.ts`). The friend visit is runtime-verified on dev (1 Nov, dev-check-3 and journeys-v3).
 
 ## Erasure and export
 
