@@ -1,7 +1,7 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
-import { Banner, Button } from '@knowscroll/ui';
+import { Banner, Button, Text } from '@knowscroll/ui';
 import { sheetStyles } from './sheet-styles';
 
 const noSubscription = () => () => undefined;
@@ -25,13 +25,21 @@ export function RecordingPausedStep({
   const policy = scope.recording;
   const state = useSyncExternalStore(policy?.subscribe ?? noSubscription, policy?.getState ?? noState);
   const [sending, setSending] = useState(false);
-  const on = state?.status === 'current' && state.policy?.on === true;
+  const [refused, setRefused] = useState(false);
+  // Read the setting afresh: the button only works on a setting that was read back as current (as the Privacy switch does).
+  useEffect(() => {
+    void policy?.refresh();
+  }, [policy]);
+  const known = state?.status === 'current' && state.policy !== undefined;
+  const on = known && state.policy?.on === true;
   const resume = async () => {
     if (policy === undefined) return;
     setSending(true);
+    setRefused(false);
     const resumed = await policy.set(true);
     setSending(false);
     if (resumed) onAskAgain?.();
+    else setRefused(true);
   };
   return (
     <View style={sheetStyles.step}>
@@ -56,10 +64,20 @@ export function RecordingPausedStep({
           variant="primary"
           fullWidth
           busy={sending}
-          disabled={sending || state?.status === 'checking'}
+          disabled={sending || !known}
           onPress={() => void resume()}
         />
       )}
+      {policy === undefined || known || state?.status === 'checking' ? null : (
+        <Text variant="meta" role="status">
+          We couldn’t read your recording setting just now. Try again in a moment, or turn it on in Privacy.
+        </Text>
+      )}
+      {refused ? (
+        <Text variant="meta" role="alert">
+          Recording didn’t turn on. Nothing changed. Try again.
+        </Text>
+      ) : null}
       <Button label="Close" variant="ghost" fullWidth onPress={onClose} />
     </View>
   );

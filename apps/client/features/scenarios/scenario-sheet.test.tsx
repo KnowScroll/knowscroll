@@ -47,10 +47,11 @@ const STALE =
 
 type Api = Record<string, (input: never) => Promise<unknown>>;
 /** A recording setting as the sheet reads it: paused until `set(true)` is accepted. */
-function pausedRecording() {
-  let state = { status: 'current', policy: { on: false } };
+function pausedRecording(options: { accepts?: boolean; status?: string } = {}) {
+  let state = { status: options.status ?? 'current', policy: { on: false } };
   const listeners = new Set<() => void>();
   const set = jest.fn((on: boolean) => {
+    if (options.accepts === false) return Promise.resolve(false);
     state = { status: 'current', policy: { on } };
     for (const listener of [...listeners]) listener();
     return Promise.resolve(true);
@@ -64,6 +65,7 @@ function pausedRecording() {
         return () => void listeners.delete(listener);
       },
       set,
+      refresh: jest.fn(() => Promise.resolve(true)),
     },
   };
 }
@@ -500,6 +502,37 @@ describe('the What if… sheet', () => {
     const drafts = calls.filter((call) => call.name === 'draft');
     expect(drafts).toHaveLength(2);
     expect(drafts[1]?.input['text']).toBe('What if traffic increases tenfold?');
+  });
+
+  it('says so when Resume is not accepted, and cannot be pressed before the setting is known', async () => {
+    const refusing = pausedRecording({ accepts: false });
+    await open(
+      {
+        draft: () => Promise.resolve({ draftId: id(7) }),
+        readDraft: () => Promise.resolve({ status: 'failed', reason: 'recording_paused' }),
+      },
+      { recording: refusing.recording },
+    );
+    await ask();
+    await fireEvent.press(await screen.findByRole('button', { name: 'Resume and ask again' }));
+    expect(await screen.findByText('Recording didn’t turn on. Nothing changed. Try again.')).toBeOnTheScreen();
+    expect(screen.getByText('Recording is paused.')).toBeOnTheScreen();
+    expect(refusing.set).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps Resume off while the recording setting could not be read, and says so', async () => {
+    const unknown = pausedRecording({ status: 'unknown' });
+    await open(
+      {
+        draft: () => Promise.resolve({ draftId: id(8) }),
+        readDraft: () => Promise.resolve({ status: 'failed', reason: 'recording_paused' }),
+      },
+      { recording: unknown.recording },
+    );
+    await ask();
+    expect(await screen.findByRole('button', { name: 'Resume and ask again' })).toBeDisabled();
+    expect(screen.getByText(/couldn’t read your recording setting just now/)).toBeOnTheScreen();
+    expect(unknown.set).not.toHaveBeenCalled();
   });
 
   it('says when today’s What-ifs are used up and when they come back', async () => {
