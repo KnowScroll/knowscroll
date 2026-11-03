@@ -1,5 +1,5 @@
 import { formatFigure, type StageFigure } from '../model';
-import { orbitFrame, SCENE_HEIGHT, SCENE_WIDTH, type EarthSkyScene, type Point } from './earth-sky-scene';
+import { orbitFrame, SCENE_WIDTH, type EarthSkyScene, type Point } from './earth-sky-scene';
 import {
   firstFree,
   freeAmong,

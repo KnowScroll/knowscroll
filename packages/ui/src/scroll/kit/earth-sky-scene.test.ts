@@ -15,10 +15,6 @@ import {
   onCircle,
   pinPoint,
   recapSceneOf,
-  RECAP_FRAME,
-  SCENE_HEIGHT,
-  SCENE_WIDTH,
-  MONTH_ANGLE_DEGREES,
   describeRecap,
   sceneOf,
 } from './earth-sky-scene';
