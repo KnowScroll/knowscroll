@@ -1,11 +1,11 @@
 import { callsOf } from '@knowscroll/scroll-model';
 import type { EncounterEntry } from './encounter-history';
-import type { OpenedStageScroll } from '../scroll/scroll-session';
+import { isStageScroll } from '../scroll/scroll-session';
+
+/** A Scroll entry of either kind: a v2 document on the stage, or a v1 article of the library. */
+type ScrollEntryOf = Extract<EncounterEntry, { kind: 'scroll' }>;
 
 /** What the "Next topic" card says: where the person has landed and what they left. */
-/** A Scroll entry that holds a v2 document (what `encounter-stage.tsx` calls a stage entry). */
-type ScrollEntryOf = Extract<EncounterEntry, { kind: 'scroll' }> & { readonly scroll: OpenedStageScroll };
-
 export interface FormatNote {
   /** "NEXT TOPIC · AS A SCROLL": the format stays the one the person was in (D-132). */
   readonly kicker: string;
@@ -28,8 +28,9 @@ export function keptWords(kept: FormatNote['kept']): string {
 /**
  * The card shown after Next ↑, a pull past the end or N lands on another Scroll (V3 G4): "Next topic · as a Scroll", with a way
  * to switch to the Reel of the same topic and an Undo. It amends D-132 only in saying so: the format still stays. It is shown
- * for a Scroll that was reached from a Scroll by a new topic (a discovery after an entry in the trail), never for the first
- * open, a Part, a related move, a format switch or a Back. Everything on it is read from the two entries.
+ * for any Scroll that was reached from a Scroll by a new topic (a discovery after an entry in the trail), a v1 library article
+ * as much as a v2 stage Scroll (D-391), never for the first open, a Part, a related move, a format switch or a Back.
+ * Everything on it is read from the two entries.
  */
 export function formatNoteOf(trail: readonly EncounterEntry[], entry: ScrollEntryOf): FormatNote | undefined {
   const before = trail.at(-2);
@@ -37,7 +38,8 @@ export function formatNoteOf(trail: readonly EncounterEntry[], entry: ScrollEntr
   if (before?.kind !== 'scroll') return undefined;
   const { document } = entry.scroll;
   const minutes = Math.max(1, Math.round(document.measures.readingMinutes));
-  const calls = callsOf(document).length;
+  // Only a stage Scroll has calls to play.
+  const calls = isStageScroll(entry.scroll) ? callsOf(entry.scroll.document).length : 0;
   const facts = [
     document.kicker,
     `${String(minutes)} min`,
@@ -46,7 +48,7 @@ export function formatNoteOf(trail: readonly EncounterEntry[], entry: ScrollEntr
     .filter((part): part is string => part !== undefined && part !== '')
     .join(' · ');
   const left = before.scroll;
-  const stops = 'stops' in left.document ? left.document.stops : undefined;
+  const stops = isStageScroll(left) ? left.document.stops : undefined;
   const placeId = before.position?.kind === 'scroll' ? before.position.value.blockId : undefined;
   const at =
     stops === undefined || placeId === undefined ? undefined : stops.findIndex((stop) => stop.id === placeId) + 1;

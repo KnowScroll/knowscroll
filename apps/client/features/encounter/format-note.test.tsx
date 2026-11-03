@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
+import article from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { DisplayProvider } from '@knowscroll/ui';
 import type { EncounterEntry } from './encounter-history';
@@ -57,6 +58,38 @@ describe('the note after a new topic lands on a Scroll (V3 G4)', () => {
     }
     expect(formatNoteOf([reel, now], now)).toBeUndefined();
     expect(formatNoteOf([left, now, entry('discovery')], now)).toBeUndefined();
+  });
+});
+
+describe('the note on a library article (D-391)', () => {
+  /** A v1 article, as the library serves one: a document with sections and no stops. */
+  const articleEntry = (relation: string, title = article.title) =>
+    ({
+      kind: 'scroll',
+      offer: { relation: { kind: relation } },
+      context: { variants: [{ kind: 'reel', status: 'ready' }] },
+      scroll: { document: { ...article, title } },
+    }) as unknown as Parameters<typeof formatNoteOf>[1];
+
+  it('is said when Next lands on an article, from a stage Scroll or from another article, with no calls and no place', () => {
+    const now = articleEntry('discovery', 'Why the sky is blue');
+    const fromStage = formatNoteOf([entry('discovery'), now], now)!;
+    expect(fromStage.title).toBe('Why the sky is blue');
+    expect(fromStage.facts).toBe(`${article.kicker} · ${String(article.measures.readingMinutes)} min`);
+    expect(fromStage.canSwitchToReel).toBe(true);
+    const left = articleEntry('discovery', 'Super-Earth');
+    const fromArticle = formatNoteOf([left, now], now)!;
+    expect(fromArticle.kept).toEqual({ title: 'Super-Earth', at: undefined, of: undefined });
+    expect(keptWords(fromArticle.kept)).toBe('Super-Earth is kept.');
+  });
+
+  it('keeps the same limits as for a stage Scroll: not for a Part, a related move, a format switch or a first open', () => {
+    const left = entry('discovery');
+    expect(formatNoteOf([articleEntry('discovery')], articleEntry('discovery'))).toBeUndefined();
+    for (const relation of ['series_step', 'related_move', 'format_variant', 'return']) {
+      const other = articleEntry(relation);
+      expect(formatNoteOf([left, other], other)).toBeUndefined();
+    }
   });
 });
 
