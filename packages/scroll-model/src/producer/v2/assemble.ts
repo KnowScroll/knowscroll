@@ -1,3 +1,4 @@
+import { canonicalJson } from '../../canonical.js';
 import { INTEGRITY_METHOD, type Framing } from '../../document.js';
 import {
   MAGNITUDES,
@@ -22,12 +23,12 @@ import {
   type Stage,
   type Stop,
 } from '../../v2/document.js';
-import { EARTH_SKY_KIT } from '../../v2/kit.js';
-import { applyKitPatch, kitDefinition, kitKeys, type StageKitId, type WordState } from '../../v2/kits/index.js';
+import { EARTH_SKY_KIT, type StageFigure } from '../../v2/kit.js';
+import { applyKitPatch, kitDefinition, type StageKitId, type WordState } from '../../v2/kits/index.js';
 import { FIELD_LIMITS_V2 as F, SCROLL_LIMITS_V2_VERSION } from '../../v2/limits.js';
 import { computeMeasuresV2 } from '../../v2/measures.js';
 import { computeIntegrityV2 } from '../../v2/validate.js';
-import type { AuthoredItemV2, AuthoredScrollV2 } from './authoring-schema.js';
+import type { AuthoredItemV2, AuthoredScrollV2, AuthoredStageFigure } from './authoring-schema.js';
 
 /** Who a Scroll is, as publication states it. Code chooses it (the recipe's), the writer never does. */
 export interface PublicationV2 {
@@ -38,6 +39,19 @@ export interface PublicationV2 {
   readonly kicker: string;
   readonly framing: Framing;
   readonly themeFamily: ScrollDocumentV2['theme']['family'];
+}
+
+/**
+ * What a recipe asks of the writer's picture beyond the kit's words (D-382). Chosen by a person, per recipe, with the
+ * brief: the writer is told what is asked and code proves it, never the other way round.
+ */
+export interface StagePlanV2 {
+  /** The picture stands on Earth's orbit at this many different months at least, so that the recap of the journey draws (D-368). */
+  readonly orbitMonths?: number;
+  /** The figures the writer is asked to put on the picture where a cited passage states them. A figure no passage states is left out. */
+  readonly figures?: readonly StageFigure['slot'][];
+  /** The first call_it shows the true picture to a reader who guessed wrong: it is the stop after it that sets that picture. */
+  readonly reveal?: boolean;
 }
 
 /**
@@ -59,6 +73,8 @@ export interface RecipeDataV2 {
   readonly blocks?: readonly InteractiveKind[];
   /** The character that speaks the Scroll's guide lines. Absent: no guide (D-207). */
   readonly guide?: GuideCharacter;
+  /** What the recipe asks of the stage beyond the kit's words. Absent: nothing (D-382). Only a `stage` Scroll has one. */
+  readonly stagePlan?: StagePlanV2;
 }
 
 /** The kit a stage Scroll of this recipe is drawn with. */
@@ -273,32 +289,60 @@ function readStop(
   };
 }
 
+/** The figure an authored one stands for: the text as a number with its word applied, in the passage's own unit and place. */
+function stageFigureOf(figure: AuthoredStageFigure): StageFigure {
+  return {
+    slot: figure.slot,
+    value: valueOf(figure.value, figure.magnitude),
+    unit: fit(figure.unit, F.unitChars),
+    ...(figure.place === undefined ? {} : { place: fit(figure.place, F.pointLabelChars) }),
+  };
+}
+
 /**
  * The stage: a state for the first stop and for every stop after which the picture really differs.
  * What the writer chose carries over from stop to stop; what is stored is only what the view can
  * show (the kit's `settle`), so a choice that changes nothing visible records nothing, and everything
- * physical follows from the words by the kit's own code (D-124, D-195).
+ * physical follows from the words by the kit's own code (D-124, D-195). The figures of a stop (Earth & sky only)
+ * stay until a stop changes the picture or names figures of its own (D-382); the kit sets aside any its view has no place for.
  */
 function buildStage(
   kitId: StageKitId,
   stops: readonly Stop[],
   patches: readonly (Readonly<Record<string, string>> | undefined)[],
+  figures: readonly (readonly StageFigure[] | undefined)[],
 ): Stage {
   const kit = kitDefinition(kitId);
-  const same = (first: WordState, second: WordState): boolean =>
-    kitKeys(kit).every((key) => first[key] === second[key]);
   const states: { stop: string; state: WordState; alt: string }[] = [];
   let chosen = kit.initial;
-  let shown: WordState | undefined;
+  let kept: readonly StageFigure[] | undefined;
+  let shown: string | undefined;
   stops.forEach((stop, index) => {
     chosen = applyKitPatch(kit, chosen, patches[index]);
-    const settled = kit.settle(chosen);
-    if (shown !== undefined && same(shown, settled)) return;
-    shown = settled;
+    if (figures[index] !== undefined) kept = figures[index];
+    else if (patches[index] !== undefined) kept = undefined;
+    // Only the Earth & sky kit has figures; its `settle` reads them from the state it is given, and every other kit's ignores the key.
+    const withFigures =
+      kitId === EARTH_SKY_KIT && kept !== undefined ? ({ ...chosen, figures: kept } as unknown as WordState) : chosen;
+    const settled = kit.settle(withFigures);
+    if (shown === canonicalJson(settled)) return;
+    shown = canonicalJson(settled);
     states.push({ stop: stop.id, state: settled, alt: kit.describe(settled) });
   });
   // The kit's own functions made every state, so each holds exactly its words: the document validator proves it again.
   return { kit: kitId, states } as Stage;
+}
+
+/**
+ * Points each call that asked for it at the first read stop after it (D-383). A call with no read stop after it keeps no
+ * reveal; the recipe's own check reports that when it asked for one.
+ */
+function pointRevealsAtNextStop(stops: readonly Stop[], revealing: ReadonlySet<number>): Stop[] {
+  return stops.map((stop, index) => {
+    if (!revealing.has(index) || stop.kind !== 'call_it') return stop;
+    const next = stops.find((candidate, at) => at > index && candidate.kind === 'read');
+    return next === undefined ? stop : { ...stop, revealStage: next.id };
+  });
 }
 
 /**
@@ -315,6 +359,9 @@ export function assembleScrollV2(
   const stops: Stop[] = [];
   const asides: Aside[] = [];
   const patches: (Readonly<Record<string, string>> | undefined)[] = [];
+  const figures: (readonly StageFigure[] | undefined)[] = [];
+  /** The calls that asked to show the next stop's picture when the guess is wrong, by their place among the stops. */
+  const revealing = new Set<number>();
   const stopItem: number[] = [];
   const asideItem: number[] = [];
   let firstCall = true;
@@ -338,13 +385,16 @@ export function assembleScrollV2(
     const seed = `${publication.assetId}:${publication.revision}:${id}`;
     if (item.type !== 'call_it' && item.type !== 'final_call') stops.push(readStop(item, id, seed, recipe));
     else {
+      if (item.type === 'call_it' && item.revealsNext === true) revealing.add(stops.length);
       stops.push(callStop(item, id, seed, recipe, firstCall && item.type === 'call_it'));
       if (item.type === 'call_it') firstCall = false;
     }
     patches.push(item.stage);
+    figures.push(item.type === 'stop' ? item.figures?.map(stageFigureOf) : undefined);
     stopItem.push(index);
   });
   if (stops.length === 0) return { kind: 'unassemblable' };
+  const pointed = pointRevealsAtNextStop(stops, revealing);
   const limitsAside = asides.find((aside) => aside.kind === 'limits');
   const recap: Recap = {
     captions: authored.recap.captions.map(oneLine),
@@ -363,13 +413,13 @@ export function assembleScrollV2(
     framing: publication.framing,
     misconception: recipe.misconception,
     ...(recipe.landmark === undefined ? {} : { landmark: recipe.landmark }),
-    ...(recipe.variant === 'stage' ? { stage: buildStage(recipeKit(recipe), stops, patches) } : {}),
-    stops,
+    ...(recipe.variant === 'stage' ? { stage: buildStage(recipeKit(recipe), stops, patches, figures) } : {}),
+    stops: pointed,
     asides,
     recap,
     askSuggestions: authored.askSuggestions.map(oneLine),
     limitsVersion: SCROLL_LIMITS_V2_VERSION,
-    measures: computeMeasuresV2({ stops, asides, recap }),
+    measures: computeMeasuresV2({ stops: pointed, asides, recap }),
   } as const;
   const document = {
     ...unsigned,

@@ -4,10 +4,12 @@ Supply turns a person's ask for something to explore into admitted content they 
 what exists, joins work that is already under way, and otherwise creates it: it commissions the
 production of a library Scroll. Blueprint §3, §11, §15 and §19; decisions D-035 and D-037.
 
+A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
+
 Status: **implemented**, CI-verified, and **runtime-verified** on a local database with the real
 `MiniMax-M3.1-Flash` model (a free-text ask matched to the catalogue, produced and opened in the
-client). Not yet running on dev. Ask orders (below, D-218) are **implemented** and CI-verified with labelled fixture
-models; the real-model run of five ask orders is **planned** (the coordinator's, on dev). The library check of a question (D-251) and the support
+client). It runs on dev: ask orders, Quick answers and a free-text ask answered from the library were seen there (2 Nov, dev-check-10 and dev-check-9; 1 Nov, journeys-v3). Ask orders (below, D-218) are **implemented** and CI-verified with labelled fixture
+models; five real asks on dev reached Ready (2 Nov, dev-check-10, writer v9), so the ask order is **runtime-verified** on dev. The library check of a question (D-251) and the support
 check of an order's answer (D-250, in [content/production](../content/production/README.md)) are **implemented** and CI-verified with labelled
 fixture models; their real-model measurement is **planned** (the coordinator's replay, `content ask-check`). S-7c (D-263, D-265 to D-267) made the check work on real
 model output: quotes are matched after normalising marks and spacing, a verdict that breaks a rule makes only its sentence unsupported, titles and
@@ -91,6 +93,8 @@ It is the same request row, the same states (E07), polling, cancel and retry; on
 ## Quick answer (D-086, D-253 to D-255; v3 S-9b)
 
 A person who selects words in a read stop of a v2 Scroll and chooses Ask gets a short answer under the stop, labelled "Quick answer · not a checked Scroll". It is not a Scroll, not evidence and never part of the Universe. It is a different request from an ask: its own table, its own caps and no production behind it.
+
+Runtime-verified on dev (2 Nov, dev-check-9): six Quick answers were asked and each was answered within 18 seconds, labelled, with "Make it a full Scroll", "Ask a follow-up" and "Report" offered; the Report sheet was opened and nothing was sent.
 
 | Capability | Where | Status |
 |---|---|---|

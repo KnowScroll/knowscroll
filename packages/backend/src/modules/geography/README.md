@@ -5,6 +5,8 @@ and routes. It decides when reading is enough to form one, records every change 
 delta, and offers the unlabelled dust cues that come before a system. Scene projection, rendering,
 navigation and sharing belong to other modules. Decisions: D-033, D-038, D-052, D-104, D-105. Tracker: #237, #467.
 
+A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
+
 Status words used below: **implemented** (in source, covered by `checks`), **runtime-verified**
 (seen working on a running API and worker), **planned**.
 
@@ -12,10 +14,10 @@ Status words used below: **implemented** (in source, covered by `checks`), **run
 
 | Stage | What the person has done | What they get | Status |
 |---|---|---|---|
-| Dust | One qualified encounter under a topic of a system that is not established yet | An unlabelled cue from the `emerging` read | implemented, runtime-verified locally |
-| System and star | Two distinct qualified explanation units under one system | The system and its organising star | implemented, runtime-verified locally |
-| Planet | Three distinct units under one planet that cover two of its facets | The planet | implemented, runtime-verified locally |
-| Region | A supported facet of a formed planet | The region | implemented, runtime-verified locally |
+| Dust | One qualified encounter under a topic of a system that is not established yet | An unlabelled cue from the `emerging` read | implemented, runtime-verified locally and on dev (2 Nov, fidelity-v3) |
+| System and star | Two distinct qualified explanation units under one system | The system and its organising star | implemented, runtime-verified locally and on dev (2 Nov, fidelity-v3) |
+| Planet | Three distinct units under one planet that cover two of its facets | The planet | implemented, runtime-verified locally and on dev (2 Nov, fidelity-v3) |
+| Region | A supported facet of a formed planet | The region | implemented, runtime-verified locally and on dev (2 Nov, fidelity-v3) |
 | Route | Support at both ends, two formed planets of one system | A route, only if the model proposes it | implemented |
 | Quiet | The latest support is more than 30 days old, whether or not the person reads again | The place goes quiet; it is never removed. A Cartographer run or the quiet sweep sets it (see Quiet without new reading) | implemented |
 
@@ -150,7 +152,7 @@ catalogue topic of each established factual planet of the caller's universe, wit
 against. It exists so the Universe can set a landmark, which `play` keeps against a Scroll's topic, on that topic's
 planet (D-084, D-089). A topic is a public catalogue id, so the answer adds nothing personal beyond which planets exist,
 which the snapshot already says. It is a read of the same stored places (no write, no cartography request, no model); it
-holds nothing from play and `play` never imports this module (D-180). *Implemented; runtime-verified locally
+holds nothing from play and `play` never imports this module (D-180). *Implemented; runtime-verified on dev (2 Nov, fidelity-v3: the waiting landmark names its planet and stands on it once formed) and locally
 (`tests/integration/modules/play.test.ts`).*
 
 ## Public entry points and dependencies

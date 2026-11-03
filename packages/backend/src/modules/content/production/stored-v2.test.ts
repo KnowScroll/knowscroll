@@ -37,6 +37,28 @@ describe('what admission stores for a v2 Scroll (labelled CI fixture)', () => {
     expect(JSON.stringify(outcome.document)).not.toContain('claimId');
   });
 
+  it('records, in the private provenance, that a stage figure no cited passage states was left out of the picture (D-382)', () => {
+    const draft = JSON.parse(JSON.stringify(fixtureAuthoredV2())) as { items: Record<string, unknown>[] };
+    const figure = { slot: 'nearest', value: '41', magnitude: 'million', unit: 'kilometres' };
+    draft.items[2] = { ...draft.items[2], figures: [figure] };
+    const outcome = storedScrollV2(draft as unknown as AuthoredScrollV2, context(), production);
+    if (outcome.kind !== 'compiled') throw new Error(`CI expected a compile, got ${JSON.stringify(outcome)}`);
+    const provenance = ScrollProvenanceV2.parse(outcome.provenance);
+    expect(provenance.checks.map((check) => [check.name, check.reasonCodes])).toEqual([
+      ['authoring', []],
+      ['document', []],
+      ['stage-figures', ['stage_figure_left_out']],
+    ]);
+    // The fixture's page states no such figure, so the picture has none and nothing the reader sees was invented.
+    expect(JSON.stringify(outcome.document)).not.toContain('41000000');
+    const plain = storedScrollV2(fixtureAuthoredV2(), context(), production);
+    if (plain.kind !== 'compiled') throw new Error('CI expected a compile');
+    expect(ScrollProvenanceV2.parse(plain.provenance).checks.map((check) => check.name)).toEqual([
+      'authoring',
+      'document',
+    ]);
+  });
+
   it('refuses a misconception whose source label no person has reviewed, with a code and no text', () => {
     const unreviewed = {
       ...myth,

@@ -9,8 +9,11 @@ export type KitState<Enums extends KitEnums> = { readonly [Key in keyof Enums]: 
 /** What a stop changes: the keys it names. The rest carry over from the previous state. */
 export type KitPatch<Enums extends KitEnums> = { readonly [Key in keyof Enums]?: Enums[Key][number] };
 
-/** A kit's state seen by code that handles every kit alike (the document, the assembler, the writer rules). */
-export type WordState = Readonly<Record<string, string>>;
+/**
+ * A kit's state seen by code that handles every kit alike (the document, the assembler, the writer rules). Its values are
+ * words; only the Earth & sky kit also holds a list of figures a cited passage states (D-382).
+ */
+export type WordState = Readonly<Record<string, string | readonly unknown[] | undefined>>;
 
 /**
  * What the document, the assembler and the writer's rules need of a drawing kit (D-194), whatever it
@@ -78,7 +81,7 @@ export function applyKitPatch(
   patch: Readonly<Record<string, string | undefined>> | undefined,
 ): WordState {
   if (patch === undefined) return previous;
-  const next: Record<string, string> = { ...previous };
+  const next: Record<string, string | readonly unknown[] | undefined> = { ...previous };
   for (const key of kitKeys(kit)) {
     const value = patch[key];
     if (value !== undefined && kit.enums[key]?.includes(value) === true) next[key] = value;

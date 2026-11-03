@@ -2,7 +2,8 @@ import { ASIDE_KINDS, STOP_EMPHASES } from '../../v2/document.js';
 import { EARTH_SKY_KIT } from '../../v2/kit.js';
 import { kitDefinition, kitKeys, type StageKitId } from '../../v2/kits/index.js';
 import { LIMITS_V2 as L } from '../../v2/limits.js';
-import { GUIDE_POSES, type GuideCharacter, type InteractiveKind } from '../../v2/blocks.js';
+import { GUIDE_POSES, MAGNITUDES, type GuideCharacter, type InteractiveKind } from '../../v2/blocks.js';
+import type { StagePlanV2 } from './assemble.js';
 
 /**
  * One line of reference for each play block a recipe names (D-207). Every example is invented syntax over
@@ -17,6 +18,27 @@ const BLOCK_REFERENCE: Readonly<Record<InteractiveKind, string>> = {
 };
 
 /**
+ * What a recipe's stage plan adds to the reference (D-382, D-383): the figures a stop may put on the picture and the reveal of the first
+ * call. Nothing for a recipe that asks for neither, so its text stays what it was.
+ */
+function stagePlanReference(plan: StagePlanV2 | undefined): string[] {
+  if (plan === undefined) return [];
+  const slots = plan.figures ?? [];
+  return [
+    ...(slots.length === 0
+      ? []
+      : [
+          `figures: an optional member of a "stop" item that has a "stage" object: "figures":[{"slot":"nearest","value":"4,100","unit":"kilometres"},{"slot":"farthest","value":"4,300","unit":"kilometres"}]  (slots you may use: ${slots.join(', ')}. "nearest" and "farthest" are drawn on an orbit view; "june-daylight" and "december-daylight" are drawn on the sun-earth view and also need "place", the place a cited passage names. A value is the figure exactly as a cited passage of this stop writes it, in digits; a word after it (${Object.keys(MAGNITUDES).join(', ')}) goes in "magnitude"; the unit is the word that follows the figure (and its magnitude word) in the passage, and the place is the name that stands nearest it; both distances use one unit and both bands one place. Never convert, round, add up or work out a figure. Code leaves out a figure that no cited passage of this stop states beside the word for its slot, so give none you cannot find. The picture keeps them until a stop changes it.)`,
+        ]),
+    ...(plan.reveal === true
+      ? [
+          `revealsNext: an optional member of a "call_it" item: "revealsNext":true  (when the reader locks a WRONG answer, the picture turns to the one the next stop sets, which must therefore change the picture; a right answer keeps reading. Write no stage state on the call itself.)`,
+        ]
+      : []),
+  ];
+}
+
+/**
  * The writer-facing description of `scroll-authoring.v2`. Limits and kit values come from the same
  * tables the schema and the checks use, so the prompt cannot drift from what is enforced. Every
  * example is invented syntax guidance about an invented subject: never evidence, never content.
@@ -26,6 +48,7 @@ export function authoringReferenceV2(
   kitId: StageKitId = EARTH_SKY_KIT,
   blocks: readonly InteractiveKind[] = [],
   guide?: GuideCharacter,
+  stagePlan?: StagePlanV2,
 ): string {
   const kit = kitDefinition(kitId);
   const stageLine =
@@ -52,6 +75,7 @@ export function authoringReferenceV2(
           `guide: an optional member of a "stop" item: "guide":{"pose":"${GUIDE_POSES.join('" | "')}","line":"At most ${L.guideWords} words, in the guide's voice."}  (at most ${L.guides} in the Scroll, with two stops at least between lines.)`,
         ]),
     stageLine,
+    ...(variant === 'stage' ? stagePlanReference(stagePlan) : []),
     `recap: three short captions of at most 100 characters that restate the idea in order. askSuggestions: ${L.askSuggestions} questions a curious reader would ask next, each a full question.`,
   ]
     .filter((line) => line !== '')

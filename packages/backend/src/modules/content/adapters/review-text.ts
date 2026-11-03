@@ -25,7 +25,10 @@ export interface ReviewEvidence {
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const;
 
-function callLines(stop: Extract<ScrollDocumentV2['stops'][number], { kind: 'call_it' | 'final_call' }>): string[] {
+function callLines(
+  stop: Extract<ScrollDocumentV2['stops'][number], { kind: 'call_it' | 'final_call' }>,
+  pictures: ReadonlyMap<string, string>,
+): string[] {
   const label = stop.kind === 'final_call' ? 'FINAL CALL' : 'CALL IT';
   const lines = [`[${stop.id}] ${label}: ${stop.prompt}`];
   stop.options.forEach((option, index) => {
@@ -40,6 +43,11 @@ function callLines(stop: Extract<ScrollDocumentV2['stops'][number], { kind: 'cal
     );
   });
   lines.push(`  Explanation: ${stop.explain}`, `  After a wrong pick: ${stop.twist}`, `  Simpler: ${stop.simple}`);
+  // The picture a wrong pick turns the stage to (D-383): the operator reads it with the twist it comes with.
+  if (stop.kind === 'call_it' && stop.revealStage !== undefined)
+    lines.push(
+      `  After a wrong pick the picture turns to: ${pictures.get(stop.revealStage) ?? '(the stop it names sets none)'}`,
+    );
   return lines;
 }
 
@@ -142,7 +150,7 @@ export function reviewTextOf(
       const picture = pictures.get(stop.id);
       if (picture !== undefined) lines.push(`  PICTURE: ${picture}`);
       lines.push(...quoteLines(evidence, stop.id));
-    } else lines.push(...callLines(stop));
+    } else lines.push(...callLines(stop, pictures));
     for (const aside of asidesByStop.get(stop.id) ?? []) {
       lines.push(`  ASIDE (${aside.kind}${aside.collapsed ? ', collapsed' : ''}) ${aside.title}: ${aside.text}`);
       lines.push(...quoteLines(evidence, aside.id));
