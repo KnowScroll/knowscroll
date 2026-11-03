@@ -15,7 +15,7 @@ import {
   TALK_QUERY_KEY,
   answersKey,
   callForBar,
-  unseenReveal,
+  revealToOpen,
   composerAddressees,
   findThread,
   liveReplyTarget,
@@ -153,10 +153,12 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
   const [callPart, setCallPart] = useState<number>();
   const barCall = callForBar(calls.state.calls, calls.seen);
   const { markSeen } = calls;
-  // A reveal the person has not seen on this device opens in the thread as soon as it is there (T3 frame 5), unless they
-  // already have a call open. The server sends picks only for a call revealed to this reader (D-155); this only shows it.
+  // The newest reveal the person has not seen on this device opens in the thread as soon as it is there (T3 frame 5), when
+  // their own shared place says they finished that part, and never over a call they already have open (D-389). The server
+  // sends picks only for a call revealed to this reader (D-155); this only shows it. Any other reveal stays on the bar.
   // It is adjusted while rendering, so the card does not vanish the moment it is marked as seen.
-  const waitingReveal = unseenReveal(calls.state.calls, calls.seen);
+  const ownPlace = parties.state.places.find((place) => place.you);
+  const waitingReveal = revealToOpen(calls.state.calls, calls.seen, ownPlace);
   if (callPart === undefined && waitingReveal !== undefined) setCallPart(waitingReveal.part);
   const openCall = calls.state.calls.find((call) => call.part === callPart);
   useEffect(() => {

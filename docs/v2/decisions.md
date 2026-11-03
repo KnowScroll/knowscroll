@@ -4519,11 +4519,11 @@ Confirmed by: `scenario-answers.test.ts` (the paused draft closes `recording_pau
 **Builds on** D-155. **Amends** the bar's order only in what the thread opens by itself; the reveal rules are not touched.
 
 - **The gap.** When the party finished Part 2, the bar above the composer offered the open call before Part 3 first, so the reveal of Part 2 was reached only through Series ("Revealed").
-- **The rule.** A revealed call this device has not shown yet opens in the thread as its card, when it arrives, unless the person already has a call open (it then waits and opens when that is closed). It is marked as shown when it appears. Closing it brings back the bar, with the next call. The card is the one already drawn for a reveal.
+- **The rule.** A revealed call this device has not shown yet opens in the thread as its card, when it arrives, only if the reader's **own** shared place says they finished that part (they are on a later part, or finished it). A member who hides their place or has none is not shown it unasked (D-155 does not wait for them either): the reveal stays on the bar as "Revealed". With several unseen reveals only the newest (the latest part) opens by itself; the others stay on the bar. It never replaces a call the person already has open: it waits and opens when that card is closed, so a choice they were making is not lost. It is marked as shown when it appears. Closing it brings back the bar, with the next call. The card is the one already drawn for a reveal.
 - **What decides the reveal.** The server, as D-155 says: the card carries picks only for a call revealed to this reader. The client shows what it was sent and decides nothing about who finished.
 - **Not drawn.** The system line "ALL N FINISHED PART 2 · time" of T3 frame 5. The server does not say whether a reveal came from everyone finishing or from the two-day clock, so the line could be false, and no time is sent.
 
-Confirmed by: `e2e/thread-calls-smoke.spec.ts` (while one member still shares Part 1 no card and no pick is shown; when they finish, the reveal opens by itself ahead of the Part 3 call, and is not shown again after it is closed).
+Confirmed by: `e2e/thread-calls-smoke.spec.ts` (while one member still shares Part 1 no card and no pick is shown; when they finish, the reveal opens by itself ahead of the Part 3 call, and is not shown again after it is closed; a reveal that arrives while the Part 3 card is open leaves that card and its choice alone, then opens on close; a member who hides their place sees it on the bar), `call-words.test.ts` (`revealToOpen`: own place, newest only). Each shown failing when the rule is removed.
 
 ## D-390 · 2026-11-03 · A What-if on a Scroll that cannot be explored says why and what to do (v3, #653)
 

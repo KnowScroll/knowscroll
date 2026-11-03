@@ -83,6 +83,7 @@ export {
   callChipWords,
   callForBar,
   unseenReveal,
+  revealToOpen,
   callKey,
   callPartLabel,
   callSummaryWords,
