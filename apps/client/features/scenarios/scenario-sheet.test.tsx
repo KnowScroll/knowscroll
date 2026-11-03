@@ -492,7 +492,7 @@ describe('the What if… sheet', () => {
     );
     await ask();
     expect(await screen.findByText('Recording is paused.')).toBeOnTheScreen();
-    expect(screen.getByText(/What-if suggestions need recording on\./)).toBeOnTheScreen();
+    expect(screen.getByText(/Suggestions for a What if or another perspective need recording on\./)).toBeOnTheScreen();
     expect(screen.queryByText(/We couldn’t think of directions/)).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Resume and ask again' }));
     expect(await screen.findByText(option.title)).toBeOnTheScreen();
@@ -522,7 +522,7 @@ describe('the What if… sheet', () => {
     await ask();
     expect(await screen.findByText('Can’t explore this one yet.')).toBeOnTheScreen();
     expect(screen.getByText(/doesn’t have what KnowScroll needs to check a new idea against/)).toBeOnTheScreen();
-    expect(screen.getByText(/keep talking about it here, or try What if on another Scroll/)).toBeOnTheScreen();
+    expect(screen.getByText(/keep talking about it here, or try it on another Scroll/)).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     expect(screen.getAllByRole('button', { name: 'Close' }).length).toBeGreaterThan(0);
   });

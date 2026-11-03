@@ -183,6 +183,7 @@ describe('the Ask sheet (D1)', () => {
       for (const [limit, words] of cases) {
         h.setStatus({
           ...h.fields,
+          updatedAt: new Date().toISOString(),
           requestRevision: revision++,
           status: 'unavailable',
           reason: 'budget_unavailable',
@@ -193,6 +194,30 @@ describe('the Ask sheet (D1)', () => {
         expect(screen.queryByText(/We can't prepare new explanations right now/)).toBeNull();
         expect(screen.queryByText(/other people|everyone|anyone else/i)).toBeNull();
       }
+    } finally {
+      await screen.unmount();
+      await act(() => h.scope.end());
+    }
+  });
+
+  it('tells a limit without today or tomorrow once the day it closed is over', async () => {
+    const h = requestHarness();
+    const screen = await render(sheet(h));
+    try {
+      await fireEvent.changeText(screen.getByLabelText('Ask a question'), 'Why is the far side cold?');
+      await fireEvent.press(screen.getByRole('button', { name: 'Send' }));
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+      // The harness's own date is long past: the request closed on an earlier day.
+      h.setStatus({
+        ...h.fields,
+        requestRevision: 2,
+        status: 'unavailable',
+        reason: 'budget_unavailable',
+        limit: { kind: 'world' },
+      });
+      await act(() => h.session.refresh());
+      expect(screen.getByText(/This was closed because new explanations were full that day\./)).toBeTruthy();
+      expect(screen.queryByText(/today|tomorrow/i)).toBeNull();
     } finally {
       await screen.unmount();
       await act(() => h.scope.end());

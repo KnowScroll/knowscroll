@@ -40,10 +40,10 @@ export function RecordingPausedStep({
         lead={on ? 'Recording is on.' : 'Recording is paused.'}
         message={
           on
-            ? 'What-if suggestions need recording on, and it is on again. Ask again to get directions.'
+            ? 'Suggestions for a What if or another perspective need recording on, and it is on again. Ask again to get directions.'
             : policy === undefined
-              ? 'What-if suggestions need recording on. You can turn it on in Privacy.'
-              : 'What-if suggestions need recording on. You can resume it here; it is your own setting, and you can pause it again any time.'
+              ? 'Suggestions for a What if or another perspective need recording on. You can turn it on in Privacy.'
+              : 'Suggestions for a What if or another perspective need recording on. You can resume it here; it is your own setting, and you can pause it again any time.'
         }
       />
       {on ? (

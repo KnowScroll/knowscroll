@@ -11,7 +11,7 @@ const blockMessage: Record<ScenarioBlock, string> = {
   // The server refuses before it writes anything when no sources can be found for the Scroll (an older or imported one).
   // The thread cannot know that cheaply, so the sheet is offered and this is the plain answer (D-390).
   unsupported:
-    'This Scroll doesn’t have what KnowScroll needs to check a new idea against, so a branch can’t be made from it yet. Nothing was made. You can keep talking about it here, or try What if on another Scroll.',
+    'This Scroll doesn’t have what KnowScroll needs to check a new idea against, so a branch can’t be made from it yet. Nothing was made. You can keep talking about it here, or try it on another Scroll.',
   invalid: 'That wording isn’t accepted. Keep it to a plain sentence, without web addresses.',
   stale:
     'This idea changed, was already used, or took too long (an idea is kept for two hours). Nothing was made. Close this and start again from the thread.',

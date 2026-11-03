@@ -128,6 +128,8 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
         status: 'unavailable',
         reason: 'budget_unavailable',
         limit: limits[requestState.outcome as keyof typeof limits],
+        // Closed just now: "today" and "tomorrow" are true only on the day it closed.
+        updatedAt: new Date().toISOString(),
       };
     return {
       ...base,

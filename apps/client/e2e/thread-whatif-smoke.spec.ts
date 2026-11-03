@@ -184,7 +184,7 @@ for (const [size, viewport] of [
     await sheet.getByLabel('Your idea').fill('what if the moon was twice its size');
     await sheet.getByRole('button', { name: 'Continue', exact: true }).click();
     await expect(sheet.getByText('Recording is paused.')).toBeVisible();
-    await expect(sheet.getByText(/What-if suggestions need recording on/)).toBeVisible();
+    await expect(sheet.getByText(/Suggestions for a What if or another perspective need recording on/)).toBeVisible();
     await expect(sheet.getByRole('button', { name: 'Resume and ask again' })).toBeVisible();
     await expect(sheet.getByText(/couldn’t think of directions/)).toHaveCount(0);
     await shot(page, `whatif-paused-${size}`);
@@ -196,7 +196,7 @@ for (const [size, viewport] of [
     await sheet.getByLabel('Your idea').fill('what if the moon was twice its size');
     await sheet.getByRole('button', { name: 'Continue', exact: true }).click();
     await expect(sheet.getByText('Can’t explore this one yet.')).toBeVisible();
-    await expect(sheet.getByText(/try What if on another Scroll/)).toBeVisible();
+    await expect(sheet.getByText(/try it on another Scroll/)).toBeVisible();
     await expect(sheet.getByRole('button', { name: 'Try again' })).toHaveCount(0);
     await shot(page, `whatif-unexplorable-${size}`);
     expect(await seriousViolations(page, '[role="dialog"]')).toEqual([]);
