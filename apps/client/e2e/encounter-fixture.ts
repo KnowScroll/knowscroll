@@ -30,7 +30,8 @@ export interface EncounterFixtureOptions {
    */
   readonly requests?: {
     /** Where the request stands: preparing (the default), ready, or closed as could-not-prepare. */
-    readonly outcome?: 'preparing' | 'ready' | 'could_not_prepare';
+    readonly outcome?:
+      'preparing' | 'ready' | 'could_not_prepare' | 'person_cap_full' | 'world_cap_full' | 'ask_orders_off';
     /** A measured usual wait in seconds; absent, as it is until five orders have finished. */
     readonly typicalSeconds?: number;
   };
@@ -115,6 +116,21 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       };
     if (requestState.outcome === 'could_not_prepare' && !requestState.retried)
       return { ...base, status: 'unavailable', reason: 'could_not_prepare' };
+    // The three limits that close a question asked from a Scroll (D-387).
+    const limits = {
+      person_cap_full: { kind: 'person', perDay: 5 },
+      world_cap_full: { kind: 'world' },
+      ask_orders_off: { kind: 'off' },
+    } as const;
+    if (requestState.outcome in limits)
+      return {
+        ...base,
+        status: 'unavailable',
+        reason: 'budget_unavailable',
+        limit: limits[requestState.outcome as keyof typeof limits],
+        // Closed just now: "today" and "tomorrow" are true only on the day it closed.
+        updatedAt: new Date().toISOString(),
+      };
     return {
       ...base,
       status: 'preparing',

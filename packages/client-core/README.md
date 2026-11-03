@@ -461,7 +461,7 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
   ignores a second press while one is on its way, and may be pressed again after a lost answer because the first lock stands.
   The calls are read again after every answer. A failed read keeps what was shown. When the account scope ends the controller
   drops what it read, other members' revealed picks included, and shows nothing more. `call-words.ts` holds the words
-  (`callSummaryWords`, `callChipWords`, `revealWords`: "Called it!" with a spark, or "Plot twist!" and no loss) and `callForBar`.
+  (`callSummaryWords`, `callChipWords`, `revealWords`: "Called it!" with a spark, or "Plot twist!" and no loss) and `callForBar`, `unseenReveal` and `revealToOpen` (a reveal this device has not shown yet; the thread opens the newest by itself when the reader's own shared place says they finished that part, D-389).
   _Implemented; exercised in browsers locally; runtime-verified on dev (1 Nov, dev-check-4)._
 - `createExploreWithFriends(...)`: lists friends (`friends.recentCount` of the first items are people the person already talks to), creates the thread with one command ID per intent, and reports
   `created`, `unavailable` or `unconfirmed` (retry sends the identical command, so it cannot make two threads).

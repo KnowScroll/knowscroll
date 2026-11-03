@@ -51,6 +51,8 @@ export type CanonicalBrief = {
       };
 };
 export type Source = Extract<CreateContentRequest['intent'], { kind: 'variant' }>['source'];
+/** Which limit closed an ask as `budget_unavailable` (D-387). */
+export type AskLimitKind = NonNullable<Extract<ContentRequestStatus, { status: 'unavailable' }>['limit']>['kind'];
 export type UnavailableReason = Extract<ContentRequestStatus, { status: 'unavailable' }>['reason'];
 /** The ask order a person's question became: its identity, and the Scroll made for it (open to its asker only). */
 export interface AskOrderLink {
@@ -82,6 +84,8 @@ export interface Demand {
   /** `pending` until a `matching` ask has its match. */
   readonly decision: 'reuse' | 'join' | 'create' | 'refuse' | 'pending';
   readonly reason?: UnavailableReason;
+  /** Set with `budget_unavailable` on a question asked from a Scroll. */
+  readonly askLimit?: AskLimitKind;
   readonly content?: EncounterSnapshot;
   readonly contentAvailabilityRevision?: number;
   readonly sourceAvailabilityRevision?: number;

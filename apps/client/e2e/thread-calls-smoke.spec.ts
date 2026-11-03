@@ -181,7 +181,6 @@ test('the reveal waits for everyone who shares where they are, then shows every 
   // Meera finishes: everyone who shares has, and the call shows to those who locked.
   world.setPlace('meera', 2, 'finished');
   await asha.page.reload();
-  await asha.page.getByTestId('call-bar').click();
   const card = asha.page.getByTestId('call-card');
   await expect(card.getByText('PLOT TWIST! · REVEALED TOGETHER')).toBeVisible();
   await expect(asha.page.getByTestId('call-explain')).toHaveText(PARTY_CALL.explain);
@@ -200,6 +199,101 @@ test('the reveal waits for everyone who shares where they are, then shows every 
   // The reveal was opened here, so the bar stops offering it after the card is closed.
   await asha.page.getByTestId('call-close').click();
   await expect(asha.page.getByTestId('call-bar')).toHaveCount(0);
+  await closeAll(asha.context);
+});
+
+test('the reveal of Part 2 opens in the thread by itself, ahead of the call before Part 3, and only once everyone finished', async ({
+  browser,
+}) => {
+  const world = partyWorld({ call: true, nextCall: true });
+  world.setPlace('meera', 1, 'on');
+  world.setPlace('ravi', 2, 'finished');
+  world.setPlace('asha', 2, 'finished');
+  world.lock('ravi', 0);
+  world.lock('meera', 0);
+  world.lock('asha', 1);
+  const asha = await person(browser, world, 'asha');
+  const { page } = asha;
+
+  // Meera still shares Part 1: nobody's pick shows, and the bar offers the call before Part 3.
+  await expect(page.getByTestId('call-bar')).toContainText('Call it first');
+  await expect(page.getByTestId('call-card')).toHaveCount(0);
+  await expect(page.getByTestId('call-explain')).toHaveCount(0);
+
+  // Meera finishes Part 2: the reveal is in the thread without a tap, ahead of the next call.
+  world.setPlace('meera', 2, 'finished');
+  await page.reload();
+  const card = page.getByTestId('call-card');
+  await expect(card.getByText('PLOT TWIST! · REVEALED TOGETHER')).toBeVisible();
+  await expect(page.getByTestId('call-explain')).toHaveText(PARTY_CALL.explain);
+  await shot(page, 'reveal-390-in-thread');
+  expect(await seriousViolations(page)).toEqual([]);
+
+  // Closing it brings the call before Part 3 back; the reveal is not shown again on this device.
+  await page.getByTestId('call-close').click();
+  await expect(page.getByTestId('call-bar')).toContainText('Call it first');
+  await page.reload();
+  await expect(page.getByTestId('call-bar')).toContainText('Call it first');
+  await expect(page.getByTestId('call-card')).toHaveCount(0);
+  await closeAll(asha.context);
+});
+
+test('a reveal that arrives while the call before Part 3 is open waits: the open card keeps its question and its choice', async ({
+  browser,
+}) => {
+  const world = partyWorld({ call: true, nextCall: true });
+  world.setPlace('meera', 1, 'on');
+  world.setPlace('ravi', 2, 'finished');
+  world.setPlace('asha', 2, 'finished');
+  world.lock('ravi', 0);
+  world.lock('meera', 0);
+  world.lock('asha', 1);
+  const asha = await person(browser, world, 'asha');
+  const { page } = asha;
+
+  await page.getByTestId('call-bar').click();
+  await expect(page.getByTestId('call-prompt')).toHaveText('CI fixture: what comes next?');
+  await page.getByTestId('call-option-0').click();
+  await expect(page.getByTestId('call-option-0')).toHaveAttribute('aria-checked', 'true');
+
+  // Meera finishes Part 2 and the thread reads again (the page comes back into view): the party has finished.
+  world.setPlace('meera', 2, 'finished');
+  const before = world.callCalls('asha', 'calls/read').length;
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange', { bubbles: true })));
+  await expect.poll(() => world.callCalls('asha', 'calls/read').length).toBeGreaterThan(before);
+  // The reveal did not take the card over: the same question, with the choice still made.
+  await expect(page.getByTestId('call-prompt')).toHaveText('CI fixture: what comes next?');
+  await expect(page.getByTestId('call-option-0')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByTestId('call-explain')).toHaveCount(0);
+
+  // Closing it brings the reveal.
+  await page.getByTestId('call-close').click();
+  await expect(page.getByTestId('call-card').getByText('PLOT TWIST! · REVEALED TOGETHER')).toBeVisible();
+  await expect(page.getByTestId('call-explain')).toHaveText(PARTY_CALL.explain);
+  await closeAll(asha.context);
+});
+
+test('on a desktop the reveal also opens in the conversation by itself, only once everyone finished', async ({
+  browser,
+}) => {
+  const world = partyWorld({ call: true, nextCall: true });
+  world.setPlace('meera', 1, 'on');
+  world.setPlace('ravi', 2, 'finished');
+  world.setPlace('asha', 2, 'finished');
+  world.lock('ravi', 0);
+  world.lock('meera', 0);
+  world.lock('asha', 1);
+  const asha = await person(browser, world, 'asha', desktop);
+  const { page } = asha;
+  await expect(page.getByTestId('call-card')).toHaveCount(0);
+  await expect(page.getByTestId('call-explain')).toHaveCount(0);
+
+  world.setPlace('meera', 2, 'finished');
+  await page.reload();
+  await expect(page.getByTestId('call-card').getByText('PLOT TWIST! · REVEALED TOGETHER')).toBeVisible();
+  await expect(page.getByTestId('call-explain')).toHaveText(PARTY_CALL.explain);
+  await shot(page, 'reveal-1440-in-thread');
+  expect(await seriousViolations(page)).toEqual([]);
   await closeAll(asha.context);
 });
 
@@ -225,6 +319,9 @@ test('a member who never calls, and one who hides where they are, do not hold th
   await expect.poll(() => world.isHidden('asha')).toBe(true);
   await asha.page.keyboard.press('Escape');
   await asha.page.reload();
+  // Asha hides where she is, so the thread does not open the reveal for her unasked (D-389): it waits on the bar.
+  await expect(asha.page.getByTestId('call-bar')).toHaveText('★ Revealed');
+  await expect(asha.page.getByTestId('call-card')).toHaveCount(0);
   await asha.page.getByTestId('call-bar').click();
   await expect(asha.page.getByTestId('call-card').getByText('CALLED IT! · REVEALED TOGETHER')).toBeVisible();
   await expect(asha.page.getByTestId('call-spark')).toHaveText('★ +1 for 2 of you');

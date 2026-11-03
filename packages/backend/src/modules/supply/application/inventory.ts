@@ -1,11 +1,11 @@
 import { ContentRequestStatusSchema } from '@knowscroll/contracts';
-import type { CreateContentRequest } from '@knowscroll/contracts';
+import type { AskLimit, CreateContentRequest } from '@knowscroll/contracts';
 import { CONCEPTS } from '../../content/public.js';
 import type { EncounterSnapshot } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { WAIT_LIMIT_MS, waitStartOf } from './commission.js';
 import { typicalSeconds } from '../domain/ask-order.js';
-import type { CanonicalBrief, SupplyPorts, Demand, Source } from './ports.js';
+import type { AskLimitKind, CanonicalBrief, SupplyPorts, Demand, Source } from './ports.js';
 
 export const sourceOf = (command: CreateContentRequest): Source | undefined =>
   command.intent.kind === 'variant' || command.intent.kind === 'ask' ? command.intent.source : command.intent.context;
@@ -136,6 +136,11 @@ export async function inventory(
   );
   return { heads, sourceHead, ready: servable[0], servable };
 }
+/** The stored limit as the status shows it; a person's cap carries its present size so the screen can name it. */
+function askLimitStatus(p: SupplyPorts, kind: AskLimitKind): AskLimit {
+  return kind === 'person' ? { kind, perDay: p.askCaps.perPersonPerDay } : { kind };
+}
+
 /** How many of the latest finished ask orders the "usually" time is measured from. */
 const TYPICAL_SAMPLE_WINDOW = 20;
 
@@ -176,7 +181,12 @@ export async function snapshot(p: SupplyPorts, scope: PersonalScopeTx, d: Demand
   };
   if (d.status === 'cancelled') return ContentRequestStatusSchema.parse({ ...base, status: 'cancelled' });
   if (d.status === 'unavailable')
-    return ContentRequestStatusSchema.parse({ ...base, status: 'unavailable', reason: d.reason });
+    return ContentRequestStatusSchema.parse({
+      ...base,
+      status: 'unavailable',
+      reason: d.reason,
+      ...(d.askLimit === undefined ? {} : { limit: askLimitStatus(p, d.askLimit) }),
+    });
   if ((source && !sourceHead?.encounter) || (d.status === 'ready' && !contentHead?.encounter))
     return ContentRequestStatusSchema.parse({ ...base, status: 'unavailable', reason: 'source_unavailable' });
   // An open request past its wait limit reads as closed even when no job ever closed it (a poll that was

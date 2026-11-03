@@ -2289,6 +2289,7 @@ export interface SupplyQuickAnswers {
 
 export interface SupplyRequests {
   ask_asset_id: string | null;
+  ask_limit: string | null;
   ask_order_id: string | null;
   brief: Json | null;
   command: Json;

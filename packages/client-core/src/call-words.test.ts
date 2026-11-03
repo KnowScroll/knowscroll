@@ -8,6 +8,8 @@ import {
   callSummaryWords,
   callUpdateWords,
   optionLetter,
+  revealToOpen,
+  unseenReveal,
   revealWords,
 } from './call-words';
 
@@ -115,5 +117,36 @@ describe('the call the bar offers', () => {
   it('remembers a reveal by part and exact revision, so a corrected Scroll asks again', () => {
     const reveal = revealed({ part: 1, assetId: id(41) });
     expect(callKey(reveal)).not.toBe(callKey({ ...reveal, assetRevision: 2 }));
+  });
+});
+
+describe('which reveal the thread opens by itself (D-389)', () => {
+  const reveal = (part: number) => revealed({ part, assetId: id(40 + part) });
+  const none: ReadonlySet<string> = new Set();
+
+  it('finds the first reveal this device has not shown, and none once it was shown', () => {
+    const [one, two] = [reveal(1), reveal(2)];
+    expect(unseenReveal([one, two], none)).toBe(one);
+    expect(unseenReveal([one, two], new Set([callKey(one)]))).toBe(two);
+    expect(unseenReveal([one, two], new Set([callKey(one), callKey(two)]))).toBeUndefined();
+    expect(unseenReveal([{ ...base, stage: 'open' }], none)).toBeUndefined();
+  });
+
+  it('opens only when the reader’s own shared place says they finished that part', () => {
+    const two = reveal(2);
+    expect(revealToOpen([two], none, { part: 2, state: 'finished' })).toBe(two);
+    expect(revealToOpen([two], none, { part: 3, state: 'on' })).toBe(two);
+    expect(revealToOpen([two], none, { part: 2, state: 'on' })).toBeUndefined();
+    expect(revealToOpen([two], none, { part: 1, state: 'finished' })).toBeUndefined();
+    // A reader who hides their place, or has none, is not shown it unasked: it waits on the bar.
+    expect(revealToOpen([two], none, undefined)).toBeUndefined();
+  });
+
+  it('opens only the newest of several unseen reveals, and never one already shown', () => {
+    const [one, two] = [reveal(1), reveal(2)];
+    const own = { part: 3, state: 'on' } as const;
+    expect(revealToOpen([one, two], none, own)).toBe(two);
+    expect(revealToOpen([one, two], new Set([callKey(two)]), own)).toBe(one);
+    expect(revealToOpen([one, two], new Set([callKey(one), callKey(two)]), own)).toBeUndefined();
   });
 });

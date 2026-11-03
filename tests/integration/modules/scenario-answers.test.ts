@@ -980,7 +980,8 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
       const draftId = await draftsFor(a, aRef, 'What if traffic doubles?');
       await suggestFor(a, draftId);
       expect(plannerCalls()).toBe(planned);
-      expect(await draftRow(draftId)).toMatchObject({ state: 'failed', failure: 'could_not_suggest' });
+      // The draft says the pause was why (D-388), not that no directions came to mind.
+      expect(await draftRow(draftId)).toMatchObject({ state: 'failed', failure: 'recording_paused' });
       expect(await runsOf(draftId)).toEqual([]);
       const written = answerCalls();
       await write(a, node.nodeId);
