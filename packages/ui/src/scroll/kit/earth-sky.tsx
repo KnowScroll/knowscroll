@@ -2,25 +2,22 @@ import type { ReactElement } from 'react';
 import Svg, { Circle, ClipPath, Defs, G, Line, Path, Polygon, Rect, Text as SvgText } from 'react-native-svg';
 import { content, fontFamily, family, status } from '@knowscroll/design-tokens';
 import {
+  AXIS_REACH,
   axisDirection,
   beamFootprint,
-  CARDINAL_MONTHS,
-  MONTH_ANGLE_DEGREES,
   onCircle,
-  onEllipse,
   pinPoint,
-  orbitFrame,
   RECAP_FRAME,
   recapHalfHeight,
-  recapPlaces,
   SCENE_HEIGHT,
   SCENE_WIDTH,
   type EarthSkyScene,
   type Point,
   type RecapMark,
-  type RecapPlace,
 } from './earth-sky-scene';
-import { dayBands, distanceMarks, type SceneLabel } from './earth-sky-figures';
+import type { SceneLabel } from './earth-sky-boxes';
+import { dayBands, distanceMarks } from './earth-sky-figures';
+import { orbitLayout, recapPlaces, type RecapPlace } from './earth-sky-orbit-layout';
 
 /**
  * The "Earth & sky" kit drawn in the V3 style (D-133): thick ink outlines on flat colour, the Sun, a
@@ -85,6 +82,9 @@ interface EarthProps {
   readonly pale?: boolean;
   /** Where the pins sit when they are drawn on the Sun-facing face (side views); otherwise at the poles of the axis. */
   readonly pinsFaceSun?: boolean;
+  /** How far the axis reaches past the disc, in radii. */
+  readonly axisReach?: number;
+  readonly testID?: string;
 }
 
 /** The night half is a dark half-disc on the side away from the Sun. */
@@ -94,9 +94,20 @@ function nightHalf(at: Point, radius: number, sunward: number): string {
   return `M ${start.x} ${start.y} A ${radius} ${radius} 0 0 0 ${end.x} ${end.y} Z`;
 }
 
-function Earth({ scene, at, radius, sunward, clipId, pins, pale = false, pinsFaceSun = false }: EarthProps) {
+function Earth({
+  scene,
+  at,
+  radius,
+  sunward,
+  clipId,
+  pins,
+  pale = false,
+  pinsFaceSun = false,
+  axisReach = AXIS_REACH,
+  testID,
+}: EarthProps) {
   const axis = axisDirection(scene.axisTurn);
-  const reach = radius * 1.45;
+  const reach = radius * axisReach;
   const north = { x: at.x + axis.x * reach, y: at.y + axis.y * reach };
   const south = { x: at.x - axis.x * reach, y: at.y - axis.y * reach };
   const northPin = pinsFaceSun
@@ -107,7 +118,7 @@ function Earth({ scene, at, radius, sunward, clipId, pins, pale = false, pinsFac
     : { x: at.x - axis.x * radius * 0.78, y: at.y - axis.y * radius * 0.78 };
   const showAxis = has(scene, 'axis');
   return (
-    <G opacity={pale ? 0.38 : 1}>
+    <G opacity={pale ? 0.38 : 1} testID={testID}>
       <Defs>
         <ClipPath id={clipId}>
           <Circle cx={at.x} cy={at.y} r={radius} />
@@ -194,28 +205,19 @@ function Beam({
   );
 }
 
-/** Two places so close that a pale Earth under the real one would only be clutter. */
-function near(a: Point, b: Point): boolean {
-  return Math.hypot(a.x - b.x, a.y - b.y) < 26;
-}
-
-/** Two angles name the same place on the circle. */
-function sameAngle(a: number, b: number): boolean {
-  const gap = Math.abs(a - b) % 360;
-  return Math.min(gap, 360 - gap) < 1;
-}
-
-function MonthLabel({ at, text, bold }: { readonly at: Point; readonly text: string; readonly bold: boolean }) {
+/** The name of one of the orbit's turning points, placed by `orbitLayout`. */
+function MonthName({ label, testID }: { readonly label: SceneLabel; readonly testID: string }) {
   return (
     <SvgText
-      x={at.x}
-      y={at.y}
+      testID={testID}
+      x={label.x}
+      y={label.y}
       fontSize={8.5}
       fontFamily={fontFamily.mono}
-      fill={bold ? INK : content.muted}
-      textAnchor="middle"
+      fill={content.muted}
+      textAnchor={label.anchor}
     >
-      {text}
+      {label.text}
     </SvgText>
   );
 }
@@ -240,8 +242,12 @@ function RecapEarth({
         sunward={(Math.atan2(-(sun.y - earth.y), sun.x - earth.x) * 180) / Math.PI}
         clipId={`ks-earth-recap-${String(mark.n)}`}
         pins={false}
+        axisReach={RECAP_FRAME.axisReach}
+        testID={`recap-earth-body-${String(mark.n)}`}
       />
-      <Circle cx={badge.x} cy={badge.y} r={RECAP_FRAME.badgeRadius} fill={SUN} stroke={INK} strokeWidth={2} />
+      <G testID={`recap-badge-${String(mark.n)}`}>
+        <Circle cx={badge.x} cy={badge.y} r={RECAP_FRAME.badgeRadius} fill={SUN} stroke={INK} strokeWidth={2} />
+      </G>
       <SvgText x={badge.x} y={badge.y + 3.4} fontSize={10} fontFamily={fontFamily.mono} fill={INK} textAnchor="middle">
         {String(mark.n)}
       </SvgText>
@@ -270,9 +276,10 @@ function RecapView({ scene, marks }: { readonly scene: EarthSkyScene; readonly m
   );
 }
 
-/** Orbit views, seen from above: the orbit, the Sun, four pale Earths and the Earth of the month. */
+/** Orbit views, seen from above: the orbit, the Sun, four pale Earths and the Earth of the month, all placed by `orbitLayout`. */
 function OrbitView({ scene }: { readonly scene: EarthSkyScene }) {
-  const { centre, halfWidth, halfHeight, sun, earth, earthRadius } = orbitFrame(scene);
+  const { frame, months } = orbitLayout(scene);
+  const { centre, halfWidth, halfHeight, sun, earth, earthRadius } = frame;
   const sunward = (Math.atan2(-(sun.y - earth.y), sun.x - earth.x) * 180) / Math.PI;
   const orbitFocused = scene.focus === 'orbit';
   return (
@@ -284,29 +291,35 @@ function OrbitView({ scene }: { readonly scene: EarthSkyScene }) {
         strokeWidth={orbitFocused ? 3.2 : 1.6}
         strokeDasharray="6 5"
       />
-      {CARDINAL_MONTHS.map((month) => {
-        const place = onEllipse(centre, halfWidth, halfHeight, MONTH_ANGLE_DEGREES[month]);
-        const label = onEllipse(centre, halfWidth + 22, halfHeight + 16, MONTH_ANGLE_DEGREES[month]);
-        const lead = { x: label.x, y: label.y + 3 };
-        return (
-          <G key={month}>
-            <MonthLabel at={lead} text={month.toUpperCase()} bold={false} />
-            {sameAngle(MONTH_ANGLE_DEGREES[month], scene.earthAngle) || near(place, earth) ? null : (
-              <Earth
-                scene={scene}
-                at={place}
-                radius={earthRadius * 0.82}
-                sunward={(Math.atan2(-(sun.y - place.y), sun.x - place.x) * 180) / Math.PI}
-                clipId={`ks-earth-${month}`}
-                pins={false}
-                pale
-              />
-            )}
-          </G>
-        );
-      })}
-      <Sun at={sun} radius={20} focused={scene.focus === 'sun'} />
-      <Earth scene={scene} at={earth} radius={earthRadius} sunward={sunward} clipId="ks-earth-now" pins />
+      {months.map(({ month, label, pale }) => (
+        <G key={month}>
+          <MonthName label={label} testID={`orbit-month-${month}`} />
+          {pale === undefined ? null : (
+            <Earth
+              scene={scene}
+              at={pale.at}
+              radius={pale.radius}
+              sunward={(Math.atan2(-(sun.y - pale.at.y), sun.x - pale.at.x) * 180) / Math.PI}
+              clipId={`ks-earth-${month}`}
+              pins={false}
+              pale
+              testID={`orbit-pale-earth-${month}`}
+            />
+          )}
+        </G>
+      ))}
+      <G testID="orbit-sun">
+        <Sun at={sun} radius={20} focused={scene.focus === 'sun'} />
+      </G>
+      <Earth
+        scene={scene}
+        at={earth}
+        radius={earthRadius}
+        sunward={sunward}
+        clipId="ks-earth-now"
+        pins
+        testID="orbit-earth-now"
+      />
       {scene.focus === 'earth' || scene.focus === 'axis' ? <FocusRing at={earth} radius={earthRadius + 14} /> : null}
       <DistanceFigures scene={scene} />
     </G>

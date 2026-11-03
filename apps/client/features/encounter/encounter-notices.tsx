@@ -4,7 +4,7 @@ import { borderStyle as borderStyleTokens, borderWidth, content, radius, spacing
 import { Banner, Button, Icon, PendingStripe, Text } from '@knowscroll/ui';
 import { NotInterestedNotice } from '../feedback/not-interested-notice';
 import { useDevicePreferences } from '../../providers/device-preferences';
-import { unavailableCopy } from '../requests/request-copy';
+import { unavailableMessage } from '../requests/request-copy';
 import type { RequestSession } from '../requests/request-session';
 import { RemovalNotice } from '../saved/removal-notice';
 import type { EncounterEntry } from './encounter-history';
@@ -71,7 +71,7 @@ export function RequestNotice({
     return (
       <View role="status" style={styles.unavailable}>
         <Text variant="uiS" style={styles.chipText}>
-          {unavailableCopy[state.status.reason]}
+          {unavailableMessage(state.status)}
         </Text>
         <Button label="Dismiss" size="sm" variant="ghost" onPress={() => requests.dismissNotice()} />
       </View>

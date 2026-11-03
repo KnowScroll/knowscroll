@@ -76,6 +76,7 @@ export default defineConfig({
         'scroll-fidelity-smoke.spec.ts',
         'scroll-motion-smoke.spec.ts',
         'scroll-ending-smoke.spec.ts',
+        'scroll-orbit-layout-smoke.spec.ts',
       ],
       use: { baseURL: `http://127.0.0.1:${production}` },
     },

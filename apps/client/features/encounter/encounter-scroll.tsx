@@ -12,7 +12,9 @@ import { encounterOrigin } from './encounter-origin';
 import { EncounterOriginChip } from './encounter-origin-chip';
 import type { EncounterSession, EncounterState } from './encounter-session';
 import { EncounterTopBar } from './encounter-top-bar';
+import { FormatNoteCard } from './format-note-card';
 import { ScrollEnd } from './scroll-end';
+import { useFormatNote } from './use-format-note';
 import { isStageEntry, StageEncounter } from './encounter-stage';
 import type { OpenedScroll } from '../scroll/scroll-session';
 
@@ -52,6 +54,10 @@ function ArticleEncounter({
   const scrollPosition = useRef<ScrollPositionHandle>(null);
   const playable = foreground && !state.overlay && state.phase === 'active';
   const origin = encounterOrigin(state.trail, entry, session.regionOriginOf(entry));
+  const { note, putAway: putNoteAway } = useFormatNote(state.trail, entry);
+  const reel = entry.context.variants.find((variant) => variant.kind === 'reel');
+  const switchToReel = () =>
+    reel?.status === 'ready' ? session.navigate({ mode: 'variant', to: 'reel' }) : session.openRequest('reel');
   const [underway, setUnderway] = useState(false);
   const endCard = useRef<ComponentRef<typeof View>>(null);
   const { height: windowHeight } = useWindowDimensions();
@@ -108,6 +114,21 @@ function ArticleEncounter({
           endSlot={<ScrollEnd entry={entry} state={state} session={session} innerRef={endCard} />}
         />
         <View style={[styles.notices, { left: metrics.side, right: metrics.side }]} pointerEvents="box-none">
+          {note === undefined ? null : (
+            <FormatNoteCard
+              note={note}
+              keys={false}
+              onSwitch={() => {
+                putNoteAway();
+                switchToReel();
+              }}
+              onUndo={() => {
+                putNoteAway();
+                back();
+              }}
+              onExpire={putNoteAway}
+            />
+          )}
           <EncounterNotices entry={entry} state={state} session={session} />
         </View>
         {underway ? (
@@ -130,7 +151,7 @@ const styles = StyleSheet.create({
   top: { paddingBottom: spacing[2], backgroundColor: content.paper, gap: spacing[2] },
   origin: { alignItems: 'flex-start' },
   article: { flex: 1, minHeight: 0 },
-  notices: { position: 'absolute', top: spacing[2] },
+  notices: { position: 'absolute', top: spacing[2], gap: spacing[2] },
   floating: { position: 'absolute' },
   hint: { position: 'absolute', left: spacing[4], right: spacing[4] },
 });

@@ -141,7 +141,7 @@ export const ScenarioDraftViewSchema = z.discriminatedUnion('status', [
     ...ScopedRead,
     status: z.literal('failed'),
     draft: DraftSummary,
-    reason: z.enum(['could_not_suggest', 'budget_unavailable']),
+    reason: z.enum(['could_not_suggest', 'budget_unavailable', 'recording_paused']),
   }),
   z.strictObject({ ...ScopedRead, status: z.literal('chosen'), draft: DraftSummary, nodeId: UuidSchema }),
 ]);

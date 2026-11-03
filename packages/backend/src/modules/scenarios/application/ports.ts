@@ -24,7 +24,8 @@ export interface StoredOption {
 }
 
 export type DraftState = 'thinking' | 'ready' | 'failed' | 'chosen';
-export type DraftFailure = 'could_not_suggest' | 'budget_unavailable';
+/** `recording_paused`: the person's recording was off when the draft was taken up, so no suggestions were asked for (D-388). */
+export type DraftFailure = 'could_not_suggest' | 'budget_unavailable' | 'recording_paused';
 
 /** One member's composer session: their words, where they came from and what the planner proposed. */
 export interface DraftRow {

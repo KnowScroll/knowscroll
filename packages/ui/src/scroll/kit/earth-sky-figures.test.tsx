@@ -6,16 +6,9 @@ import {
   type StageFigure,
   type StageState,
 } from '@knowscroll/scroll-model';
-import {
-  compactFigure,
-  dayBands,
-  distanceMarks,
-  labelBox,
-  leaderBoxes,
-  TEXT_PILL,
-  type Box,
-  type SceneLabel,
-} from './earth-sky-figures';
+import { labelBox, TEXT_PILL, type Box, type SceneLabel } from './earth-sky-boxes';
+import { compactFigure, dayBands, distanceMarks, leaderBoxes } from './earth-sky-figures';
+import { orbitLayout } from './earth-sky-orbit-layout';
 import { orbitFrame, sceneOf, SCENE_HEIGHT, SCENE_WIDTH } from './earth-sky-scene';
 import { KIT_PICTURES } from './registry';
 
@@ -137,21 +130,12 @@ describe('the marks of a distance picture (V3 F4)', () => {
     expect(problems).toEqual([]);
   });
 
-  it('keep the "you are here" words off the labels the orbit already has for its four turning points', () => {
+  it('keep the "you are here" words off the names the orbit view already has for its four turning points', () => {
     const problems: string[] = [];
     for (const { name, scene } of everyPicture) {
       const here = labelBox(distanceMarks(scene)!.here.label);
-      // The turning points' labels are drawn by the orbit view at these places (`earth-sky.tsx`, `MonthLabel`).
-      const frame = { halfWidth: 112 + 22, halfHeight: 112 * scene.orbitRatio * 0.78 + 16, centre: { x: 160, y: 104 } };
-      for (const [month, angle] of [
-        ['DEC', 180],
-        ['MAR', -90],
-        ['JUN', 0],
-        ['SEP', 90],
-      ] as const) {
-        const x = frame.centre.x + frame.halfWidth * Math.cos((angle * Math.PI) / 180);
-        const y = frame.centre.y - frame.halfHeight * Math.sin((angle * Math.PI) / 180) + 3;
-        const box = labelBox({ text: month, x, y, anchor: 'middle' });
+      for (const { month, label } of orbitLayout(scene).months) {
+        const box = labelBox(label);
         if (here.left < box.right && box.left < here.right && here.top < box.bottom && box.top < here.bottom)
           problems.push(`${name}: covers ${month}`);
       }

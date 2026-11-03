@@ -104,6 +104,9 @@ export function whatIfWorld() {
     };
   };
 
+  /** How the Planner step ends for a draft: directions, refused because recording is paused, or a Scroll with no sources. */
+  const drafting: { outcome: 'directions' | 'recording_paused' | 'unsupported' } = { outcome: 'directions' };
+
   function scenarioRoute(who: Who, path: string, body: Record<string, unknown>) {
     const scope = accounts[who];
     const base = { version: 'scenario.v1', scope };
@@ -129,6 +132,9 @@ export function whatIfWorld() {
           },
         };
       case '/v1/social/scenarios/draft': {
+        // A Scroll with no recorded sources is refused before anything is written (D-390).
+        if (drafting.outcome === 'unsupported')
+          return problem(422, 'UNPROCESSABLE_REQUEST', 'This can’t be explored yet.');
         const draftId = id(7000 + (serial += 1));
         drafts.set(draftId, { who, text: String(body['text']) });
         return { json: { ...receipt('scenario.draft'), draftId } };
@@ -137,6 +143,21 @@ export function whatIfWorld() {
         const draft = drafts.get(String(body['draftId']));
         if (draft === undefined || draft.who !== who)
           return { json: { ...base, readId: body['readId'], status: 'unavailable' } };
+        if (drafting.outcome === 'recording_paused')
+          return {
+            json: {
+              ...base,
+              readId: body['readId'],
+              status: 'failed',
+              draft: {
+                draftId: body['draftId'],
+                kind: 'what_if',
+                text: draft.text,
+                createdAt: new Date().toISOString(),
+              },
+              reason: 'recording_paused',
+            },
+          };
         return {
           json: {
             ...base,
@@ -191,6 +212,10 @@ export function whatIfWorld() {
     ...party,
     nodes,
     requests,
+    /** What a draft comes to from now on (a labelled fixture; the real server decides this from the person's recording and the Scroll). */
+    draftsEnd(outcome: 'directions' | 'recording_paused' | 'unsupported') {
+      drafting.outcome = outcome;
+    },
     /** A branch the thread made earlier today, for the cap: ready, with its answer. */
     seedToday(count: number) {
       for (let index = 0; index < count; index += 1)

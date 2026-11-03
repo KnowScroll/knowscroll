@@ -167,6 +167,43 @@ test('the sixth branch of a thread’s day is refused honestly, and nothing is w
   await closeAll(asha.context);
 });
 
+for (const [size, viewport] of [
+  ['390', phone],
+  ['1440', desktop],
+] as const)
+  test(`a paused recording is said plainly with Resume, and a Scroll that cannot be explored says why, at ${size}`, async ({
+    browser,
+  }) => {
+    const world = whatIfWorld();
+    world.pauseRecording('asha', true);
+    world.draftsEnd('recording_paused');
+    const asha = await person(browser, world, 'asha', viewport);
+    const { page } = asha;
+    await page.getByTestId('ask-what-if').click();
+    const sheet = page.getByTestId('scenario-sheet');
+    await sheet.getByLabel('Your idea').fill('what if the moon was twice its size');
+    await sheet.getByRole('button', { name: 'Continue', exact: true }).click();
+    await expect(sheet.getByText('Recording is paused.')).toBeVisible();
+    await expect(sheet.getByText(/Suggestions for a What if or another perspective need recording on/)).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Resume and ask again' })).toBeVisible();
+    await expect(sheet.getByText(/couldn’t think of directions/)).toHaveCount(0);
+    await shot(page, `whatif-paused-${size}`);
+    expect(await seriousViolations(page, '[role="dialog"]')).toEqual([]);
+    await sheet.getByText('Close', { exact: true }).click();
+
+    world.draftsEnd('unsupported');
+    await page.getByTestId('ask-what-if').click();
+    await sheet.getByLabel('Your idea').fill('what if the moon was twice its size');
+    await sheet.getByRole('button', { name: 'Continue', exact: true }).click();
+    await expect(sheet.getByText('Can’t explore this one yet.')).toBeVisible();
+    await expect(sheet.getByText(/try it on another Scroll/)).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+    await shot(page, `whatif-unexplorable-${size}`);
+    expect(await seriousViolations(page, '[role="dialog"]')).toEqual([]);
+    expect(world.nodes).toHaveLength(0);
+    await closeAll(asha.context);
+  });
+
 test('cancelling the wait removes the card for everyone, with nothing left of what it would have said', async ({
   browser,
 }) => {

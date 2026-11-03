@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { content, spacing } from '@knowscroll/design-tokens';
@@ -16,11 +16,8 @@ import { EncounterOriginChip } from './encounter-origin-chip';
 import type { EncounterSession, EncounterState } from './encounter-session';
 import { EncounterFormatSwitch } from './encounter-top-bar';
 import { arrivalToSay, markArrivalSaid } from './part-arrival';
-import { formatNoteOf } from './format-note';
 import { FormatNoteCard } from './format-note-card';
-
-/** The entries whose "Next topic" card has been shown: it is said once per Scroll, even if the screen is drawn again. */
-const noted = new WeakSet<EncounterEntry>();
+import { useFormatNote } from './use-format-note';
 
 export type StageEntry = Extract<EncounterEntry, { kind: 'scroll' }> & { readonly scroll: OpenedStageScroll };
 
@@ -70,11 +67,7 @@ export function StageEncounter({
   useEffect(() => {
     markArrivalSaid(entry);
   }, [entry]);
-  const [note, setNote] = useState(() => (noted.has(entry) ? undefined : formatNoteOf(state.trail, entry)));
-  useEffect(() => {
-    noted.add(entry);
-  }, [entry]);
-  const putNoteAway = useCallback(() => setNote(undefined), []);
+  const { note, putAway: putNoteAway } = useFormatNote(state.trail, entry);
   useLayoutEffect(() => {
     if (!playable) return;
     session.bindSurface(entry, {
@@ -108,11 +101,11 @@ export function StageEncounter({
             <FormatNoteCard
               note={note}
               onSwitch={() => {
-                setNote(undefined);
+                putNoteAway();
                 switchToReel();
               }}
               onUndo={() => {
-                setNote(undefined);
+                putNoteAway();
                 back();
               }}
               onExpire={putNoteAway}

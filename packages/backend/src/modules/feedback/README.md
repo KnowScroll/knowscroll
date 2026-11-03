@@ -3,7 +3,7 @@
 Reports to the safety team about a Reel or Scroll, a message or a person (P03, D-055). "Not interested" is
 not here: it shapes what Experience offers, so Experience owns it (see its README).
 
-Status: **implemented** and CI-verified against real PostgreSQL. Not yet run on dev.
+Status: **implemented** and CI-verified against real PostgreSQL. An abuse report on a room message with its receipt, and a moderator seeing one line for it, are runtime-verified on dev (1 Nov, journeys-v3 and mod-steps; 2 Nov, journeys-final). A content-error report was opened on dev but not sent (dev-check-9).
 
 ## What a person can do
 

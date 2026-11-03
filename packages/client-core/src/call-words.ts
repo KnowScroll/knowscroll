@@ -79,6 +79,35 @@ export function revealWords(call: Extract<ThreadCall, { stage: 'revealed' }>): {
 export const callKey = (call: Pick<ThreadCall, 'part' | 'assetId' | 'assetRevision'>): string =>
   `${String(call.part)}@${call.assetId}@${String(call.assetRevision)}`;
 
+/** The first revealed call this device has not shown yet: the thread opens it on its own when it arrives. */
+export function unseenReveal(calls: readonly ThreadCall[], seen: ReadonlySet<string>): ThreadCall | undefined {
+  return calls.find((call) => call.stage === 'revealed' && !seen.has(callKey(call)));
+}
+
+/** The reader's own shared place in the thread: a part, and whether they finished it. Absent while they hide or have none. */
+export interface OwnPlace {
+  readonly part: number;
+  readonly state: 'on' | 'finished';
+}
+
+/**
+ * The reveal the thread opens by itself (D-389): only one the reader's own shared place says they finished the part of
+ * (on a later part, or finished that one), because a member who hides their place or has none does not hold a reveal
+ * (D-155) and is not shown it unasked. Of several unseen reveals only the newest (the latest part) opens; the others stay
+ * on the bar. Nothing when the reader shares no place.
+ */
+export function revealToOpen(
+  calls: readonly ThreadCall[],
+  seen: ReadonlySet<string>,
+  own: OwnPlace | undefined,
+): ThreadCall | undefined {
+  if (own === undefined) return undefined;
+  const finished = (part: number) => own.part > part || (own.part === part && own.state === 'finished');
+  return calls
+    .filter((call) => call.stage === 'revealed' && !seen.has(callKey(call)) && finished(call.part))
+    .toSorted((left, right) => right.part - left.part)[0];
+}
+
 /**
  * The call the bar above the composer offers: the first one the person can still make, else the first they are waiting
  * on, else the first reveal they have not opened on this device. Nothing once every call is closed or its reveal was
@@ -88,6 +117,6 @@ export function callForBar(calls: readonly ThreadCall[], seen: ReadonlySet<strin
   return (
     calls.find((call) => call.stage === 'open') ??
     calls.find((call) => call.stage === 'locked') ??
-    calls.find((call) => call.stage === 'revealed' && !seen.has(callKey(call)))
+    unseenReveal(calls, seen)
   );
 }

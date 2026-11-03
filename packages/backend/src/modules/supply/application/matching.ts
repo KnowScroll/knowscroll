@@ -14,7 +14,7 @@ import {
 import type { ResolveSupplyJob } from '../events.js';
 import { checkLibraryMatch } from './ask-library.js';
 import type { LibraryVerdict } from './ask-library-role.js';
-import { commissionAskOrder } from './ask-orders.js';
+import { askLimitOf, commissionAskOrder } from './ask-orders.js';
 import { commissionSupply, nextPoll } from './commission.js';
 import { catalogueBrief, checkedRevision, inventory, sameRef, snapshot } from './inventory.js';
 import type { CanonicalBrief, Demand, SupplyPorts } from './ports.js';
@@ -51,7 +51,15 @@ type Asked =
 /** The fields a verdict changes on the request. */
 type Decided = Pick<
   Demand,
-  'status' | 'decision' | 'reason' | 'brief' | 'workId' | 'askOrder' | 'content' | 'contentAvailabilityRevision'
+  | 'status'
+  | 'decision'
+  | 'reason'
+  | 'askLimit'
+  | 'brief'
+  | 'workId'
+  | 'askOrder'
+  | 'content'
+  | 'contentAvailabilityRevision'
 >;
 
 /** Reads what the request needs placed, inside the caller's transaction; nothing when it is no longer waiting. */
@@ -97,7 +105,7 @@ async function decideHere(p: SupplyPorts, scope: PersonalScopeTx, d: Demand): Pr
   const commissioned = await commissionAskOrder(p, scope, { source: intent.source, facts, question: intent.question });
   return commissioned.kind === 'commissioned'
     ? { status: 'requested', decision: 'create', reason: undefined, askOrder: commissioned.order }
-    : { status: 'unavailable', decision: 'refuse', reason: commissioned.reason };
+    : { status: 'unavailable', decision: 'refuse', reason: commissioned.reason, ...askLimitOf(commissioned) };
 }
 
 /**

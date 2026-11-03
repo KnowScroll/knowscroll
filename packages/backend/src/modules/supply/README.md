@@ -4,10 +4,12 @@ Supply turns a person's ask for something to explore into admitted content they 
 what exists, joins work that is already under way, and otherwise creates it: it commissions the
 production of a library Scroll. Blueprint §3, §11, §15 and §19; decisions D-035 and D-037.
 
+A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
+
 Status: **implemented**, CI-verified, and **runtime-verified** on a local database with the real
 `MiniMax-M3.1-Flash` model (a free-text ask matched to the catalogue, produced and opened in the
-client). Not yet running on dev. Ask orders (below, D-218) are **implemented** and CI-verified with labelled fixture
-models; the real-model run of five ask orders is **planned** (the coordinator's, on dev). The library check of a question (D-251) and the support
+client). It runs on dev: ask orders, Quick answers and a free-text ask answered from the library were seen there (2 Nov, dev-check-10 and dev-check-9; 1 Nov, journeys-v3). Ask orders (below, D-218) are **implemented** and CI-verified with labelled fixture
+models; five real asks on dev reached Ready (2 Nov, dev-check-10, writer v9), so the ask order is **runtime-verified** on dev. The library check of a question (D-251) and the support
 check of an order's answer (D-250, in [content/production](../content/production/README.md)) are **implemented** and CI-verified with labelled
 fixture models; their real-model measurement is **planned** (the coordinator's replay, `content ask-check`). S-7c (D-263, D-265 to D-267) made the check work on real
 model output: quotes are matched after normalising marks and spacing, a verdict that breaks a rule makes only its sentence unsupported, titles and
@@ -76,7 +78,7 @@ It is the same request row, the same states (E07), polling, cancel and retry; on
    the library check's run closes in its own transaction first; a redelivery after that offers no Scroll and makes an order.
 4. **The order** (`application/ask-orders.ts`). Under the commissioning lock: the world's day cap (`KS_SUPPLY_ASK_DAILY_CAP`, from `supply.ask_orders`) and the person's
    (`KS_SUPPLY_ASK_PERSON_DAILY_CAP`, from their own requests) are checked; the research pages come from the source Scroll's provenance (`READ_SCROLL_SOURCE_PAGES`); Content records
-   the order (`RECORD_MADE_TO_ORDER_SCROLL`, mode `question`, kicker "You asked", factual framing); the ledger row is written; the production job for take 1 is sent. A full cap is `budget_unavailable`.
+   the order (`RECORD_MADE_TO_ORDER_SCROLL`, mode `question`, kicker "You asked", factual framing); the ledger row is written; the production job for take 1 is sent. A full cap is `budget_unavailable`, and the request keeps which limit closed it (`supply.requests.ask_limit`: `person`, `world` or `off`, D-387); the status carries it as `limit`, so the screen says which. implemented, CI-verified.
 5. **Waiting** (`application/ask-resolve.ts`). The waiter reads the order's standing on its own transaction (`READ_MADE_TO_ORDER_PRODUCTION_IN`): admitted and readable becomes `ready` (and the ledger notes, once, how long it took);
    queued or running within the wait limit looks again in 20 seconds; anything else is `could_not_prepare`. Nothing sends a second take by itself.
 6. **Try again** (`application/ask-retry.ts`) re-drives the same request and order: a Scroll admitted meanwhile makes it ready; otherwise the next take is sent (three in all). Nothing else can start: `not_retryable`.
@@ -91,6 +93,8 @@ It is the same request row, the same states (E07), polling, cancel and retry; on
 ## Quick answer (D-086, D-253 to D-255; v3 S-9b)
 
 A person who selects words in a read stop of a v2 Scroll and chooses Ask gets a short answer under the stop, labelled "Quick answer · not a checked Scroll". It is not a Scroll, not evidence and never part of the Universe. It is a different request from an ask: its own table, its own caps and no production behind it.
+
+Runtime-verified on dev (2 Nov, dev-check-9): six Quick answers were asked and each was answered within 18 seconds, labelled, with "Make it a full Scroll", "Ask a follow-up" and "Report" offered; the Report sheet was opened and nothing was sent.
 
 | Capability | Where | Status |
 |---|---|---|
@@ -235,6 +239,7 @@ transaction that makes the branch, so a retry never gets here twice. The scenari
 | `pgboss/supply.answer-quick-answer` | IDs only (`universeId`, `privacyEpoch`, `quickAnswerId`). Four at a time, 1,950 s expiry (six paid attempts at the largest request deadline, as the reasoning README counts it), one retry. | The eraser removes every queued, active, retained and dead-lettered payload of the owner. |
 | `pgboss/supply.purge-quick-answers` | Cron, every ten minutes: first closes the Quick answers still waiting after the wait limit and clears their words, then deletes the ones whose day is over, 500 per transaction, at most ten batches a run. Logs `supply.quick_answers_given_up` and `supply.quick_answers_purged` with counts. | Nothing personal. |
 | `supply.ask_orders` | The ledger of ask orders: order ID, when it was made, when its Scroll was first seen admitted, and whether it was made under the support check (`support_checked`, D-252). The world's cap and the "usually" time read it (D-218). | Names no person and no words; survives erasure. |
+| `supply.requests.ask_limit` | Which limit closed a question asked from a Scroll as `budget_unavailable` (`person`, `world`, `off`; D-387). Null for every other request. | Erased with the request. |
 | `supply.requests.ask_order_id`, `ask_asset_id` | The link from a person's ask to the order and the Scroll made for it. It is also the audience of that Scroll. | Erased with the request; the order's brief is set empty first. |
 
 An ask from here also writes one row in Content's `made_to_order_scrolls` (mode `question`) and reads the production jobs of the order; supply's erasure sets that row's brief empty (the one write it makes outside its own tables).

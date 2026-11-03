@@ -76,6 +76,18 @@ interface StoredPlace {
 
 const progress = (place: { part: number; state: PlaceState }) => place.part * 2 + (place.state === 'finished' ? 1 : 0);
 
+/** The call before Part 3, open for everyone: a labelled fixture question nobody has answered. */
+const nextCallOf = (episodes: ReturnType<typeof episodesOf>) => ({
+  part: 3,
+  assetId: episodes[2]!.assetId,
+  assetRevision: 1,
+  prompt: 'CI fixture: what comes next?',
+  options: ['CI one thing', 'CI another thing'],
+  called: 0,
+  of: 3,
+  stage: 'open',
+});
+
 /**
  * The call before Part 2 (D-155): a labelled fixture question, as a Scroll's authored Call it would be. The real
  * server finds it in the part's Scroll; this fixture's parts are Reels the browser can play to the end, so it says
@@ -92,6 +104,7 @@ export const PARTY_CALL = {
 
 /**
  * `call`: the thread has a call before Part 2 (D-155). The places-only tests of T-D leave it off, so their layout is unchanged.
+ * `nextCall`: a second call, before Part 3, that nobody has made yet (the open call a reveal of Part 2 must not hide).
  * `scrolls`: the three parts are Scrolls (the labelled v2 fixture `seasons-stage-ci`, which the thread's reader draws as the
  * Stage + Spine reader) instead of Reels.
  * `listed`: Talk's list (beside the thread on a desktop) holds this thread, started on Part 1 of 3.
@@ -100,6 +113,7 @@ export const PARTY_CALL = {
 export function partyWorld(
   options: {
     readonly call?: boolean;
+    readonly nextCall?: boolean;
     readonly scrolls?: boolean;
     readonly listed?: boolean;
     readonly readThrough?: number;
@@ -337,7 +351,10 @@ export function partyWorld(
                 ...base(body),
                 status: 'ready',
                 thread: membership(who),
-                calls: options.call === true ? [callOf(who)] : [],
+                calls:
+                  options.call === true
+                    ? [callOf(who), ...(options.nextCall === true ? [nextCallOf(episodes)] : [])]
+                    : [],
               },
             };
           case '/v1/social/threads/calls/lock': {

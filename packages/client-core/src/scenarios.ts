@@ -145,7 +145,7 @@ export interface ScenarioComposerState {
   readonly ask: ScenarioAsk | undefined;
   readonly mode: 'direct' | 'options' | undefined;
   readonly options: readonly ScenarioOption[];
-  readonly failure: 'could_not_suggest' | 'budget_unavailable' | undefined;
+  readonly failure: 'could_not_suggest' | 'budget_unavailable' | 'recording_paused' | undefined;
   readonly block: ScenarioBlock | undefined;
   readonly chosen: { readonly card: ScenarioCard; readonly reused: boolean } | undefined;
 }

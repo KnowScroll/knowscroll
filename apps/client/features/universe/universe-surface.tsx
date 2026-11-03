@@ -37,6 +37,15 @@ import type { UniverseMapSession, UniverseViewState } from './universe-session';
  */
 const FULL_CARD_MIN_HEIGHT = 760;
 
+/**
+ * Where the globe's name and hint start, as a share of the stage's height: just under the globe (`globePlacement`).
+ * With less than this much room between there and the stack of chips below, the caption is set in its compact form (D-392).
+ */
+const CAPTION_TOP_SHARE = 0.62;
+const CAPTION_FULL_ROOM = 112;
+/** The air kept between the caption and the chips under it. */
+const CAPTION_GAP = 8;
+
 /** The colour of the globe's hint, from the design. */
 const HINT_COLOUR = '#B8E2E3';
 
@@ -98,6 +107,7 @@ export function UniverseSurface({
   const [dustNote, setDustNote] = useState(false);
   // Where the open card's top edge stands, from the bottom of the stage, once the card and the stack under it are drawn.
   const [bottomStackHeight, setBottomStackHeight] = useState(0);
+  const [captionHeight, setCaptionHeight] = useState(0);
   const [cardTopInStack, setCardTopInStack] = useState<number | undefined>(undefined);
   const [refusedPlanetId, setRefusedPlanetId] = useState<string | null>(null);
   // Why 3D cannot be drawn, if it cannot: the tab is then the Simple lists, by itself (D-111).
@@ -220,18 +230,39 @@ export function UniverseSurface({
     );
   const header = headerOf(view);
 
+  // The name and hint stand under the globe, and never reach the chips below it: on a short screen they are set smaller, and
+  // when even that does not leave room they stand on the chips (D-392).
+  const captionRoom = stageSize.height * (1 - CAPTION_TOP_SHARE) - bottomStackHeight;
+  const compactCaption = bottomStackHeight > 0 && captionRoom < CAPTION_FULL_ROOM;
+  const captionTop = Math.min(
+    stageSize.height * CAPTION_TOP_SHARE,
+    stageSize.height - bottomStackHeight - CAPTION_GAP - captionHeight,
+  );
   const captionOf = (shown: UniverseView): ReactNode =>
     shown.kind === 'planet' && !shown.landed && !simple ? (
-      <View style={styles.caption} pointerEvents="none">
+      <View
+        style={[
+          styles.caption,
+          compactCaption ? styles.captionCompact : null,
+          captionHeight > 0 ? { top: captionTop } : null,
+        ]}
+        pointerEvents="none"
+        onLayout={(event) => setCaptionHeight(event.nativeEvent.layout.height)}
+      >
         <Text variant="label" color={space.label2}>
           {`A planet in ${index.byId.get(shown.planet.parentId)?.label ?? 'your universe'}`}
         </Text>
-        <Text variant="displayL" heading={1} color={space.label} style={styles.captionTitle}>
+        <Text
+          variant="displayL"
+          heading={1}
+          color={space.label}
+          style={compactCaption ? styles.captionTitleCompact : styles.captionTitle}
+        >
           {shown.planet.label}
         </Text>
         {shown.planet.truthStatus === 'hypothetical' ? <Tag label="Hypothetical" variant="hypothetical" /> : null}
-        <View style={styles.globeHint}>
-          <View style={styles.hintMark} aria-hidden>
+        <View style={compactCaption ? styles.globeHintCompact : styles.globeHint}>
+          <View style={compactCaption ? styles.hintMarkCompact : styles.hintMark} aria-hidden>
             <Text variant="meta" color={HINT_COLOUR}>
               ↔
             </Text>
@@ -618,13 +649,31 @@ const styles = StyleSheet.create({
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], alignItems: 'center' },
   leaving: { position: 'absolute', left: 0, right: 0, top: 0 },
-  caption: { position: 'absolute', left: spacing[6], right: spacing[6], top: '62%', gap: spacing['1.5'] },
+  caption: {
+    position: 'absolute',
+    left: spacing[6],
+    right: spacing[6],
+    top: `${CAPTION_TOP_SHARE * 100}%`,
+    gap: spacing['1.5'],
+  },
   captionTitle: { fontSize: 30, lineHeight: 34 },
+  captionCompact: { gap: 2 },
+  captionTitleCompact: { fontSize: 26, lineHeight: 28 },
   globeHint: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginTop: spacing[1] },
+  globeHintCompact: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   hintMark: {
     width: 26,
     height: 26,
     borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hintMarkCompact: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',

@@ -4490,3 +4490,82 @@ Confirmed by: `v2/validate.test.ts` (accepted when it names the next read stop w
 - **Regeneration is the coordinator's.** After this reaches dev, `content regenerate --only seasons` makes the next take; it is read, released and the series admitted again (runbook, "Seasons Part 1 after the stage plan"). This change makes no model call.
 
 Confirmed by: `writer-v2.test.ts` (the Seasons recipe is asked for all three and no other recipe is; removing the plan removes the words; the role refuses a recorded answer that ignores it with fixed findings), `library.test.ts` (the plan, its slots in step with scroll-model, only on an Earth & sky stage recipe), `versions.test.ts` (the pair), `producer/v2/stage-figures.test.ts` (one month and the same month twice are refused, two are accepted) and `scroll-v2-stage-plan.test.ts` on real PostgreSQL (a Scroll with two orbit months, the reveal and the stated figure publishes held after one request; an answer that ignores the plan gets one repair carrying the two fixed hints and then publishes). Shown failing when the months rule or the reveal rule was off and when the writer's pair row was removed.
+
+## D-387 · 2026-11-03 · An ask closed by a daily limit says which limit, with a closed detail on the request (v3, #653)
+
+**Amends** D-218, its "A full cap closes the request `budget_unavailable`" line, which gave one sentence for three causes.
+
+- **The gap.** A question asked from a Scroll closed as `budget_unavailable` for three different reasons: the person's own daily cap, the world's daily cap, or ask orders being off. The screen said "We can't prepare new explanations right now" for all three, so the person could not tell whether to wait, or whether it was them.
+- **The rule.** The closed status carries an optional `limit`: `person` (with the size of the person's cap), `world`, or `off`. It is a closed set. It carries no count of other people's asks and no spend. The world's cap is checked first, then the person's, as before; a cap of zero reads as `off`.
+- **Words.** `person`: "You've asked for N new explanations today, the most for one day. You can ask again tomorrow." `world`: "New explanations are full for today. You can ask again tomorrow." `off`: "New explanations are switched off right now." Each ends "Your request is closed, so nothing is waiting." The world's words say nothing about other people.
+- **Stored.** Migration 0103 adds `supply.requests.ask_limit`, set only with `budget_unavailable`. A request closed before it, or by a Create cap, has none and keeps the general words. A retry clears it.
+- **When.** "Today", "tomorrow" and "right now" are true only on the UTC day the request closed (its `updatedAt`). On a later day, such as in Your requests, the same cause is told without a time ("This was closed because new explanations were full that day.").
+- **Not changed.** The caps, their counting and the reasons.
+
+Confirmed by: `supply-ask.test.ts` (each of the three closes with its `limit`), `supply.test.ts` in contracts (the set is closed; a count or an unknown kind is refused), `ask-sheet.test.tsx` (each sentence; none names other people; shown failing without the detail).
+
+## D-388 · 2026-11-03 · A What-if draft taken up while recording is paused says so, and offers Resume (v3, #653)
+
+**Amends** D-270, its "Still refused while paused" line for the draft: the refusal is kept; what the person is told changes.
+
+- **The gap.** While recording is paused the draft is refused without a model call (D-270) and closed as `could_not_suggest`, so the sheet said "No suggestions. We couldn't think of directions this time." The pause is the person's own, and they were not told.
+- **The rule.** A draft refused because recording was off when it was taken up closes as `recording_paused` (migration 0104 widens the check). The draft read returns it. A reply that comes back after a pause is still dropped as `could_not_suggest`, as before.
+- **The sheet.** It says suggestions for a What if or another perspective need recording on, and shows Resume. Resume sets the person's own recording setting and then asks again with the words they wrote. No model call is made by Resume. If recording is already on again, it offers Ask again. Resume works only on a setting read back as current; if it is not accepted, the sheet says nothing changed. Without recording controls it points to Privacy. "Write my own version" is not offered here, because the short answer would be refused too.
+- **Not changed.** No What-if is refused at create. The branch's short answer while paused (D-270).
+
+Confirmed by: `scenario-answers.test.ts` (the paused draft closes `recording_paused`, no run, no call), `scenarios.test.ts` in contracts, `scenario-sheet.test.tsx` (the words, Resume, the same words asked again; shown failing without the step).
+
+## D-389 · 2026-11-03 · A reveal opens in the thread when it arrives, ahead of the next call (v3, #653)
+
+**Builds on** D-155. **Amends** the bar's order only in what the thread opens by itself; the reveal rules are not touched.
+
+- **The gap.** When the party finished Part 2, the bar above the composer offered the open call before Part 3 first, so the reveal of Part 2 was reached only through Series ("Revealed").
+- **The rule.** A revealed call this device has not shown yet opens in the thread as its card, when it arrives, only if the reader's **own** shared place says they finished that part (they are on a later part, or finished it). A member who hides their place or has none is not shown it unasked (D-155 does not wait for them either): the reveal stays on the bar as "Revealed". With several unseen reveals only the newest (the latest part) opens by itself; the others stay on the bar. It never replaces a call the person already has open: it waits and opens when that card is closed, so a choice they were making is not lost. It is marked as shown when it appears. Closing it brings back the bar, with the next call. The card is the one already drawn for a reveal.
+- **What decides the reveal.** The server, as D-155 says: the card carries picks only for a call revealed to this reader. The client shows what it was sent and decides nothing about who finished.
+- **Not drawn.** The system line "ALL N FINISHED PART 2 · time" of T3 frame 5. The server does not say whether a reveal came from everyone finishing or from the two-day clock, so the line could be false, and no time is sent.
+
+Confirmed by: `e2e/thread-calls-smoke.spec.ts` (while one member still shares Part 1 no card and no pick is shown; when they finish, the reveal opens by itself ahead of the Part 3 call, and is not shown again after it is closed; a reveal that arrives while the Part 3 card is open leaves that card and its choice alone, then opens on close; a member who hides their place sees it on the bar), `call-words.test.ts` (`revealToOpen`: own place, newest only). Each shown failing when the rule is removed.
+
+## D-390 · 2026-11-03 · A What-if on a Scroll that cannot be explored says why and what to do (v3, #653)
+
+**Builds on** D-006 i. It leaves the refusal where it is.
+
+- **The gap.** A thread whose Scroll has no recorded sources, such as an older or imported one, refuses What-if and Another perspective with "nothing it rests on can be looked up". The words were plain but gave the person nothing to do.
+- **Why it is not hidden.** Offering What-if only where it works needs the thread to know the Scroll has sources. That is a research-source read of the Scroll on every thread read, which the thread does not make today. The refusal is checked first on a draft, before anything is written, so the person loses only the words they typed.
+- **The words.** "Can't explore this one yet. This Scroll doesn't have what KnowScroll needs to check a new idea against, so a branch can't be made from it yet. Nothing was made. You can keep talking about it here, or try it on another Scroll." It serves What if and Another perspective alike. There is no retry.
+
+Confirmed by: `scenario-sheet.test.tsx` (the refusal shows these words and no Try again; shown failing when they change).
+
+## D-391 · 2026-11-03 · The "Next topic" note shows on a library article too (v3 fidelity, #656)
+
+**Amends** D-364, its "When" line.
+
+- **The gap.** The note was built into the stage reader only. A v1 library article (the reader without a stage) never showed it, so "Next topic" looked missing on two of five Next ↑ runs on dev. D-364 did not mean that: the format stays a Scroll, and the note says so.
+- **The rule.** The note shows for any Scroll that a new topic landed on from another Scroll, whichever reader draws it. For an article it says the kicker and the reading minutes (an article has no calls), and "<title> is kept." with no place, because an article has no stops. Switch to Reel appears only when the Reel is ready. Undo goes back, as Back does.
+- **Where.** Over the top of the article, below its header, in the same row as the other notices. The keys F and Esc act only from the note's own buttons, because an article has no reader group with keys; so on an article the note shows no F or Esc chip (`keys={false}`).
+- **Not changed.** The other limits of D-364: not for the first open, a Part, a related move, a format switch, a Back or after a Reel. Once per entry. Nine seconds.
+
+Confirmed by: `format-note.test.tsx` (an article gets the note from a stage Scroll and from another article; none for the cases above), `e2e/scroll-motion-smoke.spec.ts` (Next from an article shows it, below Back, with Undo, at 320, 390 and 1440; axe). Shown failing when the note was limited to stage Scrolls again.
+
+## D-392 · 2026-11-03 · On the smallest phone the landmark line wraps instead of cutting, and a globe's name and hint stay above the chips (v3 fidelity, #656)
+
+**Amends** D-319 (the folded line) and the caption of a planet's globe.
+
+- **The gap.** At 320 x 568 the folded landmark line cut the name ("The Returning Glo...") and the hint "Drag to rotate · tap to land" stood on List view.
+- **The folded line.** It has no line limit now. On one line it is as before (44 px). When the words do not fit, it wraps to a second line and grows, as the open card's name wraps to three at 320 px. A name is never cut.
+- **The globe's caption.** The planet's name and hint start under the globe. When the room between there and the stack of chips below is less than 112 px (a 568 px phone), the caption is set smaller: a 26 px name and a 20 px hint mark with tighter gaps. If it still would reach the chips, it stands on them, over the lower edge of the globe, so it never covers a button. The chips and the hint are not hidden.
+- **Not changed.** Taller phones: the same positions as before.
+
+Confirmed by: `e2e/universe-collection-smoke.spec.ts` (at 320 x 568 the whole name shows on the overview and on a globe; the hint, the name and the landmark line are clear of List view and of a route chip; axe). Shown failing before the change.
+
+## D-393 · 2026-11-03 · The orbit pictures are laid out by one pure function, and nothing in them overlaps (v3 fidelity, #656)
+
+**Builds on** D-133, D-368 and D-382. The recap's honesty rules do not change: it is made of the document's own states and adds no text and no figure.
+
+- **The gap.** On the stretched orbit the September Earth covered "SUN NOT TO SCALE", the December and January Earths overlapped, and in the recap Earths 1 and 3 overlapped with a badge on top.
+- **The layout.** `earth-sky-orbit-layout.ts` works out, from the scene alone, the places of the month names, the pale Earths, the Earth of the month, the Sun and the recap's Earths and badges. An Earth is the box round its disc and its axis. The drawing and the figures read the same places.
+- **The rules.** A month's name stands beyond its Earth, on the side away from the orbit's middle. The pale Earth that the Earth of the month would touch is left out. The words about the Sun (under it, then to one side of it, then beside it on the right) and "you are here" (near Earth first, then any row of the frame) take the first place that fits the frame and covers no name, Earth, Sun or part of the dashed orbit. The orbit is at most 63 units tall, so the top and bottom Earths keep their names inside the frame. In the recap an Earth is smaller (12) with a shorter axis, and each badge takes the first free place round its Earth.
+- **Not changed.** The figures, the words of the recap and its numbering, the to-scale orbit and the stretched one's flatness (the plain orbit is 63 tall where it was 82).
+- **Known.** An Earth's axis may cross a hairline ray of the Sun (the stretched October). No Earth touches the disc.
+
+Confirmed by: `earth-sky-orbit-layout.test.ts` (both orbits, every month, with and without distances: no word covers another word, an Earth, the Sun or the dashed orbit; Earths clear of each other and inside the frame; the recap for every pair of months in both orders, every three months and all twelve: no Earth or badge touches another, all inside the frame and clear of the next Part's tab; the geometry is sampled by the test, not read from the layout), `earth-sky-figures.test.tsx`, and `e2e/scroll-orbit-layout-smoke.spec.ts` (boxes measured on the page at 320, 390, 1024 and 1440, the recap and eight months). Shown failing when the names were set on their Earths and the badges had one place to try.

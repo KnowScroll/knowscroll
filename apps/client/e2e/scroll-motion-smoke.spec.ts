@@ -396,3 +396,33 @@ test('at 320 px the note sits below the whole top bar, wrapped as it is, and cov
   }
   await shot(page, 'format-note-320x640');
 });
+
+for (const viewport of [{ width: 320, height: 568 }, phone, desktop]) {
+  test(`Next lands on a library article and the note is there too, below the bar, with Undo, at ${String(viewport.width)} px (D-391)`, async ({
+    page,
+  }) => {
+    // The default fixture is a v1 article: the reader that has no stage.
+    await encounterFixture(page, 'scroll', { viewport });
+    await page.goto('/explore');
+    await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+    await page.getByRole('button', { name: 'Got it' }).click();
+    await expect(page.getByTestId('scroll-reader')).toHaveCount(0);
+    await expect(page.getByTestId('format-note')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Next subject', exact: true }).last().click();
+    await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 2' })).toBeVisible();
+    const note = page.getByTestId('format-note');
+    await expect(note).toContainText('NEXT TOPIC · AS A SCROLL');
+    await expect(note).toContainText('CI encounter fixture 2');
+    await expect(page.getByTestId('format-note-kept')).toHaveText('CI encounter fixture 1 is kept.');
+    const box = await note.boundingBox();
+    const back = await page.getByRole('button', { name: 'Back', exact: true }).boundingBox();
+    if (box === null || back === null) throw new Error('the note and Back are drawn');
+    // Below the bar's controls, so none of them is covered.
+    expect(box.y).toBeGreaterThanOrEqual(back.y + back.height - 1);
+    await shot(page, `format-note-article-${String(viewport.width)}x${String(viewport.height)}`);
+    expect(await audit(page)).toEqual([]);
+    await page.getByTestId('format-note-undo').click();
+    await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+    await expect(note).toHaveCount(0);
+  });
+}

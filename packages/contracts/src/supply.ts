@@ -138,6 +138,18 @@ const StatusFields = {
 };
 
 /**
+ * Which limit closed a question asked from a Scroll as `budget_unavailable` (D-387). `person`: the person's own daily cap, with
+ * its size so the screen can name it; `world`: the day's shared cap, which says nothing about anyone; `off`: ask orders are not
+ * switched on. A closed set: no count of other people's asks, no spend, no provider detail.
+ */
+export const AskLimitSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('person'), perDay: z.number().int().min(1).max(100) }),
+  z.strictObject({ kind: z.literal('world') }),
+  z.strictObject({ kind: z.literal('off') }),
+]);
+export type AskLimit = z.infer<typeof AskLimitSchema>;
+
+/**
  * A current authorised snapshot, never the original receipt. The consumer rechecks own scope,
  * epoch and current access. Clients fence by AccountScope and keep the highest request revision;
  * older reads cannot overwrite newer state. Withdrawal can change ready to unavailable.
@@ -177,6 +189,8 @@ export const ContentRequestStatusSchema = z.discriminatedUnion('status', [
       'could_not_prepare',
       'source_unavailable',
     ]),
+    /** Only on `budget_unavailable` for a question asked from a Scroll; absent otherwise, and on requests closed before this existed. */
+    limit: AskLimitSchema.optional(),
   }),
   z.strictObject({ ...StatusFields, status: z.literal('cancelled') }),
 ]);
