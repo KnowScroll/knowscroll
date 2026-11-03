@@ -134,8 +134,7 @@ test('Read opens a v2 Scroll in the thread; finishing it tells the thread, and a
   // Back is a navigation: reload only once the thread is the screen shown, or the reload aborts it.
   await expect(asha.page.getByTestId('thread-header')).toBeVisible();
   await asha.page.reload();
-  await expect(asha.page.getByTestId('call-bar')).toHaveText('★ Revealed');
-  await asha.page.getByTestId('call-bar').click();
+  // The reveal is in the thread when it arrives: there is nothing to tap (D-389).
   await expect(asha.page.getByTestId('call-card').getByText('PLOT TWIST! · REVEALED TOGETHER')).toBeVisible();
   await expect(asha.page.getByTestId('call-explain')).toHaveText(PARTY_CALL.explain);
   await shot(asha.page, 'thread-scroll-390-revealed');
