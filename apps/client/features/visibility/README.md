@@ -18,3 +18,15 @@ overwritten.
 
 `choice-rows.tsx` holds the radio rows (the chosen one tinted and edged in cobalt), the switch rows (plain list rows with a switch) and the one-pill choice for Activity status (all announced as radio or switch). Not built: "Preview
 what Ravi sees" (needs a server read that answers with the visitor view of the owner's own published copy).
+
+## Follow the request and check it
+
+This feature uses the active account scope's client-core controller; the matching backend owner
+checks the actual authority. Start with the [feature map](../README.md), then follow the screen's
+session hook into [client-core](../../../../packages/client-core/README.md). A component fixture's
+authored answer is not evidence that a live backend returned it.
+
+From the repository root, run
+`pnpm --filter @knowscroll/client exec jest --ci --runInBand features/visibility`.
+The app's hosted web smoke adds real browser/export checks. Keep privacy and failure assertions
+intact; passing these checks does not establish a new dev or native-device acceptance.

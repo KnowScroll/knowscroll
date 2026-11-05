@@ -20,5 +20,17 @@ is open and the app is in the foreground, so an owner who stops sharing is notic
 drops the list after two minutes without an answer. Leaving, a refusal and the end of the account scope all
 discard the list: it lives only in memory, so "nothing from it is kept on your side" is literally true.
 
-Not built: entering a room from a visit (there are no rooms yet) and region cards (regions are never shared).
+Not built: entering a room from a visit (this published view carries no room entry) and region cards (regions are never shared).
 Visiting creates no evidence, observation or record for either person.
+
+## Follow the request and check it
+
+This feature uses the active account scope's client-core controller; the matching backend owner
+checks the actual authority. Start with the [feature map](../README.md), then follow the screen's
+session hook into [client-core](../../../../packages/client-core/README.md). A component fixture's
+authored answer is not evidence that a live backend returned it.
+
+From the repository root, run
+`pnpm --filter @knowscroll/client exec jest --ci --runInBand features/visit`.
+The app's hosted web smoke adds real browser/export checks. Keep privacy and failure assertions
+intact; passing these checks does not establish a new dev or native-device acceptance.

@@ -4,7 +4,7 @@ Related: #377, #241.
 
 `/friends` is outside the four-tab group. Talk's real Friends link opens it; the always-reachable
 Back control returns through router history, falling back to Talk. `/friends/invite` is the
-explicit invitation entry page. Neither route implies that conversations are implemented.
+explicit invitation entry page. The Friends session owns relationship changes; Talk owns conversations.
 
 The F01–F02 v2.1 artboard supplies the paper register, public-name/handle rows, primary Add action,
 outlined controls, invitations and blocked/request states. This source uses existing tokens and
@@ -63,3 +63,15 @@ remount and late-launch/event fences, signed-out and mounted second/invalid web 
 late prior resolution, fragment parsing and actual production
 export controls. They run only in hosted Actions. Source/static/export build are not live Social,
 native/physical, design-perfect or final privacy acceptance; Root owns connected journey acceptance.
+
+## Follow the request and check it
+
+This feature uses the active account scope's client-core controller; the matching backend owner
+checks the actual authority. Start with the [feature map](../README.md), then follow the screen's
+session hook into [client-core](../../../../packages/client-core/README.md). A component fixture's
+authored answer is not evidence that a live backend returned it.
+
+From the repository root, run
+`pnpm --filter @knowscroll/client exec jest --ci --runInBand features/friends`.
+The app's hosted web smoke adds real browser/export checks. Keep privacy and failure assertions
+intact; passing these checks does not establish a new dev or native-device acceptance.

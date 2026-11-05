@@ -21,13 +21,13 @@ tests, scripts and operations. Read changes by commit; focused checks belong bes
 | --- | ---: | --- | --- |
 | `.claude` | 3 | — | Already clear: main-update hook preserves owner-only main writes; refusal/allowance fixtures passed. |
 | `.dependency-cruiser.cjs` | 1 | — | Pending |
-| `.gitattributes` | 1 | — | Pending |
+| `.gitattributes` | 1 | — | Already clear: design CRLF bytes are protected against checkout conversion; unchanged. |
 | `.github` | 6 | — | Already clear: inspected hosted checks and deploy separation; immutable input checks and push-only deploy retained. Native workflow detailed review pending. |
-| `.gitignore` | 1 | — | Pending |
+| `.gitignore` | 1 | — | Already clear: credentials, build output, caches and local generated state are excluded; unchanged. |
 | `.npmrc` | 1 | — | Already clear: pnpm store follows KS_DEV_ROOT; frozen install used the SSD root. |
 | `.nvmrc` | 1 | — | Already clear: exact Node version linked by root setup; unchanged. |
 | `.prettierignore` | 1 | — | Already clear: code/config scope intentionally excludes Markdown, immutable inputs and generated database types; checked changed Markdown links separately. |
-| `.prettierrc.json` | 1 | — | Pending |
+| `.prettierrc.json` | 1 | — | Already clear: deterministic code format; current format check passed, no config edit. |
 | `apps/api` | 105 | [apps/api/README.md](../../../apps/api/README.md) | Changed: added request/wiring/check entry points and corrected route-index comment. Account traced; other controllers/operators pending. |
 | `apps/client` | 10 | [apps/client/README.md](../../../apps/client/README.md) | Pending |
 | `apps/client/app` | 46 | — | Pending |
@@ -38,8 +38,8 @@ tests, scripts and operations. Read changes by commit; focused checks belong bes
 | `apps/client/features/diagnostics` | 5 | — | Pending |
 | `apps/client/features/encounter` | 46 | — | Pending |
 | `apps/client/features/explore` | 6 | — | Pending |
-| `apps/client/features/feedback` | 9 | [apps/client/features/feedback/README.md](../../../apps/client/features/feedback/README.md) | Pending |
-| `apps/client/features/friends` | 13 | [apps/client/features/friends/README.md](../../../apps/client/features/friends/README.md) | Pending |
+| `apps/client/features/feedback` | 9 | [apps/client/features/feedback/README.md](../../../apps/client/features/feedback/README.md) | Changed: added request ownership and focused check; retained stable report IDs, offline queue and no-consumption semantics. |
+| `apps/client/features/friends` | 13 | [apps/client/features/friends/README.md](../../../apps/client/features/friends/README.md) | Changed: retained invite/cursor/scope rules, clarified Talk ownership and added focused check; deeper roster/native-link review remains pending. |
 | `apps/client/features/gallery` | 7 | — | Pending |
 | `apps/client/features/not-found` | 1 | — | Pending |
 | `apps/client/features/operator` | 7 | — | Pending |
@@ -54,17 +54,17 @@ tests, scripts and operations. Read changes by commit; focused checks belong bes
 | `apps/client/features/shell` | 7 | — | Pending |
 | `apps/client/features/threads` | 41 | — | Pending |
 | `apps/client/features/universe` | 138 | — | Pending |
-| `apps/client/features/visibility` | 7 | [apps/client/features/visibility/README.md](../../../apps/client/features/visibility/README.md) | Pending |
-| `apps/client/features/visit` | 9 | [apps/client/features/visit/README.md](../../../apps/client/features/visit/README.md) | Pending |
+| `apps/client/features/visibility` | 7 | [apps/client/features/visibility/README.md](../../../apps/client/features/visibility/README.md) | Changed: added controller-to-backend reading path and focused check; retained separate visibility, availability and SEEN commands. |
+| `apps/client/features/visit` | 9 | [apps/client/features/visit/README.md](../../../apps/client/features/visit/README.md) | Changed: corrected obsolete no-rooms wording and added focused request/check path; retained memory-only visit and revocation rules. |
 | `apps/client/maestro` | 13 | — | Pending |
 | `apps/client/platform` | 36 | — | Pending |
 | `apps/client/plugins` | 3 | — | Pending |
 | `apps/client/providers` | 4 | — | Pending |
 | `apps/client/theme` | 2 | — | Pending |
 | `apps/worker` | 29 | [apps/worker/README.md](../../../apps/worker/README.md) | Changed: added delivery/authority/operator reading order; worker unit tests passed with SSD TMPDIR. Remaining consumers/operators pending. |
-| `content` | 89 | [content/README.md](../../../content/README.md) | Pending |
+| `content` | 89 | [content/README.md](../../../content/README.md) | Already clear: frozen v1 assets are tied to history and paid request hashes; retained every file and README. |
 | `docs` | 1 | — | Pending |
-| `docs/archive` | 8 | [docs/archive/README.md](../../../docs/archive/README.md), [docs/archive/discovery-2026-10-19/README.md](../../../docs/archive/discovery-2026-10-19/README.md) | Pending |
+| `docs/archive` | 8 | [docs/archive/README.md](../../../docs/archive/README.md), [docs/archive/discovery-2026-10-19/README.md](../../../docs/archive/discovery-2026-10-19/README.md) | Already clear: history explicitly points at current v2 authority; retained all archived material. |
 | `docs/v2` | 240 | [docs/v2/README.md](../../../docs/v2/README.md), [docs/v2/architecture/README.md](../../../docs/v2/architecture/README.md), [docs/v2/architecture/design-references/README.md](../../../docs/v2/architecture/design-references/README.md), [docs/v2/design/README.md](../../../docs/v2/design/README.md), [docs/v2/design/v3/README.md](../../../docs/v2/design/v3/README.md), [docs/v2/v3-revamp/README.md](../../../docs/v2/v3-revamp/README.md) | Pending |
 | `migrations` | 110 | [migrations/README.md](../../../migrations/README.md) | Changed: added schema-change journey, focused commands and historical rollout label; retained all SQL/checksums. Registry fixtures passed. |
 | `ops/pool` | 4 | [ops/pool/README.md](../../../ops/pool/README.md) | Already clear: functions, authority, spend ceiling, immutable migrations and separate live-state caveat are documented; retained all pool rows and SQL. |
@@ -102,10 +102,10 @@ tests, scripts and operations. Read changes by commit; focused checks belong bes
 | `packages/backend/src/reasoning` | 48 | [packages/backend/src/reasoning/README.md](../../../packages/backend/src/reasoning/README.md), [packages/backend/src/reasoning/adapters/minimax/README.md](../../../packages/backend/src/reasoning/adapters/minimax/README.md) | Pending |
 | `packages/client-core` | 145 | [packages/client-core/README.md](../../../packages/client-core/README.md) | Changed: added account lifetime and recovery reading order; 64 files / 872 unit tests passed. Remaining controller review pending. |
 | `packages/contracts` | 85 | [packages/contracts/README.md](../../../packages/contracts/README.md) | Changed: explained schema versus runtime authority, compatibility and focused tests; contract reference review remains pending. |
-| `packages/design-tokens` | 20 | [packages/design-tokens/README.md](../../../packages/design-tokens/README.md), [packages/design-tokens/fonts/README.md](../../../packages/design-tokens/fonts/README.md) | Pending |
-| `packages/scene-core` | 34 | [packages/scene-core/README.md](../../../packages/scene-core/README.md) | Pending |
-| `packages/scroll-model` | 165 | [packages/scroll-model/README.md](../../../packages/scroll-model/README.md), [packages/scroll-model/fixtures/README.md](../../../packages/scroll-model/fixtures/README.md) | Pending |
-| `packages/ui` | 286 | [packages/ui/README.md](../../../packages/ui/README.md) | Pending |
+| `packages/design-tokens` | 20 | [packages/design-tokens/README.md](../../../packages/design-tokens/README.md), [packages/design-tokens/fonts/README.md](../../../packages/design-tokens/fonts/README.md) | Changed: added semantic-token editing journey and focused checks; preserved all visual values, fonts and licences. 88 token tests passed. |
+| `packages/scene-core` | 34 | [packages/scene-core/README.md](../../../packages/scene-core/README.md) | Changed: replaced obsolete future-consumer introduction with current projector/renderer boundary and focused checks; 128 tests passed; Hermes parity still unverified. |
+| `packages/scroll-model` | 165 | [packages/scroll-model/README.md](../../../packages/scroll-model/README.md), [packages/scroll-model/fixtures/README.md](../../../packages/scroll-model/fixtures/README.md) | Changed: clarified production/admission/device path and compatibility exports; preserved producer fixtures and runtime rules. 846 tests passed. |
+| `packages/ui` | 286 | [packages/ui/README.md](../../../packages/ui/README.md) | Changed: added rendering/effect ownership and platform-variant caller guidance. Full local suite: 74 passed files, one five-second timeout; no assertion changed. |
 | `root` | 11 | [README.md](../../../README.md) | Changed: newcomer setup, request journey, package map and check commands; root configuration/dependency manifests checked. Root tooling review continues below. |
 | `scripts` | 4 | — | Changed: added CLI/caller/effect/recovery map; traced source-check and vendor build dynamic entry points; retained promotion contract. |
 | `scripts/issue-context` | 3 | — | Already clear: CLI usage and offline behavior covered by issue workflow; lookup fixtures passed. |
@@ -141,3 +141,9 @@ Operator/issue/main-hook fixtures passed with SSD temporary storage. Migration r
 passed without changing any SQL. New scripts and test commands were checked against manifests,
 workflow invocations and parser flags; provider, deployment and database-mutating commands were
 not executed as documentation examples.
+
+Fresh-context review of the accumulated diff found three documentation inaccuracies: Not interested
+belongs to Experience, legacy snapshot facets are counts rather than arrays, and workers can start
+after commit before the HTTP response arrives. All three were corrected; the reviewer reported no
+remaining blocking finding in the current diff or added feature/shared-package lines. This checkpoint
+review is not completion of the still-pending repository inventory.
