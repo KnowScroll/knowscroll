@@ -442,6 +442,17 @@ for (const width of [1024, 1440, 1920]) {
     await expect(browse).toBeVisible();
     await expect(page.getByTestId('universe-panel')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Your universe', exact: true })).toHaveCount(1);
+    // Retained inactive map routes have the same chrome IDs. Focus belongs to this map's trigger.
+    await page.evaluate(() => {
+      const inactive = document.createElement('div');
+      inactive.hidden = true;
+      for (const id of ['universe-browse', 'universe-settings']) {
+        const control = document.createElement('button');
+        control.dataset.testid = id;
+        inactive.append(control);
+      }
+      document.body.prepend(inactive);
+    });
     const bounds = (await map.boundingBox())!;
     expect(bounds.x + bounds.width).toBe(width);
     await page.screenshot({ path: testInfo.outputPath(`full-map-${String(width)}.png`) });

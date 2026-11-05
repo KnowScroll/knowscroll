@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NO_COLLECTION } from '@knowscroll/client-core';
@@ -96,6 +96,7 @@ export function UniverseSurface({
   const places = session.places();
   const panel = wide && (state.overlay === 'outline' || state.overlay === 'search');
   const settings = wide && state.overlay === 'settings';
+  const surface = useRef<ComponentRef<typeof View>>(null);
   const previousOverlay = useRef(state.overlay);
   useEffect(() => {
     const previous = previousOverlay.current;
@@ -110,7 +111,9 @@ export function UniverseSurface({
     if (!trigger) return;
     // Wait until the modal has released its focus trap and the map's own focus effect has run.
     const frame = requestAnimationFrame(() =>
-      document.querySelector<HTMLElement>(`[data-testid="${trigger}"]`)?.focus(),
+      (surface.current as unknown as HTMLElement | null)
+        ?.querySelector<HTMLElement>(`[data-testid="${trigger}"]`)
+        ?.focus(),
     );
     return () => cancelAnimationFrame(frame);
   }, [state.overlay, wide]);
@@ -513,7 +516,7 @@ export function UniverseSurface({
   );
 
   return (
-    <View style={styles.ground} testID="universe-screen" role="main">
+    <View ref={surface} style={styles.ground} testID="universe-screen" role="main">
       {stage}
       {panel ? (
         <UniversePanel
