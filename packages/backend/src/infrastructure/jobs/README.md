@@ -12,7 +12,9 @@ pg-boss is the only work outbox (blueprint §19). Owns: the `pgboss` schema.
 | `drainConsumers(boss, count, timeoutMs, logEvent)` | Stops claiming, waits for running handlers (bounded), closes pg-boss. |
 | `deleteJobPayloads(scope, queues)` | Erasure: deletes one universe's queued, active, retained and dead-lettered payloads from the named queues. |
 
-Declared queues: `evidence.apply-action` and `evidence.project-scroll-reading` (evidence module),
+The complete declaration list is [releaseQueues](../../job-queues.ts); the worker's
+[consumer registry](../../../../../apps/worker/src/jobs.ts) shows which feature gates apply.
+Examples of declared work: `evidence.apply-action` and `evidence.project-scroll-reading` (evidence module),
 `identity.sweep-sign-in-records` (identity; scheduled every 15 minutes: deletes expired sign-in links
 and long-ended sessions), `reasoning.purge-expired-requests` (reasoning; scheduled every 15 minutes:
 deletes protected model request bytes past their retention) and `reasoning.sweep-dispatched-attempts`
@@ -51,3 +53,9 @@ no JSON job-history scan, new queue, second outbox or paid permission is introdu
 still needs the role's current authority, original generation, no live claim and real source or
 explicit eligible resume; it preserves the business run and attempt ledger. Actual queue-ID,
 expiry, stale-delivery, unknown-accounting and rollback fixtures run in hosted Actions.
+
+## Focused checks
+
+The database/process behavior is exercised through the integration fixtures. Use the [integration suite](../../../../../tests/integration/README.md)
+for real PostgreSQL and installed-process checks on disposable data. Fixture results do not
+verify a deployed database, host configuration or live account journey.

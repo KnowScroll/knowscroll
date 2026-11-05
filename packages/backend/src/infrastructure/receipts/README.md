@@ -26,3 +26,10 @@ Outcome versions: a release that writes outcome version N must still read N-1, b
 and rolling deploys span one release. `experience.apply-action` stores version 1; its shape gained
 `revision` before any receipt reached a shared database (the migrations had never left CI), so no
 older version 1 exists to read.
+
+## Focused checks
+
+From the repository root, run `pnpm --filter @knowscroll/backend exec vitest run src/infrastructure/receipts`
+for the colocated fixtures. Use the [integration suite](../../../../../tests/integration/README.md)
+for real PostgreSQL and installed-process checks on disposable data. Fixture results do not
+verify a deployed database, host configuration or live account journey.

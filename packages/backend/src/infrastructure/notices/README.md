@@ -22,3 +22,9 @@ again, which validates their session. Every subscribe and every relayed hint (â‰
 rechecks session validity and scope access. A revocation is therefore never skipped for good,
 only delayed until the next reconnect, subscribe or re-authorisation (tested in
 `release/spike-journey.test.ts` with a notice sent while the relay was down).
+
+## Focused checks
+
+The database/process behavior is exercised through the integration fixtures. Use the [integration suite](../../../../../tests/integration/README.md)
+for real PostgreSQL and installed-process checks on disposable data. Fixture results do not
+verify a deployed database, host configuration or live account journey.

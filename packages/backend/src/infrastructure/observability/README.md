@@ -26,3 +26,10 @@ The only application logging path (blueprint §26).
   repeats the check on the running API and worker.
 
 Emit success events after commit: a log line is never proof of a committed effect.
+
+## Focused checks
+
+From the repository root, run `pnpm --filter @knowscroll/backend exec vitest run src/infrastructure/observability`
+for the colocated fixtures. Use the [integration suite](../../../../../tests/integration/README.md)
+for real PostgreSQL and installed-process checks on disposable data. Fixture results do not
+verify a deployed database, host configuration or live account journey.

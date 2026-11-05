@@ -104,3 +104,10 @@ Erasers are idempotent, so a failed Clear or erasure is retried. A Clear that fi
 personal table, or an eraser that does not report `completed`, rolls back before the barrier is
 released. Queue payloads are erased by the owning module's eraser (`deleteJobPayloads`,
 `deleteClearJobPayloads`); a job already claimed rechecks authority itself before any effect.
+
+## Focused checks
+
+From the repository root, run `pnpm --filter @knowscroll/backend exec vitest run src/infrastructure/erasure`
+for the colocated fixtures. Use the [integration suite](../../../../../tests/integration/README.md)
+for real PostgreSQL and installed-process checks on disposable data. Fixture results do not
+verify a deployed database, host configuration or live account journey.

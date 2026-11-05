@@ -71,17 +71,17 @@ tests, scripts and operations. Read changes by commit; focused checks belong bes
 | `ops/vps` | 58 | [ops/vps/README.md](../../../ops/vps/README.md) | Pending |
 | `packages/backend` | 6 | [packages/backend/README.md](../../../packages/backend/README.md) | Changed: replaced obsolete unwired-feature summaries with current module ownership and focused checks; checked package exports and composition roots. |
 | `packages/backend/src/erasure-registry.ts` | 1 | — | Pending |
-| `packages/backend/src/infrastructure/config` | 7 | [packages/backend/src/infrastructure/config/README.md](../../../packages/backend/src/infrastructure/config/README.md) | Pending |
-| `packages/backend/src/infrastructure/erasure` | 7 | [packages/backend/src/infrastructure/erasure/README.md](../../../packages/backend/src/infrastructure/erasure/README.md) | Pending |
-| `packages/backend/src/infrastructure/ids` | 6 | [packages/backend/src/infrastructure/ids/README.md](../../../packages/backend/src/infrastructure/ids/README.md) | Pending |
-| `packages/backend/src/infrastructure/jobs` | 8 | [packages/backend/src/infrastructure/jobs/README.md](../../../packages/backend/src/infrastructure/jobs/README.md) | Pending |
-| `packages/backend/src/infrastructure/lifecycle` | 3 | [packages/backend/src/infrastructure/lifecycle/README.md](../../../packages/backend/src/infrastructure/lifecycle/README.md) | Pending |
-| `packages/backend/src/infrastructure/media-store` | 4 | [packages/backend/src/infrastructure/media-store/README.md](../../../packages/backend/src/infrastructure/media-store/README.md) | Pending |
-| `packages/backend/src/infrastructure/notices` | 5 | [packages/backend/src/infrastructure/notices/README.md](../../../packages/backend/src/infrastructure/notices/README.md) | Pending |
-| `packages/backend/src/infrastructure/observability` | 8 | [packages/backend/src/infrastructure/observability/README.md](../../../packages/backend/src/infrastructure/observability/README.md) | Pending |
-| `packages/backend/src/infrastructure/postgres` | 11 | [packages/backend/src/infrastructure/postgres/README.md](../../../packages/backend/src/infrastructure/postgres/README.md) | Pending |
-| `packages/backend/src/infrastructure/receipts` | 7 | [packages/backend/src/infrastructure/receipts/README.md](../../../packages/backend/src/infrastructure/receipts/README.md) | Pending |
-| `packages/backend/src/infrastructure/research` | 2 | — | Pending |
+| `packages/backend/src/infrastructure/config` | 7 | [packages/backend/src/infrastructure/config/README.md](../../../packages/backend/src/infrastructure/config/README.md) | Changed: retained the clear ownership/authority/recovery reference and added runnable focused checks. |
+| `packages/backend/src/infrastructure/erasure` | 7 | [packages/backend/src/infrastructure/erasure/README.md](../../../packages/backend/src/infrastructure/erasure/README.md) | Changed: retained the clear ownership/authority/recovery reference and added runnable focused checks. |
+| `packages/backend/src/infrastructure/ids` | 6 | [packages/backend/src/infrastructure/ids/README.md](../../../packages/backend/src/infrastructure/ids/README.md) | Changed: documented both UUID helpers, job identity and authority limits. |
+| `packages/backend/src/infrastructure/jobs` | 8 | [packages/backend/src/infrastructure/jobs/README.md](../../../packages/backend/src/infrastructure/jobs/README.md) | Changed: linked the complete release and gated consumer registries; preserved schedule and retry ownership. |
+| `packages/backend/src/infrastructure/lifecycle` | 3 | [packages/backend/src/infrastructure/lifecycle/README.md](../../../packages/backend/src/infrastructure/lifecycle/README.md) | Changed: retained the clear ownership/authority/recovery reference and added runnable focused checks. |
+| `packages/backend/src/infrastructure/media-store` | 4 | [packages/backend/src/infrastructure/media-store/README.md](../../../packages/backend/src/infrastructure/media-store/README.md) | Changed: rewrote staging, publication, filesystem safety and crash recovery as an import journey. |
+| `packages/backend/src/infrastructure/notices` | 5 | [packages/backend/src/infrastructure/notices/README.md](../../../packages/backend/src/infrastructure/notices/README.md) | Changed: retained the clear ownership/authority/recovery reference and added runnable focused checks. |
+| `packages/backend/src/infrastructure/observability` | 8 | [packages/backend/src/infrastructure/observability/README.md](../../../packages/backend/src/infrastructure/observability/README.md) | Changed: retained the clear ownership/authority/recovery reference and added runnable focused checks. |
+| `packages/backend/src/infrastructure/postgres` | 11 | [packages/backend/src/infrastructure/postgres/README.md](../../../packages/backend/src/infrastructure/postgres/README.md) | Changed: retained the clear ownership/authority/recovery reference and added runnable focused checks. |
+| `packages/backend/src/infrastructure/receipts` | 7 | [packages/backend/src/infrastructure/receipts/README.md](../../../packages/backend/src/infrastructure/receipts/README.md) | Changed: retained the clear ownership/authority/recovery reference and added runnable focused checks. |
+| `packages/backend/src/infrastructure/research` | 2 | [README](../../../packages/backend/src/infrastructure/research/README.md) (added) | Changed: added the missing caller, network-policy, refusal and fixture guide. |
 | `packages/backend/src/job-queues.ts` | 1 | — | Pending |
 | `packages/backend/src/modules/composer` | 40 | [packages/backend/src/modules/composer/README.md](../../../packages/backend/src/modules/composer/README.md) | Pending |
 | `packages/backend/src/modules/content` | 188 | [packages/backend/src/modules/content/README.md](../../../packages/backend/src/modules/content/README.md), [packages/backend/src/modules/content/adapters/cutroom/wire-v1/README.md](../../../packages/backend/src/modules/content/adapters/cutroom/wire-v1/README.md), [packages/backend/src/modules/content/domain/library/README.md](../../../packages/backend/src/modules/content/domain/library/README.md), [packages/backend/src/modules/content/production/README.md](../../../packages/backend/src/modules/content/production/README.md) | Changed: added production/admission journey and checks; coverage and nested library/production/vendor review pending. |
@@ -130,3 +130,9 @@ Backend baseline unit run: 196 files / 2,298 tests passed; one media-probe test 
 its default executable `/usr/bin/ffprobe` is absent on this Mac (Homebrew has `/opt/homebrew/bin/ffprobe`).
 No media implementation or assertion was changed. Hosted CI installs the expected executable.
 This is an environment limitation, not a passing full backend suite.
+
+Focused module and infrastructure suites passed after these documentation/comment changes (see PR verification).
+Retained CLI candidate: `scripts/check-library-sources.mjs` is called by the Scroll production runbook;
+its dynamic import reaches the built research adapter. Retained `build-cutroom-wire.mjs` is called by
+the backend build and copies the pinned vendor schema. Neither is dead merely because it lacks a
+TypeScript importer. No runtime or immutable-input removal is proposed.
