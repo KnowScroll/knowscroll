@@ -7,7 +7,7 @@ export const SweepSignInRecordsPayloadSchema = z.object({ v: z.literal(1) });
 export type SweepSignInRecordsPayload = z.infer<typeof SweepSignInRecordsPayloadSchema>;
 
 /**
- * The identity sweep (review m12): every 15 minutes the worker deletes sign-in links a day after
+ * Every 15 minutes the worker deletes sign-in links a day after
  * they expired (an unredeemed link holds an address, which is personal data) and sessions 30 days
  * after they ended, in small batches that skip rows another transaction holds. Nothing in the
  * request path deletes them. Safe to run late, twice or concurrently.
@@ -29,7 +29,7 @@ export const sweepSignInRecordsQueue = defineQueue({
   schedule: { cron: '*/15 * * * *', payload: { v: 1 } },
 });
 
-/** Opt-in only: the normal release registry does not install or consume this queue. */
+/** Runs an accepted Clear operation; releaseQueues installs it and the worker registers its consumer. */
 export const ClearExplorationJobSchema = z.strictObject({ v: z.literal(1), accountId: z.uuid(), commandId: z.uuid() });
 export type ClearExplorationJob = z.infer<typeof ClearExplorationJobSchema>;
 export const clearExplorationQueue = defineQueue({

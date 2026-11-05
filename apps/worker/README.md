@@ -1,5 +1,23 @@
 # @knowscroll/worker
 
+## Follow accepted work
+
+The API commits a durable request and its required pg-boss job together. This process consumes
+that job, rechecks the operation's current authority and commits its effects. A queue delivery
+is not permission to use an old account, epoch or model attempt. Start with
+[Account deletion](../../packages/backend/src/modules/identity/README.md#account-deletion-d-043)
+for a journey that includes retries and receipt recovery.
+
+[src/main.ts](src/main.ts) owns process startup and shutdown; [src/jobs.ts](src/jobs.ts) constructs
+the consumer registry. [src/operator.ts](src/operator.ts) dispatches explicit operator commands.
+The command sections below explain which commands can call providers or spend money.
+
+Run `pnpm --filter @knowscroll/worker test` from the root for unit fixtures. Database and
+installed-process checks use the [integration suite](../../tests/integration/README.md).
+Configuration, feature flags and provider grants are separate requirements; see
+[runtime configuration](../../docs/v2/engineering/runtime-configuration.md). No provider call is
+needed to read this module or run its unit fixtures.
+
 ## Startup and schedules
 
 The worker starts pg-boss as a `consumer`, builds the Nest context and registers every consumer of

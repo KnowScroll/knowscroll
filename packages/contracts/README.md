@@ -1,5 +1,19 @@
 # @knowscroll/contracts
 
+## Follow a public operation
+
+For example, [account.ts](src/account.ts) defines the deletion request and the progress/retry
+responses. The API parses the request, Identity checks authority and performs effects, and the
+device parses the answer. A schema declares the wire shape; it neither authenticates the caller
+nor proves that a controller is installed. Check [API routes](../../apps/api/src/routes.ts) for
+registration and the owning backend README for locks and retry behavior.
+
+Keep old serialized shapes until their supported readers and writers have been checked. In
+particular, strict new branches must not fall back to a legacy command when parsing fails.
+Run `pnpm --filter @knowscroll/contracts test` for schema/compatibility fixtures, then typecheck
+both producer and consumer when changing a contract. The [Account walkthrough](../backend/src/modules/identity/README.md#account-deletion-d-043)
+shows how a contract participates in a complete journey.
+
 JSON-native wire contracts shared by the API and its clients (blueprint §6): Zod schemas, oRPC
 contract routes, public IDs and the stable problem-code catalogue. Nothing here runs on only one
 side, and nothing here transforms data: parse first, then convert in the receiving adapter.

@@ -1,5 +1,23 @@
 # @knowscroll/client
 
+## Follow a screen
+
+Start at [app/_layout.tsx](app/_layout.tsx): it loads fonts, applies device preferences and mounts
+the account-scope provider. Expo Router chooses a file under `app/`; that file delegates to
+`features/`. Shared state and request recovery live in
+[client-core](../../packages/client-core/README.md); visual components live in
+[ui](../../packages/ui/README.md). `platform/` supplies web and native implementations. Keep both
+file variants when tracing callers: Metro chooses them by platform, not by an explicit import.
+
+For a complete example, follow the [Account deletion journey](../../packages/backend/src/modules/identity/README.md#account-deletion-d-043).
+The app keeps a receipt outside the signed-in scope, while ending that scope clears private screen
+resources. A progress read after sign-out is therefore expected, not an authentication fallback.
+
+Use the commands below for development and focused component checks. Current visuals come from
+[the design index](../../docs/v2/README.md); the archived screen matrix is historical context.
+Runtime observations in later sections refer to their recorded checks, not a new verification by
+this documentation change.
+
 One Expo (SDK 58) application for Android, iOS and the web, with Expo Router. It loads the
 bundled fonts from `packages/design-tokens/fonts/` (variable weight ranges via expo-font) and
 draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.

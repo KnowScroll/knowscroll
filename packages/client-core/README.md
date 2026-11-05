@@ -1,5 +1,22 @@
 # @knowscroll/client-core
 
+## Follow an account lifetime
+
+The app constructs an account-scope manager. A successful session read gives it the account and
+privacy epoch; each scope then owns its API client, query cache, controllers and recorders.
+A sign-out, account switch or epoch change ends those resources before a replacement scope is
+used. Device preferences and the deletion receipt live outside that scope by design.
+
+Start with [account-scope-manager.ts](src/account-scope-manager.ts), then
+[account-deletion.ts](src/account-deletion.ts) and [deletion-receipt.ts](src/deletion-receipt.ts).
+The [end-to-end Account walkthrough](../backend/src/modules/identity/README.md#account-deletion-d-043)
+explains why progress and retry remain available after the server ends every session.
+
+Run `pnpm --filter @knowscroll/client-core exec vitest run src/deletion-receipt.test.ts` from the
+root for that recovery fixture, or `pnpm --filter @knowscroll/client-core test` for the package.
+Fixtures use authored responses; passing them does not prove a live API or physical-device journey.
+The reference below describes each controller's storage, side effects and failure behavior.
+
 Client-side cores shared by web, Android and iOS: the typed API client, the TanStack Query client
 factory, and the AccountScope (#226: account + privacy epoch ownership of the query client, the
 API client, the hint socket and local stores) with the sign-in client, and the interaction recorder

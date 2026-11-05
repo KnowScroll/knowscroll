@@ -28,8 +28,9 @@ import { HealthController } from './http/health.controller.js';
 import { ObservationsController } from './http/observations.controller.js';
 
 /**
- * Explicit route index: every controller the API serves. Each controller implements routes of
- * `apiContract` from `@knowscroll/contracts`; nothing is discovered by scanning.
+ * Lists every controller Nest serves; nothing is discovered by scanning. JSON operations use
+ * `apiContract`. File downloads, media and the public share landing use dedicated handlers.
+ * Keep those HTTP entry points when checking callers: clients can reach them without an import.
  */
 export const apiControllers = [
   HealthController,

@@ -28,7 +28,7 @@ tests, scripts and operations. Read changes by commit; focused checks belong bes
 | `.nvmrc` | 1 | — | Pending |
 | `.prettierignore` | 1 | — | Pending |
 | `.prettierrc.json` | 1 | — | Pending |
-| `apps/api` | 105 | [apps/api/README.md](../../../apps/api/README.md) | Pending |
+| `apps/api` | 105 | [apps/api/README.md](../../../apps/api/README.md) | Changed: added request/wiring/check entry points and corrected route-index comment. Account traced; other controllers/operators pending. |
 | `apps/client` | 10 | [apps/client/README.md](../../../apps/client/README.md) | Pending |
 | `apps/client/app` | 46 | — | Pending |
 | `apps/client/e2e` | 77 | — | Pending |
@@ -61,7 +61,7 @@ tests, scripts and operations. Read changes by commit; focused checks belong bes
 | `apps/client/plugins` | 3 | — | Pending |
 | `apps/client/providers` | 4 | — | Pending |
 | `apps/client/theme` | 2 | — | Pending |
-| `apps/worker` | 29 | [apps/worker/README.md](../../../apps/worker/README.md) | Pending |
+| `apps/worker` | 29 | [apps/worker/README.md](../../../apps/worker/README.md) | Changed: added delivery/authority/operator reading order; worker unit tests passed with SSD TMPDIR. Remaining consumers/operators pending. |
 | `content` | 89 | [content/README.md](../../../content/README.md) | Pending |
 | `docs` | 1 | — | Pending |
 | `docs/archive` | 8 | [docs/archive/README.md](../../../docs/archive/README.md), [docs/archive/discovery-2026-10-19/README.md](../../../docs/archive/discovery-2026-10-19/README.md) | Pending |
@@ -69,7 +69,7 @@ tests, scripts and operations. Read changes by commit; focused checks belong bes
 | `migrations` | 110 | [migrations/README.md](../../../migrations/README.md) | Pending |
 | `ops/pool` | 4 | [ops/pool/README.md](../../../ops/pool/README.md) | Pending |
 | `ops/vps` | 58 | [ops/vps/README.md](../../../ops/vps/README.md) | Pending |
-| `packages/backend` | 6 | [packages/backend/README.md](../../../packages/backend/README.md) | Pending |
+| `packages/backend` | 6 | [packages/backend/README.md](../../../packages/backend/README.md) | Changed: replaced obsolete unwired-feature summaries with current module ownership and focused checks; checked package exports and composition roots. |
 | `packages/backend/src/erasure-registry.ts` | 1 | — | Pending |
 | `packages/backend/src/infrastructure/config` | 7 | [packages/backend/src/infrastructure/config/README.md](../../../packages/backend/src/infrastructure/config/README.md) | Pending |
 | `packages/backend/src/infrastructure/erasure` | 7 | [packages/backend/src/infrastructure/erasure/README.md](../../../packages/backend/src/infrastructure/erasure/README.md) | Pending |
@@ -100,13 +100,13 @@ tests, scripts and operations. Read changes by commit; focused checks belong bes
 | `packages/backend/src/modules/social` | 76 | [packages/backend/src/modules/social/README.md](../../../packages/backend/src/modules/social/README.md) | Pending |
 | `packages/backend/src/modules/supply` | 51 | [packages/backend/src/modules/supply/README.md](../../../packages/backend/src/modules/supply/README.md) | Pending |
 | `packages/backend/src/reasoning` | 48 | [packages/backend/src/reasoning/README.md](../../../packages/backend/src/reasoning/README.md), [packages/backend/src/reasoning/adapters/minimax/README.md](../../../packages/backend/src/reasoning/adapters/minimax/README.md) | Pending |
-| `packages/client-core` | 145 | [packages/client-core/README.md](../../../packages/client-core/README.md) | Pending |
-| `packages/contracts` | 85 | [packages/contracts/README.md](../../../packages/contracts/README.md) | Pending |
+| `packages/client-core` | 145 | [packages/client-core/README.md](../../../packages/client-core/README.md) | Changed: added account lifetime and recovery reading order; 64 files / 872 unit tests passed. Remaining controller review pending. |
+| `packages/contracts` | 85 | [packages/contracts/README.md](../../../packages/contracts/README.md) | Changed: explained schema versus runtime authority, compatibility and focused tests; contract reference review remains pending. |
 | `packages/design-tokens` | 20 | [packages/design-tokens/README.md](../../../packages/design-tokens/README.md), [packages/design-tokens/fonts/README.md](../../../packages/design-tokens/fonts/README.md) | Pending |
 | `packages/scene-core` | 34 | [packages/scene-core/README.md](../../../packages/scene-core/README.md) | Pending |
 | `packages/scroll-model` | 165 | [packages/scroll-model/README.md](../../../packages/scroll-model/README.md), [packages/scroll-model/fixtures/README.md](../../../packages/scroll-model/fixtures/README.md) | Pending |
 | `packages/ui` | 286 | [packages/ui/README.md](../../../packages/ui/README.md) | Pending |
-| `root` | 11 | [README.md](../../../README.md) | Pending |
+| `root` | 11 | [README.md](../../../README.md) | Changed: newcomer setup, request journey, package map and check commands; root configuration/dependency manifests checked. Root tooling review continues below. |
 | `scripts` | 4 | — | Pending |
 | `scripts/issue-context` | 3 | — | Pending |
 | `scripts/release` | 3 | — | Pending |
@@ -124,4 +124,4 @@ immutable design inputs or supported-behavior fixtures.
 
 Dependencies installed from the frozen lockfile. Account source traced against D-043; no live
 account deletion performed. Client-core suite passed: 64 files, 872 tests (the package command forwarded `--` and ran the full suite). Continue the pending inventory.
-Combined checks, complete-diff review, merge and dev verification remain outstanding.
+Format, typecheck and dependency boundaries passed after Account. API, worker and contracts unit suites passed after entry-point edits with `TMPDIR` on the SSD. The first worker run used macOS default temp paths and hit the intentional symlink refusal; no assertion was changed. Combined checks on the final head, complete-diff review, merge and dev verification remain outstanding.

@@ -1,5 +1,19 @@
 # @knowscroll/api
 
+## Start with a request
+
+A signed-in person's request enters [main.ts](src/main.ts), passes the HTTP guards and reaches a
+controller listed in [routes.ts](src/routes.ts). [app.module.ts](src/app.module.ts) supplies its
+backend dependencies. Controllers translate outcomes into responses; background work is queued,
+not awaited. The [Account deletion walkthrough](../../packages/backend/src/modules/identity/README.md#account-deletion-d-043)
+shows the session, scope and receipt boundaries together.
+
+Run `pnpm --filter @knowscroll/api test` from the repository root for controller/unit fixtures.
+The [integration suite](../../tests/integration/README.md) exercises the installed API and worker
+against disposable PostgreSQL. Read [runtime configuration](../../docs/v2/engineering/runtime-configuration.md)
+before starting `dist/main.js`, migrating or using `dist/operator.js`; commands and tests do not
+by themselves verify a deployed world.
+
 ## Clear exploration
 
 Related: #345.
