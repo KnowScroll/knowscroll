@@ -1,6 +1,6 @@
 # Discovery snapshots (2026-10-19)
 
-Read-only discovery reports written before implementation started (evidence label: **source inspection**, plus read-only VPS/GitHub queries where stated). They describe what existed on 2026-10-19: the v1 repository at `dev@106c4701`, the VPS, GitHub settings, Cutroom and the v2.1 design export. They are inputs, not current truth; where they propose something, `../decisions.md` and the tracker record what was actually decided.
+Read-only discovery reports written before implementation started (evidence label: **source inspection**, plus read-only VPS/GitHub queries where stated). They describe what existed on 2026-10-19: the v1 repository at `dev@106c4701`, the VPS, GitHub settings, Cutroom and the v2.1 design export. They are inputs, not current truth; where they propose something, `../../v2/decisions.md` and the tracker record what was actually decided.
 
 | Report | Contents |
 |---|---|
@@ -10,4 +10,4 @@ Read-only discovery reports written before implementation started (evidence labe
 | [cutroom.md](cutroom.md) | Cutroom's HTTP contract at `94ee04a`, upstream drift, the v1 integration, live pool/budget state, and the proposed v2 `CutroomPort` |
 | [deploy-ci-vps.md](deploy-ci-vps.md) | GitHub workflows, rulesets, environments, the `ks` deploy tool, the live VPS layout and the implications for v2 |
 
-Renders of every artboard and storyboard step were made outside Git, in `/Volumes/Mrigesh SSD/knowscroll-dev/v2/design-reference/renders/` on the owner's SSD; regenerate them from `../design/` if needed.
+Renders of every artboard and storyboard step were made outside Git, in `/Volumes/Mrigesh SSD/knowscroll-dev/v2/design-reference/renders/` on the owner's SSD; regenerate them from `../../v2/design/` if needed.

@@ -9,3 +9,5 @@ KnowScroll is effortless discovery through Reel and Scroll encounters, with a pe
 **Start here:** [`AGENTS.md`](AGENTS.md) for working rules, [`docs/v2/`](docs/v2/README.md) for the architecture, design reference and decisions.
 
 The v1 implementation is preserved at the tag `legacy/v1-final`.
+
+To investigate a report or start from a GitHub issue, see the [shared issue workflow](docs/v2/engineering/issue-context.md).
