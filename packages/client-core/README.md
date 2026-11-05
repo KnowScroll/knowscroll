@@ -102,8 +102,9 @@ Status: **implemented**, unit-tested. `parseScrollDocument(input, {verify?})` is
 exposure's document, for either schema: the schema the server named picks `parseDocument` or
 `parseDocumentV2` (also exported), each checking structure and bounds and leaving the measures and hash to
 `verify`. The result is `valid` with its schema, `unsupported`, or `invalid` with codes and paths. The
-Explore and `/scroll/<id>` use it and draw a v2 document with the Stage + Spine reader (D-135); threads, snippets and Keep still declare v1 only, so a client that does not declare
-`scroll-document.v2` is never sent a v2 document. The recorder is unchanged: a v2 reader names a stop by its id as the block id and reports a call's reveal as the `revealed` interaction, which `SCROLL_INTERACTION_KINDS` already carries.
+Explore and `/scroll/<id>` use it and draw a v2 document with the Stage + Spine reader (D-135).
+Each mounted surface declares what it can render; thread readers also choose the stage-capable
+path when supplied. A client that does not declare `scroll-document.v2` is never sent a v2 document. The recorder is unchanged: a v2 reader names a stop by its id as the block id and reports a call's reveal as the `revealed` interaction, which `SCROLL_INTERACTION_KINDS` already carries.
 
 ## Readonly Universe session
 

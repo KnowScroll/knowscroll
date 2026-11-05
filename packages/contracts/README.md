@@ -1,5 +1,29 @@
 # @knowscroll/contracts
 
+## Find the contract for a journey
+
+| Journey | Contract sources | Runtime owner |
+| --- | --- | --- |
+| Sign-in, sessions, deletion and export | `identity.ts`, `account.ts` | Identity; API auth and account handlers |
+| Recording and Clear | `recording.ts`, `privacy.ts` | Identity, with module-owned recording and erasure effects |
+| Open, navigate, activate and Keep | `experience.ts`, `navigation.ts`, `saved-page.ts` | Experience; Composer proposes eligible offers |
+| Recorder batches | `interactions.ts` | Evidence intake and asynchronous projection |
+| Requests and answers | `supply.ts` and related request schemas | Supply and worker-owned Content production |
+| Geography and scenes | `geography.ts`, `scenes.ts`, `formation-presentation.ts` | Geography, Scenes and current account-scope consumers |
+| Friends, sharing and Talk | Social, conversation, thread and visibility schemas | Social; public share landing is a separate API handler |
+| Rooms, play and reports | `rooms.ts`, `play.ts`, `feedback.ts` | Their owning modules; play results never become ranking evidence |
+
+[src/router.ts](src/router.ts) assembles the JSON operations. [API routes](../../apps/api/src/routes.ts)
+show installed controllers; the [backend module map](../backend/README.md#follow-a-request) points
+to each authority, lock, table/job and recovery owner. File responses and the share landing do not
+become JSON routes simply because they share an HTTP prefix.
+
+The detailed sections below describe protocol requirements and retained compatibility shapes.
+Their declarations do not authenticate, install a worker or grant a model permission. For example,
+a receipt with `replayed: true` is a historical command answer, not current account authority.
+Read the owning use case before changing retry or refusal semantics, and keep old stored outcome
+readers until their supported records and callers have been checked.
+
 ## Follow a public operation
 
 For example, [account.ts](src/account.ts) defines the deletion request and the progress/retry
@@ -309,7 +333,7 @@ v1 manifest, chunk and descriptor, `silhouette.v1` and all three current familie
 it never substitutes a different generator/family to make a scene render.
 Rendering quality changes preserve object/family/generator/seed/anchor/target,
 truth and activity identities. Responses echo the exact selector and capability
-advertisement; the future adapter and AccountScope consumer must compare them to
+advertisement; the receiving adapter and AccountScope consumer must compare them to
 the initiating read. Extra supported version strings do not authorise new output.
 
 Every response separates the current authorised universe/epoch/root
@@ -327,7 +351,7 @@ read. New personal activity alone does not prove that Geography or scenes change
 `empty` contains an actual empty canonical manifest, without placeholder worlds.
 `ready` contains a nonempty current manifest. `loading` contains no manifest and
 requires an actual pending projector target. `lagging` retains the last valid
-manifest and requires a newer pending geography/root input. The future backend
+manifest and requires a newer pending geography/root input. The backend
 must verify real queued work; wire declarations cannot prove a job exists.
 Pending targets cannot name uncommitted future input. `unavailable` carries only
 fixed coarse reasons (`temporarily_unavailable` or `limit`), never provider text.
@@ -346,7 +370,7 @@ did not change for U-4: the generator is client code and the look is the whole o
 A chunk read binds universe/epoch, selection, exact `manifestSceneRevision`,
 `chunkId`, `chunkSceneRevision` and the capability advertisement. Chunk revisions
 may be older than the current manifest revision when that immutable chunk is
-still referenced. The future adapter must recheck current session, first-party
+still referenced. The receiving adapter must recheck current session, first-party
 origin, `X-KS-Scope`, current epoch, manifest membership, selection and
 capabilities under the owning scope. A guessed universe/chunk/revision never
 grants permission. An expired manifest or unknown chunk returns `unavailable`
@@ -505,7 +529,7 @@ activation, media grant, Evidence job, provider work or consumption is created.
 This is a narrow private Keep position wire exception, not a new field on
 observations, navigation, public content or Social.
 
-A read targets an exact immutable asset revision. The future backend binds the
+A read targets an exact immutable asset revision. The backend binds the
 actual `saved_items` reference and a separately minted `savedEntryId` for that
 membership. Same Save preserves it; Unsave deletes membership/place; resave mints
 a different identity. Do not derive it from legacy Save's no-op receipt: that
@@ -656,11 +680,11 @@ Related: #246.
 no handler, deletion executor, durable operation receipt, queue or client flow.
 No SQL number is allocated. First-party Origin, current session/`X-KS-Scope`,
 active account authority and private/no-store responses remain mandatory for
-both future adapters; these routes are not an unscoped authentication exception.
+both receiving adapters; these routes are not an unscoped authentication exception.
 Parsed IDs, confirmation, receipts and hashes never confer authority.
 
 A deliberate start supplies only version, commandId, expectedPrivacyEpoch and
-`confirmation: clear-exploration-preserve-keep-and-social`. The future owner derives
+`confirmation: clear-exploration-preserve-keep-and-social`. The owning use case derives
 account/universe, fences current authority before receipt lookup and atomically
 accepts one operation, advances epoch exactly once, sets a live-read barrier,
 revokes old sockets and enqueues IDs-only work. fromEpoch/toEpoch are positive
@@ -672,7 +696,7 @@ delivery; it contains neither completion nor a current authorization scope.
 Never construct an AccountScope from its toEpoch. Only the existing authenticated
 session owner establishes current scope.
 
-After accepted or unknown transport outcome, the future client synchronously
+After accepted or unknown transport outcome, the client synchronously
 fences and purges the old AccountScope before awaiting session refresh. It retries
 the exact original body/command only through a fresh current scope. A matching
 account-lifetime receipt can replay after later epoch changes; a changed body
@@ -735,7 +759,7 @@ resume is insufficient. No position, current membership override, force or Undo 
 accepted. Parsing is not authority; this declaration installs no endpoint or safer removal.
 Legacy asset-keyed Unsave stays unchanged and retains its known remove/resave race.
 
-A future adapter authenticates current session, Origin and `X-KS-Scope`, locks/rechecks
+The receiving adapter authenticates current session, Origin and `X-KS-Scope`, locks/rechecks
 the current personal root/account before receipt lookup and keeps all responses private
 and no-store. For a new command it must remove ONLY that exact current membership/ref.
 Missing/replaced membership refuses with fixed KEEP_ENTRY_UNAVAILABLE; it neither removes
@@ -808,7 +832,7 @@ and fence every in-flight response. Old replies cannot repopulate another scope.
 
 Ordering is full database-precision `saved_at DESC, asset_id ASC`, matching the
 existing recent index. Equal timestamps use the stable asset UUID tie-breaker.
-A future server encodes the exact last consumed database key; it never rebuilds
+The server encodes the exact last consumed database key; it never rebuilds
 an anchor from a millisecond-truncated JavaScript Date or checks that the anchor
 membership still exists. Deleting an anchor must allow continuation. Membership
 references/times are immutable, and resave creates a new UUID/time. Concurrent
@@ -832,7 +856,7 @@ place reads, and bounded cursor/page retention. Efficient selective-kind indexin
 remains an explicit later backend seam; no migration is included here.
 
 `ksp1_` cursors have 43..1024 base64url characters after the prefix. Parsing proves
-syntax only. A future server must authenticate **and keep confidential** the
+syntax only. The server must authenticate **and keep confidential** the
 private envelope, bound to purpose/world, account/universe, epoch, filter, limit,
 full-precision key and a short expiry. It rechecks current authority before
 consulting the token; a cursor grants no access. No positions, peer facts or
@@ -989,7 +1013,7 @@ such field (strict schemas refuse one), and a typing signal is never on the wire
 (`shared`) with its own `readReceiptsRevision`, on until turned off, independent of the audience and the availability
 choice. `sharing.test.ts` and `conversations.test.ts` hold the shapes.
 
-A future backend must enter the current personal root/account/epoch gates, then reuse the
+The backend must enter the current personal root/account/epoch gates, then reuse the
 existing private pair aggregate as its **sole** shared locking authority for direct conversation
 work. The conversation has a separate opaque public ID; no private pair root or revision travels.
 Never acquire a pair root and then a second conversation root. Current accepted pair lineage,
@@ -1058,7 +1082,7 @@ link then a new command. Original expiry is captured once, finite, later enforce
 no read/replay renews it. Concrete TTL/key/retention policies require later backend review. Fresh
 same-account current-resource lookup by shareId or original creation command can recover a retained
 own link after Clear without replaying the old-epoch command or exposing its token. Private reads
-still require current relevant authority. The dedicated future `/s/:token` landing must isolate
+still require current relevant authority. The dedicated `/s/:token` landing must isolate
 proxy/referrer/OpenGraph handling; sensitive API resolution uses JSON, not a general API path/query.
 No token in logs, ordinary receipts, notices, errors or persistent client storage. Metadata/card
 caches purge on scope end and revocation, and bounded foreground reads recover missed invalidations.
@@ -1316,7 +1340,7 @@ raw parser issues into this allowlist and install the direct RFC 9457 serializer
 alone does not sanitize parser exceptions for logging. OpenAPI describes the strict public error
 schemas and the original private Social family separately.
 
-The dedicated future `GET /s/:token` HTML landing is the explicit token-in-URL exception. It must
+The dedicated `GET /s/:token` HTML landing is the explicit token-in-URL exception. It must
 isolate proxy/access logs, referrers, history, OpenGraph and redirects. Tokens stay out of ordinary
 API URLs/query strings, receipts, diagnostics, notices and error bodies; the JSON preview carries
 its token only in its request body. No GET landing or cookie/cache/Origin policy is mounted here.
