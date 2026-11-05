@@ -1,6 +1,6 @@
 # Contributor workflow
 
-Use the relevant section when opening a branch, preparing a review, using providers or promoting a phase. The root working agreement links here. Windows contributors use their local worktree and development-data roots as described in the [v3 handover](../v3-revamp/handover.md).
+Use the relevant section when opening a branch, preparing a review, using providers or promoting a phase. The root working agreement links here. On Windows, use a dedicated local worktree directory and set $env:KS_DEV_ROOT in PowerShell to the absolute path of your development-data directory. On macOS, export KS_DEV_ROOT="/Volumes/Mrigesh SSD/knowscroll-dev/v2". The pnpm store is under that root. Run the same pnpm commands from the issue worktree on either machine.
 
 ## How we work
 

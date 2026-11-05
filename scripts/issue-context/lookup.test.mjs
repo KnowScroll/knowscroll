@@ -28,3 +28,18 @@ test('reads acceptance from CRLF issue Markdown without consuming later sections
     '- [ ] visible',
   );
 });
+
+test('Expo route punctuation and percent-encoded, pinned link targets survive lookup', () => {
+  const paths = [
+    'apps/client/app/(tabs)/universe.tsx',
+    'apps/client/app/conversations/[conversationId].tsx',
+    'apps/client/app/+not-found.tsx',
+  ];
+  const url =
+    'https://github.com/KnowScroll/knowscroll/blob/' +
+    'a'.repeat(40) +
+    '/' +
+    paths[1].replace('[', '%5B').replace(']', '%5D');
+  const brief = '\x60' + paths[0] + '\x60 [thread](' + url + '#L12) and ' + paths[2];
+  assert.deepEqual(readingPaths(brief, new Set(paths)), paths);
+});

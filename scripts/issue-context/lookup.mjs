@@ -1,10 +1,28 @@
 // Resolve only tracked repository paths. Issue text may come from a public contributor.
 export function readingPaths(body, files) {
   const paths = new Set();
-  for (const match of body.matchAll(/(?:^|[\s(\x60\[])([\w.-]+(?:\/[\w.-]+)+\/?)/gm)) {
-    const path = match[1].replace(/\/$/, '');
+  function add(candidate) {
+    const path = candidate.replace(/\/$/, '');
     if (files.has(path)) paths.add(path);
     else if (files.has(path + '/README.md')) paths.add(path + '/README.md');
+  }
+  // Inline code preserves spaces and Expo's literal route punctuation.
+  for (const match of body.matchAll(/\x60([^\x60\r\n]+)\x60/g)) add(match[1]);
+  // A prose link can have an arbitrary label. Read the pinned revision's path in the current tree.
+  for (const match of body.matchAll(
+    /https:\/\/github\.com\/KnowScroll\/knowscroll\/(?:blob|tree)\/[a-f0-9]{40}\/([^\s#<>]+)/gi,
+  )) {
+    try {
+      const path = decodeURIComponent(match[1]);
+      add(path);
+      add(path.replace(/\)$/, ''));
+    } catch {
+      // Ignore malformed URL escapes in the brief.
+    }
+  }
+  for (const match of body.matchAll(/(?:^|[\s(\[])([\w.-]+(?:\/[\w.+()[\]-]+)+\/?)/gm)) {
+    add(match[1]);
+    add(match[1].replace(/[\]).]+$/, ''));
   }
   return [...paths];
 }
