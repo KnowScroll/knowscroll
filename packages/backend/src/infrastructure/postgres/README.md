@@ -52,3 +52,9 @@ Ops views over pg-boss (#248, D-044): `ops-job-views.ts` drops, creates and gran
 `pgboss.job` (`ops.jobs`, `ops.queue_backlog`, `ops.recent_errors`) and grants the SELECT-only `ks2_ops_reader` role
 the allowlisted views. `migrate.js` calls it around pg-boss's own start, because a view blocks pg-boss's schema
 upgrades. The other `ops` views are migration 0057.
+
+## Focused checks
+
+The database/process behavior is exercised through the integration fixtures. Use the [integration suite](../../../../../tests/integration/README.md)
+for real PostgreSQL and installed-process checks on disposable data. Fixture results do not
+verify a deployed database, host configuration or live account journey.

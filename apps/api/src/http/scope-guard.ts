@@ -35,10 +35,10 @@ function refuse(response: Response, code: ProblemCode): void {
 }
 
 /**
- * Express middleware in front of every route (re-review N3): for each `/v1` request it resolves
+ * Express middleware before the controllers: for each `/v1` request it resolves
  * the caller from the credential (`UNAUTHENTICATED`, 401, when there is none) and requires the
  * scope claim to name that caller's account and current privacy epoch (`SCOPE_MISMATCH`, 409,
- * otherwise: review M1, m11), before any handler runs. The admitted caller is kept for the
+ * otherwise), before any handler runs. The admitted caller is kept for the
  * handler (`admittedCaller`), so no `/v1` handler resolves a caller itself; a handler reached
  * without the guard fails closed. A database failure answers like any handler's (retryable 503 or
  * `INTERNAL`). Opt-outs are only the reviewed `UNSCOPED_V1_ROUTES`.

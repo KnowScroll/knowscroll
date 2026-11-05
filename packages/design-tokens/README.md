@@ -1,5 +1,20 @@
 # @knowscroll/design-tokens
 
+## Use a visual rule
+
+A screen asks UI components to draw a semantic role, such as body text or a selected control.
+The component reads that role here; the app loads the bundled fonts. The v2.1 mapping remains
+below, with the v3 Universe and Talk palette added in `src/universe.ts`. Use the
+[current design index](../../docs/v2/README.md) to choose the artboard before changing a value.
+
+Start with [src/index.ts](src/index.ts). A token edit affects every component that reads it;
+keep contrast, reduced motion, text scaling and touch targets intact. The fonts and their licence
+files are bundled inputs and must remain together.
+
+Run `pnpm --filter @knowscroll/design-tokens test` for the token invariants, then the relevant UI
+component checks. A contrast fixture is not visual acceptance: compare the changed screen at its
+phone and desktop widths against its governing artboard.
+
 The semantic design tokens of the v2.1 export (`docs/v2/design/KnowScroll-design-v2.1/`,
 `Tokens.html` and `Components.html` first) as typed TypeScript objects, plus the three bundled
 fonts. The values are plain numbers and strings, so React Native `StyleSheet`, React Native Web

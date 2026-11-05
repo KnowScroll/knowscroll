@@ -14,6 +14,26 @@ Each migration's header comment states: owner module, authoritative/derived role
 shapes, indexes/constraints, expected growth, retention, correction/erasure, and rollout
 behaviour for older processes (blueprint §23 pattern 5).
 
+## Follow a schema change
+
+Add a new forward migration and its reviewed checksum to [src/registry.ts](src/registry.ts).
+The API release's migrator checks that registry before applying the pending batch under the
+migration lock. If any migration fails, the transaction rolls back the batch. Never use
+nontransactional statements such as `CREATE INDEX CONCURRENTLY` in this path.
+
+Run `pnpm --filter @knowscroll/migrations test` for registry/order/checksum fixtures and
+`pnpm --filter @knowscroll/migrations lint:sql` for SQL hazards. Hosted integration and release
+jobs apply the complete registry to disposable PostgreSQL and verify generated database types.
+Those checks do not show that a world has applied a migration; inspect its health and deployment
+before making that claim. Coordinate the next migration number immediately before merging.
+
+## Historical rollout notes
+
+The notes below explain earlier schema boundaries and compatible-writer requirements. They are
+not the current installation procedure or proof of a deployed recording pipeline. Follow the
+[current environment runbook](../docs/v2/operations/environments.md) for rollout and recovery;
+all applied SQL remains immutable.
+
 0040 adds Social's account-lifetime current public roster index/heads and latest hash-only invite.
 It backfills only existing explicit public sides and binds projection updates to the same pair transaction.
 All earlier SQL remains immutable; schema 40 requires compatible writers and no backward activation.

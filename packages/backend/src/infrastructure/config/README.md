@@ -65,3 +65,10 @@ settings (`KS_MEDIA_ROOT`, loopback `KS_CUTROOM_ORIGIN`, `KS_CUTROOM_ARTIFACT_RO
 printed) or, when unset, the world's own `DATABASE_URL` with its database name replaced by
 `knowscroll_pool`. Refused outside the operator worlds. The worker service reads none of these: it
 orders nothing.
+
+## Focused checks
+
+From the repository root, run `pnpm --filter @knowscroll/backend exec vitest run src/infrastructure/config`
+for the colocated fixtures. Use the [integration suite](../../../../../tests/integration/README.md)
+for real PostgreSQL and installed-process checks on disposable data. Fixture results do not
+verify a deployed database, host configuration or live account journey.

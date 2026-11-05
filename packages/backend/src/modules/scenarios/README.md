@@ -1,5 +1,22 @@
 # Scenarios: What if, Another perspective and the shared Scenario Planner
 
+## Follow a branch choice
+
+A thread member first asks for directions. A worker may suggest them, but only the member's
+explicit choice commissions a branch. The branch card and its Scroll remain reachable only to
+current thread participants while the branch stands. Reading the card records no consumption.
+
+Start at [public.ts](public.ts), [choose.ts](application/choose.ts) and
+[audience.ts](application/audience.ts). A retry keeps the command and branch identity; a model
+answer cannot bypass the thread's current standing or restore a removed branch. What-if premises,
+another perspective and an ordinary sequel keep their different meanings.
+
+From the repository root, run
+`pnpm --filter @knowscroll/backend exec vitest run src/modules/scenarios`
+for local rules and fixtures. Real-database and installed-process checks use the
+[integration suite](../../../../../tests/integration/README.md). Runtime notes below describe
+their recorded checks; see [Status](../../../../../docs/STATUS.md) for deployment evidence.
+
 In a content thread a member can ask "What if…" (change a premise of the explanation) or for "Another
 perspective" (the same facts through another lens), from the whole thread, a message or a shared snippet.
 A Planner proposes a few directions. The member chooses one, or writes a complete request of their own.

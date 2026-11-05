@@ -49,6 +49,11 @@ since the app has no file store yet). While an export prepares the page asks abo
 
 ## Delete account
 
+Follow the [Identity deletion walkthrough](../../../../packages/backend/src/modules/identity/README.md#account-deletion-d-043)
+for the contract, authority checks, worker locks and recovery. Starting deletion ends every session;
+status and retry use the saved receipt and have a separate client-address rate limit.
+
+
 The request is sent after the acknowledgement. The server ends every session with its answer, so the page
 sends the person to Account, where the receipt is read without a session: in progress, could not finish
 (Retry), or gone from our live systems, with backups named as a separate line and no date the app cannot
@@ -63,5 +68,5 @@ policy is displayed from a new correlated read, never inferred from the historic
 and history remain; necessary Save, Remove and action records still work while recording is known paused.
 Resume explains that opening a fresh encounter is required for recording to begin again. Legacy unuploaded
 batches with unknowable original generation are counted and disclosed as discarded; missing activity never
-becomes reading. Native persistence remains memory-only. RN and production-export HTTP fixtures are source and
+becomes reading. Native uses encrypted platform storage; writes are asynchronous, so an abrupt exit can lose the latest change. RN and production-export HTTP fixtures are source and
 CI evidence, not live privacy, qualification, emulator or physical-device acceptance.

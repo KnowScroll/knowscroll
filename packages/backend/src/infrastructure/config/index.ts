@@ -9,7 +9,6 @@ export {
 } from './release.js';
 export {
   AGENTMAIL_BASE_URL,
-  LIVE_WORLD,
   MINIMAX_MODELS,
   MINIMAX_REQUEST_TIMEOUT_MAX_MS,
   readApiConfig,

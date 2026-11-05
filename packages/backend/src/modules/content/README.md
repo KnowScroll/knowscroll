@@ -1,5 +1,21 @@
 # modules/content
 
+Content owns the shared explanations people can open: immutable admitted asset revisions,
+documents, source provenance, catalogue relationships, media and production. Experience asks it
+for an exact readable revision. Supply and operator commands can request production; workers
+call providers through the reasoning harness, validate the result and store it. Library release
+has its own review gate. A stored candidate is not automatically public content.
+
+Start with [public.ts](public.ts), then [the library plan](domain/library/README.md) and
+[production](production/README.md). Personal erasure removes personal ownership links through the
+registry; it does not delete shared library content or forget a paid attempt whose result is unknown.
+The sections below retain the coverage, media and spend recovery rules.
+
+Run `pnpm --filter @knowscroll/backend exec vitest run src/modules/content` from the root.
+Database, fake-provider and installed-process checks are in the
+[integration suite](../../../../../tests/integration/README.md). Real provider calls require the
+[provider budget rules](../../../../../docs/v2/engineering/contributing.md#providers-and-money).
+
 ## Library plan and concept catalogue
 
 The library plan is code-owned data in [`domain/library/`](domain/library/README.md): the topic

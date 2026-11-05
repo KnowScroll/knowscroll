@@ -1,5 +1,23 @@
 # Supply (Quartermaster)
 
+## Follow an ask
+
+The app records a private request and reads its current state. Supply first reuses admitted
+content, then joins suitable production, then commissions work within its caps. Resolver jobs
+recheck the person, epoch, source and admission each time they advance a waiter; a shared
+production job does not carry a person's private question in its queue payload.
+
+Start at [public.ts](public.ts), [requests.ts](application/requests.ts) and
+[resolve.ts](application/resolve.ts). A receipt says that a command was accepted; only a fresh
+request read says content is ready now. For example, `preparing` can survive a redelivery while
+the same production continues. A retry of unavailable supply never resends an unknown paid attempt.
+
+From the repository root, run
+`pnpm --filter @knowscroll/backend exec vitest run src/modules/supply`
+for local rules and fixtures. Real-database and installed-process checks use the
+[integration suite](../../../../../tests/integration/README.md). Runtime notes below describe
+their recorded checks; see [Status](../../../../../docs/STATUS.md) for deployment evidence.
+
 Supply turns a person's ask for something to explore into admitted content they can open. It reuses
 what exists, joins work that is already under way, and otherwise creates it: it commissions the
 production of a library Scroll. Blueprint §3, §11, §15 and §19; decisions D-035 and D-037.

@@ -11,3 +11,9 @@
 
 Unhandled rejections and uncaught exceptions are logged sanitised and exit 1. Exit status is a
 contract with systemd and the CI release tests.
+
+## Focused checks
+
+The database/process behavior is exercised through the integration fixtures. Use the [integration suite](../../../../../tests/integration/README.md)
+for real PostgreSQL and installed-process checks on disposable data. Fixture results do not
+verify a deployed database, host configuration or live account journey.

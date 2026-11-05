@@ -7,9 +7,23 @@ transport, admission and the external attempt ledger.
 
 A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
 
-Status: the pipeline below is **implemented** and has been **runtime-verified** with real
-`MiniMax-M3.1-Flash` calls against a local database (summaries in the pull requests for #232 and
-#239). It runs as worker jobs (next section). Not yet running on dev.
+## Follow a production job
+
+The library operator or Supply commissions a recipe/take. The worker's
+[production consumers](../../../../../../apps/worker/src/production-jobs.ts) run only when its
+production switch is enabled. [produce.ts](produce.ts) freezes public research, executes the
+writer and checks through the reasoning ledger, then stores an admitted result under the
+production root. A v2 library result is held until explicit review releases it.
+
+A repeated delivery resumes the same frozen job. A rejected take can permit a later take;
+an unknown paid attempt cannot be resent. Public research and model calls happen outside
+transactions. Publication, attribution and coverage commit together; a failed commit cannot
+publish only part of that state. The operator and worker share this use case.
+
+Run `pnpm --filter @knowscroll/backend exec vitest run src/modules/content/production` from the
+root. Hosted integration and installed-release fixtures exercise the database and consumer graph.
+Historical real-model observations are recorded separately in Status; this guide is not a new
+provider run or deployment check.
 
 ## Producing a v2 Scroll (D-129)
 

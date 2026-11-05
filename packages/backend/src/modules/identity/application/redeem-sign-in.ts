@@ -32,10 +32,10 @@ interface ResolvedLink {
 }
 
 /**
- * Whether this client may redeem this link (review m10): a link requested by a native app is
+ * Whether this client may redeem this link: a link requested by a native app is
  * bound to the verifier in that app's secure store (PKCE-style S256) and is redeemed only with
  * it; a native redemption needs such a binding; the web redeems unbound links only, after the
- * person confirmed the masked address (review m8).
+ * person confirmed the address shown by the peek operation.
  */
 function boundToThisClient(
   link: LinkRecord,

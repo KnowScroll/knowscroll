@@ -1,7 +1,7 @@
 // Runs ESLint over the repository in parts, one Node process per part.
 //
 // Typed rules load a TypeScript program for every project they meet, so one process over the whole tree grows with
-// the code until it no longer fits a heap (#641). Each part lints the folders it names; the last part lints the rest
+// the code until it no longer fits a heap. Each part lints the folders it names; the last part lints the rest
 // of the tree with those folders ignored. Every file is therefore linted exactly once, with the same config, and a
 // folder added later falls into the last part instead of being skipped. Every part runs even after a failure, so one
 // run shows every finding; the command fails if any part fails.

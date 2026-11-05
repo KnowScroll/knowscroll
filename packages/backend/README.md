@@ -30,28 +30,45 @@ dependency-cruiser, and its hashes are verified by the `integrity` CI job. Do no
 Tests: unit tests sit next to the code (`*.test.ts`, Vitest); real-PostgreSQL tests live in
 `tests/integration/`.
 
-Personal Planner (`modules/planner`, #236) owns backend-only coalesced role work and accepted future
-opportunities. Its execution gate defaults off; see its README for bounded prepared context,
-transactional triggers, explicit same-run resume, erasure and the separate paid-allowance requirement.
+## Follow a request
 
-Supply (`modules/supply`, #239) owns private requests, immutable receipts, current status and
-waiter cancellation plus an actual bounded IDs-only resolver. Canonical matching work contains
-only admitted public catalogue/lineage facts. No HTTP route or paid production bridge is installed;
-see its README for current Content fencing, erasure and remaining runtime acceptance.
+The apps choose concrete dependencies; modules expose framework-free operations through
+`public.ts`. For example, the API accepts an account deletion, Identity locks and fences the
+account and queues work, and the worker calls the registry's erasers. Follow the
+[Account walkthrough](src/modules/identity/README.md#account-deletion-d-043) for the complete path.
 
-Geography (`modules/geography`, #237) consumes current trusted PC coverage to validate bounded
-Cartographer proposals and commit stable meaning/deltas. Its independent feature flag defaults off
-and economic permit defaults false. Public own-universe/delta reads have no HTTP/scene consumer;
-CI formation fixtures are distinct from actual reading/provider/dev acceptance.
+| Module | Owns | Start here |
+| --- | --- | --- |
+| Identity | Sign-in, sessions, personal authority, recording, Clear, deletion and export | [README](src/modules/identity/README.md) |
+| Content | Admitted revisions, catalogue, library, media and production | [README](src/modules/content/README.md) |
+| Experience | Offers, activated exposures, navigation, Keep and explicit actions including Not interested | [README](src/modules/experience/README.md) |
+| Evidence | Intake and qualification of actual encounters | [README](src/modules/evidence/README.md) |
+| Personal Context | Revisioned personal projections read by other modules | [README](src/modules/personal-context/README.md) |
+| Composer | Ranking and prepared next-subject buffers | [README](src/modules/composer/README.md) |
+| Planner | Background personal opportunities | [README](src/modules/planner/README.md) |
+| Supply | Private requests, matching, production demand and answers | [README](src/modules/supply/README.md) |
+| Geography | Established places and changes from qualified evidence | [README](src/modules/geography/README.md) |
+| Scenes | Deterministic appearance and formation delivery | [README](src/modules/scenes/README.md) |
+| Social | Friends, conversations, threads, sharing and visits | [README](src/modules/social/README.md) |
+| Scenarios | What-if branches and alternative perspectives | [README](src/modules/scenarios/README.md) |
+| Rooms | Membership, discussions, AI residents and room activities | [README](src/modules/rooms/README.md) |
+| Play | Private call results, sparks and landmarks | [README](src/modules/play/README.md) |
+| Feedback | Abuse reports and content-error reports | [README](src/modules/feedback/README.md) |
+| Operator | Allowlisted diagnostic reads | [README](src/modules/operator/README.md) |
 
-Scenes (`modules/scenes`, #238) derives persisted bounded appearance from Geography's public
-same-scope input. Required apply jobs are atomic with Geography; immutable chunk/manifest
-versions and stable descriptor allocation back readonly backend ports. No HTTP, renderer,
-bootstrap, model work or formation acknowledgement is installed by this prerequisite.
+This is an ownership map of the current source, not a list of enabled features in a world.
+Check [API wiring](../../apps/api/src/app.module.ts), [worker wiring](../../apps/worker/src/jobs.ts)
+and [runtime configuration](../../docs/v2/engineering/runtime-configuration.md) for registration and
+feature gates. Check [deployment evidence](../../docs/STATUS.md) before making a runtime claim.
 
-Operator (`modules/operator`, #248) reads the allowlisted `ops` views for the Operator screen's panels, one record's journey across modules and the read-only `ks2_ops_reader` role. It owns no table and writes nothing; see `src/modules/operator/README.md`.
+## Focused checks
 
-Social exposes backend-only explicit profile/handle and Friends pair operations through its public ports. The source slice mounts no HTTP or worker producer, lists, invitations, visibility, visitor publication or presence. See `src/modules/social/README.md` for per-caller public revisions, private pair serialization and erasure limits.
+From the root, `pnpm --filter @knowscroll/backend exec vitest run src/modules/identity`
+runs Identity's colocated unit tests. Replace the final directory to focus on another module.
+`pnpm --filter @knowscroll/backend test` runs the whole package. Database and installed-release
+checks belong to [integration tests](../../tests/integration/README.md) on disposable PostgreSQL.
+Run `pnpm boundaries` after changing imports: another module's private adapter is not a shortcut
+around its public port.
 
 ## Adding a personal store
 

@@ -553,7 +553,8 @@ function ResolvedThread({
 /**
  * C04: one content thread. The episodes, the conversation and the encounter sit on one screen. What
  * is selected, folded or played is this person's own and stays on this device; the server holds the
- * messages, the people and what each person has opened themselves, and nothing about where anyone is.
+ * messages and current membership. Exact playback and branch state stay private; the separate
+ * places controller shares only an allowed coarse part/day, subject to each person's hiding choice.
  */
 export function ThreadScreen(params: {
   readonly threadId: string;

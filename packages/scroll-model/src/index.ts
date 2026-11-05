@@ -1,10 +1,10 @@
 /**
- * `@knowscroll/scroll-model`: the canonical declarative Scroll document, `scroll-document.v1`.
+ * `@knowscroll/scroll-model`: the canonical v1 and v2 declarative Scroll documents.
  * Pure TypeScript and Zod, no platform APIs: the API, the worker and the Expo app (web and native)
  * run this same code. Internal provenance and the producer contract are separate, backend-only
  * entries (`./internal`, `./producer`).
  *
- * Validation has two entry points (coordinator ruling on M1). ADMISSION, for the server, worker
+ * Validation has two purposes so devices avoid the expensive full-grid proof. ADMISSION, for the server, worker
  * and producer: `admitDocument`, `admitBlock`, `validateDocument` (either purpose always verifies
  * the measures and the hash; `'stored'` also proves every simulation over its whole grid), and the
  * producer's `validateDraft` and `compileDraft`. CLIENT, for the device: `parseDocument` (may skip

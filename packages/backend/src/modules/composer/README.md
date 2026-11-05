@@ -1,5 +1,26 @@
 # modules/composer
 
+## Follow the next subject
+
+A person activates a Reel or Scroll. Experience asks Composer to rank eligible content and queues
+preparation of the next subject. The worker can ask Jev about a bounded shortlist; navigation
+itself uses stored assessments or deterministic ranking and never waits for a model.
+
+Start at [public.ts](public.ts), [compose](application/compose.ts) and
+[buffer preparation](application/prepare-buffer.ts). Both navigation and the buffer worker receive
+Personal Context through `READ_COMPOSER_CONTEXT`. A stored decision pins its policy and input;
+replay must not reinterpret it with today's weights. A stale buffer falls back to fresh ranking,
+not to an old account or intent.
+
+For example, `current_explanation` excludes the explanation already on screen in either format.
+It is eligibility, not a small score penalty. Ranking an offer creates no reading evidence.
+
+From the repository root, run
+`pnpm --filter @knowscroll/backend exec vitest run src/modules/composer`
+for local rules and fixtures. Real-database and installed-process checks use the
+[integration suite](../../../../../tests/integration/README.md). Runtime notes below describe
+their recorded checks; see [Status](../../../../../docs/STATUS.md) for deployment evidence.
+
 Composer ranks encounters for Explore (blueprint §9). It has three parts: the pure ranking policy,
 a private store of every decision, and **worker-prepared buffers** with an optional model assessment
 (Jev). Navigation reads the Personal Context owner's bounded snapshot through `READ_COMPOSER_CONTEXT`.
@@ -7,12 +28,12 @@ a private store of every decision, and **worker-prepared buffers** with an optio
 | Capability | State |
 |---|---|
 | Pure policy `composeEncounter`, private decisions, erasure | implemented |
-| Buffer job `composer.prepare-buffer`, `composer.buffers`, serving from a buffer | implemented (integration-tested; not yet run on dev) |
-| Jev (`composer.jev`, `KS_JEV_ENABLED`) | implemented; four real MiniMax calls succeeded locally (M3 x3, M3.1-Flash x1); not yet run on dev |
+| Buffer job `composer.prepare-buffer`, `composer.buffers`, serving from a buffer | implemented (integration-tested; no live acceptance is asserted by this entry) |
+| Jev (`composer.jev`, `KS_JEV_ENABLED`) | implemented; four real MiniMax calls succeeded locally (M3 x3, M3.1-Flash x1); no live acceptance is asserted by this entry |
 | Stored-assessment use on the HTTP path | implemented |
-| A vertical move leaves the series the person is in (`same_series`, D-131) and its related move (`related_target`, D-136), and stays in the format they are in (`format_sticky`, D-132) | implemented, CI-tested against real PostgreSQL; not yet run on dev |
-| Jev reuse: a person's pool of recent assessments, `composer.jev_assessments`; a call only for candidates without one (D-058) | implemented, CI-tested against real PostgreSQL; run locally with the real model (12 activations: 1 call instead of 12); not yet run on dev |
-| Jev is a background role: it stops at its share of the daily model budgets and falls back to the deterministic ranking (D-058) | implemented, CI-tested; not yet run on dev |
+| A vertical move leaves the series the person is in (`same_series`, D-131) and its related move (`related_target`, D-136), and stays in the format they are in (`format_sticky`, D-132) | implemented, CI-tested against real PostgreSQL; no live acceptance is asserted by this entry |
+| Jev reuse: a person's pool of recent assessments, `composer.jev_assessments`; a call only for candidates without one (D-058) | implemented, CI-tested against real PostgreSQL; run locally with the real model (12 activations: 1 call instead of 12); no live acceptance is asserted by this entry |
+| Jev is a background role: it stops at its share of the daily model budgets and falls back to the deterministic ranking (D-058) | implemented, CI-tested; no live acceptance is asserted by this entry |
 | Policy v1 (`composer-policy.v1`, D-190): Intent 0.35 to 0.30, a recent-topic penalty of 0.05, Format per play level (D-192), exploration per play level; v0 decisions replay byte for byte | implemented, CI-tested (60 frozen v0 hashes); **off unless `KS_COMPOSER_POLICY=v1`** (default `v0`; dev sets `v1`); the numbers were chosen from the replay of dev's stored decisions (D-190) |
 | `composer replay-policy`: stored vertical decisions re-run under v0 and v1, counts only | implemented, CI-tested; run on dev (2026-10-31) over 640 stored decisions, D-190 |
 | Jev `jev.2` (D-193): kind, play level, minutes, series part n of m and the myth a Scroll corrects; never play | implemented, unit-tested; one real run on dev still to do |
@@ -153,7 +174,7 @@ offered what is already on screen. With nothing else to offer the move is exhaus
 
 ## A subject move is a new topic in the same format
 
-Status: implemented, CI-tested against real PostgreSQL; not yet run on dev. Related: #472, D-131, D-132, D-136.
+Status: implemented, CI-tested against real PostgreSQL; no live acceptance is asserted by this entry. Related: #472, D-131, D-132, D-136.
 
 The V3 grammar is swipe left for Part 2 and pull up for a new topic. Three rules in `domain/vertical-rules.ts`
 make a vertical move say the second.
@@ -335,7 +356,7 @@ real model; not yet runtime-verified on dev.
 
 ## Policy replay (D-190)
 
-Status: implemented, CI-tested; not yet run on dev.
+Status: implemented, CI-tested; no live acceptance is asserted by this entry.
 
 `node dist/operator.js composer replay-policy --since <ISO date> [--limit <1-20000>] [--intent-weight <0-1>]
 [--recent-topic-penalty <0-1>] [--sweep]` (worker release, server shell) re-runs the retained vertical decisions

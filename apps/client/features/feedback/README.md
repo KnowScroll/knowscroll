@@ -28,3 +28,15 @@ and sending create no exposure, observation or Keep, and a report is never shown
 Tests: component tests beside each file, the encounter session's Not interested flow (`encounter/encounter-session.test.ts`), and the web
 smoke `apps/client/e2e/feedback-smoke.spec.ts` over the production export (Not interested and Undo, a content error with its receipt, an
 abuse report kept offline and sent again with the same command ID, and the Reel's right-click and Shift+F10 menu).
+
+## Follow the request and check it
+
+This feature uses the active account scope's client-core controller; the matching backend owner
+checks the actual authority. Start with the [feature map](../README.md), then follow the screen's
+session hook into [client-core](../../../../packages/client-core/README.md). A component fixture's
+authored answer is not evidence that a live backend returned it.
+
+From the repository root, run
+`pnpm --filter @knowscroll/client exec jest --ci --runInBand features/feedback`.
+The app's hosted web smoke adds real browser/export checks. Keep privacy and failure assertions
+intact; passing these checks does not establish a new dev or native-device acceptance.

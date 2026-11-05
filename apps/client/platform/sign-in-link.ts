@@ -5,7 +5,9 @@ import { tokenFromLink } from './sign-in-link-token';
 export { tokenFromLink };
 
 /**
- * Native: the token of the link that opened the app (an app or universal link to `/redeem`). Not proved yet: native builds and app links are not set up (owner decision 2).
+ * Native: read the token from the link Expo reports for `/redeem`; parsing alone never redeems it.
+ * The app scheme is configured, but this hook does not establish universal-link or physical-device
+ * acceptance. Redemption still needs the matching native verifier.
  */
 export function useSignInLinkToken(): string | undefined {
   const url = Linking.useLinkingURL();

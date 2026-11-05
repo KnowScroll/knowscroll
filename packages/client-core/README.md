@@ -1,5 +1,22 @@
 # @knowscroll/client-core
 
+## Follow an account lifetime
+
+The app constructs an account-scope manager. A successful session read gives it the account and
+privacy epoch; each scope then owns its API client, query cache, controllers and recorders.
+A sign-out, account switch or epoch change ends those resources before a replacement scope is
+used. Device preferences and the deletion receipt live outside that scope by design.
+
+Start with [account-scope-manager.ts](src/account-scope-manager.ts), then
+[account-deletion.ts](src/account-deletion.ts) and [deletion-receipt.ts](src/deletion-receipt.ts).
+The [end-to-end Account walkthrough](../backend/src/modules/identity/README.md#account-deletion-d-043)
+explains why progress and retry remain available after the server ends every session.
+
+Run `pnpm --filter @knowscroll/client-core exec vitest run src/deletion-receipt.test.ts` from the
+root for that recovery fixture, or `pnpm --filter @knowscroll/client-core test` for the package.
+Fixtures use authored responses; passing them does not prove a live API or physical-device journey.
+The reference below describes each controller's storage, side effects and failure behavior.
+
 Client-side cores shared by web, Android and iOS: the typed API client, the TanStack Query client
 factory, and the AccountScope (#226: account + privacy epoch ownership of the query client, the
 API client, the hint socket and local stores) with the sign-in client, and the interaction recorder
@@ -85,8 +102,9 @@ Status: **implemented**, unit-tested. `parseScrollDocument(input, {verify?})` is
 exposure's document, for either schema: the schema the server named picks `parseDocument` or
 `parseDocumentV2` (also exported), each checking structure and bounds and leaving the measures and hash to
 `verify`. The result is `valid` with its schema, `unsupported`, or `invalid` with codes and paths. The
-Explore and `/scroll/<id>` use it and draw a v2 document with the Stage + Spine reader (D-135); threads, snippets and Keep still declare v1 only, so a client that does not declare
-`scroll-document.v2` is never sent a v2 document. The recorder is unchanged: a v2 reader names a stop by its id as the block id and reports a call's reveal as the `revealed` interaction, which `SCROLL_INTERACTION_KINDS` already carries.
+Explore and `/scroll/<id>` use it and draw a v2 document with the Stage + Spine reader (D-135).
+Each mounted surface declares what it can render; thread readers also choose the stage-capable
+path when supplied. A client that does not declare `scroll-document.v2` is never sent a v2 document. The recorder is unchanged: a v2 reader names a stop by its id as the block id and reports a call's reveal as the `revealed` interaction, which `SCROLL_INTERACTION_KINDS` already carries.
 
 ## Readonly Universe session
 
@@ -133,15 +151,15 @@ before canonical validation: these are accepted/retained-data bounds, **not a pr
 allocation guarantee**. Full/low/reduced-motion flags do not reduce wire cardinality or permit
 repeated oversized downloads.
 
-Tests are labelled authored protocol fixtures and run only in Actions. This prerequisite mounts no
-Universe UI or backend worker consumer; it does not establish populated-device performance, actual
-formation, a region-to-Composer seam or durable cross-device shown/skipped acknowledgement. Existing
-empty Universe UI and the accepted later layered react-native-svg direction remain separate work.
+Authored protocol fixtures exercise this session. The app's Universe controller mounts it and
+consumes the registered Geography/Scenes APIs; the backend worker projects scenes. Fixture
+success does not establish populated-device performance, actual formation or physical-device
+acceptance. Formation claim/disposition and region preview/Open have separate current owners.
 
 
-`createKeepPlaceSession({ scope, newCommandId })` is the ephemeral Keep place foundation; it is not mounted in the app. It requires the actual scope's `onEnd`, uses `scope.api`, and owns one controller per scope **object**, even when two objects have the same account/epoch IDs. `retain(target)` selects lazy details and returns a handle; release it when those details leave the foreground. At most 100 entries (including uncertain commands) and four underlying reads are retained/in flight. Existing scope query invalidation refreshes retained entries; there is no polling, persistence, extra socket or observation transport. The query cache contains only a completion marker, never a position or response body.
+`createKeepPlaceSession({ scope, newCommandId })` is the ephemeral Keep place controller mounted through the app's saved-place bridge. It requires the actual scope's `onEnd`, uses `scope.api`, and owns one controller per scope **object**, even when two objects have the same account/epoch IDs. `retain(target)` selects lazy details and returns a handle; release it when those details leave the foreground. At most 100 entries (including uncertain commands) and four underlying reads are retained/in flight. Existing scope query invalidation refreshes retained entries; there is no polling, persistence, extra socket or observation transport. The query cache contains only a completion marker, never a position or response body.
 
-A handle exposes authoritative read state, `setPosition`, explicit `retry`, `resolveConflict('server' | 'candidate')`, and `release`. Only a current available server read supplies a membership UUID and CAS revision. An uncertain acknowledgement retains the identical command ID/body and requires explicit retry with live authority; a later candidate coalesces without changing that command. An acceptance triggers a fresh read and is never treated as the current position. A stale CAS presents conflict/current-server state and requires a choice; it never silently overwrites another writer. Membership UUID is checked before revisions, so Unsave/resave cannot inherit a former membership's position or pending candidate. The future renderer must clamp positions against actual immutable media duration or measured canonical Scroll blocks.
+A handle exposes authoritative read state, `setPosition`, explicit `retry`, `resolveConflict('server' | 'candidate')`, and `release`. Only a current available server read supplies a membership UUID and CAS revision. An uncertain acknowledgement retains the identical command ID/body and requires explicit retry with live authority; a later candidate coalesces without changing that command. An acceptance triggers a fresh read and is never treated as the current position. A stale CAS presents conflict/current-server state and requires a choice; it never silently overwrites another writer. Membership UUID is checked before revisions, so Unsave/resave cannot inherit a former membership's position or pending candidate. The renderer must clamp positions against actual immutable media duration or measured canonical Scroll blocks.
 
 Scope end or authority refusal synchronously purges private snapshots, listeners and commands. Generation/read tokens also discard transports that ignore abort after release, membership replacement, or scope end. Ordinary network/read failures may retain a last valid same-membership snapshot under an unavailable state; it is not labelled current. `apiKeepPlaceProblem` is the finite strict problem helper: authorized stale revision metadata is preserved before the generic problem decoder strips extensions; `apiProblem` keeps its existing generic shape.
 
@@ -226,9 +244,9 @@ send. Returning parks the actual renderer/recorder and restores the exact privat
 without serializing camera or encounter positions on the region wire. Ordinary series, related,
 variant and What-if semantics are not reclassified as region discovery.
 
-This client consumer is fixture-testable against merged contracts. The real preview/Open backend
-is not installed by this change: missing/unsupported services remain unavailable, and canonical
-coverage/admission authority stays server-owned. Authored protocol/component/exported-browser
+The app mounts this client consumer and the registered RegionEncounterController serves the
+preview/Open backend. Missing or unsupported services still remain unavailable; canonical
+coverage and admission authority stay server-owned. Authored protocol/component/exported-browser
 fixtures run in Actions only and do not establish real formation, approved mappings, generated
 content, device parity or populated dev acceptance.
 

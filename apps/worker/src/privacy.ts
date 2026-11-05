@@ -33,9 +33,10 @@ export function clearExplorationConsumers(clear: {
 }
 
 /**
- * Account deletion and export (#246, D-043). The final failed delivery shows the receipt as
- * needing a retry; the recovery cron hands due deletions back to the queue either way, so the
- * best-effort mark is not the only way out of a failure.
+ * Runs accepted account deletions and exports after the request transaction commits. The deletion
+ * use case rechecks its authority under the operation locks; a queue delivery alone grants none.
+ * The last failed delivery marks the receipt for retry. Scheduled recovery also finds due
+ * operations if that mark fails or the worker exits before writing it.
  */
 export function accountPrivacyConsumers(
   use: {

@@ -41,7 +41,8 @@ import { receiptsErasure } from './infrastructure/receipts/erasure.js';
  * Completeness is proved against the migrated schema, not by a digest: `checkErasureInventory`
  * fails when a table carrying a universe, account or person owner column is not declared, and it
  * also runs inside every Clear. `identity.accounts`, `identity.universes` (the personal roots)
- * and the shared content tables hold no personal rows of their own and are not listed.
+ * are removed last by the account lifecycle, so they are not listed. Shared content has its own
+ * ownership and remains outside this personal-store registry.
  */
 const moduleErasures = [
   roomsErasure,

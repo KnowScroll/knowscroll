@@ -1,5 +1,21 @@
 # @knowscroll/ui
 
+## Follow a rendered encounter
+
+The app supplies a document and semantic callbacks; this package draws it with shared design
+tokens. A button reports an action to its caller. It does not authenticate, call the API or decide
+whether that person may save, share or read something. The app and client-core own those effects.
+Start with [src/index.ts](src/index.ts) and the component used by the screen you are changing.
+
+A native source and its `.web.ts` or `.web.tsx` sibling are both entry points. Metro resolves the
+platform variant; an absent explicit web import is not evidence of unused code. Browser Back,
+focus, links and gestures often need that separate implementation.
+
+Run `pnpm --filter @knowscroll/ui test` for both Jest projects. App-level browser smoke tests live
+under [apps/client/e2e](../../apps/client/e2e). Use authored fixtures for renderer tests, then check
+an actual changed screen at its governing artboard and responsive sizes. Fixture success is not a
+claim of physical-device or deployed visual acceptance.
+
 Accessible UI primitives of the v2.1 design (`Components.html`, `NavBar.html`, `N01`, `V01`) for
 React Native and React Native Web, built only from `@knowscroll/design-tokens`. Components are
 router-agnostic and data-agnostic: they take typed props and report semantic actions

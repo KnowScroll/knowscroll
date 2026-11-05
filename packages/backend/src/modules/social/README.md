@@ -1,5 +1,23 @@
 # Social: friends, conversations, threads and share links
 
+## Follow a shared Scroll
+
+One person sends a card to a friend or invites friends into a content thread. This module checks
+current account and relationship or membership authority, writes the message and receipt, and
+hints the recipients. Each recipient catches up from stored messages; the hint is disposable.
+
+Start at [public.ts](public.ts), [conversation-gate.ts](application/conversation-gate.ts),
+[thread-gate.ts](application/thread-gate.ts) and [thread-command-frame.ts](application/thread-command-frame.ts).
+Direct chats use the friendship's current lineage; threads use their own root and current standing.
+A shared card is not an encounter, and one person's reading position does not become another's.
+The separate places and SEEN sections below explain the limited sharing each person controls.
+
+From the repository root, run
+`pnpm --filter @knowscroll/backend exec vitest run src/modules/social`
+for local rules and fixtures. Real-database and installed-process checks use the
+[integration suite](../../../../../tests/integration/README.md). Runtime notes below describe
+their recorded checks; see [Status](../../../../../docs/STATUS.md) for deployment evidence.
+
 People find each other by handle, become friends, send each other a Reel or Scroll and talk about it.
 Several friends can explore one Reel or Scroll together in a content thread, and point each other at an exact moment, passage or block.
 A link to a Reel or Scroll can also be shared outside the app. A person can let friends visit their universe

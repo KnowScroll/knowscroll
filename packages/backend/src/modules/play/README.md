@@ -1,13 +1,31 @@
 # modules/play
 
+## Follow a locked call
+
+The reader submits a pick for a call in an activated Scroll revision. Code reads the immutable
+call, checks the original recording generation and computes correctness. The receipt, pick,
+tally and any landmark commit together. A retry returns the stored lock; another pick cannot
+replace the first one. While recording is paused the device may play without saving a server result.
+
+Start at [public.ts](public.ts), [lock-call.ts](application/lock-call.ts) and the
+[wall test](wall.test.ts). Picks, correctness, sparks and tiers stay behind the import and table
+walls. Thread picks live in Social and room activities live in Rooms, under their own membership
+locks. Landmarks are display overlays, never planet-formation evidence.
+
+From the repository root, run
+`pnpm --filter @knowscroll/backend exec vitest run src/modules/play`
+for local rules and fixtures. Real-database and installed-process checks use the
+[integration suite](../../../../../tests/integration/README.md). Runtime notes below describe
+their recorded checks; see [Status](../../../../../docs/STATUS.md) for deployment evidence.
+
 The play layer of a Scroll: the calls a person locks, the Final call included, whether they were right, the sparks and
 combo they earn, and the landmark the Final call awards (D-063, D-064, D-180 to D-182, D-187, D-188). Threads play a call together too, but a
-pick in a thread is stored by Social, behind a wall like this one (D-156); rooms will share it later.
+pick in a thread is stored by Social, behind a wall like this one (D-156); room play belongs to Rooms.
 
-Status: **implemented** and CI-verified against real PostgreSQL (`tests/integration/modules/play.test.ts`). Calls,
-sparks and combo are on dev (S-2). The Final call, the combo bonus and landmarks (S-3) are implemented here; they reach
-a person only once the Seasons library is regenerated with a landmark and a Final call that turns the tilt, so they are
-not yet run on dev.
+Status: implemented, with real-PostgreSQL fixtures in `tests/integration/modules/play.test.ts`.
+The deployed library revision decides which calls and landmark a reader receives. Historical
+S-2/S-3 acceptance and later dev observations are recorded in Status and the fidelity guide;
+this cleanup makes no new live play or formation claim.
 
 ## What a person can do
 
@@ -81,9 +99,9 @@ option and `newlyLocked: false`, and nothing changes. A landmark is awarded once
   policy again and sends the same lock.
 - Clear or a privacy reset: the receipt of an earlier epoch is never replayed, and the rows are gone.
 
-## Planned
+## Other play surfaces
 
-Play in rooms. It would not change the wall. The weekly Orbit (D-215) and the Universe's landmark overlay (D-214: the tray, the pennants on the globe and map, the lists) are implemented here and in the client and runtime-verified against authored fixtures (`e2e/universe-collection-smoke.spec.ts`), not yet on dev. Call it together in threads is built (T-E): a pick there lives in `social.thread_calls`, because it needs the thread's
+Room play lives in Rooms under its own walls; it does not change this module's wall. The weekly Orbit (D-215) and the Universe's landmark overlay (D-214: the tray, the pennants on the globe and map, the lists) are implemented here and in the client and runtime-verified against authored fixtures (`e2e/universe-collection-smoke.spec.ts`), not yet on dev. Call it together in threads is built (T-E): a pick there lives in `social.thread_calls`, because it needs the thread's
 lock, standing, places and blocks, which play may not import (D-180); `social` is walled by the allow-list
 `thread-pick-wall-only-listed-modules-import-social` and `social/wall.test.ts` (D-156). It reads this module's source of truth, a
 Scroll revision's calls, through Content's `READ_SCROLL_PLAY_FACTS`, which now also gives a call's words. A landmark is shown on a planet when the Universe reads `readLandmarks` and Geography's place concepts and joins them on the topic (D-214); it also shows on the Scroll's own end.

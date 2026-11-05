@@ -39,3 +39,15 @@ The structured-output carriers that earlier recipes used (`submit_output`, a JSO
 tool call) are gone. A model that writes a long nested JSON document inside an escaped string loses
 track of quotes and brackets; plain text JSON from a flat, forgiving authoring shape worked
 (`modules/content/production/README.md`).
+
+## Follow a transport failure
+
+The reasoning harness calls this adapter after ledger admission. The adapter must distinguish a
+request it can prove was not sent from an uncertain outcome after dispatch. It returns bounded
+usage or a typed failure; it cannot authorize a new paid request. Read the parent
+[attempt lifecycle](../../README.md) before changing that classification.
+
+From the root, run
+`pnpm --filter @knowscroll/backend exec vitest run src/reasoning/adapters/minimax`.
+The tests use authored HTTP replies and make no provider call. Model names, thinking settings and
+usage mapping above describe this implementation; a real provider change needs separate evidence.
