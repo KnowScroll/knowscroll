@@ -22,7 +22,7 @@ Background reading:
   - §11 production, approved blocks, no model JavaScript;
   - §17 snippets: `scroll_passage`, `scroll_block`, block-state snapshots;
   - §18 Scroll rendering contract, gesture arbitration, interaction recorder.
-- **Design and gap analysis:** `docs/v2/discovery/scroll-dsl.md` (sections B–E), and the block inventory at the end of `docs/v2/discovery/design-screens.md`.
+- **Design and gap analysis:** `docs/archive/discovery-2026-10-19/scroll-dsl.md` (sections B–E), and the block inventory at the end of `docs/archive/discovery-2026-10-19/design-screens.md`.
 - **Decisions:** D-012 on the integration branch, plus the coordinator's rulings on the review of #254 (recorded below).
 
 ## Entry points
