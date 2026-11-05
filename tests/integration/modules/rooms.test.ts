@@ -97,8 +97,8 @@ describe('idea rooms (real PostgreSQL)', () => {
       const view = await readRoom(stranger, roomId);
       if (view.status !== 'preview') throw new Error('expected a preview');
       expect(view.inhabitants).toEqual([
-        { inhabitant: 'explainer', name: 'Nova', label: 'AI · Explainer', blurb: 'Answers when asked' },
-        { inhabitant: 'skeptic', name: 'Halley', label: 'AI · Skeptic', blurb: 'Pushes back on claims' },
+        { inhabitant: 'explainer', name: 'Nova', label: 'AI · Explainer', blurb: 'Explores ideas with you' },
+        { inhabitant: 'skeptic', name: 'Halley', label: 'AI · Skeptic', blurb: 'Offers another perspective' },
       ]);
       expect(view.hasModerator).toBe(false);
       expect(JSON.stringify(view)).not.toMatch(/memberCount|"members"|online|activity/i);
