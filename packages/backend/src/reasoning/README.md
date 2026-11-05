@@ -32,17 +32,17 @@ Run `pnpm --filter @knowscroll/backend exec vitest run src/reasoning` from the r
 transports and pure rules. Hosted integration tests exercise concurrent admission, settlement,
 recording and erasure against disposable PostgreSQL. No provider call is needed for those tests.
 
-## What works today
+## Implementation and recorded checks
 
 | Capability | Status |
 | --- | --- |
 | Personal harness: admission, budgets, quota preflight, dispatch, settlement and one repair | Implemented. CI exercises every transition against real PostgreSQL with the labelled fixture model. |
-| Background share: background roles stop at a share of the global and personal daily caps (D-058) | Implemented. CI exercises it, including 32 proposals racing, against real PostgreSQL with the fixture model. Not yet run on dev. |
+| Background share: background roles stop at a share of the global and personal daily caps (D-058) | Implemented. CI exercises it, including 32 proposals racing, against real PostgreSQL with the fixture model. These fixture results alone do not prove live activation. |
 | MiniMax transport (`MiniMax-M3.1-Flash`) | Implemented. Provider-call evidence is separate from Content admission and library release; see Status and Content production. |
 | Nonpersonal Scroll production scope | Implemented through gated worker jobs and explicit operator commands. Configuration and database-root authority are both required; see Content production. |
-| Nonpersonal rooms scope and the `ambient` budget class: a room's residents speaking on their own (v3 R-2, D-162) | Implemented. CI exercises the share and the scope's cap against real PostgreSQL with the fixture model (`reasoning-ambient-share.test.ts`, which fails if either ledger's ambient sum is broken). Off until `KS_REASONING_ROOM_ENABLED`; not yet run on dev. |
-| Recording-aware personal roles (Planner, Cartographer) | Implemented in source and CI. The roles are off by default and the path has not run on a live system. |
-| Recording-aware personal runs for Supply (a question's placement and library check, a Quick answer's writer and checks; D-264) | Implemented and CI-verified on real PostgreSQL with labelled fixture models. Not yet run on dev. |
+| Nonpersonal rooms scope and the `ambient` budget class: a room's residents speaking on their own (v3 R-2, D-162) | Implemented. CI exercises the share and the scope's cap against real PostgreSQL with the fixture model (`reasoning-ambient-share.test.ts`, which fails if either ledger's ambient sum is broken). Off until `KS_REASONING_ROOM_ENABLED`; these fixture results alone do not prove live activation. |
+| Recording-aware personal roles (Planner, Cartographer) | Implemented in source and CI. The roles are off by default and fixture results alone do not establish live activation. |
+| Recording-aware personal runs for Supply (a question's placement and library check, a Quick answer's writer and checks; D-264) | Implemented and CI-verified on real PostgreSQL with labelled fixture models. These fixture results alone do not prove live activation. |
 | Selective Clear accounting and erasure of a person's attempts | Implemented and CI-tested. |
 | Crash sweep and request purge jobs | Implemented, scheduled in the worker and CI-tested. |
 | Idle-run sweep: personal runs left `admitted` for six hours with no live attempt are closed `cancelled` | Implemented, in the five-minute sweep job and CI-tested (D-052). |
@@ -290,7 +290,7 @@ fixed accounting error. No missing/mismatched receipt is fabricated or treated a
 legitimate state/usage differences are not an immutable-identity mismatch.
 Global/role receipts and brakes survive eventual personal deletion. Existing eventual terminal
 row deletion still resets the documented per-scope allowance; changing that policy belongs to the
-later selective-clear design, not this prerequisite.
+owning accounting and lifecycle policy; a Clear must not silently change it.
 
 Only a freshly locked reserved row with NULL dispatch ID/time and its exact held receipt may
 atomically become not_sent/released under the root fence. Missing/inconsistent proof stays pending
@@ -302,12 +302,12 @@ Admission/dispatch/protected replay refuse marked work. Every committed answer i
 the ledger before return, never synthesized from local private settlement details. A missing or
 marked personal answer is ineligible. Written-off receipts can receive idempotent late usage even
 after their personal attempt was deleted; late output is never restored or applied. A later
-authorized retry may remove the exact old terminal rows; a future selective-clear coordinator
-must not repeat a universe-wide cleanup against fresh post-clear data.
+authorized retry may remove the exact old terminal rows. Identity's selective-Clear coordinator
+uses the captured exact set; it must not repeat a universe-wide cleanup against fresh post-clear data.
 
-This is a payload/accounting prerequisite, not the complete privacy operation: epoch/barrier,
-durable operation progress, client purge, selective Keep/Social preservation and completion copy
-remain separate. Drain old personal Reasoning workers before using this schema/eraser; a CHECK
+This engine owns payload redaction and accounting. Identity owns the epoch/barrier, durable
+operation progress and completion; the client owns scope purge, and each module declares selective
+Keep/Social preservation. These implemented owners form the complete Clear composition. Drain old personal Reasoning workers before using this schema/eraser; a CHECK
 refusal from an incompatible old writer is not a successful financial-settlement rollout.
 
 ### Storage at rest, backups and retention
@@ -682,8 +682,9 @@ Four nullable `reasoning.business_runs` proof columns are the only new storage d
 `recording_account_id`, `recording_generation`, `recording_context_sha256` and
 `recording_model_context_sha256`. They are inserted together with a new proved run and compared
 on retry; no legacy adoption/default/backfill is performed. Root owns their separate forward DDL
-and codegen. This source preview normally includes the frozen schema 43 prerequisite `2c49e1f0`; that composition
-remains source only and has no hosted fixture or runtime acceptance. Account linkage is declared; both full and selective erasers NULL all four proof
+and codegen. The ordered migration registry and generated database types supply that schema. Hosted recording
+and installed-release fixtures exercise current composition; their results are distinct from a
+real provider, deployed privacy journey or physical-device acceptance. Account linkage is declared; both full and selective erasers NULL all four proof
 fields in the same irreversible privacy-marker update. Usage receipts/brakes/late accounting
 remain unchanged and do not acquire account/context/proof data.
 

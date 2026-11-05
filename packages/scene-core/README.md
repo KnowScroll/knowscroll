@@ -80,7 +80,7 @@ return locators by their existing account/epoch resource scope.
 
 ## Look data (U-1)
 
-Status: implemented and unit-tested; not yet drawn by any screen. Related: #465, D-102, D-103.
+Status: implemented and unit-tested; the Universe planet planner and renderer consume stored looks. Related: #465, D-102, D-103.
 
 `SceneLookSchema` parses `scene-look.v1`, the persisted look of one object: a system's `haze` (one of
 `HAZE_FAMILIES`), a planet's `type` (one of `PLANET_TYPES`), `rings`, `moon`, whole-degree `hueShift`,

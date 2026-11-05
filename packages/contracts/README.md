@@ -50,16 +50,16 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/identity.ts` | `/auth/*` sign-in and session routes, the link and session token shapes, the session cookie names (D-022) |
 | `src/account.ts` | Sessions (`GET /v1/account/sessions`, end one, end others), personal data export (`POST/GET /v1/account/exports`, one-time link), account deletion (`POST /v1/account/delete`) and the session-less deletion receipt routes under `/auth/deletion` (#246, D-043); `DELETED_ACCOUNT_LABEL` is the placeholder every shared surface shows for a deleted account |
 | `src/operator.ts` | Operator panels and one record's journey (`GET /v1/operator/panels`, `/v1/operator/journeys/{id}`): operators only, 404 for everyone else, IDs and codes only (#248, D-044) |
-| `src/privacy.ts` | Declaration-only selective Clear exploration intent/acceptance, current coarse status and closed local problems |
-| `src/recording.ts` | Declaration-only recording policy read/set, immutable original receipts, current generation and closed private problems (#376) |
+| `src/privacy.ts` | selective Clear exploration intent/acceptance, current coarse status and closed local problems |
+| `src/recording.ts` | recording policy read/set, immutable original receipts, current generation and closed private problems (#376) |
 | `src/router.ts` | `apiContract`: every HTTP route the API serves |
 | `src/content.ts` | Re-export of the canonical `ScrollDocument` (`scroll-document.v1`) and `ClientCapabilities` from `@knowscroll/scroll-model`; never copied, and never its internal provenance or producer entries |
-| `src/saved-page.ts` | Versioned live Saved keyset pages, exact membership/format/availability rows and closed private list problems (#344 declaration prerequisite) |
+| `src/saved-page.ts` | Versioned live Saved keyset pages, exact membership/format/availability rows and closed private list problems |
 | `src/experience.ts` | `POST /v1/actions`, `GET /v1/saved`, and the exposure routes: `POST /v1/experience/open`, `POST /v1/experience/activate`, `GET /v1/experience/exposures/{id}/document` |
 | `src/navigation.ts` | Composer session discovery, `POST /v1/experience/navigate`, semantic intents, prepared public offers, ready/pending/exhausted receipt outcomes and offer activation |
-| `src/region-encounter.ts` | U04 declaration-only side-effect-free preview, exact displayed-target Open expectation, scoped Composer outcome and closed problems |
-| `src/formation-presentation.ts` | U05 declaration-only read, cross-device claim/current eligibility and shown/skipped terminal acknowledgement |
-| `src/supply.ts` | Declaration-only topic/format-variant requests, immutable acceptance/cancel receipts and current private request status; topic/variant HTTP declarations in `apiContract.supply` (HTTP adapters are registered in `apps/api/src/routes.ts`) |
+| `src/region-encounter.ts` | U04 side-effect-free preview, exact displayed-target Open expectation, scoped Composer outcome and closed problems |
+| `src/formation-presentation.ts` | U05 read, cross-device claim/current eligibility and shown/skipped terminal acknowledgement |
+| `src/supply.ts` | topic/format-variant requests, immutable acceptance/cancel receipts and current private request status; topic/variant HTTP declarations in `apiContract.supply` (HTTP adapters are registered in `apps/api/src/routes.ts`) |
 | `src/geography.ts` | Established geography pages, retained routes/aliases, typed applied universe deltas and the unlabelled dust cues (`geography.read`, `.deltas`, `.emerging`) |
 | `src/interactions.ts` | `interaction.v1`: the observation envelope, three `scroll.*` payloads and bounded paired `reel.playback` intervals; `observation-limits.v1` (shared with the recorder), `POST /v1/observations/batch` and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` |
 | `src/play.ts` | `play.v1` (D-180): `POST /v1/play/calls/lock` (`call.lock`: commandId, asset, revision, stop, option 0 to 2, recording generation; answers the stored lock with `correct`, `newlyLocked` and the Scroll's results, or `recorded: false` with a reason and nothing about the call) and `POST /v1/play/results/read` (the caller's calls in the order locked, sparks, combo and the landmark the Final call awarded, for one revision), and `POST /v1/play/landmarks/read` (the caller's own landmarks, newest first). The Final call is locked like any call; the landmark is `{key, name, tier: gold | plain}` (D-187, D-188). Correctness is never in a request; sparks (at most five) belong to one Scroll and there is no total, level or rank in any schema (D-064) |
@@ -124,13 +124,11 @@ legacy action fields still strip; malformed explicit linkage is refused, not str
 `currentAssetRevision` is allowed only with `availability: corrected` and a revision **different
 from** the immutable saved revision; replacement ordering is not assumed.
 
-The prerequisite API explicitly refuses discovery/revisit open, navigate, offer activation,
-context reads, exposure-linked actions (including Save/Unsave) and Like/Unlike/Hide
-with `EXPERIENCE_COMMAND_UNSUPPORTED` before legacy use-case effects. The direct client rejects a
-Composer outcome as a controlled session error. These declarations do not implement Composer,
-new action/evidence state, Saved metadata hydration or any Explore UI. No #234 runtime acceptance
-is claimed. Direct Scroll and Reel encounters use their implemented adapters; the prerequisite
-refusals above apply to the future Composer and action consumers.
+Experience's API and client encounter controller implement discovery/revisit, navigation,
+offer activation, context reads and explicit actions. Direct readers retain the direct-open
+response path; they must not reinterpret a Composer offer as an activated exposure. Follow
+[Experience](../backend/src/modules/experience/README.md) for the current transaction, receipt
+and recording gates. A wire schema alone establishes no runtime acceptance.
 
 Vertical discovery, declared series next/previous, admitted related moves, existing format variants
 and explicit new revisits are distinct intents. A missing variant is unavailable unless a real
@@ -144,7 +142,7 @@ navigate revisit names its current offer/exposure. Both create fresh lineage onl
 and still require actual qualified observations; neither overrides withdrawal or changes the saved
 immutable revision.
 
-Supply prerequisite (#239): `CreateContentRequestSchema` declares a fresh deliberate topic ask or
+Supply contracts: `CreateContentRequestSchema` declares a fresh deliberate topic ask or
 format-variant request, with one command ID retained unchanged on transport retries. Topic asks
 have bounded nonblank text (at most 500 UTF-16 code units) or a `content-concepts.v1` topic/facet
 reference; catalogue syntax is not membership, meaning or permission. Topic `format` permits
@@ -199,20 +197,22 @@ The shared `apiContract.supply` now declares `POST /v1/content/requests` (immuta
 `POST /v1/content/requests/cancel` (immutable cancellation outcome). Both commands use HTTP 200,
 including exact replays; acceptance is distinct from ready and never promises paid work. Cancel
 uses only its body request ID, avoiding competing path/body identities. Status GET has no request
-body and never creates demand, retries production or activates an encounter. The future adapter
+body and never creates demand, retries production or activates an encounter. The adapter
 must apply the existing first-party origin/session/AccountScope guards and map typed refusals to
 fixed RFC 9457 problems; it must not disclose another person's request existence. These are HTTP
-**declarations**, with no controller/client binding in this prerequisite. The already merged Supply
-backend public capabilities must be connected in the subsequent adapter PR. No new endpoint is
-claimed served or runtime-verified here; these declarations do not complete #239. Series-next/related
-commissioning needs a separate Content-owned admitted future-slot/move declaration and usable
+declarations. `SupplyController` and the client request controllers implement them; the
+[Supply guide](../backend/src/modules/supply/README.md) describes current reads, cancellation,
+request lists, explicit retry and production caps. This package owns neither their durable
+state nor permission for paid work.
+
+Commissioning a future series part or related move needs a separate Content-owned admitted future-slot/move declaration and usable
 consumer-facing revision; current links point to admitted assets, so no future Part or pending
 target is invented here. E07's bounded private request list and explicit retry on the same request
-ID need separate future declarations. Such retry must use a fresh retry command ID and recheck
+ID use their own contracts. Such retry uses a fresh retry command ID and rechecks
 authority, budget, fences and attempt ledger; replay/poll never implicitly retries production.
-There is no Supply/Planner/Cartographer paid allowance in this prerequisite; D-024's #232 allowance
-and owner-only Reel script approvals are unchanged. No backend, UI, queue or runtime acceptance is
-claimed by these declarations.
+These declarations grant no Supply/Planner/Cartographer paid allowance. Provider budgets and
+Reel script approvals belong to their operational owners; current gates and runtime evidence are
+separate from schema acceptance.
 
 ## Geography reads
 
@@ -439,7 +439,7 @@ preference and read receipts (SEEN); POST updates on profile/visibility/presence
 `/friends/request|accept|decline|cancel|remove|block|unblock`,
 `/invites/resolve|create|revoke` and `/visits/read`, all with `/v1/social` prefix.
 The bounded nested list cursor stays JSON on POST rather than inventing a query
-codec. Fixed API paths contain no handle, person or capability. Future adapters
+codec. Fixed API paths contain no handle, person or capability. Adapters
 retain first-party Origin/session/`X-KS-Scope` enforcement.
 
 Every command uses one command ID and exact validated body across uncertain
@@ -475,41 +475,43 @@ A create replay returns the same accepted link reference and unavailable deliver
 After losing the first delivery, deliberately revoke that link then issue a new
 create command. No implicit token reissue. Opening/resolving a link never sends
 or accepts a request; each side explicitly acts. Revocation leaves already
-accepted friendships unchanged. Lifetime/heartbeat/cooldown numbers remain
-future runtime policy, not values frozen from the planning proposal.
+accepted friendships unchanged. Lifetime, heartbeat and cooldown numbers belong to the owning runtime policy; they are not
+frozen by a planning proposal or inferred from schema ceilings.
 
 Visibility chooses nobody, chosen friends or all friends **and** explicit own
 system selections; widening an audience never auto-selects systems. Own settings
-may name own Geography IDs; visitors never receive them. Intended future defaults
-are nobody and hidden presence, not schema transforms or database seeds. Pair,
+may name own Geography IDs; visitors never receive them. Initial settings are nobody and hidden presence, chosen by the owning implementation rather
+than schema transforms. Pair,
 visibility, published projection, presence preference and presence expiry revisions
 have distinct meanings. Visible availability has a relative `validForMs` freshness
 lease (one-day transport ceiling, no selected heartbeat policy), conservatively
-aged from request start. Future adapters check actual expiry on every read and
+aged from request start. Adapters check actual expiry on every read and
 clients discard expired/lost-freshness presence. Hidden, expired and unknown have
 one constant `{state: "unknown"}` public shape without revision/TTL; never exact peer event/last-seen timestamps or playback.
 
-Visitor output is a **separate public projection**, initially `list.v1` only:
-explicitly shared system labels and opaque publication-scoped public system IDs.
+Visitor output is a **separate public projection**, `list.v1`: explicitly shared system and
+planet labels with opaque publication-scoped public IDs.
 These IDs must be generated for that public scope and never serialize private
 Geography/Scene/universe IDs. No private descriptor is reused and no new geometry
-DSL is invented. Graphical U06 rendering needs a separate reviewed public geometry
-extension; this prerequisite does not claim the complete visitor UI. Lists are
+DSL is invented. U06 derives a display-only map locally from public IDs; it receives none of
+the owner's anchors, families or seeds. Lists are
 bounded at 100 disclosed systems; overflow is unavailable, never private-count
 truncation. Empty lists assert only no disclosed systems. Generic haze/banner are
 constant consumer decoration, independent of hidden-world existence or size.
 
-Future reads recheck active accounts, accepted unblocked pair, current visibility
-and publication before returning the allowlist. Optional expected pair/visibility/
-publication revisions are exact checks, never permission; stale/denied/unpublished
-answers are uniformly unavailable without projection. Available responses echo
-selected target/capabilities and bind the public owner. Consumers compare request,
-AccountScope and independently monotonic revisions and purge on access/scope loss.
+Visit reads recheck active accounts, accepted unblocked pair, current visibility and publication
+before returning the allowlist. Input contains the version, selected target and capabilities;
+it has no expected pair/visibility/publication revision fields. Unavailable has one shape for
+stale, denied or unpublished data. Available responses echo the target/capabilities and bind the
+public owner and caller scope. `pairRevision` describes the visitor's friendship lineage;
+`publishedProjectionRevision` is an opaque random publication token, compared for equality only.
+It must never be ordered as a change counter or used to infer the owner's activity. Clients
+bind each answer to the initiating selection and active AccountScope and purge on access/scope loss.
 No coordinates, gaps, private counts/IDs, private history, evidence, peer presence
 timestamps, playhead/seen/branches, personal watermarks or personal seeds occur.
 Visits cannot form worlds, supply evidence or grant source access. Strict schemas
-cannot establish that a future server generated truly public IDs/labels; backend
-allowlist and denial/revocation tests remain mandatory before consumers ship.
+cannot establish that a server generated truly public IDs/labels; backend allowlist and
+denial/revocation tests check the actual projection and current visit authority.
 
 `sharing.test.ts` and focused real OpenAPI-generation assertions are synthetic
 wire fixtures, run only in GitHub Actions. They establish no actual friendship,
@@ -521,8 +523,8 @@ Related: #246.
 
 `keep-place.v1` declares `apiContract.keep.read` (POST `/v1/experience/keep/read`)
 and `setPlace` (POST `/v1/experience/keep/place`). Both take strict JSON bodies;
-private IDs and positions never enter URLs. These declarations install no HTTP
-route, storage, client persistence or privacy operation. Future adapters must
+private IDs and positions never enter URLs. Experience and the scoped Keep controller implement
+the routes and place lifecycle; see [Keep](../backend/src/modules/experience/README.md#saved-items-and-their-places). Adapters must
 apply first-party Origin, session and `X-KS-Scope` guards, private/no-store
 responses and current account/epoch authority. No observation, exposure,
 activation, media grant, Evidence job, provider work or consumption is created.
@@ -543,7 +545,7 @@ revision. Scope/target echoes and entry equality fence responses on the client.
 Positions preserve fractional milliseconds for Reel and fractional logical pixels
 inside a canonical top-level Scroll `LocalId` block. Finite nonnegative values up
 to `Number.MAX_SAFE_INTEGER` are a **transport representation bound only**.
-Future validation uses the actual immutable media port/duration (the current Reel
+Position validation uses the actual immutable media port/duration (the current Reel
 document validator permits 20–60 seconds); a future codec must not inherit a copied
 60-second universal limit. The renderer clamps Scroll offset after layout to its
 actual measured block/viewport. Server code cannot invent geometry from private
@@ -562,7 +564,7 @@ change and suspension must fence old commands and replay. Two devices get one CA
 winner; only authorised staleness reveals current revision, never current position.
 No wall-clock winner or blind overwrite/retry loop is implied.
 
-Future storage follows own personal-root then existing Identity authority gate,
+Storage follows the own personal root, then the existing Identity authority gate,
 exact membership/place and reviewed Content eligibility locking; receipt, place
 and required catch-up/hint effects commit atomically. No peer root or competing
 fence is introduced. Clients retain the highest current revision only within the
@@ -570,13 +572,13 @@ initiating AccountScope and membership. Legacy asset-keyed Unsave still has an A
 limitation and is outside this contract slice. A future local transfer must first
 read the current entry and revision 0, then issue a fresh command; bulk import or
 overwrite of a server place is not authorised. Park/explicit-exit coalescing and
-bounded retries belong to a later client adapter, separate from lossy observations.
+bounded retries belong to the scoped Keep client controller, separate from lossy observations.
 D025 local Back restoration grants no fresh activation/contribution. Scope end
 stops callbacks, discards late responses and purges scoped local positions; retained
 server Keep requires a fresh authorised read. Existing all-data erasure still
-deletes Saved; this prerequisite changes no deletion/preservation behaviour.
-Identity 309 is an authority gate and account-table inventory is not a deletion
-executor. The later storage/API/client/erasure work remains separate.
+deletes Saved; selective Clear preserves it under the declared lifecycle rules. Identity owns
+the authority gate, Experience owns the stored places and API, and the scoped client owns
+coalescing/recovery. Account-table inventory alone is not a deletion executor.
 
 `KeepPlaceProblemSchema` is a finite strict RFC 9457 union with fixed catalogue
 code/type/title/status. Only `KEEP_PLACE_REVISION_STALE` requires a current place
@@ -593,7 +595,7 @@ OpenAPI metadata, not an HTTP exception serializer. The actual generator tests
 register `ReadKeepEntry`, `SetKeepPlace`, `KeepEntrySnapshot`,
 `KeepPlaceAcceptance`, `KeepPlaceProblem` and each route error's exact data schema
 as named common components, proving status-specific response bodies without a
-second hand-authored schema. Future server error handling still needs independent
+second hand-authored schema. Server error handling has independent
 proof. Strict cross-field membership equality and exact counter increments are
 parser invariants beyond structural OpenAPI metadata. Synthetic wire/OpenAPI
 fixtures run only in GitHub Actions; no complete Keep journey or runtime privacy
@@ -614,7 +616,7 @@ Owner/epoch come from the authenticated scope, never the input. No Scene identit
 meaning/label/topic assertion, asset override, camera or playhead is accepted. The optional
 `expectedEncounter:{assetId,assetRevision}` is solely a displayed-target expectation: it
 never overrides canonical region selection or grants admission.
-Future HTTP adapters require first-party Origin, current session and `X-KS-Scope`
+Receiving HTTP adapters require first-party Origin, current session and `X-KS-Scope`
 guards, private/no-store responses and body/output ceilings. Private IDs stay in
 the JSON body, never paths, general logs, cursors or diagnostic payloads.
 
@@ -628,8 +630,8 @@ remain separate domains. Consumers must compare target/scope/command echoes and
 fence stale or late responses; schemas cannot compare an initiating request for
 them or establish current backend authority.
 
-No controller, Composer consumer, metadata lookup, job, SQL or UI is installed.
-Before implementation, Geography must resolve the actual own region/parents and
+The registered region controller, Experience use case and Universe consumer implement this
+path. [Experience](../backend/src/modules/experience/README.md#region-preview-deliberate-open-and-constrained-activation-u04) owns the transaction and capability checks. Geography must resolve the actual own region/parents and
 canonical topic+facet under the current personal root and active-owner fence,
 refusing stale/foreign/unsupported/ambiguous targets and alias redirection.
 Content must retrieve by admitted non-incidental parent topic AND exact facet
@@ -662,12 +664,12 @@ Global ProblemDetails and legacy open/activation stripping remain unchanged.
 
 Wire/refinement and actual OpenAPI-generation fixtures run in GitHub Actions only.
 They prove no established region, current target binding, runtime endpoint,
-provider compatibility, browser/native journey or #238 completion. A later client
+provider compatibility or a browser/native journey. The client
 must preserve AccountScope disposal and its local exact camera/selection return,
-accessible dialog/focus/keyboard and truthful unavailable states. U05 durable
-per-account claim/disposition consumers remain separate unimplemented work. The new
-wire declarations below do not replace those consumers; origin IDs, an Open receipt
-and local memory cannot enforce cross-device uniqueness.
+accessible dialog/focus/keyboard and truthful unavailable states. Scenes owns the durable
+per-account formation claim/disposition, served through the registered FormationController and
+worker maintenance consumers. Wire declarations do not replace that durable state: origin IDs,
+an Open receipt and local memory cannot enforce cross-device uniqueness.
 
 
 ## Selective Clear
@@ -676,9 +678,11 @@ Related: #246.
 
 `clear-exploration.v1` declares `apiContract.privacy.clearExploration` (POST
 `/v1/privacy/clear-exploration`,202) and `readClearExplorationStatus` (read-only POST
-`/v1/privacy/clear-exploration/status`,200). These strict JSON declarations install
-no handler, deletion executor, durable operation receipt, queue or client flow.
-No SQL number is allocated. First-party Origin, current session/`X-KS-Scope`,
+`/v1/privacy/clear-exploration/status`,200). Identity owns the durable operation, receipt and
+maintenance capabilities; the registered PrivacyController, worker consumers and app Clear panel
+form the current journey. Migrations 0034/0035 establish its durable state and recovery. See
+[Identity Clear](../backend/src/modules/identity/README.md#selective-clear-the-durable-core).
+First-party Origin, current session/`X-KS-Scope`,
 active account authority and private/no-store responses remain mandatory for
 both receiving adapters; these routes are not an unscoped authentication exception.
 Parsed IDs, confirmation, receipts and hashes never confer authority.
@@ -717,23 +721,24 @@ Failed does not claim rollback of partial deletion. No percent, counts, owner ta
 names, private item lists, arbitrary error text or ETA is public. Status is a read:
 no enqueue, Evidence, activation, model or reconciliation call.
 
-Later lifecycle owners must preserve exact Keep membership UUID/ref/revision/time
+Lifecycle owners must preserve exact Keep membership UUID/ref/revision/time
 and full position/place CAS, Social friendships/settings and explicitly declared
 conversation state, while deleting old action origins/exposures/history, Evidence,
 Personal Context/Memory, Composer/planner and all Scene/Geography versions/jobs.
 Keep is never a source for reconstructing cleared evidence or worlds. Current
-full-delete/eraseUniverse behavior remains unchanged. No conversation store is
-claimed implemented by this declaration. An account-owned durable receipt must
+full-delete/eraseUniverse behavior remains unchanged. Social owns the conversation stores;
+these schemas perform no erasure. An account-owned durable receipt must
 survive epoch changes; existing erasable personal receipts are insufficient.
-A real selective-maintenance capability and lock-free live-read barrier are still
-missing. Monotonic internal core_done must prevent old retries deleting fresh
+The selective-maintenance capability and live-read barrier are implemented in Identity.
+Monotonic internal core_done must prevent old retries deleting fresh
 new-epoch exploration after the barrier opens, even while old minimal accounting
 liabilities remain pending. Durable Reasoning request/output/context redaction and
 late-settlement suppression are prerequisites; unknown paid outcomes stay held,
 never blindly resent/refunded or reconstructed. All mandatory controllable live
 cleanup must be verified before completed_live; retained minimal usage accounting
 is separate. No backup/provider/offline expiry period or removal guarantee is
-invented. These implementation and real-journey prerequisites remain unallocated.
+invented. Database and installed-process fixtures check implementation separately from a live
+privacy journey; no schema or fixture result proves a backup/provider retention guarantee.
 
 `PrivacyProblemSchema` is a strict local RFC 9457 family using existing catalogue
 codes, fixed type/title/status and bounded schema-owned issue tokens or `unknown`.
@@ -805,8 +810,10 @@ filter, numeric limit and `requestCursor` to their initiating scope/request: a v
 response from an older server is insufficient. `requestCursor` is absent on the
 first page and must exactly echo the initiating opaque cursor on later pages;
 a response from a different same-filter page must not enter this page cache.
-A `more` token cannot equal that initiating token. This contract-only phase does
-not implement paging, a cursor codec, kind filtering or complete library access.
+A `more` token cannot equal that initiating token. Experience implements paging, current kind
+filtering and its confidential cursor codec; the scoped client validates the initiating page
+binding. See [Saved paging](../backend/src/modules/experience/README.md#listing-saved-items)
+for current authority, bounds and recovery.
 
 A strict new page contains at most 50 unique current Saved memberships (one per
 asset), their exact Saved UUID/immutable asset revision, actual Reel/Scroll kind,
@@ -866,16 +873,16 @@ opaque token, never plaintext private IDs/anchors. A changed kind/limit starts a
 fresh traversal. Deleted anchors and ordinary membership changes do not alone
 make an otherwise valid live cursor stale.
 
-The current API media grant adapter uses a per-instance random signing key that
-rotates on restart. A **separate** Saved AEAD key can follow that lifecycle without
-an environment secret or new table; this is a permitted future codec design, not
-implemented encryption. The current deployment runs one API instance. Restart,
+The API's [Saved cursor codec](../../apps/api/src/http/saved-cursors.ts) uses AES-256-GCM
+with a separate random key per factory/API instance. It authenticates and encrypts the
+claims without an environment secret or new table; it does not reuse the media-grant key. Restart,
 rotation, expiry, another instance, tampering or scope/filter/limit/purpose binding
 failure must uniformly answer fixed 409 `SAVED_CURSOR_UNAVAILABLE`; the UI offers
 Refresh and discards that traversal. No multi-instance portability or restart
 continuity is promised. Domain/application code sees only an opaque codec port;
 key creation stays outside personal transactions and is composed at the API seam.
-Consumers still need full codec expiry/tamper/cross-binding/rotation tests.
+The codec fixtures check expiry, tamper, cross-binding and restart/key rotation; a schema test
+alone cannot establish those properties.
 
 All GET success and error responses must be private/no-store, selected before
 query/body/auth parsing. Current session and `X-KS-Scope` guards remain mandatory;
@@ -890,11 +897,11 @@ express all union correlations; the actual wire parser remains authoritative.
 Synthetic schema/actual OpenAPI-generator fixtures run only in Actions. Real
 PostgreSQL >100/equal-timestamp/deleted-anchor/resave/kind/withdrawal tests,
 installed HTTP authority/private-error coverage, scoped client paging and the
-disposable-account deployed journey remain required after this prerequisite is
-accepted. This phase does not close #344 or full S01/S02/runtime acceptance.
+disposable-account deployed journey are distinct verification layers. Experience and the app
+provide the current implementation; these schema fixtures alone do not prove live Keep behavior.
 
 
-## Region preview and formation presentation (contracts only)
+## Region preview and formation presentation
 
 Related: #357.
 
@@ -933,7 +940,7 @@ schemas/identity/families/generators remain unchanged. Only an actual created pl
 may select full planet beats; optional new-system beats require matching system and
 star creations in that same fact. Existing systems skip them; system/region-only
 facts use a final still. Hypothetical truth framing never silently becomes factual.
-The later backend must verify actual Geography authority and all selected current
+The backend must verify actual Geography authority and all selected current
 manifest/chunk targets before offering eligibility, without inventing projection.
 
 A formation read returns at most one candidate, or none/unavailable/unsupported.
@@ -1047,7 +1054,7 @@ History has its own cursor and never replaces the active catch-up cursor. Retent
 refresh; do not invent missing changes. Current privacy/access gates still apply on every page.
 
 Durable send accepts plain text<=2000 UTF-16 units or a whole exact asset/revision with an optional
-note. No snippet/player locator enters this phase. Commands keep one stable commandId and exact
+note. No snippet/player locator enters this direct-send payload. Commands keep one stable commandId and exact
 original body after an unknown outcome, including a later 401/403 refusal that cannot reconcile the
 first attempt. Never mint a replacement or automatically reissue an ambiguous command. Receipts
 repeat only committed IDs/order and exact content identity, not message text, current membership,
@@ -1055,8 +1062,8 @@ delivery/seen assertions or access grants. Same canonical body replays one outco
 under that key is COMMAND_KEY_REUSED. Receipt, message/domain effects and required pg-boss work
 must commit in one transaction. Disposable ID-only NOTIFY hints cannot acknowledge a send; missed
 hints repair through authorized bounded HTTP catch-up/foreground refresh. No second outbox,
-socket command path or model/provider work is introduced. Report/abuse handling remains future
-implementation, not a fabricated successful moderation action.
+socket command path or model/provider work is introduced. Report/abuse handling belongs to the implemented Feedback module. A report receipt is not a
+claim that moderation has acted on it.
 
 `apiContract.contentShares` declares four JSON POSTs under `/v1/social/content-shares/`:
 `create`, `revoke`, current-own `read`, and sensitive `resolve`. Exact references never silently
@@ -1079,7 +1086,7 @@ withdrawal or access change cannot be bypassed by a historical message or creati
 A `kssh_` bearer token is delivered once, separately from the immutable acceptance; replay can
 recover the same shareId but never another token. Lost delivery requires deliberate revoke of that
 link then a new command. Original expiry is captured once, finite, later enforced from server time;
-no read/replay renews it. Concrete TTL/key/retention policies require later backend review. Fresh
+no read/replay renews it. Concrete TTL, key and retention policies belong to the Social implementation and its owning guide. Fresh
 same-account current-resource lookup by shareId or original creation command can recover a retained
 own link after Clear without replaying the old-epoch command or exposing its token. Private reads
 still require current relevant authority. The dedicated `/s/:token` landing must isolate
@@ -1093,27 +1100,27 @@ and purges scoped clients/sockets. Full account deletion separately removes auth
 message bodies/attachments, leaves minimal continuity markers and revokes private links; it must
 not delete other people's independent messages, retain erased text in summaries or promise recall
 of external copies/backups. Runtime erasers/account deletion are not implemented by this wire.
-All endpoints require current session/Origin/scope and private/no-store before parsing, except a
-future explicitly reviewed unscoped public landing/resolution composition; no current guard exemption
-is added here. The closed Social problem family reuses existing catalogue statuses/titles and only
+All endpoints require current session/Origin/scope and private/no-store before parsing, except the explicitly registered public share preview/landing composition. Its separate handler
+is not a wildcard exemption for private Social routes. The closed Social problem family reuses existing catalogue statuses/titles and only
 static issue tokens or unknown; it rejects raw values, numeric/dynamic paths, detail/instance and
 private cause/counter fields. OpenAPI describes direct RFC 9457 data, not a mounted serializer.
 
 Authored strict schema/privacy/cursor/order/replay/first-secret-delivery and actual OpenAPI tests run
 only in Actions. SQL/lock/concurrency/recovery/erasure, real HTTP/cache/membership/content authority,
 scoped client unknown-retry/purge, two-account share/reconnect/revocation and independent real
-encounter evidence remain mandatory follow-up work. This prerequisite does not finish 241/242 or
-claim mounted Social, delivery, public publication, media access or runtime acceptance.
+encounter evidence are checked by their owning integration/client/release journeys. Social and
+the app are implemented; strict schema fixtures alone do not prove live delivery, revocation,
+media access or runtime acceptance.
 
 ## Pausing personal recording
 
 Related: #376.
 
 `recording-policy.v1` declares two scoped private JSON POSTs in `apiContract.recording`:
-`/v1/privacy/recording/read` and `/set`. They are declarations only: no policy table,
-recording gate, API controller, worker, recorder behavior or account mutation is installed.
-Existing selective Clear schemas and contract bindings are unchanged. Export and account
-deletion remain separate unimplemented lifecycle work; this adds no authentication exception.
+`/v1/privacy/recording/read` and `/set`. Identity implements policy and receipts; the registered
+recording controller, scoped client recorder and worker effects enforce the original generation.
+Export and deletion are separate implemented Identity lifecycles. These schema declarations
+add no authentication exception; see the [Identity guide](../backend/src/modules/identity/README.md).
 
 Pause stops new durable passive encounter evidence and NEW derived personal growth,
 including growth inferred from explicit actions. Explicitly requested commands still need
@@ -1180,7 +1187,7 @@ private causes or operation body appears in errors. OpenAPI describes direct RFC
 not a mounted serializer/cache/Origin/auth guard. Authored synthetic schema/OpenAPI fixtures
 run in Actions only. Durable state/locks/unknown replay, real mixed-version intake/worker
 fences, scoped client callbacks/offline buffers, deployed pause/resume and preservation
-remain mandatory following work; this contract prerequisite does not finish #246.
+are separate implementation and runtime verification layers; none follows from a schema parse.
 
 ## Friends roster pages
 
@@ -1188,8 +1195,9 @@ Related: #378, #377.
 
 `friend-pages.v2` declares `apiContract.friendPages.friends` at private JSON POST
 `/v1/social/friends/page` and `.requests` at `/v1/social/requests/page`. These are
-pure read declarations only: no controller, list index, cursor codec, maintenance,
-client drain, friendship, invitation or runtime journey is installed. Existing
+pure read declarations. Social implements bounded indexed pages and the confidential cursor;
+the registered controller and scoped Friends session consume them. A page read changes no
+friendship or invitation. Existing
 `sharing.v1` schemas/tests and `/friends/read` / `/requests/read` declarations are
 unchanged, including their nonempty continuation rule. Unsupported old routes
 remain unavailable; malformed new input never downgrades to an old route/version.
@@ -1212,7 +1220,7 @@ private pair roots/revisions, peer epochs, raw scan anchors, counts, progress or
 hidden peer causes. Canonical caller-visible pair views retain their existing
 semantics; presence/expiry/private transitions never advance the public list head.
 
-The future backend must authenticate and keep confidential the opaque cursor,
+The backend must authenticate and keep confidential the opaque cursor,
 binding protocol/purpose/world, actual owner/universe/epoch, filter, public head,
 requested limit, advancing anchor, captured finite ceiling and expiry. Cursor
 syntax cannot establish authenticity or authority. Current eligibility may remove
@@ -1237,12 +1245,13 @@ its existing supported metadata hook. New input field paths absent from that
 allowlist (`requestId`, `filter`) must map to `unknown`; never echo dynamic keys,
 values, tokens or numeric indices. OpenAPI describes direct application/problem+json,
 not installed exception handling. Current session/Origin/`X-KS-Scope`, private/no-store
-before body/auth parsing and bounded output are mandatory in future adapters.
+before body/auth parsing and bounded output are mandatory in receiving adapters.
 
 `friend-pages.test.ts` and additive actual OpenAPI-generator assertions contain
 synthetic contract fixtures only, run in Actions. Current database authority,
 finite scan/token security, installed HTTP, scoped UI/client pagination and a real
-two-account Friends journey remain required after this declaration prerequisite.
+two-account Friends journey are separate checks of the implemented Social and client owners;
+contract fixtures do not replace them.
 
 ## Recording generation on commands
 
@@ -1260,14 +1269,14 @@ stripping. New branches retain strictness. Legacy DirectOpen expressly forbids
 this reserved field, including own undefined, so a mixed command cannot downgrade
 into a nonevidence direct open. Success response schemas and route bindings stay unchanged.
 
-This is a declaration prerequisite only. The following backend must distinguish
+The backend and worker consumers distinguish
 necessary requested effects from permission for NEW personal growth. A missing
 field can be growth-eligible only at actual initial generation 1/on; after the first
 real toggle, absence never inherits resumed current generation. A supplied stale
 or off generation still allows necessary authorized action/navigation state and
 receipts but remains permanently growth-ineligible for that intent. Schema
 acceptance of an even generation is deliberate and grants no recording authority.
-The original supplied field must survive validation into the future receipt's
+The original supplied field must survive validation into the receipt's
 canonical request hash. Omitted old bodies keep their original hash semantics;
 never insert a generation default before hashing or retry with a different body.
 
@@ -1279,7 +1288,8 @@ current generation. Later activation, reconciliation or an offline retry cannot
 relabel an old or paused intent as fresh growth. Necessary actions, Save/Like/Hide
 state, navigation, playback and Keep remain usable under their normal authority.
 Direct opens, media grants, presentation and Keep themselves remain nonevidence.
-These semantics need the separately allocated backend/worker/client consumers.
+Experience, Evidence, Identity and the worker/client consumers implement these gates. Their
+owning guides describe current transaction and recording authority; the wire grants none.
 
 Saved-list removal also carries its original generation so a genuinely eligible
 negative decision can correct its own previously committed Save credit. Removal
@@ -1304,7 +1314,7 @@ receipt-hash implementation or deployed journey is established by declarations.
 Related: #242.
 
 The original 13 direct-conversation/content-share operations above keep their schemas and
-refinements. Two additive declarations provide prerequisites for the later vertical implementation:
+refinements. Two additive contracts support current own-send recovery and public-only previews:
 
 - `conversations.readOwnSend`: `POST /v1/social/conversations/send/read` accepts a fresh `readId`,
   the current exact `DirectConversationRef`, and `{kind:'command',commandId}` selector. A current
@@ -1335,7 +1345,7 @@ The public error family has exactly eight fixed catalogue codes: invalid request
 payload too large, unsupported media type, unprocessable request, rate limit, unavailable service
 and internal failure. No auth/scope/pair/block-existence channel is exposed. Issue paths contain
 only `version`, `readId`, `token` or `unknown` (max 8 segments/max 32 issues); dynamic keys, values,
-numeric paths, raw errors, `detail` and `instance` are forbidden. Future HTTP adapters must project
+numeric paths, raw errors, `detail` and `instance` are forbidden. Receiving HTTP adapters must project
 raw parser issues into this allowlist and install the direct RFC 9457 serializer. Contract parsing
 alone does not sanitize parser exceptions for logging. OpenAPI describes the strict public error
 schemas and the original private Social family separately.
