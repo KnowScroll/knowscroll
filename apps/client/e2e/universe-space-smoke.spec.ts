@@ -311,14 +311,15 @@ test('with reduced motion it draws a still map and flies by jumping', async ({ p
   expect((await frames(page)).length).toBe(entered);
 });
 
-test('draws at a desktop size with the outline beside it', async ({ page }, testInfo) => {
+test('draws at a desktop size without reserving an outline column', async ({ page }, testInfo) => {
   const requests: Request[] = [];
   await openUniverse(page, requests, { size: { width: 1440, height: 900 } });
   await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible({
     timeout: 60_000,
   });
   await expect.poll(() => sunPixels(page), { timeout: 30_000 }).toBeGreaterThan(40);
-  await expect(page.getByRole('complementary', { name: 'Outline' })).toBeVisible();
+  await expect(page.getByTestId('universe-panel')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Browse', exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('universe-overview-1440x900.png') });
 });
 
@@ -407,9 +408,7 @@ for (const size of [
   });
 }
 
-test('draws the desktop panel, docks a picked planet’s card, and the Simple drawing switch turns the map into lists', async ({
-  page,
-}, testInfo) => {
+test('opens selected-place details in Browse and changes drawing from Settings', async ({ page }, testInfo) => {
   const requests: Request[] = [];
   await openUniverse(page, requests, { size: { width: 1440, height: 900 }, station: true });
   await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true }).first()).toBeVisible({
@@ -426,8 +425,105 @@ test('draws the desktop panel, docks a picked planet’s card, and the Simple dr
   await page.getByTestId('universe-map').focus();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('switch', { name: 'Simple drawing', exact: true }).click();
+  await page.getByRole('button', { name: 'Return to map', exact: true }).click();
   await expect(page.getByTestId('universe-simple')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('universe-simple-1440x900.png') });
+  expect(requests.every(({ method, path }) => method === 'POST' && READS.has(path))).toBe(true);
+});
+
+for (const width of [1024, 1440, 1920]) {
+  test(`D02 full canvas, Browse, focus and Settings at ${String(width)} px`, async ({ page }, testInfo) => {
+    const requests: Request[] = [];
+    await openUniverse(page, requests, { size: { width, height: 900 }, station: true, calm: true });
+    const map = page.getByTestId('universe-map');
+    const browse = page.getByRole('button', { name: 'Browse', exact: true });
+    await expect(browse).toBeVisible();
+    await expect(page.getByTestId('universe-panel')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Your universe', exact: true })).toHaveCount(1);
+    // Retained inactive map routes have the same chrome IDs. Focus belongs to this map's trigger.
+    await page.evaluate(() => {
+      const inactive = document.createElement('div');
+      inactive.hidden = true;
+      for (const id of ['universe-browse', 'universe-settings']) {
+        const control = document.createElement('button');
+        control.dataset.testid = id;
+        inactive.append(control);
+      }
+      document.body.prepend(inactive);
+    });
+    const bounds = (await map.boundingBox())!;
+    expect(bounds.x + bounds.width).toBe(width);
+    await page.screenshot({ path: testInfo.outputPath(`full-map-${String(width)}.png`) });
+    await browse.click();
+    await expect(page.getByRole('dialog', { name: 'Browse', exact: true })).toBeVisible();
+    await expect(page.getByRole('searchbox')).toBeFocused();
+    expect(await map.boundingBox()).toEqual(bounds);
+    await expect(
+      page.getByTestId('universe-panel').getByRole('button', { name: 'CI room, a room station', exact: true }),
+    ).toBeVisible();
+    await page.goBack();
+    await expect(browse).toBeFocused();
+    await expect(page.getByTestId('universe-panel')).toHaveCount(0);
+    await browse.click();
+    await page.getByRole('button', { name: 'CI system 0, system', exact: true }).click();
+    await expect(browse).toBeFocused();
+    await tapOrbitingTarget(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }));
+    await expect(page.getByTestId('universe-planet-card')).toBeVisible();
+    await browse.click();
+    await expect(page.getByTestId('universe-panel').getByTestId('universe-planet-card')).toBeVisible();
+    if (width === 1440) await page.screenshot({ path: testInfo.outputPath('browse-fixture-1440.png') });
+    await page.keyboard.press('Escape');
+    await expect(browse).toBeFocused();
+    await expect(page.getByTestId('universe-planet-card')).toBeVisible();
+    await page.keyboard.press('/');
+    await expect(page.getByRole('searchbox')).toBeFocused();
+    await page.getByRole('searchbox').fill('planet 3');
+    await page.getByRole('searchbox').press('Enter');
+    await expect(page.getByRole('heading', { level: 1, name: 'CI planet 3', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Back to CI system 0', exact: true }).click();
+    const settings = page.getByRole('button', { name: 'Settings', exact: true });
+    await settings.click();
+    await expect(page.getByRole('dialog', { name: 'Settings', exact: true })).toBeVisible();
+    if (width === 1440) await page.screenshot({ path: testInfo.outputPath('settings-fixture-1440.png') });
+    await page.getByRole('switch', { name: 'Lately', exact: true }).click();
+    await page.getByRole('switch', { name: 'Simple drawing', exact: true }).click();
+    await page.getByRole('button', { name: 'Return to map', exact: true }).click();
+    await expect(settings).toBeFocused();
+    await expect(page.getByTestId('universe-simple')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'CI planet 2, a planet in CI system 0', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'CI room, a room station', exact: true })).toBeVisible();
+    await settings.click();
+    await page.getByRole('switch', { name: 'Simple drawing', exact: true }).click();
+    await page.keyboard.press('Escape');
+    await expect(settings).toBeFocused();
+    await expect(map).toBeVisible();
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    await page.getByRole('button', { name: 'Back to Universe', exact: true }).click();
+    await page.getByRole('button', { name: 'Return to CI planet 3', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'CI planet 3', exact: true })).toBeVisible();
+    expect(requests.every(({ method, path }) => method === 'POST' && READS.has(path))).toBe(true);
+  });
+}
+
+test('desktop WebGL context loss automatically exposes the complete accessible list', async ({ page }) => {
+  const requests: Request[] = [];
+  await openUniverse(page, requests, { size: { width: 1440, height: 900 }, station: true, calm: true });
+  await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible();
+  await page.locator('canvas').evaluate((canvas: HTMLCanvasElement) => {
+    const context = canvas.getContext('webgl2');
+    const extension = context?.getExtension('WEBGL_lose_context');
+    if (!extension) throw new Error('Context loss extension must be available for this browser check');
+    extension.loseContext();
+  });
+  await expect(page.getByTestId('universe-simple')).toBeVisible();
+  await expect(page.getByTestId('universe-panel')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'CI system 0', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'CI planet 2, a planet in CI system 0', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'CI planet 3, a planet in CI system 0', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'CI room, a room station', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'CI planet 2, a planet in CI system 0', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'CI region 4', exact: true })).toBeVisible();
   expect(requests.every(({ method, path }) => method === 'POST' && READS.has(path))).toBe(true);
 });

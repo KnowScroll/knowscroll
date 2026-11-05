@@ -34,7 +34,7 @@ export interface UniverseViewState extends CameraEntry {
   readonly landed: boolean;
   readonly read: UniverseSceneState;
   /** `collection` is the landmarks sheet (D-084). */
-  readonly overlay: 'outline' | 'place' | 'search' | 'collection' | null;
+  readonly overlay: 'outline' | 'place' | 'search' | 'collection' | 'settings' | null;
   readonly detail: 'full' | 'low';
   readonly reducedMotion: boolean;
   readonly notice?: 'place_unavailable';
@@ -171,10 +171,21 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       absent: restored.absent,
     });
   };
+  // A drawing preference changes capabilities inside the same authority. Keep the current map
+  // while its replacement loads, so Settings and its focus target are never unmounted mid-action.
+  let drawingSnapshot: UniverseSceneState['snapshot'];
+  let coveredRegion: string | null = null;
   const readChanged = () => {
-    const read = core.getState(),
-      hadSnapshot = Boolean(state.read.snapshot);
+    const current = core.getState();
+    const read =
+      drawingSnapshot && (current.status === 'idle' || current.status === 'loading')
+        ? { ...current, snapshot: drawingSnapshot }
+        : current;
+    if (current.status !== 'idle' && current.status !== 'loading') drawingSnapshot = undefined;
+    const hadSnapshot = Boolean(state.read.snapshot);
     if (read.status === 'ended' || read.reason === 'authority') {
+      drawingSnapshot = undefined;
+      coveredRegion = null;
       formation.dispose();
       history.clear();
       returnPoint = undefined;
@@ -211,6 +222,8 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
   const end = () => {
     if (ended) return;
     ended = true;
+    drawingSnapshot = undefined;
+    coveredRegion = null;
     foreground = false;
     history.clear();
     memory.stop();
@@ -240,13 +253,17 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     listeners.clear();
   };
   scope.onEnd?.(end);
-
   const showOverlay = (overlay: UniverseViewState['overlay']) => {
     if (!live() || !foreground) return;
     const focused = places().find((p) => p.id === state.focusId);
     if (overlay === 'place' && focused?.kind !== 'region') return;
+    if (overlay === 'outline' || overlay === 'search' || overlay === 'settings') {
+      if (state.overlay === 'place') coveredRegion = state.focusId;
+      else if (state.overlay === null) coveredRegion = null;
+    } else coveredRegion = null;
     cancelPreview();
-    publish({ overlay, selectedId: null });
+    // Navigation and display surfaces must not dismiss the place picked on the map.
+    publish({ overlay, ...(overlay === 'place' ? { selectedId: null } : {}) });
     formation.setForeground(overlay === null);
     if (overlay === 'place') readPreview();
   };
@@ -318,6 +335,10 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       return true;
     }
     if (state.overlay) {
+      if (coveredRegion !== null && state.focusId === coveredRegion && state.overlay !== 'place') {
+        showOverlay('place');
+        return true;
+      }
       cancelPreview();
       publish({ overlay: null });
       return true;
@@ -384,14 +405,20 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     formation.setForeground(false);
     detail = next.detail;
     reducedMotion = next.reducedMotion;
+    drawingSnapshot = state.read.snapshot;
     unsubscribe();
     core.dispose();
     geometryCache.clear();
     core = createUniverseSceneSession({ scope, capabilities: sceneCapabilities(detail, reducedMotion) });
     unsubscribe = core.subscribe(readChanged);
-    publish({ detail, reducedMotion, read: core.getState(), overlay: null });
+    publish({
+      detail,
+      reducedMotion,
+      read: { ...core.getState(), ...(drawingSnapshot ? { snapshot: drawingSnapshot } : {}) },
+      overlay: state.overlay === 'settings' ? 'settings' : null,
+    });
     if (foreground) core.start();
-    formation.setForeground(foreground);
+    formation.setForeground(foreground && state.overlay === null);
   };
 
   return withTransitionGate({

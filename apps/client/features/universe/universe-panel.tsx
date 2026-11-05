@@ -1,143 +1,144 @@
 import { useMemo, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { RoomStation } from '@knowscroll/contracts';
-import { spacing } from '@knowscroll/design-tokens';
-import { SwitchRow, Text, useFocusRing } from '@knowscroll/ui';
-import { SIMPLE } from './simple/place-rows';
+import { content, spacing } from '@knowscroll/design-tokens';
+import {
+  Button,
+  dialogHostSemantics,
+  dialogSemantics,
+  IconButton,
+  SwitchRow,
+  Text,
+  usePageInert,
+} from '@knowscroll/ui';
 import { SystemSections } from './simple/system-sections';
-import { countOf, listUniverse } from './universe-lists';
+import { listUniverse } from './universe-lists';
 import type { UniverseIndex } from './universe-layout';
+import { UniverseSearchPanel } from './universe-search-panel';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
 
-/**
- * D02's panel (378 px, always open from 1024 px): the title with its counts, the search field, the
- * picked place's card docked at the top, the two switches, and every system with its planets and
- * the rooms. It reads the same lists as the Simple view, so the two cannot disagree. It is the
- * screen-reader view of the whole map: every system and planet is a button, and the regions are one
- * Land away.
- */
+/** An on-demand modal over the full-sized map; mounting it never resizes the camera's viewport. */
+function MapDialog({
+  title,
+  onClose,
+  children,
+  testID,
+}: {
+  readonly title: string;
+  readonly onClose: () => void;
+  readonly children: ReactNode;
+  readonly testID: string;
+}) {
+  usePageInert(true);
+  return (
+    <Modal {...dialogHostSemantics(title)} transparent animationType="none" onRequestClose={onClose}>
+      <View style={styles.host}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} focusable={false} />
+        <View {...dialogSemantics(title)} testID={testID} style={styles.panel}>
+          <View style={styles.head}>
+            <Text variant="heading" heading={2}>
+              {title}
+            </Text>
+            <IconButton icon="close" label={`Close ${title}`} variant="plain" onPress={onClose} />
+          </View>
+          <ScrollView
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {children}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/** Search and the complete accessible outline share one Browse surface, including selected-place and collection actions. */
 export function UniversePanel({
   session,
   state,
   index,
   stations,
   owner,
-  simple,
   card,
   collection,
-  onSearch,
-  onSimple,
   onStation,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
   readonly index: UniverseIndex;
   readonly stations?: readonly RoomStation[];
-  /** A friend's name: the panel is theirs, with no Lately, no rooms and no region lines. */
+  /** Visits never receive private regions, Lately, collection or rooms. */
   readonly owner?: string;
-  /** Simple drawing is showing the lists, by the setting or because 3D failed. */
-  readonly simple: boolean;
-  /** The card of the picked place, docked above the switches. */
   readonly card: ReactNode;
-  /** The person's landmarks, Orbit and next Part on paper; never given for a friend's universe. */
   readonly collection?: ReactNode;
-  readonly onSearch: () => void;
-  readonly onSimple: (simple: boolean) => void;
   readonly onStation?: (roomId: string) => void;
 }) {
   const listed = useMemo(
     () => listUniverse(index, owner === undefined ? (stations ?? []) : [], state.youWereHere, state.lately),
     [index, stations, owner, state.youWereHere, state.lately],
   );
-  const planets = listed.systems.reduce((sum, system) => sum + system.planets.length, 0);
-  const focus = state.focusId ? index.byId.get(state.focusId) : undefined;
-  const hereSystemId = focus?.kind === 'system' ? focus.objectId : focus ? systemOf(index, focus.objectId) : undefined;
-  const subject = owner === undefined ? 'your universe' : `${owner}’s universe`;
-  const searchFocus = useFocusRing('onLight');
   return (
-    <View role="complementary" aria-label="Outline" testID="universe-panel" style={styles.panel}>
-      <View style={styles.head}>
-        <Text variant="heading" heading={2} color={SIMPLE.ink} style={styles.title}>
-          {owner === undefined ? 'Your universe' : `${owner}’s universe`}
-        </Text>
-        <Text variant="meta" color={SIMPLE.ink2} align="right" style={styles.counts}>
-          {`${countOf(listed.systems.length, 'system')} · ${countOf(planets, 'planet')}`}
-        </Text>
-      </View>
-      <Pressable
-        testID="universe-panel-search"
-        accessibilityRole="button"
-        accessibilityLabel={`Search ${subject}`}
-        onPress={onSearch}
-        {...searchFocus.props}
-        style={[styles.search, searchFocus.style]}
+    <MapDialog title="Browse" testID="universe-panel" onClose={() => session.back()}>
+      <UniverseSearchPanel
+        session={session}
+        {...(owner ? { owner } : {})}
+        {...(owner === undefined && stations ? { stations } : {})}
+        {...(onStation ? { onStation } : {})}
+        embedded
       >
-        <Text variant="bodyS" color={SIMPLE.ink2} style={styles.searchText}>
-          {`Search ${subject}`}
-        </Text>
-        <View style={styles.slash} aria-hidden>
-          <Text variant="metaS" color={SIMPLE.ink2}>
-            /
-          </Text>
-        </View>
-      </Pressable>
-      {card ? <View style={styles.card}>{card}</View> : null}
-      <View style={styles.switches}>
-        {owner === undefined ? (
-          <SwitchRow label="Lately" on={state.lately} onChange={(on) => session.setLately(on)} />
-        ) : null}
-        <SwitchRow label="Simple drawing" on={simple} onChange={onSimple} />
-      </View>
-      {/* With Simple drawing on, the map area is this same list: it is not drawn twice. */}
-      {simple ? null : (
-        <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+        <View>
+          {card}
           {collection}
           <SystemSections
             session={session}
             listed={listed}
             visitor={owner !== undefined}
-            hereSystemId={hereSystemId ?? null}
             pickedId={state.selectedId}
             onSystem={(id) => session.focus(id)}
             {...(onStation ? { onStation } : {})}
           />
-        </ScrollView>
-      )}
-    </View>
+        </View>
+      </UniverseSearchPanel>
+    </MapDialog>
   );
 }
 
-/** The system a planet or region belongs to. */
-function systemOf(index: UniverseIndex, placeId: string): string | undefined {
-  for (let place = index.byId.get(placeId); place; place = index.byId.get(place.parentId))
-    if (place.kind === 'system') return place.objectId;
-  return undefined;
+/** Uses the session's existing account-scoped preference writes; fallback is effective state, not a saved preference. */
+export function UniverseSettings({
+  session,
+  state,
+  simple,
+  visitor,
+  onSimple,
+}: {
+  readonly session: UniverseMapSession;
+  readonly state: UniverseViewState;
+  readonly simple: boolean;
+  readonly visitor: boolean;
+  readonly onSimple: (on: boolean) => void;
+}) {
+  return (
+    <MapDialog title="Settings" testID="universe-settings-panel" onClose={() => session.back()}>
+      {visitor ? null : <SwitchRow label="Lately" on={state.lately} onChange={(on) => session.setLately(on)} />}
+      <SwitchRow label="Simple drawing" on={simple} onChange={onSimple} />
+      <Button label="Return to map" onPress={() => session.back()} />
+    </MapDialog>
+  );
 }
 
 const styles = StyleSheet.create({
-  panel: { width: 378, backgroundColor: '#FFFBF0', paddingTop: spacing[6], paddingHorizontal: spacing[5] },
-  head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: spacing[3] },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
-    minHeight: 48,
-    marginTop: spacing[3],
-    borderBottomWidth: 1,
-    borderBottomColor: SIMPLE.line,
+  host: { flex: 1, alignItems: 'flex-end', backgroundColor: 'rgba(2,3,8,0.35)' },
+  panel: {
+    width: 420,
+    maxWidth: '100%',
+    height: '100%',
+    backgroundColor: content.paper,
+    padding: spacing[5],
+    gap: spacing[3],
   },
-  title: { flexShrink: 0 },
-  counts: { flexShrink: 1 },
-  searchText: { flex: 1 },
-  slash: {
-    paddingHorizontal: spacing[2],
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: SIMPLE.line,
-  },
-  card: { marginTop: spacing[3] },
-  switches: { marginTop: spacing[2] },
+  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing[2] },
   list: { flex: 1 },
   listContent: { paddingBottom: spacing[6] },
 });

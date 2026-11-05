@@ -4,7 +4,8 @@ import type { UniverseViewSession } from './universe-session';
 let sequence = 0;
 /** One same-address marker; no private IDs, frame or navigation tree in browser history. */
 export function useUniverseBack(
-  session: Pick<UniverseViewSession, 'back' | 'canBack' | 'escape' | 'getState' | 'subscribe'>,
+  session: Pick<UniverseViewSession, 'back' | 'canBack' | 'escape' | 'getState' | 'subscribe'> &
+    Partial<Pick<UniverseViewSession, 'showOverlay'>>,
   enabled: boolean,
 ) {
   const marker = useRef(`universe-${String(++sequence)}`),
@@ -35,6 +36,21 @@ export function useUniverseBack(
         sync();
       };
       const key = (event: KeyboardEvent) => {
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        if (
+          event.key === '/' &&
+          !event.altKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !target?.closest('input, textarea, [contenteditable="true"]') &&
+          session.showOverlay &&
+          session.getState().overlay !== 'settings'
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          session.showOverlay('search');
+          return;
+        }
         // Escape closes what is open, and with nothing open steps up one level (D02).
         if (event.key === 'Escape' && session.escape()) {
           event.preventDefault();

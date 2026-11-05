@@ -20,7 +20,7 @@ export function UniverseHeader({
   onSearch,
   visitor,
   systemFacts,
-  searchInPanel = false,
+  desktop = false,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -31,8 +31,8 @@ export function UniverseHeader({
   readonly visitor?: { readonly ownerName: string };
   /** On the desktop a system says what it holds: "3 planets · 1 room" (D02). */
   readonly systemFacts?: string;
-  /** The desktop panel carries the search field (D02), so the header draws no second search button. */
-  readonly searchInPanel?: boolean;
+  /** Desktop Browse carries search, and Settings carries the Lately preference. */
+  readonly desktop?: boolean;
 }) {
   const router = useRouter();
   const initial = useAccountInitial();
@@ -52,7 +52,7 @@ export function UniverseHeader({
   if (view.kind === 'universe' && visitor)
     return (
       <View style={styles.root}>
-        {hasPlaces && !searchInPanel ? (
+        {hasPlaces && !desktop ? (
           <View style={styles.row}>
             <IconButton
               icon="search"
@@ -86,17 +86,15 @@ export function UniverseHeader({
             Everything is where you left it.
           </Text>
         ) : null}
-        {hasPlaces ? (
+        {hasPlaces && !desktop ? (
           <View style={styles.actions}>
-            {searchInPanel ? null : (
-              <IconButton
-                icon="search"
-                label="Search your universe"
-                variant="onSpace"
-                onPress={onSearch}
-                testID="universe-search"
-              />
-            )}
+            <IconButton
+              icon="search"
+              label="Search your universe"
+              variant="onSpace"
+              onPress={onSearch}
+              testID="universe-search"
+            />
             {lens}
           </View>
         ) : null}
@@ -130,7 +128,7 @@ export function UniverseHeader({
             </View>
           ) : null}
         </View>
-        <View style={styles.actions}>{view.kind === 'system' && !visitor ? lens : null}</View>
+        <View style={styles.actions}>{view.kind === 'system' && !visitor && !desktop ? lens : null}</View>
       </View>
       {view.kind === 'system' ? (
         <View style={styles.block}>

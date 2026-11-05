@@ -371,6 +371,7 @@ test.describe('a desktop, 1440 x 900', () => {
     page,
   }) => {
     await openUniverse(page, size, { formed: false });
+    await page.getByRole('button', { name: 'Browse', exact: true }).click();
     const panel = page.getByTestId('universe-panel');
     const section = panel.getByTestId('universe-collection-section');
     await expect(section).toContainText('Orbit · 1 of 3 days this week');
@@ -388,13 +389,13 @@ test.describe('a desktop, 1440 x 900', () => {
     await openUniverse(page, size, { formed: false });
     const zoomIn = page.getByRole('button', { name: 'Zoom in' });
     await expect(zoomIn).toBeVisible();
-    await page.getByRole('button', { name: 'Search your universe' }).click();
+    await page.getByTestId('universe-map').press('/');
     await expect(page.getByRole('searchbox', { name: 'Search your universe' })).toBeVisible();
     await expect(zoomIn).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Zoom out' })).toHaveCount(0);
     await shot(page, 'search-no-zoom-desktop');
     await expectNoSeriousViolations(page);
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await page.getByRole('button', { name: 'Close Browse' }).click();
     await expect(zoomIn).toBeVisible();
   });
 
@@ -402,6 +403,7 @@ test.describe('a desktop, 1440 x 900', () => {
     page,
   }) => {
     await openUniverse(page, size, { formed: true });
+    await page.getByRole('button', { name: 'Browse', exact: true }).click();
     const section = page.getByTestId('universe-panel').getByTestId('universe-collection-section');
     await expect(section).toContainText('Gold finish · On CI planet 2');
     await expect(page.getByTestId('universe-landmark-card')).toHaveCount(0);

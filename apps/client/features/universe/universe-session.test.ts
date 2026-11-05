@@ -686,3 +686,75 @@ describe('Escape, Simple drawing and landing straight from a card (v3 U-5)', () 
     h.scope.end();
   });
 });
+
+it.each(['outline', 'search', 'settings'] as const)(
+  'closing %s preserves a picked planet and camera, then Escape dismisses the pick',
+  async (overlay) => {
+    const h = universeHarness(),
+      session = createUniverseViewSession(h.scope);
+    session.setForeground(true);
+    await ready(session);
+    session.focus(fixtureId(10));
+    session.camera({ x: 17, y: -33, scale: 1.2 });
+    session.select(fixtureId(12));
+    const before = session.getState();
+    session.showOverlay(overlay);
+    expect(session.getState()).toMatchObject({
+      focusId: before.focusId,
+      selectedId: before.selectedId,
+      frame: before.frame,
+    });
+    session.escape();
+    expect(session.getState()).toMatchObject({
+      overlay: null,
+      focusId: before.focusId,
+      selectedId: before.selectedId,
+      frame: before.frame,
+    });
+    session.escape();
+    expect(session.getState()).toMatchObject({ selectedId: null, focusId: before.focusId });
+    h.scope.end();
+  },
+);
+
+it('keeps Settings and the current map while drawing capabilities reload, then purges them on scope end', async () => {
+  const h = universeHarness(),
+    session = createUniverseViewSession(h.scope);
+  session.setForeground(true);
+  await ready(session);
+  session.focus(fixtureId(10));
+  session.camera({ x: 11, y: -9, scale: 0.8 });
+  session.showOverlay('settings');
+  const before = session.getState();
+  let release!: () => void;
+  h.gate(
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  session.setSimple(true);
+  expect(session.getState()).toMatchObject({ overlay: 'settings', focusId: before.focusId, frame: before.frame });
+  expect(session.getState().read.snapshot).toBe(before.read.snapshot);
+  h.scope.end();
+  release();
+  await Promise.resolve();
+  expect(session.getState().read).toEqual({ status: 'ended', active: false });
+  expect(session.getState().overlay).toBeNull();
+  expect(session.descriptors()).toEqual([]);
+  expect(h.store.keys()).toEqual([]);
+});
+
+it('closes Browse before the region card it covers, without moving its camera', async () => {
+  const h = universeHarness(),
+    session = createUniverseViewSession(h.scope);
+  session.setForeground(true);
+  await ready(session);
+  session.focus(fixtureId(14));
+  const before = session.getState();
+  session.showOverlay('outline');
+  session.escape();
+  expect(session.getState()).toMatchObject({ overlay: 'place', focusId: before.focusId, frame: before.frame });
+  session.escape();
+  expect(session.getState()).toMatchObject({ overlay: null, focusId: before.focusId, frame: before.frame });
+  h.scope.end();
+});

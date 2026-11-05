@@ -339,7 +339,7 @@ Geography and Scenes path and the CI fixture model). A mark that names a day and
 | Camera, lens and ship memory; after-absence framing; `?focus=last`                           | runtime-verified (web)           |
 | Formation story (U05), all five beats                                                        | runtime-verified                 |
 | Routes between planets: a "Route to ..." chip on a planet, never a line (D-074)               | implemented                      |
-| Desktop D02: panel with the picked planet's card, switches, key hints, zoom buttons; Escape steps up a level (v3 U-5, D-112) | runtime-verified (web, fixture stack; dev, 2 Nov, fidelity-v3) |
+| Desktop D02: full-width map, on-demand Browse and Settings, key hints and zoom (D-395, #662) | implemented; verification in the issue PR |
 | Native camera persistence through encrypted scope storage                                         | implemented; abrupt-exit writes may be lost |
 | Room stations in 3D beside their systems, a "Rooms" section in the list view (D-051)         | runtime-verified (web: target and list; the 3D drawing is the gallery sample; on dev the station was seen on the map, 1 Nov, room-journey) |
 | The ship parked at the planet of the last place (unit-tested), "Return to <planet>" (D-080)   | implemented (the chip is runtime-verified, web) |
@@ -401,14 +401,18 @@ float over it.
   It is built from the reads the Universe holds (`buildDial`): nothing is fetched or written, and land not reached yet
   is neither listed nor counted. The design's "N uncharted" chip is not drawn (D-109).
 - **Simple drawing** (`simple/`, D-111). The whole tab as the two lists of `simple-views-finalized.html`. It is on by
-  the setting ("Simple view" on the dial, "Simple drawing" in the desktop panel; remembered on the device with the
+  the setting ("Simple view" on the dial, "Simple drawing" in desktop Settings; remembered on the device with the
   camera) and by itself when WebGL is missing, the context is lost, a frame fails, the system warns of low memory or
   the browser says it has 1 GB or less. Turning the switch off tries 3D again. Its rows are plain: no boxes, no chevrons,
-  a thin line between them, and a green switch. At 1024 px and up the panel's "Simple drawing" switch is the only one.
-- **Desktop D02** (`universe-panel.tsx`). From 1024 px the panel is always open: counts, search, the picked planet's
-  card (Land goes straight to its map, Close), the Lately and Simple drawing switches, then the same lists as the
-  Simple view (systems with planets and rooms). On a system a tap on a planet picks it and it glows; key hints and
-  zoom buttons are on the map. Escape closes what is open and then steps up one level.
+  a thin line between them, and a green switch. At 1024 px and up Settings holds the switch and Return to map; fallback keeps the complete list visible without opening Browse.
+- **Desktop D02** (`universe-panel.tsx`, D-395). From 1024 px the map uses the full available width.
+  Browse opens a modal over it: search, selected-place details, Resume and Orbit when available, and the complete
+  systems, planets and rooms outline. Settings holds Lately and Simple drawing using the same account-scoped device
+  memory as before. Opening or closing either surface changes no camera frame, geography, selection or consumption
+  evidence. Escape and browser Back close the surface before dismissing a picked place or stepping up; closing
+  returns focus to its trigger. `/` from the map opens Browse's search field. The map stays mounted at the same size.
+  The automatic WebGL fallback and manual Simple drawing keep their full accessible lists without Browse being open.
+  Phone navigation retains the orbit dial. Visits expose no private regions, activity, collection or rooms.
 - **The collection** (`collection/`, `universe-collection-reader.ts`, v3 S-4, D-214 to D-216; *implemented, runtime-verified on the fixture
   stack in `e2e/universe-collection-smoke.spec.ts`, and on dev, 2 Nov, fidelity-v3: the waiting card and the list sheet*). The person's own session reads their landmarks, this
   week's Orbit, the next Part to resume and the topic of each planet (`readCollection` in client-core) when the tab comes to
@@ -422,7 +426,7 @@ float over it.
   full card would reach the sun. The one line wraps to a second where its words do not fit, so a name is never cut, and on a phone under about 600 px tall a globe's name and hint are set smaller and stand above the chips, never on them (D-392; `e2e/universe-collection-smoke.spec.ts` at 320 x 568). With only the week to say the card has no button. The Orbit is one quiet line of
   text inside the card ("Orbit · 1 of 3 days this week"; never a ring on the map, D-087) and the yellow chip ("Resume Part 2
   of 3") beside it opens the next Part by its address. With no landmark yet the card speaks of the next Part, or of the week.
-  On desktop the panel carries the same as a paper list and the map carries no card, and so does the Simple drawing, so the
+  On desktop Browse carries the same as a paper list and the map carries no collection card, and so does the Simple drawing, so the
   landmarks are readable without the drawing. The markers
   do not move, so reduced motion changes nothing about them. A friend's universe is never given a collection. Cloud thinning
   and an Orbit ring were not built (D-088, D-087).
