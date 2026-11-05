@@ -61,7 +61,6 @@ export type {
 export const COMPOSE_ENCOUNTER = Symbol('composer.composeEncounter');
 export const PERSIST_COMPOSER_DECISION = Symbol('composer.persistComposerDecision');
 export const READ_COMPOSER_DECISION = Symbol('composer.readComposerDecision');
-export const READ_PREPARED_EVIDENCE_INPUT = Symbol('composer.readPreparedEvidenceInput');
 
 /** Served by Experience's wiring: what the buffer worker may know about an activated offer. */
 export const READ_BUFFER_SOURCE = Symbol('composer.readBufferSource');

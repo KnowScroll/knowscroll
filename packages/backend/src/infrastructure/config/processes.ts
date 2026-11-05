@@ -70,9 +70,6 @@ export interface IdentitySettings {
 /** The real AgentMail API; a different base URL is accepted only outside production (tests). */
 export const AGENTMAIL_BASE_URL = 'https://api.agentmail.to';
 
-/** The live world. Operator sign-in is refused there, as in every world outside `OPERATOR_WORLDS`. */
-export const LIVE_WORLD = 'live';
-
 /** The only worlds in which test-only adapters may run. */
 export const TEST_ADAPTER_WORLDS: readonly string[] = ['ci', 'local'];
 

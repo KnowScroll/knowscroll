@@ -114,7 +114,15 @@ tests, scripts and operations. Read changes by commit; focused checks belong bes
 
 ## Removal evidence and retained candidates
 
-Baseline `pnpm knip` passed with no reported unused code. No deletion has yet been justified.
+Baseline `pnpm knip` passed with no reported unused code. An additional
+`pnpm exec knip --include-entry-exports` scan exposed public-entry candidates; most require
+preservation (Expo routes, platform variants, supported contracts and fixture/compatibility exports).
+Two declarations were proven unused and removed:
+| Removed declaration | Former purpose | Caller and dynamic-entry check | Regression check |
+| --- | --- | --- | --- |
+| `LIVE_WORLD` in config `processes.ts`, and its index re-export | Named the string `live` | Tracked-tree search found only definition/re-export; no namespace/dynamic consumer. Operator refusal uses `OPERATOR_WORLDS`, not this constant. No HTTP/CLI field or stored value changes. | Config fixtures include live and differently named production-world refusals; typecheck and normal Knip. |
+| `READ_PREPARED_EVIDENCE_INPUT` in Composer `public.ts` | Advertised an injection token for prepared ranking input | No provider, injection or other tracked reference to the symbol/name. Current navigation and buffer providers explicitly inject `READ_COMPOSER_CONTEXT`. Retain the used `ReadPreparedEvidenceInput` type and compatibility adapters. The unregistered Symbol is not a queue/job name, wire field or serialized record discriminator. | Composer fixtures, typecheck, boundaries and installed API/worker boot in hosted CI. |
+
 Knip is a lead, not a proof: retain package exports, Nest providers, pg-boss payloads/schedules,
 Expo routes, platform variants, operator commands and compatibility readers until callers and
 supported records have been traced. Do not delete migrations, pinned Cutroom wire files,
@@ -147,3 +155,17 @@ belongs to Experience, legacy snapshot facets are counts rather than arrays, and
 after commit before the HTTP response arrives. All three were corrected; the reviewer reported no
 remaining blocking finding in the current diff or added feature/shared-package lines. This checkpoint
 review is not completion of the still-pending repository inventory.
+
+Expanded export scan: 234 export candidates plus type candidates. Only the two declarations above
+were removed. Remaining public-entry candidates are unresolved until caller/compatibility review;
+no blanket public-surface pruning is authorized by the scan alone.
+
+Latest verification before the removal commit: format, full lint, typecheck, normal Knip,
+dependency boundaries and all four probes, SQL lint, relative links and immutable-input hashes
+passed. Removing the two declarations passed 255 config/Composer tests, another full typecheck
+and normal Knip, and changed-line fresh review. The full serial UI run passed all 75 files / 733
+tests after its parallel-run timeout. See the PR for the final client/hosted run status.
+
+Continuation remains required: 42 rows are still wholly pending, and several changed rows name
+partial passes. No merge or dev deployment is claimed. Use the PR's single checklist and continue
+this same branch; finish the remaining areas before requesting merge readiness.
