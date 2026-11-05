@@ -1,5 +1,23 @@
 # modules/planner
 
+## Follow a plan
+
+Qualified evidence or an explicit request queues work for one person's Planner. The worker
+freezes a bounded context under the current recording authority, releases the transaction for
+the model call, then rechecks the run and applies only opportunities code accepts.
+
+Start at [public.ts](public.ts), [request.ts](application/request.ts) and [run.ts](application/run.ts).
+One business run can have several queue deliveries; its paid attempts keep their ledger identity.
+An `unknown` attempt is not resent. A later successor run does not settle that old liability.
+Composer can rank with the accepted plan; Supply can commission its missing content. Neither
+turns a suggestion into evidence or a formed place.
+
+From the repository root, run
+`pnpm --filter @knowscroll/backend exec vitest run src/modules/planner`
+for local rules and fixtures. Real-database and installed-process checks use the
+[integration suite](../../../../../tests/integration/README.md). Runtime notes below describe
+their recorded checks; see [Status](../../../../../docs/STATUS.md) for deployment evidence.
+
 The Personal Planner proposes a few useful next directions for one person (blueprint §10). It reads
 the person's qualified evidence and the admitted inventory, asks a model for up to six candidate
 opportunities, keeps at most three that code accepts, and stores them as a plan revision.
@@ -99,7 +117,7 @@ longer holds.
 | Consumer | How | Entry point |
 |---|---|---|
 | Composer | The latest accepted revision's unexpired opportunities ride in Composer's prepared context. A match lifts Intent (vertical moves) or Continuity (horizontal moves) by a bounded amount among candidates the intent does not separate, and the decision record names the opportunity. | `READ_CURRENT_PLAN`, read by Personal Context |
-| Supply | Each accepted `missing_supply` opportunity is recorded as private demand in the same transaction as the plan, unless the person already has open planned demand for the same brief. Supply reuses admitted content the person has not met, otherwise the demand is `deferred` on a shared matching group. Nothing is produced. | `RecordPlannedDemand` |
+| Supply | Each accepted `missing_supply` opportunity is recorded as private demand in the same transaction as the plan, unless the person already has open planned demand for the same brief. Supply reuses admitted content the person has not met, otherwise the demand is `deferred` on a shared matching group. Supply may join or start production within its separate cap. | `RecordPlannedDemand` |
 | Cartographer, scenes, evidence | Nothing. A plan creates no evidence and no geography. | none |
 
 `READ_CURRENT_PLAN` is a stored read of at most three small rows and is safe on the navigation

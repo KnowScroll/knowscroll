@@ -1,5 +1,26 @@
 # modules/composer
 
+## Follow the next subject
+
+A person activates a Reel or Scroll. Experience asks Composer to rank eligible content and queues
+preparation of the next subject. The worker can ask Jev about a bounded shortlist; navigation
+itself uses stored assessments or deterministic ranking and never waits for a model.
+
+Start at [public.ts](public.ts), [compose](application/compose.ts) and
+[buffer preparation](application/prepare-buffer.ts). Both navigation and the buffer worker receive
+Personal Context through `READ_COMPOSER_CONTEXT`. A stored decision pins its policy and input;
+replay must not reinterpret it with today's weights. A stale buffer falls back to fresh ranking,
+not to an old account or intent.
+
+For example, `current_explanation` excludes the explanation already on screen in either format.
+It is eligibility, not a small score penalty. Ranking an offer creates no reading evidence.
+
+From the repository root, run
+`pnpm --filter @knowscroll/backend exec vitest run src/modules/composer`
+for local rules and fixtures. Real-database and installed-process checks use the
+[integration suite](../../../../../tests/integration/README.md). Runtime notes below describe
+their recorded checks; see [Status](../../../../../docs/STATUS.md) for deployment evidence.
+
 Composer ranks encounters for Explore (blueprint §9). It has three parts: the pure ranking policy,
 a private store of every decision, and **worker-prepared buffers** with an optional model assessment
 (Jev). Navigation reads the Personal Context owner's bounded snapshot through `READ_COMPOSER_CONTEXT`.

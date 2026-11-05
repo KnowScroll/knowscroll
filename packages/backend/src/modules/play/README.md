@@ -1,13 +1,31 @@
 # modules/play
 
+## Follow a locked call
+
+The reader submits a pick for a call in an activated Scroll revision. Code reads the immutable
+call, checks the original recording generation and computes correctness. The receipt, pick,
+tally and any landmark commit together. A retry returns the stored lock; another pick cannot
+replace the first one. While recording is paused the device may play without saving a server result.
+
+Start at [public.ts](public.ts), [lock-call.ts](application/lock-call.ts) and the
+[wall test](wall.test.ts). Picks, correctness, sparks and tiers stay behind the import and table
+walls. Thread picks live in Social and room activities live in Rooms, under their own membership
+locks. Landmarks are display overlays, never planet-formation evidence.
+
+From the repository root, run
+`pnpm --filter @knowscroll/backend exec vitest run src/modules/play`
+for local rules and fixtures. Real-database and installed-process checks use the
+[integration suite](../../../../../tests/integration/README.md). Runtime notes below describe
+their recorded checks; see [Status](../../../../../docs/STATUS.md) for deployment evidence.
+
 The play layer of a Scroll: the calls a person locks, the Final call included, whether they were right, the sparks and
 combo they earn, and the landmark the Final call awards (D-063, D-064, D-180 to D-182, D-187, D-188). Threads play a call together too, but a
-pick in a thread is stored by Social, behind a wall like this one (D-156); rooms will share it later.
+pick in a thread is stored by Social, behind a wall like this one (D-156); room play belongs to Rooms.
 
-Status: **implemented** and CI-verified against real PostgreSQL (`tests/integration/modules/play.test.ts`). Calls,
-sparks and combo are on dev (S-2). The Final call, the combo bonus and landmarks (S-3) are implemented here; they reach
-a person only once the Seasons library is regenerated with a landmark and a Final call that turns the tilt, so they are
-not yet run on dev.
+Status: implemented, with real-PostgreSQL fixtures in `tests/integration/modules/play.test.ts`.
+The deployed library revision decides which calls and landmark a reader receives. Historical
+S-2/S-3 acceptance and later dev observations are recorded in Status and the fidelity guide;
+this cleanup makes no new live play or formation claim.
 
 ## What a person can do
 

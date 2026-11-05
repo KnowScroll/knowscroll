@@ -1,5 +1,24 @@
 # Rooms: idea rooms with a moderator and labelled AI inhabitants
 
+## Follow one room message
+
+A signed-in person opens a room, joins under its access rules and sends into a discussion.
+The API enters the person's scope, checks their account, then locks the room and current
+membership before writing. The message, receipt and live hint commit together. A lost hint is
+recovered by reading changes from the durable cursor.
+
+Start at [public.ts](public.ts), [gate.ts](application/gate.ts) and
+[command.ts](application/command.ts). Worker turns use their own current authority and budget
+gates; a job cannot grant membership or paid permission. AI residents are labelled. Launch,
+Watch together, rituals, feed and moderation have separate sections below because their privacy,
+recording and recovery rules differ. Do not treat room activity as personal reading evidence.
+
+From the repository root, run
+`pnpm --filter @knowscroll/backend exec vitest run src/modules/rooms`
+for local rules and fixtures. Real-database and installed-process checks use the
+[integration suite](../../../../../tests/integration/README.md). Runtime notes below describe
+their recorded checks; see [Status](../../../../../docs/STATUS.md) for deployment evidence.
+
 A room is a shared place to talk about a library topic. It has its own identity, its own members and
 its own discussions; where its station sits on a map is each person's own. People join, read and
 write in discussions, share a Reel or Scroll into the room to start a content thread, and a moderator

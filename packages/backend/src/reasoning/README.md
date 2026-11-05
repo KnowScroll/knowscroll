@@ -6,14 +6,40 @@ store, and the provider transports behind `ModelPort`. It owns no role: a role's
 output schema, semantic validator, context builder and applier live in its own module. The harness
 owns admission, budgets, transport, parsing, limits and attempt tracking. No tool loops.
 
+## Follow one paid attempt
+
+A module supplies a versioned role and frozen context. [propose.ts](application/propose.ts)
+checks the request and budgets; [execute-attempt.ts](application/execute-attempt.ts) records an
+attempt before dispatch, calls the transport outside a transaction and settles what is known.
+The module then rechecks current authority before applying an accepted answer. Transport success
+alone does not authorize an effect.
+
+```mermaid
+flowchart LR
+    Role[Module role and frozen context] --> Admission[Authority and budget checks]
+    Admission --> Ledger[(Attempt ledger)]
+    Ledger --> Transport[One bounded provider request]
+    Transport --> Settlement[Record answer, failure or unknown]
+    Settlement --> Apply[Module rechecks and applies]
+```
+
+For example, a timeout after dispatch is `unknown`, not `not_sent`. A queue redelivery consults
+that same attempt and must not resend it. A write-off records an unresolved liability; it does
+not prove that the provider stopped or refund money. The state machine and operator recovery
+commands below retain these distinctions.
+
+Run `pnpm --filter @knowscroll/backend exec vitest run src/reasoning` from the root for fixture
+transports and pure rules. Hosted integration tests exercise concurrent admission, settlement,
+recording and erasure against disposable PostgreSQL. No provider call is needed for those tests.
+
 ## What works today
 
 | Capability | Status |
 | --- | --- |
 | Personal harness: admission, budgets, quota preflight, dispatch, settlement and one repair | Implemented. CI exercises every transition against real PostgreSQL with the labelled fixture model. |
 | Background share: background roles stop at a share of the global and personal daily caps (D-058) | Implemented. CI exercises it, including 32 proposals racing, against real PostgreSQL with the fixture model. Not yet run on dev. |
-| MiniMax transport (`MiniMax-M3.1-Flash`) | Implemented. Real calls have been made from the production operator command; no generated Scroll has been accepted yet. |
-| Nonpersonal Scroll production scope | Implemented and operator-triggered only: no worker job is registered and both enable switches default off. |
+| MiniMax transport (`MiniMax-M3.1-Flash`) | Implemented. Provider-call evidence is separate from Content admission and library release; see Status and Content production. |
+| Nonpersonal Scroll production scope | Implemented through gated worker jobs and explicit operator commands. Configuration and database-root authority are both required; see Content production. |
 | Nonpersonal rooms scope and the `ambient` budget class: a room's residents speaking on their own (v3 R-2, D-162) | Implemented. CI exercises the share and the scope's cap against real PostgreSQL with the fixture model (`reasoning-ambient-share.test.ts`, which fails if either ledger's ambient sum is broken). Off until `KS_REASONING_ROOM_ENABLED`; not yet run on dev. |
 | Recording-aware personal roles (Planner, Cartographer) | Implemented in source and CI. The roles are off by default and the path has not run on a live system. |
 | Recording-aware personal runs for Supply (a question's placement and library check, a Quick answer's writer and checks; D-264) | Implemented and CI-verified on real PostgreSQL with labelled fixture models. Not yet run on dev. |

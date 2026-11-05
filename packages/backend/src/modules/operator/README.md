@@ -1,15 +1,32 @@
 # Operator
 
+## Follow an inspection
+
+The Operator screen asks the API for diagnostic panels or a record's journey. The API checks the
+account's current operator allowlist on every call. A shell operator can also inspect a person's
+journey; the HTTP route cannot perform that broader account search.
+
+Start at [public.ts](public.ts), [operator-access.ts](application/operator-access.ts) and
+[read-journey.ts](application/read-journey.ts). Reads use the allowlisted `ops` views and change no
+rows. An unknown or forbidden record gives no private explanation. For example, a model attempt
+with no known outcome appears as a gap, never permission to send it again.
+
+From the repository root, run
+`pnpm --filter @knowscroll/backend exec vitest run src/modules/operator`
+for local rules and fixtures. Real-database and installed-process checks use the
+[integration suite](../../../../../tests/integration/README.md). Runtime notes below describe
+their recorded checks; see [Status](../../../../../docs/STATUS.md) for deployment evidence.
+
 Lets an operator look at the running system without reading the database by hand: the `ops` views,
 the Operator screen's panels, and one record's journey across modules. Blueprint §26, decisions D-006 l,
 D-017 and D-044.
 
 Status: **implemented** and CI-verified against real PostgreSQL. **Runtime-verified** on a local
-database and in a browser (D-044). Not yet running on dev.
+database and in a browser (D-044). This is historical check evidence; current deployment is tracked in Status.
 
 ## What an operator can do
 
-- Open `/operator` (an operator account only) and see six panels: system overview, journey search,
+- Open `/operator` (an operator account only) and see the diagnostic panels: system overview, journey search,
   content production, universe change, realtime delivery, privacy and diagnostics health, and a list of the
   newest reports to the safety team (7 · Reports: kind, reason, what it is about, whether a note exists, when),
   and each room's AI calls over the last day against the router's caps (8 · Rooms: asked, on its own, refused by which cap;

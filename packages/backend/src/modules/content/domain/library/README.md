@@ -94,3 +94,16 @@ recipe's evidence passages, printing counts only. It needs `pnpm build` and netw
 
 Status: the plan is _implemented_. Every research page was last checked on 24 Oct 2026 (see the PR
 that added the plan for the summary); pages change, so re-run the script before a generation batch.
+
+## Follow a plan edit through its callers
+
+The Content catalogue derives identities and meanings from this plan. Production chooses the
+recipe; Scenes uses its declared visual family; coverage admission pins exact facet meanings.
+The operator's `content readmit-coverage --dry-run` previews coverage decisions for published
+revisions. It calls no provider but still needs an authorized disposable/operator database.
+Changing a brief is not permission to rewrite an already admitted revision or paid request ID.
+
+Run `pnpm --filter @knowscroll/backend exec vitest run src/modules/content/domain/library`
+from the root. The recipe, continuity and serving fixtures check identities and relationships.
+Use the [source checker](../../../../../../../scripts/README.md) when changing research pages;
+its network results are different evidence from these authored fixtures.

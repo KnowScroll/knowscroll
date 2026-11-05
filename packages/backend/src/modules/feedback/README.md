@@ -1,5 +1,22 @@
 # modules/feedback
 
+## Follow a report
+
+The app sends one confirmed report with one command ID. This module checks that the reporter
+may see the target, applies the daily limit, and commits the receipt and report together.
+Another body under that ID is refused; a lost answer is retried with the original ID and body.
+Nothing is sent to the reported person and reporting creates no consumption evidence.
+
+Start at [public.ts](public.ts), [file-report.ts](application/file-report.ts) and the owning
+[erasure declaration](adapters/erasure.ts). `purge-reports` handles the retention deadline of
+reports about deleted accounts. Not interested is an Experience action, not a report here.
+
+From the repository root, run
+`pnpm --filter @knowscroll/backend exec vitest run src/modules/feedback`
+for local rules and fixtures. Real-database and installed-process checks use the
+[integration suite](../../../../../tests/integration/README.md). Runtime notes below describe
+their recorded checks; see [Status](../../../../../docs/STATUS.md) for deployment evidence.
+
 Reports to the safety team about a Reel or Scroll, a message or a person (P03, D-055). "Not interested" is
 not here: it shapes what Experience offers, so Experience owns it (see its README).
 

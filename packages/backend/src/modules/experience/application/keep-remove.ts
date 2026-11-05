@@ -49,7 +49,13 @@ const sameMembership = (a: KeepEntryRef, b: KeepEntryRef) =>
 const sameEcho = (a: KeepEntryRef, b: KeepEntryRef) =>
   a.assetId === b.assetId && a.savedEntryId === b.savedEntryId && a.assetRevision === b.assetRevision;
 
-/** One root-held Unsave transaction. Historical replay precedes the deleted membership check. */
+/**
+ * Called by the scoped Keep removal endpoint. Under the personal root and own-account gate,
+ * replay an identical accepted command before checking current membership: its original entry
+ * may already be gone, or a later Save may now own a different entry. A new command must name
+ * the exact current membership. Receipt, removal effects and required work commit together;
+ * an exception rolls them back, so retry keeps the original command and entry identity.
+ */
 export function makeRemoveKeepEntry(p: KeepRemovalPorts) {
   return async (authority: PersonalAuthority, input: unknown): Promise<KeepRemovalResult> => {
     const parsed = RemoveKeepEntrySchema.safeParse(input);
