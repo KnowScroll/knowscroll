@@ -6,6 +6,7 @@ export function readingPaths(body, files) {
     if (files.has(path)) paths.add(path);
     else if (files.has(path + '/README.md')) paths.add(path + '/README.md');
   }
+  for (const match of body.matchAll(/\[([^\r\n]+?)\]\(/g)) add(match[1]);
   // Inline code preserves spaces and Expo's literal route punctuation.
   for (const match of body.matchAll(/\x60([^\x60\r\n]+)\x60/g)) add(match[1]);
   // A prose link can have an arbitrary label. Read the pinned revision's path in the current tree.
