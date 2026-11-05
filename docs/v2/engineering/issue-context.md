@@ -1,6 +1,6 @@
 # Starting from an issue or a report
 
-From the issue worktree, use Node and pnpm from the workspace setup, Git, and optionally an authenticated GitHub CLI. Commands work in PowerShell and on macOS. The scripts use built-in Node modules. Paths are relative to this checkout.
+Start each issue in a worktree based on freshly fetched `origin/dev` and target `dev` in the PR. From that worktree, use Node and pnpm from the workspace setup, Git, and optionally an authenticated GitHub CLI. Commands work in PowerShell and on macOS. The scripts use built-in Node modules. Paths are relative to this checkout.
 
 | Task | First command |
 | --- | --- |

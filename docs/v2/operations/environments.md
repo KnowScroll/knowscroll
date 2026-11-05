@@ -380,7 +380,7 @@ The agent may do this for **dev** (by manual dispatch, below). **Stage** gets v2
 
 **Preconditions** (all read-only):
 
-1. The server tool and Ansible match the integration branch (they were applied from it; re-apply
+1. The server tool and Ansible match the current `dev` release (re-apply
    with `ops/vps/ansible/run.sh --check --diff` then `run.sh` after any change under `ops/`).
 2. `ssh knowscroll-vps ks status`: under `worlds.dev`, `v2Provisioned: true`, `openPoolOrders: 0`,
    v1 `health` ok; `disk.critical: false`; `backups.nightly.ok: true` (a pre-migrate dump is taken
@@ -394,10 +394,10 @@ The agent may do this for **dev** (by manual dispatch, below). **Stage** gets v2
    ```
 
 **Dispatch** (dev only; `--ref` names the branch whose `deploy.yml` runs, which must be the v2
-workflow, e.g. the integration branch; `-f ref=` names the commit to deploy):
+workflow on `dev`; `-f ref=` names the commit to deploy):
 
 ```sh
-gh workflow run deploy.yml --ref codex/release-knowscroll-v2 -f ref=<sha>
+gh workflow run deploy.yml --ref dev -f ref=<sha>
 gh run watch "$(gh run list --workflow deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
 ```
 
@@ -471,7 +471,7 @@ placeholder is unchanged.
 
 ## Changing the server safely (Ansible)
 
-Always from an up-to-date checkout of the integration branch (Ansible copies `ops/vps/tool` and the
+Always from an up-to-date checkout of `dev` (Ansible copies `ops/vps/tool` and the
 scripts from the checkout it runs in; an old checkout would roll the server tool back).
 
 ```sh

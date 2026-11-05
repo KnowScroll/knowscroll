@@ -1,6 +1,6 @@
 # Status
 
-**Updated:** 2026-11-03 · **Tracker:** [#462](https://github.com/KnowScroll/knowscroll/issues/462) (v3 revamp; [#222](https://github.com/KnowScroll/knowscroll/issues/222) is the v2 history) · **Working flow:** `AGENTS.md` "How we work" (D-030) · **Handover:** [`docs/v2/v3-revamp/handover.md`](v2/v3-revamp/handover.md) (v2: [`docs/v2/handover.md`](v2/handover.md))
+**Updated:** 2026-11-05 · **Tracker:** [#661](https://github.com/KnowScroll/knowscroll/issues/661) (owner feedback), [#462](https://github.com/KnowScroll/knowscroll/issues/462) (v3 revamp; [#222](https://github.com/KnowScroll/knowscroll/issues/222) is the v2 history) · **Working flow:** `AGENTS.md` "How we work" (D-030) · **Handover:** [`docs/v2/v3-revamp/handover.md`](v2/v3-revamp/handover.md) (v2: [`docs/v2/handover.md`](v2/handover.md))
 
 **Current phase:** the v3 revamp is built and on dev: the new Universe, V3 Scrolls, R3 rooms and T3 Talk, with the backend and algorithm change behind each screen. The fidelity sweep, the journeys and the handover are done. Stage, live and the `main` PR are out of scope for this run.
 
@@ -8,8 +8,8 @@
 
 | Place | Revision | What it is |
 |---|---|---|
-| Integration branch `codex/release-knowscroll-v2` | schema 104 | All v2 and v3 work. `checks` green. |
-| `dev` branch and dev host (`https://app.dev.knowscroll.space`) | `c34737e3`, migration `0104_draft_recording_paused` | v3 complete (exact commit: `/health`). |
+| Contributor PR base and target | `dev` | Start from freshly fetched `origin/dev` (D-394). |
+| Dev host | [Live revision and migration](https://app.dev.knowscroll.space/health) | Verify the deployed commit after each merge to dev. |
 | stage | `8982391f` | v1. Out of scope for this run. |
 | main | `e5fdc319` | v1. Owner-only. |
 
