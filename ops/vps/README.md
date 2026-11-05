@@ -33,3 +33,15 @@ review the exact source and all required checks, then prepare a separate root in
 plan for `/usr/local/lib/knowscroll-ops/{plan,system}.ts` (the Ansible ops-tools role owns installation).
 Preserve existing tool bytes and evidence, inspect the targeted preview, and have a verified forward
 recovery artifact matching the new schema. This documentation alone authorizes no host changes.
+
+## Read and check the tool
+
+Start with [tool/plan.ts](tool/plan.ts) for pure release/schema decisions, then
+[tool/tree.ts](tool/tree.ts) for release-tree validation and [tool/system.ts](tool/system.ts) for
+host effects. The host command is operational authority, not an application HTTP endpoint.
+
+From the repository root, run
+`node --test ops/vps/tool/plan.test.ts ops/vps/tool/tree.test.ts ops/vps/backup/scripts.test.ts`.
+The fixtures check refused releases, mutation ordering and backup script behavior without a
+host deployment. An incompatible schema should refuse activation; it must not trigger a data
+restore or weaken a checksum check. Follow the linked runbooks for actual installation/recovery.

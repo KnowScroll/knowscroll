@@ -19,14 +19,14 @@ tests, scripts and operations. Read changes by commit; focused checks belong bes
 
 | Tracked area | Files | README(s) | Review result |
 | --- | ---: | --- | --- |
-| `.claude` | 3 | — | Pending |
+| `.claude` | 3 | — | Already clear: main-update hook preserves owner-only main writes; refusal/allowance fixtures passed. |
 | `.dependency-cruiser.cjs` | 1 | — | Pending |
 | `.gitattributes` | 1 | — | Pending |
-| `.github` | 6 | — | Pending |
+| `.github` | 6 | — | Already clear: inspected hosted checks and deploy separation; immutable input checks and push-only deploy retained. Native workflow detailed review pending. |
 | `.gitignore` | 1 | — | Pending |
-| `.npmrc` | 1 | — | Pending |
-| `.nvmrc` | 1 | — | Pending |
-| `.prettierignore` | 1 | — | Pending |
+| `.npmrc` | 1 | — | Already clear: pnpm store follows KS_DEV_ROOT; frozen install used the SSD root. |
+| `.nvmrc` | 1 | — | Already clear: exact Node version linked by root setup; unchanged. |
+| `.prettierignore` | 1 | — | Already clear: code/config scope intentionally excludes Markdown, immutable inputs and generated database types; checked changed Markdown links separately. |
 | `.prettierrc.json` | 1 | — | Pending |
 | `apps/api` | 105 | [apps/api/README.md](../../../apps/api/README.md) | Changed: added request/wiring/check entry points and corrected route-index comment. Account traced; other controllers/operators pending. |
 | `apps/client` | 10 | [apps/client/README.md](../../../apps/client/README.md) | Pending |
@@ -66,9 +66,9 @@ tests, scripts and operations. Read changes by commit; focused checks belong bes
 | `docs` | 1 | — | Pending |
 | `docs/archive` | 8 | [docs/archive/README.md](../../../docs/archive/README.md), [docs/archive/discovery-2026-10-19/README.md](../../../docs/archive/discovery-2026-10-19/README.md) | Pending |
 | `docs/v2` | 240 | [docs/v2/README.md](../../../docs/v2/README.md), [docs/v2/architecture/README.md](../../../docs/v2/architecture/README.md), [docs/v2/architecture/design-references/README.md](../../../docs/v2/architecture/design-references/README.md), [docs/v2/design/README.md](../../../docs/v2/design/README.md), [docs/v2/design/v3/README.md](../../../docs/v2/design/v3/README.md), [docs/v2/v3-revamp/README.md](../../../docs/v2/v3-revamp/README.md) | Pending |
-| `migrations` | 110 | [migrations/README.md](../../../migrations/README.md) | Pending |
-| `ops/pool` | 4 | [ops/pool/README.md](../../../ops/pool/README.md) | Pending |
-| `ops/vps` | 58 | [ops/vps/README.md](../../../ops/vps/README.md) | Pending |
+| `migrations` | 110 | [migrations/README.md](../../../migrations/README.md) | Changed: added schema-change journey, focused commands and historical rollout label; retained all SQL/checksums. Registry fixtures passed. |
+| `ops/pool` | 4 | [ops/pool/README.md](../../../ops/pool/README.md) | Already clear: functions, authority, spend ceiling, immutable migrations and separate live-state caveat are documented; retained all pool rows and SQL. |
+| `ops/vps` | 58 | [ops/vps/README.md](../../../ops/vps/README.md) | Changed: added source reading order and pure fixture command; preserved schema refusal, stop ordering, installation and forward-recovery rules. Host fixtures passed. |
 | `packages/backend` | 6 | [packages/backend/README.md](../../../packages/backend/README.md) | Changed: replaced obsolete unwired-feature summaries with current module ownership and focused checks; checked package exports and composition roots. |
 | `packages/backend/src/erasure-registry.ts` | 1 | — | Pending |
 | `packages/backend/src/infrastructure/config` | 7 | [packages/backend/src/infrastructure/config/README.md](../../../packages/backend/src/infrastructure/config/README.md) | Changed: retained the clear ownership/authority/recovery reference and added runnable focused checks. |
@@ -107,10 +107,10 @@ tests, scripts and operations. Read changes by commit; focused checks belong bes
 | `packages/scroll-model` | 165 | [packages/scroll-model/README.md](../../../packages/scroll-model/README.md), [packages/scroll-model/fixtures/README.md](../../../packages/scroll-model/fixtures/README.md) | Pending |
 | `packages/ui` | 286 | [packages/ui/README.md](../../../packages/ui/README.md) | Pending |
 | `root` | 11 | [README.md](../../../README.md) | Changed: newcomer setup, request journey, package map and check commands; root configuration/dependency manifests checked. Root tooling review continues below. |
-| `scripts` | 4 | — | Pending |
-| `scripts/issue-context` | 3 | — | Pending |
-| `scripts/release` | 3 | — | Pending |
-| `tests/integration` | 215 | [tests/integration/README.md](../../../tests/integration/README.md) | Pending |
+| `scripts` | 4 | — | Changed: added CLI/caller/effect/recovery map; traced source-check and vendor build dynamic entry points; retained promotion contract. |
+| `scripts/issue-context` | 3 | — | Already clear: CLI usage and offline behavior covered by issue workflow; lookup fixtures passed. |
+| `scripts/release` | 3 | — | Already clear: builder and smoke headers specify archive layout, exact artifact identity and disposable start; linked shared host validators in scripts guide. |
+| `tests/integration` | 215 | [tests/integration/README.md](../../../tests/integration/README.md) | Changed: rewrote test-layer selection, disposable isolation, fixtures versus runtime evidence and failure handling against actual configs; database/release execution remains hosted-CI pending. |
 
 ## Removal evidence and retained candidates
 
@@ -136,3 +136,8 @@ Retained CLI candidate: `scripts/check-library-sources.mjs` is called by the Scr
 its dynamic import reaches the built research adapter. Retained `build-cutroom-wire.mjs` is called by
 the backend build and copies the pinned vendor schema. Neither is dead merely because it lacks a
 TypeScript importer. No runtime or immutable-input removal is proposed.
+
+Operator/issue/main-hook fixtures passed with SSD temporary storage. Migration registry checks
+passed without changing any SQL. New scripts and test commands were checked against manifests,
+workflow invocations and parser flags; provider, deployment and database-mutating commands were
+not executed as documentation examples.
