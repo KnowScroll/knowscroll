@@ -79,6 +79,7 @@ describe('asksSomething', () => {
     for (const text of [
       '@Nova',
       'hi @Halley',
+      '@Nova hello?',
       '@Nova thanks, that helps',
       'Thank you so much @Nova!',
       '@Halley nice one',

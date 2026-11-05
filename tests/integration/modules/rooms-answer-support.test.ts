@@ -408,7 +408,7 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       const { roomId } = await seedRoom(world);
       const [asha] = (await joined(world, roomId, 1)) as [Friend];
       const discussionId = await startTopic(world, asha, roomId, 'Moon drift');
-      for (const greeting of ['@Nova thanks, that helps a lot', 'hi @Nova']) {
+      for (const greeting of ['@Nova thanks, that helps a lot', 'hi @Nova', '@Nova hello?']) {
         const before = world.queued.length;
         const readsBefore = reads.length;
         unwrap(await say(world, asha, roomId, discussionId, greeting));

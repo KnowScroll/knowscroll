@@ -70,6 +70,7 @@ const REQUEST_OPENING = /^(?:explain|tell|show|describe|define|give|help|teach|c
  * filters (`triggers.ts`): it decides whether a resident is asked to look, not whether it has anything to say.
  */
 export function asksSomething(text: string): boolean {
+  if (isSocialOnly(text)) return false;
   const body = text.replaceAll(MENTION, ' ').replaceAll(/\s+/gu, ' ').trim();
   if (body.includes('?')) return true;
   const opening = body.replace(SOFTENER, '').replace(/^[\s,.:;!-]+/u, '');
