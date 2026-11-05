@@ -427,38 +427,88 @@ follows from static checks.
 
 ## Account deletion (D-043)
 
-Status: implemented, runtime-verified. Related: #246.
+Starting deletion signs the person out on every device. This device keeps a receipt so it can
+check progress or ask for a retry after sign-out. Those two requests use the receipt and have
+an in-memory limit of 120 requests per client address per 15 minutes, shared with export downloads.
+The receipt exposes only progress; it cannot sign in, read personal data or cancel deletion.
 
-**Request** (`POST /v1/account/delete`, one transaction): the caller's personal scope and own-account gate
-(`FOR UPDATE`) are taken; the operation row is inserted under the client's receipt id (a taken id writes
-nothing: `receipt_in_use`); the universe and account become `deleting`, the privacy epoch advances once, every
-session row is deleted, `revokeAccountSockets` is sent and `identity.delete-account` is enqueued, all in the
-same commit. Every check that already tests `status = 'active'` (`withPersonalScope`, `authorityHolds`,
-session resolution, sockets, sign-in redemption, workers) now refuses the account, and an old session or link
-cannot bring it back (a link redeemed meanwhile answers `account_unavailable`). A Clear still holding its
-barrier refuses the request (`unavailable`; try again shortly). The answer is 202: durable, not done. The web
-cookie is cleared with it.
+```mermaid
+sequenceDiagram
+    participant Device
+    participant API
+    participant Database
+    participant Worker
+    Device->>Device: Keep a new receipt ID before sending
+    Device->>API: POST /v1/account/delete (session, scope, epoch, confirmation)
+    API->>Database: Lock own root and account; mark deleting; end sessions; record and enqueue
+    Database-->>API: Commit all effects together
+    API-->>Device: 202 accepted; clear web cookie
+    Worker->>Database: Lock address, root, account, operation; run registered erasers
+    Device->>API: GET /auth/deletion/{receiptId} (no session)
+    API-->>Device: in_progress, needs_retry or completed
+```
 
-**Worker** (`identity.delete-account`, one transaction under the deletion locks): every module's `erase` over
-the deleting universe, then every `eraseAccount` (identity's removes sign-in links of the address, sessions,
-Clear and recording receipts, exports and their queue jobs, the address, and nulls the operator audit's account;
-Social's removes the profile, invite, roster entries, pairs and requests naming the person, bumping the other
-people's roster heads so their lists refetch; receipts removes the person's shared command receipts). If every
-report is `completed`, the operation row sheds its links and becomes the audit row, then the universe root and
-the account are deleted. If a paid model attempt still has an unknown outcome the reasoning eraser reports
-`pending` (a paid attempt is never refunded or resent): what could be erased is committed, `attempts` and
-`next_attempt_at` move, and the receipt keeps saying `in_progress`; the recovery cron hands the operation back
-until accounting settles. An eraser reporting `failed`, or any error, rolls the whole transaction back. A
-foreign key from a store no module declared makes the final `delete` fail and roll back, never leave rows.
+### Where the authority comes from
 
-**Recovery and receipts**: `identity.recover-account-deletions` (every 5 minutes) re-enqueues up to 25 pending
-operations that are due and pushes each 15 minutes out; the final failed delivery marks the receipt
-`needs_retry`; `POST /auth/deletion/retry` makes the same operation due now. The receipt id names no one, so
-`GET /auth/deletion/{id}` needs no session and answers only `in_progress`, `needs_retry` or `completed`.
+Follow these files in order:
 
-Limits: backups, provider-held copies (AgentMail's sent sign-in mail, MiniMax requests) and offline devices
-are outside the deletion and the copy says so; a Clear that stays unfinished blocks deletion until it is
-recovered; native keeps its receipt id in memory only until the platform has a persistent store.
+1. The app's [delete panel](../../../../../apps/client/features/privacy/delete-panel.tsx) shows
+   the consequences and confirmation. [requestAccountDeletion](../../../../client-core/src/account-deletion.ts)
+   saves the receipt before sending. Acceptance ends the local account scope; a lost response
+   keeps the receipt so the device can check progress.
+2. The [wire contract](../../../../contracts/src/account.ts) requires the receipt, expected
+   privacy epoch and exact confirmation token. The API's
+   [AccountController](../../../../../apps/api/src/http/account.controller.ts) requires the
+   authenticated caller for the start request and rejects a mismatched epoch.
+3. [makeDeleteAccount](application/delete-account.ts) enters `withPersonalScope` and takes the
+   own-account gate. [deletionStore](adapters/deletion-store.ts) inserts the operation, marks
+   account and universe `deleting`, advances the epoch, deletes sessions, revokes sockets and
+   enqueues `identity.delete-account` in that transaction. A used receipt writes nothing.
+   An unfinished Clear or an unavailable account refuses the request. A 202 means durable,
+   not erased. Status checks requiring `active` now refuse requests, sign-in and personal work.
+4. The [worker consumers](../../../../../apps/worker/src/privacy.ts) run the registered
+   erasers under a separate deletion transaction. Its system authority comes from a pending
+   operation bound to a deleting account and root, rechecked under address → root → account →
+   operation locks; an ordinary personal scope cannot act on that deleting root.
+5. The two `/auth/deletion` handlers deliberately need no session. They look up the receipt,
+   apply `receiptPerClient`, and return no account details. The device's
+   [receipt session](../../../../client-core/src/deletion-receipt.ts) lives outside the account
+   scope so sign-out does not purge it. Web uses local storage; native uses encrypted platform
+   storage with asynchronous writes, so an abrupt exit before the write can lose the latest change.
+
+### Completion, failure and recovery
+
+The worker first calls every module's `erase`, then `eraseAccount`. Identity removes address-linked
+sign-in links, sessions, Clear and recording receipts, exports and their jobs, the address, and
+its link in the operator audit. Social removes the profile and relationships and updates surviving
+roster heads; shared command receipts go through their owning eraser. Shared history follows each
+module's erasure declaration rather than deleting another person's records.
+
+When every report is `completed`, the operation loses its account and root links, becomes a
+completed audit row, and the root and account are removed. If reasoning reports an unknown paid
+outcome, the worker commits the erasure it can finish and postpones completion: it never refunds
+or resends that paid attempt. An eraser reporting `failed`, an exception or an undeclared foreign
+key rolls back the transaction. A repeated delivery after completion has nothing to do.
+
+`identity.recover-account-deletions` runs every five minutes. It queues at most 25 due pending
+operations and moves their next recovery time fifteen minutes out. The final failed delivery
+marks `needs_retry`; `POST /auth/deletion/retry` queues the same operation again. For example,
+`{"state":"in_progress"}` means the account remains fenced while work or accounting is pending;
+it does not promise that all data is gone. An unknown receipt returns 404.
+
+Backups, provider-held copies and offline devices are outside live erasure. There is no cancel
+operation. Do not infer a retention date for those copies from a completed receipt.
+
+### Focused checks and evidence
+
+From the repository root, run client recovery fixtures with
+`pnpm --filter @knowscroll/client-core test -- src/account-privacy.test.ts src/deletion-receipt.test.ts`.
+The [account integration test](../../../../../tests/integration/modules/account-deletion.test.ts)
+checks real registered stores and retries. The installed HTTP journey is
+[account-http.test.ts](../../../../../tests/integration/release/account-http.test.ts); run it through
+hosted release CI against a disposable database. These are test entry points, not a claim that
+this cleanup exercised account deletion on dev or a physical device. Historical behavior choices
+are in [D-043](../../../../../docs/v2/decisions.md); current storage is described above.
 
 ## Personal data export (D-043)
 

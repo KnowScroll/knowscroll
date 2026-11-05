@@ -57,9 +57,9 @@ function responseOf(request: Request): Response {
 }
 
 /**
- * Account (#246, D-043): the caller's sessions, personal data export and account deletion, plus the
- * two deletion-receipt routes that need no session (deletion ends every session, and the device
- * must still be able to ask how it is going). Thin handlers over the identity use cases.
+ * Serves the signed-in person's sessions, exports and deletion request. Starting deletion ends
+ * every session, so status and retry use the saved receipt instead. Those two handlers apply
+ * their own client-address limit and expose only progress, never personal account data.
  */
 @Controller()
 export class AccountController {
