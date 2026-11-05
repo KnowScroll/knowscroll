@@ -4569,3 +4569,9 @@ Confirmed by: `e2e/universe-collection-smoke.spec.ts` (at 320 x 568 the whole na
 - **Known.** An Earth's axis may cross a hairline ray of the Sun (the stretched October). No Earth touches the disc.
 
 Confirmed by: `earth-sky-orbit-layout.test.ts` (both orbits, every month, with and without distances: no word covers another word, an Earth, the Sun or the dashed orbit; Earths clear of each other and inside the frame; the recap for every pair of months in both orders, every three months and all twelve: no Earth or badge touches another, all inside the frame and clear of the next Part's tab; the geometry is sampled by the test, not read from the layout), `earth-sky-figures.test.tsx`, and `e2e/scroll-orbit-layout-smoke.spec.ts` (boxes measured on the page at 320, 390, 1024 and 1440, the recap and eight months). Shown failing when the names were set on their Earths and the badges had one place to try.
+
+## D-394 · 2026-11-05 · Contributor PRs start from and merge into dev (#677)
+
+The owner designated `dev` as the current development branch. Fetch `origin/dev`, branch from it in an isolated worktree, and open the feature PR against `dev`. Squash on green after a fresh review. The dev push runs checks and deploys the resulting release. Verify the deployed commit through health.
+
+This amends the integration-branch and back-merge steps of D-002 and D-030. The former integration branch records earlier v2 work. Stage and live retain their existing promotion and ownership rules. The owner requested one repository-wide PR for the upcoming code, comment and README cleanup.
