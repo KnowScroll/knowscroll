@@ -15,7 +15,7 @@ Fetch the latest `dev` before starting an issue. Open the PR with `--base dev`. 
 
 ## Settings that live in GitHub, not in Git
 
-- Default branch `dev`. Rulesets `24594426` (main, stage, dev: no deletion, no force-push) and `24608344` (only the `promoters` team — `Legend101Zz`, `XZNON` — updates `main` and `stage`). No required status checks today (owner decision 3 on #222 proposes making `checks` required on `dev`).
+- Default branch `dev`. Rulesets `24594426` (main, stage, dev: no deletion, no force-push) and `24608344` (only the `promoters` team — `Legend101Zz`, `XZNON` — updates `main` and `stage`). The `dev` branch requires `integrity`, `static`, `backend`, `build`, `client` and `release` before merging. Inspect the active GitHub rules when troubleshooting a blocked PR.
 - Environments `dev` and `stage` hold `KS_DEPLOY_SSH_KEY` (a world-pinned deploy key whose forced command is `ks-gate <world>`); repository variables `KS_DEPLOY_HOST`, `KS_DEPLOY_KNOWN_HOSTS`. `production` waits for a reviewer.
 - The repository is public on purpose (free runners and rulesets). Going private later: GitHub Team first, re-confirm rulesets/environments/team, give the server a read-only way to `git ls-remote` (it checks branch tips over public HTTPS). Going private does not undo exposure.
 - The agent acts as `Legend101Zz`; GitHub cannot tell the agent from the owner. "Only the owner promotes to live" is discipline backed by `.claude/hooks/refuse-main-update.mjs`, which loads only for Claude sessions started inside a checkout of this repository.
