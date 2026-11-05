@@ -86,11 +86,6 @@ function Panel({
 }) {
   return (
     <>
-      <Text variant="metaS" color={content.ink2}>
-        AI residents answer when asked: tap Ask, or name one in a message{' '}
-        {inhabitants[0] === undefined ? '' : `(@${inhabitants[0].name})`}. If a question goes unanswered for a while,
-        one may join in, within limits.
-      </Text>
       <View style={compact ? styles.compact : styles.list}>
         {inhabitants.map((entry) => {
           const reason = WORDS[entry.ask];

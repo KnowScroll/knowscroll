@@ -27,7 +27,7 @@ async function show(inhabitants: InhabitantStatus[], outcome?: string, collapsib
 describe('the inhabitant bar', () => {
   it('shows each inhabitant with its label and asks only when the person presses Ask', async () => {
     const { onAsk } = await show(status('available'));
-    expect(screen.getByText(/answer when asked/)).toBeOnTheScreen();
+    expect(screen.queryByText(/tap Ask/)).not.toBeOnTheScreen();
     // What asking sends is said once, on joining, and then in the room menu: not on every visit.
     expect(screen.queryByText(/without names/)).not.toBeOnTheScreen();
     expect(screen.getByRole('text', { name: 'AI, Explainer' })).toBeOnTheScreen();
@@ -59,7 +59,7 @@ describe('the inhabitant bar', () => {
     expect(screen.queryByText(/answer when asked/)).not.toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Ask AI, Skeptic' })).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('inhabitants-toggle'));
-    expect(screen.getByText(/answer when asked/)).toBeOnTheScreen();
+    expect(screen.queryByText(/tap Ask/)).not.toBeOnTheScreen();
     expect(screen.getByRole('text', { name: 'AI, Skeptic' })).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Ask AI, Skeptic' }));
     expect(onAsk).toHaveBeenCalledWith('skeptic');

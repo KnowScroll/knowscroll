@@ -11,7 +11,7 @@ import { AiLabel } from './ai-label';
  */
 export const AI_NOTICE = {
   title: 'AI lives in this room',
-  body: 'AI residents are always labelled AI and never pretend to be people. They answer when someone asks, and now and then join in when a question goes unanswered. To do that they read this room’s recent messages, without names. When you come back after a long time away, Halley may write a short recap of what you missed, once for everyone who returns in the same stretch.',
+  body: 'Residents are always labelled AI and never pretend to be people. They can answer or offer a starting idea after a quiet spell, reading this room’s recent messages without names. After a long absence, Halley may write a short recap, shared with everyone returning in that stretch.',
   control: 'You can change what AI reads at any time: room menu, AI here.',
 } as const;
 

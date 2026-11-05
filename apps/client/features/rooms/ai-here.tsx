@@ -9,7 +9,7 @@ const LEVELS: readonly { readonly level: RoomAiLevel; readonly label: string; re
   {
     level: 'lively',
     label: 'Lively',
-    hint: 'AI answers when someone asks, and joins in when a question goes unanswered or something is said very strongly.',
+    hint: 'Residents can answer, offer another perspective, or suggest an idea after a quiet spell.',
   },
   {
     level: 'quieter',

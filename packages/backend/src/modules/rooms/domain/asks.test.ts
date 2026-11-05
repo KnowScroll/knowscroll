@@ -1,6 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CAST } from './cast.js';
-import { asksSomething, mentionedResident, pointedKind, residentForAsk } from './asks.js';
+import {
+  asksSomething,
+  isShortFollowUp,
+  isSocialOnly,
+  mentionedResident,
+  pointedKind,
+  residentForAsk,
+} from './asks.js';
+
+it('separates social-only words from factual questions and contextual follow-ups', () => {
+  for (const text of ['yooo', 'hello!', '@Nova thanks, that helps', 'thank you so much'])
+    expect(isSocialOnly(text)).toBe(true);
+  for (const text of ['Hi, why does Earth have seasons?', 'thanks but why?', 'thanks for explaining tides', 'why?'])
+    expect(isSocialOnly(text)).toBe(false);
+  expect(isShortFollowUp('why?')).toBe(true);
+  expect(isShortFollowUp('how so')).toBe(true);
+  expect(isShortFollowUp('Why does Earth have seasons?')).toBe(false);
+});
 
 describe('which resident an ask is for', () => {
   it('sends a challenge or the other side to the Skeptic and a question about a message to the Explainer', () => {
@@ -62,6 +79,7 @@ describe('asksSomething', () => {
     for (const text of [
       '@Nova',
       'hi @Halley',
+      '@Nova hello?',
       '@Nova thanks, that helps',
       'Thank you so much @Nova!',
       '@Halley nice one',

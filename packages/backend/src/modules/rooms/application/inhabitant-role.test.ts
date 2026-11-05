@@ -1,8 +1,20 @@
 import { describe, expect, it } from 'vitest';
+
 import { ANSWER_MAX_CITES, ANSWER_MAX_SENTENCES } from '../domain/answer-support.js';
 import { ANSWER_HINTS, answerSchema, contributionContext, inhabitantRole } from './inhabitant-role.js';
 import { residentRole } from './resident-role.js';
 
+it('bounds a grounded starter to three sentences without relaxing citations', () => {
+  const schema = residentRole('explainer', ['e1'], true).outputSchema;
+  expect(
+    schema.safeParse({ kind: 'explanation', text: 'One idea. One invitation? One detail.', cites: ['e1'] }).success,
+  ).toBe(true);
+  expect(
+    schema.safeParse({ kind: 'explanation', text: 'First idea. Second idea. Third idea. Fourth idea.', cites: ['e1'] })
+      .success,
+  ).toBe(false);
+  expect(schema.safeParse({ kind: 'explanation', text: 'One idea.', cites: [] }).success).toBe(false);
+});
 const HANDLES = ['e1', 'e2', 'e3', 'e4'];
 
 /** The fixed hint code a schema refusal names, or 'shape' for a refusal that has none, or undefined when it is accepted. */

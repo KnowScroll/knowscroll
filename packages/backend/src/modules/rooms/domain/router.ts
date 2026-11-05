@@ -26,6 +26,9 @@ export const UNPROMPTED_CAPS = {
 };
 
 const MINUTE = 60_000;
+/** A human greeting can wake a quiet General, never a navigation event or an unattended timer. */
+export const STARTER_QUIET_MS = 12 * 60 * MINUTE;
+export const STARTER_COOLDOWN_MS = 24 * 60 * MINUTE;
 
 /** How long people get to answer first. Shorter when only the author is here, because nobody else can. */
 export const WAITS = {
@@ -40,13 +43,17 @@ export const STALE_AFTER_MS = 30 * MINUTE;
 
 /** The resident a trigger asks for. */
 export function residentFor(trigger: SpeechTrigger): InhabitantId {
-  return trigger === 'unanswered_question' ? 'explainer' : 'skeptic';
+  return trigger === 'unanswered_question' || trigger === 'conversation_starter' ? 'explainer' : 'skeptic';
 }
 
 /** How long a trigger waits before a resident may speak to it. */
 export function waitFor(trigger: SpeechTrigger, onlyAuthorHere: boolean): number {
   const wait =
-    trigger === 'unanswered_question' ? WAITS.question : trigger === 'overstated_claim' ? WAITS.claim : WAITS.reply;
+    trigger === 'unanswered_question' || trigger === 'conversation_starter'
+      ? WAITS.question
+      : trigger === 'overstated_claim'
+        ? WAITS.claim
+        : WAITS.reply;
   return onlyAuthorHere ? wait.alone : wait.room;
 }
 
@@ -67,6 +74,8 @@ export type DropReason =
 
 /** The counts each cap compared, kept on the turn row. `humanSinceLastTurn` is absent before the room's first turn. */
 export interface CapCounts {
+  /** Starter decisions in the last 24 hours, including quiet failures and refusals. */
+  readonly startersLastDay?: number;
   readonly humanSinceLastTurn?: number;
   readonly roomLastHour: number;
   readonly roomToday: number;
@@ -113,6 +122,7 @@ export type RouteDecision =
 
 /** The first cap this turn would break, if any. The one reply of the Skeptic to the Explainer is not counted against the ratio. */
 function capBroken(kind: SpeechTrigger, counts: CapCounts, inhabitant: InhabitantId): RefusalCap | undefined {
+  if (kind === 'conversation_starter' && (counts.startersLastDay ?? 0) > 0) return 'room_day';
   const { humanSinceLastTurn } = counts;
   if (
     kind !== 'answer_overstated' &&

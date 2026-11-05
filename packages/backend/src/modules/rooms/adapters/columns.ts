@@ -42,6 +42,7 @@ export const topicKindOf = closed<'system' | 'planet'>('topic_kind', ['system', 
 export const endedByOf = closed<'left' | 'removed'>('ended_by', ['left', 'removed']);
 export const turnStateOf = closed<TurnState>('state', ['queued', 'completed', 'declined', 'failed', 'refused']);
 export const messageTriggerOf = closed<MessageTrigger>('trigger', [
+  'conversation_starter',
   'unanswered_question',
   'overstated_claim',
   'answer_overstated',
@@ -49,6 +50,7 @@ export const messageTriggerOf = closed<MessageTrigger>('trigger', [
   'scout_find',
 ]);
 export const turnTriggerOf = closed<TurnTrigger>('trigger', [
+  'conversation_starter',
   'asked',
   'unanswered_question',
   'overstated_claim',

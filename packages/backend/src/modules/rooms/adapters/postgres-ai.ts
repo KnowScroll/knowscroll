@@ -2,7 +2,7 @@ import { sql } from 'kysely';
 import { sharedTransactionOf, transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { AnswerSupportRecordSchema, type AnswerSupportRecord } from '../domain/answer-support.js';
 import { QUEUED_ASK_LAPSES_MS } from '../domain/contribution.js';
-import type { CapCounts } from '../domain/router.js';
+import { STARTER_COOLDOWN_MS, type CapCounts } from '../domain/router.js';
 import type { AiStore, AiTurnRow } from '../application/ports.js';
 import { askKindOf, contributionKindOf, inhabitantOf, turnStateOf, turnTriggerOf } from './columns.js';
 
@@ -296,6 +296,14 @@ export const aiStore: AiStore = {
     const trx = sharedTransactionOf(lock.shared);
     const hourStart = new Date(query.now.getTime() - HOUR_MS);
     const dayStart = new Date(Date.UTC(query.now.getUTCFullYear(), query.now.getUTCMonth(), query.now.getUTCDate()));
+    // Count every starter decision: an empty library or an unavailable budget must not invite repeated retries.
+    const starters = await trx
+      .selectFrom('rooms.ai_turns')
+      .select((eb) => eb.fn.countAll<string>().as('total'))
+      .where('room_id', '=', lock.roomId)
+      .where('trigger', '=', 'conversation_starter')
+      .where('created_at', '>', new Date(query.now.getTime() - STARTER_COOLDOWN_MS))
+      .executeTakeFirstOrThrow();
     // An unprompted turn counts toward the caps when it was allowed and cost a call: one that failed before it
     // reached the provider is handed back, and a refusal is not a turn. A turn that declined (nothing to add) counts.
     // The ratio looks at the newest turn that was posted or is still being prepared, not at one that declined.
@@ -335,6 +343,7 @@ export const aiStore: AiStore = {
     return {
       ...(humans === undefined ? {} : { humanSinceLastTurn: Number(humans.rows[0]?.humans ?? 0) }),
       roomLastHour: Number(row?.room_hour ?? 0),
+      ...(Number(starters.total) > 0 ? { startersLastDay: Number(starters.total) } : {}),
       roomToday: Number(row?.room_day ?? 0),
       residentLastHour: Number(row?.resident_hour ?? 0),
       personLastHour: Number(row?.person_hour ?? 0),

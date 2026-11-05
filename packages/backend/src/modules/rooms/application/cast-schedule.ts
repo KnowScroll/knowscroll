@@ -1,6 +1,6 @@
 import { ROOM_PRESENCE_LEASE_MS } from '@knowscroll/contracts';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import { residentFor, waitFor } from '../domain/router.js';
+import { STARTER_QUIET_MS, residentFor, waitFor } from '../domain/router.js';
 import { triggerOfPersonMessage, type SpeechTrigger } from '../domain/triggers.js';
 import { hasResident, type RoomLock, type RoomPorts, type RoomRow } from './ports.js';
 
@@ -25,10 +25,17 @@ export async function scheduleCastCheck(
     readonly authorAccountId: string;
     readonly text: string;
     readonly now: Date;
+    readonly starterGreeting?: boolean;
+    readonly previousHumanAt?: Date | undefined;
   },
 ): Promise<void> {
   if (!p.residentsEnabled) return;
-  const trigger = triggerOfPersonMessage(message.text);
+  const trigger =
+    message.starterGreeting === true &&
+    (message.previousHumanAt === undefined ||
+      message.now.getTime() - message.previousHumanAt.getTime() >= STARTER_QUIET_MS)
+      ? 'conversation_starter'
+      : triggerOfPersonMessage(message.text);
   if (trigger === undefined || !hasResident(message.room, residentFor(trigger))) return;
   const here = await p.presence.fresh(lock, new Date(message.now.getTime() - ROOM_PRESENCE_LEASE_MS), FACES_NEEDED);
   const onlyAuthorHere = here.every((account) => account === message.authorAccountId);

@@ -306,3 +306,9 @@ other slices.
 0100 is the mark on exposures made while recording was paused (v3, #609, D-284): `experience.exposures.made_while_paused` (default false). An exposure written, or activated, while recording is paused is marked; it still serves its item, and the export's encounter list, the "continue" prompt and the thread and branch "opened" marks leave it out. The migration marks the exposures an offer's activation made when its command remembered no recording generation. No other row is rewritten.
 
 0101 is how a resident's answer came out (v3, #620, D-301): `rooms.ai_turns.answer_support` (JSON, at most 1,024 bytes, null for every turn before it and for a turn that made no answer). It names the library passages the answer cited (asset, revision and stop IDs, never a word), whether the first draft or the one rewrite cleared the support check, or that the library did not cover the question; it is written when the turn is settled or a checked answer is held back for someone typing. No other row is rewritten. Additive: an older process neither writes nor reads it. Apply with the new binary; the generated database types change by the same column.
+
+
+0105 widens the room turn and message trigger checks for `conversation_starter` (D-396). It changes no columns or
+existing rows. Rooms owns the behavior: a human greeting in a quiet General enters the existing router, caps,
+worker, support checks and ledger. The room lock serialises the rolling cooldown and the existing cause/trigger
+unique index deduplicates jobs. Disable residents to stop new starters; clients predating the trigger need an update.

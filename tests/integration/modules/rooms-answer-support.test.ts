@@ -23,6 +23,8 @@ import { fixtureRecordingHarness } from '../support/recording-harness.js';
 import {
   ask,
   joined,
+  hideMessage,
+  makeModerator,
   memberView,
   readDiscussion,
   roomScope,
@@ -194,14 +196,14 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
 
   /** A member of a room asks Nova a question in a topic; the job the ask queued is returned. */
   async function askNova(question: string, title = 'Moon drift') {
-    const { roomId } = await seedRoom(world);
+    const { roomId, slug } = await seedRoom(world);
     const [asha] = (await joined(world, roomId, 1)) as [Friend];
     const discussionId = await startTopic(world, asha, roomId, title);
     unwrap(await say(world, asha, roomId, discussionId, question));
     const before = world.queued.length;
     unwrap(await ask(world, asha, roomId, discussionId, 'explainer'));
     expect(world.queued).toHaveLength(before + 1);
-    return { roomId, asha, discussionId, job: world.queued[before]! };
+    return { roomId, slug, asha, discussionId, job: world.queued[before]! };
   }
 
   /** The harness over a fixture model, and the worker's consumer that uses it. */
@@ -406,7 +408,7 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       const { roomId } = await seedRoom(world);
       const [asha] = (await joined(world, roomId, 1)) as [Friend];
       const discussionId = await startTopic(world, asha, roomId, 'Moon drift');
-      for (const greeting of ['@Nova thanks, that helps a lot', 'hi @Nova']) {
+      for (const greeting of ['@Nova thanks, that helps a lot', 'hi @Nova', '@Nova hello?']) {
         const before = world.queued.length;
         const readsBefore = reads.length;
         unwrap(await say(world, asha, roomId, discussionId, greeting));
@@ -423,6 +425,55 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       }
       expect((await textsOf(asha, roomId, discussionId)).some((entry) => entry.ai)).toBe(false);
     });
+
+    it('does not turn a plain Ask after yooo or thanks into a library-coverage lecture', async () => {
+      for (const greeting of ['yooo', 'thanks, that helps', 'hello!']) {
+        const { roomId, asha, discussionId, job } = await askNova(greeting);
+        const readsBefore = reads.length;
+        const model = playbook({ writer: [] }, 'plain-social');
+        await consumer(model)(job);
+        expect(model.calls).toHaveLength(0);
+        expect(reads).toHaveLength(readsBefore);
+        expect(await turnOf(job.requestId)).toMatchObject({ state: 'declined' });
+        expect((await textsOf(asha, roomId, discussionId)).map((entry) => entry.text)).toEqual([greeting]);
+      }
+    });
+
+    it('routes the original asker’s short follow-up through the existing personal answer and check path once', async () => {
+      const { roomId, asha, discussionId, job } = await askNova(MOON_QUESTION);
+      await consumer(playbook({ writer: [writes(SUPPORTED_ANSWER)] }, 'follow-up-first'))(job);
+      const queuedBefore = world.queued.length;
+      unwrap(await say(world, asha, roomId, discussionId, 'why?'));
+      expect(world.queued).toHaveLength(queuedBefore + 1);
+      const next = world.queued.at(-1)!;
+      const model = playbook({ writer: [writes(SUPPORTED_ANSWER)] }, 'follow-up');
+      await consumer(model)(next);
+      expect(model.calls).toHaveLength(2);
+      expect(model.calls[0]!.request.user).toContain('why?');
+      expect(model.calls[0]!.request.user).toContain(MOON_QUESTION);
+      expect((await textsOf(asha, roomId, discussionId)).at(-1)).toMatchObject({ ai: true, text: SUPPORTED_ANSWER });
+      await consumer(model)(next);
+      expect(model.calls).toHaveLength(2);
+    });
+
+    it.each(['ai', 'person'] as const)(
+      'does not implicitly follow up after the preceding %s message was removed',
+      async (kind) => {
+        const { roomId, slug, asha, discussionId, job } = await askNova(MOON_QUESTION);
+        await consumer(playbook({ writer: [writes(SUPPORTED_ANSWER)] }, 'removed-follow-up'))(job);
+        await makeModerator(world, slug, asha);
+        const target = await world.db
+          .selectFrom('rooms.messages')
+          .select('message_id')
+          .where('discussion_id', '=', discussionId)
+          .where('author_kind', '=', kind)
+          .executeTakeFirstOrThrow();
+        unwrap(await hideMessage(world, asha, roomId, discussionId, target.message_id));
+        const before = world.queued.length;
+        unwrap(await say(world, asha, roomId, discussionId, 'why?'));
+        expect(world.queued).toHaveLength(before);
+      },
+    );
 
     it('answers a message that names a resident and asks in an interrogative, without a question mark', async () => {
       const { roomId } = await seedRoom(world);
@@ -502,7 +553,7 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       expect(model.calls).toHaveLength(2);
       expect((await spoken(room)).map((entry) => entry.text)).toEqual([SUPPORTED_ANSWER]);
       const [turn] = await turnsOf(room.roomId);
-      expect(turn).toMatchObject({ trigger: 'unanswered_question', state: 'completed', role_version: 'resident.2' });
+      expect(turn).toMatchObject({ trigger: 'unanswered_question', state: 'completed', role_version: 'resident.3' });
       expect(turn!.answer_support).toMatchObject({ result: 'cleared', cited: [{ assetId: DRIFT_ASSET }] });
       // Paid by the rooms scope, never by a person: the writer's and the checker's receipts are both ambient.
       const after = await ambientReceipts();
@@ -624,6 +675,30 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
   });
 
   describe('the library read', () => {
+    it('puts a quiet-room starter through the real support pipeline and ambient attempt ledger', async () => {
+      world.clock.now = START;
+      const { roomId } = await seedRoom(world, { name: 'The Moon drifting away from Earth' });
+      const [person] = (await joined(world, roomId, 1)) as [Friend];
+      const general = (await memberView(world, person, roomId)).general.discussionId;
+      unwrap(await setPresence(world, person, roomId));
+      unwrap(await say(world, person, roomId, general, 'hello'));
+      const check = world.castChecks.at(-1)!;
+      world.clock.now = check.startAfter!;
+      await world.decide()(check.job);
+      const text = SUPPORTED_ANSWER + ' How do scientists know the Moon is drifting away?';
+      const model = playbook({ writer: [writes(text)] }, 'grounded-starter');
+      const { harness, withScope } = roomScope(world.db, model);
+      const job = world.castPasses.at(-1)!.job;
+      await world.pass(harness, withScope)(job);
+      expect(model.calls).toHaveLength(2);
+      expect(await turnOf(job.turnId)).toMatchObject({
+        trigger: 'conversation_starter',
+        state: 'completed',
+        answer_support: { result: 'cleared' },
+      });
+      expect((await textsOf(person, roomId, general)).at(-1)).toMatchObject({ ai: true, text });
+    });
+
     it('reads the admitted Scrolls under the room’s topic and offers the passage that fits the question', async () => {
       // An authored CI Scroll (the shipped starter under another identity), admitted through the real import and filed under a
       // planet of the room's system.

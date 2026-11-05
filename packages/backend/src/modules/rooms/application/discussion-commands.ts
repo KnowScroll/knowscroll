@@ -16,7 +16,8 @@ import {
 import type { z } from 'zod';
 import type { SnippetAnchorInput, StoredSnippetAnchor } from '../../content/public.js';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
-import { mentionedResident } from '../domain/asks.js';
+import { isGreetingOnly, isShortFollowUp, isSocialOnly, mentionedResident } from '../domain/asks.js';
+import { NOT_COVERED_LINE } from '../domain/answer-support.js';
 import { closesAtOf, debateStartProblem } from '../domain/debate.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
 import { titleFrom } from '../domain/titles.js';
@@ -260,7 +261,11 @@ export function makeDiscussionCommands(p: RoomPorts) {
         acceptance: RoomMessageAcceptanceSchema,
         requires: 'member',
         // A message that names a resident may ask it, and the asked-turn bounds are counts: take the room FOR UPDATE.
-        mode: command.body.kind === 'text' && command.body.text.includes('@') ? 'write' : 'read',
+        mode:
+          command.body.kind === 'text' &&
+          (command.body.text.includes('@') || isShortFollowUp(command.body.text) || isSocialOnly(command.body.text))
+            ? 'write'
+            : 'read',
         async decide({ scope, entered, now }) {
           const { lock, owner, standing } = entered;
           if (!roomAcceptsPosts(standing.room.status)) return refuse('unavailable');
@@ -277,6 +282,25 @@ export function makeDiscussionCommands(p: RoomPorts) {
           }
           return ok(async () => {
             const messageId = p.newId();
+            const starterGreeting = body.kind === 'text' && found.value.kind === 'general' && isGreetingOnly(body.text);
+            const previousHumanAt = starterGreeting ? await p.discussions.lastMessageAt(lock) : undefined;
+            const previous =
+              body.kind === 'text' && isShortFollowUp(body.text)
+                ? await p.discussions.messages(lock, command.discussionId, { limit: 2 })
+                : [];
+            const latest = previous.at(-1);
+            const beforeLatest = previous.at(-2);
+            // Only the original asker continuing a recent resident answer is implicitly addressing it.
+            const followUp =
+              latest?.inhabitant !== null &&
+              latest?.inhabitant !== undefined &&
+              !latest.hidden &&
+              beforeLatest?.hidden === false &&
+              latest.text !== NOT_COVERED_LINE &&
+              beforeLatest?.authorAccountId === owner.accountId &&
+              now.getTime() - latest.recordedAt.getTime() <= 10 * 60_000
+                ? latest.inhabitant
+                : undefined;
             const stored = await p.discussions.append(lock, command.discussionId, {
               kind: 'person',
               messageId,
@@ -292,12 +316,12 @@ export function makeDiscussionCommands(p: RoomPorts) {
               const mention = mentionedResident(body.text, standing.room.cast);
               // A message that names a resident is addressed to it: it is an ask (within the asked bounds), and no
               // resident also decides on its own whether to answer the same words.
-              if (mention !== undefined) {
+              if (mention !== undefined || followUp !== undefined) {
                 const decision = await askDecisionFor(p, lock, owner.accountId, command.discussionId, now);
                 if (decision === 'allowed')
                   await queueAsk(p, scope, lock, {
-                    kind: 'mention',
-                    inhabitant: mention,
+                    kind: mention === undefined ? 'about' : 'mention',
+                    inhabitant: mention ?? followUp!,
                     roomId: command.roomId,
                     discussionId: command.discussionId,
                     causeMessageId: messageId,
@@ -313,6 +337,8 @@ export function makeDiscussionCommands(p: RoomPorts) {
                   authorAccountId: owner.accountId,
                   text: body.text,
                   now,
+                  starterGreeting,
+                  previousHumanAt,
                 });
             }
             await p.rooms.announce(lock, now);

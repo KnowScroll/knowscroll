@@ -40,6 +40,24 @@ export function mentionedResident(text: string, cast: readonly CastMember[]): In
 }
 
 const MENTION = /(?<![\p{L}\p{N}_.])@[\p{L}\p{N}_]+/gu;
+/** Only social words, never a request containing a greeting. These need no library lookup. */
+export function isSocialOnly(text: string): boolean {
+  const body = text
+    .replaceAll(MENTION, ' ')
+    .replaceAll(/[\s!.,;:…?]+/gu, ' ')
+    .trim();
+  return /^(?:(?:hi|hello|hey+|yo+|good (?:morning|afternoon|evening)|thanks(?: a lot)?|thank you(?: so much)?|cheers|nice one|great|that helps(?: a lot)?)(?:\s+|$))+$/iu.test(
+    body,
+  );
+}
+
+/** Gratitude can end an exchange; only a greeting invites a quiet room to begin one. */
+export const isGreetingOnly = (text: string): boolean =>
+  isSocialOnly(text) && /^(?:hi|hello|hey+|yo+|good (?:morning|afternoon|evening))\b/iu.test(text.trim());
+
+/** A short continuation can be addressed to the resident that just answered, without learning @mentions. */
+export const isShortFollowUp = (text: string): boolean =>
+  /^(?:why|how so|why is that|what do you mean|can you explain)(?:[?!.,\s]*)$/iu.test(text.trim());
 /** Words that greet or soften a request and ask nothing themselves, at the start of a message. */
 const SOFTENER = /^(?:(?:hi|hello|hey|yo|ok|okay|so|and|please|thanks|thank you)\b[\s,.:;!-]*)+/iu;
 /** Verbs that open a request to a resident ("explain tides", "tell me about the Moon"). */
@@ -52,6 +70,7 @@ const REQUEST_OPENING = /^(?:explain|tell|show|describe|define|give|help|teach|c
  * filters (`triggers.ts`): it decides whether a resident is asked to look, not whether it has anything to say.
  */
 export function asksSomething(text: string): boolean {
+  if (isSocialOnly(text)) return false;
   const body = text.replaceAll(MENTION, ' ').replaceAll(/\s+/gu, ' ').trim();
   if (body.includes('?')) return true;
   const opening = body.replace(SOFTENER, '').replace(/^[\s,.:;!-]+/u, '');

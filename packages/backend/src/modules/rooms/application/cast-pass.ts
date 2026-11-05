@@ -79,9 +79,21 @@ async function standingTurn(p: RoomPorts, lock: RoomLock, turnId: string): Promi
   const open = roomAcceptsPosts(room.status) && hasResident(room, turn.inhabitant);
   const author = cause?.authorAccountId ?? null;
   const keptOut = author === null ? false : (await p.rooms.keepOutAmong(lock, [author])).has(author);
+  const member = author === null ? undefined : await p.rooms.memberOf(lock, author);
+  const listening = await p.cast.listeners(lock);
   const after =
-    open && cause !== undefined && !cause.hidden && !keptOut
-      ? await p.cast.activityAfter(lock, turn.discussionId, cause.sequence, author)
+    open &&
+    listening > 0 &&
+    (author === null || member?.endedBy === null) &&
+    cause !== undefined &&
+    !cause.hidden &&
+    !keptOut
+      ? await p.cast.activityAfter(
+          lock,
+          turn.discussionId,
+          cause.sequence,
+          turn.trigger === 'conversation_starter' ? null : author,
+        )
       : undefined;
   return { turn, room, discussion, wanted: after !== undefined && after.byOthers === 0 && after.byAi === 0 };
 }
@@ -169,7 +181,11 @@ async function answer(
   signal: AbortSignal,
 ): Promise<PipelineResult> {
   const { turn, material, topic } = prepared;
-  const ground = await p.readGround(topic, aboutText(material));
+  const starter = turn.trigger === 'conversation_starter';
+  const ground = await p.readGround(
+    topic,
+    starter ? [material.roomName, material.topicMeaning].filter(Boolean).join('\n') : aboutText(material),
+  );
   if (ground.length === 0)
     return {
       verdict: { kind: 'failed', dispatched: false },
@@ -186,6 +202,7 @@ async function answer(
       writer: residentRole(
         turn.inhabitant,
         ground.map((passage) => passage.handle),
+        starter,
       ),
       idFor: p.idFor,
     },
@@ -217,6 +234,11 @@ async function apply(
     return 'settled';
   }
   const typing = await p.cast.typingUntil(lock, discussion.discussionId, at);
+  if (typing !== undefined && job.round >= CAST_PASS_ROUNDS) {
+    // Exhausting the bounded hold is not permission to interrupt a person still typing.
+    await p.ai.settle(lock, turn.turnId, { state: 'failed', at, dispatched: true });
+    return 'settled';
+  }
   if (typing !== undefined && job.round < CAST_PASS_ROUNDS) {
     // Someone is typing: put posting off until the hold lapses. The answer is paid for and checked, so it is kept on the turn
     // (which counts as having reached the provider) and the next delivery posts it as it is, without a second call.
