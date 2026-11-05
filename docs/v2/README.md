@@ -8,8 +8,14 @@
 | [v3-revamp/](v3-revamp/README.md) | The change map from the v3 designs to the code, and its three findings | A starting map, not proof |
 | [decisions.md](decisions.md) | Decisions made during implementation, including design conflict resolutions | Binding, append-only |
 | [carried-forward-facts.md](carried-forward-facts.md) | Owner rulings and operational facts kept from the v1 docs | Binding where not changed by `decisions.md` |
-| `operations/` | Runbooks for environments, deploys, backups, providers, and looking at the running system (added as each is built) | Implemented-and-verified only |
+| `operations/` | Runbooks for environments, deploys, backups, providers and inspecting the running system | Procedures; verify the named environment before claiming an operation ran |
 
 Package and backend-module READMEs live next to their code. Each one says what is planned, implemented and runtime-verified.
 
 For a focused starting point use the [issue workflow](engineering/issue-context.md). Earlier [discovery snapshots](../archive/README.md) describe the pre-implementation system.
+
+For a first code change, use the [repository entry guide](../../README.md), then the owning
+package README. [Runtime configuration](engineering/runtime-configuration.md) names settings;
+[Status](../STATUS.md) and linked CI/deployment evidence say what was checked. Immutable design
+exports and their authored examples remain inputs, not product data. Historical rollout notes in
+module guides do not replace the current source or authorize a migration, provider call or release.

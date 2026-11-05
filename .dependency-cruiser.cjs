@@ -20,7 +20,7 @@ const thirdPartyInfrastructure =
 // Byte-for-byte vendored Cutroom wire schema (CF-61): kept in the graph so imports *into* it are
 // checked, but its own imports are not followed. Its bytes are pinned by the `integrity` job.
 const vendoredWire = '^packages/backend/src/modules/content/adapters/cutroom/wire-v1/';
-// Packages that run in the client (they do not all exist yet; the rule applies when they do).
+// Client-runtime packages: the boundary also applies to new files added under these roots.
 const clientPackages = '^(?:apps/client|packages/(?:client-core|ui|design-tokens|scroll-model|scene-core))/';
 // The apps' composition roots: the only files that choose concrete implementations.
 const compositionRoots = [
