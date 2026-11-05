@@ -5,17 +5,24 @@ Canonical `scene-descriptor.v1`, `scene-chunk.v1`, `scene-manifest.v1` and
 server, browser and React Native. No runtime dependencies, browser globals,
 DOM, React, I/O, random state, clocks, executable templates or Zod configuration.
 
-This is a prerequisite for #238. It implements neither the scene projection
-worker nor the Universe renderer, formation eligibility or formation-shown
-acknowledgements. CI fixtures are synthetic, not product geography. The v2.1
-U01–U05/U07/U08 source designs guide the future consumer; their sample worlds
-are not imported here.
+The backend Scenes projector stores descriptors that use these rules; the Expo Universe renderer
+uses the same package to derive geometry. Geography decides whether a place exists, Scenes owns
+its persisted appearance, and the app owns drawing and navigation. This package decides none of
+those permissions and records no personal evidence.
+
+Start at [src/index.ts](src/index.ts), then follow a descriptor through
+[src/parse.ts](src/parse.ts) and [src/geometry.ts](src/geometry.ts). The world generator sections
+below explain how a planet's stored look becomes stable globe/map cells. Authored design worlds
+and CI fixtures are examples, never imported product geography.
+
+Run `pnpm --filter @knowscroll/scene-core test` from the repository root for parsers, bounds,
+identity stability and deterministic generator fixtures. Tests establish behavior in their runtime;
+the same coordinates on Hermes or a physical device need separate verification.
 
 ## Public API
 
 Each `*Schema` offers `parse(unknown)`, `safeParse(unknown)` and
-`parseJson(string)`. These are small manual guards, **not Zod schemas**. Future
-wire adapters should call them explicitly instead of copying schema rules.
+`parseJson(string)`. These are small manual guards, **not Zod schemas**. Wire adapters call them explicitly instead of copying schema rules.
 All objects are strict: unsupported versions, extra keys, URLs/code, functions,
 accessors, non-finite numbers, invalid IDs and excessive structures are refused.
 Errors are generic and never echo input. Parsing returns fresh JSON data.

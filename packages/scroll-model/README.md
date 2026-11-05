@@ -14,6 +14,22 @@ It also has two separate, backend-only entries: the producer contract the writer
 
 The package is pure TypeScript and Zod. It uses no React, no platform APIs and no Node built-ins outside tests. The API, the worker and the Expo app (web and native) run the same code, so a document, an offset or a simulation value means the same thing everywhere. Nothing in a document is ever executed: there is no HTML, CSS, script, URL or expression language, and code blocks are shown, never run.
 
+## Start with a document
+
+A worker compiles authored input and provenance into an admitted immutable document. The API
+serves only the consumer document. The app parses and negotiates that document, then UI renders
+it and reports actual reading through client-core. Admission does the expensive whole-document
+checks; a device must never rerun the full simulation-grid proof.
+
+For example, `scroll-document.v2` selects the Stage + Spine parser; it is not a request to convert
+an unknown document into v1. Unsupported versions require an explicit fallback or unavailable
+state. Keep compatibility exports and stored-version readers until supported clients and records
+have been traced, even when a newer producer uses a different entry point.
+
+Run `pnpm --filter @knowscroll/scroll-model test` from the root. Run this package on its own when
+checking timing assertions, as hosted CI does. The [fixture guide](fixtures/README.md) explains
+intentional regeneration; do not rewrite fixture outputs merely to make a regression disappear.
+
 Background reading:
 
 - **Blueprint:**
