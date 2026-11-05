@@ -1,5 +1,19 @@
 # modules/experience
 
+Experience owns the path from an offer to an encounter: open, activate, navigate, read the
+exact document revision, and apply deliberate actions such as Save or Hide. An offer or an open
+request is not evidence that anything was read. The recorder reports actual activity separately
+to Evidence.
+
+Start with [public.ts](public.ts), [open](application/open-exposure.ts) and
+[activate](application/activate-exposure.ts). An identical command retry returns its stored
+outcome; changed content under the same command ID is refused. Later sections explain how
+current authority and eligibility are checked again before committing a navigation or action.
+
+Run `pnpm --filter @knowscroll/backend exec vitest run src/modules/experience` from the root.
+Database and installed HTTP journeys are in the [integration suite](../../../../../tests/integration/README.md).
+Historical runtime marks below refer to their named runs, not verification performed by this cleanup.
+
 Owns: `experience.saved_items`, `experience.actions` (migration `0004_experience_actions`) and
 `experience.exposures` (migration `0011_experience_exposures`).
 

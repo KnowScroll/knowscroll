@@ -1,8 +1,20 @@
 # modules/personal-context
 
-Backend-only prepared exploration context (#235, blueprint §§5,8,19). Shipped navigation source
-uses the PC-owned Composer adapter. Actual dev consumer inspection, planet formation, personal
-learning and completed historical rollout are not established by source/CI evidence.
+Personal Context gives backend callers a bounded view of a person's exploration. Evidence owns
+qualification and activity arithmetic; this module owns the revisioned structural projection and
+reads Evidence's statistics without making a second aggregate. Composer reads that view to rank
+eligible content. Planner reads it to propose opportunities. Geography uses the separate trusted
+coverage read when deciding whether evidence supports a place.
+
+Start with [public.ts](public.ts), [the snapshot read](application/read-snapshot.ts) and
+[the Composer adapter](application/read-composer-context.ts). Callers supply an already locked
+personal scope. A missing measurement remains unknown, rather than becoming evidence of dislike;
+for example, `statisticsAvailability: not_observed` preserves Composer's neutral default.
+
+Run `pnpm --filter @knowscroll/backend exec vitest run src/modules/personal-context` from the root.
+The [integration suite](../../../../../tests/integration/README.md) exercises correction, recording
+and all-store erasure. Source and fixture results do not establish a live person's learning or a
+completed historical rollout.
 
 Personal context owns revisioned qualified structural support and its bounded snapshot. Evidence
 continues to own qualification, original activity channels, the capped activity function, 14-day
@@ -27,14 +39,11 @@ support. Unqualified/unknown encounters, likes alone, incidental mentions, suppl
 social messages add no structural support. Activity corrections remain Evidence's same-time old/new
 replacement, including all original channels. PC never re-evaluates its qualification thresholds.
 
-**Facet coverage is unavailable.** Publication facet tags are routing metadata. No trusted mapping
-from facet to actually seen Scroll blocks/Reel ranges exists yet; the actual producer therefore
-passes `coveredFacets: []`, and snapshots say `coverageAvailability: unavailable`. Partial qualified
-consumption never promotes every asset tag into formation variety. #237 needs a separately reviewed
-coverage port that validates immutable asset revision + actually covered block/media intervals and
-returns only supported facet IDs, with mapping/policy revision added to this input vector. Until
-that exists, no two-facet planet requirement can be met by this module's output. The reference-count
-mechanism can store trusted covered facets but the current integration does not invent them.
+**Two coverage surfaces have different purposes.** The legacy snapshot keeps
+`coveredFacets: []` and `coverageAvailability: unavailable`; publication tags alone cannot prove
+which angle someone actually read. Formation uses the separate `ReadTrustedCoverage` capability
+(described below), which checks exact Content mappings against observed Evidence certificates.
+Do not substitute legacy unit counters or asset tags when that proof is unavailable.
 
 `encounteredUnitsOf(snapshot)` (public) derives the explanations a person has met from a snapshot:
 qualified supporting evidence, retained routing history and established encountered units. It is a read,

@@ -35,7 +35,7 @@ export type OpenExposureResult =
   | { readonly kind: 'refused'; readonly reason: OpenExposureRefusal };
 
 /**
- * `openExposure`: open an admitted Scroll for the authenticated person (`POST /v1/experience/open`),
+ * `openExposure`: open an admitted Reel or Scroll for the authenticated person (`POST /v1/experience/open`),
  * creating the exposure that roots this encounter's lineage: exposure ID, the asset's current
  * revision, the origin, and what the client can render. Opening is not consumption (blueprint §8:
  * only observed, qualified reading is evidence).
@@ -44,13 +44,13 @@ export type OpenExposureResult =
  *   root lock.
  * Steps (one transaction, blueprint §19): lock → receipt lookup (identical replay returns the
  *   stored outcome; different content under the same key is refused; a receipt from an older
- *   privacy epoch is never replayed) → the asset exists, is admitted, is a Scroll and has a stored
+ *   privacy epoch is never replayed) → the asset exists, is admitted, matches the requested format and has a stored
  *   revision → insert the receipt → insert the exposure at the asset's current revision → store the
  *   outcome → commit.
  * Side effects: `experience.exposures`, `receipts.personal_commands`. No job (nothing to project
  *   yet), no notice, no network call.
  * Failure/retry: any exception rolls everything back; retrying with the same command ID is safe.
- *   A missing, withdrawn or non-Scroll asset is a retryable refusal that writes nothing (D-016).
+ *   A missing, withdrawn or wrong-format asset is a retryable refusal that writes nothing (D-016).
  * Invariants: the exposure presents the revision that was current when the command committed and
  *   never changes revision afterwards: a later revision of the asset is a new exposure.
  */

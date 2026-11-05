@@ -31,7 +31,12 @@ const idleAfterRun = (p: Pick<GeographyPorts, 'now'>, state: GeographyState): Ge
   activeRunId: undefined,
   nextRunNotBefore: nextRunNotBefore(p.now()),
 });
-/** Actual owner: header/root/active claim before a separate cap-bound body read. */
+/**
+ * Called by the recording-aware reasoning harness before it reads private context or applies a
+ * reply. The supplied recording scope must match this account, generation, active run and live
+ * claim; both frozen-context hashes must still agree. Any missing or expired binding refuses
+ * authority, so a late model answer cannot act for a replaced run.
+ */
 export function makeCheckGeographyRecordingRun(
   p: Pick<GeographyPorts, 'store' | 'now' | 'hash'>,
 ): CheckPersonalRecordingRun {

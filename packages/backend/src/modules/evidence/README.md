@@ -1,5 +1,30 @@
 # modules/evidence
 
+Evidence turns actual reading and playback reports into bounded encounter evidence. The device
+sends a batch; intake checks its exposure, account, epoch and original recording generation,
+stores accepted observations and queues projection in the same transaction. The reply means
+stored, not qualified. Projection later updates activity and Personal Context.
+
+```mermaid
+flowchart LR
+    Device[Recorder batch] --> Intake[Check lineage and recording authority]
+    Intake --> Stored[(Observations and required job)]
+    Stored --> Projection[Qualify actual encounter]
+    Projection --> Context[Personal Context]
+    Context --> Readers[Composer, Planner and Geography]
+```
+
+Start with [public.ts](public.ts), [intake](application/ingest-observations.ts), then
+[reading projection](application/project-scroll-reading.ts). The API and worker bind dependencies;
+this module does not trust a queue payload or a client claim as current authority. For example,
+`not_recorded` with `recording_generation_stale` closes that original batch; retry must never
+relabel its observations with a newer generation.
+
+Run `pnpm --filter @knowscroll/backend exec vitest run src/modules/evidence` from the root.
+The [integration suite](../../../../../tests/integration/README.md) checks database projection,
+recording fences and erasure. The rules below describe source behavior; current deployment
+evidence belongs in [Status](../../../../../docs/STATUS.md).
+
 Owns: `evidence.action_events` (`0005`, the explicit-action channel: a Save is not a consumption
 encounter), `evidence.observations` and `evidence.encounter_evidence` (`0012_evidence_observations`).
 
@@ -7,10 +32,10 @@ encounter), `evidence.observations` and `evidence.encounter_evidence` (`0012_evi
 
 Status: implemented in source and CI; not exercised on a running system. Related: #381, schema 0042.
 
-This source is a backend prerequisite, not installed Pause. HTTP/controller, client recorder,
-worker composition and Roles/Reasoning generation propagation remain separately allocated. Full
-positive Evidence→PC→Roles material-change acceptance and finite legacy attribution/channel
-certification are pending. No runtime activation or provider authority follows from this source.
+The API mounts both the legacy batch route and the strict recording-aware route; API and worker
+composition supply the required recording effects. Runtime acceptance of a complete recording
+journey still requires separate evidence. In particular, legacy records without a certified
+original generation must not gain current recording authority.
 
 All intake and growth consumers enter the personal root, acquire the current own-account UPDATE
 barrier, then obtain Identity's genuine `RecordingScopeTx` for the ORIGINAL generation. Work that

@@ -1,13 +1,18 @@
 # Scenes
 
-Related: #238.
+Scenes gives established Geography a stable appearance. When Geography commits a change it
+records formation delivery facts and queues scene projection in the same transaction. The worker
+projects the latest Geography under the person's current scope; the API serves manifests,
+chunks and formation claims to the client. The renderer belongs to the app and `scene-core`.
 
-Deterministic persisted appearance for already established Geography. This prerequisite owns
-backend projection, own-scope manifest/chunk reads and U05 durable delivery/claim ports. It installs no renderer,
-HTTP controller, model call, historical bootstrap, placeholder world, formation rule or paid
-permission. Authored CI inputs do not prove actual formation, dev rendering or device performance.
-U05 shown/skipped acknowledgement records the actual client statement through the closed contract;
-origin transition IDs identify provenance and never claim that an object was shown.
+Start with [public.ts](public.ts), [the projector](application/project.ts) and
+[formation delivery](application/formation-presentation.ts). A repeated projection with matching
+Geography stamps changes nothing. A shown/skipped acknowledgement records what the client reports;
+it never creates evidence or decides that a planet should form.
+
+Run `pnpm --filter @knowscroll/backend exec vitest run src/modules/scenes` from the root.
+The [integration suite](../../../../../tests/integration/README.md) covers persistence, formation
+claims and recovery. Fixture inputs do not prove live formation or device rendering performance.
 
 ## Transaction and composition
 
@@ -87,7 +92,7 @@ Chunk reads require the exact selected current manifest and immutable reference.
 references return stale_manifest, own unknown/nonselected chunks return unknown_chunk, and
 mixed universe/epoch references refuse without echoing or rewriting them. An honestly lagging
 current manifest may serve its exact older chunks. Reads expose neither world seeds nor private
-Geography context. Account/session/HTTP admission belongs to a future adapter; these ports still
+Geography context. The API scene controllers perform account/session/HTTP admission; these backend ports still
 require current own personal authority.
 
 ## The look of each place (U-1)
