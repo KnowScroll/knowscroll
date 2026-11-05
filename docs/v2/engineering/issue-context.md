@@ -10,6 +10,8 @@ From the issue worktree, use Node and pnpm from the workspace setup, Git, and op
 | Read a saved issue body (first heading is the title) | `pnpm issue-context --file issue.md` |
 | Read one decision in full | `pnpm issue-context decision D-319` |
 
+If a sandbox cannot run an authenticated GitHub read, use the connected issue reader or a teammate’s saved brief. The \`--file -\` form reads Markdown from standard input on all platforms. Supply the issue title as the first heading and retain the original body.
+
 ## Resolving
 
 Read the compact goal, criteria, owning files and relevant decision excerpts. Paths come from the brief and are checked against this worktree’s tracked files. Related headings are lexical suggestions. Check amendments in the decision log and refer to the linked issue for screenshots, full criteria and later discussion. Open the owning module README for its tests and runtime responsibilities. Choose the evidence appropriate to the issue. A recommendation audit needs dev observations; a phone overlay change needs the actual screen and a focused client test.

@@ -7,7 +7,7 @@ import { decisionExcerpt, headings, owners, ranked, readingPaths, section } from
 const repo = 'KnowScroll/knowscroll';
 const help = [
   'pnpm issue-context <issue-number>         resolve an existing issue',
-  'pnpm issue-context --file <issue.md>      use a local Markdown brief offline',
+  'pnpm issue-context --file <issue.md>      use a local Markdown brief offline (- for stdin)',
   'pnpm issue-context new "symptom" [--offline]   investigate a report and check possible duplicates',
   'pnpm issue-context decision D-319        read one decision',
 ].join('\n');
@@ -36,7 +36,7 @@ function github(args, cwd) {
 
 function brief(args, root) {
   if (args[0] === '--file' && args.length === 2) {
-    const body = readFileSync(resolve(args[1]), 'utf8');
+    const body = readFileSync(args[1] === '-' ? 0 : resolve(args[1]), 'utf8');
     return {
       title: body
         .trimStart()
@@ -48,7 +48,11 @@ function brief(args, root) {
   if (args.length !== 1 || !/^[1-9]\d*$/.test(args[0])) throw new Error(help);
   const issue = github(['issue', 'view', args[0], '--json', 'title,body,state,url'], root);
   if (!issue)
-    throw new Error('Could not read #' + args[0] + '. Check gh access and issue number, or use --file <issue.md>.');
+    throw new Error(
+      'Could not read #' +
+        args[0] +
+        '. Check gh access and issue number. Use --file <issue.md> or pipe Markdown to --file -.',
+    );
   return issue;
 }
 
