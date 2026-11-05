@@ -41,7 +41,7 @@ account and queues work, and the worker calls the registry's erasers. Follow the
 | --- | --- | --- |
 | Identity | Sign-in, sessions, personal authority, recording, Clear, deletion and export | [README](src/modules/identity/README.md) |
 | Content | Admitted revisions, catalogue, library, media and production | [README](src/modules/content/README.md) |
-| Experience | Offers, activated exposures, navigation, Keep and explicit actions | [README](src/modules/experience/README.md) |
+| Experience | Offers, activated exposures, navigation, Keep and explicit actions including Not interested | [README](src/modules/experience/README.md) |
 | Evidence | Intake and qualification of actual encounters | [README](src/modules/evidence/README.md) |
 | Personal Context | Revisioned personal projections read by other modules | [README](src/modules/personal-context/README.md) |
 | Composer | Ranking and prepared next-subject buffers | [README](src/modules/composer/README.md) |
@@ -53,7 +53,7 @@ account and queues work, and the worker calls the registry's erasers. Follow the
 | Scenarios | What-if branches and alternative perspectives | [README](src/modules/scenarios/README.md) |
 | Rooms | Membership, discussions, AI residents and room activities | [README](src/modules/rooms/README.md) |
 | Play | Private call results, sparks and landmarks | [README](src/modules/play/README.md) |
-| Feedback | Not interested, abuse reports and content corrections | [README](src/modules/feedback/README.md) |
+| Feedback | Abuse reports and content-error reports | [README](src/modules/feedback/README.md) |
 | Operator | Allowlisted diagnostic reads | [README](src/modules/operator/README.md) |
 
 This is an ownership map of the current source, not a list of enabled features in a world.

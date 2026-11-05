@@ -448,6 +448,9 @@ sequenceDiagram
     API-->>Device: in_progress, needs_retry or completed
 ```
 
+The worker may start as soon as the transaction commits, before the HTTP response reaches the
+device. Keeping the receipt before sending covers a lost acceptance response.
+
 ### Where the authority comes from
 
 Follow these files in order:

@@ -39,8 +39,9 @@ support. Unqualified/unknown encounters, likes alone, incidental mentions, suppl
 social messages add no structural support. Activity corrections remain Evidence's same-time old/new
 replacement, including all original channels. PC never re-evaluates its qualification thresholds.
 
-**Two coverage surfaces have different purposes.** The legacy snapshot keeps
-`coveredFacets: []` and `coverageAvailability: unavailable`; publication tags alone cannot prove
+**Two coverage surfaces have different purposes.** Legacy contributions keep
+`coveredFacets: []`; the snapshot reports a per-topic `coveredFacets` count and
+`coverageAvailability: unavailable`. Publication tags alone cannot prove
 which angle someone actually read. Formation uses the separate `ReadTrustedCoverage` capability
 (described below), which checks exact Content mappings against observed Evidence certificates.
 Do not substitute legacy unit counters or asset tags when that proof is unavailable.

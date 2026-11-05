@@ -33,7 +33,7 @@ export function clearExplorationConsumers(clear: {
 }
 
 /**
- * Runs accepted account deletions and exports after the HTTP request has finished. The deletion
+ * Runs accepted account deletions and exports after the request transaction commits. The deletion
  * use case rechecks its authority under the operation locks; a queue delivery alone grants none.
  * The last failed delivery marks the receipt for retry. Scheduled recovery also finds due
  * operations if that mark fails or the worker exits before writing it.
