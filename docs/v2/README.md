@@ -11,3 +11,5 @@
 | `operations/` | Runbooks for environments, deploys, backups, providers, and looking at the running system (added as each is built) | Implemented-and-verified only |
 
 Package and backend-module READMEs live next to their code. Each one says what is planned, implemented and runtime-verified.
+
+For a focused starting point use the [issue workflow](engineering/issue-context.md). Earlier [discovery snapshots](../archive/README.md) describe the pre-implementation system.
