@@ -37,6 +37,29 @@ not in the repository. A row with no dev mark has not been seen on dev.
 
 A room's residents also post finds: three times a day each looks at the room and, when the library has something new for it, posts a short labelled note about a real Reel or Scroll, and the room keeps one short memory of what its members discussed (v3 R-8, D-247 to D-249).
 
+## Conversation routing (implemented, D-396)
+
+A plain Ask or @mention after social-only words stays quiet: no passage read, provider call or coverage fallback.
+A short follow-up such as “why?” from the original asker, immediately after a resident answer within ten minutes,
+queues the existing pointed ask. It carries the new message as focus and the preceding exchange as context,
+uses the personal recording fence and asked bounds, and passes the same factual checks. It is not an extra reply path.
+
+A social-only greeting in General after 12 hours without a human message (including a new room’s first greeting)
+gives Nova one starter opportunity. Opening, reopening and presence heartbeats do not schedule it. The existing
+router waits 90 seconds alone or four minutes with others, respects typing and all ambient caps, and admits at
+most one opportunity per room per rolling 24 hours, including failed/refused opportunities. A later human message
+or AI reply suppresses it; the greeter continuing also suppresses a starter. The worker rechecks membership,
+keep-out, listeners and account/epoch authority before and after waiting. Exhausted typing holds drop the answer.
+
+The starter is one supported idea plus a question, through the ambient writer, strict support check, one rewrite,
+and existing run/attempt ledger. Missing ground or budget means silence. Lively shows it, Quieter folds it, Off
+hides it, and all members Off means no call. No AI-to-AI continuation is scheduled for a starter. Existing
+cause/trigger uniqueness under the room lock prevents duplicate turns. The new trigger is additive in migration
+0105; older clients that do not recognise it must update to display it. No table, queue or retry ledger was added.
+
+Focused regression: `tests/integration/modules/rooms-conversation.test.ts` and `rooms-answer-support.test.ts`.
+The PR records real-service observations separately from fixture results.
+
 ## What a person can do
 
 | Capability | Status |
@@ -235,7 +258,7 @@ A resident that states a fact has looked it up. Every answer a resident gives, t
 
 - **Passages.** `answer-ground.ts` reads the admitted library Scrolls under the room's topic (`READ_LIBRARY_PASSAGES`, shared content, outside every transaction) and chooses up to four stops of them by the key words they share with the discussion's title, the title of its content and the message being answered with the two before it. Code chooses; the model never does. No passage fits: no model is asked, a member who asked is given the fixed line, and a resident that spoke on its own stays quiet and the turn is handed back.
 - **A message that asks nothing.** A message that names a resident (`@Nova thanks, that helps`, `hi @Halley`) and has no question mark, no interrogative or request opening (`asksSomething`) is an ask that asks nothing: the resident is not asked, nothing is read, nothing is posted and no fixed line is said. The turn ends `declined` ("had nothing to add") and counts as one of the member's asks. A pointed ask (challenge, the other side, about) and a left question are requests in themselves.
-- **The writer** (`inhabitant.3`, `resident.2`) cites one to three passages by handle (`e1`…) in `cites`, may answer `not_covered`, and writes at most ten sentences. The schema refuses a missing, unknown, repeated or excess citation with a fixed hint for the harness's one repair.
+- **The writer** (`inhabitant.3`, `resident.3`) cites one to three passages by handle (`e1`…) in `cites`, may answer `not_covered`, and writes at most ten sentences. The schema refuses a missing, unknown, repeated or excess citation with a fixed hint for the harness's one repair.
 - **The check.** Code applies the figure rule (D-302: every figure in a sentence is written, the same way, by a passage the answer cites) and the shared support checker (`content/public.ts`: `askSupportRole`, `askSupportContext`, `verdictsOf`, version `ask-support-check.v5`) reads each sentence against the passages cited, in one request, under the roles `rooms.inhabitant-support` (a member's ask, the asker's recording-aware personal harness) and `rooms.ambient-support` (a resident on its own, the room scope, `ambient`). A verdict that breaks a rule makes only its sentence unsupported (D-265). A resident's answer keeps the strict rules of v4 under the v5 checker (D-316): a quote needs two key words shared with a sentence of any length, and a short figure-free sentence is never "no fact" on the checker's word. The softer rules of D-306 and D-307 are an ask order's alone, since only its answer has a drop behind them (D-310). A quote may come from any passage the answer cites (D-305), which for a resident is the same list for every sentence. A resident's answer is one rewrite, then posted whole or not at all (D-301).
 - **One rewrite.** A flagged sentence earns the writer's role as a revision (`.fix`), shown the sentence and a fixed hint, never the checker's words, and the rewrite is checked once. Cleared: posted. Still flagged, or the writer or the rewrite says the passages do not cover it: a member who asked is given `NOT_COVERED_LINE` ("The library doesn't cover that yet. Ask from here on a Scroll to have one made."), an AI message of kind `explanation` labelled as the resident asked; a resident that spoke on its own says nothing and the turn is `declined` and counted (D-304). A step that failed, was refused or ran out of budget, or a checker reply code refuses, ends the turn as failed: nothing unchecked is ever posted.
 - **Bound.** Writer and repair, check and repair, one rewrite, one check: six paid attempts (`ANSWER_PAID_ATTEMPTS`). The claim of `rooms.contribute` and `rooms.cast-pass` is 6 x (10 + 300 + 10) + 30 = 1,950 s by the reasoning README's rule (D-303). Caps are unchanged: the asked bounds, the unprompted caps, the AI levels and keep-out. An idle room, a calm message and a world with residents off queue nothing, read no passage and make no call.

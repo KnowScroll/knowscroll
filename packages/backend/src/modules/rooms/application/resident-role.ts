@@ -4,8 +4,8 @@ import { CONTRIBUTION_MAX_CHARS, type InhabitantId } from '../domain/contributio
 import { ANSWER_HINTS, GROUNDING_LINES, answerSchema, type InhabitantAnswer } from './inhabitant-role.js';
 
 /** Changes with the instructions or the answer schema; recorded on every unprompted contribution. */
-export const RESIDENT_ROLE_VERSION = 'resident.2';
-export const RESIDENT_POLICY_VERSION = 'rooms-resident.v2';
+export const RESIDENT_ROLE_VERSION = 'resident.3';
+export const RESIDENT_POLICY_VERSION = 'rooms-resident.v3';
 
 const COMMON = [
   'You are a labelled AI resident of a KnowScroll idea room. You are not a person: never say or imply that you are, never claim to have watched, read or remembered anything beyond the items below, and never write about yourself.',
@@ -28,18 +28,31 @@ const INSTRUCTIONS: Readonly<Record<InhabitantId, string>> = {
   ].join('\n'),
 };
 
+const STARTER_INSTRUCTIONS = [
+  COMMON[0],
+  'Nobody asked you. The focus is a member’s greeting in a new or quiet General. Offer one short, useful starting point from a passage about this room’s topic, followed by one question inviting their curiosity about that idea. At most three sentences. Do not treat the greeting as a factual question, give a library-coverage lecture, mention controls, invent activity or imply anyone else is here. Cite the passage for every claim; the invitation must introduce no extra facts. If there is no useful starting point, answer nothing_to_add.',
+  ...COMMON.slice(2),
+  'Answer with one JSON object {"kind":"explanation","text":"...","cites":["e1"]}.',
+].join('\n');
+
 /**
  * The role of a resident speaking on its own (D-162, D-164) over the passages it was offered (D-301). A separate role from the
  * asked one: its own ID, so its daily role cap and its failure brake can never take what a person asked for, and the `ambient`
  * budget class, so its spend stays within its share of the global cap and the room scope's own caps. One call, no tool loop.
  */
-export function residentRole(inhabitant: InhabitantId, handles: readonly string[]): ReasoningRole<InhabitantAnswer> {
+export function residentRole(
+  inhabitant: InhabitantId,
+  handles: readonly string[],
+  starter = false,
+): ReasoningRole<InhabitantAnswer> {
   return {
     id: `rooms.ambient-${inhabitant}`,
     version: RESIDENT_ROLE_VERSION,
-    instructions: INSTRUCTIONS[inhabitant],
-    outputSchema: answerSchema(inhabitant, handles),
-    safeCustomIssues: ANSWER_HINTS,
+    instructions: starter ? STARTER_INSTRUCTIONS : INSTRUCTIONS[inhabitant],
+    outputSchema: answerSchema(inhabitant, handles, starter ? 3 : ANSWER_MAX_SENTENCES),
+    safeCustomIssues: starter
+      ? { ...ANSWER_HINTS, too_many_sentences: 'Keep the starting idea and invitation to at most three sentences.' }
+      : ANSWER_HINTS,
     maxOutputTokens: 4096,
     effort: 'low',
     minContextItems: 3,

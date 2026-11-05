@@ -6,7 +6,7 @@
  */
 
 /** What set a resident going. `asked` is a member's ask and is not decided here. */
-export type SpeechTrigger = 'unanswered_question' | 'overstated_claim' | 'answer_overstated';
+export type SpeechTrigger = 'unanswered_question' | 'overstated_claim' | 'answer_overstated' | 'conversation_starter';
 
 /**
  * Why a message exists when nobody asked for it: a reply the router allowed, a find the residents' heartbeat posted (v3 R-8), or a

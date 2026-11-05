@@ -184,7 +184,7 @@ describe('residents speak on their own (real PostgreSQL, CI fixture model)', () 
         inhabitant: 'explainer',
         requested_by_account_id: null,
         dispatched: true,
-        role_version: 'resident.2',
+        role_version: 'resident.3',
       });
       expect(turn!.caps).toMatchObject({ roomLastHour: 0, roomToday: 0, residentLastHour: 0, personLastHour: 0 });
       expect(turn!.attempt_id).not.toBeNull();
@@ -840,8 +840,8 @@ describe('residents speak on their own (real PostgreSQL, CI fixture model)', () 
         { inhabitant: 'skeptic', name: 'Halley', position: 2 },
       ]);
       expect((await memberView(world, room.asha, room.roomId)).inhabitants).toEqual([
-        { inhabitant: 'explainer', name: 'Nova', label: 'AI · Explainer', blurb: 'Answers when asked' },
-        { inhabitant: 'skeptic', name: 'Halley', label: 'AI · Skeptic', blurb: 'Pushes back on claims' },
+        { inhabitant: 'explainer', name: 'Nova', label: 'AI · Explainer', blurb: 'Explores ideas with you' },
+        { inhabitant: 'skeptic', name: 'Halley', label: 'AI · Skeptic', blurb: 'Offers another perspective' },
       ]);
     });
   });

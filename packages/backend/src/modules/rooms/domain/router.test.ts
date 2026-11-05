@@ -40,6 +40,21 @@ const reply = (overrides: Partial<RouteFacts> = {}): RouteFacts =>
   question({ trigger: { ...question().trigger, kind: 'answer_overstated' }, ...overrides });
 
 describe('who answers what', () => {
+  it('gives a starter the same wait and caps, and at most one opportunity in 24 hours', () => {
+    const starter = question({ trigger: { ...question().trigger, kind: 'conversation_starter' } });
+    expect(residentFor('conversation_starter')).toBe('explainer');
+    expect(waitFor('conversation_starter', true)).toBe(90_000);
+    expect(route(starter).kind).toBe('speak');
+    expect(route({ ...starter, counts: { ...quietCounts, startersLastDay: 1 } })).toMatchObject({
+      kind: 'refuse',
+      cap: 'room_day',
+    });
+    expect(route({ ...starter, after: { byOthers: 1, byAi: 0 } })).toMatchObject({ kind: 'drop', reason: 'answered' });
+    expect(route({ ...starter, counts: { ...quietCounts, humanSinceLastTurn: 1 } })).toMatchObject({
+      kind: 'refuse',
+      cap: 'ratio',
+    });
+  });
   it('sends a question to the Explainer and a claim, or an overstated answer, to the Skeptic', () => {
     expect(residentFor('unanswered_question')).toBe('explainer');
     expect(residentFor('overstated_claim')).toBe('skeptic');

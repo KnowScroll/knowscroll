@@ -52,3 +52,8 @@ component pass, replacing the last directory with the feature you changed. Full 
 are `pnpm --filter @knowscroll/client test`; browser smoke tests use the built production and
 gallery exports in `e2e/`. Native entry points include platform variants, Expo plugins and the
 hosted emulator lane; Node or browser fixtures do not prove physical-device behavior.
+
+
+Room resident messages retain their AI badge and use `conversation_starter` for a grounded opening after a quiet
+spell (D-396). The resident controls show identity, availability and Ask actions without a repeated instruction
+paragraph. The existing first-visit notice and AI here settings explain reading and visibility; #667 owns room layout.

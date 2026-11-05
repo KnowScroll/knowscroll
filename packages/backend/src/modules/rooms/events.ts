@@ -33,7 +33,12 @@ export const contributeQueue = defineQueue({
   consumer: { localConcurrency: 2, pollingIntervalSeconds: 1 },
 });
 
-const SpeechTriggerSchema = z.enum(['unanswered_question', 'overstated_claim', 'answer_overstated']);
+const SpeechTriggerSchema = z.enum([
+  'unanswered_question',
+  'overstated_claim',
+  'answer_overstated',
+  'conversation_starter',
+]);
 
 /** How many times one check may look again before it is let go. */
 export const CAST_DUE_ROUNDS = 24;

@@ -10,7 +10,7 @@ import {
 } from '../../../reasoning/public.js';
 import type { CheckPersonalOwnerActive, PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { ANSWER_SUPPORT_POLICY, NOT_COVERED_LINE } from '../domain/answer-support.js';
-import { asksSomething, pointedKind } from '../domain/asks.js';
+import { asksSomething, isSocialOnly, pointedKind } from '../domain/asks.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
 import type { ContributeJob } from '../events.js';
 import { aboutText, type ReadGround } from './answer-ground.js';
@@ -153,6 +153,9 @@ async function answer(
   const { request, material, topic, owner } = prepared;
   if (owner === undefined) return { verdict: { kind: 'failed', dispatched: false }, support: undefined, runs: [] };
   if (request.askKind === 'mention' && !mentionAsksSomething(material))
+    return { verdict: { kind: 'nothing_to_add' }, support: undefined, runs: [] };
+  // A plain Ask refers to the latest words, even when those words are only a greeting or thanks.
+  if (request.askKind === 'ask' && (material.messages.length === 0 || isSocialOnly(material.messages.at(-1)!.text)))
     return { verdict: { kind: 'nothing_to_add' }, support: undefined, runs: [] };
   const ground = await p.readGround(topic, aboutText(material));
   if (ground.length === 0)

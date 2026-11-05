@@ -68,7 +68,11 @@ function groundingProblem(cites: readonly string[], offered: ReadonlySet<string>
  * of reaching the check or a room. Whether the passages state what the text says is not a rule of the schema: the figure rule
  * and the support check judge that (D-301).
  */
-export function answerSchema(inhabitant: InhabitantId, handles: readonly string[]): z.ZodType<InhabitantAnswer> {
+export function answerSchema(
+  inhabitant: InhabitantId,
+  handles: readonly string[],
+  maxSentences = ANSWER_MAX_SENTENCES,
+): z.ZodType<InhabitantAnswer> {
   const kinds = ['nothing_to_add', 'not_covered', ...KINDS_OF[inhabitant]] as const satisfies readonly string[];
   const offered = new Set(handles);
   return z
@@ -81,7 +85,7 @@ export function answerSchema(inhabitant: InhabitantId, handles: readonly string[
       if (answer.kind === 'nothing_to_add' || answer.kind === 'not_covered') return;
       const problem =
         contributionProblem(answer.text) ??
-        (splitSentences(answer.text).length > ANSWER_MAX_SENTENCES ? 'too_many_sentences' : undefined) ??
+        (splitSentences(answer.text).length > maxSentences ? 'too_many_sentences' : undefined) ??
         groundingProblem(answer.cites, offered);
       if (problem !== undefined)
         context.addIssue({ code: 'custom', path: ['text'], message: 'Invalid text', params: { safeCode: problem } });

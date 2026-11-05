@@ -34,7 +34,12 @@ async function factsOf(
       author === null ? new Set<string>() : p.rooms.keepOutAmong(lock, [author]),
       author === null ? 0 : p.cast.messagesBy(lock, author),
       p.cast.listeners(lock),
-      p.cast.activityAfter(lock, job.discussionId, cause.sequence, author),
+      p.cast.activityAfter(
+        lock,
+        job.discussionId,
+        cause.sequence,
+        job.trigger === 'conversation_starter' ? null : author,
+      ),
       p.cast.typingUntil(lock, job.discussionId, now),
       p.ai.decidedFor(lock, job.causeMessageId, job.trigger),
       p.ai.capCounts(lock, { now, inhabitant, authorAccountId: author }),

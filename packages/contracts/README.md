@@ -1414,3 +1414,8 @@ places `places/read`, `places/set`, `places/hide`, and for Call it together `cal
   (`threads.test.ts` tries each). _Implemented._
 - A snippet message carries a card: the exact target, the anchor in words (range, quote, label, settings description) and the
   content status (`available`, `corrected`, `unavailable`). Quote and settings are omitted when the content is unavailable.
+
+
+Rooms also carries `conversation_starter` as an unprompted speech trigger (D-396). It uses the existing AI message
+shape and AI-level visibility rules. Readers must recognise this trigger to display a starter; no member identity,
+prompt or model reasoning is added to the wire. The backend rooms README owns admission and suppression rules.

@@ -142,13 +142,17 @@ export type AiContributionKind = z.infer<typeof AiContributionKindSchema>;
 /** The label an inhabitant always carries. Fixed by the role, so no client can show one without it. */
 export const AI_INHABITANT_LABELS = { explainer: 'AI · Explainer', skeptic: 'AI · Skeptic' } as const;
 /** What each inhabitant is for, in the words the room preview shows. */
-export const AI_INHABITANT_BLURBS = { explainer: 'Answers when asked', skeptic: 'Pushes back on claims' } as const;
+export const AI_INHABITANT_BLURBS = {
+  explainer: 'Explores ideas with you',
+  skeptic: 'Offers another perspective',
+} as const;
 
 /** A resident's own name, from a fixed catalogue (D-163). Never a person's: it always comes with the AI label. */
 const ResidentName = z.string().min(1).max(24).refine(isPublicLabel);
 
 /** Why a resident spoke on its own. The one-line "why" a screen shows is built from this, never from model text. */
 export const RoomSpeechTriggerSchema = z.enum([
+  'conversation_starter',
   'unanswered_question',
   'overstated_claim',
   'answer_overstated',
