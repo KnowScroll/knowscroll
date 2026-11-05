@@ -207,3 +207,37 @@ it('a popstate that leaves its marker in place (a sheet over the map closing) do
   act(() => root.unmount());
   window.history.replaceState({}, '', window.location.href);
 });
+
+it('slash opens search from navigation controls, leaves text editing alone and unregisters on blur', () => {
+  const showOverlay = jest.fn();
+  const session = {
+    back: () => false,
+    escape: () => false,
+    canBack: () => false,
+    getState: () => ({ overlay: null }),
+    subscribe: () => () => undefined,
+    showOverlay,
+  };
+  function Host() {
+    useUniverseBack(session as unknown as Parameters<typeof useUniverseBack>[0], true);
+    return null;
+  }
+  const root = createRoot();
+  act(() => root.render(<Host />));
+  act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '/', cancelable: true }));
+  });
+  expect(showOverlay).toHaveBeenCalledWith('search');
+  const input = document.createElement('input');
+  document.body.append(input);
+  act(() => {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }));
+  });
+  expect(showOverlay).toHaveBeenCalledTimes(1);
+  input.remove();
+  act(() => root.unmount());
+  act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '/' }));
+  });
+  expect(showOverlay).toHaveBeenCalledTimes(1);
+});

@@ -284,3 +284,29 @@ describe('friend visit screen (labelled in-memory server)', () => {
     server.scope.end();
   });
 });
+
+it('desktop Browse and Settings expose only the friend’s shared places and transient drawing preference', async () => {
+  const server = visitServer();
+  mockScope = server.scope;
+  const v = await render(
+    <DisplayProvider value={{ width: 1440, textScale: 1, reducedMotion: true }}>
+      <VisitScreen handle="fixture.ravi" />
+    </DisplayProvider>,
+  );
+  await fireEvent.press(await screen.findByRole('button', { name: 'Browse' }));
+  expect(screen.getByRole('searchbox', { name: 'Search Ravi fixture’s universe' })).toBeOnTheScreen();
+  expect(screen.queryByTestId('universe-collection-section')).toBeNull();
+  expect(screen.queryByRole('list', { name: 'Rooms' })).toBeNull();
+  await fireEvent.changeText(screen.getByRole('searchbox'), 'region');
+  expect(screen.getByText('Nothing here called that yet.')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: 'Close Browse' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Settings' }));
+  expect(screen.queryByRole('switch', { name: 'Lately' })).toBeNull();
+  await fireEvent.press(screen.getByRole('switch', { name: 'Simple drawing' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Return to map' }));
+  expect(screen.getByTestId('universe-simple')).toBeOnTheScreen();
+  expect(screen.queryByText('Countries')).toBeNull();
+  expect(mockScope.storage.get('universe.view.v1')).toBeUndefined();
+  await act(() => mockScope.end());
+  await v.unmount();
+});

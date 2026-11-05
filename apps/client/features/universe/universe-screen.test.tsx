@@ -1,7 +1,7 @@
 import type * as React from 'react';
 import type * as FakeGpu from './space/fake-space-gpu';
 import { type EffectCallback, StrictMode } from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { AppState } from 'react-native';
 import { UniverseScreen, unavailableWords } from './universe-screen';
 import { fakeGpu, resetFakeGpu } from './space/fake-space-gpu';
@@ -862,76 +862,108 @@ describe('search over what the person already has (v3 U-5)', () => {
   });
 });
 
-describe('desktop D02 (v3 U-5)', () => {
-  const wide = (
-    <DisplayProvider value={{ width: 1440, textScale: 1, reducedMotion: true }}>
+describe('desktop D02, full-canvas amendment (#662)', () => {
+  const desktop = (width = 1440) => (
+    <DisplayProvider value={{ width, textScale: 1, reducedMotion: true }}>
       <UniverseScreen />
     </DisplayProvider>
   );
 
-  it('keeps the panel open with search, switches and the lists, docks the picked planet’s card, and Land goes to its map', async () => {
+  it.each([1024, 1440, 1920])(
+    'has one heading and no reserved outline at %i; Browse preserves the camera and pick',
+    async (width) => {
+      const h = universeHarness();
+      h.world.stations.push(roomStation());
+      mockScope = h.scope;
+      const v = await render(desktop(width));
+      await screen.findByRole('button', { name: 'Browse' });
+      expect(screen.queryByTestId('universe-panel')).toBeNull();
+      expect(screen.getAllByRole('header', { name: 'Your universe' })).toHaveLength(1);
+      expect(screen.queryByText('1 system · 2 planets')).toBeNull();
+      expect(screen.queryByRole('switch', { name: 'Lately' })).toBeNull();
+      await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
+      const session = universeSessionFor(h.scope);
+      await act(() => session.camera({ x: 23, y: -18, scale: 1.1 }));
+      const before = session.getState();
+      await fireEvent.press(screen.getByRole('button', { name: 'Browse' }));
+      await screen.findByTestId('universe-panel');
+      expect(screen.getByRole('searchbox', { name: 'Search your universe' })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'CI planet 2, a planet in CI system 0' })).toBeOnTheScreen();
+      expect(screen.getByText('Picked')).toBeOnTheScreen();
+      expect(
+        within(screen.getByTestId('universe-panel')).getByRole('button', { name: 'CI room, a room station' }),
+      ).toBeOnTheScreen();
+      expect(screen.getByTestId('universe-planet-card')).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Close Browse' }));
+      expect(session.getState()).toMatchObject({
+        frame: before.frame,
+        focusId: before.focusId,
+        selectedId: before.selectedId,
+      });
+      expect(screen.getByTestId('universe-planet-card')).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Land on CI planet 2' }));
+      expect(screen.getByTestId('universe-level')).toHaveTextContent('PLANET');
+      expect(h.calls.some((path) => /observations|activate|region\/open/.test(path))).toBe(false);
+      await act(() => h.scope.end());
+      await v.unmount();
+    },
+  );
+
+  it('searches from Browse, flies to a result and can continue exploring with Back and Return', async () => {
+    const h = universeHarness();
+    mockScope = h.scope;
+    const v = await render(desktop());
+    await fireEvent.press(await screen.findByRole('button', { name: 'Browse' }));
+    await fireEvent.changeText(screen.getByRole('searchbox'), 'planet 2');
+    await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, planet, in CI system 0' }));
+    expect(screen.queryByTestId('universe-panel')).toBeNull();
+    expect(screen.getByRole('header', { name: 'CI planet 2' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to CI system 0' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to Universe' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Return to CI planet 2' }));
+    expect(screen.getByRole('header', { name: 'CI planet 2' })).toBeOnTheScreen();
+    expect(h.calls.every(universeRead)).toBe(true);
+    await act(() => h.scope.end());
+    await v.unmount();
+  });
+
+  it('moves display switches to Settings and keeps a route back from Simple drawing', async () => {
+    const h = universeHarness();
+    mockScope = h.scope;
+    const v = await render(desktop());
+    await fireEvent.press(await screen.findByRole('button', { name: 'Settings' }));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Lately' }));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Simple drawing' }));
+    await waitFor(() => expect(universeSessionFor(h.scope).getState().read.status).toBe('ready'));
+    expect(screen.getByTestId('universe-simple')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Return to map' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Return to map' }));
+    expect(screen.queryByTestId('universe-panel')).toBeNull();
+    expect(screen.getByRole('button', { name: 'CI planet 2, a planet in CI system 0' })).toBeOnTheScreen();
+    expect(h.scope.storage.get('universe.view.v1')).toContain('"simple":true');
+    expect(h.scope.storage.get('universe.view.v1')).toContain('"lately":true');
+    await fireEvent.press(screen.getByRole('button', { name: 'Settings' }));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Simple drawing' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Return to map' }));
+    await waitFor(() => expect(screen.queryByTestId('universe-simple')).toBeNull());
+    await act(() => h.scope.end());
+    expect(h.store.keys()).toEqual([]);
+    await v.unmount();
+  });
+
+  it('offers the complete list automatically when WebGL fails, with no Browse required', async () => {
     const h = universeHarness();
     h.world.stations.push(roomStation());
     mockScope = h.scope;
-    const v = await render(wide);
-    await waitFor(() => expect(screen.getByTestId('universe-panel')).toBeOnTheScreen());
-    // The panel: title with its counts, the search field, the two switches, systems with planets and rooms.
-    expect(screen.getByText('1 system · 2 planets')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Search your universe' })).toBeOnTheScreen();
-    expect(screen.getByRole('switch', { name: 'Lately' })).toBeOnTheScreen();
-    expect(screen.getByRole('switch', { name: 'Simple drawing' })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'CI planet 2, a planet in CI system 0' })).toBeOnTheScreen();
-    await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: 'CI room, a room station' }).length).toBeGreaterThan(0),
-    );
-    // Zoom buttons and the key hints are on the map.
-    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeOnTheScreen();
-    expect(screen.getByText('← → ↑ ↓')).toBeOnTheScreen();
-    expect(screen.getByText('Esc')).toBeOnTheScreen();
-    expect(screen.getByText('Back up a level')).toBeOnTheScreen();
-    // In a system a tap on a planet picks it: its card docks in the panel instead of flying there.
-    await fireEvent.press(screen.getAllByRole('button', { name: 'CI system 0, a system' })[0]!);
-    await fireEvent.press(screen.getAllByRole('button', { name: 'CI planet 2, a planet' })[0]!);
-    expect(screen.getByTestId('universe-planet-card')).toBeOnTheScreen();
-    expect(screen.getByText('1 country.')).toBeOnTheScreen();
-    expect(screen.getByText('Picked')).toBeOnTheScreen();
-    expect(screen.queryByTestId('universe-level')).toBeNull();
-    await fireEvent.press(screen.getByRole('button', { name: 'Land on CI planet 2' }));
-    expect(screen.getByTestId('universe-level')).toHaveTextContent('PLANET');
-    // Escape steps up one level at a time.
-    const session = universeSessionFor(h.scope);
-    await act(() => {
-      session.escape();
-    });
-    expect(session.getState().focusId).toBe(fixtureId(10));
-    await act(() => h.scope.end());
-    await v.unmount();
-  });
-
-  it('hides the zoom buttons while a search card is open, and brings them back when it closes (#648)', async () => {
-    const h = universeHarness();
-    mockScope = h.scope;
-    const v = await render(wide);
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Zoom in' })).toBeOnTheScreen());
-    await fireEvent.press(screen.getByRole('button', { name: 'Search your universe' }));
-    await screen.findByRole('searchbox', { name: /search/i });
-    expect(screen.queryByRole('button', { name: 'Zoom in' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Zoom out' })).toBeNull();
-    await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
-    expect(await screen.findByRole('button', { name: 'Zoom in' })).toBeOnTheScreen();
-    await act(() => h.scope.end());
-    await v.unmount();
-  });
-
-  it('turns the whole map into the plain lists from the panel’s switch, and back', async () => {
-    const h = universeHarness();
-    mockScope = h.scope;
-    const v = await render(wide);
-    await waitFor(() => expect(screen.getByRole('switch', { name: 'Simple drawing' })).toBeOnTheScreen());
-    await fireEvent.press(screen.getByRole('switch', { name: 'Simple drawing' }));
+    const v = await render(desktop());
+    await screen.findByRole('button', { name: 'Browse' });
+    await waitFor(() => expect(fakeGpu.renderers.length).toBeGreaterThan(0));
+    await act(() => fakeGpu.loseContext());
     await screen.findByTestId('universe-simple');
-    await fireEvent.press(screen.getByRole('switch', { name: 'Simple drawing' }));
-    await waitFor(() => expect(screen.queryByTestId('universe-simple')).toBeNull());
+    expect(screen.getByRole('button', { name: 'CI planet 2, a planet in CI system 0' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'CI planet 3, a planet in CI system 0' })).toBeOnTheScreen();
+    await screen.findByRole('button', { name: 'CI room, a room station' });
     await act(() => h.scope.end());
     await v.unmount();
   });
@@ -1045,6 +1077,7 @@ describe('a hypothetical place says so wherever it is listed (D-006, D-053)', ()
         <UniverseScreen />
       </DisplayProvider>,
     );
+    await fireEvent.press(await screen.findByRole('button', { name: 'Browse' }));
     await waitFor(() =>
       expect(
         screen.getByRole('button', { name: 'CI planet 2, a planet in CI system 0, hypothetical' }),

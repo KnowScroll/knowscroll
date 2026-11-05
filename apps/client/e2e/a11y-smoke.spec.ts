@@ -261,7 +261,7 @@ test.describe('the Universe', () => {
       await expectAccessible(page, () =>
         expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible(),
       );
-      // From 1024 px the panel is always open beside the map; below it, the orbit dial replaces the List view.
+      // Desktop Browse overlays the map; below 1024 px the orbit dial replaces the List view.
       if (size.width < 1024) {
         await page.getByRole('button', { name: 'Back to Universe', exact: true }).click();
         await page.getByRole('button', { name: 'List view', exact: true }).click();
@@ -276,7 +276,11 @@ test.describe('the Universe', () => {
       if (size.width < 1024) {
         await page.getByRole('button', { name: 'List view', exact: true }).click();
         await page.getByRole('button', { name: 'Simple view', exact: true }).click();
-      } else await page.getByRole('switch', { name: 'Simple drawing', exact: true }).click();
+      } else {
+        await page.getByRole('button', { name: 'Settings', exact: true }).click();
+        await page.getByRole('switch', { name: 'Simple drawing', exact: true }).click();
+        await page.getByRole('button', { name: 'Return to map', exact: true }).click();
+      }
       await expectAccessible(page, () => expect(page.getByTestId('universe-simple')).toBeVisible());
       await page
         .getByRole('button', { name: /CI planet 2, a planet/ })

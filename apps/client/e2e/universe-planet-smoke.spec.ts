@@ -101,8 +101,10 @@ async function openPlanet(page: Page, size: { width: number; height: number }, o
     name: size.width >= 1024 ? 'CI planet 2, a planet in CI system 0' : 'CI planet 2, a planet',
     exact: true,
   });
-  if (size.width >= 1024) await planet.click();
-  else await tapOrbitingTarget(planet);
+  if (size.width >= 1024) {
+    await page.getByRole('button', { name: 'Browse', exact: true }).click();
+    await planet.click();
+  } else await tapOrbitingTarget(planet);
   await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
   return calls;
 }

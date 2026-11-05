@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text as NativeText, TextInput, View } from 'react-native';
 import type { RoomStation } from '@knowscroll/contracts';
 import { borderWidth, content, radius, space, spacing, target } from '@knowscroll/design-tokens';
@@ -22,7 +22,12 @@ export function UniverseSearchPanel({
   owner,
   stations,
   onStation,
+  children,
+  embedded = false,
 }: {
+  readonly children?: ReactNode;
+  /** Browse supplies its own Close control and the unfiltered outline. */
+  readonly embedded?: boolean;
   readonly session: UniverseMapSession;
   /** A friend's name, when the places searched are theirs. */
   readonly owner?: string;
@@ -77,59 +82,63 @@ export function UniverseSearchPanel({
             <IconButton icon="close" label="Clear search" variant="plain" onPress={() => setQuery('')} />
           ) : null}
         </View>
-        <Button label="Cancel" variant="space" size="sm" onPress={() => session.back()} />
+        {embedded ? null : <Button label="Cancel" variant="space" size="sm" onPress={() => session.back()} />}
       </View>
-      <View style={styles.card}>
-        {searched ? (
-          results.length ? (
-            <>
-              <View style={styles.cardHead}>
-                <Text variant="label" color={content.ink2}>
-                  {`${results.length} ${results.length === 1 ? 'place' : 'places'}`}
-                </Text>
-                <Text variant="label" color={content.ink2}>
-                  Best match first
-                </Text>
-              </View>
-              <ScrollView role="list" accessibilityLabel="Search results" style={styles.results}>
-                {results.map((result, position) => (
-                  <ResultRow
-                    key={`${result.kind}-${result.id}`}
-                    result={result}
-                    lit={position === lit}
-                    onPress={() => choose(result)}
-                  />
-                ))}
-              </ScrollView>
-            </>
+      {children && !searched ? (
+        children
+      ) : (
+        <View style={styles.card}>
+          {searched ? (
+            results.length ? (
+              <>
+                <View style={styles.cardHead}>
+                  <Text variant="label" color={content.ink2}>
+                    {`${results.length} ${results.length === 1 ? 'place' : 'places'}`}
+                  </Text>
+                  <Text variant="label" color={content.ink2}>
+                    Best match first
+                  </Text>
+                </View>
+                <ScrollView role="list" accessibilityLabel="Search results" style={styles.results}>
+                  {results.map((result, position) => (
+                    <ResultRow
+                      key={`${result.kind}-${result.id}`}
+                      result={result}
+                      lit={position === lit}
+                      onPress={() => choose(result)}
+                    />
+                  ))}
+                </ScrollView>
+              </>
+            ) : (
+              <Text variant="body" color={content.ink2}>
+                Nothing here called that yet.
+              </Text>
+            )
           ) : (
-            <Text variant="body" color={content.ink2}>
-              Nothing here called that yet.
-            </Text>
-          )
-        ) : (
-          <View style={styles.empty}>
-            <Text variant="title" heading={2} style={styles.emptyTitle}>
-              Find any place you’ve been
-            </Text>
-            <Text variant="bodyS" color={content.ink2}>
-              Choosing a result flies you there. Back returns you to where you were looking.
-            </Text>
-            <View style={styles.kinds}>
-              {['Systems', 'Planets', ...(owner === undefined ? ['Regions', 'Rooms'] : [])].map((kind) => (
-                <Text key={kind} variant="ui">
-                  {kind}
-                </Text>
-              ))}
+            <View style={styles.empty}>
+              <Text variant="title" heading={2} style={styles.emptyTitle}>
+                Find any place you’ve been
+              </Text>
+              <Text variant="bodyS" color={content.ink2}>
+                Choosing a result flies you there. Back returns you to where you were looking.
+              </Text>
+              <View style={styles.kinds}>
+                {['Systems', 'Planets', ...(owner === undefined ? ['Regions', 'Rooms'] : [])].map((kind) => (
+                  <Text key={kind} variant="ui">
+                    {kind}
+                  </Text>
+                ))}
+              </View>
             </View>
-          </View>
-        )}
-        <Text variant="meta" color={content.ink2}>
-          {searched && results.length
-            ? `Only places in ${subject}. Search stays on this device.`
-            : 'Search stays on this device.'}
-        </Text>
-      </View>
+          )}
+          <Text variant="meta" color={content.ink2}>
+            {searched && results.length
+              ? `Only places in ${subject}. Search stays on this device.`
+              : 'Search stays on this device.'}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }

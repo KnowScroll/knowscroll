@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { spacing } from '@knowscroll/design-tokens';
-import { Text } from '@knowscroll/ui';
+import { Text, useFocusRing } from '@knowscroll/ui';
 import { countOf, nameWithTruth, type ListedUniverse } from '../universe-lists';
 import type { UniverseMapSession } from '../universe-session';
 import { PlaceRow, RowGroup, SIMPLE } from './place-rows';
@@ -38,16 +38,11 @@ export function SystemSections({
           <View style={[styles.systemHead, position === 0 ? styles.first : null]}>
             <View style={styles.systemWords}>
               {onSystem ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={nameWithTruth(`${system.name}, system`, system.hypothetical)}
+                <SystemButton
+                  name={system.name}
+                  hypothetical={system.hypothetical}
                   onPress={() => onSystem(system.id)}
-                  style={styles.systemName}
-                >
-                  <Text variant="title" heading={2} color={SIMPLE.ink} style={styles.systemTitle}>
-                    {system.name}
-                  </Text>
-                </Pressable>
+                />
               ) : (
                 <Text
                   variant="title"
@@ -125,6 +120,32 @@ export function SystemSections({
         </View>
       ) : null}
     </>
+  );
+}
+
+/** The outline is a keyboard navigation surface as well as a screen-reader list. */
+function SystemButton({
+  name,
+  hypothetical,
+  onPress,
+}: {
+  readonly name: string;
+  readonly hypothetical: boolean;
+  readonly onPress: () => void;
+}) {
+  const focus = useFocusRing('onLight');
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={nameWithTruth(`${name}, system`, hypothetical)}
+      onPress={onPress}
+      {...focus.props}
+      style={[styles.systemName, focus.style]}
+    >
+      <Text variant="title" heading={2} color={SIMPLE.ink} style={styles.systemTitle}>
+        {name}
+      </Text>
+    </Pressable>
   );
 }
 

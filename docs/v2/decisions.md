@@ -4575,3 +4575,10 @@ Confirmed by: `earth-sky-orbit-layout.test.ts` (both orbits, every month, with a
 The owner designated `dev` as the current development branch. Fetch `origin/dev`, branch from it in an isolated worktree, and open the feature PR against `dev`. Squash on green after a fresh review. The dev push runs checks and deploys the resulting release. Verify the deployed commit through health.
 
 This amends the integration-branch and back-merge steps of D-002 and D-030. The former integration branch records earlier v2 work. Stage and live retain their existing promotion and ownership rules. The owner requested one repository-wide PR for the upcoming code, comment and README cleanup.
+
+
+## D-395 · 2026-11-05 · Owner: desktop Universe is a full-width map with Browse and Settings (#662)
+
+The owner's 4 November feedback amends D-060 and D-112's desktop D02 layout only. At 1024 px and above the map has no permanent right panel, reserved column or repeated title/counts. Browse is the one on-demand navigation surface: local search, the complete accessible systems/planets/rooms outline, selected-place details, Resume and Orbit when available. Lately and Simple drawing move into Settings without changing their storage scope. Return to map and Close are explicit; Escape closes the topmost surface first and closing restores trigger focus. The map remains mounted at its full size and keeps its camera and selection.
+
+Manual Simple drawing and automatic rendering fallback still show complete accessible lists. Phone navigation, friend-view privacy and account/epoch disposal remain governed by their existing rules. Map browsing supplies no consumption evidence. The frozen design exports stay intact. Labels, phone card dismissal and scene artwork belong to #663–#665.

@@ -255,6 +255,7 @@ test('canonical region card opens displayed A through actual activation, then Ba
   });
   await page.goto('/universe');
   // From 1024 px the panel sits beside the map, always open (D02): a planet's row opens its globe, Land its map.
+  await page.getByRole('button', { name: 'Browse', exact: true }).click();
   await page.getByRole('button', { name: 'CI planet 2, a planet in CI system 0', exact: true }).click();
   await page.getByRole('button', { name: 'Land on CI planet 2', exact: true }).click();
   await page.getByRole('button', { name: 'CI region 4, a region', exact: true }).click();

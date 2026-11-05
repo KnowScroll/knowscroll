@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NO_COLLECTION } from '@knowscroll/client-core';
 import type { RoomStation } from '@knowscroll/contracts';
@@ -19,7 +19,7 @@ import { PlanetCard, RegionCard, SystemCard } from './universe-cards';
 import { UniverseHeader } from './universe-header';
 import { isQuiet, viewFor, type Size, type UniverseIndex, type UniverseView } from './universe-layout';
 import { countOf } from './universe-lists';
-import { UniversePanel } from './universe-panel';
+import { UniversePanel, UniverseSettings } from './universe-panel';
 import { UniverseSearchPanel } from './universe-search-panel';
 import { SpaceChip } from './space-chip';
 import { UniverseStage } from './universe-stage';
@@ -62,8 +62,7 @@ export interface VisitorChrome {
 
 /**
  * The Universe as the artboards draw it: the map fills the screen, the header and chips float
- * over it, and the cards sit above the tab bar (phones and tablets). From 1024 px (D02) the map
- * has the outline beside it, always open, with the place card docked beneath.
+ * over it. Desktop Browse and Settings overlay the map without changing its viewport (D02 amendment).
  */
 export function UniverseSurface({
   session,
@@ -91,11 +90,30 @@ export function UniverseSurface({
   const { breakpoint } = useDisplay();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
-  // From 1024 px the outline sits beside the map, once there is anything to list (D02).
+  // Desktop navigation overlays the map; it never reserves a column.
   const wide = breakpoint === 'desktop';
   const view = viewFor(index, state.focusId, state.landed);
   const places = session.places();
-  const panel = wide && places.length > 0;
+  const panel = wide && (state.overlay === 'outline' || state.overlay === 'search');
+  const settings = wide && state.overlay === 'settings';
+  const previousOverlay = useRef(state.overlay);
+  useEffect(() => {
+    const previous = previousOverlay.current;
+    previousOverlay.current = state.overlay;
+    if (Platform.OS !== 'web' || !wide || (state.overlay !== null && state.overlay !== 'place')) return;
+    const trigger =
+      previous === 'settings'
+        ? 'universe-settings'
+        : previous === 'outline' || previous === 'search'
+          ? 'universe-browse'
+          : undefined;
+    if (!trigger) return;
+    // Wait until the modal has released its focus trap and the map's own focus effect has run.
+    const frame = requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(`[data-testid="${trigger}"]`)?.focus(),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [state.overlay, wide]);
   const focused = places.find((place) => place.id === state.focusId);
   const picked = state.selectedId ? places.find((place) => place.id === state.selectedId) : undefined;
   const regionCard = state.overlay === 'place' && focused?.kind === 'region' ? focused : undefined;
@@ -113,6 +131,23 @@ export function UniverseSurface({
   // Why 3D cannot be drawn, if it cannot: the tab is then the Simple lists, by itself (D-111).
   const [unavailable, setUnavailable] = useState<SpaceFailure | null>(() => (lowMemoryDevice() ? 'low-memory' : null));
   const searching = state.overlay === 'search';
+  const controls = wide ? (
+    <View style={styles.desktopControls}>
+      <SpaceChip
+        label="Browse"
+        icon="search"
+        variant="solid"
+        testID="universe-browse"
+        onPress={() => session.showOverlay('outline')}
+      />
+      <SpaceChip
+        label="Settings"
+        variant="solid"
+        testID="universe-settings"
+        onPress={() => session.showOverlay('settings')}
+      />
+    </View>
+  ) : null;
   const openSearch = () => session.showOverlay('search');
   // A planet in view: what its globe and map are drawn from, which also gives the plain list its order.
   const looks = looksOfState(state);
@@ -192,7 +227,7 @@ export function UniverseSurface({
   // the list in front of it takes its place. It is one line wherever a long card would reach the picture: on a globe (under
   // Back, above the globe, clear of its name and hint, which fill the lower half) and on a short screen, where a full card
   // would reach the sun.
-  const landmarkAllowed = !visitor && !panel && !card && !sheet && !searching;
+  const landmarkAllowed = !visitor && !wide && !card && !sheet && !searching;
   const onGlobe = (shown: UniverseView) => shown.kind === 'planet' && !shown.landed && !simple;
   const landmarkOf = (shown: UniverseView): ReactNode =>
     landmarkAllowed && !onGlobe(shown) ? (
@@ -206,7 +241,7 @@ export function UniverseSurface({
     landmarkAllowed && onGlobe(shown) ? <LandmarkCard view={collection} folded onSee={openCollection} /> : null;
 
   const headerOf = (shown: UniverseView): ReactNode =>
-    searching ? (
+    searching && !wide ? (
       <UniverseSearchPanel
         session={session}
         {...(visitor ? { owner: visitor.ownerName } : {})}
@@ -223,8 +258,9 @@ export function UniverseSurface({
           onSearch={openSearch}
           {...(visitor ? { visitor: { ownerName: visitor.ownerName } } : {})}
           {...(systemFacts ? { systemFacts } : {})}
-          searchInPanel={panel}
+          desktop={wide}
         />
+        {controls}
         {globeLandmarkOf(shown)}
       </View>
     );
@@ -338,10 +374,11 @@ export function UniverseSurface({
         {...(stationsOfOwn ? { stations: stationsOfOwn } : {})}
         {...(visitor ? { owner: visitor.ownerName } : {})}
         top={insets.top + spacing[3]}
-        bottom={bottomInset + (card && !panel ? 200 : 0)}
+        bottom={bottomInset + (card ? 200 : 0)}
         banner={
-          visitor?.bar || status || notice ? (
+          controls || visitor?.bar || status || notice ? (
             <>
+              {controls}
               {visitor?.bar}
               {status ? <Tag label={status} variant="onDark" /> : null}
               {notice}
@@ -351,9 +388,9 @@ export function UniverseSurface({
         }
         onSearch={openSearch}
         {...(onStation ? { onStation } : {})}
-        {...(simpleDrawing && !panel ? { onTurnOff: () => turnSimple(false) } : {})}
-        {...(searching ? { searchPanel: header } : {})}
-        {...(panel || !card ? {} : { card })}
+        {...(simpleDrawing && !wide ? { onTurnOff: () => turnSimple(false) } : {})}
+        {...(searching && !wide ? { searchPanel: header } : {})}
+        {...(!card ? {} : { card })}
         {...(collectionPanel ? { collection: collectionPanel } : {})}
         {...(refusedPlanetId !== null && !simpleDrawing && view.kind === 'planet'
           ? { forcedPlanetId: refusedPlanetId }
@@ -397,7 +434,9 @@ export function UniverseSurface({
             animation={animation}
             onSize={setStageSize}
           />
-          {searching ? <View pointerEvents="none" testID="universe-search-dim" style={styles.searchDim} /> : null}
+          {searching && !wide ? (
+            <View pointerEvents="none" testID="universe-search-dim" style={styles.searchDim} />
+          ) : null}
           <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
             {visitor?.bar}
             <ChromeSlot
@@ -431,7 +470,7 @@ export function UniverseSurface({
             ) : null}
             {notice}
             {sheet}
-            {panel || !card ? null : (
+            {panel || settings || !card ? null : (
               <View onLayout={(event) => setCardTopInStack(event.nativeEvent.layout.y)}>{card}</View>
             )}
             {visitor?.footer}
@@ -473,32 +512,30 @@ export function UniverseSurface({
     </View>
   );
 
-  if (wide)
-    return (
-      <View style={styles.ground} testID="universe-screen" role="main">
-        <View style={styles.desktopRow}>
-          {stage}
-          {panel ? (
-            <UniversePanel
-              session={session}
-              state={state}
-              index={index}
-              {...(stationsOfOwn ? { stations: stationsOfOwn } : {})}
-              {...(visitor ? { owner: visitor.ownerName } : {})}
-              simple={simpleDrawing}
-              card={card}
-              collection={collectionPanel}
-              onSearch={openSearch}
-              onSimple={turnSimple}
-              {...(onStation ? { onStation } : {})}
-            />
-          ) : null}
-        </View>
-      </View>
-    );
   return (
     <View style={styles.ground} testID="universe-screen" role="main">
       {stage}
+      {panel ? (
+        <UniversePanel
+          session={session}
+          state={state}
+          index={index}
+          {...(stationsOfOwn ? { stations: stationsOfOwn } : {})}
+          {...(visitor ? { owner: visitor.ownerName } : {})}
+          card={card}
+          collection={collectionPanel}
+          {...(onStation ? { onStation } : {})}
+        />
+      ) : null}
+      {settings ? (
+        <UniverseSettings
+          session={session}
+          state={state}
+          simple={simpleDrawing}
+          visitor={visitor !== undefined}
+          onSimple={turnSimple}
+        />
+      ) : null}
     </View>
   );
 }
@@ -632,7 +669,7 @@ function KeyHints({ globe }: { globe: boolean }) {
 
 const styles = StyleSheet.create({
   ground: { flex: 1, backgroundColor: space.s0 },
-  desktopRow: { flex: 1, flexDirection: 'row' },
+  desktopControls: { flexDirection: 'row', gap: spacing[2], alignItems: 'center' },
   stageHost: { flex: 1, overflow: 'hidden' },
   top: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: layout.topControlsInset, gap: spacing[2] },
   status: { alignItems: 'flex-end' },
