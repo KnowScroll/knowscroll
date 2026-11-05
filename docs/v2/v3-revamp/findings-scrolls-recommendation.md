@@ -459,7 +459,7 @@ Each row: the rule on dev, what V3 does, recommended answer.
 
 ## 7. Suggested slices (each ends in something a person can use on dev)
 
-Rules from AGENTS.md apply: issue first, one vertical slice per branch from `codex/release-knowscroll-v2`, PR under ~2,500 non-test lines, real provider calls when the slice needs them, promote to dev, then exercise on `app.dev.knowscroll.space` with disposable accounts. Model: `MiniMax-M3.1-Flash`; check the response `model` field (D-031); workers/operator only; watch the 5-hour window.
+For this historical v3 plan the team used the integration branch. For current work follow [the contributor workflow](../engineering/contributing.md#how-we-work): issue first, branch from `origin/dev`, PR under ~2,500 non-test lines, real provider calls when the slice needs them, promote to dev, then exercise on `app.dev.knowscroll.space` with disposable accounts. Model: `MiniMax-M3.1-Flash`; check the response `model` field (D-031); workers/operator only; watch the 5-hour window.
 
 **Slice 0: decisions and a writer spike (S-M, before any engine).**
 - Write D-060 (play layer, scores wording, supersede D-040 for Scroll swipe, `play` module and walls from 5a) and amend AGENTS.md "scores"; get owner answers to section 6 questions.
