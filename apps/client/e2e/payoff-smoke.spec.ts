@@ -265,6 +265,9 @@ test('a Final call still open at the end offers the way back to it, and no landm
   await page.getByRole('button', { name: 'Play the Final call' }).click();
   await expect(page.getByRole('group', { name: 'Final call' })).toBeVisible();
   await expect(page.getByTestId('tilt-control')).toBeVisible();
+  const final = page.getByRole('group', { name: 'Final call', exact: true });
+  await expect(final.getByRole('button', { name: 'Reveal explanation' })).toBeInViewport({ ratio: 1 });
+  await expect(final.getByRole('button', { name: 'Keep reading' })).toBeInViewport({ ratio: 1 });
 });
 
 test('on a 320 px screen the picture, the tilt slider and the options all fit, and the page does not scroll sideways', async ({
@@ -313,6 +316,9 @@ for (const viewport of [phone, desktop]) {
     await dot(page, 'Call it 1 of 3').click();
     const call = page.getByRole('group', { name: 'Call it 1 of 3', exact: true });
     await expect(call.getByText('Optional · reveal or keep reading without answering.')).toBeVisible();
+    await expect(call.getByRole('button', { name: 'Reveal explanation' })).toBeInViewport({ ratio: 1 });
+    await expect(call.getByRole('button', { name: 'Keep reading' })).toBeInViewport({ ratio: 1 });
+    await shoot(page, `optional-call-before-${viewport.width}`);
     await call.getByRole('button', { name: 'Reveal explanation' }).click();
     await expect(call.getByTestId('call-skipped-reveal')).toBeVisible();
     await expect(call.getByText('Called it!', { exact: true })).toHaveCount(0);
