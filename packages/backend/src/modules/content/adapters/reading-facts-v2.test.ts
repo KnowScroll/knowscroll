@@ -30,7 +30,7 @@ describe('reading facts v3 of the labelled Orrin fixture', () => {
     const reading = readingFactsOfV2(withoutCalls);
     expect(reading.totalWeight).toBe(original.totalWeight);
     expect(reading.blocks).toEqual(original.blocks.filter((block) => block.type === 'stop'));
-    expect(reading.blocks.every((block) => block.seen.kind === 'visible')).toBe(true);
+    expect(reading.blocks.every((block) => block.seen?.kind === 'visible')).toBe(true);
   });
 
   const facts = readingFactsOfV2(document);
