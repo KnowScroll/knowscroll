@@ -6,6 +6,8 @@ import { callsOf, tallyOf, type ScrollDocumentV2 } from '@knowscroll/scroll-mode
 export const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 
 export interface EncounterFixtureOptions {
+  /** Compose a direct reader with a room or Talk fixture; unmatched routes pass to that fixture. */
+  readonly fallback?: boolean;
   readonly viewport?: { readonly width: number; readonly height: number };
   /** Makes the current encounter Part 1 of a series, with Part 2 next and the other format ready. */
   readonly series?: boolean;
@@ -628,7 +630,8 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       });
       return;
     }
-    await route.fulfill({ status: 404, json: {} });
+    if (options.fallback === true) await route.fallback();
+    else await route.fulfill({ status: 404, json: {} });
   });
   return { commands, observed };
 }

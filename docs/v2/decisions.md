@@ -4605,3 +4605,7 @@ Owner amendment to the quiz cadence in D-062, D-124, D-126, D-187, D-199 and D-2
 - The stored document ceiling remains four so older published revisions parse unchanged. Their locks and rewards remain tied to their original revision. A zero-call Scroll has its recap and normal ways on, with no unfinished Final call or empty score. A recipe's landmark is still awarded only by an actual Final call lock; no Final call means no award. Friend threads offer no Call it first when that revision has no Call it, while existing locked older revisions remain available under D-233.
 
 Verification status belongs in the #670 PR; this decision is policy, not a claim of deployed acceptance.
+
+## D-398 · 2026-11-06 · Standalone Stage + Spine Scrolls expose Back (#684)
+
+Amends D-133/D-185’s leading control only for a Scroll opened by address, including shared cards in Talk and room Feed. It shows Back using the same existing navigation stack as the article and Reel readers. Popping preserves the opener’s tab and scroll position; with no app history, Back returns to Explore. Explore retains Your Universe, and thread readers retain Back to thread. This is navigation only: returning creates no content or encounter commands. Immutable design exports remain unchanged.

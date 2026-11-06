@@ -1,7 +1,11 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { encounterFixture } from './encounter-fixture';
+import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
+import { encounterFixture, id } from './encounter-fixture';
+import { roomFixture } from './rooms-fixture';
+import { feedRoutes, feedWorld, secondFindId } from './rooms-feed-fixture';
+import { conversation, talkFixture } from './talk-fixture';
 
 const playableVideo = readFileSync(join(__dirname, 'fixtures', 'blue-60s.webm'));
 
@@ -14,6 +18,76 @@ const playableVideo = readFileSync(join(__dirname, 'fixtures', 'blue-60s.webm'))
  */
 const phone = { width: 390, height: 844 };
 const desktop = { width: 1440, height: 900 };
+
+async function directStage(page: Page, viewport: typeof phone) {
+  return encounterFixture(page, 'scroll', {
+    viewport,
+    scrollDocument: seasons as unknown as Record<string, unknown>,
+    direct: { parts: 1 },
+    fallback: true,
+  });
+}
+
+async function returnShot(page: Page, name: string) {
+  const folder = process.env['KS_READER_BACK_SHOTS'];
+  if (folder === undefined) return;
+  mkdirSync(folder, { recursive: true });
+  await page.screenshot({ path: join(folder, `${name}.png`) });
+}
+
+for (const viewport of [phone, desktop]) {
+  const size = String(viewport.width);
+  test(`a shared stage Scroll returns to the same room Feed and scroll position at ${size}`, async ({ page }) => {
+    const { address } = await roomFixture(page, viewport, {
+      noticeSeen: true,
+      others: 1,
+      lastMessageMinutesAgo: 5,
+    });
+    await feedRoutes(page, feedWorld(), { accountId: id(1), privacyEpoch: 1 });
+    const reader = await directStage(page, viewport);
+    await page.goto(address);
+    await page.getByRole('tab', { name: 'Feed', exact: true }).click();
+    const card = page.getByTestId(`feed-post-${secondFindId}`);
+    await card.getByRole('link', { name: 'Open Scroll', exact: true }).click();
+    await expect(page.getByRole('group', { name: 'Scroll reader' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
+    await returnShot(page, `room-reader-${size}`);
+    const opens = reader.commands.length;
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`${address}$`));
+    await expect(page.getByRole('tab', { name: 'Feed', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(card.getByRole('link', { name: 'Open Scroll', exact: true })).toBeInViewport();
+    expect(reader.commands).toHaveLength(opens);
+    await returnShot(page, `room-return-${size}`);
+  });
+
+  test(`a shared stage Scroll returns to its Talk conversation with one browser Back at ${size}`, async ({ page }) => {
+    await talkFixture(page, viewport, { sharedCard: true });
+    const reader = await directStage(page, viewport);
+    const address = `/conversations/${conversation.conversationId}?m=${conversation.membershipId}&r=1`;
+    await page.goto(address);
+    await page.getByRole('link', { name: 'Open Scroll', exact: true }).first().click();
+    await expect(page.getByRole('group', { name: 'Scroll reader' })).toBeVisible();
+    const opens = reader.commands.length;
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`/conversations/${conversation.conversationId}\\?`));
+    await expect(page.getByText('Starting the second part now.')).toBeVisible();
+    expect(reader.commands).toHaveLength(opens);
+    // The visible control uses the same return path as browser/system Back.
+    await page.getByRole('link', { name: 'Open Scroll', exact: true }).first().click();
+    await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/conversations/${conversation.conversationId}\\?`));
+  });
+
+  test(`a stage Scroll opened by a direct link falls back to Explore at ${size}`, async ({ page }) => {
+    await directStage(page, viewport);
+    await page.goto(`/scroll/${id(300)}`);
+    await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(page).toHaveURL(/\/explore$/);
+  });
+}
 
 const paused = (page: Page) => page.locator('video').evaluate((node) => (node as HTMLVideoElement).paused);
 
