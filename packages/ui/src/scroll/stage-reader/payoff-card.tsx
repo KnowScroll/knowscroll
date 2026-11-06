@@ -17,7 +17,6 @@ export function ScoreRow({ payoff }: { readonly payoff: Payoff }) {
       {payoff.bestCombo >= 2 ? <PlayChip label={`Combo ×${String(payoff.bestCombo)}`} tone="earned" /> : null}
       {payoff.final === 'right' ? <PlayChip label="Final call ✓" tone="called_it" /> : null}
       {payoff.final === 'wrong' ? <PlayChip label="Final call · Plot twist" tone="plot_twist" /> : null}
-      {payoff.final === 'open' ? <PlayChip label="Final call · still open" tone="plot_twist" /> : null}
     </View>
   );
 }

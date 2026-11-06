@@ -313,7 +313,7 @@ export {
   type GuideCharacter,
   type InteractiveKind,
 } from './blocks.js';
-export { FIELD_LIMITS_V2, LIMITS_V2, SCROLL_LIMITS_V2_VERSION } from './limits.js';
+export { FIELD_LIMITS_V2, LIMITS_V2, MAX_AUTHORED_CALLS_V2, SCROLL_LIMITS_V2_VERSION } from './limits.js';
 export {
   Aside,
   ASIDE_KINDS,

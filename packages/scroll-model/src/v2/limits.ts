@@ -73,3 +73,6 @@ export const FIELD_LIMITS_V2 = {
   unitChars: 30,
   guideChars: 160,
 } as const;
+
+/** New authoring uses fewer optional calls; the stored-document ceiling stays four for published revisions. */
+export const MAX_AUTHORED_CALLS_V2 = 3;

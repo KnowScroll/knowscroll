@@ -12,6 +12,6 @@ import type { CallState } from './call-state';
  */
 export function pictureStopOf(stop: Stop | undefined, state: CallState | undefined): string | undefined {
   if (stop?.kind !== 'call_it' || stop.revealStage === undefined || state === undefined) return stop?.id;
-  const wrong = state.revealed && state.picked !== undefined && state.picked !== stop.answer;
-  return wrong ? stop.revealStage : stop.id;
+  const needsExplanation = state.revealed && (state.picked === undefined || state.picked !== stop.answer);
+  return needsExplanation ? stop.revealStage : stop.id;
 }

@@ -217,6 +217,8 @@ describe('which stop’s picture the stage shows (pictureStopOf)', () => {
   it('is the stop itself unless a Call it that names a picture was answered wrongly', () => {
     expect(pictureStopOf(read, undefined)).toBe(read.id);
     expect(pictureStopOf(call, FRESH_CALL)).toBe('call-delhi');
+    if (call?.kind !== 'call_it') throw new Error('CI fixture has a Call it');
+    expect(pictureStopOf(call, { picked: undefined, revealed: true })).toBe(call.revealStage);
     expect(pictureStopOf(call, { picked: 0, revealed: false })).toBe('call-delhi');
     expect(pictureStopOf(call, locked(1))).toBe('call-delhi');
     expect(pictureStopOf(call, locked(0))).toBe('closest-in-january');

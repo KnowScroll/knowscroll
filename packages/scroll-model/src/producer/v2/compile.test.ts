@@ -109,18 +109,43 @@ describe('compileAuthoredV2: stops and lines', () => {
 });
 
 describe('compileAuthoredV2: calls', () => {
-  it('allows four calls and refuses five', () => {
+  it.each(['plain', 'stage'] as const)('compiles a complete %s explanation with zero questions', (variant) => {
+    const authored = authoredV2(variant);
+    // Replace call text with ordinary reading of comparable length: no made-up answer is stored.
+    const items = authored.items.map((item, index) =>
+      item.type === 'call_it' || item.type === 'final_call'
+        ? { type: 'stop' as const, text: filler(55, index + 30), simple: filler(20, index + 50), cites: item.cites }
+        : item,
+    );
+    items.push(
+      ...[70, 71, 72].map((tag) => ({
+        type: 'stop' as const,
+        text: filler(55, tag),
+        simple: filler(20, tag + 10),
+        cites: ['e1'],
+      })),
+    );
+    const outcome = compileAuthoredV2({ ...authored, items }, compileInputV2(variant));
+    expect(outcome.kind, JSON.stringify(outcome.kind === 'refused' ? outcome.issues : [])).toBe('compiled');
+    if (outcome.kind !== 'compiled') return;
+    expect(outcome.document.stops.every((stop) => stop.kind === 'read')).toBe(true);
+    expect(validateDocumentV2(outcome.document).kind).toBe('valid');
+    expect(outcome.document.recap.captions.length).toBeGreaterThan(0);
+    expect(outcome.document.stage === undefined).toBe(variant === 'plain');
+  });
+
+  it('allows three optional calls and refuses four in new authoring', () => {
     const extraCall = (draft: Mutable, count: number) => {
       const template = draft.items[itemIndex(draft, 'call_it', 1)] as Record<string, unknown>;
       const at = itemIndex(draft, 'stop', 3);
       draft.items.splice(at + 1, 0, ...Array.from({ length: count }, () => ({ ...template })));
     };
-    expect(codes(changed((draft) => extraCall(draft, 1)))).not.toContain('call_budget_exceeded@items');
-    expect(codes(changed((draft) => extraCall(draft, 2)))).toContain('call_budget_exceeded@items');
+    expect(codes(authoredV2())).not.toContain('call_budget_exceeded@items');
+    expect(codes(changed((draft) => extraCall(draft, 1)))).toContain('call_budget_exceeded@items');
   });
 
-  it('needs a Final call that is the only one and ends the spine', () => {
-    expect(codes(changed((draft) => draft.items.splice(itemIndex(draft, 'final_call'), 1)))).toContain(
+  it('allows no Final call, but a retained Final call must be unique and last', () => {
+    expect(codes(changed((draft) => draft.items.splice(itemIndex(draft, 'final_call'), 1)))).not.toContain(
       'final_call_missing@items',
     );
     expect(
@@ -141,10 +166,10 @@ describe('compileAuthoredV2: calls', () => {
     ).toContain('final_call_misplaced@items');
   });
 
-  it('needs at least one Call it besides the Final call', () => {
+  it('allows a Final call without a Call it', () => {
     expect(
       codes(changed((draft) => (draft.items = draft.items.filter((item) => item['type'] !== 'call_it')))),
-    ).toContain('call_it_missing@items');
+    ).not.toContain('call_it_missing@items');
   });
 
   it('refuses duplicate options', () => {

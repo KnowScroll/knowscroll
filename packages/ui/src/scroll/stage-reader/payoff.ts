@@ -2,7 +2,7 @@ import type { CallItStop, FinalCallStop } from '@knowscroll/scroll-model';
 import { lockOf, type StageKeeping, type StageLandmark, type StagePlay } from './stage-play';
 
 /** How the Final call stands at the end of the Scroll. */
-export type FinalCallStanding = 'right' | 'wrong' | 'open';
+export type FinalCallStanding = 'right' | 'wrong' | 'open' | 'absent';
 
 /**
  * What the payoff at the end of a Scroll shows of the person's play (D-187, D-188): the sparks and
@@ -26,7 +26,8 @@ export function payoffOf(calls: readonly (CallItStop | FinalCallStop)[], play: S
   return {
     sparks: play.sparks,
     bestCombo: Math.max(0, ...play.locks.map((lock) => lock.combo)),
-    final: finalLock === undefined ? 'open' : finalLock.correct ? 'right' : 'wrong',
+    final:
+      finalCall === undefined ? 'absent' : finalLock === undefined ? 'open' : finalLock.correct ? 'right' : 'wrong',
     landmark: play.landmark,
     keeping: finalLock?.keeping,
   };

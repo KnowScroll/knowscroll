@@ -67,6 +67,9 @@ export function useReaderScroll(input: {
 
   const jump = useCallback(
     (index: number, animated: boolean) => {
+      // An explicit move wins over a reveal still waiting for its layout or scroll timer.
+      revealing.current = undefined;
+      clearTimeout(revealTimer.current);
       const clamped = Math.max(0, Math.min(index, sections - 1));
       aim.current = { index: clamped, at: Date.now() };
       const y = tops.current[clamped];
@@ -75,6 +78,9 @@ export function useReaderScroll(input: {
     [scroller, reducedMotion, sections],
   );
   const revealIn = useCallback((index: number) => {
+    // The reveal takes over from a recent spine jump: later layout must not pull it back to the heading.
+    aim.current = { index, at: 0 };
+    clearTimeout(settling.current);
     revealing.current = { index, at: Date.now() };
   }, []);
   const heading = (): number => (Date.now() - aim.current.at < KEY_REPEAT_MS ? aim.current.index : current);
@@ -106,7 +112,7 @@ export function useReaderScroll(input: {
 
   /**
    * A locked call's reveal has been laid out, `revealHeight` tall (with the section's own bottom
-   * padding). Brings it on screen, never scrolling back up: its end when it fits the view, otherwise
+   * padding). Brings it on screen: its end when it fits the view, otherwise
    * its start, so the "Called it!" or "Plot twist!" label is what the person sees first.
    */
   const reportReveal = (index: number, revealHeight: number) => {
@@ -118,8 +124,10 @@ export function useReaderScroll(input: {
     revealTimer.current = setTimeout(() => {
       const { scrollTop, viewport: visible } = metrics.current;
       const end = (tops.current[index] ?? 0) + (heights.current[index] ?? 0);
-      const y = Math.min(end - visible, end - revealHeight);
-      if (y > scrollTop) scroller.current?.scrollTo({ y, animated: !reducedMotion });
+      const start = end - revealHeight;
+      const y = Math.max(0, start < scrollTop ? start : Math.min(end - visible, start));
+      // Collapsing the options can put the reveal above the old scroll position.
+      if (start < scrollTop || y > scrollTop) scroller.current?.scrollTo({ y, animated: !reducedMotion });
     }, REVEAL_SETTLE_MS);
   };
 
