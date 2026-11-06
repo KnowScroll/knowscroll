@@ -369,6 +369,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
           format: () => siblings.select('reel'),
           ask: ask.openAsk,
           makeScroll: ask.openAbout,
+          back,
           done: back,
         }}
         moreBody={(close) => (

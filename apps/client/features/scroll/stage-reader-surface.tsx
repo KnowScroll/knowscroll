@@ -32,6 +32,8 @@ import { useStagePlay } from './use-stage-play';
 /** What the surface needs from the screen it is on: where each move goes. Each is also a gesture and a key in the reader. */
 export interface StageMoves {
   readonly universe: () => void;
+  /** Return to the opener of a standalone reader, preserving its navigation stack and scroll position. */
+  readonly back?: (() => void) | undefined;
   /** Save, as the ••• sheet and the S key offer it; absent where the screen keeps nothing (a thread's reader). */
   readonly save?: SaveMove | undefined;
   readonly nextTopic?: (() => void) | undefined;
@@ -235,6 +237,7 @@ export function StageReaderSurface({
                 partLabel={partLabel}
                 formatSwitch={moves.formatSwitch}
                 onUniverse={moves.universe}
+                onBack={moves.back}
                 onNextTopic={moves.nextTopic}
               />
               {headerNote}

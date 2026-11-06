@@ -4593,3 +4593,7 @@ The starter offers one library-supported idea and one invitation, at most three 
 A plain Ask after social-only words, like an @mention greeting, has nothing to answer and stays quiet without reading passages or calling a model. The original asker’s short follow-up immediately after a resident answer within ten minutes (for example “why?”) uses the existing pointed-ask path, personal recording fence, bounds and support check. Another member’s interjection, a removed answer, a coverage fallback or an older exchange does not implicitly address a resident. AI identity stays on messages and profiles. #667 owns the broader room hierarchy; this slice removes the repeated Ask/@mention paragraph and shortens resident descriptions and the existing notice.
 
 Verification: `rooms-conversation.test.ts`, `rooms-answer-support.test.ts`, `asks.test.ts`, `router.test.ts` and the room client suite. These fixtures prove code behavior; live observations belong in the PR.
+
+## D-397 · 2026-11-06 · Standalone Stage + Spine Scrolls expose Back (#684)
+
+Amends D-133/D-185’s leading control only for a Scroll opened by address, including shared cards in Talk and room Feed. It shows Back using the same existing navigation stack as the article and Reel readers. Popping preserves the opener’s tab and scroll position; with no app history, Back returns to Explore. Explore retains Your Universe, and thread readers retain Back to thread. This is navigation only: returning creates no content or encounter commands. Immutable design exports remain unchanged.

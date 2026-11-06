@@ -2,6 +2,11 @@
 
 ## Follow a screen
 
+Standalone Scroll readers expose Back in every state, including Stage + Spine. Back pops the existing
+navigation entry, preserving the originating room tab, Feed position or conversation; a direct link
+without an app history returns to Explore. Explore keeps its Your Universe control, and thread readers
+keep their explicit Back to thread action. Browser/system Back follows the same stack.
+
 Start at [app/_layout.tsx](app/_layout.tsx): it loads fonts, applies device preferences and mounts
 the account-scope provider. Expo Router chooses a file under `app/`; that file delegates to
 `features/`. Shared state and request recovery live in
