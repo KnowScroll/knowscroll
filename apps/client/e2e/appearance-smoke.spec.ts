@@ -64,6 +64,11 @@ async function kept(page: Page, preferences: Record<string, unknown> | undefined
 const appearanceOf = (page: Page) => page.evaluate(() => document.documentElement.getAttribute('data-ks-appearance'));
 const stored = (page: Page) =>
   page.evaluate((key) => JSON.parse(window.localStorage.getItem(key) ?? 'null') as Record<string, unknown> | null, KEY);
+/**
+ * A control pinned to Light would draw its ring in Light's cobalt on a Dark ground (under 3:1): printed surfaces hold
+ * controls, they are never the focusable element themselves.
+ */
+const printedFocusables = (page: Page) => page.locator('[data-ks-focus][data-ks-appearance]').count();
 const pageGround = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
 test('Appearance is found from Account, applies to the whole page at once and survives a reload', async ({ page }) => {
@@ -166,6 +171,7 @@ for (const viewport of [phone, desktop])
         appearance === 'dark' ? SKY : 'rgb(244, 237, 216)',
       );
       expect(await seriousViolations(page)).toEqual([]);
+      expect(await printedFocusables(page)).toBe(0);
       await shot(page, `conversation-${size}-${appearance}`);
     });
 
@@ -175,6 +181,7 @@ for (const viewport of [phone, desktop])
       await openParty(page, world, 'asha', viewport);
       await expect(page.getByRole('heading', { level: 1, name: 'CI series' })).toBeVisible();
       expect(await seriousViolations(page)).toEqual([]);
+      expect(await printedFocusables(page)).toBe(0);
       await shot(page, `thread-${size}-${appearance}`);
     });
 
@@ -184,6 +191,7 @@ for (const viewport of [phone, desktop])
       await page.goto(address);
       await expect(page.getByRole('textbox', { name: 'Message General' })).toBeVisible();
       expect(await seriousViolations(page)).toEqual([]);
+      expect(await printedFocusables(page)).toBe(0);
       await shot(page, `room-${size}-${appearance}`);
     });
 
@@ -198,6 +206,7 @@ for (const viewport of [phone, desktop])
       await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
       await page.getByRole('button', { name: 'Got it' }).click();
       expect(await seriousViolations(page)).toEqual([]);
+      expect(await printedFocusables(page)).toBe(0);
       await shot(page, `reader-${size}-${appearance}`);
     });
   }

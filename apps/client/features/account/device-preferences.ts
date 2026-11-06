@@ -46,7 +46,10 @@ const appearanceFromTalkTheme: Readonly<Record<string, Appearance>> = { paper: '
 function readAppearance(record: Record<string, unknown>): Appearance {
   const chosen = appearances.find((choice) => choice === record.appearance);
   if (chosen !== undefined) return chosen;
-  const earlier = typeof record.talkTheme === 'string' ? appearanceFromTalkTheme[record.talkTheme] : undefined;
+  const earlier =
+    typeof record.talkTheme === 'string' && Object.hasOwn(appearanceFromTalkTheme, record.talkTheme)
+      ? appearanceFromTalkTheme[record.talkTheme]
+      : undefined;
   return earlier ?? defaultAppearance;
 }
 

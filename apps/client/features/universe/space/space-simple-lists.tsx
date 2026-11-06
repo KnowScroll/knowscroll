@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { stationCaption } from '@knowscroll/client-core';
-import { content, spacing, target } from '@knowscroll/design-tokens';
+import { space, spacing, target } from '@knowscroll/design-tokens';
 import { Text } from '@knowscroll/ui';
 import type { SpaceDefinition } from './space-definition';
 import type { SpaceChoice } from './space-surface';
@@ -38,7 +38,7 @@ export function SpaceSimpleLists({
       {definition.systems.map((system) => (
         <View key={system.id} style={styles.section}>
           {onChoose === undefined ? (
-            <Text variant="heading" heading={2} color={content.paper}>
+            <Text variant="heading" heading={2} color={space.label}>
               {system.name}
             </Text>
           ) : (
@@ -48,7 +48,7 @@ export function SpaceSimpleLists({
               onPress={() => onChoose({ id: system.id, kind: 'system', name: system.name })}
               style={styles.row}
             >
-              <Text variant="heading" heading={2} color={content.paper}>
+              <Text variant="heading" heading={2} color={space.label}>
                 {system.name}
               </Text>
             </Pressable>
@@ -61,7 +61,7 @@ export function SpaceSimpleLists({
               onPress={() => onChoose?.({ id: planet.id, kind: 'planet', name: planet.name })}
               style={styles.row}
             >
-              <Text variant="body" color={content.paper}>
+              <Text variant="body" color={space.label}>
                 {planet.name}
               </Text>
             </Pressable>
@@ -70,7 +70,7 @@ export function SpaceSimpleLists({
       ))}
       {stations.length > 0 ? (
         <View style={styles.section}>
-          <Text variant="heading" heading={2} color={content.paper}>
+          <Text variant="heading" heading={2} color={space.label}>
             Rooms
           </Text>
           {stations.map((station) => (
@@ -81,7 +81,7 @@ export function SpaceSimpleLists({
               onPress={() => onChoose?.({ id: station.id, kind: 'station', name: station.name })}
               style={styles.row}
             >
-              <Text variant="body" color={content.paper}>
+              <Text variant="body" color={space.label}>
                 {station.sky === undefined
                   ? station.name
                   : `${station.name} · ${stationCaption(station.sky, station.live)}`}

@@ -55,8 +55,10 @@ describe('device preferences', () => {
       });
     });
 
-    it('starts an unknown Talk theme on the default', () => {
+    it('starts an unknown Talk theme on the default, including names an object inherits', () => {
       expect(parseDevicePreferences(JSON.stringify({ talkTheme: 'neon' })).appearance).toBe('dark');
+      expect(parseDevicePreferences(JSON.stringify({ talkTheme: 'constructor' })).appearance).toBe('dark');
+      expect(parseDevicePreferences(JSON.stringify({ talkTheme: 'toString' })).appearance).toBe('dark');
     });
 
     it('lets a stored appearance win over a leftover Talk theme', () => {

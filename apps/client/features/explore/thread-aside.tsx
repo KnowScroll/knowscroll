@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
 import { borderWidth, content, layout, radius, spacing } from '@knowscroll/design-tokens';
-import { Button, Icon, printedSurface, Tag, Text, useFocusRing } from '@knowscroll/ui';
+import { Button, Icon, Tag, Text, useFocusRing } from '@knowscroll/ui';
 import {
   continuationIntent,
   continuationLabel,
@@ -34,10 +34,12 @@ function StepCard({
 }) {
   const focus = useFocusRing(tone === 'now' ? 'onDark' : 'onLight');
   const dark = tone === 'now';
+  // Ink on the yellow Part cue in both appearances (#666); the ring around it stays the page's own.
+  const ink = tone === 'next' ? content.onContinue : content.ink;
   const body = (
     <>
       <Tag label={tag} variant={tone === 'related' || tone === 'previous' ? 'neutral' : 'part'} />
-      <Text variant="ui" color={dark ? content.paper : content.ink} style={narrow ? undefined : styles.stepTitle}>
+      <Text variant="ui" color={dark ? content.paper : ink} style={narrow ? undefined : styles.stepTitle}>
         {title}
       </Text>
       {tone === 'now' ? (
@@ -45,7 +47,7 @@ function StepCard({
           now
         </Text>
       ) : (
-        <Icon name={tone === 'previous' ? 'arrowLeft' : 'arrowRight'} size={20} color={content.ink} />
+        <Icon name={tone === 'previous' ? 'arrowLeft' : 'arrowRight'} size={20} color={ink} />
       )}
     </>
   );
@@ -62,8 +64,7 @@ function StepCard({
     );
   return (
     <Pressable
-      // The yellow Part cue carries ink in both appearances (#666).
-      {...(tone === 'next' ? printedSurface(focus.props) : focus.props)}
+      {...focus.props}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       disabled={disabled}
@@ -226,7 +227,7 @@ const NARROW_ASIDE = 300;
 const stepLook: Record<'now' | 'previous' | 'next' | 'related', ViewStyle> = {
   now: { backgroundColor: content.ink, borderColor: content.ink },
   previous: { backgroundColor: content.paper, borderColor: content.ink },
-  next: { backgroundColor: content.continue, borderColor: content.ink },
+  next: { backgroundColor: content.continue, borderColor: content.onContinue },
   related: { backgroundColor: content.paper, borderColor: content.ink, borderStyle: 'dashed' },
 };
 

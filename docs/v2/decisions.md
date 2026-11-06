@@ -4667,7 +4667,7 @@ D-151 and D-154 (the Talk-only theme), and T3 "Rooms with residents" for the gro
   (`appearancePalettes`, held to the same contrast pairs as Light). On the web each is a CSS custom property, so a
   switch repaints at once with no re-render, and reading place, play and open sheets are untouched; `printedSurface()`
   pins a subtree to Light. Native builds keep Light chrome for now and Talk and rooms follow Appearance there; the
-  Appearance page says so on a phone.
+  Appearance page says so on a phone. Native chrome is #706.
 
 Confirmed by: `tokens.test.ts` ("Appearance": both palettes' contrast, the web variables), `device-preferences.test.ts`
 (the default and the carry-over), `account-settings.test.tsx` ("Appearance (#666)"), `room-tabs.test.tsx` (the room's

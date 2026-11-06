@@ -15,7 +15,6 @@ import {
 import { useDisplay } from '../display/display';
 import { useFocusRing } from '../display/focus-ring';
 import { linkPress } from '../display/link';
-import { printedSurface } from '../display/printed';
 import { linkSemantics, toggleSemantics } from '../display/semantics';
 import { Spinner } from '../feedback/spinner';
 import { Icon } from '../icons/icon';
@@ -85,7 +84,8 @@ const variants: Record<ButtonVariant, VariantStyle> = {
   continue: {
     background: content.continue,
     foreground: content.onContinue,
-    border: content.ink,
+    // Ink on yellow in both appearances (#666); the ring around it stays the page's own.
+    border: content.onContinue,
     shadow: true,
     focus: 'onLight',
   },
@@ -170,8 +170,7 @@ export function Button({
 
   return (
     <Pressable
-      // The yellow continuation button carries ink in both appearances (#666).
-      {...(variant === 'continue' ? printedSurface(focus.props) : focus.props)}
+      {...focus.props}
       testID={testID}
       onPress={inert ? undefined : onPress}
       {...navigation}
