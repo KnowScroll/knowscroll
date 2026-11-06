@@ -11,6 +11,7 @@ import type {
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, BottomSheet, Button, Text, useTypeStyle } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
+import { closeThen } from '../../platform/close-then';
 import { threadHref } from '../threads/thread-links';
 
 /** What a conversation can turn into a thread: the exact revision of a card shared in it. */
@@ -67,10 +68,7 @@ function StartThreadForm({
           <Button
             label="Open thread"
             size="sm"
-            onPress={() => {
-              onClose();
-              router.push(threadHref(thread));
-            }}
+            onPress={() => closeThen(onClose, () => router.push(threadHref(thread)))}
             testID="open-started-thread"
           />
         </View>

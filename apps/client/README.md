@@ -130,7 +130,7 @@ exclude Reels, even though this controller has a working Reel player.
 - `features/shell/`: the tab bar / rail adapter and the screen frame (safe areas, header with
   the account avatar, room for the floating tab bar).
 - `platform/api.ts`: the API origin for this build and the typed client (`@knowscroll/client-core`).
-- `platform/close-then.ts`: closes a sheet and then opens the screen the person chose, waiting on the web for the sheet's own Back so the navigation is not popped (D-238). Visit a friend's universe, Open thread and a topic picked in the room menu use it. `e2e/share-open-smoke.spec.ts` shows Open thread and Open chat from the Share sheet on `/scroll/<id>` reach their screens.
+- `platform/close-then.ts`: closes a sheet and then opens the screen the person chose, waiting on the web for the sheet's own Back so the navigation is not popped (D-238). Visit a friend's universe, Open thread from Share or Talk (Start a thread and Watch together), and a topic picked in the room menu use it. `e2e/share-open-smoke.spec.ts` checks Share-sheet navigation and Talk's created-thread return at phone and desktop widths, including reload and direct entry. These are labelled HTTP fixtures, not live dev evidence.
 - `providers/account-scope.tsx`: the AccountScope provider (#226). It reads the session once
   (nothing renders before), gives the tree the QueryClient of the signed-in scope (one per account
   and privacy epoch) or of the signed-out period, and is keyed by the scope, so sign-out, an account
