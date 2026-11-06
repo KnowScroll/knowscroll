@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ComponentRef } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { layout, spacing } from '@knowscroll/design-tokens';
+import { layout, radius, spacing } from '@knowscroll/design-tokens';
 import { Icon, ReplyChip, Text, useFocusRing, useTalkTheme, useTypeStyle } from '@knowscroll/ui';
 import { insertMention, mentionedOption, mentionQuery, type MentionOption } from './mention-input';
 import { MentionPicker } from './mention-picker';
@@ -83,10 +83,13 @@ export function Composer({
       <View style={styles.column}>
         {open ? <MentionPicker id={menuId} options={matches} active={activeIndex} onPick={pick} /> : null}
         {selected === undefined ? null : (
-          <View accessibilityLiveRegion="polite">
+          <View
+            accessibilityLiveRegion="polite"
+            style={[styles.recipient, { backgroundColor: theme.pill.fill, borderColor: theme.pill.edge }]}
+          >
             <Text
               variant="metaS"
-              color={theme.bar.text}
+              color={theme.pill.text}
             >{`To ${selected.name} · ${selected.label}${selected.status === undefined ? '' : ` · ${selected.status}`}`}</Text>
           </View>
         )}
@@ -194,6 +197,14 @@ const styles = StyleSheet.create({
   bar: { padding: spacing[3], borderTopWidth: 1 },
   /** On wide screens the box keeps the reading measure, centred under the messages. */
   column: { gap: spacing[2], width: '100%', maxWidth: layout.measureDesktop, alignSelf: 'center' },
+  recipient: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing[2],
+    paddingVertical: spacing[1],
+  },
   row: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing[2] },
   input: {
     flex: 1,
