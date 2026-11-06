@@ -24,6 +24,7 @@ import { AXIAL_TILT_DEGREES, callsOf, finalBonusReady, type ScrollDocumentV2 } f
 import { toggleSemantics } from '../../display/semantics';
 import { useDisplay } from '../../display/display';
 import { useFocusRing } from '../../display/focus-ring';
+import { printedSurface } from '../../display/printed';
 import { Text } from '../../text/text';
 import { Stage } from '../stage';
 import type { FinalCallPlay } from './call-view';
@@ -330,7 +331,9 @@ export function StageReader({
   return (
     <ReaderFocus onKey={onKey}>
       {header}
-      <View style={styles.middle} onLayout={peek.onAreaLayout} testID="reader-middle">
+      {/* The picture and the stops are the printed page: Light in both appearances, so the authored picture,
+          kits and play keep their colours; the header and dock around it follow Appearance (#666). */}
+      <View style={styles.middle} onLayout={peek.onAreaLayout} testID="reader-middle" {...printedSurface()}>
         {tabInRow ? <PartBackTabRow previous={previousPart} /> : null}
         <Animated.View
           style={[
@@ -447,7 +450,7 @@ function TextVersionSwitch({ on, onPress }: { readonly on: boolean; readonly onP
 }
 
 const styles = StyleSheet.create({
-  middle: { flex: 1, minHeight: 0, overflow: 'hidden' },
+  middle: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: content.paper },
   slide: { flex: 1, minHeight: 0 },
   topNote: { position: 'absolute', top: spacing[2], left: spacing[4], right: spacing[4] },
   body: { flex: 1, minHeight: 0, flexDirection: 'row' },

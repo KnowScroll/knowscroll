@@ -4,7 +4,7 @@ import { AccessibilityInfo, Platform, Pressable, StyleSheet, View, findNodeHandl
 import type { RoomTodayController, RoomTodayState } from '@knowscroll/client-core';
 import type { ConversationContentProjection, RoomToday } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, Text } from '@knowscroll/ui';
+import { Banner, Button, printedSurface, Text } from '@knowscroll/ui';
 import { AiLabel } from './ai-label';
 import { dayHeading, messagesWords } from './today-words';
 
@@ -52,7 +52,7 @@ function Resident({ by }: { readonly by: Question['by'] }) {
 /** R3 B "Today's question": a template over a library Scroll that an operator approved, and where to answer it. */
 function QuestionCard({ question, onAnswer }: { readonly question: Question; readonly onAnswer: () => void }) {
   return (
-    <View style={[styles.card, styles.question]} testID="today-question">
+    <View style={[styles.card, styles.question]} testID="today-question" {...printedSurface()}>
       <Text variant="monoXs" color={content.ink2}>
         TODAY’S QUESTION
       </Text>
@@ -99,6 +99,7 @@ function Sentence({
       aria-disabled={done || busy}
       disabled={done || busy}
       onPress={onTap}
+      {...(altered ? printedSurface() : {})}
       style={[styles.sentence, altered ? styles.altered : null, picked && !altered ? styles.pickedWrong : null]}
       testID={`flaw-sentence-${String(index)}`}
     >

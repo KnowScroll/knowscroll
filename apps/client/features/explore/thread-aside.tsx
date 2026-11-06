@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
 import { borderWidth, content, layout, radius, spacing } from '@knowscroll/design-tokens';
-import { Button, Icon, Tag, Text, useFocusRing } from '@knowscroll/ui';
+import { Button, Icon, printedSurface, Tag, Text, useFocusRing } from '@knowscroll/ui';
 import {
   continuationIntent,
   continuationLabel,
@@ -62,7 +62,8 @@ function StepCard({
     );
   return (
     <Pressable
-      {...focus.props}
+      // The yellow Part cue carries ink in both appearances (#666).
+      {...(tone === 'next' ? printedSurface(focus.props) : focus.props)}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       disabled={disabled}

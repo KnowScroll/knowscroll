@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { useFocusRing } from '../display/focus-ring';
+import { printedSurface } from '../display/printed';
 import { Icon } from '../icons/icon';
 import { Text } from '../text/text';
 
@@ -34,7 +35,7 @@ const looks: Record<EdgeTabKind, { background: string; foreground: string; borde
   },
   previous: {
     background: content.nav,
-    foreground: content.paper,
+    foreground: content.onNav,
     border: { borderColor: content.nav, borderStyle: 'solid' },
   },
 };
@@ -50,7 +51,8 @@ export function EdgeTab({ kind, label, accessibilityLabel, onPress, disabled = f
   const previous = kind === 'previous';
   return (
     <Pressable
-      {...focus.props}
+      // The yellow Part tab carries ink in both appearances (#666).
+      {...(kind === 'part' ? printedSurface(focus.props) : focus.props)}
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}

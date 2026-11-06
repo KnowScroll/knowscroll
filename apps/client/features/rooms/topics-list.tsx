@@ -10,7 +10,7 @@ import type {
   RoomView,
 } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
-import { Button, Icon, Tag, Text } from '@knowscroll/ui';
+import { Button, Icon, printedSurface, Tag, Text } from '@knowscroll/ui';
 import { afterPendingBack } from '../../platform/after-pending-back';
 import { closeThen } from '../../platform/close-then';
 import { TAGS, TAG_WORDS } from './ask-words';
@@ -102,6 +102,8 @@ function DiscussionRow({
       accessibilityLabel={`${item.pinned ? 'Pinned by the moderator. ' : ''}${item.title}, ${subtitle}`}
       onPress={() => (closeSheet === undefined ? router.push(href) : closeThen(closeSheet, () => router.push(href)))}
       aria-current={selected === true ? 'true' : undefined}
+      // The yellow selected row carries ink in both appearances (#666).
+      {...(selected === true ? printedSurface() : {})}
       style={[styles.row, item.pinned ? styles.rowPinned : null, selected === true ? styles.rowSelected : null]}
       testID={`discussion-${item.discussionId}`}
     >
@@ -118,7 +120,7 @@ function DiscussionRow({
           <Icon
             name={metadata?.kind === 'scroll' ? 'scroll' : metadata?.kind === 'reel' ? 'reel' : 'ask'}
             size={20}
-            color={content.paper}
+            color={content.onAccent}
           />
         </View>
         <View style={styles.rowText}>
@@ -152,7 +154,7 @@ function TodayRow({ roomId, prompt }: { readonly roomId: string; readonly prompt
     >
       <View style={styles.rowMain}>
         <View style={styles.tile} aria-hidden>
-          <Icon name="star" size={20} color={content.paper} />
+          <Icon name="star" size={20} color={content.onAccent} />
         </View>
         <View style={styles.rowText}>
           <Text variant="ui">Today</Text>
@@ -174,12 +176,13 @@ function GeneralRow({ roomId, selected }: { readonly roomId: string; readonly se
       accessibilityLabel="General"
       onPress={() => router.replace(roomHref(roomId))}
       aria-current={selected ? 'true' : undefined}
+      {...(selected ? printedSurface() : {})}
       style={[styles.row, selected ? styles.rowSelected : null]}
       testID="general-row"
     >
       <View style={styles.rowMain}>
         <View style={styles.tile} aria-hidden>
-          <Icon name="talk" size={20} color={content.paper} />
+          <Icon name="talk" size={20} color={content.onAccent} />
         </View>
         <View style={styles.rowText}>
           <Text variant="ui">General</Text>

@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import { FLAIR_WORDS } from '@knowscroll/client-core';
 import type { RoomFlairKind } from '@knowscroll/contracts';
 import { borderWidth, content, dimension, radius, spacing } from '@knowscroll/design-tokens';
-import { Text } from '@knowscroll/ui';
+import { printedSurface, Text } from '@knowscroll/ui';
 
 /**
  * A mark a person earned in this room (R3 E5), drawn as a small pill in the mono caps the design uses. `showing` is the one that
@@ -28,6 +28,8 @@ export function FlairChip({
       accessible
       accessibilityRole="text"
       accessibilityLabel={look === 'coming' ? `${words}, not earned yet` : words}
+      // The yellow chip carries ink in both appearances (#666).
+      {...(look === 'showing' ? printedSurface() : {})}
       style={[styles.chip, looks[look]]}
     >
       <Text variant="label" color={look === 'coming' ? content.ink2 : content.ink}>

@@ -4,7 +4,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountScope } from '@knowscroll/client-core';
-import { Button, Icon, Skeleton, Text, useDisplay } from '@knowscroll/ui';
+import { Button, Icon, printedSurface, Skeleton, Text, useDisplay } from '@knowscroll/ui';
 import { space, spacing } from '@knowscroll/design-tokens';
 import { useAccountScope } from '../../providers/account-scope';
 import { roomHref } from '../rooms/room-links';
@@ -90,10 +90,13 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
   // The first open (D-114) plays once in the account's life, where 3D can be drawn and motion is welcome.
   const opening =
     !reducedMotion && state.detail !== 'low' && breakpoint !== 'desktop' && canDrawSpace() && !lowMemoryDevice();
+  // The Universe is its authored sky with cream controls over it: the same in both appearances (#666).
   const gated = (screenNode: ReactNode) => (
-    <FirstOpenGate scope={scope} enabled={opening} endsOnEmpty={emptyNow} empty={<EmptyUniverseScreen over />}>
-      {screenNode}
-    </FirstOpenGate>
+    <View style={styles.sky} {...printedSurface()}>
+      <FirstOpenGate scope={scope} enabled={opening} endsOnEmpty={emptyNow} empty={<EmptyUniverseScreen over />}>
+        {screenNode}
+      </FirstOpenGate>
+    </View>
   );
   if (read.status === 'empty' && !dust)
     return gated(
@@ -221,6 +224,7 @@ export function UniverseScreen() {
 }
 
 const styles = StyleSheet.create({
+  sky: { flex: 1 },
   ground: { flex: 1, backgroundColor: space.s0, paddingHorizontal: spacing[5] },
   centred: { flex: 1, justifyContent: 'center', gap: spacing[4] },
   offline: { alignItems: 'center', justifyContent: 'center', gap: spacing[3] },

@@ -3,57 +3,101 @@
  * space.*. A component never mixes raw hexes from both"). Values are copied from the v2.1 export;
  * values the frames draw without a name are named here or recorded as dropped in README.md
  * (D-006 p).
+ *
+ * Appearance (#666): the roles of `content` that describe a surface and what is drawn on it follow
+ * the person's Light or Dark choice (`appearance.ts`); the rest keep one value. `printed` holds the
+ * Light values for things that are drawn, not chrome: Scroll artwork and controls over media.
  */
+import { adaptive } from './adaptive';
+import { appearancePalettes } from './appearance';
+
+const light = appearancePalettes.light;
+
+/**
+ * The content register with the export's Light values, never following Appearance. For authored
+ * artwork (a Scroll's figures and kits) and anything drawn over media or the sky, where the colour
+ * belongs to the picture rather than to the page around it.
+ */
+export const printed = {
+  paper: light.paper,
+  paper2: light.paper2,
+  ink: light.ink,
+  ink2: light.ink2,
+  accent: '#2C46E8',
+  accentDeep: light.accentDeep,
+  onAccent: '#FFFBF0',
+  continue: '#FFE44D',
+  onContinue: '#111111',
+  fresh: '#14C79B',
+  freshInk: light.freshInk,
+  freshTint: light.freshTint,
+  rule: light.rule,
+  muted: light.muted,
+  nav: light.nav,
+  highlight: light.highlight,
+} as const;
 
 /** The content ("poster") register: Reel, Scroll, Talk, Keep, settings and every ordinary control. */
 export const content = {
-  /** Ground. */
-  paper: '#FFFBF0',
-  /** Sunken surfaces and inputs. */
-  paper2: '#F4EDD8',
-  /** Text and the 2 px outline. */
-  ink: '#111111',
-  /** Secondary text. */
-  ink2: '#4A463D',
-  /** Primary action; cream text on it. */
-  accent: '#2C46E8',
-  /** Accent as text and pressed/hover accent (was unnamed `#1B2FB8`). */
-  accentDeep: '#1B2FB8',
+  /** Ground. Follows Appearance. */
+  paper: adaptive('paper'),
+  /** Sunken surfaces and inputs. Follows Appearance. */
+  paper2: adaptive('paper2'),
+  /** Text and the 2 px outline. Follows Appearance. */
+  ink: adaptive('ink'),
+  /** Secondary text. Follows Appearance. */
+  ink2: adaptive('ink2'),
+  /** Primary action; cream text on it. One value in both appearances. */
+  accent: printed.accent,
+  /** Accent as text and pressed/hover accent (was unnamed `#1B2FB8`). Follows Appearance. */
+  accentDeep: adaptive('accentDeep'),
   /** Text and icons on `accent`. */
-  onAccent: '#FFFBF0',
+  onAccent: printed.onAccent,
   /** Horizontal continuation / Part cue only (D-006 b); ink on it. */
-  continue: '#FFE44D',
-  onContinue: '#111111',
+  continue: printed.continue,
+  onContinue: printed.onContinue,
   /** Ready / sent; ink on it. */
-  fresh: '#14C79B',
-  /** Teal as text (moderator, "Stays"). */
-  freshInk: '#0B7A5F',
-  /** Success receipt ground (was unnamed `#E3F6EF`). */
-  freshTint: '#E3F6EF',
-  /** Hairline divider; decoration only, never a component boundary. */
-  rule: '#D9D1BC',
+  fresh: printed.fresh,
+  /** Teal as text (moderator, "Stays"). Follows Appearance. */
+  freshInk: adaptive('freshInk'),
+  /** Success receipt ground (was unnamed `#E3F6EF`). Follows Appearance. */
+  freshTint: adaptive('freshTint'),
+  /** Hairline divider; decoration only, never a component boundary. Follows Appearance. */
+  rule: adaptive('rule'),
   /**
    * Quiet component edges: preparing dashed border, episode divider, upcoming episode and
-   * suggested-branch borders (merges unnamed `#7D7563`, `#9A9382`, `#8F887A`).
+   * suggested-branch borders (merges unnamed `#7D7563`, `#9A9382`, `#8F887A`). Follows Appearance.
    */
-  muted: '#7D7563',
-  /** Floating nav pill and nav rails. */
-  nav: '#111111',
-  /** Restored-anchor flash and row hover. */
-  highlight: '#FFF4C2',
+  muted: adaptive('muted'),
+  /** Floating nav pill and nav rails. Follows Appearance. */
+  nav: adaptive('nav'),
+  /** Text and icons on the nav pill, which is dark in both appearances. */
+  onNav: printed.paper,
+  /** Restored-anchor flash and row hover. Follows Appearance. */
+  highlight: adaptive('highlight'),
 } as const;
 
-/** Status colours. Status labels are only Hypothetical and Corrected (D-006 a). */
+/** Status colours. Status labels are only Hypothetical and Corrected (D-006 a). Their grounds and text follow Appearance. */
 export const status = {
-  hypothetical: { background: '#E6EAFF', foreground: '#1B2FB8', edge: '#2C46E8', edgeStyle: 'dashed' },
-  corrected: { background: '#FFE9DE', foreground: '#8A2C07', edge: '#8A2C07', edgeStyle: 'solid' },
+  hypothetical: {
+    background: adaptive('hypotheticalGround'),
+    foreground: adaptive('hypotheticalText'),
+    edge: adaptive('hypotheticalEdge'),
+    edgeStyle: 'dashed',
+  },
+  corrected: {
+    background: adaptive('correctedGround'),
+    foreground: adaptive('correctedText'),
+    edge: adaptive('correctedText'),
+    edgeStyle: 'solid',
+  },
   /** Failed and destructive. `fill` carries cream text; `foreground` is danger as text on paper. */
-  danger: { fill: '#B23A0B', foreground: '#8A2C07', edge: '#B23A0B' },
+  danger: { fill: '#B23A0B', foreground: adaptive('dangerText'), edge: '#B23A0B' },
   /**
    * "Preparing" skeleton: 135° stripes alternating `a` and `b`, `stripe` px wide
    * (`compactStripe` inside chips).
    */
-  preparing: { a: '#FFFBF0', b: '#F4EDD8', angle: 135, stripe: 6, compactStripe: 5 },
+  preparing: { a: adaptive('preparingA'), b: adaptive('preparingB'), angle: 135, stripe: 6, compactStripe: 5 },
 } as const;
 
 /** Translucent layers over media and dark surfaces. */
@@ -169,4 +213,15 @@ export const toggle = {
 /** The signed-in person's own avatar (yellow in D01, D02, D04, D05, S01, P01). */
 export const avatar = { self: '#FFE44D', onSelf: '#111111', edge: '#111111' } as const;
 
-export const color = { content, status, overlay, space, spaceOpacity, family, dormant, toggle, avatar } as const;
+export const color = {
+  content,
+  printed,
+  status,
+  overlay,
+  space,
+  spaceOpacity,
+  family,
+  dormant,
+  toggle,
+  avatar,
+} as const;

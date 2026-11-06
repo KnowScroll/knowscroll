@@ -11,7 +11,7 @@ import {
 } from '@knowscroll/client-core';
 import type { ThreadSummary } from '@knowscroll/contracts';
 import { borderWidth, content, elevation, radius, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, Icon, RowLink, Text } from '@knowscroll/ui';
+import { Banner, Button, Icon, printedSurface, RowLink, Text } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { threadHref } from './thread-links';
 
@@ -60,7 +60,14 @@ export function InvitationCard({ scope, item }: { readonly scope: AccountScope; 
 
   const place = view.kind === undefined ? 'it' : view.kind === 'reel' ? 'each Reel' : 'each Scroll';
   return (
-    <View role="region" aria-label={`New thread: ${view.heading}`} style={styles.card} testID="thread-invitation">
+    // A paper card on either ground (D-154), so its words keep their ink (#666).
+    <View
+      role="region"
+      aria-label={`New thread: ${view.heading}`}
+      style={styles.card}
+      testID="thread-invitation"
+      {...printedSurface()}
+    >
       <View style={styles.top}>
         <View style={styles.tile} aria-hidden>
           <Icon name={view.kind === 'scroll' ? 'scroll' : 'reel'} size={24} color={content.paper} />

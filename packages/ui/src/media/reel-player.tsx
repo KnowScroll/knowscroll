@@ -14,6 +14,7 @@ import { VideoView, useVideoPlayer, type VideoSource, type VideoPlayer } from 'e
 import { content, overlay, spacing } from '@knowscroll/design-tokens';
 import { Text } from '../text/text';
 import { useFocusRing } from '../display/focus-ring';
+import { printedSurface } from '../display/printed';
 import { Icon } from '../icons/icon';
 import { Spinner } from '../feedback/spinner';
 import { playbackToggleMarker } from './playback-marker';
@@ -564,7 +565,8 @@ export function ReelPlayer({
     toggleMuted,
   };
   return (
-    <View testID="reel-player" style={styles.frame}>
+    // A Reel and the controls drawn over it are media, not chrome: Light values in both appearances (#666).
+    <View testID="reel-player" style={styles.frame} {...printedSurface()}>
       <View ref={view} testID="reel-video-stage" style={styles.stage}>
         {renderStage ? renderStage(stage) : stage}
       </View>

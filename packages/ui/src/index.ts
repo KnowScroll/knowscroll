@@ -3,6 +3,7 @@ export { Text, useTypeStyle, type TextProps } from './text/text';
 export { FocusHaloProvider } from './display/focus-halo';
 export { useFocusRing } from './display/focus-ring';
 export { linkPress } from './display/link';
+export { printedSurface } from './display/printed';
 export {
   dialogHostSemantics,
   dialogSemantics,

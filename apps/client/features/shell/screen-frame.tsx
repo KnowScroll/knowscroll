@@ -4,7 +4,7 @@ import { useCallback, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { content, dimension, layout, space, spacing, type Breakpoint } from '@knowscroll/design-tokens';
-import { AccountButton, TopBar, useDisplay } from '@knowscroll/ui';
+import { AccountButton, printedSurface, TopBar, useDisplay } from '@knowscroll/ui';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountInitial } from '../../providers/account-scope';
 import { usesRail } from './app-navigation';
@@ -97,6 +97,8 @@ export function ScreenFrame({
   return (
     <View
       testID={testID}
+      // A space screen is drawn for the sky in both appearances; a paper screen follows Appearance (#666).
+      {...(tone === 'space' ? printedSurface() : {})}
       style={[
         styles.ground,
         { backgroundColor: transparent ? 'transparent' : tone === 'space' ? space.s0 : content.paper },

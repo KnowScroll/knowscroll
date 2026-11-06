@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { adaptive as webAdaptive } from './adaptive.web';
 import {
+  appearancePalettes,
+  appearanceStyleSheet,
+  appearanceVariable,
+  defaultAppearance,
+  printed,
+  talkThemeForAppearance,
   breakpointFor,
   content,
   defaultTalkTheme,
@@ -295,5 +302,77 @@ describe('Talk themes (T3 kit, D-145)', () => {
     expect(talkThemes[defaultTalkTheme].ground).toBe(universe.sky);
     expect(talkThemes.sky.bubbleOther.fill).toBe(universe.paper);
     expect(talkThemes.sky.bubbleOther.text).toBe(universe.ink);
+  });
+});
+
+describe('Appearance (#666)', () => {
+  describe.each(Object.entries(appearancePalettes))('%s', (_name, palette) => {
+    // The same pairs the Light register is held to, for every appearance (WCAG 1.4.3 and 1.4.11).
+    const text: [string, string, string][] = [
+      ['ink on paper', palette.ink, palette.paper],
+      ['ink on paper-2', palette.ink, palette.paper2],
+      ['ink-2 on paper', palette.ink2, palette.paper],
+      ['ink-2 on paper-2', palette.ink2, palette.paper2],
+      ['accent-deep on paper', palette.accentDeep, palette.paper],
+      ['accent-deep on paper-2', palette.accentDeep, palette.paper2],
+      ['fresh-ink on paper', palette.freshInk, palette.paper],
+      ['ink on the success ground', palette.ink, palette.freshTint],
+      ['danger text on paper', palette.dangerText, palette.paper],
+      ['ink on highlight', palette.ink, palette.highlight],
+      ['paper on an ink (inverted) button', palette.paper, palette.ink],
+      ['cream on the nav pill', overlay.onDarkMuted, palette.nav],
+      ['ink-2 on a preparing stripe', palette.ink2, palette.preparingB],
+      ['hypothetical text on its ground', palette.hypotheticalText, palette.hypotheticalGround],
+      ['ink on the hypothetical ground (a picked row, a What-if card)', palette.ink, palette.hypotheticalGround],
+      ['ink-2 on the hypothetical ground', palette.ink2, palette.hypotheticalGround],
+      ['corrected text on its ground', palette.correctedText, palette.correctedGround],
+      ['ink on the corrected ground', palette.ink, palette.correctedGround],
+    ];
+    it.each(text)('%s meets 4.5:1', (_pair, foreground, background) => {
+      expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
+    });
+    const edges: [string, string, string][] = [
+      ['muted edge on paper', palette.muted, palette.paper],
+      ['focus ring on paper', palette.focus, palette.paper],
+      ['focus ring on paper-2', palette.focus, palette.paper2],
+      ['cobalt action on paper', content.accent, palette.paper],
+      ['hypothetical dashed edge on its ground', palette.hypotheticalEdge, palette.hypotheticalGround],
+      ['focus ring on the hypothetical ground', palette.focus, palette.hypotheticalGround],
+    ];
+    it.each(edges)('%s meets 3:1', (_pair, foreground, background) => {
+      expect(contrast(foreground, background)).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  it('gives both appearances the same roles, and Light is the export unchanged', () => {
+    expect(Object.keys(appearancePalettes.dark).sort()).toEqual(Object.keys(appearancePalettes.light).sort());
+    // Native and tests read the Light values through `content`, `status` and the focus ring.
+    expect(content.paper).toBe(printed.paper);
+    expect(content.ink).toBe('#111111');
+    expect(status.danger.foreground).toBe('#8A2C07');
+    expect(focusRing.onLight.color).toBe('#2C46E8');
+  });
+
+  it('starts Dark, on the sky Talk already started on, and pairs each appearance with a Talk theme', () => {
+    expect(defaultAppearance).toBe('dark');
+    expect(talkThemeForAppearance).toEqual({ light: 'paper', dark: 'sky' });
+    expect(appearancePalettes.dark.paper).toBe(universe.sky);
+    expect(appearancePalettes.dark.ink).toBe(universe.label);
+  });
+
+  it('keeps meaning-bearing colours fixed: cobalt and cream on it, continuation yellow, ready teal', () => {
+    expect(content.accent).toBe(printed.accent);
+    expect(content.onAccent).toBe(printed.onAccent);
+    expect(content.continue).toBe(printed.continue);
+    expect(content.fresh).toBe(printed.fresh);
+  });
+
+  it('on the web, names each adaptive role as a custom property with its Light value as fallback', () => {
+    expect(webAdaptive('paper2')).toBe('var(--ks-paper2, #F4EDD8)');
+    expect(webAdaptive('dangerText')).toBe('var(--ks-danger-text, #8A2C07)');
+    const sheet = appearanceStyleSheet();
+    expect(sheet).toContain(`[data-ks-appearance="dark"]{${appearanceVariable('paper')}:#020308;`);
+    expect(sheet).toContain('color-scheme:dark;');
+    expect(sheet).toContain(`[data-ks-appearance="light"]{${appearanceVariable('paper')}:#FFFBF0;`);
   });
 });

@@ -40,6 +40,7 @@ export default defineConfig({
         'talk-smoke.spec.ts',
         'talk-reply-react-smoke.spec.ts',
         'talk-seen-smoke.spec.ts',
+        'appearance-smoke.spec.ts',
         'thread-phone-smoke.spec.ts',
         'thread-party-smoke.spec.ts',
         'thread-whatif-smoke.spec.ts',

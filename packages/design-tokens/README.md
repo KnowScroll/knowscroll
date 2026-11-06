@@ -33,12 +33,41 @@ never mixes raw hexes from both.
 | `src/motion.ts` | `easing`, `motion`, `sheetRise`, `motionDuration()` |
 | `src/layers.ts` | `layer` (z-order), `focusRing`, `highlightRing` |
 | `src/universe.ts` | `universe` (the New Universe palette: sky, Paper, Ink, cobalt, focus, highlight, orange, red, glass, chunky shadows), `talkThemes` (`sky`, `paper`), `defaultTalkTheme` |
+| `src/appearance.ts` | `Appearance` (`light`, `dark`), `defaultAppearance`, `appearancePalettes`, `talkThemeForAppearance`, `appearanceStyleSheet()`, `appearanceVariable()`, `appearanceReference()`, `appearanceAttribute` |
+| `src/adaptive.ts` / `src/adaptive.web.ts` | `adaptive(role)`: the Light value on native and in tests; `var(--ks-role, <light>)` on the web |
 | `fonts/` | Bricolage Grotesque, Instrument Sans, DM Mono with their OFL licences (byte-for-byte, see `fonts/README.md`) |
 
 The package exports its TypeScript sources (`"."` → `src/index.ts`, `"./fonts/*"`). Its only
 consumers are the Expo app and the UI package, whose bundler (Metro) and test runner (jest-expo)
 compile workspace sources themselves, so there is no `dist/`. `src/tokens.test.ts` (Vitest)
 checks contrast, the spacing base, breakpoints, type scaling and motion.
+
+## Appearance (Light and Dark, #666)
+
+One device preference, Account → Appearance, chooses Light or Dark for the whole app; Dark is the
+default (D-400). The roles that describe a surface and what is drawn on it follow it: `content`'s
+`paper`, `paper2`, `ink`, `ink2`, `accentDeep`, `freshInk`, `freshTint`, `rule`, `muted`, `nav`
+and `highlight`, `status.hypothetical`, `status.corrected`, `status.danger.foreground`,
+`status.preparing` and `focusRing.onLight`. Their two values are `appearancePalettes` in
+`src/appearance.ts`; Dark draws the Universe's sky with its cream label. Roles that carry a meaning
+of their own keep one value: cobalt (`accent`) and cream on it (`onAccent`), continuation yellow,
+ready teal, `onNav`, `overlay`, `space`, `universe`, `talkThemes`, `toggle` and `avatar`.
+
+How it reaches a component, without any component reading the setting:
+
+- **Web.** `adaptive(role)` returns `var(--ks-<role>, <light value>)`, so every style, including a
+  module-level `StyleSheet.create`, holds a reference. The client installs `appearanceStyleSheet()`
+  once and names the page `data-ks-appearance="light|dark"`; switching repaints at once with no
+  re-render. An element inside may name another appearance: `printedSurface()` in `ui` pins a
+  subtree to Light (a Scroll's page, a Reel, a yellow continuation surface).
+- **Native and tests.** `adaptive(role)` is the Light value: native chrome is drawn Light, and Talk
+  and rooms follow Appearance through `talkThemes` (sky in Dark, Paper in Light).
+- **Never compute on an adaptive value.** On the web it is a `var(...)` string. Contrast or colour
+  maths (a focus halo, a WebGL colour) take a concrete value: `printed`, `appearancePalettes`,
+  `talkThemes`, `space` or `universe`.
+
+`printed` holds the Light values of the content register for authored artwork and media.
+`tokens.test.ts` ("Appearance") holds both palettes to the same contrast pairs.
 
 ## Colour
 

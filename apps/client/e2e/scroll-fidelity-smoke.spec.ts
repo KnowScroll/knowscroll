@@ -56,7 +56,8 @@ for (const viewport of [phone, desktop]) {
   }) => {
     await open(page, viewport);
     const ask = page.getByRole('button', { name: 'Ask about this' });
-    await expect(ask).toHaveCSS('background-color', 'rgb(244, 237, 216)');
+    // The dock is reader chrome, so its tinted pill follows Appearance: sunken paper on the sky in Dark (D-400).
+    await expect(ask).toHaveCSS('background-color', 'rgb(18, 23, 34)');
     await expect(ask.locator('svg path')).toHaveCSS('fill', 'rgb(44, 70, 232)');
     await expect(dot(page, 'Final call').getByTestId('spine-final-star')).toBeVisible();
     await expect(page.getByTestId('spine-final-star')).toHaveCount(1);
@@ -115,7 +116,8 @@ for (const viewport of [phone, desktop]) {
     for (const key of [/^S$/, /^H$/, /^C$/, /^T$/, /^⇧︎?S$/, /^P$/, /^R$/])
       await expect(page.getByTestId('more-list').getByText(key)).toBeVisible();
     await shot(page, `more-${name}`);
-    expect(await audit(page)).toEqual([]);
+    // The sheet fades in over the page; judge it once it has settled.
+    await expect.poll(() => audit(page)).toEqual([]);
   });
 
   test(`Text version, Simpler, Small print and Report each do their work from the ••• sheet, at ${name}`, async ({
@@ -160,7 +162,8 @@ for (const viewport of [phone, desktop]) {
     await expect(sheet.getByTestId('moment-picture').getByRole('img')).toBeVisible();
     await expect(sheet.getByTestId('moment-quote')).toContainText('It leans.');
     await shot(page, `share-moment-preview-${name}`);
-    expect(await audit(page)).toEqual([]);
+    // The sheet fades in over the page; judge it once it has settled.
+    await expect.poll(() => audit(page)).toEqual([]);
   });
 }
 

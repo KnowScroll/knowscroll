@@ -87,7 +87,7 @@ export function CampfireHeader({
             </Text>
             {view.launch?.state === 'lobby' || view.launch?.state === 'live' ? (
               <View style={styles.live} accessible accessibilityLabel="A Launch is live" testID="band-live">
-                <Text variant="monoXs" color={content.paper}>
+                <Text variant="monoXs" color={content.onAccent}>
                   LIVE · LAUNCH
                 </Text>
               </View>
@@ -98,7 +98,7 @@ export function CampfireHeader({
                 accessibilityLabel="A Reel is being watched together"
                 testID="band-live"
               >
-                <Text variant="monoXs" color={content.paper}>
+                <Text variant="monoXs" color={content.onAccent}>
                   LIVE · REEL
                 </Text>
               </View>
@@ -131,7 +131,7 @@ export function MemberTabs({
   readonly onTab: (tab: RoomTab) => void;
 }) {
   return (
-    <RoomGround identity={view.room.identity} testID="room-ground">
+    <RoomGround testID="room-ground">
       <RoomTabBar tab={tab} onSelect={onTab} />
       <RoomPanels
         tab={tab}

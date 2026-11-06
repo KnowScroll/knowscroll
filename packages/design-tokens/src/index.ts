@@ -5,6 +5,7 @@ export {
   dormant,
   family,
   overlay,
+  printed,
   space,
   spaceOpacity,
   status,
@@ -38,3 +39,16 @@ export {
 } from './motion';
 export { focusHalo, focusRing, highlightRing, layer, type FocusHalo, type FocusTone } from './layers';
 export { defaultTalkTheme, talkThemes, universe, type TalkTheme, type TalkThemeName } from './universe';
+export {
+  appearanceAttribute,
+  appearancePalettes,
+  appearanceReference,
+  appearances,
+  appearanceStyleSheet,
+  appearanceVariable,
+  defaultAppearance,
+  talkThemeForAppearance,
+  type Appearance,
+  type AppearancePalette,
+  type AppearanceRole,
+} from './appearance';

@@ -9,8 +9,8 @@ import { roomFixture } from './rooms-fixture';
 /**
  * The room's General / Feed / Topics bar and ground (v3 R-8c) in the production export over labelled HTTP fixtures. The bar sits
  * under the room header at 390 and 1440, switches in place (no address change, no history entry), keeps each tab's scroll, opens
- * on Feed from `/rooms/<id>/feed`, is driven by the arrow keys, and stands on the room's own ground in the kit's ink (a dark
- * kit and a pale one), with axe clean on each. The live strip's chips keep their time when a name is long. With `KS_ROOM_SHOTS`
+ * on Feed from `/rooms/<id>/feed`, is driven by the arrow keys, and stands on the room's ground, which follows Appearance
+ * (the sky in Dark, Paper in Light, D-400) whatever the kit, with axe clean on each. The live strip's chips keep their time when a name is long. With `KS_ROOM_SHOTS`
  * set to a folder, each step also saves a screenshot there (never inside the repository).
  */
 const shotsFolder = process.env['KS_ROOM_SHOTS'];
@@ -117,11 +117,8 @@ for (const { name, size } of VIEWPORTS) {
       await expect(tabs).toBeVisible();
       await expect(tabs.getByRole('tab')).toHaveText(['General', 'Feed', 'Topics']);
       await selected(page, 'general');
-      // The ground is the kit's: dark midnight for the Space room, paper for the History room.
-      await expect(page.getByTestId('room-ground')).toHaveCSS(
-        'background-color',
-        face === 'history' ? 'rgb(244, 237, 216)' : 'rgb(4, 10, 23)',
-      );
+      // The ground follows Appearance, not the kit (D-400): the sky in Dark, the default, for every face.
+      await expect(page.getByTestId('room-ground')).toHaveCSS('background-color', 'rgb(2, 3, 8)');
       await shoot(page, `${name}-${face}-general`);
       expect(await seriousViolations(page)).toEqual([]);
       expect(await barContrast(page)).toEqual({ unselected: expect.any(Number), selected: expect.any(Number) });
@@ -258,40 +255,44 @@ test('phone: the live strip keeps the time when a name is long, and says all of 
   expect(await seriousViolations(page)).toEqual([]);
 });
 
-for (const { name, size } of VIEWPORTS) {
-  test(`${name}: keyboard focus on a dark kit’s ground is cobalt between two bands of white, and the bar does not clip it`, async ({
-    page,
-  }) => {
-    await open(page, size);
-    const ringOf = (testID: string) =>
-      page.getByTestId(testID).evaluate((node) => {
-        const style = getComputedStyle(node);
-        return { outline: style.outlineColor, width: style.outlineWidth, shadow: style.boxShadow };
-      });
-    await page.getByTestId('room-tab-general').focus();
-    await page.keyboard.press('ArrowRight');
-    await selected(page, 'feed');
-    const tab = await ringOf('room-tab-feed');
-    expect(tab.outline).toBe('rgb(44, 70, 232)');
-    expect(tab.width).toBe('3px');
-    expect(tab.shadow).toContain('rgb(255, 255, 255)');
-    // The bar and its frame leave the ring room to be drawn.
-    expect(await page.getByTestId('room-tabs').evaluate((node) => getComputedStyle(node).overflow)).toBe('visible');
-    await shoot(page, `${name}-tab-focus`);
+for (const { name, size } of VIEWPORTS)
+  for (const [appearance, ring] of [
+    ['dark', 'rgb(255, 228, 77)'],
+    ['light', 'rgb(44, 70, 232)'],
+  ] as const) {
+    test(`${name}: keyboard focus on the room’s ${appearance} ground is the appearance’s own ring with no halo, and the bar does not clip it`, async ({
+      page,
+    }) => {
+      await page.addInitScript(
+        (value) => window.localStorage.setItem('ks.device.preferences', value),
+        JSON.stringify({ appearance }),
+      );
+      await open(page, size);
+      await expect(page.getByTestId('room-ground')).toHaveCSS(
+        'background-color',
+        appearance === 'dark' ? 'rgb(2, 3, 8)' : 'rgb(244, 237, 216)',
+      );
+      const ringOf = (testID: string) =>
+        page.getByTestId(testID).evaluate((node) => {
+          const style = getComputedStyle(node);
+          return { outline: style.outlineColor, width: style.outlineWidth, shadow: style.boxShadow };
+        });
+      await page.getByTestId('room-tab-general').focus();
+      await page.keyboard.press('ArrowRight');
+      await selected(page, 'feed');
+      const tab = await ringOf('room-tab-feed');
+      expect(tab.outline).toBe(ring);
+      expect(tab.width).toBe('3px');
+      expect(tab.shadow).not.toContain('rgb(255, 255, 255)');
+      // The bar and its frame leave the ring room to be drawn.
+      expect(await page.getByTestId('room-tabs').evaluate((node) => getComputedStyle(node).overflow)).toBe('visible');
+      await shoot(page, `${name}-${appearance}-tab-focus`);
 
-    // A control on the ground itself (the Feed's sort) and a button in the panel draw the same ring.
-    await page.getByTestId('feed-sort-new').focus();
-    const sort = await ringOf('feed-sort-new');
-    expect(sort.outline).toBe('rgb(44, 70, 232)');
-    expect(sort.shadow).toContain('rgb(255, 255, 255)');
-    await shoot(page, `${name}-sort-focus`);
-  });
-}
-
-test('a pale kit’s ground draws the plain cobalt ring', async ({ page }) => {
-  await open(page, VIEWPORTS[0].size, { face: 'history' });
-  await page.getByTestId('room-tab-general').focus();
-  await page.keyboard.press('ArrowRight');
-  const shadow = await page.getByTestId('room-tab-feed').evaluate((node) => getComputedStyle(node).boxShadow);
-  expect(shadow).toBe('none');
-});
+      // A control on the ground itself (the Feed's sort) draws the same ring.
+      await page.getByTestId('feed-sort-new').focus();
+      const sort = await ringOf('feed-sort-new');
+      expect(sort.outline).toBe(ring);
+      expect(sort.shadow).not.toContain('rgb(255, 255, 255)');
+      expect(await seriousViolations(page)).toEqual([]);
+    });
+  }

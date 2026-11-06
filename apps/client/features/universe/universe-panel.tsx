@@ -7,6 +7,7 @@ import {
   dialogHostSemantics,
   dialogSemantics,
   IconButton,
+  printedSurface,
   SwitchRow,
   Text,
   usePageInert,
@@ -34,7 +35,8 @@ function MapDialog({
     <Modal {...dialogHostSemantics(title)} transparent animationType="none" onRequestClose={onClose}>
       <View style={styles.host}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} focusable={false} />
-        <View {...dialogSemantics(title)} testID={testID} style={styles.panel}>
+        {/* The Browse panel is drawn over the Universe's sky: the same in both appearances (#666). */}
+        <View {...dialogSemantics(title)} {...printedSurface()} testID={testID} style={styles.panel}>
           <View style={styles.head}>
             <Text variant="heading" heading={2}>
               {title}

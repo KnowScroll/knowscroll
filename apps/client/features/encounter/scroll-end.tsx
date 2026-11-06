@@ -1,7 +1,7 @@
 import type { ComponentRef, Ref } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
-import { Button, Icon, Tag, Text } from '@knowscroll/ui';
+import { Button, Icon, printedSurface, Tag, Text } from '@knowscroll/ui';
 import { continuationIntent, continuationLabel, continuationName, type ReadyContinuation } from './continuation-intent';
 import { EncounterStrip } from './encounter-actions';
 import type { EncounterEntry } from './encounter-history';
@@ -62,7 +62,7 @@ export function ScrollEnd({
         End of this Scroll
       </Text>
       {hasContinuation ? (
-        <View style={styles.panel}>
+        <View style={styles.panel} {...printedSurface()}>
           <Text variant="ui" heading={2}>
             Continue this idea
           </Text>

@@ -1,24 +1,11 @@
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text as NativeText } from 'react-native';
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
-import { ROOM_SWATCHES, type RoomIdentity, type RoomKit } from '@knowscroll/contracts';
-import { focusHalo, focusRing } from '@knowscroll/design-tokens';
-import { Button, DisplayProvider } from '@knowscroll/ui';
-import { SPACE_TONE } from './identity/band-tone';
+import { ROOM_SWATCHES } from '@knowscroll/contracts';
+import { focusHalo, focusRing, talkThemes } from '@knowscroll/design-tokens';
+import { Button, DisplayProvider, TalkThemeProvider } from '@knowscroll/ui';
 import { RoomGround, contrastOf, focusHaloFor, useGroundColour, useGroundInk } from './identity/room-ground';
 import { RoomPanels, RoomTabBar, type RoomTab } from './room-tabs';
-
-/** Labelled fixture kits: a dark one and a pale one, words from the closed vocabulary. */
-const kitOf = (ground: keyof typeof ROOM_SWATCHES, ink: keyof typeof ROOM_SWATCHES): RoomKit => ({
-  version: 'station-kit.v1',
-  palette: { ground, accent: 'sun', ink },
-  emblem: { frame: 'circle', glyph: 'ringed-planet' },
-  motif: 'constellation',
-  motion: 'twinkle',
-  cast: { explainer: 'star', skeptic: 'atom' },
-});
-const dark: RoomIdentity = { kit: kitOf('midnight', 'cream') };
-const pale: RoomIdentity = { kit: kitOf('paper', 'soot') };
 
 jest.mock('expo-router', () => ({ useIsFocused: () => true }));
 
@@ -32,11 +19,10 @@ function Held() {
   );
 }
 
-function Harness({ initial = 'general', ...rest }: { initial?: RoomTab; identity?: RoomIdentity | undefined }) {
-  const identity = 'identity' in rest ? rest.identity : dark;
+function Harness({ initial = 'general' }: { initial?: RoomTab }) {
   const [tab, setTab] = useState<RoomTab>(initial);
   return (
-    <RoomGround identity={identity} testID="ground">
+    <RoomGround testID="ground">
       <RoomTabBar tab={tab} onSelect={setTab} />
       <RoomPanels
         tab={tab}
@@ -99,46 +85,39 @@ describe('the room’s ground', () => {
     );
   }
 
-  it('is the kit’s ground, and what stands on it reads the kit’s ink', async () => {
-    await wrap(
-      <RoomGround identity={pale} testID="ground">
-        <Probe />
-      </RoomGround>,
-    );
-    expect(StyleSheet.flatten(screen.getByTestId('ground').props.style as object)).toMatchObject({
-      backgroundColor: ROOM_SWATCHES.paper,
-    });
-    expect(screen.getByTestId('probe').props.children).toBe(`${ROOM_SWATCHES.paper}|${ROOM_SWATCHES.soot}`);
-  });
-
-  it('keeps the dark space ground for a room with no face', async () => {
-    await wrap(
-      <RoomGround identity={undefined} testID="ground">
-        <Probe />
-      </RoomGround>,
-    );
-    expect(StyleSheet.flatten(screen.getByTestId('ground').props.style as object)).toMatchObject({
-      backgroundColor: SPACE_TONE.ground,
-    });
-  });
+  it.each([
+    ['Dark', 'sky'],
+    ['Light', 'paper'],
+  ] as const)(
+    'is the conversation ground of %s, and what stands on it reads that ground’s words (#666)',
+    async (_appearance, theme) => {
+      await wrap(
+        <TalkThemeProvider name={theme}>
+          <RoomGround testID="ground">
+            <Probe />
+          </RoomGround>
+        </TalkThemeProvider>,
+      );
+      expect(StyleSheet.flatten(screen.getByTestId('ground').props.style as object)).toMatchObject({
+        backgroundColor: talkThemes[theme].ground,
+      });
+      expect(screen.getByTestId('probe').props.children).toBe(`${talkThemes[theme].ground}|${talkThemes[theme].text}`);
+    },
+  );
 
   it('draws no ground off a room’s page: a plain page keeps its own colours', async () => {
     await wrap(<Probe />);
     expect(screen.getByTestId('probe').props.children).toBe('fallback-ground|fallback-ink');
   });
 
-  // The thinnest legal kit (ink on ground at 4.54:1), a dark one, a pale one and the default.
-  const thin: RoomIdentity = { kit: kitOf('midnight', 'coral') };
-  it.each([
-    ['the thinnest legal kit', thin],
-    ['a dark kit', dark],
-    ['a pale kit', pale],
-    ['a room with no face', 'none' as const],
-  ])(
-    'draws the bar’s words at AA on what is really behind them, in %s: the ground for a tab that is not open, its own fill for the open one',
-    async (_name, identity) => {
-      expect(contrastOf(ROOM_SWATCHES.coral, ROOM_SWATCHES.midnight)).toBeLessThan(4.6);
-      await wrap(<Harness identity={identity === 'none' ? undefined : identity} />);
+  it.each([['sky'], ['paper']] as const)(
+    'draws the bar’s words at AA on what is really behind them, on the %s ground: the ground for a tab that is not open, its own fill for the open one',
+    async (theme) => {
+      await wrap(
+        <TalkThemeProvider name={theme}>
+          <Harness />
+        </TalkThemeProvider>,
+      );
       const ground = StyleSheet.flatten(screen.getByTestId('ground').props.style as object) as {
         backgroundColor: string;
       };
@@ -173,33 +152,25 @@ describe('the room’s ground', () => {
     expect(focusHaloFor(ROOM_SWATCHES.paper)).toBeUndefined();
   });
 
-  it('draws a control’s focus ring on a dark kit’s ground with the halo, and on a pale one and a plain page without it', async () => {
-    const ringOf = async (node: ReactNode) => {
-      await wrap(node);
+  it.each([['sky'], ['paper']] as const)(
+    'draws a control’s ring with no halo on the %s ground, where the ring reads at 3:1 alone',
+    async (theme) => {
+      expect(contrastOf(focusRing.onLight.color, talkThemes[theme].ground)).toBeGreaterThanOrEqual(3);
+      expect(focusHaloFor(talkThemes[theme].ground, talkThemes[theme].focus)).toBeUndefined();
+      await wrap(
+        <TalkThemeProvider name={theme}>
+          <RoomGround>
+            <Button label="Post" testID="control" />
+          </RoomGround>
+        </TalkThemeProvider>,
+      );
       await fireEvent(screen.getByTestId('control'), 'focus');
-      return StyleSheet.flatten(screen.getByTestId('control').props.style as object) as {
+      const ring = StyleSheet.flatten(screen.getByTestId('control').props.style as object) as {
         outlineColor?: string;
-        boxShadow?: { color: string; spreadDistance: number }[];
+        boxShadow?: unknown;
       };
-    };
-    const control = <Button label="Post" testID="control" />;
-    const onDark = await ringOf(<RoomGround identity={dark}>{control}</RoomGround>);
-    expect(onDark.outlineColor).toBe(focusRing.onLight.color);
-    expect(onDark.boxShadow?.[0]).toMatchObject({ color: focusHalo.light, spreadDistance: 8 });
-  });
-
-  it('draws no halo on a pale kit’s ground', async () => {
-    await wrap(
-      <RoomGround identity={pale}>
-        <Button label="Post" testID="control" />
-      </RoomGround>,
-    );
-    await fireEvent(screen.getByTestId('control'), 'focus');
-    const ring = StyleSheet.flatten(screen.getByTestId('control').props.style as object) as {
-      outlineColor?: string;
-      boxShadow?: unknown;
-    };
-    expect(ring.outlineColor).toBe(focusRing.onLight.color);
-    expect(JSON.stringify(ring.boxShadow ?? null)).not.toContain(focusHalo.light);
-  });
+      expect(ring.outlineColor).toBe(focusRing.onLight.color);
+      expect(JSON.stringify(ring.boxShadow ?? null)).not.toContain(focusHalo.light);
+    },
+  );
 });

@@ -13,6 +13,7 @@ import { ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-nat
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import { findBlock, walkBlocks, type ScrollDocument } from './model';
 import { useDisplay } from '../display/display';
+import { printedSurface } from '../display/printed';
 import { Text } from '../text/text';
 import type { ScrollLocalPosition, ScrollPositionHandle } from './reading/local-position';
 export type { ScrollLocalPosition, ScrollPositionHandle } from './reading/local-position';
@@ -266,7 +267,9 @@ function ScrollArticleBody({
   return (
     <ScrollRenderProvider value={context}>
       <GestureRoot style={styles.scroll}>
+        {/* A Scroll's page is printed: Light in both appearances, so authored figures keep their colours (#666). */}
         <ScrollView
+          {...printedSurface()}
           ref={scrollRef}
           testID={testID}
           {...viewport.scrollProps}

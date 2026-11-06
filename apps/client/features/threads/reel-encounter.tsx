@@ -13,12 +13,13 @@ import { content, radius, spacing } from '@knowscroll/design-tokens';
 import {
   Button,
   IconButton,
-  Skeleton,
-  StateBlock,
-  Text,
+  printedSurface,
   type ReelControls,
   type ReelPlaybackView,
   type ReelPositionHandle,
+  Skeleton,
+  StateBlock,
+  Text,
 } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useDevicePreferences } from '../../providers/device-preferences';
@@ -220,7 +221,8 @@ export function ReelEncounter({
   if (state.status === 'opening') return <Skeleton rows={2} label="Opening the Reel" />;
   if (exposure === undefined || watched === undefined)
     return (
-      <View style={styles.poster}>
+      // A Reel's poster is media: the same in both appearances (#666).
+      <View style={styles.poster} {...printedSurface()}>
         <View style={styles.posterText}>
           <Text variant="ui" color={content.paper} numberOfLines={2}>
             {title}
