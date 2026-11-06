@@ -37,6 +37,70 @@ const callsTo = (calls: readonly RoomCall[], path: string) => calls.filter((call
 const phone = { width: 390, height: 844 };
 const desktop = { width: 1440, height: 900 };
 
+test('a phone composer suggests actual AI residents and inserts a mention without sending', async ({ page }) => {
+  const { calls, address } = await roomFixture(page, phone, { others: 0, lastMessageMinutesAgo: 30, noticeSeen: true });
+  await page.goto(address);
+  const input = page.getByRole('textbox', { name: 'Message General' });
+  await input.fill('@');
+  await expect(page.getByRole('menu', { name: 'AI residents to mention' })).toBeVisible();
+  await shoot(page, 'mention-phone-options');
+  expect(await seriousViolations(page)).toEqual([]);
+  await input.fill('@No');
+  await expect(page.getByRole('menuitem', { name: /^Mention Halley/u })).toHaveCount(0);
+  await page.getByRole('menuitem', { name: 'Mention Nova, AI · Explainer', exact: true }).click();
+  await expect(input).toHaveValue('@Nova ');
+  await expect(page.getByText('To Nova · AI · Explainer', { exact: true })).toBeVisible();
+  expect(await seriousViolations(page)).toEqual([]);
+  expect(callsTo(calls, '/v1/rooms/discussions/send')).toHaveLength(0);
+  await input.fill('@Nova how are you');
+  await page.getByRole('button', { name: 'Send message', exact: true }).click();
+  await expect.poll(() => callsTo(calls, '/v1/rooms/discussions/send').length).toBe(1);
+  expect(callsTo(calls, '/v1/rooms/discussions/send')[0]?.body).toMatchObject({
+    body: { kind: 'text', text: '@Nova how are you' },
+  });
+  await page.reload();
+  await expect(page.getByText('@Nova how are you', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0);
+  await shoot(page, 'mention-phone-sent');
+});
+
+test('desktop mention selection consumes Enter and Escape dismisses suggestions, preserving the draft', async ({
+  page,
+}) => {
+  const { calls, address } = await roomFixture(page, desktop, {
+    others: 0,
+    lastMessageMinutesAgo: 30,
+    noticeSeen: true,
+  });
+  await page.goto(address);
+  const input = page.getByRole('textbox', { name: 'Message General' });
+  await input.fill('@');
+  await input.press('ArrowDown');
+  await input.press('Enter');
+  await expect(input).toHaveValue('@Halley ');
+  expect(callsTo(calls, '/v1/rooms/discussions/send')).toHaveLength(0);
+  await input.fill('A question for @No');
+  await input.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(input).toHaveValue('A question for @No');
+  await input.fill('@');
+  await shoot(page, 'mention-desktop-options');
+});
+
+test('the mention menu makes AI Off visible without changing settings or sending a message', async ({ page }) => {
+  const { calls, address } = await roomFixture(page, desktop, {
+    others: 0,
+    lastMessageMinutesAgo: 30,
+    noticeSeen: true,
+  });
+  await page.goto(address);
+  await page.getByRole('radio', { name: 'Off', exact: true }).click();
+  await expect.poll(() => callsTo(calls, '/v1/rooms/preferences').length).toBe(1);
+  await page.getByRole('textbox', { name: 'Message General' }).fill('@');
+  await expect(page.getByRole('menuitem', { name: /Mention Nova.*AI is Off/u })).toBeDisabled();
+  expect(callsTo(calls, '/v1/rooms/discussions/send')).toHaveLength(0);
+});
+
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
 });

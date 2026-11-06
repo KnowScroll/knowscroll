@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -45,6 +45,7 @@ import { AiLabel } from './ai-label';
 import { DebateCard } from './debate-card';
 import { topicTitleFrom } from './ask-words';
 import { InhabitantBar } from './inhabitant-bar';
+import { RoomWorkspaceContext } from './room-workspace-context';
 import { PostBar } from './post-bar';
 import { FeedbackSheet } from '../feedback/feedback-sheet';
 import { MessageOptionsSheet } from './message-options-sheet';
@@ -220,6 +221,24 @@ function ReadyDiscussion({
   const router = useRouter();
   const { breakpoint } = useDisplay();
   const view = state.view!;
+  const workspace = useContext(RoomWorkspaceContext);
+  const roomView = workspace?.state.view;
+  const aiOff = roomView?.status === 'member' && roomView.you.aiLevel === 'off';
+  const mentionOptions = view.inhabitants.map((entry) => ({
+    id: entry.inhabitant,
+    name: entry.name,
+    label: entry.label,
+    disabled: aiOff || entry.ask !== 'available',
+    status: aiOff
+      ? 'AI is Off in this room'
+      : entry.ask === 'preparing'
+        ? 'Reply in progress'
+        : entry.ask === 'resting'
+          ? 'Resting for now'
+          : entry.ask === 'paused'
+            ? 'Room is paused'
+            : undefined,
+  }));
   const place = useOwnPlace(scope, discussionId);
   const [draft, keepDraft] = useDraft(scope, discussionId);
   // Typing is announced so a resident does not answer over a person; the scope sends it at most every few seconds.
@@ -402,6 +421,7 @@ function ReadyDiscussion({
             collapsible={breakpoint !== 'desktop'}
           />
           <Composer
+            mentions={mentionOptions}
             name={
               view.discussion.kind === 'general'
                 ? 'General'

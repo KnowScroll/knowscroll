@@ -3,6 +3,7 @@ import { splitSentences } from '../../content/public.js';
 import type { ProposeOutcome, ReasoningContext, ReasoningRole } from '../../../reasoning/public.js';
 import { ANSWER_MAX_CITES, ANSWER_MAX_SENTENCES, type GroundPassage } from '../domain/answer-support.js';
 import type { PointedAskKind } from '../domain/asks.js';
+import { ConversationReplySchema, type ConversationReply } from '../domain/conversation.js';
 import {
   CONTEXT_MESSAGE_CHARS,
   CONTRIBUTION_MAX_CHARS,
@@ -14,8 +15,8 @@ import {
 } from '../domain/contribution.js';
 
 /** Changes with the instructions or the answer schema; recorded on every contribution. */
-export const INHABITANT_ROLE_VERSION = 'inhabitant.3';
-export const INHABITANT_POLICY_VERSION = 'rooms-inhabitant.v2';
+export const INHABITANT_ROLE_VERSION = 'inhabitant.4';
+export const INHABITANT_POLICY_VERSION = 'rooms-inhabitant.v3';
 
 /** The fixed hints the one repair may carry. Shared with the summary's role, which writes under the same rules. */
 export const SAFE_HINTS = {
@@ -47,12 +48,36 @@ export const ANSWER_HINTS: Readonly<Record<ContributionProblem | GroundingProble
  * What an inhabitant answered: a contribution of one allowed kind with the passages it rests on, that the passages do not cover
  * the question (`not_covered`), or that it has nothing to add. The text of the last two is ignored.
  */
-export interface InhabitantAnswer {
-  readonly kind: ContributionKind | 'nothing_to_add' | 'not_covered';
+export interface GroundedInhabitantAnswer {
+  readonly kind: Exclude<ContributionKind, 'conversation'> | 'nothing_to_add' | 'not_covered';
   readonly text: string;
   /** The handles of the offered passages the contribution rests on. */
   readonly cites: readonly string[];
 }
+
+export interface ConversationAnswer {
+  readonly kind: 'conversation';
+  readonly reply: ConversationReply;
+  readonly text: '';
+  readonly cites: readonly [];
+}
+
+export type InhabitantAnswer = GroundedInhabitantAnswer | ConversationAnswer;
+
+const conversationSchema = z.strictObject({
+  kind: z.literal('conversation'),
+  reply: ConversationReplySchema,
+  text: z.literal(''),
+  cites: z.tuple([]),
+});
+
+const CONVERSATION_INSTRUCTIONS = [
+  'First respond to the intent of the member’s latest addressed message, with the preceding exchange as context. An addressed message need not contain a question mark or start with a request verb.',
+  'For a purely social exchange, choose one code-authored reply: {"kind":"conversation","reply":"greeting"|"check_in"|"thanks"|"identity"|"capabilities"|"listen"|"clarify","text":"","cites":[]}. Choose the closest key; do not write social prose yourself.',
+  'Use check_in for “how are you”, greetings for hellos, thanks for gratitude, identity for who you are, capabilities for how to chat or what you can help with, listen for a personal invitation to listen, and clarify only for an unclear conversational fragment.',
+  'Never use a conversation key to answer or evade a factual question, explanation, advice, claim, example, prediction or reasoning about the world. Those require the passage-grounded answer and support check. If passages do not support that request, use not_covered, never an unchecked answer. With no passages you may only choose a conversation reply, not_covered or nothing_to_add.',
+  'A brief follow-up continues the preceding exchange. Never treat a factual follow-up as a new greeting. No factual prose is allowed inside a conversation reply.',
+].join('\n');
 
 /** What is wrong with the passages an answer cites, if anything. */
 function groundingProblem(cites: readonly string[], offered: ReadonlySet<string>): GroundingProblem | undefined {
@@ -146,9 +171,12 @@ export function inhabitantRole(
   return {
     id: `rooms.${inhabitant}`,
     version: INHABITANT_ROLE_VERSION,
-    instructions:
-      asked === undefined ? INSTRUCTIONS[inhabitant] : [INSTRUCTIONS[inhabitant], ASKED_LINES[asked]].join('\n'),
-    outputSchema: answerSchema(inhabitant, handles),
+    instructions: [
+      INSTRUCTIONS[inhabitant],
+      ...(asked === undefined ? [] : [ASKED_LINES[asked]]),
+      CONVERSATION_INSTRUCTIONS,
+    ].join('\n'),
+    outputSchema: z.union([answerSchema(inhabitant, handles), conversationSchema]),
     safeCustomIssues: ANSWER_HINTS,
     maxOutputTokens: 4096,
     effort: 'low',

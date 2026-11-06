@@ -15,6 +15,7 @@ import { askedLine } from './ask-words';
 
 /** What an AI contribution is, in words: "A counterexample", never a score. */
 export const KIND_WORDS = {
+  conversation: 'Reply',
   explanation: 'Explanation',
   assumption: 'An assumption to check',
   perspective: 'Another perspective',

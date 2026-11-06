@@ -123,6 +123,14 @@ describe('a resident’s answer to an ask, and the cards a topic leaves', () => 
     expect(onAskAbout).not.toHaveBeenCalled();
   });
 
+  it('labels a social acknowledgement as an AI reply without factual challenge controls', async () => {
+    await show([{ ...halley, suggestion: 'conversation', body: { kind: 'text', text: 'You’re welcome!' } }]);
+    expect(screen.getByText('Reply')).toBeOnTheScreen();
+    expect(screen.getByLabelText('AI, Skeptic')).toBeOnTheScreen();
+    expect(screen.queryByTestId(`challenge-${halley.messageId}`)).not.toBeOnTheScreen();
+    expect(screen.queryByTestId(`other-side-${halley.messageId}`)).not.toBeOnTheScreen();
+  });
+
   it('draws the card a topic left with its figures from the room, and opens the topic', async () => {
     const card: RoomMessage = {
       messageId: id(300),

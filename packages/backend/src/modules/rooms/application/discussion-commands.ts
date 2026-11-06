@@ -16,7 +16,7 @@ import {
 import type { z } from 'zod';
 import type { SnippetAnchorInput, StoredSnippetAnchor } from '../../content/public.js';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
-import { isGreetingOnly, isShortFollowUp, isSocialOnly, mentionedResident } from '../domain/asks.js';
+import { isGreetingOnly, mentionedResident } from '../domain/asks.js';
 import { NOT_COVERED_LINE } from '../domain/answer-support.js';
 import { closesAtOf, debateStartProblem } from '../domain/debate.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
@@ -261,11 +261,7 @@ export function makeDiscussionCommands(p: RoomPorts) {
         acceptance: RoomMessageAcceptanceSchema,
         requires: 'member',
         // A message that names a resident may ask it, and the asked-turn bounds are counts: take the room FOR UPDATE.
-        mode:
-          command.body.kind === 'text' &&
-          (command.body.text.includes('@') || isShortFollowUp(command.body.text) || isSocialOnly(command.body.text))
-            ? 'write'
-            : 'read',
+        mode: command.body.kind === 'text' ? 'write' : 'read',
         async decide({ scope, entered, now }) {
           const { lock, owner, standing } = entered;
           if (!roomAcceptsPosts(standing.room.status)) return refuse('unavailable');
@@ -285,11 +281,13 @@ export function makeDiscussionCommands(p: RoomPorts) {
             const starterGreeting = body.kind === 'text' && found.value.kind === 'general' && isGreetingOnly(body.text);
             const previousHumanAt = starterGreeting ? await p.discussions.lastMessageAt(lock) : undefined;
             const previous =
-              body.kind === 'text' && isShortFollowUp(body.text)
-                ? await p.discussions.messages(lock, command.discussionId, { limit: 2 })
-                : [];
+              body.kind === 'text' ? await p.discussions.messages(lock, command.discussionId, { limit: 2 }) : [];
             const latest = previous.at(-1);
             const beforeLatest = previous.at(-2);
+            const answeredAsk =
+              latest?.inhabitant === undefined || latest.inhabitant === null
+                ? undefined
+                : (await p.ai.askedFor(lock, [latest.messageId])).get(latest.messageId);
             // Only the original asker continuing a recent resident answer is implicitly addressing it.
             const followUp =
               latest?.inhabitant !== null &&
@@ -297,7 +295,7 @@ export function makeDiscussionCommands(p: RoomPorts) {
               !latest.hidden &&
               beforeLatest?.hidden === false &&
               latest.text !== NOT_COVERED_LINE &&
-              beforeLatest?.authorAccountId === owner.accountId &&
+              answeredAsk?.byAccountId === owner.accountId &&
               now.getTime() - latest.recordedAt.getTime() <= 10 * 60_000
                 ? latest.inhabitant
                 : undefined;

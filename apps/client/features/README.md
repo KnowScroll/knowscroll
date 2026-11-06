@@ -57,3 +57,10 @@ hosted emulator lane; Node or browser fixtures do not prove physical-device beha
 Room resident messages retain their AI badge and use `conversation_starter` for a grounded opening after a quiet
 spell (D-396). The resident controls show identity, availability and Ask actions without a repeated instruction
 paragraph. The existing first-visit notice and AI here settings explain reading and visibility; #667 owns room layout.
+
+Room composers offer the current server roster when @ is typed at a word boundary, filter partial names, and
+insert one canonical mention using pointer/touch or arrows and Enter/Tab. Escape dismisses it. Typing and picking
+only edit the account-scoped draft; Send uses the existing room command. A small “To … · AI” line confirms the
+recipient. Paused, resting, busy and Off states remain visible without changing any setting. The menu unmounts
+with the discussion/account scope; neither its roster nor selection is persisted. Other conversation composers
+receive no mention roster. The broad room layout remains #667’s scope. D-398 governs the related social reply.

@@ -122,6 +122,27 @@ const posted = (result: PipelineResult): Extract<AnswerVerdict, { kind: 'post' }
 const attemptsOf = (calls: readonly Call[]): number =>
   calls.reduce((total, call) => total + (call.allowRepair ? 2 : 1), 0);
 
+it('posts only code’s social words through the existing writer run, with no factual checker or extra attempt', async () => {
+  const { model, calls } = scripted(proposed({ kind: 'conversation', reply: 'check_in', text: '', cites: [] }));
+  const result = await answerAndCheck(
+    model,
+    { ...input(), ground: [], writer: inhabitantRole('explainer', []) },
+    new AbortController().signal,
+  );
+  expect(posted(result).answer).toEqual({
+    kind: 'conversation',
+    text: 'I’m here and ready to chat. What’s on your mind?',
+  });
+  expect(result.support).toBeUndefined();
+  expect(result.runs).toHaveLength(1);
+  expect(calls.map((call) => [call.step, call.runId, call.allowRepair])).toEqual([['write', 'turn-1', false]]);
+});
+
+it('does not turn an ambient writer’s social proposal into an unchecked message', async () => {
+  const { model } = scripted(proposed({ kind: 'conversation', reply: 'check_in', text: '', cites: [] }));
+  expect((await run(model, 'unprompted')).verdict.kind).toBe('failed');
+});
+
 describe('an answer that stands on its passages', () => {
   it('is posted after one writer call and one check, with the passages it cites kept on the turn', async () => {
     const { model, calls } = scripted(writes('explanation', SUPPORTED), checks(1));

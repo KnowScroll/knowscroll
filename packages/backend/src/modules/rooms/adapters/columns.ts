@@ -26,6 +26,7 @@ export const contributionKindOf = closed<ContributionKind>('ai_kind', [
   'perspective',
   'counterexample',
   'find',
+  'conversation',
 ]);
 export const roleOf = closed<RoomRole>('role', ['member', 'moderator']);
 export const aiLevelOf = closed<AiLevel>('ai_level', ['lively', 'quieter', 'off']);

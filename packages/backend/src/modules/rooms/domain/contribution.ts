@@ -3,10 +3,11 @@ import { ANSWER_CLAIM_SECONDS } from './answer-support.js';
 /** Rules of the labelled AI inhabitants: what they may say, and how often a room may ask them. */
 
 export type InhabitantId = 'explainer' | 'skeptic';
-export type ContributionKind = 'explanation' | 'assumption' | 'perspective' | 'counterexample' | 'find';
+export type ContributionKind =
+  'explanation' | 'assumption' | 'perspective' | 'counterexample' | 'find' | 'conversation';
 
 /** What each inhabitant is allowed to contribute. The Explainer answers; the Skeptic challenges. */
-export const KINDS_OF: Readonly<Record<InhabitantId, readonly ContributionKind[]>> = {
+export const KINDS_OF: Readonly<Record<InhabitantId, readonly Exclude<ContributionKind, 'conversation'>[]>> = {
   explainer: ['explanation'],
   skeptic: ['assumption', 'perspective', 'counterexample'],
 };

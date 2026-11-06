@@ -64,6 +64,11 @@ export function InhabitantBar({
         </Pressable>
       ) : null}
       {shut ? null : <Panel inhabitants={inhabitants} asking={asking} onAsk={onAsk} compact={compact === true} />}
+      {shut && inhabitants.some((entry) => entry.ask === 'preparing') ? (
+        <View accessibilityLiveRegion="polite">
+          <Text variant="metaS">AI reply in progress…</Text>
+        </View>
+      ) : null}
       {outcome === undefined ? null : (
         <View accessibilityLiveRegion="polite">
           <Text variant="metaS">{outcome}</Text>

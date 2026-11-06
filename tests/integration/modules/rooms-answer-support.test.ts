@@ -228,7 +228,7 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       expect(said.at(-1)).toEqual({ ai: true, text: SUPPORTED_ANSWER, suggestion: 'explanation' });
       const turn = await turnOf(job.requestId);
       expect(turn.state).toBe('completed');
-      expect(turn.role_version).toBe('inhabitant.3');
+      expect(turn.role_version).toBe('inhabitant.4');
       // The turn keeps which passages the answer rested on, as IDs of public content and no word of it.
       expect(turn.answer_support).toEqual({
         policy: 'rooms-answer-support.v1',
@@ -302,14 +302,14 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       });
     });
 
-    it('says the library does not cover it, with no model asked, when no passage fits the question', async () => {
+    it('keeps an unsupported factual question honest after one groundless intent-aware writer call', async () => {
       const { roomId, asha, discussionId, job } = await askNova(
         'How do volcanoes make obsidian glass?',
         'Volcano glass',
       );
-      const model = playbook({ writer: [] }, 'no-ground');
+      const model = playbook({ writer: [writes('', [], 'not_covered')] }, 'no-ground');
       await consumer(model)(job);
-      expect(model.calls).toHaveLength(0);
+      expect(model.calls).toHaveLength(1);
       expect((await textsOf(asha, roomId, discussionId)).at(-1)).toEqual({
         ai: true,
         text: NOT_COVERED,
@@ -318,9 +318,9 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       expect(await turnOf(job.requestId)).toMatchObject({
         state: 'completed',
         dispatched: true,
-        answer_support: { result: 'no_ground', cited: [] },
+        answer_support: { result: 'not_covered', cited: [] },
       });
-      expect(await receiptClassesOf(world.db, asha.universeId)).toEqual([]);
+      expect(await receiptClassesOf(world.db, asha.universeId)).toHaveLength(1);
     });
 
     it('gives a Skeptic that was asked the same line when the library has nothing, labelled as the Skeptic', async () => {
@@ -330,9 +330,9 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       unwrap(await say(world, asha, roomId, discussionId, 'Obsidian forms because lava cools slowly.'));
       const before = world.queued.length;
       unwrap(await ask(world, asha, roomId, discussionId, 'skeptic'));
-      const model = playbook({ writer: [] }, 'skeptic-no-ground');
+      const model = playbook({ writer: [writes('', [], 'not_covered')] }, 'skeptic-no-ground');
       await consumer(model)(world.queued[before]!);
-      expect(model.calls).toHaveLength(0);
+      expect(model.calls).toHaveLength(1);
       const view = await readDiscussion(world, asha, roomId, discussionId);
       if (view.status !== 'ready') throw new Error('expected ready');
       expect(view.messages.at(-1)).toMatchObject({
@@ -404,57 +404,76 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       expect((await memberView(world, ravi, roomId)).questions?.waiting).toBe(1);
     });
 
-    it('says nothing to a message that names a resident and asks nothing: no call, no passage read, no line, counted as an ask', async () => {
-      const { roomId } = await seedRoom(world);
-      const [asha] = (await joined(world, roomId, 1)) as [Friend];
-      const discussionId = await startTopic(world, asha, roomId, 'Moon drift');
-      for (const greeting of ['@Nova thanks, that helps a lot', 'hi @Nova', '@Nova hello?']) {
-        const before = world.queued.length;
-        const readsBefore = reads.length;
-        unwrap(await say(world, asha, roomId, discussionId, greeting));
-        expect(world.queued).toHaveLength(before + 1);
-        const model = playbook({ writer: [writes(SUPPORTED_ANSWER)] }, 'greeting');
-        await consumer(model)(world.queued.at(-1)!);
-        expect(model.calls).toHaveLength(0);
-        expect(reads).toHaveLength(readsBefore);
-        expect(await turnOf(world.queued.at(-1)!.requestId)).toMatchObject({
-          state: 'declined',
-          dispatched: true,
-          answer_support: null,
-        });
-      }
-      expect((await textsOf(asha, roomId, discussionId)).some((entry) => entry.ai)).toBe(false);
-    });
-
-    it('does not turn a plain Ask after yooo or thanks into a library-coverage lecture', async () => {
-      for (const greeting of ['yooo', 'thanks, that helps', 'hello!']) {
-        const { roomId, asha, discussionId, job } = await askNova(greeting);
-        const readsBefore = reads.length;
-        const model = playbook({ writer: [] }, 'plain-social');
+    it('answers tagged social messages and a plain Ask with the same code-authored, fenced reply', async () => {
+      for (const text of [
+        '@Nova how are you',
+        '@Nova hello?',
+        '@Nova thanks, that helps',
+        '@Nova I just want to chat',
+      ]) {
+        const { roomId } = await seedRoom(world);
+        const [asha] = (await joined(world, roomId, 1)) as [Friend];
+        const discussionId = await startTopic(world, asha, roomId, 'Social exchange');
+        unwrap(await say(world, asha, roomId, discussionId, text));
+        const job = world.queued.at(-1)!;
+        const scenario: FixtureScenario = {
+          kind: 'success',
+          text: JSON.stringify({ kind: 'conversation', reply: 'check_in', text: '', cites: [] }),
+        };
+        const model = playbook({ writer: [scenario] }, 'social-mention');
         await consumer(model)(job);
-        expect(model.calls).toHaveLength(0);
-        expect(reads).toHaveLength(readsBefore);
-        expect(await turnOf(job.requestId)).toMatchObject({ state: 'declined' });
-        expect((await textsOf(asha, roomId, discussionId)).map((entry) => entry.text)).toEqual([greeting]);
+        await consumer(model)(job);
+        expect(model.calls).toHaveLength(1);
+        expect((await textsOf(asha, roomId, discussionId)).filter((entry) => entry.ai)).toEqual([
+          { ai: true, text: 'I’m here and ready to chat. What’s on your mind?', suggestion: 'conversation' },
+        ]);
+        expect(await turnOf(job.requestId)).toMatchObject({ state: 'completed', answer_support: null });
       }
+      const { roomId, asha, discussionId, job } = await askNova('how are you');
+      const model = playbook(
+        {
+          writer: [
+            { kind: 'success', text: JSON.stringify({ kind: 'conversation', reply: 'check_in', text: '', cites: [] }) },
+          ],
+        },
+        'plain-check-in',
+      );
+      await consumer(model)(job);
+      expect(model.calls).toHaveLength(1);
+      expect((await textsOf(asha, roomId, discussionId)).at(-1)?.suggestion).toBe('conversation');
     });
 
-    it('routes the original asker’s short follow-up through the existing personal answer and check path once', async () => {
+    it('routes the original asker’s ordinary conversational follow-up through the existing personal answer and check path once', async () => {
       const { roomId, asha, discussionId, job } = await askNova(MOON_QUESTION);
       await consumer(playbook({ writer: [writes(SUPPORTED_ANSWER)] }, 'follow-up-first'))(job);
       const queuedBefore = world.queued.length;
-      unwrap(await say(world, asha, roomId, discussionId, 'why?'));
+      unwrap(await say(world, asha, roomId, discussionId, 'I’m curious about the laser part'));
       expect(world.queued).toHaveLength(queuedBefore + 1);
       const next = world.queued.at(-1)!;
       const model = playbook({ writer: [writes(SUPPORTED_ANSWER)] }, 'follow-up');
       await consumer(model)(next);
       expect(model.calls).toHaveLength(2);
-      expect(model.calls[0]!.request.user).toContain('why?');
+      expect(model.calls[0]!.request.user).toContain('I’m curious about the laser part');
       expect(model.calls[0]!.request.user).toContain(MOON_QUESTION);
       expect((await textsOf(asha, roomId, discussionId)).at(-1)).toMatchObject({ ai: true, text: SUPPORTED_ANSWER });
       await consumer(model)(next);
       expect(model.calls).toHaveLength(2);
     });
+
+    it.each(['asker', 'message_author'] as const)(
+      'continues only for the actual %s when someone asks about another member’s words',
+      async (actor) => {
+        const { roomId } = await seedRoom(world);
+        const [asha, ravi] = (await joined(world, roomId, 2)) as [Friend, Friend];
+        const discussionId = await startTopic(world, asha, roomId, 'Moon drift');
+        unwrap(await say(world, asha, roomId, discussionId, MOON_QUESTION));
+        unwrap(await ask(world, ravi, roomId, discussionId, 'explainer'));
+        await consumer(playbook({ writer: [writes(SUPPORTED_ANSWER)] }, 'cross-member-ask'))(world.queued.at(-1)!);
+        const before = world.queued.length;
+        unwrap(await say(world, actor === 'asker' ? ravi : asha, roomId, discussionId, 'I’d like to keep talking'));
+        expect(world.queued).toHaveLength(before + (actor === 'asker' ? 1 : 0));
+      },
+    );
 
     it.each(['ai', 'person'] as const)(
       'does not implicitly follow up after the preceding %s message was removed',
@@ -552,6 +571,9 @@ describe('a resident’s answer passes the support check (real PostgreSQL, CI fi
       const room = await unanswered(model);
       expect(model.calls).toHaveLength(2);
       expect((await spoken(room)).map((entry) => entry.text)).toEqual([SUPPORTED_ANSWER]);
+      const personalBefore = world.queued.length;
+      unwrap(await say(world, room.people[0], room.roomId, room.general, 'I’d like to keep talking'));
+      expect(world.queued).toHaveLength(personalBefore);
       const [turn] = await turnsOf(room.roomId);
       expect(turn).toMatchObject({ trigger: 'unanswered_question', state: 'completed', role_version: 'resident.3' });
       expect(turn!.answer_support).toMatchObject({ result: 'cleared', cited: [{ assetId: DRIFT_ASSET }] });
