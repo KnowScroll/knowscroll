@@ -124,12 +124,12 @@ export function makeAnswerCheckStep(deps: AnswerCheckStepDependencies) {
 
   async function check(input: CheckInput): Promise<CheckOutcome> {
     const runId = answerCheckRunId(input.jobId, input.draft);
-    // A stored v2 document always has a Final call; a draft with no call to check is not asked about.
+    // No answer keys means no checker request is needed; record the empty check as passed.
     if (input.calls.length === 0)
       return {
         kind: 'done',
-        record: uncheckedRecord(input.draft, 'no_calls'),
-        receipt: { role: 'answer_check', kind: 'unchecked', draft: input.draft, code: 'no_calls' },
+        record: checkedRecord(input.draft, []),
+        receipt: { role: 'answer_check', kind: 'checked', draft: input.draft, verdicts: [] },
         runId,
       };
     const result = await deps.harness.proposeProduction(

@@ -58,7 +58,7 @@ export async function seedCallRevision(
   db: Kysely<Database>,
   assetId: string,
   revision: number,
-  call: CallFixture,
+  call: CallFixture | null,
 ): Promise<void> {
   await insertCallRevision(db, assetId, revision, call);
   await db.updateTable('content.assets').set({ revision }).where('id', '=', assetId).execute();
@@ -68,29 +68,34 @@ async function insertCallRevision(
   db: Kysely<Database>,
   assetId: string,
   revision: number,
-  call: CallFixture,
+  call: CallFixture | null,
 ): Promise<void> {
   const assembled = assembleScrollV2(authoredV2('plain'), PUBLICATION_V2, recipeV2('plain'));
   if (assembled.kind !== 'assembled') throw new Error('CI v2 fixture did not assemble');
   const document = JSON.parse(JSON.stringify(assembled.document)) as ScrollDocumentV2;
-  const first = callsOf(document).find((stop) => stop.kind === 'call_it');
-  if (first === undefined) throw new Error('CI v2 fixture has no Call it');
-  if (first.kind !== 'call_it' || first.commonGuess === undefined) throw new Error('CI v2 fixture has no common guess');
-  // The authored common guess, as a recipe would set it: a wrong option, with its source.
-  const wanted = call.guess ?? { option: call.answer === 1 ? 0 : 1, reviewed: true };
-  // A stop's common guess names the same source as the Scroll's misconception (the validator requires it).
-  const source = { label: GUESS_SOURCE, reviewed: wanted.reviewed };
-  if (document.misconception.kind !== 'myth') throw new Error('CI v2 fixture has no myth');
-  document.misconception.source = source;
-  const guess = { option: wanted.option, source };
-  Object.assign(first, {
-    prompt: call.prompt,
-    options: [...call.options],
-    answer: call.answer,
-    explain: call.explain,
-    twist: call.twist,
-    commonGuess: guess,
-  });
+  if (call === null) {
+    document.stops = document.stops.filter((stop) => stop.kind === 'read');
+  } else {
+    const first = callsOf(document).find((stop) => stop.kind === 'call_it');
+    if (first === undefined) throw new Error('CI v2 fixture has no Call it');
+    if (first.kind !== 'call_it' || first.commonGuess === undefined)
+      throw new Error('CI v2 fixture has no common guess');
+    // The authored common guess, as a recipe would set it: a wrong option, with its source.
+    const wanted = call.guess ?? { option: call.answer === 1 ? 0 : 1, reviewed: true };
+    // A stop's common guess names the same source as the Scroll's misconception (the validator requires it).
+    const source = { label: GUESS_SOURCE, reviewed: wanted.reviewed };
+    if (document.misconception.kind !== 'myth') throw new Error('CI v2 fixture has no myth');
+    document.misconception.source = source;
+    const guess = { option: wanted.option, source };
+    Object.assign(first, {
+      prompt: call.prompt,
+      options: [...call.options],
+      answer: call.answer,
+      explain: call.explain,
+      twist: call.twist,
+      commonGuess: guess,
+    });
+  }
   Object.assign(document, { assetId, revision });
   await db
     .insertInto('content.asset_revisions')

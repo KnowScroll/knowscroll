@@ -24,6 +24,15 @@ if (compiled.kind !== 'compiled') throw new Error('CI fixture must compile');
 const document = compiled.document;
 
 describe('reading facts v3 of the labelled Orrin fixture', () => {
+  it('keeps all reading weight when optional calls are absent', () => {
+    const withoutCalls = { ...document, stops: document.stops.filter((stop) => stop.kind === 'read') };
+    const original = readingFactsOfV2(document);
+    const reading = readingFactsOfV2(withoutCalls);
+    expect(reading.totalWeight).toBe(original.totalWeight);
+    expect(reading.blocks).toEqual(original.blocks.filter((block) => block.type === 'stop'));
+    expect(reading.blocks.every((block) => block.seen.kind === 'visible')).toBe(true);
+  });
+
   const facts = readingFactsOfV2(document);
 
   it('knows nothing of the picture a wrong answer turns the stage to, or of a figure on a picture (D-063, D-383)', () => {

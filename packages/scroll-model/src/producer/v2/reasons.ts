@@ -1,4 +1,4 @@
-import { LIMITS_V2 } from '../../v2/limits.js';
+import { LIMITS_V2, MAX_AUTHORED_CALLS_V2 } from '../../v2/limits.js';
 import { READING_SECONDS_V2 } from '../../v2/measures.js';
 
 /**
@@ -14,10 +14,8 @@ export const REPAIR_HINTS_V2: Readonly<Record<string, string>> = Object.freeze({
   line_too_long: `A line stands alone and has at most ${LIMITS_V2.lineWords} words. Shorten it or put the idea in the stop's text.`,
   simple_too_long: `The simple text is shorter than the original: at most ${LIMITS_V2.stopWords} words, in plainer words.`,
   heading_misplaced: 'Use at most one heading per stop and keep it rare.',
-  call_it_missing: 'Add at least one call_it item before the final_call.',
-  call_budget_exceeded: `Use at most ${LIMITS_V2.calls} calls in all, the final_call included.`,
-  final_call_missing: 'End the list with exactly one final_call item.',
-  final_call_misplaced: 'The final_call is the last stop: put it after every other stop and call, and use exactly one.',
+  call_budget_exceeded: `Use at most ${MAX_AUTHORED_CALLS_V2} optional calls in all; zero is valid, the final_call included.`,
+  final_call_misplaced: 'A final_call is optional; retain at most one and put it after every other stop and call.',
   call_answer_invalid: 'Give two or three options for each call, the correct one first.',
   call_options_duplicate: 'Every option of a call must be different.',
   final_call_restates_call:

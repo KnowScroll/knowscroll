@@ -30,12 +30,14 @@ export interface StopListProps {
   readonly onRevealLayout: (index: number, height: number) => void;
   readonly pick: (callId: string, option: number, optionCount: number) => void;
   readonly lock: (callId: string) => boolean;
+  readonly reveal: (callId: string) => void;
+  readonly onContinue: (index: number) => void;
   readonly opened: ReadonlySet<string>;
   readonly onToggleAside: (asideId: string) => void;
   /** What the Final call says and hands the reader before it is locked (D-187). */
   readonly final: FinalCallPlay;
   /** How the person's play went, for the payoff at the end (D-189). */
-  readonly payoff: Payoff;
+  readonly payoff: Payoff | undefined;
   readonly smallPrint: SmallPrint | undefined;
   readonly nextPart: NextPartPeek | undefined;
   readonly related: NextPartPeek | undefined;
@@ -92,6 +94,8 @@ export function StopList(props: StopListProps) {
               onRevealLayout={(height) => props.onRevealLayout(index, height + SECTION_PADDING)}
               onPick={(option) => props.pick(stop.id, option, stop.options.length)}
               onLockIn={() => props.lock(stop.id)}
+              onReveal={() => props.reveal(stop.id)}
+              onContinue={() => props.onContinue(index + 1)}
             />
           )}
           {stop.kind === 'read' ? footerOf(props, index, stop.id) : null}

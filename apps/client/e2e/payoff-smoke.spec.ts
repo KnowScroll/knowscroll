@@ -260,7 +260,7 @@ test('with recording paused the Final call works on the device, is not sent, and
 test('a Final call still open at the end offers the way back to it, and no landmark yet', async ({ page }) => {
   await open(page, phone);
   await dot(page, 'The end of this Scroll').click();
-  await expect(page.getByTestId('payoff-score')).toContainText('Final call · still open');
+  await expect(page.getByTestId('payoff-score')).not.toContainText('Final call · still open');
   await expect(page.getByTestId('landmark-card')).toHaveCount(0);
   await page.getByRole('button', { name: 'Play the Final call' }).click();
   await expect(page.getByRole('group', { name: 'Final call' })).toBeVisible();
@@ -306,3 +306,44 @@ test('with reduced motion the payoff is drawn in its final state, and a screen r
   await dot(page, 'Final call').click();
   await expect(page.getByTestId('stage')).toContainText(/Earth’s axis is not tilted: it stands straight up/);
 });
+
+for (const viewport of [phone, desktop]) {
+  test(`reveals without a pick and keeps reading at ${viewport.width}px`, async ({ page }) => {
+    const served = await open(page, viewport);
+    await dot(page, 'Call it 1 of 3').click();
+    const call = page.getByRole('group', { name: 'Call it 1 of 3', exact: true });
+    await expect(call.getByText('Optional · reveal or keep reading without answering.')).toBeVisible();
+    await call.getByRole('button', { name: 'Reveal explanation' }).click();
+    await expect(call.getByTestId('call-skipped-reveal')).toBeVisible();
+    await expect(call.getByText('Called it!', { exact: true })).toHaveCount(0);
+    expect(lockRequests(served)).toEqual([]);
+    await shoot(page, `optional-call-${viewport.width}`);
+    await call.getByRole('button', { name: 'Keep reading' }).click();
+    await dot(page, 'The end of this Scroll').click();
+    await expect(page.getByTestId('landmark-card')).toHaveCount(0);
+    expect(lockRequests(served)).toEqual([]);
+  });
+
+  test(`a zero-call Scroll ends and reaches the next Part at ${viewport.width}px`, async ({ page }) => {
+    const stops = seasons.stops.filter((stop) => stop.kind === 'read');
+    const document = {
+      ...seasons,
+      stops,
+      asides: seasons.asides.map((aside) =>
+        aside.kind === 'limits' ? { ...aside, anchorStop: stops.at(-2)!.id } : aside,
+      ),
+    };
+    const served = await encounterFixture(page, 'scroll', { series: true, viewport, scrollDocument: document });
+    await page.goto('/explore');
+    await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+    await page.getByRole('button', { name: 'Got it' }).click();
+    await dot(page, 'The end of this Scroll').click();
+    await expect(page.getByTestId('payoff-score')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Play the Final call' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Challenge a friend' })).toHaveCount(0);
+    await shoot(page, `zero-calls-end-${viewport.width}`);
+    expect(served.commands.filter((command) => command.path === '/v1/play/calls/lock')).toEqual([]);
+    await page.getByRole('button', { name: /^Part 2:/ }).click();
+    await expect(page.getByRole('heading', { name: 'CI encounter fixture 2' })).toBeVisible();
+  });
+}

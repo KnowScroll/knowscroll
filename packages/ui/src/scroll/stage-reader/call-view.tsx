@@ -153,6 +153,8 @@ export function CallView({
   onRevealLayout,
   onPick,
   onLockIn,
+  onReveal,
+  onContinue,
 }: {
   readonly call: CallItStop | FinalCallStop;
   /** "1 of 3": the call's place among the Scroll's calls. */
@@ -168,11 +170,16 @@ export function CallView({
   readonly onRevealLayout: (height: number) => void;
   readonly onPick: (option: number) => void;
   readonly onLockIn: () => void;
+  readonly onReveal: () => void;
+  readonly onContinue: () => void;
 }) {
   const result = resultOf(call, state);
   return (
     <View style={styles.call}>
       <Tag label={call.kind === 'final_call' ? 'Final call' : `Call it · ${position}`} variant="part" />
+      <Text variant="meta" color={content.ink2}>
+        Optional · reveal or keep reading without answering.
+      </Text>
       {final === undefined || state.revealed ? null : <FinalCallAnnouncement final={final} />}
       <Text variant="title" heading={2}>
         {call.prompt}
@@ -197,8 +204,19 @@ export function CallView({
         )}
       </View>
       {state.revealed ? null : (
-        <Button label="Lock it in" variant="primary" disabled={state.picked === undefined} onPress={onLockIn} />
+        <Button label="Lock it in" variant="default" disabled={state.picked === undefined} onPress={onLockIn} />
       )}
+      {state.revealed ? null : <Button label="Reveal explanation" variant="primary" onPress={onReveal} />}
+      <Button label="Keep reading" variant="ghost" onPress={onContinue} />
+      {state.revealed && state.picked === undefined ? (
+        <View
+          style={styles.reveal}
+          testID="call-skipped-reveal"
+          onLayout={(event) => onRevealLayout(event.nativeEvent.layout.height)}
+        >
+          <Text variant="body">{call.explain}</Text>
+        </View>
+      ) : null}
       {state.revealed || !paused ? null : (
         <Text variant="meta" color={content.ink2} testID="play-note">
           Not saved while recording is paused.

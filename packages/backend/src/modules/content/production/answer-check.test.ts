@@ -220,7 +220,7 @@ describe('reading the checks back from a job’s outcomes', () => {
 });
 
 describe('a draft with no call to check', () => {
-  it('is recorded as unchecked without asking the model anything', async () => {
+  it('passes an empty answer-key check without asking the model anything', async () => {
     const harness = {
       proposeProduction: () => Promise.reject(new Error('CI: no request may be sent for a draft with no call')),
       readProductionRunAccounting: () => Promise.reject(new Error('CI: nothing to account')),
@@ -240,8 +240,8 @@ describe('a draft with no call to check', () => {
     });
     expect(outcome).toMatchObject({
       kind: 'done',
-      record: { draft: 1, kind: 'unchecked', code: 'no_calls' },
-      receipt: { role: 'answer_check', kind: 'unchecked', code: 'no_calls' },
+      record: { draft: 1, kind: 'checked', verdicts: [] },
+      receipt: { role: 'answer_check', kind: 'checked', verdicts: [] },
     });
   });
 });
