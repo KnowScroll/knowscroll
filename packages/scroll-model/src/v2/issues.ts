@@ -16,9 +16,7 @@ export const V2_REASON_CODES = [
   'simple_too_long',
   'heading_misplaced',
   // Calls.
-  'call_it_missing',
   'call_budget_exceeded',
-  'final_call_missing',
   'final_call_misplaced',
   'call_answer_invalid',
   'call_options_duplicate',

@@ -30,5 +30,11 @@ export function useCallPlay(reading: StopReading, play: StagePlay) {
     reading.revealed(callId);
     return true;
   };
-  return { stateOf, pick, lock };
+  /** Reveals the explanation without submitting a pick or touching play and rewards. */
+  const reveal = (callId: string) => {
+    if (stateOf(callId).revealed) return;
+    setPlayed((all) => ({ ...all, [callId]: { picked: undefined, revealed: true } }));
+    reading.revealed(callId);
+  };
+  return { stateOf, pick, lock, reveal };
 }

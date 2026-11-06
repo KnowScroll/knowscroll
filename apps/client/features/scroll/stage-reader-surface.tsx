@@ -242,7 +242,12 @@ export function StageReaderSurface({
           }
           dock={
             <View style={{ paddingBottom: bottomInset }}>
-              <ReaderDock onAsk={moves.ask} sparks={play?.sparks} onMore={openMore} nextPart={wayOn} />
+              <ReaderDock
+                onAsk={moves.ask}
+                sparks={document.stops.some((stop) => stop.kind !== 'read') ? play?.sparks : undefined}
+                onMore={openMore}
+                nextPart={wayOn}
+              />
             </View>
           }
         />

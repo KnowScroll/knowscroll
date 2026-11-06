@@ -4594,6 +4594,16 @@ A plain Ask after social-only words, like an @mention greeting, has nothing to a
 
 Verification: `rooms-conversation.test.ts`, `rooms-answer-support.test.ts`, `asks.test.ts`, `router.test.ts` and the room client suite. These fixtures prove code behavior; live observations belong in the PR.
 
+## D-397 · 2026-11-06 · Scrolls explain first; predictions are optional (#670)
+
+Owner amendment to the quiz cadence in D-062, D-124, D-126, D-187, D-199 and D-217; D-063 and D-188 still bind.
+
+- A complete explanation with zero questions is the writer's default. New authoring admits zero to three calls total, including any Final call. Prefer zero or one; three is a ceiling, never a target. No opening quiz or alternating quiz cadence is required. A retained Final call remains unique and last.
+- A prediction earns its place when the reveal explains a surprising mechanism. Example: after showing Earth's nearest approach in January, an optional northern-winter prediction reveals how tilt changes sunlight angle and daylight. A token-by-token sentence can simply unfold with no question.
+- Every call offers Reveal explanation and Keep reading without a pick. Revealing clears an uncommitted pick; it writes no answer, spark, combo or landmark. Moving on, resuming, finishing and opening the next Part never depend on play. Only actual visible reading supplies reading evidence; play results remain outside ranking and formation.
+- The stored document ceiling remains four so older published revisions parse unchanged. Their locks and rewards remain tied to their original revision. A zero-call Scroll has its recap and normal ways on, with no unfinished Final call or empty score. A recipe's landmark is still awarded only by an actual Final call lock; no Final call means no award. Friend threads offer no Call it first when that revision has no Call it, while existing locked older revisions remain available under D-233.
+
+Verification status belongs in the #670 PR; this decision is policy, not a claim of deployed acceptance.
 
 ## D-398 · 2026-11-06 · Addressing a room resident starts a bounded conversation, including social replies (#668, #688)
 

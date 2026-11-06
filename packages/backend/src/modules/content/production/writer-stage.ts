@@ -208,16 +208,21 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     if (checked.kind === 'advanced') return ops.replayCurrent(row);
     if (checked.kind === 'paused') return paused(row, checked.code);
 
-    const checkRun: ClosingRun = {
-      runId: checked.runId,
-      state: checked.record.kind === 'checked' ? 'completed' : 'failed',
-    };
+    const checkRuns: readonly ClosingRun[] =
+      calls.length === 0
+        ? []
+        : [
+            {
+              runId: checked.runId,
+              state: checked.record.kind === 'checked' ? 'completed' : 'failed',
+            },
+          ];
     const flagged = flaggedCalls(checked.record.verdicts ?? []);
     const receipts = [draft.receipt, ...history.receipts, checked.receipt];
     if (flagged.length === 0)
       return ops.publish(stage.subject, row, receipts, draft.authored, draft.compiled, draft.runId, [
         ...history.closing,
-        checkRun,
+        ...checkRuns,
       ]);
     if (draft.number === 1 && !draft.repaired) {
       // The flagged first draft is superseded: its writer receipt is kept as history, not as the Scroll's writer.
@@ -227,14 +232,14 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
           { ...draft.receipt, role: 'checks', kind: 'draft_flagged', runId: draft.runId },
           checked.receipt,
         ],
-        closing: [...history.closing, { runId: draft.runId, state: 'failed' }, checkRun],
+        closing: [...history.closing, { runId: draft.runId, state: 'failed' }, ...checkRuns],
       };
       return repairFlagged(stage, draft, calls, flagged, earlier);
     }
     return ops.end(row, 'rejected', ['answer_check_flagged'], receipts, [
       ...history.closing,
       { runId: draft.runId, state: 'failed' },
-      checkRun,
+      ...checkRuns,
     ]);
   }
 

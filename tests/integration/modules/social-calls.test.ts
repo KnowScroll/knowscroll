@@ -1062,10 +1062,10 @@ describe('Call it together (real PostgreSQL)', () => {
      * Asha's thread rests on Part 2. Part 1 is then replaced by revision 2 and the series is declared again with it, which is
      * how a thread whose root did not change comes to hold a newer Part 1 (the root's own revision is still in both).
      */
-    async function releaseSecondRevision(world: Awaited<ReturnType<typeof party>>) {
+    async function releaseSecondRevision(world: Awaited<ReturnType<typeof party>>, noCalls = false) {
       const [first, second] = world.scrolls;
       if (first === undefined || second === undefined) throw new Error('CI series has two Scrolls');
-      await seedCallRevision(database.db, first.assetId, 2, SECOND_REVISION_CALL);
+      await seedCallRevision(database.db, first.assetId, 2, noCalls ? null : SECOND_REVISION_CALL);
       await declareSeries(
         database.db,
         world.seriesId,
@@ -1074,6 +1074,28 @@ describe('Call it together (real PostgreSQL)', () => {
       );
     }
     const revisionsLocked = async (person: Friend) => (await rowsOf(person)).map((row) => row.revision);
+
+    it('offers no Call it first for a zero-call revision and lets members finish without playing', async () => {
+      const world = await party({ rootPart: 2 });
+      await releaseSecondRevision(world, true);
+      expect((await calls(world.a, world.refs.a)).filter((card) => card.part === 1)).toEqual([]);
+      unwrap(await place(world.a, world.refs.a, 1, 'finished'));
+      expect(await rowsOf(world.a)).toEqual([]);
+    });
+
+    it('keeps an older locked call on its own revision when the new revision has zero calls', async () => {
+      const world = await party({ rootPart: 2 });
+      unwrap(await lock(world.a, world.refs.a, 1, 1));
+      await releaseSecondRevision(world, true);
+      expect(await call(world.a, world.refs.a, 1)).toMatchObject({
+        stage: 'locked',
+        assetRevision: 1,
+        option: 1,
+        prompt: TIDES_CALL.prompt,
+        updated: 'held',
+      });
+      expect(await revisionsLocked(world.a)).toEqual([1]);
+    });
 
     it('keeps the question the party called on, every pick and the count, and says the Scroll was updated', async () => {
       const world = await party({ rootPart: 2 });

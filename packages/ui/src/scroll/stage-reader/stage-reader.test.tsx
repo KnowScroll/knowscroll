@@ -35,6 +35,45 @@ function reader(observer: StageReadingObserver, commands: ReaderCommands = {}, d
 }
 
 describe('the Stage + Spine reader', () => {
+  it('reveals without locking even after picking, and continues without play or reward', async () => {
+    const observer = spy();
+    await reader(observer);
+    await fireEvent.press(screen.getByRole('radio', { name: /Earth is closer to the Sun in June/ }));
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Reveal explanation' })[0]!);
+    expect(screen.getByTestId('call-skipped-reveal')).toBeOnTheScreen();
+    expect(screen.queryByText('Plot twist!')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Called it!')).not.toBeOnTheScreen();
+    expect(screen.queryByText('+1 spark')).not.toBeOnTheScreen();
+    expect(observer.onBlockInteraction).toHaveBeenCalledWith({
+      blockId: 'call-delhi',
+      kind: 'revealed',
+      at: expect.any(Number) as number,
+    });
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Keep reading' })[0]!);
+    expect(observer.onBlockInteraction).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([390, 1440])(
+    'finishes a zero-call Scroll at width %i with no unfinished play and no challenge',
+    async (width) => {
+      const observer = spy();
+      const challenge = jest.fn();
+      const doc = { ...document, stops: document.stops.filter((stop) => stop.kind === 'read') };
+      await render(
+        <DisplayProvider value={{ width, textScale: 1, reducedMotion: true }}>
+          <StageReader document={doc} observer={observer} commands={{ challenge }} />
+        </DisplayProvider>,
+      );
+      await fireEvent.press(screen.getByRole('button', { name: 'The end of this Scroll' }));
+      expect(screen.getByText('The picture you built')).toBeOnTheScreen();
+      expect(screen.queryByTestId('payoff-score')).not.toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: 'Play the Final call' })).not.toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: 'Challenge a friend' })).not.toBeOnTheScreen();
+      expect(observer.onBlockInteraction).not.toHaveBeenCalled();
+      expect(challenge).not.toHaveBeenCalled();
+    },
+  );
+
   it('draws the first stop, its picture named by the described state, and a dot for every stop and the end', async () => {
     await reader(spy());
     expect(screen.getByText('It leans.')).toBeOnTheScreen();

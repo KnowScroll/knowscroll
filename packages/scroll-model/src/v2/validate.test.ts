@@ -148,11 +148,16 @@ describe('validateDocumentV2: the rules of scroll-limits.v2', () => {
   it('allows at most four calls, the Final call last, and distinct options', () => {
     expect(
       broken((document) => {
+        document.stops[2] = { ...callIt(document, 1), id: 'fourth-call' };
+      }),
+    ).not.toContain('call_budget_exceeded@stops');
+    expect(
+      broken((document) => {
         document.stops[2] = { ...callIt(document, 1), id: 's3x' };
         document.stops[3] = { ...callIt(document, 1), id: 's4x' };
       }),
     ).toContain('call_budget_exceeded@stops');
-    expect(broken((document) => document.stops.pop())).toContain('final_call_missing@stops');
+    expect(broken((document) => document.stops.pop())).not.toContain('final_call_missing@stops');
     expect(
       broken((document) => {
         const final = document.stops.splice(-1, 1);

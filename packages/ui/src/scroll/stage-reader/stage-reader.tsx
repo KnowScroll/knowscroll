@@ -374,10 +374,15 @@ export function StageReader({
                   paused={play.paused}
                   pick={played.pick}
                   lock={lockCall}
+                  reveal={(callId) => {
+                    text.revealIn(indexOfStop(document.stops, callId));
+                    played.reveal(callId);
+                  }}
+                  onContinue={(index) => jump(index, false)}
                   opened={opened}
                   onToggleAside={toggleAside}
                   final={final}
-                  payoff={payoffOf(calls, play)}
+                  payoff={calls.length === 0 ? undefined : payoffOf(calls, play)}
                   smallPrint={smallPrint}
                   endSlot={endSlot}
                   pull={pull}
@@ -395,7 +400,7 @@ export function StageReader({
                   onPlayFinal={
                     finalCall === undefined ? undefined : () => jump(indexOfStop(document.stops, finalCall.id), false)
                   }
-                  onChallenge={commands.challenge}
+                  onChallenge={calls.length === 0 ? undefined : commands.challenge}
                   simplerStops={simplerStops}
                   onToggleSimpler={toggleSimpler}
                 />

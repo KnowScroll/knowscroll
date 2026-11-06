@@ -7,7 +7,7 @@ import { isKitPatch, kitDefinition } from '../../v2/kits/index.js';
 import { EARTH_SKY_KIT } from '../../v2/kit.js';
 import { pointAgrees, plainFigure, unitInPassages } from './figures.js';
 import { isFigure, recipeKit, type RecipeDataV2 } from './assemble.js';
-import { LIMITS_V2 } from '../../v2/limits.js';
+import { LIMITS_V2, MAX_AUTHORED_CALLS_V2 } from '../../v2/limits.js';
 
 /** What the authoring rules need besides the authored list. */
 export interface AuthoringRulesInput {
@@ -239,6 +239,10 @@ function copyIssues(authored: AuthoredScrollV2, sources: readonly string[]): Iss
  */
 export function authoringIssuesV2(authored: AuthoredScrollV2, input: AuthoringRulesInput): IssueV2[] {
   return uniqueIssuesV2([
+    ...(authored.items.filter((item) => item.type === 'call_it' || item.type === 'final_call').length >
+    MAX_AUTHORED_CALLS_V2
+      ? [{ code: 'call_budget_exceeded' as const, path: 'items' }]
+      : []),
     ...placementIssues(authored),
     ...stageIssues(authored, input.recipe),
     ...blockIssues(authored, input.recipe, input.evidence),

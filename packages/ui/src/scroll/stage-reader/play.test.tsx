@@ -321,7 +321,7 @@ describe('the payoff at the end (E1, D-189)', () => {
     const { play } = playing([lockedCall()]);
     await reader(play);
     expect(screen.queryByTestId('landmark-card')).not.toBeOnTheScreen();
-    expect(screen.getByTestId('payoff-score')).toHaveTextContent('Final call · still open', { exact: false });
+    expect(screen.getByTestId('payoff-score')).not.toHaveTextContent('Final call · still open', { exact: false });
     expect(screen.getByRole('button', { name: 'Play the Final call' })).toBeOnTheScreen();
   });
 

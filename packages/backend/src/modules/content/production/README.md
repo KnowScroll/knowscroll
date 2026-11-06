@@ -36,7 +36,7 @@ place the two differ: the role the model is asked, and how an accepted answer is
 admission stores (`stored-v2.ts`: document, `scroll-provenance.v2`, reading facts v3). Still one writer
 request and at most one repair, none inside a transaction, and the answer check below sits between the answer and its storage.
 
-- **Versions.** A v2 recipe's jobs are `scroll-production.v21` (paired with `scroll-writer.v21`, D-384; `topics.ts` lists what each version added), every other recipe's and every order's
+- **Versions.** A v2 recipe's jobs are `scroll-production.v22` (paired with `scroll-writer.v22`, D-397; `topics.ts` lists what each version added), every other recipe's and every order's
   `.v14` (`productionVersionOf`). A v2 recipe counts as published only when its current revision is a v2
   document, so a v1 Scroll published earlier is regenerated as the next revision of the same asset.
   A queued job whose version does not match the plan is dropped.
@@ -352,3 +352,7 @@ Status. **Implemented** and covered by unit tests and by an integration test of 
 
 Reels are not produced here. A Reel is a request to Cutroom, which has its own service, budget and
 queue; its ordering, ledger and publication are in `../README.md` ("Reels from Cutroom").
+
+### Explanation-first Scrolls (D-397)
+
+Implemented: writer v22 / production v22 defaults to zero questions and permits at most three optional calls including any Final call. Calls must teach through their reveal. The empty answer-key check passes with zero verdicts and sends no provider request or checker run; ordinary operator review still holds the revision before release. Existing published documents are not rewritten by this policy.
