@@ -110,14 +110,14 @@ describe('a reveal, brought on screen', () => {
     const hook = await renderHook(() =>
       useReaderScroll({ scroller, sections: 3, startAt: 0, reducedMotion: true, onPullPastEnd: undefined }),
     );
-    const { scrollProps, measureSection, revealIn, reportReveal } = hook.result.current;
+    const { scrollProps, measureSection, revealIn, reportReveal, jump } = hook.result.current;
     scrollProps.onLayout?.({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 400 } } } as never);
     const measure = (index: number, height: number) =>
       measureSection(index)({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height } } } as never);
     measure(0, 300);
     measure(1, 300);
     measure(2, 300);
-    return { scrollTo, measure, revealIn, reportReveal, scrollProps };
+    return { scrollTo, measure, revealIn, reportReveal, scrollProps, jump };
   }
 
   it('shows the end of a reveal that fits the view, once the section has grown to hold it', async () => {
@@ -142,12 +142,50 @@ describe('a reveal, brought on screen', () => {
     expect(scrollTo).toHaveBeenCalledWith({ y: 480, animated: false });
   });
 
-  it('does not scroll when the reveal is already on screen, or scroll back up', async () => {
+  it('does not scroll when the whole reveal is already on screen', async () => {
+    const { scrollTo, measure, revealIn, reportReveal, scrollProps } = await layOut();
+    scrollProps.onScroll?.(event(300, 400, 900));
+    revealIn(1);
+    measure(1, 320);
+    reportReveal(1, 200);
+    jest.advanceTimersByTime(100);
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('brings the start back into view when collapsed options leave it above the old position', async () => {
     const { scrollTo, measure, revealIn, reportReveal, scrollProps } = await layOut();
     scrollProps.onScroll?.(event(500, 400, 900));
     revealIn(1);
     measure(1, 320);
     reportReveal(1, 200);
+    jest.advanceTimersByTime(100);
+    // The reveal starts at 420; keeping the old position would cut off its first 80 px.
+    expect(scrollTo).toHaveBeenCalledWith({ y: 420, animated: false });
+  });
+
+  it('keeps a late layout from pulling the reveal back to a recent spine jump', async () => {
+    const { scrollTo, measure, revealIn, reportReveal, scrollProps, jump } = await layOut();
+    jump(1, true);
+    scrollProps.onScroll?.(event(300, 400, 900));
+    revealIn(1);
+    measure(1, 520);
+    reportReveal(1, 250);
+    jest.advanceTimersByTime(100);
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 420, animated: false });
+    scrollTo.mockClear();
+    measure(1, 521);
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it.each(['before', 'after'])('lets explicit navigation win when reveal layout arrives %s the jump', async (when) => {
+    const { scrollTo, measure, revealIn, reportReveal, jump } = await layOut();
+    revealIn(1);
+    measure(1, 520);
+    if (when === 'before') reportReveal(1, 250);
+    jump(2, true);
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 820, animated: false });
+    scrollTo.mockClear();
+    if (when === 'after') reportReveal(1, 250);
     jest.advanceTimersByTime(100);
     expect(scrollTo).not.toHaveBeenCalled();
   });
