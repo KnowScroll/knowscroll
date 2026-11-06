@@ -83,11 +83,15 @@ test('desktop mention selection consumes Enter and Escape dismisses suggestions,
   await input.press('Escape');
   await expect(page.getByRole('menu')).toHaveCount(0);
   await expect(input).toHaveValue('A question for @No');
+  await input.fill('@H');
+  await input.press('Shift+Enter');
+  await expect(input).toHaveValue('@H\n');
+  expect(callsTo(calls, '/v1/rooms/discussions/send')).toHaveLength(0);
   await input.fill('@');
   await shoot(page, 'mention-desktop-options');
 });
 
-test('the mention menu makes AI Off visible without changing settings or sending a message', async ({ page }) => {
+test('AI Off is visible while explicit mentions still work, without sending on selection', async ({ page }) => {
   const { calls, address } = await roomFixture(page, desktop, {
     others: 0,
     lastMessageMinutesAgo: 30,
@@ -97,7 +101,15 @@ test('the mention menu makes AI Off visible without changing settings or sending
   await page.getByRole('radio', { name: 'Off', exact: true }).click();
   await expect.poll(() => callsTo(calls, '/v1/rooms/preferences').length).toBe(1);
   await page.getByRole('textbox', { name: 'Message General' }).fill('@');
-  await expect(page.getByRole('menuitem', { name: /Mention Nova.*AI is Off/u })).toBeDisabled();
+  const option = page.getByRole('menuitem', { name: /Mention Nova.*AI is Off/u });
+  await expect(option).toBeEnabled();
+  expect(await seriousViolations(page)).toEqual([]);
+  await option.click();
+  await expect(page.getByRole('textbox', { name: 'Message General' })).toHaveValue('@Nova ');
+  await page.getByRole('switch', { name: 'Keep my messages out of what AI reads' }).click();
+  await expect.poll(() => callsTo(calls, '/v1/rooms/preferences').length).toBe(2);
+  await page.getByRole('textbox', { name: 'Message General' }).fill('@');
+  await expect(page.getByRole('menuitem', { name: /Mention Nova.*kept out/u })).toBeDisabled();
   expect(callsTo(calls, '/v1/rooms/discussions/send')).toHaveLength(0);
 });
 

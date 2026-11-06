@@ -10,6 +10,7 @@ import { MessageOptionsSheet } from './message-options-sheet';
 import { RoomMessages } from './room-messages';
 import { StartTopicSheet } from './start-topic-sheet';
 import { topicFigures } from './topic-card';
+import { residentMentionOptions } from './resident-mentions';
 
 const id = (n: number) => `0199c000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const asha = { kind: 'person' as const, personId: id(10), handle: 'ci.asha', displayName: 'Asha' };
@@ -40,6 +41,18 @@ const inhabitants = (ask: InhabitantStatus['ask'] = 'available'): InhabitantStat
   { inhabitant: 'explainer', name: 'Nova', label: 'AI · Explainer', blurb: 'Answers when asked', ask },
   { inhabitant: 'skeptic', name: 'Halley', label: 'AI · Skeptic', blurb: 'Pushes back on claims', ask },
 ];
+
+it('preserves deliberate asks with AI Off, while keep-out and unavailable states remain explicit', () => {
+  const off = residentMentionOptions(inhabitants(), { aiLevel: 'off', keepOut: false });
+  expect(off[0]).toMatchObject({ disabled: false, status: 'AI is Off; direct asks still work' });
+  expect(residentMentionOptions(inhabitants(), { aiLevel: 'lively', keepOut: true })[0]).toMatchObject({
+    disabled: true,
+    status: 'Your messages are kept out of AI',
+  });
+  for (const ask of ['preparing', 'resting', 'paused'] as const) {
+    expect(residentMentionOptions(inhabitants(ask), undefined)[0]?.disabled).toBe(true);
+  }
+});
 
 describe('what an ask is called', () => {
   it('says who asked and what, and "you" for the reader', () => {

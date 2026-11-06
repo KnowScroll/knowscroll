@@ -128,6 +128,10 @@ export function Composer({
               const key = event.nativeEvent as unknown as { key: string; shiftKey?: boolean; isComposing?: boolean };
               if (Platform.OS !== 'web') return;
               if (key.isComposing === true) return;
+              if (open && key.key === 'Enter' && key.shiftKey === true) {
+                setDismissed(queryKey);
+                return;
+              }
               if (
                 open &&
                 key.key === 'Tab' &&

@@ -56,13 +56,13 @@ it('filters the actual roster, inserts on touch and shows its AI target without 
 it('shows unavailable residents and never picks or commissions them', async () => {
   const send = jest.fn();
   await render(
-    <Draft onSend={send} options={[{ ...residents[0]!, disabled: true, status: 'AI is Off in this room' }]} />,
+    <Draft onSend={send} options={[{ ...residents[0]!, disabled: true, status: 'Room is paused' }]} />,
   );
   const input = screen.getByLabelText('Message General');
   await fireEvent(input, 'focus');
   await fireEvent.changeText(input, '@');
-  expect(screen.getByText('AI is Off in this room')).toBeOnTheScreen();
-  expect(screen.getByLabelText('Mention Nova, AI · Explainer, AI is Off in this room')).toBeDisabled();
+  expect(screen.getByText('Room is paused')).toBeOnTheScreen();
+  expect(screen.getByLabelText('Mention Nova, AI · Explainer, Room is paused')).toBeDisabled();
   expect(send).not.toHaveBeenCalled();
 });
 

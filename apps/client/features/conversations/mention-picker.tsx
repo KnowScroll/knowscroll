@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { content, spacing, radius } from '@knowscroll/design-tokens';
 import { Text } from '@knowscroll/ui';
 import type { MentionOption } from './mention-input';
@@ -28,7 +28,9 @@ export function MentionPicker({
             accessibilityLabel={`Mention ${option.name}, ${option.label}${option.status === undefined ? '' : `, ${option.status}`}`}
             accessibilityState={{ disabled: option.disabled === true }}
             disabled={option.disabled}
-            onPointerDown={(event) => event.preventDefault()}
+            onPointerDown={(event) => {
+              if (Platform.OS === 'web') event.preventDefault();
+            }}
             onPress={() => onPick(option)}
             style={[styles.option, index === active ? styles.active : null, option.disabled ? styles.disabled : null]}
           >

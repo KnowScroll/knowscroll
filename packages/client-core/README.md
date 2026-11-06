@@ -524,3 +524,8 @@ Pure controllers over `scope.api.scenarios`. *Implemented; exercised in tests an
   member's own place. `mapOffered` says when a thread has enough branches for a map. `returnTarget` names where the
   way back from a branch goes. `loadMapPreferences`/`saveMapPreferences` and `loadHere`/`saveHere` keep the filter,
   the opened groups and the member's place on the device only.
+
+Room discussion sends refresh the server’s resident status before catching up messages. This makes a tagged or
+implicit ask’s real preparing/refusal state visible without sending a second Ask command. The metadata read
+does not advance the change cursor or discard older loaded history; catch-up still applies moderation changes.
+While a resident is preparing, later refreshes use the same metadata-first/catch-up sequence.

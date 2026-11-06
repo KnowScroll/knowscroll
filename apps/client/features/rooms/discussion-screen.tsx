@@ -46,6 +46,7 @@ import { DebateCard } from './debate-card';
 import { topicTitleFrom } from './ask-words';
 import { InhabitantBar } from './inhabitant-bar';
 import { RoomWorkspaceContext } from './room-workspace-context';
+import { residentMentionOptions } from './resident-mentions';
 import { PostBar } from './post-bar';
 import { FeedbackSheet } from '../feedback/feedback-sheet';
 import { MessageOptionsSheet } from './message-options-sheet';
@@ -223,22 +224,10 @@ function ReadyDiscussion({
   const view = state.view!;
   const workspace = useContext(RoomWorkspaceContext);
   const roomView = workspace?.state.view;
-  const aiOff = roomView?.status === 'member' && roomView.you.aiLevel === 'off';
-  const mentionOptions = view.inhabitants.map((entry) => ({
-    id: entry.inhabitant,
-    name: entry.name,
-    label: entry.label,
-    disabled: aiOff || entry.ask !== 'available',
-    status: aiOff
-      ? 'AI is Off in this room'
-      : entry.ask === 'preparing'
-        ? 'Reply in progress'
-        : entry.ask === 'resting'
-          ? 'Resting for now'
-          : entry.ask === 'paused'
-            ? 'Room is paused'
-            : undefined,
-  }));
+  const mentionOptions = residentMentionOptions(
+    view.inhabitants,
+    roomView?.status === 'member' ? roomView.you : undefined,
+  );
   const place = useOwnPlace(scope, discussionId);
   const [draft, keepDraft] = useDraft(scope, discussionId);
   // Typing is announced so a resident does not answer over a person; the scope sends it at most every few seconds.
