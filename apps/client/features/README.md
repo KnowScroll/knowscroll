@@ -63,4 +63,4 @@ insert one canonical mention using pointer/touch or arrows and Enter/Tab. Escape
 only edit the account-scoped draft; Send uses the existing room command. A small “To … · AI” line confirms the
 recipient. Paused, resting, busy and Off states remain visible without changing any setting. The menu unmounts
 with the discussion/account scope; neither its roster nor selection is persisted. Other conversation composers
-receive no mention roster. The broad room layout remains #667’s scope. D-398 governs the related social reply.
+receive no mention roster. The broad room layout remains #667’s scope. D-399 governs the related social reply.

@@ -44,7 +44,7 @@ check-ins and fragments, without a question-word gate. The writer may choose a b
 purely social exchange. Code supplies its short acknowledgement, identity/capabilities response or clarification;
 model prose and citations must be empty for that key. No unchecked factual text is posted. Factual replies still
 cite library passages and pass the strict support check and at most one rewrite. The same writer run, attempt
-ledger, paid-attempt ceiling, recording fence and authority checks apply to both kinds (D-398).
+ledger, paid-attempt ceiling, recording fence and authority checks apply to both kinds (D-399).
 
 With no library passage, an asked writer may make one attempt without repair to choose a social key or say
 `not_covered`/`nothing_to_add`; a factual draft without citations is invalid. Unprompted workers still make no call

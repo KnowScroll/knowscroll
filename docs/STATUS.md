@@ -4,7 +4,7 @@
 
 **Current phase:** the v3 revamp is built and on dev: the new Universe, V3 Scrolls, R3 rooms and T3 Talk, with the backend and algorithm change behind each screen. The fidelity sweep, the journeys and the handover are done. Stage, live and the `main` PR are out of scope for this run.
 
-Room conversation follow-up ([#668](https://github.com/KnowScroll/knowscroll/issues/668), [#688](https://github.com/KnowScroll/knowscroll/issues/688)): roster-backed @ picking and recipient feedback, bounded social replies through the existing worker, and ordinary immediate follow-ups. D-398 and migration0106 define the change. The issue/PR handoff records current CI and dev verification; this entry is implementation scope, not a new runtime claim.
+Room conversation follow-up ([#668](https://github.com/KnowScroll/knowscroll/issues/668), [#688](https://github.com/KnowScroll/knowscroll/issues/688)): roster-backed @ picking and recipient feedback, bounded social replies through the existing worker, and ordinary immediate follow-ups. D-399 and migration0106 define the change. The issue/PR handoff records current CI and dev verification; this entry is implementation scope, not a new runtime claim.
 
 ## Where things run
 
@@ -17,7 +17,7 @@ Room conversation follow-up ([#668](https://github.com/KnowScroll/knowscroll/iss
 
 Dev settings beyond the defaults (`/etc/knowscroll/dev.v2.env`, edited by hand; backups in `/root/dev.v2.env.bak-*`): `KS_PLANNER_ENABLED=1`, `KS_CARTOGRAPHER_ENABLED=1`, `KS_JEV_ENABLED=1`, `KS_REASONING_PRODUCTION_ENABLED=1`, `KS_SUPPLY_CREATE_DAILY_CAP=10`, `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP=5`, `KS_SUPPLY_SCENARIO_DAILY_CAP=6`, `KS_MINIMAX_REQUEST_TIMEOUT_MS=300000`, `KS_REASONING_GLOBAL_REQUESTS_PER_DAY=1000`, `KS_REASONING_GLOBAL_TOKENS_PER_DAY=10000000`. Room AI: `KS_REASONING_ROOM_ENABLED=1`, `KS_REASONING_ROOM_GENERATION=1`, `KS_REASONING_ROOM_REQUESTS_PER_DAY=150`, `KS_REASONING_ROOM_TOKENS_PER_DAY=1500000`, `KS_REASONING_AMBIENT_SHARE_PERCENT=30`, `KS_ROOMS_FEED_ENABLED=1`, `KS_ROOMS_STARS_PER_DAY=10`. Recommendation: `KS_COMPOSER_POLICY=v1`. Asks: `KS_SUPPLY_ASK_DAILY_CAP=20`, `KS_SUPPLY_ASK_PERSON_DAILY_CAP=5`, `KS_SUPPLY_QUICK_ANSWER_DAILY_CAP=20`. Scouts are off (`KS_ROOMS_SCOUTS_ENABLED` unset). How to turn each off: the handover, "Recovery and rollback".
 
-**Decision numbers** run to D-398 (v3 from D-060). **Migration numbers** are assigned in merge order: dev refuses a migration whose name sorts before one it has applied, so an open PR renumbers to the next free number just before it merges.
+**Decision numbers** run to D-399 (v3 from D-060). **Migration numbers** are assigned in merge order: dev refuses a migration whose name sorts before one it has applied, so an open PR renumbers to the next free number just before it merges.
 
 ## What works on dev (v3)
 

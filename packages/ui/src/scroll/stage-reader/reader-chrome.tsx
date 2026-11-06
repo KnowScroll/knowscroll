@@ -9,7 +9,7 @@ import type { NextPartPeek } from './end-tray';
 import { SparkChip } from './play-chips';
 
 /**
- * The top bar of a v2 Scroll (D-133, D-185): Your Universe at the left, the Scroll's title with its
+ * The top bar of a v2 Scroll (D-133, D-185): Back for a standalone reader, otherwise Your Universe at the left, the title with its
  * kicker and Part ("SEASONS · Part 1 of 3") beside it, the Reel and Scroll switch, and Next ↑ for a new
  * topic in the same format when a swipe does not work. Every move the gestures make has a control here
  * or in the dock. Next says its word wherever the bar has the room (V3 P3, G1): always from tablet width, and on a
@@ -25,6 +25,7 @@ export function ReaderTopBar({
   partLabel,
   formatSwitch,
   onUniverse,
+  onBack,
   onNextTopic,
 }: {
   readonly title: string;
@@ -34,6 +35,8 @@ export function ReaderTopBar({
   readonly partLabel?: string | undefined;
   readonly formatSwitch?: ReactNode;
   readonly onUniverse: () => void;
+  /** Return to the screen that opened this reader; omitted in Explore, where the Universe control stays. */
+  readonly onBack?: (() => void) | undefined;
   readonly onNextTopic?: (() => void) | undefined;
 }) {
   const { breakpoint } = useDisplay();
@@ -45,7 +48,11 @@ export function ReaderTopBar({
   const where = [kicker, partLabel].filter((part) => part !== undefined && part !== '').join(' · ');
   return (
     <View style={styles.top} testID="reader-top-bar">
-      <IconButton icon="universe" label="Your Universe" variant="paper" onPress={onUniverse} />
+      {onBack === undefined ? (
+        <IconButton icon="universe" label="Your Universe" variant="paper" onPress={onUniverse} />
+      ) : (
+        <IconButton icon="back" label="Back" variant="paper" onPress={onBack} />
+      )}
       <View
         style={[styles.where, trying ? styles.whereTrying : null]}
         onLayout={roomForWord.onWhereLayout}

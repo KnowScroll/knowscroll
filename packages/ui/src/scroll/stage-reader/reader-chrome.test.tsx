@@ -17,6 +17,20 @@ const layout = (y: number, height: number): { nativeEvent: { layout: LayoutRecta
 });
 
 describe('Next in the top bar', () => {
+  it('returns to the opener instead of Universe when the screen supplies Back', async () => {
+    const back = jest.fn();
+    const universe = jest.fn();
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <ReaderTopBar title="A shared Scroll" onUniverse={universe} onBack={back} />
+      </DisplayProvider>,
+    );
+    await fireEvent.press(screen.getByRole('button', { name: 'Back' }));
+    expect(back).toHaveBeenCalledTimes(1);
+    expect(universe).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Your Universe' })).not.toBeOnTheScreen();
+  });
+
   it('says its word on a phone while the controls sit beside the title', async () => {
     await bar(390);
     expect(screen.getByText('Next')).toBeOnTheScreen();

@@ -2,6 +2,9 @@
 
 ## Follow a rendered encounter
 
+`ReaderTopBar` accepts an optional `onBack` callback for standalone readers. When supplied, its leading
+control is Back; otherwise it remains Your Universe. Routing and restoring the opener belong to the app.
+
 The app supplies a document and semantic callbacks; this package draws it with shared design
 tokens. A button reports an action to its caller. It does not authenticate, call the API or decide
 whether that person may save, share or read something. The app and client-core own those effects.
