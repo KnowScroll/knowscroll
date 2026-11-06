@@ -17,6 +17,20 @@ it('bounds a grounded starter to three sentences without relaxing citations', ()
 });
 const HANDLES = ['e1', 'e2', 'e3', 'e4'];
 
+it('lets an asked writer choose only a code-authored social reply, including without library passages', () => {
+  for (const inhabitant of ['explainer', 'skeptic'] as const) {
+    const role = inhabitantRole(inhabitant, []);
+    const reply = { kind: 'conversation', reply: 'check_in', text: '', cites: [] };
+    expect(role.outputSchema.safeParse(reply).success).toBe(true);
+    expect(role.outputSchema.safeParse({ ...reply, text: 'An unchecked factual claim.' }).success).toBe(false);
+    expect(role.outputSchema.safeParse({ ...reply, reply: 'invent_your_own' }).success).toBe(false);
+    expect(role.outputSchema.safeParse({ kind: 'explanation', text: 'An unchecked fact.', cites: [] }).success).toBe(
+      false,
+    );
+    expect(residentRole(inhabitant, []).outputSchema.safeParse(reply).success).toBe(false);
+  }
+});
+
 /** The fixed hint code a schema refusal names, or 'shape' for a refusal that has none, or undefined when it is accepted. */
 function refusedWith(inhabitant: 'explainer' | 'skeptic', answer: unknown): string | undefined {
   const parsed = answerSchema(inhabitant, HANDLES).safeParse(answer);

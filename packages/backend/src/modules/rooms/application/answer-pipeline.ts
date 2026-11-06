@@ -13,6 +13,7 @@ import {
   type GroundPassage,
 } from '../domain/answer-support.js';
 import type { ContributionKind } from '../domain/contribution.js';
+import { CONVERSATION_REPLIES, type ConversationReply } from '../domain/conversation.js';
 import {
   figureFlags,
   mergeFlags,
@@ -94,7 +95,7 @@ export interface PipelineInput {
   readonly origin: AnswerOrigin;
   readonly turnId: string;
   readonly material: ContributionMaterial;
-  /** The passages chosen for this answer; never empty (no passage, no model). */
+  /** Empty only for an asked writer choosing a code-authored social reply or an honest refusal. */
   readonly ground: readonly GroundPassage[];
   /** The writer's role over the handles of `ground`. */
   readonly writer: ReasoningRole<InhabitantAnswer>;
@@ -103,6 +104,7 @@ export interface PipelineInput {
 }
 
 type Drafted =
+  | { readonly kind: 'conversation'; readonly reply: ConversationReply; readonly attemptId: string }
   | {
       readonly kind: 'draft';
       readonly answer: InhabitantAnswer & { readonly kind: ContributionKind };
@@ -150,10 +152,22 @@ export async function answerAndCheck(
   const context = contributionContext(input.material, input.ground);
   const first = await draftOf(
     model,
-    { step: 'write', runId: input.turnId, role: input.writer, context, allowRepair: true },
+    { step: 'write', runId: input.turnId, role: input.writer, context, allowRepair: input.ground.length > 0 },
     runs,
     signal,
   );
+  if (first.kind === 'conversation') {
+    if (input.origin !== 'asked') return failedClosed(runs);
+    return {
+      verdict: {
+        kind: 'post',
+        answer: { kind: 'conversation', text: CONVERSATION_REPLIES[first.reply] },
+        attemptId: first.attemptId,
+      },
+      support: undefined,
+      runs,
+    };
+  }
   if (first.kind !== 'draft') return endedWithout(first, runs, []);
 
   const firstLook = await examine(model, input, first.answer, 1, true, runs, signal);
@@ -179,7 +193,7 @@ export async function answerAndCheck(
   );
   const flaggedFirst = firstLook.flagged.length;
   // A rewrite that is no usable answer, or that says nothing supported is left, leaves the library without an answer.
-  if (second.kind === 'nothing_to_add' || second.kind === 'invalid')
+  if (second.kind === 'nothing_to_add' || second.kind === 'invalid' || second.kind === 'conversation')
     return notCovered(runs, [flaggedFirst], first.attemptId);
   // The writer and the first check were paid for. A rewrite that was refused, ran out of budget or was never sent therefore
   // leaves the turn counted: the ask is not handed back to the asked bounds, nor the turn to the unprompted caps.
@@ -205,6 +219,7 @@ async function draftOf(
   if (outcome.kind === 'invalid_output') return { kind: 'invalid' };
   if (outcome.kind !== 'proposed') return { kind: 'failed', verdict: unproposedVerdict(outcome) };
   const { kind, text, cites } = outcome.output;
+  if (kind === 'conversation') return { kind, reply: outcome.output.reply, attemptId: outcome.attemptId };
   if (kind === 'nothing_to_add') return { kind: 'nothing_to_add' };
   if (kind === 'not_covered') return { kind: 'not_covered', attemptId: outcome.attemptId };
   return { kind: 'draft', answer: { kind, text: text.trim(), cites }, attemptId: outcome.attemptId };
@@ -282,7 +297,7 @@ const failedClosed = (runs: readonly ModelRun[]): PipelineResult => ({
 
 /** The pipeline ends before a draft is looked at (or after a rewrite that is not a draft): the writer's own verdict is the turn's. */
 function endedWithout(
-  drafted: Exclude<Drafted, { kind: 'draft' }>,
+  drafted: Exclude<Drafted, { kind: 'draft' | 'conversation' }>,
   runs: readonly ModelRun[],
   flagged: readonly number[],
 ): PipelineResult {

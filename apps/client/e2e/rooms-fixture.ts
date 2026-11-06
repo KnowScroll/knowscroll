@@ -360,6 +360,24 @@ export async function roomFixture(
             : {}),
         },
       });
+    if (path === '/v1/rooms/discussions/send') {
+      const sent = text(messages.length + 1, ravi, (body['body'] as { text: string }).text, 0);
+      messages.push(sent);
+      return route.fulfill({
+        json: {
+          ...base,
+          commandId: body['commandId'],
+          recordedAt: sent.recordedAt,
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'discussion.send',
+          roomId: room.roomId,
+          discussionId: generalId,
+          messageId: sent.messageId,
+          messageSequence: sent.sequence,
+        },
+      });
+    }
     if (path === '/v1/rooms/discussions/read')
       return route.fulfill({
         json: {

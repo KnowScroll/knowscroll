@@ -145,6 +145,78 @@ describe('a room discussion on the client', () => {
     expect(sends[0]).toBe(sends[1]);
   });
 
+  it('reads real preparing and refused state after sending an addressed message, without a second ask path', async () => {
+    const stored: RoomMessage[] = [];
+    let preparing = false;
+    let declined = false;
+    const scope = scopeOf({
+      readDiscussion: () =>
+        Promise.resolve(
+          readyView(stored, {
+            inhabitants: inhabitants(preparing ? 'preparing' : 'available'),
+            ...(declined ? { yourAsk: { inhabitant: 'explainer', outcome: 'could_not_answer' } } : {}),
+          }),
+        ),
+      send: (input: { body: { text: string } }) => {
+        stored.push(text(1, input.body.text));
+        preparing = true;
+        return Promise.resolve({ messageSequence: 1, replayed: false });
+      },
+      changes: () =>
+        Promise.resolve({
+          status: 'ready',
+          changes: stored.map((message) => ({ changeSequence: message.sequence, message })),
+          continuation: { kind: 'caught_up', cursor: cursor(stored.length) },
+        }),
+    });
+    const controller = createRoomDiscussion({ scope, roomId, discussionId, newId });
+    await controller.load();
+    await controller.send({ kind: 'text', text: '@Nova how are you' });
+    expect(controller.getState().view?.inhabitants[0]?.ask).toBe('preparing');
+    expect(scope.calls.filter((call) => call.name === 'send')).toHaveLength(1);
+    expect(scope.calls.filter((call) => call.name === 'askInhabitant')).toHaveLength(0);
+    preparing = false;
+    declined = true;
+    await controller.refresh();
+    expect(controller.getState().view?.yourAsk?.outcome).toBe('could_not_answer');
+  });
+
+  it.each(['send', 'preparing'] as const)(
+    'does not skip moderation of older loaded messages when refreshing %s feedback',
+    async (kind) => {
+      let reads = 0;
+      const scope = scopeOf({
+        readDiscussion: () => {
+          reads++;
+          return Promise.resolve(
+            reads === 1
+              ? readyView([text(1, 'old words'), text(2, 'newer')], {
+                  inhabitants: inhabitants(kind === 'preparing' ? 'preparing' : 'available'),
+                })
+              : { ...readyView([text(2, 'newer'), text(3, '@Nova hello')]), catchUpCursor: cursor(4) },
+          );
+        },
+        send: () => Promise.resolve({ messageSequence: 3, replayed: false }),
+        changes: (input: { cursor: string }) => {
+          expect(input.cursor).toBe(cursor(2));
+          return Promise.resolve({
+            status: 'ready',
+            changes: [
+              { changeSequence: 3, message: text(3, '@Nova hello') },
+              { changeSequence: 4, message: removed(1) },
+            ],
+            continuation: { kind: 'caught_up', cursor: cursor(4) },
+          });
+        },
+      });
+      const controller = createRoomDiscussion({ scope, roomId, discussionId, newId });
+      await controller.load();
+      if (kind === 'send') await controller.send({ kind: 'text', text: '@Nova hello' });
+      else await controller.refresh();
+      expect(controller.getState().messages[0]?.status).toBe('removed');
+    },
+  );
+
   it('reads the discussion again while an inhabitant is preparing, so its reply and the end of the wait show', async () => {
     let preparing = true;
     const scope = scopeOf({

@@ -104,7 +104,7 @@ export function actionsFor(
   return {
     canStartThread: isCard,
     canStartTopic: available && message.body.kind === 'text',
-    canAsk: available && message.body.kind !== 'topic' && !isGapLine(message),
+    canAsk: available && message.body.kind !== 'topic' && message.suggestion !== 'conversation' && !isGapLine(message),
     canUseful: available && !mine && message.body.kind !== 'topic',
     canModerate: role === 'moderator' && (message.status === 'removed' || message.status === 'available'),
     canReport: message.status === 'available' && !mine,
@@ -562,6 +562,7 @@ export function RoomMessages({
                   )}
                   {message.status === 'available' &&
                   message.author.kind !== 'person' &&
+                  message.suggestion !== 'conversation' &&
                   !folded &&
                   !isGapLine(message) ? (
                     <View style={styles.askRow} testID={`ai-actions-${message.messageId}`}>

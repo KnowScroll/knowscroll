@@ -4594,7 +4594,6 @@ A plain Ask after social-only words, like an @mention greeting, has nothing to a
 
 Verification: `rooms-conversation.test.ts`, `rooms-answer-support.test.ts`, `asks.test.ts`, `router.test.ts` and the room client suite. These fixtures prove code behavior; live observations belong in the PR.
 
-
 ## D-397 · 2026-11-06 · Scrolls explain first; predictions are optional (#670)
 
 Owner amendment to the quiz cadence in D-062, D-124, D-126, D-187, D-199 and D-217; D-063 and D-188 still bind.
@@ -4609,3 +4608,28 @@ Verification status belongs in the #670 PR; this decision is policy, not a claim
 ## D-398 · 2026-11-06 · Standalone Stage + Spine Scrolls expose Back (#684)
 
 Amends D-133/D-185’s leading control only for a Scroll opened by address, including shared cards in Talk and room Feed. It shows Back using the same existing navigation stack as the article and Reel readers. Popping preserves the opener’s tab and scroll position; with no app history, Back returns to Explore. Explore retains Your Universe, and thread readers retain Back to thread. This is navigation only: returning creates no content or encounter commands. Immutable design exports remain unchanged.
+
+## D-399 · 2026-11-06 · Addressing a room resident starts a bounded conversation, including social replies (#668, #688)
+
+**Owner feedback:** “@Nova how are you” still reached the factual library fallback after Ask; @ should offer the
+room’s actual AI residents and let the person compose naturally. **Amends** D-301 and D-396 for asked social turns.
+
+- An explicit mention is an address, even without interrogative grammar. The existing asked worker may choose a
+  finite social reply key (greeting, check-in, thanks, identity, capabilities, listening invitation or clarification).
+  Code authors those short, non-factual words; the schema permits no model prose/citations for that key. It never
+  licenses arbitrary unchecked conversation or factual advice. Mixed social/factual requests use the factual path.
+- This uses the same writer run, recording-aware harness, paid-attempt ceiling, retry ledger, worker authority and
+  final recording fence. With no passages, only an asked writer may make one unrepaired attempt for a social key
+  or an honest refusal. It cannot post a factual draft without cited ground. Budget/refusal/unknown outcomes keep
+  the existing quiet failure behavior. Unprompted residents still need ground before any provider call.
+- The next text of the original asker immediately after a visible resident answer, within ten minutes, can continue
+  it without @. Another human intervening, hidden context, missing membership/authority or an expired window stops
+  that implicit address. An explicit resident name takes precedence. Asked caps and one open ask per discussion bind.
+- Typing @ in a room shows its current cast, filters partial names and exposes AI identity and availability. Pointer,
+  touch, arrows and Enter/Tab insert the canonical mention; Escape closes suggestions. Picking never sends or calls
+  a provider. A recipient line confirms the draft target, and real preparing state gives reply feedback. Account/epoch
+  disposal and access loss clear the menu with its screen; no new persistence or network path is introduced.
+- Social messages are `conversation`, labelled Reply and AI, with no factual support record. Migration 0106 changes
+  only the message-kind constraint. Facts retain D-301/D-316’s checks. AI Off/Quieter, keep-out, blocks, recording,
+  membership revocation, router starter suppression and cooldowns keep their existing meanings. The broad room
+  redesign stays #667’s work; this slice owns mention discovery and the resulting resident conversation.

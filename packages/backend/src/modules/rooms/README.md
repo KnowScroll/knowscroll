@@ -39,10 +39,23 @@ A room's residents also post finds: three times a day each looks at the room and
 
 ## Conversation routing (implemented, D-396)
 
-A plain Ask or @mention after social-only words stays quiet: no passage read, provider call or coverage fallback.
-A short follow-up such as “why?” from the original asker, immediately after a resident answer within ten minutes,
-queues the existing pointed ask. It carries the new message as focus and the preceding exchange as context,
-uses the personal recording fence and asked bounds, and passes the same factual checks. It is not an extra reply path.
+An explicit Ask or @mention enters the existing recording-aware worker for ordinary wording, including social
+check-ins and fragments, without a question-word gate. The writer may choose a bounded `conversation` key for a
+purely social exchange. Code supplies its short acknowledgement, identity/capabilities response or clarification;
+model prose and citations must be empty for that key. No unchecked factual text is posted. Factual replies still
+cite library passages and pass the strict support check and at most one rewrite. The same writer run, attempt
+ledger, paid-attempt ceiling, recording fence and authority checks apply to both kinds (D-399).
+
+With no library passage, an asked writer may make one attempt without repair to choose a social key or say
+`not_covered`/`nothing_to_add`; a factual draft without citations is invalid. Unprompted workers still make no call
+without ground. A failed, unavailable-budget or unknown attempt posts nothing, and no second reply path is added.
+A code-authored social response has wire kind `conversation`, no support record, and the UI labels it Reply plus AI.
+Migration 0106 widens only the message-kind check; older clients must reload to understand it.
+
+The original asker’s next text message immediately after a resident answer, within ten minutes, continues the
+exchange through the existing pointed ask, even without @ or a question word. A hidden preceding message, another
+human intervening or an expired window stops this implicit continuation. Explicitly naming another resident wins.
+The room lock serialises admission and all existing asked bounds still apply.
 
 A social-only greeting in General after 12 hours without a human message (including a new room’s first greeting)
 gives Nova one starter opportunity. Opening, reopening and presence heartbeats do not schedule it. The existing
@@ -258,7 +271,7 @@ A resident that states a fact has looked it up. Every answer a resident gives, t
 
 - **Passages.** `answer-ground.ts` reads the admitted library Scrolls under the room's topic (`READ_LIBRARY_PASSAGES`, shared content, outside every transaction) and chooses up to four stops of them by the key words they share with the discussion's title, the title of its content and the message being answered with the two before it. Code chooses; the model never does. No passage fits: no model is asked, a member who asked is given the fixed line, and a resident that spoke on its own stays quiet and the turn is handed back.
 - **A message that asks nothing.** A message that names a resident (`@Nova thanks, that helps`, `hi @Halley`) and has no question mark, no interrogative or request opening (`asksSomething`) is an ask that asks nothing: the resident is not asked, nothing is read, nothing is posted and no fixed line is said. The turn ends `declined` ("had nothing to add") and counts as one of the member's asks. A pointed ask (challenge, the other side, about) and a left question are requests in themselves.
-- **The writer** (`inhabitant.3`, `resident.3`) cites one to three passages by handle (`e1`…) in `cites`, may answer `not_covered`, and writes at most ten sentences. The schema refuses a missing, unknown, repeated or excess citation with a fixed hint for the harness's one repair.
+- **The writer** (`inhabitant.4`, `resident.3`) cites one to three passages by handle (`e1`…) in `cites`, may answer `not_covered`, and writes at most ten sentences. The schema refuses a missing, unknown, repeated or excess citation with a fixed hint for the harness's one repair.
 - **The check.** Code applies the figure rule (D-302: every figure in a sentence is written, the same way, by a passage the answer cites) and the shared support checker (`content/public.ts`: `askSupportRole`, `askSupportContext`, `verdictsOf`, version `ask-support-check.v5`) reads each sentence against the passages cited, in one request, under the roles `rooms.inhabitant-support` (a member's ask, the asker's recording-aware personal harness) and `rooms.ambient-support` (a resident on its own, the room scope, `ambient`). A verdict that breaks a rule makes only its sentence unsupported (D-265). A resident's answer keeps the strict rules of v4 under the v5 checker (D-316): a quote needs two key words shared with a sentence of any length, and a short figure-free sentence is never "no fact" on the checker's word. The softer rules of D-306 and D-307 are an ask order's alone, since only its answer has a drop behind them (D-310). A quote may come from any passage the answer cites (D-305), which for a resident is the same list for every sentence. A resident's answer is one rewrite, then posted whole or not at all (D-301).
 - **One rewrite.** A flagged sentence earns the writer's role as a revision (`.fix`), shown the sentence and a fixed hint, never the checker's words, and the rewrite is checked once. Cleared: posted. Still flagged, or the writer or the rewrite says the passages do not cover it: a member who asked is given `NOT_COVERED_LINE` ("The library doesn't cover that yet. Ask from here on a Scroll to have one made."), an AI message of kind `explanation` labelled as the resident asked; a resident that spoke on its own says nothing and the turn is `declined` and counted (D-304). A step that failed, was refused or ran out of budget, or a checker reply code refuses, ends the turn as failed: nothing unchecked is ever posted.
 - **Bound.** Writer and repair, check and repair, one rewrite, one check: six paid attempts (`ANSWER_PAID_ATTEMPTS`). The claim of `rooms.contribute` and `rooms.cast-pass` is 6 x (10 + 300 + 10) + 30 = 1,950 s by the reasoning README's rule (D-303). Caps are unchanged: the asked bounds, the unprompted caps, the AI levels and keep-out. An idle room, a calm message and a world with residents off queue nothing, read no passage and make no call.

@@ -9,8 +9,8 @@ import {
   type RunOwner,
 } from '../../../reasoning/public.js';
 import type { CheckPersonalOwnerActive, PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
-import { ANSWER_SUPPORT_POLICY, NOT_COVERED_LINE } from '../domain/answer-support.js';
-import { asksSomething, isSocialOnly, pointedKind } from '../domain/asks.js';
+import { NOT_COVERED_LINE } from '../domain/answer-support.js';
+import { pointedKind } from '../domain/asks.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
 import type { ContributeJob } from '../events.js';
 import { aboutText, type ReadGround } from './answer-ground.js';
@@ -129,19 +129,9 @@ function recordingModel(
 }
 
 /**
- * Whether the message that named a resident asks it something (D-301). A greeting, thanks or a bare @name asks nothing, so the
- * resident has nothing to answer and is not asked, and no "the library doesn't cover that" is said to a member who asked nothing.
- * Every other kind of ask is a request in itself: the member pointed it at a message or asked it of the discussion.
- */
-function mentionAsksSomething(material: ContributionMaterial): boolean {
-  const named = material.focus === undefined ? undefined : material.messages[material.focus - 1];
-  return named === undefined || asksSomething(named.text);
-}
-
-/**
- * Step 2, outside every transaction: the passages for the question (shared library content, chosen by code), then the writer, the
- * figure rule and the support check, and at most one rewrite. While the asker's recording is paused nothing is read or asked and
- * the ask ends as failed, not counted. When no passage of the library fits the question no model is asked: the resident says so.
+ * Outside every transaction, the ordinary asked writer chooses a code-authored social reply or drafts a factual
+ * answer over the room's passages. Facts still pass the strict support pipeline. Without passages, the one
+ * unrepaired writer attempt can only produce a social key or an honest refusal, never unchecked factual prose.
  */
 async function answer(
   p: ContributePorts,
@@ -152,18 +142,8 @@ async function answer(
 ): Promise<PipelineResult> {
   const { request, material, topic, owner } = prepared;
   if (owner === undefined) return { verdict: { kind: 'failed', dispatched: false }, support: undefined, runs: [] };
-  if (request.askKind === 'mention' && !mentionAsksSomething(material))
-    return { verdict: { kind: 'nothing_to_add' }, support: undefined, runs: [] };
-  // A plain Ask refers to the latest words, even when those words are only a greeting or thanks.
-  if (request.askKind === 'ask' && (material.messages.length === 0 || isSocialOnly(material.messages.at(-1)!.text)))
-    return { verdict: { kind: 'nothing_to_add' }, support: undefined, runs: [] };
+  if (material.messages.length === 0) return { verdict: { kind: 'nothing_to_add' }, support: undefined, runs: [] };
   const ground = await p.readGround(topic, aboutText(material));
-  if (ground.length === 0)
-    return {
-      verdict: { kind: 'not_covered' },
-      support: { policy: ANSWER_SUPPORT_POLICY, result: 'no_ground', cited: [], flagged: [] },
-      runs: [],
-    };
   return answerAndCheck(
     recordingModel(harness, owner, authority),
     {
@@ -187,7 +167,7 @@ async function answer(
  * role). The person who asked is a member whose universe and epoch the job names. A pointed ask or a mention reads
  * the message it is about as the turn's focus; if that message is gone or kept out, the ask ends without a call.
  *
- * An answer that states a fact rests on library passages chosen by code for the room and the question, and is posted only after
+ * A social reply is code-authored from the asked writer’s bounded key. An answer that states a fact rests on library passages chosen by code for the room and the question, and is posted only after
  * it passed the shared support check (D-301). Steps: (1) one transaction rechecks authority, reads this room's own discussion and
  * reduces it to the bounded context, and learns the generation the asker's recording is at; (2) outside any transaction the
  * passages are read and chosen, and the recording-aware harness makes the writer's call (one repair), the check of its answer (one

@@ -1,22 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CAST } from './cast.js';
-import {
-  asksSomething,
-  isShortFollowUp,
-  isSocialOnly,
-  mentionedResident,
-  pointedKind,
-  residentForAsk,
-} from './asks.js';
+import { isSocialOnly, mentionedResident, pointedKind, residentForAsk } from './asks.js';
 
 it('separates social-only words from factual questions and contextual follow-ups', () => {
   for (const text of ['yooo', 'hello!', '@Nova thanks, that helps', 'thank you so much'])
     expect(isSocialOnly(text)).toBe(true);
   for (const text of ['Hi, why does Earth have seasons?', 'thanks but why?', 'thanks for explaining tides', 'why?'])
     expect(isSocialOnly(text)).toBe(false);
-  expect(isShortFollowUp('why?')).toBe(true);
-  expect(isShortFollowUp('how so')).toBe(true);
-  expect(isShortFollowUp('Why does Earth have seasons?')).toBe(false);
 });
 
 describe('which resident an ask is for', () => {
@@ -61,31 +51,5 @@ describe('mentionedResident', () => {
     expect(mentionedResident('@N.va hello', cast)).toBe('explainer');
     expect(mentionedResident('@Nova hello', cast)).toBeUndefined();
     expect(mentionedResident('@Hal(ley hello', cast)).toBe('skeptic');
-  });
-});
-
-describe('asksSomething', () => {
-  it('is true for a question mark anywhere, an interrogative opening and a request verb, whatever the @name or the greeting', () => {
-    expect(asksSomething('@Nova what is a spring tide?')).toBe(true);
-    expect(asksSomething('@Nova why is the sky blue')).toBe(true);
-    expect(asksSomething('hi @Nova, how do tides work')).toBe(true);
-    expect(asksSomething('@Halley is that so')).toBe(true);
-    expect(asksSomething('@Nova explain the far-side bulge')).toBe(true);
-    expect(asksSomething('Please tell me about the Moon @Nova')).toBe(true);
-    expect(asksSomething('thanks @Nova, but wait? is it so')).toBe(true);
-  });
-
-  it('is false for a greeting, thanks or a bare @name', () => {
-    for (const text of [
-      '@Nova',
-      'hi @Halley',
-      '@Nova hello?',
-      '@Nova thanks, that helps',
-      'Thank you so much @Nova!',
-      '@Halley nice one',
-      'great, thanks @Nova',
-      '@Nova @Halley good morning',
-    ])
-      expect(asksSomething(text)).toBe(false);
   });
 });

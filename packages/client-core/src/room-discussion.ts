@@ -181,16 +181,26 @@ export function createRoomDiscussion(options: RoomDiscussionOptions): RoomDiscus
     });
   }
 
+  const readView = () =>
+    scope.api.rooms.readDiscussion({ version: VERSION, readId: newId(), ...ids, limit: SNAPSHOT_LIMIT });
+
   async function load(replace = false): Promise<void> {
     try {
-      const view = await scope.api.rooms.readDiscussion({
-        version: VERSION,
-        readId: newId(),
-        ...ids,
-        limit: SNAPSHOT_LIMIT,
-      });
+      const view = await readView();
       if (view.status === 'unavailable') publish({ phase: 'unavailable' });
       else applySnapshot(view, replace);
+    } catch (error) {
+      failed(error);
+    }
+  }
+
+  /** Refresh preparing/refusal metadata without advancing past changes to older loaded messages. */
+  async function refreshStatus(): Promise<void> {
+    try {
+      const view = await readView();
+      if (view.status === 'unavailable') publish({ phase: 'unavailable' });
+      else if (catchUpCursor === undefined) applySnapshot(view, false);
+      else publish({ view, offline: false });
     } catch (error) {
       failed(error);
     }
@@ -311,7 +321,9 @@ export function createRoomDiscussion(options: RoomDiscussionOptions): RoomDiscus
       if (kind === 'unavailable') void load();
       return;
     }
-    await catchUp();
+    // Sending may admit an implicit/mentioned ask. Read its actual status, never commission another ask here.
+    await refreshStatus();
+    if (state.phase === 'ready') await catchUp();
   }
 
   function setOutgoing(commandId: string, patch: Partial<OutgoingRoomMessage>): void {
@@ -332,10 +344,10 @@ export function createRoomDiscussion(options: RoomDiscussionOptions): RoomDiscus
       if (state.phase === 'unavailable') return;
       if (catchUpCursor === undefined) await load();
       else {
-        await catchUp();
         // The contribution of an inhabitant that was preparing arrives as a message; its outcome and the room's
         // other state (pins, the bound) are only in a fresh read.
-        if (preparing()) await load();
+        if (preparing()) await refreshStatus();
+        if (state.phase === 'ready') await catchUp();
       }
     },
     async loadOlder() {

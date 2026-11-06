@@ -312,3 +312,7 @@ other slices.
 existing rows. Rooms owns the behavior: a human greeting in a quiet General enters the existing router, caps,
 worker, support checks and ledger. The room lock serialises the rolling cooldown and the existing cause/trigger
 unique index deduplicates jobs. Disable residents to stop new starters; clients predating the trigger need an update.
+
+0106 adds `conversation` to the existing room message AI-kind check (D-398, #668/#688). It holds only a code-authored
+social reply selected by an asked writer; factual kinds retain their citation/support pipeline. No columns,
+queues, ledger or retention change. Clients predating the additive kind must reload. Rooms owns the invariant.

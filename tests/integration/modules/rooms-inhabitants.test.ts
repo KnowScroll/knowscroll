@@ -126,7 +126,7 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     expect(request).toMatchObject({
       state: 'completed',
       inhabitant: 'skeptic',
-      role_version: 'inhabitant.3',
+      role_version: 'inhabitant.4',
       model: 'fixture-model-v1',
     });
     expect(request.prompt_version).toMatch(/\S/);
@@ -585,21 +585,31 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
       expect(await noRunAtTheNewGeneration(ravi)).toBe('0');
     });
 
-    it('stores nothing when recording is paused between the answer and the store', async () => {
-      const { roomId, ravi, discussionId, model, contribute } = await recordingConversation(() =>
-        answer('assumption', 'unstored'),
-      );
-      const job = await askAndTake(ravi, roomId, discussionId);
-      beforeApply = async () => {
-        beforeApply = () => Promise.resolve();
-        await setRecording(database, ravi, 1, false);
-      };
-      await contribute(job);
-      expect(model.calls).toHaveLength(1);
-      expect(await requestState(job.requestId)).toMatchObject({ state: 'failed', dispatched: true });
-      expect(JSON.stringify(await messagesOf(ravi, roomId, discussionId))).not.toContain('unstored');
-      expect((await runsOf(job.requestId)).map((run) => run.state)).toEqual(['admitted']);
-    });
+    it.each(['grounded', 'conversation'])(
+      'stores nothing for a %s reply when recording is paused between the answer and the store',
+      async (kind) => {
+        const { roomId, ravi, discussionId, model, contribute } = await recordingConversation(() =>
+          kind === 'conversation'
+            ? {
+                kind: 'success',
+                text: JSON.stringify({ kind: 'conversation', reply: 'check_in', text: '', cites: [] }),
+              }
+            : answer('assumption', 'unstored'),
+        );
+        const job = await askAndTake(ravi, roomId, discussionId);
+        beforeApply = async () => {
+          beforeApply = () => Promise.resolve();
+          await setRecording(database, ravi, 1, false);
+        };
+        await contribute(job);
+        expect(model.calls).toHaveLength(1);
+        expect(await requestState(job.requestId)).toMatchObject({ state: 'failed', dispatched: true });
+        const saved = JSON.stringify(await messagesOf(ravi, roomId, discussionId));
+        expect(saved).not.toContain('unstored');
+        expect(saved).not.toContain('I’m here and ready to chat.');
+        expect((await runsOf(job.requestId)).map((run) => run.state)).toEqual(['admitted']);
+      },
+    );
 
     it('stores nothing for an answer in flight across Clear: nothing is written for the new epoch', async () => {
       let release: (scenario: FixtureScenario) => void = () => undefined;
