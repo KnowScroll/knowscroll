@@ -1,3 +1,5 @@
+import { adaptive } from './adaptive';
+
 /**
  * Stacking layers. The export has no z-index (stacking is by DOM order); these name the order it
  * implies, bottom to top. Banners are inline and need no layer.
@@ -18,10 +20,11 @@ export const layer = {
 /**
  * Focus rings (D-006 n), chosen by the surface the ring is drawn on: cobalt on paper; yellow on
  * ink, space and cobalt media, where cobalt would vanish. Selection highlight is a different
- * thing and never stands in for focus.
+ * thing and never stands in for focus. `onLight` is the ring on the page's own ground, so it follows
+ * Appearance (#666): cobalt on paper, yellow on the dark sky.
  */
 export const focusRing = {
-  onLight: { width: 3, offset: 3, color: '#2C46E8' },
+  onLight: { width: 3, offset: 3, color: adaptive('focus') },
   onDark: { width: 3, offset: 3, color: '#FFE44D' },
 } as const;
 

@@ -8,7 +8,7 @@ import {
 } from '@knowscroll/client-core';
 import type { ChallengeCard } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, status, target, universe } from '@knowscroll/design-tokens';
-import { Banner, Button, Icon, Text, useFocusRing } from '@knowscroll/ui';
+import { Banner, Button, Icon, printedSurface, Text, useFocusRing } from '@knowscroll/ui';
 
 type Revealed = Extract<ChallengeCard, { stage: 'revealed' }>;
 
@@ -45,7 +45,8 @@ export function ChallengeBlock({
     if (picked !== undefined && !locking) onLock(picked);
   };
   return (
-    <View role="region" aria-label="Challenge" style={styles.block} testID="challenge-block">
+    // A paper card in both appearances (T3 kit), so the words on it keep their ink (#666).
+    <View role="region" aria-label="Challenge" style={styles.block} testID="challenge-block" {...printedSurface()}>
       <View
         style={[styles.band, { backgroundColor: revealed && !challenge.right ? status.danger.fill : universe.focus }]}
       >

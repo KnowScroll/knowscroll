@@ -11,7 +11,7 @@ import {
 } from '@knowscroll/client-core';
 import type { ScenarioCard } from '@knowscroll/contracts';
 import { borderWidth, radius, spacing, universe } from '@knowscroll/design-tokens';
-import { Button, Icon, PendingStripe, Tag, Text, useTalkTheme } from '@knowscroll/ui';
+import { Button, Icon, PendingStripe, printedSurface, Tag, Text, useTalkTheme } from '@knowscroll/ui';
 import { BranchMenu, SPECULATIVE_NOTICE } from './branch-parts';
 
 type ReadyAnswer = Extract<NonNullable<ScenarioCard['answer']>, { status: 'ready' }>;
@@ -179,7 +179,14 @@ export function WhatIfCard({
           {`WHAT-IF READY${madeInWords(seconds)} · ${clockTime(new Date(answer.readyAt))}`}
         </Text>
       ) : null}
-      <View role="article" accessibilityLabel={answerLabel(card)} style={styles.card} testID="what-if-card">
+      {/* A paper card in both appearances (T3 kit), so the words on it keep their ink (#666). */}
+      <View
+        role="article"
+        accessibilityLabel={answerLabel(card)}
+        style={styles.card}
+        testID="what-if-card"
+        {...printedSurface()}
+      >
         <Labels card={card} />
         <Text variant="monoXs" color={universe.ink2}>
           {making ? 'WHAT-IF · MAKING IT' : `${startedLine.toUpperCase()} · ${asker} · CHECKED`}

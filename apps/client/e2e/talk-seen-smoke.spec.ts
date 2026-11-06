@@ -5,7 +5,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 import { openPair, pairAddress, pairWorld, type PairWorld, type Who } from './talk-pair-fixture';
 
 /**
- * SEEN in a direct conversation and the Paper theme (v3 T-C, D-066, D-150, D-151) in the production export: two
+ * SEEN in a direct conversation and Light in Appearance (v3 T-C, D-066, D-150, D-151, D-400) in the production export: two
  * people in one conversation over labelled HTTP fixtures (no backend), each in their own browser context. The
  * fixture keeps the real server's rule: each person's read position moves by their own mark-read, and the other
  * person is told how far only while both people's switches are on. Screenshots are written only when
@@ -176,7 +176,7 @@ test('a message the other person has not read to stays Sent, and an older own me
   await closeAll(asha.context, ravi.context);
 });
 
-test('Paper is chosen in Account, applies to the conversation at once and is kept on this device', async ({
+test('Light is chosen in Account → Appearance, applies to the conversation at once and is kept on this device', async ({
   browser,
 }) => {
   const world = conversation();
@@ -185,12 +185,12 @@ test('Paper is chosen in Account, applies to the conversation at once and is kep
   // The dark sky first: the ground is the sky.
   await expect(page.getByTestId('conversation-messages')).toHaveCSS('background-color', 'rgb(2, 3, 8)');
 
-  await page.goto('/account/accessibility');
-  await expect(page.getByRole('radio', { name: 'Dark sky' })).toBeChecked();
-  await page.getByRole('radio', { name: 'Paper' }).click();
-  await expect(page.getByRole('radio', { name: 'Paper' })).toBeChecked();
+  await page.goto('/account/appearance');
+  await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked();
+  await page.getByRole('radio', { name: 'Light' }).click();
+  await expect(page.getByRole('radio', { name: 'Light' })).toBeChecked();
   expect(await page.evaluate(() => window.localStorage.getItem('ks.device.preferences'))).toContain(
-    '"talkTheme":"paper"',
+    '"appearance":"light"',
   );
 
   await page.goto(pairAddress('asha'));
@@ -209,8 +209,8 @@ test('axe finds nothing serious with SEEN showing, on the dark sky and on Paper,
   for (const viewport of [phone, desktop])
     for (const theme of ['sky', 'paper'] as const) {
       const world = conversation();
-      const asha = await person(browser, world, 'asha', viewport, { talkTheme: theme });
-      const ravi = await person(browser, world, 'ravi', viewport, { talkTheme: theme });
+      const asha = await person(browser, world, 'asha', viewport, { appearance: theme === 'sky' ? 'dark' : 'light' });
+      const ravi = await person(browser, world, 'ravi', viewport, { appearance: theme === 'sky' ? 'dark' : 'light' });
       await expect.poll(() => world.readThrough('ravi')).toBe(3);
       await asha.page.reload();
       await expect(asha.page.getByTestId('message-time').filter({ hasText: /Seen/i })).toHaveCount(1);

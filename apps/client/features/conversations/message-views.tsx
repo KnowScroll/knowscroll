@@ -4,7 +4,7 @@ import { Animated, Platform, StyleSheet, View } from 'react-native';
 import type { ConversationContentProjection } from '@knowscroll/contracts';
 import type { OutgoingMessage } from '@knowscroll/client-core';
 import { borderWidth, content, radius, spacing, status, universe } from '@knowscroll/design-tokens';
-import { Button, TalkBubble, Tag, Text, useDisplay, useTalkTheme } from '@knowscroll/ui';
+import { Button, printedSurface, TalkBubble, Tag, Text, useDisplay, useTalkTheme } from '@knowscroll/ui';
 
 /**
  * A shared Reel or Scroll as a card (T3 kit: paper, a chunky shadow). It shows only public metadata and
@@ -29,7 +29,7 @@ export function ContentCard({
   const router = useRouter();
   if (card.status === 'unavailable')
     return (
-      <View style={[styles.card, styles.unavailable]}>
+      <View style={[styles.card, styles.unavailable]} {...printedSurface()}>
         <Tag variant="neutral" label="Unavailable" />
         <Text variant="bodyS" color={universe.ink}>
           This content is no longer available.
@@ -44,7 +44,8 @@ export function ContentCard({
   const open = card.status === 'corrected' ? `Open updated ${word}` : `Open ${word}`;
   const path = `/${metadata.kind}/${card.target.assetId}`;
   return (
-    <View style={styles.card}>
+    // A shared Reel or Scroll is a paper card on either ground (D-145), so its words keep their ink (#666).
+    <View style={styles.card} {...printedSurface()}>
       <View style={styles.cardTop}>
         <Tag variant="neutral" label={word} />
         {card.status === 'corrected' ? <Tag variant="corrected" label="Updated" /> : null}

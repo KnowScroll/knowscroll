@@ -34,10 +34,12 @@ function StepCard({
 }) {
   const focus = useFocusRing(tone === 'now' ? 'onDark' : 'onLight');
   const dark = tone === 'now';
+  // Ink on the yellow Part cue in both appearances (#666); the ring around it stays the page's own.
+  const ink = tone === 'next' ? content.onContinue : content.ink;
   const body = (
     <>
       <Tag label={tag} variant={tone === 'related' || tone === 'previous' ? 'neutral' : 'part'} />
-      <Text variant="ui" color={dark ? content.paper : content.ink} style={narrow ? undefined : styles.stepTitle}>
+      <Text variant="ui" color={dark ? content.paper : ink} style={narrow ? undefined : styles.stepTitle}>
         {title}
       </Text>
       {tone === 'now' ? (
@@ -45,7 +47,7 @@ function StepCard({
           now
         </Text>
       ) : (
-        <Icon name={tone === 'previous' ? 'arrowLeft' : 'arrowRight'} size={20} color={content.ink} />
+        <Icon name={tone === 'previous' ? 'arrowLeft' : 'arrowRight'} size={20} color={ink} />
       )}
     </>
   );
@@ -225,7 +227,7 @@ const NARROW_ASIDE = 300;
 const stepLook: Record<'now' | 'previous' | 'next' | 'related', ViewStyle> = {
   now: { backgroundColor: content.ink, borderColor: content.ink },
   previous: { backgroundColor: content.paper, borderColor: content.ink },
-  next: { backgroundColor: content.continue, borderColor: content.ink },
+  next: { backgroundColor: content.continue, borderColor: content.onContinue },
   related: { backgroundColor: content.paper, borderColor: content.ink, borderStyle: 'dashed' },
 };
 

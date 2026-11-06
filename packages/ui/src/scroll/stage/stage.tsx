@@ -4,6 +4,7 @@ import { content, borderWidth, spacing } from '@knowscroll/design-tokens';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { Text } from '../../text/text';
 import { KIT_PICTURES } from '../kit';
+import { printedSurface } from '../../display/printed';
 import { dataSet } from '../stage-reader/data-set';
 import { tiltText } from '../stage-reader/tilt-control';
 import { stageEntryAt } from './stage-state';
@@ -74,11 +75,14 @@ export function Stage({
     <View
       testID="stage"
       style={[styles.frame, { height }]}
-      {...dataSet({
-        ksStageState: recapScene === undefined ? entry.stop : 'recap',
-        ksStageTransition: transition,
-        ...(turning === undefined ? {} : { ksStageTilt: String(turning.tilt) }),
-      })}
+      // The picture is authored art: Light values wherever it is drawn, in the reader or a sheet (#666).
+      {...printedSurface(
+        dataSet({
+          ksStageState: recapScene === undefined ? entry.stop : 'recap',
+          ksStageTransition: transition,
+          ...(turning === undefined ? {} : { ksStageTilt: String(turning.tilt) }),
+        }),
+      )}
     >
       {textVersion ? (
         <View style={styles.text}>

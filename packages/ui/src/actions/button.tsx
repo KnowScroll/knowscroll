@@ -75,7 +75,8 @@ const variants: Record<ButtonVariant, VariantStyle> = {
   },
   danger: {
     background: status.danger.fill,
-    foreground: content.paper,
+    // Cream on the danger fill in both appearances (`content.paper` turns dark in Dark).
+    foreground: content.onAccent,
     border: status.danger.fill,
     shadow: true,
     focus: 'onLight',
@@ -83,7 +84,8 @@ const variants: Record<ButtonVariant, VariantStyle> = {
   continue: {
     background: content.continue,
     foreground: content.onContinue,
-    border: content.ink,
+    // Ink on yellow in both appearances (#666); the ring around it stays the page's own.
+    border: content.onContinue,
     shadow: true,
     focus: 'onLight',
   },

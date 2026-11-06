@@ -11,7 +11,7 @@ import {
 } from '@knowscroll/client-core';
 import type { ThreadCall, ThreadCallPick } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, status, target, universe } from '@knowscroll/design-tokens';
-import { Banner, Button, Icon, Text, useFocusRing } from '@knowscroll/ui';
+import { Banner, Button, Icon, printedSurface, Text, useFocusRing } from '@knowscroll/ui';
 import { PersonAvatar } from '../conversations/person-avatar';
 
 /**
@@ -225,6 +225,8 @@ export function CallCard({
       onKeyDown={onKeyDown}
       style={styles.card}
       testID="call-card"
+      // A paper card in both appearances (T3 kit), so the words on it keep their ink (#666).
+      {...printedSurface()}
     >
       <View style={[styles.band, { backgroundColor: bandColour }]}>
         <Text variant="monoXs" color={content.ink} style={styles.bandText}>
@@ -355,7 +357,7 @@ export function CallBar({ call, onOpen }: { readonly call: ThreadCall; readonly 
         style={[styles.chip, focus.style]}
         testID="call-bar"
       >
-        <Text variant="uiS" color={content.ink}>
+        <Text variant="uiS" color={universe.ink}>
           {`★ ${words}`}
         </Text>
       </Pressable>
@@ -377,7 +379,7 @@ export function CallChip({ call, onOpen }: { readonly call: ThreadCall; readonly
       style={[styles.chip, focus.style]}
       testID={`call-chip-${String(call.part)}`}
     >
-      <Text variant="uiS" color={content.ink}>
+      <Text variant="uiS" color={universe.ink}>
         {`★ ${words}`}
       </Text>
     </Pressable>

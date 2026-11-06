@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import { borderWidth, content, dimension, radius, spacing } from '@knowscroll/design-tokens';
 import { Icon } from '../../icons/icon';
 import { Text } from '../../text/text';
+import { printedSurface } from '../../display/printed';
 
 /** The three looks of a play chip in the reveal: a right call, a Plot twist, and what a call earned. */
 export type PlayChipTone = 'called_it' | 'plot_twist' | 'earned';
@@ -33,6 +34,8 @@ export function PlayChip({
       accessible
       accessibilityRole="text"
       accessibilityLabel={label}
+      // Yellow carries ink in both appearances (#666).
+      {...(tone === 'earned' ? printedSurface() : {})}
       style={[styles.chip, { backgroundColor: look.background, borderColor: look.border }]}
     >
       <Text variant="label" color={look.foreground}>
@@ -50,6 +53,7 @@ export function SparkChip({ sparks }: { readonly sparks: number }) {
   return (
     <View
       testID="spark-chip"
+      {...printedSurface()}
       accessible
       accessibilityRole="text"
       accessibilityLabel={sparks === 1 ? '1 spark' : `${String(sparks)} sparks`}

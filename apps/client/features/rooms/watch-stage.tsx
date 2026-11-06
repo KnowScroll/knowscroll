@@ -13,7 +13,16 @@ import {
 } from '@knowscroll/client-core';
 import type { WatchSessionView } from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, IconButton, Skeleton, Text, type ReelControls, type ReelPlaybackView } from '@knowscroll/ui';
+import {
+  Banner,
+  Button,
+  IconButton,
+  printedSurface,
+  type ReelControls,
+  type ReelPlaybackView,
+  Skeleton,
+  Text,
+} from '@knowscroll/ui';
 import { useDevicePreferences } from '../../providers/device-preferences';
 import { ActivatedReelView } from '../reel/activated-reel-view';
 import { useReelExposure, type ReelExposure } from '../threads/reel-encounter';
@@ -445,6 +454,8 @@ export function WatchStage({
       <View
         style={[wide ? styles.stage : styles.stageFlush, { height: wide ? STAGE_MAX - 40 : stageHeight }]}
         testID="watch-stage"
+        // A Reel watched together and the words over it are media: Light values in both appearances (#666).
+        {...printedSurface()}
         role="region"
         accessibilityLabel="A Reel watched together"
       >

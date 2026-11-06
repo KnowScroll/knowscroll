@@ -6,7 +6,10 @@ its state and disposes it on cleanup. The signed-in subtree is keyed by the actu
 an account or epoch change cannot retain another scope's cached state or controllers.
 
 [device-preferences.tsx](device-preferences.tsx) sits above that scope. It applies motion, text,
-Talk theme and playback choices immediately and keeps them on the device. System reduced motion
+Appearance (Light or Dark, #666) and playback choices immediately and keeps them on the device.
+`PreferredAppearance` names the web page's appearance (`platform/appearance-page`) and gives Talk
+its theme; a value stored before Appearance carries its Talk choice over (Paper → Light, dark sky →
+Dark) and is rewritten once without `talkTheme`. System reduced motion
 cannot be overridden toward more motion. A preference is not permission to record personal data.
 
 The recording provider integration uses foreground/focus events to invalidate policy and obtain

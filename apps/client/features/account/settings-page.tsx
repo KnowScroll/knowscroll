@@ -11,6 +11,7 @@ const SETTINGS_PAGES = [
   { id: 'account', title: 'Account', href: '/account' },
   { id: 'requests', title: 'Your requests', href: '/account/requests' },
   { id: 'friends', title: 'Friends & visibility', href: '/friends' },
+  { id: 'appearance', title: 'Appearance', href: '/account/appearance' },
   { id: 'notifications', title: 'Notifications', href: '/account/notifications' },
   { id: 'accessibility', title: 'Accessibility & playback', href: '/account/accessibility' },
   { id: 'privacy', title: 'Privacy & history', href: '/account/privacy' },
@@ -58,7 +59,7 @@ export function SettingsNav({ current }: { readonly current: SettingsPageId }) {
 }
 
 /**
- * A page of the settings that is one small form (Notifications, Accessibility & playback): a
+ * A page of the settings that is one small form (Appearance, Notifications, Accessibility & playback): a
  * title and a Back to Account on a phone, and the settings list beside the cards on a desktop.
  */
 export function SettingsPage({

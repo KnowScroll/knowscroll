@@ -9,6 +9,7 @@ import { renderHook } from '@testing-library/react-native';
 import { FocusHaloProvider } from './focus-halo';
 import { useFocusRing } from './focus-ring';
 import { linkPress } from './link';
+import { printedSurface } from './printed';
 import {
   describedByElement,
   descriptionSemantics,
@@ -112,7 +113,10 @@ describe('useFocusRing (web)', () => {
     const sheets = document.querySelectorAll('style#ks-focus-ring');
     expect(sheets).toHaveLength(1);
     const css = sheets[0]?.textContent ?? '';
-    expect(css).toContain('[data-ks-focus="onLight"]:focus-visible{outline:3px solid #2C46E8;outline-offset:3px}');
+    // The ring on the page's own ground follows Appearance (#666): cobalt in Light, yellow in Dark.
+    expect(css).toContain(
+      '[data-ks-focus="onLight"]:focus-visible{outline:3px solid var(--ks-focus, #2C46E8);outline-offset:3px}',
+    );
     expect(css).toContain('[data-ks-focus="onDark"]:focus-visible{outline:3px solid #FFE44D;outline-offset:3px}');
     expect(css).toContain('[data-ks-focus]:focus{outline:none}');
   });
@@ -130,5 +134,13 @@ describe('useFocusRing (web)', () => {
       '[data-ks-focus="onLight"][data-ks-halo="light"]:focus-visible{box-shadow:0 0 0 8px #FFFFFF}',
     );
     expect(css).toContain('[data-ks-focus="onLight"][data-ks-halo="dark"]:focus-visible{box-shadow:0 0 0 8px #000000}');
+  });
+});
+
+describe('printedSurface (web, #666)', () => {
+  it('names the surface Light and keeps a focus ring’s own data attributes', async () => {
+    expect(printedSurface()).toEqual({ dataSet: { ksAppearance: 'light' } });
+    const focus = (await renderHook(() => useFocusRing('onLight'))).result.current.props;
+    expect(printedSurface(focus)).toMatchObject({ dataSet: { ksFocus: 'onLight', ksAppearance: 'light' } });
   });
 });

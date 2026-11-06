@@ -1,11 +1,24 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import { talkThemeForAppearance } from '@knowscroll/design-tokens';
 import { DisplayProvider, TalkThemeProvider, useDisplay } from '@knowscroll/ui';
 import {
   defaultDevicePreferences,
+  needsRewrite,
   parseDevicePreferences,
   textSizeFactor,
   type DevicePreferences,
 } from '../features/account/device-preferences';
+import { paintAppearance } from '../platform/appearance-page';
 import { devicePreferencesStore } from '../platform/device-preferences-store';
 
 interface DevicePreferencesValue {
@@ -35,6 +48,13 @@ export function DevicePreferencesProvider({
   const [preferences, setPreferences] = useState(
     () => initial ?? parseDevicePreferences(devicePreferencesStore.read()),
   );
+  // A value kept before Appearance (D-151's `talkTheme`) is written once in today's shape, so the carried-over choice
+  // is the only theme preference on this device (#666).
+  const [migrate] = useState(() => initial === undefined && needsRewrite(devicePreferencesStore.read()));
+  const first = useRef(preferences);
+  useEffect(() => {
+    if (migrate) devicePreferencesStore.write(JSON.stringify(first.current));
+  }, [migrate]);
   const update = useCallback(
     (change: Partial<DevicePreferences>) => {
       const next = { ...preferences, ...change };
@@ -70,11 +90,17 @@ export function PreferredDisplay({ children }: { readonly children: ReactNode })
   );
 }
 
+/** Layout effects need a DOM; the native and test renderers run the same work as an ordinary effect. */
+const useIsomorphicLayoutEffect = typeof document === 'undefined' ? useEffect : useLayoutEffect;
+
 /**
- * Gives every Talk screen below it the theme the person chose on this device: the dark sky, or Paper for long
- * reading (D-151). The components read their colours from the theme, so none of them knows the setting.
+ * Applies the person's Appearance (#666) to everything below it: on the web the page is named Light
+ * or Dark, which repaints every adaptive colour role at once; Talk's own role set follows it (Paper
+ * in Light, the sky in Dark, D-145), so no component reads the setting.
  */
-export function PreferredTalkTheme({ children }: { readonly children: ReactNode }) {
+export function PreferredAppearance({ children }: { readonly children: ReactNode }) {
   const { preferences } = useDevicePreferences();
-  return <TalkThemeProvider name={preferences.talkTheme}>{children}</TalkThemeProvider>;
+  // Before the first paint, so a Dark page never flashes Light.
+  useIsomorphicLayoutEffect(() => paintAppearance(preferences.appearance), [preferences.appearance]);
+  return <TalkThemeProvider name={talkThemeForAppearance[preferences.appearance]}>{children}</TalkThemeProvider>;
 }

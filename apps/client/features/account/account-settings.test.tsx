@@ -6,9 +6,10 @@ import type { ReactNode } from 'react';
 import { createAccountScopeManager, memoryStore } from '@knowscroll/client-core';
 import { DisplayProvider, Text, useDisplay, useTalkTheme } from '@knowscroll/ui';
 import { AccountScopeProvider } from '../../providers/account-scope';
-import { DevicePreferencesProvider, PreferredDisplay, PreferredTalkTheme } from '../../providers/device-preferences';
+import { DevicePreferencesProvider, PreferredAppearance, PreferredDisplay } from '../../providers/device-preferences';
 import { AccessibilityScreen } from './accessibility-screen';
 import { AccountScreen } from './account-screen';
+import { AppearanceScreen } from './appearance-screen';
 import { defaultDevicePreferences, type DevicePreferences } from './device-preferences';
 import { NotificationsScreen } from './notifications-screen';
 
@@ -130,6 +131,7 @@ async function mount(initialUrl: string, options: { profile?: Profile | null; pr
       account: () => <AccountScreen />,
       'account/notifications': () => <NotificationsScreen />,
       'account/accessibility': () => <AccessibilityScreen />,
+      'account/appearance': () => <AppearanceScreen />,
     },
     { initialUrl, wrapper },
   );
@@ -215,24 +217,53 @@ describe('P01 Accessibility & playback', () => {
       textSize: 'larger',
       reelSound: false,
       readyNotices: true,
-      talkTheme: 'sky',
+      appearance: 'dark',
     });
     expect(screen.getByRole('radio', { name: 'Always reduce motion', checked: true })).toBeOnTheScreen();
     await f.app.unmount();
   });
 
-  it('starts Talk on the dark sky, offers Paper, and keeps the choice on this device only', async () => {
+  it('no longer holds a theme choice: Light or Dark lives on Appearance (#666)', async () => {
     const f = await mount('/account/accessibility');
-    expect(await screen.findByRole('radio', { name: 'Dark sky', checked: true })).toBeOnTheScreen();
-    expect(screen.getByRole('radio', { name: 'Paper', checked: false })).toBeOnTheScreen();
+    expect(await screen.findByRole('radio', { name: 'Follow my device', checked: true })).toBeOnTheScreen();
+    expect(screen.queryByRole('radio', { name: 'Dark sky' })).toBeNull();
+    expect(screen.queryByRole('radio', { name: 'Paper' })).toBeNull();
+    await f.app.unmount();
+  });
+});
+
+describe('Appearance (#666)', () => {
+  it('is found from Account by name, shows the current choice, and opens its page', async () => {
+    const f = await mount('/account');
+    const row = await screen.findByRole('link', { name: 'Appearance' });
+    expect(screen.getByText('Light or dark · Dark')).toBeOnTheScreen();
+    await fireEvent.press(row);
+    expect(f.app.getPathname()).toBe('/account/appearance');
+    expect(await screen.findByRole('radio', { name: 'Dark', checked: true })).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: 'Light', checked: false })).toBeOnTheScreen();
+    await f.app.unmount();
+  });
+
+  it('switches at once and keeps the choice on this device only', async () => {
+    const f = await mount('/account/appearance');
     const requestsBefore = f.calls.length;
-    await fireEvent.press(screen.getByRole('radio', { name: 'Paper' }));
-    expect(screen.getByRole('radio', { name: 'Paper', checked: true })).toBeOnTheScreen();
-    expect(JSON.parse(mockWrite.mock.calls.at(-1)?.[0] ?? '{}')).toMatchObject({ talkTheme: 'paper' });
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Light' }));
+    expect(screen.getByRole('radio', { name: 'Light', checked: true })).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: 'Dark', checked: false })).toBeOnTheScreen();
+    const stored = JSON.parse(mockWrite.mock.calls.at(-1)?.[0] ?? '{}') as Record<string, unknown>;
+    expect(stored).toMatchObject({ appearance: 'light' });
+    // One theme preference: the Talk-only one (D-151) is never written again.
+    expect(stored).not.toHaveProperty('talkTheme');
     // Nothing goes to the server: it is a choice about how this device looks (D-057, D-151).
     expect(f.calls).toHaveLength(requestsBefore);
-    await fireEvent.press(screen.getByRole('radio', { name: 'Dark sky' }));
-    expect(JSON.parse(mockWrite.mock.calls.at(-1)?.[0] ?? '{}')).toMatchObject({ talkTheme: 'sky' });
+    await fireEvent.press(screen.getByRole('radio', { name: 'Dark' }));
+    expect(JSON.parse(mockWrite.mock.calls.at(-1)?.[0] ?? '{}')).toMatchObject({ appearance: 'dark' });
+    await f.app.unmount();
+  });
+
+  it('opens on Light for a person who chose Paper before', async () => {
+    const f = await mount('/account/appearance', { preferences: { ...defaultDevicePreferences, appearance: 'light' } });
+    expect(await screen.findByRole('radio', { name: 'Light', checked: true })).toBeOnTheScreen();
     await f.app.unmount();
   });
 });
@@ -242,19 +273,19 @@ function ThemeProbe() {
   return <Text variant="meta">{`theme=${theme.name}`}</Text>;
 }
 
-describe('the Talk theme', () => {
-  it('is the dark sky by default and Paper once chosen, for everything below the provider', async () => {
+describe('the Talk theme follows Appearance', () => {
+  it('is the dark sky in Dark (the default) and Paper in Light, for everything below the provider', async () => {
     const tree = (preferences: DevicePreferences) => (
       <DevicePreferencesProvider initial={preferences}>
-        <PreferredTalkTheme>
+        <PreferredAppearance>
           <ThemeProbe />
-        </PreferredTalkTheme>
+        </PreferredAppearance>
       </DevicePreferencesProvider>
     );
     const first = await render(tree(defaultDevicePreferences));
     expect(screen.getByText('theme=sky')).toBeOnTheScreen();
     await first.unmount();
-    const second = await render(tree({ ...defaultDevicePreferences, talkTheme: 'paper' }));
+    const second = await render(tree({ ...defaultDevicePreferences, appearance: 'light' }));
     expect(screen.getByText('theme=paper')).toBeOnTheScreen();
     await second.unmount();
   });

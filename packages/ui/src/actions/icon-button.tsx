@@ -4,6 +4,7 @@ import {
   content,
   opacity,
   overlay,
+  printed,
   radius,
   target,
   toggle,
@@ -23,8 +24,9 @@ export type IconButtonVariant = 'paper' | 'onMedia' | 'onSpace' | 'plain' | 'acc
 
 const looks: Record<IconButtonVariant, { background: string; border: string; foreground: string; focus: FocusTone }> = {
   paper: { background: content.paper, border: content.ink, foreground: content.ink, focus: 'onLight' },
-  onMedia: { background: overlay.onMediaControl, border: 'transparent', foreground: content.ink, focus: 'onDark' },
-  onSpace: { background: overlay.onMediaControl, border: 'transparent', foreground: content.ink, focus: 'onDark' },
+  // A cream control over media or the sky: ink on it in both appearances (#666).
+  onMedia: { background: overlay.onMediaControl, border: 'transparent', foreground: printed.ink, focus: 'onDark' },
+  onSpace: { background: overlay.onMediaControl, border: 'transparent', foreground: printed.ink, focus: 'onDark' },
   plain: { background: 'transparent', border: 'transparent', foreground: content.ink, focus: 'onLight' },
   accent: { background: content.accent, border: content.ink, foreground: content.onAccent, focus: 'onLight' },
 };

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from '
 import { AccessibilityInfo, Platform, ScrollView, StyleSheet, View, findNodeHandle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { borderWidth, content, elevation, radius, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, Icon, Tag, Text } from '@knowscroll/ui';
+import { Banner, Button, Icon, printedSurface, Tag, Text } from '@knowscroll/ui';
 import { RemovalNotice } from '../saved/removal-notice';
 import type { EncounterEntry } from './encounter-history';
 import type { EncounterSession, EncounterState } from './encounter-session';
@@ -141,7 +141,8 @@ export function EncounterEnding({
   if (state.outcome?.status === 'exhausted' && series === undefined)
     return <NothingMoreReady state={state} session={session} onDone={onDone} />;
   return (
-    <View testID="encounter-ending" style={styles.ground}>
+    // The yellow ending carries ink in both appearances (#666).
+    <View testID="encounter-ending" style={styles.ground} {...printedSurface()}>
       <ScrollView
         contentContainerStyle={[
           styles.scroll,

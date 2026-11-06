@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { ThreadEpisode } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, target } from '@knowscroll/design-tokens';
-import { Icon, Tag, Text, useFocusRing } from '@knowscroll/ui';
+import { Icon, printedSurface, Tag, Text, useFocusRing } from '@knowscroll/ui';
 
 /** The words a screen reader gets for one episode: its place, its title and each state as a word, never colour alone. */
 export function episodeLabel(episode: ThreadEpisode, selected: boolean, series: boolean): string {
@@ -75,7 +75,7 @@ function EpisodeCard({
       <View style={styles.tile}>
         <Icon name={episode.kind === 'reel' ? 'reel' : 'scroll'} size={22} color={content.paper} />
         {selected ? (
-          <View style={styles.now}>
+          <View style={styles.now} {...printedSurface()}>
             <Text variant="monoXs" color={content.onContinue}>
               Now
             </Text>

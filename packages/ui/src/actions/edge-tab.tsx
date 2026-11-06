@@ -25,7 +25,8 @@ const looks: Record<EdgeTabKind, { background: string; foreground: string; borde
   part: {
     background: content.continue,
     foreground: content.onContinue,
-    border: { borderColor: content.ink, borderStyle: 'solid' },
+    // Ink on yellow in both appearances (#666); the ring around it stays the page's own.
+    border: { borderColor: content.onContinue, borderStyle: 'solid' },
   },
   related: {
     background: content.paper,
@@ -34,7 +35,7 @@ const looks: Record<EdgeTabKind, { background: string; foreground: string; borde
   },
   previous: {
     background: content.nav,
-    foreground: content.paper,
+    foreground: content.onNav,
     border: { borderColor: content.nav, borderStyle: 'solid' },
   },
 };

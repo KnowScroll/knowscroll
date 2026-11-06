@@ -9,6 +9,8 @@ import { DeletionReceiptPanel } from './deletion-receipt-panel';
 import { IdentityCard } from './identity-card';
 import { SessionsList } from './sessions-list';
 import { KeyboardMapSheet } from '../shell/keyboard-map';
+import { useDevicePreferences } from '../../providers/device-preferences';
+import { appearanceLabel } from './appearance-screen';
 import { SettingsActionRow, SettingsLabel, SettingsRow } from './settings-parts';
 
 function PersonTile() {
@@ -49,6 +51,7 @@ export function previousTab(state: TabsState | undefined): string {
 /** Signed in: who, where, the settings that exist, and the way out of this device. */
 function SignedIn({ email }: { readonly email: string }) {
   const { state, manager } = useAccountScope();
+  const { preferences } = useDevicePreferences();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [keys, setKeys] = useState(false);
@@ -69,6 +72,11 @@ function SignedIn({ email }: { readonly email: string }) {
         title="Friends & visibility"
         description="Who you know, and who can visit your universe"
         href="/friends"
+      />
+      <SettingsRow
+        title="Appearance"
+        description={`Light or dark · ${appearanceLabel[preferences.appearance]}`}
+        href="/account/appearance"
       />
       <SettingsRow title="Notifications" description="What KnowScroll tells you about" href="/account/notifications" />
       <SettingsRow

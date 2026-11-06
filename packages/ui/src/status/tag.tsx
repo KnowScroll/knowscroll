@@ -3,6 +3,7 @@ import { borderWidth, content, dimension, overlay, radius, spacing, status } fro
 import { Icon } from '../icons/icon';
 import type { IconName } from '../icons/icon-paths';
 import { Text } from '../text/text';
+import { printedSurface } from '../display/printed';
 
 /**
  * A non-interactive label. The only status labels are Hypothetical and Corrected (D-006 a: no
@@ -44,6 +45,8 @@ export function Tag({ label, variant = 'neutral', testID }: TagProps) {
   const look = looks[variant];
   return (
     <View
+      // The yellow Part tag carries ink in both appearances (#666).
+      {...(variant === 'part' ? printedSurface() : {})}
       testID={testID}
       accessible
       accessibilityRole="text"

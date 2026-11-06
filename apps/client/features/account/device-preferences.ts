@@ -1,4 +1,4 @@
-import { defaultTalkTheme, type TalkThemeName } from '@knowscroll/design-tokens';
+import { appearances, defaultAppearance, type Appearance } from '@knowscroll/design-tokens';
 
 /**
  * What a person chose for this device in Account (P01 Accessibility & playback, Notifications).
@@ -14,8 +14,12 @@ export interface DevicePreferences {
   readonly reelSound: boolean;
   /** Show the "Ready" notice over the encounter where a request was made. */
   readonly readyNotices: boolean;
-  /** How Talk looks: the dark sky (the default) or Paper, for long reading (T3 Q1, D-151). */
-  readonly talkTheme: TalkThemeName;
+  /**
+   * Light or Dark for the whole app: the shell, Settings, Talk, rooms, sheets and the reader's
+   * controls (#666). Dark is the default. It replaces D-151's Talk-only `talkTheme`, which is read
+   * once to carry an earlier choice over and is never written again.
+   */
+  readonly appearance: Appearance;
 }
 
 export const defaultDevicePreferences: DevicePreferences = {
@@ -23,7 +27,7 @@ export const defaultDevicePreferences: DevicePreferences = {
   textSize: 'device',
   reelSound: true,
   readyNotices: true,
-  talkTheme: defaultTalkTheme,
+  appearance: defaultAppearance,
 };
 
 /** How much each text size step multiplies the system's size. */
@@ -35,11 +39,25 @@ export const textSizeFactor: Readonly<Record<DevicePreferences['textSize'], numb
 
 const motionChoices: readonly DevicePreferences['motion'][] = ['device', 'reduce'];
 const textSizeChoices: readonly DevicePreferences['textSize'][] = ['device', 'larger', 'largest'];
-const talkThemeChoices: readonly TalkThemeName[] = ['sky', 'paper'];
+
+/** D-151 kept the Talk theme as `talkTheme`; its two values carry over to the two appearances. */
+const appearanceFromTalkTheme: Readonly<Record<string, Appearance>> = { paper: 'light', sky: 'dark' };
+
+function readAppearance(record: Record<string, unknown>): Appearance {
+  const chosen = appearances.find((choice) => choice === record.appearance);
+  if (chosen !== undefined) return chosen;
+  const earlier =
+    typeof record.talkTheme === 'string' && Object.hasOwn(appearanceFromTalkTheme, record.talkTheme)
+      ? appearanceFromTalkTheme[record.talkTheme]
+      : undefined;
+  return earlier ?? defaultAppearance;
+}
 
 /**
  * Reads stored preferences. Anything missing, misspelt or of the wrong kind falls back to its
- * default, so an older or damaged value never blocks the app.
+ * default, so an older or damaged value never blocks the app. A value stored before Appearance
+ * existed keeps its Talk choice: Paper becomes Light and the dark sky becomes Dark; a stored
+ * `appearance` always wins over a leftover `talkTheme`.
  */
 export function parseDevicePreferences(stored: string | null | undefined): DevicePreferences {
   if (stored === null || stored === undefined) return defaultDevicePreferences;
@@ -57,6 +75,22 @@ export function parseDevicePreferences(stored: string | null | undefined): Devic
     textSize: textSizeChoices.find((choice) => choice === record.textSize) ?? defaults.textSize,
     reelSound: typeof record.reelSound === 'boolean' ? record.reelSound : defaults.reelSound,
     readyNotices: typeof record.readyNotices === 'boolean' ? record.readyNotices : defaults.readyNotices,
-    talkTheme: talkThemeChoices.find((choice) => choice === record.talkTheme) ?? defaults.talkTheme,
+    appearance: readAppearance(record),
   };
+}
+
+/**
+ * Whether the stored value must be written again in today's shape: it still carries D-151's
+ * `talkTheme` or has no `appearance`, so the carried-over choice becomes the only theme preference
+ * on this device and no second, conflicting one is left behind.
+ */
+export function needsRewrite(stored: string | null | undefined): boolean {
+  if (stored === null || stored === undefined) return false;
+  try {
+    const value: unknown = JSON.parse(stored);
+    if (typeof value !== 'object' || value === null) return false;
+    return 'talkTheme' in value || !('appearance' in value);
+  } catch {
+    return false;
+  }
 }

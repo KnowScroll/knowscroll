@@ -4633,3 +4633,44 @@ room’s actual AI residents and let the person compose naturally. **Amends** D-
   only the message-kind constraint. Facts retain D-301/D-316’s checks. AI Off/Quieter, keep-out, blocks, recording,
   membership revocation, router starter suppression and cooldowns keep their existing meanings. The broad room
   redesign stays #667’s work; this slice owns mention discovery and the resulting resident conversation.
+
+## D-400 · 2026-11-06 · One Appearance, Light or Dark, for the whole app (#666)
+
+**Owner feedback (#661, 4 November):** a dark room or thread between cream side panels feels inconsistent, and the
+only theme choice ("Dark sky" or "Paper" under Accessibility & playback → Talk) was hard to find. **Amends** D-145,
+D-151 and D-154 (the Talk-only theme), and T3 "Rooms with residents" for the ground under a room's band.
+
+- **One setting, found by name.** Account → Settings → **Appearance** offers **Light** and **Dark**, each with a small
+  preview; the Account row shows the current one ("Light or dark · Dark"). It is the only theme preference: the Talk
+  choice under Accessibility & playback is gone. There is no System option yet; it can be a third value later.
+- **Dark by default.** A fresh install is Dark: the Universe, Talk and rooms were already drawn on the sky (T3 Q1), so
+  nobody upgrading from the sky default sees Talk change.
+- **Carried over, never lost.** A value stored before this keeps its Talk choice: `talkTheme: "paper"` becomes Light and
+  `"sky"` becomes Dark; a stored `appearance` always wins. The value is rewritten once in the new shape, so no second,
+  conflicting `talkTheme` is left behind. Unknown or damaged values fall back to Dark.
+- **Scope is the device (D-057, D-151 unchanged).** Kept with text size and motion under the one device key, read once
+  at the root above the account scope; it survives signing out, switching account and a privacy clear, and nothing is
+  sent to the server.
+- **What follows it.** The shell (rail, tab pill, top bars), Account and Settings, Talk (list, conversations, thread
+  chat, series panel and its sheets), rooms (side panels, sheets, menus, composer, and the ground under the band),
+  Keep, requests, friends, banners, sheets and menus, and the Scroll reader's chrome (its bar, dock, "This thread"
+  aside, Ask and selection menus). Talk's own role set follows it: the sky in Dark, Paper in Light (D-145's two themes,
+  now named by Appearance).
+- **What keeps its own colours (the art boundary).** The Universe (its sky and the cream controls, cards and dial
+  drawn over it) and every `space` screen; a Reel and the controls drawn over it; a Scroll's page (the Stage picture
+  and the stops, with their figures, kits, calls and play), which is printed and stays Light in both appearances; a
+  room's face (band, emblem and residents' marks, D-170); the T3 paper cards that sit on either ground (a shared Reel
+  or Scroll, Call it together, a challenge, a What-if answer, a thread invitation); and yellow continuation surfaces,
+  which carry ink in both. Meaning colours keep one value: cobalt and cream on it, yellow, teal and the danger fill.
+- **How (no component reads the setting).** `design-tokens` gives the surface roles of `content`, the Hypothetical and
+  Corrected statuses, the danger text, the preparing stripes and the paper focus ring a Dark value
+  (`appearancePalettes`, held to the same contrast pairs as Light). On the web each is a CSS custom property, so a
+  switch repaints at once with no re-render, and reading place, play and open sheets are untouched; `printedSurface()`
+  pins a subtree to Light. Native builds keep Light chrome for now and Talk and rooms follow Appearance there; the
+  Appearance page says so on a phone. Native chrome is #706.
+
+Confirmed by: `tokens.test.ts` ("Appearance": both palettes' contrast, the web variables), `device-preferences.test.ts`
+(the default and the carry-over), `account-settings.test.tsx` ("Appearance (#666)"), `room-tabs.test.tsx` (the room's
+ground per appearance), `e2e/appearance-smoke.spec.ts` (Account → Appearance, at once, reload, the carry-over, axe on
+Settings, a conversation, a thread, a room and the reader in both at 390 × 844 and 1440 × 900, and a switch halfway
+through a Scroll keeping its place and play).

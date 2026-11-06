@@ -11,7 +11,7 @@ import {
   type RoomLaunchState,
 } from '@knowscroll/client-core';
 import { borderWidth, content, elevation, layout, radius, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, Text } from '@knowscroll/ui';
+import { Banner, Button, printedSurface, Text } from '@knowscroll/ui';
 import { AiLabel } from './ai-label';
 import { useSteadyNow } from './use-launch';
 
@@ -147,6 +147,7 @@ export function Option({
       aria-disabled={!open || locked}
       disabled={!open || locked}
       onPress={onPick}
+      {...(picked ? printedSurface() : {})}
       style={[styles.option, picked ? styles.optionPicked : null, correct ? styles.optionRight : null]}
       testID={`launch-option-${String(index)}`}
     >

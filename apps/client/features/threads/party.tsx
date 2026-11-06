@@ -62,7 +62,7 @@ function Face({ place }: { readonly place: ThreadPlace }) {
       style={[styles.face, place.state === 'finished' ? styles.faceFinished : null]}
       testID={`face-${place.person.personId}`}
     >
-      <Text variant="monoXs" color={content.ink} style={styles.faceInitial}>
+      <Text variant="monoXs" color={universe.ink} style={styles.faceInitial}>
         {initialOf(place.person.displayName)}
       </Text>
     </View>
@@ -149,7 +149,7 @@ export function PartWorlds({
                 ))}
                 {here.length > MAX_FACES ? (
                   <View style={styles.face}>
-                    <Text variant="monoXs" color={content.ink} style={styles.faceInitial}>
+                    <Text variant="monoXs" color={universe.ink} style={styles.faceInitial}>
                       {`+${String(here.length - MAX_FACES)}`}
                     </Text>
                   </View>
@@ -354,10 +354,11 @@ const styles = StyleSheet.create({
     gap: spacing[1],
     padding: spacing[1],
     borderRadius: 18,
-    backgroundColor: universe.paper2,
+    // Panel chrome: follows Appearance (#666).
+    backgroundColor: content.paper2,
   },
   tab: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
-  tabSelected: { backgroundColor: universe.paper, borderWidth: 1, borderColor: 'rgba(21,48,42,0.16)' },
+  tabSelected: { backgroundColor: content.paper, borderWidth: 1, borderColor: content.rule },
   members: { gap: spacing[3] },
   memberList: { gap: spacing[3] },
   member: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },

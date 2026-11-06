@@ -11,7 +11,7 @@ import {
   type RoomReplayState,
 } from '@knowscroll/client-core';
 import { borderWidth, content, elevation, radius, spacing } from '@knowscroll/design-tokens';
-import { Banner, BottomSheet, Button, Text } from '@knowscroll/ui';
+import { Banner, BottomSheet, Button, printedSurface, Text } from '@knowscroll/ui';
 import { AiLabel } from './ai-label';
 import { Faces, HostMark, LETTERS, Option, TimerRing, useDigitKeys } from './launch-stage';
 import { useSteadyNow } from './use-launch';
@@ -101,7 +101,7 @@ function Question({
             {replayCountLine(answer)}
           </Text>
           <Faces faces={answer.calledIt} label="Called it" testID="replay-called-faces" />
-          <View style={styles.verdict} testID="replay-verdict">
+          <View style={styles.verdict} testID="replay-verdict" {...printedSurface()}>
             <Text variant="title" heading={3}>
               {picked === undefined ? 'Time’s up' : picked === answer.correct ? 'Called it!' : 'Plot twist'}
             </Text>
