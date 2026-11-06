@@ -307,3 +307,7 @@ when the last one closes. `BottomSheet` and the Universe's modal sheets use it.
 `DisplayRoot` reads the system text size: the window's font scale on native, and on the web the browser's own text size
 (the root font size over 16 px, at least 1), read again on resize and focus. The type roles then apply their 200 % rules
 as on a phone. Page zoom changes the window width instead, which the breakpoints follow.
+
+### Reading without answering (D-397)
+
+Implemented: each call offers Reveal explanation and Keep reading. A reveal without a lock discards any uncommitted pick, shows the explanation (and its reveal picture when present), and reports only a reveal interaction. It never calls play or awards a reward. Navigation and revision-bound resume are independent of calls. Zero-call Scrolls keep the recap and ways on without a Final call prompt, score or challenge button. Old locks continue to render from the original revision.

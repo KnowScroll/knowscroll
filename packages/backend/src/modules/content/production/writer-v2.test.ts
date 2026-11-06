@@ -32,11 +32,21 @@ function changed(
   return AuthoredScrollV2.parse(draft);
 }
 
-describe('the v21 writer', () => {
+describe('the v22 writer', () => {
+  it('defaults every recipe to a complete explanation with zero questions and bounds optional play', () => {
+    for (const topic of ['seasons', 'dns-lookup'] as const) {
+      const text = writerInstructionsV2(spikeRecipeV2(topic));
+      expect(text).toContain('ZERO questions: this is the default');
+      expect(text).toContain('zero to 3 optional calls including any final_call');
+      expect(text).toContain('A final_call is optional too');
+      expect(text).not.toContain('Still open with a call_it');
+    }
+  });
+
   it('has its own version and leaves the v1 writer’s alone', () => {
-    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v21');
+    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v22');
     expect(WRITER_PROMPT_VERSION).toBe('scroll-writer.v13');
-    expect(writerRoleV2(context()).version).toBe('scroll-writer.v21');
+    expect(writerRoleV2(context()).version).toBe('scroll-writer.v22');
     expect(writerRoleV2(context()).id).toBe('content.scroll-writer');
   });
 
@@ -171,7 +181,7 @@ describe('the v15 instructions', () => {
   it('state the shape, the budget, the voice and the rules the checks enforce', () => {
     const text = writerInstructionsV2(spikeRecipeV2('seasons'));
     for (const phrase of [
-      'at most 4 calls',
+      'zero to 3 optional calls',
       'final_call',
       '"limits"',
       '60 words',
@@ -274,7 +284,7 @@ describe('the v15 instructions', () => {
 });
 
 describe('the Final call that turns the tilt (D-187)', () => {
-  const BOUND = 'THE FINAL CALL IS PLAYED WITH A CONTROL';
+  const BOUND = 'IF YOU INCLUDE A FINAL CALL, IT IS PLAYED WITH A CONTROL';
 
   it('asks a recipe that hands the reader the tilt for a "what if the axis were not tilted" Final call and a June or December ending', () => {
     const text = writerInstructionsV2(spikeRecipeV2('seasons'));

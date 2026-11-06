@@ -914,3 +914,7 @@ the timed Undo of "Not interested" and the reports kept for a connection; `feedb
 Operator screen shows the newest reports as card 7 (ids and kinds only), and a room's moderators see the reported
 messages of their room under Moderator tools.
 
+
+### Optional Scroll play (D-397)
+
+The shared stage-reader surface hides its sparks chip when the immutable document has no calls. The recap, reading position and Part navigation still work. Challenge availability comes from that revision's actual Call it stops; no call is manufactured for a zero-call Scroll.

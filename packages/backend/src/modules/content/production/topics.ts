@@ -18,7 +18,7 @@ export const SCROLL_PRODUCTION_VERSION = 'scroll-production.v14';
  * v21: the writer moved to `scroll-writer.v21`, with the stage plan of a recipe that asks for orbit months, figures or a reveal (D-384).
  * `versions.test.ts` pins the pair, so a writer bump cannot go in without this one.
  */
-export const SCROLL_PRODUCTION_V2_VERSION = 'scroll-production.v21';
+export const SCROLL_PRODUCTION_V2_VERSION = 'scroll-production.v22';
 /** One writer call and at most one repair, per take. */
 export const REQUEST_BOUND_PER_TOPIC = 2;
 /**

@@ -12,6 +12,7 @@ import {
   FIELD_LIMITS_V2,
   kitDefinition,
   LIMITS_V2,
+  MAX_AUTHORED_CALLS_V2,
   READING_SECONDS_V2,
   type GuideCharacter,
   type InteractiveKind as PlayBlockKind,
@@ -30,18 +31,18 @@ import { bannedNames, readerStrings, type BannedName } from './writer.js';
  * writer (`scroll-writer.v13`) is untouched and still publishes the library; this one only runs in
  * the writer spike until the reader and admission of `scroll-document.v2` exist (D-120).
  */
-export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v21';
+export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v22';
 
 const minutes = (seconds: number): number => seconds / 60;
 
 function mythInstructions(recipe: RecipeDataV2): string[] {
   if (recipe.misconception.kind === 'none')
     return [
-      '- This Scroll names no misconception: do not invent one. Still open with a call_it that makes the reader predict before you explain.',
+      '- This Scroll names no misconception: do not invent one. Explain the mechanism directly with zero calls. Demonstrate each step; do not add comprehension checks or a Final call just to repeat what the explanation already showed.',
     ];
   return [
-    `- THE MISCONCEPTION. A common wrong idea about this subject is: "${recipe.misconception.claim}" The first call_it tests exactly this idea. Put the correct option FIRST and the wrong option that states this idea SECOND: code marks the second option as the common guess, so write no number for it. A third option, if you give one, is another wrong answer a thoughtful person might give. The twist of that call is the best moment of the Scroll: say warmly that this is the natural first guess and why it fails, without blame and without naming any study or source (code adds the source).`,
-    '- Teach against the misconception in the stops that follow, and use the other calls on different ideas.',
+    `- THE MISCONCEPTION. A common wrong idea about this subject is: "${recipe.misconception.claim}" Explain this idea directly. Only if an optional prediction earns its place, the first call_it tests this idea. Put the correct option FIRST and the wrong option that states this idea SECOND: code marks the second option as the common guess, so write no number for it. A third option, if you give one, is another wrong answer a thoughtful person might give. The twist of that call is the best moment of the Scroll: say warmly that this is the natural first guess and why it fails, without blame and without naming any study or source (code adds the source).`,
+    '- Teach against the misconception in the stops that follow, without requiring a prediction or an answer.',
   ];
 }
 
@@ -81,7 +82,7 @@ function stagePlanInstructions(recipe: RecipeDataV2): string[] {
     );
   if (plan.reveal === true)
     lines.push(
-      'THE FIRST CALL TURNS THE PICTURE. Set "revealsNext":true on the first call_it. The stop right after it must change the picture to the true one that the call is about. A reader who guessed wrong sees that picture the moment they lock in; a reader who was right keeps reading and meets it on that stop. So the call itself never changes the picture, and the stop after it always does.',
+      'IF YOU INCLUDE A CALL, THE FIRST CALL TURNS THE PICTURE. Set "revealsNext":true on the first call_it. The stop right after it must change the picture to the true one that the call is about. A reader who guessed wrong sees that picture the moment they lock in; a reader who was right keeps reading and meets it on that stop. So the call itself never changes the picture, and the stop after it always does.',
     );
   return lines;
 }
@@ -126,7 +127,7 @@ const GUIDE_NAMES: Readonly<Record<GuideCharacter, string>> = { ray: 'Ray, a fri
 function finalCallInstructions(recipe: RecipeDataV2): string[] {
   if (recipe.finalCall?.kind !== 'tilt') return [];
   return [
-    'THE FINAL CALL IS PLAYED WITH A CONTROL. On the final_call the reader can turn Earth’s axis on the picture, from standing straight up to a right angle, before they answer; code adds the slider. So make it a "what if" about the tilt: the reader predicts what would happen to the seasons, or to the difference between the two halves of Earth, if the axis were not tilted at all. Put the correct option FIRST. It must still be a new case (never a repeat of an earlier call), and the stop before it need not show the answer.',
+    'IF YOU INCLUDE A FINAL CALL, IT IS PLAYED WITH A CONTROL. On the final_call the reader can turn Earth’s axis on the picture, from standing straight up to a right angle, before they answer; code adds the slider. So make it a "what if" about the tilt: the reader predicts what would happen to the seasons, or to the difference between the two halves of Earth, if the axis were not tilted at all. Put the correct option FIRST. It must still be a new case (never a repeat of an earlier call), and the stop before it need not show the answer.',
     '- The picture the reader sees when the final_call opens is the one the last stop before it set, so end the Scroll on a June or December picture (earthAt "jun" or "dec") in the sun-earth, earth-close, orbit or orbit-stretched view. In March or September, and in the Moon view, turning the tilt changes nothing, and a Scroll that ends there is refused.',
   ];
 }
@@ -141,15 +142,16 @@ export function writerInstructionsV2(recipe: RecipeDataV2): string {
     `EVIDENCE. The context lists passages from public sources as [e1], [e2], and so on. Every item and the recap carry "cites": the handles of the passages that support what they say. Cite at least ${MIN_EVIDENCE_PASSAGES} different passages across the Scroll, and never invent a handle. The answer to a call, its explanation, its twist and every aside are claims like any other: they cite.`,
     '',
     'HOW THE SCROLL GOES.',
-    '- Open with a stop that hooks: a question or a surprise in a few short sentences. The reader’s first job is a guess, not a lecture.',
+    '- Open with a concrete example or a surprise, then explain it. Give the reader something to follow before offering any optional prediction.',
     ...mythInstructions(recipe),
-    '- Then alternate: one or two stops that explain, a call_it that asks the reader to predict, a stop that reveals and builds. Use two or three call_it items and exactly one final_call as the last item, which asks the reader to apply the whole idea to a new case: its question and its correct answer must be new, never a repeat of an earlier call in other words.',
-    '- Put one aside of kind "limits" right after the stop whose claim it limits: what this picture leaves out, using the caveats of the passages. It belongs well before the final_call, never at the end.',
-    `- Eight to eleven stops and calls in all. A stop is at most ${LIMITS_V2.stopWords} words, its text and its line together; a line is a short punchline of at most ${LIMITS_V2.lineWords} words.`,
+    '- Build an explanation that feels complete with ZERO questions: this is the default. Do not alternate explanation and quizzes. A call is optional and earns its place only BEFORE the reveal of a surprising mechanism; never quiz the reader on something the explanation already made obvious; the reader can reveal without answering. Prefer at most one. Never add a call to fill a count. A final_call is optional too; if used, it is the last item and applies the idea to a new case: its question and its correct answer must be new, never a repeat of an earlier call in other words.',
+    '- Put one aside of kind "limits" right after the stop whose claim it limits, before the ending: what this explanation leaves out, using the caveats of the passages.',
+    `- Ten to fourteen stops and optional calls in all. A stop is at most ${LIMITS_V2.stopWords} words, its text and its line together; a line is a short punchline of at most ${LIMITS_V2.lineWords} words.`,
     '- Voice: second person ("you"), short plain sentences, warm. A light joke at most every other stop, never at the reader’s expense. Never call the reader wrong.',
     '- Calls: short options, the correct one FIRST (code shuffles them). The wrong options are what a thoughtful person might really think, never silly. "explain" says why the answer is what it is; "twist" is read only by someone who picked a wrong option: warm, "good company", no blame.',
     '- "simple": every stop and call has a simpler version, the same idea in plainer and shorter words, never adding a fact.',
-    `- Length: about 700 to 850 words of reader text in all (stops, calls, asides and recap), so that it reads in ${minutes(READING_SECONDS_V2.min)} to ${minutes(READING_SECONDS_V2.max)} minutes. Title up to 90 characters, dek up to 200.`,
+    `- Length: 700 to 850 words of MAIN reader text in all (the text and line of each stop, call prompts/options/explanations, asides and recap; do NOT count simple versions, headings, guide lines or askSuggestions). Use thirteen or fourteen stops of roughly fifty-five words each when there are no calls; short paragraphs still need enough explanation, so that it reads in ${minutes(READING_SECONDS_V2.min)} to ${minutes(READING_SECONDS_V2.max)} minutes. Title up to 90 characters, dek up to 200.`,
+    '- An example of an earned prediction: after showing that Earth is nearest the Sun in January, invite a guess about the northern winter, then reveal how tilt changes sunlight angle and daylight. Use this only for a relevant, cited recipe. A token-by-token sentence explanation can simply show each continuation with no question.',
     '- Teach: open with the question or surprise, explain the mechanism, give an example, name the common misunderstanding. Keep the caveats of the passages.',
     '- Write every sentence fresh. The passages are checked mechanically: any run of nine words in a row (ignoring case and punctuation) that also appears in a passage fails the Scroll. So never use more than five words in a row from a passage. Put technical definitions, counts and lists in your own words: change the order of the ideas and the structure of the sentence, not only a word or two, and merge or split sentences. Keep names and exact figures.',
     '- State only what the cited passages support. A number may appear only if a cited passage of that item states it, written the same way; otherwise say it in words. Keep digits out of the title and the dek.',
@@ -164,7 +166,7 @@ export function writerInstructionsV2(recipe: RecipeDataV2): string {
     '',
     'THE SHAPE (examples are invented syntax guidance, never content to reuse):',
     authoringReferenceV2(recipe.variant, recipeKit(recipe), recipe.blocks, recipe.guide, recipe.stagePlan),
-    `Limits: ${LIMITS_V2.minStops} to ${LIMITS_V2.maxStops} stops and calls, at most ${LIMITS_V2.calls} calls including the final_call, at most ${LIMITS_V2.asides} asides, recap captions at most ${FIELD_LIMITS_V2.captionChars} characters.`,
+    `Limits: ${LIMITS_V2.minStops} to ${LIMITS_V2.maxStops} stops and calls, zero to ${MAX_AUTHORED_CALLS_V2} optional calls including any final_call, at most ${LIMITS_V2.asides} asides, recap captions at most ${FIELD_LIMITS_V2.captionChars} characters.`,
   ].join('\n');
 }
 

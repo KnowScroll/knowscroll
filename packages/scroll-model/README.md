@@ -545,9 +545,9 @@ The design cuts or merges `sequence`, `comparison`, `callout`, `disclosure`, `ti
 | Stage | at most 1; at least 3 states, the first on the first stop, in stop order, on read stops only (never on a call), each settled to what its view draws and described by code | `stage_too_static`, `stage_first_state_missing`, `stage_states_unordered`, `stage_state_on_call`, `stage_state_unsettled`, `stage_alt_mismatch` |
 | Final call binding | a `tilt` binding needs a stage whose picture at the Final call changes when the tilt is turned (`tiltMatters`): a view that draws the axis and the season, in a month that is not March or September | `final_call_binding_invalid` |
 | Reveal picture | a `call_it` may carry `revealStage`: the first read stop after it, which sets a state that differs from the picture the call sits over (D-383) | `call_reveal_invalid` |
-| Calls, Final call included | at most 4; at least one Call it; exactly one Final call, the last stop, whose question and correct answer are not near-identical to an earlier call's (content-word overlap below 0.6, D-126) | `call_budget_exceeded`, `call_it_missing`, `final_call_missing`, `final_call_misplaced`, `final_call_restates_call` |
+| Calls, Final call included | zero to 4 in stored documents; zero to 3 in new authoring; an optional Final call is unique and last, and its question and correct answer are not near-identical to an earlier call's (content-word overlap below 0.6, D-126) | `call_budget_exceeded`, `final_call_misplaced`, `final_call_restates_call` |
 | Other interactives | at most 2 (none is built; a constant only) | n/a |
-| Limits aside | at least one, anchored before the Final call, linked from the recap | `limits_aside_missing`, `limits_aside_last`, `recap_small_print_unknown` |
+| Limits aside | at least one, anchored before the ending (before the Final call when present), linked from the recap | `limits_aside_missing`, `limits_aside_last`, `recap_small_print_unknown` |
 | Common guess | only the first Call it of a myth Scroll; a wrong option; the recipe's source | `common_guess_missing`, `common_guess_invalid`, `common_guess_unexpected` |
 | Reading time | words at 230 a minute plus 10 seconds a call: 180 to 360 seconds | `reading_length_out_of_brief` |
 | Document | 128 KiB; measures and hash recomputed | `document_too_large`, `measures_mismatch`, `integrity_mismatch` |
@@ -692,3 +692,7 @@ Vitest with fast-check property tests, run in GitHub Actions only (D-010). They 
   - dependency-cruiser excludes `dist/` by convention, so a relative import of `packages/scroll-model/dist/...` from client code is not seen by the client rules; the package specifiers, `src/` paths and `fixtures/producer/` are.
   - `package.json` preserves only the `zod.ts`/`zod.js` configuration module as a side effect; a client bundle may drop admission code it never calls (bundle size not measured).
 - **"Binds all its numbers".** For a non-illustrative simulation this means every number it states except the structural ones, plus at least one binding. The structural numbers are not bindable quantities.
+
+### Explanation-first authoring (D-397)
+
+Implemented: zero calls is valid, including no Final call. New authoring has at most three optional calls; stored documents retain the four-call ceiling for old revisions. An authored Final call, when present, stays unique and last. The compiler never inserts calls. Reading length, citations, limits asides and stage checks still apply.

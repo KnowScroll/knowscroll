@@ -172,10 +172,8 @@ function callIssues(document: ScrollDocumentV2): IssueV2[] {
   const calls = callsOf(document);
   if (calls.length > LIMITS_V2.calls) issues.push({ code: 'call_budget_exceeded', path: 'stops' });
   const finals = document.stops.filter((stop) => stop.kind === 'final_call');
-  if (finals.length === 0) issues.push({ code: 'final_call_missing', path: 'stops' });
   if (finals.length > 1 || (finals.length === 1 && document.stops.at(-1)?.kind !== 'final_call'))
     issues.push({ code: 'final_call_misplaced', path: 'stops' });
-  if (!document.stops.some((stop) => stop.kind === 'call_it')) issues.push({ code: 'call_it_missing', path: 'stops' });
   let firstCallIt = true;
   document.stops.forEach((stop, index) => {
     if (stop.kind === 'read') return;
@@ -344,7 +342,7 @@ function storedIssues(document: ScrollDocumentV2): IssueV2[] {
 
 /**
  * Admission of a `scroll-document.v2`: the size, the schema, the budget of `scroll-limits.v2`, the
- * structure rules (a Final call ends the spine, a limits aside is never last, calls answer inside
+ * structure rules (an optional Final call, when present, ends the spine, a limits aside is never last, calls answer inside
  * their options, the common guess is the recipe's) and the stored measures and hash, recomputed.
  *
  * Pure and deterministic; the findings carry codes and paths, never the text they are about. The
