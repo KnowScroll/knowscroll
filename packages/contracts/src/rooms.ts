@@ -136,7 +136,14 @@ export type InhabitantId = z.infer<typeof InhabitantIdSchema>;
  * What an inhabitant's contribution is: an explanation, a challenge to an assumption, a perspective or a counterexample, or
  * a `find`: the short note a resident wrote about a library asset it chose (v3 R-8).
  */
-export const AiContributionKindSchema = z.enum(['explanation', 'assumption', 'perspective', 'counterexample', 'find']);
+export const AiContributionKindSchema = z.enum([
+  'explanation',
+  'assumption',
+  'perspective',
+  'counterexample',
+  'find',
+  'conversation',
+]);
 export type AiContributionKind = z.infer<typeof AiContributionKindSchema>;
 
 /** The label an inhabitant always carries. Fixed by the role, so no client can show one without it. */
