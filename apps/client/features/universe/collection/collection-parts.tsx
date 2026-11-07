@@ -20,6 +20,10 @@ const GOLD = '#f5c518';
 /** "Part 2 of 3": what the resume chip says. The Scroll's own title is its accessible description. */
 export const resumeLabel = (part: number, total: number) => `Resume Part ${String(part)} of ${String(total)}`;
 
+/** What the list says of a landmark that waits: why it has no place on the map yet, and when it will. */
+export const WAITING_NOTE =
+  'A landmark waiting for its planet has no place on the map yet. If a planet forms for its topic, the landmark will stand there.';
+
 /** Where a landmark stands, in words: its planet, or the tray. */
 const placeOf = (row: LandmarkRow) => (row.planet ? `On ${row.planet.name}` : 'Waiting for its planet');
 
@@ -47,24 +51,36 @@ function fromLine(row: LandmarkRow): string {
  * Part as a yellow chip. It replaces the chips the map once carried; nothing of it is drawn on the map itself.
  * While a globe or a landed map is on screen it folds to one line, so it never covers a planet's or region's name.
  * Without a landmark it speaks of the next Part, or of the week. Never shown on a friend's universe.
+ *
+ * Once the person has pressed See it or closed the card, the newest landmark is `seen` and the card stays folded to
+ * its pill for that landmark (#694): the landmark and the way back to the list remain, and a newer landmark opens it again.
  */
 export function LandmarkCard({
   view,
   folded,
+  seen,
+  onList,
   onSee,
+  onDismiss,
 }: {
   readonly view: CollectionView;
   /** One line only: a globe or a landed map is in view. */
   readonly folded: boolean;
-  /** Opens the list of landmarks. */
+  /** The newest landmark was already looked at or put away on this device. */
+  readonly seen: boolean;
+  /** Opens the list of landmarks (the folded pill). */
+  readonly onList: () => void;
+  /** See it: shows the newest landmark where it stands, or the list that says it waits for its planet. */
   readonly onSee: () => void;
+  /** Puts the large card away; it folds to its pill. */
+  readonly onDismiss: () => void;
 }) {
   const subject = cardSubjectOf(view);
   if (subject === undefined) return null;
-  return folded ? (
-    <FoldedLandmark view={view} subject={subject} onSee={onSee} />
+  return folded || (subject === 'landmark' && seen) ? (
+    <FoldedLandmark view={view} subject={subject} onSee={onList} />
   ) : (
-    <OpenLandmark view={view} subject={subject} onSee={onSee} />
+    <OpenLandmark view={view} subject={subject} onSee={onSee} onDismiss={onDismiss} />
   );
 }
 
@@ -98,10 +114,12 @@ function OpenLandmark({
   view,
   subject,
   onSee,
+  onDismiss,
 }: {
   readonly view: CollectionView;
   readonly subject: CardSubject;
   readonly onSee: () => void;
+  readonly onDismiss: () => void;
 }) {
   const { breakpoint } = useDisplay();
   const resumeNow = useResume(view);
@@ -141,8 +159,18 @@ function OpenLandmark({
           ) : null}
         </View>
         {subject === 'landmark' ? (
-          // The name holds the visible words (WCAG 2.5.3) and says what opens.
-          <Button label="See it" variant="ink" size="sm" accessibilityLabel="See it, your landmarks" onPress={onSee} />
+          // The close button stands above See it, so the name keeps its width and still wraps whole at 320 px (#648, #694).
+          <View style={styles.cardActions}>
+            <IconButton icon="close" label="Close landmark card" variant="plain" size={44} onPress={onDismiss} />
+            {/* The name holds the visible words (WCAG 2.5.3) and says where it goes: the planet, or the list. */}
+            <Button
+              label="See it"
+              variant="ink"
+              size="sm"
+              accessibilityLabel={newest?.planet ? `See it on ${newest.planet.name}` : 'See it, your landmarks'}
+              onPress={onSee}
+            />
+          </View>
         ) : subject === 'resume' && resumeNow ? (
           <Button
             label="Resume"
@@ -255,6 +283,12 @@ export function CollectionSheet({
           </View>
         ))}
       </View>
+      {view.waiting.length > 0 ? (
+        // Said once, plainly: no planet is drawn or promised for a landmark that waits (D-084, #694).
+        <Text variant="bodyS" color={space.label2} testID="universe-landmark-waiting-note">
+          {WAITING_NOTE}
+        </Text>
+      ) : null}
       {view.resume && resumeNow ? (
         <View style={styles.sheetResume}>
           <ResumeChip resume={view.resume} onPress={resumeNow} />
@@ -317,6 +351,11 @@ export function CollectionSection({ view, onPlanet }: { view: CollectionView; on
               />
             ))}
           </RowGroup>
+          {view.waiting.length > 0 ? (
+            <Text variant="bodyS" color={SIMPLE.ink2} testID="universe-landmark-waiting-note">
+              {WAITING_NOTE}
+            </Text>
+          ) : null}
           <Text variant="bodyS" color={SIMPLE.ink2}>
             {ORBIT_REASSURANCE}
           </Text>
@@ -339,6 +378,7 @@ const styles = StyleSheet.create({
   cardLeft: { alignSelf: 'flex-start', maxWidth: 440 },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   cardText: { flex: 1, minWidth: 0, gap: 2 },
+  cardActions: { alignItems: 'flex-end', gap: spacing[1] },
   cardFoot: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing[3], paddingLeft: spacing[1] },
   cardBadge: {
     width: 44,

@@ -12,6 +12,8 @@ import { descriptorsOf } from '../universe-places';
 import { resetFakeGpu } from '../space/fake-space-gpu';
 import { COLLECTION_READS, fixtureId, universeHarness } from '../universe.fixture';
 import { universeSessionFor } from '../use-universe-session';
+import { WAITING_NOTE } from './collection-parts';
+import { writeSeenLandmark } from './landmark-seen';
 
 /**
  * The person's collection on the Universe (v3 S-4, D-084, D-087, D-089, D-214, D-215): the tray, the sheet, the
@@ -102,10 +104,74 @@ it('says a landmark is new while its planet has not formed, with the Orbit as te
   await fireEvent.press(screen.getByRole('button', { name: 'See it, your landmarks' }));
   expect(await screen.findByTestId('universe-collection-sheet')).toBeOnTheScreen();
   expect(screen.getByText('Gold finish · Waiting for its planet')).toBeOnTheScreen();
+  // A landmark that waits has no place on the map, and the list says so instead of drawing one (#694).
+  expect(screen.getByTestId('universe-landmark-waiting-note')).toHaveTextContent(WAITING_NOTE);
   expect(
     screen.getByText('Missed a week? Nothing here goes away. Orbits just start fresh on Monday.'),
   ).toBeOnTheScreen();
   // Reading the collection only reads.
+  expect(h.calls.every(universeRead)).toBe(true);
+  await act(() => h.scope.end());
+  await v.unmount();
+});
+
+it('puts the large card away after See it: closing the list leaves the one-line pill, which opens the list again (#694)', async () => {
+  const h = universeHarness();
+  h.world.collection.landmarks = [earned()];
+  const v = await open(h);
+  await fireEvent.press(await screen.findByRole('button', { name: 'See it, your landmarks' }));
+  await fireEvent.press(await screen.findByRole('button', { name: 'Close landmarks' }));
+  expect(screen.queryByTestId('universe-landmark-card')).toBeNull();
+  expect(screen.getByTestId('universe-landmark-chip')).toHaveTextContent('New landmark · The Leaning Axis');
+  await fireEvent.press(screen.getByTestId('universe-landmark-chip'));
+  expect(await screen.findByTestId('universe-collection-sheet')).toBeOnTheScreen();
+  // Remembered on this device for the account only, and never sent anywhere.
+  expect(h.scope.storage.get('universe.landmark-seen.v1')).toBe(JSON.stringify({ landmarkId: `${fixtureId(500)}:1` }));
+  expect(h.calls.every(universeRead)).toBe(true);
+  await act(() => h.scope.end());
+  await v.unmount();
+});
+
+it('closes the large card with its own button, keeps it folded on the next visit, and opens it for a newer landmark (#694)', async () => {
+  const h = universeHarness();
+  h.world.collection.landmarks = [earned()];
+  const v = await open(h);
+  await fireEvent.press(await screen.findByRole('button', { name: 'Close landmark card' }));
+  expect(screen.queryByTestId('universe-landmark-card')).toBeNull();
+  expect(screen.getByTestId('universe-landmark-chip')).toBeOnTheScreen();
+  await v.unmount();
+  // Back on the Universe later (a reload reads the same device storage): still folded for the same landmark.
+  const again = await open(h);
+  await waitFor(() => expect(screen.getByTestId('universe-landmark-chip')).toBeOnTheScreen());
+  expect(screen.queryByTestId('universe-landmark-card')).toBeNull();
+  await again.unmount();
+  await act(() => h.scope.end());
+  // A newer landmark is a new event: its card opens in full.
+  const next = universeHarness();
+  writeSeenLandmark(next.scope, `${fixtureId(500)}:1`);
+  next.world.collection.landmarks = [
+    earned({ key: 'the-turning-halves', name: 'The Turning Halves', assetId: fixtureId(501) }),
+    earned(),
+  ];
+  const later = await open(next);
+  await waitFor(() => expect(screen.getByTestId('universe-landmark-card')).toBeOnTheScreen());
+  expect(screen.getByText('The Turning Halves')).toBeOnTheScreen();
+  await act(() => next.scope.end());
+  await later.unmount();
+});
+
+it('See it flies to the planet a landmark stands on, where the globe paints its pennant (#694)', async () => {
+  const h = universeHarness();
+  h.world.collection.landmarks = [earned()];
+  h.world.collection.planets = [{ id: fixtureId(12), topicId: 'earth.seasons' }];
+  const v = await open(h);
+  await fireEvent.press(await screen.findByRole('button', { name: 'See it on CI planet 2' }));
+  expect(screen.queryByTestId('universe-collection-sheet')).toBeNull();
+  expect(await screen.findByRole('header', { name: 'CI planet 2' })).toBeOnTheScreen();
+  await waitFor(() =>
+    expect(screen.getAllByTestId('landmark-mark-gold', { includeHiddenElements: true }).length).toBeGreaterThan(0),
+  );
+  expect(screen.getByTestId('universe-landmark-chip')).toHaveTextContent('New landmark · The Leaning Axis');
   expect(h.calls.every(universeRead)).toBe(true);
   await act(() => h.scope.end());
   await v.unmount();
@@ -225,6 +291,7 @@ it('lists the landmarks and the Orbit in the Simple drawing too, in plain words'
   expect(section).toHaveTextContent('Orbit · 2 of 3 days this week', { exact: false });
   expect(section).toHaveTextContent('The Leaning Axis', { exact: false });
   expect(section).toHaveTextContent('Gold finish · Waiting for its planet', { exact: false });
+  expect(section).toHaveTextContent(WAITING_NOTE, { exact: false });
   await act(() => h.scope.end());
   await v.unmount();
 });

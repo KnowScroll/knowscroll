@@ -226,6 +226,45 @@ test.describe('a phone, 390 x 844', () => {
     await expectNoSeriousViolations(page);
   });
 
+  test('See it flies to the planet a landmark stands on, and the large card stays put away after (#694)', async ({
+    page,
+  }) => {
+    await openUniverse(page, size, { formed: true });
+    await page.getByRole('button', { name: 'See it on CI planet 2' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
+    await expect(page.locator('[data-testid="landmark-mark-gold"]').first()).toBeAttached();
+    await shot(page, 'see-it-planet-phone');
+    // Back steps out the way the map came: the planet's system, then the whole universe.
+    await page.getByRole('button', { name: /^Back to / }).click();
+    await page.getByRole('button', { name: /^Back to / }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Your universe' })).toBeVisible();
+    await expect(page.getByTestId('universe-landmark-card')).toHaveCount(0);
+    await expect(page.getByTestId('universe-landmark-chip')).toContainText('New landmark · The Leaning Axis');
+  });
+
+  test('the large landmark card closes to its pill, which still opens the list, and stays closed after a reload (#694)', async ({
+    page,
+  }) => {
+    await openUniverse(page, size, { formed: false });
+    await page.getByRole('button', { name: 'Close landmark card' }).click();
+    await expect(page.getByTestId('universe-landmark-card')).toHaveCount(0);
+    const chip = page.getByTestId('universe-landmark-chip');
+    await expect(chip).toContainText('New landmark · The Leaning Axis');
+    // The pressed button is gone, so focus moves to the pill that replaced it.
+    await expect(chip).toBeFocused();
+    await shot(page, 'landmark-card-closed-phone');
+    await chip.click();
+    const sheet = page.getByTestId('universe-collection-sheet');
+    await expect(sheet).toContainText('Gold finish · Waiting for its planet');
+    await expect(sheet).toContainText('If a planet forms for its topic, the landmark will stand there.');
+    await shot(page, 'landmark-waiting-sheet-phone');
+    await expectNoSeriousViolations(page);
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible();
+    await expect(page.getByTestId('universe-landmark-chip')).toBeVisible();
+    await expect(page.getByTestId('universe-landmark-card')).toHaveCount(0);
+  });
+
   test('the resume chip opens the next Part by its address', async ({ page }) => {
     await openUniverse(page, size, { formed: false });
     await page.getByTestId('universe-resume').click();
