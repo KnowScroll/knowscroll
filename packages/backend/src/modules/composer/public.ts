@@ -1,5 +1,6 @@
 /** Backend-only pure policy and private scoped persistence. No consumer diagnostics wire. */
 export { composeEncounter, validateSnapshot } from './application/compose.js';
+export { formatLeaning } from './domain/features.js';
 export {
   composerPolicyFor,
   COMPOSER_POLICY_V0,

@@ -194,7 +194,8 @@ function regionHarness() {
         await gate;
         return new Response(
           JSON.stringify({
-            ...body,
+            // The server answers the read's own fields; the request's `alternate` flag is not one of them.
+            ...Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'alternate')),
             status: 'available',
             scope: { universeId: fixtureAccount.universeId, privacyEpoch: 1, personalWatermark: 40 },
             geographyRevision: 3,
