@@ -63,7 +63,9 @@ test('authoritative map/outline/travel and browser Back keep camera private and 
           }
         : path.endsWith('/region/preview')
           ? {
-              ...(body as Record<string, unknown>),
+              ...Object.fromEntries(
+                Object.entries(body as Record<string, unknown>).filter(([key]) => key !== 'alternate'),
+              ),
               status: 'unavailable',
               reason: 'no_eligible_content',
               scope: { universeId: fixtureAccount.universeId, privacyEpoch: 1, personalWatermark: 40 },
@@ -153,7 +155,7 @@ test('canonical region card opens displayed A through actual activation, then Ba
     else if (path.startsWith('/v1/universe/') || COLLECTION_READS.includes(path)) value = world.reply(path, body);
     else if (path.endsWith('/region/preview'))
       value = {
-        ...body,
+        ...Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'alternate')),
         scope: { universeId: fixtureAccount.universeId, privacyEpoch: 1, personalWatermark: 40 },
         recordedAt: '2026-10-22T00:00:00.000Z',
         geographyRevision: 3,

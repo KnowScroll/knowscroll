@@ -4708,3 +4708,27 @@ Confirmed by: `landmark-seen.test.ts` (per account and epoch, purged, damaged va
 - **Not here.** A region's own card still offers Scrolls only; Reels in regions is a follow-up issue.
 
 Confirmed by: `system-finds.test.ts` and `system-topic.test.ts` (backend), `universe-system-finds.test.ts` (client-core), `geography.controller.test.ts` (route), `system-finds-screen.test.tsx` (the chip, a system with no planet, empty formats, Close and Back, not on the map, the Simple list). Shown failing with the overlay and the empty-format line removed.
+
+## D-404 · 2026-11-07 · A region offers its Scroll's Reel twin under the Scroll's coverage (#709)
+
+**Amends** D-037 and D-039 for what a region may open. Coverage stays a Scroll fact.
+
+- **Why.** A region offered only Scrolls. A Reel of the same explanation was reachable only by switching format inside the Scroll, and the card never said it existed.
+- **The rule.** A region's candidates are its covering Scrolls and, for each, the current admitted Reel that shares the Scroll revision's explanation unit (its format twin). The twin uses the Scroll's coverage authority. It gains no binding, facet or coverage head of its own. A Reel with no Scroll twin is in no region; it stays reachable from its system (D-403).
+- **Authority.** Migration 0107 lets `experience.offer_region_constraints` guard a Reel offer whose record names its twin Scroll's coverage, and nothing else. The candidate lock locks each shared coverage once and rechecks the twin, and activation refuses a Reel that is no longer the twin.
+- **Hide.** Hide and Not interested stay per asset, as with the format switch: hiding a Scroll leaves its Reel twin offered alone, and hiding the Reel leaves the Scroll.
+- **Rollout.** Older API code cannot read a Reel region offer, so once one exists a rollback of the API is unsupported, as for 0037.
+- **Clients.** The region card asks for the other format (`alternate`). An older client does not ask and is never sent it; a client that cannot play Reels is never offered one.
+- **Not here.** Coverage of Reels themselves, which would let a Reel form or join a region alone, is a later issue.
+
+Confirmed by: `region-encounter.test.ts` (integration: the twin beside its Scroll, exact Open and activation of the Reel, the guard refusing a borrowed coverage, a re-cut Reel refused at activation; shown failing with the twin check removed), `universe-screen.test.tsx` ("Watch as a Reel" opens the Reel exactly), `universe-planet-smoke.spec.ts` (the card's two formats at 320 and 390 px, axe).
+
+## D-405 · 2026-11-07 · A region shows the format the person leans to in its topic first (#709)
+
+**Builds on** D-404 and blueprint §8 ("Personal interest and format fit").
+
+- **Why.** AGENTS.md: learn format per topic. With a Scroll and its Reel twin both available, the region should open the one the person tends to finish in that topic.
+- **The rule.** The region preview compares the person's qualified-response rates for Reels and Scrolls in the region's topic, the same `(1 + Q) / (2 + O)` rates as Composer's format fit. The higher rate's format is the card's encounter; the other is its alternate. When the rates are even or unknown, the Scroll comes first.
+- **Bounds.** The counts are qualified reading and watching (D-063): never a pick, correctness, spark or tier. It orders the two formats and never hides one.
+
+Confirmed by: `format-leaning.test.ts`, `region-encounter.test.ts` (unit: the Reel first for a person who finishes more Reels, the Scroll when nothing says otherwise, no alternate unless asked or when hidden; shown failing with the lean ignored).

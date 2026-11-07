@@ -193,3 +193,22 @@ export function score(f: Features, horizontal: boolean, policy: ComposerPolicy):
     w.recentRepetition * f.recentRepetition;
   return w.recentTopic === 0 ? blend : blend - w.recentTopic * (f.recentTopic ?? 0);
 }
+
+/**
+ * Which format a person leans to in one topic, from the same parent rates as {@link formatFitOf} (#709, D-404): `reel`
+ * or `scroll` when one rate is higher, `undefined` when they are even or nothing is known. A lean reads reading and
+ * watching only, never play; it orders which twin a region shows first and never excludes the other. Pure.
+ */
+export function formatLeaning(
+  evidence: { readonly topics: NonNullable<ComposerSnapshot['evidence']>['topics'] } | undefined,
+  topicId: string,
+): 'reel' | 'scroll' | undefined {
+  const topic = evidence?.topics.find((t) => t.topicId === topicId);
+  const rate = (kind: 'reel' | 'scroll') => {
+    const counts = topic?.formats.find((f) => f.kind === kind);
+    return counts === undefined ? 0.5 : (1 + counts.qualified) / (2 + counts.measured);
+  };
+  const reel = rate('reel'),
+    scroll = rate('scroll');
+  return reel > scroll ? 'reel' : scroll > reel ? 'scroll' : undefined;
+}

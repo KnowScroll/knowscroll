@@ -92,7 +92,12 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
   let core = createUniverseSceneSession({ scope, capabilities: sceneCapabilities(detail, reducedMotion) });
   const history = createCameraHistory(DRAW_LIMITS.history);
   const geometryCache = createGeometryCache(DRAW_LIMITS.cache);
-  const preview = createRegionPreviewSession({ scope, capabilities: ENCOUNTER_CAPABILITIES, newReadId: newId });
+  const preview = createRegionPreviewSession({
+    scope,
+    capabilities: ENCOUNTER_CAPABILITIES,
+    newReadId: newId,
+    alternate: true,
+  });
   const formation = createFormationPresentationSession({
     scope,
     newId,
@@ -506,7 +511,12 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       publish({ seenLandmark: landmarkId });
     },
     refreshRegionPreview: readPreview,
-    openRegion(displayed: AvailableRegionPreview, onReturn: () => void) {
+    /** Opens the card's encounter, or with `alternate` the same explanation in its other format (#709). */
+    openRegion(
+      displayed: AvailableRegionPreview,
+      onReturn: () => void,
+      choice: 'encounter' | 'alternate' = 'encounter',
+    ) {
       const selected = regionTargetOf(state.read, state.focusId);
       if (
         !live() ||
@@ -519,12 +529,17 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
         return false;
       // Back from the encounter lands on the planet's map, at planet level, with the region marked (U04).
       const saved = { camera: planetMapCamera(selected.regionId), history: history.snapshot() };
-      const accepted = encounterSessionFor(scope).openRegion(displayed, regionChipOf(selected.regionId), () => {
-        if (!live() || returnPoint !== saved) return;
-        history.restore(saved.history);
-        publishCamera(saved.camera);
-        onReturn();
-      });
+      const accepted = encounterSessionFor(scope).openRegion(
+        displayed,
+        regionChipOf(selected.regionId),
+        () => {
+          if (!live() || returnPoint !== saved) return;
+          history.restore(saved.history);
+          publishCamera(saved.camera);
+          onReturn();
+        },
+        choice,
+      );
       if (!accepted) return false;
       returnPoint = saved;
       cancelPreview();

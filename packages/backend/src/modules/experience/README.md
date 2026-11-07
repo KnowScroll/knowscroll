@@ -315,6 +315,12 @@ read or an unreadable row answers `temporarily_unavailable`, and a retry simply 
 
 ### Region preview, deliberate Open and constrained activation (U04)
 
+A region shows one explanation: its covering Scroll and, when it exists, that Scroll's Reel twin (#709). The preview puts
+the format the person leans to in the topic first (`formatLeaning` from Composer's public surface: the same per-topic
+reading rates as format fit; a Scroll when nothing says otherwise, D-405). A client that asks with `alternate: true` is
+also given the other format, and both are locked, so Open takes either one exactly. The offer's region record still names
+the covering Scroll's coverage (D-404); `offerOf` accepts a Reel offer under it, and activation rechecks the twin.
+
 `REGION_ENCOUNTERS` preview uses current personal/root/account authority and reads one honest canonical card without creating a session, offer, exposure, receipt, decision, root stamp, job or hint. Unmapped/unsupported Regions return explicit unavailable responses. Deliberate Open delegates to the existing two-transaction Composer/navigation engine; supplied displayed A is mandatory as the exact eligible asset, never silently replaced with B. The optional existing session retains exact session/intent concurrency semantics. Unknown acknowledgements recover through the original command receipt/body.
 
 Every chosen and buffered regional discovery offer carries an immutable private `experience.offer_region_constraints` child. Its Geography snapshot and coverage identity are rechecked on current authority before receipt replay and activation. Vertical continuation inherits the same Region; series, related, variant and return retain their distinct relationships. The 100+1 bounded lookup reports uncertainty rather than manufacturing exhaustion. No new model call or provider/network work runs on this path.

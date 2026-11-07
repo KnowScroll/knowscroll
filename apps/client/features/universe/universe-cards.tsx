@@ -165,7 +165,8 @@ const DEFAULT_KIND = '#8edbe0';
 /**
  * A region's card: one encounter from it, with Open going straight in. Looking at a card is not an
  * encounter: only the Reel or Scroll that Open starts creates evidence. It is dark glass over the
- * map, its dot and kind line in the planet's own accent.
+ * map, its dot and kind line in the planet's own accent. When the same explanation also exists in the
+ * other format, a second button opens that one instead ("Watch as a Reel", "Read as a Scroll"; #709).
  */
 export function RegionCard({
   session,
@@ -197,9 +198,9 @@ export function RegionCard({
     },
     [place.id, session],
   );
-  const open = () => {
+  const open = (choice: 'encounter' | 'alternate' = 'encounter') => {
     if (!displayed) return;
-    const accepted = session.openRegion(displayed, () => router.navigate('/universe'));
+    const accepted = session.openRegion(displayed, () => router.navigate('/universe'), choice);
     if (accepted) {
       leaving.current = true;
       router.navigate('/explore');
@@ -225,9 +226,22 @@ export function RegionCard({
             {displayed.encounter.metadata.summary}
           </Text>
           <View style={styles.openActions}>
-            <OpenRow accent={accent} onPress={open} />
-            <Button label="Close" variant="spaceGhost" size="sm" onPress={close} />
+            <OpenRow accent={accent} onPress={() => open()} />
+            {displayed.alternate ? null : <Button label="Close" variant="spaceGhost" size="sm" onPress={close} />}
           </View>
+          {displayed.alternate ? (
+            // The other format takes its own row, so Open keeps the whole width on the narrowest phone.
+            <View style={styles.actions}>
+              <Button
+                testID="universe-region-alternate"
+                label={displayed.alternate.metadata.kind === 'reel' ? 'Watch as a Reel' : 'Read as a Scroll'}
+                variant="space"
+                size="sm"
+                onPress={() => open('alternate')}
+              />
+              <Button label="Close" variant="spaceGhost" size="sm" onPress={close} />
+            </View>
+          ) : null}
         </>
       ) : (
         <>

@@ -26,14 +26,45 @@ const supported = (q: RegionEncounterQuery & { readonly capabilities: z.infer<ty
   !!conceptMeaning(q.topicId, q.facetId) &&
   SCROLL_SCHEMAS.some((schema) => q.capabilities.documentSchemas.includes(schema));
 
+/**
+ * Whether `reel` is the current admitted Reel twin of the exact covering Scroll revision: the same explanation unit, the
+ * Reel's current revision, the other format (#709, D-404). Coverage stays a Scroll fact; a twin only borrows it.
+ */
+async function isReelTwin(
+  scope: Parameters<ReadRegionEncounterCandidates>[0],
+  reel: { readonly assetId: string; readonly assetRevision: number },
+  scroll: { readonly assetId: string; readonly assetRevision: number },
+): Promise<boolean> {
+  const row = (
+    await sql<{ ok: number }>`select 1 as ok
+    from content.asset_revisions covered
+    join content.assets covered_asset on covered_asset.id=covered.asset_id and covered_asset.kind='scroll'
+    join content.asset_revisions twin on twin.explanation_unit_id=covered.explanation_unit_id
+    join content.assets twin_asset on twin_asset.id=twin.asset_id and twin_asset.kind='reel'
+      and twin_asset.status='admitted' and twin_asset.revision=twin.revision
+    where covered.asset_id=${scroll.assetId}::uuid and covered.revision=${scroll.assetRevision}
+      and twin.asset_id=${reel.assetId}::uuid and twin.revision=${reel.assetRevision}
+    limit 1`.execute(transactionOf(scope))
+  ).rows[0];
+  return row !== undefined;
+}
+
 /** Derived keys find canonical matches beyond unrelated inventory. The101st key is never
- * hydrated, classified as eligible, or interpreted as catalogue exhaustion. */
+ * hydrated, classified as eligible, or interpreted as catalogue exhaustion. Each covering Scroll is followed by its
+ * current Reel twin, when it has one the client can play, under the same coverage (#709, D-404). An expected Reel is
+ * found through the Scroll it is the twin of. */
 export const readRegionEncounterCandidates: ReadRegionEncounterCandidates = async (scope, input) => {
   const q = Query.parse(input);
   const tx = transactionOf(scope);
   if (!supported(q)) return { kind: 'unsupported' };
   const expected = q.expected
-    ? sql`and b.asset_id=${q.expected.assetId}::uuid and b.asset_revision=${q.expected.assetRevision}`
+    ? sql`and ((b.asset_id=${q.expected.assetId}::uuid and b.asset_revision=${q.expected.assetRevision})
+        or exists(select 1 from content.asset_revisions covered
+          join content.asset_revisions twin on twin.explanation_unit_id=covered.explanation_unit_id
+          join content.assets twin_asset on twin_asset.id=twin.asset_id and twin_asset.kind='reel'
+            and twin_asset.status='admitted' and twin_asset.revision=twin.revision
+          where covered.asset_id=b.asset_id and covered.revision=b.asset_revision
+            and twin.asset_id=${q.expected.assetId}::uuid and twin.revision=${q.expected.assetRevision}))`
     : sql``;
   const keys = (
     await sql<{ asset_id: string; asset_revision: number; head_revision: number }>`
@@ -54,7 +85,19 @@ export const readRegionEncounterCandidates: ReadRegionEncounterCandidates = asyn
     )
       continue;
     const encounter = await readExactEncounter(scope, { ...ref, capabilities: q.capabilities });
-    if (encounter?.kind === 'scroll') candidates.push({ encounter, coverage: mapping.head.authority });
+    if (encounter?.kind !== 'scroll') continue;
+    candidates.push({ encounter, coverage: mapping.head.authority });
+    const sibling = encounter.siblings.find((s) => s.kind === 'reel');
+    const twin = sibling
+      ? await readExactEncounter(scope, {
+          assetId: sibling.assetId,
+          assetRevision: sibling.assetRevision,
+          capabilities: q.capabilities,
+        })
+      : undefined;
+    // The exact read's siblings already are the current admitted assets of this Scroll revision's explanation unit;
+    // the lock rechecks the twin before anything is committed.
+    if (twin?.kind === 'reel') candidates.push({ encounter: twin, coverage: mapping.head.authority });
   }
   return { kind: 'read', candidates, hasMore: keys.length > 100 };
 };
@@ -63,31 +106,40 @@ const LockQuery = Query.omit({ expected: true }).extend({
   candidates: z.array(z.strictObject({ ref: CoverageRefSchema, coverage: CoverageAuthoritySchema })).max(3),
 });
 /** Personal root -> UUID-ordered assets -> mapping heads. Both current head and exact
- * canonical binding survive to commit; a corrected/withdrawn/retracted target never wins. */
+ * canonical binding survive to commit; a corrected/withdrawn/retracted target never wins. A candidate is its covering
+ * Scroll, or that Scroll's current Reel twin under the Scroll's coverage (#709, D-404). */
 export const lockRegionEncounterCandidates: LockRegionEncounterCandidates = async (scope, input) => {
   const q = LockQuery.parse(input);
   transactionOf(scope);
-  if (
-    !supported(q) ||
-    new Set(q.candidates.map((c) => c.ref.assetId)).size !== q.candidates.length ||
-    q.candidates.some((c) => c.ref.assetId !== c.coverage.assetId || c.ref.assetRevision !== c.coverage.assetRevision)
-  )
-    return false;
+  if (!supported(q) || new Set(q.candidates.map((c) => c.ref.assetId)).size !== q.candidates.length) return false;
   if (!q.candidates.length) return true;
+  // Personal root -> every asset the selection touches (the candidates and the Scrolls whose coverage they use), in one
+  // UUID order, so a Reel and its covering Scroll are never locked in opposite orders by two transactions.
+  const touched = [...new Set(q.candidates.flatMap((c) => [c.ref.assetId, c.coverage.assetId]))].sort();
+  for (const assetId of touched)
+    await sql`select id from content.assets where id=${assetId}::uuid for share`.execute(transactionOf(scope));
   const current = await lockCurrentEncounters(scope, {
     refs: q.candidates.map((c) => c.ref),
     capabilities: q.capabilities,
   });
   if (current.length !== q.candidates.length || current.some((c) => !c.encounter)) return false;
-  if (
-    !(await lockCurrentCoverageAuthorities(
-      scope,
-      q.candidates.map((c) => c.coverage),
-    ))
-  )
-    return false;
+  // A Scroll and its Reel twin share one coverage: each authority is locked once. Two different authorities for one
+  // Scroll revision cannot both be current, so such a selection is refused rather than half locked.
+  const coverages = [
+    ...new Map(
+      q.candidates.map((c) => [
+        `${c.coverage.assetId}@${String(c.coverage.assetRevision)}#${String(c.coverage.headRevision)}:${c.coverage.mappingSha256}`,
+        c.coverage,
+      ]),
+    ).values(),
+  ];
+  if (new Set(coverages.map((c) => `${c.assetId}@${String(c.assetRevision)}`)).size !== coverages.length) return false;
+  if (!(await lockCurrentCoverageAuthorities(scope, coverages))) return false;
   for (const candidate of q.candidates) {
-    const mapping = await readAdmittedCoverageMapping(scope, candidate.ref);
+    const covering = { assetId: candidate.coverage.assetId, assetRevision: candidate.coverage.assetRevision };
+    const own = candidate.ref.assetId === covering.assetId && candidate.ref.assetRevision === covering.assetRevision;
+    if (!own && !(await isReelTwin(scope, candidate.ref, covering))) return false;
+    const mapping = await readAdmittedCoverageMapping(scope, covering);
     if (
       mapping.kind !== 'mapped' ||
       !mapping.head.mapping.bindings.some((b) => b.topicId === q.topicId && b.facetId === q.facetId)
