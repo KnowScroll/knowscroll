@@ -63,7 +63,9 @@ test('authoritative map/outline/travel and browser Back keep camera private and 
           }
         : path.endsWith('/region/preview')
           ? {
-              ...Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'alternate')),
+              ...Object.fromEntries(
+                Object.entries(body as Record<string, unknown>).filter(([key]) => key !== 'alternate'),
+              ),
               status: 'unavailable',
               reason: 'no_eligible_content',
               scope: { universeId: fixtureAccount.universeId, privacyEpoch: 1, personalWatermark: 40 },
