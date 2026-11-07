@@ -115,6 +115,12 @@ Consumers: Evidence credits a binding only when a qualified reading saw every re
 (`observedBindings`), and Region candidates come from `content.region_bindings` (below). Neither
 changes qualification policy, and no Reel time mapping exists.
 
+A region also offers each covering Scroll's current Reel twin (#709, D-404): the admitted Reel sharing the Scroll
+revision's explanation unit, under the Scroll's own coverage. `readRegionEncounterCandidates` lists the Scroll, then its
+twin when the client can play it, and finds an expected Reel through the Scroll it is the twin of.
+`lockRegionEncounterCandidates` locks each shared coverage once and rechecks the twin under lock. A Reel never gains a
+binding or a facet of its own; a Reel with no Scroll twin is not in any region.
+
 Verification is labelled CI fixture: unit tests for the rule, in-memory admission and the library
 plan; real PostgreSQL tests for publication, the consumers' reads, rollback, append-only history,
 concurrency/SHARE-lock, correction/retraction and stale or forged inputs. Automated suites run in

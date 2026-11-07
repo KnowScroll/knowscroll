@@ -36,6 +36,8 @@ export function createRegionPreviewSession(options: {
   scope: AccountScope;
   capabilities: ClientCapabilities;
   newReadId: () => string;
+  /** The card can show the other format of the same explanation (#709); the server then names it as `alternate`. */
+  alternate?: boolean;
 }) {
   const { scope } = options;
   let ended = !scope.active || !scope.onEnd;
@@ -104,6 +106,7 @@ export function createRegionPreviewSession(options: {
         readId: options.newReadId(),
         target,
         capabilities: options.capabilities,
+        ...(options.alternate ? { alternate: true } : {}),
       });
       if (
         !request.success ||

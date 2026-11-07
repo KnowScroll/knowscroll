@@ -50,10 +50,13 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource, baselineCapabilities } from '../support/scroll.js';
 import { buildFromProviders } from '../support/providers.js';
+import { seedReel } from '../support/thread-fixtures.js';
 
 const topic = 'earth.seasons',
   facet = 'earth.seasons.axial-tilt';
 const capabilities = baselineCapabilities;
+/** A client that also plays Reels, as the app's encounter controller does. */
+const withReels = { ...capabilities, documentSchemas: [...capabilities.documentSchemas, 'reel-document.v1'] };
 describe('current canonical Region navigation (real PostgreSQL, Actions only)', () => {
   let database: TestDatabase<Database>,
     c: Awaited<ReturnType<typeof scrollUseCases>>,
@@ -211,11 +214,12 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
   const open = (
     target: RegionEncounterTarget,
     expected?: { assetId: string; assetRevision: number },
+    caps: typeof capabilities = capabilities,
   ): RegionEncounterOpenRequest => ({
     version: 'region-encounter-open.v1',
     commandId: randomUUID(),
     target,
-    capabilities,
+    capabilities: caps,
     ...(expected ? { expectedEncounter: { assetId: expected.assetId, assetRevision: expected.assetRevision } } : {}),
   });
   const preview = (person: FixturePerson, target: RegionEncounterTarget) =>
@@ -224,6 +228,40 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
       readId: randomUUID(),
       target,
       capabilities,
+    });
+  /** A Reel twin of a covering Scroll: an admitted Reel sharing the Scroll's explanation unit (authored CI fixture). */
+  async function twinOf(scroll: Awaited<ReturnType<typeof asset>>) {
+    const reel = await seedReel(database.db, { title: 'Authored CI Region Reel' });
+    if (scroll.command.change.kind !== 'admit') throw new Error('CI twin needs an admitted mapping');
+    await database.db
+      .updateTable('content.asset_revisions')
+      .set({ explanation_unit_id: scroll.command.change.mapping.explanationUnitId })
+      .where('asset_id', '=', reel.assetId)
+      .execute();
+    return { assetId: reel.assetId, assetRevision: 1 };
+  }
+  const previewWith = (
+    person: FixturePerson,
+    target: RegionEncounterTarget,
+    caps: typeof capabilities,
+    alternate?: true,
+  ) =>
+    region.preview(person.authority, {
+      version: 'region-encounter-preview.v1',
+      readId: randomUUID(),
+      target,
+      capabilities: caps,
+      ...(alternate ? { alternate } : {}),
+    });
+  const activate = (person: FixturePerson, outcome: Awaited<ReturnType<typeof ready>>) =>
+    makeActivateOffer(p)(person.authority, {
+      commandId: randomUUID(),
+      target: {
+        kind: 'offer',
+        sessionId: outcome.sessionId,
+        offerId: outcome.offer.offerId,
+        expectedIntentRevision: outcome.intentRevision,
+      },
     });
   async function effects(person: FixturePerson) {
     const result: Record<string, unknown> = {};
@@ -292,6 +330,122 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
       },
     );
     expect(await effects(person)).toEqual(before);
+  });
+  it('offers a covering Scroll’s Reel twin beside it, under the Scroll’s coverage, and either opens exactly (#709)', async () => {
+    const person = await seedPerson(database.db),
+      // A region of its own: other tests' Scrolls in a shared region could come first by id.
+      target = await place(person, 'earth.seasons.elsewhere'),
+      a = await asset('earth.seasons.elsewhere'),
+      reel = await twinOf(a);
+    // A Reel that only exists, without sharing the explanation, is never offered by the region.
+    await seedReel(database.db, { title: 'Authored CI unrelated Reel' });
+    const before = await effects(person);
+    expect(await previewWith(person, target, withReels, true)).toMatchObject({
+      kind: 'accepted',
+      value: {
+        status: 'available',
+        // Nothing says the person leans to Reels here, so the covering Scroll comes first.
+        encounter: { assetId: a.assetId, metadata: { kind: 'scroll' } },
+        alternate: { assetId: reel.assetId, metadata: { kind: 'reel' } },
+      },
+    });
+    // Not asked for, or a client that cannot play a Reel: the card is the Scroll alone.
+    const plain = await previewWith(person, target, withReels);
+    expect(plain.kind === 'accepted' && plain.value.status === 'available' && 'alternate' in plain.value).toBe(false);
+    const scrollOnly = await previewWith(person, target, capabilities, true);
+    expect(
+      scrollOnly.kind === 'accepted' && scrollOnly.value.status === 'available' && 'alternate' in scrollOnly.value,
+    ).toBe(false);
+    expect(await effects(person)).toEqual(before);
+    // Open the Reel exactly: the offer is the Reel, and its region record names the Scroll whose coverage binds it.
+    const outcome = await ready(person, open(target, reel, withReels));
+    expect(outcome.offer).toMatchObject({ assetId: reel.assetId, metadata: { kind: 'reel' } });
+    const row = await database.db
+      .selectFrom('experience.offer_region_constraints')
+      .select(['asset_id', 'asset_revision'])
+      .where('universe_id', '=', person.universeId)
+      .where('offer_id', '=', outcome.offer.offerId)
+      .executeTakeFirstOrThrow();
+    expect(row).toEqual({ asset_id: a.assetId, asset_revision: 1 });
+    // Activation rechecks the region and the twin, and the Reel starts as a real encounter.
+    expect((await activate(person, outcome)).kind).toBe('accepted');
+  });
+  it('a Reel that stops being the twin is refused at activation, and the database refuses a borrowed coverage (#709)', async () => {
+    const person = await seedPerson(database.db),
+      target = await place(person),
+      a = await asset(),
+      b = await asset(),
+      reel = await twinOf(a);
+    const outcome = await ready(person, open(target, reel, withReels));
+    const own = await database.db
+      .selectFrom('experience.offer_region_constraints')
+      .selectAll()
+      .where('universe_id', '=', person.universeId)
+      .where('offer_id', '=', outcome.offer.offerId)
+      .executeTakeFirstOrThrow();
+    const borrowed = (
+      await sql<{ asset_id: string; asset_revision: number; revision: number; mapping_sha256: string }>`
+        select r.asset_id, r.asset_revision, r.revision, r.mapping_sha256 from content.coverage_heads h
+        join content.coverage_revisions r on r.asset_id=h.asset_id and r.asset_revision=h.asset_revision
+          and r.revision=h.revision
+        where h.asset_id=${b.assetId}::uuid`.execute(database.db)
+    ).rows[0]!;
+    const payload = own.constraint_payload as { coverage: Record<string, unknown> };
+    // The guard: the Reel offer may carry its own Scroll's coverage, never another Scroll's.
+    await expect(
+      database.db.transaction().execute(async (tx) => {
+        await tx
+          .deleteFrom('experience.offer_region_constraints')
+          .where('universe_id', '=', person.universeId)
+          .where('offer_id', '=', outcome.offer.offerId)
+          .execute();
+        await tx
+          .insertInto('experience.offer_region_constraints')
+          .values({
+            ...own,
+            asset_id: borrowed.asset_id,
+            asset_revision: borrowed.asset_revision,
+            coverage_head_revision: borrowed.revision,
+            mapping_sha256: borrowed.mapping_sha256,
+            constraint_payload: JSON.stringify({
+              ...payload,
+              coverage: {
+                assetId: borrowed.asset_id,
+                assetRevision: borrowed.asset_revision,
+                headRevision: borrowed.revision,
+                mappingSha256: borrowed.mapping_sha256,
+              },
+            }),
+          })
+          .execute();
+      }),
+    ).rejects.toThrow('REGION_CONSTRAINT_IDENTITY');
+    // The Reel is re-cut as another explanation: no longer the twin, it cannot start as the region's.
+    await database.db
+      .updateTable('content.asset_revisions')
+      .set({ explanation_unit_id: 'ci-region-split-' + randomUUID() })
+      .where('asset_id', '=', reel.assetId)
+      .execute();
+    expect(await activate(person, outcome)).toEqual({ kind: 'refused', code: 'OFFER_UNAVAILABLE' });
+  });
+  it('a withdrawn Reel twin is refused at activation and no longer offered (#709)', async () => {
+    const person = await seedPerson(database.db),
+      target = await place(person, 'earth.seasons.limits'),
+      a = await asset('earth.seasons.limits'),
+      reel = await twinOf(a);
+    const outcome = await ready(person, open(target, reel, withReels));
+    await database.db
+      .updateTable('content.assets')
+      .set({ status: 'withdrawn' })
+      .where('id', '=', reel.assetId)
+      .execute();
+    expect(await activate(person, outcome)).toEqual({ kind: 'refused', code: 'OFFER_UNAVAILABLE' });
+    const after = await previewWith(person, target, withReels, true);
+    expect(after).toMatchObject({
+      kind: 'accepted',
+      value: { status: 'available', encounter: { assetId: a.assetId } },
+    });
+    expect(after.kind === 'accepted' && after.value.status === 'available' && 'alternate' in after.value).toBe(false);
   });
   it('displayed A remains exact, unknown replay is stable, and retraction refuses before old receipt replay', async () => {
     const person = await seedPerson(database.db),

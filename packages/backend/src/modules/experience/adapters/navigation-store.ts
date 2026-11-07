@@ -67,12 +67,17 @@ function offerOf(r: OfferRow): StoredOffer {
     r.constraint_payload === null || r.constraint_payload === undefined
       ? undefined
       : OfferRegionConstraintSchema.parse(r.constraint_payload);
+  // A regional offer is its covering Scroll, or that Scroll's Reel twin under the Scroll's coverage (#709, D-404). The
+  // database guard proved the twin when the row was written, and activation rechecks it under lock.
+  const covering =
+    regionConstraint !== undefined &&
+    regionConstraint.coverage.assetId === descriptor.assetId &&
+    regionConstraint.coverage.assetRevision === descriptor.assetRevision;
   if (
     regionConstraint &&
     (r.mode !== 'vertical' ||
       descriptor.relation.kind !== 'discovery' ||
-      regionConstraint.coverage.assetId !== descriptor.assetId ||
-      regionConstraint.coverage.assetRevision !== descriptor.assetRevision)
+      (!covering && descriptor.metadata.kind !== 'reel'))
   )
     throw new Error('REGION_CONSTRAINT_IDENTITY');
   return {

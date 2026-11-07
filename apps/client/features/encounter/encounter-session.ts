@@ -759,7 +759,13 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       };
     },
     open,
-    openRegion(displayed: AvailableRegionPreview, label: string, returnToMap: () => void) {
+    /** `alternate` opens the card's other format of the same explanation, exactly, when the card names one (#709). */
+    openRegion(
+      displayed: AvailableRegionPreview,
+      label: string,
+      returnToMap: () => void,
+      choice: 'encounter' | 'alternate' = 'encounter',
+    ) {
       if (!valid() || work || busy || actionRunning || action !== undefined) return false;
       const preview = RegionEncounterPreviewResponseSchema.safeParse(displayed);
       if (
@@ -771,7 +777,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       )
         return false;
       const card = preview.data;
-      const expectedEncounter = { assetId: card.encounter.assetId, assetRevision: card.encounter.assetRevision };
+      const chosen = choice === 'alternate' ? card.alternate : card.encounter;
+      if (!chosen) return false;
+      const expectedEncounter = { assetId: chosen.assetId, assetRevision: chosen.assetRevision };
       const input = RegionEncounterOpenRequestSchema.parse({
         version: 'region-encounter-open.v1',
         commandId: newId(),

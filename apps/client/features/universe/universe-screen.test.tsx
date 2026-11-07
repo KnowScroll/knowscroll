@@ -545,7 +545,8 @@ it('shows only an actual correlated card; deliberate Open sends displayed ref an
       let value: unknown;
       if (path.endsWith('/region/preview'))
         value = {
-          ...body,
+          // The server answers the read's own fields; the request's `alternate` flag is not one of them.
+          ...Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'alternate')),
           scope: { universeId: fixtureAccount.universeId, privacyEpoch: 1, personalWatermark: 40 },
           recordedAt: '2026-10-22T00:00:00.000Z',
           geographyRevision: 3,
@@ -619,6 +620,88 @@ it('shows only an actual correlated card; deliberate Open sends displayed ref an
   ).toMatchObject({ selected: false });
   // The pill is drawing; the region's target is what is announced.
   expect(screen.getAllByText('CI region 4 · you were here', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+  await act(() => scope.end());
+  await view.unmount();
+});
+it('offers the same explanation as a Reel beside the Scroll, and opens exactly the format chosen (#709)', async () => {
+  const world = sceneFixture(),
+    calls: { path: string; body: Record<string, unknown> }[] = [];
+  const meta = (kind: 'reel' | 'scroll', title: string) => ({ kind, title, summary: 'A fixture.', language: 'en' });
+  const scope = createAccountScope({
+    account: fixtureAccount,
+    baseUrl: 'https://universe.fixture.test',
+    store: memoryStore(),
+    authorization: () => undefined,
+    fetch: async (request) => {
+      const path = new URL(request.url).pathname,
+        body = (await request.json()) as Record<string, unknown>;
+      if (path === '/v1/privacy/recording/read')
+        return new Response(
+          JSON.stringify({
+            ...body,
+            scope: { accountId: fixtureAccount.accountId, privacyEpoch: 1 },
+            revision: 1,
+            policy: { on: true, generation: 1 },
+          }),
+          { headers: { 'content-type': 'application/json' } },
+        );
+      calls.push({ path, body });
+      let value: unknown;
+      if (path.endsWith('/region/preview'))
+        value = {
+          ...body,
+          scope: { universeId: fixtureAccount.universeId, privacyEpoch: 1, personalWatermark: 40 },
+          recordedAt: '2026-10-22T00:00:00.000Z',
+          geographyRevision: 3,
+          status: 'available',
+          encounter: { assetId: fixtureId(920), assetRevision: 1, metadata: meta('scroll', 'CI region Scroll') },
+          ...(body.alternate
+            ? { alternate: { assetId: fixtureId(921), assetRevision: 1, metadata: meta('reel', 'CI region Reel') } }
+            : {}),
+        };
+      else if (path.endsWith('/region/open'))
+        value = {
+          version: body.version,
+          universeId: fixtureAccount.universeId,
+          privacyEpoch: 1,
+          target: body.target,
+          expectedEncounter: body.expectedEncounter,
+          capabilities: body.capabilities,
+          outcome: {
+            commandId: body.commandId,
+            sessionId: fixtureId(922),
+            decisionId: fixtureId(923),
+            intentRevision: 1,
+            revision: 40,
+            replayed: false,
+            status: 'exhausted',
+            reason: 'no_eligible_content',
+          },
+        };
+      else value = world.reply(path, body);
+      return new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } });
+    },
+  });
+  let recordingReadId = 9950;
+  scope.recording?.useIdSource(() => fixtureId(++recordingReadId));
+  mockScope = scope;
+  const view = await render(calm(<UniverseScreen />));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen());
+  await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
+  await fireEvent.press(await screen.findByRole('button', { name: 'Land on CI planet 2' }));
+  await fireEvent.press(await screen.findByRole('button', { name: 'CI region 4, a region' }));
+  await waitFor(() => expect(screen.getByText('CI region Scroll')).toBeOnTheScreen());
+  // The card asks for the other format, and names it as its own button; looking opens nothing.
+  expect(calls.find((c) => c.path.endsWith('/region/preview'))!.body.alternate).toBe(true);
+  expect(calls.filter((c) => c.path.endsWith('/region/open'))).toHaveLength(0);
+  await fireEvent.press(screen.getByRole('button', { name: 'Watch as a Reel' }));
+  await waitFor(() => expect(calls.filter((c) => c.path.endsWith('/region/open'))).toHaveLength(1));
+  expect(calls.find((c) => c.path.endsWith('/region/open'))!.body.expectedEncounter).toEqual({
+    assetId: fixtureId(921),
+    assetRevision: 1,
+  });
+  expect(mockNavigate).toHaveBeenCalledWith('/explore');
   await act(() => scope.end());
   await view.unmount();
 });

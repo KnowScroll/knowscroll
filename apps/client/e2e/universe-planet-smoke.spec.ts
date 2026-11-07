@@ -30,7 +30,11 @@ const LONG_CARD = {
     'Authored fixture text, not generated content. It runs long on purpose, to three lines on a phone, as a real summary does when a card opens over the map.',
 };
 
-async function openPlanet(page: Page, size: { width: number; height: number }, options: { longCard?: boolean } = {}) {
+async function openPlanet(
+  page: Page,
+  size: { width: number; height: number },
+  options: { longCard?: boolean; alternate?: boolean } = {},
+) {
   const world = sceneFixture(5, 0, 3);
   // Local only: look at the same planet as another type (KS_PLANET_TYPE=lush) when comparing with the design.
   const type = process.env['KS_PLANET_TYPE'];
@@ -73,7 +77,7 @@ async function openPlanet(page: Page, size: { width: number; height: number }, o
     if (path.endsWith('/region/preview'))
       return route.fulfill({
         json: {
-          ...body,
+          ...Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'alternate')),
           scope,
           recordedAt: '2026-10-22T00:00:00.000Z',
           geographyRevision: 3,
@@ -88,6 +92,21 @@ async function openPlanet(page: Page, size: { width: number; height: number }, o
               language: 'en',
             },
           },
+          // The same explanation as a Scroll, when the card asked for the other format (#709).
+          ...(options.alternate && body['alternate'] === true
+            ? {
+                alternate: {
+                  assetId: '0199a000-0000-7000-8000-000000000501',
+                  assetRevision: 1,
+                  metadata: {
+                    kind: 'scroll',
+                    title: 'CI card title, as a Scroll',
+                    summary: 'Authored fixture text, not generated content.',
+                    language: 'en',
+                  },
+                },
+              }
+            : {}),
         },
       });
     if (path.startsWith('/v1/universe/') || COLLECTION_READS.includes(path))
@@ -277,6 +296,34 @@ for (const size of [
     expect(await pill.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(false);
     await page.waitForTimeout(400);
     await shot(page, `region-card-${String(size.width)}x${String(size.height)}`);
+    await expectNoSeriousViolations(page);
+  });
+}
+
+for (const size of [
+  { width: 320, height: 568 },
+  { width: 390, height: 844 },
+]) {
+  test(`a region card offers the same explanation in its other format at ${String(size.width)} px (#709)`, async ({
+    page,
+  }) => {
+    await openPlanet(page, size, { alternate: true });
+    await page.getByRole('button', { name: 'Land on CI planet 2', exact: true }).click();
+    await page.getByRole('button', { name: 'CI region 5, a region', exact: true }).click();
+    const card = page.getByTestId('universe-region-card');
+    await expect(card).toContainText('CI card title');
+    const other = page.getByRole('button', { name: 'Read as a Scroll' });
+    await expect(other).toBeVisible();
+    // Every action of the card stays inside the screen, the second format included.
+    for (const action of [page.getByRole('button', { name: 'Open', exact: true }), other]) {
+      const box = (await action.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(size.width);
+      // No word of either is cut: each button shows all of its label.
+      expect(await action.evaluate((node) => node.scrollWidth > node.clientWidth + 1)).toBe(false);
+    }
+    await page.waitForTimeout(400);
+    await shot(page, `region-card-alternate-${String(size.width)}`);
     await expectNoSeriousViolations(page);
   });
 }

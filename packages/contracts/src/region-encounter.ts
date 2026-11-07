@@ -32,6 +32,11 @@ export const RegionEncounterPreviewRequestSchema = z.strictObject({
   readId: UuidSchema,
   target: RegionEncounterTargetSchema,
   capabilities: ClientCapabilities,
+  /**
+   * The client can show the other format of the same explanation beside the card (#709, D-404). Absent for a client
+   * that cannot, which is then never sent an `alternate` its strict parser would refuse.
+   */
+  alternate: z.literal(true).optional(),
 });
 const PreviewFields = {
   version: PreviewVersion,
@@ -51,7 +56,10 @@ export const RegionEncounterPreviewResponseSchema = z
     z.strictObject({
       ...PreviewFields,
       status: z.literal('available'),
+      /** The format the person leans to in this topic first; a Scroll when nothing says otherwise. */
       encounter: RegionEncounterExpectedSchema.extend({ metadata: EncounterMetadataSchema }),
+      /** The same explanation in the other format, when it exists and was asked for. Open takes either, exactly. */
+      alternate: RegionEncounterExpectedSchema.extend({ metadata: EncounterMetadataSchema }).optional(),
     }),
     z.strictObject({
       ...PreviewFields,
@@ -65,7 +73,14 @@ export const RegionEncounterPreviewResponseSchema = z
       ]),
     }),
   ])
-  .refine((s) => s.status !== 'available' || s.target.expectedGeographyRevision === s.geographyRevision);
+  .refine((s) => s.status !== 'available' || s.target.expectedGeographyRevision === s.geographyRevision)
+  .refine(
+    (s) =>
+      s.status !== 'available' ||
+      !s.alternate ||
+      (s.alternate.assetId !== s.encounter.assetId && s.alternate.metadata.kind !== s.encounter.metadata.kind),
+    'An alternate is the other format of another asset.',
+  );
 
 /** Explicit Composer preparation command. Local map selection, Close and Back send no command.
  * Server derives the current owner/epoch and resolves canonical topic+facet through Geography.
@@ -137,6 +152,7 @@ export const RegionEncounterProblemIssueSchema = z.strictObject({
         'commandId',
         'recordingGeneration',
         'readId',
+        'alternate',
         'expectedEncounter',
         'assetId',
         'assetRevision',

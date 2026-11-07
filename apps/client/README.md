@@ -418,6 +418,9 @@ float over it.
   returns focus to its trigger. `/` from the map opens Browse's search field. The map stays mounted at the same size.
   The automatic WebGL fallback and manual Simple drawing keep their full accessible lists without Browse being open.
   Phone navigation retains the orbit dial. Visits expose no private regions, activity, collection or rooms.
+- **A region's two formats** (`universe-cards.tsx` `RegionCard`, #709, D-404, D-405). The card shows the format the
+  person leans to in the topic first, and when the same explanation also exists in the other format it adds "Watch as a
+  Reel" or "Read as a Scroll" on its own row, under a full-width Open. Either opens exactly the asset shown.
 - **A system's Reels and Scrolls** (`system-finds-sheet.tsx`, `readSystemFinds` in client-core, #697, D-403). A system
   can form before its first planet, and a region's card was the only way in, so a system with no planet had nothing to open.
   "Watch or read" opens a sheet of the system's Reels and Scrolls from three places: the chip in a system's view, the
