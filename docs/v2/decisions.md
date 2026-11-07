@@ -4696,3 +4696,15 @@ Confirmed by: `collection-screen.test.tsx` ("See it flies to the planet…", the
 - **What it does not change.** The landmark, its pennant, its list row and "New" for a week (D-363) all stay. The Next part and week cards are #664.
 
 Confirmed by: `landmark-seen.test.ts` (per account and epoch, purged, damaged values), `collection-screen.test.tsx` (close, next visit, newer landmark), `e2e/universe-collection-smoke.spec.ts` (close, pill opens the list, reload at 390 × 844). Shown failing with the fold removed.
+
+## D-403 · 2026-11-07 · A system opens its own Reels and Scrolls, with or without a planet (#697)
+
+**Amends** blueprint §18's navigation map, where content is reached from a planet's regions only. Regions keep their way in.
+
+- **Why.** A system forms from two Scrolls, but a planet needs three over two facets (§12, D-038). Until then a system had nothing to open, and the owner could reach their Machine learning Scrolls only through the room Feed. This was true of every system.
+- **The rule.** Every system on the person's own map has "Watch or read". It opens a sheet of that system's admitted Reels and Scrolls, newest first, up to 12, with up to half kept for each format. Each opens in its own reader by address, and Back returns to the system. The way in is the chip in the system's view, the orbit dial and the Simple list, which is also the desktop panel (§13: the same targets without 3D).
+- **Honest gaps.** A format with nothing says "No Reels in <system> yet." A system no longer on the map says so, with no link. No planet is drawn or implied.
+- **Reads only.** The list is a read. It creates no session, offer, exposure or evidence. Only opening a find starts a real encounter. What the person hid or set aside is left out. A friend's universe has none.
+- **Not here.** A region's own card still offers Scrolls only; Reels in regions is a follow-up issue.
+
+Confirmed by: `system-finds.test.ts` and `system-topic.test.ts` (backend), `universe-system-finds.test.ts` (client-core), `geography.controller.test.ts` (route), `system-finds-screen.test.tsx` (the chip, a system with no planet, empty formats, Close and Back, not on the map, the Simple list). Shown failing with the overlay and the empty-format line removed.

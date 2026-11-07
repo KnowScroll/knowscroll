@@ -300,6 +300,19 @@ submillisecond boundaries, late kind matches, withdrawal, deleted/resaved anchor
 100-ref budgets, unchanged activity/root state and current authority after real
 root/account lock waits. Complete deployed/UI acceptance remains under #344.
 
+### A system's Reels and Scrolls (#697, D-403)
+
+`READ_SYSTEM_FINDS` (`POST /v1/universe/system/finds/read`, contract `universe-system-finds.v1`) lists up to 12 admitted
+Reels and Scrolls whose primary topic is one of the system's topics, newest first. Each format is read on its own, so new
+Scrolls never hide the Reels, and a Reel is listed only when it can be opened (not a fixture, a Reel document of positive
+length). Up to half the rows go to each format.
+It enters the caller's fenced personal scope twice: first to confirm the system through Geography's `ReadOwnSystemTopic`,
+then, after reading the shared library outside any transaction (`READ_LIBRARY_FINDS`), to recheck the system and leave out
+what the caller hid or set aside. It creates no session, offer, exposure, receipt, evidence, demand or job. A find opens by
+its own address (`/reel/<id>`, `/scroll/<id>`), where the real encounter starts. A changed topic, a library that cannot be
+read or an unreadable row answers `temporarily_unavailable`, and a retry simply reads again. Mounted with the region ports (`region: true`).
+*Implemented; unit tests in `application/system-finds.test.ts`.*
+
 ### Region preview, deliberate Open and constrained activation (U04)
 
 `REGION_ENCOUNTERS` preview uses current personal/root/account authority and reads one honest canonical card without creating a session, offer, exposure, receipt, decision, root stamp, job or hint. Unmapped/unsupported Regions return explicit unavailable responses. Deliberate Open delegates to the existing two-transaction Composer/navigation engine; supplied displayed A is mandatory as the exact eligible asset, never silently replaced with B. The optional existing session retains exact session/intent concurrency semantics. Unknown acknowledgements recover through the original command receipt/body.

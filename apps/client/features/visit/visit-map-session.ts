@@ -57,6 +57,7 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
     selectedId: null,
     youWereHere: null,
     seenLandmark: null,
+    findsFor: null,
   };
   const publish = (patch: Partial<UniverseViewState>) => {
     state = { ...state, ...patch, historyDepth: history.size() };
@@ -156,6 +157,8 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
     },
     // A visitor is shown no landmark card (D-214), so there is nothing to put away.
     seeLandmark() {},
+    // A friend's map lists none of its systems' Reels and Scrolls: that reading is the visitor's own, not the friend's.
+    showFinds() {},
     refreshRegionPreview() {},
     openRegion: () => false,
     camera(frame) {

@@ -34,8 +34,8 @@ export interface UniverseViewState extends CameraEntry {
   /** On a planet: its landed map (U04) is showing instead of its globe (U03). A focused region is always landed. */
   readonly landed: boolean;
   readonly read: UniverseSceneState;
-  /** `collection` is the landmarks sheet (D-084). */
-  readonly overlay: 'outline' | 'place' | 'search' | 'collection' | 'settings' | null;
+  /** `collection` is the landmarks sheet (D-084); `finds` is the focused system's Reels and Scrolls (#697). */
+  readonly overlay: 'outline' | 'place' | 'search' | 'collection' | 'finds' | 'settings' | null;
   readonly detail: 'full' | 'low';
   readonly reducedMotion: boolean;
   readonly notice?: 'place_unavailable';
@@ -59,6 +59,8 @@ export interface UniverseViewState extends CameraEntry {
   readonly looks?: readonly SceneLook[];
   /** U04: the region the person left through its card's Open, private to this device, until they choose it again. */
   readonly youWereHere: string | null;
+  /** The system whose Reels and Scrolls the `finds` sheet lists (#697). */
+  readonly findsFor: string | null;
   /** The landmark the person already looked at or put away on this device: its large card stays folded (#694). */
   readonly seenLandmark: string | null;
 }
@@ -117,6 +119,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     selectedId: null,
     youWereHere: readHereMarker(scope, now()) ?? null,
     seenLandmark: readSeenLandmark(scope) ?? null,
+    findsFor: null,
   };
   const publish = (patch: Partial<UniverseViewState>) => {
     state = { ...state, ...patch, historyDepth: history.size() };
@@ -216,6 +219,9 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       history.clear();
       publish({ focusId: null, landed: false, locator: undefined, overlay: null, notice: 'place_unavailable' });
     }
+    // The finds sheet belongs to a system on this map: once that system is gone the sheet closes instead of hiding.
+    if (state.overlay === 'finds' && !places().some((p) => p.id === state.findsFor && p.kind === 'system'))
+      showOverlay(null);
     if (!hadSnapshot && read.snapshot) restoreMemory();
     if (read.geography) {
       dust.seeGeography(read.geography.geography.revision);
@@ -345,6 +351,8 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       }
       cancelPreview();
       publish({ overlay: null });
+      // As Close does: with nothing over the map, a new place may present itself again.
+      formation.setForeground(true);
       return true;
     }
     if (state.selectedId) {
@@ -477,6 +485,17 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       memory.saveNow();
     },
     showOverlay,
+    /**
+     * Opens the sheet of a system's Reels and Scrolls (#697), from the map, the dial or the plain list. Only a system on
+     * this map; it reads nothing here and records nothing (the sheet reads its list when it opens).
+     */
+    showFinds(systemId: string) {
+      if (!live() || !foreground || !places().some((p) => p.id === systemId && p.kind === 'system')) return;
+      cancelPreview();
+      coveredRegion = null;
+      publish({ overlay: 'finds', findsFor: systemId, selectedId: null });
+      formation.setForeground(false);
+    },
     /**
      * The person looked at or put away this landmark's large card (#694). Remembered on this device for the account,
      * so the card stays folded to its pill until a newer landmark is earned. Changes only what the card shows.

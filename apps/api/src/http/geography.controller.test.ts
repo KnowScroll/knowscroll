@@ -2,7 +2,14 @@ import 'reflect-metadata';
 import { call } from '@orpc/server';
 import type { Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import type { EmergingUniverse, GeographySnapshot, PlaceConcepts, UniverseDeltas } from '@knowscroll/contracts';
+import type {
+  EmergingUniverse,
+  GeographySnapshot,
+  PlaceConcepts,
+  SystemFinds,
+  UniverseDeltas,
+} from '@knowscroll/contracts';
+import type { SystemFindsResult } from '@knowscroll/backend/modules/experience';
 import type {
   ReadOwnGeography,
   ReadOwnDeltas,
@@ -51,6 +58,26 @@ const concepts: PlaceConcepts = {
   version: 'universe-place-concepts.v1',
   planets: [{ id: '0199a000-0000-7000-8000-000000000004', topicId: 'seasons' }],
 };
+const systemId = '0199a000-0000-7000-8000-000000000005';
+const findsInput = {
+  version: 'universe-system-finds.v1' as const,
+  readId: '0199a000-0000-7000-8000-000000000006',
+  systemId,
+};
+const systemFinds: SystemFinds = {
+  version: 'universe-system-finds.v1',
+  readId: findsInput.readId,
+  universeId,
+  privacyEpoch: 2,
+  personalWatermark: 7,
+  systemId,
+  status: 'ready',
+  finds: [
+    { assetId: '0199a000-0000-7000-8000-000000000007', assetRevision: 1, kind: 'reel', title: 'Attention, watched' },
+  ],
+};
+type ReadFinds = (authority: unknown, input: unknown) => Promise<SystemFindsResult>;
+const findsOf = (result: SystemFindsResult) => vi.fn<ReadFinds>(() => Promise.resolve(result));
 async function admittedRequest(): Promise<Request> {
   const request = {
     path: '/v1/universe/geography/read',
@@ -69,7 +96,15 @@ function wired() {
   const changes = vi.fn<ReadOwnDeltas>(() => Promise.resolve({ kind: 'read', deltas }));
   const gathering = vi.fn<ReadOwnEmerging>(() => Promise.resolve({ kind: 'read', emerging }));
   const places = vi.fn<ReadOwnPlaceConcepts>(() => Promise.resolve({ kind: 'read', concepts }));
-  return { controller: new GeographyController(read, changes, gathering, places), read, changes, gathering, places };
+  const finds = findsOf({ kind: 'read', finds: systemFinds });
+  return {
+    controller: new GeographyController(read, changes, gathering, places, finds),
+    read,
+    changes,
+    gathering,
+    places,
+    finds,
+  };
 }
 
 describe('Geography guarded read-only HTTP adapter', () => {
@@ -88,13 +123,29 @@ describe('Geography guarded read-only HTTP adapter', () => {
     expect(places).toHaveBeenCalledExactlyOnceWith(authority, {});
   });
 
+  it('serves a system’s Reels and Scrolls from the admitted authority, unchanged (#697)', async () => {
+    const { controller, finds } = wired();
+    expect(await call(controller.systemFindsRoute(await admittedRequest()), findsInput)).toEqual(systemFinds);
+    expect(finds).toHaveBeenCalledExactlyOnceWith(authority, findsInput);
+  });
+
   it('maps foreign or missing selection to the same sanitized problem and scope refusal consistently', async () => {
     const read: ReadOwnGeography = () => Promise.resolve({ kind: 'refused', reason: 'selection_not_found' });
     const changes: ReadOwnDeltas = () => Promise.resolve({ kind: 'refused', reason: 'scope_refused' });
     const gathering: ReadOwnEmerging = () => Promise.resolve({ kind: 'refused', reason: 'scope_refused' });
     const places: ReadOwnPlaceConcepts = () => Promise.resolve({ kind: 'refused', reason: 'scope_refused' });
-    const controller = new GeographyController(read, changes, gathering, places);
+    const controller = new GeographyController(
+      read,
+      changes,
+      gathering,
+      places,
+      findsOf({ kind: 'refused', code: 'UNIVERSE_UNAVAILABLE' }),
+    );
     const request = await admittedRequest();
+    await expect(call(controller.systemFindsRoute(request), findsInput)).rejects.toMatchObject({
+      code: 'UNIVERSE_UNAVAILABLE',
+      data: {},
+    });
     await expect(call(controller.placeConceptsRoute(request), {})).rejects.toMatchObject({
       code: 'UNIVERSE_UNAVAILABLE',
       data: {},
@@ -113,6 +164,7 @@ describe('Geography guarded read-only HTTP adapter', () => {
       changes,
       gathering,
       places,
+      findsOf({ kind: 'refused', code: 'UNIVERSE_UNAVAILABLE' }),
     );
     await expect(call(refused.readRoute(request), input)).rejects.toMatchObject({
       code: 'UNIVERSE_UNAVAILABLE',
@@ -160,8 +212,8 @@ describe('Geography guarded read-only HTTP adapter', () => {
   it('validates backend output instead of serving malformed geography', async () => {
     const read: ReadOwnGeography = () =>
       Promise.resolve({ kind: 'read', snapshot: { ...snapshot, universeId: 'bad' } });
-    const { changes, gathering, places } = wired();
-    const controller = new GeographyController(read, changes, gathering, places);
+    const { changes, gathering, places, finds } = wired();
+    const controller = new GeographyController(read, changes, gathering, places, finds);
     await expect(call(controller.readRoute(await admittedRequest()), input)).rejects.toMatchObject({
       code: 'INTERNAL_SERVER_ERROR',
     });

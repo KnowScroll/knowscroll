@@ -418,6 +418,12 @@ float over it.
   returns focus to its trigger. `/` from the map opens Browse's search field. The map stays mounted at the same size.
   The automatic WebGL fallback and manual Simple drawing keep their full accessible lists without Browse being open.
   Phone navigation retains the orbit dial. Visits expose no private regions, activity, collection or rooms.
+- **A system's Reels and Scrolls** (`system-finds-sheet.tsx`, `readSystemFinds` in client-core, #697, D-403). A system
+  can form before its first planet, and a region's card was the only way in, so a system with no planet had nothing to open.
+  "Watch or read" opens a sheet of the system's Reels and Scrolls from three places: the chip in a system's view, the
+  orbit dial and the Simple list (also the desktop Browse panel). Each row opens in its own reader by address, and Back
+  returns to the system. A format with nothing in it says "No Reels in <system> yet." A system no longer on the map says
+  so, with no link. Opening the sheet reads the list once and records nothing. A friend's universe has none.
 - **The collection** (`collection/`, `universe-collection-reader.ts`, v3 S-4, D-214 to D-216; *implemented, runtime-verified on the fixture
   stack in `e2e/universe-collection-smoke.spec.ts`, and on dev, 2 Nov, fidelity-v3: the waiting card and the list sheet*). The person's own session reads their landmarks, this
   week's Orbit, the next Part to resume and the topic of each planet (`readCollection` in client-core) when the tab comes to

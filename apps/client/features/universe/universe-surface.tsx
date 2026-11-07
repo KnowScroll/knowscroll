@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { NO_COLLECTION } from '@knowscroll/client-core';
+import { NO_COLLECTION, type AccountScope } from '@knowscroll/client-core';
 import type { RoomStation } from '@knowscroll/contracts';
 import type { SceneDescriptor, SceneLook } from '@knowscroll/scene-core';
 import { content, layer, layout, space, spacing } from '@knowscroll/design-tokens';
@@ -22,6 +22,7 @@ import { countOf } from './universe-lists';
 import { UniversePanel, UniverseSettings } from './universe-panel';
 import { UniverseSearchPanel } from './universe-search-panel';
 import { SpaceChip } from './space-chip';
+import { SystemFindsSheet } from './system-finds-sheet';
 import { UniverseStage } from './universe-stage';
 import { globePlacement } from './planet/planet-globe';
 import { paletteOf } from './planet/planet-palette';
@@ -73,6 +74,7 @@ export function UniverseSurface({
   stations,
   onStation,
   notice,
+  scope,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -86,6 +88,8 @@ export function UniverseSurface({
   readonly onStation?: (roomId: string) => void;
   /** A quiet notice the map carries (the new-place views cannot be shown): the top row of the bottom stack, above the card. */
   readonly notice?: ReactNode;
+  /** The person's own scope, which reads a system's Reels and Scrolls. Never given on a friend's universe. */
+  readonly scope?: AccountScope;
 }) {
   const { breakpoint } = useDisplay();
   const insets = useSafeAreaInsets();
@@ -214,6 +218,19 @@ export function UniverseSurface({
   ) : null;
   const bottomInset = wide ? spacing[5] : layout.tabBarSlot + insets.bottom;
   const openCollection = () => session.showOverlay('collection');
+  // A system's Reels and Scrolls (#697): the way in from a system, with or without a planet. Only on the person's own map.
+  const findsOf = (shown: UniverseView) => (!visitor && scope && shown.kind === 'system' ? shown.system : undefined);
+  const findsTarget = state.overlay === 'finds' && state.findsFor ? index.byId.get(state.findsFor) : undefined;
+  const findsSystem = !visitor && findsTarget?.kind === 'system' ? findsTarget : undefined;
+  const findsSheet =
+    findsSystem && scope ? (
+      <SystemFindsSheet
+        scope={scope}
+        systemId={findsSystem.objectId}
+        systemName={findsSystem.label}
+        onClose={() => session.showOverlay(null)}
+      />
+    ) : null;
   const sheet =
     !visitor && state.overlay === 'collection' ? (
       <CollectionSheet
@@ -221,7 +238,9 @@ export function UniverseSurface({
         onClose={() => session.showOverlay(null)}
         onPlanet={(planetId) => void session.focus(planetId)}
       />
-    ) : null;
+    ) : (
+      findsSheet
+    );
   const collectionPanel = visitor ? null : (
     <CollectionSection view={collection} onPlanet={(planetId) => void session.focus(planetId)} />
   );
@@ -370,6 +389,16 @@ export function UniverseSurface({
             onPress={() => session.focus(returnTo.id)}
           />
         ) : null}
+        {findsOf(shown) ? (
+          <SpaceChip
+            testID="universe-system-finds-open"
+            variant="solid"
+            icon="play"
+            label="Watch or read"
+            accessibilityLabel={`Watch or read in ${findsOf(shown)!.label}`}
+            onPress={() => session.showFinds(findsOf(shown)!.objectId)}
+          />
+        ) : null}
         {routesOf(shown).map(({ route, other }) => (
           <SpaceChip
             key={route.id}
@@ -421,7 +450,7 @@ export function UniverseSurface({
         {...(onStation ? { onStation } : {})}
         {...(simpleDrawing && !wide ? { onTurnOff: () => turnSimple(false) } : {})}
         {...(searching && !wide ? { searchPanel: header } : {})}
-        {...(!card ? {} : { card })}
+        {...(card ? { card } : findsSheet ? { card: findsSheet } : {})}
         {...(collectionPanel ? { collection: collectionPanel } : {})}
         {...(refusedPlanetId !== null && !simpleDrawing && view.kind === 'planet'
           ? { forcedPlanetId: refusedPlanetId }

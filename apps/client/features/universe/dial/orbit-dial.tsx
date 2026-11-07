@@ -80,6 +80,19 @@ export function OrbitDial({
             <>
               <SystemWheel dial={dial} />
               <SystemPill dial={dial} system={system} />
+              {visitor ? null : (
+                // The system's Reels and Scrolls, with or without a planet (#697).
+                <View style={styles.finds}>
+                  <SpaceChip
+                    testID="dial-system-finds"
+                    variant="solid"
+                    icon="play"
+                    label="Watch or read"
+                    accessibilityLabel={`Watch or read in ${system.name}`}
+                    onPress={() => session.showFinds(system.id)}
+                  />
+                </View>
+              )}
               {hasPlanets ? (
                 <>
                   <PlanetFace
@@ -131,6 +144,7 @@ function NoPlanets({ name }: { readonly name: string }) {
 
 const styles = StyleSheet.create({
   ground: { flex: 1, backgroundColor: '#020308' },
+  finds: { alignItems: 'center' },
   content: { alignItems: 'center', paddingHorizontal: spacing[4] },
   column: { width: '100%', maxWidth: 520, gap: spacing[3] },
   none: { alignItems: 'center', gap: spacing[3], paddingTop: spacing[8] },

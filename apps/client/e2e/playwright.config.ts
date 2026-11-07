@@ -36,6 +36,7 @@ export default defineConfig({
         'universe-planet-smoke.spec.ts',
         'universe-animations-smoke.spec.ts',
         'universe-collection-smoke.spec.ts',
+        'universe-system-finds-smoke.spec.ts',
         'a11y-smoke.spec.ts',
         'talk-smoke.spec.ts',
         'talk-reply-react-smoke.spec.ts',
