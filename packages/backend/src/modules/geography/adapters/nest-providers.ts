@@ -51,6 +51,7 @@ import {
   READ_OWN_PLACE_CONCEPTS,
   PUBLISH_GEOGRAPHY_DELTA,
   READ_OWN_REGION_CONSTRAINT,
+  READ_OWN_SYSTEM_TOPIC,
   SETTLE_QUIET,
   SWEEP_QUIET,
 } from '../public.js';
@@ -73,6 +74,7 @@ import { makeReadGeographySceneInput } from '../application/scene-input.js';
 import type { GeographyApplied } from '../public.js';
 import { geographyStore, readRegionPlace } from './postgres-store.js';
 import { makeReadOwnRegionConstraint } from '../application/region-constraint.js';
+import { makeReadOwnSystemTopic } from '../application/system-topic.js';
 import { makeSettleQuiet, makeSweepQuiet } from '../application/quiet.js';
 import { quietSweepStore } from './quiet-store.js';
 export const GEOGRAPHY_PORTS = Symbol('geography.ports');
@@ -133,6 +135,16 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
       inject: [CHECK_PERSONAL_OWNER_ACTIVE],
       useFactory: (ownerActive: CheckPersonalOwnerActive) =>
         makeReadOwnRegionConstraint({
+          ownerActive,
+          state: (scope) => geographyStore.state(scope),
+          object: readRegionPlace,
+        }),
+    },
+    {
+      provide: READ_OWN_SYSTEM_TOPIC,
+      inject: [CHECK_PERSONAL_OWNER_ACTIVE],
+      useFactory: (ownerActive: CheckPersonalOwnerActive) =>
+        makeReadOwnSystemTopic({
           ownerActive,
           state: (scope) => geographyStore.state(scope),
           object: readRegionPlace,

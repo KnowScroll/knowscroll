@@ -64,6 +64,18 @@ export function SystemSections({
               {countOf(system.planets.length, 'planet')}
             </Text>
           </View>
+          {visitor ? null : (
+            // A system's Reels and Scrolls are its way in before it has a planet (#697); a friend's list has none.
+            <RowGroup label={`Watch or read in ${system.name}`}>
+              <PlaceRow
+                testID={`simple-system-finds-${system.id}`}
+                title="Watch or read"
+                meta={`Reels and Scrolls in ${system.name}`}
+                accessibilityLabel={`Watch or read in ${system.name}`}
+                onPress={() => session.showFinds(system.id)}
+              />
+            </RowGroup>
+          )}
           <RowGroup label={`Planets in ${system.name}`}>
             {system.planets.map((planet) => (
               <PlaceRow

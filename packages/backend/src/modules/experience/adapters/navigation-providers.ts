@@ -18,8 +18,15 @@ import {
   type ReadRegionEncounterCandidates,
   type LockRegionEncounterCandidates,
 } from '../../content/public.js';
-import { READ_OWN_REGION_CONSTRAINT, type ReadOwnRegionConstraint } from '../../geography/public.js';
-import { REGION_ENCOUNTERS, type ExperienceRecordingEffects } from '../public.js';
+import {
+  READ_OWN_REGION_CONSTRAINT,
+  READ_OWN_SYSTEM_TOPIC,
+  type ReadOwnRegionConstraint,
+  type ReadOwnSystemTopic,
+} from '../../geography/public.js';
+import { READ_LIBRARY_FINDS, type ReadLibraryFinds } from '../../content/public.js';
+import { makeReadSystemFinds } from '../application/system-finds.js';
+import { READ_SYSTEM_FINDS, REGION_ENCOUNTERS, type ExperienceRecordingEffects } from '../public.js';
 import {
   withExperienceScope,
   recordingCommandHooks,
@@ -228,5 +235,28 @@ export function navigationProviders(
       inject: [NAVIGATION_PORTS],
       useFactory: (p: NavigationPorts) => makeReadResume({ ...p, readRecentExposures, readVisitedAssets }),
     },
+    // A system's Reels and Scrolls (#697) read the same own map as a region's, so they are mounted with it.
+    ...(options.region
+      ? [
+          {
+            provide: READ_SYSTEM_FINDS,
+            inject: [t.withPersonalScope, FENCE_OWN_ACCOUNT, READ_OWN_SYSTEM_TOPIC, READ_LIBRARY_FINDS],
+            useFactory: (
+              withPersonalScope: WithPersonalScope,
+              fenceOwn: FenceOwnAccount,
+              readSystemTopic: ReadOwnSystemTopic,
+              readFinds: ReadLibraryFinds,
+            ) =>
+              makeReadSystemFinds({
+                withPersonalScope: withExperienceScope(withPersonalScope, fenceOwn),
+                readSystemTopic,
+                readFinds,
+                readWithheld: async (scope, ids) => [
+                  ...new Set([...(await readHidden(scope, ids)), ...(await readNotInterested(scope, ids))]),
+                ],
+              }),
+          },
+        ]
+      : []),
   ];
 }

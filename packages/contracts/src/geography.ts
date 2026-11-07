@@ -1,6 +1,6 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
-import { UniverseIdSchema, UuidSchema } from './ids.js';
+import { AssetIdSchema, UniverseIdSchema, UuidSchema } from './ids.js';
 
 const Counter = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const Revision = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
@@ -418,3 +418,59 @@ export const readPlaceConceptsContract = oc
   .route({ method: 'POST', path: '/v1/universe/places/concepts/read', successStatus: 200 })
   .input(ReadPlaceConceptsSchema)
   .output(PlaceConceptsSchema);
+
+/** The most Reels and Scrolls one system finds read returns (#697). */
+export const SYSTEM_FINDS_LIMIT = 12;
+
+/** One of the person's own established systems, named by its map id. Never a command. */
+export const ReadSystemFindsSchema = z.strictObject({
+  version: z.literal('universe-system-finds.v1'),
+  readId: UuidSchema,
+  systemId: UuidSchema,
+});
+
+/** A Reel or a Scroll under a system's topic, as a row that opens it by its address. */
+export const SystemFindSchema = z.strictObject({
+  assetId: AssetIdSchema,
+  assetRevision: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+  kind: z.enum(['reel', 'scroll']),
+  title: z.string().min(1).max(240),
+});
+
+const SystemFindsFields = {
+  version: z.literal('universe-system-finds.v1'),
+  readId: UuidSchema,
+  ...ScopeFields,
+  systemId: UuidSchema,
+};
+
+/**
+ * What a system holds to watch or read (#697): the admitted Reels and Scrolls whose primary topic is one of the
+ * system's planets-to-be, newest first, with what the person hid or set aside left out. It answers for a system with
+ * no planet yet as well, since a system forms before its first planet (blueprint §12). `ready` with no finds means
+ * the library holds nothing for the system yet, said plainly; `not_on_map` means the system is not one of the
+ * person's own factual systems, which a foreign and an unknown system answer alike.
+ *
+ * A read only: it records no exposure, evidence or demand, and opening a find goes through its own address.
+ */
+export const SystemFindsSchema = z.discriminatedUnion('status', [
+  z.strictObject({
+    ...SystemFindsFields,
+    status: z.literal('ready'),
+    finds: z.array(SystemFindSchema).max(SYSTEM_FINDS_LIMIT),
+  }),
+  z.strictObject({
+    ...SystemFindsFields,
+    status: z.literal('unavailable'),
+    reason: z.enum(['not_on_map', 'temporarily_unavailable']),
+  }),
+]);
+export type ReadSystemFinds = z.infer<typeof ReadSystemFindsSchema>;
+export type SystemFind = z.infer<typeof SystemFindSchema>;
+export type SystemFinds = z.infer<typeof SystemFindsSchema>;
+
+/** Read-only: a system's Reels and Scrolls (#697). Never a command. */
+export const readSystemFindsContract = oc
+  .route({ method: 'POST', path: '/v1/universe/system/finds/read', successStatus: 200 })
+  .input(ReadSystemFindsSchema)
+  .output(SystemFindsSchema);

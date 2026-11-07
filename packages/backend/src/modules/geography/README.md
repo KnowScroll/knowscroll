@@ -155,6 +155,14 @@ which the snapshot already says. It is a read of the same stored places (no writ
 holds nothing from play and `play` never imports this module (D-180). *Implemented; runtime-verified on dev (2 Nov, fidelity-v3: the waiting landmark names its planet and stands on it once formed) and locally
 (`tests/integration/modules/play.test.ts`).*
 
+## A system's topic (#697, D-403)
+
+`ReadOwnSystemTopic` (`READ_OWN_SYSTEM_TOPIC`) names the catalogue topic of one of the caller's own established factual
+systems, read by id under the existing personal root, so Experience can list that system's Reels and Scrolls before it has
+a planet. A foreign, unknown, hypothetical or non-system id answers `not_on_map` alike. A stored row that no longer matches
+the catalogue or the map answers `temporarily_unavailable`, never a guessed topic. It writes nothing. *Implemented; unit
+tests in `application/system-topic.test.ts`.*
+
 ## Public entry points and dependencies
 
 `public.ts` exports the use cases and queues. Other modules reach Geography only through it.

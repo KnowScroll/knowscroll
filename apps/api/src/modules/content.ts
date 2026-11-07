@@ -1,12 +1,28 @@
 import type { Provider } from '@nestjs/common';
-import { contentProviders, contentRenderProviders } from '@knowscroll/backend/modules/content/nest-providers';
+import {
+  contentProviders,
+  contentRenderProviders,
+  makeReadLibraryFinds,
+} from '@knowscroll/backend/modules/content/nest-providers';
+import { READ_LIBRARY_FINDS } from '@knowscroll/backend/modules/content';
+import type { Kysely } from 'kysely';
+import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { DATABASE } from '../tokens.js';
 
 /**
  * Content wiring for the API composition root: the scope-bound read ports experience and evidence
  * use inside a personal transaction, and the document renderer (shared reads outside one).
  */
-export const contentWiring: Provider[] = [...contentProviders(), ...contentRenderProviders({ database: DATABASE })];
+export const contentWiring: Provider[] = [
+  ...contentProviders(),
+  ...contentRenderProviders({ database: DATABASE }),
+  // A system's Reels and Scrolls (#697) read the shared library outside any transaction; the worker mounts the rest of it.
+  {
+    provide: READ_LIBRARY_FINDS,
+    inject: [DATABASE],
+    useFactory: (db: Kysely<Database>) => makeReadLibraryFinds(db),
+  },
+];
 
 /**
  * The operator command's use case (`dist/operator.js content import-editorial`), over its own

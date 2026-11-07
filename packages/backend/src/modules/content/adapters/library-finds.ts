@@ -23,7 +23,7 @@ const READ_LIMIT_MAX = 100;
  */
 export const makeReadLibraryFinds =
   (db: Kysely<Database>): ReadLibraryFinds =>
-  async (topic, limit, only, within) => {
+  async (topic, limit, only, within, format) => {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > READ_LIMIT_MAX) throw new Error('LIBRARY_FINDS_LIMIT');
     // A choice of planets narrows the topic and never widens it: only the topic's own planets count.
     const topicIds = topicIdsOf(topic).filter((id) => within === undefined || within.includes(id));
@@ -33,6 +33,14 @@ export const makeReadLibraryFinds =
       join content.asset_revisions r on r.asset_id = a.id and r.revision = a.revision
       join content.discovery_revisions d on d.asset_id = r.asset_id and d.asset_revision = r.revision
       where a.status = 'admitted' and a.kind in ('reel', 'scroll') and d.summary <> ''
+        ${format === undefined ? sql`` : sql`and a.kind = ${format}`}
+        ${
+          format === 'reel'
+            ? sql`and r.document_version = 'reel-document.v1'
+              and coalesce((r.document ->> 'fixture')::boolean, false) = false
+              and (r.document ->> 'durationMs') ~ '^[0-9]{4,7}$'`
+            : sql``
+        }
         and not exists (select 1 from content.made_to_order_scrolls o where o.asset_id = r.asset_id)
         and ${notUnderReview('r.asset_id', 'r.revision')}
         ${only === undefined ? sql`` : sql`and a.id = ${only.assetId}::uuid and a.revision = ${only.assetRevision}`}

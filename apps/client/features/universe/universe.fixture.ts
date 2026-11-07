@@ -160,14 +160,35 @@ export function sceneFixture(count = 5, dust = 0, moreRegions = 0) {
     resume: null,
     planets: [],
   };
+  /**
+   * What a system's Reels and Scrolls read answers with (#697): none until a test adds some. `systemFinds.away` makes the
+   * read say the system is not on the map.
+   */
+  const systemFinds: {
+    finds: { assetId: string; assetRevision: number; kind: 'reel' | 'scroll'; title: string }[];
+    away: boolean;
+  } = { finds: [], away: false };
   return {
     descriptors,
     looks,
     chunks,
     stations,
     collection,
+    systemFinds,
     reply(path: string, body: Record<string, unknown>) {
       const selection = { kind: 'universe' as const };
+      if (path === '/v1/universe/system/finds/read')
+        return {
+          version: 'universe-system-finds.v1',
+          readId: body.readId,
+          universeId: fixtureAccount.universeId,
+          privacyEpoch: 1,
+          personalWatermark: 40,
+          systemId: body.systemId,
+          ...(systemFinds.away
+            ? { status: 'unavailable', reason: 'not_on_map' }
+            : { status: 'ready', finds: systemFinds.finds }),
+        };
       if (path === '/v1/play/landmarks/read') return { landmarks: collection.landmarks };
       if (path === '/v1/play/orbit/read') return { orbit: collection.orbit };
       if (path === '/v1/experience/resume/read') return { resume: collection.resume };

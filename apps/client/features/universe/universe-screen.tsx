@@ -118,6 +118,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
         stations={stations}
         onStation={(roomId) => router.push(roomHref(roomId))}
         notice={<FormationNotice session={session} />}
+        scope={scope}
       />
       <FormationPresentation session={session} />
     </>,

@@ -12,6 +12,7 @@ import {
   type ReadOwnEmerging,
   type ReadOwnPlaceConcepts,
 } from '@knowscroll/backend/modules/geography';
+import { READ_SYSTEM_FINDS, type SystemFindsResult } from '@knowscroll/backend/modules/experience';
 import { authorityOf } from './callers.js';
 import { problem } from './problems.js';
 import { admittedCaller } from './scope-guard.js';
@@ -31,6 +32,11 @@ export class GeographyController {
     @Inject(READ_OWN_DELTAS) private readonly readDeltas: ReadOwnDeltas,
     @Inject(READ_OWN_EMERGING) private readonly readEmerging: ReadOwnEmerging,
     @Inject(READ_OWN_PLACE_CONCEPTS) private readonly readPlaceConcepts: ReadOwnPlaceConcepts,
+    @Inject(READ_SYSTEM_FINDS)
+    private readonly readSystemFinds: (
+      authority: ReturnType<typeof authorityOf>,
+      input: unknown,
+    ) => Promise<SystemFindsResult>,
   ) {}
 
   @Implement(apiContract.geography.read)
@@ -66,6 +72,16 @@ export class GeographyController {
       const result = await this.readPlaceConcepts(authorityOf(admittedCaller(request)), input);
       if (result.kind === 'refused') throw problem(refusalProblems[result.reason]);
       return result.concepts;
+    });
+  }
+
+  /** A system's Reels and Scrolls (#697): a read, never a command. */
+  @Implement(apiContract.geography.systemFinds)
+  systemFindsRoute(@Req() request: Request) {
+    return implement(apiContract.geography.systemFinds).handler(async ({ input }) => {
+      const result = await this.readSystemFinds(authorityOf(admittedCaller(request)), input);
+      if (result.kind === 'refused') throw problem(result.code);
+      return result.finds;
     });
   }
 }

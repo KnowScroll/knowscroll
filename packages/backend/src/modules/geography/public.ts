@@ -30,6 +30,8 @@ export const READ_GEOGRAPHY_SCENE_INPUT = Symbol('geography.readSceneInput');
 export const GEOGRAPHY_APPLIED = Symbol('geography.applied');
 export type { GeographyRegionConstraint, ReadOwnRegionConstraint } from './application/ports.js';
 export const READ_OWN_REGION_CONSTRAINT = Symbol('geography.readOwnRegionConstraint');
+export type { ReadOwnSystemTopic } from './application/ports.js';
+export const READ_OWN_SYSTEM_TOPIC = Symbol('geography.readOwnSystemTopic');
 export { GeographyRegionConstraintSchema } from './application/region-constraint.js';
 
 export { CHECK_GEOGRAPHY_RECORDING_RUN } from '../../reasoning/public.js';

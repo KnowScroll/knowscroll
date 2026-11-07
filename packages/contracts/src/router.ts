@@ -20,6 +20,7 @@ import {
   readEmergingUniverseContract,
   readGeographyContract,
   readPlaceConceptsContract,
+  readSystemFindsContract,
   readUniverseDeltasContract,
 } from './geography.js';
 import { mediaGrantContract } from './media.js';
@@ -78,6 +79,7 @@ export const apiContract: {
     deltas: typeof readUniverseDeltasContract;
     emerging: typeof readEmergingUniverseContract;
     placeConcepts: typeof readPlaceConceptsContract;
+    systemFinds: typeof readSystemFindsContract;
   };
   media: { grant: typeof mediaGrantContract };
   supply: {
@@ -140,6 +142,7 @@ export const apiContract: {
     deltas: readUniverseDeltasContract,
     emerging: readEmergingUniverseContract,
     placeConcepts: readPlaceConceptsContract,
+    systemFinds: readSystemFindsContract,
   },
   media: { grant: mediaGrantContract },
   supply: {

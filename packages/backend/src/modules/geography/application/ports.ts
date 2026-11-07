@@ -57,6 +57,15 @@ export type ReadOwnRegionConstraint = (
     }
   | { readonly kind: 'refused' }
 >;
+/** One of the caller's own established factual systems and its catalogue topic (#697); `topicId` is a library system id. */
+export type ReadOwnSystemTopic = (
+  scope: PersonalScopeTx,
+  systemId: string,
+) => Promise<
+  | { readonly kind: 'read'; readonly systemId: string; readonly topicId: string }
+  | { readonly kind: 'unavailable'; readonly reason: 'not_on_map' | 'temporarily_unavailable' }
+  | { readonly kind: 'refused' }
+>;
 export interface RegionConstraintPorts {
   readonly ownerActive: CheckPersonalOwnerActive;
   readonly state: GeographyStore['state'];

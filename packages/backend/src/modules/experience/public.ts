@@ -7,6 +7,9 @@ import type { ActivityLineage, RoutingHistory } from './application/navigation-p
 import type { EncounterAttribution } from '../content/public.js';
 export type { RegionEncounterUseCases, RegionEncounterResult } from './application/region-encounter.js';
 export const REGION_ENCOUNTERS = Symbol('experience.regionEncounters');
+export type { SystemFindsResult } from './application/system-finds.js';
+/** A system's Reels and Scrolls (#697): `(authority, input) => Promise<SystemFindsResult>`. */
+export const READ_SYSTEM_FINDS = Symbol('experience.readSystemFinds');
 /**
  * Experience's public surface for other modules and the apps: operation types, outcome schema
  * and the read port the evidence job uses. Commands and queries are built by
