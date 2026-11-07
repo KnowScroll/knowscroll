@@ -425,8 +425,10 @@ float over it.
   (gold or cream) painted on the globe and the landed map at places `landmarkSpots` picks; with no such planet on the map it
   waits ("Gold finish · waits for its planet"). The map carries no chips of the collection (the Universe set draws none): the
   newest landmark is a paper card over the bottom of the map ("New landmark" for a week after it was earned, "Latest landmark"
-  after, D-363; its name, "from <planet> · gold finish", "See it"), and "See it" opens the sheet that lists every one with its finish
-  and where it stands. The card is one line where a full card would reach the picture (D-319): on a globe, where it sits under
+  after, D-363; its name, "from <planet> · gold finish", "See it"). "See it" flies to the planet the landmark stands on, or,
+  for one that waits, opens the sheet that lists every one with its finish and where it stands and says why a waiting one has no
+  place yet (D-401). Its close button, or See it, folds the card to its pill for that landmark on this device
+  (`collection/landmark-seen.ts`, account-scoped storage); a newer landmark opens it again (D-402). The card is one line where a full card would reach the picture (D-319): on a globe, where it sits under
   Back above the globe so it clears the planet's name and hint, on a landed map, and on a screen under 760 px tall, where a
   full card would reach the sun. The one line wraps to a second where its words do not fit, so a name is never cut, and on a phone under about 600 px tall a globe's name and hint are set smaller and stand above the chips, never on them (D-392; `e2e/universe-collection-smoke.spec.ts` at 320 x 568). With only the week to say the card has no button. The Orbit is one quiet line of
   text inside the card ("Orbit · 1 of 3 days this week"; never a ring on the map, D-087) and the yellow chip ("Resume Part 2

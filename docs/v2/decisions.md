@@ -4674,3 +4674,25 @@ Confirmed by: `tokens.test.ts` ("Appearance": both palettes' contrast, the web v
 ground per appearance), `e2e/appearance-smoke.spec.ts` (Account → Appearance, at once, reload, the carry-over, axe on
 Settings, a conversation, a thread, a room and the reader in both at 390 × 844 and 1440 × 900, and a switch halfway
 through a Scroll keeping its place and play).
+
+## D-401 · 2026-11-07 · See it shows the landmark where it stands (#694)
+
+**Amends** D-319's "See it" only. The card, the pill and the list stay.
+
+- **Why.** The owner pressed See it and saw nothing useful. It opened the list, and for a landmark that waits the list only said "Waiting for its planet".
+- **The rule.** When the newest landmark stands on a planet, See it flies to that planet's globe, which paints its pennant (D-089). Its spoken name is "See it on <planet>". When it waits, See it opens the list, and the list says once why there is no place: "A landmark waiting for its planet has no place on the map yet. If a planet forms for its topic, the landmark will stand there." No planet is drawn or promised: formation needs its own evidence.
+- **Desktop.** The panel's list says the same line under the rows when a landmark waits. Its rows already fly to a formed planet.
+- **Not evidence.** Flying to a planet is navigation. It sends nothing.
+
+Confirmed by: `collection-screen.test.tsx` ("See it flies to the planet…", the waiting note), `e2e/universe-collection-smoke.spec.ts` (See it at 390 × 844, the pennant, axe on the list). Shown failing with the flight and the note removed.
+
+## D-402 · 2026-11-07 · The large landmark card can be put away for that landmark (#694)
+
+**Builds on** D-319 and D-363.
+
+- **Why.** On a phone the large "New landmark" card stayed over the map. Closing the list brought it straight back.
+- **The rule.** The card has a close button above See it. Closing it, or pressing See it, folds the card to its one-line pill for that landmark. The pill still opens the list. A newer landmark opens the large card again.
+- **Persistence.** The landmark's id (`<assetId>:<revision>`) is kept on this device in the account scope's storage (`universe.landmark-seen.v1`). It is purged with the scope on logout, account switch and privacy reset. It is never sent to the server.
+- **What it does not change.** The landmark, its pennant, its list row and "New" for a week (D-363) all stay. The Next part and week cards are #664.
+
+Confirmed by: `landmark-seen.test.ts` (per account and epoch, purged, damaged values), `collection-screen.test.tsx` (close, next visit, newer landmark), `e2e/universe-collection-smoke.spec.ts` (close, pill opens the list, reload at 390 × 844). Shown failing with the fold removed.

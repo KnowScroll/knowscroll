@@ -232,16 +232,44 @@ export function UniverseSurface({
   // would reach the sun.
   const landmarkAllowed = !visitor && !wide && !card && !sheet && !searching;
   const onGlobe = (shown: UniverseView) => shown.kind === 'planet' && !shown.landed && !simple;
+  // See it and the close button both put the large card away for this landmark (#694). See it then shows the landmark
+  // where it stands: its planet's globe, which paints the pennant. A landmark that waits has no place, so the list says so.
+  const [newest] = collection.rows;
+  const seen = newest !== undefined && state.seenLandmark === newest.id;
+  // The button pressed is gone once the card folds, so keyboard and screen-reader focus moves to the pill that replaced it.
+  const focusLandmarkPill = () => {
+    if (Platform.OS !== 'web') return;
+    requestAnimationFrame(() =>
+      (surface.current as unknown as HTMLElement | null)
+        ?.querySelector<HTMLElement>('[data-testid="universe-landmark-chip"]')
+        ?.focus(),
+    );
+  };
+  const dismissLandmark = () => {
+    if (newest) session.seeLandmark(newest.id);
+    focusLandmarkPill();
+  };
+  const seeLandmark = () => {
+    if (newest) session.seeLandmark(newest.id);
+    if (newest?.planet && session.focus(newest.planet.id)) return focusLandmarkPill();
+    openCollection();
+  };
+  const landmarkCardOf = (folded: boolean): ReactNode => (
+    <LandmarkCard
+      view={collection}
+      folded={folded}
+      seen={seen}
+      onList={openCollection}
+      onSee={seeLandmark}
+      onDismiss={dismissLandmark}
+    />
+  );
   const landmarkOf = (shown: UniverseView): ReactNode =>
-    landmarkAllowed && !onGlobe(shown) ? (
-      <LandmarkCard
-        view={collection}
-        folded={shown.kind === 'planet' || windowHeight < FULL_CARD_MIN_HEIGHT}
-        onSee={openCollection}
-      />
-    ) : null;
+    landmarkAllowed && !onGlobe(shown)
+      ? landmarkCardOf(shown.kind === 'planet' || windowHeight < FULL_CARD_MIN_HEIGHT)
+      : null;
   const globeLandmarkOf = (shown: UniverseView): ReactNode =>
-    landmarkAllowed && onGlobe(shown) ? <LandmarkCard view={collection} folded onSee={openCollection} /> : null;
+    landmarkAllowed && onGlobe(shown) ? landmarkCardOf(true) : null;
 
   const headerOf = (shown: UniverseView): ReactNode =>
     searching && !wide ? (

@@ -16,6 +16,7 @@ import { withTransitionGate } from './animation/transition-gate';
 import { createCameraHistory, type CameraEntry } from './universe-camera-history';
 import { createDeviceMemory } from './universe-device-memory';
 import { clearHereMarker, readHereMarker, writeHereMarker } from './universe-here-marker';
+import { readSeenLandmark, writeSeenLandmark } from './collection/landmark-seen';
 import { createCollectionReader, NO_COLLECTION_STATE, type CollectionState } from './universe-collection-reader';
 import { createDustReader, NO_DUST, type DustState } from './universe-dust';
 import { createGeometryCache } from './universe-geometry-cache';
@@ -58,6 +59,8 @@ export interface UniverseViewState extends CameraEntry {
   readonly looks?: readonly SceneLook[];
   /** U04: the region the person left through its card's Open, private to this device, until they choose it again. */
   readonly youWereHere: string | null;
+  /** The landmark the person already looked at or put away on this device: its large card stays folded (#694). */
+  readonly seenLandmark: string | null;
 }
 export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean): SceneClientCapabilities {
   return {
@@ -113,6 +116,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     absent: false,
     selectedId: null,
     youWereHere: readHereMarker(scope, now()) ?? null,
+    seenLandmark: readSeenLandmark(scope) ?? null,
   };
   const publish = (patch: Partial<UniverseViewState>) => {
     state = { ...state, ...patch, historyDepth: history.size() };
@@ -473,6 +477,15 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       memory.saveNow();
     },
     showOverlay,
+    /**
+     * The person looked at or put away this landmark's large card (#694). Remembered on this device for the account,
+     * so the card stays folded to its pill until a newer landmark is earned. Changes only what the card shows.
+     */
+    seeLandmark(landmarkId: string) {
+      if (!live() || state.seenLandmark === landmarkId) return;
+      writeSeenLandmark(scope, landmarkId);
+      publish({ seenLandmark: landmarkId });
+    },
     refreshRegionPreview: readPreview,
     openRegion(displayed: AvailableRegionPreview, onReturn: () => void) {
       const selected = regionTargetOf(state.read, state.focusId);

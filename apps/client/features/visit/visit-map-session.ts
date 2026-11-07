@@ -56,6 +56,7 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
     absent: false,
     selectedId: null,
     youWereHere: null,
+    seenLandmark: null,
   };
   const publish = (patch: Partial<UniverseViewState>) => {
     state = { ...state, ...patch, historyDepth: history.size() };
@@ -153,6 +154,8 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
       if (!live() || overlay === 'place') return;
       publish({ overlay, selectedId: null });
     },
+    // A visitor is shown no landmark card (D-214), so there is nothing to put away.
+    seeLandmark() {},
     refreshRegionPreview() {},
     openRegion: () => false,
     camera(frame) {
