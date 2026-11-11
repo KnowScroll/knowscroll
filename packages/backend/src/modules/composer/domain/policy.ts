@@ -67,11 +67,11 @@ export interface ComposerPolicy {
   readonly tieBreak: 'lexical' | 'seeded-hash';
   /**
    * Whether an explanation the person has already met is a soft score term (`novelty`, v0 and v1) or is left out of every
-   * system-chosen offer while anything unseen is eligible, with an ordered ladder and a recorded last resort (`ladder`,
+   * system-chosen offer while anything unseen is eligible, with a recorded last resort of the least recently met (`unseen-first`,
    * v2, #674 owner decision). Only a vertical move without an exact target is system-chosen; series, related, variant,
    * return and exact-target moves are the person's own and are never asked.
    */
-  readonly encountered: 'score' | 'ladder';
+  readonly encountered: 'score' | 'unseen-first';
 }
 
 const COMMON = {
@@ -145,9 +145,10 @@ export const COMPOSER_POLICY_V1: ComposerPolicy = Object.freeze({
 /**
  * Policy v2 (#674, slice 1.2, D-408): a person always gets new content. Every number of v1 is kept; the rules change.
  * An explanation the person has already met (an activated exposure of its unit in either format) is left out of every
- * system-chosen offer while anything unseen is eligible, and the choice follows an ordered ladder (unseen in the source's
- * topic, in its system, anywhere, and only then the least recently met one, recorded). Exploration draws only among the
- * unseen, at the fraction this object holds, and equal scores are told apart by a seeded hash instead of the asset id.
+ * system-chosen offer while anything unseen is eligible, which are ranked as v1 ranks them (so a subject move still usually
+ * leaves the topic, D-190); only when nothing unseen exists is the least recently met one offered, recorded. Exploration
+ * draws only among the unseen, at the fraction this object holds, and equal scores are told apart by a seeded hash instead
+ * of the asset id.
  * A world makes decisions under v2 only where `KS_COMPOSER_POLICY=v2` is set.
  */
 export const COMPOSER_POLICY_V2: ComposerPolicy = Object.freeze({
@@ -160,7 +161,7 @@ export const COMPOSER_POLICY_V2: ComposerPolicy = Object.freeze({
   explorationByPlayLevel: true,
   explorationDraw: 'by-fraction',
   tieBreak: 'seeded-hash',
-  encountered: 'ladder',
+  encountered: 'unseen-first',
 });
 
 /**

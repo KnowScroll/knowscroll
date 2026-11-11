@@ -93,7 +93,7 @@ describe('snapshot assembly (pure, labelled CI inputs)', () => {
     expect(query.candidates).toEqual([{ explanationUnitId: 'unit-1', facets: ['facet-1', 'facet-2'] }]);
   });
 
-  describe('the topics of the source’s system, for the ladder’s "same system" step (policy v2)', () => {
+  describe('the topics of the source’s system, for the `same_system` place Composer records (policy v2)', () => {
     const on = (index: number, topicId: string, role: 'primary' | 'incidental' = 'primary'): EncounterSnapshot => ({
       ...encounter(index),
       topics: [{ topicId, role, weight: 1 }],

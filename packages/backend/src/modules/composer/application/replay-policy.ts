@@ -1,5 +1,5 @@
 import { systemOfTopic } from '../../content/public.js';
-import { isMet, ladderStepOf, systemTopicIdsOf } from '../domain/encountered.js';
+import { isMet, placeOf, systemTopicIdsOf } from '../domain/encountered.js';
 import { jevSubjectOf } from '../domain/jev-pool.js';
 import {
   refKey,
@@ -9,7 +9,7 @@ import {
   type ComposerPolicy,
   type VerticalWeights,
 } from '../domain/policy.js';
-import type { ComposerDecision, ComposerSnapshot, EncounterSnapshot, LadderStep } from '../domain/types.js';
+import type { ComposerDecision, ComposerSnapshot, EncounterSnapshot, SourcePlace } from '../domain/types.js';
 import { inCurrentSeries, seriesUnitIds, sourceSeriesId } from '../domain/vertical-rules.js';
 import { decideValidated, validateSnapshot } from './compose.js';
 import { ComposerSnapshotSchema } from './snapshot-schema.js';
@@ -75,8 +75,13 @@ export interface NewContentCounts {
   readonly alreadyMetAllOffers: number;
   /** First offers whose explanation another first offer in the window gave the same person: every one after the first. */
   readonly repeatedFirstOffer: number;
-  /** First offers by the step of the ladder they fall under (`last_resort` is a met explanation), for every policy alike. */
-  readonly ladder: Readonly<Record<LadderStep, number>>;
+  /** First offers by tier, for every policy alike: `unseen`, or `last_resort` when the person had met the explanation. */
+  readonly tiers: { readonly unseen: number; readonly last_resort: number };
+  /**
+   * First offers by where they sit relative to the source (analytics: v2's selection never reads it), for every policy
+   * alike. `source_topic` is `firstOffer.sameTopic` again, split with `same_system` and `elsewhere`.
+   */
+  readonly places: Readonly<Record<SourcePlace, number>>;
 }
 
 export interface VariantReport {
@@ -90,7 +95,7 @@ export interface VariantReport {
   readonly allOffers: { readonly offers: number; readonly sameTopic: number; readonly sameSeries: number };
   /** Sticky format: `kept` the person's format, `fellBack` because none was eligible, `notAsked` when the input named none. */
   readonly stickyFormat: { readonly kept: number; readonly fellBack: number; readonly notAsked: number };
-  /** Repeats and already-met offers, and the ladder step of each first offer. */
+  /** Repeats and already-met offers, and the tier and place of each first offer. */
   readonly newContent: NewContentCounts;
   /** Shares of `decisions` (first offer) and of `allOffers.offers`, rounded to three decimals. */
   readonly shares: {
@@ -198,7 +203,8 @@ interface Tally {
     alreadyMetFirst: number;
     alreadyMetAll: number;
     repeatedFirst: number;
-    ladder: Record<LadderStep, number>;
+    tiers: { unseen: number; last_resort: number };
+    places: Record<SourcePlace, number>;
   };
   /** The explanations each person's first offers named, in memory only, to count repeats. Never printed. */
   firstUnitsByPerson: Map<string, Set<string>>;
@@ -215,7 +221,8 @@ const emptyTally = (): Tally => ({
     alreadyMetFirst: 0,
     alreadyMetAll: 0,
     repeatedFirst: 0,
-    ladder: { source_topic: 0, same_system: 0, any_unseen: 0, last_resort: 0 },
+    tiers: { unseen: 0, last_resort: 0 },
+    places: { source_topic: 0, same_system: 0, elsewhere: 0 },
   },
   firstUnitsByPerson: new Map(),
 });
@@ -254,11 +261,12 @@ function tally(
   });
 }
 
-/** The first offer's part of the new-content counts: met or not, repeated for the same person or not, and its ladder step. */
+/** The first offer's part of the new-content counts: met or not, repeated for the same person or not, and its tier and place. */
 function tallyFirstOffer(into: Tally, input: ComposerSnapshot, candidate: Candidate, met: boolean): void {
   into.fresh.firstOffers += 1;
   if (met) into.fresh.alreadyMetFirst += 1;
-  into.fresh.ladder[ladderStepOf(input, candidate)] += 1;
+  into.fresh.tiers[met ? 'last_resort' : 'unseen'] += 1;
+  into.fresh.places[placeOf(input, candidate)] += 1;
   const units = into.firstUnitsByPerson.get(input.universeId) ?? new Set<string>();
   if (units.has(candidate.encounter.explanationUnitId)) into.fresh.repeatedFirst += 1;
   units.add(candidate.encounter.explanationUnitId);
@@ -280,7 +288,8 @@ function reportOf(label: string, t: Tally): VariantReport {
       alreadyMetFirstOffer: t.fresh.alreadyMetFirst,
       alreadyMetAllOffers: t.fresh.alreadyMetAll,
       repeatedFirstOffer: t.fresh.repeatedFirst,
-      ladder: { ...t.fresh.ladder },
+      tiers: { ...t.fresh.tiers },
+      places: { ...t.fresh.places },
     },
     shares: {
       sameTopicFirstOffer: share(t.first.sameTopic, t.decisions),

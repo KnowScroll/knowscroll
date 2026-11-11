@@ -35,8 +35,8 @@ a private store of every decision, and **worker-prepared buffers** with an optio
 | Jev reuse: a person's pool of recent assessments, `composer.jev_assessments`; a call only for candidates without one (D-058) | implemented, CI-tested against real PostgreSQL; run locally with the real model (12 activations: 1 call instead of 12); no live acceptance is asserted by this entry |
 | Jev is a background role: it stops at its share of the daily model budgets and falls back to the deterministic ranking (D-058) | implemented, CI-tested; no live acceptance is asserted by this entry |
 | Policy v1 (`composer-policy.v1`, D-190): Intent 0.35 to 0.30, a recent-topic penalty of 0.05, Format per play level (D-192), exploration per play level; v0 decisions replay byte for byte | implemented, CI-tested (60 frozen v0 hashes); **off unless `KS_COMPOSER_POLICY=v1`** (default `v0`; dev sets `v1`); the numbers were chosen from the replay of dev's stored decisions (D-190) |
-| `composer replay-policy`: stored vertical decisions re-run under v0, v1 and v2, counts only: topic, series, format, repeats, already-met and the ladder | implemented, CI-tested; run on dev (2026-10-31) over 640 stored decisions, D-190; the new-content counts are not yet run on dev |
-| Policy v2 (`composer-policy.v2`, D-408, #674): a person always gets new content. An explanation already met is left out of every system-chosen offer while anything unseen is eligible, an ordered ladder (topic, system, anywhere, last resort) is recorded, exploration draws only the unseen at the policy's fraction, ties fall by a seeded hash | implemented, CI-tested (unit, replay, real PostgreSQL); **off unless `KS_COMPOSER_POLICY=v2`**; not yet run on dev |
+| `composer replay-policy`: stored vertical decisions re-run under v0, v1 and v2, counts only: topic, series, format, repeats, already-met, tiers and places | implemented, CI-tested; run on dev (2026-10-31) over 640 stored decisions, D-190; the new-content counts are not yet run on dev |
+| Policy v2 (`composer-policy.v2`, D-408, #674): a person always gets new content. An explanation already met is left out of every system-chosen offer while anything unseen is eligible (the unseen are ranked as v1 ranks them, so a subject move still usually leaves the topic); only when nothing unseen exists is the least recently met offered, recorded as a fall back. Exploration draws only the unseen at the policy's fraction, ties fall by a seeded hash | implemented, CI-tested (unit, replay, real PostgreSQL); **off unless `KS_COMPOSER_POLICY=v2`**; not yet run on dev |
 | Retrieval is a rotating sample (D-408): primary before supporting topic roles, never incidental, ordered by a stable random key from a cursor the decision seed picks, text only when the person supplied text | implemented, CI-tested against real PostgreSQL; applies to every policy (retrieval is outside a frozen snapshot) |
 | `composer.prune-decisions`: expired decisions nothing holds are deleted on a schedule, in bounded batches | implemented, CI-tested against real PostgreSQL; offers are not deleted yet, so a decision an offer holds is not reclaimed (see "Private store and lifecycle") |
 | Jev `jev.2` (D-193): kind, play level, minutes, series part n of m and the myth a Scroll corrects; never play | implemented, unit-tested; one real run on dev still to do |
@@ -252,31 +252,31 @@ move (horizontal), the other format of what they are on (variant), a return (an 
 **Eligibility.** After the usual exclusions (admission, language, hidden, `current_explanation`, `same_series` and the
 rest), `already_encountered` leaves out every met candidate while any unseen candidate is eligible. It runs before the related
 and format rules, so those choose only among what is new: an unseen related item beats a met unrelated one, and a Reel watcher
-who has met every Reel gets an unseen Scroll (format stickiness gives way, recorded as `stickyFormat: fell_back`). When no
-unseen candidate is eligible nothing is excluded and the ladder falls back. When nothing at all is eligible the outcome is
-`exhausted`, as before.
+who has met every Reel gets an unseen Scroll (format stickiness gives way only when no unseen candidate of the person's format
+exists, recorded as `stickyFormat: fell_back`). When nothing at all is eligible the outcome is `exhausted`, as before.
 
-**The ladder.** The offers are taken from the best step that still holds a candidate, and only then by score or MMR:
+**Two tiers.**
 
-1. `source_topic`: unseen, about a topic the move starts from (a non-incidental topic of the source).
-2. `same_system`: unseen, about another topic of a catalogue system the source's topics belong to. The topic list is named
-   once at assembly (`intent.systemTopicIds`, from `systemOfTopic`) and frozen in the snapshot, so a later catalogue never
-   changes a stored decision.
-3. `any_unseen`: any other unseen candidate. Format stickiness has already been applied to the unseen set, so the person's
-   format comes first and the other format only when none of it is unseen.
-4. `last_resort`: only when nothing unseen is eligible. The least recently met first (`lastEncounteredAt`, the newest
-   activated exposure of the unit in either format; a unit with no recorded time counts as the oldest), then by score.
+1. `unseen`: every eligible candidate the person has not met, in either format. They are ranked exactly as v1 ranks them (the
+   same features, weights, MMR and diversity), so topic movement stays what D-190 measured: a subject move usually leaves the
+   topic, and an unseen candidate in the source's topic gets no preference beyond its Intent term. Nothing about the source's
+   topic or system affects which offers are chosen.
+2. `last_resort`: only when no unseen candidate is eligible in either format. The least recently met first
+   (`lastEncounteredAt`, the newest activated exposure of the unit in either format; a unit with no recorded time counts as
+   the oldest), then by score. The decision says `outcome: fell_back`.
 
-The decision records `unseenLadder`: `outcome` (`unseen`, `fell_back` or `none`), the `step` of the first offer, the `offerSteps`
-of every offer, and `eligible`, the number of eligible candidates at each step, so a fall back can be counted. The step order
-is strict: while anything unseen exists in the source's topic, a subject move stays in it (policy v1 let the topic go more
-often through its Intent weight, D-190). Run `composer replay-policy` and read `ladder` and `sameTopicFirstOffer` on a world's
-own decisions before switching it to v2.
+The decision records `unseenLadder`: `outcome` (`unseen`, `fell_back` or `none`), and, for analytics only, where each offer sits
+relative to the source (`place` of the first offer, `offerPlaces`, and `eligible`, the eligible candidates by place):
+`source_topic` (about a non-incidental topic of the source), `same_system` (about another topic of a catalogue system the
+source's topics belong to) or `elsewhere`. The same-system topics are named once at assembly (`intent.systemTopicIds`, from
+`systemOfTopic`) and frozen in the snapshot, so a later catalogue never changes a stored decision. The place labels are read by
+nothing in selection (a test drops `systemTopicIds` and expects identical offers); they exist so replay and dev can count how
+often a subject move stays in the topic under each policy.
 
 **Exploration.** The pool is the unseen eligible candidates, so it is empty in the last resort and never holds a repeat. The
 branch is drawn at `policy.explorationFraction` (`explorationDraw: 'by-fraction'`); v0 and v1 keep the literal one in ten they
 were stored with (`'one-in-ten'`). The logged probability uses the same fraction. On the exploration branch the first offer is
-a uniform pick among the unseen and may come from any step; the offers after it follow the ladder.
+a uniform pick among the unseen; the offers after it are chosen as usual by MMR.
 
 **Ties.** Equal scores are ordered by a hash of the decision seed and the asset id (`tieBreak: 'seeded-hash'`,
 `tieHash`), so cold-start ties fall differently for each person and decision and still replay from the stored seed. v0 and v1
@@ -464,10 +464,12 @@ shares only** (no person, universe, session, asset, title or text):
 - `newContent` per row (D-408): the first offers (`firstOffers`), how many the person had already met (`alreadyMetFirstOffer`,
   and `alreadyMetAllOffers` over every offer), how many repeat another first offer to the same person in the window
   (`repeatedFirstOffer`, every one after the first; each decision is replayed on its own, so a variant's repeats are what its
-  choices would repeat if every decision were served), and `ladder`, the first offers by step (`source_topic`, `same_system`,
-  `any_unseen`, `last_resort`). The steps are counted for every policy by the same definitions, so v0 and v1 show how often
-  they would have given a repeat as `last_resort`. `shares` holds `unseenFirstOffer`, `alreadyMetFirstOffer`,
-  `alreadyMetAllOffers` and `repeatFirstOffer`.
+  choices would repeat if every decision were served), `tiers` (the first offers that were `unseen` and those that were a
+  `last_resort`, a met explanation) and `places` (the first offers by where they sit relative to the source: `source_topic`,
+  `same_system`, `elsewhere`; analytics, and `source_topic` equals `firstOffer.sameTopic`). Tiers and places are counted for every
+  policy by the same definitions, so v0 and v1 show how often they would have given a repeat as `last_resort`. `shares` holds
+  `unseenFirstOffer`, `alreadyMetFirstOffer`, `alreadyMetAllOffers` and `repeatFirstOffer`. Beside them, `sameTopicFirstOffer`
+  shows what v2 does to topic movement: with nothing met it is the v1 figure.
 - `replayedWithHistory`: how many replayed inputs read the person's retained history. An input without it counts everything as
   unseen, so read the met counts only against this number. Inputs stored before v2 carry no `lastEncounteredAt`, so a
   replayed last resort orders those by score.

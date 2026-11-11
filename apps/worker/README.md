@@ -164,8 +164,8 @@ moves, no provider is called, and running it again assigns nothing. It needs onl
 [--recent-topic-penalty <0-1>] [--sweep]` (`src/composer-operator.ts`, D-190) re-runs the retained vertical Composer decisions
 recorded since a date under `composer-policy.v0`, v1 and v2 and prints counts and shares only: first offers that stay on the
 source's topic, are another part of its series or move to another Jev subject, how often sticky format fell back, and (D-408)
-how many first offers the person had already met, how many repeat another to the same person, and which step of the ladder
-each falls under. It
+how many first offers the person had already met, how many repeat another to the same person, and which tier (unseen or last
+resort) and place relative to the source (analytics) each falls under. It
 names no person, session, asset, title or text, calls no model and writes nothing. It needs only `KS_WORLD` and
 `DATABASE_URL`; exit 2 on bad usage. See the Composer README, "Policy replay".
 

@@ -124,7 +124,7 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
   return fitToBudget(full, input.hashCatalogWatermarks);
 }
 
-/** The topics of the candidates that share a catalogue system with the source's topics (the ladder's "same system" step). */
+/** The topics of the candidates that share a catalogue system with the source's topics (the `same_system` place Composer records for analytics). */
 function systemTopicsOf(source: EncounterSnapshot, candidates: readonly EncounterSnapshot[]): readonly string[] {
   const aboutTopics = (encounter: EncounterSnapshot) =>
     encounter.topics.filter((t) => t.role !== 'incidental').map((t) => t.topicId);

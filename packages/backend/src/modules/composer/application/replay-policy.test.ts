@@ -118,7 +118,7 @@ describe('normaliseForReplay', () => {
     expect(normalised.evidence?.recent[1]?.topicIds).toBeUndefined();
   });
 
-  it('names the topics of the source’s system as today’s assembly does, for the ladder’s "same system" step', () => {
+  it('names the topics of the source’s system as today’s assembly does, for the `same_system` place', () => {
     // Seasons and Tides are both Earth topics; Stars is a Space topic. The source's own topic is the first step.
     expect(normaliseForReplay(input, source).intent.systemTopicIds).toEqual(['earth.tides']);
   });
@@ -216,7 +216,7 @@ describe('startPolicyReplay', () => {
   });
 });
 
-describe('new content: repeats, already met, and the ladder (#674)', () => {
+describe('new content: repeats, already met, tiers and places (#674)', () => {
   const seeds = Array.from({ length: 12 }, (_, n) => `seed-${String(n)}`);
   const asHistory = (snapshot: ComposerSnapshot): ComposerSnapshot => {
     const units = [...new Set(snapshot.candidates.map((c) => c.encounter.explanationUnitId))];
@@ -263,7 +263,8 @@ describe('new content: repeats, already met, and the ladder (#674)', () => {
       shares: { unseenFirstOffer: 1, alreadyMetFirstOffer: 0, alreadyMetAllOffers: 0 },
     });
     expect(v0!.shares.unseenFirstOffer).toBeLessThan(1);
-    expect(v2!.newContent.ladder).toEqual({ source_topic: 0, same_system: 0, any_unseen: 12, last_resort: 0 });
+    expect(v2!.newContent.tiers).toEqual({ unseen: 12, last_resort: 0 });
+    expect(v2!.newContent.places).toEqual({ source_topic: 0, same_system: 0, elsewhere: 12 });
   });
 
   it('counts the repeats of one person’s first offers, and none across people', () => {
@@ -288,15 +289,34 @@ describe('new content: repeats, already met, and the ladder (#674)', () => {
     expect(other.report().variants[3]!.newContent.repeatedFirstOffer).toBe(0);
   });
 
-  it('puts each first offer on a step of the ladder for every policy alike, summing to the first offers', () => {
+  it('puts each first offer in a tier and a place for every policy alike, each summing to the first offers', () => {
     const replay = startPolicyReplay(DEFAULT_VARIANTS);
     for (const seed of seeds) replay.add(stored(asHistory(storedInput(seed))));
     for (const variant of replay.report().variants) {
-      const { ladder, firstOffers } = variant.newContent;
-      expect(Object.values(ladder).reduce((sum, n) => sum + n, 0)).toBe(firstOffers);
+      const { tiers, places, firstOffers } = variant.newContent;
+      expect(tiers.unseen + tiers.last_resort).toBe(firstOffers);
+      expect(Object.values(places).reduce((sum, n) => sum + n, 0)).toBe(firstOffers);
+      // The place `source_topic` is the existing same-topic count: one definition, split three ways.
+      expect(places.source_topic).toBe(variant.firstOffer.sameTopic);
     }
-    // v0's first offer is a met Seasons Scroll: its step is the last resort, which is how repeats show in the tier counts.
-    expect(replay.report().variants[1]!.newContent.ladder.last_resort).toBeGreaterThan(0);
+    // v0's first offer is a met Seasons Scroll: its tier is the last resort, which is how repeats show in the tier counts.
+    expect(replay.report().variants[1]!.newContent.tiers.last_resort).toBeGreaterThan(0);
+  });
+
+  it('keeps the topic movement D-190 measured: on the fixtures v2 leaves the topic about as often as v1', () => {
+    // No history, so nothing is met and v2 differs from v1 only in its tie-break and the way it draws exploration.
+    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    const noHistory = (snapshot: ComposerSnapshot): ComposerSnapshot =>
+      snapshot.evidence ? { ...snapshot, evidence: { ...snapshot.evidence, recent: [] } } : snapshot;
+    for (const snapshot of fixtureSnapshots()) replay.add(stored(noHistory(snapshot)));
+    for (const seed of seeds) replay.add(stored(noHistory(storedInput(seed))));
+    const [, , v1, v2] = replay.report().variants;
+    expect(v1!.decisions).toBeGreaterThan(20);
+    expect(v2!.decisions).toBe(v1!.decisions);
+    expect(Math.abs(v2!.shares.sameTopicFirstOffer - v1!.shares.sameTopicFirstOffer)).toBeLessThanOrEqual(0.1);
+    expect(Math.abs(v2!.shares.sameTopicAllOffers - v1!.shares.sameTopicAllOffers)).toBeLessThanOrEqual(0.1);
+    expect(Math.abs(v2!.shares.subjectChangeFirstOffer - v1!.shares.subjectChangeFirstOffer)).toBeLessThanOrEqual(0.1);
+    expect(v2!.newContent.alreadyMetFirstOffer).toBe(0);
   });
 
   it('counts an input without retained history as history-less, and everything in it as unseen', () => {

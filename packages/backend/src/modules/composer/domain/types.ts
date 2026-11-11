@@ -178,7 +178,7 @@ export interface ComposerSnapshot {
     readonly relatedAssetIds?: readonly string[];
     /**
      * Vertical moves only (policy v2). The topics, among those of the candidates, that belong to a system one of the
-     * source's topics belongs to: the "same system" step of the ladder. Frozen at assembly so a replay never depends on
+     * source's topics belongs to: the `same_system` place (analytics). Frozen at assembly so a replay never depends on
      * the catalogue as it is later. Absent in inputs stored before policy v2 (the step is then empty).
      */
     readonly systemTopicIds?: readonly string[];
@@ -244,26 +244,27 @@ export interface RelatedTargetOutcome {
 }
 
 /**
- * The steps of policy v2's ladder, in order. The first three offer something the person has not met: in the topic the
- * move starts from, in the same system, anywhere (format stickiness gives way here, so a Reel watcher who has met every
- * Reel gets an unseen Scroll). `last_resort` offers the least recently met explanation, and only when nothing unseen is
- * eligible in either format.
+ * Where an explanation sits relative to the source of a vertical move: about a topic the source is about
+ * (`source_topic`), about another topic of a system the source's topics belong to (`same_system`), or neither
+ * (`elsewhere`, and every explanation when the move has no source). It is recorded for analytics only: selection never
+ * reads it, so a subject move keeps leaving the topic as often as policy v1's scoring says (D-190).
  */
-export type LadderStep = 'source_topic' | 'same_system' | 'any_unseen' | 'last_resort';
+export type SourcePlace = 'source_topic' | 'same_system' | 'elsewhere';
 
 /**
- * What the unseen ladder did in one decision (policy v2, vertical moves without an exact target): `unseen` (the offers
- * are things the person has not met), `fell_back` (nothing unseen was eligible, so the least recently met were offered)
- * or `none` (nothing at all was eligible: the existing exhausted path).
+ * What policy v2's two tiers did in one decision (vertical moves without an exact target): `unseen` (every offer is
+ * an explanation the person has not met, ranked by the usual score), `fell_back` (nothing unseen was eligible in either
+ * format, so the least recently met were offered: the last resort) or `none` (nothing at all was eligible: the existing
+ * exhausted path). The places are analytics and never affect which offers were chosen.
  */
 export interface UnseenLadderOutcome {
   readonly outcome: 'unseen' | 'fell_back' | 'none';
-  /** The step of the first offer; absent when nothing was offered. */
-  readonly step?: LadderStep;
-  /** The step of each offer, in selection order. */
-  readonly offerSteps: readonly LadderStep[];
-  /** Eligible candidates at each step when the ladder was walked (met ones count only under `last_resort`). */
-  readonly eligible: Readonly<Record<LadderStep, number>>;
+  /** The place of the first offer; absent when nothing was offered. */
+  readonly place?: SourcePlace;
+  /** The place of each offer, in selection order. */
+  readonly offerPlaces: readonly SourcePlace[];
+  /** The eligible candidates by place: unseen ones under `unseen`, met ones under `fell_back`. */
+  readonly eligible: Readonly<Record<SourcePlace, number>>;
 }
 
 export interface ComposerDecision {

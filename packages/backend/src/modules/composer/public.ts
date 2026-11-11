@@ -30,7 +30,7 @@ export type {
   SemanticAssessments,
   Features,
   CandidateEvaluation,
-  LadderStep,
+  SourcePlace,
   UnseenLadderOutcome,
 } from './domain/types.js';
 export { prepareBufferQueue, PrepareBufferJobSchema, pruneDecisionsQueue, type PrepareBufferJob } from './events.js';

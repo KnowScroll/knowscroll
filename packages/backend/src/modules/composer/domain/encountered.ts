@@ -1,7 +1,4 @@
-import type { ComposerSnapshot, LadderStep, UnseenLadderOutcome } from './types.js';
-
-/** The ladder's steps in the order they are tried. */
-export const LADDER_STEPS: readonly LadderStep[] = ['source_topic', 'same_system', 'any_unseen', 'last_resort'];
+import type { ComposerSnapshot, SourcePlace, UnseenLadderOutcome } from './types.js';
 
 type Candidate = ComposerSnapshot['candidates'][number];
 
@@ -39,46 +36,40 @@ export function lastMetAt(snapshot: ComposerSnapshot, explanationUnitId: string)
 }
 
 /**
- * The step of the ladder an explanation the person has not met belongs to. `source_topic`: it is about a topic the move
- * starts from. `same_system`: about a topic of the same system (`intent.systemTopicIds`). Otherwise `any_unseen`.
- * A move without a source has no topics, so every unseen candidate is `any_unseen`.
+ * Where a candidate sits relative to the move's source (analytics only, never read by selection). `source_topic`: it is about
+ * a topic the move starts from. `same_system`: about a topic of the same system (`intent.systemTopicIds`). Otherwise
+ * `elsewhere`. A move without a source has no topics, so every candidate is `elsewhere`.
  */
-export function unseenStepOf(snapshot: ComposerSnapshot, candidate: Candidate): Exclude<LadderStep, 'last_resort'> {
+export function placeOf(snapshot: ComposerSnapshot, candidate: Candidate): SourcePlace {
   const topics = aboutTopics(candidate);
   if (topics.some((id) => snapshot.intent.topicIds.includes(id))) return 'source_topic';
   const system = snapshot.intent.systemTopicIds ?? [];
   if (topics.some((id) => system.includes(id))) return 'same_system';
-  return 'any_unseen';
-}
-
-/** The step of a candidate in the ladder: its unseen step, or `last_resort` when the person has met it. */
-export function ladderStepOf(snapshot: ComposerSnapshot, candidate: Candidate): LadderStep {
-  return isMet(snapshot, candidate.encounter.explanationUnitId) ? 'last_resort' : unseenStepOf(snapshot, candidate);
+  return 'elsewhere';
 }
 
 /**
- * Whether the ladder applies to a snapshot: a system-chosen move. A vertical move without an exact target is the
+ * Whether policy v2's two tiers apply to a snapshot: a system-chosen move. A vertical move without an exact target is the
  * system's choice (the next subject, or the next one inside a region). Series, related, variant and return moves name
  * what the person asked for, and any snapshot with an exact target does, so none of them is ever asked to leave out what
  * was met: resuming, a part, a saved item, a shared link and the other format of what the person is on all stay open.
  */
-export function ladderApplies(snapshot: ComposerSnapshot): boolean {
+export function unseenFirstApplies(snapshot: ComposerSnapshot): boolean {
   return snapshot.mode === 'vertical' && snapshot.intent.exactTarget === undefined;
 }
 
-/** The counts of the ladder's steps for a set of candidates. */
-export function stepCounts(steps: readonly LadderStep[]): UnseenLadderOutcome['eligible'] {
+/** The counts of places for a set of candidates. */
+export function placeCounts(places: readonly SourcePlace[]): UnseenLadderOutcome['eligible'] {
   return {
-    source_topic: steps.filter((s) => s === 'source_topic').length,
-    same_system: steps.filter((s) => s === 'same_system').length,
-    any_unseen: steps.filter((s) => s === 'any_unseen').length,
-    last_resort: steps.filter((s) => s === 'last_resort').length,
+    source_topic: places.filter((p) => p === 'source_topic').length,
+    same_system: places.filter((p) => p === 'same_system').length,
+    elsewhere: places.filter((p) => p === 'elsewhere').length,
   };
 }
 
 /**
  * The topics, among `candidateTopicIds`, of a system one of the `sourceTopicIds` belongs to and that are not the source's
- * own (the source's topics are the first step). `systemOf` names the system of a topic (`undefined` for an unknown one):
+ * own (the source's topics are `source_topic`). It only labels where an offer sits (analytics). `systemOf` names the system of a topic (`undefined` for an unknown one):
  * the catalogue is Content's, so the caller passes it in, and the result is frozen into the snapshot. Sorted and
  * bounded, so the snapshot is the same for the same inputs.
  */

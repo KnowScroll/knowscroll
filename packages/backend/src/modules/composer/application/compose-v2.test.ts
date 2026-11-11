@@ -11,7 +11,7 @@ import {
   type ComposerPolicy,
   type ComposerSnapshot,
 } from '../public.js';
-import { isMet, lastMetAt, ladderStepOf, systemTopicIdsOf, unseenStepOf } from '../domain/encountered.js';
+import { isMet, lastMetAt, placeOf, systemTopicIdsOf } from '../domain/encountered.js';
 import { tieHash } from '../domain/policy.js';
 import { fixtureSnapshots } from './snapshot-fixtures.js';
 
@@ -32,6 +32,7 @@ function candidate(
     readonly topic?: string;
     readonly unit?: string;
     readonly role?: 'primary' | 'supporting' | 'incidental';
+    readonly facets?: readonly string[];
   } = {},
 ): Candidate {
   const kind = options.kind ?? 'scroll';
@@ -46,7 +47,7 @@ function candidate(
       explanationUnitId: options.unit ?? `unit-${name}`,
       metadata: { kind, title: `Fixture ${name}`, summary: '', language: 'en' },
       topics: [{ topicId: options.topic ?? SOURCE_TOPIC, role: options.role ?? 'primary', weight: 1 }],
-      facets: [],
+      facets: options.facets ?? [],
       siblings: [],
       catalogWatermark: 'fixture-catalog',
       attributionVersion: 'fixture-taxonomy',
@@ -68,6 +69,8 @@ function vertical(
     readonly seed?: string;
     readonly mode?: ComposerSnapshot['mode'];
     readonly recent?: readonly string[];
+    /** The facets of every recent encounter. */
+    readonly recentFacets?: readonly string[];
   } = {},
 ): ComposerSnapshot {
   const units = [...new Set(candidates.map((c) => c.encounter.explanationUnitId))];
@@ -101,7 +104,7 @@ function vertical(
         exposureId: `exposure-${String(n)}`,
         activatedAt: new Date(Date.parse(evaluatedAt) - (n + 1) * 600_000).toISOString(),
         explanationUnitId: unit,
-        facets: [],
+        facets: options.recentFacets ?? [],
       })),
       established: {
         policyVersion: 'retained-activated-history.v0',
@@ -146,7 +149,7 @@ describe('policy v2 is a new label with the rules of #674 and the numbers of v1'
     expect([COMPOSER_POLICY_V2.explorationDraw, COMPOSER_POLICY_V2.tieBreak, COMPOSER_POLICY_V2.encountered]).toEqual([
       'by-fraction',
       'seeded-hash',
-      'ladder',
+      'unseen-first',
     ]);
     // v0 and v1 keep the literal draw, the lexical tie-break and the soft novelty term they were stored with.
     for (const old of [COMPOSER_POLICY_V0, COMPOSER_POLICY_V1])
@@ -160,7 +163,7 @@ describe('an explanation the person has met is not offered while something unsee
   const unseen = candidate('unseen', { topic: OTHER_TOPIC });
   const snapshot = vertical([met, unseen], { met: { 'unit-met': '2026-11-01T10:00:00.000Z' } });
 
-  it('leaves the met one out and says why, and records the ladder', () => {
+  it('leaves the met one out and says why, and records where the offer sits', () => {
     const decision = composeEncounter(snapshot, V2);
     expect(decision.selection.map((s) => s.assetId)).toEqual(['unseen']);
     expect(decision.evaluations.find((e) => e.assetId === 'met')).toMatchObject({
@@ -169,9 +172,9 @@ describe('an explanation the person has met is not offered while something unsee
     });
     expect(decision.unseenLadder).toEqual({
       outcome: 'unseen',
-      step: 'any_unseen',
-      offerSteps: ['any_unseen'],
-      eligible: { source_topic: 0, same_system: 0, any_unseen: 1, last_resort: 0 },
+      place: 'elsewhere',
+      offerPlaces: ['elsewhere'],
+      eligible: { source_topic: 0, same_system: 0, elsewhere: 1 },
     });
   });
 
@@ -216,47 +219,77 @@ describe('an explanation the person has met is not offered while something unsee
   });
 });
 
-describe('the ladder: the topic the move starts from, then its system, then anywhere', () => {
-  // Names are chosen so that the old lexical tie-break would put the far one before the near one.
-  const far = candidate('a-far', { topic: OTHER_TOPIC });
-  const near = candidate('b-near', { topic: SAME_SYSTEM_TOPIC });
-  const topic = candidate('c-topic', { topic: SOURCE_TOPIC });
-  const snapshot = vertical([far, near, topic]);
+describe('the unseen are ranked as v1 ranks them: a subject move still usually leaves the topic (D-190)', () => {
+  // Both are unseen and eligible. The one in the source's topic repeats the facets of the person's last encounter, which
+  // costs it more than its topic match earns; the one elsewhere is plainly better scored.
+  const far = candidate('a-far', { topic: OTHER_TOPIC, facets: ['facet-far'] });
+  const topic = candidate('c-topic', { topic: SOURCE_TOPIC, facets: ['facet-topic'] });
+  const repeating = vertical([far, topic], { recent: ['unit-recent'], recentFacets: ['facet-topic'] });
 
-  it('offers the steps in order and records each offer’s step and how many were eligible at each', () => {
-    const decision = composeEncounter(snapshot, V2);
-    expect(decision.selection.map((s) => s.assetId)).toEqual(['c-topic', 'b-near', 'a-far']);
+  it('picks the better-scored candidate elsewhere over an unseen one in the source topic, as v1 does', () => {
+    const decision = composeEncounter(repeating, V2);
+    expect(decision.selection.map((s) => s.assetId)).toEqual(['a-far', 'c-topic']);
+    expect(offered(repeating, V1)).toEqual(['a-far', 'c-topic']);
+    // Both were eligible and unseen: the topic did not force the choice.
+    expect(decision.evaluations.every((e) => e.eligible)).toBe(true);
     expect(decision.unseenLadder).toEqual({
       outcome: 'unseen',
-      step: 'source_topic',
-      offerSteps: ['source_topic', 'same_system', 'any_unseen'],
-      eligible: { source_topic: 1, same_system: 1, any_unseen: 1, last_resort: 0 },
+      place: 'elsewhere',
+      offerPlaces: ['elsewhere', 'source_topic'],
+      eligible: { source_topic: 1, same_system: 0, elsewhere: 1 },
     });
   });
 
-  it('puts the same system before anywhere even where the old tie-break puts anywhere first', () => {
-    expect(offered(snapshot, V1)).toEqual(['c-topic', 'a-far', 'b-near']);
+  it('and picks the source topic when the scoring says so, again as v1 does', () => {
+    const plain = vertical([far, topic]);
+    expect(offered(plain)[0]).toBe('c-topic');
+    expect(offered(plain, V1)[0]).toBe('c-topic');
+    expect(composeEncounter(plain, V2).unseenLadder).toMatchObject({ place: 'source_topic' });
   });
 
-  it('takes the next step when the topic has nothing unseen left, and anywhere when the system has none', () => {
-    const topicMet = vertical([far, near, topic], { met: { 'unit-c-topic': null } });
-    expect(composeEncounter(topicMet, V2).unseenLadder).toMatchObject({ step: 'same_system' });
-    expect(offered(topicMet)).toEqual(['b-near', 'a-far']);
-    const systemMet = vertical([far, near, topic], { met: { 'unit-c-topic': null, 'unit-b-near': null } });
-    expect(composeEncounter(systemMet, V2).unseenLadder).toMatchObject({ step: 'any_unseen' });
-    expect(offered(systemMet)).toEqual(['a-far']);
+  it('ranks, with the MMR order after the first offer, exactly as v1 does while nothing is met', () => {
+    // v2 with the old tie-break and no exploration is v1 over the unseen: only the tie-break and the draw differ.
+    const asV1 = { ...V2, tieBreak: 'lexical' as const };
+    let compared = 0;
+    for (const snapshot of fixtureSnapshots()) {
+      if (snapshot.mode !== 'vertical' || snapshot.intent.exactTarget) continue;
+      const nothingMet: ComposerSnapshot = snapshot.evidence
+        ? { ...snapshot, evidence: { ...snapshot.evidence, recent: [] } }
+        : snapshot;
+      const v1 = composeEncounter(nothingMet, V1);
+      const v2 = composeEncounter(nothingMet, asV1);
+      expect(v2.selection).toEqual(v1.selection);
+      expect(v2.evaluations).toEqual(v1.evaluations);
+      expect(v2.exploration).toEqual(v1.exploration);
+      compared += 1;
+    }
+    expect(compared).toBeGreaterThan(10);
+  });
+
+  it('where an offer sits is recorded and read by nothing: dropping the system topics changes the record, not the offers', () => {
+    const near = candidate('b-near', { topic: SAME_SYSTEM_TOPIC });
+    const withSystem = vertical([far, near]);
+    const { systemTopicIds: _drop, ...intent } = withSystem.intent;
+    const without: ComposerSnapshot = { ...withSystem, intent };
+    const a = composeEncounter(withSystem, V2);
+    const b = composeEncounter(without, V2);
+    expect(a.selection).toEqual(b.selection);
+    expect(a.evaluations).toEqual(b.evaluations);
+    expect(a.exploration).toEqual(b.exploration);
+    expect(a.unseenLadder?.eligible).toEqual({ source_topic: 0, same_system: 1, elsewhere: 1 });
+    expect(b.unseenLadder?.eligible).toEqual({ source_topic: 0, same_system: 0, elsewhere: 2 });
   });
 
   it('never counts an incidental mention as being on the topic', () => {
     const incidental = candidate('incidental', { topic: SOURCE_TOPIC, role: 'incidental' });
-    expect(unseenStepOf(vertical([incidental]), incidental)).toBe('any_unseen');
+    expect(placeOf(vertical([incidental]), incidental)).toBe('elsewhere');
   });
 
-  it('a move with no source has no topic and no system: everything unseen is anywhere', () => {
+  it('a move with no source has no topic and no system: everything is elsewhere', () => {
     const noSource = vertical([far, topic], { intent: { topicIds: [] } });
     const { systemTopicIds: _systemTopicIds, ...intent } = noSource.intent;
     const decision = composeEncounter({ ...noSource, intent }, V2);
-    expect(decision.unseenLadder).toMatchObject({ step: 'any_unseen', eligible: { any_unseen: 2 } });
+    expect(decision.unseenLadder).toMatchObject({ place: 'elsewhere', eligible: { elsewhere: 2 } });
   });
 
   it('a person who has met everything in the topic is offered something unseen from elsewhere', () => {
@@ -302,13 +335,14 @@ describe('format stickiness gives way before a repeat is offered (D-132 and #674
     expect(decision.evaluations.find((e) => e.assetId === 'scroll-unseen')?.exclusions).toEqual(['format_sticky']);
   });
 
-  it('prefers the topic among the other format once stickiness has given way', () => {
+  it('offers every unseen Scroll, ranked as usual, once stickiness has given way', () => {
     const near = candidate('near-scroll', { topic: SAME_SYSTEM_TOPIC });
     const snapshot = vertical([reelA, scroll, near], {
       intent: { stickyFormat: 'reel' },
       met: { 'unit-reel-a': null },
     });
-    expect(offered(snapshot)).toEqual(['near-scroll', 'scroll-unseen']);
+    expect(offered(snapshot).sort()).toEqual(['near-scroll', 'scroll-unseen']);
+    expect(composeEncounter(snapshot, V2).stickyFormat).toEqual({ preferred: 'reel', outcome: 'fell_back' });
   });
 });
 
@@ -329,9 +363,9 @@ describe('the last resort: nothing unseen in either format', () => {
     expect(decision.outcome).toBe('ready');
     expect(decision.unseenLadder).toEqual({
       outcome: 'fell_back',
-      step: 'last_resort',
-      offerSteps: ['last_resort', 'last_resort', 'last_resort'],
-      eligible: { source_topic: 0, same_system: 0, any_unseen: 0, last_resort: 3 },
+      place: 'source_topic',
+      offerPlaces: ['source_topic', 'source_topic', 'source_topic'],
+      eligible: { source_topic: 3, same_system: 0, elsewhere: 0 },
     });
     expect(decision.evaluations.every((e) => e.eligible && e.exclusions.length === 0)).toBe(true);
     // The old rule offers the best score, whenever it was met.
@@ -361,8 +395,8 @@ describe('the last resort: nothing unseen in either format', () => {
     expect(none.outcome).toBe('exhausted');
     expect(none.unseenLadder).toEqual({
       outcome: 'none',
-      offerSteps: [],
-      eligible: { source_topic: 0, same_system: 0, any_unseen: 0, last_resort: 0 },
+      offerPlaces: [],
+      eligible: { source_topic: 0, same_system: 0, elsewhere: 0 },
     });
   });
 
@@ -379,7 +413,7 @@ describe('what the person asked for is not a repeat (every other move is exempt)
   const metCandidate = candidate('met', { unit: 'unit-met' });
   const ref = { assetId: 'met', assetRevision: 1 };
 
-  /** The same history, on the move the person asked for. None of them asks the ladder. */
+  /** The same history, on the move the person asked for. None of them asks the unseen-first rule. */
   it.each([
     [
       'a return to an exact target',
@@ -435,7 +469,7 @@ describe('what the person asked for is not a repeat (every other move is exempt)
     expect(decision.selection.map((s) => s.assetId)).toEqual(['unseen']);
   });
 
-  it('a snapshot that asks for the ladder’s system topics on another move is refused, not silently ignored', () => {
+  it('a snapshot that asks for the system topics on another move is refused, not silently ignored', () => {
     const horizontal = {
       ...vertical([metCandidate], { mode: 'horizontal' }),
       candidates: [
@@ -540,7 +574,7 @@ describe('equal scores are told apart by a hash of the seed and the asset, not b
   });
 });
 
-describe('the system topics of the ladder are named once, from what the catalogue says, and sorted', () => {
+describe('the system topics are named once, from what the catalogue says, and sorted', () => {
   const systemOf = (id: string) => ({ 'earth.seasons': 'earth', 'earth.tides': 'earth', 'space.stars': 'space' })[id];
 
   it('lists the candidates’ topics of a system the source is in, not the source’s own', () => {
@@ -613,7 +647,7 @@ describe('over the labelled fixtures', () => {
     }
   });
 
-  it('records a ladder only on a system-chosen vertical move', () => {
+  it('records the tier only on a system-chosen vertical move', () => {
     for (const snapshot of snapshots) {
       const decision = composeEncounter(snapshot, COMPOSER_POLICY_V2);
       const asked = snapshot.mode === 'vertical' && snapshot.intent.exactTarget === undefined;
@@ -622,24 +656,21 @@ describe('over the labelled fixtures', () => {
   });
 
   test.prop([fc.integer({ min: 0, max: 59 }), fc.string({ minLength: 1, maxLength: 24 })])(
-    'the step of an offer is the step of its candidate, and the steps are in order unless the ladder fell back',
+    'the recorded place of an offer is the place of its candidate, and the counts are of the eligible candidates',
     (index, seed) => {
       const input = { ...snapshots[index]!, seed };
       const decision = composeEncounter(input, COMPOSER_POLICY_V2);
-      const ladder = decision.unseenLadder;
-      if (ladder === undefined) return;
-      const order = ['source_topic', 'same_system', 'any_unseen', 'last_resort'];
-      const steps = decision.selection.map((offer) =>
-        ladderStepOf(
-          input,
-          input.candidates.find((c) => c.encounter.assetId === offer.assetId)!,
-        ),
+      const record = decision.unseenLadder;
+      if (record === undefined) return;
+      const candidateOf = (assetId: string) => input.candidates.find((c) => c.encounter.assetId === assetId)!;
+      expect(record.offerPlaces).toEqual(decision.selection.map((offer) => placeOf(input, candidateOf(offer.assetId))));
+      const eligible = decision.evaluations.filter((e) => e.eligible).length;
+      expect(Object.values(record.eligible).reduce((sum, n) => sum + n, 0)).toBe(eligible);
+      // Met explanations are offered only when every eligible candidate is met (the last resort).
+      const offersMet = decision.selection.some((offer) =>
+        isMet(input, candidateOf(offer.assetId).encounter.explanationUnitId),
       );
-      expect(ladder.offerSteps).toEqual(steps);
-      // Offers 2 and 3 never come from an earlier step than the best the ranking could take; the explore pick is the
-      // only first offer allowed to sit further down, so the rest are in order.
-      const rest = steps.slice(1).map((step) => order.indexOf(step));
-      expect([...rest].sort((a, b) => a - b)).toEqual(rest);
+      expect(offersMet).toBe(record.outcome === 'fell_back');
     },
   );
 });
@@ -669,7 +700,7 @@ describe('v0 and v1 are untouched by the new inputs and rules (their stored deci
   }
 
   it.each([COMPOSER_POLICY_V0, COMPOSER_POLICY_V1])(
-    '%s ignores the system topics and the times last met, and records no ladder',
+    '%s ignores the system topics and the times last met, and records no tier',
     (policy) => {
       for (const snapshot of fixtureSnapshots()) {
         const before = composeEncounter(withHistory(snapshot, false), policy);

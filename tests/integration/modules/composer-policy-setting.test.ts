@@ -113,7 +113,7 @@ describe.each([
     // v1 and v2 carry the recent-topic share; a v0 decision has no such feature.
     const features = row.payload.evaluations.map((evaluation) => Object.keys(evaluation.features));
     expect(features.every((keys) => keys.includes('recentTopic'))).toBe(label !== 'composer-policy.v0');
-    // Only v2 records the ladder of a system-chosen move, and the widened pin (migration 0108) let it be stored.
+    // Only v2 records the tier of a system-chosen move, and the widened pin (migration 0108) let it be stored.
     expect(row.payload.unseenLadder !== undefined).toBe(label === 'composer-policy.v2');
   });
 });

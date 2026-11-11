@@ -532,7 +532,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       return (await Promise.all(offered.map((offer) => unitOf(offer.assetId)))).filter((unit) => units.has(unit));
     };
 
-    it('stores the decision under composer-policy.v2 and records the ladder', async () => {
+    it('stores the decision under composer-policy.v2 and records its tier and where the offer sits', async () => {
       const person = await seedPerson(database.db);
       const stand = await standOnV2(person, own[0]!);
       const next = ready(await nextV2(person, stand, 'scroll'));
@@ -544,8 +544,11 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       expect(row.policy_version).toBe('composer-policy.v2');
       const decision = await decisionOf(next.decisionId);
       expect(decision.unseenLadder).toMatchObject({ outcome: 'unseen' });
-      // The two other Scrolls of the topic are the first step; the rest of the library is further down.
+      // The two other Scrolls of the topic are unseen and eligible beside the rest of the library: where an offer sits is
+      // recorded, and the ranking does not read it.
       expect(decision.unseenLadder?.eligible.source_topic).toBe(2);
+      expect(decision.unseenLadder?.eligible.elsewhere).toBeGreaterThan(0);
+      expect(decision.unseenLadder?.offerPlaces).toHaveLength(offers(next).length);
     });
 
     it('a person who has met everything in a topic gets something unseen from elsewhere', async () => {
@@ -565,8 +568,9 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       const decision = await decisionOf(next.decisionId);
       for (const scroll of own.slice(0, 2))
         expect(exclusionsIn(decision, scroll.assetId)).toEqual(['already_encountered']);
-      // Nothing unseen is left in the topic, so the ranking took the next step, and did not fall back to a repeat.
-      expect(decision.unseenLadder).toMatchObject({ outcome: 'unseen', eligible: { source_topic: 0, last_resort: 0 } });
+      // Nothing unseen is left in the topic, so what is offered sits elsewhere, and the decision did not fall back to a repeat.
+      expect(decision.unseenLadder).toMatchObject({ outcome: 'unseen', eligible: { source_topic: 0 } });
+      expect(decision.unseenLadder?.offerPlaces.every((place) => place !== 'source_topic')).toBe(true);
     });
 
     it('a Reel watcher who has met every Reel gets an unseen Scroll', async () => {
@@ -599,13 +603,12 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       // The Scroll the person met first of all comes first, whatever the ranking would have said.
       expect(offers(next)[0]!.assetId).toBe(first.id);
       const decision = await decisionOf(next.decisionId);
-      expect(decision.unseenLadder).toMatchObject({
-        outcome: 'fell_back',
-        step: 'last_resort',
-        offerSteps: offers(next).map(() => 'last_resort'),
-        eligible: { source_topic: 0, same_system: 0, any_unseen: 0 },
-      });
-      expect(decision.unseenLadder!.eligible.last_resort).toBeGreaterThan(0);
+      expect(decision.unseenLadder).toMatchObject({ outcome: 'fell_back' });
+      expect(decision.unseenLadder!.offerPlaces).toHaveLength(offers(next).length);
+      // Every eligible candidate is one the person has met: the counts by place add up to the eligible ones.
+      const eligibleCount = decision.evaluations.filter((evaluation) => evaluation.eligible).length;
+      expect(Object.values(decision.unseenLadder!.eligible).reduce((sum, n) => sum + n, 0)).toBe(eligibleCount);
+      expect(eligibleCount).toBeGreaterThan(0);
       expect(decision.exploration).toMatchObject({ branch: 'ranked', pool: [] });
     });
 
@@ -653,7 +656,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
         intent: { mode: 'related' },
       });
       expect(ready(related).offer).toMatchObject({ assetId: limits.assetId, relation: { kind: 'related_move' } });
-      // None of those decisions is a ladder decision.
+      // None of those decisions records a tier: they are the person's own moves.
       for (const outcome of [variant, part, related]) {
         const decisionId = ready(outcome).decisionId;
         expect((await decisionOf(decisionId)).unseenLadder).toBeUndefined();
