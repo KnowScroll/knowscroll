@@ -13,6 +13,7 @@ import type {
   PersonalScopeTx,
   WithPersonalScope,
   CheckPersonalOwnerActive,
+  CheckPersonalAccountDisposable,
   FencePersonalRecording,
 } from '../../identity/public.js';
 import type {
@@ -268,6 +269,12 @@ export type CountPlannedDemand = (scope: PersonalScopeTx, outcomes: readonly Pla
 export interface SupplyPorts {
   readonly withScope: WithPersonalScope;
   readonly ownerActive: CheckPersonalOwnerActive;
+  /**
+   * Whether the account behind the scope is a disposable test account (the Identity port the gap loop reads). Its demand
+   * never starts or joins shared production and never leaves a gap signal (D-413, D-414): the one check `commissionSupply`
+   * makes first.
+   */
+  readonly accountDisposable: CheckPersonalAccountDisposable;
   readonly store: SupplyStore;
   readonly readCandidates: ReadDiscoveryCandidates;
   /**

@@ -227,6 +227,7 @@ export function supplyProviders(t: {
       ): SupplyPorts => ({
         withScope,
         ownerActive,
+        accountDisposable,
         store: supplyStore,
         chooseRecipe,
         readProduction,

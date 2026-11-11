@@ -13,8 +13,16 @@ import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
 import type { TestDatabase } from './database.js';
 import type { FixturePerson } from './fixtures.js';
 
-/** Actions-only actual account creation: no protocol/witness/pointer seed or legacy adoption. */
-export async function recordingPerson(database: Pick<TestDatabase<Database>, 'db'>): Promise<FixturePerson> {
+/**
+ * Actions-only actual account creation: no protocol/witness/pointer seed or legacy adoption. The account is born by
+ * operator sign-in, which marks it disposable; this fixture stands for a real person, whose address has proved itself
+ * by a mailed link, so the flag is cleared. Supply never commissions production for a disposable account (D-413), and
+ * a test that wants one says `disposable: true`.
+ */
+export async function recordingPerson(
+  database: Pick<TestDatabase<Database>, 'db'>,
+  options: { readonly disposable?: boolean } = {},
+): Promise<FixturePerson> {
   const result = await operatorSignInUseCase({
     db: database.db,
     publicOrigin: 'https://ci.invalid',
@@ -25,6 +33,12 @@ export async function recordingPerson(database: Pick<TestDatabase<Database>, 'db
   })({ email: `${randomUUID()}@recording-fixture.test` });
   if (result.kind !== 'issued') throw new Error('CI_RECORDING_ACCOUNT_CREATION_REFUSED');
   const { accountId, universeId } = result.outcome;
+  if (options.disposable !== true)
+    await database.db
+      .updateTable('identity.email_addresses')
+      .set({ disposable: false })
+      .where('account_id', '=', accountId)
+      .execute();
   return { accountId, universeId, authority: { universeId, privacyEpoch: 1, actor: { kind: 'account', accountId } } };
 }
 

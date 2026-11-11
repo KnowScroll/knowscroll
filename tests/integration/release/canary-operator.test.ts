@@ -19,8 +19,10 @@ import {
  * through the real account deletion flow.
  *
  * Evidence label: CI fixture + real database. The library is the one authored starter Scroll; no provider is called
- * (`KS_REASONING_PROVIDER=none`), so formation and the Planner take their rules-only paths. Passing proves the
- * canary runs end to end against the release and is green on a healthy fixture; it says nothing about dev content.
+ * (`KS_REASONING_PROVIDER=none`), so formation and the Planner take their rules-only paths and the Planner stays
+ * parked. Passing proves the canary runs end to end against the release, that a signal or a kill is followed by the
+ * deletion of its accounts, and that it says plainly which invariants this fixture never exercised; it says nothing
+ * about dev content.
  */
 const pattern = '*@test.knowscroll.space';
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
@@ -47,13 +49,55 @@ describe('the canary operator command from the built release', () => {
     const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
     outputs.push(stdout, stderr);
     const lines = stdout.split('\n').filter((line) => line !== '');
+    return { code, stdout, stderr, result: oneJsonLine(lines) };
+  }
+  /** The result of a command that prints exactly one JSON line; `undefined` for any other output (a sign-in link, say). */
+  function oneJsonLine(lines: readonly string[]): Record<string, unknown> | undefined {
+    if (lines.length !== 1) return undefined;
+    try {
+      return JSON.parse(lines[0] ?? '') as Record<string, unknown>;
+    } catch {
+      return undefined;
+    }
+  }
+  /** Starts the worker tree's operator command and hands back its streams, to be signalled while it runs. */
+  function spawnCanary(env: Record<string, string>, args: readonly string[]) {
+    const child = spawn(process.execPath, [join('dist', 'operator.js'), 'canary', ...args], {
+      cwd: join(releaseDirectory(), 'worker'),
+      env: { PATH: process.env['PATH'] ?? '', ...env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
+    child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString('utf8')));
+    const exited = new Promise<number | null>((resolve) => child.once('exit', resolve)).then((code) => {
+      outputs.push(stdout, stderr);
+      return code;
+    });
     return {
-      code,
-      stdout,
-      stderr,
-      result: lines.length === 1 ? (JSON.parse(lines[0] ?? '{}') as Record<string, unknown>) : undefined,
+      child,
+      exited,
+      stdout: () => stdout,
+      stderr: () => stderr,
+      /** The one JSON line on stdout. */
+      result: () => {
+        const lines = stdout.split('\n').filter((line) => line !== '');
+        expect(lines).toHaveLength(1);
+        return JSON.parse(lines[0] ?? '{}') as Record<string, unknown>;
+      },
     };
   }
+  /** Waits, within a bound, for a database condition: a canary reader has opened a Scroll, say. */
+  async function until(what: string, condition: () => Promise<boolean>, timeoutMs = 60_000) {
+    const deadline = Date.now() + timeoutMs;
+    while (!(await condition())) {
+      if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  const exposures = async () => (await handle.db.selectFrom('experience.exposures').select('id').execute()).length;
+  const accounts = async () => (await handle.db.selectFrom('identity.accounts').select('id').execute()).length;
   const canaryEnv = () => ({
     KS_WORLD: 'ci',
     DATABASE_URL: database.url,
@@ -161,7 +205,41 @@ describe('the canary operator command from the built release', () => {
       result: 'refused',
       reasonCode: 'pattern_has_no_wildcard',
     });
+    // Stage needs its own flag; the options of one subcommand are refused on the other.
+    const stage = await operator('worker', { ...canaryEnv(), KS_WORLD: 'stage' }, ['canary', 'run']);
+    expect(stage.code).toBe(2);
+    expect(stage.result).toEqual({
+      command: 'canary run',
+      result: 'refused',
+      reasonCode: 'stage_requires_allow_stage',
+    });
+    for (const args of [
+      ['cleanup', '--keep'],
+      ['cleanup', '--speed', 'max'],
+      ['cleanup', '--run', 'not-a-run'],
+      ['run', '--dry-run'],
+      ['run', '--run', 'ab12cd34'],
+      ['run', '--timeout', '0'],
+    ]) {
+      const refused = await operator('worker', canaryEnv(), ['canary', ...args]);
+      expect(refused.code, args.join(' ')).toBe(2);
+      expect(refused.result, args.join(' ')).toMatchObject({ result: 'usage' });
+    }
     expect(await handle.db.selectFrom('identity.accounts').select('id').execute()).toHaveLength(0);
+  });
+
+  it('still prints one JSON line saying it failed, with a code, when something breaks', async () => {
+    const url = new URL(database.url);
+    url.pathname = '/ks_it_canary_database_that_does_not_exist';
+    const crashed = await operator('worker', { ...canaryEnv(), DATABASE_URL: url.toString() }, [
+      'canary',
+      'run',
+      '--personas',
+      'cold-start',
+    ]);
+    expect(crashed.code).toBe(1);
+    expect(crashed.result).toEqual({ command: 'canary run', result: 'failed', reasonCode: 'crashed' });
+    expect(crashed.stdout).not.toContain(url.toString());
   });
 
   it(
@@ -186,6 +264,8 @@ describe('the canary operator command from the built release', () => {
         speed: string;
         personas: { persona: string; qualified: number; observations: { accepted: number; rejected: number } }[];
         checks: { code: string; status: string }[];
+        notExercised: string[];
+        spend: unknown;
         violations: unknown[];
         cleanup: { kept: boolean; requested: number; completed: number };
       };
@@ -195,6 +275,7 @@ describe('the canary operator command from the built release', () => {
         pacing: 'wall_clock',
         speed: 'max',
         violations: [],
+        strict: false,
       });
       expect(summary.personas.map((persona) => persona.persona)).toEqual(['cold-start', 'deep-reader']);
       for (const persona of summary.personas) {
@@ -203,9 +284,40 @@ describe('the canary operator command from the built release', () => {
         expect(persona.observations.accepted).toBeGreaterThan(0);
         expect(persona.observations.rejected).toBe(0);
       }
-      expect(summary.checks.length).toBeGreaterThan(10);
-      expect(summary.checks.every((check) => check.status === 'ok')).toBe(true);
+      // What the fixture exercised, and what it did not: the starter Scroll has no series, no Reel and no Planner
+      // that is switched on, so those say so instead of being called ok.
+      const statuses = Object.fromEntries(summary.checks.map((check) => [check.code, check.status]));
+      expect(statuses).toEqual({
+        first_offer_missing: 'ok',
+        repeat_while_unseen_exists: 'ok',
+        exhausted_while_unseen_exists: 'ok',
+        reel_never_offered: 'not_exercised',
+        reading_not_stored: 'ok',
+        reading_not_projected: 'ok',
+        reading_not_qualified: 'ok',
+        formation_system_missing: 'not_exercised',
+        formation_planet_missing: 'not_exercised',
+        reel_media_unreachable: 'not_exercised',
+        api_refused: 'ok',
+        operator_reads_failed: 'ok',
+        job_failed: 'ok',
+        job_dead_lettered: 'ok',
+        shared_supply_touched: 'ok',
+        planner_run_unknown: 'not_exercised',
+        planner_run_stuck: 'not_exercised',
+        geography_run_stuck: 'ok',
+        cleanup_incomplete: 'ok',
+      });
+      expect(summary.notExercised.sort()).toEqual(
+        Object.keys(statuses)
+          .filter((code) => statuses[code] === 'not_exercised')
+          .sort(),
+      );
+      // The run asked nothing of shared supply, and no model was called.
+      expect(summary.spend).toEqual({ supplyRequests: 0, commissionedWork: 0, modelAttempts: {} });
       expect(summary.cleanup).toEqual({ kept: false, requested: 2, completed: 2 });
+      // The run id went to stderr, at the start, as a diagnostic record.
+      expect(ran.stderr).toMatch(/"event":"operator\.canary_started"[^\n]*"canaryRun":"[0-9a-f]{8}"/);
 
       // Counts and codes only: no id, address or link reaches stdout, and no sign-in credential reaches stderr.
       expect(ran.stdout).not.toMatch(UUID);
@@ -221,6 +333,96 @@ describe('the canary operator command from the built release', () => {
       expect(audit).toHaveLength(2);
       expect(audit.every((row) => row.account_id === null)).toBe(true);
       expect(await handle.db.selectFrom('evidence.observations').select('id').execute()).toHaveLength(0);
+    },
+  );
+
+  it(
+    'fails a --strict run that never exercised some invariants, though it broke none',
+    { timeout: 300_000 },
+    async () => {
+      const ran = await operator('worker', canaryEnv(), [
+        'canary',
+        'run',
+        '--personas',
+        'cold-start',
+        '--speed',
+        'max',
+        '--wait',
+        '5',
+        '--strict',
+      ]);
+      expect(ran.code).toBe(1);
+      expect(ran.result).toMatchObject({
+        command: 'canary run',
+        result: 'failed',
+        reasonCode: 'strict_unfinished',
+        strict: true,
+        violations: [],
+        cleanup: { kept: false, requested: 1, completed: 1 },
+      });
+      expect((ran.result?.['notExercised'] as string[]).length).toBeGreaterThan(0);
+      expect(await accounts()).toBe(0);
+    },
+  );
+
+  it(
+    'stops at SIGTERM mid-reading: prints one aborted line and deletes its account',
+    { timeout: 300_000 },
+    async () => {
+      const before = await exposures();
+      const running = spawnCanary(canaryEnv(), ['run', '--personas', 'cold-start', '--speed', 'max']);
+      await until('the reader to open a Scroll', async () => (await exposures()) > before);
+      expect(await accounts()).toBe(1);
+      running.child.kill('SIGTERM');
+      expect(await running.exited).toBe(1);
+      expect(running.result()).toMatchObject({
+        command: 'canary run',
+        result: 'aborted',
+        reasonCode: 'sigterm',
+        cleanup: { kept: false, requested: 1, completed: 1 },
+      });
+      expect(await accounts()).toBe(0);
+      expect(running.stderr()).toMatch(/"event":"operator\.canary_stopped"[^\n]*"reasonCode":"sigterm"/);
+    },
+  );
+
+  it(
+    'leaves a kept, stopped run to `canary cleanup`, which finds only its own accounts and deletes them',
+    { timeout: 300_000 },
+    async () => {
+      // A test account that is not the canary's: cleanup must never touch it.
+      const bystander = await operator('api', canaryEnv(), [
+        'issue-sign-in',
+        '--email',
+        'bystander@test.knowscroll.space',
+      ]);
+      expect(bystander.code).toBe(0);
+      const before = await exposures();
+      const running = spawnCanary(canaryEnv(), ['run', '--personas', 'cold-start', '--speed', 'max', '--keep']);
+      await until('the reader to open a Scroll', async () => (await exposures()) > before);
+      running.child.kill('SIGINT');
+      expect(await running.exited).toBe(1);
+      expect(running.result()).toMatchObject({ result: 'aborted', reasonCode: 'sigint', cleanup: { kept: true } });
+      expect(await accounts()).toBe(2);
+      const runId = /"event":"operator\.canary_started"[^\n]*"canaryRun":"([0-9a-f]{8})"/.exec(running.stderr())?.[1];
+      expect(runId).toBeDefined();
+
+      const dry = await operator('worker', canaryEnv(), ['canary', 'cleanup', '--dry-run']);
+      expect(dry.code).toBe(0);
+      expect(dry.result).toMatchObject({ result: 'dry_run', found: 1, runs: 1, deleted: 0 });
+      expect(await accounts()).toBe(2);
+      const otherRun = await operator('worker', canaryEnv(), ['canary', 'cleanup', '--run', '00000000']);
+      expect(otherRun.result).toMatchObject({ result: 'done', found: 0, deleted: 0 });
+      expect(await accounts()).toBe(2);
+
+      const cleaned = await operator('worker', canaryEnv(), ['canary', 'cleanup', '--run', runId ?? '']);
+      expect(cleaned.code, cleaned.stdout + cleaned.stderr).toBe(0);
+      expect(cleaned.result).toMatchObject({ result: 'done', found: 1, runs: 1, deleted: 1, failed: 0 });
+      expect(cleaned.stdout).not.toMatch(UUID);
+      expect(cleaned.stdout).not.toContain('canary-');
+      const left = await handle.db.selectFrom('identity.email_addresses').select('address').execute();
+      expect(left.map((row) => row.address)).toEqual(['bystander@test.knowscroll.space']);
+      expect(await accounts()).toBe(1);
     },
   );
 

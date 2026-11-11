@@ -80,6 +80,7 @@ const validators: Record<FieldName, Validator> = {
   contentRevisionId: asId,
   traceId: asHex(32),
   spanId: asHex(16),
+  canaryRun: asHex(8),
   outcome: asCode,
   reasonCode: asCode,
   durationMs: asCount,
@@ -125,6 +126,8 @@ export const JOURNAL_FIELDS: ReadonlySet<FieldName> = new Set<FieldName>([
   'requestId',
   'traceId',
   'spanId',
+  // A canary run's label belongs to disposable test accounts only, so it can be read back to find them (D-413).
+  'canaryRun',
   'outcome',
   'reasonCode',
   'durationMs',

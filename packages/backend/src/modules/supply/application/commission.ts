@@ -70,6 +70,8 @@ const UTC_DAY_MS = 86_400_000;
  * brief with no recipe left to make is `no_recipe_left`; none of these is `could_not_prepare`, which says
  * production was tried and did not deliver.
  *
+ * A disposable test account never reaches Join or Create: see `SupplyPorts.accountDisposable` (D-413, D-414).
+ *
  * `origin` names who asks: a person's own request, or the Planner's demand. Each has its own daily
  * cap, and the Planner's is never above the person's, so the Planner cannot starve an explicit ask.
  *
@@ -87,6 +89,10 @@ export async function commissionSupply(
 ): Promise<Commission> {
   const { subject } = brief;
   if (subject.kind !== 'catalogue' || brief.format === 'reel') return refused('no_production_path');
+  // A disposable test account feeds no shared supply (D-413, D-414), by the same Identity port the gap loop reads: Create is
+  // off for it, so it neither starts nor joins a shared group, and returning here also keeps it from writing a gap signal.
+  // Reuse of admitted content is unaffected, and the person's own demand is recorded as it is whenever Create is off.
+  if (await p.accountDisposable(scope)) return refused('create_off');
   await p.store.lockCommissioning(scope);
   const running = await p.store.findActiveWork(scope, brief);
   if (running) {

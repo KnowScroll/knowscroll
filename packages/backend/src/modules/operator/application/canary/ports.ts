@@ -26,6 +26,11 @@ export class CanaryApiError extends Error {
   }
 }
 
+/** The run was told to stop (a signal, or its overall time ran out): the journeys end and the accounts are deleted. */
+export class CanaryAborted extends Error {
+  override readonly name = 'CanaryAborted';
+}
+
 export interface CanaryAccount {
   readonly accountId: string;
   readonly universeId: string;
@@ -102,6 +107,8 @@ export type MintResult =
 export interface CanaryAccounts {
   /** Operator sign-in for one disposable address: the existing `issueOperatorSignIn`. */
   mint(address: string): Promise<MintResult>;
+  /** The disposable accounts' addresses that start with `localPrefix` in `domain`, for cleanup. Addresses only. */
+  listCanaryAddresses(query: { localPrefix: string; domain: string; limit: number }): Promise<readonly string[]>;
   /** Redeems the link through the real HTTP route and returns the signed-in session. */
   signIn(link: string): Promise<CanaryApi>;
 }
@@ -113,6 +120,13 @@ export interface EvidenceRow {
   readonly qualification: 'qualified' | 'not_qualified' | 'unknown';
 }
 
+/** The evidence of one universe's exposures, and whether the worker still has projections to run for it. */
+export interface EvidenceRead {
+  readonly rows: readonly EvidenceRow[];
+  /** Projection jobs for this universe that are queued, retrying or running: evidence is final when there are none. */
+  readonly projectionsPending: number;
+}
+
 /**
  * Read-only operator reads about the canary's own universes. Evidence is read here, not through the dev diagnostics
  * route, because that route answers only for the legacy intake: a recorder-v2 reading is committed under the
@@ -120,14 +134,15 @@ export interface EvidenceRow {
  */
 export interface CanaryReads {
   read(universeIds: readonly string[]): Promise<OperatorReads>;
-  /** The latest committed evidence of each exposure of one universe (`ops.journey_events`). */
-  evidence(universeId: string): Promise<readonly EvidenceRow[]>;
+  /** The latest committed evidence of each exposure of one universe (`ops.journey_events`), and the projection backlog. */
+  evidence(universeId: string): Promise<EvidenceRead>;
 }
 
 /** Real wall-clock pacing. The server bounds every reading claim by the time since activation, so nothing is faked. */
 export interface Pacer {
   nowMs(): number;
-  sleep(ms: number): Promise<void>;
+  /** Waits `ms`; with a signal, returns early once it is aborted (the caller then checks it). */
+  sleep(ms: number, signal?: AbortSignal): Promise<void>;
 }
 
 export interface CanaryPorts {
@@ -142,6 +157,8 @@ export interface CanaryOptions {
   readonly speed: Speed;
   readonly manyReads: number;
   readonly keep: boolean;
+  /** Fail the run, as an unfinished one, when an invariant was never exercised or its evidence is inconclusive. */
+  readonly strict: boolean;
   /** The address of a persona's disposable account for this run: unique, and inside the operator pattern. */
   readonly addressFor: (persona: PersonaId) => string;
   /** The bounded wait, in seconds, for projection, formation and Planner runs to settle after the journeys. */

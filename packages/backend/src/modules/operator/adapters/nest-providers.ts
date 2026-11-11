@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/index.js';
-import { operatorAddressMatcher, type IssueOperatorSignIn, type ReadAccountAddress } from '../../identity/public.js';
+import {
+  operatorAddressMatcher,
+  type IssueOperatorSignIn,
+  type ListDisposableAddresses,
+  type ReadAccountAddress,
+} from '../../identity/public.js';
 import type { CanaryPorts } from '../application/canary/ports.js';
 import { makeIsOperator } from '../application/operator-access.js';
 import { makeReadJourney, type ReadJourney } from '../application/read-journey.js';
@@ -31,6 +36,8 @@ export function readOperatorPanelsFor(db: Kysely<Database>): ReadOperatorPanels 
 export function canaryPortsFor(deps: {
   readonly db: Kysely<Database>;
   readonly issueSignIn: IssueOperatorSignIn;
+  /** The disposable accounts' addresses, for cleanup of the canary's own. */
+  readonly listDisposableAddresses: ListDisposableAddresses;
   /** Where the API answers (the world's public origin, or a loopback address on the server). */
   readonly baseUrl: string;
   /** The world's own origin, which cookie-authenticated writes must carry. */
@@ -45,12 +52,23 @@ export function canaryPortsFor(deps: {
           ? { kind: 'issued', link: issued.link }
           : { kind: 'refused', reason: issued.reason };
       },
+      listCanaryAddresses: (query) => deps.listDisposableAddresses(query),
       signIn: (link) => signInOverHttp(http, link),
     },
     reads: makeCanaryReads(deps.db),
     pacer: {
       nowMs: () => performance.now(),
-      sleep: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+      sleep: (ms, signal) =>
+        new Promise<void>((resolve) => {
+          if (signal?.aborted === true) return resolve();
+          const done = () => {
+            clearTimeout(timer);
+            signal?.removeEventListener('abort', done);
+            resolve();
+          };
+          const timer = setTimeout(done, ms);
+          signal?.addEventListener('abort', done, { once: true });
+        }),
     },
     newId: randomUUID,
   };

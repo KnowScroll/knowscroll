@@ -166,29 +166,41 @@ owner. All of it is in `looking-at-the-system.md`.
 
 The canary drives the deployed API and worker on dev with disposable readers and says whether the algorithms behave: no
 re-reads while unseen content exists, readings stored and qualified, places formed, no failed job, Planner runs settled. Run it
-after a deploy, from the **worker** tree, as the world's v2 user. It spends no money and calls no model.
+after a deploy, from the **worker** tree, as the world's v2 user. Minting writes the accounts and their audit rows. The readers
+then cause what any reader causes, including the Planner, Cartographer and Jev model calls within dev's caps. A disposable
+account never starts or joins shared production, so the run commissions nothing; the summary says what it spent.
+
+A run is long: **start it under `tmux` or `nohup`** so a closed terminal does not stop it.
 
 ```sh
 sudo sh -c 'set -a; . /etc/knowscroll/dev.v2.env; . /etc/knowscroll/secrets/v2-dev/database.env; set +a;
-  cd /srv/knowscroll/dev/current/worker && exec runuser -u ks2-dev -- /usr/bin/node dist/operator.js canary run --speed max'
+  cd /srv/knowscroll/dev/current/worker && exec nohup runuser -u ks2-dev -- /usr/bin/node dist/operator.js canary run --speed max > /tmp/canary.out 2> /tmp/canary.err &'
 ```
 
 - **Needs** the operator sign-in settings of the API (`KS_ALLOW_OPERATOR_SIGN_IN=1`, `KS_OPERATOR_SIGN_IN_PATTERN=*@test.knowscroll.space`,
-  `KS_PUBLIC_ORIGIN`), which `dev.v2.env` carries. Only `dev`, `stage`, `ci` and `local` allow it; `--base-url` may only be the
-  world's own origin or this machine.
+  `KS_PUBLIC_ORIGIN`), which `dev.v2.env` carries. Only `dev`, `stage`, `ci` and `local` allow it, `stage` also needs
+  `--allow-stage`, and `--base-url` may only be the world's own origin or this machine.
 - **Time.** Reading is in real time. All five personas at `--speed max` take about 30 to 40 minutes, mostly the reader of many
-  Scrolls; the wait after the journeys adds up to `--wait` seconds (default 600) for Planner runs. A quick check:
-  `--personas cold-start,deep-reader --speed max --wait 60` (about three minutes). `--many 6` shortens the long reader.
-- **Result.** One JSON line: `result` is `passed` or `failed`; `checks` lists every invariant with `ok` or `violated`;
-  `violations` names the code, the persona and a count. Never an id, title, address or link. Exit 0 passed, 1 violated or failed,
-  2 refused. A `lastResortRepeats` count above zero is allowed (nothing unseen was left) and tells you how often it happens.
+  Scrolls; the wait after the journeys adds up to `--wait` seconds (default 600) for Planner runs, and `--timeout` (default 90
+  minutes) bounds the whole run. A quick check: `--personas cold-start,deep-reader --speed max --wait 60` (about three
+  minutes). `--many 6` shortens the long reader.
+- **Result.** One JSON line, also after a crash: `result` is `passed`, `failed` or `aborted`; `checks` lists every invariant as
+  `ok`, `violated`, `not_exercised` (what it guards never happened, so nothing was proved) or `inconclusive` (evidence was
+  still being projected when the wait ran out); `violations` names the code, the persona and a count; `spend` gives the shared
+  supply requests, the commissioned work (must be 0) and the model attempts by role. Never an id, title, address or link. Exit
+  0 passed, 1 violated, aborted or failed, 2 refused. `--strict` also fails on any `not_exercised` or `inconclusive`: use it for a
+  run built to reach everything. A `lastResortRepeats` count above zero is allowed (nothing unseen was left).
 - **If it fails.** `repeat_while_unseen_exists`: replay `composer replay-policy` and check `KS_COMPOSER_POLICY=v2`
   (`composerPolicies` in the result shows which policy the decisions were made under). `reading_not_*` or `job_failed`: read the
   worker journal and `ops.recent_errors`. `formation_*_missing`: rerun with `--keep`, take the account ids from
-  `ops.operator_sign_ins` and read their `geography.run` steps with `journey --account <id>`. `planner_run_stuck`: the same wedge the #674 audit found.
-- **Cleanup.** Each account is deleted through the real deletion flow and its receipt must say `completed`; `cleanup` in the result
-  says how many. Without a deletion the accounts are only test accounts (`canary-<run>-<persona>@test.knowscroll.space`); `--keep`
-  leaves them on purpose. Each mint leaves an audit row in `ops.operator_sign_ins`, as `issue-sign-in` does.
+  `ops.operator_sign_ins` and read their `geography.run` steps with `journey --account <id>`. `planner_run_stuck`: the same wedge
+  the #674 audit found. `shared_supply_touched`: Supply's disposable check is broken; stop and report it.
+- **Stopping it.** Ctrl-C or `kill <pid>` (SIGINT, SIGTERM, SIGHUP) stops the journeys and deletes the run's accounts within a
+  minute; the line says `aborted` and what was deleted. Stop it by that PID only. The run id is on stderr at the start.
+- **Cleanup.** Each account is deleted through the real deletion flow and its receipt must say `completed`; `cleanup` in the
+  result says how many. After a kill, a crash or `--keep`, `node dist/operator.js canary cleanup --dry-run` counts this world's
+  `canary-<run>-<persona>@test.knowscroll.space` accounts and `canary cleanup [--run <id>]` deletes them through the same flow.
+  It opens no other address. Each mint leaves an audit row in `ops.operator_sign_ins`, as `issue-sign-in` does.
 
 ### Reasoning operator commands (worker tree)
 
