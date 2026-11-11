@@ -51,7 +51,7 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { buildFromProviders } from '../support/providers.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
-import { realRecordPlannedDemand } from '../support/planned-demand.js';
+import { realPlannerDemand } from '../support/planned-demand.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
 
 /** Real PostgreSQL and real harness/pg-boss adapters. Every model reply is an authored CI fixture. */
@@ -220,7 +220,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       readExact: readExactEncounter,
       capabilities: { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] },
       harness,
-      recordDemand: realRecordPlannedDemand(database, c.boss, {
+      ...realPlannerDemand(database, c.boss, {
         createDailyCap: 10,
         readExploration: c.readExploration,
       }),

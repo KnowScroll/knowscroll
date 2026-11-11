@@ -3,6 +3,7 @@ import { WAIT_LIMIT_MS, commissionSupply, isComing, nextPoll, waitStartOf } from
 import { checkedRevision, inventory, snapshot, sourceOf, type SkipExplanations } from './inventory.js';
 import type { MatchStep } from './matching.js';
 import type { Demand, ResolveRequest, SupplyPorts, UnavailableReason } from './ports.js';
+import { LOST_WAITER_COUNT, isLostWaiter } from '../domain/planned-demand.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 
 type Ending =
@@ -29,10 +30,13 @@ async function recommission(p: SupplyPorts, scope: PersonalScopeTx, d: Demand): 
  * production ended without serving it; commission it when no production stands behind it at all.
  */
 async function waitingOutcome(p: SupplyPorts, scope: PersonalScopeTx, d: Demand): Promise<Ending> {
+  const waited = p.now().getTime() - Date.parse(waitStartOf(d));
+  // Planned demand past its wait limit is closed, never commissioned afresh: nobody is waiting for it, and the
+  // Planner decides the brief again with its next plan. This is also how the operator's recovery closes lost demand.
+  if (d.planned !== undefined && waited >= WAIT_LIMIT_MS) return { kind: 'unavailable', reason: 'could_not_prepare' };
   const work = d.workId === undefined ? undefined : await p.store.readWork(scope, d.workId);
   if (work?.recipe === undefined) return recommission(p, scope, d);
   const production = await p.readProduction(scope, work.recipe);
-  const waited = p.now().getTime() - Date.parse(waitStartOf(d));
   return isComing(production.state) && waited < WAIT_LIMIT_MS
     ? { kind: 'wait' }
     : { kind: 'unavailable', reason: 'could_not_prepare' };
@@ -108,7 +112,16 @@ async function advanceWaiter(
       ...(inventoryNow.sourceHead ? { sourceAvailabilityRevision: inventoryNow.sourceHead.availabilityRevision } : {}),
     };
     await p.store.finish(scope, next);
-    if (d.workId) await p.store.closeWork(scope, d.workId);
+    // The group is closed only when nobody else still waits on it (D-410): another person's live request keeps it.
+    if (d.workId) await p.store.closeWorkWhenUnused(scope, d.workId, d.id);
+    // Planned demand that outlived its resolver is counted as expired wherever it is closed: here when the operator's
+    // recovery woke a resolver, in the plan path when the next plan found it. Last in the lock order: the counters.
+    if (
+      ending.kind === 'unavailable' &&
+      d.planned !== undefined &&
+      isLostWaiter(new Date(waitStartOf(d)), p.now(), WAIT_LIMIT_MS)
+    )
+      await p.plannedLedger.add(scope, p.now(), [LOST_WAITER_COUNT]);
     await p.notify(scope, revision, d.id);
     return 'done';
   });

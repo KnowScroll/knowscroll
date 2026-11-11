@@ -154,6 +154,11 @@ builds the thread guest, the made-to-order readers and the production sender for
 resolver job for every ask that is still open from before Create existed and prints the counts. It is
 idempotent and calls no provider.
 
+`node dist/operator.js supply expire-stale-planned-demand [--dry-run] [--limit <1-1000>]` (`src/supply-operator.ts`, D-410) sends
+one resolver job for each of the Planner's demands still `deferred` well past the wait limit (oldest first, at most `--limit`,
+default 100) and prints how many it found, queued, already queued and whether more remain. The resolver closes them. It calls no
+provider.
+
 `node dist/operator.js scenes backfill-looks [--dry-run] [--limit <1-1000>]` (`src/scenes-operator.ts`, D-102) gives worlds
 that were projected before looks existed their look. It sends one `scenes.backfill-looks` job for each universe that has
 a projected system, planet or region without one (at most `--limit`, default 100, and it says when more are left), and the

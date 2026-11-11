@@ -134,7 +134,7 @@ export function ProductionCard({
   return (
     <Card
       title="3 · Content production"
-      source="ops.production_runs · ops.rejected_answers · ops.reel_orders · ops.model_attempts"
+      source="ops.production_runs · ops.rejected_answers · ops.reel_orders · ops.model_attempts · ops.planned_demand_outcomes"
       testID="operator-production"
     >
       <Piece piece={production.usage} label="provider usage · last 24 h">
@@ -144,6 +144,22 @@ export function ProductionCard({
             sent without a reported usage
           </Mono>
         )}
+      </Piece>
+      <Piece piece={production.plannedDemand} label="Planner demand · what became of each opportunity">
+        {(demand) =>
+          demand.counts.length === 0 ? (
+            nothing(`No missing-content opportunity was recorded in the last ${String(demand.windowDays)} days.`)
+          ) : (
+            <View style={styles.chips}>
+              {demand.counts.map((row) => (
+                <Chip key={`${row.outcome}/${row.reason ?? ''}`}>
+                  {row.outcome}
+                  {row.reason === null ? '' : ` · ${row.reason}`} {row.count}
+                </Chip>
+              ))}
+            </View>
+          )
+        }
       </Piece>
       <Piece piece={production.runs} label="Scroll production runs">
         {(runs) =>

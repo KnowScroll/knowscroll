@@ -6,6 +6,7 @@ import {
   RETRY_CONTENT_REQUEST,
   RESOLVE_CONTENT_REQUEST,
   RECORD_PLANNED_DEMAND,
+  COUNT_PLANNED_DEMAND,
   COMMISSION_SCENARIO_ORDER,
 } from '../public.js';
 import { CHECK_REQUEST_SOURCE, type CheckRequestSource } from '../../experience/public.js';
@@ -75,6 +76,7 @@ import {
   makeCancelRequest,
   makeRetryRequest,
   makeRecordPlannedDemand,
+  makeCountPlannedDemand,
 } from '../application/requests.js';
 import { makeListRequests } from '../application/list.js';
 import { makeCommissionScenarioOrder } from '../application/scenario-orders.js';
@@ -85,6 +87,7 @@ import { resolveSupplyQueue } from '../events.js';
 import type { SupplyPorts } from '../application/ports.js';
 import { supplyStore } from './postgres-store.js';
 import { askOrderLedger, makeReadAskOrderAudience } from './postgres-ask-orders.js';
+import { plannedDemandLedger } from './postgres-planned-demand-ledger.js';
 import { quickAnswerStore } from './postgres-quick-answers.js';
 import { makeCheckSupplyRecordingRun } from '../application/check-recording-run.js';
 import type { Kysely } from 'kysely';
@@ -204,6 +207,7 @@ export function supplyProviders(t: {
         },
         askCaps: { perDay: settings.supplyAskDailyCap, perPersonPerDay: settings.supplyAskPersonDailyCap },
         askLedger: askOrderLedger,
+        plannedLedger: plannedDemandLedger,
         readAskFacts,
         readSourcePages,
         recordOrder,
@@ -305,6 +309,11 @@ export function supplyProviders(t: {
       inject: [SUPPLY_PORTS],
       useFactory: (p: SupplyPorts) => makeRecordPlannedDemand(p),
     },
+    {
+      provide: COUNT_PLANNED_DEMAND,
+      inject: [SUPPLY_PORTS],
+      useFactory: (p: SupplyPorts) => makeCountPlannedDemand(p),
+    },
   ];
 }
 /**
@@ -342,6 +351,7 @@ export {
   makeCancelRequest,
   makeRetryRequest,
   makeRecordPlannedDemand,
+  makeCountPlannedDemand,
 } from '../application/requests.js';
 export {
   QUICK_ANSWER_PORTS,
@@ -353,6 +363,7 @@ export { makeResolveRequest } from '../application/resolve.js';
 export { makeMatchRequest } from '../application/matching.js';
 export { makeListRequests } from '../application/list.js';
 export { recoverOpenDemand, type RecoveredDemand } from './recover-open-demand.js';
+export { expireStalePlannedDemand, type ExpiredPlannedDemand } from './expire-stale-planned-demand.js';
 export type { SupplyPorts } from '../application/ports.js';
 
 /**

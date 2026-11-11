@@ -114,6 +114,16 @@ const panels = {
       status: 'available',
       data: { windowHours: 24, attempts: 13, tokensReported: 41_000, attemptsWithoutReportedUsage: 1 },
     },
+    plannedDemand: {
+      status: 'available',
+      data: {
+        windowDays: 7,
+        counts: [
+          { outcome: 'not_commissioned', reason: 'no_recipe_left', count: 9 },
+          { outcome: 'reused', reason: null, count: 2 },
+        ],
+      },
+    },
   },
   universeChange: { cartographer: { status: 'unavailable', reason: 'view_missing' } },
   safety: {
@@ -291,6 +301,9 @@ describe('the Operator screen', () => {
     expect(screen.getByText('required, too_long')).toBeOnTheScreen();
     expect(screen.getByText('beam-angle · until video')).toBeOnTheScreen();
     expect(screen.getByText('settled 0¢ · claimed open 75¢')).toBeOnTheScreen();
+    // What became of the Planner's missing-content opportunities: codes and counts, with the reason where there is one.
+    expect(screen.getByText('not_commissioned · no_recipe_left 9')).toBeOnTheScreen();
+    expect(screen.getByText('reused 2')).toBeOnTheScreen();
     // Unavailable pieces are words, never numbers.
     expect(screen.getByLabelText('service health: unavailable')).toBeOnTheScreen();
     expect(screen.getByLabelText('request latency: unavailable')).toBeOnTheScreen();

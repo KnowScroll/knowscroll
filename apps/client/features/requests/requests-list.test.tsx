@@ -80,6 +80,22 @@ describe('E07 requests list', () => {
     }
   });
 
+  it('offers Retry for a request nothing was ready for, and not for one that cannot be made on request', async () => {
+    const h = requestsListHarness([closedItem(23, 'no_recipe_left'), closedItem(24, 'no_production_path')]);
+    const screen = await render(frame(<RequestsList session={h.session} onOpen={jest.fn()} onAsk={jest.fn()} />));
+    try {
+      h.session.visible(true);
+      await waitFor(() => expect(screen.getAllByTestId('request-row')).toHaveLength(2));
+      expect(screen.getByLabelText("Couldn't prepare")).toBeTruthy();
+      expect(screen.getByLabelText("Can't be made")).toBeTruthy();
+      expect(screen.getAllByRole('button', { name: 'Retry' })).toHaveLength(1);
+      expect(screen.getByText(/new Reel, or another format/)).toBeTruthy();
+    } finally {
+      await screen.unmount();
+      await act(() => h.scope.end());
+    }
+  });
+
   it('says so when nothing was asked, and when the list could not be read or is stale', async () => {
     const empty = requestsListHarness([]);
     const onAsk = jest.fn();

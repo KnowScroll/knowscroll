@@ -983,6 +983,13 @@ export interface OpsOperatorSignIns {
   world: string;
 }
 
+export interface OpsPlannedDemandOutcomes {
+  day: Timestamp | null;
+  outcome: string | null;
+  reason: string | null;
+  total: Int8 | null;
+}
+
 export interface OpsPrivacyOperations {
   attempts: number | null;
   completed_at: Timestamp | null;
@@ -2272,6 +2279,13 @@ export interface SupplyAskOrders {
   support_checked: Generated<boolean>;
 }
 
+export interface SupplyPlannedDemandOutcomes {
+  day: Timestamp;
+  outcome: string;
+  reason: Generated<string>;
+  total: Int8;
+}
+
 export interface SupplyQuickAnswerLedger {
   created_at: Generated<Timestamp>;
   id: string;
@@ -2308,6 +2322,7 @@ export interface SupplyRequests {
   decision: string;
   id: string;
   origin: Generated<string>;
+  planned_intent: Json | null;
   planner_run_id: string | null;
   planner_slot: number | null;
   privacy_epoch: number;
@@ -2415,6 +2430,7 @@ export interface DB {
   "ops.journey_events": OpsJourneyEvents;
   "ops.model_attempts": OpsModelAttempts;
   "ops.operator_sign_ins": OpsOperatorSignIns;
+  "ops.planned_demand_outcomes": OpsPlannedDemandOutcomes;
   "ops.privacy_operations": OpsPrivacyOperations;
   "ops.production_runs": OpsProductionRuns;
   "ops.queue_backlog": OpsQueueBacklog;
@@ -2521,6 +2537,7 @@ export interface DB {
   "social.visit_publications": SocialVisitPublications;
   "social.visit_systems": SocialVisitSystems;
   "supply.ask_orders": SupplyAskOrders;
+  "supply.planned_demand_outcomes": SupplyPlannedDemandOutcomes;
   "supply.quick_answer_ledger": SupplyQuickAnswerLedger;
   "supply.quick_answers": SupplyQuickAnswers;
   "supply.requests": SupplyRequests;

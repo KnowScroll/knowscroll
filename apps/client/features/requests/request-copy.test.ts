@@ -1,5 +1,5 @@
 import type { ContentRequestStatus } from '@knowscroll/contracts';
-import { unavailableMessage } from './request-copy';
+import { canTryAgain, unavailableCopy, unavailableMessage } from './request-copy';
 
 type Closed = Extract<ContentRequestStatus, { status: 'unavailable' }>;
 const closed = (limit: Closed['limit']): Closed => ({
@@ -38,5 +38,34 @@ describe('the words of a request closed by a daily limit (D-387)', () => {
 
   it('keeps the general words when no limit is named', () => {
     expect(unavailableMessage(closed(undefined), nextDay)).toMatch(/can't prepare new explanations right now/);
+  });
+});
+
+describe('the words of a request that nothing can make', () => {
+  const reasoned = (reason: 'no_production_path' | 'no_recipe_left'): Closed => ({ ...closed(undefined), reason });
+
+  it('says what cannot be made, not that a budget is used up', () => {
+    expect(unavailableMessage(reasoned('no_production_path'), nextDay)).toMatch(/new Reel, or another format/);
+    expect(unavailableMessage(reasoned('no_recipe_left'), nextDay)).toMatch(/don't have an explanation of this ready/);
+    for (const reason of ['no_production_path', 'no_recipe_left'] as const) {
+      expect(unavailableCopy[reason]).not.toMatch(/budget|prepare new explanations|ask again/i);
+      expect(unavailableCopy[reason]).toMatch(/Your request is closed, so nothing is waiting/);
+    }
+  });
+
+  it('lets the person try again only where something may have changed', () => {
+    expect(canTryAgain('could_not_prepare')).toBe(true);
+    expect(canTryAgain('no_recipe_left')).toBe(true);
+    for (const reason of [
+      'no_production_path',
+      'budget_unavailable',
+      'unsupported_request',
+      'no_compatible_supply',
+      'not_permitted',
+      'source_unavailable',
+    ] as const)
+      expect(canTryAgain(reason)).toBe(false);
+    expect(unavailableCopy.no_recipe_left).toMatch(/try again later/);
+    expect(unavailableCopy.no_production_path).not.toMatch(/try again/i);
   });
 });

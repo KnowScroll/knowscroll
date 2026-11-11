@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { OpenedStageScroll } from '../scroll/scroll-session';
 import { AskSheet } from './ask-sheet';
 import { RequestChoices } from './request-choices';
-import { unavailableMessage } from './request-copy';
+import { canTryAgain, unavailableMessage } from './request-copy';
 import { suggestions, type RequestSession } from './request-session';
 
 /**
@@ -42,7 +42,7 @@ export function RequestPanel({
   // reasons are permanent or capped (a Reel or variant ask, the daily cap), so pressing again only
   // makes another closed request.
   const couldBePreparedAgain =
-    state.phase === 'accepted' && status?.status === 'unavailable' && status.reason === 'could_not_prepare';
+    state.phase === 'accepted' && status?.status === 'unavailable' && canTryAgain(status.reason);
   if (state.mode === 'ask' && ask !== undefined)
     return <AskSheet session={session} scroll={ask.scroll} onClose={onClose} />;
   return (

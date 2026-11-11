@@ -25,6 +25,7 @@ function demandOf(r: Selectable<SupplyRequests>): Demand {
       ? { askOrder: { orderId: r.ask_order_id, assetId: r.ask_asset_id } }
       : {}),
     ...(r.reason ? { reason: r.reason as Demand['reason'] } : {}),
+    ...(r.planned_intent ? { plannedIntent: r.planned_intent as unknown as Demand['plannedIntent'] } : {}),
     ...(r.ask_limit ? { askLimit: r.ask_limit as Demand['askLimit'] } : {}),
     ...(r.content ? { content: r.content as unknown as Demand['content'] } : {}),
     ...(r.content_availability_revision ? { contentAvailabilityRevision: r.content_availability_revision } : {}),
@@ -69,6 +70,7 @@ export const supplyStore: SupplyStore = {
         brief: d.brief ? JSON.stringify(d.brief) : null,
         reason: d.reason ?? null,
         ask_limit: d.askLimit ?? null,
+        planned_intent: d.plannedIntent ? JSON.stringify(d.plannedIntent) : null,
         content: d.content ? JSON.stringify(d.content) : null,
         content_availability_revision: d.contentAvailabilityRevision ?? null,
         source_availability_revision: d.sourceAvailabilityRevision ?? null,
@@ -126,7 +128,7 @@ export const supplyStore: SupplyStore = {
       .where('id', '=', d.id)
       .where('origin', '=', 'person')
       .where(
-        sql<boolean>`(state in ('requested','deferred') or (state = 'unavailable' and reason = 'could_not_prepare'))`,
+        sql<boolean>`(state in ('requested','deferred') or (state = 'unavailable' and reason in ('could_not_prepare','no_recipe_left')))`,
       )
       .executeTakeFirst();
     if (changed.numUpdatedRows !== 1n) throw new Error('SUPPLY_REQUEST_NOT_RETRYABLE');
@@ -210,15 +212,48 @@ export const supplyStore: SupplyStore = {
   async findOpenPlanned(scope, brief) {
     const row = await transactionOf(scope)
       .selectFrom('supply.requests')
-      .select(['id', 'state'])
+      .select(['id', 'state', 'created_at', 'wait_started_at'])
       .where('universe_id', '=', scope.authority.universeId)
       .where('privacy_epoch', '=', scope.authority.privacyEpoch)
       .where('origin', '=', 'planner')
       .where('state', 'in', ['deferred', 'ready'])
       .where(sql<boolean>`brief = ${JSON.stringify(brief)}::jsonb`)
+      // A waiting row first: a `ready` row older than it must not hide it from the next plan.
+      .orderBy(sql`state = 'deferred'`, 'desc')
       .orderBy('created_at')
       .executeTakeFirst();
-    return row ? { id: row.id, state: row.state as 'deferred' | 'ready' } : undefined;
+    return row
+      ? {
+          id: row.id,
+          state: row.state as 'deferred' | 'ready',
+          waitingSince: row.wait_started_at ?? row.created_at,
+        }
+      : undefined;
+  },
+  async closeLostPlanned(scope, id, now) {
+    const changed = await transactionOf(scope)
+      .updateTable('supply.requests')
+      .set({
+        state: 'unavailable',
+        reason: 'could_not_prepare',
+        request_revision: sql`request_revision + 1`,
+        updated_at: now,
+      })
+      .where('universe_id', '=', scope.authority.universeId)
+      .where('privacy_epoch', '=', scope.authority.privacyEpoch)
+      .where('id', '=', id)
+      .where('origin', '=', 'planner')
+      .where('state', '=', 'deferred')
+      .executeTakeFirst();
+    return changed.numUpdatedRows === 1n;
+  },
+  async closeWorkWhenUnused(scope, id, requestId) {
+    await sql`update supply.work set active = false, closed_at = now()
+      where id = ${id}::uuid and active
+        and not exists (
+          select 1 from supply.requests as waiting
+          where waiting.work_id = ${id}::uuid and waiting.id <> ${requestId}::uuid
+            and waiting.state in ('requested', 'deferred'))`.execute(transactionOf(scope));
   },
   async closeWork(scope, id) {
     await transactionOf(scope)

@@ -1,5 +1,5 @@
 import type { PersonalScopeTx } from '../../identity/public.js';
-import type { PlannedDemandOutcome } from '../../supply/public.js';
+import type { PlannedDemandOutcome, PlannedIntent } from '../../supply/public.js';
 import type { Opportunity } from '../domain/proposal.js';
 import type { PlannerPorts } from './ports.js';
 
@@ -10,6 +10,18 @@ function requestedFormat(formats: Opportunity['formats']): Format {
   return formats.length === 2 ? 'either' : formats[0]!;
 }
 
+/** What the model wanted of a missing-supply opportunity, for the person's own demand row. Absent for any other target. */
+export function plannedIntentOf(opportunity: Opportunity): PlannedIntent | undefined {
+  return opportunity.target.kind === 'missing_supply'
+    ? {
+        version: 'planned-intent.v1',
+        move: opportunity.move,
+        explanationUnitId: opportunity.explanationUnitId,
+        brief: opportunity.target.brief,
+      }
+    : undefined;
+}
+
 /**
  * Turns the missing-supply opportunities of an accepted plan into private demand (blueprint §3:
  * Planner → Quartermaster). Runs inside the accepting transaction, so a plan and its demand commit
@@ -17,11 +29,13 @@ function requestedFormat(formats: Opportunity['formats']): Format {
  *
  * Opportunities that name admitted content need no supply. Supply decides each one: Reuse when
  * admitted content the person has not met already fits, otherwise a deferred demand on the shared group. The slot is the
- * opportunity's position in the accepted plan, so one opportunity is never two demands.
+ * opportunity's position in the accepted plan, so one opportunity is never two demands. Each demand carries what the
+ * model wanted (the move, the unit, its brief) on the person's own row, and every outcome is counted, whatever it was:
+ * what Supply could not start is counted with its reason, not dropped.
  * Demand is not evidence, and nothing here commissions production.
  */
 export async function recordMissingSupplyDemand(
-  p: Pick<PlannerPorts, 'recordDemand' | 'capabilities'>,
+  p: Pick<PlannerPorts, 'recordDemand' | 'countDemand' | 'capabilities'>,
   scope: PersonalScopeTx,
   plan: {
     readonly runId: string;
@@ -32,7 +46,8 @@ export async function recordMissingSupplyDemand(
 ): Promise<readonly PlannedDemandOutcome[]> {
   const outcomes: PlannedDemandOutcome[] = [];
   for (const [slot, opportunity] of plan.opportunities.entries()) {
-    if (opportunity.target.kind !== 'missing_supply') continue;
+    const intent = plannedIntentOf(opportunity);
+    if (intent === undefined) continue;
     outcomes.push(
       await p.recordDemand(scope, {
         plannerRunId: plan.runId,
@@ -42,8 +57,10 @@ export async function recordMissingSupplyDemand(
         language: plan.language,
         capabilities: p.capabilities,
         alreadyMet: plan.alreadyMet,
+        intent,
       }),
     );
   }
+  if (outcomes.length > 0) await p.countDemand(scope, outcomes);
   return outcomes;
 }

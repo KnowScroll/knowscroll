@@ -32,7 +32,9 @@ receive demand for content that does not exist yet.
 | A valid plan is accepted although more evidence arrived; budget ends a run and closes its ledger run | implemented, CI-verified (D-052) |
 | Model role `personal-planner.v0` proposes, code validates and stores | implemented, CI-verified with an authored fixture model, run against the real model locally |
 | Composer reads the current plan | implemented, CI-verified |
-| Missing-supply opportunities become deferred supply demand | implemented, CI-verified |
+| Missing-supply opportunities become deferred supply demand, carrying the model's move, unit and brief on the person's own demand row | implemented, CI-verified |
+| Every missing-supply opportunity ends as one counted outcome (reused, already recorded, commissioned, joined, not commissioned or unsupported, each with its reason), in the plan's own transaction | implemented, CI-verified |
+| Supply commissions new content from a Planner opportunity | not built: the chooser skips v2 recipes (D-138), so nearly every opportunity ends `not_commissioned` (`no_recipe_left`) until a later slice of #674 |
 | Planner and Cartographer respond independently | implemented (separate queues and roles) |
 | Consumer UI for the plan | not planned: the plan has no screen of its own |
 | Running on dev with real people | planned (see #222) |
@@ -121,7 +123,7 @@ longer holds.
 | Consumer | How | Entry point |
 |---|---|---|
 | Composer | The latest accepted revision's unexpired opportunities ride in Composer's prepared context. A match lifts Intent (vertical moves) or Continuity (horizontal moves) by a bounded amount among candidates the intent does not separate, and the decision record names the opportunity. | `READ_CURRENT_PLAN`, read by Personal Context |
-| Supply | Each accepted `missing_supply` opportunity is recorded as private demand in the same transaction as the plan, unless the person already has open planned demand for the same brief. Supply reuses admitted content the person has not met, otherwise the demand is `deferred` on a shared matching group. Supply may join or start production within its separate cap. | `RecordPlannedDemand` |
+| Supply | Each accepted `missing_supply` opportunity is recorded as private demand in the same transaction as the plan, unless the person already has open planned demand for the same brief. Supply reuses admitted content the person has not met, otherwise the demand is `deferred` on a shared matching group. Supply may join or start production within its separate cap. The demand row keeps the opportunity's move, explanation unit and brief (`planned_intent`, the person's own row only); Supply still chooses by code. Where nothing starts, the outcome says why. Afterwards the Planner counts every outcome of the plan once. | `RecordPlannedDemand`, `CountPlannedDemand` |
 | Cartographer, scenes, evidence | Nothing. A plan creates no evidence and no geography. | none |
 
 `READ_CURRENT_PLAN` is a stored read of at most three small rows and is safe on the navigation
@@ -171,12 +173,14 @@ The full engine rules (attempt ledger, reservation, repair, quota, failure brake
 | `planner.revisions` | accepted opportunities per revision, with the attempt that produced them | only the latest three are read |
 | `pgboss/planner.run` | IDs-only jobs | the only work outbox |
 
-Supply keeps the demand rows (`supply.requests`, origin `planner`, state `deferred`). See
-`modules/supply/README.md`.
+Supply keeps the demand rows (`supply.requests`, origin `planner`, state `deferred`) and the counters of what became of
+each opportunity (`supply.planned_demand_outcomes`, codes and counts only). The Planner stores neither. See
+`modules/supply/README.md` ("What became of the Planner's demand").
 
 **Lock order.** Personal root, then the person's own account fence, then the run and state rows, then
 the Reasoning ledger. Accepting a plan then calls Supply, which takes Content asset SHARE locks and
-the shared matching group row. No lock on another person is ever held.
+the shared matching group row, and last the outcome counter rows, sorted so that two accepting transactions never wait on
+each other's counters in opposite orders. No lock on another person is ever held.
 
 **Erasure.** A privacy Clear or full erasure removes revisions, then state, then runs, across every
 epoch, and deletes queued, retained and dead-letter `planner.run` payloads. It also removes the
@@ -215,6 +219,7 @@ whose ledger run was closed starting over with a new one, and a plain request ac
 successor.
 `tests/integration/modules/planner-loop.test.ts` covers the connected loop: a qualified encounter
 queues the run in the same transaction, the worker accepts a plan, Composer ranks with it and Supply
-holds the deferred demand, and a Clear removes it all and fences a stale delivery. Fixture replies are
-CI data, never provider evidence. Real-model behaviour has been run locally only; see PR #236 for the
+holds the deferred demand with the model's intent and one counted outcome, and a Clear removes it all and fences a stale delivery. Fixture replies are
+CI data, never provider evidence. `application/demand.test.ts` covers what is handed to Supply (the intent of each
+missing-supply opportunity, its slot) and that every outcome is counted once per plan. Real-model behaviour has been run locally only; see PR #236 for the
 runs and #222 for dev acceptance.

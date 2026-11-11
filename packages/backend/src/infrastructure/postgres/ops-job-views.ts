@@ -31,6 +31,7 @@ export const OPS_READER_VIEWS: readonly string[] = [
   'feedback_reports',
   'room_turns',
   'room_faces',
+  'planned_demand_outcomes',
   'jobs',
   'queue_backlog',
   'recent_errors',

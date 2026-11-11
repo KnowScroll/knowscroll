@@ -87,8 +87,7 @@ The next deploy's `migrate.js` grants `ks2_ops_reader` the views (a missing role
 its output: `migrate.warning`, `ops_reader_role_missing`). To grant now, run `migrate.js` again.
 
 The role may select `ops.business_runs`, `model_attempts`, `production_runs`, `rejected_answers`,
-`reel_orders`, `reel_attempts`, `geography_runs`, `privacy_operations`, `jobs`, `queue_backlog`,
-`recent_errors` and `watchdog`. It cannot select `ops.journey_events` (scoped IDs), any table or pg-boss's own tables.
+`reel_orders`, `reel_attempts`, `geography_runs`, `privacy_operations`, `jobs`, `queue_backlog`, `recent_errors`, `watchdog` and `planned_demand_outcomes`. It cannot select `ops.journey_events` (scoped IDs), any table or pg-boss's own tables.
 Examples:
 
 ```sql
@@ -97,6 +96,8 @@ select occurred_at, source, state, code, label from ops.recent_errors order by o
 select state, count(*), sum(coalesce(input_tokens,0)+coalesce(output_tokens,0)) as tokens
   from ops.model_attempts where reserved_at > now() - interval '24 hours' group by state;
 select script_name, attempts, settled_cents, claimed_open_cents from ops.reel_orders;
+-- what became of the Planner's missing-supply opportunities, by day (D-410)
+select day, outcome, reason, total from ops.planned_demand_outcomes order by day desc, outcome, reason;
 ```
 
 Dashboards and saved queries belong in `ops/observability/` when Grafana is installed. None exist yet.

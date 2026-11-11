@@ -46,18 +46,6 @@ describe('known failure rules', () => {
     expect(explains(entry, violation({ ...base, persona: 'a-reader', code: 'planet_not_formed' }))).toBe(false);
   });
 
-  it('explains a Planner failure only when the worker threw the planned-demand unique index error', () => {
-    const planner = (messages: string[], code = 'job_handler_failed') =>
-      violation({ invariant: 'I3', code, persona: 'any-reader', detail: { queue: 'planner.run', messages } });
-    const constraint = 'duplicate key value violates unique constraint "supply_requests_planner_open_work"';
-    expect(explainedBy(planner([constraint]))?.id).toBe('I3/planned-demand-duplicates-an-open-request');
-    expect(explainedBy(planner([constraint, 'PLANNER_CLAIM_WAKE_EARLY']))).toBeDefined();
-    // Another reason for a Planner failure, or one mixed with another error, is not this defect.
-    expect(explainedBy(planner(['DISCOVERY_QUERY_INVALID']))).toBeUndefined();
-    expect(explainedBy(planner([constraint, 'something else']))).toBeUndefined();
-    expect(explainedBy(planner([]))).toBeUndefined();
-  });
-
   it('reads what a queue threw from every persona, not only from the one whose run was held', () => {
     // A drain is global, so in a side-by-side pair the other person's drain may be the one that ran, and recorded, the throw.
     const result = (errors: Record<string, string[]>) => ({ run: { drains: { errors } } }) as unknown as PersonaResult;

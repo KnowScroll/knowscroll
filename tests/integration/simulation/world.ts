@@ -40,7 +40,7 @@ import {
 import { REFRESH_VISIT_PUBLICATION, type RefreshVisitPublication } from '@knowscroll/backend/modules/social';
 import { visitRefreshProviders } from '@knowscroll/backend/modules/social/nest-providers';
 import { RUN_PLANNER, plannerQueue, type RunPlanner } from '@knowscroll/backend/modules/planner';
-import { RECORD_PLANNED_DEMAND } from '@knowscroll/backend/modules/supply';
+import { COUNT_PLANNED_DEMAND, RECORD_PLANNED_DEMAND } from '@knowscroll/backend/modules/supply';
 import {
   plannerRequestProviders,
   plannerWorkerProviders,
@@ -55,7 +55,7 @@ import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { evidenceUseCase } from '../support/evidence.js';
 import { fixtureModel } from '../support/fixture-model.js';
 import { geographyWorld, type GeographyWorld } from '../support/geography-world.js';
-import { realSupply } from '../support/planned-demand.js';
+import { realPlannerDemand } from '../support/planned-demand.js';
 import { buildRecursively } from '../support/providers.js';
 import { recordingPerson } from '../support/recording-person.js';
 import { fixtureRecordingHarness } from '../support/recording-harness.js';
@@ -143,6 +143,11 @@ export async function simulationWorld(name: string, config: SimConfig): Promise<
     }).harness;
   const plannerHarness = harnessFor(plannerModel);
   const contentValues = contentProviders().map((provider) => [provider.provide, provider.useValue] as const);
+  const plannerDemand = realPlannerDemand(database, c.boss, {
+    createDailyCap: 10,
+    plannerCreateDailyCap: 5,
+    readExploration: c.readExploration,
+  });
   const plannerValues = new Map<symbol, unknown>([
     [SCOPE, withScope],
     [ENQUEUE, makeEnqueueJob(c.boss)],
@@ -152,11 +157,8 @@ export async function simulationWorld(name: string, config: SimConfig): Promise<
     [READ_RECENT_CONTEXT_TOPICS, c.readRecentTopics],
     [RECORDING_REASONING_HARNESS, plannerHarness],
     // Dev's Create caps (STATUS.md): the Planner may start 5 a day, people 10.
-    [
-      RECORD_PLANNED_DEMAND,
-      realSupply(database, c.boss, { createDailyCap: 10, plannerCreateDailyCap: 5, readExploration: c.readExploration })
-        .record,
-    ],
+    [RECORD_PLANNED_DEMAND, plannerDemand.recordDemand],
+    [COUNT_PLANNED_DEMAND, plannerDemand.countDemand],
     [WORKER_CONFIG, { plannerEnabled: true }],
     ...contentValues.filter(([token]) => token === READ_DISCOVERY_CANDIDATES || token === READ_EXACT_ENCOUNTER),
   ]);

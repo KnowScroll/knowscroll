@@ -6,6 +6,7 @@ import type {
   ErrorRow,
   OutcomeCount,
   Piece,
+  PlannedDemandSummary,
   PrivacySummary,
   ProductionRunRow,
   QueueRow,
@@ -416,6 +417,22 @@ export function makePanelStore(db: Kysely<Database>): PanelStore {
           .sort((a, b) => b.calls() - a.calls() || a.roomId.localeCompare(b.roomId))
           .slice(0, limit);
         return { rooms: busiest.map((tally): RoomCallsRow => tally.row()) };
+      }),
+
+    plannedDemand: (windowDays) =>
+      pieceOf(async (): Promise<PlannedDemandSummary> => {
+        const rows = await db
+          .selectFrom('ops.planned_demand_outcomes')
+          .select(['outcome', 'reason', sql<string>`sum(total)`.as('count')])
+          .where('day', '>', sql<Date>`(now() at time zone 'utc')::date - ${windowDays}::int`)
+          .groupBy(['outcome', 'reason'])
+          .orderBy('outcome')
+          .orderBy('reason')
+          .execute();
+        return {
+          windowDays,
+          counts: rows.map((row) => ({ outcome: text(row.outcome), reason: row.reason, count: count(row.count) })),
+        };
       }),
 
     privacy: (limit) =>

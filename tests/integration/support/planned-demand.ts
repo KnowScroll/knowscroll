@@ -13,7 +13,10 @@ import {
   CANCEL_CONTENT_REQUEST,
   READ_CONTENT_REQUEST,
   RECORD_PLANNED_DEMAND,
+  COUNT_PLANNED_DEMAND,
   type CancelRequest,
+  type CountPlannedDemand,
+  type PlannedIntent,
   type ReadRequest,
   type RecordPlannedDemand,
 } from '@knowscroll/backend/modules/supply';
@@ -59,13 +62,27 @@ export function realSupply(
   const build = <T>(token: symbol) => buildFromProviders(providers, token, values) as T;
   return {
     record: build<RecordPlannedDemand>(RECORD_PLANNED_DEMAND),
+    count: build<CountPlannedDemand>(COUNT_PLANNED_DEMAND),
     read: build<ReadRequest>(READ_CONTENT_REQUEST),
     cancel: build<CancelRequest>(CANCEL_CONTENT_REQUEST),
   };
 }
 
-export const realRecordPlannedDemand = (
+/** What a Planner opportunity wanted, as an authored CI fixture: the words are labelled so a test can look for them. */
+export const plannedIntent = (overrides: Partial<PlannedIntent> = {}): PlannedIntent => ({
+  version: 'planned-intent.v1',
+  move: 'mechanism',
+  explanationUnitId: 'ci-planned-unit',
+  brief: 'CI-PLANNED-BRIEF: how the mechanism works, step by step',
+  ...overrides,
+});
+
+/** The two ports the Planner calls inside its accepting transaction: record each opportunity's demand, then count the outcomes. */
+export function realPlannerDemand(
   database: TestDatabase<Database>,
   boss: PgBoss,
   options: Parameters<typeof realSupply>[2],
-): RecordPlannedDemand => realSupply(database, boss, options).record;
+): { readonly recordDemand: RecordPlannedDemand; readonly countDemand: CountPlannedDemand } {
+  const supply = realSupply(database, boss, options);
+  return { recordDemand: supply.record, countDemand: supply.count };
+}

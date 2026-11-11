@@ -275,6 +275,8 @@ describe('Supply prerequisite wire contracts', () => {
       'budget_unavailable',
       'could_not_prepare',
       'source_unavailable',
+      'no_production_path',
+      'no_recipe_left',
     ])
       expect(ContentRequestStatusSchema.safeParse({ ...snapshot, status: 'unavailable', reason }).success).toBe(true);
     for (const state of [

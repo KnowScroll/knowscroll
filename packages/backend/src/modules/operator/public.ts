@@ -35,6 +35,7 @@ export {
   type OperatorPanels,
   type OutcomeCount,
   type Piece,
+  type PlannedDemandSummary,
   type PrivacyOperationGroup,
   type PrivacySummary,
   type ProductionRunRow,

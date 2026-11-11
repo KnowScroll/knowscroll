@@ -67,3 +67,28 @@ describe('known failures of the current code', () => {
     );
   }
 });
+
+/**
+ * A scenario kept as a regression for a fixed defect passes I3 only if it still reaches the code the defect lived in. With
+ * no known failure left to demand it, this is what stops a renamed topic or a changed script from turning its pass into a
+ * vacuous one: `link-reader-exoplanets` (the planned-demand duplicate of slice 1.3) must still make the Planner ask Supply
+ * for missing content, and Supply must still hold the person's planned rows for it.
+ */
+describe('regression scenarios still reach what they were kept for', () => {
+  const exoplanets = reports
+    .flatMap((report) => report.personas)
+    .find((persona) => persona.persona === 'link-reader-exoplanets');
+
+  it.skipIf(reports.length === 0 || (exoplanets === undefined && !requireFullRun))(
+    'link-reader-exoplanets asks Supply for more of a finished topic',
+    () => {
+      expect(exoplanets, 'link-reader-exoplanets did not run: was the persona or its lab file renamed?').toBeDefined();
+      const opportunities = exoplanets?.plannerOpportunities.missingSupply ?? 0;
+      const plannedRows = Object.entries(exoplanets?.supplyRows ?? {})
+        .filter(([key]) => key.startsWith('planner:'))
+        .reduce((total, [, count]) => total + count, 0);
+      expect(opportunities, 'the Planner named no missing content for the finished topic').toBeGreaterThan(0);
+      expect(plannedRows, 'Supply holds no planned demand row for the finished topic').toBeGreaterThan(0);
+    },
+  );
+});

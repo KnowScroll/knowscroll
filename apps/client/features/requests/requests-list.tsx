@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { borderWidth, content, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, ErrorState, RequestStatusChip, Skeleton, StateBlock, Text } from '@knowscroll/ui';
 import type { ContentRequestStatus } from '@knowscroll/contracts';
-import { formatWord, unavailableMessage } from './request-copy';
+import { canTryAgain, formatWord, unavailableMessage } from './request-copy';
 import type { ListedRequest, RequestsListSession } from './requests-list-session';
 
 /** What a person can open: the Scroll or Reel that a ready request bound. */
@@ -19,7 +19,7 @@ function chipStatus(status: ContentRequestStatus) {
     case 'ready':
       return 'ready';
     case 'unavailable':
-      return status.reason === 'could_not_prepare' ? 'failed' : 'unavailable';
+      return canTryAgain(status.reason) ? 'failed' : 'unavailable';
     case 'cancelled':
       return 'cancelled';
   }

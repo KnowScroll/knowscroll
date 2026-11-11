@@ -51,7 +51,12 @@ import {
   READ_PLANNER_OPPORTUNITIES,
   READ_CURRENT_PLAN,
 } from '../public.js';
-import { RECORD_PLANNED_DEMAND, type RecordPlannedDemand } from '../../supply/public.js';
+import {
+  COUNT_PLANNED_DEMAND,
+  RECORD_PLANNED_DEMAND,
+  type CountPlannedDemand,
+  type RecordPlannedDemand,
+} from '../../supply/public.js';
 import { makeReadCurrentPlan } from '../application/read-plan.js';
 import { makePlannerDryRun, type PlannerDryRun, type PlannerDryRunPorts } from '../application/dry-run.js';
 const REQUEST_PORTS = Symbol('planner.request-ports');
@@ -281,6 +286,7 @@ export function plannerWorkerProviders(t: { readonly workerConfig: symbol }) {
         READ_EXACT_ENCOUNTER,
         RECORDING_REASONING_HARNESS,
         RECORD_PLANNED_DEMAND,
+        COUNT_PLANNED_DEMAND,
         t.workerConfig,
       ],
       useFactory: (
@@ -291,6 +297,7 @@ export function plannerWorkerProviders(t: { readonly workerConfig: symbol }) {
         readExact: ReadExactEncounter,
         harness: RecordingReasoningHarness,
         recordDemand: RecordPlannedDemand,
+        countDemand: CountPlannedDemand,
         config: WorkerConfig,
       ): PlannerPorts => ({
         ...request,
@@ -300,6 +307,7 @@ export function plannerWorkerProviders(t: { readonly workerConfig: symbol }) {
         readExact,
         harness,
         recordDemand,
+        countDemand,
         capabilities,
         now,
         enabled: () => config.plannerEnabled,

@@ -45,7 +45,12 @@ export const readyItem = (n: number, kind: 'reel' | 'scroll' = 'scroll'): Listed
 };
 export const closedItem = (
   n: number,
-  reason: 'unsupported_request' | 'could_not_prepare' | 'budget_unavailable' = 'could_not_prepare',
+  reason:
+    | 'unsupported_request'
+    | 'could_not_prepare'
+    | 'budget_unavailable'
+    | 'no_recipe_left'
+    | 'no_production_path' = 'could_not_prepare',
 ): Listed => ({
   title: `Closed ${String(n)}`,
   format: 'scroll',

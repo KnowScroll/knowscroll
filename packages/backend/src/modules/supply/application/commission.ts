@@ -1,5 +1,6 @@
 import type { ScrollProductionState } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
+import type { NotCommissionedReason } from '../domain/planned-demand.js';
 import type { CanonicalBrief, CommissionOrigin, SupplyPorts, UnavailableReason } from './ports.js';
 
 /** How often a waiter looks again while the production that serves it is unfinished. */
@@ -24,8 +25,33 @@ export const MAX_OPEN_REQUESTS = 10;
 export type Commission =
   /** The request waits on a shared group, one this transaction started (`create`) or one already running (`join`). */
   | { readonly kind: 'waiting'; readonly workId: string; readonly decision: 'join' | 'create' }
-  /** Nothing can produce it: the request closes now with an honest reason. */
-  | { readonly kind: 'unavailable'; readonly reason: UnavailableReason };
+  /**
+   * Nothing can produce it: the request closes now with an honest reason. `cause` is the finer answer an operator reads
+   * (a cap used up and Create switched off are both `budget_unavailable` to the person).
+   */
+  | { readonly kind: 'unavailable'; readonly reason: UnavailableReason; readonly cause: NotCommissionedReason };
+
+/**
+ * The closed reasons a person may try again. `could_not_prepare`: the work was tried and did not deliver. `no_recipe_left`:
+ * nothing was ready and nothing could be started then, which an operator's release of a held Scroll changes (D-138, D-410).
+ * `no_production_path` and `budget_unavailable` are not: a retry would meet the same wall.
+ */
+export const isRetryableReason = (reason: UnavailableReason | undefined): boolean =>
+  reason === 'could_not_prepare' || reason === 'no_recipe_left';
+
+/** What the person is told for each cause. */
+const REASON_OF_CAUSE: Readonly<Record<NotCommissionedReason, UnavailableReason>> = {
+  no_production_path: 'no_production_path',
+  cap_reached: 'budget_unavailable',
+  create_off: 'budget_unavailable',
+  no_recipe_left: 'no_recipe_left',
+};
+
+const refused = (cause: NotCommissionedReason): Commission => ({
+  kind: 'unavailable',
+  reason: REASON_OF_CAUSE[cause],
+  cause,
+});
 
 const UTC_DAY_MS = 86_400_000;
 
@@ -40,7 +66,9 @@ const UTC_DAY_MS = 86_400_000;
  * the caller's transaction, so a rollback removes both. The job ID is stable per recipe, version and
  * take, so two groups that choose the same recipe share one job. Only a Scroll can be produced, and
  * only for a catalogue meaning: a Reel, or a variant of an existing explanation, has no production
- * path and closes as `budget_unavailable`.
+ * path and closes as `no_production_path`. A cap used up or switched off is `budget_unavailable`, and a
+ * brief with no recipe left to make is `no_recipe_left`; none of these is `could_not_prepare`, which says
+ * production was tried and did not deliver.
  *
  * `origin` names who asks: a person's own request, or the Planner's demand. Each has its own daily
  * cap, and the Planner's is never above the person's, so the Planner cannot starve an explicit ask.
@@ -56,8 +84,7 @@ export async function commissionSupply(
   origin: CommissionOrigin,
 ): Promise<Commission> {
   const { subject } = brief;
-  if (subject.kind !== 'catalogue' || brief.format === 'reel')
-    return { kind: 'unavailable', reason: 'budget_unavailable' };
+  if (subject.kind !== 'catalogue' || brief.format === 'reel') return refused('no_production_path');
   await p.store.lockCommissioning(scope);
   const running = await p.store.findActiveWork(scope, brief);
   if (running) {
@@ -70,14 +97,15 @@ export async function commissionSupply(
     }
     await p.store.closeWork(scope, running.id);
   }
+  const cap = p.createDailyCaps[origin];
+  if (cap === 0) return refused('create_off');
   const startOfDay = new Date(Math.floor(p.now().getTime() / UTC_DAY_MS) * UTC_DAY_MS);
-  if ((await p.store.countCommissionedSince(scope, startOfDay, origin)) >= p.createDailyCaps[origin])
-    return { kind: 'unavailable', reason: 'budget_unavailable' };
+  if ((await p.store.countCommissionedSince(scope, startOfDay, origin)) >= cap) return refused('cap_reached');
   const choice = await p.chooseRecipe(scope, {
     topicId: subject.topicId,
     ...(subject.facetId === undefined ? {} : { facetId: subject.facetId }),
   });
-  if (choice.kind === 'none') return { kind: 'unavailable', reason: 'could_not_prepare' };
+  if (choice.kind === 'none') return refused('no_recipe_left');
   const work = await p.store.joinOrCreate(scope, brief, p.newId(), { recipe: choice.recipe, origin });
   if (work.joined) return { kind: 'waiting', workId: work.id, decision: 'join' };
   await p.enqueueProduction(scope, choice.recipe, choice.take);

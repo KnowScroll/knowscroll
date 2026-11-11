@@ -32,6 +32,7 @@ const PRIVATE = {
   detail: 'CI-PRIVATE-REMOTE-DETAIL',
   job: 'CI-PRIVATE-JOB-PAYLOAD',
   reportNote: 'CI-PRIVATE-REPORT-NOTE',
+  plannedBrief: 'CI-PRIVATE-PLANNED-BRIEF',
 };
 
 /** The columns each view shows. A new column is a reviewed change to this list (D-044). */
@@ -150,6 +151,7 @@ const SHOWN_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     'written_off_at',
     'redacted',
   ],
+  planned_demand_outcomes: ['day', 'outcome', 'reason', 'total'],
   privacy_operations: ['kind', 'operation_id', 'state', 'failure_code', 'attempts', 'requested_at', 'completed_at'],
   production_runs: [
     'production_run_id',
@@ -271,6 +273,18 @@ describe('the ops views (real PostgreSQL)', () => {
       values (${randomUUID()}::uuid, ${orderId}::uuid, 1, false, ${`ks-reel-${'b'.repeat(32)}-1`}, ${request},
         encode(sha256(convert_to(${request}, 'UTF8')), 'hex'), 75, 'written_off', ${PRIVATE.note},
         ${PRIVATE.detail}, now(), 'none')`.execute(db());
+    // The Planner's demand: the model's brief rides on the person's own row and must never reach a view; the counters
+    // beside it are what the operator may read.
+    await sql`insert into supply.requests (universe_id, privacy_epoch, id, command, state, origin, planner_run_id, planner_slot,
+        request_revision, revision, decision, reason, planned_intent, created_at, updated_at)
+      select universe_id, privacy_epoch, gen_random_uuid(), '{"version":"content-request.v1"}'::jsonb, 'unavailable', 'planner', gen_random_uuid(), 0,
+        1, 0, 'refuse', 'could_not_prepare',
+        ${JSON.stringify({ version: 'planned-intent.v1', move: 'mechanism', explanationUnitId: 'ci-unit', brief: PRIVATE.plannedBrief })}::jsonb,
+        now(), now()
+      from supply.requests where command::text like ${`%${PRIVATE.ask}%`}`.execute(db());
+    await sql`insert into supply.planned_demand_outcomes (day, outcome, reason, total)
+      values ((now() at time zone 'utc')::date, 'not_commissioned', 'no_recipe_left', 3),
+        ((now() at time zone 'utc')::date, 'reused', '', 2)`.execute(db());
     // A report with a note: operators learn that it has one, never what it says or who sent it.
     await sql`insert into feedback.reports (report_id, reporter_account_id, kind, category, target_kind, message_id, room_id, note, created_at)
       values (${randomUUID()}::uuid, ${person.accountId}::uuid, 'abuse', 'harassment', 'room_message', ${randomUUID()}::uuid,
@@ -328,6 +342,9 @@ describe('the ops views (real PostgreSQL)', () => {
     expect(await found(sql`select 1 from content.reel_attempts where operator_note = ${PRIVATE.note}`)).toBe(1);
     expect(await found(sql`select 1 from pgboss.job where data::text like ${`%${PRIVATE.job}%`}`)).toBe(1);
     expect(await found(sql`select 1 from feedback.reports where note = ${PRIVATE.reportNote}`)).toBe(1);
+    expect(
+      await found(sql`select 1 from supply.requests where planned_intent::text like ${`%${PRIVATE.plannedBrief}%`}`),
+    ).toBe(1);
   });
 
   it('lists exactly the reviewed columns in every view', async () => {
@@ -356,6 +373,7 @@ describe('the ops views (real PostgreSQL)', () => {
     expect(shown['reel_orders']).toBe(1);
     expect(shown['reel_attempts']).toBe(1);
     expect(shown['feedback_reports']).toBe(1);
+    expect(shown['planned_demand_outcomes']).toBe(2);
     expect(shown['jobs']).toBeGreaterThan(0);
     expect(shown['journey_events']).toBeGreaterThan(0);
   });
@@ -404,6 +422,17 @@ describe('the ops views (real PostgreSQL)', () => {
     expect(panels.overview.queues.status).toBe('available');
     expect(panels.production.reelOrders).toMatchObject({ status: 'available', data: [{ scriptName: 'ci-reel' }] });
     expect(panels.production.refusedAnswers.status).toBe('available');
+    // What became of the Planner's demand: codes and counts, with the reason where there is one.
+    expect(panels.production.plannedDemand).toEqual({
+      status: 'available',
+      data: {
+        windowDays: 7,
+        counts: [
+          { outcome: 'not_commissioned', reason: 'no_recipe_left', count: 3 },
+          { outcome: 'reused', reason: null, count: 2 },
+        ],
+      },
+    });
     expect(panels.overview.recentErrors).toMatchObject({ status: 'available' });
     expect(panels.overview.requestLatency.status).toBe('unavailable');
     expect(JSON.stringify(panels)).not.toContain('CI-PRIVATE');

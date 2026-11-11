@@ -28,7 +28,7 @@ import type { OpenedStageScroll } from '../scroll/scroll-session';
 import { useStagePlay } from '../scroll/use-stage-play';
 import { AskPuzzle } from './ask-puzzle';
 import { COUNTER_FROM, PAUSED_COPY, aboutTitle, usuallyPhrase } from './ask-copy';
-import { unavailableMessage } from './request-copy';
+import { canTryAgain, unavailableMessage } from './request-copy';
 import type { RequestSession } from './request-session';
 
 /** One suggested question: the whole row is the button, and its number is the key that picks it (D1: 1 to 3). */
@@ -125,7 +125,7 @@ export function AskSheet({
   const typed = state.text.length;
   const waiting = state.phase === 'accepted' && status?.status === 'preparing';
   const couldBePreparedAgain =
-    state.phase === 'accepted' && status?.status === 'unavailable' && status.reason === 'could_not_prepare';
+    state.phase === 'accepted' && status?.status === 'unavailable' && canTryAgain(status.reason);
   // Said only when the server measured a time (five finished orders at least); otherwise nothing is claimed.
   const usually = waiting ? usuallyPhrase(status.typicalSeconds) : undefined;
   const scopeLine = state.about ? `about “${aboutTitle(scroll.document.title)}”` : 'about something new';

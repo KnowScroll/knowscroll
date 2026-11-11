@@ -441,7 +441,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     // Only a Scroll of a catalogue meaning can be produced, so the answer is honest straight away.
     expect(await status(p, r.requestId)).toMatchObject({
       status: 'unavailable',
-      reason: 'budget_unavailable',
+      reason: 'no_production_path',
       requestRevision: 1,
     });
     expect(await database.db.selectFrom('supply.work').select('id').execute()).toEqual(workBefore);
@@ -454,7 +454,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
       .set({ status: 'withdrawn' })
       .where('id', '=', asset.assetId)
       .execute();
-    expect(await status(p, r.requestId)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
+    expect(await status(p, r.requestId)).toMatchObject({ status: 'unavailable', reason: 'no_production_path' });
     expect(
       await cancel(p.authority, {
         version: 'content-request-cancel.v1',
@@ -510,7 +510,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
       reason: 'stale_source',
     });
     expect(await ask(p, c)).toEqual({ ...accepted, replayed: true });
-    expect(await status(p, accepted.requestId)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
+    expect(await status(p, accepted.requestId)).toMatchObject({ status: 'unavailable', reason: 'no_production_path' });
   });
   it('worker independently fences reset, account revocation and erased private bindings; shared briefs survive', async () => {
     const p = await seedPerson(database.db),
