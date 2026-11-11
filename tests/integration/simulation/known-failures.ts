@@ -1,4 +1,4 @@
-import type { InvariantId, RepeatCause, Violation } from './invariants.js';
+import type { InvariantId, Violation } from './invariants.js';
 
 /**
  * Behaviour of the current code that an invariant forbids and that a later slice of #674 fixes. Each entry is a
@@ -31,15 +31,6 @@ export interface KnownFailure {
   readonly matches: (violation: Violation) => boolean;
 }
 
-/**
- * Causes of an I1 repeat that the soft-penalty entry explains: the met unit was eligible, so only a soft term stood
- * between it and the offer (slice 1.2). A repeat whose unseen alternatives never reached the Composer (`retrieval`) is a
- * retrieval defect, not this one, and is deliberately absent: it stays an unexpected violation, with the number of
- * candidates the decision evaluated in its message, until a run reproduces it for a stated reason and it gets an entry.
- * None does today: even the large library (past the 100-candidate lane) shows only the soft penalty on moves the system chose.
- */
-const EXPLAINED_REPEAT_CAUSES: readonly RepeatCause[] = ['soft_penalty', 'exploration_draw', 'format_sticky'];
-
 /** What the handlers of the violation's queue threw, as the lab saw it. */
 const messagesOf = (violation: Violation): readonly string[] => {
   const messages = violation.detail['messages'];
@@ -53,16 +44,6 @@ const PLANNED_DEMAND_CONSTRAINT = 'supply_requests_planner_open_work';
 const CLAIM_WAKE_EARLY = 'PLANNER_CLAIM_WAKE_EARLY';
 
 export const KNOWN_FAILURES: readonly KnownFailure[] = [
-  {
-    id: 'I1/already-met-is-a-soft-penalty',
-    invariant: 'I1',
-    slice: '1.2',
-    reason:
-      'Nothing hard-excludes an explanation the person has met. It costs a novelty term, so a met unit still wins while an unseen one exists: a same-topic repeat beats an unseen other-topic unit, exploration draws from the met ones too, and a sticky format keeps the person among met units of that format.',
-    matches: (violation) =>
-      violation.code === 'met_offered_while_unseen_left' &&
-      EXPLAINED_REPEAT_CAUSES.includes(violation.detail['cause'] as RepeatCause),
-  },
   {
     id: 'I3/planned-demand-duplicates-an-open-request',
     invariant: 'I3',

@@ -13,7 +13,7 @@ Status: implemented, runs in hosted CI (`simulation` job in `checks.yml`) on eve
 | --- | --- |
 | `pnpm --filter @knowscroll/integration-tests test:simulation` | Small mode, the one CI runs: the lab (`--project simulation`, three files in parallel, each with its own world), then the gate (`--project simulation-gate`) that judges the run as a whole. Needs `KS_TEST_DATABASE_URL` for a disposable PostgreSQL 16 (see the [suite README](../README.md)). |
 | `KS_SIM_SIZE=large pnpm --filter @knowscroll/integration-tests test:simulation` | Large mode, for a manual or nightly run on one machine: about 170 Scrolls and longer sessions. |
-| `KS_SIM_SEED=7 KS_SIM_POLICY=v0 … test:simulation` | Another seed, or the other Composer policy (`v1` is the default because dev runs `KS_COMPOSER_POLICY=v1`). |
+| `KS_SIM_SEED=7 KS_COMPOSER_POLICY=v1 … test:simulation` | Another seed, or another Composer policy for a comparison. The lab follows the policy dev runs (`v2`, set by `KS_COMPOSER_POLICY`, the variable the API and the worker read), so a change of dev's policy is a change of the default in `config.ts`. |
 
 Small mode takes about 25 to 30 seconds on a laptop and should stay under 90 seconds on a hosted runner. The reports are
 written to `tests/integration/simulation/output/` (or `KS_SIM_OUTPUT`): `report.json` has every number below per
@@ -95,28 +95,30 @@ with the reason it fails and a `matches` that accepts only violations that fail 
 
 | Entry | Invariant | Slice | Why it fails today |
 | --- | --- | --- | --- |
-| `I1/already-met-is-a-soft-penalty` | I1 | 1.2 | Nothing hard-excludes a met explanation. It costs a novelty term, so a met unit still wins while an unseen one exists (the lab reads the stored decision: the met unit was eligible and scored higher, or exploration drew it, or sticky format kept the person among met units of the format). |
 | `I3/planned-demand-duplicates-an-open-request` | I3 | 1.3 | Planner demand for a topic whose unread content is gone asks Supply to commission again although the person already has an open planned row for that brief (a ready one that reused content, and a deferred one that joined production). The lookup returns the ready row, so the second request joins the same work group and violates the unique index on one open planner row per work group. The Planner run throws, retries, dead-letters and stays prepared. Only a topic with a recipe Create may still choose (`space.exoplanets`) reaches it today. Exact scenario: `link-reader-exoplanets`. |
 | `I2/reel-only-evidence-forms-no-system` | I2 | 5.1 | A Reel has no coverage mapping or certificate; the trusted read serves only Scrolls. Two qualified Reels of one system form nothing. |
 
 The lab keeps two promises about them. Every violation of an invariant must be explained by an entry, for a persona it
-names (any, if it names none), and for the stated reason, or the run fails ("unexpected violation"). So a new defect, or a
-known one failing for another reason, cannot hide behind an entry: an I1 repeat whose unseen alternatives never reached
-the Composer (`retrieval`) is not the soft penalty and stays unexpected (its message says how many candidates the decision
-evaluated, so a hit of the 100-candidate lane shows in numbers), and so does a repeat whose cause the lab cannot read
-from the stored decision. No run reproduces a retrieval repeat on a move the system chose, even the large library, so
-there is no entry for it. And every entry must still be reproduced by the run as a whole: `gate/known-failures.test.ts`
-sums the reports of every lab file, so one file that happened to see no repeat cannot fail it, and when a slice fixes the
-behaviour the entry's test fails with "now fixed" and the same pull request deletes the entry from `known-failures.ts`.
-From then on the invariant is a plain gate for the slice and every later one. That is the equivalent of `it.fails`, with
-the reason checked. An entry with a `reproducedBy` scenario (the Reel entry: `link-reader-reels`) is judged when that
-persona ran, so running one file alone is not blamed for the rest. In CI, and in any local run that wrote every group
-(`readers`, `formation`, `binge`), the gate instead requires every such persona to have run and every group to have written
-a report, so a renamed file or persona cannot make an entry go unjudged without a word.
+names (any, if it names none), and for the stated reason, or the run fails ("unexpected violation"), so a new defect, or
+a known one failing for another reason, cannot hide behind an entry. And every entry must still be reproduced by the run
+as a whole: `gate/known-failures.test.ts` sums the reports of every lab file, so one file that happened to see no
+instance cannot fail it, and when a slice fixes the behaviour the entry's test fails with "now fixed" and the same pull
+request deletes the entry from `known-failures.ts`. From then on the invariant is a plain gate for the slice and every
+later one. That is the equivalent of `it.fails`, with the reason checked. An entry with a `reproducedBy` scenario (the
+Reel entry: `link-reader-reels`) is judged when that persona ran, so running one file alone is not blamed for the rest.
+In CI, and in any local run that wrote every group (`readers`, `formation`, `binge`), the gate instead requires every such
+persona to have run and every group to have written a report, so a renamed file or persona cannot make an entry go
+unjudged without a word.
 
-No entry, so these are gates: planet formation from Scrolls (the exact `link-reader-scrolls`), isolation, pause and
-resume, bounded cost, and a Planner that survives a reader who has met more than 16 topics (`broad-skimmer`; its
-entry for slice 0.1 was deleted when #711 fixed it).
+I1 has no entry any more: composer policy v2 (#713) offers an explanation the person has met only as a last resort, and the
+lab runs under it. Any I1 violation is therefore a defect in the policy. Its message names the cause the lab read from the
+stored decision (`soft_penalty`, `exploration_draw`, `format_sticky`, `retrieval` with the number of candidates the
+decision evaluated, or `unknown` when the decision cannot be read as expected), and nothing absorbs it.
+
+No entry, so these are gates: no repeat while something unseen exists (its entry for slice 1.2 was deleted when #713
+made policy v2 dev's), planet formation from Scrolls (the exact `link-reader-scrolls`), isolation, pause and resume,
+bounded cost, and a Planner that survives a reader who has met more than 16 topics (`broad-skimmer`; its entry for
+slice 0.1 was deleted when #711 fixed it).
 
 ### Metrics
 

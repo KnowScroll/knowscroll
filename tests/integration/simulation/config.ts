@@ -12,8 +12,8 @@ export interface SimConfig {
   readonly size: SimSize;
   /** The seed every persona's choices and every invented identifier derive from. */
   readonly seed: number;
-  /** The Composer policy new decisions are made under; dev runs `v1` (`KS_COMPOSER_POLICY`). */
-  readonly composerPolicy: 'v0' | 'v1';
+  /** The Composer policy new decisions are made under: the one dev runs, set by the same variable the API and the worker read. */
+  readonly composerPolicy: 'v0' | 'v1' | 'v2';
   readonly library: {
     /** How many of the catalogue's planets the library covers (the catalogue has 17). */
     readonly planets: number;
@@ -45,7 +45,7 @@ export interface SimConfig {
 const SMALL: SimConfig = {
   size: 'small',
   seed: 674,
-  composerPolicy: 'v1',
+  composerPolicy: 'v2',
   library: { planets: 17, unitsPerPlanet: [3, 4], reelTwinShare: 0.2 },
   bingeLibrary: { planets: 5, unitsPerPlanet: [3, 3] },
   sessions: { typical: 12, bingeTail: 6 },
@@ -73,12 +73,16 @@ export function bingeLibraryConfig(config: SimConfig): SimConfig {
   return { ...config, library: { ...config.library, ...config.bingeLibrary } };
 }
 
-/** The run's configuration: `KS_SIM_SIZE` picks the size, `KS_SIM_SEED` and `KS_SIM_POLICY` override the rest. */
+/**
+ * The run's configuration: `KS_SIM_SIZE` picks the size and `KS_SIM_SEED` the seed. The Composer policy is the one dev
+ * runs (`v2`), and `KS_COMPOSER_POLICY`, the variable the API and the worker read, changes it for a comparison run.
+ */
 export function simConfig(env: NodeJS.ProcessEnv = process.env): SimConfig {
   const base = env['KS_SIM_SIZE'] === 'large' ? LARGE : SMALL;
   const seed = Number(env['KS_SIM_SEED'] ?? base.seed);
-  const policy = env['KS_SIM_POLICY'];
+  const policy = env['KS_COMPOSER_POLICY'];
   if (!Number.isInteger(seed) || seed < 0) throw new Error('KS_SIM_SEED must be a non-negative integer');
-  if (policy !== undefined && policy !== 'v0' && policy !== 'v1') throw new Error('KS_SIM_POLICY must be v0 or v1');
+  if (policy !== undefined && policy !== 'v0' && policy !== 'v1' && policy !== 'v2')
+    throw new Error('KS_COMPOSER_POLICY must be v0, v1 or v2');
   return { ...base, seed, composerPolicy: policy ?? base.composerPolicy };
 }

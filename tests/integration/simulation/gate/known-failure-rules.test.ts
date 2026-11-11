@@ -17,20 +17,16 @@ const violation = (overrides: Partial<Violation> & { detail?: Record<string, unk
  * behind an entry that is wider than its stated reason. It needs no database.
  */
 describe('known failure rules', () => {
-  it('explains an I1 repeat only for the causes of the soft penalty', () => {
-    for (const cause of ['soft_penalty', 'exploration_draw', 'format_sticky'])
-      expect(explainedBy(violation({ detail: { cause } })), cause).toBeDefined();
-    // An unclear cause is not understood, and not absorbed.
-    for (const cause of ['other_exclusion', 'unknown'])
+  it('absorbs no I1 repeat: composer policy v2 fixed the soft penalty, so a repeat is a new defect whatever its cause', () => {
+    for (const cause of [
+      'soft_penalty',
+      'exploration_draw',
+      'format_sticky',
+      'retrieval',
+      'other_exclusion',
+      'unknown',
+    ])
       expect(explainedBy(violation({ detail: { cause } })), cause).toBeUndefined();
-  });
-
-  it('does not absorb a retrieval repeat: unseen units that never reached the Composer are not the soft penalty', () => {
-    for (const candidatesOfFormat of [4, 59, 100, 172])
-      expect(
-        explainedBy(violation({ detail: { cause: 'retrieval', candidatesOfFormat } })),
-        String(candidatesOfFormat),
-      ).toBeUndefined();
   });
 
   it('does not explain a violation of another invariant, code or persona than the entry names', () => {
