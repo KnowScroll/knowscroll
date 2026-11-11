@@ -208,6 +208,8 @@ const SHOWN_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     'claimed_open_cents',
     'latest_attempt_state',
   ],
+  // The watchdog's observations (D-411): a rule, code-only subject and detail, when, a magnitude. No id, no text.
+  watchdog: ['rule', 'subject', 'detail', 'observed_at', 'magnitude'],
   rejected_answers: [
     'attempt_id',
     'run_id',

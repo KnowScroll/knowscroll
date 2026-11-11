@@ -234,32 +234,52 @@ export function makeReadAdmittedCoverageMapping(
 export const readAdmittedCoverageMapping = makeReadAdmittedCoverageMapping(coverageCatalogue);
 
 const Authorities = z.array(CoverageAuthoritySchema).min(1).max(100);
-export const lockCurrentCoverageAuthorities: LockCurrentCoverageAuthorities = async (scope, input) => {
-  const expected = Authorities.parse(input);
-  if (
-    utf8ByteLength(canonicalJson(expected)) > 131072 ||
-    new Set(expected.map((ref) => `${ref.assetId}@${String(ref.assetRevision)}`)).size !== expected.length
-  )
-    throw new Error('CONTENT_COVERAGE_AUTHORITY_LIMIT');
-  expected.sort((a, b) => (a.assetId < b.assetId ? -1 : a.assetId > b.assetId ? 1 : a.assetRevision - b.assetRevision));
-  const trx = transactionOf(scope);
-  // Personal root -> canonical assets -> canonical mapping heads. Admission never takes personal roots.
-  for (const ref of expected)
-    await sql`select id from content.assets where id=${ref.assetId}::uuid for share`.execute(trx);
-  for (const ref of expected) {
-    await sql`select revision from content.coverage_heads where asset_id=${ref.assetId}::uuid and asset_revision=${ref.assetRevision} for share`.execute(
-      trx,
-    );
-    const current = await readAdmittedCoverageMapping(scope, {
-      assetId: ref.assetId,
-      assetRevision: ref.assetRevision,
-    });
+
+/**
+ * Rechecks that each named authority is still the current mapping head, and, when `lock` is set, holds
+ * the asset and head under a `SHARE` lock until the caller's transaction ends.
+ */
+function makeCurrentCoverageAuthorityCheck(lock: boolean): LockCurrentCoverageAuthorities {
+  return async (scope, input) => {
+    const expected = Authorities.parse(input);
     if (
-      current.kind !== 'mapped' ||
-      current.head.authority.headRevision !== ref.headRevision ||
-      current.head.authority.mappingSha256 !== ref.mappingSha256
+      utf8ByteLength(canonicalJson(expected)) > 131072 ||
+      new Set(expected.map((ref) => `${ref.assetId}@${String(ref.assetRevision)}`)).size !== expected.length
     )
-      return false;
-  }
-  return true;
-};
+      throw new Error('CONTENT_COVERAGE_AUTHORITY_LIMIT');
+    expected.sort((a, b) =>
+      a.assetId < b.assetId ? -1 : a.assetId > b.assetId ? 1 : a.assetRevision - b.assetRevision,
+    );
+    const trx = transactionOf(scope);
+    // Personal root -> canonical assets -> canonical mapping heads. Admission never takes personal roots.
+    if (lock)
+      for (const ref of expected)
+        await sql`select id from content.assets where id=${ref.assetId}::uuid for share`.execute(trx);
+    for (const ref of expected) {
+      if (lock)
+        await sql`select revision from content.coverage_heads where asset_id=${ref.assetId}::uuid and asset_revision=${ref.assetRevision} for share`.execute(
+          trx,
+        );
+      const current = await readAdmittedCoverageMapping(scope, {
+        assetId: ref.assetId,
+        assetRevision: ref.assetRevision,
+      });
+      if (
+        current.kind !== 'mapped' ||
+        current.head.authority.headRevision !== ref.headRevision ||
+        current.head.authority.mappingSha256 !== ref.mappingSha256
+      )
+        return false;
+    }
+    return true;
+  };
+}
+
+/** The check every apply path makes: the authorities are current and stay so until the transaction ends. */
+export const lockCurrentCoverageAuthorities = makeCurrentCoverageAuthorityCheck(true);
+
+/**
+ * The same recheck without the row locks, for a read-only dry run (#674): PostgreSQL refuses a row lock
+ * in a READ ONLY transaction, and a dry run applies nothing the locks would protect. Never use it before a write.
+ */
+export const readCurrentCoverageAuthorities = makeCurrentCoverageAuthorityCheck(false);

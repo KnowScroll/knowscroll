@@ -169,6 +169,25 @@ resort) and place relative to the source (analytics) each falls under. It
 names no person, session, asset, title or text, calls no model and writes nothing. It needs only `KS_WORLD` and
 `DATABASE_URL`; exit 2 on bad usage. See the Composer README, "Policy replay".
 
+`node dist/operator.js geography dry-run --universe <uuid>` and `planner dry-run --universe <uuid>` (`src/dry-run-operator.ts`,
+`src/dry-run-wiring.ts`, #674, D-411) say what one Cartographer or Planner run would do for one universe now, without doing it:
+READ ONLY, always rolled back, no model, no job. Their ports are built from this worker's own providers (`jobWiring`, through a
+small resolver that builds only what they reach) with three differences, each on purpose: the personal scope is the read-only one
+(`makeWithDryRunPersonalScope`), enqueueing is refused, and the content authority recheck is the lock-free one. Each prints one JSON
+line of counts and codes only (never a label, title, topic, unit, reference, universe or account), so it is safe to paste into a
+public issue. They need `KS_WORLD` and `DATABASE_URL`, and `KS_CARTOGRAPHER_ENABLED` / `KS_PLANNER_ENABLED` to report whether a real
+run would be switched off. Exit 0 read, 2 refused (usage, unknown or suspended universe), 1 failure. See the Operator README, "Dry
+runs", and the runbook `docs/v2/operations/looking-at-the-system.md`. Status: implemented; covered by `src/dry-run-wiring.test.ts` and
+`tests/integration/release/dry-run-operator.test.ts`.
+
+The `operator.watchdog` consumer (D-411) runs every hour (cron `7 * * * *`): the code-only health rules over `ops.watchdog` (dead-lettered
+jobs per queue, the same failure code repeating, a Planner or Geography run held `queued` or `prepared`, a universe whose Cartographer
+keeps settling the same unhealthy `insufficient` outcome while it has coverage references, a `composer-policy.v2` vertical decision whose first offer was met
+while an eligible candidate was not, and old `unknown` model attempts). Each rule that fires logs `watchdog.alert` (warn) with `reasonCode`,
+`count`, `windowSeconds` and a queue, module or outcome code where it applies; a rule whose read fails logs `watchdog.rule_skipped`. It
+reads only, repairs nothing, names no person and calls no model. The thresholds are one object (`WATCHDOG_THRESHOLDS`, Operator
+module). Status: implemented; covered by `tests/integration/modules/watchdog.test.ts`; not yet runtime-verified on dev.
+
 `node dist/operator.js rooms seed [--dry-run]` (`src/rooms-operator.ts`, D-051) creates one idea room for each
 library system and leaves rooms that exist as they are; `rooms moderator --room <slug> --account <uuid> [--remove]`
 names an account with a claimed profile a moderator of a room, or takes the role back from a current member. Both write room rows only: no member, no message,

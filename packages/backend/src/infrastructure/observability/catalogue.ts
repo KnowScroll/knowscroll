@@ -39,6 +39,8 @@ export interface FieldTypes {
   queue: string;
   retryCount: number;
   count: number;
+  /** The period a count was taken over or an age was measured against, in seconds. */
+  windowSeconds: number;
   revision: number;
   migration: string;
   signal: string;
@@ -282,6 +284,15 @@ export const diagnosticCatalogue = {
   // Operator reads (D-044): who may look is checked on the server for every call. Counts and codes only.
   'operator.read': { severity: 'info', module: 'operator', fields: ['route', 'outcome', 'count'] },
   'operator.refused': { severity: 'warn', module: 'operator', fields: ['route', 'reasonCode'] },
+  // The hourly watchdog (D-411): a health rule fired. A rule code, a count, the window it counted over and, where it
+  // applies, a queue, a module or an outcome code. Never an ID of a person or a record, and nothing is repaired.
+  'watchdog.alert': {
+    severity: 'warn',
+    module: 'operator',
+    fields: ['reasonCode', 'count', 'windowSeconds', 'queue', 'context', 'outcome'],
+  },
+  // A watchdog rule could not be read (the view is missing or the read timed out); the other rules still ran.
+  'watchdog.rule_skipped': { severity: 'warn', module: 'operator', fields: ['reasonCode'] },
 } as const satisfies Record<string, EventSpec>;
 
 export type DiagnosticEvent = keyof typeof diagnosticCatalogue;

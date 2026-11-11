@@ -18,6 +18,8 @@ import {
   type Place,
   type Support,
 } from '../domain/policy.js';
+/** What freezing a context needs of the geography ports: reads, the clock and ids, never a write or a wake. */
+export type PreparationPorts = Pick<GeographyPorts, 'store' | 'readInputs' | 'readTrusted' | 'hash' | 'newId' | 'now'>;
 const label = (id: string) => {
   const value = id.split('.').at(-1)!.replaceAll('-', ' ');
   return value[0]!.toUpperCase() + value.slice(1);
@@ -57,7 +59,7 @@ const catalogueSlice = (topicIds: ReadonlySet<string>): Concept[] =>
  * context being re-checked at apply), else a new one.
  */
 function candidates(
-  p: GeographyPorts,
+  p: PreparationPorts,
   objects: readonly Place[],
   supports: readonly Support[],
   topicIds: ReadonlySet<string>,
@@ -144,7 +146,7 @@ type BatchRead =
  * probe always fits: the read returns one witness per support key, never one per re-read.
  */
 async function readBatch(
-  p: GeographyPorts,
+  p: PreparationPorts,
   scope: PersonalScopeTx,
   probes: TrustedCoverageQuery['probes'],
 ): Promise<BatchRead> {
@@ -175,7 +177,7 @@ async function readBatch(
  * unavailable, as does a read in which nothing was observed (`no_trusted_support`).
  */
 async function readTrustedInBatches(
-  p: GeographyPorts,
+  p: PreparationPorts,
   scope: PersonalScopeTx,
   probes: TrustedCoverageQuery['probes'],
 ): Promise<
@@ -203,7 +205,7 @@ async function readTrustedInBatches(
 }
 
 /** Each trusted support with the witnesses and certificates that prove it, checked against the catalogue and truth. */
-function supportEntries(p: GeographyPorts, coverage: Coverage): CoverageEntry[] {
+function supportEntries(p: PreparationPorts, coverage: Coverage): CoverageEntry[] {
   const entries: CoverageEntry[] = [];
   for (const s of coverage.supports) {
     const topic = TOPICS.get(s.topicId),
@@ -310,7 +312,7 @@ function coverageOf(coverage: Coverage, all: readonly CoverageEntry[], kept: rea
  * allocated.
  */
 export async function prepareGeography(
-  p: GeographyPorts,
+  p: PreparationPorts,
   cap: RecordingScopeTx,
   view: GeographyView,
   previous?: GeographyContext,
@@ -359,5 +361,5 @@ export async function prepareGeography(
     routeIds: routeIdentities(facts, previous?.routeIds, p.newId),
   };
   if (new TextEncoder().encode(JSON.stringify(context)).byteLength > 500000) return refused('context_too_large');
-  return { kind: 'prepared', context };
+  return { kind: 'prepared', context, supportKeys: all.length };
 }

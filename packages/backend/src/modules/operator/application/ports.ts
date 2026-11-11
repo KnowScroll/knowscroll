@@ -1,4 +1,5 @@
 import type { JourneyEvent, RelatedKeys } from '../domain/journey.js';
+import type { WatchdogGroup, WatchdogQuery } from '../domain/watchdog.js';
 import type {
   CartographerSummary,
   ErrorRow,
@@ -41,4 +42,10 @@ export interface PanelStore {
   privacy(limit: number): Promise<Piece<PrivacySummary>>;
   reports(limit: number): Promise<Piece<ReportsSummary>>;
   roomCalls(limit: number): Promise<Piece<RoomCallsSummary>>;
+}
+
+/** Reads `ops.watchdog`, one bounded read-only query per rule. It changes nothing. */
+export interface WatchdogStore {
+  /** The groups of observations the query selects, largest first, at most 50. Fails when the view cannot be read. */
+  groups(query: WatchdogQuery): Promise<readonly WatchdogGroup[]>;
 }

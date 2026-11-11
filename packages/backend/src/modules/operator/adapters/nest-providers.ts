@@ -4,8 +4,10 @@ import { operatorAddressMatcher, type ReadAccountAddress } from '../../identity/
 import { makeIsOperator } from '../application/operator-access.js';
 import { makeReadJourney, type ReadJourney } from '../application/read-journey.js';
 import { makeReadOperatorPanels, type ReadOperatorPanels } from '../application/read-panels.js';
-import { IS_OPERATOR, READ_JOURNEY, READ_OPERATOR_PANELS } from '../public.js';
+import { IS_OPERATOR, READ_JOURNEY, READ_OPERATOR_PANELS, RUN_WATCHDOG } from '../public.js';
+import { makeRunWatchdog, type RunWatchdog } from '../application/run-watchdog.js';
 import { makeJourneyStore, makePanelStore } from './ops-store.js';
+import { makeWatchdogStore } from './watchdog-store.js';
 
 /** The journey use case over one database handle (framework-free; also used by the worker's operator command). */
 export function readJourneyFor(db: Kysely<Database>): ReadJourney {
@@ -49,6 +51,18 @@ export function operatorProviders(tokens: {
             return matches === undefined ? [] : [matches];
           }),
         }),
+    },
+  ];
+}
+
+/** The worker's hourly watchdog pass over `ops.watchdog` (D-411). Reads only. */
+export function watchdogProviders(tokens: { readonly database: symbol }) {
+  return [
+    {
+      provide: RUN_WATCHDOG,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>): RunWatchdog =>
+        makeRunWatchdog({ store: makeWatchdogStore(db), now: () => new Date() }),
     },
   ];
 }

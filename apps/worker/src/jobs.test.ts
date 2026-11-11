@@ -10,6 +10,7 @@ import {
   nightlyRitualsQueue,
   scoutHeartbeatQueue,
 } from '@knowscroll/backend/modules/rooms';
+import { RUN_WATCHDOG, watchdogQueue } from '@knowscroll/backend/modules/operator';
 import { jobWiring } from './jobs.js';
 import { WORKER_CONFIG } from './tokens.js';
 
@@ -97,6 +98,23 @@ describe('the scouts’ heartbeat (rooms.scout-heartbeat, v3 R-9, D-259)', () =>
   it('has its consumer built from the worker wiring', () => {
     const provided = jobWiring.filter(
       (provider) => typeof provider === 'object' && 'provide' in provider && provider.provide === RUN_SCOUT_HEARTBEAT,
+    );
+    expect(provided).toHaveLength(1);
+  });
+});
+
+describe('the hourly watchdog (operator.watchdog, #674, D-411)', () => {
+  it('is a declared release queue that runs every hour, with a payload of its version only', () => {
+    const declared = releaseQueues.find((queue) => queue.name === watchdogQueue.name);
+    expect(declared?.schedule).toEqual({ cron: '7 * * * *', payload: { v: 1 } });
+    expect(watchdogQueue.payload.safeParse({ v: 1 }).success).toBe(true);
+    // It names no person and no universe: it reads code-only observations.
+    expect(watchdogQueue.payload.safeParse({ v: 1, universeId: 'x' }).success).toBe(false);
+  });
+
+  it('has its consumer built from the worker wiring', () => {
+    const provided = jobWiring.filter(
+      (provider) => typeof provider === 'object' && 'provide' in provider && provider.provide === RUN_WATCHDOG,
     );
     expect(provided).toHaveLength(1);
   });

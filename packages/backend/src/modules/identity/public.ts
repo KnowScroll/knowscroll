@@ -77,6 +77,42 @@ export type WithPersonalScope = <T>(
   work: (scope: PersonalScopeTx) => Promise<T>,
 ) => Promise<ScopeOutcome<T>>;
 
+declare const dryRunScopeBrand: unique symbol;
+
+/**
+ * A `WithPersonalScope` whose transaction is READ ONLY and always rolls back (D-411). Only
+ * `makeWithDryRunPersonalScope` returns one (the one place that casts to it), so a function that takes this type is
+ * never handed an ordinary scope that can commit a write.
+ */
+export type WithDryRunPersonalScope = WithPersonalScope & { readonly [dryRunScopeBrand]: true };
+
+/**
+ * Runs `work` in the personal scope of `universeId` at its current privacy epoch, for a shell operator who names only the
+ * universe (D-411). The scope refuses a wrong epoch and says which one is current, so the first try claims epoch 1 and the
+ * second the epoch it was told. `work` runs at most once: a refusal runs nothing. The actor is a system purpose, so no account
+ * is named or checked. It accepts only a {@link WithDryRunPersonalScope}: naming a universe without an epoch is for read-only
+ * looks, never for a write.
+ *
+ * Authority: the same root lock and rechecks as any personal scope. A universe that is missing or suspended is refused as
+ * `withScope` refuses it.
+ */
+export async function withScopeAtCurrentEpoch<T>(
+  withScope: WithDryRunPersonalScope,
+  universeId: string,
+  purpose: string,
+  work: (scope: PersonalScopeTx) => Promise<T>,
+): Promise<ScopeOutcome<T>> {
+  const authority = (privacyEpoch: number): PersonalAuthority => ({
+    universeId,
+    privacyEpoch,
+    actor: { kind: 'system', purpose },
+  });
+  const first = await withScope(authority(1), work);
+  if (first.kind === 'refused' && first.refusal.kind === 'epoch_changed')
+    return withScope(authority(first.refusal.currentEpoch), work);
+  return first;
+}
+
 declare const rootResolutionBrand: unique symbol;
 
 /**

@@ -72,6 +72,11 @@ mapping keeps the policy `scroll-static-coverage.v1` so region bindings still re
 chosen by the revision's facts version, so v1 revisions are decided exactly as before, including by
 `content readmit-coverage`.
 
+`lockCurrentCoverageAuthorities` is the recheck every apply path makes: each named authority must still be the current mapping
+head, held under a `SHARE` lock until the transaction ends. `readCurrentCoverageAuthorities` (D-411) is the same recheck without
+the locks, for the read-only dry runs: PostgreSQL refuses a row lock in a READ ONLY transaction, and a dry run applies nothing
+they would protect. It must never run before a write.
+
 The rule is structural, not semantic. It says which blocks a reader must have seen for a facet to
 count, and cannot judge whether the prose teaches the facet. The recipe brief and the writer checks
 govern that. The mapping's basis is stored as `scroll-recipe-coverage.v1:<explanation unit>`.

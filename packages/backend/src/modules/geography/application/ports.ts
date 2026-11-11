@@ -138,7 +138,12 @@ export type PreparationRefusal =
   | 'structure_limit'
   | 'context_too_large';
 export type GeographyPreparation =
-  | { readonly kind: 'prepared'; readonly context: GeographyContext }
+  | {
+      readonly kind: 'prepared';
+      readonly context: GeographyContext;
+      /** Distinct supports the catalogue and truth checks accept, before compaction keeps some (the context holds the kept ones). */
+      readonly supportKeys: number;
+    }
   | { readonly kind: 'unavailable'; readonly reason: PreparationRefusal };
 export interface GeographyRunHeader {
   readonly recording?: { readonly accountId: string; readonly source: GeographySource };

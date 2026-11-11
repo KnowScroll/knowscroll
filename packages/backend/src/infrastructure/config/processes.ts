@@ -247,6 +247,17 @@ export interface WorkerOperatorConfig {
   readonly database: DatabaseSettings;
 }
 
+/**
+ * The dry-run operator commands' settings (`geography dry-run`, `planner dry-run`, D-411): the worker operator's world
+ * and database, plus the role switches a real run would meet, which the output reports.
+ */
+export interface DryRunOperatorConfig extends WorkerOperatorConfig {
+  readonly cartographerEnabled: boolean;
+  readonly plannerEnabled: boolean;
+  /** The longest a dry run waits for the personal root before it gives up. */
+  readonly scopeLockTimeoutMs: number;
+}
+
 export interface MigrateConfig {
   readonly world: string;
   readonly database: DatabaseSettings;
@@ -863,6 +874,30 @@ export function readWorkerOperatorConfig(env: Environment): WorkerOperatorConfig
     ),
   );
   return { world: parsed.KS_WORLD, database: databaseSettings(parsed, `knowscroll-operator-${parsed.KS_WORLD}`, 2) };
+}
+
+/**
+ * Dry-run command configuration: the worker operator's (`KS_WORLD`, `DATABASE_URL`, `KS_DB_STATEMENT_TIMEOUT_MS`) and the
+ * switches `KS_CARTOGRAPHER_ENABLED` (default 0) and `KS_PLANNER_ENABLED` (default 1 in `local`, else 0), read exactly as the
+ * worker reads them, so the report says what a real run would meet. Throws one `ConfigurationError` listing every problem.
+ */
+export function readDryRunOperatorConfig(env: Environment): DryRunOperatorConfig {
+  const base = readWorkerOperatorConfig(env);
+  const [parsed] = combineChecks(
+    checkEnvironment(
+      z.object({
+        KS_PLANNER_ENABLED: z.enum(['0', '1']).optional(),
+        KS_CARTOGRAPHER_ENABLED: z.enum(['0', '1']).default('0'),
+      }),
+      pick(env, ['KS_PLANNER_ENABLED', 'KS_CARTOGRAPHER_ENABLED']),
+    ),
+  );
+  return {
+    ...base,
+    cartographerEnabled: parsed.KS_CARTOGRAPHER_ENABLED === '1',
+    plannerEnabled: (parsed.KS_PLANNER_ENABLED ?? (base.world === 'local' ? '1' : '0')) === '1',
+    scopeLockTimeoutMs: 5_000,
+  };
 }
 
 /**

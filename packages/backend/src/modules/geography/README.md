@@ -337,6 +337,29 @@ not no reading. `loading` and `lagging` need a real queued or prepared run.
   apart. The shared reasoning budgets (60 requests and 600,000 tokens per person per UTC day) and the
   failure brake bound spend; a refused call applies the rules and closes its ledger run.
 
+## Dry run (#674, D-411)
+
+`geography dry-run --universe <uuid>` (worker operator command, `application/dry-run.ts`) says what a Cartographer run would do
+for one universe now, without doing it. It enters the personal scope the way a read does (the root lock), in a READ ONLY
+transaction that always rolls back, freezes the context the run freezes (`prepareGeography`: the same discovery, trusted read and
+compaction) and applies the same pure rules (`dueCreations`, `activityChanges`, `modelContextItems`). No model is called, no job is
+sent and no row changes. Its output is counts and codes only (`domain/dry-run.ts`, `shapeGeographyDryRun`).
+
+`wouldRecord` is the status and outcome the run's row would hold, in **the codes a real run records**, not a second vocabulary: the
+refusals above (`no_support_yet`, `no_trusted_support`, `discovery_limit`, `coverage_limit`, `coverage_authority_changed`,
+`structure_limit`, `context_too_large`), `disabled`, `no_changes`, `applied_by_rules` (activity alone) and
+`applied_by_rules_context_limit` (places are due but the context does not fit one model request, so the rules apply them with no
+call). Its `outcome` is `null` when a model call decides it (`applied`, `applied_with_rules` or `applied_by_rules`). `action` says what
+would happen: `calls_model`, `applies_rules`, `stops`, `recording_paused`, `not_runnable` or `would_fail` (a `GEOGRAPHY_*` fault).
+The rest are counts: places and routes, the keys discovery found, the witnesses the frozen context holds, distinct supports before
+compaction and how many it kept, what is due by kind and how many one delta applies, the activity changes and the context's bytes. Never
+a label, topic, unit or reference. Status: **implemented**; covered by `tests/integration/modules/geography-dry-run.test.ts`, which also
+runs it through the worker's own wiring.
+
+`geography.state`, runs, objects, deltas, personal revision and jobs are identical before and after; the report of a reader with
+one unit equals what the run then records (`insufficient/no_changes`), a reader with nothing read equals `insufficient/no_support_yet`,
+and a reader with places due names the same places the run forms.
+
 ## Erasure
 
 Full erasure deletes deltas, relations, objects, state and runs across all epochs, and the payloads of
@@ -375,7 +398,8 @@ references settles `no_support_yet` with no context and no trusted read, `no_tru
 `discovery_limit` are named, a frozen context holds slots only for the supported concepts, a reader with
 more than 1000 raw references on one key still forms, and a context too large for one model request
 still forms by the rules with no model call; `cartographer-churn.test.ts` adds that an answer in flight
-applies when reading has reached a concept the frozen context did not hold. Sources, maps and model
+applies when reading has reached a concept the frozen context did not hold. `domain/dry-run.test.ts` and
+`geography-dry-run.test.ts` cover the dry run. Sources, maps and model
 answers in tests are labelled CI fixtures. A local drive with a real sign-in, the release API and
 worker, three Scrolls from the production path and a real MiniMax call showed dust, then a system
 and star, then a planet (D-038). A timed local session (pg-boss consumers started as the worker

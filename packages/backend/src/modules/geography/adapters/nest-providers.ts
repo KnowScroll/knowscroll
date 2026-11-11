@@ -416,3 +416,6 @@ export function geographyContextHashes(c: GeographyContext, runId: string) {
 export { prepareGeography } from '../application/context.js';
 export { geographyStore } from './postgres-store.js';
 export type { GeographyPorts, CartographerPorts, GeographyContext } from '../application/ports.js';
+/** The shell operator's `geography dry-run`: what a run would do, read-only (D-411). */
+export { makeGeographyDryRun } from '../application/dry-run.js';
+export type { GeographyDryRun, GeographyDryRunPorts, GeographyDryRunResult } from '../application/dry-run.js';

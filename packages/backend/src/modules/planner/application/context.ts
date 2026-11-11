@@ -4,9 +4,15 @@ import { encounteredUnitsOf } from '../../personal-context/public.js';
 import { PLANNER_LIMITS, opportunityIssue } from '../domain/proposal.js';
 import type { FrozenContext, PlannerPorts, PlannerState } from './ports.js';
 
+/** What freezing a Planner context needs: reads, the clock and the hash, never a write or a wake. */
+export type ContextPorts = Pick<
+  PlannerPorts,
+  'store' | 'readSnapshot' | 'readRecentTopics' | 'readInventory' | 'capabilities' | 'hash' | 'now'
+>;
+
 /** No history reconstruction: union real plan/inventory/recent projection seeds under one cap. */
 export async function prepareContext(
-  p: PlannerPorts,
+  p: ContextPorts,
   scope: PersonalScopeTx,
   state: PlannerState,
 ): Promise<FrozenContext> {

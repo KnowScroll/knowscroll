@@ -293,6 +293,7 @@ export {
   makeReadAdmittedCoverageMapping,
   coverageHeadPorts,
   lockCurrentCoverageAuthorities,
+  readCurrentCoverageAuthorities,
 } from './coverage-store.js';
 /** The operator's `content readmit-coverage`; decides generated Scrolls' coverage again from the plan. */
 export { readmitCoverageUseCase } from './readmit-coverage.js';
