@@ -1154,6 +1154,7 @@ export interface OpsSupplyGaps {
   readers: number | null;
   reason: string | null;
   recipes: number | null;
+  rounds: number | null;
   status: string | null;
 }
 
@@ -2347,6 +2348,7 @@ export interface SupplyGaps {
   readers: Generated<number>;
   reason: string | null;
   recipes: Generated<string[]>;
+  rounds: Generated<number>;
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
 }

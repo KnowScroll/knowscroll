@@ -43,7 +43,7 @@ import {
 import type { WithPersonalScope } from '@knowscroll/backend/modules/identity';
 import { RECORD_GAP_SIGNALS } from '@knowscroll/backend/modules/supply';
 import { savedCursors } from '../http/saved-cursors.js';
-import { API_CONFIG, DATABASE, ENQUEUE_JOB, WITH_PERSONAL_SCOPE } from '../tokens.js';
+import { API_CONFIG, DATABASE, ENQUEUE_JOB, LOG_EVENT, WITH_PERSONAL_SCOPE } from '../tokens.js';
 
 /**
  * Experience wiring for the API composition root: which adapters implement experience's ports, and
@@ -88,7 +88,7 @@ export const experienceWiring: Provider[] = [
   ),
   ...notInterestedProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
   // A decision that shows content running out records it in the same transaction, for the gap loop (#674, D-414); off unless configured.
-  ...composerRecordingProviders({ isOperator: () => false }, API_CONFIG, RECORD_GAP_SIGNALS),
+  ...composerRecordingProviders({ isOperator: () => false }, API_CONFIG, RECORD_GAP_SIGNALS, LOG_EVENT),
   ...composerBufferProviders({ enqueueJob: ENQUEUE_JOB }),
   ...navigationProviders(
     { withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB },

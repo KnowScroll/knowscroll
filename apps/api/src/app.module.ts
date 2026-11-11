@@ -121,7 +121,12 @@ export class AppModule {
         ...feedbackWiring,
         ...playWiring,
         ...scenarioWiring,
-        ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB, config: API_CONFIG }),
+        ...supplyProviders({
+          withPersonalScope: WITH_PERSONAL_SCOPE,
+          enqueueJob: ENQUEUE_JOB,
+          config: API_CONFIG,
+          logEvent: LOG_EVENT,
+        }),
         // Quick answers: the API stores the ask and reads its state; a worker writes the answer (D-253).
         ...quickAnswerProviders({
           withPersonalScope: WITH_PERSONAL_SCOPE,

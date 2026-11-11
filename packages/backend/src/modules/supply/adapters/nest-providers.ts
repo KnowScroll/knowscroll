@@ -52,11 +52,13 @@ import {
   type ReadExplorationSnapshot,
 } from '../../personal-context/public.js';
 import {
+  CHECK_PERSONAL_ACCOUNT_DISPOSABLE,
   CHECK_PERSONAL_OWNER_ACTIVE,
   FENCE_OWN_ACCOUNT,
   FENCE_PERSONAL_RECORDING,
   type FenceOwnAccount,
   type FencePersonalRecording,
+  type CheckPersonalAccountDisposable,
   type CheckPersonalOwnerActive,
   type PersonalScopeTx,
   type WithPersonalScope,
@@ -94,9 +96,23 @@ import { quickAnswerStore } from './postgres-quick-answers.js';
 import { makeCheckSupplyRecordingRun } from '../application/check-recording-run.js';
 import { makeRecordGapSignals } from '../application/gap-signals.js';
 import { gapMarkStore } from './postgres-gaps.js';
+import { bestEffort } from '../../../infrastructure/postgres/best-effort.js';
+import type { LogEvent } from '../../../infrastructure/observability/index.js';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 export const SUPPLY_PORTS = Symbol('supply.ports');
+
+/**
+ * The recorder of the gap loop's counts as a best effort inside the caller's personal transaction: a savepoint and a short lock wait
+ * (`bestEffort`), so a failure rolls back only its own writes, is swallowed and logged by its code, and a row another transaction holds makes it
+ * give up instead of making the person wait.
+ */
+const guardedGapSignals =
+  (record: RecordGapSignals, logEvent: LogEvent | undefined): RecordGapSignals =>
+  async (scope, signals) => {
+    const outcome = await bestEffort(scope, () => record(scope, signals));
+    if (!outcome.ok) logEvent?.('supply.gap_signal_failed', { reasonCode: outcome.code });
+  };
 /** What Supply reads from a process's configuration (the API's and the worker's both carry it). */
 export interface SupplySettings {
   /** Productions people's own asks may start per UTC day; 0 turns Create off. */
@@ -161,6 +177,8 @@ export function supplyProviders(t: {
   readonly enqueueJob: symbol;
   readonly config: symbol;
   readonly recordingHarness?: symbol;
+  /** The token of the process's event log: a count for the gap loop that could not be recorded is logged by its code (D-414). */
+  readonly logEvent?: symbol;
 }) {
   return [
     {
@@ -183,6 +201,8 @@ export function supplyProviders(t: {
         RECORD_MADE_TO_ORDER_SCROLL,
         READ_MADE_TO_ORDER_PRODUCTION_IN,
         FENCE_PERSONAL_RECORDING,
+        CHECK_PERSONAL_ACCOUNT_DISPOSABLE,
+        ...(t.logEvent === undefined ? [] : [t.logEvent]),
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -202,6 +222,8 @@ export function supplyProviders(t: {
         recordOrder: RecordMadeToOrderScroll,
         readOrderProduction: ReadMadeToOrderProductionIn,
         fenceRecording: FencePersonalRecording,
+        accountDisposable: CheckPersonalAccountDisposable,
+        logEvent?: LogEvent,
       ): SupplyPorts => ({
         withScope,
         ownerActive,
@@ -214,11 +236,16 @@ export function supplyProviders(t: {
           planner: Math.min(settings.supplyPlannerCreateDailyCap, settings.supplyCreateDailyCap),
         },
         growthDailyCap: settings.supplyGrowthDailyCap ?? 0,
-        recordGapSignals: makeRecordGapSignals({
-          enabled: settings.supplyGrowthEnabled === true,
-          marks: gapMarkStore,
-          now: () => new Date(),
-        }),
+        // A count for the gap loop never fails or delays the ask or the demand that knew it: a savepoint, a short lock wait, the error logged by code.
+        recordGapSignals: guardedGapSignals(
+          makeRecordGapSignals({
+            enabled: settings.supplyGrowthEnabled === true,
+            marks: gapMarkStore,
+            isDisposable: accountDisposable,
+            now: () => new Date(),
+          }),
+          logEvent,
+        ),
         askCaps: { perDay: settings.supplyAskDailyCap, perPersonPerDay: settings.supplyAskPersonDailyCap },
         askLedger: askOrderLedger,
         plannedLedger: plannedDemandLedger,
@@ -324,10 +351,17 @@ export function supplyProviders(t: {
       useFactory: (p: SupplyPorts) => makeRecordPlannedDemand(p),
     },
     // The same recorder the ports hold, for a caller that knows where content runs out in its own transaction (the Composer's decision).
+    // It is not the guarded one: its caller guards it, as the Composer's persist port does, so nothing runs under two savepoints.
     {
       provide: RECORD_GAP_SIGNALS,
-      inject: [SUPPLY_PORTS],
-      useFactory: (p: SupplyPorts): RecordGapSignals => p.recordGapSignals ?? (() => Promise.resolve()),
+      inject: [t.config, CHECK_PERSONAL_ACCOUNT_DISPOSABLE],
+      useFactory: (settings: SupplySettings, accountDisposable: CheckPersonalAccountDisposable): RecordGapSignals =>
+        makeRecordGapSignals({
+          enabled: settings.supplyGrowthEnabled === true,
+          marks: gapMarkStore,
+          isDisposable: accountDisposable,
+          now: () => new Date(),
+        }),
     },
     {
       provide: COUNT_PLANNED_DEMAND,
@@ -388,7 +422,15 @@ export { expireStalePlannedDemand, type ExpiredPlannedDemand } from './expire-st
 export { makeScanGaps } from '../application/gap-scan.js';
 export { makeBriefGaps } from '../application/gap-brief.js';
 export { proposalOf } from '../application/gap-proposal.js';
-export { gapScanStore, gapBriefStore, readGapSummary, type GapSummary } from './postgres-gaps.js';
+export {
+  gapBriefLock,
+  gapBriefStore,
+  gapScanStore,
+  readGapSummary,
+  settleBlockedGap,
+  type GapSummary,
+  type SettleBlockedResult,
+} from './postgres-gaps.js';
 export { growthStore } from './postgres-growth.js';
 export type { SupplyPorts } from '../application/ports.js';
 

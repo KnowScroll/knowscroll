@@ -276,7 +276,8 @@ export type GapTransition =
   | { readonly kind: 'rejected'; readonly attempts: number; readonly reason: string }
   /** Nothing was sent and no retry could change it: the gap is rejected at once, and no attempt is spent or counted. */
   | { readonly kind: 'refused'; readonly reason: string }
-  | { readonly kind: 'blocked'; readonly reason: string }
+  /** An attempt of unknown outcome: the run it belongs to is kept so an operator can settle it in the ledger (`blockedVerdict`). */
+  | { readonly kind: 'blocked'; readonly reason: string; readonly runId?: string }
   | { readonly kind: 'keep'; readonly reason: string };
 
 /**
@@ -301,14 +302,19 @@ export function afterProposal(gap: { readonly attempts: number }, result: Propos
     case 'paused':
       return { kind: 'keep', reason: reasonCode(result.code) };
     case 'unknown':
-      return { kind: 'blocked', reason: reasonCode(result.code) };
+      return {
+        kind: 'blocked',
+        reason: reasonCode(result.code),
+        ...(result.runId === undefined ? {} : { runId: result.runId }),
+      };
   }
 }
 
 function failedAttempt(attempts: number, reason: string): GapTransition {
   const next = attempts + 1;
+  // A gap an operator reopened after a blocked attempt may already be at the bound: the count never passes it.
   return next >= MAX_GAP_ATTEMPTS
-    ? { kind: 'rejected', attempts: next, reason }
+    ? { kind: 'rejected', attempts: MAX_GAP_ATTEMPTS, reason }
     : { kind: 'failed', attempts: next, reason };
 }
 
@@ -355,17 +361,55 @@ export function mayReopen(
   return rule === 'cooldown' || newReaders > 0;
 }
 
-/** What a scan does with a commissioned gap, from where its recipes' production stands. */
-export type CommissionedOutcome = 'close' | 'reopen' | 'keep';
+/**
+ * What a scan does with a commissioned gap, from where its recipes' production stands. `rebrief`: a take was rejected and another may
+ * start, so the stored recipe is commissioned again with no model call. `reopen`: every recipe ended without a release.
+ */
+export type CommissionedOutcome = 'close' | 'rebrief' | 'reopen' | 'keep';
 
 /**
- * A commissioned gap closes when one of its recipes was released, goes back to `open` when every one of them ended without a
- * release (an operator rejected them, the takes ran out), and waits otherwise. A recipe the library no longer holds counts as ended.
+ * A commissioned gap closes when one of its recipes was released, and waits while one is running, produced and held for the operator's read,
+ * or queued to start. A recipe whose take was rejected (`retryable`) is **not** live: it will not move until it is commissioned again, so
+ * nothing waits on it. When no recipe is live and one is retryable the gap goes back to `briefed`, and the brief job commissions that stored
+ * recipe again under the growth cap with no model call; when every recipe ended for good (`stopped`, or no longer in the library) the gap
+ * goes back to `open` and the brief role is asked again. Both are failed production rounds, which the caller counts (`nextRound`).
  */
 export function settleCommissioned(states: readonly (RecipeFact['state'] | undefined)[]): CommissionedOutcome {
   if (states.some((state) => state === 'published')) return 'close';
-  if (states.every((state) => state === undefined || state === 'stopped')) return 'reopen';
-  return 'keep';
+  if (states.some((state) => state === 'running' || state === 'held' || state === 'not_started')) return 'keep';
+  return states.some((state) => state === 'retryable') ? 'rebrief' : 'reopen';
+}
+
+/**
+ * The circuit breaker: a failed production round is counted, and the gap is rejected (with the reason `production_rejected`) when the count
+ * reaches `maxRounds`, so a hole that nobody can fill, because every take is rejected, is not tried for ever.
+ */
+export function nextRound(rounds: number, maxRounds: number): { readonly rounds: number; readonly exhausted: boolean } {
+  const next = rounds + 1;
+  return { rounds: next, exhausted: next >= maxRounds };
+}
+
+/** What a blocked gap's settlement may do, from the gap and the ledger. */
+export type BlockedVerdict =
+  /** The gap is not blocked: there is nothing to settle. */
+  | 'not_blocked'
+  /** The gap names no run (it was blocked before the run was kept): the attempt cannot be found, so nothing is settled. */
+  | 'no_run'
+  /** An attempt of the run is still reserved, dispatched or unknown: the ledger has not settled it (reconciled or written off). */
+  | 'unsettled'
+  | 'ready';
+
+/**
+ * Whether an operator may reopen or close a blocked gap: only when the attempt that blocked it has been settled in the ledger, so a gap
+ * is never opened over a liability nobody has read. `unresolved` is how many attempts of its run are still reserved, dispatched or unknown.
+ */
+export function blockedVerdict(
+  gap: { readonly status: GapStatus; readonly runId?: string },
+  unresolved: number,
+): BlockedVerdict {
+  if (gap.status !== 'blocked_unknown') return 'not_blocked';
+  if (gap.runId === undefined) return 'no_run';
+  return unresolved > 0 ? 'unsettled' : 'ready';
 }
 
 /** The growth room left today: what the day's cap allows less the groups of stored recipes already started. */

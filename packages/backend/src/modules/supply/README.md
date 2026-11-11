@@ -330,18 +330,28 @@ budget, still held for the operator's read. Four parts, none of them a model exc
    thin, no empty facet, below the depth target `KS_SUPPLY_GAP_DEPTH_TARGET`, default 6) and `demand` (readers pointed to a planet or facet no structural
    rule covers). "Released" is an admitted asset with admitted coverage: a Scroll held for the operator's read counts for nothing. The key is the SHA-256 of
    kind, planet and facet and one gap may be open for a key (a partial unique index), so a scan never makes two. Status: `open`, `briefed`, `commissioned`,
-   `closed`, `rejected` (with a reason code) and `blocked_unknown`. Priority: structural severity times 100 plus a bounded log of the readers, then age.
+   `closed`, `rejected` (with a reason code) and `blocked_unknown`. `rounds` counts failed production rounds. Priority: structural severity times 100 plus a bounded log of the readers, then age.
 2. **Signals** (`application/gap-signals.ts`, `RECORD_GAP_SIGNALS`). Counts, written by code where the system already knows, in the person's own
    transaction: the Composer's decision that fell to the last resort or offered the last unseen explanation of its topic (see the Composer README); a
    planned demand or a person's ask that found no recipe left (`commissionSupply`, the cause `no_recipe_left`, never `cap_reached` or Create off), for the
    catalogue planet and facet of the brief and never the ask's words. A name the catalogue does not hold is dropped. Each signal is the person's own mark for
    the UTC day (`supply.gap_signal_marks`, `on conflict do nothing`: one for each planet and facet a day), so a reader counts once and the shared
-   counter holds no person; no shared row is locked, so a navigation never waits on another reader. Where the loop is off nothing is written.
+   counter holds no person; no shared row is locked, so a navigation never waits on another reader. Where the loop is off nothing is written, and **a
+   disposable test account never feeds shared supply**: the recorder asks Identity's public port (`CHECK_PERSONAL_ACCOUNT_DISPOSABLE`, the account's
+   `identity.email_addresses.disposable` flag) and writes no mark for one, from a Composer decision, a planned demand or an ask alike. Recording is a **best
+   effort** that can neither fail nor delay what knew it: it runs under a savepoint with a short lock wait (`infrastructure/postgres/best-effort.ts`), so an
+   error rolls back only its own writes and is swallowed (logged as `supply.gap_signal_failed` or `composer.gap_signal_failed` with the PostgreSQL error
+   code), a row another transaction holds makes it give up instead of waiting, and the mark store looks for the person's mark before it writes, so a mark the scan
+   is counting is read as committed, never waited on.
 3. **The scheduled scan** (`supply.scan-gaps`, every fifteen minutes, `application/gap-scan.ts`, SQL only). Under one advisory lock (a second scan does not
    run) it counts new marks into `supply.gap_signals`, reads what the library can serve (Content's `readReleasedCoverage`), finds the structural holes,
    merges the counted signals (a signal joins the hole of its own planet and facet, else of its whole planet, else opens a `demand` gap) and makes the table
-   say the same. A gap whose hole is gone closes as `filled`; a commissioned gap whose recipe was released closes as `released`, and one whose recipes all
-   ended without a release goes back to `open`; closing is settled before opening, so a hole that remains gets a fresh gap in the same scan. A key rejected
+   say the same. A gap whose hole is gone closes as `filled`; a commissioned gap whose recipe was released closes as `released`; closing is settled before
+   opening, so a hole that remains gets a fresh gap in the same scan. A rejected take is not a recipe on its way: a recipe that may be taken again
+   (`retryable`) is not live, so a commissioned gap with no recipe running, held for a read or queued goes back to `briefed` with its stored recipe, and the
+   brief job commissions that recipe again under the growth cap with no model call; when every recipe ended for good it goes back to `open` and the brief
+   role is asked again. Each of these is a **failed production round**, counted on the gap (`rounds`), and at `KS_SUPPLY_GAP_MAX_ROUNDS` (default 3) the
+   gap is rejected as `production_rejected` instead of being tried again: the circuit breaker, so a hole nobody can fill is not tried for ever. A key rejected
    before opens again only when its reason allows and a seven-day cooldown has passed (a reason on the model's side needs readers since; a planet that held no
    page is looked at again, since an operator may have produced its first recipe; a name the catalogue lacks never reopens). It also deletes marks older than
    three days, counters older than thirty and ended gaps older than ninety, in bounded batches.
@@ -366,9 +376,17 @@ budget, still held for the operator's read. Four parts, none of them a model exc
    that UTC day whoever started them: a person's ask and the Planner's demand are never reduced by it. Every Scroll made is held by the review gate.
 
    The operator reads it with `supply gaps [--status open|briefed|commissioned|closed|rejected|blocked_unknown]` (counts by status and kind, then the gaps,
-   most pressing first: planet, facet, priority, readers, attempts, reason code) and `ops.supply_gaps`: codes, catalogue ids and counts, no recipe text. A
-   `blocked_unknown` gap stays blocked while its hole remains (the scan closes it once the hole fills): write off the unknown attempt (`reasoning write-off`)
-   as for any other run; that settles the ledger's liability and does not reopen the gap.
+   most pressing first: planet, facet, priority, readers, attempts, rounds, reason code) and `ops.supply_gaps`: codes, catalogue ids and counts, no recipe text.
+   A `blocked_unknown` gap keeps the run of its unknown attempt. It stays blocked while its hole remains (the scan closes it once the hole fills): write off the
+   unknown attempt (`reasoning write-off`) as for any other run, then decide with `supply gaps settle --key <hex> [--reopen | --close]` (the key is the gap's
+   64-character key). The command acts **only after the ledger has settled the attempt** (no attempt of the gap's run is still reserved, dispatched or unknown)
+   and refuses, saying why, for a gap that is not blocked, names no run, or whose attempt is not settled; with neither flag it only says whether the ledger is
+   settled. `--reopen` makes the gap `open` again and counts the blocked attempt as a failed one, so the next request has an identity of its own and is never the
+   blocked one; `--close` ends it. No model and no provider.
+
+   **Two passes never overlap.** The brief pass holds a session advisory lock (`supply.brief-gap`, `pg_try_advisory_lock` on one dedicated connection: no
+   transaction is open across a model call) for its whole run; a second pass finds it held and returns `busy` without reading or asking anything, and a crash
+   frees it with its connection.
 
    **Demand is never evidence.** Nothing that ranks, plans, remembers or forms places reads the gaps or the counters (`gap-wall.test.ts`: only Supply, the
    generated database types and the operator's view list may name a gap table). Not here: a support check and release without an operator (slices 3.2 and

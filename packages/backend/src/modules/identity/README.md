@@ -533,3 +533,11 @@ removes it from the row in the same transaction, and only for an account that is
 method, HEAD included, answers 405 and spends nothing, so a link prefetcher cannot use up the one download. Clear removes
 the person's exports (an export is a copy of the history Clear removes). Readable HTML is not built: one JSON
 file is the portable format.
+
+## Whether an account is a disposable test account (#674, D-414)
+
+`CHECK_PERSONAL_ACCOUNT_DISPOSABLE` (`CheckPersonalAccountDisposable`, `adapters/scope-owner.ts`, bound by `identityScopeOwnerProviders`) answers, inside an
+already locked personal root, whether the account behind it signs in with an address that matches the world's operator pattern and was never proved by a
+mailed link (`identity.email_addresses.disposable`, see "Operator sign-in" above). It is a plain read: no lock, and an account with no address is not
+disposable. Supply uses it so that a test account never feeds shared supply: no gap signal is recorded for what such an account reads or asks. Nothing in
+Identity changes; the owner rule from the canary review is enforced by the module that would otherwise count the reader.

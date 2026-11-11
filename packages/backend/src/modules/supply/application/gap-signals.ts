@@ -1,4 +1,5 @@
 import { CONCEPTS } from '../../content/public.js';
+import type { CheckPersonalAccountDisposable } from '../../identity/public.js';
 import { gapIdentity, isCatalogueTarget, type CatalogueTopic } from '../domain/gaps.js';
 import type { GapMarkStore, GapSignalInput, RecordGapSignals } from './gap-ports.js';
 
@@ -44,6 +45,8 @@ export interface RecordGapSignalsPorts {
   /** `KS_SUPPLY_GROWTH_ENABLED`: off, and nothing is recorded. */
   readonly enabled: boolean;
   readonly marks: GapMarkStore;
+  /** Whether the person's account is a disposable test account: such an account never feeds shared supply (identity's public port). */
+  readonly isDisposable: CheckPersonalAccountDisposable;
   readonly now: () => Date;
   /** Defaults to the library's catalogue. */
   readonly catalogue?: readonly CatalogueTopic[];
@@ -54,13 +57,15 @@ export interface RecordGapSignalsPorts {
  * the last explanation of a topic, a planned demand or an ask that found no recipe left. Each is the person's own mark for the UTC day
  * (`supply.gap_signal_marks`, at most one for each planet and facet a day) inside the transaction that already knows it. It locks no
  * shared row: the scan counts the marks into `supply.gap_signals` later. Counts only: never the ask's words, never a title.
- * Where the loop is off it writes nothing.
+ * Where the loop is off, or the account is a disposable test account, it writes nothing.
  */
 export function makeRecordGapSignals(ports: RecordGapSignalsPorts): RecordGapSignals {
   return async (scope, signals) => {
     if (!ports.enabled || signals.length === 0) return;
     const kept = recordableSignals(ports.catalogue ?? catalogueTopics(), signals);
     if (kept.length === 0) return;
+    // A disposable test account's reading is never shared supply's business: no mark, so no counter, no gap and no recipe.
+    if (await ports.isDisposable(scope)) return;
     await ports.marks.mark(scope, utcDay(ports.now()), kept);
   };
 }

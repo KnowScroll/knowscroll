@@ -12,13 +12,17 @@
 --    gone), `rejected` (two failed attempts, or a refusal that no retry can change; `reason` says which), `blocked_unknown` (a
 --    proposing attempt whose outcome is unknown: it is never resent, an operator settles it). `priority` is structural severity
 --    times 100 plus a bounded log of the readers, so severity always comes first and age (`first_seen_at`) breaks ties.
---    `attempts` counts failed proposing attempts (at most two); `attempt_day` pins the UTC day of the attempt in flight so a
+--    `attempts` counts failed proposing attempts (at most two); `rounds` counts failed production rounds (a commissioned gap whose
+--    take an operator rejected, or whose recipes all ended without a release, goes back to `briefed` or `open` and a round is
+--    counted; the scan rejects the gap at a bound read from one configuration value, `KS_SUPPLY_GAP_MAX_ROUNDS`, so a hole nobody
+--    can fill is never tried for ever); `attempt_day` pins the UTC day of the attempt in flight so a
 --    redelivery after midnight is the same request, and is cleared when the attempt ends; `proposal_run_id` and `recipes`
 --    (at most three keys) say what the last proposal stored.
 --    Query shapes: the actionable gaps in priority order (partial index), the open row of a key (the unique index), the latest
 --    rejected row of a key (the reopen check), proposing attempts since the start of a UTC day, and the operator's list.
 --    Locking: a row is written by the scan (inside one advisory lock, so one scan runs at a time) and by the brief job one gap
---    at a time under that row's own lock. Growth: at most one open row per planet and facet of the catalogue, and a few
+--    at a time under that row's own lock; the brief pass holds a session advisory lock for its whole run (never a transaction
+--    across a model call), so two overlapping passes cannot run. Growth: at most one open row per planet and facet of the catalogue, and a few
 --    closed ones; closed and rejected rows are deleted after 90 days by the scan, in bounded batches. Erasure: shared, nothing
 --    personal; survives Clear and account deletion.
 -- 2. `supply.gap_signals`: a daily counter of the distinct readers who were near the end of a planet or facet, who found no
@@ -30,7 +34,8 @@
 --    person in the counter. The personal transaction that knows the signal writes its mark (its own row, no shared row is
 --    locked, so no reader waits on another) and `on conflict do nothing`: the second signal of the day for the same gap is no
 --    row. The scan then counts the new marks into `supply.gap_signals` and marks them `counted`; a mark older than three days
---    is deleted by the scan. Personal: erased with the person (full erasure and Clear), not exported (derived bookkeeping of at
+--    is deleted by the scan. A disposable test account never writes a mark (the recorder checks the account's disposable flag), so test
+--    accounts never feed shared supply. Personal: erased with the person (full erasure and Clear), not exported (derived bookkeeping of at
 --    most three days, no words). Growth: at most one row per person, gap and day, three days kept.
 -- 4. `ops.supply_gaps`: the operator's reviewed view of the gaps: codes, counts and catalogue ids, no recipe text.
 -- 5. `supply.work.commissioned_by` gains `growth`: the loop commissions production through the same group row, so the growth cap
@@ -53,6 +58,7 @@ create table supply.gaps (
   readers integer not null default 0,
   status text not null default 'open',
   attempts integer not null default 0,
+  rounds integer not null default 0,
   reason text,
   attempt_day date,
   last_attempt_at timestamptz,
@@ -79,6 +85,7 @@ create table supply.gaps (
   constraint gaps_status_check
     check (status in ('open', 'briefed', 'commissioned', 'closed', 'rejected', 'blocked_unknown')),
   constraint gaps_attempts_check check (attempts between 0 and 2),
+  constraint gaps_rounds_check check (rounds between 0 and 100),
   constraint gaps_reason_check check (reason is null or reason ~ '^[a-z][a-z0-9_]{0,47}$'),
   constraint gaps_recipes_check check (cardinality(recipes) <= 3),
   -- A rejected gap says why, and only an ended gap has an end.
@@ -156,6 +163,7 @@ select
   priority,
   readers,
   attempts,
+  rounds,
   ops.safe_code(reason) as reason,
   cardinality(recipes) as recipes,
   first_seen_at,

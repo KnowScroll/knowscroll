@@ -28,6 +28,7 @@ function gapRow(over: Partial<GapRow> & { id: string; planet: string }): GapRow 
     priority: 500,
     readers: 0,
     attempts: 0,
+    rounds: 0,
     recipes: [],
     firstSeenAt: now,
     ...over,
@@ -50,8 +51,11 @@ function world(options: {
   activeWork?: Record<string, { id: string; recipe?: string }>;
   /** Runs when a proposal is asked for: the recipes it stores appear in the book. */
   onPropose?: () => void;
+  /** Another pass holds the lock. */
+  busy?: boolean;
 }) {
   const events: string[] = [];
+  const locks: string[] = [];
   const gaps = options.gaps;
   const proposals = [...(options.proposals ?? [])];
   let started = options.startedToday ?? 0;
@@ -76,6 +80,12 @@ function world(options: {
   };
   const ports: GapBriefPorts = {
     enabled: options.enabled ?? true,
+    lock: {
+      exclusively: (work) => {
+        locks.push('asked');
+        return options.busy ? Promise.resolve(undefined) : work();
+      },
+    },
     growthDailyCap: options.cap ?? 10,
     store: {
       actionable: () => Promise.resolve(gaps.filter((gap) => ['open', 'briefed'].includes(gap.status))),
@@ -126,7 +136,7 @@ function world(options: {
     now: () => now,
     newId: () => 'group-id',
   };
-  return { ports, run: () => makeBriefGaps(ports)(new AbortController().signal), events, gaps, requests };
+  return { locks, ports, run: () => makeBriefGaps(ports)(new AbortController().signal), events, gaps, requests };
 }
 
 const chooseFirst = (recipes: Record<string, string>) => (brief: { topicId: string; facetId?: string }) => {
@@ -141,6 +151,43 @@ describe('the brief pass spends nothing it was not allowed to', () => {
     const zero = world({ gaps: [gapRow({ id: 'a', planet: 'p1' })], cap: 0 });
     expect(await zero.run()).toEqual({ kind: 'disabled' });
     expect([...off.events, ...zero.events]).toEqual([]);
+  });
+
+  it('runs one pass at a time: it does nothing, and asks no model, while another pass holds the lock', async () => {
+    const w = world({
+      gaps: [gapRow({ id: 'a', planet: 'p1' })],
+      proposals: [{ kind: 'recipes', keys: ['gen-new'] }],
+      busy: true,
+    });
+    expect(await w.run()).toEqual({ kind: 'busy' });
+    expect(w.events).toEqual([]);
+    const free = world({ gaps: [gapRow({ id: 'a', planet: 'p1' })] });
+    expect(await free.run()).toMatchObject({ kind: 'done' });
+    expect(free.locks).toEqual(['asked']);
+    // A pass that is switched off never takes the lock.
+    const off = world({ gaps: [], enabled: false });
+    await off.run();
+    expect(off.locks).toEqual([]);
+  });
+
+  it('commissions a stored recipe whose take was rejected again, under the cap, with no model call', async () => {
+    const w = world({
+      gaps: [gapRow({ id: 'a', planet: 'p1', status: 'briefed', recipes: ['gen-a'] })],
+      recipes: { p1: [stored('gen-a', 'p1.f1', 'retryable', 2)] },
+      choose: chooseFirst({ 'p1|p1.f1': 'gen-a' }),
+    });
+    expect(await w.run()).toMatchObject({ proposed: 0, commissioned: 1 });
+    expect(w.events).toEqual(['group p1|p1.f1 gen-a', 'send gen-a 1', 'commission a gen-a']);
+    // The cap still decides: with it used up nothing is commissioned and the gap stays briefed.
+    const used = world({
+      gaps: [gapRow({ id: 'a', planet: 'p1', status: 'briefed', recipes: ['gen-a'] })],
+      recipes: { p1: [stored('gen-a', 'p1.f1', 'retryable', 2)] },
+      cap: 2,
+      startedToday: 2,
+      choose: chooseFirst({ 'p1|p1.f1': 'gen-a' }),
+    });
+    expect(await used.run()).toMatchObject({ proposed: 0, commissioned: 0 });
+    expect(used.gaps[0]!.status).toBe('briefed');
   });
 
   it('notes a hole that is already being filled as commissioned and asks no model', async () => {

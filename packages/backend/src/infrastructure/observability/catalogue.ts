@@ -277,6 +277,9 @@ export const diagnosticCatalogue = {
   // proposing attempts it made). Counts and codes only: no planet, no recipe, no text.
   'supply.gaps_scanned': { severity: 'info', module: 'supply', fields: ['outcome', 'count'] },
   'supply.gaps_briefed': { severity: 'info', module: 'supply', fields: ['outcome', 'count'] },
+  // A count for the gap loop could not be recorded (the PostgreSQL error code, or `error`); the navigation or the ask that knew it went on without it.
+  'supply.gap_signal_failed': { severity: 'warn', module: 'supply', fields: ['reasonCode'] },
+  'composer.gap_signal_failed': { severity: 'warn', module: 'composer', fields: ['reasonCode'] },
   'reasoning.purge_failed': { severity: 'warn', module: 'reasoning', fields: ['error'] },
   // A refused production answer could not be kept for diagnosis; the attempt's outcome is unchanged.
   'reasoning.rejected_answer_not_recorded': { severity: 'warn', module: 'reasoning', fields: ['attemptId', 'error'] },

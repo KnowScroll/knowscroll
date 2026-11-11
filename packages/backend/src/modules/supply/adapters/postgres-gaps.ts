@@ -2,8 +2,19 @@ import { createHash } from 'node:crypto';
 import { sql, type Kysely, type Transaction } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf, withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
-import { gapIdentity, type GapKind, type GapStatus, type GapTarget, type GapTransition } from '../domain/gaps.js';
+import { withSessionLock } from '../../../infrastructure/postgres/session-lock.js';
+import {
+  MAX_GAP_ATTEMPTS,
+  blockedVerdict,
+  gapIdentity,
+  type BlockedVerdict,
+  type GapKind,
+  type GapStatus,
+  type GapTarget,
+  type GapTransition,
+} from '../domain/gaps.js';
 import type {
+  GapBriefLock,
   GapBriefStore,
   GapMarkStore,
   GapRow,
@@ -37,11 +48,19 @@ const dayOf = (when: Date, minusDays = 0): string =>
 export const gapMarkStore: GapMarkStore = {
   async mark(scope, day, signals) {
     const trx = transactionOf(scope);
-    for (const signal of signals)
+    for (const signal of signals) {
+      const key = gapKeyOf('demand', signal);
+      // Look before writing: a mark that exists is read as it was committed, however the scan is updating it, so the person never waits on a
+      // row the scan holds. Another transaction of the same person cannot be writing it: they are serialised by the personal root.
+      const seen = await sql`select 1 from supply.gap_signal_marks
+        where universe_id = ${scope.authority.universeId}::uuid and privacy_epoch = ${scope.authority.privacyEpoch}
+          and day = ${day}::date and key = ${key}`.execute(trx);
+      if (seen.rows.length > 0) continue;
       await sql`insert into supply.gap_signal_marks (universe_id, privacy_epoch, day, key, source, planet, facet)
         values (${scope.authority.universeId}::uuid, ${scope.authority.privacyEpoch}, ${day}::date,
-          ${gapKeyOf('demand', signal)}, ${signal.source}, ${signal.planet}, ${signal.facet ?? null})
+          ${key}, ${signal.source}, ${signal.planet}, ${signal.facet ?? null})
         on conflict do nothing`.execute(trx);
+    }
   },
 };
 
@@ -54,13 +73,14 @@ interface GapDbRow {
   readonly priority: number;
   readonly readers: number;
   readonly attempts: number;
+  readonly rounds: number;
   readonly attempt_day: string | null;
   readonly recipes: string[];
   readonly first_seen_at: Date;
 }
 
 const GAP_COLUMNS = sql.raw(
-  `id, kind, planet, facet, status, priority, readers, attempts, to_char(attempt_day, 'YYYY-MM-DD') as attempt_day, recipes, first_seen_at`,
+  `id, kind, planet, facet, status, priority, readers, attempts, rounds, to_char(attempt_day, 'YYYY-MM-DD') as attempt_day, recipes, first_seen_at`,
 );
 
 const gapOf = (row: GapDbRow): GapRow => ({
@@ -72,6 +92,7 @@ const gapOf = (row: GapDbRow): GapRow => ({
   priority: row.priority,
   readers: row.readers,
   attempts: row.attempts,
+  rounds: row.rounds,
   ...(row.attempt_day === null ? {} : { attemptDay: row.attempt_day }),
   recipes: row.recipes,
   firstSeenAt: row.first_seen_at,
@@ -173,9 +194,15 @@ function scanTx(trx: Transaction<Database>): GapScanTx {
       await sql`update supply.gaps set status = 'closed', reason = ${reason}, closed_at = ${now}, attempt_day = null, updated_at = ${now}
         where id = ${id}::uuid and status not in ('closed', 'rejected')`.execute(trx);
     },
-    async reopenGap(id, now) {
-      await sql`update supply.gaps set status = 'open', recipes = '{}', proposal_run_id = null, commissioned_at = null,
-          reason = 'recipes_ended', attempt_day = null, updated_at = ${now}
+    async endRound(id, to, rounds, now) {
+      // A failed production round: `open` forgets the recipes (every one ended); `briefed` keeps what is stored to be commissioned again.
+      await sql`update supply.gaps set status = ${to}, rounds = ${rounds}, recipes = case when ${to} = 'open' then '{}' else recipes end,
+          proposal_run_id = case when ${to} = 'open' then null else proposal_run_id end, commissioned_at = null,
+          reason = ${to === 'open' ? 'recipes_ended' : 'take_rejected'}, attempt_day = null, updated_at = ${now}
+        where id = ${id}::uuid and status = 'commissioned'`.execute(trx);
+    },
+    async rejectGap(id, reason, rounds, now) {
+      await sql`update supply.gaps set status = 'rejected', rounds = ${rounds}, reason = ${reason}, closed_at = ${now}, attempt_day = null, updated_at = ${now}
         where id = ${id}::uuid and status = 'commissioned'`.execute(trx);
     },
   };
@@ -193,6 +220,15 @@ export const gapScanStore = (db: Kysely<Database>): GapScanStore => ({
       );
       return rows[0]?.locked === true ? work(scanTx(trx)) : undefined;
     }),
+});
+
+/**
+ * Keeps two passes of the brief job from overlapping, with a session advisory lock on one dedicated connection (`withSessionLock`): the pass runs
+ * while this process holds it, a second pass finds it held and does nothing, and a crash releases it with the connection. No transaction is open
+ * across the pass (a model call never holds one); the pass does its own work on the pool.
+ */
+export const gapBriefLock = (db: Kysely<Database>): GapBriefLock => ({
+  exclusively: (work) => withSessionLock(db, 'supply.brief-gap', work),
 });
 
 /** The brief job's store: each call is one short statement or transaction on its own gap row. */
@@ -243,7 +279,8 @@ export const gapBriefStore = (db: Kysely<Database>): GapBriefStore => ({
           where id = ${id}::uuid and status in ('open', 'briefed')`.execute(db);
         return;
       case 'blocked':
-        await sql`update supply.gaps set status = 'blocked_unknown', reason = ${transition.reason}, updated_at = ${now}
+        await sql`update supply.gaps set status = 'blocked_unknown', reason = ${transition.reason},
+            proposal_run_id = ${transition.runId ?? null}::uuid, updated_at = ${now}
           where id = ${id}::uuid and status in ('open', 'briefed')`.execute(db);
         return;
       case 'keep':
@@ -329,4 +366,62 @@ export async function readGapSummary(
     })),
     more: rows.rows.length > GAP_LIST_LIMIT,
   };
+}
+
+/** What an operator's settlement of a blocked gap came to. */
+export type SettleBlockedResult =
+  | { readonly kind: 'not_found' }
+  /** Refused: the gap is not blocked, names no run, or an attempt of its run is still reserved, dispatched or unknown in the ledger. */
+  | { readonly kind: 'refused'; readonly verdict: Exclude<BlockedVerdict, 'ready'>; readonly unresolved: number }
+  /** The ledger is settled; no action was asked for, so nothing changed. */
+  | { readonly kind: 'ready' }
+  | { readonly kind: 'reopened' | 'closed' };
+
+/**
+ * `supply gaps settle --key <hex> [--reopen|--close]` (#674, D-414): an operator's decision about a gap blocked by an attempt of unknown outcome.
+ * It acts only after that attempt has been settled in the ledger (no attempt of the gap's run is still reserved, dispatched or unknown: each was
+ * reconciled, written off or never sent), never before, and never for a gap that is not blocked or that names no run. `reopen` makes the gap
+ * `open` again and counts the blocked attempt as a failed one, so the next request has an identity of its own and is never the one that was
+ * blocked; `close` ends it. With no action it only says whether the ledger is settled. One short transaction under the gap's row lock; no model
+ * and no provider.
+ */
+export function settleBlockedGap(
+  db: Kysely<Database>,
+  input: { readonly key: string; readonly action?: 'reopen' | 'close' },
+  now: Date = new Date(),
+): Promise<SettleBlockedResult> {
+  return withTransaction(db, 'supply.settle-blocked-gap', async (trx) => {
+    const found = await sql<{
+      id: string;
+      status: string;
+      run: string | null;
+    }>`select id, status, proposal_run_id as run from supply.gaps
+      where key = ${input.key} and status not in ('closed', 'rejected') for update`.execute(trx);
+    const gap = found.rows[0];
+    if (gap === undefined) return { kind: 'not_found' } as const;
+    const unresolved =
+      gap.run === null
+        ? 0
+        : Number(
+            (
+              await sql<{ n: string }>`select count(*) as n from reasoning.production_attempts
+                where run_id = ${gap.run}::uuid and state in ('reserved', 'dispatched', 'unknown')`.execute(trx)
+            ).rows[0]?.n ?? 0,
+          );
+    const verdict = blockedVerdict(
+      { status: gap.status as GapStatus, ...(gap.run === null ? {} : { runId: gap.run }) },
+      unresolved,
+    );
+    if (verdict !== 'ready') return { kind: 'refused', verdict, unresolved } as const;
+    if (input.action === undefined) return { kind: 'ready' } as const;
+    if (input.action === 'close') {
+      await sql`update supply.gaps set status = 'closed', reason = 'settled_closed', closed_at = ${now}, attempt_day = null, updated_at = ${now}
+        where id = ${gap.id}::uuid`.execute(trx);
+      return { kind: 'closed' } as const;
+    }
+    await sql`update supply.gaps set status = 'open', attempts = least(attempts + 1, ${MAX_GAP_ATTEMPTS}), recipes = '{}', proposal_run_id = null,
+        reason = 'settled_reopened', attempt_day = null, updated_at = ${now}
+      where id = ${gap.id}::uuid`.execute(trx);
+    return { kind: 'reopened' } as const;
+  });
 }

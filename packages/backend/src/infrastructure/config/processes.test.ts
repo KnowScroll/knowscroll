@@ -231,6 +231,11 @@ describe('process configuration', () => {
     // A planet needs three explanations to stop being thin, so a depth target below that is not a target.
     expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_GAP_DEPTH_TARGET: '2' })).toThrow();
     expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_GAP_DEPTH_TARGET: '51' })).toThrow();
+    // The circuit breaker's bound is one value too: three failed production rounds unless set.
+    expect(worker({ KS_WORLD: 'local' }).supplyGapMaxRounds).toBe(3);
+    expect(worker({ KS_WORLD: 'local', KS_SUPPLY_GAP_MAX_ROUNDS: '5' }).supplyGapMaxRounds).toBe(5);
+    expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_GAP_MAX_ROUNDS: '0' })).toThrow();
+    expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_GAP_MAX_ROUNDS: '11' })).toThrow();
   });
   it('gives the production scope its own, larger daily caps and leaves the person and global caps alone', () => {
     const caps = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).reasoning.caps;

@@ -135,6 +135,7 @@ admitted or unchanged, 1 refused or failed, 2 usage. The release tree carries th
 | `KS_SUPPLY_GROWTH_DAILY_CAP` | 10 | the day's cap on new Scrolls from stored recipes (see the API row); the worker counts them against it |
 | `KS_SUPPLY_GROWTH_ENABLED` | 0 | the gap loop's switch (see the API row): the scan and the brief job return at once while it is `0`; the brief job also needs `KS_REASONING_PRODUCTION_ENABLED=1` |
 | `KS_SUPPLY_GAP_DEPTH_TARGET` | 6 (3 to 50) | how many released explanations a planet should have before the gap loop stops calling it shallow (the one value the depth rule reads; the floors of three explanations and two facets are fixed). The worker reads it |
+| `KS_SUPPLY_GAP_MAX_ROUNDS` | 3 (1 to 10) | the gap loop's circuit breaker (D-414): a commissioned gap whose take an operator rejected, or whose recipes all ended without a release, is tried again and a failed production round is counted; at this many the gap is rejected as `production_rejected`. The worker reads it |
 | `KS_REASONING_MAX_REQUEST_BYTES` | 262144 (max 262144) | largest request body; a larger one is refused (`request_too_large`) before anything is written |
 | `KS_REASONING_REQUEST_RETENTION_HOURS` | 48 (max 720) | how long the protected request bytes are kept before the scheduled purge deletes them |
 

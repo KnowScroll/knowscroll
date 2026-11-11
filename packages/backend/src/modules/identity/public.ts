@@ -378,6 +378,15 @@ export const SWEEP_SIGN_IN_RECORDS = Symbol('identity.sweepSignInRecords');
 export type CheckPersonalOwnerActive = (scope: PersonalScopeTx) => Promise<boolean>;
 export const CHECK_PERSONAL_OWNER_ACTIVE = Symbol('identity.checkPersonalOwnerActive');
 
+/**
+ * Whether the account behind an already locked personal root is a disposable test account: one whose sign-in address matches the world's
+ * operator pattern and was never proved by a mailed link (`identity.email_addresses.disposable`). Shared supply is never fed by one: what a
+ * test account reads must not become a signal for the library (#674, D-414). Reads only, adds no lock; a system actor's universe is judged
+ * by its account like any other.
+ */
+export type CheckPersonalAccountDisposable = (scope: PersonalScopeTx) => Promise<boolean>;
+export const CHECK_PERSONAL_ACCOUNT_DISPOSABLE = Symbol('identity.checkPersonalAccountDisposable');
+
 /** Current Identity authority, valid only while its account fence transaction stays open.
  * Never use a saved snapshot as a reusable authorization capability.
  */

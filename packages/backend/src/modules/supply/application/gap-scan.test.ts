@@ -22,6 +22,7 @@ interface Stored {
   recipes: string[];
   reason?: string;
   attempts: number;
+  rounds?: number;
 }
 
 /** An in-memory store with the one rule the table has: one open row for a key. */
@@ -31,9 +32,10 @@ function world(options: {
   signals?: SignalDay[];
   gaps?: Stored[];
   rejected?: { kind: GapKind; planet: string; facet?: string; reason: string; endedAt: Date }[];
-  states?: Record<string, 'published' | 'held' | 'stopped' | 'running'>;
+  states?: Record<string, 'published' | 'held' | 'stopped' | 'running' | 'retryable'>;
   busy?: boolean;
   depthTarget?: number;
+  maxRounds?: number;
 }) {
   const gaps: Stored[] = options.gaps ?? [];
   const calls: string[] = [];
@@ -46,7 +48,7 @@ function world(options: {
       Promise.resolve(
         gaps
           .filter((gap) => !['closed', 'rejected'].includes(gap.status))
-          .map((gap): GapRow => ({ ...gap, firstSeenAt: now })),
+          .map((gap): GapRow => ({ ...gap, rounds: gap.rounds ?? 0, firstSeenAt: now })),
       ),
     readLastRejected: () => Promise.resolve(options.rejected ?? []),
     createGap: (candidate: GapCandidate, priority) => {
@@ -86,17 +88,27 @@ function world(options: {
       calls.push(`close ${gapId} ${reason}`);
       return Promise.resolve();
     },
-    reopenGap: (gapId) => {
+    endRound: (gapId, to, rounds) => {
       const gap = gaps.find((g) => g.id === gapId)!;
-      gap.status = 'open';
-      gap.recipes = [];
-      calls.push(`reopen ${gapId}`);
+      gap.status = to;
+      gap.rounds = rounds;
+      if (to === 'open') gap.recipes = [];
+      calls.push(`${to === 'open' ? 'reopen' : 'rebrief'} ${gapId} round ${String(rounds)}`);
+      return Promise.resolve();
+    },
+    rejectGap: (gapId, reason, rounds) => {
+      const gap = gaps.find((g) => g.id === gapId)!;
+      gap.status = 'rejected';
+      gap.reason = reason;
+      gap.rounds = rounds;
+      calls.push(`reject ${gapId} ${reason} round ${String(rounds)}`);
       return Promise.resolve();
     },
   };
   const ports: GapScanPorts = {
     enabled: options.enabled ?? true,
     depthTarget: options.depthTarget ?? 6,
+    maxRounds: options.maxRounds ?? 3,
     store: { exclusively: (work) => (options.busy ? Promise.resolve(undefined) : work(tx)) },
     readCoverage: () => Promise.resolve({ planets: options.released ?? [] }),
     readRecipeStates: (keys) =>
@@ -194,8 +206,97 @@ describe('the scan closes what is filled', () => {
     });
     await w.scan();
     expect(w.calls).toContain('close done released');
-    expect(w.calls).toContain('reopen ended');
+    expect(w.calls).toContain('reopen ended round 1');
     expect(w.calls.filter((call) => call.endsWith('waiting'))).toEqual(['refresh waiting']);
+  });
+});
+
+describe('a rejected take does not strand a commissioned gap', () => {
+  const commissioned = (over: Partial<Stored> = {}): Stored => ({
+    id: 'g',
+    kind: 'thin_planet',
+    planet: FIRST.id,
+    status: 'commissioned',
+    priority: 500,
+    readers: 0,
+    recipes: ['gen-a'],
+    attempts: 0,
+    ...over,
+  });
+
+  it('puts a gap whose only recipe is retryable back to briefed, keeping the stored recipe, and counts a round', async () => {
+    const w = world({ gaps: [commissioned()], states: { 'gen-a': 'retryable' } });
+    expect(await w.scan()).toMatchObject({ kind: 'scanned', rebriefed: 1, reopened: 0, rejected: 0 });
+    expect(w.gaps[0]).toMatchObject({ status: 'briefed', rounds: 1, recipes: ['gen-a'] });
+    expect(w.calls).toContain('rebrief g round 1');
+  });
+
+  it('still waits while another recipe of the gap is running or held for a read', async () => {
+    const w = world({
+      gaps: [commissioned({ recipes: ['gen-a', 'gen-b'] })],
+      states: { 'gen-a': 'retryable', 'gen-b': 'held' },
+    });
+    await w.scan();
+    expect(w.gaps[0]).toMatchObject({ status: 'commissioned' });
+    expect(w.calls).toEqual(['refresh g']);
+  });
+
+  it('closes it as released when one recipe was released, whatever the others did', async () => {
+    const w = world({
+      gaps: [commissioned({ recipes: ['gen-a', 'gen-b'] })],
+      states: { 'gen-a': 'retryable', 'gen-b': 'published' },
+    });
+    await w.scan();
+    expect(w.calls).toContain('close g released');
+  });
+});
+
+describe('the circuit breaker', () => {
+  const failing = (rounds: number, recipes = ['gen-a']): Stored => ({
+    id: 'g',
+    kind: 'thin_planet',
+    planet: FIRST.id,
+    status: 'commissioned',
+    priority: 500,
+    readers: 0,
+    recipes,
+    attempts: 0,
+    rounds,
+  });
+
+  it('counts every failed round, a rejected take and recipes that all ended alike', async () => {
+    const take = world({ gaps: [failing(0)], states: { 'gen-a': 'retryable' }, maxRounds: 3 });
+    await take.scan();
+    expect(take.gaps[0]).toMatchObject({ status: 'briefed', rounds: 1 });
+    const ended = world({ gaps: [failing(1)], states: { 'gen-a': 'stopped' }, maxRounds: 3 });
+    expect(await ended.scan()).toMatchObject({ reopened: 1, rejected: 0 });
+    expect(ended.gaps[0]).toMatchObject({ status: 'open', rounds: 2, recipes: [] });
+  });
+
+  it('rejects the gap at the bound, with the reason, and does not open a fresh one for the same hole in that scan', async () => {
+    const w = world({ gaps: [failing(2)], states: { 'gen-a': 'retryable' }, maxRounds: 3 });
+    expect(await w.scan()).toMatchObject({ rejected: 1, rebriefed: 0, reopened: 0 });
+    expect(w.gaps.find((gap) => gap.id === 'g')).toMatchObject({
+      status: 'rejected',
+      reason: 'production_rejected',
+      rounds: 3,
+    });
+    expect(
+      w.gaps.filter((gap) => gap.planet === FIRST.id && gap.kind === 'thin_planet' && gap.status === 'open'),
+    ).toEqual([]);
+    expect(w.calls).toContain('reject g production_rejected round 3');
+  });
+
+  it('reads the bound from its one value: 1 rejects on the first failed round', async () => {
+    const w = world({ gaps: [failing(0)], states: { 'gen-a': 'stopped' }, maxRounds: 1 });
+    expect(await w.scan()).toMatchObject({ rejected: 1 });
+  });
+
+  it('does not count a round for a gap whose hole is gone', async () => {
+    const full = { topicId: FIRST.id, units: 9, facets: FIRST.facets.map((facetId) => ({ facetId, units: 3 })) };
+    const w = world({ released: [full], gaps: [failing(2)], states: { 'gen-a': 'retryable' }, maxRounds: 3 });
+    expect(await w.scan()).toMatchObject({ closed: 1, rejected: 0 });
+    expect(w.calls).toContain('close g filled');
   });
 });
 

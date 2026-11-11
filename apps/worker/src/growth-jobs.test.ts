@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { releaseQueues } from '@knowscroll/backend/job-queues';
 import { briefGapQueue, scanGapsQueue } from '@knowscroll/backend/modules/supply';
-import { supplyGapsCommand } from './supply-operator.js';
+import { settleGapCommand, supplyGapsCommand } from './supply-operator.js';
 
 describe('the gap loop’s two scheduled jobs', () => {
   it('are declared release queues that run on a schedule with a payload of their version only', () => {
@@ -44,5 +44,28 @@ describe('the operator’s list of the gaps', () => {
         usage: 'supply gaps [--status open|briefed|commissioned|closed|rejected|blocked_unknown]',
       },
     ]);
+  });
+});
+
+describe('settling a blocked gap', () => {
+  const usage = 'supply gaps settle --key <64 hex characters> [--reopen | --close]';
+  const settle = async (options: { key: string | undefined; reopen: boolean; close: boolean }) => {
+    const printed: Record<string, unknown>[] = [];
+    const code = await settleGapCommand(
+      options,
+      (result) => printed.push(result),
+      () => undefined,
+    );
+    return { code, printed };
+  };
+
+  it('needs a key of 64 hex characters, and one action at most, and refuses before it opens a database', async () => {
+    for (const key of [undefined, '', 'abc', 'g'.repeat(64), 'A'.repeat(64)])
+      expect(await settle({ key, reopen: false, close: false }), String(key)).toEqual({
+        code: 2,
+        printed: [{ result: 'usage', usage }],
+      });
+    const both = await settle({ key: 'a'.repeat(64), reopen: true, close: true });
+    expect(both).toEqual({ code: 2, printed: [{ result: 'usage', usage }] });
   });
 });

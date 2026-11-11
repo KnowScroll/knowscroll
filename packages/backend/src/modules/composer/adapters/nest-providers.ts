@@ -10,6 +10,7 @@ import {
   type PersistComposerDecision,
   type RecordDecisionSignals,
 } from '../public.js';
+import type { LogEvent } from '../../../infrastructure/observability/index.js';
 import { makeComposerStore } from './postgres-store.js';
 import { withGapSignals } from './gap-signal-persist.js';
 const composeUnder = (setting: ComposerPolicySetting): ComposeEncounter => {
@@ -30,14 +31,16 @@ function storeProviders(access: ComposerOperatorAccess) {
  * token of the recorder (Supply's `RECORD_GAP_SIGNALS`): the composition root passes it where the gap loop runs, and the decision is
  * stored exactly as before.
  */
-function recordingStoreProviders(access: ComposerOperatorAccess, gapSignals: symbol) {
+function recordingStoreProviders(access: ComposerOperatorAccess, gapSignals: symbol, logEvent: symbol) {
   const store = makeComposerStore(access);
   return [
     {
       provide: PERSIST_COMPOSER_DECISION,
-      inject: [gapSignals],
-      useFactory: (record: RecordDecisionSignals): PersistComposerDecision =>
-        withGapSignals(store.persistComposerDecision, record),
+      inject: [gapSignals, logEvent],
+      useFactory: (record: RecordDecisionSignals, log: LogEvent): PersistComposerDecision =>
+        withGapSignals(store.persistComposerDecision, record, {
+          onFailure: (code) => log('composer.gap_signal_failed', { reasonCode: code }),
+        }),
     },
     { provide: READ_COMPOSER_DECISION, useValue: store.readComposerDecision },
   ];
@@ -63,10 +66,16 @@ export function composerConfiguredProviders(access: ComposerOperatorAccess, conf
 /**
  * {@link composerConfiguredProviders} for a process where the gap loop runs (#674, D-414): the decision is stored exactly as before and
  * the signals it carries (a last resort, the last unseen explanation of a topic) are recorded in the same transaction by
- * `gapSignals`, the token of Supply's recorder. Composition roots only.
+ * `gapSignals`, the token of Supply's recorder, as a best effort that can neither fail nor delay the navigation (a failure is logged by code
+ * through `logEvent`, the token of the process's event log). Composition roots only.
  */
-export function composerRecordingProviders(access: ComposerOperatorAccess, config: symbol, gapSignals: symbol) {
-  return [configuredCompose(config), ...recordingStoreProviders(access, gapSignals)];
+export function composerRecordingProviders(
+  access: ComposerOperatorAccess,
+  config: symbol,
+  gapSignals: symbol,
+  logEvent: symbol,
+) {
+  return [configuredCompose(config), ...recordingStoreProviders(access, gapSignals, logEvent)];
 }
 
 const configuredCompose = (config: symbol) => ({

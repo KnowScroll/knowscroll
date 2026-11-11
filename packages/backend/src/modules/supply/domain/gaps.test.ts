@@ -13,6 +13,8 @@ import {
   mayReopen,
   mergeDemand,
   newReadersOf,
+  blockedVerdict,
+  nextRound,
   priorityOf,
   readerBand,
   reasonCode,
@@ -341,13 +343,59 @@ describe('a rejected key reopens only when its reason allows and the cooldown ha
 });
 
 describe('a commissioned gap settles from where its recipes stand', () => {
-  it('closes when one was released, reopens when every one ended, and waits otherwise', () => {
+  it('closes when one was released, and waits while one is running, held for a read or queued', () => {
     expect(settleCommissioned(['held', 'published'])).toBe('close');
+    expect(settleCommissioned(['running'])).toBe('keep');
+    expect(settleCommissioned(['held', 'stopped'])).toBe('keep');
+    expect(settleCommissioned(['not_started', 'retryable'])).toBe('keep');
+    expect(settleCommissioned(['held', 'retryable'])).toBe('keep');
+  });
+
+  it('does not treat a rejected take as live: with nothing running, held or released, the gap goes back to briefed for the stored recipe', () => {
+    expect(settleCommissioned(['retryable'])).toBe('rebrief');
+    expect(settleCommissioned(['retryable', 'stopped'])).toBe('rebrief');
+    expect(settleCommissioned(['retryable', undefined])).toBe('rebrief');
+  });
+
+  it('goes back to open when every recipe ended for good or is gone from the library', () => {
     expect(settleCommissioned(['stopped', 'stopped'])).toBe('reopen');
     expect(settleCommissioned([undefined, 'stopped'])).toBe('reopen');
-    expect(settleCommissioned(['held', 'stopped'])).toBe('keep');
-    expect(settleCommissioned(['running'])).toBe('keep');
-    expect(settleCommissioned(['not_started', 'retryable'])).toBe('keep');
+    expect(settleCommissioned([])).toBe('reopen');
+  });
+});
+
+describe('the circuit breaker counts failed production rounds', () => {
+  it('counts each round and exhausts the gap at the bound', () => {
+    expect(nextRound(0, 3)).toEqual({ rounds: 1, exhausted: false });
+    expect(nextRound(1, 3)).toEqual({ rounds: 2, exhausted: false });
+    expect(nextRound(2, 3)).toEqual({ rounds: 3, exhausted: true });
+    expect(nextRound(0, 1)).toEqual({ rounds: 1, exhausted: true });
+  });
+});
+
+describe('a blocked gap may be settled only after its attempt is settled in the ledger', () => {
+  it('refuses a gap that is not blocked, one that names no run, and one whose run still has an unresolved attempt', () => {
+    expect(blockedVerdict({ status: 'open', runId: 'run' }, 0)).toBe('not_blocked');
+    expect(blockedVerdict({ status: 'blocked_unknown' }, 0)).toBe('no_run');
+    expect(blockedVerdict({ status: 'blocked_unknown', runId: 'run' }, 1)).toBe('unsettled');
+    expect(blockedVerdict({ status: 'blocked_unknown', runId: 'run' }, 3)).toBe('unsettled');
+  });
+
+  it('is ready once nothing of the run is reserved, dispatched or unknown', () => {
+    expect(blockedVerdict({ status: 'blocked_unknown', runId: 'run' }, 0)).toBe('ready');
+  });
+
+  it('keeps the run of an unknown attempt on the gap so it can be found, and never lets a reopened gap pass the attempt bound', () => {
+    expect(afterProposal({ attempts: 0 }, { kind: 'unknown', code: 'unknown_outcome', runId: 'run-9' })).toEqual({
+      kind: 'blocked',
+      reason: 'unknown_outcome',
+      runId: 'run-9',
+    });
+    expect(afterProposal({ attempts: 2 }, { kind: 'failed', code: 'model_failed' })).toEqual({
+      kind: 'rejected',
+      attempts: MAX_GAP_ATTEMPTS,
+      reason: 'model_failed',
+    });
   });
 });
 

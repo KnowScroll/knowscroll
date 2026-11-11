@@ -270,6 +270,7 @@ export const jobWiring: Provider[] = [
     enqueueJob: ENQUEUE_JOB,
     config: WORKER_CONFIG,
     recordingHarness: RECORDING_REASONING_HARNESS,
+    logEvent: LOG_EVENT,
   }),
   ...supplyRecordingOwnerProviders(),
   // Quick answers (D-253): the worker writes each one through the recording-aware harness and purges them after a day.
@@ -287,7 +288,7 @@ export const jobWiring: Provider[] = [
   ...experienceBufferSourceProviders(),
   // The worker persists decisions and ranks; it exposes no operator read of them.
   // A buffer's decision that shows content running out records it in the same transaction, for the gap loop (#674, D-414).
-  ...composerRecordingProviders({ isOperator: () => false }, WORKER_CONFIG, RECORD_GAP_SIGNALS),
+  ...composerRecordingProviders({ isOperator: () => false }, WORKER_CONFIG, RECORD_GAP_SIGNALS, LOG_EVENT),
   ...composerBufferWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
   // Expired decisions nothing holds are physically deleted on a schedule, in bounded batches (#674).
   ...composerPruneProviders({ database: DATABASE, withPersonalScope: WITH_PERSONAL_SCOPE }),

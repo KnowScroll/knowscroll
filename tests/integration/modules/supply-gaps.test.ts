@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   makeWithPersonalScope,
   makeWithProductionScope,
+  transactionOf,
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
 import {
@@ -26,6 +27,7 @@ import { COMPOSER_POLICY_V2, composeEncounter, type ComposerSnapshot } from '@kn
 import { makeComposerStore, withGapSignals } from '@knowscroll/backend/modules/composer/nest-providers';
 import type { PlannedDemandInput } from '@knowscroll/backend/modules/supply';
 import {
+  gapBriefLock,
   gapBriefStore,
   gapScanStore,
   growthStore,
@@ -33,12 +35,13 @@ import {
   makeScanGaps,
   proposalOf,
   readGapSummary,
+  settleBlockedGap,
 } from '@knowscroll/backend/modules/supply/nest-providers';
 import { extractResearch } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { gapKeyOf } from '../../../packages/backend/src/modules/supply/adapters/postgres-gaps.js';
 import { SCROLL_PRODUCTION_VERSION } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureModel, fixtureSettings, silent, signal } from '../support/fixture-model.js';
+import { fixtureModel, fixtureSettings, gate, silent, signal } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { seedPerson } from '../support/fixtures.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
@@ -135,7 +138,9 @@ describe('The gap loop (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
       cap?: number;
       /** Pins the clock to noon UTC this many days before 10 November 2026, so each test asks its own request (a request is the same on the same UTC day). */
       day?: number;
-      script?: (sequence: number) => FixtureScenario;
+      script?: (sequence: number) => FixtureScenario | Promise<FixtureScenario>;
+      /** How many failed production rounds reject a gap. */
+      maxRounds?: number;
       /** Wraps the brief store, for a crash between a paid answer and its record. */
       wrapStore?: (store: ReturnType<typeof gapBriefStore>) => ReturnType<typeof gapBriefStore>;
       /** A production scope that refuses where the answer would be stored: the model was paid and its answer is kept, but nothing is stored. */
@@ -170,6 +175,7 @@ describe('The gap loop (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
     const brief = makeBriefGaps({
       enabled,
       growthDailyCap: options.cap ?? 10,
+      lock: gapBriefLock(db()),
       store: options.wrapStore ? options.wrapStore(store) : store,
       growth: growthStore(db(), { readRecipes: readGapRecipes, chooseRecipe: chooseScrollRecipeIn }),
       readGapRecipes: (target) => readGapRecipes(db(), target),
@@ -183,6 +189,7 @@ describe('The gap loop (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
     const scan = makeScanGaps({
       enabled,
       depthTarget: 6,
+      maxRounds: options.maxRounds ?? 3,
       store: gapScanStore(db()),
       readCoverage: () => readReleasedCoverage(db()),
       readRecipeStates: (keys) => readRecipeStates(db(), keys),
@@ -413,6 +420,168 @@ describe('The gap loop (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
       const left = (await marks()).map((mark) => mark.universe_id);
       expect(left).not.toContain(mine.universeId);
       expect(left).toContain(theirs.universeId);
+    });
+  });
+
+  describe('signals can never fail or delay a navigation, and a test account never feeds shared supply', () => {
+    const decisionOf = (person: { universeId: string }) =>
+      composeEncounter(lastUnseen(person, PLANET), { ...COMPOSER_POLICY_V2, explorationFraction: 0 });
+    const storedFor = (universeId: string) =>
+      count(sql<{ n: string }>`select count(*) as n from composer.decisions where universe_id = ${universeId}::uuid`);
+    const marksOf = (universeId: string) =>
+      db().selectFrom('supply.gap_signal_marks').select('planet').where('universe_id', '=', universeId).execute();
+    const persistWith = (
+      person: Awaited<ReturnType<typeof seedPerson>>,
+      record: Parameters<typeof withGapSignals>[1],
+      failures: string[] = [],
+    ) =>
+      withScope()(person.authority, (scope) =>
+        withGapSignals(makeComposerStore({ isOperator: () => false }).persistComposerDecision, record, {
+          onFailure: (code) => failures.push(code),
+        })(scope, { decisionId: randomUUID(), commandId: randomUUID() }, decisionOf(person)),
+      );
+
+    it('stores the decision and goes on when the recorder fails: its writes are rolled back to a savepoint and the failure is only reported by its code', async () => {
+      const person = await seedPerson(db());
+      const failures: string[] = [];
+      const outcome = await persistWith(
+        person,
+        async (scope) => {
+          // A valid mark first, then a statement the table refuses: the mark must not survive the failure.
+          await sql`insert into supply.gap_signal_marks (universe_id, privacy_epoch, day, key, source, planet)
+            values (${person.universeId}::uuid, 1, current_date, ${'f'.repeat(64)}, 'ask', ${PLANET})`.execute(
+            transactionOf(scope),
+          );
+          await sql`insert into supply.gap_signal_marks (universe_id, privacy_epoch, day, key, source, planet)
+            values (${person.universeId}::uuid, 1, current_date, ${'e'.repeat(64)}, 'not-a-source', ${PLANET})`.execute(
+            transactionOf(scope),
+          );
+        },
+        failures,
+      );
+      // The navigation committed with its decision: the transaction was never poisoned.
+      expect(outcome).toMatchObject({ kind: 'entered', value: 'stored' });
+      expect(await storedFor(person.universeId)).toBe(1);
+      expect(await marksOf(person.universeId)).toEqual([]);
+      expect(failures).toEqual(['23514']);
+    });
+
+    it('stores the decision and goes on when the recorder throws before it touches anything', async () => {
+      const person = await seedPerson(db());
+      const failures: string[] = [];
+      const outcome = await persistWith(person, () => Promise.reject(new Error('the recorder is down')), failures);
+      expect(outcome).toMatchObject({ kind: 'entered', value: 'stored' });
+      expect(await storedFor(person.universeId)).toBe(1);
+      expect(failures).toEqual(['error']);
+    });
+
+    it('never waits on a row another transaction holds: it gives up at once and the navigation commits', async () => {
+      const person = await seedPerson(db());
+      const holder = await database.pool.connect();
+      const lockedId = randomUUID();
+      await sql`insert into supply.gaps (id, key, kind, planet, priority) values (${lockedId}::uuid, ${'9'.repeat(64)}, 'thin_planet', ${PLANET}, 500)`.execute(
+        db(),
+      );
+      await holder.query('begin');
+      await holder.query('select id from supply.gaps where id = $1 for update', [lockedId]);
+      try {
+        const failures: string[] = [];
+        const started = Date.now();
+        const outcome = await persistWith(
+          person,
+          async (scope) => {
+            await sql`select id from supply.gaps where id = ${lockedId}::uuid for update`.execute(transactionOf(scope));
+          },
+          failures,
+        );
+        expect(Date.now() - started).toBeLessThan(3000);
+        expect(outcome).toMatchObject({ kind: 'entered', value: 'stored' });
+        expect(failures).toEqual(['55p03']);
+        expect(await storedFor(person.universeId)).toBe(1);
+      } finally {
+        await holder.query('rollback');
+        holder.release();
+        await sql`delete from supply.gaps where id = ${lockedId}::uuid`.execute(db());
+      }
+    });
+
+    it('records a mark without waiting on the same mark while the scan is counting it', async () => {
+      const supply = realSupply(database, content.boss, {
+        createDailyCap: 5,
+        growthEnabled: true,
+        readExploration: content.readExploration,
+      });
+      const person = await seedPerson(db());
+      await withScope()(person.authority, (scope) =>
+        supply.gapSignals(scope, [{ source: 'ask', planet: 'earth.seasons' }]),
+      );
+      const scanning = await database.pool.connect();
+      await scanning.query('begin');
+      await scanning.query('update supply.gap_signal_marks set counted = true where universe_id = $1', [
+        person.universeId,
+      ]);
+      try {
+        const started = Date.now();
+        const outcome = await withScope()(person.authority, (scope) =>
+          supply.gapSignals(scope, [{ source: 'ask', planet: 'earth.seasons' }]),
+        );
+        expect(outcome.kind).toBe('entered');
+        expect(Date.now() - started).toBeLessThan(3000);
+      } finally {
+        await scanning.query('rollback');
+        scanning.release();
+      }
+      expect(await marksOf(person.universeId)).toHaveLength(1);
+    });
+
+    it('writes no mark for a disposable test account, from a Composer decision, a planned demand or an ask, and does for the same person once the address is proved', async () => {
+      const supply = realSupply(database, content.boss, {
+        createDailyCap: 10,
+        growthDailyCap: 10,
+        growthEnabled: true,
+        readExploration: content.readExploration,
+      });
+      const person = await seedPerson(db());
+      await sql`insert into identity.email_addresses (account_id, address, disposable)
+        values (${person.accountId}::uuid, ${`ci-${randomUUID()}@example.test`}, true)`.execute(db());
+      const planned: PlannedDemandInput = {
+        plannerRunId: randomUUID(),
+        slot: 0,
+        topicIds: [PLANET],
+        format: 'scroll',
+        language: 'en',
+        capabilities: v2Capabilities,
+        alreadyMet: [],
+        intent: plannedIntent(),
+      };
+      const request = {
+        version: 'content-request.v1' as const,
+        commandId: randomUUID(),
+        intent: {
+          kind: 'topic' as const,
+          subject: {
+            kind: 'catalogue' as const,
+            catalogueVersion: 'content-concepts.v1' as const,
+            topicId: PLANET,
+            facetId: FACET_B,
+          },
+          format: 'scroll' as const,
+        },
+        language: 'en',
+        capabilities: v2Capabilities,
+      };
+      // The Composer's decision (the real recorder of the loop, through the real persist port) is stored, and nothing is recorded.
+      expect(await persistWith(person, supply.gapSignals)).toMatchObject({ kind: 'entered', value: 'stored' });
+      expect(await storedFor(person.universeId)).toBe(1);
+      await withScope()(person.authority, (scope) => supply.record(scope, planned));
+      expect((await supply.create(person.authority, request)).kind).toBe('ok');
+      expect(await marksOf(person.universeId)).toEqual([]);
+      // The same person with an address proved by a mailed link is a reader like any other.
+      await sql`update identity.email_addresses set disposable = false where account_id = ${person.accountId}::uuid`.execute(
+        db(),
+      );
+      await persistWith(person, supply.gapSignals);
+      expect((await marksOf(person.universeId)).map((mark) => mark.planet)).toEqual([PLANET]);
     });
   });
 
@@ -740,6 +909,71 @@ describe('The gap loop (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
       expect((await gaps()).find((row) => row.id === gap.id)!.status).toBe('blocked_unknown');
     });
 
+    it('settles a blocked gap only after its unknown attempt is settled in the ledger, and then reopens it as a request of its own', async () => {
+      const gap = await openTidesGap();
+      const blocked = loop({ day: 11, script: () => ({ kind: 'timeout_after_dispatch' }) });
+      expect(await blocked.brief()).toMatchObject({ blocked: 1 });
+      const row = (await gaps()).find((candidate) => candidate.id === gap.id)!;
+      // The run of the unknown attempt is kept on the gap, so an operator can find it in the ledger.
+      expect(row).toMatchObject({ status: 'blocked_unknown', attempts: 0 });
+      expect(row.proposal_run_id).not.toBeNull();
+      // The ledger still holds the attempt as unresolved: nothing is settled, with or without an action.
+      for (const action of [undefined, 'reopen', 'close'] as const) {
+        const refused = await settleBlockedGap(db(), { key: gap.key, ...(action === undefined ? {} : { action }) });
+        expect(refused).toMatchObject({ kind: 'refused', verdict: 'unsettled' });
+        expect(refused.kind === 'refused' && refused.unresolved).toBeGreaterThan(0);
+      }
+      expect((await gaps()).find((candidate) => candidate.id === gap.id)!.status).toBe('blocked_unknown');
+      // The operator writes the attempt off (as `reasoning write-off` does): now it may be settled.
+      await sql`update reasoning.production_attempts set state = 'written_off', written_off_reason = 'CI fixture write-off',
+          written_off_by = 'cli:ci', written_off_at = now()
+        where run_id = ${row.proposal_run_id!}::uuid and state in ('reserved', 'dispatched', 'unknown')`.execute(db());
+      expect(await settleBlockedGap(db(), { key: gap.key })).toEqual({ kind: 'ready' });
+      expect((await gaps()).find((candidate) => candidate.id === gap.id)!.status).toBe('blocked_unknown');
+      expect(await settleBlockedGap(db(), { key: gap.key, action: 'reopen' })).toEqual({ kind: 'reopened' });
+      expect((await gaps()).find((candidate) => candidate.id === gap.id)).toMatchObject({
+        status: 'open',
+        attempts: 1,
+        proposal_run_id: null,
+        attempt_day: null,
+        reason: 'settled_reopened',
+      });
+      // The next request is a new one (the blocked attempt counts as a failed one): the model is asked, once, and never the blocked request again.
+      const again = loop({ day: 11, script: () => twoDrafts('settled') });
+      expect(await again.brief()).toMatchObject({ proposed: 1, blocked: 0 });
+      expect(again.calls()).toBe(1);
+    });
+
+    it('refuses to settle a gap that is not blocked or names no run, finds nothing for an unknown key, and closes a blocked gap whose ledger is settled', async () => {
+      await resetGaps();
+      const row = (key: string, status: string, run: string | null) =>
+        sql`insert into supply.gaps (id, key, kind, planet, priority, status, proposal_run_id, reason)
+        values (${randomUUID()}::uuid, ${key}, 'thin_planet', ${`fixture.planet-${key.slice(0, 4)}`}, 500, ${status}, ${run}::uuid, ${status === 'blocked_unknown' ? 'unknown_outcome' : null})`.execute(
+          db(),
+        );
+      const open = 'a'.repeat(64);
+      const noRun = 'b'.repeat(64);
+      const settled = 'c'.repeat(64);
+      await row(open, 'open', null);
+      await row(noRun, 'blocked_unknown', null);
+      await row(settled, 'blocked_unknown', randomUUID());
+      expect(await settleBlockedGap(db(), { key: open, action: 'close' })).toMatchObject({
+        kind: 'refused',
+        verdict: 'not_blocked',
+      });
+      expect(await settleBlockedGap(db(), { key: noRun, action: 'reopen' })).toMatchObject({
+        kind: 'refused',
+        verdict: 'no_run',
+      });
+      expect(await settleBlockedGap(db(), { key: 'd'.repeat(64) })).toEqual({ kind: 'not_found' });
+      expect(await settleBlockedGap(db(), { key: settled, action: 'close' })).toEqual({ kind: 'closed' });
+      expect((await gaps()).find((candidate) => candidate.key === settled)).toMatchObject({
+        status: 'closed',
+        reason: 'settled_closed',
+      });
+      expect((await gaps()).find((candidate) => candidate.key === open)!.status).toBe('open');
+    });
+
     it('rejects a gap with the reason code after two failed attempts, and reopens its key only for new readers after the cooldown', async () => {
       const gap = await openTidesGap();
       const run = loop({ day: 6, script: () => answerWith({ drafts: [] }) });
@@ -783,6 +1017,112 @@ describe('The gap loop (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
       expect(rows.filter((row) => row.status === 'open')).toHaveLength(1);
       expect(rows.find((row) => row.id === gap.id)!.status).toBe('rejected');
       expect(new Set(rows.map((row) => row.key)).size).toBe(1);
+    });
+
+    /** One accepted draft, for the first facet: a gap with one recipe, so a rejected take leaves nothing else in the pipeline. */
+    const oneDraft = (tag: string) =>
+      answerWith({ drafts: [draft(`How the moon Orrin raises two bulges in its seas, ${tag}`, FACET_A, BRIEFS[0])] });
+
+    it('does not strand a gap whose take an operator rejected: the stored recipe is commissioned again with no model call, each round is counted, and the bound rejects the gap', async () => {
+      const gap = await openTidesGap();
+      const first = loop({ day: 9, script: () => oneDraft('rejected take') });
+      expect(await first.brief()).toMatchObject({ proposed: 1, commissioned: 1 });
+      const key = (await gaps()).find((row) => row.id === gap.id)!.recipes[0] as `gen-${string}`;
+      const asset = (
+        await db().selectFrom('content.recipes').select('asset_id').where('key', '=', key).executeTakeFirstOrThrow()
+      ).asset_id;
+      const production = fixtureProduction(db(), () => answerWith(plainOrrin()), orrinResearchFor);
+      const reject = async (take: number) => {
+        expect(await production.produce(key, false, signal(), true, take)).toMatchObject({
+          outcome: 'published',
+          held: true,
+        });
+        expect(
+          await makeReviewGate(db()).reject({
+            assetId: asset,
+            revision: take,
+            reason: 'CI fixture: not good enough',
+            decidedBy: 'cli:ci-reviewer',
+          }),
+        ).toMatchObject({ kind: 'rejected' });
+      };
+      const scanner = loop({ maxRounds: 3 });
+      const later = loop({ day: 9, script: () => answerWith({ drafts: [] }) });
+
+      // Take 1 is rejected: the recipe may be taken again, and nothing waits on it, so the gap goes back to briefed.
+      await reject(1);
+      expect((await readRecipeStates(db(), [key])).get(key)).toBe('retryable');
+      expect(await scanner.scan()).toMatchObject({ kind: 'scanned', rebriefed: 1, rejected: 0 });
+      expect((await gaps()).find((row) => row.id === gap.id)).toMatchObject({
+        status: 'briefed',
+        rounds: 1,
+        recipes: [key],
+      });
+      // The next pass commissions the stored recipe again under the cap, a new group and a job for take 2, and asks no model.
+      expect(await later.brief()).toMatchObject({ proposed: 0, commissioned: 1 });
+      expect(later.calls()).toBe(0);
+      expect((await gaps()).find((row) => row.id === gap.id)).toMatchObject({ status: 'commissioned', recipes: [key] });
+      expect(await jobsFor(key)).toBe(2);
+      expect(
+        await count(sql<{ n: string }>`select count(*) as n from supply.work where production_recipe = ${key}`),
+      ).toBe(2);
+      expect(
+        await count(
+          sql<{ n: string }>`select count(*) as n from supply.work where production_recipe = ${key} and active`,
+        ),
+      ).toBe(1);
+
+      // Take 2 is rejected: round two, commissioned again as take 3.
+      await reject(2);
+      expect(await scanner.scan()).toMatchObject({ rebriefed: 1, rejected: 0 });
+      expect((await gaps()).find((row) => row.id === gap.id)).toMatchObject({ status: 'briefed', rounds: 2 });
+      expect(await later.brief()).toMatchObject({ proposed: 0, commissioned: 1 });
+      expect(await jobsFor(key)).toBe(3);
+
+      // Take 3 is rejected and the takes are used up: the third failed round rejects the gap at the bound, and no fresh gap opens in that scan.
+      await reject(3);
+      expect(await scanner.scan()).toMatchObject({ rejected: 1, rebriefed: 0, reopened: 0 });
+      expect((await gaps()).find((row) => row.id === gap.id)).toMatchObject({
+        status: 'rejected',
+        reason: 'production_rejected',
+        rounds: 3,
+      });
+      expect((await gapOf(PLANET, 'thin_planet')).filter((row) => row.status === 'open')).toEqual([]);
+      expect(later.calls()).toBe(0);
+    });
+
+    it('runs one pass at a time: a second pass finds the first holding the lock and asks nothing, and a crashed pass frees it', async () => {
+      await openTidesGap();
+      const hold = gate();
+      const first = loop({
+        day: 12,
+        script: async () => {
+          await hold.promise;
+          return twoDrafts('overlap');
+        },
+      });
+      const second = loop({ day: 12, script: () => twoDrafts('overlap again') });
+      const running = first.brief();
+      for (let waited = 0; first.calls() === 0 && waited < 100; waited += 1)
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(first.calls()).toBe(1);
+      // The first pass is out with the model: a second one does nothing.
+      expect(await second.brief()).toEqual({ kind: 'busy' });
+      expect(second.calls()).toBe(0);
+      hold.open();
+      expect(await running).toMatchObject({ kind: 'done', proposed: 1 });
+      // Done: the lock is free again.
+      expect(await second.brief()).toMatchObject({ kind: 'done' });
+      // A pass that dies holding it frees it with its connection.
+      const held = await database.pool.connect();
+      await held.query("select pg_advisory_lock(hashtextextended('supply.brief-gap', 0))");
+      expect(await second.brief()).toEqual({ kind: 'busy' });
+      held.release(true);
+      for (let waited = 0; waited < 100; waited += 1) {
+        if ((await second.brief()).kind !== 'busy') break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect((await second.brief()).kind).toBe('done');
     });
 
     it('rejects at once, spending nothing, a planet that holds no pages: not an attempt, and it leaves the pass to the planets that do', async () => {

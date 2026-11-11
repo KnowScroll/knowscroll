@@ -75,6 +75,12 @@ function vertical(
   };
 }
 
+/** A guard that only runs the effect: these tests have no transaction. */
+const passThrough = async (_scope: PersonalScopeTx, effect: () => Promise<void>) => {
+  await effect();
+  return { ok: true } as const;
+};
+
 const decide = (snapshot: ComposerSnapshot) =>
   composeEncounter(snapshot, { ...COMPOSER_POLICY_V2, explorationFraction: 0 });
 const signals = (snapshot: ComposerSnapshot) => gapSignalsOf(decide(snapshot), COMPOSER_POLICY_V2.maxCandidates);
@@ -163,6 +169,7 @@ describe('the decision is stored as before, and its signals are recorded only fo
         recorded.push(found);
         return Promise.resolve();
       },
+      { guard: passThrough },
     );
     const replayed = withGapSignals(
       () => Promise.resolve('replayed'),
@@ -170,6 +177,7 @@ describe('the decision is stored as before, and its signals are recorded only fo
         recorded.push(found);
         return Promise.resolve();
       },
+      { guard: passThrough },
     );
     expect(await stored(scope, { decisionId: 'd', commandId: 'c' }, decision)).toBe('stored');
     expect(recorded).toHaveLength(1);
@@ -184,15 +192,82 @@ describe('the decision is stored as before, and its signals are recorded only fo
       return Promise.resolve();
     };
     const quiet = decide(vertical([candidate('a'), candidate('b'), candidate('c')], []));
-    await withGapSignals(() => Promise.resolve('stored'), record)(scope, { decisionId: 'd', commandId: 'c' }, quiet);
+    await withGapSignals(() => Promise.resolve('stored'), record, { guard: passThrough })(
+      scope,
+      { decisionId: 'd', commandId: 'c' },
+      quiet,
+    );
     expect(calls).toBe(0);
     await expect(
-      withGapSignals(() => Promise.reject(new Error('COMPOSER_REPLAY_INVALID')), record)(
+      withGapSignals(() => Promise.reject(new Error('COMPOSER_REPLAY_INVALID')), record, { guard: passThrough })(
         scope,
         { decisionId: 'd', commandId: 'c' },
         decision,
       ),
     ).rejects.toThrow('COMPOSER_REPLAY_INVALID');
     expect(calls).toBe(0);
+  });
+});
+
+describe('a recorder that fails can never fail the navigation that stored the decision', () => {
+  const scope = {} as PersonalScopeTx;
+  const decision = decide(vertical([candidate('a')], ['unit-a']));
+  const binding = { decisionId: 'd', commandId: 'c' };
+  /** The real guard needs a transaction; this one runs the effect as the real one does and reports a failure by its code. */
+  const guard = async (_scope: PersonalScopeTx, effect: () => Promise<void>) => {
+    try {
+      await effect();
+      return { ok: true } as const;
+    } catch {
+      return { ok: false, code: 'boom' } as const;
+    }
+  };
+
+  it('stores the decision, swallows the failure and reports its code', async () => {
+    const failures: string[] = [];
+    const persist = withGapSignals(
+      () => Promise.resolve('stored'),
+      () => Promise.reject(new Error('the recorder is down')),
+      { guard, onFailure: (code) => failures.push(code) },
+    );
+    expect(await persist(scope, binding, decision)).toBe('stored');
+    expect(failures).toEqual(['boom']);
+  });
+
+  it('is told nothing when the recorder works, and the store’s own refusal still propagates', async () => {
+    const failures: string[] = [];
+    const works = withGapSignals(
+      () => Promise.resolve('stored'),
+      () => Promise.resolve(),
+      {
+        guard,
+        onFailure: (code) => failures.push(code),
+      },
+    );
+    expect(await works(scope, binding, decision)).toBe('stored');
+    expect(failures).toEqual([]);
+    const refused = withGapSignals(
+      () => Promise.reject(new Error('COMPOSER_SCOPE_MISMATCH')),
+      () => Promise.resolve(),
+      { guard },
+    );
+    await expect(refused(scope, binding, decision)).rejects.toThrow('COMPOSER_SCOPE_MISMATCH');
+  });
+
+  it('runs the recorder through the guard, not bare: the guard is where the savepoint and the short lock wait are', async () => {
+    let guarded = 0;
+    const persist = withGapSignals(
+      () => Promise.resolve('stored'),
+      () => Promise.resolve(),
+      {
+        guard: async (_scope, effect) => {
+          guarded += 1;
+          await effect();
+          return { ok: true };
+        },
+      },
+    );
+    await persist(scope, binding, decision);
+    expect(guarded).toBe(1);
   });
 });

@@ -166,6 +166,8 @@ export interface WorkerConfig extends ReleaseIdentity {
   readonly supplyGrowthEnabled: boolean;
   /** `KS_SUPPLY_GAP_DEPTH_TARGET`: released explanations a planet should have before the gap loop stops calling it shallow (D-414). */
   readonly supplyGapDepthTarget: number;
+  /** `KS_SUPPLY_GAP_MAX_ROUNDS`: how many failed production rounds (a rejected take, recipes that all ended) reject a gap (D-414). */
+  readonly supplyGapMaxRounds: number;
   /** Ask orders (a short Scroll made for a person's question, D-218) Quartermaster may make per UTC day; 0 turns them off. */
   readonly supplyAskDailyCap: number;
   /** Ask orders one person may have made per UTC day. */
@@ -311,6 +313,13 @@ const supplyGrowthEnabledVariable = z.enum(['0', '1']).default('0');
  * (the one value the depth rule reads, D-414). It is never below the floor of three explanations a planet needs. Default 6.
  */
 const supplyGapDepthTargetVariable = z.coerce.number().int().min(3).max(50).default(6);
+
+/**
+ * `KS_SUPPLY_GAP_MAX_ROUNDS`: the circuit breaker of the gap loop (D-414). A commissioned gap whose take an operator rejected, or whose recipes all
+ * ended without a release, goes back to be tried again and a failed production round is counted; at this many the gap is rejected, so a hole
+ * nobody can fill is not tried for ever. Default 3.
+ */
+const supplyGapMaxRoundsVariable = z.coerce.number().int().min(1).max(10).default(3);
 
 /**
  * `KS_SUPPLY_ASK_DAILY_CAP`: how many ask orders (a short Scroll made for one person's question, each one writer call
@@ -837,6 +846,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         KS_SUPPLY_GROWTH_DAILY_CAP: supplyGrowthCapVariable,
         KS_SUPPLY_GROWTH_ENABLED: supplyGrowthEnabledVariable,
         KS_SUPPLY_GAP_DEPTH_TARGET: supplyGapDepthTargetVariable,
+        KS_SUPPLY_GAP_MAX_ROUNDS: supplyGapMaxRoundsVariable,
         KS_SUPPLY_ASK_DAILY_CAP: supplyAskDailyCapVariable,
         KS_SUPPLY_ASK_PERSON_DAILY_CAP: supplyAskPersonCapVariable,
         KS_SUPPLY_QUICK_ANSWER_DAILY_CAP: supplyQuickAnswerDailyCapVariable,
@@ -857,6 +867,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         'KS_SUPPLY_GROWTH_DAILY_CAP',
         'KS_SUPPLY_GROWTH_ENABLED',
         'KS_SUPPLY_GAP_DEPTH_TARGET',
+        'KS_SUPPLY_GAP_MAX_ROUNDS',
         'KS_SUPPLY_ASK_DAILY_CAP',
         'KS_SUPPLY_ASK_PERSON_DAILY_CAP',
         'KS_SUPPLY_QUICK_ANSWER_DAILY_CAP',
@@ -889,6 +900,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     supplyGrowthDailyCap: parsed.KS_SUPPLY_GROWTH_DAILY_CAP,
     supplyGrowthEnabled: parsed.KS_SUPPLY_GROWTH_ENABLED === '1',
     supplyGapDepthTarget: parsed.KS_SUPPLY_GAP_DEPTH_TARGET,
+    supplyGapMaxRounds: parsed.KS_SUPPLY_GAP_MAX_ROUNDS,
     supplyAskDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_ASK_DAILY_CAP, release.world),
     supplyAskPersonDailyCap: parsed.KS_SUPPLY_ASK_PERSON_DAILY_CAP,
     supplyQuickAnswerDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_QUICK_ANSWER_DAILY_CAP, release.world),

@@ -8,7 +8,7 @@ import {
 } from '../domain/gaps.js';
 import { commissionGrowth, startOfUtcDay } from './growth.js';
 import { utcDay } from './gap-signals.js';
-import type { BriefGaps, GapBriefPorts, GapRow } from './gap-ports.js';
+import type { BriefGaps, GapBriefPorts, GapBriefResult, GapRow } from './gap-ports.js';
 
 /** How many gaps whose production was sent a pass looks at to send a lost job again. */
 const RESUME_LIMIT = 10;
@@ -42,11 +42,11 @@ const factsOf = (recipes: Awaited<ReturnType<GapBriefPorts['readGapRecipes']>>):
  * the production job is sent after it commits; a pass also sends again the job of any gap it commissioned earlier, so a job lost
  * between the commit and the send is never lost for good (one job for each recipe, version and take).
  *
- * Failure and retry: a stopped worker or a redelivery repeats a pass without harm. No model call or network wait holds a transaction.
+ * Failure and retry: a stopped worker or a redelivery repeats a pass without harm, and two passes never overlap: the pass holds a session advisory
+ * lock (`GapBriefLock`), so a second one does nothing. No model call or network wait holds a transaction.
  */
 export function makeBriefGaps(p: GapBriefPorts): BriefGaps {
-  return async (signal) => {
-    if (!p.enabled || p.growthDailyCap <= 0) return { kind: 'disabled' };
+  const pass = async (signal: AbortSignal): Promise<GapBriefResult> => {
     const counts = { proposed: 0, commissioned: 0, waiting: 0, failed: 0, rejected: 0, blocked: 0 };
     let paused = false;
     const now = p.now();
@@ -134,5 +134,10 @@ export function makeBriefGaps(p: GapBriefPorts): BriefGaps {
       }
     }
     return { kind: 'done', ...counts, paused };
+  };
+  return async (signal) => {
+    if (!p.enabled || p.growthDailyCap <= 0) return { kind: 'disabled' };
+    // One pass at a time: a second one (another process, a redelivery that outlived its claim) finds the lock held and does nothing.
+    return (await p.lock.exclusively(() => pass(signal))) ?? { kind: 'busy' };
   };
 }

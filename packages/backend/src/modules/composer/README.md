@@ -352,7 +352,10 @@ start production before they run out. Composer's side is small and pure (`domain
 
 It is read from the decision alone and changes nothing in it: the decision, its input, its replay and its stored bytes are exactly what they were, and
 the persist port records the signals only after a decision was **newly stored** (`adapters/gap-signal-persist.ts`, `withGapSignals`), in the same
-transaction, never for a replay. Composer imports nothing of Supply: the composition roots pass Supply's recorder token to
+transaction, never for a replay. Recording is a best effort that can never fail or delay the navigation: it runs under a savepoint with a short lock wait
+(`infrastructure/postgres/best-effort.ts`), so a failing recorder rolls back only its own writes and is swallowed (the code is logged as
+`composer.gap_signal_failed`), and a row another transaction holds, one the scan is counting, makes it give up at once. A disposable test account's decision records
+nothing (Supply's recorder checks the account's flag through Identity's public port). Composer imports nothing of Supply: the composition roots pass Supply's recorder token to
 `composerRecordingProviders` (API and worker, both persist points: the navigation that ranks, and the buffer the worker prepares), and the recorder, not
 Composer, decides what is kept (the catalogue's planets only, one mark a person, planet and day, nothing where the loop is off). Composer names no table
 of it and reads none of it: demand is never evidence, and `modules/supply/gap-wall.test.ts` holds that for Composer, Evidence, Personal Context and

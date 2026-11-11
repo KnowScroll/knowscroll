@@ -5,6 +5,7 @@ import {
   mayReopen,
   mergeDemand,
   newReadersOf,
+  nextRound,
   priorityOf,
   settleCommissioned,
   structuralGaps,
@@ -23,7 +24,9 @@ const DAY_MS = 86_400_000;
  * into the daily counters, finds the structural holes of the library (a planet with fewer than three released explanations or two
  * covered facets, a facet with none, a planet below the depth target) and merges the counted signals into them, then makes the table
  * say the same: a hole with no open gap gets one (one for each key, never two), a gap whose hole is gone is closed, a gap whose
- * recipes were released is closed, and one whose recipes all ended without a release goes back to `open`. A key rejected before is
+ * recipes were released is closed, and one whose recipes did not get released goes back (a rejected take that may be taken again: to
+ * `briefed`, so the stored recipe is commissioned again with no model call; every recipe ended: to `open`) with a failed production round
+ * counted, and past the bound (`maxRounds`) it is rejected as `production_rejected`. A key rejected before is
  * opened again only by readers who pointed to it since, when the reason allows and the cooldown has passed. It also deletes what is past
  * its retention. One scan runs at a time (an advisory lock), and a second one finds the first's work done.
  *
@@ -63,10 +66,14 @@ export function makeScanGaps(ports: GapScanPorts): ScanGaps {
       let refreshed = 0;
       let closed = 0;
       let reopened = 0;
+      let rebriefed = 0;
+      let rejectedNow = 0;
+      /** The holes whose gap the circuit breaker just rejected: they do not open a fresh gap in this scan. */
+      const exhausted = new Set<string>();
       const same = (gap: GapTarget & { readonly kind: GapKind }, candidate: GapCandidate) =>
         gap.kind === candidate.kind && gap.planet === candidate.planet && gap.facet === candidate.facet;
       // First what the library has settled: a gap whose hole is gone is closed, and a commissioned gap whose recipes were released
-      // is closed, or goes back to open when every one of them ended without a release. A key whose hole remains then gets a fresh gap.
+      // is closed, or goes back to open (every recipe ended) or to briefed (a take was rejected and another may start) with the round counted. A key whose hole remains then gets a fresh gap.
       const found = new Set(candidates.map((candidate) => gapIdentity(candidate.kind, candidate)));
       const states = await ports.readRecipeStates(
         live.filter((gap) => gap.status === 'commissioned').flatMap((gap) => gap.recipes),
@@ -81,13 +88,23 @@ export function makeScanGaps(ports: GapScanPorts): ScanGaps {
             closed += 1;
             continue;
           }
-          if (next === 'reopen' && holeRemains) {
-            await tx.reopenGap(gap.id, now);
-            reopened += 1;
-          } else if (!holeRemains) {
+          if (!holeRemains) {
             await tx.closeGap(gap.id, 'filled', now);
             closed += 1;
             continue;
+          }
+          if (next === 'rebrief' || next === 'reopen') {
+            // A failed production round: counted, and past the bound the gap is rejected instead of tried again.
+            const round = nextRound(gap.rounds, ports.maxRounds);
+            if (round.exhausted) {
+              await tx.rejectGap(gap.id, 'production_rejected', round.rounds, now);
+              exhausted.add(gapIdentity(gap.kind, gap));
+              rejectedNow += 1;
+              continue;
+            }
+            await tx.endRound(gap.id, next === 'rebrief' ? 'briefed' : 'open', round.rounds, now);
+            if (next === 'rebrief') rebriefed += 1;
+            else reopened += 1;
           }
         } else if (!holeRemains) {
           await tx.closeGap(gap.id, 'filled', now);
@@ -98,6 +115,7 @@ export function makeScanGaps(ports: GapScanPorts): ScanGaps {
       }
       for (const candidate of candidates) {
         const priority = priorityOf(candidate.severity, candidate.readers);
+        if (exhausted.has(gapIdentity(candidate.kind, candidate))) continue;
         const existing = live.find((gap) => standing.has(gap.id) && same(gap, candidate));
         if (existing) {
           await tx.refreshGap(existing.id, candidate, priority, now);
@@ -109,7 +127,16 @@ export function makeScanGaps(ports: GapScanPorts): ScanGaps {
         if (await tx.createGap(candidate, priority, ports.newId(), now)) opened += 1;
       }
       const purged = await tx.purge(now);
-      return { counted, opened, refreshed, closed, reopened, purged: purged.marks + purged.signals + purged.gaps };
+      return {
+        counted,
+        opened,
+        refreshed,
+        closed,
+        reopened,
+        rebriefed,
+        rejected: rejectedNow,
+        purged: purged.marks + purged.signals + purged.gaps,
+      };
     });
     return outcome === undefined ? { kind: 'busy' } : { kind: 'scanned', ...outcome };
   };

@@ -161,6 +161,7 @@ const SHOWN_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     'priority',
     'readers',
     'attempts',
+    'rounds',
     'reason',
     'recipes',
     'first_seen_at',

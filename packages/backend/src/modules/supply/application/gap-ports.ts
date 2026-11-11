@@ -15,6 +15,8 @@ export interface GapRow {
   readonly readers: number;
   /** Failed proposing attempts so far (0 to 2). */
   readonly attempts: number;
+  /** Failed production rounds so far (a rejected take, or recipes that all ended without a release). */
+  readonly rounds: number;
   /** The UTC day of the attempt in flight, pinned so a redelivery sends the same request. */
   readonly attemptDay?: string;
   readonly recipes: readonly string[];
@@ -45,8 +47,13 @@ export interface GapScanTx {
   createGap(candidate: GapCandidate, priority: number, id: string, now: Date): Promise<boolean>;
   refreshGap(id: string, candidate: GapCandidate, priority: number, now: Date): Promise<void>;
   closeGap(id: string, reason: string, now: Date): Promise<void>;
-  /** Puts a commissioned gap back to `open` (its recipes ended without a release), clearing what it had commissioned. */
-  reopenGap(id: string, now: Date): Promise<void>;
+  /**
+   * Ends a failed production round of a commissioned gap: `open` (its recipes ended for good; they are cleared) or `briefed` (a take was
+   * rejected and another may start; the stored recipe is kept to be commissioned again), with the round counted.
+   */
+  endRound(id: string, to: 'open' | 'briefed', rounds: number, now: Date): Promise<void>;
+  /** Rejects a gap whose failed rounds reached the bound, with the reason code. */
+  rejectGap(id: string, reason: string, rounds: number, now: Date): Promise<void>;
 }
 
 export interface GapScanStore {
@@ -58,6 +65,8 @@ export interface GapScanPorts {
   /** `KS_SUPPLY_GROWTH_ENABLED`. Off: the scan does nothing and reads nothing. */
   readonly enabled: boolean;
   readonly depthTarget: number;
+  /** How many failed production rounds reject a gap (`KS_SUPPLY_GAP_MAX_ROUNDS`). */
+  readonly maxRounds: number;
   readonly store: GapScanStore;
   readonly readCoverage: () => Promise<ReleasedCoverage>;
   readonly readRecipeStates: (keys: readonly string[]) => Promise<ReadonlyMap<string, GapRecipe['state']>>;
@@ -76,7 +85,11 @@ export type GapScanResult =
       readonly opened: number;
       readonly refreshed: number;
       readonly closed: number;
+      /** Commissioned gaps put back to `open` (every recipe ended) or to `briefed` (a take was rejected). */
       readonly reopened: number;
+      readonly rebriefed: number;
+      /** Gaps whose failed production rounds reached the bound. */
+      readonly rejected: number;
       readonly purged: number;
     };
 
@@ -143,8 +156,17 @@ export interface GrowthTx {
   closeWork(id: string): Promise<void>;
 }
 
+/**
+ * Keeps two passes of the brief job from overlapping: `work` runs only while this process holds the pass's session advisory lock, which a
+ * crash releases with its connection. No transaction is open across the pass (a model call never holds one); `undefined` when another pass holds it.
+ */
+export interface GapBriefLock {
+  exclusively<T>(work: () => Promise<T>): Promise<T | undefined>;
+}
+
 export interface GapBriefPorts {
   readonly enabled: boolean;
+  readonly lock: GapBriefLock;
   /** `KS_SUPPLY_GROWTH_DAILY_CAP`: new Scrolls from stored recipes per UTC day, whoever asked; 0 turns growth off. */
   readonly growthDailyCap: number;
   readonly store: GapBriefStore;
@@ -167,6 +189,8 @@ export interface GapBriefPorts {
 /** What one pass of the brief job did, in counts. */
 export type GapBriefResult =
   | { readonly kind: 'disabled' }
+  /** Another pass holds the lock: this one did nothing. */
+  | { readonly kind: 'busy' }
   | {
       readonly kind: 'done';
       /** Proposing attempts made. */

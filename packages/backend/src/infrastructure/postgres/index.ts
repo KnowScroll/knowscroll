@@ -15,6 +15,7 @@ export {
   dropOpsJobViews,
   grantOpsReader,
 } from './ops-job-views.js';
+export { BEST_EFFORT_LOCK_WAIT_MS, bestEffort, type BestEffort } from './best-effort.js';
 export {
   LockOrderError,
   ScopeBusyError,

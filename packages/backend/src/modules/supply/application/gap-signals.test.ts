@@ -13,7 +13,7 @@ const CATALOGUE: readonly CatalogueTopic[] = [
 ];
 const scope = {} as PersonalScopeTx;
 
-function recorder(enabled: boolean) {
+function recorder(enabled: boolean, disposable = false) {
   const written: { day: string; signals: readonly GapSignalInput[] }[] = [];
   const marks: GapMarkStore = {
     mark: (_scope, day, signals) => {
@@ -24,6 +24,7 @@ function recorder(enabled: boolean) {
   const record = makeRecordGapSignals({
     enabled,
     marks,
+    isDisposable: () => Promise.resolve(disposable),
     now: () => new Date('2026-11-11T23:59:59Z'),
     catalogue: CATALOGUE,
   });
@@ -79,5 +80,32 @@ describe('recording a signal in the person’s own transaction', () => {
     await on.record(scope, []);
     await on.record(scope, [{ source: 'ask', planet: 'unknown' }]);
     expect(on.written).toEqual([]);
+  });
+
+  it('writes nothing for a disposable test account: it never feeds shared supply, and a real account in the same call does', async () => {
+    const test = recorder(true, true);
+    await test.record(scope, [{ source: 'low_headroom', planet: 'fixture.tides' }]);
+    await test.record(scope, [{ source: 'ask', planet: 'fixture.tides', facet: 'fixture.tides.pull' }]);
+    expect(test.written).toEqual([]);
+    const real = recorder(true, false);
+    await real.record(scope, [{ source: 'low_headroom', planet: 'fixture.tides' }]);
+    expect(real.written).toHaveLength(1);
+  });
+
+  it('does not even ask whether the account is disposable when there is nothing worth recording', async () => {
+    let asked = 0;
+    const record = makeRecordGapSignals({
+      enabled: true,
+      marks: { mark: () => Promise.resolve() },
+      isDisposable: () => {
+        asked += 1;
+        return Promise.resolve(false);
+      },
+      now: () => new Date('2026-11-11T12:00:00Z'),
+      catalogue: CATALOGUE,
+    });
+    await record(scope, [{ source: 'ask', planet: 'not a planet' }]);
+    await record(scope, []);
+    expect(asked).toBe(0);
   });
 });

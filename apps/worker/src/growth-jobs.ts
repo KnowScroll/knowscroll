@@ -14,6 +14,7 @@ import {
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { briefGapQueue, scanGapsQueue } from '@knowscroll/backend/modules/supply';
 import {
+  gapBriefLock,
   gapBriefStore,
   gapScanStore,
   growthStore,
@@ -41,6 +42,7 @@ export function gapLoopConsumers(deps: {
   const scan = makeScanGaps({
     enabled: config.supplyGrowthEnabled,
     depthTarget: config.supplyGapDepthTarget,
+    maxRounds: config.supplyGapMaxRounds,
     store: gapScanStore(db),
     readCoverage: () => readReleasedCoverage(db),
     readRecipeStates: (keys) => readRecipeStates(db, keys),
@@ -57,6 +59,7 @@ export function gapLoopConsumers(deps: {
   const brief = makeBriefGaps({
     enabled: config.supplyGrowthEnabled && config.reasoning.productionEnabled,
     growthDailyCap: config.supplyGrowthDailyCap,
+    lock: gapBriefLock(db),
     store: gapBriefStore(db),
     // Create's decision reads the library on the transaction that holds the commissioning lock; the planning reads use the pool.
     growth: growthStore(db, { readRecipes: readGapRecipes, chooseRecipe: chooseScrollRecipeIn }),
@@ -71,12 +74,16 @@ export function gapLoopConsumers(deps: {
   return [
     jobConsumer(scanGapsQueue, async () => {
       const result = await scan();
-      if (result.kind === 'scanned' && result.opened + result.closed + result.reopened + result.counted > 0)
+      if (
+        result.kind === 'scanned' &&
+        result.opened + result.closed + result.reopened + result.rebriefed + result.rejected + result.counted > 0
+      )
         logEvent('supply.gaps_scanned', { outcome: 'scanned', count: result.opened });
     }),
     jobConsumer(briefGapQueue, async (_payload, delivery) => {
       const result = await brief(delivery.signal);
-      if (result.kind === 'done' && result.proposed + result.commissioned + result.waiting > 0)
+      if (result.kind === 'busy') logEvent('supply.gaps_briefed', { outcome: 'busy', count: 0 });
+      else if (result.kind === 'done' && result.proposed + result.commissioned + result.waiting > 0)
         logEvent('supply.gaps_briefed', { outcome: result.paused ? 'paused' : 'done', count: result.proposed });
     }),
   ];
