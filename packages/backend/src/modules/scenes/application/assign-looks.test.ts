@@ -10,7 +10,7 @@ import {
   type SystemLook,
 } from '@knowscroll/contracts';
 import { CONCEPTS } from '../../content/public.js';
-import { assignLooks, LookRefused, RESERVED_SITES, type LookSubject } from './assign-looks.js';
+import { assignLooks, LookRefused, RESERVED_SITES, TypeUse, type LookSubject } from './assign-looks.js';
 
 /**
  * Each planet's facets in the order a region's site is taken from (D-078, D-102). A region's site is the
@@ -446,6 +446,78 @@ describe('the look rule (authored CI subjects over the real catalogue)', () => {
     const first = assign(subset(reversed.slice(0, 8)), []);
     const second = [...first, ...assign(subset(reversed), first)];
     for (const look of first) expect(second.find((l) => l.objectId === look.objectId)).toEqual(look);
+  });
+});
+
+describe('the look rule from a universe aggregate (D-417)', () => {
+  /** The aggregate the store reads in one query: how many planets hold each type. */
+  const aggregate = (looks: readonly SceneLook[]) => new Map(byType(looks));
+
+  it('gives exactly the looks the rule gave when it recounted every look, from the counts alone', () => {
+    const { subjects, planets } = catalogueWorld();
+    const base = assign(onlyPlanets(subjects, planets.slice(0, 8)), []);
+    const recounted = assignLooks(subjects, base);
+    const fromCounts = assignLooks(subjects, base, new TypeUse(aggregate(base)));
+    expect(fromCounts).toEqual(recounted);
+    expect(fromCounts.created.length).toBeGreaterThan(0);
+  });
+
+  it('assigns a map one system at a time, each batch seeing only its own looks, to the same stable result', () => {
+    const { subjects } = catalogueWorld();
+    const systems = subjects.filter((s) => s.kind === 'system');
+    const use = new TypeUse();
+    let all: SceneLook[] = [];
+    for (const system of systems) {
+      const batch = subjects.filter((s) => s.systemId === system.systemId);
+      const ids = new Set(batch.map((s) => s.objectId));
+      const given = assignLooks(
+        batch,
+        all.filter((look) => ids.has(look.objectId)),
+        use,
+      );
+      expect(given.skipped).toEqual([]);
+      all = [...all, ...given.created];
+    }
+    // Every system, planet and region has a look, once.
+    expect(new Set(all.map((l) => l.objectId)).size).toBe(all.length);
+    expect(all.filter((l) => l.kind === 'system')).toHaveLength(systems.length);
+    // The least-used rule held across the batches: counts stay within one of each other (the planets arrive in system order).
+    const counts = [...byType(all).values()];
+    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
+    // Running it again over every batch gives nothing, however the aggregate is read.
+    const again = new TypeUse(aggregate(all));
+    for (const system of systems) {
+      const batch = subjects.filter((s) => s.systemId === system.systemId);
+      const ids = new Set(batch.map((s) => s.objectId));
+      expect(
+        assignLooks(
+          batch,
+          all.filter((look) => ids.has(look.objectId)),
+          again,
+        ).created,
+      ).toEqual([]);
+    }
+  });
+
+  it('takes a new planet from the universe counts even when its own system holds none of the type', () => {
+    const { subjects, planets } = catalogueWorld();
+    const base = assign(onlyPlanets(subjects, planets.slice(0, 6)), []);
+    const next = planets[6]!;
+    // The planet, its system and its star: all this batch holds.
+    const batch = subjects.filter(
+      (s) =>
+        s.objectId === next.objectId || (s.systemId === next.systemId && s.kind !== 'planet' && s.kind !== 'region'),
+    );
+    const ids = new Set(batch.map((s) => s.objectId));
+    // Six planets hold six types; the seventh takes the least used, and its variant counts the planets of that type.
+    const [look] = planetLooks(
+      assignLooks(
+        batch,
+        base.filter((l) => ids.has(l.objectId)),
+        new TypeUse(aggregate(base)),
+      ).created,
+    );
+    expect(look!.variant).toBe(1);
   });
 });
 

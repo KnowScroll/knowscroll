@@ -25,8 +25,15 @@ export const PUBLISH_GEOGRAPHY_DELTA = Symbol('geography.publishDelta');
 export const SETTLE_QUIET = Symbol('geography.settleQuiet');
 export const SWEEP_QUIET = Symbol('geography.sweepQuiet');
 
-export type { GeographySceneInput, ReadGeographySceneInput, GeographyApplied } from './application/ports.js';
+export type {
+  GeographySceneInput,
+  ReadGeographySceneInput,
+  SceneInputSelection,
+  ReadGeographyChangedSystems,
+  GeographyApplied,
+} from './application/ports.js';
 export const READ_GEOGRAPHY_SCENE_INPUT = Symbol('geography.readSceneInput');
+export const READ_GEOGRAPHY_CHANGED_SYSTEMS = Symbol('geography.readChangedSystems');
 export const GEOGRAPHY_APPLIED = Symbol('geography.applied');
 export type { GeographyRegionConstraint, ReadOwnRegionConstraint } from './application/ports.js';
 export const READ_OWN_REGION_CONSTRAINT = Symbol('geography.readOwnRegionConstraint');

@@ -175,7 +175,7 @@ function SystemsAndRooms({
     () => listUniverse(index, stations ?? [], state.youWereHere),
     [index, stations, state.youWereHere],
   );
-  const planets = listed.systems.reduce((sum, system) => sum + system.planets.length, 0);
+  const planets = listed.systems.reduce((sum, system) => sum + system.planetCount, 0);
   return (
     <>
       <Text variant="bodyS" color={SIMPLE.ink2} style={styles.sub}>

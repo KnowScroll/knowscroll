@@ -25,6 +25,10 @@ function settledScope(claimed: EvaluationScope, fresh: GeographyContext): Evalua
 }
 export function publicPlace(p: Place, universeId: string, objects: readonly Place[]): GeographyObject {
   const parentId = p.parentKey === 'universe' ? universeId : objects.find((o) => o.key === p.parentKey)?.id;
+  return publicPlaceOf(p, parentId);
+}
+/** The public form of a place whose parent's id is already known (a page of the map need not hold the parent). */
+export function publicPlaceOf(p: Place, parentId: string | undefined): GeographyObject {
   if (!parentId) throw new Error('GEOGRAPHY_PARENT_MISSING');
   return {
     id: p.id,
@@ -134,7 +138,7 @@ export async function applyProposal(
   if (prepared.kind !== 'prepared' || !(await p.ownerActive(scope))) return retry('source_changed');
   const fresh = prepared.context;
   const view: GeographyView = { state, objects: fresh.facts.objects, routes: fresh.facts.routes, aliases: [] };
-  if (!validView(view, c.universeId, p.catalogue)) return { kind: 'refused', reason: 'stored_structure' };
+  if (!validView(view, c.universeId, { catalogue: p.catalogue })) return { kind: 'refused', reason: 'stored_structure' };
   // New reading since the context was frozen does not void a proposal: it applies when every
   // operation still holds on today's authority. Support that was withdrawn, corrected or retracted
   // makes it fail here as `source_changed`.
@@ -291,13 +295,26 @@ export async function applyProposal(
   });
   return { kind: 'applied', delta, more: settled.more };
 }
-/** Validate retained hierarchy and relations before any public read. Aliases have no creation operation. */
-export function validView(view: GeographyView, universeId: string, catalogue: Catalogue = PRODUCT_CATALOGUE): boolean {
+/**
+ * Validate retained hierarchy and relations before any public read. Aliases have no creation operation. A `subset`
+ * view holds some systems of the map (D-417): the hierarchy and routes are checked within it, and the semantic key
+ * is not required to be the one the catalogue derives (that is fixed when a place is written, and is what makes a
+ * key unique).
+ */
+export function validView(
+  view: Pick<GeographyView, 'state' | 'objects' | 'routes' | 'aliases'>,
+  universeId: string,
+  options: { readonly subset?: boolean; readonly catalogue?: Catalogue } = {},
+): boolean {
+  const catalogue = options.catalogue ?? PRODUCT_CATALOGUE;
   const ids = new Map(view.objects.map((o) => [o.id, o])),
     keys = new Map(view.objects.map((o) => [o.key, o]));
   if (ids.size !== view.objects.length || keys.size !== view.objects.length) return false;
   for (const o of view.objects) {
-    if (o.objectRevision > view.state.revision || o.key !== semanticKey(o.kind, o.conceptId, o.truthStatus))
+    if (
+      o.objectRevision > view.state.revision ||
+      (options.subset !== true && o.key !== semanticKey(o.kind, o.conceptId, o.truthStatus))
+    )
       return false;
     const topic = catalogue.topic(o.conceptId);
     if (o.kind === 'system' && (!topic || topic.parent !== null)) return false;

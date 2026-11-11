@@ -182,8 +182,9 @@ formation, scene, provider or sharing authority. Scene projection and its consum
 Installed-release HTTP fixtures exercise the real Nest/PG boundary without a worker or provider;
 they are not deployed map or formation evidence.
 
-Scene reads are `POST /v1/universe/scenes/manifest/read` and
-`POST /v1/universe/scenes/chunks/read`. Thin Nest adapters consume the canonical 307 contracts
+Scene reads are `POST /v1/universe/scenes/sky/read` (every system of the map, a page at a time, for a client that
+declared `scene-sky.v1`; D-417), `POST /v1/universe/scenes/manifest/read` and
+`POST /v1/universe/scenes/chunks/read` (the latter two also by `selection: system`). Thin Nest adapters consume the canonical 307 contracts
 and existing own-scope read ports, with the same Origin/session/X-KS-Scope/JSON/size guards.
 Successful Scene bodies carry `Cache-Control: private, no-store`. Only admitted caller authority
 is used; foreign/unknown selection or foreign-scope references disclose only NOT_FOUND.

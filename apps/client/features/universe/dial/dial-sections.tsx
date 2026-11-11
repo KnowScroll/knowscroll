@@ -124,7 +124,7 @@ export function SystemWheel({ dial }: { readonly dial: OrbitDialState }) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={nameWithTruth(
-              `${entry.name}, a system, ${countOf(entry.planets.length, 'planet')}`,
+              `${entry.name}, a system, ${countOf(entry.planetCount, 'planet')}`,
               entry.hypothetical,
             )}
             aria-current={chosen ? 'true' : undefined}
@@ -200,7 +200,7 @@ export function WheelFacts({
           center
         />
         <View style={styles.chips}>
-          <InfoChip label={countOf(system.planets.length, 'planet')} />
+          <InfoChip label={countOf(system.planetCount, 'planet')} />
           {visitor ? null : <InfoChip label={countOf(system.rooms, 'room')} />}
           {visitor ? null : <InfoChip label={countOf(system.regions, 'region')} />}
           {system.here ? <InfoChip label="You’re here" dot /> : null}

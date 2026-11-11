@@ -111,7 +111,8 @@ path when supplied. A client that does not declare `scroll-document.v2` is never
 Related: #238.
 
 `createUniverseSceneSession({ scope, capabilities, selection? })` owns a complete global Geography
-and a complete selected Scene in memory. Supply the actual AccountScope and an explicit bounded
+and a complete selected Scene in memory (for a client that declares the sky capability it holds the sky and the loaded
+systems instead: see "A map at scale" below). Supply the actual AccountScope and an explicit bounded
 capability declaration; no new wire method or credential handle is needed. Construction requires
 synchronous `scope.onEnd`, otherwise the session refuses before any work. `start()`/`resume()` attach
 one QueryObserver under `scope.queryKey(...)`; the existing hint socket invalidates that prefix.
@@ -150,6 +151,49 @@ unchanged (262144 bytes, depth 12, 12000 nodes, 100 objects/routes per chunk). G
 before canonical validation: these are accepted/retained-data bounds, **not a pre-decode transport
 allocation guarantee**. Full/low/reduced-motion flags do not reduce wire cardinality or permit
 repeated oversized downloads.
+
+### A map at scale: the sky session (D-417)
+
+Status: implemented and unit-tested against authored protocol fixtures (`universe-sky-session.test.ts`); not run on dev.
+
+A client that declares `sky: ['scene-sky.v1']` (and the look capability) is given a different session by the same
+`createUniverseSceneSession`: `universe-sky-session.ts`. The session above holds the whole map and stays for a client that
+does not declare the sky (its reads, limits and tests are unchanged). A sky session reads the map as its sky first and one
+system at a time:
+
+- **The sky.** `scenes.sky` pages every system (200 a page) as one compact entry each: the system's descriptor, its haze,
+  its planet count and the scene revision it last changed at. All pages are read before anything is shown; a page that comes
+  back `snapshot_expired`, or at another scene revision, restarts the read (at most three times). The sky is held in
+  `state.sky` (`systems`, `sceneRevision`), is deep-frozen and bounded at `skyBytes` (16 MiB) and `skyPages` (600, so 120,000
+  systems). A refresh reads it again with `sinceSceneRevision`: only the systems that changed come back and are merged.
+- **A small map is read whole, in one pass.** After the sky read, a map of at most `loadedSystems` (24) systems is read
+  exactly as a client without the sky reads it: one universe-selection `geography.read` (no `version`, so the server answers
+  as it always did, routes on every page), one universe-selection `scenes.manifest` and its chunks four at a time, validated
+  as the whole-map session validates (`validateGeography` and `validateScene` with the old 1000 limits). The result is split
+  into the per-system records the session keeps, so `want`, unloading and refresh work the same for every map. The sky read
+  is the only added request and the only added round (a 6-system map: 8 requests in 4 rounds without the sky, 9 in 5 with it;
+  24 systems: 27 in 9 against 28 in 10; counted in `universe-sky-session.test.ts`). The first drawing waits until every planet
+  is in, so a small universe appears exactly as it always did. If the whole-map reads come back `limit` (a small map that
+  still exceeds what they can hold) or the chunks do not fall on systems, the map is read one system at a time. A refresh of
+  a small map reads the sky since the revision it holds and then only the systems that changed (one at a time, or in one
+  whole-map pass when more than about a third of the map changed); when a small map grows past 24 systems it keeps what it
+  holds and reads one system at a time from then on.
+- **One system at a time, for a larger map.** `want(systemIds)` names the systems whose planets, regions and routes are
+  loaded. A load is `geography.read` with `version: 'geography-read.v2'` and the system selection (paged; the system's routes
+  come with it), `scenes.manifest` with the system selection and its chunks (four at a time), then the same checks the
+  whole-map session makes (`validateScene`, in `universe-scene-shared.ts` with the limits as a parameter: a system may hold
+  what one manifest can name, 12,800 places). Independent systems load together, up to four at a time. A system that fails is
+  left out, named in `state.failedSystemIds`, and not asked for again until it is wanted anew or the next refresh. A refusal
+  of authority on any read purges everything and ends the session's data, as in the whole-map session.
+- **What stays loaded.** The systems named by the last `want`, plus at most `loadedSystems` (24) that were wanted before,
+  the oldest let go first. A system is read again only when its sky entry moved past the scene revision it was read at; a
+  change elsewhere in the map costs it nothing.
+- **The state keeps its shape.** `status`, `geography` (the places and routes of the loaded systems, with the map's current
+  revisions), `snapshot` (a manifest read composed of the sky's stamps, the loaded chunks and the looks: the sky's hazes and the
+  loaded systems' own) and `pendingProjection` mean what they meant, so formation presentation, Keep and region encounters
+  read it unchanged. `loadedSystemIds` lists what is loaded. The composed objects keep their identity until something they
+  hold changes, which the formation story relies on.
+- **`refresh()`** reads the sky since the revision it holds and resolves once the systems that changed have been read again.
 
 Authored protocol fixtures exercise this session. The app's Universe controller mounts it and
 consumes the registered Geography/Scenes APIs; the backend worker projects scenes. Fixture

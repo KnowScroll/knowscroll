@@ -348,6 +348,7 @@ Geography and Scenes path and the CI fixture model). A mark that names a day and
 | Native camera persistence through encrypted scope storage                                         | implemented; abrupt-exit writes may be lost |
 | Room stations in 3D beside their systems, a "Rooms" section in the list view (D-051)         | runtime-verified (web: target and list; the 3D drawing is the gallery sample; on dev the station was seen on the map, 1 Nov, room-journey) |
 | The ship parked at the planet of the last place (unit-tested), "Return to <planet>" (D-080)   | implemented (the chip is runtime-verified, web) |
+| A map of thousands of systems: the sky first, one system's planets at a time, the Simple lists capped (D-417)  | implemented (unit-tested with a 3,000-system fixture; not driven in a browser) |
 | Sky regions that merge quiet systems (U08)                                                   | planned (no backend or data yet) |
 
 `/universe` follows artboards U01 to U08 and D02. The map fills the screen; the header and chips
@@ -405,6 +406,39 @@ float over it.
   (wheel open) and one for planets (in this system or everywhere), whose matches are a paper card under "In <system> / Everywhere".
   It is built from the reads the Universe holds (`buildDial`): nothing is fetched or written, and land not reached yet
   is neither listed nor counted. The design's "N uncharted" chip is not drawn (D-109).
+- **A map at scale** (D-417, #674 slice 4.3; *implemented, unit-tested with a 3,000-system fixture*). The Universe declares
+  `sky: ['scene-sky.v1']`, so its session reads every system as one compact entry first (the label index) and loads a
+  system's planets, regions and routes only when that system is wanted (`universe-session.ts` `applyInterest`, which gives
+  `core.want` the union of: the systems the drawing reports in detail through `setDetail`, the system the camera is in, the
+  one picked on the map, the systems Back would return to, the system of the ship, the systems a formation story is about
+  and the system a list or the dial is open on through `keepSystems`). A map of at most 24 systems is read whole in one pass behind
+  the sky read (one geography read, one manifest, its chunks: the old reads plus the sky read) and first drawn once its
+  planets are in, so today's sizes behave exactly as before; the per-system loads are for larger maps. `universe-places.ts` reads the map as
+  the sky's systems (replaced by their own chunk once loaded) plus the loaded places: `places()`, search, the outline, the
+  dial and the Simple lists therefore name **every system** and list the planets of the **loaded** ones; a system that is not
+  loaded still says how many planets it has (`planetCount`, from the sky) and its row offers "Show planets", which opens it.
+  The Simple lists and the desktop outline show the first 60 systems and say "Showing 60 of N systems. Search to find the
+  rest."; the dial's wheel only draws the items near its middle, and keeps the planets of the system it rests on loaded.
+  Limits, stated honestly: a remembered camera on a planet or region whose system is not loaded when the map first opens
+  (a map of more than 24 systems) is not restored, the camera starts on the whole map without a notice, and the ship is
+  not parked at that planet until the person visits it again; a system's planets appear a moment after the camera first
+  reaches it; the planet search of the dial and the outline find only the loaded systems' planets, while a system is found by
+  its name wherever it is. `?focus=last` flies to the last place only when its system is loaded.
+- **Renderer level of detail** (D-417; `space/detail-set.ts`, `space/space-anchors.ts`, `space/scene/far-field.ts`,
+  `space/scene/build-scene.ts`, `space/space-renderer.ts`, `space/camera-rig.ts`; *implemented and unit-tested; the shaders
+  and the draw cost were checked in a standalone Chromium page with real WebGL, not in the app and not on a device*). A map
+  of 24 systems or fewer is built whole, exactly as before. A larger map builds full meshes only for the systems in the
+  detail set: the focused, picked, scripted and ship systems, then the nearest to the camera target within 60 scene units,
+  at most 24, with a 1.25 hysteresis so a system on the edge does not flicker. Every other system is one point of a shared
+  `THREE.Points` glow field coloured by its haze. Systems enter the detail set one per frame and leave at once, releasing
+  their geometries, materials and textures; a changed definition rebuilds only the systems that changed. `anchors()` returns
+  at most 160 anchors, on screen (and a margin), nearest the centre first, so the labels and tap targets over the canvas stay
+  bounded however many systems exist. The renderer reports its detail set to `session.setDetail`, and the stage tells the
+  session how far the whole-universe view may zoom (`universeZoomMax`): the nearest approach of 24 scene units is reachable
+  for any extent, while a map that fits today keeps its limit of 2.5. Differences to know: far points have no ground haze
+  plane and read a little more saturated than full suns, which shows only at scale; the stations of systems out of detail are
+  not drawn; a planet is painted on entering the detail set (about 300 ms in Jest), so the first frames of a system may show
+  its sun before its planets.
 - **Simple drawing** (`simple/`, D-111). The whole tab as the two lists of `simple-views-finalized.html`. It is on by
   the setting ("Simple view" on the dial, "Simple drawing" in desktop Settings; remembered on the device with the
   camera) and by itself when WebGL is missing, the context is lost, a frame fails, the system warns of low memory or
@@ -500,7 +534,7 @@ smokes are `e2e/space-gallery.spec.ts` and `e2e/universe-space-smoke.spec.ts`; t
 Files (`features/universe/`): `universe-session.ts` (state, history, memory, dust), `universe-layout.ts`
 (pure placement of labels and the outline), `space/` (the 3D views, above), `planet/` (the SVG globe and landed
 map, drawn from `scene-core`'s world generator), `universe-bodies.tsx` (the formation story's star and planet),
-`universe-surface.tsx` (phone and desktop layout),
+`universe-places.ts` (the map as the sky and the loaded places), `universe-surface.tsx` (phone and desktop layout),
 `universe-panel.tsx` (D02 panel), `universe-lists.ts` (the lists the panel, the Simple view and the dial share), `simple/`, `dial/`,
 `universe-header.tsx`, `universe-cards.tsx`, `universe-search.ts`, `universe-search-panel.tsx`,
 `formation-presentation.tsx`, `animation/` (the animations, below). Choices are in D-039, D-108 to D-110, D-114 to D-116.

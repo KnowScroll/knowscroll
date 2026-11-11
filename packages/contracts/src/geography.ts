@@ -113,6 +113,13 @@ export const ReadGeographySchema = z
     selection: Selection,
     limit: z.number().int().min(1).max(GEOGRAPHY_LIMITS.objects),
     cursor: Cursor.optional(),
+    /**
+     * `geography-read.v2` (D-417) reads a map at scale: the universe selection pages the places only, with no
+     * routes, and a system's routes come with that system, each on the page that holds its `fromObjectId`; no read
+     * fails past 100 routes. Absent, the read is the whole-map read it was, which a client that predates the sky
+     * expects, and which refuses with `limit` past what that client can hold.
+     */
+    version: z.literal('geography-read.v2').optional(),
   })
   .refine(
     (q) => !q.cursor || sameSelection(q.selection, q.cursor.selection),

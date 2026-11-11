@@ -4,6 +4,7 @@ import {
   problemDetails,
   supportsSceneLooks,
   type GeographyObject,
+  type GeographyRoute,
   type RoomStation,
   type SceneClientCapabilities,
 } from '@knowscroll/contracts';
@@ -16,9 +17,19 @@ export const fixtureAccount = {
   email: 'universe@fixture.test',
 };
 const recordedAt = '2026-10-21T00:00:00.000Z';
+/** A system of a fixture map: its places, looks, chunks and routes. */
+interface FixtureSystem {
+  readonly id: string;
+  readonly objects: GeographyObject[];
+  readonly descriptors: SceneDescriptor[];
+  readonly looks: SceneLook[];
+  readonly chunks: SceneChunk[];
+  readonly routes: readonly GeographyRoute[];
+}
 /**
  * `dust` is the number of unlabelled dust cues the emerging read returns. `moreRegions` adds regions
- * to the same planet as the first one (planet 2), each on the next site of that planet's world.
+ * to the same planet as the first one (planet 2), each on the next site of that planet's world. `extraSystems` adds that
+ * many synthetic systems (a star and two planets each, one chunk each) beside the first world, for a map at scale (D-417).
  */
 /** The reads of the person's own play that the Universe makes beside the map: none of them writes anything. */
 export const COLLECTION_READS: readonly string[] = [
@@ -28,7 +39,7 @@ export const COLLECTION_READS: readonly string[] = [
   '/v1/universe/places/concepts/read',
 ];
 
-export function sceneFixture(count = 5, dust = 0, moreRegions = 0) {
+export function sceneFixture(count = 5, dust = 0, moreRegions = 0, extraSystems = 0) {
   const geography = { revision: count ? 3 : 0, structureRevision: count ? 3 : 0, activityRevision: 0 };
   const objects: GeographyObject[] = Array.from({ length: count }, (_, n) => {
     const kind =
@@ -115,8 +126,8 @@ export function sceneFixture(count = 5, dust = 0, moreRegions = 0) {
           },
         ]
       : [];
-  const sceneRevision = count ? 7 : 0,
-    personalRevision = count ? 35 : 0;
+  let sceneRevision = count ? 7 : 0;
+  const personalRevision = count ? 35 : 0;
   const revisions = {
     geographyRevision: geography.revision,
     structureRevision: geography.structureRevision,
@@ -142,6 +153,109 @@ export function sceneFixture(count = 5, dust = 0, moreRegions = 0) {
             }))
           : [],
     });
+  const looksOfDescriptors = (list: readonly SceneDescriptor[]): SceneLook[] =>
+    list.flatMap((d, n): SceneLook[] => {
+      const base = { schemaVersion: 'scene-look.v1', generatorVersion: 'worldmap.v1', objectId: d.objectId } as const;
+      if (d.kind === 'system') return [{ ...base, kind: 'system', haze: 'teal' }];
+      if (d.kind === 'planet')
+        return [
+          {
+            ...base,
+            kind: 'planet',
+            type: PLANET_TYPES[n % PLANET_TYPES.length]!,
+            rings: false,
+            moon: false,
+            hueShift: 0,
+            variant: n,
+            siteCount: 7,
+          },
+        ];
+      return [];
+    });
+  /** The map's systems as the sky and the per-system reads see them: the first world's, then the synthetic extras. */
+  const systems: FixtureSystem[] = [];
+  if (count)
+    systems.push({
+      id: fixtureId(10),
+      objects,
+      descriptors,
+      looks,
+      chunks,
+      routes,
+    });
+  for (let n = 0; n < extraSystems; n++) {
+    const base = 20_000 + n * 10;
+    const own: GeographyObject[] = [
+      {
+        id: fixtureId(base),
+        objectRevision: 1,
+        label: `CI system ${n + 2}`,
+        truthStatus: 'factual',
+        activity: { availability: 'available', state: 'active' },
+        originTransitionId: fixtureId(9000),
+        kind: 'system',
+        parent: { kind: 'universe', id: fixtureAccount.universeId },
+      },
+      ...([1, 2, 3] as const).map((offset): GeographyObject => ({
+        id: fixtureId(base + offset),
+        objectRevision: 1,
+        label: `CI ${offset === 1 ? 'star' : 'planet'} ${n + 2}.${offset}`,
+        truthStatus: 'factual',
+        activity: { availability: 'available', state: 'active' },
+        originTransitionId: fixtureId(9000),
+        kind: offset === 1 ? 'star' : 'planet',
+        parent: { kind: 'system', id: fixtureId(base) },
+      })),
+    ];
+    const own_descriptors: SceneDescriptor[] = own.map((o) => ({
+      schemaVersion: 'scene-descriptor.v1',
+      generatorVersion: 'silhouette.v1',
+      objectId: o.id,
+      parentId: o.parent.id,
+      kind: o.kind,
+      originTransitionId: o.originTransitionId,
+      label: o.label,
+      truthStatus: o.truthStatus,
+      activity: o.activity,
+      family: 'terraced.v1',
+      seed: n % 2 ? 'a'.repeat(32) : 'b'.repeat(32),
+      palette: 'sage',
+      material: 'solid',
+      atmosphere: { density: 0.1 },
+      detail: { roughness: 0.2 },
+      anchor: { x: ((n + 1) % 50) * 900, y: Math.floor((n + 1) / 50) * 900, layer: o.kind === 'system' ? 0 : 2 },
+      target: { kind: o.kind, objectId: o.id },
+    }));
+    systems.push({
+      id: fixtureId(base),
+      objects: own,
+      descriptors: own_descriptors,
+      looks: looksOfDescriptors(own_descriptors),
+      chunks: [
+        {
+          schemaVersion: 'scene-chunk.v1',
+          chunkId: fixtureId(30_000 + n),
+          revisions,
+          objects: own_descriptors,
+          routes: [],
+        },
+      ],
+      routes: [],
+    });
+  }
+  const bySystem = (systemId: string) => systems.find((system) => system.id === systemId);
+  /** What a read of a selection covers: one system, or the whole map. */
+  const covered = (selection: { kind: 'universe' } | { kind: 'system'; systemId: string }) => {
+    const own = selection.kind === 'system' ? [bySystem(selection.systemId)] : systems;
+    const found = own.flatMap((system) => (system ? [system] : []));
+    return {
+      known: selection.kind === 'universe' || found.length === 1,
+      objects: found.flatMap((system) => system.objects).sort((a, b) => (a.id < b.id ? -1 : 1)),
+      routes: found.flatMap((system) => system.routes),
+      looks: found.flatMap((system) => system.looks),
+      chunks: found.flatMap((system) => system.chunks),
+    };
+  };
   /** The room stations this map's reads answer with; a test pushes some to see them drawn. */
   const stations: RoomStation[] = [];
   const stationsOf = () => stations;
@@ -169,6 +283,11 @@ export function sceneFixture(count = 5, dust = 0, moreRegions = 0) {
     away: boolean;
   } = { finds: [], away: false };
   return {
+    /** The map changed: the scene moves on one revision, in every system and every chunk, and a refresh reads it all again. */
+    bump() {
+      sceneRevision += 1;
+      revisions.sceneRevision = sceneRevision;
+    },
     descriptors,
     looks,
     chunks,
@@ -211,9 +330,15 @@ export function sceneFixture(count = 5, dust = 0, moreRegions = 0) {
           stations: stationsOf(),
         };
       if (path.endsWith('/geography/read')) {
+        const asked = (body.selection ?? { kind: 'universe' }) as
+          { kind: 'universe' } | { kind: 'system'; systemId: string };
+        const own = covered(asked);
         const cursor = body.cursor as { afterObjectId?: string } | undefined;
-        const remaining = objects.filter((o) => o.id > (cursor?.afterObjectId ?? '')),
+        // `geography-read.v2` (D-417): the universe selection carries places only, a system's routes come with it.
+        const v2 = body.version === 'geography-read.v2';
+        const remaining = own.objects.filter((o) => o.id > (cursor?.afterObjectId ?? '')),
           page = remaining.slice(0, 100);
+        const routesHere = v2 && asked.kind === 'universe' ? [] : own.routes;
         return {
           version: 'geography-snapshot.v1',
           universeId: fixtureAccount.universeId,
@@ -221,13 +346,13 @@ export function sceneFixture(count = 5, dust = 0, moreRegions = 0) {
           personalWatermark: 40,
           recordedAt,
           geography,
-          selection,
+          selection: asked,
           status: count ? 'ready' : 'empty',
           ...(count
             ? {
                 page: {
                   objects: page,
-                  routes,
+                  routes: routesHere,
                   aliases: [],
                   continuation:
                     remaining.length > 100
@@ -237,7 +362,7 @@ export function sceneFixture(count = 5, dust = 0, moreRegions = 0) {
                             universeId: fixtureAccount.universeId,
                             privacyEpoch: 1,
                             geographyRevision: geography.revision,
-                            selection,
+                            selection: asked,
                             afterObjectId: page.at(-1)!.id,
                           },
                         }
@@ -271,24 +396,58 @@ export function sceneFixture(count = 5, dust = 0, moreRegions = 0) {
           deltas: [],
           hasMore: false,
         };
+      const asked = (body.selection ?? selection) as { kind: 'universe' } | { kind: 'system'; systemId: string };
+      const own = covered(asked);
       const fields = {
-        selection,
+        selection: asked,
         capabilities: body.capabilities as SceneClientCapabilities,
         scope: { universeId: fixtureAccount.universeId, privacyEpoch: 1, personalWatermark: 40 },
         recordedAt,
         currentGeography: geography,
         sceneRevision,
       };
+      // The sky (D-417): every system, a page at a time, each with its haze and planet count.
+      if (path.endsWith('/scenes/sky/read')) {
+        const { selection: _unused, ...skyFields } = fields;
+        const since = body.sinceSceneRevision as number | undefined;
+        const after = (body.cursor as { afterSystemId?: string } | undefined)?.afterSystemId ?? '';
+        const limit = (body.limit as number | undefined) ?? 200;
+        const listed = [...systems]
+          .sort((a, b) => (a.id < b.id ? -1 : 1))
+          .filter((system) => system.id > after && (since === undefined || sceneRevision > since));
+        const page = listed.slice(0, limit);
+        const base = {
+          version: 'scene-sky-read.v1',
+          ...skyFields,
+          ...(since === undefined ? {} : { sinceSceneRevision: since }),
+        };
+        if (!count) return { ...base, status: 'empty' };
+        return {
+          ...base,
+          status: 'ready',
+          revisions,
+          systems: page.map((system) => ({
+            descriptor: system.descriptors.find((d) => d.kind === 'system')!,
+            haze: 'teal',
+            planetCount: system.descriptors.filter((d) => d.kind === 'planet').length,
+            sceneRevision,
+          })),
+          continuation:
+            listed.length > page.length
+              ? { status: 'more', cursor: { sceneRevision, afterSystemId: page.at(-1)!.id } }
+              : { status: 'complete' },
+        };
+      }
       if (path.endsWith('/manifest/read'))
         return {
           version: 'scene-manifest-read.v1',
           ...fields,
-          ...(supportsSceneLooks(fields.capabilities) ? { looks } : {}),
+          ...(supportsSceneLooks(fields.capabilities) ? { looks: own.looks } : {}),
           status: count ? 'ready' : 'empty',
           manifest: {
             schemaVersion: 'scene-manifest.v1',
             revisions,
-            chunks: chunks.map((c) => ({
+            chunks: own.chunks.map((c) => ({
               chunkId: c.chunkId,
               sceneRevision,
               objectIds: c.objects.map((o) => o.objectId),
@@ -302,15 +461,15 @@ export function sceneFixture(count = 5, dust = 0, moreRegions = 0) {
           ...fields,
           reference: body.reference,
           status: 'ready',
-          chunk: chunks.find((c) => c.chunkId === ref.chunkId),
+          chunk: own.chunks.find((c) => c.chunkId === ref.chunkId),
         };
       }
       throw new Error('unexpected_fixture_write_or_read');
     },
   };
 }
-export function universeHarness(count = 5, dust = 0, moreRegions = 0) {
-  const world = sceneFixture(count, dust, moreRegions),
+export function universeHarness(count = 5, dust = 0, moreRegions = 0, extraSystems = 0) {
+  const world = sceneFixture(count, dust, moreRegions, extraSystems),
     calls: string[] = [],
     requests: { path: string; body: Record<string, unknown> }[] = [],
     store = memoryStore();

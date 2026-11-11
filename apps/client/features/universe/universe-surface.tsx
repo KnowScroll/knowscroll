@@ -17,7 +17,7 @@ import { SimpleUniverse } from './simple/simple-universe';
 import { UniverseBackdrop } from './universe-backdrop';
 import { PlanetCard, RegionCard, SystemCard } from './universe-cards';
 import { UniverseHeader } from './universe-header';
-import { isQuiet, viewFor, type Size, type UniverseIndex, type UniverseView } from './universe-layout';
+import { isQuiet, planetCountOf, viewFor, type Size, type UniverseIndex, type UniverseView } from './universe-layout';
 import { countOf } from './universe-lists';
 import { UniversePanel, UniverseSettings } from './universe-panel';
 import { UniverseSearchPanel } from './universe-search-panel';
@@ -194,7 +194,7 @@ export function UniverseSurface({
   const systemFacts =
     wide && view.kind === 'system'
       ? [
-          countOf(index.planets.get(view.system.objectId)?.length ?? 0, 'planet'),
+          countOf(planetCountOf(index, view.system.objectId), 'planet'),
           ...(stationsOfOwn
             ? [countOf(stationsOfOwn.filter((s) => s.placement.systemId === view.system.objectId).length, 'room')]
             : []),

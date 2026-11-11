@@ -7,8 +7,9 @@ import {
   type SceneClientCapabilities,
   type SceneManifestRead,
   type SceneChunkRead,
+  type SceneSkyRead,
 } from '@knowscroll/contracts';
-import type { ReadOwnSceneManifest, ReadOwnSceneChunk } from '@knowscroll/backend/modules/scenes';
+import type { ReadOwnSceneManifest, ReadOwnSceneChunk, ReadOwnSceneSky } from '@knowscroll/backend/modules/scenes';
 import type { Caller } from './callers.js';
 import { scopeGuard } from './scope-guard.js';
 import { ScenesController } from './scenes.controller.js';
@@ -58,6 +59,22 @@ const chunk: SceneChunkRead = {
   reference,
   chunk: SceneChunkSchema.parse({ schemaVersion: 'scene-chunk.v1', chunkId, revisions, objects: [], routes: [] }),
 };
+const skyCapabilities: SceneClientCapabilities = {
+  ...capabilities,
+  generators: ['silhouette.v1', 'worldmap.v1'],
+  looks: ['scene-look.v1'],
+  sky: ['scene-sky.v1'],
+};
+const skyInput = { capabilities: skyCapabilities, limit: 50 };
+const sky: SceneSkyRead = {
+  version: 'scene-sky-read.v1',
+  capabilities: skyCapabilities,
+  scope: base.scope,
+  recordedAt: base.recordedAt,
+  currentGeography: base.currentGeography,
+  sceneRevision: 0,
+  status: 'empty',
+};
 async function admittedRequest(): Promise<Request> {
   const request = {
     path: '/v1/universe/scenes/manifest/read',
@@ -73,8 +90,9 @@ async function admittedRequest(): Promise<Request> {
 }
 function wired() {
   const read = vi.fn<ReadOwnSceneManifest>(() => Promise.resolve({ kind: 'read', scene: manifest })),
-    piece = vi.fn<ReadOwnSceneChunk>(() => Promise.resolve({ kind: 'read', scene: chunk }));
-  return { controller: new ScenesController(read, piece), read, piece };
+    piece = vi.fn<ReadOwnSceneChunk>(() => Promise.resolve({ kind: 'read', scene: chunk })),
+    skyRead = vi.fn<ReadOwnSceneSky>(() => Promise.resolve({ kind: 'read', scene: sky }));
+  return { controller: new ScenesController(read, piece, skyRead), read, piece, skyRead };
 }
 describe('Scene guarded readonly HTTP adapter', () => {
   it('dispatches only its matching port with admitted authority and unchanged canonical data', async () => {
@@ -86,6 +104,23 @@ describe('Scene guarded readonly HTTP adapter', () => {
     expect(await call(controller.chunkRoute(r), chunkInput)).toEqual(chunk);
     expect(piece).toHaveBeenCalledExactlyOnceWith(authority, chunkInput);
     expect(read).toHaveBeenCalledOnce();
+  });
+  it('serves the sky through its own port with the same admitted authority (D-417)', async () => {
+    const { controller, read, piece, skyRead } = wired(),
+      r = await admittedRequest();
+    expect(await call(controller.skyRoute(r), skyInput)).toEqual(sky);
+    expect(skyRead).toHaveBeenCalledExactlyOnceWith(authority, skyInput);
+    expect(read).not.toHaveBeenCalled();
+    expect(piece).not.toHaveBeenCalled();
+    await expect(call(controller.skyRoute({} as Request), skyInput)).rejects.toThrow('without the scope guard');
+    // A page past the sky's bound, or a command field, never reaches the port.
+    await expect(call(controller.skyRoute(r), { ...skyInput, limit: 201 })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+    await expect(call(controller.skyRoute(r), { ...skyInput, accountId } as never)).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+    expect(skyRead).toHaveBeenCalledOnce();
   });
   it('refuses unguarded requests before dispatch', async () => {
     const { controller, read, piece } = wired();
@@ -100,6 +135,7 @@ describe('Scene guarded readonly HTTP adapter', () => {
       const controller = new ScenesController(
         () => Promise.resolve({ kind: 'refused', reason }),
         () => Promise.resolve({ kind: 'refused', reason }),
+        () => Promise.resolve({ kind: 'refused', reason: 'scope_refused' }),
       );
       const expected = { code: reason === 'scope_refused' ? 'UNIVERSE_UNAVAILABLE' : 'NOT_FOUND', data: {} };
       await expect(call(controller.manifestRoute(r), input)).rejects.toMatchObject(expected);
@@ -108,6 +144,7 @@ describe('Scene guarded readonly HTTP adapter', () => {
     const controller = new ScenesController(
       () => Promise.resolve({ kind: 'read', scene: manifest }),
       () => Promise.resolve({ kind: 'refused', reason: 'reference_not_found' }),
+      () => Promise.resolve({ kind: 'read', scene: sky }),
     );
     await expect(call(controller.chunkRoute(r), chunkInput)).rejects.toMatchObject({ code: 'NOT_FOUND', data: {} });
   });
@@ -151,14 +188,17 @@ describe('Scene guarded readonly HTTP adapter', () => {
     const controller = new ScenesController(
       () => Promise.resolve({ kind: 'read', scene: fields }),
       () => Promise.resolve({ kind: 'read', scene: unavailable }),
+      () => Promise.resolve({ kind: 'read', scene: sky }),
     );
     expect(await call(controller.manifestRoute(r), { ...input, capabilities: fields.capabilities })).toEqual(fields);
     expect(await call(controller.chunkRoute(r), chunkInput)).toEqual(unavailable);
     const bad = new ScenesController(
       () => Promise.resolve({ kind: 'read', scene: { ...manifest, scope: { ...manifest.scope, universeId: 'bad' } } }),
       () => Promise.resolve({ kind: 'read', scene: { ...chunk, reference: { ...reference, privacyEpoch: 1 } } }),
+      () => Promise.resolve({ kind: 'read', scene: { ...sky, scope: { ...sky.scope, universeId: 'bad' } } }),
     );
     await expect(call(bad.manifestRoute(r), input)).rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR' });
     await expect(call(bad.chunkRoute(r), chunkInput)).rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR' });
+    await expect(call(bad.skyRoute(r), skyInput)).rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR' });
   });
 });

@@ -59,6 +59,11 @@ export interface SpaceViewProps {
   readonly fallback: (reason: SpaceFailure) => ReactNode;
   /** A label or planet was chosen. */
   readonly onChoose?: (choice: SpaceChoice) => void;
+  /**
+   * The systems the drawing wants in full whenever that set changes, for a map with more systems than a frame can draw
+   * whole (D-417): the screen loads their planets. Never called for a map small enough to draw whole.
+   */
+  readonly onDetail?: (systemIds: readonly string[]) => void;
   /** Developer gallery only. Makes the drawing readable and reports every frame. */
   readonly diagnostics?: {
     readonly onFrame: (sample: SpaceFrameSample) => void;
@@ -96,6 +101,7 @@ export function SpaceView({
   overlay,
   fallback,
   onChoose,
+  onDetail,
   diagnostics,
 }: SpaceViewProps) {
   const { reducedMotion } = useDisplay();
@@ -121,6 +127,7 @@ export function SpaceView({
     load,
     onReady,
     highlightId,
+    onDetail,
     active,
     failed: false,
   });
@@ -135,6 +142,7 @@ export function SpaceView({
       load,
       onReady,
       highlightId,
+      onDetail,
       active,
     };
   });
@@ -175,6 +183,11 @@ export function SpaceView({
         const created = createSpaceRenderer(
           { ...surface, preserveDrawingBuffer: live.current.diagnostics !== undefined },
           live.current.definition,
+          {
+            onDetail: (ids) => live.current.onDetail?.(ids),
+            // A still frame (reduced motion) has no later frame to finish the work in.
+            ...(live.current.reducedMotion ? { buildsPerFrame: Number.POSITIVE_INFINITY } : {}),
+          },
         );
         renderer.current = created;
         if (live.current.script !== undefined) created.setScript(live.current.script);

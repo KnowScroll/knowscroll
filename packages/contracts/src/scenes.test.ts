@@ -9,7 +9,11 @@ import {
   SceneManifestReadSchema,
   SceneManifestWireSchema,
   SceneReturnLocatorWireSchema,
+  SceneSkyReadSchema,
+  ReadSceneSkySchema,
   SCENE_LIMITS,
+  SKY_LIMITS,
+  supportsSceneSky,
   supportsSceneLooks,
   supportsSceneV1,
   type SceneChunk,
@@ -292,7 +296,7 @@ describe('scene HTTP declaration-only contracts', () => {
       { ...object, seed: 'javascript:run()' },
       { ...object, target: { ...object.target, objectId: id(99) } },
       { ...object, anchor: { ...object.anchor, x: Number.POSITIVE_INFINITY } },
-      { ...object, anchor: { ...object.anchor, x: SCENE_LIMITS.coordinate + 1 } },
+      { ...object, anchor: { ...object.anchor, x: SCENE_LIMITS.anchor + 1 } },
       { ...object, detail: { ...object.detail, script: 'run()' } },
       { ...object, activity: { availability: 'unavailable', score: 1 } },
       { ...object, atmosphere: { density: 0.4, assetUrl: 'https://private' } },
@@ -467,5 +471,157 @@ describe('look data on the manifest read (D-102)', () => {
     };
     expect(SceneManifestReadSchema.parse(loading)).toEqual(loading);
     expect(SceneManifestReadSchema.safeParse({ ...loading, looks: [planetLook] }).success).toBe(false);
+  });
+});
+
+describe('the sky read of a map at scale (D-417)', () => {
+  const skyCapabilities = {
+    ...capabilities,
+    generators: ['silhouette.v1', 'worldmap.v1'],
+    looks: ['scene-look.v1'],
+    sky: ['scene-sky.v1'],
+  };
+  const system = {
+    ...object,
+    kind: 'system',
+    objectId: id(10),
+    parentId: id(2),
+    target: { kind: 'system', objectId: id(10) },
+  };
+  const entry = (n: number, extra: object = {}) => ({
+    descriptor: { ...system, objectId: id(n), target: { kind: 'system', objectId: id(n) } },
+    haze: 'teal',
+    planetCount: 3,
+    sceneRevision: 3,
+    ...extra,
+  });
+  const fields = {
+    version: 'scene-sky-read.v1',
+    capabilities: skyCapabilities,
+    scope: { universeId: id(2), privacyEpoch: 1, personalWatermark: 20 },
+    recordedAt: '2026-10-21T00:00:00.000Z',
+    currentGeography: { revision: 9, structureRevision: 7, activityRevision: 9 },
+    sceneRevision: 3,
+  };
+  const data = {
+    revisions,
+    systems: [entry(10), entry(11)],
+    continuation: { status: 'complete' },
+  };
+  const ready = { ...fields, status: 'ready', ...data };
+
+  it('declares the sky as its own capability, on top of the looks it carries', () => {
+    expect(supportsSceneSky(SceneClientCapabilitiesSchema.parse(skyCapabilities))).toBe(true);
+    // A client without the capability, or with it but without looks, is not a sky client.
+    expect(supportsSceneSky(SceneClientCapabilitiesSchema.parse(capabilities))).toBe(false);
+    expect(supportsSceneSky(SceneClientCapabilitiesSchema.parse({ ...skyCapabilities, looks: undefined }))).toBe(false);
+    expect(supportsSceneSky(SceneClientCapabilitiesSchema.parse({ ...skyCapabilities, sky: ['scene-sky.v2'] }))).toBe(
+      false,
+    );
+    // An older client's capabilities stay valid and unchanged.
+    expect(SceneClientCapabilitiesSchema.parse(capabilities)).not.toHaveProperty('sky');
+    expect(supportsSceneV1(SceneClientCapabilitiesSchema.parse(skyCapabilities))).toBe(true);
+  });
+  it('reads a page of systems, a refresh since a revision and a continuation, and nothing else', () => {
+    expect(ReadSceneSkySchema.parse({ capabilities: skyCapabilities, limit: SKY_LIMITS.systemsPerPage })).toBeDefined();
+    expect(
+      ReadSceneSkySchema.safeParse({ capabilities: skyCapabilities, limit: SKY_LIMITS.systemsPerPage + 1 }).success,
+    ).toBe(false);
+    expect(ReadSceneSkySchema.safeParse({ capabilities: skyCapabilities, limit: 0 }).success).toBe(false);
+    expect(
+      ReadSceneSkySchema.safeParse({ capabilities: skyCapabilities, limit: 5, selection: { kind: 'universe' } })
+        .success,
+    ).toBe(false);
+    expect(ReadSceneSkySchema.safeParse({ capabilities: skyCapabilities, limit: 5, accountId: id(9) }).success).toBe(
+      false,
+    );
+    const cursor = { sceneRevision: 3, afterSystemId: id(11) };
+    expect(ReadSceneSkySchema.safeParse({ capabilities: skyCapabilities, limit: 5, cursor }).success).toBe(true);
+    expect(
+      ReadSceneSkySchema.safeParse({ capabilities: skyCapabilities, limit: 5, sinceSceneRevision: 2, cursor }).success,
+    ).toBe(true);
+    // A continuation cannot begin before the revision a refresh asks after.
+    expect(
+      ReadSceneSkySchema.safeParse({ capabilities: skyCapabilities, limit: 5, sinceSceneRevision: 3, cursor }).success,
+    ).toBe(false);
+  });
+  it('holds systems only: a system entry with a count and a haze, never a planet, route or chunk', () => {
+    expect(SceneSkyReadSchema.parse(ready)).toEqual(ready);
+    expect(
+      SceneSkyReadSchema.safeParse({ ...ready, systems: [entry(10, { descriptor: { ...object } })] }).success,
+    ).toBe(false);
+    expect(SceneSkyReadSchema.safeParse({ ...ready, systems: [entry(10, { chunks: [] })] }).success).toBe(false);
+    expect(SceneSkyReadSchema.safeParse({ ...ready, systems: [entry(10, { planetCount: -1 })] }).success).toBe(false);
+    expect(SceneSkyReadSchema.safeParse({ ...ready, systems: [entry(10, { haze: 'plaid' })] }).success).toBe(false);
+    expect(SceneSkyReadSchema.safeParse({ ...ready, systems: [entry(10), entry(10)] }).success).toBe(false);
+    // A page holds at most SKY_LIMITS.systemsPerPage systems.
+    const many = Array.from({ length: SKY_LIMITS.systemsPerPage + 1 }, (_, n) => entry(1000 + n));
+    expect(SceneSkyReadSchema.safeParse({ ...ready, systems: many }).success).toBe(false);
+    expect(SceneSkyReadSchema.safeParse({ ...ready, systems: many.slice(0, SKY_LIMITS.systemsPerPage) }).success).toBe(
+      true,
+    );
+    // A system with no look yet has no haze, which a world projected before looks existed holds until backfilled.
+    const { haze: ignored, ...bare } = entry(10);
+    void ignored;
+    expect(SceneSkyReadSchema.safeParse({ ...ready, systems: [bare] }).success).toBe(true);
+  });
+  it('binds each page to one scene revision and one continuation', () => {
+    const more = { status: 'more', cursor: { sceneRevision: 3, afterSystemId: id(11) } };
+    expect(SceneSkyReadSchema.safeParse({ ...ready, continuation: more }).success).toBe(true);
+    expect(
+      SceneSkyReadSchema.safeParse({
+        ...ready,
+        continuation: { ...more, cursor: { ...more.cursor, afterSystemId: id(10) } },
+      }).success,
+    ).toBe(false);
+    expect(
+      SceneSkyReadSchema.safeParse({
+        ...ready,
+        continuation: { ...more, cursor: { ...more.cursor, sceneRevision: 2 } },
+      }).success,
+    ).toBe(false);
+    expect(SceneSkyReadSchema.safeParse({ ...ready, systems: [entry(10, { sceneRevision: 4 })] }).success).toBe(false);
+    expect(SceneSkyReadSchema.safeParse({ ...ready, revisions: { ...revisions, sceneRevision: 2 } }).success).toBe(
+      false,
+    );
+    // A refresh holds only systems that changed after the revision asked.
+    expect(SceneSkyReadSchema.safeParse({ ...ready, sinceSceneRevision: 2 }).success).toBe(true);
+    expect(SceneSkyReadSchema.safeParse({ ...ready, sinceSceneRevision: 3 }).success).toBe(false);
+  });
+  it('keeps empty, loading, lagging, unavailable and unsupported distinct, and a current sky describing current Geography', () => {
+    expect(SceneSkyReadSchema.safeParse({ ...fields, status: 'empty' }).success).toBe(true);
+    expect(SceneSkyReadSchema.safeParse({ ...fields, status: 'empty', systems: [] }).success).toBe(false);
+    const pending = { geographyRevision: 9, personalRevision: 12 };
+    expect(SceneSkyReadSchema.safeParse({ ...fields, status: 'loading', pendingProjection: pending }).success).toBe(
+      true,
+    );
+    expect(SceneSkyReadSchema.safeParse({ ...fields, status: 'loading' }).success).toBe(false);
+    for (const reason of ['temporarily_unavailable', 'limit', 'snapshot_expired'])
+      expect(SceneSkyReadSchema.safeParse({ ...fields, status: 'unavailable', reason }).success).toBe(true);
+    expect(SceneSkyReadSchema.safeParse({ ...fields, status: 'unavailable', reason: 'stale_manifest' }).success).toBe(
+      false,
+    );
+    // A ready sky of older Geography than the current one is lagging, and says what is pending.
+    const older = { ...ready, currentGeography: { revision: 10, structureRevision: 8, activityRevision: 10 } };
+    expect(SceneSkyReadSchema.safeParse(older).success).toBe(false);
+    expect(
+      SceneSkyReadSchema.safeParse({
+        ...older,
+        status: 'lagging',
+        pendingProjection: { geographyRevision: 10, personalRevision: 12 },
+      }).success,
+    ).toBe(true);
+    // Unsupported capabilities require the explicit fallback, and only they allow it.
+    expect(SceneSkyReadSchema.safeParse({ ...fields, capabilities, status: 'unsupported_version' }).success).toBe(true);
+    expect(SceneSkyReadSchema.safeParse({ ...fields, status: 'unsupported_version' }).success).toBe(false);
+    expect(SceneSkyReadSchema.safeParse({ ...fields, capabilities, status: 'ready', ...data }).success).toBe(false);
+    // Projection inputs belong to current committed scope: no future revision, no haze for a client without looks.
+    expect(SceneSkyReadSchema.safeParse({ ...ready, revisions: { ...revisions, geographyRevision: 10 } }).success).toBe(
+      false,
+    );
+    expect(
+      SceneSkyReadSchema.safeParse({ ...ready, capabilities: { ...skyCapabilities, looks: undefined, sky: undefined } })
+        .success,
+    ).toBe(false);
   });
 });

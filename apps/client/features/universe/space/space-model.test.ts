@@ -211,3 +211,65 @@ describe('laying out the universe for the space views', () => {
     expect(space.definition.dust!.map((cloud) => cloud.id)).toEqual([fixtureId(2), fixtureId(3)]);
   });
 });
+
+describe('laying out a map at scale (D-417)', () => {
+  /** `count` systems, each with a star; only the first `loaded` systems have planets (the rest are not loaded yet). */
+  function map(count: number, loaded: number): SceneDescriptor[] {
+    const side = Math.ceil(Math.sqrt(count));
+    const all: SceneDescriptor[] = [];
+    for (let n = 0; n < count; n++) {
+      const at = { x: ((n % side) - side / 2) * 900, y: (Math.floor(n / side) - side / 2) * 900 };
+      const home = descriptor(10_000 + n * 10, 'system', fixtureId(1), at.x, at.y);
+      all.push(home, descriptor(10_001 + n * 10, 'star', home.objectId, at.x, at.y));
+      if (n < loaded)
+        for (let k = 0; k < 3; k++)
+          all.push(descriptor(10_002 + n * 10 + k, 'planet', home.objectId, at.x + 300 * (k + 1), at.y));
+    }
+    return all;
+  }
+
+  it('draws a system whose planets are not loaded yet as its sun alone, at the place the sky gave it', () => {
+    const descriptors = map(8, 2);
+    const { definition } = layOutUniverse(input({ index: indexUniverse(descriptors, []), looks: new Map() }));
+    expect(definition.systems).toHaveLength(8);
+    const planets = definition.systems.map((placed) => placed.planets.length).sort();
+    expect(planets).toEqual([0, 0, 0, 0, 0, 0, 3, 3]);
+    const bare = definition.systems.find((placed) => placed.planets.length === 0)!;
+    expect(Number.isFinite(bare.position.x)).toBe(true);
+    // Its bounds are its sun's alone, and the universe still frames it.
+    expect(bare.sunRadius).toBeGreaterThan(0.6);
+  });
+
+  it('lays out five thousand systems in a blink, with bounds that fit them all and no call that spreads them', () => {
+    const descriptors = map(5000, 24);
+    const index = indexUniverse(descriptors, []);
+    const started = performance.now();
+    const space = layOutUniverse(input({ index, looks: new Map() }));
+    const took = performance.now() - started;
+    expect(space.definition.systems).toHaveLength(5000);
+    expect(took).toBeLessThan(500);
+    const focus = space.universeFocus;
+    expect(focus.halfWidth).toBeGreaterThan(300);
+    for (const placed of space.definition.systems) {
+      expect(Math.abs(placed.position.x - focus.center.x)).toBeLessThanOrEqual(focus.halfWidth);
+      expect(Math.abs(placed.position.z - focus.center.z)).toBeLessThanOrEqual(focus.halfDepth);
+    }
+  });
+
+  it('puts every system where its anchor says, however many others there are', () => {
+    const few = layOutUniverse(input({ index: indexUniverse(map(10, 0), []), looks: new Map() })).definition.systems;
+    const many = layOutUniverse(input({ index: indexUniverse(map(1000, 0), []), looks: new Map() })).definition.systems;
+    // The first ten systems of the two maps sit on different grids (the side differs) but each at its own anchor.
+    const byAnchor = (placed: (typeof few)[number], descriptors: SceneDescriptor[]) =>
+      descriptors.find((candidate) => candidate.objectId === placed.id)!.anchor;
+    for (const [definition, descriptors] of [
+      [few, map(10, 0)],
+      [many, map(1000, 0)],
+    ] as const)
+      for (const placed of definition.slice(0, 20)) {
+        const anchor = byAnchor(placed, descriptors);
+        expect(Math.abs(placed.position.x - (anchor.x / 300) * 3.2)).toBeLessThanOrEqual(0.7 + 1e-9);
+        expect(Math.abs(placed.position.z - (anchor.y / 300) * 3.2)).toBeLessThanOrEqual(0.7 + 1e-9);
+      }
+  });
+});

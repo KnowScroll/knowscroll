@@ -216,8 +216,8 @@ function descriptor(value: unknown): SceneDescriptor {
     atmosphere: { density: number(atmosphere.density, 0, 1) },
     detail: { roughness: number(d.roughness, 0, 1) },
     anchor: {
-      x: number(a.x, -SCENE_LIMITS.coordinate, SCENE_LIMITS.coordinate),
-      y: number(a.y, -SCENE_LIMITS.coordinate, SCENE_LIMITS.coordinate),
+      x: number(a.x, -SCENE_LIMITS.anchor, SCENE_LIMITS.anchor),
+      y: number(a.y, -SCENE_LIMITS.anchor, SCENE_LIMITS.anchor),
       layer: number(a.layer, -16, 16, true),
     },
     target: target(r.target),

@@ -1,6 +1,6 @@
 import type { SceneLook } from '@knowscroll/contracts';
 import type { GeographySceneInput } from '../../geography/public.js';
-import { assignLooks, LookRefused, type LookAssignment, type LookSubject } from './assign-looks.js';
+import { assignLooks, LookRefused, type LookAssignment, type LookSubject, type TypeUse } from './assign-looks.js';
 import type { StoredObject } from './ports.js';
 
 /**
@@ -13,6 +13,7 @@ export function missingLooks(
   objects: readonly StoredObject[],
   input: GeographySceneInput,
   existing: readonly SceneLook[],
+  universeUse?: TypeUse,
 ): LookAssignment {
   const meaning = new Map(input.objects.map((object) => [object.id, object.meaningId]));
   const subjects: LookSubject[] = objects.map((object) => {
@@ -27,5 +28,5 @@ export function missingLooks(
       seed: object.descriptor.seed,
     };
   });
-  return assignLooks(subjects, existing);
+  return assignLooks(subjects, existing, universeUse);
 }

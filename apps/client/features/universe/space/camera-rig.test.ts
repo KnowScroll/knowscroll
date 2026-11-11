@@ -7,6 +7,7 @@ import {
   FLY_SECONDS,
   isFar,
   rigPose,
+  universeZoomMax,
   withDrift,
   ZOOM_LIMITS,
   type RigFocus,
@@ -73,5 +74,43 @@ describe('the space camera rig', () => {
     expect(flyPose(from, to, FLY_SECONDS.down / 2, FLY_SECONDS.down).fov).toBeGreaterThan(from.fov);
     expect(flyDone(FLY_SECONDS.down - 0.1, FLY_SECONDS.down)).toBe(false);
     expect(flyDone(FLY_SECONDS.down, FLY_SECONDS.down)).toBe(true);
+  });
+});
+
+describe('how far the whole-universe view may zoom (D-417)', () => {
+  const extent = (half: number): Extract<RigFocus, { kind: 'universe' }> => ({
+    kind: 'universe',
+    center: { x: 0, z: 0 },
+    halfWidth: half,
+    halfDepth: half,
+  });
+  const aspect = phone.width / phone.height;
+
+  it('keeps the limit it always had for a universe that fits from a modest distance (up to about 9 units across, on a phone)', () => {
+    for (const half of [6, 8, 9]) expect(universeZoomMax(extent(half), aspect)).toBe(ZOOM_LIMITS.universe.max);
+    expect(rigPose(spec({ frame: { x: 0, y: 0, scale: 16 } }))).toEqual(
+      rigPose(spec({ frame: { x: 0, y: 0, scale: ZOOM_LIMITS.universe.max } })),
+    );
+  });
+
+  it('lets a large universe come down to the nearest approach distance, wherever its extent', () => {
+    for (const half of [60, 340, 1500]) {
+      const focus = extent(half);
+      const max = universeZoomMax(focus, aspect);
+      expect(max).toBeGreaterThan(ZOOM_LIMITS.universe.max);
+      const pose = rigPose({ focus, frame: { x: 0, y: 0, scale: max }, ...phone });
+      expect(distanceOf(pose)).toBeCloseTo(24, 4);
+      // And no further: the rig clamps to the same limit the session is told.
+      const beyond = rigPose({ focus, frame: { x: 0, y: 0, scale: max * 3 }, ...phone });
+      expect(distanceOf(beyond)).toBeCloseTo(24, 4);
+    }
+  });
+
+  it('grows with the extent and does not depend on the view in focus being a system', () => {
+    expect(universeZoomMax(extent(600), aspect)).toBeGreaterThan(universeZoomMax(extent(300), aspect));
+    const system: RigFocus = { kind: 'system', systemId: 's', center: { x: 0, z: 0 }, radius: 4 };
+    const near = rigPose({ focus: system, frame: { x: 0, y: 0, scale: 100 }, ...phone });
+    const limit = rigPose({ focus: system, frame: { x: 0, y: 0, scale: ZOOM_LIMITS.system.max }, ...phone });
+    expect(near).toEqual(limit);
   });
 });

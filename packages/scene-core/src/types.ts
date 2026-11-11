@@ -6,7 +6,15 @@ export const SCENE_LIMITS = {
   objectsPerChunk: 100,
   routesPerChunk: 100,
   chunksPerManifest: 128,
+  /** The camera frame of a return locator: pixels of pan, never a position in the universe. */
   coordinate: 10_000,
+  /**
+   * A descriptor's anchor, per axis. `canonical-lattice.v2` lays systems out on a coarse grid that has to
+   * hold thousands of them (D-417), so this is wider than the 10,000 that `canonical-lattice.v1` stayed in.
+   */
+  anchor: 100_000,
+  /** The widest anchor a client that predates `scene-sky.v1` can parse. A map past it is not served to such a client. */
+  legacyAnchor: 10_000,
   silhouettePoints: 64,
 } as const;
 
@@ -23,8 +31,8 @@ export const WORLD_GENERATOR_VERSION = 'worldmap.v1' as const;
 export const LOOK_LIMITS = {
   /** Largest turn of a planet's hue, in degrees either way. */
   hueShift: 180,
-  /** Planets of one type a universe can hold (the object ceiling). */
-  variant: 1000,
+  /** Planets of one type a universe can hold. A client that predates the sky is never sent one past 1000. */
+  variant: 100_000,
   /** Sites on one planet: one per facet. */
   sites: 32,
 } as const;

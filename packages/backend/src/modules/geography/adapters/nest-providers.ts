@@ -50,6 +50,7 @@ import {
   GEOGRAPHY_MATERIAL_CHANGE,
   GEOGRAPHY_APPLIED,
   READ_GEOGRAPHY_SCENE_INPUT,
+  READ_GEOGRAPHY_CHANGED_SYSTEMS,
   REQUEST_CARTOGRAPHY,
   RUN_CARTOGRAPHER,
   READ_OWN_GEOGRAPHY,
@@ -77,7 +78,7 @@ import type {
   GeographyAccountingHeader,
   RequestCartographyResult,
 } from '../application/ports.js';
-import { makeReadGeographySceneInput } from '../application/scene-input.js';
+import { makeReadGeographySceneInput, makeReadGeographyChangedSystems } from '../application/scene-input.js';
 import type { GeographyApplied } from '../public.js';
 import { geographyStore, readRegionPlace } from './postgres-store.js';
 import { PRODUCT_CATALOGUE } from '../application/catalogue.js';
@@ -353,6 +354,11 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
       provide: READ_GEOGRAPHY_SCENE_INPUT,
       inject: [GEOGRAPHY_PORTS],
       useFactory: (p: GeographyPorts) => makeReadGeographySceneInput(p),
+    },
+    {
+      provide: READ_GEOGRAPHY_CHANGED_SYSTEMS,
+      inject: [GEOGRAPHY_PORTS],
+      useFactory: (p: GeographyPorts) => makeReadGeographyChangedSystems(p),
     },
     {
       provide: GEOGRAPHY_MATERIAL_CHANGE,

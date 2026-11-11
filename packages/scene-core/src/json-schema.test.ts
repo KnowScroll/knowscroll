@@ -45,8 +45,8 @@ describe('canonical scene structural documentation', () => {
     expect(references?.items?.properties?.['objectIds']?.uniqueItems).toBe(true);
     expect(SceneDescriptorJsonSchema.properties?.['anchor']?.properties?.['x']).toEqual({
       type: 'number',
-      minimum: -SCENE_LIMITS.coordinate,
-      maximum: SCENE_LIMITS.coordinate,
+      minimum: -SCENE_LIMITS.anchor,
+      maximum: SCENE_LIMITS.anchor,
     });
     expect(SceneReturnLocatorJsonSchema.properties?.['frame']?.properties?.['scale']).toEqual({
       type: 'number',

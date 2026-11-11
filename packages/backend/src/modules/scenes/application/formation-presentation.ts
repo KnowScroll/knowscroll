@@ -112,38 +112,38 @@ const accepted = <T>(value: T): FormationResult<T> => ({ kind: 'accepted', value
 function scopeFields(scope: PersonalScopeTx, personalWatermark: number) {
   return { universeId: scope.authority.universeId, privacyEpoch: scope.authority.privacyEpoch, personalWatermark };
 }
-/** ALL committed targets must still exist with exact identity in the current manifest's real
- * chunks. A ready ancestor, stale chunk, alias or old manifest is never a substitute. */
-async function projection(p: FormationPorts, scope: PersonalScopeTx, input: GeographySceneInput, row: FormationRecord) {
+/** ALL committed targets must still exist with exact identity in the current real chunks of their systems. A ready
+ * ancestor, stale chunk, alias or old projection is never a substitute. `head` carries the current Geography stamps. */
+async function projection(p: FormationPorts, scope: PersonalScopeTx, head: GeographySceneInput, row: FormationRecord) {
   const state = await p.scenes.state(scope),
-    m = state?.manifest;
+    m = state?.projected;
   if (
     !row.fact ||
     !m ||
-    state.failure?.geographyRevision === input.geography.revision ||
-    m.revisions.geographyRevision !== input.geography.revision ||
-    m.revisions.structureRevision !== input.geography.structureRevision ||
-    m.revisions.activityRevision !== input.geography.activityRevision
+    state.legacy ||
+    state.failure?.geographyRevision === head.geography.revision ||
+    m.geographyRevision !== head.geography.revision ||
+    m.structureRevision !== head.geography.structureRevision ||
+    m.activityRevision !== head.geography.activityRevision
   )
     return undefined;
-  const refs = m.chunks.filter((ref) => row.fact!.targets.some((t) => ref.objectIds.includes(t.objectId)));
-  if (refs.length > FORMATION_PRESENTATION_POLICY.maxTargets) return undefined;
+  const wanted = [...new Set(row.fact.targets.map((t) => t.objectId))];
+  const stored = await p.scenes.objectsById(scope, wanted);
+  if (stored.length !== wanted.length) return undefined;
+  const chunkIds = [...new Set(stored.map((o) => o.chunkId))];
+  if (chunkIds.length > FORMATION_PRESENTATION_POLICY.maxTargets) return undefined;
   const descriptors = [];
-  for (const ref of refs) {
-    const stored = await p.scenes.chunk(scope, ref.chunkId, ref.sceneRevision);
-    if (!stored) return undefined;
-    const chunk = SceneChunkSchema.parse(stored.chunk);
-    if (
-      chunk.chunkId !== ref.chunkId ||
-      chunk.revisions.sceneRevision !== ref.sceneRevision ||
-      chunk.objects.length !== ref.objectIds.length ||
-      chunk.objects.some((d) => !ref.objectIds.includes(d.objectId))
-    )
-      return undefined;
+  for (const id of chunkIds) {
+    const current = await p.scenes.currentChunk(scope, id);
+    if (!current) return undefined;
+    const chunk = SceneChunkSchema.parse(current.chunk);
+    if (chunk.chunkId !== id || chunk.revisions.sceneRevision > m.sceneRevision) return undefined;
     descriptors.push(...chunk.objects);
   }
+  const read = await p.readInput(scope, { kind: 'systems', systemIds: [...new Set(stored.map((o) => o.systemId))] });
+  if (read.kind !== 'read') return undefined;
   for (const t of row.fact.targets) {
-    const objects = input.objects.filter((o) => o.id === t.objectId),
+    const objects = read.input.objects.filter((o) => o.id === t.objectId),
       ds = descriptors.filter((d) => d.objectId === t.objectId);
     const o = objects[0],
       d = ds[0];
@@ -166,7 +166,7 @@ async function projection(p: FormationPorts, scope: PersonalScopeTx, input: Geog
     )
       return undefined;
   }
-  return m.revisions.sceneRevision;
+  return m.sceneRevision;
 }
 export function makeFormationPresentations(p: FormationPorts): FormationUseCases {
   const enter = async <T>(
@@ -220,7 +220,7 @@ export function makeFormationPresentations(p: FormationPorts): FormationUseCases
       if (!parsed.success) return refused('INVALID_REQUEST');
       const q = parsed.data;
       return enter(authority, async (scope) => {
-        const read = await p.readInput(scope);
+        const read = await p.readInput(scope, { kind: 'head' });
         if (read.kind === 'refused') return refused('UNIVERSE_UNAVAILABLE');
         const state = await p.scenes.state(scope),
           fields = {
@@ -231,7 +231,7 @@ export function makeFormationPresentations(p: FormationPorts): FormationUseCases
             scope: scopeFields(scope, read.kind === 'read' ? read.input.personalRevision : read.personalRevision),
             recordedAt: p.now().toISOString(),
             currentGeography: read.kind === 'read' ? read.input.geography : read.geography,
-            sceneRevision: state?.manifest?.revisions.sceneRevision ?? 0,
+            sceneRevision: state?.projected?.sceneRevision ?? 0,
           };
         const reply = (s: unknown) => accepted(FormationPresentationReadSchema.parse(s));
         if (!supportsSceneV1(q.capabilities)) return reply({ ...fields, status: 'unsupported_version' });
@@ -250,9 +250,9 @@ export function makeFormationPresentations(p: FormationPorts): FormationUseCases
           const failure =
             state?.failure?.geographyRevision === read.input.geography.revision ? state.failure : undefined;
           const currentManifest =
-            state?.manifest?.revisions.geographyRevision === read.input.geography.revision &&
-            state.manifest.revisions.structureRevision === read.input.geography.structureRevision &&
-            state.manifest.revisions.activityRevision === read.input.geography.activityRevision;
+            state?.projected?.geographyRevision === read.input.geography.revision &&
+            state.projected.structureRevision === read.input.geography.structureRevision &&
+            state.projected.activityRevision === read.input.geography.activityRevision;
           const reason =
             failure?.reason ??
             (currentManifest
@@ -285,7 +285,7 @@ export function makeFormationPresentations(p: FormationPorts): FormationUseCases
           key = { commandId: q.commandId, operation, requestHash: p.hash(operation, q), outcomeVersion: 1 as const };
         const lookup = await p.receipts.find(scope, key);
         if (lookup.kind === 'refused') return lookup;
-        const read = await p.readInput(scope);
+        const read = await p.readInput(scope, { kind: 'head' });
         if (read.kind === 'refused') return refused('UNIVERSE_UNAVAILABLE');
         const row = await p.store.read(scope, { kind: 'transition', transitionId: q.transitionId });
         let receipt: FormationPresentationClaimReceipt,

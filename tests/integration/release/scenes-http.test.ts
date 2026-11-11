@@ -125,6 +125,7 @@ describe('own Scene HTTP boundary in the installed release', () => {
     const result: Record<string, string> = {};
     for (const table of [
       'scenes.state',
+      'scenes.systems',
       'scenes.objects',
       'scenes.looks',
       'scenes.chunks',
@@ -289,11 +290,14 @@ describe('own Scene HTTP boundary in the installed release', () => {
     const manifest = SceneManifestSchema.parse({
       schemaVersion: 'scene-manifest.v1',
       revisions,
-      chunks: chunks.map((c) => ({
-        chunkId: c.chunk.chunkId,
-        sceneRevision: 1,
-        objectIds: c.chunk.objects.map((o) => o.objectId),
-      })),
+      // The projector always listed chunks by chunk id, and so does a manifest composed from the system chunks.
+      chunks: chunks
+        .map((c) => ({
+          chunkId: c.chunk.chunkId,
+          sceneRevision: 1,
+          objectIds: c.chunk.objects.map((o) => o.objectId),
+        }))
+        .sort((a, b) => a.chunkId.localeCompare(b.chunkId)),
     });
     await scope()(p.authority, async (s) => {
       const tx = transactionOf(s);
@@ -386,6 +390,8 @@ describe('own Scene HTTP boundary in the installed release', () => {
           }),
         })
         .execute();
+      // The world an older projector left is in the whole-map shape; the migration, and the next projection, adopt it.
+      await sql`select scenes.adopt_legacy_layout(${p.universeId}::uuid, 1)`.execute(transactionOf(s));
     });
     const reference = (chunkId = objectChunk, manifestSceneRevision = 1): SceneChunkReference => ({
       universeId: p.universeId,
@@ -569,14 +575,10 @@ describe('own Scene HTTP boundary in the installed release', () => {
         personalRevision: 2,
       },
     });
+    // A newer projection that changed no chunk: the projected revisions move, the old chunk stays the system's newest.
     await scope()(p.authority, async (s) => {
-      const tx = transactionOf(s);
-      await tx
-        .insertInto('scenes.manifests')
-        .values({ universe_id: p.universeId, privacy_epoch: 1, scene_revision: 2, payload: JSON.stringify(manifest) })
-        .execute();
-      await sql`update scenes.state set scene_revision=2,payload=jsonb_set(payload,'{manifest}',${JSON.stringify(manifest)}::jsonb) where universe_id=${p.universeId}::uuid`.execute(
-        tx,
+      await sql`update scenes.state set scene_revision=2,payload=jsonb_set(payload,'{projected}',${JSON.stringify(manifest.revisions)}::jsonb) where universe_id=${p.universeId}::uuid`.execute(
+        transactionOf(s),
       );
     });
     before = await digest(p);

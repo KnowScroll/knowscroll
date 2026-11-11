@@ -7,7 +7,12 @@ import {
   type AccountScope,
   type UniverseSceneState,
 } from '@knowscroll/client-core';
-import { SCENE_LOOK_VERSION, WORLD_GENERATOR_VERSION, type SceneClientCapabilities } from '@knowscroll/contracts';
+import {
+  SCENE_LOOK_VERSION,
+  SCENE_SKY_VERSION,
+  WORLD_GENERATOR_VERSION,
+  type SceneClientCapabilities,
+} from '@knowscroll/contracts';
 import type { SceneDescriptor, SceneGeometry, SceneLook } from '@knowscroll/scene-core';
 import { boundedFrame, DRAW_LIMITS, INITIAL_FRAME, returnLocator, type UniverseFrame } from './universe-camera';
 import { PLANET_ZOOM } from './planet/map-camera';
@@ -21,7 +26,16 @@ import { createCollectionReader, NO_COLLECTION_STATE, type CollectionState } fro
 import { createDustReader, NO_DUST, type DustState } from './universe-dust';
 import { createGeometryCache } from './universe-geometry-cache';
 import type { LastPlace } from './universe-memory';
-import { cameraStillValid, descriptorsOf, placesOf, regionTargetOf, type UniversePlace } from './universe-places';
+import {
+  cameraStillValid,
+  chunkOfObject,
+  descriptorsOf,
+  placesOf,
+  regionTargetOf,
+  routesOf,
+  systemOf,
+  type UniversePlace,
+} from './universe-places';
 import { newCommandId } from '../../platform/command-id';
 import { ENCOUNTER_CAPABILITIES } from '../encounter/capabilities';
 import { encounterSessionFor } from '../encounter/use-encounter-session';
@@ -64,6 +78,8 @@ export interface UniverseViewState extends CameraEntry {
   /** The landmark the person already looked at or put away on this device: its large card stays folded (#694). */
   readonly seenLandmark: string | null;
 }
+/** The farthest in the whole-universe view may ever zoom, whatever the map's extent. */
+const ZOOM_CEILING = 400;
 export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean): SceneClientCapabilities {
   return {
     version: 'scene-client.v1',
@@ -75,6 +91,8 @@ export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean
     // The space views draw type, rings, moon and haze from the server's looks (D-102); the client never makes its own.
     // Keys stay in the schema's order: the session compares a read's capabilities with what it sent by their JSON.
     looks: [SCENE_LOOK_VERSION],
+    // The map is read as its sky and one system at a time (D-417); a map of up to 24 systems is loaded whole.
+    sky: [SCENE_SKY_VERSION],
     detail,
     reducedMotion,
   };
@@ -105,6 +123,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     capabilities: () => sceneCapabilities(detail, reducedMotion),
   });
   let returnPoint: { camera: CameraEntry; history: CameraEntry[] } | undefined;
+  let universeZoomMax: number = ZOOM_LIMITS.universe.max;
   const listeners = new Set<() => void>();
   let state: UniverseViewState = {
     read: core.getState(),
@@ -128,9 +147,46 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
   };
   const publish = (patch: Partial<UniverseViewState>) => {
     state = { ...state, ...patch, historyDepth: history.size() };
+    applyInterest();
     if (notificationDepth) return;
     for (const listener of [...listeners]) listener();
   };
+  // The systems whose planets must be in hand (D-417): the ones the drawing shows in detail, the one the camera is in
+  // or has picked, the ones Back would return to, the ones a formation story is about, and the one a list or the dial
+  // is open on. A map of up to 24 systems loads whole, so this only matters beyond that.
+  const interest = { detail: [] as readonly string[], keep: [] as readonly string[] };
+  /** The system of a place the camera has been at, remembered while it was loaded, so Back can find it again. */
+  const placeSystems = new Map<string, string>();
+  let wantedKey = '';
+  function applyInterest() {
+    if (!live()) return;
+    const wanted = new Set<string>([...interest.detail, ...interest.keep]);
+    const add = (placeId: string | null | undefined) => {
+      if (!placeId) return;
+      const system = systemOf(state.read, placeId) ?? placeSystems.get(placeId);
+      if (system === undefined) return;
+      wanted.add(system);
+      if (!placeSystems.has(placeId)) {
+        placeSystems.set(placeId, system);
+        if (placeSystems.size > 64) placeSystems.delete(placeSystems.keys().next().value!);
+      }
+    };
+    add(state.focusId);
+    add(state.selectedId);
+    add(state.lastPlace?.id);
+    for (const entry of history.snapshot()) add(entry.focusId);
+    if (returnPoint) add(returnPoint.camera.focusId);
+    const fact = formation.getState().fact;
+    if (fact)
+      for (const target of fact.targets)
+        wanted.add(
+          target.kind === 'system' ? target.objectId : (systemOf(state.read, target.parentId) ?? target.parentId),
+        );
+    const key = [...wanted].sort().join(',');
+    if (key === wantedKey) return;
+    wantedKey = key;
+    core.want([...wanted]);
+  }
   memory.keep(() => ({ ...state, simple: state.detail === 'low' }));
   const dust = createDustReader({ scope, live, current: () => state.dust, publish: (next) => publish({ dust: next }) });
   const collection = createCollectionReader({
@@ -185,13 +241,23 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
   };
   // A drawing preference changes capabilities inside the same authority. Keep the current map
   // while its replacement loads, so Settings and its focus target are never unmounted mid-action.
-  let drawingSnapshot: UniverseSceneState['snapshot'];
+  type KeptMap = Pick<UniverseSceneState, 'snapshot' | 'sky' | 'loadedSystemIds' | 'geography'>;
+  let drawingSnapshot: KeptMap | undefined;
+  const keptOf = (read: UniverseSceneState): KeptMap | undefined =>
+    read.snapshot
+      ? {
+          snapshot: read.snapshot,
+          ...(read.sky ? { sky: read.sky } : {}),
+          ...(read.loadedSystemIds ? { loadedSystemIds: read.loadedSystemIds } : {}),
+          ...(read.geography ? { geography: read.geography } : {}),
+        }
+      : undefined;
   let coveredRegion: string | null = null;
   const readChanged = () => {
     const current = core.getState();
     const read =
       drawingSnapshot && (current.status === 'idle' || current.status === 'loading')
-        ? { ...current, snapshot: drawingSnapshot }
+        ? { ...current, ...drawingSnapshot }
         : current;
     if (current.status !== 'idle' && current.status !== 'loading') drawingSnapshot = undefined;
     const hadSnapshot = Boolean(state.read.snapshot);
@@ -306,7 +372,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     // Moving between regions of one planet replaces the view instead of stacking Back steps.
     const sibling = object?.kind === 'region' && current?.kind === 'region' && current.parentId === object.parentId;
     if (!sibling) history.push(here());
-    const chunk = state.read.snapshot?.chunks.find((c) => c.objects.some((o) => o.objectId === id));
+    const chunk = chunkOfObject(state.read, id);
     const place = places().find((p) => p.id === id)!;
     const frame = { ...INITIAL_FRAME };
     // Choosing the place again is what the marker was waiting for.
@@ -333,9 +399,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
   const planetMapCamera = (regionId: string): CameraEntry => {
     const planetId = places().find((place) => place.id === regionId)?.parentId ?? null;
     const frame = { ...INITIAL_FRAME };
-    const chunk = planetId
-      ? state.read.snapshot?.chunks.find((c) => c.objects.some((o) => o.objectId === planetId))
-      : undefined;
+    const chunk = planetId ? chunkOfObject(state.read, planetId) : undefined;
     return {
       frame,
       focusId: planetId,
@@ -380,7 +444,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
   };
   /** The route a Route target stands for: from a planet it ends at, to its other end; from the system, to its `to` end. */
   const routeDestination = (routeId: string): string | undefined => {
-    const route = state.read.snapshot?.chunks.flatMap((c) => c.routes).find((r) => r.id === routeId);
+    const route = routesOf(state.read).find((r) => r.id === routeId);
     if (!route) return undefined;
     if (route.fromObjectId === state.focusId) return route.toObjectId;
     if (route.toObjectId === state.focusId) return route.fromObjectId;
@@ -422,16 +486,18 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     formation.setForeground(false);
     detail = next.detail;
     reducedMotion = next.reducedMotion;
-    drawingSnapshot = state.read.snapshot;
+    drawingSnapshot = keptOf(state.read);
     unsubscribe();
     core.dispose();
     geometryCache.clear();
     core = createUniverseSceneSession({ scope, capabilities: sceneCapabilities(detail, reducedMotion) });
     unsubscribe = core.subscribe(readChanged);
+    // The new session has been asked for nothing yet.
+    wantedKey = '';
     publish({
       detail,
       reducedMotion,
-      read: { ...core.getState(), ...(drawingSnapshot ? { snapshot: drawingSnapshot } : {}) },
+      read: { ...core.getState(), ...drawingSnapshot },
       overlay: state.overlay === 'settings' ? 'settings' : null,
     });
     if (foreground) core.start();
@@ -510,6 +576,24 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       writeSeenLandmark(scope, landmarkId);
       publish({ seenLandmark: landmarkId });
     },
+    /**
+     * The systems the drawing shows in detail now (D-417): their planets are loaded, and the ones it let go of may be
+     * dropped. A map small enough to load whole ignores it.
+     */
+    setDetail(systemIds: readonly string[]) {
+      if (!live()) return;
+      interest.detail = systemIds;
+      applyInterest();
+    },
+    /**
+     * Systems a list or the dial is open on: their planets are in hand while they are listed, and let go of with `[]`.
+     * A map that loads whole ignores it.
+     */
+    keepSystems(systemIds: readonly string[]) {
+      if (!live()) return;
+      interest.keep = systemIds;
+      applyInterest();
+    },
     refreshRegionPreview: readPreview,
     /** Opens the card's encounter, or with `alternate` the same explanation in its other format (#709). */
     openRegion(
@@ -553,7 +637,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       const kind = places().find((place) => place.id === state.focusId)?.kind;
       const limits =
         kind === undefined
-          ? ZOOM_LIMITS.universe
+          ? { min: ZOOM_LIMITS.universe.min, max: universeZoomMax }
           : kind === 'system' || kind === 'star'
             ? ZOOM_LIMITS.system
             : PLANET_ZOOM;
@@ -630,6 +714,15 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       return geometryCache.get(object, { detail: low ? 'low' : detail, reducedMotion });
     },
     cacheSize: () => geometryCache.size(),
+    /**
+     * How far the whole-universe view may zoom in (D-417): the drawing works it out from the extent of the map, because
+     * a person must be able to come close to any system however many there are. Never below the default.
+     */
+    setZoomMax(max: number) {
+      universeZoomMax = Number.isFinite(max)
+        ? Math.max(ZOOM_LIMITS.universe.max, Math.min(ZOOM_CEILING, max))
+        : ZOOM_LIMITS.universe.max;
+    },
   });
 }
 export type UniverseViewSession = ReturnType<typeof createUniverseViewSession>;

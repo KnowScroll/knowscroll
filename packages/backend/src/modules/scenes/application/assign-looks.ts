@@ -92,13 +92,25 @@ const KIND_RANK = { system: 0, star: 1, planet: 2, region: 3 } as const;
 const byCreation = (a: LookSubject, b: LookSubject) =>
   KIND_RANK[a.kind] - KIND_RANK[b.kind] || (a.objectId < b.objectId ? -1 : a.objectId > b.objectId ? 1 : 0);
 
-/** Which types a universe already uses, and which a system already holds. */
-class TypeUse {
-  private readonly counts = new Map<PlanetType, number>();
+/**
+ * Which types a universe already uses, and which a system already holds. A map at scale starts it from the
+ * universe's aggregate (how many planets hold each type, one query) instead of from every look, and keeps it across
+ * the systems of one projection so each new look counts for the next (D-417).
+ */
+export class TypeUse {
+  private readonly counts: Map<PlanetType, number>;
   private readonly bySystem = new Map<string, Set<PlanetType>>();
 
+  constructor(counts: ReadonlyMap<PlanetType, number> = new Map()) {
+    this.counts = new Map(counts);
+  }
+  /** A planet that was given its type now: it counts for the universe and for its system. */
   add(systemId: string, type: PlanetType): void {
     this.counts.set(type, this.count(type) + 1);
+    this.hold(systemId, type);
+  }
+  /** A planet that already had its type: its system holds it (the universe's aggregate already counted it). */
+  hold(systemId: string, type: PlanetType): void {
     const held = this.bySystem.get(systemId) ?? new Set<PlanetType>();
     held.add(type);
     this.bySystem.set(systemId, held);
@@ -181,15 +193,26 @@ function planetLook(
  * facet. A region whose ordinal is past its planet's sites is skipped and reported, never refused, so
  * one grown planet cannot take the scene down. It never changes or repeats a look in `existing`.
  * Throws `LookRefused` only when the plan and the stored objects structurally disagree.
+ *
+ * `universeUse` is the universe's type use when `subjects` are only some of its systems (D-417): it already counts
+ * every planet that has a look, so `existing` (the looks of those subjects) only tells it what each system holds.
+ * Without it the subjects are the whole universe and `existing` is every look, as before.
  */
-export function assignLooks(subjects: readonly LookSubject[], existing: readonly SceneLook[]): LookAssignment {
+export function assignLooks(
+  subjects: readonly LookSubject[],
+  existing: readonly SceneLook[],
+  universeUse?: TypeUse,
+): LookAssignment {
   const subjectOf = new Map(subjects.map((subject) => [subject.objectId, subject]));
   const known = new Map(existing.map((look) => [look.objectId, look]));
-  const use = new TypeUse();
+  const use = universeUse ?? new TypeUse();
   for (const look of existing) {
     const subject = subjectOf.get(look.objectId);
     if (!subject) throw new LookRefused('look_without_object');
-    if (look.kind === 'planet') use.add(subject.systemId, look.type);
+    if (look.kind === 'planet') {
+      if (universeUse === undefined) use.add(subject.systemId, look.type);
+      else use.hold(subject.systemId, look.type);
+    }
   }
   const created: SceneLook[] = [];
   const skipped: SkippedLook[] = [];

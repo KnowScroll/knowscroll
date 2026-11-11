@@ -415,6 +415,7 @@ export {
   type UniverseSceneReason,
   type UniverseSceneState,
   type UniverseSceneSession,
+  type UniverseSky,
 } from './universe-scene';
 
 export {

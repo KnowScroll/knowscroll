@@ -135,8 +135,12 @@ function placeSystem(
   };
 }
 
-const outerOrbitOf = (system: SpaceSystemDefinition): number =>
-  Math.max(INNER_ORBIT, ...system.planets.map((planet) => planet.orbitRadius));
+/** The outermost orbit of a system; a system whose planets are not loaded yet has only its sun, so the inner orbit. */
+const outerOrbitOf = (system: SpaceSystemDefinition): number => {
+  let outer = INNER_ORBIT;
+  for (const planet of system.planets) outer = Math.max(outer, planet.orbitRadius);
+  return outer;
+};
 
 /** Where a station sits around its system, on the lower side so its name never meets the system's own. */
 function placeStation(station: RoomStation, system: SpaceSystemDefinition, lately: boolean): SpaceStationDefinition {
@@ -180,11 +184,18 @@ function universeBounds(
     const half = loneDust ? LONE_DUST_FRAME : 6;
     return { center: { x: 0, z: 0 }, halfWidth: half, halfDepth: half };
   }
-  const reach = (system: SpaceSystemDefinition): number => outerOrbitOf(system) + 1;
-  const left = Math.min(...systems.map((system) => system.position.x - reach(system)));
-  const right = Math.max(...systems.map((system) => system.position.x + reach(system)));
-  const near = Math.min(...systems.map((system) => system.position.z - reach(system)));
-  const far = Math.max(...systems.map((system) => system.position.z + reach(system)));
+  // A loop, not `Math.min(...systems)`: spreading thousands of systems into one call is a stack away from failing.
+  let left = Infinity;
+  let right = -Infinity;
+  let near = Infinity;
+  let far = -Infinity;
+  for (const system of systems) {
+    const reach = outerOrbitOf(system) + 1;
+    left = Math.min(left, system.position.x - reach);
+    right = Math.max(right, system.position.x + reach);
+    near = Math.min(near, system.position.z - reach);
+    far = Math.max(far, system.position.z + reach);
+  }
   return {
     center: { x: (left + right) / 2, z: (near + far) / 2 },
     halfWidth: Math.max((right - left) / 2, 6),

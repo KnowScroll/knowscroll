@@ -4,155 +4,49 @@ import {
   GeographySnapshotSchema,
   UniverseDeltasSchema,
   ReadSceneManifestSchema,
+  SceneClientCapabilitiesSchema,
   SceneManifestReadSchema,
   SceneChunkReadSchema,
   SceneManifestSchema,
   SceneChunkSchema,
+  supportsSceneSky,
   type GeographyObject,
   type GeographyRoute,
   type GeographyAlias,
-  type GeographyRevisions,
   type GeographySnapshot,
   type ReadGeography,
-  type ReadSceneManifest,
   type SceneClientCapabilities,
   type SceneChunk,
-  type SceneDescriptor,
-  type SceneManifestRead,
   type UniverseDelta,
 } from '@knowscroll/contracts';
 import { ScopeEndedError, type AccountScope } from './account-scope';
+import {
+  abortable,
+  bytes,
+  equal,
+  fail,
+  frozen,
+  ReadFailure,
+  UNIVERSE_SCENE_LIMITS,
+  validateGeography,
+  validateScene,
+  type Selection,
+  type UniverseGeography,
+  type UniverseSceneSession,
+  type UniverseSceneSnapshot,
+  type UniverseSceneState,
+} from './universe-scene-shared';
+import { createSkySceneSession } from './universe-sky-session';
 
-/** Accepted-data budgets, not a bound on the generic HTTP client's pre-decode allocation. */
-export const UNIVERSE_SCENE_LIMITS = {
-  pages: 10,
-  objects: 1000,
-  relations: 1000,
-  chunks: 128,
-  concurrentChunks: 4,
-  catchupBatches: 4,
-  retainedBytes: 8 * 1024 * 1024,
-} as const;
-
-type Selection = ReadSceneManifest['selection'];
-type ManifestData = Extract<SceneManifestRead, { status: 'ready' | 'empty' | 'lagging' }>;
-export interface UniverseGeography {
-  readonly universeId: string;
-  readonly privacyEpoch: number;
-  readonly personalWatermark: number;
-  readonly geography: GeographyRevisions;
-  readonly status: 'empty' | 'loading' | 'ready' | 'lagging';
-  readonly objects: readonly GeographyObject[];
-  readonly routes: readonly GeographyRoute[];
-  readonly aliases: readonly GeographyAlias[];
-}
-export interface UniverseSceneSnapshot {
-  readonly read: ManifestData;
-  readonly chunks: readonly SceneChunk[];
-}
-export type UniverseSceneReason =
-  'scope_unavailable' | 'authority' | 'network' | 'invalid' | 'limit' | 'refresh_required' | 'temporarily_unavailable';
-export interface UniverseSceneState {
-  readonly status: 'idle' | 'loading' | 'empty' | 'ready' | 'lagging' | 'unsupported' | 'unavailable' | 'ended';
-  readonly active: boolean;
-  /** A complete global Geography, independent of the last Scene's projection-input stamps. */
-  readonly geography?: UniverseGeography;
-  /** Last complete same-selection Scene; unavailable/loading never relabels it current. */
-  readonly snapshot?: UniverseSceneSnapshot;
-  readonly reason?: UniverseSceneReason;
-  readonly pendingProjection?: { readonly geographyRevision: number; readonly personalRevision: number };
-}
-export interface UniverseSceneSession {
-  readonly getState: () => UniverseSceneState;
-  readonly subscribe: (listener: () => void) => () => void;
-  readonly start: () => void;
-  readonly resume: () => void;
-  readonly pause: () => void;
-  readonly select: (selection: Selection) => void;
-  readonly refresh: () => Promise<void>;
-  readonly dispose: () => void;
-}
-
-class ReadFailure extends Error {
-  constructor(readonly reason: UniverseSceneReason | 'stale_manifest') {
-    super('Universe view is unavailable.');
-  }
-}
-function fail(reason: UniverseSceneReason = 'invalid'): never {
-  throw new ReadFailure(reason);
-}
-const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length;
-function frozen<T>(value: T): T {
-  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
-    for (const child of Object.values(value)) frozen(child);
-    Object.freeze(value);
-  }
-  return value;
-}
-
-/** Structural consistency only; the server alone owns meaning, alias resolution and permission. */
-function validateGeography(g: UniverseGeography): void {
-  if (g.objects.length > UNIVERSE_SCENE_LIMITS.objects || g.routes.length + g.aliases.length > 1000) fail('limit');
-  const objects = new Map(g.objects.map((o) => [o.id, o]));
-  const ids = new Set([...g.objects, ...g.routes, ...g.aliases].map((v) => v.id));
-  if (ids.size !== g.objects.length + g.routes.length + g.aliases.length) fail();
-  for (const o of g.objects) {
-    if (o.objectRevision > g.geography.revision) fail();
-    if (o.kind === 'system') {
-      if (o.parent.id !== g.universeId) fail();
-    } else {
-      const parent = objects.get(o.parent.id);
-      if (
-        !parent ||
-        parent.kind !== (o.kind === 'region' ? 'planet' : 'system') ||
-        parent.truthStatus !== o.truthStatus
-      )
-        fail();
-    }
-  }
-  for (const r of g.routes) {
-    const a = objects.get(r.fromObjectId),
-      b = objects.get(r.toObjectId);
-    if (
-      !a ||
-      !b ||
-      a.kind !== 'planet' ||
-      b.kind !== 'planet' ||
-      a.parent.id !== b.parent.id ||
-      a.truthStatus !== r.truthStatus ||
-      b.truthStatus !== r.truthStatus ||
-      r.relationRevision > g.geography.revision
-    )
-      fail();
-  }
-  const current = new Map<string, GeographyAlias>();
-  for (const a of g.aliases) {
-    const from = objects.get(a.fromObjectId),
-      to = objects.get(a.toObjectId);
-    if (
-      !from ||
-      !to ||
-      from.kind !== to.kind ||
-      from.truthStatus !== to.truthStatus ||
-      a.relationRevision > g.geography.revision
-    )
-      fail();
-    if (a.status === 'current') {
-      if (current.has(a.fromObjectId)) fail();
-      current.set(a.fromObjectId, a);
-    }
-  }
-  for (const start of current.keys()) {
-    const seen = new Set<string>();
-    let id = start;
-    while (current.has(id)) {
-      if (seen.has(id)) fail();
-      seen.add(id);
-      id = current.get(id)!.toObjectId;
-    }
-  }
-}
+export { UNIVERSE_SCENE_LIMITS } from './universe-scene-shared';
+export type {
+  UniverseGeography,
+  UniverseSceneReason,
+  UniverseSceneSession,
+  UniverseSceneSnapshot,
+  UniverseSceneState,
+  UniverseSky,
+} from './universe-scene-shared';
 
 function applyDelta(g: UniverseGeography, delta: UniverseDelta): UniverseGeography {
   if (!equal(delta.base, g.geography) || delta.personalWatermark < g.personalWatermark) fail('refresh_required');
@@ -208,120 +102,6 @@ function applyDelta(g: UniverseGeography, delta: UniverseDelta): UniverseGeograp
   return next;
 }
 
-function validateScene(
-  snapshot: UniverseSceneSnapshot,
-  universeId: string,
-  selection: Selection,
-  geography: UniverseGeography,
-): void {
-  const descriptors: SceneDescriptor[] = snapshot.chunks.flatMap((c) => c.objects);
-  const routes = snapshot.chunks.flatMap((c) => c.routes);
-  if (descriptors.length > 1000 || routes.length > 1000) fail('limit');
-  const objects = new Map(descriptors.map((o) => [o.objectId, o]));
-  const ids = new Set([...objects.keys(), ...routes.map((r) => r.id)]);
-  if (objects.size !== descriptors.length || ids.size !== descriptors.length + routes.length) fail();
-  for (const o of descriptors) {
-    if (o.kind === 'system') {
-      if (o.parentId !== universeId || (selection.kind === 'system' && o.objectId !== selection.systemId)) fail();
-    } else {
-      const parent = objects.get(o.parentId);
-      if (
-        !parent ||
-        parent.kind !== (o.kind === 'region' ? 'planet' : 'system') ||
-        parent.truthStatus !== o.truthStatus
-      )
-        fail();
-    }
-  }
-  if (selection.kind === 'system' && objects.get(selection.systemId)?.kind !== 'system') fail();
-  const geoObjects = new Map(geography.objects.map((o) => [o.id, o]));
-  const selected = geography.objects.filter(
-    (o) =>
-      selection.kind === 'universe' ||
-      o.id === selection.systemId ||
-      o.parent.id === selection.systemId ||
-      geoObjects.get(o.parent.id)?.parent.id === selection.systemId,
-  );
-  const selectedIds = new Set(selected.map((o) => o.id));
-  for (const o of descriptors) {
-    const source = geoObjects.get(o.objectId);
-    if (
-      !source ||
-      !selectedIds.has(o.objectId) ||
-      source.kind !== o.kind ||
-      source.parent.id !== o.parentId ||
-      source.truthStatus !== o.truthStatus ||
-      source.originTransitionId !== o.originTransitionId
-    )
-      fail();
-    if (snapshot.read.status !== 'lagging' && (source.label !== o.label || !equal(source.activity, o.activity))) fail();
-  }
-  const selectedRoutes = geography.routes.filter(
-    (r) => r.status === 'current' && selectedIds.has(r.fromObjectId) && selectedIds.has(r.toObjectId),
-  );
-  if (
-    snapshot.read.status !== 'lagging' &&
-    (selectedIds.size !== descriptors.length || selectedRoutes.length !== routes.length)
-  )
-    fail();
-  for (const r of routes) {
-    const source = geography.routes.find((v) => v.id === r.id);
-    if (
-      !source ||
-      source.fromObjectId !== r.fromObjectId ||
-      source.toObjectId !== r.toObjectId ||
-      source.truthStatus !== r.truthStatus ||
-      source.originTransitionId !== r.originTransitionId ||
-      (snapshot.read.status !== 'lagging' && source.status !== 'current')
-    )
-      fail();
-  }
-  for (const r of routes) {
-    const a = objects.get(r.fromObjectId),
-      b = objects.get(r.toObjectId);
-    if (
-      !a ||
-      !b ||
-      a.kind !== 'planet' ||
-      b.kind !== 'planet' ||
-      a.parentId !== b.parentId ||
-      a.truthStatus !== r.truthStatus ||
-      b.truthStatus !== r.truthStatus
-    )
-      fail();
-  }
-}
-
-/** Release our candidate continuation promptly even if the platform fetch ignores abort. */
-function abortable<T>(signal: AbortSignal, task: () => Promise<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const cancel = () => {
-      signal.removeEventListener('abort', cancel);
-      reject(new ScopeEndedError());
-    };
-    if (signal.aborted) {
-      cancel();
-      return;
-    }
-    signal.addEventListener('abort', cancel, { once: true });
-    Promise.resolve()
-      .then(() => {
-        if (signal.aborted) throw new ScopeEndedError();
-        return task();
-      })
-      .then(
-        (value) => {
-          signal.removeEventListener('abort', cancel);
-          resolve(value);
-        },
-        (error: unknown) => {
-          signal.removeEventListener('abort', cancel);
-          reject(error instanceof Error ? error : new ReadFailure('invalid'));
-        },
-      );
-  });
-}
-
 let nextSession = 0;
 /**
  * A scope-object-owned readonly view. QueryObserver consumes existing socket invalidation; its
@@ -333,6 +113,10 @@ export function createUniverseSceneSession(options: {
   readonly capabilities: SceneClientCapabilities;
   readonly selection?: Selection;
 }): UniverseSceneSession {
+  // A client that declared the sky capability reads a map as its sky and one system at a time (D-417).
+  const declared = SceneClientCapabilitiesSchema.safeParse(options.capabilities);
+  if (declared.success && supportsSceneSky(declared.data))
+    return createSkySceneSession({ scope: options.scope, capabilities: declared.data });
   const { scope } = options;
   const queryPrefix = scope.queryKey('universe-scene', ++nextSession);
   const listeners = new Set<() => void>();
@@ -753,6 +537,8 @@ export function createUniverseSceneSession(options: {
       notify({ status: 'idle', active, geography });
       if (restart) start();
     },
+    // The whole map is loaded already.
+    want() {},
     async refresh() {
       if (ended || !active || !scope.active) return;
       await observer?.refetch({ cancelRefetch: true });
