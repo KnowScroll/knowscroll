@@ -1,4 +1,4 @@
-import { collect, fingerprint, type DbSnapshot } from './collect.js';
+import { collect, fingerprint, pendingJobsOf, type DbSnapshot } from './collect.js';
 import { PersonaRun } from './driver.js';
 import { createRng, seedFrom } from './rng.js';
 import type { PersonaSpec } from './persona.js';
@@ -81,6 +81,9 @@ export async function runSideBySide(
     [b, []],
   ]);
   const turn = async (actor: PersonaRun, other: PersonaRun) => {
+    // The drain is global, so it also runs work waiting for the person who is not acting. Their rows are fingerprinted
+    // only once they have nothing waiting, or a change they were always going to make would read as someone else's.
+    if ((await pendingJobsOf(world, other.person.universeId)) > 0) await world.drain();
     const before = await fingerprint(world, other.person.universeId);
     const moved = await actor.step();
     const after = await fingerprint(world, other.person.universeId);

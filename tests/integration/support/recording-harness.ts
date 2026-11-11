@@ -15,7 +15,7 @@ import {
 } from '@knowscroll/backend/reasoning/nest-providers';
 import { fixtureSettings, silent } from './fixture-model.js';
 
-/** The Planner and Cartographer owners are not under test here: they refuse everything, as a missing owner would. */
+/** The Planner and Cartographer owners are not under test unless a test passes them: they refuse everything, as a missing owner would. */
 const deny: CheckPersonalRecordingRun = () => Promise.resolve('unavailable');
 
 /** Jev's real owner check, over Experience's real answer to whether an exposure was activated. */
@@ -39,6 +39,9 @@ export function fixtureRecordingHarness(
     readonly model: ModelPort | undefined;
     readonly settings?: HarnessSettings;
     readonly beforeApply?: () => Promise<void>;
+    /** The Planner's and the Cartographer's own owner checks, for a test that runs those roles. Both refuse by default. */
+    readonly checkPlanner?: CheckPersonalRecordingRun;
+    readonly checkGeography?: CheckPersonalRecordingRun;
   },
 ) {
   const accounts = accountAccessUseCases({ db, lockTimeoutMs: 5000 });
@@ -52,8 +55,8 @@ export function fixtureRecordingHarness(
     model: options.model,
     logEvent: silent,
     settings: options.settings ?? fixtureSettings,
-    checkPlanner: deny,
-    checkGeography: deny,
+    checkPlanner: options.checkPlanner ?? deny,
+    checkGeography: options.checkGeography ?? deny,
     checkSupply: supply!.useFactory(),
     checkScenarios: scenarios!.useFactory(),
     checkRooms: rooms!.useFactory(),

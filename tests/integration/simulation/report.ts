@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { SimConfig } from './config.js';
 import { INVARIANTS, type InvariantId, type Violation } from './invariants.js';
-import { KNOWN_FAILURES, explainedBy } from './known-failures.js';
+import { KNOWN_FAILURES, explainedBy, explains } from './known-failures.js';
 import type { Library } from './library.js';
 import type { PersonaMetrics } from './metrics.js';
 
@@ -63,7 +63,7 @@ export function summariseInvariants(violations: readonly Violation[]): Invariant
       known: KNOWN_FAILURES.filter((entry) => entry.invariant === id).map((entry) => ({
         id: entry.id,
         slice: entry.slice,
-        reproduced: mine.filter((violation) => entry.matches(violation)).length,
+        reproduced: mine.filter((violation) => explains(entry, violation)).length,
       })),
     };
   });

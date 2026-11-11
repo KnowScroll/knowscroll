@@ -179,3 +179,22 @@ export const linkReaderScrolls: PersonaSpec = {
   script: threeScrollsOfOnePlanet,
   reading: () => 'read',
 };
+
+/** Every Scroll of one planet in order, then the first two again: a reader who finishes a topic and comes back to it. */
+function everyScrollOfOnePlanetThenTwoAgain(library: Library) {
+  const units = library.ofTopic('space.exoplanets');
+  const links = units.map((unit) => ({ unitId: unit.unitId, kind: 'scroll' as const }));
+  return [...links, ...links.slice(0, 2)];
+}
+
+/**
+ * Reads every unit of the one planet that has a recipe Create may still choose (`space.exoplanets`), then returns to two
+ * of them. Each reading wakes the Planner, which asks for more of a topic the reader has now run out of.
+ */
+export const linkReaderExoplanets: PersonaSpec = {
+  id: 'link-reader-exoplanets',
+  title: 'Finishes a topic: reads every Scroll of one planet, then returns to two',
+  encounters: (_config, library) => library.ofTopic('space.exoplanets').length + 2,
+  script: everyScrollOfOnePlanetThenTwoAgain,
+  reading: () => 'read',
+};

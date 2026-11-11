@@ -1,4 +1,5 @@
-import { sql, type RawBuilder } from 'kysely';
+import { sql, type Kysely, type RawBuilder } from 'kysely';
+import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { SimWorld } from './world.js';
 
 /** What the database holds about one person after a run, read once so the invariants and metrics share it. */
@@ -26,18 +27,10 @@ export interface DbSnapshot {
    * Planner demand that reaches them shows here, and is not an unfinished job of the worker the lab drains.
    */
   readonly productionJobs: readonly { readonly queue: string; readonly state: string; readonly n: number }[];
-  /** pg-boss jobs for this person that did not complete: failed, retrying, queued or active, and dead-letter copies. */
-  readonly stuckJobs: readonly {
-    readonly queue: string;
-    readonly state: string;
-    readonly n: number;
-    readonly errorClass?: string;
-    readonly code?: string;
-  }[];
 }
 
 /** Queues whose jobs wait on model production, which the lab never runs (no provider, no spend). */
-const PRODUCTION_QUEUES = ['supply.resolve-request', 'content.produce-scroll', 'content.produce-answer'];
+export const PRODUCTION_QUEUES = ['supply.resolve-request', 'content.produce-scroll', 'content.produce-answer'];
 
 export async function collect(world: SimWorld, universeId: string): Promise<DbSnapshot> {
   const db = world.geo.database.db;
@@ -82,13 +75,10 @@ export async function collect(world: SimWorld, universeId: string): Promise<DbSn
       coalesce(sum((select count(*) from jsonb_array_elements(opportunities) o where o->'target'->>'kind' = 'existing')), 0)::int existing,
       coalesce(sum((select count(*) from jsonb_array_elements(opportunities) o where o->'target'->>'kind' = 'missing_supply')), 0)::int missing
     from planner.revisions where universe_id = ${u}::uuid`);
-  const stuck = await sql<{ queue: string; state: string; n: number; error_class: string | null; code: string | null }>`
-    select name queue, state::text state, count(*)::int n,
-      max(output->>'errorClass') error_class, max(output->>'code') code
-    from pgboss.job
-    where data->>'universeId' = ${u} and (state <> 'completed' or name like '%.dead')
+  const production = await sql<{ queue: string; state: string; n: number }>`
+    select name queue, state::text state, count(*)::int n from pgboss.job
+    where data->>'universeId' = ${u} and name = any(${PRODUCTION_QUEUES}) and state <> 'completed'
     group by 1, 2 order by 1, 2`.execute(db);
-  const production = stuck.rows.filter((row) => PRODUCTION_QUEUES.includes(row.queue));
   return {
     decisions: counts.decisions,
     decisionBytes: counts.bytes,
@@ -103,35 +93,71 @@ export async function collect(world: SimWorld, universeId: string): Promise<DbSn
     places: places.rows.map((row) => row.semantic_key),
     supplyRows: supply.rows,
     plannerOpportunities: { existing: opportunities.existing, missingSupply: opportunities.missing },
-    productionJobs: production.map((row) => ({ queue: row.queue, state: row.state, n: row.n })),
-    stuckJobs: stuck.rows
-      .filter((row) => !PRODUCTION_QUEUES.includes(row.queue))
-      .map((row) => ({
-        queue: row.queue,
-        state: row.state,
-        n: row.n,
-        ...(row.error_class ? { errorClass: row.error_class } : {}),
-        ...(row.code ? { code: row.code } : {}),
-      })),
+    productionJobs: production.rows,
   };
 }
 
 /**
- * A fingerprint of everything the product holds about a person's evidence and places: per table, the row count and a
- * hash of every row. The lab takes it of one person before and after another person's step; any difference means the
- * other person's activity reached rows that are not theirs.
+ * A fingerprint of everything the product holds about a person in the evidence, Personal Context, Geography, Scenes,
+ * Composer, Experience, Planner and Supply tables: per table, the row count and a hash of every row, read in one query.
+ * The lab takes it of one person before and after another person's step; any difference means the other person's
+ * activity reached rows that are not theirs.
  */
 export async function fingerprint(world: SimWorld, universeId: string): Promise<Readonly<Record<string, string>>> {
-  const db = world.geo.database.db;
   const tables = await world.personalTables();
-  const result: Record<string, string> = {};
-  for (const { schema, table } of tables) {
-    const row = (
-      await sql<{ n: number; h: string }>`
-        select count(*)::int n, coalesce(md5(string_agg(t::text, '|' order by t::text)), '') h
-        from ${sql.table(`${schema}.${table}`)} t where universe_id = ${universeId}::uuid`.execute(db)
-    ).rows[0]!;
-    result[`${schema}.${table}`] = `${String(row.n)}:${row.h}`;
-  }
-  return result;
+  const parts = tables.map(
+    ({ schema, table }) => sql`
+      select ${`${schema}.${table}`}::text as name, count(*)::int as n,
+        coalesce(md5(string_agg(t::text, '|' order by t::text)), '') as h
+      from ${sql.table(`${schema}.${table}`)} t where universe_id = ${universeId}::uuid`,
+  );
+  const rows = (
+    await sql<{ name: string; n: number; h: string }>`${sql.join(parts, sql` union all `)}`.execute(
+      world.geo.database.db,
+    )
+  ).rows;
+  return Object.fromEntries(rows.map((row) => [row.name, `${String(row.n)}:${row.h}`]));
+}
+
+/**
+ * Work for one person that is waiting for a worker (queued, retrying or running), whatever else the lab drains. A
+ * person with work waiting is not at rest, so a step of someone else must not be judged by their rows yet.
+ */
+export async function pendingJobsOf(world: SimWorld, universeId: string): Promise<number> {
+  const row = (
+    await sql<{ n: number }>`
+      select count(*)::int n from pgboss.job
+      where data->>'universeId' = ${universeId} and state in ('created', 'retry', 'active')
+        and not (name = any(${PRODUCTION_QUEUES}))`.execute(world.geo.database.db)
+  ).rows[0]!;
+  return row.n;
+}
+
+/** A pg-boss job that is not complete, in a queue the lab drains or one it should not have reached. */
+export interface UnsettledJob {
+  readonly queue: string;
+  readonly state: string;
+  readonly n: number;
+  readonly errorClass?: string;
+}
+
+/**
+ * Every job in the database that is not completed, whatever its payload looks like, except the production queues the
+ * lab never runs and pg-boss's own bookkeeping queues. A job in a queue no consumer of the lab drains shows up here too,
+ * which is how a new worker queue on the activity path is noticed.
+ */
+export async function unsettledJobs(db: Kysely<Database>): Promise<readonly UnsettledJob[]> {
+  const rows = (
+    await sql<{ queue: string; state: string; n: number; error_class: string | null }>`
+      select name queue, state::text state, count(*)::int n, max(output->>'errorClass') error_class
+      from pgboss.job
+      where state <> 'completed' and not (name = any(${PRODUCTION_QUEUES})) and not starts_with(name, '__pgboss__')
+      group by 1, 2 order by 1, 2`.execute(db)
+  ).rows;
+  return rows.map((row) => ({
+    queue: row.queue,
+    state: row.state,
+    n: row.n,
+    ...(row.error_class ? { errorClass: row.error_class } : {}),
+  }));
 }

@@ -164,7 +164,8 @@ jobs:
   # real backend, the worker's jobs are drained, and product invariants are asserted and measured. A
   # separate job so its time and its report are visible; the integration tests in `backend` leave it out.
   # Known failures of the current code are listed in known-failures.ts and fail the run when fixed, so a
-  # slice that fixes one deletes its entry. The report is uploaded whether the run passes or not.
+  # slice that fixes one deletes its entry (the gate step of `test:simulation` judges that over every file). The report is
+  # uploaded whether the run passes or not.
   simulation:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -196,7 +197,7 @@ jobs:
           cache: pnpm
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
-      - name: Algorithm simulation lab (small mode, fixture library, synthetic readers, real modules, real PostgreSQL)
+      - name: Algorithm simulation lab and its gate (small mode, fixture library, synthetic readers, real modules, real PostgreSQL)
         run: pnpm --filter @knowscroll/integration-tests test:simulation
       - name: Upload the simulation report
         if: always()

@@ -31,12 +31,12 @@ export interface SimConfig {
     readonly bingeTail: number;
   };
   readonly bounds: {
-    /** Composer decisions per activated encounter (a move and the buffer a fresh activation prepares). */
-    readonly decisionsPerEncounter: number;
-    /** Geography runs per qualified encounter; reading that keeps arriving coalesces into one paced run. */
-    readonly geographyRunsPerQualified: number;
-    /** Planner runs per qualified encounter. */
-    readonly plannerRunsPerQualified: number;
+    /** Composer decisions per move (the answer to the move, and the buffer the activation it leads to prepares). */
+    readonly decisionsPerMove: number;
+    /** Geography runs per activity change: an encounter, a Like or a Save. Changes that arrive together coalesce into one paced run. */
+    readonly geographyRunsPerActivityChange: number;
+    /** Planner runs per activity change. */
+    readonly plannerRunsPerActivityChange: number;
     /** Drain rounds after the last encounter within which formation must show. */
     readonly formationDrains: number;
   };
@@ -49,7 +49,12 @@ const SMALL: SimConfig = {
   library: { planets: 17, unitsPerPlanet: [3, 4], reelTwinShare: 0.2 },
   bingeLibrary: { planets: 5, unitsPerPlanet: [3, 3] },
   sessions: { typical: 12, bingeTail: 6 },
-  bounds: { decisionsPerEncounter: 3, geographyRunsPerQualified: 1, plannerRunsPerQualified: 1, formationDrains: 6 },
+  bounds: {
+    decisionsPerMove: 2,
+    geographyRunsPerActivityChange: 1,
+    plannerRunsPerActivityChange: 1,
+    formationDrains: 6,
+  },
 };
 
 const LARGE: SimConfig = {

@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import type { ComposerDecision } from '@knowscroll/backend/modules/composer';
 import { CONCEPTS } from '@knowscroll/backend/modules/content';
+import { unsettledJobs } from './collect.js';
 import type { PersonaResult } from './run.js';
 import type { SimWorld } from './world.js';
 
@@ -20,16 +21,17 @@ export const INVARIANTS: Readonly<Record<InvariantId, { readonly name: string; r
   I3: {
     name: 'work completes',
     statement:
-      'No job fails or is dead-lettered, no Planner or Cartographer run is held queued, and every drain settles.',
+      'No job handler throws (even one a retry recovers), no job is left unfinished or dead-lettered whatever its payload names, no Planner or Cartographer run is held queued, and every drain settles.',
   },
   I4: {
     name: 'only real encounters create evidence',
     statement:
-      'Evidence exists only for encounters the person activated and reported; play, offers, buffers, demand, a pause and another person never create it, and a reading is qualified exactly when it should be.',
+      "Evidence exists only for encounters the person activated and reported; play, offers, buffers, demand, a pause and another person never create it or change the person's evidence, places, offers, plans or demand, and a reading is qualified exactly when it should be.",
   },
   I5: {
     name: 'bounded cost',
-    statement: 'Composer decisions, Geography runs and Planner runs per encounter stay within the stated bounds.',
+    statement:
+      'Composer decisions per move, and Geography and Planner runs per activity change, stay within the stated bounds.',
   },
 };
 
@@ -83,6 +85,8 @@ async function repeatsWhileUnseen(world: SimWorld, result: PersonaResult): Promi
           kind: offer.kind,
           unseenLeftOut: move.unseenLeftOut,
           cause,
+          // How many assets of the offered format the library holds, which says whether retrieval could have been capped.
+          formatAssets: offer.kind === 'scroll' ? world.library.scrollCount : world.library.reelCount,
         },
       });
     }
@@ -103,13 +107,22 @@ async function repeatCause(
   ).rows[0];
   if (!row) return 'unknown';
   const decision = row.payload;
-  if (slot === 0 && decision.exploration.branch === 'explore') return 'exploration_draw';
+  const offer = move.offers[slot]!;
+  // Every cause below says "nothing excluded the met unit". That is only true if the decision evaluated this very asset
+  // as eligible, so it is checked first, whatever route the offer took.
+  const offered = decision.evaluations.find((evaluation) => evaluation.assetId === offer.assetId);
+  if (offered === undefined || !offered.eligible) return 'unknown';
+  if (slot === 0 && decision.exploration.branch === 'explore')
+    return decision.exploration.pool.some((ref) => ref.assetId === offer.assetId) ? 'exploration_draw' : 'unknown';
   const met = new Set(move.metBefore);
   const unseen = decision.evaluations.filter((evaluation) => !met.has(evaluation.explanationUnitId));
-  // The met unit reached the offer without any rule excluding it: it was eligible and simply scored higher.
-  const offered = decision.evaluations.find((evaluation) => evaluation.explanationUnitId === move.offers[slot]!.unitId);
-  if (offered === undefined || !offered.eligible) return 'unknown';
-  if (unseen.some((evaluation) => evaluation.eligible)) return 'soft_penalty';
+  const unseenEligible = unseen.filter((evaluation) => evaluation.eligible);
+  if (unseenEligible.length > 0) {
+    // The first slot of a ranked decision is its highest score, so an eligible unseen unit scoring higher is not a
+    // soft penalty at work but something the lab does not understand, and it must not be absorbed.
+    if (slot === 0 && unseenEligible.some((evaluation) => evaluation.score > offered.score)) return 'unknown';
+    return 'soft_penalty';
+  }
   if (unseen.length === 0) return 'retrieval';
   if (unseen.every((evaluation) => evaluation.exclusions.includes('format_sticky'))) return 'format_sticky';
   return 'other_exclusion';
@@ -197,26 +210,15 @@ function workCompletes(_world: SimWorld, result: PersonaResult): Violation[] {
   const { run, db } = result;
   const persona = run.spec.id;
   const violations: Violation[] = [];
-  const topics = new Set(run.encounters.map((encounter) => encounter.offer.topicId)).size;
-  for (const job of db.stuckJobs) {
-    // A dead-letter copy repeats a failed job, so only the original is reported.
-    if (job.queue.endsWith('.dead')) continue;
+  // A handler that threw is a failure even when pg-boss retried the job and the retry succeeded.
+  for (const [queue, count] of Object.entries(run.drains.failures))
     violations.push({
       invariant: 'I3',
-      code: job.state === 'failed' ? 'job_failed' : 'job_not_completed',
+      code: 'job_handler_failed',
       persona,
-      message: `${persona}: ${String(job.n)} ${job.queue} job(s) ${job.state}${job.errorClass ? ` (${job.errorClass}${job.code ? ` ${job.code}` : ''})` : ''} with ${String(topics)} distinct topics met.`,
-      detail: {
-        queue: job.queue,
-        state: job.state,
-        count: job.n,
-        topics,
-        // What the handler threw, as the lab saw it (pg-boss keeps only a class and a code).
-        message: run.drains.errors[job.queue]?.[0] ?? null,
-        ...(job.errorClass ? { errorClass: job.errorClass } : {}),
-      },
+      message: `${persona}: a ${queue} handler threw ${String(count)} time(s) while the lab drained (${run.drains.errors[queue]?.join('; ') ?? 'no message'}).`,
+      detail: { queue, count, messages: run.drains.errors[queue] ?? [] },
     });
-  }
   for (const [kind, runs] of [
     ['planner', db.plannerRuns],
     ['geography', db.geographyRuns],
@@ -226,14 +228,8 @@ function workCompletes(_world: SimWorld, result: PersonaResult): Violation[] {
         invariant: 'I3',
         code: 'run_held_queued',
         persona,
-        message: `${persona}: ${String(held.n)} ${kind} run(s) still ${held.status} after the worker drained, with ${String(topics)} distinct topics met.`,
-        detail: {
-          kind,
-          status: held.status,
-          count: held.n,
-          topics,
-          message: run.drains.errors[`${kind}.run`]?.[0] ?? null,
-        },
+        message: `${persona}: ${String(held.n)} ${kind} run(s) still ${held.status} after the worker drained.`,
+        detail: { kind, status: held.status, count: held.n, messages: run.drains.errors[`${kind}.run`] ?? [] },
       });
   if (run.drains.exhausted)
     violations.push({
@@ -244,6 +240,35 @@ function workCompletes(_world: SimWorld, result: PersonaResult): Violation[] {
       detail: {},
     });
   return violations;
+}
+
+/**
+ * The checks of the world as a whole, once every persona has finished: no job anywhere is left unfinished, whatever its
+ * payload looks like or whose it is, and none was dead-lettered. They belong to no one persona, so they carry `world`.
+ */
+export async function evaluateWorld(world: SimWorld, results: readonly PersonaResult[]): Promise<Violation[]> {
+  // What the handlers threw, whichever persona's drain ran them: pg-boss keeps only an error class.
+  const thrown = (queue: string) => {
+    const base = queue.endsWith('.dead') ? queue.slice(0, -'.dead'.length) : queue;
+    return [...new Set(results.flatMap((result) => result.run.drains.errors[base] ?? []))];
+  };
+  return (await unsettledJobs(world.geo.database.db)).map((job) => ({
+    invariant: 'I3' as const,
+    code: job.queue.endsWith('.dead')
+      ? 'job_dead_lettered'
+      : job.state === 'failed'
+        ? 'job_failed'
+        : 'job_not_completed',
+    persona: 'world',
+    message: `${String(job.n)} ${job.queue} job(s) ${job.state}${job.errorClass ? ` (${job.errorClass})` : ''} when the lab finished${thrown(job.queue).length > 0 ? `: ${thrown(job.queue).join('; ')}` : ''}.`,
+    detail: {
+      queue: job.queue,
+      state: job.state,
+      count: job.n,
+      messages: thrown(job.queue),
+      ...(job.errorClass ? { errorClass: job.errorClass } : {}),
+    },
+  }));
 }
 
 // --- I4 -----------------------------------------------------------------------------------------------------------
@@ -349,32 +374,38 @@ function boundedCost(world: SimWorld, result: PersonaResult): Violation[] {
   const { run, db } = result;
   const { bounds } = world.config;
   const persona = run.spec.id;
-  // A Like or Save is an activity change that wakes Geography and the Planner like a reading does; the lab's drains do
-  // not wait out the 30 second pacing that would coalesce them.
-  const activityChanges = Math.max(run.encounters.length, run.moves.length) + run.likes.length;
+  // Every move the person makes asks the Composer, and every activation prepares a buffer: two decisions at most per move.
+  // Reading and a Like or a Save each change the person's activity and wake Geography and the Planner; the lab's drains
+  // do not wait out the 30 second pacing that would coalesce them.
+  const moves = run.moves.length;
+  const activityChanges = run.encounters.length + run.likes.length;
   const violations: Violation[] = [];
-  const check = (what: string, count: number, perEncounter: number, code: string) => {
+  const check = (what: string, count: number, perUnit: number, unit: string, units: number, code: string) => {
     // One run may be in flight before the first encounter ends, so the bound allows one extra.
-    if (count > perEncounter * activityChanges + 1)
+    if (count > perUnit * units + 1)
       violations.push({
         invariant: 'I5',
         code,
         persona,
-        message: `${persona}: ${String(count)} ${what} for ${String(run.encounters.length)} encounters and ${String(run.likes.length)} Likes or Saves exceeds ${String(perEncounter)} per activity change.`,
-        detail: { count, encounters: run.encounters.length, activityChanges, bound: perEncounter },
+        message: `${persona}: ${String(count)} ${what} for ${String(units)} ${unit}s exceeds ${String(perUnit)} per ${unit}.`,
+        detail: { count, units, unit, bound: perUnit },
       });
   };
-  check('Composer decisions', db.decisions, bounds.decisionsPerEncounter, 'decisions_unbounded');
+  check('Composer decisions', db.decisions, bounds.decisionsPerMove, 'move', moves, 'decisions_unbounded');
   check(
     'Geography runs',
     db.geographyRuns.reduce((sum, row) => sum + row.n, 0),
-    bounds.geographyRunsPerQualified,
+    bounds.geographyRunsPerActivityChange,
+    'activity change',
+    activityChanges,
     'geography_runs_unbounded',
   );
   check(
     'Planner runs',
     db.plannerRuns.reduce((sum, row) => sum + row.n, 0),
-    bounds.plannerRunsPerQualified,
+    bounds.plannerRunsPerActivityChange,
+    'activity change',
+    activityChanges,
     'planner_runs_unbounded',
   );
   return violations;

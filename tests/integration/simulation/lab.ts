@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { simConfig, type SimConfig } from './config.js';
-import { INVARIANTS, evaluate, type InvariantId, type Violation } from './invariants.js';
-import { KNOWN_FAILURES, explainedBy } from './known-failures.js';
+import { INVARIANTS, evaluate, evaluateWorld, type InvariantId, type Violation } from './invariants.js';
+import { explainedBy } from './known-failures.js';
 import { metricsOf, type PersonaMetrics } from './metrics.js';
 import type { PersonaSpec } from './persona.js';
 import { buildGroupReport, writeGroupReport } from './report.js';
@@ -23,11 +23,12 @@ const ORDER = Object.keys(INVARIANTS) as InvariantId[];
 
 /**
  * Registers a lab file: runs the plan's personas against the real modules once, judges every invariant, writes the
- * report, then reports one test per invariant and one per known failure.
+ * report, then reports one test per invariant.
  *
- * An invariant's test fails on any violation that no known failure explains, and prints it. A known failure's test
- * fails when its violations are gone ("now fixed"): the slice that fixes the behaviour deletes the entry from
- * `known-failures.ts`, and from then on the invariant is a plain gate.
+ * An invariant's test fails on any violation that no known failure explains (for a persona the entry names), and prints
+ * it. Whether each known failure is still reproduced is judged once, over every file's report, by
+ * `gate/known-failures.test.ts`: when a slice fixes the behaviour, that test fails with "now fixed", the slice deletes the
+ * entry from `known-failures.ts`, and from then on the invariant is a plain gate.
  */
 export function defineLab(plan: LabPlan): void {
   describe(`algorithm simulation lab: ${plan.group}`, () => {
@@ -42,6 +43,7 @@ export function defineLab(plan: LabPlan): void {
       for (const spec of plan.solo ?? []) results.push(await runSolo(world, spec));
       if (plan.sideBySide) results.push(...(await runSideBySide(world, plan.sideBySide[0], plan.sideBySide[1])));
       for (const result of results) violations.push(...(await evaluate(world, result)));
+      violations.push(...(await evaluateWorld(world, results)));
       const personas: PersonaMetrics[] = results.map((result) => metricsOf(result, world.library.units.length));
       // The report is written before any assertion, so a failing run still leaves its numbers behind.
       writeGroupReport(
@@ -86,23 +88,5 @@ export function defineLab(plan: LabPlan): void {
           `${INVARIANTS[id].statement}\n${String(unexpected.length)} violation(s) that no known failure explains`,
         ).toEqual([]);
       });
-
-    for (const entry of KNOWN_FAILURES) {
-      // Which personas live in this file is known from the plan, before any of them has run.
-      const here = [...(plan.solo ?? []), ...(plan.sideBySide ?? [])].map((spec) => spec.id);
-      if (entry.personas !== undefined && !entry.personas.some((persona) => here.includes(persona))) continue;
-      it(`known failure ${entry.id} (slice ${entry.slice}) still reproduces`, () => {
-        const reproduced = violations.filter(
-          (violation) =>
-            violation.invariant === entry.invariant &&
-            entry.matches(violation) &&
-            (entry.personas === undefined || entry.personas.includes(violation.persona)),
-        );
-        expect(
-          reproduced.length,
-          `Known failure ${entry.id} did not reproduce, so slice ${entry.slice} may have fixed it: delete its entry from known-failures.ts so the invariant ${entry.invariant} becomes a gate.\nIt was: ${entry.reason}`,
-        ).toBeGreaterThan(0);
-      });
-    }
   });
 }
