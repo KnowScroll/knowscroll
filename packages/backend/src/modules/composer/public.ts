@@ -5,6 +5,7 @@ export {
   composerPolicyFor,
   COMPOSER_POLICY_V0,
   COMPOSER_POLICY_V1,
+  COMPOSER_POLICY_V2,
   policyOf,
   type ComposerPolicy,
   type ComposerPolicySetting,
@@ -29,12 +30,15 @@ export type {
   SemanticAssessments,
   Features,
   CandidateEvaluation,
+  LadderStep,
+  UnseenLadderOutcome,
 } from './domain/types.js';
-export { prepareBufferQueue, PrepareBufferJobSchema, type PrepareBufferJob } from './events.js';
+export { prepareBufferQueue, PrepareBufferJobSchema, pruneDecisionsQueue, type PrepareBufferJob } from './events.js';
 export { assembleSnapshot, evidenceQueryFor, type SnapshotInput } from './application/snapshot-assembly.js';
 export { readVerticalCandidates, renderableFormats } from './application/vertical-candidates.js';
 export { readRelatedAssetIds } from './application/related-targets.js';
 export type { PrepareBuffer, PrepareBufferResult } from './application/prepare-buffer.js';
+export type { PruneDecisions } from './application/prune-decisions.js';
 export {
   bufferIsServable,
   validAssessments,
@@ -73,3 +77,5 @@ export const RELEASE_COMPOSER_BUFFER = Symbol('composer.releaseBuffer');
 export const PURGE_EXPIRED_COMPOSER_BUFFER = Symbol('composer.purgeExpiredBuffer');
 export const REQUEST_BUFFER_PREPARATION = Symbol('composer.requestBufferPreparation');
 export const PREPARE_COMPOSER_BUFFER = Symbol('composer.prepareBuffer');
+/** The scheduled sweep that deletes expired decisions nothing holds (`composer.prune-decisions`). */
+export const PRUNE_COMPOSER_DECISIONS = Symbol('composer.pruneDecisions');

@@ -162,8 +162,10 @@ moves, no provider is called, and running it again assigns nothing. It needs onl
 
 `node dist/operator.js composer replay-policy --since <ISO date> [--limit <1-20000>] [--intent-weight <0-1>]
 [--recent-topic-penalty <0-1>] [--sweep]` (`src/composer-operator.ts`, D-190) re-runs the retained vertical Composer decisions
-recorded since a date under `composer-policy.v0` and v1 and prints counts and shares only: first offers that stay on the
-source's topic, are another part of its series or move to another Jev subject, and how often sticky format fell back. It
+recorded since a date under `composer-policy.v0`, v1 and v2 and prints counts and shares only: first offers that stay on the
+source's topic, are another part of its series or move to another Jev subject, how often sticky format fell back, and (D-408)
+how many first offers the person had already met, how many repeat another to the same person, and which step of the ladder
+each falls under. It
 names no person, session, asset, title or text, calls no model and writes nothing. It needs only `KS_WORLD` and
 `DATABASE_URL`; exit 2 on bad usage. See the Composer README, "Policy replay".
 
@@ -235,9 +237,16 @@ session, candidates, Hide and the person's stored Jev assessments in one short t
 (`KS_JEV_ENABLED=1`) outside any transaction, only about shortlisted candidates that have no stored
 assessment from the last 30 minutes (D-058), then adds what it paid for to the stored assessments, persists
 the ranking and replaces the person's buffer in a second one. It ranks under the policy the world sets
-(`KS_COMPOSER_POLICY`, `v0` unless set, D-190). A job for a
+(`KS_COMPOSER_POLICY`, `v0` unless set, D-190, D-408). A job for a
 superseded intent, an unactivated offer or an old epoch is skipped. A redelivery does nothing. It logs
 `composer.buffer_prepared` with the outcome code and counts only.
+
+The registry also holds `composer.prune-decisions` (cron `7,37 * * * *`, #674): it finds the universes with a decision that expired
+within the last seven days and that no offer or live buffer holds, and for each of at most 25 prunes a batch of 500 in its own
+short transaction under the personal root as a system actor. It is rules and SQL only: no model, no network wait, no provider. A
+universe the root refuses is skipped; a busy one is left for the next pass. Logs `composer.decisions_pruned` (rows deleted, outcome
+`partial` when a universe was left). Decisions an offer holds are not reclaimed (offers have no retention yet). Status: implemented,
+covered by `tests/integration/modules/composer-prune.test.ts`; not yet runtime-verified on dev.
 
 U05 (#363) normally registers the fixed `scenes.expire-formation` consumer and five-minute UTC
 `scenes.recover-formation` scheduled consumer. They finalize only the exact current due claim as

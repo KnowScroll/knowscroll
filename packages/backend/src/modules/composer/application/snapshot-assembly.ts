@@ -1,4 +1,5 @@
-import type { ContinuityLink, EncounterRef, EncounterSnapshot } from '../../content/public.js';
+import { systemOfTopic, type ContinuityLink, type EncounterRef, type EncounterSnapshot } from '../../content/public.js';
+import { systemTopicIdsOf } from '../domain/encountered.js';
 import type { ComposerSnapshot, PreparedEvidenceInput, SemanticAssessments } from '../domain/types.js';
 import { sourceSeriesId } from '../domain/vertical-rules.js';
 import type { ReadPreparedEvidenceInput } from './ports.js';
@@ -83,6 +84,7 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
   const { source, candidates, links } = input;
   const assessments = presentAssessments(input);
   const currentSeriesId = source ? sourceSeriesId(source, candidates) : undefined;
+  const systemTopicIds = input.mode === 'vertical' && source ? systemTopicsOf(source, candidates) : [];
   const full: ComposerSnapshot = {
     universeId: input.universeId,
     privacyEpoch: input.privacyEpoch,
@@ -105,6 +107,7 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
       ...(input.mode === 'vertical' && input.relatedAssetIds?.length
         ? { relatedAssetIds: [...input.relatedAssetIds] }
         : {}),
+      ...(systemTopicIds.length ? { systemTopicIds } : {}),
     },
     ...(source ? { source: refOf(source) } : {}),
     candidates: candidates.map((encounter) => candidateRow(input, encounter)),
@@ -119,6 +122,13 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
     },
   };
   return fitToBudget(full, input.hashCatalogWatermarks);
+}
+
+/** The topics of the candidates that share a catalogue system with the source's topics (the ladder's "same system" step). */
+function systemTopicsOf(source: EncounterSnapshot, candidates: readonly EncounterSnapshot[]): readonly string[] {
+  const aboutTopics = (encounter: EncounterSnapshot) =>
+    encounter.topics.filter((t) => t.role !== 'incidental').map((t) => t.topicId);
+  return systemTopicIdsOf(aboutTopics(source), candidates.flatMap(aboutTopics), systemOfTopic);
 }
 
 /** Stored assessments may name candidates that are no longer retrieved; only present ones inform ranking. */

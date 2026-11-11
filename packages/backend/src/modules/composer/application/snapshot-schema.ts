@@ -77,6 +77,7 @@ export const ComposerSnapshotSchema: z.ZodType<ComposerSnapshot> = z.strictObjec
     stickyFormat: Format.optional(),
     currentSeriesId: Id.optional(),
     relatedAssetIds: z.array(Id).max(16).optional(),
+    systemTopicIds: z.array(Id).max(200).optional(),
   }),
   source: Ref.optional(),
   candidates: z
@@ -155,6 +156,7 @@ export const ComposerSnapshotSchema: z.ZodType<ComposerSnapshot> = z.strictObjec
               z.strictObject({
                 explanationUnitId: Id,
                 encountered: z.boolean(),
+                lastEncounteredAt: z.iso.datetime().optional(),
                 facets: z.array(z.strictObject({ facetId: Id, encountered: z.boolean() })).max(16),
               }),
             )

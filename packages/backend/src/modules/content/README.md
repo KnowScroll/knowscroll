@@ -309,7 +309,7 @@ The present access model is shared admitted assets; no private-content access po
 
 | Table (`0016`)                | Purpose, query, indexes                                                                                                                                                                                                            | Growth, retention, erasure                                                                                                                                                           |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `content.discovery_revisions` | Admission-derived summary/facets, attribution version and indexed text; keyed exact asset/revision. GIN text/facet indexes plus language/current-status/kind and explanation indexes on existing tables support bounded retrieval. | One bounded metadata row/revision; summary<=2000 characters, <=16 facets. Shared retained projection, no personal erasure.                                                           |
+| `content.discovery_revisions` | Admission-derived summary/facets, attribution version, indexed text and (0109) the stable random key `serve_rand`; keyed exact asset/revision. GIN text/facet indexes, the `serve_rand` index plus language/current-status/kind and explanation indexes on existing tables support bounded retrieval. | One bounded metadata row/revision; summary<=2000 characters, <=16 facets. Shared retained projection, no personal erasure.                                                           |
 | `content.encounter_topics`    | Real primary/supporting/incidental attribution. Revision FK and topic/revision index; <=16 unique topics, positive weights sum<=1 enforced by SQL and domain validation.                                                           | At most 16 rows/revision. Shared retained facts; no personal erasure.                                                                                                                 |
 | `content.series_units`        | Explicit versioned series/part -> immutable revision, primary series+revision+part and unique member constraint; asset/revision index supports exact metadata. No inferred total.                                                  | <=99 units/series revision; bounded admission batch<=100 units. Retained shared authority; no personal erasure.                                                                      |
 | `content.continuity_links`    | Versioned explicit previous/next series step or related move, exact source/target revisions, strength and private authority reference. Unique active source+direction index; UUID lookup.                                          | <=3 active links/source revision. Replacements require a new ID and increasing link revision; older immutable facts remain inactive. Retained shared authority; no personal erasure. |
@@ -329,11 +329,30 @@ Historical reconciliation remains deferred until a separate completed-run attest
 concepts, invented semantic variety or personal-activity-derived topics exist. Part and related edges exist only
 where the library plan declares them (see "Library series and related moves").
 
-Discovery retrieves an indexed union of topic matches (max 40), text matches (max 30) and general
-eligible inventory (max 100), deduplicates to<=100 current admitted candidates before scoring and
+Discovery retrieves an indexed union of topic matches (max 40), text matches (max 30) and a rotating sample of the
+general eligible inventory (max 100), deduplicates to<=100 current admitted candidates before scoring and
 applies declared languages/formats plus exact Scroll capability negotiation/Reel document support.
 It has no history traversal, embeddings or provider wait. Unknown-attribution inventory remains
-eligible for unconstrained discovery. The exact read negotiates the specified stored revision and
+eligible for unconstrained discovery.
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #674, D-408. No lane is ordered by asset id.
+
+- **Order within a lane.** Each revision of the projection has a stable random key, `content.discovery_revisions.serve_rand`
+  in [0, 1) (migration 0109, default `random()`, so every older and newer writer fills it; index
+  `discovery_serve_rand_idx`). A lane reads its revisions in that order from a cursor. The cursor is a point of the key range
+  derived from the `rotation` of the query (a decision's seed): it varies per decision, is the same for the same seed and is the
+  beginning when there is no seed. The general lane is two index range scans (from the cursor to the end, and from the start
+  up to the cursor), so a library of any size is read a slice at a time and the same lowest 100 assets are never every
+  person's sample.
+- **Topic lane.** Only primary and supporting attributions count, primary first, then the random order; a mention that is only
+  incidental never takes a slot or ranks as the topic. The lane reads the revisions of the named topics (at most 16, the bound
+  of `topicIds`) and is bounded by what those topics hold.
+- **Text lane.** Only when the query carries `text`, which only a person's own words supply. Retrieval never searches a source's
+  title and summary. The match is a plain-text AND, as before.
+- **No replay impact.** A stored decision freezes its candidates, so the order and sample retrieval reads change what future
+  snapshots hold and never how a stored decision replays.
+- **Composer's use.** `readVerticalCandidates` passes the decision seed as `rotation` and always reads some candidates of the
+  format the person is not in (`OTHER_FORMAT_RESERVE`), so policy v2 can give format stickiness way to an unseen Scroll. The exact read negotiates the specified stored revision and
 checks current admission; it never substitutes the asset's current revision. Snapshot watermarks
 hash immutable bytes plus bounded attribution/sibling/series facts. Current eligibility must be
 rechecked by future activation; a read does not reserve publication or grant activation authority.

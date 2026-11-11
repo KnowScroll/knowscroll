@@ -97,6 +97,8 @@ export interface RoutingHistory {
   readonly established: readonly {
     readonly explanationUnitId: string;
     readonly encountered: boolean;
+    /** When the newest activated exposure of the explanation, in either format, happened; absent when none. */
+    readonly lastEncounteredAt?: string;
     readonly facets: readonly { readonly facetId: string; readonly encountered: boolean }[];
   }[];
   readonly hiddenAssetIds: readonly string[];

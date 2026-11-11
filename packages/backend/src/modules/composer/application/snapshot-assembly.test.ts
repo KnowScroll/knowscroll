@@ -92,4 +92,38 @@ describe('snapshot assembly (pure, labelled CI inputs)', () => {
     expect(query.topicIds).toEqual(['topic.a']);
     expect(query.candidates).toEqual([{ explanationUnitId: 'unit-1', facets: ['facet-1', 'facet-2'] }]);
   });
+
+  describe('the topics of the source’s system, for the ladder’s "same system" step (policy v2)', () => {
+    const on = (index: number, topicId: string, role: 'primary' | 'incidental' = 'primary'): EncounterSnapshot => ({
+      ...encounter(index),
+      topics: [{ topicId, role, weight: 1 }],
+    });
+
+    it('names the candidates’ topics that share a catalogue system with the source, never the source’s own', () => {
+      const { snapshot } = assembleSnapshot(
+        base([on(1, 'earth.tides'), on(2, 'earth.seasons'), on(3, 'space.stars')], { source: on(0, 'earth.seasons') }),
+      );
+      expect(snapshot.intent.topicIds).toEqual(['earth.seasons']);
+      expect(snapshot.intent.systemTopicIds).toEqual(['earth.tides']);
+    });
+
+    it('does not count an incidental mention of a topic, and names nothing for a source in no known system', () => {
+      const { snapshot } = assembleSnapshot(
+        base([on(1, 'earth.tides', 'incidental')], { source: on(0, 'earth.seasons') }),
+      );
+      expect(snapshot.intent.systemTopicIds).toBeUndefined();
+      expect(
+        assembleSnapshot(base([on(1, 'earth.tides')], { source: on(0, 'topic.unknown') })).snapshot.intent
+          .systemTopicIds,
+      ).toBeUndefined();
+    });
+
+    it('names none for a move without a source or for a move that is not vertical', () => {
+      expect(assembleSnapshot(base([on(1, 'earth.tides')])).snapshot.intent.systemTopicIds).toBeUndefined();
+      const horizontal = assembleSnapshot(
+        base([on(1, 'earth.tides')], { source: on(0, 'earth.seasons'), mode: 'horizontal' }),
+      );
+      expect(horizontal.snapshot.intent.systemTopicIds).toBeUndefined();
+    });
+  });
 });

@@ -93,7 +93,7 @@ describe('process configuration', () => {
     expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_JEV_ENABLED: '1' }).jevEnabled).toBe(true);
     expect(() => readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_JEV_ENABLED: 'true' })).toThrow();
   });
-  it('makes Composer decisions under v0 until the world says v1, in the API and the worker, and refuses any other value', () => {
+  it('makes Composer decisions under v0 until the world says v1 or v2, in the API and the worker, and refuses any other value', () => {
     const worker = (env: Record<string, string>) =>
       readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', ...env });
     const api = (env: Record<string, string>) =>
@@ -102,10 +102,12 @@ describe('process configuration', () => {
     expect(api({}).composerPolicy).toBe('v0');
     expect(worker({ KS_COMPOSER_POLICY: 'v1' }).composerPolicy).toBe('v1');
     expect(api({ KS_COMPOSER_POLICY: 'v1' }).composerPolicy).toBe('v1');
+    expect(worker({ KS_COMPOSER_POLICY: 'v2' }).composerPolicy).toBe('v2');
+    expect(api({ KS_COMPOSER_POLICY: 'v2' }).composerPolicy).toBe('v2');
     expect(worker({ KS_COMPOSER_POLICY: 'v0' }).composerPolicy).toBe('v0');
-    for (const value of ['v2', 'V1', '1', 'composer-policy.v1', ''])
+    for (const value of ['v3', 'V1', 'V2', '1', 'composer-policy.v2', ''])
       expect(() => worker({ KS_COMPOSER_POLICY: value })).toThrow();
-    expect(() => api({ KS_COMPOSER_POLICY: 'v2' })).toThrow();
+    expect(() => api({ KS_COMPOSER_POLICY: 'v3' })).toThrow();
   });
   it('lets Create start productions by default only in the local world, bounded per day', () => {
     const worker = (env: Record<string, string>) => readWorkerConfig({ DATABASE_URL: secretUrl, ...env });

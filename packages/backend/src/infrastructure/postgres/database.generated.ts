@@ -132,6 +132,7 @@ export interface ContentDiscoveryRevisions {
   attribution_version: Generated<string>;
   facets: Generated<string[]>;
   search_text: string;
+  serve_rand: Generated<number>;
   summary: string;
 }
 

@@ -115,7 +115,13 @@ export interface PreparedEvidenceInput {
     readonly watermark: string;
     readonly units: readonly {
       readonly explanationUnitId: string;
+      /** An activated exposure of this explanation exists, in either format (a routing fact, never a learning claim). */
       readonly encountered: boolean;
+      /**
+       * When the newest such exposure was activated. Absent when not encountered, and in inputs stored before policy v2.
+       * Only the last resort of policy v2 reads it, to offer the least recently met explanation.
+       */
+      readonly lastEncounteredAt?: string;
       readonly facets: readonly { readonly facetId: string; readonly encountered: boolean }[];
     }[];
   };
@@ -170,6 +176,12 @@ export interface ComposerSnapshot {
      * twins are excluded (`related_target`) unless that would leave nothing to offer.
      */
     readonly relatedAssetIds?: readonly string[];
+    /**
+     * Vertical moves only (policy v2). The topics, among those of the candidates, that belong to a system one of the
+     * source's topics belongs to: the "same system" step of the ladder. Frozen at assembly so a replay never depends on
+     * the catalogue as it is later. Absent in inputs stored before policy v2 (the step is then empty).
+     */
+    readonly systemTopicIds?: readonly string[];
   };
   readonly source?: EncounterRef;
   readonly candidates: readonly {
@@ -231,6 +243,29 @@ export interface RelatedTargetOutcome {
   readonly matched: number;
 }
 
+/**
+ * The steps of policy v2's ladder, in order. The first three offer something the person has not met: in the topic the
+ * move starts from, in the same system, anywhere (format stickiness gives way here, so a Reel watcher who has met every
+ * Reel gets an unseen Scroll). `last_resort` offers the least recently met explanation, and only when nothing unseen is
+ * eligible in either format.
+ */
+export type LadderStep = 'source_topic' | 'same_system' | 'any_unseen' | 'last_resort';
+
+/**
+ * What the unseen ladder did in one decision (policy v2, vertical moves without an exact target): `unseen` (the offers
+ * are things the person has not met), `fell_back` (nothing unseen was eligible, so the least recently met were offered)
+ * or `none` (nothing at all was eligible: the existing exhausted path).
+ */
+export interface UnseenLadderOutcome {
+  readonly outcome: 'unseen' | 'fell_back' | 'none';
+  /** The step of the first offer; absent when nothing was offered. */
+  readonly step?: LadderStep;
+  /** The step of each offer, in selection order. */
+  readonly offerSteps: readonly LadderStep[];
+  /** Eligible candidates at each step when the ladder was walked (met ones count only under `last_resort`). */
+  readonly eligible: Readonly<Record<LadderStep, number>>;
+}
+
 export interface ComposerDecision {
   readonly version: 'composer-decision.v0';
   /** The policy the decision was made under; it replays under exactly this policy. */
@@ -258,5 +293,7 @@ export interface ComposerDecision {
   readonly stickyFormat?: StickyFormatOutcome;
   /** Present when the input named related targets. */
   readonly relatedTarget?: RelatedTargetOutcome;
+  /** Present under policy v2 for a system-chosen vertical move. */
+  readonly unseenLadder?: UnseenLadderOutcome;
   readonly outcome: 'ready' | 'exhausted';
 }

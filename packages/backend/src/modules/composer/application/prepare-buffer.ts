@@ -212,11 +212,13 @@ async function gather(
   const source = await ports.readExactEncounter(scope, { ...facts.source, capabilities: facts.capabilities });
   if (!source) return skip('source_unavailable');
 
+  const seed = `buffer:${key.sessionId}:${String(key.intentRevision)}:${key.source.offerId}`;
   const candidates = await readVerticalCandidates(ports.readDiscoveryCandidates, scope, {
     source,
     formats: renderableFormats(capabilities.data.documentSchemas),
     capabilities: facts.capabilities,
     stickyFormat: source.kind,
+    seed,
   });
   const relatedAssetIds = await readRelatedAssetIds(ports.readContinuations, scope, source, candidates);
   const query = evidenceQueryFor(candidates, now.toISOString());
@@ -232,7 +234,7 @@ async function gather(
         universeId: scope.authority.universeId,
         privacyEpoch: scope.authority.privacyEpoch,
         evaluatedAt: now.toISOString(),
-        seed: `buffer:${key.sessionId}:${String(key.intentRevision)}:${key.source.offerId}`,
+        seed,
         mode: 'vertical',
         source,
         // A buffer is the next subject in the source's own format, which is what the client asks for.

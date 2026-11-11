@@ -52,6 +52,7 @@ export {
   composerBufferWorkerProviders,
   composerRecordingOwnerProviders,
 } from './buffer-providers.js';
+export { composerPruneProviders } from './prune-providers.js';
 export { composerBufferStore } from './buffer-store.js';
 export { jevPoolStore } from './jev-pool-store.js';
 export { readRetainedDecisions } from './replay-store.js';

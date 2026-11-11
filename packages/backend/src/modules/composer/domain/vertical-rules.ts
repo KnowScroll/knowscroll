@@ -1,3 +1,4 @@
+import { isMet, ladderApplies } from './encountered.js';
 import type { ComposerSnapshot, EncounterSnapshot, RelatedTargetOutcome, StickyFormatOutcome } from './types.js';
 
 type Candidate = ComposerSnapshot['candidates'][number];
@@ -53,6 +54,30 @@ export function inCurrentSeries(
     currentSeriesId !== undefined &&
     (candidate.encounter.series?.seriesId === currentSeriesId || seriesUnits.has(candidate.encounter.explanationUnitId))
   );
+}
+
+/**
+ * Policy v2: a system-chosen move never offers an explanation the person has already met while anything unseen is
+ * eligible, so every met candidate is excluded (`already_encountered`). It runs before the related and format rules, so
+ * those only ever choose among what is new: a related or other-format item the person has not met beats a met one. When
+ * no unseen candidate is eligible in either format nothing is excluded and `lastResort` says so: the ladder then offers the
+ * least recently met. A move the person asked for (a part, a related link, a variant, a return, an exact target) is not
+ * asked. Pure.
+ */
+export function applyEncounteredExclusion<T extends Screened>(
+  snapshot: ComposerSnapshot,
+  screened: readonly T[],
+): { readonly screened: readonly T[]; readonly lastResort: boolean } {
+  if (!ladderApplies(snapshot)) return { screened, lastResort: false };
+  const met = (entry: Screened) => isMet(snapshot, entry.candidate.encounter.explanationUnitId);
+  const eligible = screened.filter(({ exclusions }) => exclusions.length === 0);
+  if (!eligible.some((entry) => !met(entry))) return { screened, lastResort: eligible.length > 0 };
+  return {
+    screened: screened.map((entry) =>
+      met(entry) ? { ...entry, exclusions: [...entry.exclusions, 'already_encountered'] } : entry,
+    ),
+    lastResort: false,
+  };
 }
 
 /**

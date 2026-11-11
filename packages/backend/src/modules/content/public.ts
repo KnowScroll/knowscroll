@@ -194,7 +194,7 @@ export type ReadScrollQuickAnswerFacts = (
 export const READ_SCROLL_QUICK_ANSWER_FACTS = Symbol('content.readScrollQuickAnswerFacts');
 
 /** Shared semantic catalogue and exact-revision sidecars; no wire or personal coverage consumer. */
-export { CONCEPT_CATALOGUE_VERSION, CONCEPTS, conceptLabel } from './domain/concepts.js';
+export { CONCEPT_CATALOGUE_VERSION, CONCEPTS, conceptLabel, systemOfTopic } from './domain/concepts.js';
 /** Which Scene family draws a system, star or planet, and a system's haze family; defined by the library plan. */
 export { sceneFamilyOf, hazeFamilyOf } from './domain/library/index.js';
 export type { HazeFamilyName } from './domain/library/plan.js';

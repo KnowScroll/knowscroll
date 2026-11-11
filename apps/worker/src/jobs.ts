@@ -169,10 +169,18 @@ import {
   experienceBufferSourceProviders,
   experienceEvidenceReadProviders,
 } from '@knowscroll/backend/modules/experience/nest-providers';
-import { PREPARE_COMPOSER_BUFFER, prepareBufferQueue, type PrepareBuffer } from '@knowscroll/backend/modules/composer';
+import {
+  PREPARE_COMPOSER_BUFFER,
+  PRUNE_COMPOSER_DECISIONS,
+  prepareBufferQueue,
+  pruneDecisionsQueue,
+  type PrepareBuffer,
+  type PruneDecisions,
+} from '@knowscroll/backend/modules/composer';
 import {
   composerBufferWorkerProviders,
   composerConfiguredProviders,
+  composerPruneProviders,
   composerRecordingOwnerProviders,
 } from '@knowscroll/backend/modules/composer/nest-providers';
 import {
@@ -276,6 +284,8 @@ export const jobWiring: Provider[] = [
   // The worker persists decisions and ranks; it exposes no operator read of them.
   ...composerConfiguredProviders({ isOperator: () => false }, WORKER_CONFIG),
   ...composerBufferWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
+  // Expired decisions nothing holds are physically deleted on a schedule, in bounded batches (#674).
+  ...composerPruneProviders({ database: DATABASE, withPersonalScope: WITH_PERSONAL_SCOPE }),
   // Jev runs on the recording-aware harness; its owner check asks Experience whether the exposure was activated (D-270).
   ...composerRecordingOwnerProviders(),
   ...contentProviders(),
@@ -326,6 +336,7 @@ export const jobWiring: Provider[] = [
       CHECK_ASSET_AUDIENCE,
       RUN_PLANNER,
       PREPARE_COMPOSER_BUFFER,
+      PRUNE_COMPOSER_DECISIONS,
       CONTRIBUTE_AS_INHABITANT,
       DECIDE_CAST,
       SETTLE_LAUNCH,
@@ -366,6 +377,7 @@ export const jobWiring: Provider[] = [
       audience: CheckAssetAudience,
       runPlanner: RunPlanner,
       prepareBuffer: PrepareBuffer,
+      pruneDecisions: PruneDecisions,
       contributeAsInhabitant: ContributeAsInhabitant,
       decideCast: DecideCast,
       settleLaunch: SettleLaunch,
@@ -485,6 +497,12 @@ export const jobWiring: Provider[] = [
           count: result.kind === 'prepared' ? result.offers : 0,
           durationMs: Math.round(performance.now() - startedAt),
         });
+      }),
+      // Every thirty minutes: expired decisions that no offer or buffer holds are deleted, a bounded batch per universe.
+      jobConsumer(pruneDecisionsQueue, async () => {
+        const { deleted, failed } = await pruneDecisions();
+        if (deleted > 0 || failed > 0)
+          logEvent('composer.decisions_pruned', { outcome: failed > 0 ? 'partial' : 'complete', count: deleted });
       }),
       jobConsumer(contributeQueue, async (payload, delivery) => {
         await contributeAsInhabitant(payload, delivery.signal);

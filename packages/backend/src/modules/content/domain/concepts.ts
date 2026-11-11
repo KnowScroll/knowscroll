@@ -35,6 +35,19 @@ export const CONCEPTS: readonly Concept[] = Object.freeze(
   ]),
 );
 
+const systemOfConcept: ReadonlyMap<string, string> = new Map(
+  CONCEPTS.map((entry) => [entry.id, entry.parent ?? entry.id]),
+);
+
+/**
+ * The catalogue system a topic belongs to (a system belongs to itself), or `undefined` for an id the catalogue does not
+ * hold. Exact membership, like {@link conceptMeaning}: no prefix or label ever admits a relationship. Composer reads it
+ * once per decision and freezes the answer into the snapshot, so a later catalogue never changes a stored decision.
+ */
+export function systemOfTopic(topicId: string): string | undefined {
+  return systemOfConcept.get(topicId);
+}
+
 /** Exact membership only: a prefix, personal label or model string cannot admit a relationship. */
 export function conceptMeaning(topicId: string, facetId: string) {
   const topic = CONCEPTS.find((entry) => entry.id === topicId);

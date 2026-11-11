@@ -35,3 +35,28 @@ export const prepareBufferQueue = defineQueue({
   },
   consumer: { localConcurrency: 2, pollingIntervalSeconds: 1 },
 });
+
+/** Payload of the scheduled prune: nothing to name, it finds the work itself. */
+export const PruneDecisionsJobSchema = z.strictObject({ v: z.literal(1) });
+
+/**
+ * Every thirty minutes: deletes Composer decisions past their 30-day retention that no offer and no buffer holds, a bounded
+ * batch for each of a bounded number of universes (`application/prune-decisions.ts`). Names no person. Safe to run late or
+ * twice: a second pass finds nothing left to delete.
+ */
+export const pruneDecisionsQueue = defineQueue({
+  name: 'composer.prune-decisions',
+  purpose: 'Physically delete expired Composer decisions that no offer or buffer holds, in bounded batches; no model.',
+  payload: PruneDecisionsJobSchema,
+  policy: {
+    expireInSeconds: 600,
+    retryLimit: 1,
+    retryDelaySeconds: 120,
+    retryBackoff: false,
+    retentionSeconds: 3600,
+    deleteAfterSeconds: 86_400,
+    deadLetter: false,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 60 },
+  schedule: { cron: '7,37 * * * *', payload: { v: 1 } },
+});

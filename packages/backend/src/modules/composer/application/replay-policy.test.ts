@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { composeEncounter, type ComposerSnapshot } from '../public.js';
-import { COMPOSER_POLICY_V0, COMPOSER_POLICY_V1 } from '../domain/policy.js';
+import { COMPOSER_POLICY_V0, COMPOSER_POLICY_V1, COMPOSER_POLICY_V2 } from '../domain/policy.js';
 import { fixtureSnapshots } from './snapshot-fixtures.js';
 import {
   DEFAULT_VARIANTS,
@@ -118,6 +118,16 @@ describe('normaliseForReplay', () => {
     expect(normalised.evidence?.recent[1]?.topicIds).toBeUndefined();
   });
 
+  it('names the topics of the source’s system as today’s assembly does, for the ladder’s "same system" step', () => {
+    // Seasons and Tides are both Earth topics; Stars is a Space topic. The source's own topic is the first step.
+    expect(normaliseForReplay(input, source).intent.systemTopicIds).toEqual(['earth.tides']);
+  });
+
+  it('keeps the system topics an input already names', () => {
+    const named: ComposerSnapshot = { ...input, intent: { ...input.intent, systemTopicIds: ['space.stars'] } };
+    expect(normaliseForReplay(named, source).intent.systemTopicIds).toEqual(['space.stars']);
+  });
+
   it('does not change its input', () => {
     const before = JSON.stringify(input);
     normaliseForReplay(input, source);
@@ -203,5 +213,109 @@ describe('startPolicyReplay', () => {
     for (const [key, value] of leaves)
       if (typeof value === 'string') expect(key).toBe('label');
       else expect(typeof value).toBe('number');
+  });
+});
+
+describe('new content: repeats, already met, and the ladder (#674)', () => {
+  const seeds = Array.from({ length: 12 }, (_, n) => `seed-${String(n)}`);
+  const asHistory = (snapshot: ComposerSnapshot): ComposerSnapshot => {
+    const units = [...new Set(snapshot.candidates.map((c) => c.encounter.explanationUnitId))];
+    return {
+      ...snapshot,
+      evidence: {
+        ...snapshot.evidence!,
+        established: {
+          policyVersion: 'retained-activated-history.v0',
+          watermark: 'w',
+          units: units.map((explanationUnitId) => ({
+            explanationUnitId,
+            // The person has met the Seasons Scrolls and Tides; Stars is new.
+            encountered: explanationUnitId !== 'unit-stars',
+            facets: [],
+          })),
+        },
+      },
+    };
+  };
+
+  it('compares v0, v1 and v2 by default, v2 last', () => {
+    expect(DEFAULT_VARIANTS.map((v) => v.label)).toEqual([
+      'composer-policy.v0',
+      'composer-policy.v1',
+      'composer-policy.v2',
+    ]);
+  });
+
+  it('shows v2 giving the unseen Scroll where the stored decisions and v0 and v1 gave one the person had met', () => {
+    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    for (const seed of seeds) replay.add(stored(asHistory(storedInput(seed))));
+    const report = replay.report();
+    expect(report.replayedWithHistory).toBe(12);
+    const [served, v0, v1, v2] = report.variants;
+    for (const variant of [served!, v0!, v1!, v2!]) expect(variant.newContent.firstOffers).toBe(12);
+    // v0 takes a met Seasons Scroll (the soft penalty never outweighs the topic); v1 leaves the topic here; v2 offers only
+    // what is new whatever the weights say.
+    expect(v0!.newContent.alreadyMetFirstOffer).toBeGreaterThan(0);
+    expect(served!.newContent.alreadyMetFirstOffer).toBeGreaterThan(0);
+    expect(v2).toMatchObject({
+      label: 'composer-policy.v2',
+      newContent: { alreadyMetFirstOffer: 0, alreadyMetAllOffers: 0 },
+      shares: { unseenFirstOffer: 1, alreadyMetFirstOffer: 0, alreadyMetAllOffers: 0 },
+    });
+    expect(v0!.shares.unseenFirstOffer).toBeLessThan(1);
+    expect(v2!.newContent.ladder).toEqual({ source_topic: 0, same_system: 0, any_unseen: 12, last_resort: 0 });
+  });
+
+  it('counts the repeats of one person’s first offers, and none across people', () => {
+    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    for (const seed of seeds) replay.add(stored(asHistory(storedInput(seed))));
+    const [, , , v2] = replay.report().variants;
+    // Twelve decisions of one person, each offering Stars first: eleven repeat the first.
+    expect(v2!.newContent.repeatedFirstOffer).toBe(11);
+    expect(v2!.shares.repeatFirstOffer).toBe(0.917);
+
+    const other = startPolicyReplay(DEFAULT_VARIANTS);
+    for (const [index, seed] of seeds.entries()) {
+      const input = asHistory(storedInput(seed));
+      other.add(
+        stored({
+          ...input,
+          universeId: `person-${String(index)}`,
+          evidence: { ...input.evidence!, universeId: `person-${String(index)}` },
+        }),
+      );
+    }
+    expect(other.report().variants[3]!.newContent.repeatedFirstOffer).toBe(0);
+  });
+
+  it('puts each first offer on a step of the ladder for every policy alike, summing to the first offers', () => {
+    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    for (const seed of seeds) replay.add(stored(asHistory(storedInput(seed))));
+    for (const variant of replay.report().variants) {
+      const { ladder, firstOffers } = variant.newContent;
+      expect(Object.values(ladder).reduce((sum, n) => sum + n, 0)).toBe(firstOffers);
+    }
+    // v0's first offer is a met Seasons Scroll: its step is the last resort, which is how repeats show in the tier counts.
+    expect(replay.report().variants[1]!.newContent.ladder.last_resort).toBeGreaterThan(0);
+  });
+
+  it('counts an input without retained history as history-less, and everything in it as unseen', () => {
+    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    for (const seed of seeds) replay.add(stored(storedInput(seed)));
+    expect(replay.report().replayedWithHistory).toBe(0);
+  });
+
+  it('replays a stored v2 decision under every policy too, and names no id', () => {
+    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    replay.add({
+      policyVersion: 'composer-policy.v2',
+      payload: JSON.parse(
+        JSON.stringify(composeEncounter(asHistory(storedInput('seed')), COMPOSER_POLICY_V2)),
+      ) as unknown,
+    });
+    const report = replay.report();
+    expect(report.storedPolicies).toEqual({ 'composer-policy.v2': 1 });
+    expect(report.variants).toHaveLength(4);
+    expect(JSON.stringify(report)).not.toContain('person');
   });
 });

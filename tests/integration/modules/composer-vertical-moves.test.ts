@@ -120,15 +120,19 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
   }
 
   /** Opens the exact encounter, as a revisit does, and activates it: the person is on it. */
-  async function standOn(person: FixturePerson, target: { assetId: string; assetRevision: number }) {
+  async function standOn(
+    person: FixturePerson,
+    target: { assetId: string; assetRevision: number },
+    use: Cases = cases,
+  ) {
     const open = ready(
-      await cases.navigate(person.authority, {
+      await use.navigate(person.authority, {
         commandId: randomUUID(),
         target: { kind: 'return', ...target },
         capabilities: bothFormats,
       }),
     );
-    const activated = await cases.activateOffer(person.authority, {
+    const activated = await use.activateOffer(person.authority, {
       commandId: randomUUID(),
       target: {
         kind: 'offer',
@@ -146,8 +150,9 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
     stand: Awaited<ReturnType<typeof standOn>>,
     format?: Format,
     direction: 'next' | 'previous' = 'next',
+    use: Cases = cases,
   ) =>
-    cases.navigate(person.authority, {
+    use.navigate(person.authority, {
       commandId: randomUUID(),
       sessionId: stand.open.sessionId,
       expectedIntentRevision: stand.open.intentRevision,
@@ -472,6 +477,207 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       expect(exclusionsIn(decision, reelOfPart2.assetId)).toContain('same_series');
       expect(exclusionsIn(decision, hemispheres.assetId)).toContain('same_series');
       expect(decision.stickyFormat).toEqual({ preferred: 'reel', outcome: 'kept' });
+    });
+  });
+
+  // Last of all: policy v2 (#674). A person always gets new content; what they asked for is never a repeat.
+  describe('policy v2: a person always gets new content (real PostgreSQL, labelled CI fixtures)', () => {
+    let v2: Cases;
+    const topic = 'ci.newcontent.topic';
+    const own: Awaited<ReturnType<typeof admitScroll>>[] = [];
+    let ownReel: Awaited<ReturnType<typeof admitReel>>;
+
+    beforeAll(async () => {
+      v2 = await scrollUseCases(database, { composerPolicy: 'v2' });
+      for (let n = 0; n < 3; n += 1) own.push(await admitScroll(topic));
+      ownReel = await admitReel(topic);
+    });
+    afterAll(async () => {
+      await v2.close();
+    });
+
+    const unitOf = async (assetId: string) =>
+      (
+        await sql<{
+          explanation_unit_id: string;
+        }>`select explanation_unit_id from content.asset_revisions where asset_id=${assetId}::uuid`.execute(database.db)
+      ).rows[0]!.explanation_unit_id;
+    const standOnV2 = (person: FixturePerson, target: { assetId: string; assetRevision: number }) =>
+      standOn(person, target, v2);
+    const nextV2 = (
+      person: FixturePerson,
+      stand: Awaited<ReturnType<typeof standOn>>,
+      format?: Format,
+      direction: 'next' | 'previous' = 'next',
+    ) => nextSubject(person, stand, format, direction, v2);
+
+    /** Every admitted asset of the kind, in a fixed order: the person meets each by standing on it. */
+    async function meetEvery(person: FixturePerson, kind: Format, except: readonly string[] = []) {
+      const assets = (
+        await sql<{
+          id: string;
+          revision: number;
+        }>`select id,revision from content.assets where status='admitted' and kind=${kind} order by id`.execute(
+          database.db,
+        )
+      ).rows.filter((asset) => !except.includes(asset.id));
+      const stands: Awaited<ReturnType<typeof standOn>>[] = [];
+      for (const asset of assets)
+        stands.push(await standOnV2(person, { assetId: asset.id, assetRevision: asset.revision }));
+      return { assets, stands };
+    }
+
+    const metUnits = async (offered: readonly { assetId: string }[], met: readonly string[]) => {
+      const units = new Set(await Promise.all(met.map(unitOf)));
+      return (await Promise.all(offered.map((offer) => unitOf(offer.assetId)))).filter((unit) => units.has(unit));
+    };
+
+    it('stores the decision under composer-policy.v2 and records the ladder', async () => {
+      const person = await seedPerson(database.db);
+      const stand = await standOnV2(person, own[0]!);
+      const next = ready(await nextV2(person, stand, 'scroll'));
+      const row = (
+        await sql<{
+          policy_version: string;
+        }>`select policy_version from composer.decisions where id=${next.decisionId}::uuid`.execute(database.db)
+      ).rows[0]!;
+      expect(row.policy_version).toBe('composer-policy.v2');
+      const decision = await decisionOf(next.decisionId);
+      expect(decision.unseenLadder).toMatchObject({ outcome: 'unseen' });
+      // The two other Scrolls of the topic are the first step; the rest of the library is further down.
+      expect(decision.unseenLadder?.eligible.source_topic).toBe(2);
+    });
+
+    it('a person who has met everything in a topic gets something unseen from elsewhere', async () => {
+      const person = await seedPerson(database.db);
+      await standOnV2(person, own[0]!);
+      await standOnV2(person, own[1]!);
+      const stand = await standOnV2(person, own[2]!);
+      const next = ready(await nextV2(person, stand, 'scroll'));
+      const offered = offers(next);
+      expect(offered.length).toBeGreaterThan(0);
+      expect(
+        await metUnits(
+          offered,
+          own.map((scroll) => scroll.assetId),
+        ),
+      ).toEqual([]);
+      const decision = await decisionOf(next.decisionId);
+      for (const scroll of own.slice(0, 2))
+        expect(exclusionsIn(decision, scroll.assetId)).toEqual(['already_encountered']);
+      // Nothing unseen is left in the topic, so the ranking took the next step, and did not fall back to a repeat.
+      expect(decision.unseenLadder).toMatchObject({ outcome: 'unseen', eligible: { source_topic: 0, last_resort: 0 } });
+    });
+
+    it('a Reel watcher who has met every Reel gets an unseen Scroll', async () => {
+      const person = await seedPerson(database.db);
+      const { stands } = await meetEvery(person, 'reel');
+      const next = ready(await nextV2(person, stands.at(-1)!, 'reel'));
+      expect(offers(next).length).toBeGreaterThan(0);
+      expect(offers(next).every((offer) => offer.metadata.kind === 'scroll')).toBe(true);
+      const decision = await decisionOf(next.decisionId);
+      expect(decision.stickyFormat).toEqual({ preferred: 'reel', outcome: 'fell_back' });
+      expect(decision.unseenLadder).toMatchObject({ outcome: 'unseen' });
+    });
+
+    it('only when nothing unseen exists in either format is a met one offered, the least recently met first, and it is counted', async () => {
+      const person = await seedPerson(database.db);
+      const scrolls = (
+        await sql<{
+          id: string;
+        }>`select id from content.assets where status='admitted' and kind='scroll' order by id`.execute(database.db)
+      ).rows.map((row) => row.id);
+      // Meet every Reel, then every Scroll, ending on the Scroll with no series and no links.
+      const last = own[2]!;
+      await meetEvery(person, 'reel');
+      const { assets, stands } = await meetEvery(person, 'scroll', [last.assetId]);
+      stands.push(await standOnV2(person, last));
+      const first = assets[0]!;
+      expect(scrolls).toContain(first.id);
+      const next = ready(await nextV2(person, stands.at(-1)!, 'scroll'));
+      expect(offers(next).length).toBeGreaterThan(0);
+      // The Scroll the person met first of all comes first, whatever the ranking would have said.
+      expect(offers(next)[0]!.assetId).toBe(first.id);
+      const decision = await decisionOf(next.decisionId);
+      expect(decision.unseenLadder).toMatchObject({
+        outcome: 'fell_back',
+        step: 'last_resort',
+        offerSteps: offers(next).map(() => 'last_resort'),
+        eligible: { source_topic: 0, same_system: 0, any_unseen: 0 },
+      });
+      expect(decision.unseenLadder!.eligible.last_resort).toBeGreaterThan(0);
+      expect(decision.exploration).toMatchObject({ branch: 'ranked', pool: [] });
+    });
+
+    it('what the person asks for is never a repeat: a return, a part, the related move and the other format all still open what they met', async () => {
+      const person = await seedPerson(database.db);
+      // Return: standing on something already met works as ever.
+      await standOnV2(person, own[0]!);
+      const again = await standOnV2(person, own[0]!);
+      expect(again.open.offer).toMatchObject({ assetId: own[0]!.assetId, relation: { kind: 'return' } });
+
+      // The other format of what the person is on: the Reel twin of a Scroll they have met.
+      const twin = await admitReel(topic, await unitOf(own[1]!.assetId));
+      const onScroll = await standOnV2(person, own[1]!);
+      const variant = await v2.navigate(person.authority, {
+        commandId: randomUUID(),
+        sessionId: onScroll.open.sessionId,
+        expectedIntentRevision: onScroll.open.intentRevision,
+        from: onScroll.from,
+        intent: { mode: 'variant', to: 'reel' },
+      });
+      expect(ready(variant).offer).toMatchObject({ assetId: twin.assetId, relation: { kind: 'format_variant' } });
+      expect(ownReel.assetId).not.toBe(twin.assetId);
+
+      // A series part and a related move, after the person has met both ends.
+      await standOnV2(person, hemispheres);
+      const onPart1 = await standOnV2(person, seasons);
+      const part = await v2.navigate(person.authority, {
+        commandId: randomUUID(),
+        sessionId: onPart1.open.sessionId,
+        expectedIntentRevision: onPart1.open.intentRevision,
+        from: onPart1.from,
+        intent: { mode: 'series', direction: 'next' },
+      });
+      expect(ready(part).offer).toMatchObject({
+        assetId: hemispheres.assetId,
+        relation: { kind: 'series_step', part: 2 },
+      });
+      await standOnV2(person, limits);
+      const onPart3 = await standOnV2(person, part3);
+      const related = await v2.navigate(person.authority, {
+        commandId: randomUUID(),
+        sessionId: onPart3.open.sessionId,
+        expectedIntentRevision: onPart3.open.intentRevision,
+        from: onPart3.from,
+        intent: { mode: 'related' },
+      });
+      expect(ready(related).offer).toMatchObject({ assetId: limits.assetId, relation: { kind: 'related_move' } });
+      // None of those decisions is a ladder decision.
+      for (const outcome of [variant, part, related]) {
+        const decisionId = ready(outcome).decisionId;
+        expect((await decisionOf(decisionId)).unseenLadder).toBeUndefined();
+      }
+    });
+
+    it('the same history ranked under v0 still offers what was met: v0 decisions are untouched and keep replaying', async () => {
+      const person = await seedPerson(database.db);
+      await standOnV2(person, own[0]!);
+      await standOnV2(person, own[1]!);
+      const stand = await standOnV2(person, own[2]!);
+      // The v0 composition ranks the same person: the met Scrolls of the topic match it and are only softly penalised.
+      const next = ready(await nextSubject(person, stand, 'scroll'));
+      const decision = await decisionOf(next.decisionId);
+      expect(decision.policyVersion).toBe('composer-policy.v0');
+      expect(decision.unseenLadder).toBeUndefined();
+      expect(exclusionsIn(decision, own[0]!.assetId)).toEqual([]);
+      expect(
+        (
+          await sql`select id from composer.decisions where id=${next.decisionId}::uuid and policy_version='composer-policy.v0'`.execute(
+            database.db,
+          )
+        ).rows,
+      ).toHaveLength(1);
     });
   });
 });

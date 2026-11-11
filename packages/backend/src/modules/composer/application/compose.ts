@@ -1,11 +1,32 @@
 import { validateTopics } from '../../content/public.js';
+import { LADDER_STEPS, ladderApplies, ladderStepOf, lastMetAt, stepCounts } from '../domain/encountered.js';
 import { explorationMass, explorationPick } from '../domain/exploration.js';
 import { features, playLevelOf, score, similarity } from '../domain/features.js';
 import { planLifts } from '../domain/plan.js';
-import { COMPOSER_POLICY_V0, randomSource, refKey, uniformIndex, type ComposerPolicy } from '../domain/policy.js';
-import { applyRelatedExclusion, applyStickyFormat, inCurrentSeries, seriesUnitIds } from '../domain/vertical-rules.js';
+import {
+  COMPOSER_POLICY_V0,
+  drawsWithin,
+  randomSource,
+  refKey,
+  tieHash,
+  uniformIndex,
+  type ComposerPolicy,
+} from '../domain/policy.js';
+import {
+  applyEncounteredExclusion,
+  applyRelatedExclusion,
+  applyStickyFormat,
+  inCurrentSeries,
+  seriesUnitIds,
+} from '../domain/vertical-rules.js';
 import { ComposerSnapshotSchema } from './snapshot-schema.js';
-import type { ComposerDecision, ComposerSnapshot, EncounterRef } from '../domain/types.js';
+import type {
+  ComposerDecision,
+  ComposerSnapshot,
+  EncounterRef,
+  LadderStep,
+  UnseenLadderOutcome,
+} from '../domain/types.js';
 function validRef(ref: { readonly assetId: string; readonly assetRevision: number }): boolean {
   return (
     ref.assetId.length > 0 &&
@@ -41,7 +62,11 @@ export function validateSnapshot(s: ComposerSnapshot): void {
   )
     fail();
   // The two vertical rules would be silently ignored on another move, so a snapshot that asks is wrong.
-  if ((s.intent.stickyFormat || s.intent.currentSeriesId || s.intent.relatedAssetIds) && s.mode !== 'vertical') fail();
+  if (
+    (s.intent.stickyFormat || s.intent.currentSeriesId || s.intent.relatedAssetIds || s.intent.systemTopicIds) &&
+    s.mode !== 'vertical'
+  )
+    fail();
   if (s.intent.stickyFormat && s.intent.format) fail();
   if (s.source && !validRef(s.source)) fail();
   if (s.explorationPool.some((r) => !validRef(r))) fail();
@@ -184,14 +209,17 @@ type Evaluation = ComposerDecision['evaluations'][number];
 /** Every candidate with its exclusions, features and score under the policy. */
 function evaluate(s: ComposerSnapshot, policy: ComposerPolicy) {
   const seriesUnits = seriesUnitIds(s);
-  const { screened: unrelated, related } = applyRelatedExclusion(
-    s,
-    s.candidates.map((candidate) => ({
-      candidate,
-      exclusions: exclusionsOf(s, candidate, seriesUnits),
-      base: features(s, candidate, policy),
-    })),
-  );
+  const considered = s.candidates.map((candidate) => ({
+    candidate,
+    exclusions: exclusionsOf(s, candidate, seriesUnits),
+    base: features(s, candidate, policy),
+  }));
+  // Policy v2 puts what is new before every other soft rule, so related and format rules choose only among the unseen.
+  const ladder = policy.encountered === 'ladder' && ladderApplies(s);
+  const { screened: newFirst, lastResort } = ladder
+    ? applyEncounteredExclusion(s, considered)
+    : { screened: considered, lastResort: false };
+  const { screened: unrelated, related } = applyRelatedExclusion(s, newFirst);
   const { screened: assessed, sticky } = applyStickyFormat(s, unrelated);
   // The plan lifts only among eligible candidates, after the intent has ranked them.
   const lifts = planLifts(
@@ -212,20 +240,56 @@ function evaluate(s: ComposerSnapshot, policy: ComposerPolicy) {
       score: score(f, s.mode === 'horizontal', policy),
     };
   });
-  return { evaluations, sticky, related };
+  return { evaluations, sticky, related, ladder: ladder ? { lastResort } : undefined };
 }
 
 const byKey = (a: EncounterRef, b: EncounterRef) => (refKey(a) < refKey(b) ? -1 : refKey(a) > refKey(b) ? 1 : 0);
 
+/** Compares two numbers for a sort. */
+const byNumber = (a: number, b: number) => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * How equal scores are told apart: by the immutable asset/revision order (v0, v1), or by a hash of the decision seed and
+ * the asset id (v2), which falls differently for each person and decision and replays from the stored seed.
+ */
+function tieBreakOf(s: ComposerSnapshot, policy: ComposerPolicy): (a: EncounterRef, b: EncounterRef) => number {
+  return policy.tieBreak === 'seeded-hash'
+    ? (a, b) => byNumber(tieHash(s.seed, a.assetId), tieHash(s.seed, b.assetId)) || byKey(a, b)
+    : byKey;
+}
+
 /**
  * The first offer (the ranked winner, or on the exploration branch a draw from the pool) and then up to
  * `maxOffers - 1` more by maximal marginal relevance. Deterministic for a snapshot and a policy.
+ *
+ * With the ladder (policy v2, a system-chosen move) every offer is taken from the best step still holding a candidate
+ * (the topic the move starts from, then its system, then any unseen one) and only then by score or MMR. In the last
+ * resort every eligible candidate is one the person has met, and the least recently met comes first. The exploration pool
+ * is the unseen candidates, so it is empty in the last resort.
  */
-function choose(s: ComposerSnapshot, evaluations: readonly Evaluation[], policy: ComposerPolicy) {
-  const eligible = evaluations.filter((e) => e.eligible).sort((a, b) => b.score - a.score || byKey(a, b));
+function choose(
+  s: ComposerSnapshot,
+  evaluations: readonly Evaluation[],
+  policy: ComposerPolicy,
+  ladder: { readonly lastResort: boolean } | undefined,
+) {
+  const tie = tieBreakOf(s, policy);
+  const rows = new Map(s.candidates.map((c) => [refKey(c.encounter), c]));
+  const encounter = (id: EncounterRef) => rows.get(refKey(id))!.encounter;
+  const stepOf = (e: EncounterRef): LadderStep => ladderStepOf(s, rows.get(refKey(e))!);
+  // Where the ladder is in force, the step (and in the last resort the time last met) outranks the score.
+  const ahead = (a: EncounterRef, b: EncounterRef): number =>
+    ladder === undefined
+      ? 0
+      : byNumber(LADDER_STEPS.indexOf(stepOf(a)), LADDER_STEPS.indexOf(stepOf(b))) ||
+        (ladder.lastResort
+          ? byNumber(lastMetAt(s, encounter(a).explanationUnitId), lastMetAt(s, encounter(b).explanationUnitId))
+          : 0);
+  const eligible = evaluations.filter((e) => e.eligible).sort((a, b) => ahead(a, b) || b.score - a.score || tie(a, b));
   const rankedWinner = eligible[0];
-  const pool = eligible.filter((e) => s.explorationPool.some((p) => refKey(p) === refKey(e))).sort(byKey);
-  const encounter = (id: EncounterRef) => s.candidates.find((c) => refKey(c.encounter) === refKey(id))!.encounter;
+  const pool = ladder?.lastResort
+    ? []
+    : eligible.filter((e) => s.explorationPool.some((p) => refKey(p) === refKey(e))).sort(byKey);
   const members = pool.map((evaluation) => ({
     evaluation,
     kind: encounter(evaluation).kind,
@@ -233,7 +297,9 @@ function choose(s: ComposerSnapshot, evaluations: readonly Evaluation[], policy:
   }));
   const fraction = s.mode === 'vertical' && pool.length ? policy.explorationFraction : 0;
   const random = randomSource(s.seed);
-  const explore = fraction > 0 && uniformIndex(random, 10) === 0;
+  const explore =
+    fraction > 0 &&
+    (policy.explorationDraw === 'by-fraction' ? drawsWithin(random, fraction) : uniformIndex(random, 10) === 0);
   const first = explore ? explorationPick(members, random, policy.explorationByPlayLevel).evaluation : rankedWinner;
   const selection: ComposerDecision['selection'][number][] = [];
   if (first)
@@ -254,7 +320,7 @@ function choose(s: ComposerSnapshot, evaluations: readonly Evaluation[], policy:
           : 0;
         return { e, redundancy, mmr: e.score - policy.mmrLambda * redundancy };
       })
-      .sort((a, b) => b.mmr - a.mmr || byKey(a.e, b.e))[0];
+      .sort((a, b) => ahead(a.e, b.e) || b.mmr - a.mmr || tie(a.e, b.e))[0];
     if (!next) break;
     selection.push({
       assetId: next.e.assetId,
@@ -270,8 +336,18 @@ function choose(s: ComposerSnapshot, evaluations: readonly Evaluation[], policy:
     ? 0
     : (rankedWinner && refKey(first) === refKey(rankedWinner) ? 1 - fraction : 0) +
       (member ? explorationMass(fraction, members, member, policy.explorationByPlayLevel) : 0);
+  const unseenLadder: UnseenLadderOutcome | undefined =
+    ladder === undefined
+      ? undefined
+      : {
+          outcome: selection.length === 0 ? 'none' : ladder.lastResort ? 'fell_back' : 'unseen',
+          ...(selection.length ? { step: stepOf(selection[0]!) } : {}),
+          offerSteps: selection.map(stepOf),
+          eligible: stepCounts(eligible.map(stepOf)),
+        };
   return {
     selection,
+    unseenLadder,
     exploration: {
       fraction,
       branch: explore ? ('explore' as const) : ('ranked' as const),
@@ -305,8 +381,8 @@ export function composeEncounter(
  * many stored decisions under several policies needs it (one validation, one decision per policy).
  */
 export function decideValidated(s: ComposerSnapshot, policy: ComposerPolicy): ComposerDecision {
-  const { evaluations, sticky, related } = evaluate(s, policy);
-  const { selection, exploration } = choose(s, evaluations, policy);
+  const { evaluations, sticky, related, ladder } = evaluate(s, policy);
+  const { selection, exploration, unseenLadder } = choose(s, evaluations, policy, ladder);
   return {
     version: 'composer-decision.v0',
     policyVersion: policy.version,
@@ -321,6 +397,7 @@ export function decideValidated(s: ComposerSnapshot, policy: ComposerPolicy): Co
     exploration,
     ...(sticky ? { stickyFormat: sticky } : {}),
     ...(related ? { relatedTarget: related } : {}),
+    ...(unseenLadder ? { unseenLadder } : {}),
     outcome: selection.length ? 'ready' : 'exhausted',
   };
 }

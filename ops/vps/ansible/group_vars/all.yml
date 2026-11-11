@@ -62,8 +62,8 @@ ks_v2_planner_enabled_worlds: [dev]
 # Worlds whose worker runs the Cartographer (KS_CARTOGRAPHER_ENABLED=1, #237): qualified reading forms
 # systems, stars and planets. Same token plan and harness caps.
 ks_v2_cartographer_enabled_worlds: [dev]
-# The Composer policy new decisions are made under, per world (KS_COMPOSER_POLICY, v3 S-5, D-190): v0 or v1. A world not
-# listed gets v0. The numbers of v1 were chosen from `composer replay-policy` on dev's stored decisions (D-190), so dev runs v1.
+# The Composer policy new decisions are made under, per world (KS_COMPOSER_POLICY, v3 S-5, D-190, D-408): v0, v1 or v2. A
+# world not listed gets v0. The numbers of v1 were chosen from `composer replay-policy` on dev's stored decisions (D-190), so dev runs v1.
 ks_v2_composer_policy: { dev: v1 }
 # Worlds whose worker asks Jev for a semantic assessment while preparing Explore buffers
 # (KS_JEV_ENABLED=1, #234). Without it, ranking uses the deterministic semantic fit.

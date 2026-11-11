@@ -1,12 +1,15 @@
+import { systemOfTopic } from '../../content/public.js';
+import { isMet, ladderStepOf, systemTopicIdsOf } from '../domain/encountered.js';
 import { jevSubjectOf } from '../domain/jev-pool.js';
 import {
   refKey,
   COMPOSER_POLICY_V0,
   COMPOSER_POLICY_V1,
+  COMPOSER_POLICY_V2,
   type ComposerPolicy,
   type VerticalWeights,
 } from '../domain/policy.js';
-import type { ComposerDecision, ComposerSnapshot, EncounterSnapshot } from '../domain/types.js';
+import type { ComposerDecision, ComposerSnapshot, EncounterSnapshot, LadderStep } from '../domain/types.js';
 import { inCurrentSeries, seriesUnitIds, sourceSeriesId } from '../domain/vertical-rules.js';
 import { decideValidated, validateSnapshot } from './compose.js';
 import { ComposerSnapshotSchema } from './snapshot-schema.js';
@@ -38,10 +41,11 @@ export function withVerticalWeights(
   };
 }
 
-/** The two policies every report compares. */
+/** The policies every report compares. v2 comes last, so the first three rows are the ones D-190 chose from. */
 export const DEFAULT_VARIANTS: readonly ReplayVariant[] = [
   { label: COMPOSER_POLICY_V0.version, policy: COMPOSER_POLICY_V0 },
   { label: COMPOSER_POLICY_V1.version, policy: COMPOSER_POLICY_V1 },
+  { label: COMPOSER_POLICY_V2.version, policy: COMPOSER_POLICY_V2 },
 ];
 
 export interface FirstOfferCounts {
@@ -56,6 +60,25 @@ export interface FirstOfferCounts {
   readonly subjectChanges: number;
 }
 
+/**
+ * What a policy gave the person, in terms of new content (#674). "Met" is an activated exposure of the offer's explanation,
+ * in either format, as the stored input recorded it (`evidence.established`, `evidence.recent`); an input without history
+ * counts everything as unseen, so see `PolicyReplayReport.replayedWithHistory`. Each decision is replayed on its own, so a
+ * variant's repeats are what its choices would repeat if every decision were served, not a simulated session.
+ */
+export interface NewContentCounts {
+  /** Decisions that offered something. */
+  readonly firstOffers: number;
+  /** First offers the person had already met. */
+  readonly alreadyMetFirstOffer: number;
+  /** Offers, up to three a decision, the person had already met. */
+  readonly alreadyMetAllOffers: number;
+  /** First offers whose explanation another first offer in the window gave the same person: every one after the first. */
+  readonly repeatedFirstOffer: number;
+  /** First offers by the step of the ladder they fall under (`last_resort` is a met explanation), for every policy alike. */
+  readonly ladder: Readonly<Record<LadderStep, number>>;
+}
+
 export interface VariantReport {
   readonly label: string;
   /** Vertical decisions replayed; the same for every variant. */
@@ -67,12 +90,20 @@ export interface VariantReport {
   readonly allOffers: { readonly offers: number; readonly sameTopic: number; readonly sameSeries: number };
   /** Sticky format: `kept` the person's format, `fellBack` because none was eligible, `notAsked` when the input named none. */
   readonly stickyFormat: { readonly kept: number; readonly fellBack: number; readonly notAsked: number };
+  /** Repeats and already-met offers, and the ladder step of each first offer. */
+  readonly newContent: NewContentCounts;
   /** Shares of `decisions` (first offer) and of `allOffers.offers`, rounded to three decimals. */
   readonly shares: {
     readonly sameTopicFirstOffer: number;
     readonly sameSeriesFirstOffer: number;
     readonly subjectChangeFirstOffer: number;
     readonly sameTopicAllOffers: number;
+    /** Of the first offers: how many the person had not met. */
+    readonly unseenFirstOffer: number;
+    readonly alreadyMetFirstOffer: number;
+    readonly alreadyMetAllOffers: number;
+    /** Of the first offers: how many repeat another to the same person in the window. */
+    readonly repeatFirstOffer: number;
   };
 }
 
@@ -80,6 +111,8 @@ export interface PolicyReplayReport {
   /** Stored decisions given to the replay. */
   readonly read: number;
   readonly replayed: number;
+  /** Replayed decisions whose input read the person's retained history (`evidence.established`). */
+  readonly replayedWithHistory: number;
   readonly skipped: {
     readonly notVertical: number;
     readonly sourceNotInCandidates: number;
@@ -106,7 +139,8 @@ const relevantTopicIds = (encounter: Pick<EncounterSnapshot, 'topics'>): readonl
 
 /**
  * A stored input as today's assembly would build it for the same move: the series the person is in and
- * the format they are in are named, and each recent encounter carries its topics, all derived from
+ * the format they are in are named, the topics of the source's system are named (policy v2's "same system" step), and each
+ * recent encounter carries its topics, all derived from
  * candidates the input already holds. Inputs stored before policy v1 lack these fields, and without them
  * a replay could not tell the rules of D-131 and D-132 or the recent-topic penalty from the weights.
  * Fields the input already has are kept.
@@ -123,6 +157,13 @@ export function normaliseForReplay(input: ComposerSnapshot, source: Candidate): 
     const holders = input.candidates.filter((c) => c.encounter.explanationUnitId === explanationUnitId);
     return holders.length === 0 ? undefined : [...new Set(holders.flatMap((c) => relevantTopicIds(c.encounter)))];
   };
+  const systemTopicIds =
+    input.intent.systemTopicIds ??
+    systemTopicIdsOf(
+      relevantTopicIds(source.encounter),
+      input.candidates.flatMap((c) => relevantTopicIds(c.encounter)),
+      systemOfTopic,
+    );
   const { evidence } = input;
   return {
     ...input,
@@ -130,6 +171,7 @@ export function normaliseForReplay(input: ComposerSnapshot, source: Candidate): 
       ...input.intent,
       ...(seriesId !== undefined ? { currentSeriesId: seriesId } : {}),
       ...(input.intent.stickyFormat === undefined ? { stickyFormat: source.encounter.kind } : {}),
+      ...(systemTopicIds.length > 0 ? { systemTopicIds } : {}),
     },
     ...(evidence
       ? {
@@ -151,6 +193,15 @@ interface Tally {
   first: { sameTopic: number; sameSeries: number; subjectChanges: number };
   all: { offers: number; sameTopic: number; sameSeries: number };
   sticky: { kept: number; fellBack: number; notAsked: number };
+  fresh: {
+    firstOffers: number;
+    alreadyMetFirst: number;
+    alreadyMetAll: number;
+    repeatedFirst: number;
+    ladder: Record<LadderStep, number>;
+  };
+  /** The explanations each person's first offers named, in memory only, to count repeats. Never printed. */
+  firstUnitsByPerson: Map<string, Set<string>>;
 }
 
 const emptyTally = (): Tally => ({
@@ -159,6 +210,14 @@ const emptyTally = (): Tally => ({
   first: { sameTopic: 0, sameSeries: 0, subjectChanges: 0 },
   all: { offers: 0, sameTopic: 0, sameSeries: 0 },
   sticky: { kept: 0, fellBack: 0, notAsked: 0 },
+  fresh: {
+    firstOffers: 0,
+    alreadyMetFirst: 0,
+    alreadyMetAll: 0,
+    repeatedFirst: 0,
+    ladder: { source_topic: 0, same_system: 0, any_unseen: 0, last_resort: 0 },
+  },
+  firstUnitsByPerson: new Map(),
 });
 
 /** Counts one decision's offers against the move's source, with the same definitions for every variant. */
@@ -185,11 +244,25 @@ function tally(
     into.all.offers += 1;
     if (sameTopic) into.all.sameTopic += 1;
     if (sameSeries) into.all.sameSeries += 1;
+    const met = isMet(input, candidate.encounter.explanationUnitId);
+    if (met) into.fresh.alreadyMetAll += 1;
+    if (index === 0) tallyFirstOffer(into, input, candidate, met);
     if (index !== 0) return;
     if (sameTopic) into.first.sameTopic += 1;
     if (sameSeries) into.first.sameSeries += 1;
     if (jevSubjectOf(candidate.encounter) !== subject) into.first.subjectChanges += 1;
   });
+}
+
+/** The first offer's part of the new-content counts: met or not, repeated for the same person or not, and its ladder step. */
+function tallyFirstOffer(into: Tally, input: ComposerSnapshot, candidate: Candidate, met: boolean): void {
+  into.fresh.firstOffers += 1;
+  if (met) into.fresh.alreadyMetFirst += 1;
+  into.fresh.ladder[ladderStepOf(input, candidate)] += 1;
+  const units = into.firstUnitsByPerson.get(input.universeId) ?? new Set<string>();
+  if (units.has(candidate.encounter.explanationUnitId)) into.fresh.repeatedFirst += 1;
+  units.add(candidate.encounter.explanationUnitId);
+  into.firstUnitsByPerson.set(input.universeId, units);
 }
 
 const share = (part: number, whole: number): number => (whole === 0 ? 0 : round3(part / whole));
@@ -202,11 +275,22 @@ function reportOf(label: string, t: Tally): VariantReport {
     firstOffer: { ...t.first },
     allOffers: { ...t.all },
     stickyFormat: { ...t.sticky },
+    newContent: {
+      firstOffers: t.fresh.firstOffers,
+      alreadyMetFirstOffer: t.fresh.alreadyMetFirst,
+      alreadyMetAllOffers: t.fresh.alreadyMetAll,
+      repeatedFirstOffer: t.fresh.repeatedFirst,
+      ladder: { ...t.fresh.ladder },
+    },
     shares: {
       sameTopicFirstOffer: share(t.first.sameTopic, t.decisions),
       sameSeriesFirstOffer: share(t.first.sameSeries, t.decisions),
       subjectChangeFirstOffer: share(t.first.subjectChanges, t.decisions),
       sameTopicAllOffers: share(t.all.sameTopic, t.all.offers),
+      unseenFirstOffer: share(t.fresh.firstOffers - t.fresh.alreadyMetFirst, t.fresh.firstOffers),
+      alreadyMetFirstOffer: share(t.fresh.alreadyMetFirst, t.fresh.firstOffers),
+      alreadyMetAllOffers: share(t.fresh.alreadyMetAll, t.all.offers),
+      repeatFirstOffer: share(t.fresh.repeatedFirst, t.fresh.firstOffers),
     },
   };
 }
@@ -227,7 +311,7 @@ function readStored(stored: StoredDecision): { input: ComposerSnapshot; decision
 export function startPolicyReplay(variants: readonly ReplayVariant[]) {
   const stored = emptyTally();
   const replayed = variants.map(() => emptyTally());
-  const counts = { read: 0, replayed: 0, notVertical: 0, sourceNotInCandidates: 0, unreadable: 0 };
+  const counts = { read: 0, replayed: 0, withHistory: 0, notVertical: 0, sourceNotInCandidates: 0, unreadable: 0 };
   const storedPolicies: Record<string, number> = {};
   return {
     add(decision: StoredDecision): void {
@@ -257,6 +341,7 @@ export function startPolicyReplay(variants: readonly ReplayVariant[]) {
         return;
       }
       counts.replayed += 1;
+      if (input.evidence?.established !== undefined) counts.withHistory += 1;
       tally(stored, input, source, read.decision.selection, read.decision.stickyFormat);
       variants.forEach(({ policy }, index) => {
         const made = decideValidated(input, policy);
@@ -267,6 +352,7 @@ export function startPolicyReplay(variants: readonly ReplayVariant[]) {
       return {
         read: counts.read,
         replayed: counts.replayed,
+        replayedWithHistory: counts.withHistory,
         skipped: {
           notVertical: counts.notVertical,
           sourceNotInCandidates: counts.sourceNotInCandidates,

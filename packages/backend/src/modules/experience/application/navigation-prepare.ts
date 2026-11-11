@@ -290,6 +290,7 @@ async function retrieve(
               formats: start.formats,
               capabilities: start.capabilities,
               ...(rules.stickyFormat ? { stickyFormat: rules.stickyFormat } : {}),
+              seed: command.commandId,
             }),
           };
     case 'return':
