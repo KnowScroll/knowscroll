@@ -59,7 +59,7 @@ const refused = (
 const emptyCoverage = (): Coverage => ({
   version: 'trusted-coverage-read.v1',
   completeness: 'not_asserted',
-  supportedFormats: ['scroll'],
+  supportedFormats: ['scroll', 'reel'],
   availability: 'available',
   reason: 'current',
   supports: [],
@@ -222,8 +222,9 @@ async function readBatch(
   if (read.availability === 'available') {
     if (
       read.completeness !== 'not_asserted' ||
-      read.supportedFormats.length !== 1 ||
-      read.supportedFormats[0] !== 'scroll'
+      read.supportedFormats.length !== 2 ||
+      read.supportedFormats[0] !== 'scroll' ||
+      read.supportedFormats[1] !== 'reel'
     )
       throw new Error('GEOGRAPHY_COVERAGE_UNSUPPORTED');
     return { kind: 'read', reads: [read] };

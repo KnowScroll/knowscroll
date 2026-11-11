@@ -32,6 +32,8 @@ import {
 } from '../domain/coverage.js';
 import { admissionTransaction, makeAdmissionStore } from './postgres-store.js';
 import { coverageTargetOfV2 } from './coverage-target-v2.js';
+import { coverageTargetOfReel } from './coverage-target-reel.js';
+import { ReelCoverageProvenanceSchema } from '../domain/reel-coverage.js';
 import { notUnderReview } from './review-gate-sql.js';
 import { readingFactsOf } from './scroll-compiler.js';
 
@@ -54,6 +56,40 @@ const SOURCE_REVIEWED_COMMANDS: readonly {
  * revision the review gate holds, for deciding its coverage at publication and again after a plan change.
  */
 type TargetScope = 'served' | 'stored';
+
+/** The Reel's own revision and the twin Scroll revision its claims rest on, under the same reachability. */
+async function readReelTarget(
+  db: Transaction<Database>,
+  ref: CoverageRef,
+  reachable: ReturnType<typeof sql>,
+): Promise<CoverageTarget | undefined> {
+  const result = await sql<{
+    document: unknown;
+    document_sha256: string;
+    explanation_unit_id: string;
+    provenance_kind: string;
+    provenance_version: string;
+    provenance: unknown;
+    reading_facts: unknown;
+  }>`select r.document,r.document_sha256,r.explanation_unit_id,r.provenance_kind,p.provenance_version,p.provenance,r.reading_facts
+    from content.assets a join content.asset_revisions r on r.asset_id=a.id
+    join content.asset_provenance p on p.asset_id=r.asset_id and p.revision=r.revision
+    where a.id=${ref.assetId}::uuid and a.kind='reel' and ${reachable}
+      and r.revision=${ref.assetRevision}`.execute(db);
+  const row = result.rows[0];
+  const provenance = ReelCoverageProvenanceSchema.safeParse(row?.provenance);
+  if (!row || !provenance.success) return undefined;
+  const { twin } = provenance.data;
+  const twinRows = await sql<{
+    explanation_unit_id: string;
+    framing_kind: string | null;
+  }>`select r.explanation_unit_id,r.document->'framing'->>'kind' as framing_kind
+    from content.assets a join content.asset_revisions r on r.asset_id=a.id
+    where a.id=${twin.assetId}::uuid and a.kind='scroll' and ${reachable} and r.revision=${twin.assetRevision}`.execute(
+    db,
+  );
+  return coverageTargetOfReel(row, twinRows.rows[0], ref);
+}
 
 async function readTarget(
   db: Transaction<Database>,
@@ -78,7 +114,7 @@ async function readTarget(
     where a.id=${ref.assetId}::uuid and a.kind='scroll' and ${reachable}
       and r.revision=${ref.assetRevision}`.execute(db);
   const row = result.rows[0];
-  if (!row) return undefined;
+  if (!row) return readReelTarget(db, ref, reachable);
   if (row.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION) return coverageTargetOfV2(row, ref);
   const parsed = admitDocument(row.document);
   const provenance = ScrollProvenance.safeParse(row.provenance);

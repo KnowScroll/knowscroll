@@ -35,7 +35,7 @@ export const unreadable = (reason: 'limit' | 'authority_changed' | 'not_observed
   ({
     version: 'trusted-coverage-read.v1',
     completeness: 'not_asserted',
-    supportedFormats: ['scroll'],
+    supportedFormats: ['scroll', 'reel'],
     availability: 'unavailable',
     reason,
     supports: [],
@@ -94,7 +94,7 @@ export function coverageOf(catalogue: Catalogue, readings: readonly Reading[], p
   return {
     version: 'trusted-coverage-read.v1',
     completeness: 'not_asserted',
-    supportedFormats: ['scroll'],
+    supportedFormats: ['scroll', 'reel'],
     availability: 'available',
     reason: 'current',
     supports: rows.map((row) => row.support),

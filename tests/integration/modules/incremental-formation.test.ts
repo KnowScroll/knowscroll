@@ -381,7 +381,7 @@ describe('incremental formation on real PostgreSQL (CI fixtures)', () => {
           ? ({
               version: 'trusted-coverage-read.v1',
               completeness: 'not_asserted',
-              supportedFormats: ['scroll'],
+              supportedFormats: ['scroll', 'reel'],
               availability: 'available',
               reason: 'current',
               supports: found.map((row) => row.support),
@@ -391,7 +391,7 @@ describe('incremental formation on real PostgreSQL (CI fixtures)', () => {
           : ({
               version: 'trusted-coverage-read.v1',
               completeness: 'not_asserted',
-              supportedFormats: ['scroll'],
+              supportedFormats: ['scroll', 'reel'],
               availability: 'unavailable',
               reason: 'not_observed',
               supports: [],
@@ -613,7 +613,7 @@ describe('incremental formation on real PostgreSQL (CI fixtures)', () => {
     const authorityChanged = {
       version: 'trusted-coverage-read.v1',
       completeness: 'not_asserted',
-      supportedFormats: ['scroll'],
+      supportedFormats: ['scroll', 'reel'],
       availability: 'unavailable',
       reason: 'authority_changed',
       supports: [],

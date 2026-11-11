@@ -200,10 +200,10 @@ function formation(world: SimWorld, result: PersonaResult): Violation[] {
       detail: { system, units: units.all, onlyWithReels, referencesUnderSystem, supportsUnderSystem },
     });
   }
-  // A planet needs three distinct units over two facets of its topic, each read in a form that proves its facet (a Scroll).
+  // A planet needs three distinct units over two facets of its topic. A qualified unit proves its facet in either format:
+  // the lab's Reels are watched through, so their coverage binds the unit's facet as the Scroll's does (D-421).
   const byTopic = new Map<string, string[]>();
-  for (const [unitId, formats] of qualified) {
-    if (!formats.scroll) continue;
+  for (const unitId of qualified.keys()) {
     const topic = world.library.unit(unitId).topicId;
     byTopic.set(topic, [...(byTopic.get(topic) ?? []), unitId]);
   }
@@ -215,7 +215,7 @@ function formation(world: SimWorld, result: PersonaResult): Violation[] {
       invariant: 'I2',
       code: 'planet_not_formed',
       persona,
-      message: `${persona} qualified ${String(units.length)} distinct Scrolls over ${String(facets.size)} facets of ${topic} but no planet formed after ${String(result.settleDrains)} settling drains.`,
+      message: `${persona} qualified ${String(units.length)} distinct units over ${String(facets.size)} facets of ${topic} but no planet formed after ${String(result.settleDrains)} settling drains.`,
       detail: { topic, units },
     });
   }

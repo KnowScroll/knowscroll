@@ -59,6 +59,10 @@ export function makeAdmitCoverage(p: CoverageAdmissionPorts): AdmitCoverage {
       throw new Error('CONTENT_COVERAGE_REVIEW_REQUIRED');
     return p.inAdmission(async (tx) => {
       const target = await p.lockTarget(tx, command);
+      // A Reel's coverage is decided by code from its script (`admitReelCoverage`); no reviewed command maps one.
+      // A reviewed command may still retract it: withdrawing what a Reel is trusted for needs no new meaning.
+      if (target?.format === 'reel' && command.change.kind === 'admit')
+        throw new Error('CONTENT_COVERAGE_REEL_REQUIRES_RECIPE');
       const previous = await p.readHead(tx, command);
       return appendCoverageHead(p, tx, command, target, previous);
     });

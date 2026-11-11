@@ -253,6 +253,13 @@ export interface PublishReel {
   readonly script: ReelScript;
   readonly twin: TwinScroll;
   readonly topicId: string;
+  /** The recipe facets the Reel's coverage is decided from, by code, in the publication transaction. */
+  readonly recipe: {
+    readonly explanationUnitId: string;
+    readonly topicId: string;
+    readonly facetId: string;
+    readonly supportingFacetId?: string | undefined;
+  };
   readonly media: InstalledReel;
   /** Public provenance: how this Reel came to be. Never served to a reader. */
   readonly provenance: Readonly<Record<string, unknown>>;
@@ -262,7 +269,8 @@ export interface PublishReel {
 }
 
 export type PublishResult =
-  | { readonly kind: 'published'; readonly assetId: string; readonly created: boolean }
+  /** `coverage`: for a Reel created now, `admitted` or the code that left it unmapped (`target_unavailable`, ...). */
+  | { readonly kind: 'published'; readonly assetId: string; readonly created: boolean; readonly coverage?: string }
   | { readonly kind: 'refused'; readonly code: 'asset_exists_for_other_run' | 'twin_changed' | 'run_id_not_uuid' };
 
 /** Admits one Reel as a revision of the script's asset, with the twin's explanation unit and topic. */

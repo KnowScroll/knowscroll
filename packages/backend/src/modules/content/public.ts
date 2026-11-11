@@ -202,6 +202,7 @@ export { sceneFamilyOf, hazeFamilyOf } from './domain/library/index.js';
 export type { HazeFamilyName } from './domain/library/plan.js';
 export {
   COVERAGE_POLICY,
+  REEL_COVERAGE_POLICY,
   CoverageCommandSchema,
   CoverageMappingSchema,
   CoverageAuthoritySchema,

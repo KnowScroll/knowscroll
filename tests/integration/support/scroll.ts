@@ -58,6 +58,7 @@ import {
 import {
   READ_ACTIVITY_STATISTICS,
   CHECK_COVERAGE_EVIDENCE,
+  type CheckCoverageEvidence,
   CHECK_RECORDING_COVERAGE_EVIDENCE,
   READ_OBSERVATION_TAIL,
   READ_RECENT_TOPIC_IDS,
@@ -193,6 +194,7 @@ export async function scrollUseCases(
   readonly readComposerContext: ReadPreparedEvidenceInput;
   readonly readExploration: ReadExplorationSnapshot;
   readonly readTrustedCoverage: ReadTrustedCoverage;
+  readonly checkCoverageEvidence: CheckCoverageEvidence;
   readonly readRecentTopics: ReadRecentContextTopics;
   readonly importScroll: ImportEditorialScroll;
   readonly openExposure: OpenExposure;
@@ -339,6 +341,7 @@ export async function scrollUseCases(
     readComposerContext: values.get(READ_COMPOSER_CONTEXT) as ReadPreparedEvidenceInput,
     readExploration: build(READ_EXPLORATION_SNAPSHOT) as ReadExplorationSnapshot,
     readTrustedCoverage: build(READ_TRUSTED_COVERAGE) as ReadTrustedCoverage,
+    checkCoverageEvidence: build(CHECK_COVERAGE_EVIDENCE) as CheckCoverageEvidence,
     readRecentTopics: build(READ_RECENT_CONTEXT_TOPICS) as ReadRecentContextTopics,
     importScroll: importEditorialScrollUseCase(database.db),
     openExposure: build(OPEN_EXPOSURE) as OpenExposure,

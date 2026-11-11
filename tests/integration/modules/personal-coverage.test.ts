@@ -581,7 +581,7 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
     expect(result).toMatchObject({
       availability: 'available',
       completeness: 'not_asserted',
-      supportedFormats: ['scroll'],
+      supportedFormats: ['scroll', 'reel'],
     });
     expect(result.witnesses).toHaveLength(1);
     expect(result.supports).toMatchObject([

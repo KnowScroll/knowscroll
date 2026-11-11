@@ -31,24 +31,7 @@ export interface KnownFailure {
   readonly matches: (violation: Violation) => boolean;
 }
 
-export const KNOWN_FAILURES: readonly KnownFailure[] = [
-  {
-    id: 'I2/reel-only-evidence-forms-no-system',
-    invariant: 'I2',
-    slice: '5.1',
-    // Any reader who qualifies two Reels of a system meets it; `link-reader-reels` is the exact scenario.
-    reproducedBy: ['link-reader-reels'],
-    reason:
-      "A Reel has no coverage mapping or certificate, and the trusted read serves only Scrolls (supportedFormats: [scroll]), so a qualified Reel leaves no coverage reference (a Reel-only reader's Geography runs settle no_support_yet) and counts for dust and for no place. Reel and Scroll have equal status.",
-    matches: (violation) =>
-      violation.code === 'system_not_formed' &&
-      violation.detail['onlyWithReels'] === true &&
-      // The exact situation: the qualified units under the system are Reels, so Personal Context holds no coverage reference
-      // and no trusted support under any topic of it. Scroll evidence under the system that failed to form would not match.
-      violation.detail['referencesUnderSystem'] === 0 &&
-      violation.detail['supportsUnderSystem'] === 0,
-  },
-];
+export const KNOWN_FAILURES: readonly KnownFailure[] = [];
 
 /** Whether an entry explains a violation: the same invariant, a persona the entry names (any, if it names none), and its reason. */
 export const explains = (entry: KnownFailure, violation: Violation) =>

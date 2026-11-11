@@ -34,7 +34,8 @@ export async function admitRecipeCoverage(
   ref: CoverageRef,
 ): Promise<RecipeCoverageOutcome> {
   const target = await p.lockTarget(tx, ref);
-  if (target === undefined) return { kind: 'not_admitted', code: 'target_unavailable' };
+  // A Reel's coverage is decided by its own rule (`admitReelCoverage`), never as a Scroll's.
+  if (target === undefined || target.format === 'reel') return { kind: 'not_admitted', code: 'target_unavailable' };
   const plan = planRecipeCoverage(recipe, target, p.catalogue);
   if (plan.kind === 'refused') return { kind: 'not_admitted', code: plan.code };
   const previous = await p.readHead(tx, ref);

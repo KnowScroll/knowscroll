@@ -114,7 +114,7 @@ export const selectedWitnesses = (slots: z.infer<typeof RecordingCoverageSlotsSc
 export type TrustedCoverageRead<Certificate = unknown> = {
   readonly version: 'trusted-coverage-read.v1';
   readonly completeness: 'not_asserted';
-  readonly supportedFormats: readonly ['scroll'];
+  readonly supportedFormats: readonly ['scroll', 'reel'];
 } & (
   | {
       readonly availability: 'unavailable';

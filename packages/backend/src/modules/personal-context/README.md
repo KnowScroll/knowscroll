@@ -213,6 +213,20 @@ semantic maps and explicit bounded existing reconciliation. Empty Content approv
 CI fixtures use synthetic semantic approvals only; no live map, observed dev coverage, provider,
 geography, planet, native/browser journey or deployment acceptance is established by source/CI.
 
+## Reels in trusted coverage (#674, slice 5.1, D-421)
+
+Status: implemented, CI-tested against real PostgreSQL. Migration 0118 (a Content guard only).
+
+`ReadTrustedCoverage` serves Reel certificates beside Scroll certificates (`supportedFormats: ['scroll', 'reel']`).
+Nothing in this module knows a format: a certificate is a certificate, and the same checks run for a Reel's: current
+exact Evidence, Content's current mapping under `certificateValidOnHead` (D-406, so a head that changed only in the
+catalogue digest keeps a Reel's reading, and a re-cut, which is another asset revision with its own head, does not
+inherit the earlier cut's windows), and the SHARE locks. The support key is the same, and its `truthSha256` is the
+factual framing digest a Reel and its Scroll twin share, so a Reel and its twin that bind one facet are one key with two
+references and one explanation unit: they count once, and Geography counts distinct units, never references. The
+dirty set is marked by a Reel's references exactly as by a Scroll's. A Reel with no Scroll twin is not in any region
+(D-404) but its facets count toward its system and planet like any other unit.
+
 ## The dirty set and the keys a run reads (#674, slice 4.1, D-416)
 
 Status: implemented, CI-tested against real PostgreSQL. Migration 0110.

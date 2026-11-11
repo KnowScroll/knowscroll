@@ -104,3 +104,65 @@ describe('certificateValidOnHead', () => {
     expect(certificateValidOnHead(certificate({ bindings: [binding, secondBinding] }), partial)).toBe(false);
   });
 });
+
+describe('certificateValidOnHead for a Reel (#674, slice 5.1)', () => {
+  const reelBinding = {
+    ...binding,
+    requiredBlockIds: ['s1', 's3', 's6'],
+    requiredSpans: [
+      [0, 4000],
+      [10_000, 14_000],
+      [24_000, 30_000],
+    ] as [number, number][],
+  };
+  const reelHead = (patch: Parameters<typeof head>[0] = {}) =>
+    head({
+      ...patch,
+      mapping: { version: 'reel-static-coverage.v1', bindings: [reelBinding], ...patch.mapping },
+    });
+  const reelCertificate = () => certificate({ bindings: [reelBinding] });
+
+  it('holds on the head it was issued against and on a head that differs only in the catalogue digest (D-406)', () => {
+    expect(certificateValidOnHead(reelCertificate(), reelHead())).toBe(true);
+    expect(
+      certificateValidOnHead(
+        reelCertificate(),
+        reelHead({ headRevision: 2, mappingSha256: hash('9'), mapping: { catalogueSha256: hash('c') } }),
+      ),
+    ).toBe(true);
+  });
+
+  it('refuses a retracted head, and a head whose segments or windows changed after a re-cut', () => {
+    expect(certificateValidOnHead(reelCertificate(), reelHead({ status: 'retracted' }))).toBe(false);
+    const recut = {
+      ...reelBinding,
+      requiredSpans: [
+        [0, 4000],
+        [10_000, 14_000],
+        [25_000, 30_000],
+      ] as [number, number][],
+    };
+    expect(
+      certificateValidOnHead(
+        reelCertificate(),
+        reelHead({ headRevision: 2, mappingSha256: hash('9'), mapping: { bindings: [recut] } }),
+      ),
+    ).toBe(false);
+    expect(
+      certificateValidOnHead(
+        reelCertificate(),
+        reelHead({
+          headRevision: 2,
+          mappingSha256: hash('9'),
+          mapping: { bindings: [{ ...reelBinding, requiredBlockIds: ['s1', 's3', 's5'] }] },
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('refuses a head whose reading facts changed, as when the Reel was cut again at another length', () => {
+    expect(certificateValidOnHead(reelCertificate(), reelHead({ mapping: { readingFactsSha256: hash('d') } }))).toBe(
+      false,
+    );
+  });
+});

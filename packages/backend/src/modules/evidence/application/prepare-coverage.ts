@@ -1,7 +1,9 @@
 import {
   ObservedCoverageSchema,
   OBSERVED_COVERAGE_POLICY,
+  REEL_MAPPING_POLICY,
   observedBindings,
+  observedReelBindings,
   type ObservedCoverage,
 } from '../domain/coverage.js';
 import type { ObservedCoveragePorts, PrepareObservedCoverage } from './coverage-ports.js';
@@ -30,7 +32,7 @@ export function makePrepareObservedCoverage(p: ObservedCoveragePorts): PrepareOb
       exposure.recordingGeneration,
       exposure.qualificationId,
     );
-    if (!evidence) return result(exposure.kind === 'scroll' ? 'qualification_missing' : 'unsupported_format');
+    if (!evidence) return result('qualification_missing');
     value = {
       ...value,
       evidence: {
@@ -41,11 +43,13 @@ export function makePrepareObservedCoverage(p: ObservedCoveragePorts): PrepareOb
         summarySha256: p.hash(evidence.summary),
       },
     };
-    if (exposure.kind !== 'scroll') return result('unsupported_format');
     if (evidence.assetId !== exposure.assetId || evidence.assetRevision !== exposure.assetRevision)
       return result('identity_mismatch');
     const map = await p.readMapping(scope, { assetId: exposure.assetId, assetRevision: exposure.assetRevision });
     if (map.kind !== 'mapped') return result(`mapping_${map.kind}`);
+    // A Reel is judged only against a Reel's mapping and a Scroll only against a Scroll's.
+    if ((map.head.mapping.version === REEL_MAPPING_POLICY) !== (exposure.kind === 'reel'))
+      return result('identity_mismatch');
     const { version: _version, bindings: _bindings, ...identity } = map.head.mapping;
     value = { ...value, mapping: { authority: map.head.authority, ...identity } };
     if (identity.explanationUnitId !== exposure.explanationUnitId) {
@@ -56,13 +60,22 @@ export function makePrepareObservedCoverage(p: ObservedCoveragePorts): PrepareOb
     if (!facts) return result('facts_unavailable');
     value = { ...value, factsSha256: p.hash(facts) };
     if (evidence.qualification !== 'qualified') return result('unqualified');
-    const bindings = observedBindings(evidence, facts, map.head, p.hash);
-    if (!bindings) return result('evidence_invalid');
+    const bindings = (exposure.kind === 'reel' ? observedReelBindings : observedBindings)(
+      evidence,
+      facts,
+      map.head,
+      p.hash,
+    );
+    if (!bindings) return result(exposure.kind === 'reel' ? 'segments_unavailable' : 'evidence_invalid');
     const available: ObservedCoverage = {
       ...value,
       availability: 'available',
       reason: 'observed',
-      bindings: bindings.map((b) => ({ ...b, requiredBlockIds: [...b.requiredBlockIds] })),
+      bindings: bindings.map(({ requiredSpans, ...b }) => ({
+        ...b,
+        requiredBlockIds: [...b.requiredBlockIds],
+        ...(requiredSpans ? { requiredSpans: requiredSpans.map((span): [number, number] => [span[0], span[1]]) } : {}),
+      })),
     };
     if (p.bytes(available) > 16384) return result('limit');
     return ObservedCoverageSchema.parse(available);

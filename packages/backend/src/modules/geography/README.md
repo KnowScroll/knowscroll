@@ -24,8 +24,9 @@ Status words used below: **implemented** (in source, covered by `checks`), **run
 The thresholds are the experimental policy `geography-passive.v1` (`domain/policy.ts`). A unit is a
 canonical `explanationUnitId`. Variants, a Reel and its Scroll twin, witnesses and replays are the
 same unit. No Like, quiz, return visit, inventory tag, share, generation, other person or
-provisional input counts. Unrelated topics never form one planet. Only Scroll coverage is trusted
-facet support today, so a Reel-only reader gets dust but no system until Reel coverage exists.
+provisional input counts. Unrelated topics never form one planet. A Reel is trusted facet support
+like a Scroll (#674 slice 5.1, D-421), for the facets whose required segments the person watched, so a reader who has
+only watched Reels forms a system and a planet. A Reel and its Scroll twin are one unit and count once.
 
 ## One journey
 
