@@ -42,7 +42,7 @@ export function defineLab(plan: LabPlan): void {
       world = await simulationWorld(`sim_${plan.group}`, config);
       for (const spec of plan.solo ?? []) results.push(await runSolo(world, spec));
       if (plan.sideBySide) results.push(...(await runSideBySide(world, plan.sideBySide[0], plan.sideBySide[1])));
-      for (const result of results) violations.push(...(await evaluate(world, result)));
+      for (const result of results) violations.push(...(await evaluate(world, result, results)));
       violations.push(...(await evaluateWorld(world, results)));
       const personas: PersonaMetrics[] = results.map((result) => metricsOf(result, world.library.units.length));
       // The report is written before any assertion, so a failing run still leaves its numbers behind.

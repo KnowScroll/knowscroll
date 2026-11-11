@@ -17,6 +17,7 @@ export interface OfferView {
 
 /** `open` is a link the person follows (a shared link or a saved item): a move they asked for, not one the system chose. */
 export type MoveKind = 'discover' | 'vertical' | 'region' | 'open';
+// `region` is also recorded for a move made inside a region the person opened: the Composer offers what the region holds.
 
 /** One navigation the person made and what the system answered. */
 export interface MoveRecord {

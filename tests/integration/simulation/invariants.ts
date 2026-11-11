@@ -51,11 +51,15 @@ export type RepeatCause =
 /** Planet formation needs this many distinct units over this many facets, a system this many units (policy.ts of Geography). */
 const FORMATION = { systemUnits: 2, planetUnits: 3, planetFacets: 2 } as const;
 
-export async function evaluate(world: SimWorld, result: PersonaResult): Promise<Violation[]> {
+export async function evaluate(
+  world: SimWorld,
+  result: PersonaResult,
+  results: readonly PersonaResult[],
+): Promise<Violation[]> {
   return [
     ...(await repeatsWhileUnseen(world, result)),
     ...formation(world, result),
-    ...workCompletes(world, result),
+    ...workCompletes(result, results),
     ...onlyRealEncounters(world, result),
     ...boundedCost(world, result),
   ];
@@ -72,12 +76,12 @@ async function repeatsWhileUnseen(world: SimWorld, result: PersonaResult): Promi
       continue;
     for (const [slot, offer] of move.offers.entries()) {
       if (!offer.alreadyMet) continue;
-      const cause = await repeatCause(world, move, slot);
+      const { cause, candidates } = await repeatCause(world, move, slot);
       violations.push({
         invariant: 'I1',
         code: 'met_offered_while_unseen_left',
         persona: run.spec.id,
-        message: `${run.spec.id} was offered ${offer.unitId} (${offer.kind}, slot ${String(slot)}) at move ${String(move.index)}, a unit it had already met, while ${String(move.unseenLeftOut)} unseen units were left out of the answer (${cause}).`,
+        message: `${run.spec.id} was offered ${offer.unitId} (${offer.kind}, slot ${String(slot)}) at move ${String(move.index)}, a unit it had already met, while ${String(move.unseenLeftOut)} unseen units were left out of the answer (${cause}; the decision evaluated ${String(candidates.ofFormat)} ${offer.kind} candidates, ${String(candidates.total)} in all).`,
         detail: {
           move: move.index,
           slot,
@@ -85,8 +89,9 @@ async function repeatsWhileUnseen(world: SimWorld, result: PersonaResult): Promi
           kind: offer.kind,
           unseenLeftOut: move.unseenLeftOut,
           cause,
-          // How many assets of the offered format the library holds, which says whether retrieval could have been capped.
-          formatAssets: offer.kind === 'scroll' ? world.library.scrollCount : world.library.reelCount,
+          // What retrieval handed the decision: whether it was capped is read from these, not from the library's size.
+          candidatesOfFormat: candidates.ofFormat,
+          candidatesEvaluated: candidates.total,
         },
       });
     }
@@ -94,38 +99,54 @@ async function repeatsWhileUnseen(world: SimWorld, result: PersonaResult): Promi
   return violations;
 }
 
+/** Why a met unit reached the offer, and how many candidates the decision evaluated (the offered format's, and all). */
+interface RepeatAnalysis {
+  readonly cause: RepeatCause;
+  readonly candidates: { readonly ofFormat: number; readonly total: number };
+}
+
 async function repeatCause(
   world: SimWorld,
   move: PersonaResult['run']['moves'][number],
   slot: number,
-): Promise<RepeatCause> {
-  if (move.decisionId === undefined) return 'unknown';
+): Promise<RepeatAnalysis> {
+  const none = { ofFormat: 0, total: 0 };
+  if (move.decisionId === undefined) return { cause: 'unknown', candidates: none };
   const row = (
     await sql<{
       payload: ComposerDecision;
     }>`select payload from composer.decisions where id = ${move.decisionId}::uuid`.execute(world.geo.database.db)
   ).rows[0];
-  if (!row) return 'unknown';
+  if (!row) return { cause: 'unknown', candidates: none };
   const decision = row.payload;
   const offer = move.offers[slot]!;
+  const candidates = {
+    ofFormat: decision.evaluations.filter(
+      (evaluation) => world.library.ofAsset(evaluation.assetId)?.kind === offer.kind,
+    ).length,
+    total: decision.evaluations.length,
+  };
+  const analysed = (cause: RepeatCause): RepeatAnalysis => ({ cause, candidates });
   // Every cause below says "nothing excluded the met unit". That is only true if the decision evaluated this very asset
   // as eligible, so it is checked first, whatever route the offer took.
   const offered = decision.evaluations.find((evaluation) => evaluation.assetId === offer.assetId);
-  if (offered === undefined || !offered.eligible) return 'unknown';
+  if (offered === undefined || !offered.eligible) return analysed('unknown');
   if (slot === 0 && decision.exploration.branch === 'explore')
-    return decision.exploration.pool.some((ref) => ref.assetId === offer.assetId) ? 'exploration_draw' : 'unknown';
+    return analysed(
+      decision.exploration.pool.some((ref) => ref.assetId === offer.assetId) ? 'exploration_draw' : 'unknown',
+    );
   const met = new Set(move.metBefore);
   const unseen = decision.evaluations.filter((evaluation) => !met.has(evaluation.explanationUnitId));
   const unseenEligible = unseen.filter((evaluation) => evaluation.eligible);
   if (unseenEligible.length > 0) {
     // The first slot of a ranked decision is its highest score, so an eligible unseen unit scoring higher is not a
     // soft penalty at work but something the lab does not understand, and it must not be absorbed.
-    if (slot === 0 && unseenEligible.some((evaluation) => evaluation.score > offered.score)) return 'unknown';
-    return 'soft_penalty';
+    if (slot === 0 && unseenEligible.some((evaluation) => evaluation.score > offered.score)) return analysed('unknown');
+    return analysed('soft_penalty');
   }
-  if (unseen.length === 0) return 'retrieval';
-  if (unseen.every((evaluation) => evaluation.exclusions.includes('format_sticky'))) return 'format_sticky';
-  return 'other_exclusion';
+  if (unseen.length === 0) return analysed('retrieval');
+  if (unseen.every((evaluation) => evaluation.exclusions.includes('format_sticky'))) return analysed('format_sticky');
+  return analysed('other_exclusion');
 }
 
 // --- I2 -----------------------------------------------------------------------------------------------------------
@@ -206,7 +227,7 @@ function formation(world: SimWorld, result: PersonaResult): Violation[] {
 
 // --- I3 -----------------------------------------------------------------------------------------------------------
 
-function workCompletes(_world: SimWorld, result: PersonaResult): Violation[] {
+function workCompletes(result: PersonaResult, results: readonly PersonaResult[]): Violation[] {
   const { run, db } = result;
   const persona = run.spec.id;
   const violations: Violation[] = [];
@@ -229,7 +250,8 @@ function workCompletes(_world: SimWorld, result: PersonaResult): Violation[] {
         code: 'run_held_queued',
         persona,
         message: `${persona}: ${String(held.n)} ${kind} run(s) still ${held.status} after the worker drained.`,
-        detail: { kind, status: held.status, count: held.n, messages: run.drains.errors[`${kind}.run`] ?? [] },
+        // The drain is global, so the throw that held this run may have been recorded by another persona's drain.
+        detail: { kind, status: held.status, count: held.n, messages: thrownBy(results, `${kind}.run`) },
       });
   if (run.drains.exhausted)
     violations.push({
@@ -243,15 +265,20 @@ function workCompletes(_world: SimWorld, result: PersonaResult): Violation[] {
 }
 
 /**
+ * What the handlers of a queue threw, whichever persona's drain ran them (a drain is global): pg-boss keeps only an error
+ * class, so the lab keeps the messages.
+ */
+export function thrownBy(results: readonly PersonaResult[], queue: string): string[] {
+  return [...new Set(results.flatMap((result) => result.run.drains.errors[queue] ?? []))];
+}
+
+/**
  * The checks of the world as a whole, once every persona has finished: no job anywhere is left unfinished, whatever its
  * payload looks like or whose it is, and none was dead-lettered. They belong to no one persona, so they carry `world`.
  */
 export async function evaluateWorld(world: SimWorld, results: readonly PersonaResult[]): Promise<Violation[]> {
-  // What the handlers threw, whichever persona's drain ran them: pg-boss keeps only an error class.
-  const thrown = (queue: string) => {
-    const base = queue.endsWith('.dead') ? queue.slice(0, -'.dead'.length) : queue;
-    return [...new Set(results.flatMap((result) => result.run.drains.errors[base] ?? []))];
-  };
+  const thrown = (queue: string) =>
+    thrownBy(results, queue.endsWith('.dead') ? queue.slice(0, -'.dead'.length) : queue);
   return (await unsettledJobs(world.geo.database.db)).map((job) => ({
     invariant: 'I3' as const,
     code: job.queue.endsWith('.dead')

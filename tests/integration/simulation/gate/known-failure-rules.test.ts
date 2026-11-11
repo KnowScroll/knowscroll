@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Violation } from '../invariants.js';
+import { thrownBy, type Violation } from '../invariants.js';
+import type { PersonaResult } from '../run.js';
 import { KNOWN_FAILURES, explainedBy, explains, type KnownFailure } from '../known-failures.js';
 
 const violation = (overrides: Partial<Violation> & { detail?: Record<string, unknown> }): Violation => ({
@@ -24,13 +25,12 @@ describe('known failure rules', () => {
       expect(explainedBy(violation({ detail: { cause } })), cause).toBeUndefined();
   });
 
-  it('explains a retrieval repeat only where retrieval could have been capped', () => {
-    // Unseen units that never reached the Composer are a retrieval defect: absorbed past the 100-candidate cap, a new defect below it.
-    expect(explainedBy(violation({ detail: { cause: 'retrieval', formatAssets: 172 } }))?.id).toBe(
-      'I1/retrieval-never-reaches-unseen-units',
-    );
-    expect(explainedBy(violation({ detail: { cause: 'retrieval', formatAssets: 59 } }))).toBeUndefined();
-    expect(explainedBy(violation({ detail: { cause: 'retrieval' } }))).toBeUndefined();
+  it('does not absorb a retrieval repeat: unseen units that never reached the Composer are not the soft penalty', () => {
+    for (const candidatesOfFormat of [4, 59, 100, 172])
+      expect(
+        explainedBy(violation({ detail: { cause: 'retrieval', candidatesOfFormat } })),
+        String(candidatesOfFormat),
+      ).toBeUndefined();
   });
 
   it('does not explain a violation of another invariant, code or persona than the entry names', () => {
@@ -59,6 +59,18 @@ describe('known failure rules', () => {
     expect(explainedBy(planner(['DISCOVERY_QUERY_INVALID']))).toBeUndefined();
     expect(explainedBy(planner([constraint, 'something else']))).toBeUndefined();
     expect(explainedBy(planner([]))).toBeUndefined();
+  });
+
+  it('reads what a queue threw from every persona, not only from the one whose run was held', () => {
+    // A drain is global, so in a side-by-side pair the other person's drain may be the one that ran, and recorded, the throw.
+    const result = (errors: Record<string, string[]>) => ({ run: { drains: { errors } } }) as unknown as PersonaResult;
+    const results = [
+      result({}),
+      result({ 'planner.run': ['one', 'two'] }),
+      result({ 'planner.run': ['two', 'three'] }),
+    ];
+    expect(thrownBy(results, 'planner.run')).toEqual(['one', 'two', 'three']);
+    expect(thrownBy(results, 'geography.cartograph')).toEqual([]);
   });
 
   it('keeps every entry narrow: a world-level job failure is never explained', () => {

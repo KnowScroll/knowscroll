@@ -17,6 +17,16 @@ const reports: GroupReport[] = existsSync(directory)
       .map((name) => JSON.parse(readFileSync(join(directory, name), 'utf8')) as GroupReport)
   : [];
 
+/**
+ * The groups a full lab run writes, one per file of the lab: `readers` holds the Reel personas, `formation` the exoplanets
+ * reader, `binge` the binge reader. A renamed file or persona must not let a known failure go unjudged without a word, so
+ * a full run (always in CI) has to have all of them.
+ */
+const EXPECTED_GROUPS = ['binge', 'formation', 'readers'];
+const groups = new Set(reports.map((report) => report.group));
+const ran = new Set(reports.flatMap((report) => report.personas.map((persona) => persona.persona)));
+const requireFullRun = (process.env['CI'] ?? '') !== '' || EXPECTED_GROUPS.every((group) => groups.has(group));
+
 describe('known failures of the current code', () => {
   it('has the reports of a lab run to judge', () => {
     expect(
@@ -25,17 +35,25 @@ describe('known failures of the current code', () => {
     ).toBeGreaterThan(0);
   });
 
-  const ran = new Set(reports.flatMap((report) => report.personas.map((persona) => persona.persona)));
+  it.skipIf(!requireFullRun)('has the report of every file of the lab when the run was meant to be whole', () => {
+    expect(
+      EXPECTED_GROUPS.filter((group) => !groups.has(group)),
+      `lab files that wrote no report (a renamed file or group, or a partial run in CI): ${[...groups].join(', ') || 'none'} wrote one`,
+    ).toEqual([]);
+  });
+
   for (const entry of KNOWN_FAILURES) {
-    // An entry with a scenario is judged only when a persona of it ran, and one that needs a big library only when there
-    // was one, so a partial or small run is not blamed for what it could not show.
+    // An entry with a scenario is judged when a persona of it ran. In a whole run (CI always) it must have: a renamed
+    // persona or file would otherwise skip the entry silently. A partial local run is not blamed for what it skipped.
     const scenario = entry.reproducedBy ?? entry.personas;
-    const applicable =
-      (scenario === undefined || scenario.some((persona) => ran.has(persona))) &&
-      (entry.needs === undefined || reports.some((report) => entry.needs!(report)));
-    it.skipIf(!applicable || reports.length === 0)(
+    const scenarioRan = scenario === undefined || scenario.some((persona) => ran.has(persona));
+    it.skipIf(reports.length === 0 || (!scenarioRan && !requireFullRun))(
       `${entry.id} (slice ${entry.slice}) still reproduces in the lab run`,
       () => {
+        expect(
+          scenarioRan,
+          `The scenario of known failure ${entry.id} did not run (${(scenario ?? []).join(', ')}): was a persona or lab file renamed?`,
+        ).toBe(true);
         const reproduced = reports
           .flatMap((report) => report.invariants)
           .flatMap((summary) => summary.known)

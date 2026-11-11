@@ -28,20 +28,17 @@ export interface KnownFailure {
    * reproduced; a partial run without them is not blamed. Defaults to `personas`; with neither, the entry is always judged.
    */
   readonly reproducedBy?: readonly string[];
-  /** For a failure that only a big enough run can show: judged only on a lab file whose report satisfies this. */
-  readonly needs?: (report: { readonly library: { readonly scrolls: number } }) => boolean;
   readonly matches: (violation: Violation) => boolean;
 }
 
 /**
  * Causes of an I1 repeat that the soft-penalty entry explains: the met unit was eligible, so only a soft term stood
  * between it and the offer (slice 1.2). A repeat whose unseen alternatives never reached the Composer (`retrieval`) is a
- * retrieval defect, not this one, and is deliberately absent: it has an entry of its own, for libraries past the cap.
+ * retrieval defect, not this one, and is deliberately absent: it stays an unexpected violation, with the number of
+ * candidates the decision evaluated in its message, until a run reproduces it for a stated reason and it gets an entry.
+ * None does today: even the large library (past the 100-candidate lane) shows only the soft penalty on moves the system chose.
  */
 const EXPLAINED_REPEAT_CAUSES: readonly RepeatCause[] = ['soft_penalty', 'exploration_draw', 'format_sticky'];
-
-/** Composer retrieval returns at most this many candidates per format, ordered by asset id (the discovery lanes). */
-const RETRIEVAL_LIMIT = 100;
 
 /** What the handlers of the violation's queue threw, as the lab saw it. */
 const messagesOf = (violation: Violation): readonly string[] => {
@@ -65,18 +62,6 @@ export const KNOWN_FAILURES: readonly KnownFailure[] = [
     matches: (violation) =>
       violation.code === 'met_offered_while_unseen_left' &&
       EXPLAINED_REPEAT_CAUSES.includes(violation.detail['cause'] as RepeatCause),
-  },
-  {
-    id: 'I1/retrieval-never-reaches-unseen-units',
-    invariant: 'I1',
-    slice: '1.2',
-    needs: (report) => report.library.scrolls > RETRIEVAL_LIMIT,
-    reason:
-      'Discovery retrieval returns at most 100 candidates per format, chosen by asset id and not by relevance, so once a library holds more than 100 assets of a format the Composer can be shown only met units while the unseen ones are never retrieved. The small library stays under that cap, so there a repeat of this cause is a new defect and not absorbed.',
-    matches: (violation) =>
-      violation.code === 'met_offered_while_unseen_left' &&
-      violation.detail['cause'] === 'retrieval' &&
-      Number(violation.detail['formatAssets']) > RETRIEVAL_LIMIT,
   },
   {
     id: 'I3/planned-demand-duplicates-an-open-request',

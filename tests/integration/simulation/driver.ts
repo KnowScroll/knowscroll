@@ -58,6 +58,8 @@ export class PersonaRun {
   private regionCache = 0;
   /** Consecutive moves the system answered with nothing to offer. */
   private empties = 0;
+  /** True while the person is moving inside a region they opened. */
+  private inRegion = false;
 
   constructor(
     private readonly world: SimWorld,
@@ -164,7 +166,9 @@ export class PersonaRun {
     const unseenOffered = new Set(offers.filter((offer) => !offer.alreadyMet).map((offer) => offer.unitId));
     this.moves.push({
       index: this.moves.length,
-      move,
+      // A move inside a region the person opened continues their own ask for that place; the Composer offers only what the
+      // region holds, so it is recorded as the region's.
+      move: this.inRegion && move === 'vertical' ? 'region' : move,
       ...(this.standing ? { asked: this.standing.kind } : {}),
       status: 'ready',
       decisionId: outcome.decisionId,
@@ -207,6 +211,7 @@ export class PersonaRun {
       exposureId,
       kind: chosen.kind,
     };
+    this.inRegion = move === 'region' || (this.inRegion && move === 'vertical');
     this.activatedExposures.push(exposureId);
     this.memory.seenTopics.add(chosen.topicId);
     // What a person opens while recording is paused stays out of their history, so it is not a unit they have met.

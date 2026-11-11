@@ -78,7 +78,7 @@ cause the lab read from the stored decision or job.
 
 | Id | Statement |
 | --- | --- |
-| I1 | A system-chosen offer (every slot of an answer: the one shown first and the buffered ones) never repeats an explanation the person has already met, in either format, while an unseen eligible one exists (owner decision on #674: no re-reads except as a last resort). A Region or a link the person opens is their own ask and is not checked. What a person opens while recording is paused is not history, so it is not "met". |
+| I1 | A system-chosen offer (every slot of an answer: the one shown first and the buffered ones) never repeats an explanation the person has already met, in either format, while an unseen eligible one exists (owner decision on #674: no re-reads except as a last resort). A Region the person opens, a move made inside it, and a link the person follows are their own ask and are not checked. What a person opens while recording is paused is not history, so it is not "met". |
 | I2 | When a person qualified enough distinct explanations (two under a system in either format, three Scrolls over two facets for a planet), the system or planet forms within the bounded number of settling drains, and no Geography run settles `coverage_unavailable` while Personal Context holds trusted supports. |
 | I3 | No job handler throws while the lab drains, not even one that a retry then recovers; no job anywhere in the database is left unfinished or dead-lettered, whatever its payload names (only the production queues, which the lab never runs, and pg-boss's own bookkeeping are excluded); no Planner or Cartographer run is held queued; every drain settles. |
 | I4 | Evidence exists only for exposures the person activated and reported; Personal Context counts qualified units only under topics the person qualified; offers, buffers and demand create no exposure; a pause creates none; another person's step never changes a row of this person's rows in the evidence, Personal Context, Geography, Scenes, Composer, Experience, Planner and Supply tables (a fingerprint of every such table before and after each step, taken only once the neighbour has nothing waiting for a worker); and a reading qualifies exactly when it should (a full read does, a skim, a half-read and an idle tab do not). |
@@ -96,20 +96,23 @@ with the reason it fails and a `matches` that accepts only violations that fail 
 | Entry | Invariant | Slice | Why it fails today |
 | --- | --- | --- | --- |
 | `I1/already-met-is-a-soft-penalty` | I1 | 1.2 | Nothing hard-excludes a met explanation. It costs a novelty term, so a met unit still wins while an unseen one exists (the lab reads the stored decision: the met unit was eligible and scored higher, or exploration drew it, or sticky format kept the person among met units of the format). |
-| `I1/retrieval-never-reaches-unseen-units` | I1 | 1.2 | Large mode only (more than 100 Scrolls). Discovery retrieval returns at most 100 candidates per format, chosen by asset id and not relevance, so the Composer can be shown only met units while unseen ones are never retrieved. Below the cap a repeat of this cause is a new defect and is not absorbed. It depends on how far a persona's path goes, so a large run that meets none reports "now fixed": run it again with another seed before deleting the entry. |
 | `I3/planned-demand-duplicates-an-open-request` | I3 | 1.3 | Planner demand for a topic whose unread content is gone asks Supply to commission again although the person already has an open planned row for that brief (a ready one that reused content, and a deferred one that joined production). The lookup returns the ready row, so the second request joins the same work group and violates the unique index on one open planner row per work group. The Planner run throws, retries, dead-letters and stays prepared. Only a topic with a recipe Create may still choose (`space.exoplanets`) reaches it today. Exact scenario: `link-reader-exoplanets`. |
 | `I2/reel-only-evidence-forms-no-system` | I2 | 5.1 | A Reel has no coverage mapping or certificate; the trusted read serves only Scrolls. Two qualified Reels of one system form nothing. |
 
 The lab keeps two promises about them. Every violation of an invariant must be explained by an entry, for a persona it
 names (any, if it names none), and for the stated reason, or the run fails ("unexpected violation"). So a new defect, or a
 known one failing for another reason, cannot hide behind an entry: an I1 repeat whose unseen alternatives never reached
-the Composer (`retrieval`) is not the soft penalty and stays unexpected, and so does a repeat whose cause the lab cannot
-read from the stored decision. And every entry must still be reproduced by the run as a whole: `gate/known-failures.test.ts`
+the Composer (`retrieval`) is not the soft penalty and stays unexpected (its message says how many candidates the decision
+evaluated, so a hit of the 100-candidate lane shows in numbers), and so does a repeat whose cause the lab cannot read
+from the stored decision. No run reproduces a retrieval repeat on a move the system chose, even the large library, so
+there is no entry for it. And every entry must still be reproduced by the run as a whole: `gate/known-failures.test.ts`
 sums the reports of every lab file, so one file that happened to see no repeat cannot fail it, and when a slice fixes the
 behaviour the entry's test fails with "now fixed" and the same pull request deletes the entry from `known-failures.ts`.
 From then on the invariant is a plain gate for the slice and every later one. That is the equivalent of `it.fails`, with
 the reason checked. An entry with a `reproducedBy` scenario (the Reel entry: `link-reader-reels`) is judged when that
-persona ran, so running one file alone is not blamed for the rest.
+persona ran, so running one file alone is not blamed for the rest. In CI, and in any local run that wrote every group
+(`readers`, `formation`, `binge`), the gate instead requires every such persona to have run and every group to have written
+a report, so a renamed file or persona cannot make an entry go unjudged without a word.
 
 No entry, so these are gates: planet formation from Scrolls (the exact `link-reader-scrolls`), isolation, pause and
 resume, bounded cost, and a Planner that survives a reader who has met more than 16 topics (`broad-skimmer`; its
