@@ -55,6 +55,7 @@ export const NOT_DRAINED: Readonly<Record<string, string>> = {
   'rooms.feed-heartbeat': 'scheduled room work',
   'rooms.scout-heartbeat': 'scheduled room work',
   'composer.prune-decisions': 'maintenance sweep on a timer (every 30 minutes): stored decisions past their expiry',
+  'operator.watchdog': "hourly read-only health check (D-411): reads ops views, writes nothing, on no reader's path",
   'identity.clear-exploration': 'account lifecycle: privacy reset',
   'identity.recover-clear-operations': 'account lifecycle: privacy reset recovery',
   'identity.delete-account': 'account lifecycle: deletion',
