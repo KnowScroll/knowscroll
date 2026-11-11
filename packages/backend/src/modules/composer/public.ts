@@ -36,7 +36,12 @@ export type {
 } from './domain/types.js';
 export { prepareBufferQueue, PrepareBufferJobSchema, pruneDecisionsQueue, type PrepareBufferJob } from './events.js';
 export { assembleSnapshot, evidenceQueryFor, type SnapshotInput } from './application/snapshot-assembly.js';
-export { readVerticalCandidates, renderableFormats, wantsUnseenFirst } from './application/vertical-candidates.js';
+export {
+  readUnseenFirst,
+  readVerticalCandidates,
+  renderableFormats,
+  wantsUnseenFirst,
+} from './application/vertical-candidates.js';
 export { readRelatedAssetIds } from './application/related-targets.js';
 export type { PrepareBuffer, PrepareBufferResult } from './application/prepare-buffer.js';
 export type { BackfillPruneDecisions, PruneDecisions } from './application/prune-decisions.js';
@@ -49,7 +54,7 @@ export {
 } from './domain/buffer.js';
 export type {
   ComposeEncounter,
-  ReadUnseenCondition,
+  ReadMetUnitIds,
   ReadPreparedEvidenceInput,
   BufferSourceFacts,
   ReadBufferSource,
@@ -72,8 +77,8 @@ export const READ_COMPOSER_DECISION = Symbol('composer.readComposerDecision');
 /** Served by Experience's wiring: what the buffer worker may know about an activated offer. */
 export const READ_BUFFER_SOURCE = Symbol('composer.readBufferSource');
 export const READ_HIDDEN_ASSETS = Symbol('composer.readHiddenAssets');
-/** Served by Experience's wiring: the condition on an explanation unit that holds when the person has not met it. */
-export const READ_UNSEEN_CONDITION = Symbol('composer.readUnseenCondition');
+/** Served by Experience's wiring: the explanation units the person has met, newest first and bounded (policy v2, D-408). */
+export const READ_MET_UNIT_IDS = Symbol('composer.readMetUnitIds');
 /** Served by Experience's wiring: whether an exposure was activated, for Jev's owner check (D-270). */
 export const CHECK_RECORDED_ACTIVATION = Symbol('composer.checkRecordedActivation');
 export const READ_COMPOSER_BUFFER = Symbol('composer.readBuffer');

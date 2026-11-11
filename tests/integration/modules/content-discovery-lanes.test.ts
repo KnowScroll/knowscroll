@@ -7,6 +7,7 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { readDiscoveryCandidates } from '@knowscroll/backend/modules/content/nest-providers';
+import { UNSEEN_FIRST_MAX_UNITS } from '../../../packages/backend/src/modules/content/public.js';
 import { rotationCursor } from '../../../packages/backend/src/modules/content/adapters/discovery-store.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
@@ -164,16 +165,19 @@ describe('discovery lanes are a rotating sample (real PostgreSQL, labelled CI fi
     expect(await read({ text: 'nomatchatall' })).toHaveLength(100);
   });
 
-  describe('with a condition that holds for an explanation the person has not met (policy v2, D-408)', () => {
-    // Content reads no personal table: the condition names a table of this test, as Experience names its own history.
-    const unseenFirst = { text: 'not exists (select 1 from ci_met_units m where m.unit = {unit})', values: [] };
+  describe('with the explanation units the person has met (policy v2, D-408)', () => {
+    // Content reads no personal table: the caller hands it the met units as data, here the ids of every fixture but five.
+    let unseenFirst: { readonly metUnitIds: readonly string[] };
     let unseen: string[];
+    const unitOf = (id: string) => `ci-lanes-${id}`;
 
-    beforeAll(async () => {
-      await sql`create table ci_met_units (unit text primary key)`.execute(database.db);
+    beforeAll(() => {
       unseen = [library[3]!, library[70]!, library[100]!, library[140]!, primary[0]!];
-      for (const id of everything().filter((candidate) => !unseen.includes(candidate)))
-        await sql`insert into ci_met_units (unit) values (${`ci-lanes-${id}`})`.execute(database.db);
+      unseenFirst = {
+        metUnitIds: everything()
+          .filter((candidate) => !unseen.includes(candidate))
+          .map(unitOf),
+      };
     });
 
     it('reads the unseen first however the cursor falls, where a plain slice misses some of them', async () => {
@@ -203,24 +207,47 @@ describe('discovery lanes are a rotating sample (real PostgreSQL, labelled CI fi
     });
 
     it('always reads the named units first, met or not, so the source’s format twin is found', async () => {
-      const found = await read({ rotation: 'any', unseenFirst, alwaysUnits: [`ci-lanes-${library[0]!}`] });
+      const found = await read({ rotation: 'any', unseenFirst, alwaysUnits: [unitOf(library[0]!)] });
       expect(found[0]).toBe(library[0]);
       expect(found.slice(1, 6).sort()).toEqual([...unseen].sort());
     });
 
-    it('is the plain read, in the same order, when it holds for everything or for nothing', async () => {
+    it('is the plain read, in the same order, when the person has met nothing or everything', async () => {
       const plain = await read({ rotation: 'same' });
-      expect(await read({ rotation: 'same', unseenFirst: { text: 'true', values: [] } })).toEqual(plain);
-      expect(await read({ rotation: 'same', unseenFirst: { text: 'false', values: [] } })).toEqual(plain);
+      expect(await read({ rotation: 'same', unseenFirst: { metUnitIds: [] } })).toEqual(plain);
+      expect(await read({ rotation: 'same', unseenFirst: { metUnitIds: everything().map(unitOf) } })).toEqual(plain);
     });
 
-    it('refuses a condition that is not plain: a quote, a semicolon or a comment never reaches the database', async () => {
-      await expect(read({ unseenFirst: { text: "{unit} = 'x'", values: [] } })).rejects.toThrow(
-        'UNIT_CONDITION_INVALID',
-      );
-      await expect(read({ unseenFirst: { text: '{unit} is null; select 1', values: [] } })).rejects.toThrow(
-        'UNIT_CONDITION_INVALID',
-      );
+    it('passes the met units as data: a hostile-looking id is just an id that matches no unit', async () => {
+      const plain = await read({ rotation: 'same' });
+      const hostile = { metUnitIds: ["x'; drop table content.assets; --", '{unit}', '{0}'] };
+      expect(await read({ rotation: 'same', unseenFirst: hostile })).toEqual(plain);
+      // Nothing ran as text: the table is there and every fixture is still admitted.
+      expect(
+        (await sql<{ n: string }>`select count(*)::text as n from content.assets`.execute(database.db)).rows[0]!.n,
+      ).not.toBe('0');
+    });
+
+    it('refuses a list that is not a bounded list of ids', async () => {
+      const over = Array.from({ length: UNSEEN_FIRST_MAX_UNITS + 1 }, (_, n) => `unit-${String(n)}`);
+      for (const metUnitIds of [over, [''], ['x'.repeat(161)]])
+        await expect(read({ unseenFirst: { metUnitIds } })).rejects.toThrow('UNSEEN_FIRST_INVALID');
+      // A list at the bound is read as usual.
+      const atBound = over.slice(0, UNSEEN_FIRST_MAX_UNITS);
+      expect(await read({ rotation: 'same', unseenFirst: { metUnitIds: atBound } })).toHaveLength(100);
+    });
+
+    it('past the bound a met unit left off the list sorts as unseen in retrieval, and nothing else changes', async () => {
+      // The caller names only the newest met units. A met unit it left off (primary[1] here) is read in the first band with
+      // the unseen; the Composer's own `encountered` exclusion filters the final pick, not retrieval.
+      const leftOff = primary[1]!;
+      const named = { metUnitIds: unseenFirst.metUnitIds.filter((unit) => unit !== unitOf(leftOff)) };
+      const found = await read({ topicIds: [TOPIC], rotation: 'same', unseenFirst: named });
+      expect(found.slice(0, 2).sort()).toEqual([primary[0]!, leftOff].sort());
+      // A met unit that is named stays behind them.
+      expect(found.indexOf(primary[2]!)).toBeGreaterThan(1);
+      expect(found).toHaveLength(100);
+      expect(new Set(found).size).toBe(100);
     });
   });
 

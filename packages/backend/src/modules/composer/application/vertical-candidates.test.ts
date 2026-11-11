@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { EncounterQuery, EncounterSnapshot } from '../../content/public.js';
-import type { ComposeEncounter } from './ports.js';
+import { UNSEEN_FIRST_MAX_UNITS, type EncounterQuery, type EncounterSnapshot } from '../../content/public.js';
+import type { ComposeEncounter, ReadMetUnitIds } from './ports.js';
 import { COMPOSER_POLICY_V1, COMPOSER_POLICY_V2 } from '../domain/policy.js';
 import {
   OTHER_FORMAT_RESERVE,
   VERTICAL_RETRIEVAL_LIMIT,
+  readUnseenFirst,
   readVerticalCandidates,
   wantsUnseenFirst,
 } from './vertical-candidates.js';
@@ -99,9 +100,9 @@ describe('vertical retrieval', () => {
     expect(queries).toEqual([]);
   });
 
-  it('asks for the unseen first, and for the source’s own unit to be always read, only when it is given a condition', async () => {
+  it('asks for the unseen first, and for the source’s own unit to be always read, only when it is given the met units', async () => {
     const { read, queries } = library({ reel: 3, scroll: 3 });
-    const unseenFirst = { text: 'not exists (select 1 from t where t.u = {unit})', values: [] };
+    const unseenFirst = { metUnitIds: ['unit-a', 'unit-b'] };
     await readVerticalCandidates(read, scope, {
       source: encounter('source', 'scroll'),
       formats: ['reel', 'scroll'],
@@ -123,9 +124,19 @@ describe('vertical retrieval', () => {
     await readVerticalCandidates(read, scope, {
       formats: ['scroll'],
       capabilities: {},
-      unseenFirst: { text: 'true', values: [] },
+      unseenFirst: { metUnitIds: [] },
     });
     expect(queries[0]).toMatchObject({ alwaysUnits: [] });
+  });
+
+  it('reads the met units through the port, newest first, bounded by the most Content accepts', async () => {
+    const asked: { limit: number }[] = [];
+    const port: ReadMetUnitIds = (_scope, query) => {
+      asked.push(query);
+      return Promise.resolve({ unitIds: ['unit-new', 'unit-old'], truncated: true });
+    };
+    expect(await readUnseenFirst(port, scope)).toEqual({ metUnitIds: ['unit-new', 'unit-old'] });
+    expect(asked).toEqual([{ limit: UNSEEN_FIRST_MAX_UNITS }]);
   });
 
   it('only a policy that asks for it reads the unseen first: v2, not v0 or v1', () => {

@@ -8,7 +8,6 @@ import type {
   PreparedEvidenceInput,
   SemanticAssessments,
 } from '../domain/types.js';
-import type { UnitCondition } from '../../content/public.js';
 import type { ComposerPolicy } from '../domain/policy.js';
 
 /**
@@ -20,10 +19,17 @@ export interface ComposeEncounter {
   readonly policy?: ComposerPolicy;
 }
 /**
- * Experience's condition on an explanation unit that holds when the person has NOT met it, for their own scope. Composer
- * hands it to retrieval; it never reads the person's history itself.
+ * The explanation units a person has met, newest first, as data: the public read port Experience serves for policy v2's
+ * unseen-first retrieval (D-408). At most `limit` unit ids. `truncated` is true when the bound cut the read, so older met
+ * units may be missing: the read keeps at most `limit + 1` newest activated exposures of each source (the legacy lineage and the
+ * recording segments), and says `truncated` when a source has more than `limit` or more than `limit` distinct units were found.
+ * Met is the notion `readRoutingHistory` reports as `encountered`: an activated exposure of the unit, in either format, at or
+ * before now. Composer never reads the person's history itself; it hands these ids to Content's retrieval.
  */
-export type ReadUnseenCondition = (scope: PersonalScopeTx) => UnitCondition;
+export type ReadMetUnitIds = (
+  scope: PersonalScopeTx,
+  query: { readonly limit: number },
+) => Promise<{ readonly unitIds: readonly string[]; readonly truncated: boolean }>;
 /** Implemented by Personal Context compatibility read; missing topic history stays explicit and neutral. */
 export type ReadPreparedEvidenceInput = (
   scope: PersonalScopeTx,

@@ -1,5 +1,4 @@
-import type { ReadEncounterAttribution, ReadPlayLevel, UnitCondition } from '../public.js';
-import { renderUnitCondition } from './unit-condition.js';
+import type { ReadEncounterAttribution, ReadPlayLevel } from '../public.js';
 import { traitsOfDocument } from '../domain/traits.js';
 import { createHash } from 'node:crypto';
 import { ClientCapabilities, ReelDocumentSchema } from '@knowscroll/contracts';
@@ -12,6 +11,7 @@ import { transactionOf } from '../../../infrastructure/postgres/personal-scope.j
 import {
   DISCOVERY_MAX_TOPICS,
   validateTopics,
+  validateUnseenFirst,
   type EncounterSnapshot,
   type ReadDiscoveryCandidates,
   type ReadExactEncounter,
@@ -132,19 +132,21 @@ const distance = (key: ReturnType<typeof sql>, cursor: number) =>
   sql<number>`(case when ${key}>=${cursor}::float8 then ${key}-${cursor}::float8 else ${key}-${cursor}::float8+1 end)`;
 
 /**
- * The rows of one retrieval's lanes. `band` 0 is the person's unseen explanations (only with `unseenFirst`) and 1 everything
- * else, so with a condition the unseen come first and the rest fill what is left.
+ * The rows of one retrieval's lanes. `band` 0 is the person's unseen explanations (only with `unseenFirst`: the rows whose
+ * unit is not among the met units) and 1 everything else, so with a list the unseen come first and the rest fill what is left.
+ * The met units are one bound array parameter. `<> all` is measured faster than an `unnest` anti-join here: the lane's index
+ * scan stops at its limit, so it probes only the rows it reads against the array.
  */
 function laneRows(
   q: Parameters<ReadDiscoveryCandidates>[1],
   cursor: number,
   band: 0 | 1,
-  unseen: UnitCondition | undefined,
+  metUnitIds: readonly string[] | undefined,
 ) {
   const topicIds = q.topicIds ?? [];
   const text = (q.text ?? '').trim();
   const current = sql`join content.assets a on a.id=r.asset_id and a.revision=r.revision`;
-  const only = unseen === undefined ? sql`` : sql`and ${renderUnitCondition(unseen, sql.ref('r.explanation_unit_id'))}`;
+  const only = metUnitIds === undefined ? sql`` : sql`and r.explanation_unit_id <> all(${metUnitIds}::text[])`;
   const eligible = sql`a.status='admitted' and ${notOrdered} and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[]) ${only}`;
   const topicLane = topicIds.length
     ? sql`union all
@@ -180,10 +182,14 @@ function laneRows(
  * The asset ids of one retrieval, in the order the candidates are read: the source's topics (primary before supporting,
  * never incidental), then text matches when the person typed text, then a rotating sample of the library. Each lane is
  * ordered by the stable random key of its revisions from the cursor, so no lane is the lowest asset ids. With `unseenFirst`
- * every lane is read twice, the unseen first and then without the condition, and the unseen of every lane come before any other
+ * every lane is read twice, the unseen first and then without the list, and the unseen of every lane come before any other
  * explanation; `alwaysUnits` (the source's own unit, so its format twin is found) come before all of them.
  */
-async function laneAssetIds(db: Kysely<Database>, q: Parameters<ReadDiscoveryCandidates>[1]): Promise<string[]> {
+async function laneAssetIds(
+  db: Kysely<Database>,
+  q: Parameters<ReadDiscoveryCandidates>[1],
+  metUnitIds: readonly string[] | undefined,
+): Promise<string[]> {
   const cursor = rotationCursor(q.rotation);
   const always = q.alwaysUnits ?? [];
   const alwaysLane = always.length
@@ -193,7 +199,7 @@ async function laneAssetIds(db: Kysely<Database>, q: Parameters<ReadDiscoveryCan
       where a.status='admitted' and ${notOrdered} and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[])
         and r.explanation_unit_id=any(${always}::text[]) limit 4)`
     : sql``;
-  const unseenBand = q.unseenFirst === undefined ? sql`` : sql`union all ${laneRows(q, cursor, 0, q.unseenFirst)}`;
+  const unseenBand = metUnitIds === undefined ? sql`` : sql`union all ${laneRows(q, cursor, 0, metUnitIds)}`;
   const ids = await sql<{ asset_id: string }>`select asset_id from (
     ${laneRows(q, cursor, 1, undefined)}
     ${unseenBand}
@@ -217,8 +223,9 @@ export const readDiscoveryCandidates: ReadDiscoveryCandidates = async (scope, q)
     (q.limit ?? 100) > 100
   )
     throw new Error('DISCOVERY_QUERY_INVALID');
+  const metUnitIds = q.unseenFirst === undefined ? undefined : validateUnseenFirst(q.unseenFirst);
   const db = transactionOf(scope);
-  const assetIds = await laneAssetIds(db, q);
+  const assetIds = await laneAssetIds(db, q, metUnitIds);
   if (!assetIds.length) return [];
   const candidates = await rows(db, sql`r.revision=a.revision and r.asset_id=any(${assetIds}::uuid[])`, 100);
   const unsupportedV2 = candidates

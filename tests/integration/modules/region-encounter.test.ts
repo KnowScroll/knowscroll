@@ -955,10 +955,7 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
     ).rows;
     expect(bound.length).toBeGreaterThan(100);
     // Everything but the last by asset id has been met; the place's own order would put that one last (and, past 100, out).
-    await sql`create table ci_region_met (unit text primary key)`.execute(database.db);
-    for (const row of bound.slice(0, -1))
-      await sql`insert into ci_region_met (unit) values (${row.unit})`.execute(database.db);
-    const unseenFirst = { text: 'not exists (select 1 from ci_region_met m where m.unit = {unit})', values: [] };
+    const unseenFirst = { metUnitIds: bound.slice(0, -1).map((row) => row.unit) };
     const query = { topicId: topic, facetId: mappedFacet, truthStatus: 'factual' as const, capabilities };
     const plain = await scope()(person.authority, (sc) => p.readRegionCandidates(sc, query));
     const ordered = await scope()(person.authority, (sc) => p.readRegionCandidates(sc, { ...query, unseenFirst }));
@@ -970,5 +967,9 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
     // Nothing is left out: the same hundred places are read, the unseen one in place of the last met one.
     expect(ordered.value.candidates).toHaveLength(plain.value.candidates.length);
     expect(ordered.value.hasMore).toBe(true);
+    // The met units are data, bounded: a list that is not a bounded list of ids is refused before any query runs.
+    await expect(
+      scope()(person.authority, (sc) => p.readRegionCandidates(sc, { ...query, unseenFirst: { metUnitIds: [''] } })),
+    ).rejects.toThrow('UNSEEN_FIRST_INVALID');
   }, 60000);
 });

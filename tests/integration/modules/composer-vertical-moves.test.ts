@@ -5,6 +5,7 @@ import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infras
 import {
   PREPARE_COMPOSER_BUFFER,
   prepareBufferQueue,
+  readUnseenFirst,
   type ComposerDecision,
   type PrepareBuffer,
   type PrepareBufferJob,
@@ -15,10 +16,7 @@ import {
   contentProviders,
   readDiscoveryCandidates,
 } from '@knowscroll/backend/modules/content/nest-providers';
-import {
-  experienceBufferSourceProviders,
-  unseenUnitCondition,
-} from '@knowscroll/backend/modules/experience/nest-providers';
+import { experienceBufferSourceProviders, readMetUnitIds } from '@knowscroll/backend/modules/experience/nest-providers';
 import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
 import { RECORDING_REASONING_HARNESS } from '@knowscroll/backend/reasoning';
 import type { NavigationOutcome } from '@knowscroll/contracts';
@@ -742,17 +740,17 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       });
     });
 
-    it('retrieval, with the real condition, reads the explanations the person has not met before the ones they have', async () => {
+    it('retrieval, with the met units read through Experience, reads the explanations the person has not met before the ones they have', async () => {
       const person = await seedPerson(database.db);
       await standOnV2(person, own[0]!);
       await standOnV2(person, own[1]!);
-      const read = await withScope()(person.authority, (scope) =>
+      const read = await withScope()(person.authority, async (scope) =>
         readDiscoveryCandidates(scope, {
           languages: ['en'],
           formats: ['scroll'],
           capabilities: bothFormats,
           limit: 100,
-          unseenFirst: unseenUnitCondition(scope),
+          unseenFirst: await readUnseenFirst(readMetUnitIds, scope),
           alwaysUnits: [],
         }),
       );
@@ -774,17 +772,70 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
           limit: 100,
         }),
       );
-      const conditional = await withScope()(fresh.authority, (scope) =>
+      const conditional = await withScope()(fresh.authority, async (scope) =>
         readDiscoveryCandidates(scope, {
           languages: ['en'],
           formats: ['scroll'],
           capabilities: bothFormats,
           limit: 100,
-          unseenFirst: unseenUnitCondition(scope),
+          unseenFirst: await readUnseenFirst(readMetUnitIds, scope),
         }),
       );
       if (plain.kind !== 'entered' || conditional.kind !== 'entered') throw new Error('CI scope refused');
       expect(conditional.value.map((c) => c.assetId)).toEqual(plain.value.map((c) => c.assetId));
+    });
+
+    describe('the met units port (Experience, newest first, bounded)', () => {
+      const metOf = (person: FixturePerson, limit: number) =>
+        withScope()(person.authority, (scope) => readMetUnitIds(scope, { limit }));
+
+      it('reports the explanations the person has met, newest first, once each, and nobody else’s', async () => {
+        const person = await seedPerson(database.db);
+        const stranger = await seedPerson(database.db);
+        await standOnV2(person, own[0]!);
+        await standOnV2(person, own[1]!);
+        await standOnV2(stranger, own[2]!);
+        const met = await metOf(person, 50);
+        if (met.kind !== 'entered') throw new Error('CI scope refused');
+        expect(met.value).toEqual({
+          unitIds: [await unitOf(own[1]!.assetId), await unitOf(own[0]!.assetId)],
+          truncated: false,
+        });
+        const fresh = await metOf(await seedPerson(database.db), 50);
+        if (fresh.kind !== 'entered') throw new Error('CI scope refused');
+        expect(fresh.value).toEqual({ unitIds: [], truncated: false });
+      });
+
+      it('reports the explanation unit of a Reel too: the unit, never the asset', async () => {
+        const person = await seedPerson(database.db);
+        await standOnV2(person, ownReel);
+        const met = await metOf(person, 50);
+        if (met.kind !== 'entered') throw new Error('CI scope refused');
+        expect(met.value.unitIds).toEqual([await unitOf(ownReel.assetId)]);
+      });
+
+      it('keeps the newest units and says so when the bound cuts, and not when it does not', async () => {
+        const person = await seedPerson(database.db);
+        await standOnV2(person, own[0]!);
+        await standOnV2(person, own[1]!);
+        await standOnV2(person, own[2]!);
+        const cut = await metOf(person, 2);
+        if (cut.kind !== 'entered') throw new Error('CI scope refused');
+        expect(cut.value).toEqual({
+          unitIds: [await unitOf(own[2]!.assetId), await unitOf(own[1]!.assetId)],
+          truncated: true,
+        });
+        const exact = await metOf(person, 3);
+        if (exact.kind !== 'entered') throw new Error('CI scope refused');
+        expect(exact.value.truncated).toBe(false);
+        expect(exact.value.unitIds).toHaveLength(3);
+      });
+
+      it('refuses a bound that is not a positive whole number within the most it will read', async () => {
+        const person = await seedPerson(database.db);
+        for (const limit of [0, -1, 1.5, 5001, Number.NaN])
+          await expect(metOf(person, limit)).rejects.toThrow('MET_UNITS_LIMIT');
+      });
     });
 
     it('the same history ranked under v0 still offers what was met: v0 decisions are untouched and keep replaying', async () => {

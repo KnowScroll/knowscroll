@@ -2,16 +2,16 @@ import { z } from 'zod';
 import { sql } from 'kysely';
 import { ClientCapabilities } from '@knowscroll/contracts';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-import type {
-  ReadRegionEncounterCandidates,
-  LockRegionEncounterCandidates,
-  RegionEncounterQuery,
-  RegionEncounterCandidate,
+import {
+  validateUnseenFirst,
+  type ReadRegionEncounterCandidates,
+  type LockRegionEncounterCandidates,
+  type RegionEncounterQuery,
+  type RegionEncounterCandidate,
 } from '../public.js';
 import { conceptMeaning } from '../domain/concepts.js';
 import { CoverageAuthoritySchema, CoverageRefSchema } from '../domain/coverage.js';
 import { readExactEncounter } from './discovery-store.js';
-import { renderUnitCondition } from './unit-condition.js';
 import { lockCurrentEncounters } from './current-encounters.js';
 import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './coverage-store.js';
 
@@ -70,7 +70,7 @@ export const readRegionEncounterCandidates: ReadRegionEncounterCandidates = asyn
     : sql``;
   // The place's bindings with the explanations the person has not met first, when asked; otherwise by asset id as always.
   const unseenFirstOrder = unseenFirst
-    ? sql`case when ${renderUnitCondition(unseenFirst, sql.ref('r.explanation_unit_id'))} then 0 else 1 end,`
+    ? sql`case when r.explanation_unit_id <> all(${validateUnseenFirst(unseenFirst)}::text[]) then 0 else 1 end,`
     : sql``;
   const keys = (
     await sql<{ asset_id: string; asset_revision: number; head_revision: number }>`

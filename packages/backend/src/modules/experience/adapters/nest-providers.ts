@@ -326,7 +326,7 @@ export {
 export { checkRequestSource } from './request-source.js';
 
 export { experienceBufferSourceProviders } from './buffer-source.js';
-export { unseenUnitCondition } from './unseen-condition.js';
+export { readMetUnitIds } from './met-unit-ids.js';
 
 export { keepPlaceUseCases, keepPlaceProviders, keepStore, type KeepPorts, type KeepStore } from './keep-providers.js';
 

@@ -299,16 +299,23 @@ changes what future snapshots hold and never how a stored decision replays.
 
 **Retrieval reads the unseen first.** Retrieval cannot tell which of a large library the person has met, so a random slice of
 100 could hold only what they have met while unseen explanations exist outside it. Under v2 the caller (Experience's navigation,
-and the buffer worker) hands retrieval a condition that holds for an explanation the person has not met
-(`ReadUnseenCondition`, implemented by Experience from its own lineage and recording segments, applied by Content to its own unit
-column as data, never as a read of a personal table; see the Content README). Every lane is then read twice, the unseen first and
-then without the condition, so the unseen of the source's topic, then the other unseen, come before any met one, and the met ones
+and the buffer worker) reads the explanation units the person has met through a public port (`ReadMetUnitIds`, implemented by
+Experience from its own lineage and recording segments: newest first, at most `UNSEEN_FIRST_MAX_UNITS` = 1000 ids, with a
+`truncated` flag when the bound cuts the read) and hands the ids to retrieval as data (`readUnseenFirst`, `unseenFirst: { metUnitIds }`;
+Content orders its own rows by `r.explanation_unit_id <> all($n::text[])` and reads no personal table; see the Content README).
+Every lane is then read twice, the unseen first and then without the list, so the unseen of the source's topic, then the other unseen, come before any met one, and the met ones
 still fill what is left (they are the last resort's material). The source's own unit is always read, so its format twin and its
 series are found. The reserve of other-format candidates is read the same way, so a Reel watcher near the end of the Reels has
-unseen Scrolls to be given. The condition is asked for only when the configured policy wants it (`ComposeEncounter.policy`), so v0
-and v1 retrieve exactly as before. A region's own read (`readRegionCandidates`) takes the same condition and only orders the
+unseen Scrolls to be given. The list is read only when the configured policy wants it (`ComposeEncounter.policy`), so v0
+and v1 retrieve exactly as before. A region's own read (`readRegionCandidates`) takes the same list and only orders the
 place's bindings unseen first; nothing is left out, and an `expected` encounter (a region opened on one encounter) is explicit and
 unchanged.
+
+**The bound.** The met list holds at most 1000 units, newest first. For a person who has met more, the oldest met units are not
+named, so retrieval may order them as unseen (they can take a place in the first band that an unseen explanation would have had).
+That only changes which candidates retrieval reads first: the Composer's own `encountered` exclusion reads the real history for the
+candidates in the snapshot (exact per-unit probes) and filters the final pick, so a met explanation is still not offered while an
+unseen one is eligible (D-408).
 
 **Serve time recheck.** A ranking that promised unseen explanations (`unseenLadder.outcome: 'unseen'`, read from the decision for a
 stored buffer) is rechecked in the committing navigation transaction, under the personal lock where the history is authoritative:

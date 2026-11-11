@@ -84,7 +84,7 @@ import {
   writeSession,
 } from './navigation-store.js';
 import { readNotInterested } from './not-interested-store.js';
-import { unseenUnitCondition } from './unseen-condition.js';
+import { readMetUnitIds } from './met-unit-ids.js';
 import { readRecentExposures } from './resume-store.js';
 import { readVisitedAssets } from './visited-assets.js';
 import { makeReadResume } from '../application/read-resume.js';
@@ -184,7 +184,7 @@ export function navigationProviders(
           persistDecision,
           ...(buffers ? { buffers } : {}),
           readDiscoveryCandidates,
-          unseenCondition: unseenUnitCondition,
+          readMetUnitIds,
           readExactEncounter: gateExactEncounter(readExactEncounter, audience),
           readContinuations,
           readSeriesTotal,

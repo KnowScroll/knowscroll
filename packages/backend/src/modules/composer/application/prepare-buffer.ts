@@ -28,7 +28,7 @@ import { PrepareBufferJobSchema, type PrepareBufferJob } from '../events.js';
 import { JEV_ASSESSMENT_VERSION, storedAssessments, type AssessShortlist, type JevResult } from './jev.js';
 import type {
   ComposeEncounter,
-  ReadUnseenCondition,
+  ReadMetUnitIds,
   PersistComposerDecision,
   ReadBufferSource,
   ReadComposerBuffer,
@@ -40,7 +40,7 @@ import type {
 } from './ports.js';
 import { assembleSnapshot, evidenceQueryFor, type SnapshotInput } from './snapshot-assembly.js';
 import { readRelatedAssetIds } from './related-targets.js';
-import { readVerticalCandidates, renderableFormats, wantsUnseenFirst } from './vertical-candidates.js';
+import { readUnseenFirst, readVerticalCandidates, renderableFormats, wantsUnseenFirst } from './vertical-candidates.js';
 
 /** Jev, when it is switched on: the assessor, the recording-aware harness it runs on, the model and the person's pool. */
 export interface JevPorts {
@@ -67,8 +67,8 @@ export interface PrepareBufferPorts {
   readonly storeBuffer: StoreComposerBuffer;
   readonly persistDecision: PersistComposerDecision;
   readonly compose: ComposeEncounter;
-  /** Experience's "the person has not met it" condition; used when the policy wants unseen explanations read first (v2). */
-  readonly unseenCondition?: ReadUnseenCondition;
+  /** Experience's read of the explanation units the person has met; used when the policy wants unseen explanations read first (v2). */
+  readonly readMetUnitIds?: ReadMetUnitIds;
   readonly hashCatalogWatermarks: (watermarks: readonly string[]) => string;
   readonly newId: () => string;
   readonly now: () => Date;
@@ -222,7 +222,9 @@ async function gather(
     capabilities: facts.capabilities,
     stickyFormat: source.kind,
     seed,
-    ...(ports.unseenCondition && wantsUnseenFirst(ports.compose) ? { unseenFirst: ports.unseenCondition(scope) } : {}),
+    ...(ports.readMetUnitIds && wantsUnseenFirst(ports.compose)
+      ? { unseenFirst: await readUnseenFirst(ports.readMetUnitIds, scope) }
+      : {}),
   });
   const relatedAssetIds = await readRelatedAssetIds(ports.readContinuations, scope, source, candidates);
   const query = evidenceQueryFor(candidates, now.toISOString());

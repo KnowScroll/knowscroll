@@ -1,12 +1,28 @@
-import type { EncounterSnapshot, ReadDiscoveryCandidates, UnitCondition } from '../../content/public.js';
+import {
+  UNSEEN_FIRST_MAX_UNITS,
+  type EncounterSnapshot,
+  type ReadDiscoveryCandidates,
+  type UnseenFirst,
+} from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import type { ComposeEncounter } from './ports.js';
+import type { ComposeEncounter, ReadMetUnitIds } from './ports.js';
 
 /** Retrieval cap of blueprint §9 (100 retrieved). */
 export const VERTICAL_RETRIEVAL_LIMIT = 100;
 
 /** Whether the configured policy wants retrieval to read the person's unseen explanations first (policy v2, D-408). */
 export const wantsUnseenFirst = (compose: ComposeEncounter): boolean => compose.policy?.encountered === 'unseen-first';
+
+/**
+ * What policy v2's retrieval needs of the person's history: the explanation units they have met, read through Experience's
+ * public port, newest first and bounded by {@link UNSEEN_FIRST_MAX_UNITS}. Past the bound a heavier reader's oldest met units
+ * are not named, so retrieval may order them as unseen; the Composer's own `encountered` exclusion still filters the final pick
+ * (D-408).
+ */
+export async function readUnseenFirst(read: ReadMetUnitIds, scope: PersonalScopeTx): Promise<UnseenFirst> {
+  const met = await read(scope, { limit: UNSEEN_FIRST_MAX_UNITS });
+  return { metUnitIds: met.unitIds };
+}
 
 /**
  * Candidates of the format the person is not in that are always read beside theirs. Format stickiness gives way when
@@ -37,11 +53,12 @@ export async function readVerticalCandidates(
     /** The decision's seed: each decision reads a different slice of a large library, the same seed the same slice. */
     readonly seed?: string;
     /**
-     * Policy v2: holds for an explanation the person has not met. Every lane then reads those first and fills what is left
-     * with the rest, so unseen explanations outside a random slice are found, and the format the person is not in has
-     * unseen candidates to give way to. The source's own unit is always read, so its format twin (and so its series) is found.
+     * Policy v2: the explanation units the person has met. Every lane then reads the explanations not in the list first and
+     * fills what is left with the rest, so unseen explanations outside a random slice are found, and the format the person is
+     * not in has unseen candidates to give way to. The source's own unit is always read, so its format twin (and so its
+     * series) is found.
      */
-    readonly unseenFirst?: UnitCondition;
+    readonly unseenFirst?: UnseenFirst;
   },
 ): Promise<readonly EncounterSnapshot[]> {
   if (input.formats.length === 0) return [];
