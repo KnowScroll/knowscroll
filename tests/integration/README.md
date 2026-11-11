@@ -9,9 +9,10 @@ installed API and worker so source-level dependency injection alone cannot pass 
 
 | Command from the root | What it exercises | Required setup |
 | --- | --- | --- |
-| `pnpm --filter @knowscroll/integration-tests test` | Module/infrastructure integration and role-evaluation projects | `KS_TEST_DATABASE_URL` for a disposable PostgreSQL server; a role that can create databases |
+| `pnpm --filter @knowscroll/integration-tests test` | Module/infrastructure integration and role-evaluation projects (not the simulation lab) | `KS_TEST_DATABASE_URL` for a disposable PostgreSQL server; a role that can create databases |
 | `pnpm --filter @knowscroll/integration-tests exec vitest run --project integration modules/account-deletion.test.ts` | One module journey using the same setup | The same disposable server, not an owner's database |
 | `pnpm --filter @knowscroll/integration-tests test:evaluation` | Synthetic role contexts through the fixture reasoning harness | The same server; no real provider key or content-quality claim |
+| `pnpm --filter @knowscroll/integration-tests test:simulation` | The [algorithm simulation lab](simulation/README.md): synthetic readers drive the real recommendation, formation and Planner modules, and invariants judge the run | The same server; no provider, a labelled fixture model |
 | `pnpm --filter @knowscroll/integration-tests test:release` | Deployed `pnpm deploy` trees, migrations, HTTP and worker lifecycle | `KS_RELEASE_DIR` plus the disposable server; see the hosted `build` job |
 
 The [hosted checks workflow](../../.github/workflows/checks.yml) supplies PostgreSQL, media tools,

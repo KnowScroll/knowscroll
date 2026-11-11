@@ -80,13 +80,24 @@ export const topic = 'earth.seasons',
  * A disposable database with the real Geography, Scenes, Evidence and Personal Context wiring, plus
  * helpers that read authored Scrolls as a person and run the Cartographer against a fixture model.
  */
-export async function geographyWorld(name: string) {
+export async function geographyWorld(
+  name: string,
+  options: Pick<NonNullable<Parameters<typeof scrollUseCases>[1]>, 'buffers' | 'composerPolicy' | 'region'> & {
+    /**
+     * Leaves the activity hook to `scrollUseCases`, which wakes the Planner and Geography as the worker does. By
+     * default a qualified encounter wakes Geography alone.
+     */
+    readonly workerMaterialChange?: true;
+  } = {},
+) {
   const database = await createTestDatabase<Database>(name);
   // The Scroll use cases need the material-change hook that the providers below build.
   const hooks: { material?: MaterialGeographyChange } = {};
+  const { workerMaterialChange, ...useCaseOptions } = options;
   const c = await scrollUseCases(database, {
     recording: true,
-    activityMaterialChange: (s, x) => hooks.material!(s, x),
+    ...(workerMaterialChange ? {} : { activityMaterialChange: (s, x) => hooks.material!(s, x) }),
+    ...useCaseOptions,
   });
   const approvals = new Map<string, string>();
   const scope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });

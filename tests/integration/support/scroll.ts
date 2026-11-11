@@ -107,7 +107,12 @@ import {
 } from '@knowscroll/backend/modules/experience/nest-providers';
 import { NOT_INTERESTED_USE_CASES } from '@knowscroll/backend/modules/experience';
 import type { WithPersonalScope, RecordingScopeTx } from '@knowscroll/backend/modules/identity';
-import { EXPERIENCE_RECORDING_EFFECTS, type ExperienceRecordingEffects } from '@knowscroll/backend/modules/experience';
+import {
+  EXPERIENCE_RECORDING_EFFECTS,
+  REGION_ENCOUNTERS,
+  type ExperienceRecordingEffects,
+  type RegionEncounterUseCases,
+} from '@knowscroll/backend/modules/experience';
 import type { TestDatabase } from './database.js';
 import { buildFromProviders } from './providers.js';
 
@@ -155,6 +160,8 @@ export async function scrollUseCases(
     readonly recording?: true;
     /** Serves worker-prepared buffers and requests the next one on activation, like the API. */
     readonly buffers?: true;
+    /** Mounts Region encounters (opening a formed place of the person's map), as the API does. */
+    readonly region?: true;
     /** The Composer policy new decisions are made under (`KS_COMPOSER_POLICY`); `v0`, the default, unless a test says. */
     readonly composerPolicy?: 'v0' | 'v1' | 'v2';
     readonly activityDerived?: ActivityDerivedEffect;
@@ -178,6 +185,8 @@ export async function scrollUseCases(
   readonly activityContextEffect: ActivityDerivedEffect;
   /** Actual required Experience effects, exposed only for the selected recording fixture graph. */
   readonly recordingEffects?: ExperienceRecordingEffects;
+  /** Region encounters, only when the fixture graph was built with `region: true`. */
+  readonly regionEncounters?: RegionEncounterUseCases;
   readonly projectActivity: ProjectEncounterActivity;
   readonly reconcileActivity: ReconcileEncounterActivity;
   readonly readPrepared: ReadPreparedEvidenceInput;
@@ -256,6 +265,7 @@ export async function scrollUseCases(
       {
         ...(options.recording ? { recordingEffects: EXPERIENCE_RECORDING_EFFECTS } : {}),
         ...(options.buffers ? { buffers: true } : {}),
+        ...(options.region ? { region: true } : {}),
       },
     ),
     ...experienceProviders(
@@ -322,6 +332,7 @@ export async function scrollUseCases(
     ...(options.recording
       ? { recordingEffects: build(EXPERIENCE_RECORDING_EFFECTS) as ExperienceRecordingEffects }
       : {}),
+    ...(options.region ? { regionEncounters: build(REGION_ENCOUNTERS) as RegionEncounterUseCases } : {}),
     projectActivity: build(PROJECT_ENCOUNTER_ACTIVITY) as ProjectEncounterActivity,
     reconcileActivity: build(RECONCILE_ENCOUNTER_ACTIVITY) as ReconcileEncounterActivity,
     readPrepared: values.get(READ_PREPARED_ACTIVITY) as ReadPreparedEvidenceInput,
