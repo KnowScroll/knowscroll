@@ -217,6 +217,12 @@ set both processes of a world alike (they read one environment file). The number
 are set. A stored decision replays under the policy it names,
 whatever this is set to, so switching back and forth strands nothing, and `composer replay-policy` always replays every policy.
 
+`KS_CONTENT_AUTO_RELEASE_ENABLED` (worker, 0/1, default 0 in every world; any other value is refused at start): the kill switch of the release policy of held
+library Scrolls (#674, D-418). Off, `content.sweep-release-policy` finishes having read nothing. On, it releases a held Scroll of a topic a person approved when
+the answer check and the library support check of this build's checker version passed and nothing is sensitive, through the review gate as `policy:<name>`.
+`KS_CONTENT_AUTO_RELEASE_DAILY_CAP` (worker, 1 to 500, default 5): the most Scrolls it releases per UTC day. Set the switch to `0` and restart the worker to stop it;
+`content policy withdraw` takes a released Scroll down. Neither is set by the Ansible role: a world stays off until its environment file sets the switch.
+
 `KS_JEV_ENABLED` (worker, 0/1, default 0): enable Jev, the optional semantic assessment run by the
 Composer `composer.prepare-buffer` job on the shared reasoning harness. Set it to 1 on dev. It needs a
 configured reasoning provider; without one Jev is simply absent and buffers are still prepared. It does

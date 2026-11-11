@@ -38,6 +38,12 @@ plus `KS_CARTOGRAPHER_ENABLED` and `KS_PLANNER_ENABLED`, read as the worker read
 `KS_COMPOSER_POLICY` (v3 S-5, D-190, D-408) accepts `v0`, `v1` or `v2` and defaults to `v0` in both the API and the worker configuration (`composerPolicy`).
 It decides which Composer policy new decisions are made under; replay of a stored decision never reads it.
 
+`KS_CONTENT_AUTO_RELEASE_ENABLED` (#674, D-418) accepts `0`/`1` and defaults `0` in every world: the kill switch of the release policy of held library
+Scrolls. Off, the worker's release step (`content.sweep-release-policy`) finishes having read nothing, whatever is approved and checked.
+`KS_CONTENT_AUTO_RELEASE_DAILY_CAP` is a whole number from 1 to 500, default 5: the most Scrolls the policy releases per UTC day, counted from the review
+rows. The worker reads both as `contentAutoRelease`; `readContentAutoReleaseSettings` reads the same two for the operator's `content policy status`,
+which prints them so the operator sees what a worker started from the same environment file would do.
+
 `KS_JEV_ENABLED` (#234) accepts 0/1 and defaults 0 in worker configuration. It switches on Jev, the
 optional semantic assessment in the Composer buffer job. Off, the job still prepares buffers from the
 deterministic ranking and makes no model call. Dev sets it to 1. It does not change reasoning caps.

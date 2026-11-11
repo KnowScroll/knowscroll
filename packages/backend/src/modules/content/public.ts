@@ -281,6 +281,11 @@ export {
   sweepLibrarySupportQueue,
   type CheckLibrarySupportJob,
 } from './production/library-support-events.js';
+/**
+ * The release step of the release policy (#674, D-418): a sweep every ten minutes that releases a held library Scroll the policy allows. IDs
+ * only; the worker consumes it, and it is off until the owner switches the policy on.
+ */
+export { sweepReleasePolicyQueue } from './production/release-policy-events.js';
 export { libraryRecipes, planLibraryProduction, planRegeneration } from './domain/library/serving.js';
 export type {
   CatalogueBrief,

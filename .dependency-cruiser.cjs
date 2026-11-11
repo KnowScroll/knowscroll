@@ -62,6 +62,9 @@ const compositionRoots = [
   '^apps/worker/src/support-check-operator\\.ts$',
   // The review gate commands compose the shared-content review gate, one operator command each (S-1e, D-138).
   '^apps/worker/src/review-operator\\.ts$',
+  // The release policy's sweep and the operator's policy commands compose the shared-content release policy over the review gate (#674, D-418).
+  '^apps/worker/src/release-policy-jobs\\.ts$',
+  '^apps/worker/src/policy-operator\\.ts$',
   // The composer operator replays stored decisions through the composer's provider, read-only (S-5, D-190).
   '^apps/worker/src/composer-operator\\.ts$',
   // The dry-run commands build a Cartographer's and a Planner's read ports from the worker's own providers, read-only (#674, D-411).

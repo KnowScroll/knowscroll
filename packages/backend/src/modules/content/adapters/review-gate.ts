@@ -23,6 +23,7 @@ import {
   type ReleaseRefusal,
   type ReviewState,
 } from '../domain/review.js';
+import type { AutoReleaseRefusal } from '../domain/release-policy.js';
 import { reviewTextOf, type ReviewEvidence } from './review-text.js';
 
 /** One revision at the review gate, as the operator's list shows it. Never any body text. */
@@ -97,7 +98,17 @@ export type ReleaseResult =
       /** The revision that was served before, when there was one. */
       readonly replacedRevision: number | null;
     }
-  | { readonly kind: 'refused'; readonly reason: ReleaseRefusal };
+  | { readonly kind: 'refused'; readonly reason: ReleaseRefusal | AutoReleaseRefusal };
+
+/**
+ * A condition of a release that is checked inside the release transaction, under the asset's lock and after the review row is read, so
+ * that a fact read earlier cannot have changed. The release policy (D-418) passes one that re-checks the topic's approval, the raises and
+ * the day's cap. It returns the code that refuses the release, or `undefined` to let it go ahead; it writes nothing the release does not need.
+ */
+export type ReleaseGuard = (
+  trx: Transaction<Database>,
+  facts: { readonly assetStatus: 'admitted' | 'held' | 'withdrawn' },
+) => Promise<AutoReleaseRefusal | undefined>;
 
 export type RejectResult =
   | { readonly kind: 'rejected' | 'already_rejected'; readonly assetId: string; readonly revision: number }
@@ -232,7 +243,7 @@ async function readEvidence(
   return { quotesByPart, sources: parsed.data.sources.map((source) => `${source.title} (${source.url})`) };
 }
 
-async function lockAssetForReview(trx: Transaction<Database>, assetId: string) {
+export async function lockAssetForReview(trx: Transaction<Database>, assetId: string) {
   // The lock admission takes, so a release never interleaves with a revision being stored.
   await sql`select pg_advisory_xact_lock(hashtextextended(${`content.asset:${assetId}`}, 0))`.execute(trx);
   return trx
@@ -243,7 +254,7 @@ async function lockAssetForReview(trx: Transaction<Database>, assetId: string) {
     .executeTakeFirst();
 }
 
-async function lockReview(trx: Transaction<Database>, assetId: string, revision: number) {
+export async function lockReview(trx: Transaction<Database>, assetId: string, revision: number) {
   return trx
     .selectFrom('content.revision_reviews')
     .select('state')
@@ -306,11 +317,17 @@ async function showRevision(
 /**
  * Publishes exactly this revision: it becomes the asset's current revision (and a held asset becomes
  * admitted), so discovery, navigation, series reads and the Universe see it from now on. Repeating it
- * changes nothing.
+ * changes nothing. A `guard` (the release policy's) may refuse a release that would otherwise go ahead; it never
+ * refuses a repeat.
  */
 function releaseRevision(
   db: Kysely<Database>,
-  request: { readonly assetId: string; readonly revision: number; readonly decidedBy: string },
+  request: {
+    readonly assetId: string;
+    readonly revision: number;
+    readonly decidedBy: string;
+    readonly guard?: ReleaseGuard;
+  },
 ): Promise<ReleaseResult> {
   return withTransaction(db, 'content.review-release', async (trx): Promise<ReleaseResult> => {
     const asset = await lockAssetForReview(trx, request.assetId);
@@ -325,6 +342,10 @@ function releaseRevision(
     if (decision.kind === 'refused') return decision;
     const common = { assetId: request.assetId, revision: request.revision };
     if (decision.kind === 'already_released') return { kind: 'already_released', ...common, replacedRevision: null };
+    const refusal = await request.guard?.(trx, {
+      assetStatus: asset.status === 'admitted' || asset.status === 'held' ? asset.status : 'withdrawn',
+    });
+    if (refusal !== undefined) return { kind: 'refused', reason: refusal };
     await trx
       .updateTable('content.assets')
       .set({ revision: request.revision, status: 'admitted' })
@@ -376,7 +397,7 @@ async function rejectRevision(
  * The operator's review gate over the shared content tables (D-138): what is held, the text to read,
  * and the two decisions. Every decision is one short transaction under the asset's admission lock;
  * no model, network or personal root is involved. `decidedBy` is the operator's shell user
- * (`cli:<name>`), recorded with the time of the decision.
+ * (`cli:<name>`), or `policy:<name>` for a release by the release policy (D-418), recorded with the time of the decision.
  */
 export function makeReviewGate(db: Kysely<Database>) {
   return {

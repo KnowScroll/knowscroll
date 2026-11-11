@@ -148,6 +148,8 @@ leaves it), and nothing here records who read what.
 | `content.recipe_proposals`                              | `0111_content_recipes`                           | One proposing run of the recipe brief role (D-412): its run id, planet, facet, UTC day and retry number, the frozen context it was sent (public pages and library text only), and `open` / `completed` / `failed`. Authoritative, shared and nonpersonal | None: shared content       |
 | `content.revision_reviews`                              | `0072_content_review_gate`                       | The review gate (D-138): one row for each v2 library revision that was stored held, its state `held` / `released` / `rejected`, and for a decision who (`cli:<operator>`), when and (rejection) why                                                                            | None: shared content       |
 | `content.library_support_checks`                        | `0113_library_support_checks`                    | What a version of the library support check (D-415) said about a stored library revision: the state, the verdict code decided from the sentences, the counts and every sentence's outcome. Informs the operator at the review gate and is the measure of the check; releases and rejects nothing | None: shared content       |
+| `content.release_topic_approvals`                       | `0115_content_release_policy`                    | The topics a person approved for the release policy (D-418): one row for each approval, who and when, and when, by whom and why it was revoked (`operator` or `withdrawal`). One live row for a topic at most. Approving changes nothing by itself: the policy is off until the owner switches it on | None: shared content       |
+| `content.release_risk_raises`                           | `0115_content_release_policy`                    | Raises of one library revision's risk class (D-418): a model's or a person's proposal that the Scroll touches a sensitive category, so it waits for a person. Append-only (a trigger refuses any change), so a proposal can never lower anything                                               | None: shared content       |
 | `content.coverage_revisions` / `content.coverage_heads` | `0022_content_coverage`                          | One immutable facet-to-block mapping per correction or retraction, and one monotonic head per asset revision. `content.region_bindings` (`0037`) is the derived lookup by planet and facet                                                                                        | None: shared content       |
 | `content.reel_orders` / `content.reel_attempts`         | `0053_reel_orders`                               | The business run "make a Reel of this script" and the ledger of every request sent to Cutroom for it (request bytes, state, pool claim, cost). See "Reels from Cutroom"                                                                                                           | None: shared public        |
 | `content.media_objects` / `content.reel_imports`        | `0014_media_reels`, name check relaxed in `0053` | Content-addressed Reel bytes and which Cutroom run became which Reel revision                                                                                                                                                                                                     | None: shared content       |
@@ -344,6 +346,37 @@ machinery.
 - **Not guarded** (they take coordinates only from rows made for a served revision): snippet anchors, Keep position
   targets (also checked against the current revision), reading facts of an exposure, and series admission
   (which reads the current revisions).
+
+## The release policy for held library Scrolls (#674, D-418)
+
+Status: **implemented and off** in every world, runtime-verified on real PostgreSQL with labelled fixtures, not on dev.
+
+While the library support check is measured against the operator's own decisions (D-415), a person reads every generated Scroll. This is the
+mechanism that, once the owner turns it on, lets a worker release a later Scroll of a topic a person approved, and no other. It adds nothing to
+the gate's states: a policy release is the gate's own `release`, with `decided_by = policy:<name>`.
+
+- **Rules** (`domain/release-policy.ts`, pure). `decideAutoRelease` returns a release or the first failing rule as a code: a replacement of a
+  served Scroll (`replaces_served`), no single primary topic, a sensitive Scroll, a topic nobody approved, an unreadable document, no active
+  coverage mapping, an answer check that did not pass, and a missing (`no_support_check`), stale-version (`stale_support_check`), unchecked or flagged
+  support check. `assessRisk` makes the class: the catalogue's systems, the words and every recorded raise each propose a class and the highest wins
+  (`raiseRisk`), so nothing lowers it. `domain/release-sensitive-data.ts` is the one data file of the owner's sensitive categories (systems, whole-word
+  keywords, recent years), versioned as `release-sensitivity.v1`.
+- **Adapters.** `adapters/release-policy-store.ts` (SQL only: approvals, raises, the held revisions with their cheap facts, the cap's count) and
+  `adapters/release-policy.ts` (`makeReleasePolicy`: `sweep`, `approveTopic`, `revokeTopic`, `withdraw`, `proposeRaise`, `status`). The sweep passes the
+  review gate a `ReleaseGuard` that runs inside the release transaction and re-checks that the asset is still new, the topic still approved, no
+  raise was recorded and the day's cap holds. The cap is counted from `content.revision_reviews` under the advisory lock `content.release-policy`.
+- **Job.** `content.sweep-release-policy` (`production/release-policy-events.ts`), every ten minutes, no model and no network. The worker's
+  `release-policy-jobs.ts` consumes it on every worker; with `KS_CONTENT_AUTO_RELEASE_ENABLED` off (the default everywhere) it finishes having read nothing.
+  `KS_CONTENT_AUTO_RELEASE_DAILY_CAP` (default 5, at most 500) bounds the releases of a UTC day.
+- **Commands.** `content policy approve-topic | revoke-topic | withdraw | status` (`apps/worker/src/policy-operator.ts`, the runbook). Each change writes
+  one `content.release_policy_changed` line; each release one `content.release_policy_released` line (topic and revision); a pass one
+  `content.release_policy_swept` line. Counts and codes only.
+- **Withdrawal** is the existing one (`content.assets.status = 'withdrawn'`) with the topic's approval revoked in the same transaction.
+- **Measurement.** The support-check replay counts `cli:` decisions only; a `policy:` decision is never an answer key (`libraryCheckStore.decided`).
+- **Lock order.** Asset advisory lock, asset row, review row, then `content.release-policy`; the approval row is locked `for share` in the release
+  transaction, so a revocation waits for it. No personal root.
+- **Erasure.** None: shared content. `approved_by`, `revoked_by` and `proposed_by` are an operator's shell user or a model's role, never a person of the product.
+- **Not built:** a producer of raises (nothing writes `content.release_risk_raises` yet; `proposeRaise` is its port), and any switch-on: that is the owner's decision.
 
 ## Reading facts v3 and v2 delivery (D-128, D-129, D-130)
 

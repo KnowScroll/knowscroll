@@ -636,6 +636,33 @@ number. A Scroll counts once per checker version, so a new version is a new meas
 Nothing is released automatically in this slice, and a policy or a checker change is a new version, not an edit. A `NOT CHECKED (<code>)` result means no sentence has a verdict: `outcome_unknown` (the attempt is listed by `reasoning unknown`; write it off when you have decided what it was), `invalid_output`, `provider_failed_final` (after three tries or when another try could pass the eleven requests),
 `revision_too_long`, `citations_missing`, `provenance_unreadable` or `refused_<reason>`. A spent budget, quota or failure brake is not a result: the sweep asks again on its own. A revision that went through no review gate (a made-to-order one) is refused (`not_under_review`) and never stored.
 
+## The release policy of held library Scrolls (#674 slice 3.3, D-418)
+
+The review gate stays: a person reads every held Scroll until the owner decides otherwise. The release policy is the mechanism for the step after the measurement above: a person approves a **topic** once, and a worker then releases a later Scroll of that topic by itself, when the Scroll is new, not sensitive, its answer check passed and its **library support check passed under this build's checker version**. It is built and **off in every world**: `KS_CONTENT_AUTO_RELEASE_ENABLED` defaults to `0`, and with it off the worker's release step (`content.sweep-release-policy`, every ten minutes) reads nothing and releases nothing. Approving a topic changes nothing by itself.
+
+```sh
+node dist/operator.js content policy status                          # counts only: switch and cap as this shell reads them, approvals, releases (today, in all, withdrawn), and for each held Scroll's hold code how many
+node dist/operator.js content policy approve-topic --topic <topic id>  # approve a catalogue topic (earth.seasons); refuses a sensitive or unknown topic; records who and when
+node dist/operator.js content policy revoke-topic --topic <topic id>   # take the approval back; Scrolls already released stay served
+node dist/operator.js content policy withdraw --asset <asset id> --revision <n>   # withdraw a Scroll the policy released and revoke its topic, in one go
+```
+
+All four refuse worlds other than `local`, `ci`, `dev` and `stage`, use the shared database only and call no provider. `status` prints counts and codes only (no asset, topic or text), so it may be pasted into an issue. Read its `held.byReason` before switching anything on: it says for each held Scroll why the policy would not release it now.
+
+| Hold code | Why it stays for a person |
+|---|---|
+| `replaces_served` | An earlier revision of the asset is served (a `content regenerate` take). Only a new asset is released by the policy. |
+| `no_topic` | The revision has no single primary topic. |
+| `sensitive` | The catalogue puts its topic in a sensitive category (all of Human body and History), its words match the data file (`domain/release-sensitive-data.ts`: medicine, health, law, finance, political or religious history, current events, safety, or a year from 2023 to 2100), the topic is not in the catalogue, or a raise was recorded against it. |
+| `topic_not_approved` | No live approval of its topic. |
+| `unreadable`, `unmapped` | The stored document does not read, or no coverage mapping is active at its head. |
+| `answer_check_not_passed` | The answer check did not pass on the first draft (`repaired`, not run and not checked all wait for a person). |
+| `no_support_check`, `stale_support_check`, `support_unchecked`, `support_flagged` | No library support check, only one of another checker version, one that gave nothing, or one that flagged the Scroll. |
+
+**Turning it on is the owner's decision, after the measure above says the support check can be trusted.** The steps are then: approve the first topics with `approve-topic`; set `KS_CONTENT_AUTO_RELEASE_ENABLED=1` (and, if five a day is wrong, `KS_CONTENT_AUTO_RELEASE_DAILY_CAP`) in the world's worker environment file and restart the worker; watch `content policy status` and the `content.release_policy_released` and `content.release_policy_swept` log lines. **Turning it off:** set the switch to `0` and restart the worker. A Scroll the policy released that should not have been: `withdraw` it (the asset stops being served everywhere, and its topic's approval is revoked so nothing more of the topic is released unread). `withdraw` leaves a Scroll you released yourself alone.
+
+A policy release is recorded in `content.revision_reviews` with `decided_by = policy:approved-topic-supported.v1` (`review-list --all` shows it). **The support-check replay counts only your own decisions (`cli:`), never a policy release**, so the measurement stays yours. After the switch is on, the Scrolls you still decide are the ones the policy held, so the measure no longer grows: measure first.
+
 ## Facts about the model
 
 `MiniMax-M3.1-Flash` thinks before it answers and refuses `thinking: disabled`; thinking tokens

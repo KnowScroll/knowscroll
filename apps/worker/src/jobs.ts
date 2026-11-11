@@ -210,6 +210,7 @@ import {
 import { reasoningPurgeProviders, reasoningSweepProviders } from '@knowscroll/backend/reasoning/nest-providers';
 import { scrollProductionConsumers } from './production-jobs.js';
 import { gapLoopConsumers } from './growth-jobs.js';
+import { releasePolicyConsumers } from './release-policy-jobs.js';
 import {
   ENQUEUE_JOB,
   DATABASE,
@@ -424,6 +425,8 @@ export const jobWiring: Provider[] = [
       // The gap loop (#674, D-414): the scan of the library for holes (SQL only) and the brief job, which proposes recipes within the
       // growth cap, held for review. Both do nothing while KS_SUPPLY_GROWTH_ENABLED is off.
       ...gapLoopConsumers({ config, db, boss, harness: productionHarness, withScope: withProductionScope, logEvent }),
+      // The release policy's sweep (D-418): shared content only, on every worker, and a no-op until KS_CONTENT_AUTO_RELEASE_ENABLED=1.
+      ...releasePolicyConsumers({ config, db, logEvent }),
       ...clearExplorationConsumers(
         clearExplorationFor(db, boss, {
           reasoning: clearReasoning,

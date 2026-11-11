@@ -148,6 +148,17 @@ export interface ContentOperatorConfig {
   readonly database: DatabaseSettings;
 }
 
+/**
+ * The release policy's switch and cap (#674, D-418): whether the worker may release a held library Scroll by itself, and how many it
+ * may release per UTC day. The switch is off in every world until the owner turns it on.
+ */
+export interface ContentAutoReleaseSettings {
+  /** `KS_CONTENT_AUTO_RELEASE_ENABLED`: `1` lets the worker's release step release a held Scroll that the policy allows; anything else keeps every Scroll for a person. */
+  readonly enabled: boolean;
+  /** `KS_CONTENT_AUTO_RELEASE_DAILY_CAP`: the most Scrolls the policy may release per UTC day. Counted from `content.revision_reviews`, so a restart cannot reset it. */
+  readonly dailyCap: number;
+}
+
 export interface WorkerConfig extends ReleaseIdentity {
   /** Planner execution gate; default off until a separately approved role allowance. */
   readonly plannerEnabled: boolean;
@@ -178,6 +189,8 @@ export interface WorkerConfig extends ReleaseIdentity {
   readonly supplyQuickAnswerPersonDailyCap: number;
   /** The production scope generation the `content.produce-scroll` consumer works under. */
   readonly scrollProductionGeneration: number;
+  /** The release policy of held library Scrolls (D-418): off unless `KS_CONTENT_AUTO_RELEASE_ENABLED=1`. */
+  readonly contentAutoRelease: ContentAutoReleaseSettings;
   /** `KS_ROOMS_STARS_PER_DAY`, as the API reads it: the job that settles a Launch awards its star under the same cap (D-174, D-298). */
   readonly roomStarsPerDay: number;
   readonly database: DatabaseSettings;
@@ -358,6 +371,16 @@ const supplyScenarioThreadCapVariable = z.coerce.number().int().min(1).max(100).
  * names its own policy.
  */
 const composerPolicyVariable = z.enum(['v0', 'v1', 'v2']).default('v0');
+
+/**
+ * `KS_CONTENT_AUTO_RELEASE_ENABLED`: the kill switch of the release policy (D-418). Default `0` in every world: a held library Scroll
+ * waits for a person until the owner sets `1`. `KS_CONTENT_AUTO_RELEASE_DAILY_CAP` bounds how many Scrolls the policy releases per UTC
+ * day (default 5, at most 500).
+ */
+const contentAutoReleaseVariables = {
+  KS_CONTENT_AUTO_RELEASE_ENABLED: z.enum(['0', '1']).default('0'),
+  KS_CONTENT_AUTO_RELEASE_DAILY_CAP: positiveInteger(5, 500),
+};
 
 const databaseVariables = {
   DATABASE_URL: PostgresUrlSchema,
@@ -852,6 +875,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         KS_SUPPLY_QUICK_ANSWER_DAILY_CAP: supplyQuickAnswerDailyCapVariable,
         KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP: supplyQuickAnswerPersonCapVariable,
         KS_SCROLL_PRODUCTION_GENERATION: positiveInteger(1, 2_147_483_647),
+        ...contentAutoReleaseVariables,
         KS_ROOMS_STARS_PER_DAY: positiveInteger(ROOM_STARS_PER_DAY_DEFAULT, ROOM_STARS_PER_DAY_MAX),
         KS_DB_POOL_MAX: positiveInteger(5, 100),
         KS_SHUTDOWN_GRACE_SECONDS: positiveInteger(20, 300),
@@ -873,6 +897,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         'KS_SUPPLY_QUICK_ANSWER_DAILY_CAP',
         'KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP',
         'KS_SCROLL_PRODUCTION_GENERATION',
+        'KS_CONTENT_AUTO_RELEASE_ENABLED',
+        'KS_CONTENT_AUTO_RELEASE_DAILY_CAP',
         'KS_ROOMS_STARS_PER_DAY',
         'DATABASE_URL',
         'KS_DB_STATEMENT_TIMEOUT_MS',
@@ -906,11 +932,33 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     supplyQuickAnswerDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_QUICK_ANSWER_DAILY_CAP, release.world),
     supplyQuickAnswerPersonDailyCap: parsed.KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP,
     scrollProductionGeneration: parsed.KS_SCROLL_PRODUCTION_GENERATION,
+    contentAutoRelease: {
+      enabled: parsed.KS_CONTENT_AUTO_RELEASE_ENABLED === '1',
+      dailyCap: parsed.KS_CONTENT_AUTO_RELEASE_DAILY_CAP,
+    },
     roomStarsPerDay: parsed.KS_ROOMS_STARS_PER_DAY,
     database: databaseSettings(parsed, `knowscroll-worker-${release.world}`, parsed.KS_DB_POOL_MAX),
     shutdownGraceMs: parsed.KS_SHUTDOWN_GRACE_SECONDS * 1000,
     scopeLockTimeoutMs: parsed.KS_SCOPE_LOCK_TIMEOUT_MS,
     reasoning: reasoningSettings(reasoning),
+  };
+}
+
+/**
+ * The release policy's switch and cap as this shell's environment says them (D-418), read as the worker reads them. The operator's
+ * `content policy status` prints it so the operator sees what a worker started from the same environment file would do; it changes nothing.
+ * Throws one `ConfigurationError` listing every problem.
+ */
+export function readContentAutoReleaseSettings(env: Environment): ContentAutoReleaseSettings {
+  const [parsed] = combineChecks(
+    checkEnvironment(
+      z.object(contentAutoReleaseVariables),
+      pick(env, ['KS_CONTENT_AUTO_RELEASE_ENABLED', 'KS_CONTENT_AUTO_RELEASE_DAILY_CAP']),
+    ),
+  );
+  return {
+    enabled: parsed.KS_CONTENT_AUTO_RELEASE_ENABLED === '1',
+    dailyCap: parsed.KS_CONTENT_AUTO_RELEASE_DAILY_CAP,
   };
 }
 

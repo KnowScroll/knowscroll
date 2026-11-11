@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ConfigurationError,
   readApiConfig,
+  readContentAutoReleaseSettings,
   readMigrateConfig,
   readOperatorConfig,
   readDryRunOperatorConfig,
@@ -351,6 +352,39 @@ describe('process configuration', () => {
       readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_SCROLL_PRODUCTION_GENERATION: '2' })
         .scrollProductionGeneration,
     ).toBe(2);
+  });
+  it('keeps the release policy off in every world until the owner sets its switch, with a cap of five a day (#674, D-418)', () => {
+    for (const world of ['local', 'ci', 'dev', 'stage', 'live'])
+      expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: world }).contentAutoRelease).toEqual({
+        enabled: false,
+        dailyCap: 5,
+      });
+    const env = { DATABASE_URL: secretUrl, KS_WORLD: 'dev' };
+    expect(readWorkerConfig({ ...env, KS_CONTENT_AUTO_RELEASE_ENABLED: '1' }).contentAutoRelease).toEqual({
+      enabled: true,
+      dailyCap: 5,
+    });
+    expect(
+      readWorkerConfig({ ...env, KS_CONTENT_AUTO_RELEASE_ENABLED: '1', KS_CONTENT_AUTO_RELEASE_DAILY_CAP: '12' })
+        .contentAutoRelease,
+    ).toEqual({ enabled: true, dailyCap: 12 });
+    expect(readWorkerConfig({ ...env, KS_CONTENT_AUTO_RELEASE_ENABLED: '0' }).contentAutoRelease.enabled).toBe(false);
+    // Only `0` and `1` are accepted: a switch that read "true" or "yes" as on or as off would be a way to release by accident.
+    for (const bad of ['true', 'yes', 'on', ''])
+      expect(
+        configurationError(() => readWorkerConfig({ ...env, KS_CONTENT_AUTO_RELEASE_ENABLED: bad })).problems,
+      ).toEqual(['KS_CONTENT_AUTO_RELEASE_ENABLED: not_allowed']);
+    for (const bad of ['0', '501', '-1', '2.5', 'many'])
+      expect(() => readWorkerConfig({ ...env, KS_CONTENT_AUTO_RELEASE_DAILY_CAP: bad })).toThrow(ConfigurationError);
+  });
+  it('reads the release policy’s switch and cap for the operator’s status as the worker reads them', () => {
+    expect(readContentAutoReleaseSettings({})).toEqual({ enabled: false, dailyCap: 5 });
+    expect(
+      readContentAutoReleaseSettings({ KS_CONTENT_AUTO_RELEASE_ENABLED: '1', KS_CONTENT_AUTO_RELEASE_DAILY_CAP: '3' }),
+    ).toEqual({ enabled: true, dailyCap: 3 });
+    expect(() => readContentAutoReleaseSettings({ KS_CONTENT_AUTO_RELEASE_ENABLED: 'true' })).toThrow(
+      ConfigurationError,
+    );
   });
   it('defaults the commit and artifact outside production, but never the world', () => {
     const config = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' });
