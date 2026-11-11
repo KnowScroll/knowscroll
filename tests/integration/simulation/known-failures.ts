@@ -33,9 +33,6 @@ const EXPLAINED_REPEAT_CAUSES: readonly RepeatCause[] = [
   'retrieval',
 ];
 
-/** A discovery read accepts at most this many topics; the Planner passes up to 100 (slice 0.1). */
-const DISCOVERY_MAX_TOPICS = 16;
-
 export const KNOWN_FAILURES: readonly KnownFailure[] = [
   {
     id: 'I1/already-met-is-a-soft-penalty',
@@ -55,21 +52,6 @@ export const KNOWN_FAILURES: readonly KnownFailure[] = [
     reason:
       'A Reel has no coverage mapping or certificate, and the trusted read serves only Scrolls (supportedFormats: [scroll]), so qualified Reels count for dust and for no place. Reel and Scroll have equal status.',
     matches: (violation) => violation.code === 'system_not_formed' && violation.detail['onlyWithReels'] === true,
-  },
-  {
-    id: 'I3/planner-crashes-past-sixteen-topics',
-    invariant: 'I3',
-    slice: '0.1',
-    personas: ['broad-skimmer'],
-    reason:
-      'The Planner sends up to 100 recent topics into the discovery read, which refuses more than 16, so for anyone who has met more than 16 topics every Planner run throws, retries and dead-letters, and its run stays queued.',
-    matches: (violation) =>
-      violation.invariant === 'I3' &&
-      ['job_failed', 'job_not_completed', 'run_held_queued'].includes(violation.code) &&
-      (violation.detail['queue'] === 'planner.run' || violation.detail['kind'] === 'planner') &&
-      Number(violation.detail['topics']) > DISCOVERY_MAX_TOPICS &&
-      // The worker's own error, not just the queue: the discovery read refused the query.
-      String(violation.detail['message']).includes('DISCOVERY_QUERY_INVALID'),
   },
 ];
 

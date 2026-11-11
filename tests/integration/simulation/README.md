@@ -94,7 +94,6 @@ with the reason it fails and a `matches` that accepts only violations that fail 
 | --- | --- | --- | --- |
 | `I1/already-met-is-a-soft-penalty` | I1 | 1.2 | Nothing hard-excludes a met explanation. It costs a novelty term, so a met unit still wins while an unseen one exists (the lab reads the stored decision: the met unit was eligible and scored higher, or exploration drew it, or sticky format kept the person among met units of the format). |
 | `I2/reel-only-evidence-forms-no-system` | I2 | 5.1 | A Reel has no coverage mapping or certificate; the trusted read serves only Scrolls. Two qualified Reels of one system form nothing. |
-| `I3/planner-crashes-past-sixteen-topics` | I3 | 0.1 | The Planner passes up to 100 recent topics to a discovery read that refuses more than 16 (`DISCOVERY_QUERY_INVALID`): the job dead-letters and the run stays queued. |
 
 The lab keeps two promises about them. Every violation of an invariant must be explained by an entry or the run fails
 ("unexpected violation"), so a new defect, or a known one failing for another reason, cannot hide behind an entry. And
@@ -102,8 +101,9 @@ every entry must still be reproduced: when a slice fixes the behaviour, the entr
 same pull request deletes the entry from `known-failures.ts`. From then on the invariant is a plain gate for the slice
 and every later one. That is the equivalent of `it.fails`, with the reason checked.
 
-Not yet failing, so they have no entry: planet formation from Scrolls (the exact `link-reader-scrolls`), isolation,
-pause and resume, bounded cost.
+No entry, so these are gates: planet formation from Scrolls (the exact `link-reader-scrolls`), isolation, pause and
+resume, bounded cost, and a Planner that survives a reader who has met more than 16 topics (`broad-skimmer`; its
+entry for slice 0.1 was deleted when #711 fixed it).
 
 ### Metrics
 
