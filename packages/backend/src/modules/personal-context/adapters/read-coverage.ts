@@ -43,22 +43,19 @@ interface Reference {
   truth_sha256: string;
 }
 /**
- * What one support key puts forward as witnesses: the newest exposures of the key, at most two of
- * each asset revision and eight in all. Each is checked in full and the newest that is valid proves
- * the key. Re-reading one Scroll a thousand times adds references to a key but never candidates, so
- * the read neither refuses nor grows with how much a person has read. Several asset revisions can
- * carry one explanation unit (variants, a corrected revision), so they are ranked apart, and a
- * withdrawn newest revision does not hide a valid older one.
+ * What one support key puts forward as witnesses: up to eight exposures of the key, however its
+ * references are spread over asset revisions. They are taken round by round: the newest exposure of
+ * each asset revision first (the newest revision first), then the second newest of each, and so on.
+ * Each candidate is checked in full and the newest that is valid proves the key. Re-reading one Scroll
+ * a thousand times adds references to a key but never candidates, so the read neither refuses nor
+ * grows with how much a person has read. Several asset revisions can carry one explanation unit
+ * (variants, a corrected revision), and each gets a candidate before any gets a second, so a
+ * withdrawn newest revision does not hide a valid older one. A key read under one revision gets its
+ * eight newest exposures, so a run of invalid newest certificates (a head changed and re-admitted)
+ * does not hide a valid older one either.
  */
-const CANDIDATES = { perAssetRevision: 2, perKey: 8 } as const;
+const CANDIDATES_PER_KEY = 8;
 
-/**
- * Both indexed source budgets are fixed BEFORE certificate hydration. Each source returns the
- * candidates above for each probed support key, ranked by the certificate's activation time (the
- * newest first, the exposure id breaking a tie), so the rows read are bounded by the keys asked for,
- * never by the history behind them. A legacy exposure that has a recording projection is read through
- * the recording source only.
- */
 export function makeReadTrustedCoverage(p: CoverageDependencies): ReadTrustedCoverage {
   return async (scope, input) => {
     const q = TrustedCoverageQuerySchema.parse(input);
@@ -88,10 +85,10 @@ export function makeReadTrustedCoverage(p: CoverageDependencies): ReadTrustedCov
           order by activated_at desc nulls last,exposure_id desc) as in_revision from refs),
       per_key as (
         select per_revision.*,row_number() over (partition by topic_id,facet_id,explanation_unit_id,meaning_sha256,truth_sha256
-          order by activated_at desc nulls last,exposure_id desc) as newest
-        from per_revision where in_revision<=${CANDIDATES.perAssetRevision})
+          order by in_revision,activated_at desc nulls last,exposure_id desc) as newest
+        from per_revision)
       select exposure_id,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,activity_id,input_sha256,payload
-      from per_key where newest<=${CANDIDATES.perKey} limit 1001`.execute(db);
+      from per_key where newest<=${CANDIDATES_PER_KEY} limit 1001`.execute(db);
     const recording = await sql<
       Reference & {
         source_kind: string;
@@ -120,11 +117,11 @@ export function makeReadTrustedCoverage(p: CoverageDependencies): ReadTrustedCov
           order by activated_at desc nulls last,exposure_id desc) as in_revision from dated),
       per_key as (
         select per_revision.*,row_number() over (partition by topic_id,facet_id,explanation_unit_id,meaning_sha256,truth_sha256
-          order by activated_at desc nulls last,exposure_id desc) as newest
-        from per_revision where in_revision<=${CANDIDATES.perAssetRevision})
+          order by in_revision,activated_at desc nulls last,exposure_id desc) as newest
+        from per_revision)
       select exposure_id,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,
         source_kind,source_generation,source_activity_id,source_qualification_id,source_certificate_sha256
-      from per_key where newest<=${CANDIDATES.perKey} limit 1001`.execute(db);
+      from per_key where newest<=${CANDIDATES_PER_KEY} limit 1001`.execute(db);
     // Candidates are bounded per key, so this refuses only a batch of probes that is itself too wide;
     // the consumer then reads it as two.
     if (legacy.rows.length > 1000 || recording.rows.length > 1000 || legacy.rows.length + recording.rows.length > 1000)

@@ -666,7 +666,8 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
         expect(run.model.calls).toHaveLength(0);
         expect(await attemptsOf(database(), person.universeId)).toEqual([]);
         expect(await placeKinds(person)).toEqual(['planet', 'region', 'region', 'star', 'system']);
-        expect(await runOf(run.runId)).toMatchObject({ status: 'accepted', outcome: 'applied_by_rules' });
+        // Told apart from an ordinary rules-only run: the model was skipped for the context's size.
+        expect(await runOf(run.runId)).toMatchObject({ status: 'accepted', outcome: 'applied_by_rules_context_limit' });
         expect((await world.state(person)).activeRunId).toBeUndefined();
       });
 

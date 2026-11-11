@@ -161,9 +161,10 @@ Coverage-only correction references the actual current Evidence activity ID and 
 audit; replay of unchanged combined input changes neither revision nor hint.
 
 `ReadTrustedCoverage(scope,{probes})` accepts 1–100 unique exact triples, <=64KiB query. For each
-support key (topic, facet, meaning, unit, framing) it reads the newest exposures, at most two of each
-asset revision and eight in all, ranked by the certificate's activation time (a legacy exposure that has
-a recording projection is read through the recording source only). Re-reading a Scroll adds references to
+support key (topic, facet, meaning, unit, framing) it reads up to eight exposures, however the key's
+references are spread over asset revisions: the newest exposure of each asset revision first, then the
+second newest of each, and so on, ranked by the certificate's activation time (a legacy exposure that
+has a recording projection is read through the recording source only). Re-reading a Scroll adds references to
 a key and never candidates, so the read neither refuses nor grows with how much a person has read
 (#674, D-409). The candidate rows are bounded by the keys probed; a batch that is itself wider than
 1000 candidate rows refuses with its overflow sentinel and the consumer reads it as two. It validates
@@ -181,8 +182,10 @@ are not returned, so one support read a hundred times is one witness and one cer
 128 KiB overflow. The newest also gives the support's last activation, which decides when a place goes
 quiet. Variety is the number of distinct canonical units, never of witnesses, and future formation
 must still count distinct units across multiple facet keys. A newest exposure on withdrawn or retracted
-authority does not hide an older valid one of another asset revision. Limit: if the eight newest candidates
-of a key are all invalid, the key has no witness this read, though an older exposure might be valid.
+authority does not hide an older valid one of another asset revision, and a key read under one revision
+whose newest certificates are invalid (a head changed and then admitted again) still reaches its eight
+newest exposures. Limit: if all eight candidates of a key are invalid, the key has no witness this read,
+though an older exposure might be valid.
 Last current reference removes the support.
 Returned exact certificate IDs/digests and witnesses
 make unit/facet support inspectable without raw observations or provenance text.

@@ -246,7 +246,10 @@ async function settleUnadmitted(
       settlement =
         applied.kind === 'refused'
           ? { status: applied.reason === 'no_changes' ? 'insufficient' : 'stale', outcome: applied.reason }
-          : { status: 'accepted', outcome: OUTCOME_OF_SOURCE.rules };
+          : {
+              status: 'accepted',
+              outcome: reason === 'context_limit' ? MODEL_SKIPPED_FOR_SIZE : OUTCOME_OF_SOURCE.rules,
+            };
     }
     await p.store.finishUnadmitted(scope, purpose.businessRunId, purpose.claimId, settlement);
     const updated = await p.store.state(scope),
@@ -339,6 +342,12 @@ function planFor(
   const proposal = requiredChanges(facts);
   return proposal.operations.length ? { proposal, source: 'rules' } : undefined;
 }
+/**
+ * The outcome of a run whose rules applied places because the context did not fit one model request, so
+ * no model was asked. An operator tells it from an ordinary rules-only run (`applied_by_rules`) and from
+ * `context_limit`, which is the same cause with nothing due.
+ */
+const MODEL_SKIPPED_FOR_SIZE = 'applied_by_rules_context_limit';
 const OUTCOME_OF_SOURCE = {
   model: 'applied',
   model_with_rules: 'applied_with_rules',

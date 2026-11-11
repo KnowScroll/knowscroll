@@ -767,6 +767,23 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
     expect(result.certificates).toHaveLength(1);
     expect((await discovery(p)).probes).toEqual([{ topicId: topic, facetId: facet, explanationUnitId: f.unit }]);
   }, 60_000);
+  it('proves a key read under one revision by its oldest exposure when the two newest certificates are invalid (#674)', async () => {
+    const p = await seedPerson(database.db),
+      f = await fixture();
+    const first = await read(p, f);
+    // The head changes (its binding asks for fewer blocks), two more reads are certified under it, and the
+    // original head is admitted again: only the first read's certificate still matches the head.
+    const [binding] = f.map.bindings;
+    const narrower = { ...f.map, bindings: [{ ...binding!, requiredBlockIds: ['intro-look-up'] }] };
+    await admit()(approved({ ...f.command, expectedHeadRevision: 1, change: { kind: 'admit', mapping: narrower } }));
+    await read(p, f);
+    await read(p, f);
+    await admit()(approved({ ...f.command, expectedHeadRevision: 2 }));
+    const result = await proof(p, f.unit);
+    expect(result.availability).toBe('available');
+    expect(result.witnesses.map((w) => w.exposureId)).toEqual([first.exposureId]);
+    expect(result.certificates).toHaveLength(1);
+  });
   it('proves a key by an older valid exposure when the newest one is on retracted authority (#674)', async () => {
     const p = await seedPerson(database.db),
       a = await fixture(),

@@ -129,7 +129,8 @@ are `insufficient`; none needs an engineer except the limits.
 | `coverage_authority_changed` | Content or Evidence moved while the proof was read; the next reading tries again |
 | `structure_limit` | More than 1000 places, or routes and aliases, in one universe |
 | `context_too_large` | The frozen context would pass 500,000 bytes |
-| `context_limit` | The context does not fit one model request, so no model was asked; the rules still applied what was due |
+| `applied_by_rules_context_limit` | The context does not fit one model request, so no model was asked, and the rules applied what was due |
+| `context_limit` | The same cause with nothing due: no model was asked and nothing was applied |
 | `context_unreadable` | The stored frozen context is missing or for another scope |
 | `disabled`, `provider_unavailable`, `request_too_large`, ... | Role switched off, or a refusal before admission (see One journey) |
 
@@ -316,8 +317,8 @@ not no reading. `loading` and `lagging` need a real queued or prepared run.
   re-read Scroll can no longer exceed the read's 128 KiB bound (Personal Context README).
 - **Model packaging.** A model request holds at most 64 context items. That limit is checked only when
   a model is called; a run that applies the rules alone is never stopped by it. When a context does not
-  fit one request the model is skipped, the rules apply what is due, and a run with nothing due ends
-  `context_limit`.
+  fit one request the model is skipped and the rules apply what is due (`applied_by_rules_context_limit`,
+  told apart from an ordinary `applied_by_rules`); a run with nothing due ends `context_limit`.
 - **Known limit (slice 4.1): compaction past one context.** When the supports pass 100 or 360,000 bytes,
   `compactSupports` keeps the newest support of every facet of every planet first, so every supported
   region and the latest activity of every place are exact while the facets of all planets together
