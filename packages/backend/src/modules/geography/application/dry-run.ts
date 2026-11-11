@@ -7,7 +7,7 @@ import {
   type WithDryRunPersonalScope,
 } from '../../identity/public.js';
 import { shapeGeographyDryRun, type GeographyDryRunFacts, type GeographyDryRunReport } from '../domain/dry-run.js';
-import { prepareGeography, type PreparationPorts } from './context.js';
+import { evaluationOf, nothingTrusted, prepareGeography, type PreparationPorts } from './context.js';
 import type { GeographyPorts } from './ports.js';
 import { modelContextItems } from './role.js';
 
@@ -50,8 +50,8 @@ async function recordingGate(
 /**
  * What a Cartographer run would do for one universe now, without doing it (D-411). It enters the
  * universe's personal scope (the root lock a read takes), freezes a context exactly as the run does
- * (`prepareGeography`: the same discovery, trusted read and compaction), applies the same pure rules
- * (`dueCreations`, `activityChanges`) and rolls back. The scope is read-only, so the run cannot
+ * (`prepareGeography`: the same dirty topics, trusted read and facts, plus the topics of the places a quiet settle would look
+ * at by the clock), applies the same pure rules (`dueCreations`, `activityChanges`) and rolls back. The scope is read-only, so the run cannot
  * write; it enqueues nothing and calls no model.
  *
  * Output: counts and codes only (`shapeGeographyDryRun`); the outcome is the code a real run records. A fault the
@@ -73,10 +73,11 @@ export function makeGeographyDryRun(p: GeographyDryRunPorts): GeographyDryRun {
         failureCode: undefined,
       };
       if (gate.kind !== 'open') return closed;
-      const view = await p.store.view(scope);
-      const stored = { ...closed, places: view.objects.length, routes: view.routes.length + view.aliases.length };
+      const structure = await p.store.structure(scope);
+      const stored = { ...closed, places: structure.objects, routes: structure.relations };
       try {
-        const prepared = await prepareGeography(p, gate.cap, view);
+        // What a run takes (the dirty topics) and what the quiet settle would take (the places due by this clock).
+        const prepared = await prepareGeography(p, gate.cap, { kind: 'dirty', alsoDueBy: p.now() }, { readOnly: true });
         if (prepared.kind === 'unavailable') return { ...stored, refusal: prepared.reason };
         const { context } = prepared;
         const items = modelContextItems(context);
@@ -84,9 +85,11 @@ export function makeGeographyDryRun(p: GeographyDryRunPorts): GeographyDryRun {
           ...stored,
           prepared: {
             formation: context.facts,
+            topicsEvaluated: evaluationOf(context).topics.length,
             candidateKeys: context.probes.length,
             witnessesHeld: context.coverage.witnesses.length,
             supportKeys: prepared.supportKeys,
+            nothingTrusted: nothingTrusted(context),
             contextBytes: new TextEncoder().encode(JSON.stringify(context)).byteLength,
             modelItems: items === undefined ? ('too_large' as const) : items.length,
           },

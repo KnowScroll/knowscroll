@@ -1,6 +1,7 @@
 import {
   MAX_PROPOSAL_OPERATIONS,
   formationEligible,
+  proofSupports,
   proposalIssue,
   supportsFor,
   type FormationFacts,
@@ -43,7 +44,7 @@ export function dueCreations(facts: FormationFacts): CreationOperation[] {
       key: candidate.key,
       label: candidate.labels[0]!,
       truthStatus: 'factual',
-      supportRefs: supports.map((support) => support.ref),
+      supportRefs: proofSupports(facts, candidate).map((support) => support.ref),
     });
   }
   return due;

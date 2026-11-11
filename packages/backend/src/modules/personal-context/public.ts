@@ -1,4 +1,3 @@
-import type { PersonalScopeTx } from '../identity/public.js';
 /** Backend-only prepared context. No consumer scores, source metadata or peer positions. */
 export {
   CONTEXT_POLICY,
@@ -27,16 +26,23 @@ export const READ_COMPOSER_CONTEXT = Symbol('personal-context.readComposerContex
 /** Exact current observed witnesses; raw retained support counts are not geography authority. */
 export { TrustedCoverageQuerySchema } from './domain/coverage.js';
 export type { TrustedCoverageQuery, TrustedCoverageRead } from './domain/coverage.js';
-import type { TrustedCoverageQuery } from './domain/coverage.js';
 export type { ReadTrustedCoverage } from './application/coverage-ports.js';
 export const READ_TRUSTED_COVERAGE = Symbol('personal-context.readTrustedCoverage');
 
-/** Bounded candidate keys (the distinct support keys of the projection, at most 1000) and PC revision only; not counts or current formation authority. */
-export type ReadCoverageInputs = (scope: PersonalScopeTx) => Promise<{
-  readonly revision: number;
-  readonly completeness: 'not_asserted';
-  readonly availability: 'available' | 'unavailable';
-  readonly reason: 'bounded' | 'limit';
-  readonly probes: TrustedCoverageQuery['probes'];
-}>;
+/**
+ * What a Geography run evaluates (#674, slice 4.1, D-416). The dirty set lists the topics whose trusted support changed;
+ * the inputs read gives the bounded newest keys of named topics; both are candidate discovery, never trusted supports,
+ * unit counts or formation authority: Geography calls the current trusted read under the same root.
+ */
+export type {
+  CoverageDirty,
+  CoverageProbe,
+  ReadCoverageDirty,
+  ReadCoverageInputs,
+  ClearCoverageDirty,
+  MarkCoverageDirty,
+} from './application/coverage-ports.js';
 export const READ_COVERAGE_INPUTS = Symbol('personal-context.readCoverageInputs');
+export const READ_COVERAGE_DIRTY = Symbol('personal-context.readCoverageDirty');
+export const CLEAR_COVERAGE_DIRTY = Symbol('personal-context.clearCoverageDirty');
+export const MARK_COVERAGE_DIRTY = Symbol('personal-context.markCoverageDirty');

@@ -63,7 +63,7 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
       wouldCallModel: false,
       places: 0,
       routes: 0,
-      references: { candidateKeys: null, witnessesHeld: null, supportKeys: null, supportsKept: null },
+      references: { topicsEvaluated: null, candidateKeys: null, witnessesHeld: null, supportKeys: null },
       due: { total: 0, appliedByNextRun: 0 },
       contextBytes: null,
     });
@@ -84,7 +84,7 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
       action: 'stops',
       wouldRecord: { status: 'insufficient', outcome: 'no_changes' },
       wouldCallModel: false,
-      references: { candidateKeys: 1, witnessesHeld: 1, supportKeys: 1, supportsKept: 1, supportsDropped: 0 },
+      references: { topicsEvaluated: 1, candidateKeys: 1, witnessesHeld: 1, supportKeys: 1 },
       due: { system: 0, star: 0, planet: 0, region: 0, total: 0 },
       activityChanges: { toQuiet: 0, toActive: 0 },
     });
@@ -107,7 +107,7 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
       action: 'calls_model',
       wouldCallModel: true,
       wouldRecord: { status: 'accepted', outcome: null },
-      references: { candidateKeys: 2, supportKeys: 2, supportsKept: 2 },
+      references: { topicsEvaluated: 1, candidateKeys: 2, supportKeys: 2 },
       due: { system: 1, star: 1, planet: 0, region: 0, total: 2, appliedByNextRun: 2 },
     });
     expect(await footprintOf(world, person.universeId)).toEqual(before);
@@ -125,12 +125,7 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
       await world.observe(person, await world.fixture(undefined, topic, [facetId]));
     const report = await reportOf(person);
     expect(report.due).toEqual({ system: 1, star: 1, planet: 1, region: 2, total: 5, appliedByNextRun: 5 });
-    expect(report.references).toMatchObject({
-      candidateKeys: 3,
-      supportKeys: 3,
-      supportsKept: 3,
-      supportsDropped: 0,
-    });
+    expect(report.references).toMatchObject({ topicsEvaluated: 1, candidateKeys: 3, supportKeys: 3 });
     await cartograph(person);
     expect(await placeKinds(person)).toEqual(['planet', 'region', 'region', 'star', 'system']);
     // Everything formed: nothing is due now.
@@ -156,10 +151,20 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
       activityChanges: { toQuiet: 5, toActive: 0 },
     });
     const settle = makeSettleQuiet({ ...world.base, now: () => new Date(Date.now() + 31 * DAY), enabled: () => true });
-    expect(await settle({ v: 1, universeId: person.universeId, privacyEpoch: 1, recordingGeneration: 1 })).toEqual({
-      outcome: 'applied',
-      changed: report.activityChanges.toQuiet,
-    });
+    // The places the sweep hands a settle at that time: every place whose last support is more than 30 days old.
+    const due = await sql<{
+      id: string;
+    }>`select id from geography.objects where universe_id = ${person.universeId}::uuid
+      and quiet_check_at <= ${new Date(Date.now() + 31 * DAY).toISOString()}::timestamptz`.execute(world.database.db);
+    expect(
+      await settle({
+        v: 2,
+        universeId: person.universeId,
+        privacyEpoch: 1,
+        recordingGeneration: 1,
+        objectIds: due.rows.map((row) => row.id),
+      }),
+    ).toEqual({ outcome: 'applied', changed: report.activityChanges.toQuiet });
   });
 
   it('gives the same report through the worker’s wiring as through the hand-composed ports', async () => {

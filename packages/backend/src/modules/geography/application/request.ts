@@ -64,6 +64,30 @@ export async function ensureCartography(
   if (!(await p.enqueue(cap, activeRunId, startAfter && { startAfter }))) throw new Error('GEOGRAPHY_REQUIRED_WAKE');
   return next;
 }
+/**
+ * Starts the next run for evaluated work a finished run left behind: more dirty topics than one run takes, or more due
+ * than one delta holds (D-416). It is a paced material-change run whatever started the last one, so an explicit request
+ * does not make every continuation ask the model. Coalesces with a run that already exists.
+ */
+export async function continueCartography(
+  p: Pick<GeographyPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement' | 'now'>,
+  cap: RecordingScopeTx,
+  idle: GeographyState,
+): Promise<GeographyState> {
+  return ensureCartography(
+    p,
+    cap,
+    {
+      ...idle,
+      desiredSource: {
+        generation: cap.generation,
+        kind: 'material',
+        sourceRevision: Math.max(idle.materialRevision, 1),
+      },
+    },
+    true,
+  );
+}
 export function makeGeographyMaterialChange(p: GeographyPorts): MaterialGeographyChange {
   return async (cap, input) => {
     const root = await p.store.root(cap);
@@ -141,6 +165,9 @@ export function makeRequestCartography(p: GeographyPorts): RequestCartography {
         if (!(await p.enqueue(cap, run.id))) return refuse('run_not_resumable');
         runId = run.id;
       } else {
+        // An explicit request wants the whole picture read again: every topic with support is marked dirty and the
+        // runs take them in order, paced (D-416).
+        await p.markDirty(scope);
         const next = {
           ...state,
           desiredRevision: state.desiredRevision + 1,

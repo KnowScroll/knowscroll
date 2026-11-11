@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CONCEPTS } from '../../content/public.js';
-import { activityChanges, nextQuietAt } from './quiet.js';
+import { activityChanges, placeSchedules } from './quiet.js';
 import { requiredChanges } from './formation.js';
 import {
   QUIET_AFTER_MS,
@@ -86,15 +86,20 @@ describe('quiet places (authored fixtures only)', () => {
 
   it('names when the newest support under an active place turns 30 days old', () => {
     const f = facts([support('a', daysAgo(10)), support('b', daysAgo(12))], [placed(earthSystem, 'active')]);
-    expect(Date.parse(nextQuietAt(f)!)).toBe(NOW - 10 * DAY + QUIET_AFTER_MS + 1);
+    const [schedule] = placeSchedules(f);
+    expect(schedule).toEqual({
+      key: earthSystem.key,
+      lastSupportAt: daysAgo(10),
+      quietCheckAt: new Date(NOW - 10 * DAY + QUIET_AFTER_MS + 1).toISOString(),
+    });
     // At that moment the place is quiet, one millisecond earlier it is not.
     const at = (ms: number) => ({ ...f, evaluatedAt: new Date(ms).toISOString() });
-    const due = Date.parse(nextQuietAt(f)!);
+    const due = Date.parse(schedule!.quietCheckAt!);
     expect(activityChanges(at(due - 1))).toEqual([]);
     expect(activityChanges(at(due))).toHaveLength(1);
   });
 
-  it('takes the earliest of several places, and says now while a change is already due', () => {
+  it('schedules each place by its own support, and says now while a change is already due', () => {
     const supports = [
       support('a', daysAgo(5)),
       support('b', daysAgo(6)),
@@ -102,15 +107,36 @@ describe('quiet places (authored fixtures only)', () => {
       support('d', daysAgo(21), 'space.stars', 'space.stars.fusion'),
     ];
     const f = facts(supports, [placed(earthSystem, 'active'), placed(spaceSystem, 'active')]);
-    expect(Date.parse(nextQuietAt(f)!)).toBe(NOW - 20 * DAY + QUIET_AFTER_MS + 1);
+    expect(placeSchedules(f).map((schedule) => schedule.quietCheckAt)).toEqual([
+      new Date(NOW - 5 * DAY + QUIET_AFTER_MS + 1).toISOString(),
+      new Date(NOW - 20 * DAY + QUIET_AFTER_MS + 1).toISOString(),
+    ]);
     const pending = facts([support('a', daysAgo(40)), support('b', daysAgo(41))], [placed(earthSystem, 'active')]);
-    expect(nextQuietAt(pending)).toBe(pending.evaluatedAt);
+    expect(placeSchedules(pending)[0]!.quietCheckAt).toBe(pending.evaluatedAt);
+    // A quiet place with new support is a change due now, too.
+    const waking = facts([support('a', daysAgo(1)), support('b', daysAgo(2))], [placed(earthSystem, 'quiet')]);
+    expect(placeSchedules(waking)[0]!.quietCheckAt).toBe(waking.evaluatedAt);
   });
 
-  it('says nothing when no place can go quiet', () => {
-    expect(nextQuietAt(facts([], []))).toBeUndefined();
-    expect(nextQuietAt(facts([], [placed(earthSystem, 'active')]))).toBeUndefined();
+  it('says nothing for a place that cannot go quiet: it has no support, or it is quiet already', () => {
+    expect(placeSchedules(facts([], []))).toEqual([]);
+    expect(placeSchedules(facts([], [placed(earthSystem, 'active')]))).toEqual([
+      { key: earthSystem.key, lastSupportAt: null, quietCheckAt: null },
+    ]);
     const settled = facts([support('a', daysAgo(40)), support('b', daysAgo(41))], [placed(earthSystem, 'quiet')]);
-    expect(nextQuietAt(settled)).toBeUndefined();
+    expect(placeSchedules(settled)).toEqual([{ key: earthSystem.key, lastSupportAt: daysAgo(40), quietCheckAt: null }]);
+  });
+
+  it('carries the newest support a system was last seen with, so reading one topic never ages the system', () => {
+    // Only an old topic of the system is read now; the system's own newest support (3 days ago) was seen earlier.
+    const old = [support('a', daysAgo(45)), support('b', daysAgo(50))];
+    const f = { ...facts(old, [placed(earthSystem, 'active'), placed(earthStar, 'active')]) };
+    expect(activityChanges(f)).toHaveLength(2);
+    const carried = { ...f, carriedSupportAt: { [earthSystem.key]: daysAgo(3), [earthStar.key]: daysAgo(3) } };
+    expect(activityChanges(carried)).toEqual([]);
+    expect(placeSchedules(carried).map((schedule) => schedule.lastSupportAt)).toEqual([daysAgo(3), daysAgo(3)]);
+    // The carry never lowers what the facts read, and only systems and stars carry.
+    const newer = { ...carried, carriedSupportAt: { [earthSystem.key]: daysAgo(60) } };
+    expect(placeSchedules(newer)[0]!.lastSupportAt).toBe(daysAgo(45));
   });
 });

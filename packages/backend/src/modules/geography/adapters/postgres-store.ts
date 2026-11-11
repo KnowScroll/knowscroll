@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { sql } from 'kysely';
 import { UniverseDeltaSchema, GeographyAliasSchema } from '@knowscroll/contracts';
 import { recordingTransactionOf } from '../../../infrastructure/postgres/recording-scope.js';
@@ -196,8 +197,9 @@ export const geographyStore: GeographyStore = {
         desired_origin_command_id: string | null;
         desired_origin_source_revision: number | null;
         next_run_not_before: Date | null;
-        next_quiet_at: Date | null;
-      }>`select * from geography.state where universe_id=${u}::uuid and privacy_epoch=${e}`.execute(tx)
+      }>`select revision,structure_revision,activity_revision,desired_revision,material_revision,published_revision,active_run_id,desired_recording_generation,desired_origin_kind,desired_origin_command_id,desired_origin_source_revision,next_run_not_before from geography.state where universe_id=${u}::uuid and privacy_epoch=${e}`.execute(
+        tx,
+      )
     ).rows[0];
     return row
       ? {
@@ -224,7 +226,6 @@ export const geographyStore: GeographyStore = {
             : {}),
           ...(row.active_run_id ? { activeRunId: row.active_run_id } : {}),
           ...(row.next_run_not_before ? { nextRunNotBefore: row.next_run_not_before.toISOString() } : {}),
-          ...(row.next_quiet_at ? { nextQuietAt: row.next_quiet_at.toISOString() } : {}),
         }
       : {
           revision: 0,
@@ -237,9 +238,9 @@ export const geographyStore: GeographyStore = {
   },
   async writeState(scope, s) {
     const { tx, u, e } = owner(scope);
-    await sql`insert into geography.state(universe_id,privacy_epoch,revision,structure_revision,activity_revision,desired_revision,material_revision,published_revision,active_run_id,desired_recording_generation,desired_origin_kind,desired_origin_command_id,desired_origin_source_revision,next_run_not_before,next_quiet_at)
- values(${u}::uuid,${e},${s.revision},${s.structureRevision},${s.activityRevision},${s.desiredRevision},${s.materialRevision},${s.publishedRevision},${s.activeRunId ?? null}::uuid,${s.desiredSource?.generation ?? null},${s.desiredSource?.kind ?? null},${s.desiredSource?.kind === 'command' ? s.desiredSource.commandId : null}::uuid,${s.desiredSource?.kind === 'material' ? s.desiredSource.sourceRevision : null},${s.nextRunNotBefore ?? null}::timestamptz,${s.nextQuietAt ?? null}::timestamptz)
- on conflict(universe_id,privacy_epoch) do update set revision=excluded.revision,structure_revision=excluded.structure_revision,activity_revision=excluded.activity_revision,desired_revision=excluded.desired_revision,material_revision=excluded.material_revision,published_revision=excluded.published_revision,active_run_id=excluded.active_run_id,desired_recording_generation=excluded.desired_recording_generation,desired_origin_kind=excluded.desired_origin_kind,desired_origin_command_id=excluded.desired_origin_command_id,desired_origin_source_revision=excluded.desired_origin_source_revision,next_run_not_before=excluded.next_run_not_before,next_quiet_at=excluded.next_quiet_at`.execute(
+    await sql`insert into geography.state(universe_id,privacy_epoch,revision,structure_revision,activity_revision,desired_revision,material_revision,published_revision,active_run_id,desired_recording_generation,desired_origin_kind,desired_origin_command_id,desired_origin_source_revision,next_run_not_before)
+ values(${u}::uuid,${e},${s.revision},${s.structureRevision},${s.activityRevision},${s.desiredRevision},${s.materialRevision},${s.publishedRevision},${s.activeRunId ?? null}::uuid,${s.desiredSource?.generation ?? null},${s.desiredSource?.kind ?? null},${s.desiredSource?.kind === 'command' ? s.desiredSource.commandId : null}::uuid,${s.desiredSource?.kind === 'material' ? s.desiredSource.sourceRevision : null},${s.nextRunNotBefore ?? null}::timestamptz)
+ on conflict(universe_id,privacy_epoch) do update set revision=excluded.revision,structure_revision=excluded.structure_revision,activity_revision=excluded.activity_revision,desired_revision=excluded.desired_revision,material_revision=excluded.material_revision,published_revision=excluded.published_revision,active_run_id=excluded.active_run_id,desired_recording_generation=excluded.desired_recording_generation,desired_origin_kind=excluded.desired_origin_kind,desired_origin_command_id=excluded.desired_origin_command_id,desired_origin_source_revision=excluded.desired_origin_source_revision,next_run_not_before=excluded.next_run_not_before`.execute(
       tx,
     );
   },
@@ -278,6 +279,118 @@ export const geographyStore: GeographyStore = {
         }),
       aliases: relations.filter((r) => r.kind === 'alias').map((r) => GeographyAliasSchema.parse(r.payload)),
     };
+  },
+  async structure(scope) {
+    const { tx, u, e } = owner(scope);
+    const row = (
+      await sql<{ objects: number; relations: number }>`select
+        (select count(*) from (select 1 from geography.objects where universe_id=${u}::uuid and privacy_epoch=${e} limit 1001) o)::int as objects,
+        (select count(*) from (select 1 from geography.relations where universe_id=${u}::uuid and privacy_epoch=${e} limit 1001) r)::int as relations`.execute(
+        tx,
+      )
+    ).rows[0]!;
+    return { objects: row.objects, relations: row.relations };
+  },
+  async places(scope, keys) {
+    if (!keys.length) return [];
+    const { tx, u, e } = owner(scope);
+    const rows = (
+      await sql<{
+        id: string;
+        semantic_key: string;
+        payload: Place;
+        last_support_at: Date | null;
+      }>`select id,semantic_key,payload,last_support_at from geography.objects where universe_id=${u}::uuid and privacy_epoch=${e} and semantic_key=any(${[...keys]}::text[]) order by semantic_key`.execute(
+        tx,
+      )
+    ).rows;
+    return rows.map((r) => {
+      if (r.id !== r.payload.id || r.semantic_key !== r.payload.key) throw new Error('GEOGRAPHY_STORED_IDENTITY');
+      return { place: r.payload, lastSupportAt: r.last_support_at?.toISOString() };
+    });
+  },
+  async placesById(scope, ids) {
+    if (!ids.length) return [];
+    const { tx, u, e } = owner(scope);
+    const rows = (
+      await sql<{
+        id: string;
+        semantic_key: string;
+        payload: Place;
+      }>`select id,semantic_key,payload from geography.objects where universe_id=${u}::uuid and privacy_epoch=${e} and id=any(${[...ids]}::uuid[]) order by id`.execute(
+        tx,
+      )
+    ).rows;
+    return rows.map((r) => {
+      if (r.id !== r.payload.id || r.semantic_key !== r.payload.key) throw new Error('GEOGRAPHY_STORED_IDENTITY');
+      return r.payload;
+    });
+  },
+  async routes(scope, keys) {
+    if (!keys.length) return [];
+    const { tx, u, e } = owner(scope);
+    const rows = (
+      await sql<{
+        id: string;
+        payload: Route;
+      }>`select id,payload from geography.relations where universe_id=${u}::uuid and privacy_epoch=${e} and kind='route' and semantic_key=any(${[...keys]}::text[]) order by semantic_key`.execute(
+        tx,
+      )
+    ).rows;
+    return rows.map((r) => {
+      if (r.payload.id !== r.id) throw new Error('GEOGRAPHY_STORED_IDENTITY');
+      return r.payload;
+    });
+  },
+  async placeSecret(scope, create) {
+    const { tx, u, e } = owner(scope);
+    if (!create) {
+      const row = (
+        await sql<{
+          place_secret: string | null;
+        }>`select place_secret from geography.state where universe_id=${u}::uuid and privacy_epoch=${e}`.execute(tx)
+      ).rows[0];
+      return row?.place_secret ?? undefined;
+    }
+    const row = (
+      await sql<{
+        place_secret: string;
+      }>`insert into geography.state(universe_id,privacy_epoch,place_secret) values(${u}::uuid,${e},${randomBytes(32).toString('hex')})
+ on conflict(universe_id,privacy_epoch) do update set place_secret=coalesce(geography.state.place_secret,excluded.place_secret) returning place_secret`.execute(
+        tx,
+      )
+    ).rows[0]!;
+    return row.place_secret;
+  },
+  async saveSchedule(scope, schedules) {
+    if (!schedules.length) return;
+    const { tx, u, e } = owner(scope);
+    await sql`update geography.objects o set last_support_at=x.last_support_at,quiet_check_at=x.quiet_check_at
+ from unnest(${schedules.map((s) => s.key)}::text[],${schedules.map((s) => s.lastSupportAt)}::timestamptz[],${schedules.map((s) => s.quietCheckAt)}::timestamptz[]) as x(semantic_key,last_support_at,quiet_check_at)
+ where o.universe_id=${u}::uuid and o.privacy_epoch=${e} and o.semantic_key=x.semantic_key`.execute(tx);
+  },
+  async deferQuiet(scope, ids, at) {
+    if (!ids.length) return;
+    const { tx, u, e } = owner(scope);
+    await sql`update geography.objects set quiet_check_at=${at.toISOString()}::timestamptz where universe_id=${u}::uuid and privacy_epoch=${e} and id=any(${[...ids]}::uuid[])`.execute(
+      tx,
+    );
+  },
+  async duePlaces(scope, at, limit) {
+    const { tx, u, e } = owner(scope);
+    const rows = (
+      await sql<{
+        id: string;
+        semantic_key: string;
+        payload: Place;
+      }>`select id,semantic_key,payload from geography.objects where universe_id=${u}::uuid and privacy_epoch=${e} and quiet_check_at<=${at.toISOString()}::timestamptz order by quiet_check_at,id limit ${limit}`.execute(
+        tx,
+      )
+    ).rows;
+    return rows.map((r) => {
+      if (r.id !== r.payload.id || r.semantic_key !== r.payload.key) throw new Error('GEOGRAPHY_STORED_IDENTITY');
+      return r.payload;
+    });
   },
   async writeRun(scope, r) {
     const { tx, u, e } = owner(scope);

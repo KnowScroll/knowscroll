@@ -42,6 +42,8 @@ const compositionRoots = [
   '^apps/worker/src/recipes-operator\\.ts$',
   // The journey inspector composes the read-only operator views (#248).
   '^apps/worker/src/journey-operator\\.ts$',
+  // The reconciliation marks every topic with support dirty through Personal Context's adapter (#674, D-416).
+  '^apps/worker/src/geography-operator\\.ts$',
   // The rooms operator seeds rooms and names moderators (D-051).
   '^apps/worker/src/rooms-operator\\.ts$',
   // The face commands compose the rooms scope's harness, an image port and the media store (R-4, D-166, D-170).

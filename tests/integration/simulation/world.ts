@@ -20,6 +20,9 @@ import {
 } from '@knowscroll/backend/modules/evidence';
 import {
   READ_COMPOSER_CONTEXT,
+  CLEAR_COVERAGE_DIRTY,
+  MARK_COVERAGE_DIRTY,
+  READ_COVERAGE_DIRTY,
   READ_COVERAGE_INPUTS,
   READ_EXPLORATION_SNAPSHOT,
   READ_RECENT_CONTEXT_TOPICS,
@@ -220,6 +223,10 @@ export async function simulationWorld(name: string, config: SimConfig): Promise<
     [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
     [READ_TRUSTED_COVERAGE, c.readTrustedCoverage],
     [READ_COVERAGE_INPUTS, buildRecursively(personalContextProviders(), READ_COVERAGE_INPUTS, new Map())],
+    // The Cartographer evaluates the topics whose support changed (the dirty set) and clears them when it settles (D-416).
+    [READ_COVERAGE_DIRTY, buildRecursively(personalContextProviders(), READ_COVERAGE_DIRTY, new Map())],
+    [CLEAR_COVERAGE_DIRTY, buildRecursively(personalContextProviders(), CLEAR_COVERAGE_DIRTY, new Map())],
+    [MARK_COVERAGE_DIRTY, buildRecursively(personalContextProviders(), MARK_COVERAGE_DIRTY, new Map())],
     ...identityScopeOwnerProviders().map((provider) => [provider.provide, provider.useValue] as const),
   ]);
   const projectScene = buildRecursively(sceneProviderList, PROJECT_SCENE, sceneValues) as ProjectScene;

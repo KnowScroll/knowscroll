@@ -84,6 +84,18 @@ export interface FormationFacts {
   readonly routes: readonly Route[];
   readonly evaluatedAt: string;
   readonly completeness: 'not_asserted';
+  /**
+   * When the newest support under a stored system or star was last seen, by place key, for the facts of an incremental
+   * evaluation (D-416). A system's supports are those of every topic under it, and a run reads only the topics it
+   * evaluates, so the newest support it did not read is carried here instead of being forgotten. Absent for a place
+   * with none, and for the whole-catalogue facts older contexts hold.
+   */
+  readonly carriedSupportAt?: Readonly<Record<string, string>>;
+  /**
+   * Keys of stored planets and regions that were read beside the evaluated topics, one key of each facet, so a route can join them.
+   * Their supports are a sample, not their topic's evaluation: they never change activity and never get a schedule from it.
+   */
+  readonly contextOnly?: readonly string[];
 }
 export const semanticKey = (kind: PlaceKind, conceptId: string, truthStatus = 'factual') =>
   `${kind}:${conceptId}:${truthStatus}`;
@@ -97,6 +109,49 @@ export function supportsFor(f: FormationFacts, c: Candidate): readonly Support[]
     );
   return topic ? f.supports.filter((s) => s.topicId === topic.id && topic.facets.includes(s.facetId)) : [];
 }
+/**
+ * How many support references one operation cites. A place can stand on hundreds of supports; its operation names enough of
+ * them to prove it (the newest of each facet, then the newest of each distinct unit, then the newest of the rest) and no more,
+ * so a delta of 32 operations stays within the 64 KiB a stored proposal may hold and each place's references within the 100
+ * its row allows. An operation of a place with this many supports or fewer cites all of them, in the order they were read.
+ */
+export const PROOF_REFS = 20;
+
+const newestFirst = (a: Support, b: Support) =>
+  Date.parse(b.activatedAt) - Date.parse(a.activatedAt) || a.ref.localeCompare(b.ref);
+
+/**
+ * The supports an operation on `c` cites: `supportsFor`, cut to `PROOF_REFS` by the rule above when there are more. A cut proof
+ * still holds what the rules need: a planet keeps the newest support of each facet (its regions and its facet variety) and then
+ * enough distinct units; a system and a star keep the newest support of the newest distinct units; every place keeps its newest
+ * support, which is what decides its activity. Pure and deterministic.
+ */
+export function proofSupports(f: FormationFacts, c: Candidate, limit = PROOF_REFS): readonly Support[] {
+  const all = supportsFor(f, c);
+  if (all.length <= limit) return all;
+  const chosen: Support[] = [];
+  const taken = new Set<string>();
+  const take = (support: Support) => {
+    if (chosen.length >= limit || taken.has(support.ref)) return;
+    taken.add(support.ref);
+    chosen.push(support);
+  };
+  const ranked = [...all].sort(newestFirst);
+  const firstOf = (key: (support: Support) => string) => {
+    const seen = new Set<string>();
+    for (const support of ranked) {
+      const k = key(support);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      take(support);
+    }
+  };
+  if (c.kind === 'planet') firstOf((support) => support.facetId);
+  if (c.kind !== 'region') firstOf((support) => support.explanationUnitId);
+  for (const support of ranked) take(support);
+  return chosen;
+}
+
 /** Distinct canonical explanation identity, never witness rows, variants, tags, scores or refcounts. */
 export function formationEligible(f: FormationFacts, c: Candidate, subset = supportsFor(f, c)): boolean {
   if (c.truthStatus !== 'factual') return false;
@@ -114,11 +169,18 @@ export function formationEligible(f: FormationFacts, c: Candidate, subset = supp
 }
 /** How long a place may go without new support before it is quiet. Inactivity never removes a place. */
 export const QUIET_AFTER_MS = FORMATION.quietAfterDays * 86400000;
-/** When the newest support under a place was activated, as epoch milliseconds; absent when it has none. */
+/**
+ * When the newest support under a place was activated, as epoch milliseconds; absent when it has none. A system's
+ * and a star's is the newest of what the facts hold and what an earlier evaluation carried for it
+ * (`carriedSupportAt`), so reading one topic never makes the system look older than reading of another topic under it.
+ */
 export function latestSupportAt(f: FormationFacts, c: Candidate): number | undefined {
-  return supportsFor(f, c)
+  const read = supportsFor(f, c)
     .map((s) => Date.parse(s.activatedAt))
     .sort((a, b) => b - a)[0];
+  const carried = c.kind === 'system' || c.kind === 'star' ? f.carriedSupportAt?.[c.key] : undefined;
+  if (carried === undefined) return read;
+  return read === undefined ? Date.parse(carried) : Math.max(read, Date.parse(carried));
 }
 export function activityFor(f: FormationFacts, c: Candidate): 'active' | 'quiet' | undefined {
   const latest = latestSupportAt(f, c);

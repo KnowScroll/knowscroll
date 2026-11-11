@@ -213,19 +213,38 @@ semantic maps and explicit bounded existing reconciliation. Empty Content approv
 CI fixtures use synthetic semantic approvals only; no live map, observed dev coverage, provider,
 geography, planet, native/browser journey or deployment acceptance is established by source/CI.
 
-`READ_COVERAGE_INPUTS` (#237/0025 consumer) supplies a separate bounded candidate-discovery port:
-current PC revision plus deterministic topic/facet/explanation-unit triples. Since #674 it lists the
-distinct keys of `coverage_supports`, which holds one row per support key however many exposures
-reference it and is kept in step with both projections, so re-reading never counts and a heavy reader
-is never refused for how much they have read. At most 1000 distinct probes (and 256 KiB) are returned,
-ordered by topic, facet and unit; a consumer reads them in batches of 100. A reader with no support
-returns no probes with `reason: bounded`. Past 1000 distinct keys, slice 4.1 (incremental evaluation)
-removes the bound. Overflow returns `availability: unavailable`,
-`reason: limit` and no probes; a complete bounded prefix says `reason: bounded`, while completeness
-is always not_asserted. These retained index keys
-are NOT trusted supports, unit counts or formation authority. Geography must call current
-`ReadTrustedCoverage` under the SAME live root through apply, preserving Evidence/Content SHARE
-checks. No legacy coveredFacets, support arithmetic or semantic approval changes are made.
+## The dirty set and the keys a run reads (#674, slice 4.1, D-416)
+
+Status: implemented, CI-tested against real PostgreSQL. Migration 0110.
+
+Formation costs what changed, so Personal Context tells Geography which topics changed and nothing more:
+
+- **`personal_context.coverage_dirty_topics(universe, epoch, topic, dirty_revision)`.** The producer's own transaction (the places
+  that already compute support changes: `applyCoverage` and `replaceCoverageSupports`) upserts one row per topic that gains or
+  loses a reference of a trusted support key, at `dirty_revision = scope.revisionAtEntry + 1`, the personal scope revision the
+  transaction commits at. That includes a reference added to a key that already exists (a newer encounter moves when its places
+  last had support), and a removal. A replay of the same certificate, an activity-only change and an unqualified encounter reach no
+  support key and mark nothing. A rolled-back transaction marks nothing. An existing row keeps its later revision. It is derived,
+  never evidence, and is erased with the other personal-context tables (Clear and full erasure).
+- **`READ_COVERAGE_DIRTY(scope, {limit 1..64})`.** The newest dirty topics (`dirty_revision desc, topic`), an honest `hasMore`
+  sentinel, the personal-context revision, and `anySupport` (the person has at least one support key), so an empty set means
+  "nothing changed" and not "nothing read". A reader at scope revision R has seen every row at or below R.
+- **`CLEAR_COVERAGE_DIRTY(scope, {topicIds, throughRevision})`.** Geography deletes, in the transaction that applies or settles a run,
+  the rows of the topics it evaluated at or below the revision it read, so evidence that arrived during the run keeps its higher
+  revision and stays dirty.
+- **`MARK_COVERAGE_DIRTY(scope)`.** Marks every topic the caller has a support key under, for an explicit cartography request.
+  The operator's `geography reconcile-coverage` does the same for readers who read before this migration, at each universe's
+  current revision, in SQL (`adapters/coverage-reconcile.ts`).
+- **`READ_COVERAGE_INPUTS(scope, {topicIds, perFacet, maxTopics?})`.** Replaces the whole-person discovery of #674 slice 1.1 (the
+  1000-key and 256 KiB bound is gone with it). `coverage_supports` holds one row per support key, however many exposures reference
+  it, kept in step with both projections, so re-reading adds references and never keys. For each named topic that has a key, the
+  newest `perFacet` distinct units of each facet are returned (`last_activated_at`, then unit id); `maxTopics` keeps the topics whose
+  newest key is most recent. `coverage_supports.last_activated_at` is set from the certificate of the exposure that adds a
+  reference and only orders keys (a removed reference leaves it where it was), so it can be later than the true newest and never
+  decides a place. These keys are NOT trusted supports, unit counts or formation authority: Geography must call current
+  `ReadTrustedCoverage` under the SAME live root through apply, preserving the Evidence and Content SHARE checks.
+
+Completeness is always not_asserted. No legacy coveredFacets, support arithmetic or semantic approval changes are made.
 
 ## Recording-aware projections
 
@@ -275,8 +294,8 @@ and a combined count above 1000 refuses before hydration or shadow resolution. N
 arbitrary legacy history to fill a page. Supporting-unit reads use the same fixed two-source
 candidate budget for at most 100 requested units. Overflow returns explicit backend
 `proofAvailability: unavailable` / `proofReason: limit`, empty qualified/supporting proofs and
-`completeness: not_asserted`; prepared statistics and routing remain usable. Coverage discovery reads
-distinct support keys, not raw references, and enforces the 1000-key and 256 KiB bounds. Trusted
+`completeness: not_asserted`; prepared statistics and routing remain usable. Coverage reads of keys (the
+inputs read) are by distinct support key, not raw reference, for named topics only (see the dirty set, above). Trusted
 coverage output retains its 128KiB bound, now reached only by a batch of many distinct keys, and does
 not claim historical completeness.
 
@@ -284,8 +303,9 @@ Clear/full erasure deletes recording coverage references first, then effective c
 structural caches, then generation source heads, then all legacy PC tables. This precedes Evidence
 source/audit/session erasure and Experience segment/origin erasure. No PC row is an account-lifetime
 recording receipt. Source fixtures cover the absent-PC-baseline boundary, complete witness
-replacement, discovery by distinct keys (a reader whose raw references exceed 1000 is discovered, 1001
-distinct keys are refused), one witness for a support read many times or 1500 times, a valid older
+replacement, reading by distinct keys (a reader whose raw references exceed 1000 is read as one key, a topic with
+1001 keys is read through its newest few of each facet), the dirty set (marked by a new or removed reference and by a re-read, not by a
+replay, by activity alone or by a rolled-back transaction; cleared only through the revision a run read), one witness for a support read many times or 1500 times, a valid older
 exposure when the newest is on retracted authority, combined rollback and all-store Clear. They run
 only in CI; local formatting/type analysis is not a behavioral acceptance receipt.
 

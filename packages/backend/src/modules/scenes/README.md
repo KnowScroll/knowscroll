@@ -46,6 +46,12 @@ text, evidence, activity or a hash. A stored object's family never changes (a di
 an existing object refuses), so a plan edit sets families for new systems and planets only. Aliases stay in
 Geography; each Scene target remains its own object ID, with no redirect/merge inference.
 
+Object and route IDs are Geography's and are opaque here: a new place's ID is derived from the universe's place secret and its
+semantic key and a new route's from the sorted pair of its planets' keys (Geography README, D-416), and a stored place keeps the ID it
+has, so projection never depends on how an ID was made. Only the stable ID and the places Geography reads for it matter here; an
+incremental Cartographer run changes nothing about what Scenes reads or draws, and the 1000-object and 1000-relation bound stays
+until the map reads by chunk (a later slice).
+
 An adapter creates a private random 256-bit world seed once. Versioned policy + seed + opaque
 object ID derive the persistent 32-hex object seed. Family, generator, palette/material,
 atmosphere/detail, anchor, slot and chunk identity persist. A 32×32 lattice (300-unit spacing,

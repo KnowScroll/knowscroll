@@ -37,6 +37,9 @@ database and in a browser (D-044). This is historical check evidence; current de
 - Point Grafana or `psql` at the `ks2_ops_reader` role and read the `ops` views.
 - From a server shell: `node dist/operator.js geography dry-run --universe <uuid>` and `planner dry-run --universe <uuid>` say
   what one Cartographer or Planner run would do for that universe, read-only and without a model (see Dry runs).
+- From a server shell, once after the dirty set shipped: `node dist/operator.js geography reconcile-coverage [--universe <uuid>] [--dry-run]`
+  marks every topic with a support key dirty so each reader's history is read once, in paced runs (see the Geography README, "Operator:
+  the reconciliation"; counts only).
 - Hear about trouble without looking: an hourly watchdog logs a `watchdog.alert` warning when a code-only health rule fires
   (see Watchdog).
 
@@ -92,13 +95,13 @@ dev universe without writing anything. They live in the Geography and Planner mo
 module owns only the runbook and the rule that their output is safe to paste into a public issue.
 
 - **What they read.** Exactly what a run reads: the universe's personal scope (the root lock a read takes), then
-  `prepareGeography` (candidate discovery, the trusted coverage read, compaction) or `prepareContext` (recent topics, inventory,
+  `prepareGeography` (the dirty topics and the places a quiet settle would look at by the clock, the newest keys of each facet, the trusted coverage read; D-416) or `prepareContext` (recent topics, inventory,
   the exploration snapshot, evidence), and the pure rules (`dueCreations`, `activityChanges`, the model packaging check).
 - **What they never do.** Write a row, advance a revision, send a job or call a model. The scope is READ ONLY and always
   rolls back; the content authority recheck is the lock-free one, because PostgreSQL refuses a row lock in a READ ONLY
   transaction. A test attempts a write and a row lock and expects `25006`.
 - **What they print.** One JSON line of counts and codes: what a reading-triggered run would do (`action`), the status and outcome
-  its row would hold, in the codes a real run records (no second vocabulary), how many keys, references, supports and places,
+  its row would hold, in the codes a real run records (no second vocabulary), how many topics, keys, references, supports and places,
   what is due by kind, activity changes, and the context's bytes. **Never** a label, title, topic id, unit id, support reference, text, universe or
   account. A unit test plants such words in the facts and expects none in the output.
 - **Authority.** The universe is named by its ID from a server shell, as `journey` is. The command claims epoch 1 and, told

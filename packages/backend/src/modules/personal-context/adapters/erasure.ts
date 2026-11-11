@@ -9,6 +9,7 @@ const tables = [
   'recording_exposure_contributions',
   'recording_segment_heads',
   'coverage_references',
+  'coverage_dirty_topics',
   'coverage_supports',
   'coverage_contributions',
   'contributions',

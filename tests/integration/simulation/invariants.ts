@@ -52,8 +52,9 @@ export type RepeatCause =
 /**
  * The `insufficient` outcomes a run may settle while the person holds trusted supports: nothing is due, the role is off, or
  * there is no support yet (which separately requires that the person has no references). Every other outcome says the
- * supports could not be used (a limit, a moved authority, an unreadable context), which must not happen to a reader the lab
- * knows has them.
+ * supports could not be used (a limit, a moved authority, an unreadable context, or `no_trusted_support`: the topics a run
+ * evaluated held references and none was trusted), which must not happen to a reader the lab knows has them. A run evaluates
+ * the topics whose support changed (D-416), so the lab, which never withdraws content, expects none of these.
  */
 const SETTLED_WITHOUT_SUPPORT_CLAIM = ['no_changes', 'disabled', 'no_support_yet'];
 

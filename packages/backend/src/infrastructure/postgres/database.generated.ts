@@ -718,8 +718,10 @@ export interface GeographyDeltas {
 
 export interface GeographyObjects {
   id: string;
+  last_support_at: Timestamp | null;
   payload: Json;
   privacy_epoch: number;
+  quiet_check_at: Timestamp | null;
   semantic_key: string;
   support_refs: Json;
   universe_id: string;
@@ -771,6 +773,7 @@ export interface GeographyState {
   material_revision: Generated<number>;
   next_quiet_at: Timestamp | null;
   next_run_not_before: Timestamp | null;
+  place_secret: string | null;
   privacy_epoch: number;
   published_revision: Generated<number>;
   revision: Generated<number>;
@@ -1204,6 +1207,13 @@ export interface PersonalContextCoverageContributions {
   universe_id: string;
 }
 
+export interface PersonalContextCoverageDirtyTopics {
+  dirty_revision: number;
+  privacy_epoch: number;
+  topic_id: string;
+  universe_id: string;
+}
+
 export interface PersonalContextCoverageReferences {
   explanation_unit_id: string;
   exposure_id: string;
@@ -1218,6 +1228,7 @@ export interface PersonalContextCoverageReferences {
 export interface PersonalContextCoverageSupports {
   explanation_unit_id: string;
   facet_id: string;
+  last_activated_at: Timestamp | null;
   meaning_sha256: string;
   privacy_epoch: number;
   reference_count: number;
@@ -2557,6 +2568,7 @@ export interface DB {
   "ops.watchdog": OpsWatchdog;
   "personal_context.contributions": PersonalContextContributions;
   "personal_context.coverage_contributions": PersonalContextCoverageContributions;
+  "personal_context.coverage_dirty_topics": PersonalContextCoverageDirtyTopics;
   "personal_context.coverage_references": PersonalContextCoverageReferences;
   "personal_context.coverage_supports": PersonalContextCoverageSupports;
   "personal_context.recording_coverage_contributions": PersonalContextRecordingCoverageContributions;
