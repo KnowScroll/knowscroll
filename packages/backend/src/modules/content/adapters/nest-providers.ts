@@ -235,6 +235,7 @@ export { makeMediaAccess } from './media-access.js';
 export { makeProduceScroll as produceScrollUseCase } from '../production/produce.js';
 /** The operator's `content propose-recipes` and `content recipes`: stored recipes for the planets that exist (#674, D-412). */
 export { makeProposeRecipes, previewRecipeProposal, type ProposeRecipesResult } from '../production/propose-recipes.js';
+export { MAX_PROPOSAL_RETRY } from '../production/recipe-brief.js';
 export { listStoredRecipes } from './recipe-proposals.js';
 /** The operator's writer spike for `scroll-authoring.v2` (S-0, D-120): nothing is admitted or published. */
 export {

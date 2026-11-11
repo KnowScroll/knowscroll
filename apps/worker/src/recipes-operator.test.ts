@@ -20,7 +20,10 @@ describe('the recipe operator commands refuse bad usage first', () => {
       );
       expect(code).toBe(2);
       expect(printed).toEqual([
-        { result: 'usage', usage: 'content propose-recipes --topic <planet id> [--facet <facet id>] [--dry-run]' },
+        {
+          result: 'usage',
+          usage: 'content propose-recipes --topic <planet id> [--facet <facet id>] [--retry <1-2>] [--dry-run]',
+        },
       ]);
     }
   });
@@ -35,6 +38,20 @@ describe('the recipe operator commands refuse bad usage first', () => {
     );
     expect(code).toBe(2);
     expect(printed[0]).toMatchObject({ result: 'usage' });
+  });
+
+  it('propose-recipes accepts a retry of 0 to 2 and nothing else', async () => {
+    for (const retry of ['3', '-1', '1.5', 'x']) {
+      const { code, printed } = await run((print) =>
+        proposeRecipesCommand(
+          { topic: 'earth.tides', facet: undefined, retry, dryRun: true, dispatchedBy: 'cli:ci' },
+          print,
+          () => undefined,
+        ),
+      );
+      expect(code, retry).toBe(2);
+      expect(printed[0], retry).toMatchObject({ result: 'usage' });
+    }
   });
 
   it('recipes accepts only the four statuses', async () => {

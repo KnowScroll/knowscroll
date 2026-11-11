@@ -46,6 +46,8 @@ export const DRAFT_REFUSALS = [
   'title_shape',
   'brief_shape',
   'brief_names_block',
+  'text_has_address',
+  'text_has_markup',
   'facet_unknown',
   'facet_not_requested',
   'pages_duplicate',
@@ -68,8 +70,16 @@ export interface DraftCheckContext {
   readonly candidates: readonly { readonly url: string; readonly passages: number }[];
   /** The existing research URL rule: true when the URL is one the product may fetch. */
   readonly urlAllowed: (url: string) => boolean;
-  /** Titles and briefs of the recipes the planet already has (code and stored) and of drafts accepted earlier in this batch. */
-  readonly existing: readonly { readonly title: string; readonly brief: string }[];
+  /**
+   * The recipes the planet already has (code and stored) and the drafts accepted earlier in this batch, with the facet each teaches and
+   * the pages it rests on: the same angle on the same pages is told from a different one by those, not by the words alone.
+   */
+  readonly existing: readonly {
+    readonly title: string;
+    readonly brief: string;
+    readonly facetId: string;
+    readonly pages: readonly string[];
+  }[];
   /** Keys, explanation identities and asset ids already taken anywhere in the library. */
   readonly taken: {
     readonly keys: ReadonlySet<string>;
@@ -147,6 +157,33 @@ export function overlapOf(a: string, b: string): number {
 /** A title this close to an existing one, or a brief this close to an existing one, is the same recipe said again. */
 export const TITLE_OVERLAP_LIMIT = 0.8;
 export const BRIEF_OVERLAP_LIMIT = 0.55;
+/**
+ * A reworded brief keeps its facet, its pages and some of its words, but changes enough of them to pass the limits above. So a draft is
+ * also the same angle again when it teaches the same facet as a recipe, the two rest on the same pages (at least this share of the
+ * smaller set) and their briefs share at least this much. Measured on the library: a brief reworded from `cardiac-cycle` shares 0.35 of
+ * its words with it, and a different angle on the same facet and page shares under 0.1; the briefs of the plan's own recipes of one
+ * planet never share more than 0.28.
+ */
+export const SAME_ANGLE_PAGE_SHARE = 0.5;
+export const SAME_ANGLE_BRIEF_OVERLAP = 0.3;
+
+/** How much of the smaller of two page sets the other holds, from 0 to 1. No pages share nothing. */
+export function pageShareOf(a: readonly string[], b: readonly string[]): number {
+  const smaller = Math.min(new Set(a).size, new Set(b).size);
+  if (smaller === 0) return 0;
+  const other = new Set(b);
+  return new Set(a.filter((page) => other.has(page))).size / smaller;
+}
+
+/**
+ * A web address in prose: a scheme (`://`), `www.`, or a dotted host such as `wikipedia.org` or `en.wikipedia.org/wiki/Heart`. The
+ * writer is told to write none; a recipe's own text is what it reads, so none may get in. A decimal ("3.5") is not a host: the label
+ * after a dot must be letters. A missing space after a full stop ("pump.Then") reads as a host and is refused too.
+ */
+const ADDRESS =
+  /:\/\/|(?:^|[^a-z0-9])www\.|(?:^|[^a-z0-9])[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?![a-z0-9])/iu;
+/** Markup in prose: angle brackets (tags, autolinks), backticks, a Markdown link or image, a reference link or its definition. */
+const MARKUP = /[<>`]|\]\(|\]\[|^\s*\[[^\]]+\]:/mu;
 
 /**
  * Decides one draft. The draft is the model's; every other input is code's. The first check a draft fails names its refusal.
@@ -163,6 +200,9 @@ export function checkRecipeDraft(draft: RecipeDraft, context: DraftCheckContext)
     sentences.length > DRAFT_BRIEF_MAX_SENTENCES
   )
     return refuse('brief_shape');
+  // Both fields are prose the writer reads: neither may carry an address or markup.
+  for (const text of [draft.title, draft.brief]) if (ADDRESS.test(text)) return refuse('text_has_address');
+  for (const text of [draft.title, draft.brief]) if (MARKUP.test(text)) return refuse('text_has_markup');
   if (BLOCK_WORDS.test(draft.brief)) return refuse('brief_names_block');
   if (!context.facetIds.includes(draft.facetId)) return refuse('facet_unknown');
   if (context.requestedFacetId !== undefined && draft.facetId !== context.requestedFacetId)
@@ -182,6 +222,13 @@ export function checkRecipeDraft(draft: RecipeDraft, context: DraftCheckContext)
     const briefs = overlapOf(draft.brief, other.brief);
     closest = Math.max(closest, titles, briefs);
     if (titles >= TITLE_OVERLAP_LIMIT || briefs >= BRIEF_OVERLAP_LIMIT) return refuse('near_duplicate');
+    // The same facet on the same pages, said again in other words.
+    if (
+      other.facetId === draft.facetId &&
+      pageShareOf(draft.pages, other.pages) >= SAME_ANGLE_PAGE_SHARE &&
+      briefs >= SAME_ANGLE_BRIEF_OVERLAP
+    )
+      return refuse('near_duplicate');
   }
   const { key, assetId } = context.identity;
   const unitId = generatedUnitIdOf(key);

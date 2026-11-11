@@ -35,7 +35,7 @@ node dist/operator.js content produce-library [--only seasons,tides] [--interact
 
 # recipes stored in the database (D-412): propose them, list them, make them (see "New recipes for planets that exist")
 node dist/operator.js content propose-recipes --topic earth.tides --dry-run
-node dist/operator.js content propose-recipes --topic earth.tides [--facet earth.tides.<facet>]
+node dist/operator.js content propose-recipes --topic earth.tides [--facet earth.tides.<facet>] [--retry 1]
 node dist/operator.js content recipes [--status checked|queued|produced|retired]
 node dist/operator.js content produce-library --only gen-<key> --dry-run
 
@@ -423,13 +423,20 @@ Recipes can live in the database, and the system proposes new ones for the plane
 planet, facet or system. Every Scroll made from a stored recipe is held for your read, like any v2 library Scroll, and nobody is served it before
 `content release`. The flow:
 
-1. **Propose.** `content propose-recipes --topic <planet id> [--facet <facet id>]` asks the model once (and repairs once) and stores the drafts code
-   accepts as `checked` recipes. It sends no production job. `--dry-run` prints the counts of what it would send and calls no provider. It needs pages
-   code already holds: a planet none of whose recipes was ever produced has none, and the command says `no_candidate_pages` without a request. The same
-   request on the same UTC day reaches the same run and pays nothing again; another day or another facet is a new request.
+1. **Propose.** `content propose-recipes --topic <planet id> [--facet <facet id>] [--retry <1-2>]` asks the model once (and repairs once) and stores the
+   drafts code accepts as `checked` recipes. It sends no production job. `--dry-run` prints the counts of what it would send and calls no provider. It needs
+   pages code already holds: a planet none of whose recipes was ever produced has none, and the command says `no_candidate_pages` without a request. The
+   same request on the same UTC day reaches the same run and pays nothing again, even after other recipes were stored in between (the first delivery froze
+   its context). Another day or another facet is a new request.
    The result lists the accepted recipes (key, facet, title, passage pool) and a count of refusals by code: `title_shape`, `brief_shape`,
-   `brief_names_block`, `facet_unknown`, `facet_not_requested`, `pages_duplicate`, `page_not_candidate`, `page_refused`, `pool_out_of_range`,
-   `near_duplicate`, `identity_taken`. A refusal is a verdict on the draft, never a reason to loosen a check.
+   `text_has_address`, `text_has_markup`, `brief_names_block`, `facet_unknown`, `facet_not_requested`, `pages_duplicate`, `page_not_candidate`,
+   `page_refused`, `pool_out_of_range`, `near_duplicate` (the same words, or the same facet on the same pages in other words), `identity_taken`. A refusal
+   is a verdict on the draft, never a reason to loosen a check. The checks run again where the recipes are stored, under a lock for the planet, so
+   two operators proposing at once cannot store the same angle.
+   If a run ended without recipes, the same request says `closed_failed` (the model answered nothing code accepted, or its answer was invalid, or the
+   provider refused) and gives `nextRetry`: ask again the same day with `--retry <n>`, at most twice. A `failed` result with `closed: false` (an attempt
+   of unknown outcome, a refusal of the harness, a switched-off scope) leaves its run open: running the same command again resumes it and never resends
+   an attempt that may have been sent. Write off an unknown attempt with `reasoning write-off` as for any other run.
 2. **List.** `content recipes [--status]` shows each stored recipe with its planet, facet, status, page count and pool. It shows no brief and no page address.
 3. **Produce.** Either wait for a reader's ask or the Planner's demand for the planet (Create may choose a stored recipe within
    `KS_SUPPLY_GROWTH_DAILY_CAP`, default 10 a day, counted apart from the people's and the Planner's caps), or send the job yourself with

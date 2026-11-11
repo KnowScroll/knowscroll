@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { FULL_V1_CAPABILITIES } from '@knowscroll/scroll-model';
 import { stableUuid } from '@knowscroll/backend/infrastructure/ids';
 import {
@@ -14,6 +14,7 @@ import {
   guardedModelPort,
 } from '@knowscroll/backend/reasoning/nest-providers';
 import { CONCEPTS, planLibraryProduction } from '@knowscroll/backend/modules/content';
+import type { WithProductionScope } from '@knowscroll/backend/reasoning';
 import {
   makeProposeRecipes,
   makeReviewGate,
@@ -24,6 +25,8 @@ import {
 } from '@knowscroll/backend/modules/content/nest-providers';
 import type { PlannedDemandInput } from '@knowscroll/backend/modules/supply';
 import { extractResearch } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
+import { lockPlanetRecipes } from '../../../packages/backend/src/modules/content/adapters/recipe-proposals.js';
+import { overlapOf } from '../../../packages/backend/src/modules/content/domain/library/recipe-draft.js';
 import {
   chooseScrollRecipe,
   readScrollProduction,
@@ -79,6 +82,13 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
     'Describe why the sea level on Orrin rises twice a lunar day instead of once, using the near and far bulges. Ask only for what the pages say about the two high waters. Do not name any other cause for the far bulge.',
     'Show why a spring tide on Orrin is the strongest of its month, when the two moons line up. Ask only for what the pages say about alignment and range. Do not offer a forecast.',
     'Explain tidal locking and why Orrin always shows one face to its planet. Ask only for what the pages say about locking. Do not describe how long it takes.',
+    'Explain how the invented moon Orrin locks one face toward its planet over long ages, and why the locked face never changes. Ask only for what the pages say about locking and the face. Do not describe how fast it happens.',
+    // The one before, reworded: the same facet and pages, and a little over a third of its words.
+    'Describe why Orrin always shows the same face to its planet, which tidal locking brings about over long ages. Ask only for what the pages say about locking. Do not say how long it took.',
+    'Explain how the invented moon Orrin gets two small seas from the pull of its planet, and why one of them stays near the planet. Ask only for what the pages say about the two seas. Do not give their depth.',
+    'Explain why the water of the Orrin seas moves most in narrow bays, where the rising tide is squeezed into a smaller space. Ask only for what the pages say about bays and tidal range. Do not give any heights.',
+    'Explain why the water of the Orrin seas rises highest in narrow bays, where the incoming tide is squeezed into less room. Ask only for what the pages say about bays and tidal range. Do not give any heights or times.',
+    'Describe why a tide climbs higher in a narrow bay on Orrin, because the incoming water is squeezed into less room. Ask only for what the pages say about bays and tide range. Do not give any figure.',
   ] as const;
   const goodDraft = (
     title: string,
@@ -97,7 +107,7 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
   let script: (sequence: number) => FixtureScenario;
 
   /** The brief role's own harness over the test database, with a labelled fixture model carrying a MiniMax identity. */
-  function proposing(day = 0) {
+  function proposing(day = 0, options: { readonly storeScope?: WithProductionScope } = {}) {
     const fixture = fixtureModel((sequence) => script(sequence), { label: 'recipe-brief-CI-fixture' });
     const model = guardedModelPort({ ...fixture, provider: 'minimax', model: 'MiniMax-M3.1-Flash' });
     const production = makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 });
@@ -115,7 +125,8 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
     propose = makeProposeRecipes({
       db: database.db,
       authority: { scopeId: 'scroll-supply', generation: 1 },
-      withScope: production,
+      // A scope that refuses stands for a crash between the answer and the storing: the answer is kept and nothing is stored.
+      withScope: options.storeScope ?? production,
       harness,
       // A request is the same request on the same UTC day: each test that is not about a redelivery asks on a day of its own.
       now: () => new Date(Date.UTC(2026, 10, 1 + day, 12)),
@@ -133,7 +144,12 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
   }
 
   /** Stores a checked recipe directly, for the tests that are about choosing and capping and not about proposing. */
-  async function storeRecipe(label: string, topicId: string, facetId: string) {
+  async function storeRecipe(
+    label: string,
+    topicId: string,
+    facetId: string,
+    angle: { readonly brief?: string; readonly pages?: string[] } = {},
+  ) {
     const key = `gen-${label}-0000${label.length.toString().padStart(4, '0')}`;
     await database.db
       .insertInto('content.recipes')
@@ -146,8 +162,8 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
         facet_id: facetId,
         asset_id: stableUuid(`content.recipe-asset:${key}`),
         explanation_unit_id: `${key}-v1`,
-        brief: goodDraft('x', facetId).brief,
-        pages: [PAGE_A],
+        brief: angle.brief ?? goodDraft('x', facetId).brief,
+        pages: angle.pages ?? [PAGE_A],
         proposing_run_id: randomUUID(),
       })
       .execute();
@@ -295,7 +311,9 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
       expect(await propose(request, signal())).toMatchObject({ kind: 'proposed', drafts: 0, accepted: [] });
       expect(calls()).toBe(1);
       proposing(5);
-      expect(await propose(request, signal())).toMatchObject({ kind: 'already_proposed', recipes: [] });
+      // A closed run that stored nothing is not "already proposed": it says so, and says how to ask again.
+      const again = await propose(request, signal());
+      expect(again).toMatchObject({ kind: 'closed_failed', reason: 'nothing_accepted', retry: 0, nextRetry: 1 });
       expect(calls()).toBe(0);
     });
 
@@ -323,9 +341,75 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
         kind: 'failed',
         code: 'invalid_output',
         unknown: false,
+        closed: true,
+        nextRetry: 1,
       });
       expect(calls()).toBe(2);
       expect((await recipeRows()).length).toBe(before);
+      // The same request again reports the closed run and sends nothing.
+      proposing(7);
+      expect(await propose({ topicId: PLANET, dryRun: false }, signal())).toMatchObject({
+        kind: 'closed_failed',
+        reason: 'failed',
+        retry: 0,
+        nextRetry: 1,
+      });
+      expect(calls()).toBe(0);
+    });
+
+    it('allows the same request again the same day after a conclusive failure, with the next retry number, at most twice', async () => {
+      const request = { topicId: PLANET, facetId: FACET_A, dryRun: false };
+      script = () => ({ kind: 'malformed' });
+      proposing(14);
+      const runs: string[] = [];
+      for (const retry of [0, 1, 2]) {
+        const failed = await propose({ ...request, retry }, signal());
+        expect(failed).toMatchObject({ kind: 'failed', closed: true, code: 'invalid_output' });
+        runs.push(failed.kind === 'failed' ? failed.runId : '');
+        expect(failed.kind === 'failed' ? failed.nextRetry : 'x').toBe(retry < 2 ? retry + 1 : undefined);
+      }
+      // Three requests, three runs of their own, two requests each.
+      expect(new Set(runs).size).toBe(3);
+      expect(calls()).toBe(6);
+      // A fourth is refused before anything is sent.
+      expect(await propose({ ...request, retry: 3 }, signal())).toEqual({
+        kind: 'refused',
+        reason: 'retry_out_of_range',
+      });
+      // And a retry that the model answers well is stored.
+      script = () =>
+        answerWith({
+          drafts: [goodDraft('Why a spring tide on Orrin repeats each month', FACET_A, [PAGE_A, PAGE_B], BRIEFS[2])],
+        });
+      proposing(15);
+      expect((await propose({ ...request, retry: 0 }, signal())).kind).toBe('proposed');
+    });
+
+    it('closes the run as failed when the provider conclusively refuses, and offers the next retry', async () => {
+      script = () => ({ kind: 'rate_limited' });
+      proposing(16);
+      const failed = await propose({ topicId: PLANET, facetId: FACET_B, dryRun: false }, signal());
+      expect(failed).toMatchObject({ kind: 'failed', unknown: false, closed: true, nextRetry: 1 });
+      expect(calls()).toBe(1);
+    });
+
+    it('refuses a draft whose title or brief carries an address or markup, before anything else', async () => {
+      script = () =>
+        answerWith({
+          drafts: [
+            goodDraft('Where to read about tides on wikipedia.org', FACET_B, [PAGE_A, PAGE_B], BRIEFS[4]),
+            {
+              ...goodDraft('A tide explained with a link', FACET_B, [PAGE_A, PAGE_B], BRIEFS[5]),
+              brief: `${BRIEFS[5]} [more](here)`,
+            },
+          ],
+        });
+      proposing(17);
+      expect(await propose({ topicId: PLANET, facetId: FACET_B, dryRun: false }, signal())).toMatchObject({
+        kind: 'proposed',
+        accepted: [],
+        refused: { text_has_address: 1, text_has_markup: 1 },
+      });
     });
 
     it('keeps the run open and does not resend when the outcome of the request is unknown', async () => {
@@ -340,6 +424,130 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
       proposing(8);
       expect((await propose({ topicId: PLANET, dryRun: false }, signal())).kind).toBe('failed');
       expect(calls()).toBe(0);
+    });
+
+    /** A scope that refuses: what the use case meets when the process dies, or the production root is switched off, after the answer is kept. */
+    const refusingScope: WithProductionScope = () =>
+      Promise.resolve({ kind: 'refused', refusal: { kind: 'production_disabled' } });
+
+    it('does not throw a paid answer away when the context changed after it was kept: the redelivery stores what still passes', async () => {
+      script = () =>
+        answerWith({
+          drafts: [goodDraft('Why the tide runs highest in narrow bays', FACET_A, [PAGE_A, PAGE_B], BRIEFS[7])],
+        });
+      proposing(10, { storeScope: refusingScope });
+      const request = { topicId: PLANET, facetId: FACET_A, dryRun: false };
+      expect(await propose(request, signal())).toMatchObject({ kind: 'failed', code: 'scope_refused', closed: false });
+      expect(calls()).toBe(1);
+      // Meanwhile another recipe of the planet is stored, so the context a fresh request would send is not the one that was sent.
+      await storeRecipe('changed-meanwhile', PLANET, FACET_B);
+      script = () => answerWith({ drafts: [] });
+      proposing(10);
+      const redelivered = await propose(request, signal());
+      // The kept answer came back from the ledger (no second paid call) and what still passed was stored.
+      expect(calls()).toBe(0);
+      expect(redelivered).toMatchObject({ kind: 'proposed', drafts: 1, accepted: [{ facetId: FACET_A }] });
+      // Once is enough: the run is closed and says what came of it.
+      proposing(10);
+      expect(await propose(request, signal())).toMatchObject({ kind: 'already_proposed' });
+      expect(calls()).toBe(0);
+    });
+
+    it('checks the kept answer against the recipes of today, so what another run stored in the meantime is refused', async () => {
+      script = () =>
+        answerWith({ drafts: [goodDraft('Two seas for the moon Orrin', FACET_B, [PAGE_A, PAGE_B], BRIEFS[6])] });
+      proposing(11, { storeScope: refusingScope });
+      const request = { topicId: PLANET, facetId: FACET_B, dryRun: false };
+      expect(await propose(request, signal())).toMatchObject({ kind: 'failed', code: 'scope_refused' });
+      // The same explanation reaches the library by another way while the answer waits.
+      await storeRecipe('stored-meanwhile', PLANET, FACET_B, { brief: BRIEFS[6], pages: [PAGE_B] });
+      const before = (await recipeRows()).length;
+      proposing(11);
+      const redelivered = await propose(request, signal());
+      expect(calls()).toBe(0);
+      // The same brief is stored on this facet and on one of these pages now: the answer is refused, not stored twice.
+      expect(redelivered).toMatchObject({ kind: 'proposed', accepted: [], refused: { near_duplicate: 1 } });
+      expect((await recipeRows()).length).toBe(before);
+      proposing(11);
+      expect(await propose(request, signal())).toMatchObject({ kind: 'closed_failed', reason: 'nothing_accepted' });
+    });
+
+    it('cannot store the same angle twice when two runs answer at once: the planet lock makes the second see the first', async () => {
+      const first = goodDraft('How Orrin locks one face toward its planet', FACET_A, [PAGE_A, PAGE_B], BRIEFS[4]);
+      const reworded = goodDraft('Why Orrin shows its planet the same face', FACET_A, [PAGE_A, PAGE_B], BRIEFS[5]);
+      expect(overlapOf(BRIEFS[4], BRIEFS[5])).toBeGreaterThanOrEqual(0.3);
+      expect(overlapOf(BRIEFS[4], BRIEFS[5])).toBeLessThan(0.55);
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => (release = resolve));
+      script = (sequence) => ({
+        kind: 'hold',
+        until: held.then(() => answerWith({ drafts: [sequence === 1 ? first : reworded] })),
+      });
+      proposing(12);
+      const before = (await recipeRows()).length;
+      // Two requests for the same planet, so two runs, both waiting at the model until both have asked.
+      const both = Promise.all([
+        propose({ topicId: PLANET, facetId: FACET_A, dryRun: false }, signal()),
+        propose({ topicId: PLANET, dryRun: false }, signal()),
+      ]);
+      await vi.waitFor(() => expect(calls()).toBe(2));
+      release();
+      const results = await both;
+      const kinds = results.map((result) => (result.kind === 'proposed' ? result.accepted.length : result.kind));
+      expect(kinds.sort()).toEqual([0, 1]);
+      expect(results.find((result) => result.kind === 'proposed' && result.accepted.length === 0)).toMatchObject({
+        refused: { near_duplicate: 1 },
+      });
+      expect((await recipeRows()).length).toBe(before + 1);
+    });
+
+    it('stores nothing while another transaction holds the planet lock, and then judges its drafts against what that transaction stored', async () => {
+      // Another operator's storing is in flight: it holds the planet's lock and has stored one angle, not yet committed.
+      const holder = await database.db.startTransaction().execute();
+      let committed = false;
+      try {
+        await lockPlanetRecipes(holder, PLANET);
+        const key = 'gen-lock-holder-00000000';
+        await holder
+          .insertInto('content.recipes')
+          .values({
+            key,
+            origin: 'proposal',
+            status: 'checked',
+            title: 'Holder of the planet lock fixture',
+            topic_id: PLANET,
+            facet_id: FACET_B,
+            asset_id: stableUuid(`content.recipe-asset:${key}`),
+            explanation_unit_id: `${key}-v1`,
+            brief: BRIEFS[8],
+            pages: [PAGE_A, PAGE_B],
+            proposing_run_id: randomUUID(),
+          })
+          .execute();
+        // The same angle in other words arrives from the model meanwhile.
+        script = () =>
+          answerWith({
+            drafts: [goodDraft('Why bays raise the tide higher on Orrin', FACET_B, [PAGE_A, PAGE_B], BRIEFS[9])],
+          });
+        proposing(18);
+        expect(overlapOf(BRIEFS[8], BRIEFS[9])).toBeGreaterThanOrEqual(0.3);
+        expect(overlapOf(BRIEFS[8], BRIEFS[9])).toBeLessThan(0.55);
+        // Only the held recipe can refuse it: no recipe already stored on this facet is close enough, and none anywhere passes the general limit.
+        for (const [index, other] of BRIEFS.slice(0, 8).entries())
+          expect(overlapOf(other, BRIEFS[9]), String(index)).toBeLessThan([0, 3, 6].includes(index) ? 0.3 : 0.55);
+        const waiting = propose({ topicId: PLANET, facetId: FACET_B, dryRun: false }, signal());
+        await vi.waitFor(() => expect(calls()).toBe(1));
+        const early = await Promise.race([
+          waiting.then(() => 'finished'),
+          new Promise((resolve) => setTimeout(() => resolve('waiting'), 600)),
+        ]);
+        expect(early).toBe('waiting');
+        await holder.commit().execute();
+        committed = true;
+        expect(await waiting).toMatchObject({ kind: 'proposed', accepted: [], refused: { near_duplicate: 1 } });
+      } finally {
+        if (!committed) await holder.rollback().execute();
+      }
     });
 
     it('refuses before any request, at no cost, for a planet or facet that does not exist and a planet with no page held', async () => {

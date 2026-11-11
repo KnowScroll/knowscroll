@@ -15,26 +15,30 @@ import { RECIPE_STATUSES, type RecipeStatus } from '@knowscroll/backend/modules/
 import {
   listStoredRecipes,
   makeProposeRecipes,
+  MAX_PROPOSAL_RETRY,
   previewRecipeProposal,
 } from '@knowscroll/backend/modules/content/nest-providers';
 
 type Print = (result: Record<string, unknown>) => void;
 
-const USAGE_PROPOSE = 'content propose-recipes --topic <planet id> [--facet <facet id>] [--dry-run]';
+const USAGE_PROPOSE = 'content propose-recipes --topic <planet id> [--facet <facet id>] [--retry <1-2>] [--dry-run]';
 const USAGE_LIST = `content recipes [--status ${RECIPE_STATUSES.join('|')}]`;
 
 export interface ProposeRecipesOptions {
   readonly topic: string | undefined;
   readonly facet: string | undefined;
+  /** `--retry <n>`: which try of the same request this is, after a run that ended without recipes. Absent: the first. */
+  readonly retry?: string | undefined;
   readonly dryRun: boolean;
   readonly dispatchedBy: string;
 }
 
 /**
- * `content propose-recipes --topic <planet id> [--facet <facet id>] [--dry-run]`: asks the brief role once (and, for an invalid
+ * `content propose-recipes --topic <planet id> [--facet <facet id>] [--retry <1-2>] [--dry-run]`: asks the brief role once (and, for an invalid
  * answer, repairs once) for new recipes for a planet that exists, and stores the drafts code accepts as `checked` recipes
  * (#674, D-412). It sends no production job and publishes nothing: the operator then produces a stored recipe with
- * `content produce-library --only <key>`, reads its Scroll with `content review-list`, and releases it. `--dry-run` builds the
+ * `content produce-library --only <key>`, reads its Scroll with `content review-list`, and releases it. A run that ended without recipes
+ * (`closed_failed`, or `failed` with `closed`) reports `nextRetry`: ask again the same day with `--retry <n>`, at most twice. `--dry-run` builds the
  * frozen context and prints its counts: no provider is called and nothing is stored. The same request reaches the same run, so
  * running it again never pays twice. Shared database and the production harness only: no personal root.
  *
@@ -45,13 +49,22 @@ export async function proposeRecipesCommand(
   print: Print,
   logEvent: LogEvent,
 ): Promise<number> {
-  if (options.topic === undefined || options.topic === '' || options.facet === '') {
+  const retry = options.retry === undefined ? 0 : Number(options.retry);
+  if (
+    options.topic === undefined ||
+    options.topic === '' ||
+    options.facet === '' ||
+    !Number.isInteger(retry) ||
+    retry < 0 ||
+    retry > MAX_PROPOSAL_RETRY
+  ) {
     print({ result: 'usage', usage: USAGE_PROPOSE });
     return 2;
   }
   const request = {
     topicId: options.topic,
     ...(options.facet === undefined ? {} : { facetId: options.facet }),
+    retry,
     dryRun: options.dryRun,
   };
   try {
@@ -104,7 +117,7 @@ export async function proposeRecipesCommand(
       });
       const result = await propose(request, abort.signal);
       print({ command: 'content propose-recipes', ...result });
-      return result.kind === 'refused' || result.kind === 'paused' || result.kind === 'failed' ? 2 : 0;
+      return ['refused', 'paused', 'failed', 'closed_failed'].includes(result.kind) ? 2 : 0;
     } finally {
       process.off('SIGTERM', stop);
       process.off('SIGINT', stop);

@@ -94,17 +94,23 @@ export function recipeBriefContext(facts: RecipeBriefFacts): readonly ContextIte
 }
 
 /**
- * The request a proposal is, for its run id: the planet, the facet asked for (or none), the UTC day and the role's version. It
- * never depends on what the request goes on to change (the recipes it stores), so a redelivery after a crash is the same
- * request and reaches the same run and ledger. A new day, another facet or a new role version is a new request.
+ * The request a proposal is, for its run id: the planet, the facet asked for (or none), the UTC day, the retry number and the role's
+ * version. It never depends on what the request goes on to change (the recipes it stores), so a redelivery after a crash is the same
+ * request and reaches the same run and ledger. A new day, another facet, a new role version or the operator's next retry is a new request.
  */
 export function recipeBriefRequestKey(request: {
   readonly topicId: string;
   readonly facetId?: string;
   readonly day: string;
+  readonly retry: number;
 }): string {
-  return [RECIPE_BRIEF_ROLE_VERSION, request.topicId, request.facetId ?? '-', request.day].join('|');
+  return [RECIPE_BRIEF_ROLE_VERSION, request.topicId, request.facetId ?? '-', request.day, String(request.retry)].join(
+    '|',
+  );
 }
+
+/** How many times an operator may ask again the same day after a run ended without recipes: three paid runs at most for one request. */
+export const MAX_PROPOSAL_RETRY = 2;
 
 /** The UTC day a request is made on, `2026-11-11`. */
 export const utcDayOf = (now: Date): string => now.toISOString().slice(0, 10);

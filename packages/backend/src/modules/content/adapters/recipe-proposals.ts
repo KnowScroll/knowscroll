@@ -1,6 +1,7 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { researchUrl, type ResearchPage } from '../../../infrastructure/research/public-pages.js';
+import type { ContextItem } from '../../../reasoning/public.js';
 import type { RecipeStatus } from '../domain/library/generated.js';
 import { GENERATED_SCROLL_V2_PLAN } from '../domain/library/generated.js';
 import type { AcceptedRecipe } from '../domain/library/recipe-draft.js';
@@ -75,6 +76,88 @@ export async function readCandidatePages(
     }
   }
   return [...found.values()];
+}
+
+/** Where a proposing run stands: `open` until its recipes are stored or its run is closed as failed. */
+export type ProposalState = 'open' | 'completed' | 'failed';
+
+/** A proposing run as `content.recipe_proposals` holds it: where it stands and the context it was first sent. */
+export interface Proposal {
+  readonly state: ProposalState;
+  readonly accepted: number;
+  /** The frozen context, or `undefined` when the stored value is not a list of items (never for a row this code wrote). */
+  readonly items: readonly ContextItem[] | undefined;
+}
+
+const isContextItem = (value: unknown): value is ContextItem => {
+  const item = value as { readonly ref?: unknown; readonly kind?: unknown; readonly text?: unknown } | null;
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    typeof item.ref === 'string' &&
+    typeof item.kind === 'string' &&
+    typeof item.text === 'string'
+  );
+};
+
+/**
+ * The proposing run of a request, created if it does not exist. The first delivery freezes the context it is about to send; every later
+ * delivery gets that row back, so the request it sends is byte for byte the first one and the harness answers from its ledger instead of
+ * refusing a request that changed (`request_mismatch`) while a paid answer sits unread. Two deliveries racing to create it agree on the
+ * first row to commit.
+ */
+export async function openProposal(
+  db: Queryable,
+  run: {
+    readonly runId: string;
+    readonly topicId: string;
+    readonly facetId?: string;
+    readonly day: string;
+    readonly retry: number;
+    readonly items: readonly ContextItem[];
+  },
+): Promise<Proposal> {
+  await sql`insert into content.recipe_proposals (run_id, topic_id, facet_id, day, retry, context)
+    values (${run.runId}::uuid, ${run.topicId}, ${run.facetId ?? null}, ${run.day}::date, ${run.retry}, ${JSON.stringify(run.items)}::jsonb)
+    on conflict (run_id) do nothing`.execute(db);
+  return (await readProposal(db, run.runId))!;
+}
+
+/** A proposing run's row, or `undefined`. */
+export async function readProposal(db: Queryable, runId: string): Promise<Proposal | undefined> {
+  const row = await db
+    .selectFrom('content.recipe_proposals')
+    .select(['state', 'accepted', 'context'])
+    .where('run_id', '=', runId)
+    .executeTakeFirst();
+  if (row === undefined) return undefined;
+  const context = row.context as unknown;
+  return {
+    state: row.state as ProposalState,
+    accepted: row.accepted,
+    items:
+      Array.isArray(context) && (context as unknown[]).every(isContextItem) ? (context as ContextItem[]) : undefined,
+  };
+}
+
+/** Moves a run from `open` to its end, in the transaction that stores its recipes or closes its run. A run that already ended stays as it is. */
+export async function settleProposal(
+  tx: Transaction<Database>,
+  runId: string,
+  state: Exclude<ProposalState, 'open'>,
+  accepted: number,
+): Promise<void> {
+  await sql`update content.recipe_proposals set state = ${state}, accepted = ${accepted}, updated_at = now()
+    where run_id = ${runId}::uuid and state = 'open'`.execute(tx);
+}
+
+/**
+ * Serialises the storing of recipes for one planet: every run takes this lock, then reads the recipes that exist and checks its drafts
+ * against them, then stores. Two runs or two operators that propose the same angle at once cannot both store it. Held to the end of the
+ * caller's transaction. Taken after the production root, before anything else of Content's.
+ */
+export async function lockPlanetRecipes(tx: Transaction<Database>, topicId: string): Promise<void> {
+  await sql`select pg_advisory_xact_lock(hashtextextended(${`content.recipes:${topicId}`}, 0))`.execute(tx);
 }
 
 /** The keys of the recipes one proposing run made: a redelivery of the same request finds them and pays nothing. */

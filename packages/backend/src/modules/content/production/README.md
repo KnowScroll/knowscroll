@@ -285,12 +285,18 @@ treat the key as a v2 recipe, the writer is the v2 writer with the plain, no-mis
 
 `propose-recipes.ts` and `recipe-brief.ts` are the proposing step. The role `content.recipe-brief` (version `recipe-brief.v1`, background class, one
 request and at most one repair, `repairWithPreviousAnswer`) runs on the production harness through `proposeProduction`, so each paid attempt is in the
-attempt ledger. Its run is `stableUuid("content.recipe-brief:<version>|<planet>|<facet or ->|<UTC day>")`: derived from the request and never from what
-it stores. Before the call the use case looks for recipes that name the run (`proposing_run_id`) and, if it finds any, returns them without a call; a
-closed run answers `run_closed` and is reported the same way; an open run answers from the ledger; an `unknown` attempt keeps the run open and is never
-resent. After the answer, the accepted recipes are stored and the run closed in one production transaction (`storeAcceptedRecipes`). No network wait or model
-call holds it. `--dry-run` (`previewRecipeProposal`) reads the shared database only. The pages a proposal may use are the ones the planet's recipes'
-jobs froze (`readCandidatePages`): nothing is fetched, and a planet none of whose recipes was ever produced has none, so it is refused before any request.
+attempt ledger. Its run is `stableUuid("content.recipe-brief:<version>|<planet>|<facet or ->|<UTC day>|<retry>")`: derived from the request and never
+from what it stores. `content.recipe_proposals` is the job row of this step: the first delivery freezes the context it sends there (`openProposal`),
+and every later delivery sends exactly that, so the harness answers from its ledger even when other recipes were stored since and a kept answer is never
+refused as a changed request. A row that is `completed` with recipes answers `already_proposed`; one that is `failed`, or `completed` with nothing
+stored, answers `closed_failed` with the next retry number (`--retry`, at most 2). The outcomes follow the production job's convention (`settlementOf`):
+a kept answer completes the run, an answer invalid after its repair or a conclusive provider failure closes it as failed, and an attempt of unknown
+outcome, any refusal of the harness (it may have been sent), a spent budget or quota, or a scope that refused leave it open and are never resent.
+After the answer one production transaction stores the recipes and closes the run: it takes the planet's advisory lock (`lockPlanetRecipes`), reads the
+recipes that exist now, runs every draft check again against them (`decideDrafts`), inserts the accepted ones, settles the proposal and closes the
+harness run. No network wait or model call holds it. `--dry-run` (`previewRecipeProposal`) reads the shared database only. The pages a proposal may use
+are the ones the planet's recipes' jobs froze (`readCandidatePages`): nothing is fetched, and a planet none of whose recipes was ever produced has none,
+so it is refused before any request.
 
 ## Publication: topic attribution and coverage
 

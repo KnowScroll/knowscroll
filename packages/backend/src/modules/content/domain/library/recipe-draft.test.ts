@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { RECIPES } from './index.js';
 import {
   BRIEF_OVERLAP_LIMIT,
   checkRecipeDraft,
   overlapOf,
+  pageShareOf,
+  SAME_ANGLE_BRIEF_OVERLAP,
   RecipeBriefOutputSchema,
   sentencesOf,
   tokensOf,
@@ -37,6 +40,8 @@ const context = (over: Partial<DraftCheckContext> = {}): DraftCheckContext => ({
       title: 'Why the heart beats',
       brief:
         'Explain what makes the heart beat on its own: the pacemaker cells and the electrical signal. Do not claim a person can feel it.',
+      facetId: 'human.heart.limits',
+      pages: ['https://en.wikipedia.org/wiki/Pacemaker'],
     },
   ],
   taken: { keys: new Set(), unitIds: new Set(), assetIds: new Set() },
@@ -143,12 +148,21 @@ describe('checkRecipeDraft: what code accepts of a model proposal', () => {
   });
 
   it('refuses a near-duplicate of an existing recipe of the planet, by its brief or by its title', () => {
-    const existing = [{ title: 'Heart valves and blood flow', brief: draft.brief.replace('Ask only for', 'Ask for') }];
+    const existing = [
+      {
+        title: 'Heart valves and blood flow',
+        brief: draft.brief.replace('Ask only for', 'Ask for'),
+        facetId: 'human.heart.limits',
+        pages: [],
+      },
+    ];
     expect(refusalOf(draft, context({ existing }))).toBe('near_duplicate');
     const sameTitle = [
       {
         title: draft.title.toUpperCase(),
         brief: 'Something quite different about electrical signals and pacemaker cells.',
+        facetId: 'human.heart.limits',
+        pages: [],
       },
     ];
     expect(refusalOf(draft, context({ existing: sameTitle }))).toBe('near_duplicate');
@@ -159,6 +173,8 @@ describe('checkRecipeDraft: what code accepts of a model proposal', () => {
       title: 'What makes the heart beat on its own',
       brief:
         'Explain the pacemaker cells, the electrical signal that starts each beat and how it spreads through the muscle. Ask only for what the pages say. Do not describe how to treat a rhythm problem.',
+      facetId: FACET,
+      pages: [PAGE_A, PAGE_B],
     };
     expect(refusalOf(draft, context({ existing: [other] }))).toBe('accepted');
   });
@@ -179,6 +195,117 @@ describe('checkRecipeDraft: what code accepts of a model proposal', () => {
         }),
       ),
     ).toBe('identity_taken');
+  });
+});
+
+/** Prose the writer reads must carry no address and no markup, in the title or in the brief. */
+describe('what a title or a brief may not carry', () => {
+  const both = (text: string) => [
+    refusalOf({ ...draft, title: `How valves work: ${text}` }, context()),
+    // In place of a few words, so the brief keeps its three sentences.
+    refusalOf({ ...draft, brief: draft.brief.replace('the four heart valves', text) }, context()),
+  ];
+
+  it('refuses a scheme, www and a dotted host, in either field', () => {
+    for (const text of [
+      'See https://en.wikipedia.org/wiki/Heart',
+      'ftp://example.test/file',
+      'Read www.nasa.gov first',
+      'It is on wikipedia.org',
+      'It is on en.wikipedia.org/wiki/Heart',
+      'the site Heart.org says so',
+      'a missing space pump.Then more',
+    ])
+      expect(both(text), text).toEqual(['text_has_address', 'text_has_address']);
+  });
+
+  it('refuses angle brackets, backticks and Markdown links, in either field', () => {
+    for (const text of ['a <b>bold</b> word', 'the `valve` word', '[the heart](page)', 'a [ref][1] link', 'a > b'])
+      expect(both(text), text).toEqual(['text_has_markup', 'text_has_markup']);
+    // A link definition on a line of its own.
+    expect(refusalOf({ ...draft, brief: `${draft.brief}\n[1]: somewhere` }, context())).toBe('brief_shape');
+    // Markup that also holds an address is refused, whichever is found first.
+    for (const text of ['an <https://x.test> link', '![x](y.png)'])
+      for (const code of both(text)) expect(['text_has_address', 'text_has_markup'], text).toContain(code);
+  });
+
+  it('does not take a decimal, an initial or a plain sentence for an address', () => {
+    for (const text of ['About 3.5 litres a minute', 'The U.S. figure', 'e.g. the left side', 'See Dr. Harvey'])
+      expect(both(text), text).toEqual(['accepted', 'accepted']);
+  });
+});
+
+/** A brief reworded enough to pass the general limits is still the same angle: the same facet, the same pages, many of the same words. */
+describe("the same angle in other words (the plan's cardiac-cycle recipe)", () => {
+  const cardiac = RECIPES['cardiac-cycle'];
+  const PAGE = cardiac.pages[0]!;
+  const existing = [
+    { title: 'Cardiac cycle', brief: cardiac.brief, facetId: cardiac.facetId, pages: [...cardiac.pages] },
+  ];
+  const ctx = (over: Partial<DraftCheckContext> = {}) =>
+    context({
+      topicId: cardiac.topicId,
+      facetIds: [cardiac.facetId, 'human-body.heart-and-blood.pressure'],
+      candidates: [{ url: PAGE, passages: 20 }],
+      existing,
+      ...over,
+    });
+  const reworded =
+    'Tell the story of one heartbeat. The heart refills while the muscle relaxes, then pumps blood onward as it contracts. Take the reader through each phase, showing the valves that keep blood flowing one way and the two sides, one for the lungs and one for the body. Leave out disease and any rate.';
+  const distinct =
+    'Explain why a doctor hears two separate sounds through a stethoscope and which valves closing makes each one. Ask only for what the page says about the sounds and their timing. Do not suggest a sound means disease.';
+  const draftOf = (brief: string, over: Partial<RecipeDraft> = {}): RecipeDraft => ({
+    title: 'One heartbeat told from start to finish',
+    facetId: cardiac.facetId,
+    brief,
+    pages: [PAGE],
+    ...over,
+  });
+
+  it('is measured: the reworded brief passes the general limit and clears the same-angle one, a distinct angle does not', () => {
+    expect(overlapOf(cardiac.brief, reworded)).toBeLessThan(BRIEF_OVERLAP_LIMIT);
+    expect(overlapOf(cardiac.brief, reworded)).toBeGreaterThanOrEqual(SAME_ANGLE_BRIEF_OVERLAP);
+    expect(overlapOf(cardiac.brief, distinct)).toBeLessThan(SAME_ANGLE_BRIEF_OVERLAP);
+  });
+
+  it('refuses the reworded brief, and accepts a distinct angle on the same facet and page', () => {
+    expect(refusalOf(draftOf(reworded), ctx())).toBe('near_duplicate');
+    expect(refusalOf(draftOf(distinct, { title: 'Why the heart makes two sounds' }), ctx())).toBe('accepted');
+  });
+
+  it('needs all three: another facet, or other pages, or fewer shared words, is not the same angle', () => {
+    const otherFacet = draftOf(reworded, { facetId: 'human-body.heart-and-blood.pressure' });
+    expect(refusalOf(otherFacet, ctx())).toBe('accepted');
+    const elsewhere = { ...existing[0]!, pages: ['https://en.wikipedia.org/wiki/Heart'] };
+    expect(refusalOf(draftOf(reworded), ctx({ existing: [elsewhere] }))).toBe('accepted');
+  });
+
+  it('refuses a draft that repeats an angle an earlier draft of the same batch already took', () => {
+    const first = checkRecipeDraft(draftOf(distinct, { title: 'Why the heart makes two sounds' }), ctx());
+    expect(first.kind).toBe('accepted');
+    if (first.kind !== 'accepted') return;
+    const withFirst = [
+      ...existing,
+      {
+        title: first.recipe.title,
+        brief: first.recipe.brief,
+        facetId: first.recipe.facetId,
+        pages: first.recipe.pages,
+      },
+    ];
+    const rewordedSounds =
+      'Explain why a doctor hears two sounds through a stethoscope, and which valves closing makes each one. Ask only for what the page says about the sounds and their timing. Do not say a sound means disease.';
+    expect(
+      refusalOf(draftOf(rewordedSounds, { title: 'The two sounds a stethoscope hears' }), ctx({ existing: withFirst })),
+    ).toBe('near_duplicate');
+  });
+
+  it('measures the share of the smaller page set', () => {
+    expect(pageShareOf(['a'], ['a', 'b'])).toBe(1);
+    expect(pageShareOf(['a', 'b'], ['b', 'c'])).toBe(0.5);
+    expect(pageShareOf(['a', 'b', 'c'], ['c', 'd', 'e'])).toBeCloseTo(1 / 3);
+    expect(pageShareOf([], ['a'])).toBe(0);
+    expect(pageShareOf(['a'], ['b'])).toBe(0);
   });
 });
 

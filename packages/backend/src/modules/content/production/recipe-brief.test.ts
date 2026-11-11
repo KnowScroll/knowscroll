@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAX_LISTED_PAGES,
+  MAX_PROPOSAL_RETRY,
   MAX_LISTED_RECIPES,
   oneLineBriefOf,
   recipeBriefContext,
@@ -57,16 +58,18 @@ describe('the frozen context of a recipe proposal', () => {
     expect(recipeBriefContext(facts)[2]?.text).toContain('few recipes');
   });
 
-  it('names a request by planet, facet, UTC day and role version, and by nothing a proposal goes on to change', () => {
-    const base = recipeBriefRequestKey({ topicId: 'human.heart', day: '2026-11-11' });
-    expect(recipeBriefRequestKey({ topicId: 'human.heart', day: '2026-11-11' })).toBe(base);
+  it('names a request by planet, facet, UTC day, retry and role version, and by nothing a proposal goes on to change', () => {
+    const base = recipeBriefRequestKey({ topicId: 'human.heart', day: '2026-11-11', retry: 0 });
+    expect(recipeBriefRequestKey({ topicId: 'human.heart', day: '2026-11-11', retry: 0 })).toBe(base);
     expect(base).toContain(RECIPE_BRIEF_ROLE_VERSION);
-    expect(recipeBriefRequestKey({ topicId: 'human.heart', day: '2026-11-12' })).not.toBe(base);
+    expect(recipeBriefRequestKey({ topicId: 'human.heart', day: '2026-11-12', retry: 0 })).not.toBe(base);
+    expect(recipeBriefRequestKey({ topicId: 'human.heart', day: '2026-11-11', retry: 1 })).not.toBe(base);
     expect(
-      recipeBriefRequestKey({ topicId: 'human.heart', facetId: 'human.heart.limits', day: '2026-11-11' }),
+      recipeBriefRequestKey({ topicId: 'human.heart', facetId: 'human.heart.limits', day: '2026-11-11', retry: 0 }),
     ).not.toBe(base);
-    expect(recipeBriefRequestKey({ topicId: 'human.blood', day: '2026-11-11' })).not.toBe(base);
+    expect(recipeBriefRequestKey({ topicId: 'human.blood', day: '2026-11-11', retry: 0 })).not.toBe(base);
     expect(utcDayOf(new Date('2026-11-11T23:59:59Z'))).toBe('2026-11-11');
+    expect(MAX_PROPOSAL_RETRY).toBe(2);
   });
 
   it('is bounded: only so many recipes and pages are listed, and a brief is cut to one line', () => {

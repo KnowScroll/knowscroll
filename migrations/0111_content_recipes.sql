@@ -17,7 +17,15 @@
 --    Locking: a row is inserted once and afterwards only its status moves, in the production transaction that creates or
 --    finishes the job; no lock order beyond the row. Growth: at most the daily growth cap of rows a day; kept for ever, since
 --    a retired recipe's Scroll still belongs to its planet. Retention: none.
--- Rollout: additive. An older process never reads or writes the table and never meets a `gen-` key, because only
+-- 2. `content.recipe_proposals`: one row per proposing run, the same shape as the job row of a Scroll's production: it freezes the
+--    context the brief role was sent (public pages and library text only, no person), so a redelivery sends exactly the same
+--    request and the harness answers from its ledger instead of refusing a request that changed, and it says where the run stands
+--    (`open`, `completed`, `failed`) so a closed run is told from one still waiting. The run id is derived from planet, facet,
+--    UTC day and a retry number (0 to 2), so one operator request is at most three paid runs a day.
+--    Query shapes: one run by its id (the primary key). Locking: the row is inserted once, then moves from `open` once, in the
+--    production transaction that stores the recipes or closes the run. Growth: a few rows a day. Retention: kept as the audit of
+--    what was asked and what came of it.
+-- Rollout: additive. An older process never reads or writes either table and never meets a `gen-` key, because only
 -- the new code stores a recipe or sends a job for one.
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';
@@ -64,3 +72,27 @@ comment on table content.recipes is
 
 create index recipes_planet_open on content.recipes (topic_id, facet_id) where status <> 'retired';
 create index recipes_proposing_run on content.recipes (proposing_run_id) where proposing_run_id is not null;
+
+create table content.recipe_proposals (
+  run_id uuid not null,
+  topic_id text not null,
+  facet_id text,
+  day date not null,
+  retry smallint not null default 0,
+  context jsonb not null,
+  state text not null default 'open',
+  accepted smallint not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint recipe_proposals_pkey primary key (run_id),
+  constraint recipe_proposals_topic_check check (char_length(topic_id) between 1 and 160),
+  constraint recipe_proposals_facet_check check (facet_id is null or char_length(facet_id) between 1 and 160),
+  constraint recipe_proposals_retry_check check (retry between 0 and 2),
+  constraint recipe_proposals_context_check
+    check (jsonb_typeof(context) = 'array' and octet_length(context::text) <= 65536),
+  constraint recipe_proposals_state_check check (state in ('open', 'completed', 'failed')),
+  constraint recipe_proposals_accepted_check check (accepted between 0 and 3 and (state = 'completed' or accepted = 0))
+);
+
+comment on table content.recipe_proposals is
+  'One proposing run of the recipe brief role: the frozen context it was sent and where it stands. Shared, nonpersonal.';

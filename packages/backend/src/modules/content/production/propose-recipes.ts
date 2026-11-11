@@ -4,14 +4,20 @@ import { stableUuid } from '../../../infrastructure/ids/index.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { productionTransactionOf } from '../../../infrastructure/postgres/index.js';
 import type {
+  ContextItem,
   ProductionAuthority,
   ProductionReasoningHarness,
+  ProposeOutcome,
   WithProductionScope,
 } from '../../../reasoning/public.js';
 import {
+  lockPlanetRecipes,
+  openProposal,
   readCandidatePages,
+  readProposal,
   readRecipesOfRun,
   researchUrlAllowed,
+  settleProposal,
   storeAcceptedRecipes,
 } from '../adapters/recipe-proposals.js';
 import { recipeBookOf } from '../adapters/stored-recipes.js';
@@ -25,6 +31,7 @@ import {
 } from '../domain/library/recipe-draft.js';
 import { pauseCode, uncheckedCode } from './answer-check-step.js';
 import {
+  MAX_PROPOSAL_RETRY,
   RECIPE_BRIEF_REQUEST_BOUND,
   RECIPE_BRIEF_ROLE_VERSION,
   recipeBriefContext,
@@ -43,10 +50,11 @@ export interface ProposeRecipesDependencies {
   readonly now?: () => Date;
 }
 
-/** What an operator asks: a planet and, optionally, the facet to cover. */
+/** What an operator asks: a planet, optionally the facet to cover, and which try of that request this is (0, or 1 and 2 after a run that ended without recipes). */
 export interface ProposeRecipesRequest {
   readonly topicId: string;
   readonly facetId?: string;
+  readonly retry?: number;
   readonly dryRun: boolean;
 }
 
@@ -54,8 +62,14 @@ export interface ProposeRecipesRequest {
 export type RefusalCounts = Readonly<Partial<Record<DraftRefusal, number>>>;
 
 export type ProposeRecipesResult =
-  /** Nothing was sent and nothing was stored: the request names no planet or facet of the catalogue, or code holds no page for the planet. */
-  | { readonly kind: 'refused'; readonly reason: 'topic_unknown' | 'facet_unknown' | 'no_candidate_pages' }
+  /**
+   * Nothing was sent and nothing was stored: the request names no planet or facet of the catalogue, a retry out of range, or code holds no
+   * page for the planet.
+   */
+  | {
+      readonly kind: 'refused';
+      readonly reason: 'topic_unknown' | 'facet_unknown' | 'retry_out_of_range' | 'no_candidate_pages';
+    }
   /** The context a run would send, in counts. Nothing was sent. */
   | {
       readonly kind: 'dry_run';
@@ -65,8 +79,19 @@ export type ProposeRecipesResult =
       readonly existingRecipes: number;
       readonly requestBound: number;
     }
-  /** An earlier delivery of this very request already stored its recipes (or finished with none): nothing was paid again. */
+  /** An earlier delivery of this very request already stored its recipes: nothing was paid again. */
   | { readonly kind: 'already_proposed'; readonly runId: string; readonly recipes: readonly string[] }
+  /**
+   * This request's run is closed and stored nothing: it ended as failed, it was answered with nothing code accepted, or another delivery
+   * closed it. Nothing is sent. `nextRetry` is the number to ask again with the same day (`--retry`), absent when the retries are used.
+   */
+  | {
+      readonly kind: 'closed_failed';
+      readonly runId: string;
+      readonly reason: 'failed' | 'nothing_accepted' | 'closed';
+      readonly retry: number;
+      readonly nextRetry?: number;
+    }
   | {
       readonly kind: 'proposed';
       readonly runId: string;
@@ -84,18 +109,47 @@ export type ProposeRecipesResult =
   /** A daily budget or the provider's quota is used up: nothing was sent and the run stays open for a later send. */
   | { readonly kind: 'paused'; readonly runId: string; readonly code: string }
   /**
-   * The model gave no usable answer. `unknown` may have reached the provider: the run stays open and is never resent.
-   * Any other code closes the run.
+   * The model gave no usable answer, or the answer could not be applied. `closed` says whether the run ended: a conclusive failure ends it
+   * and `nextRetry` is the number to ask again with. An attempt of unknown outcome, a refusal of the harness or a scope that refused leave
+   * it open, and nothing is ever resent.
    */
-  | { readonly kind: 'failed'; readonly runId: string; readonly code: string; readonly unknown: boolean };
+  | {
+      readonly kind: 'failed';
+      readonly runId: string;
+      readonly code: string;
+      readonly unknown: boolean;
+      readonly closed: boolean;
+      readonly nextRetry?: number;
+    };
 
 const sha256Hex = (text: string): string => createHash('sha256').update(text).digest('hex');
+
+/**
+ * What a run's outcome does to its run, following the production job's convention. A kept answer closes it as completed. A conclusive
+ * failure (an answer the harness found invalid after its one repair, or a provider that conclusively refused) closes it as failed, because
+ * the attempt is settled and another run can be asked for. Everything else leaves it open: an attempt of unknown outcome is never resent,
+ * a refusal of the harness may have reached the provider, and a spent budget or quota only pauses.
+ */
+export function settlementOf(outcome: ProposeOutcome<unknown>): 'completed' | 'failed' | 'open' {
+  switch (outcome.kind) {
+    case 'proposed':
+      return 'completed';
+    case 'invalid_output':
+    case 'failed':
+      return 'failed';
+    case 'unknown':
+    case 'refused':
+    case 'budget_exhausted':
+    case 'quota_unavailable':
+      return 'open';
+  }
+}
 
 /** The facts the model is told, read by code from the library and the pages it already holds. */
 async function factsOf(
   db: Kysely<Database>,
   request: Pick<ProposeRecipesRequest, 'topicId' | 'facetId'>,
-): Promise<{ readonly facts: RecipeBriefFacts } | ProposeRecipesResult> {
+): Promise<{ readonly facts: RecipeBriefFacts } | Extract<ProposeRecipesResult, { kind: 'refused' }>> {
   const topic = CONCEPTS.find((concept) => concept.id === request.topicId && concept.parent !== null);
   if (topic === undefined) return { kind: 'refused', reason: 'topic_unknown' };
   if (request.facetId !== undefined && !topic.facets.some((facet) => facet.id === request.facetId))
@@ -124,7 +178,11 @@ async function factsOf(
   };
 }
 
-/** Runs every draft through the checks, each against what exists and what was accepted before it in the same batch. */
+/**
+ * Runs every draft through the checks, each against what exists and what was accepted before it in the same batch. `taken` is every
+ * recipe of the library as the caller just read it; the planet's own are what the near-duplicate checks compare against, with the facet
+ * and the pages each rests on.
+ */
 function decideDrafts(
   output: RecipeBriefOutput,
   facts: RecipeBriefFacts,
@@ -135,7 +193,12 @@ function decideDrafts(
   const refused: Partial<Record<DraftRefusal, number>> = {};
   const existing = taken
     .filter((recipe) => recipe.topicId === facts.topicId)
-    .map((recipe) => ({ title: recipe.title, brief: recipe.brief }));
+    .map((recipe) => ({
+      title: recipe.title,
+      brief: recipe.brief,
+      facetId: recipe.facetId,
+      pages: recipe.pages,
+    }));
   const keys = new Set(taken.map((recipe) => recipe.key));
   const unitIds = new Set(taken.map((recipe) => recipe.explanationUnitId));
   const assetIds = new Set(taken.map((recipe) => recipe.assetId));
@@ -156,7 +219,12 @@ function decideDrafts(
       continue;
     }
     accepted.push(verdict.recipe);
-    existing.push({ title: verdict.recipe.title, brief: verdict.recipe.brief });
+    existing.push({
+      title: verdict.recipe.title,
+      brief: verdict.recipe.brief,
+      facetId: verdict.recipe.facetId,
+      pages: verdict.recipe.pages,
+    });
     keys.add(verdict.recipe.key);
     unitIds.add(verdict.recipe.explanationUnitId);
     assetIds.add(verdict.recipe.assetId);
@@ -168,17 +236,28 @@ function decideDrafts(
 async function prepareProposal(
   db: Kysely<Database>,
   request: Pick<ProposeRecipesRequest, 'topicId' | 'facetId'>,
+  retry: number,
   now: Date,
 ) {
   const read = await factsOf(db, request);
   if ('kind' in read) return read;
+  const day = utcDayOf(now);
   const key = recipeBriefRequestKey({
     topicId: request.topicId,
     ...(request.facetId === undefined ? {} : { facetId: request.facetId }),
-    day: utcDayOf(now),
+    day,
+    retry,
   });
-  return { facts: read.facts, items: recipeBriefContext(read.facts), runId: stableUuid(`content.recipe-brief:${key}`) };
+  return {
+    facts: read.facts,
+    items: recipeBriefContext(read.facts),
+    runId: stableUuid(`content.recipe-brief:${key}`),
+    day,
+  };
 }
+
+const validRetry = (retry: number | undefined): retry is number | undefined =>
+  retry === undefined || (Number.isInteger(retry) && retry >= 0 && retry <= MAX_PROPOSAL_RETRY);
 
 /**
  * What a proposal would send, in counts, without calling a provider or storing anything: the operator's `--dry-run`. Reads the
@@ -186,11 +265,12 @@ async function prepareProposal(
  */
 export async function previewRecipeProposal(
   db: Kysely<Database>,
-  request: Pick<ProposeRecipesRequest, 'topicId' | 'facetId'>,
+  request: Pick<ProposeRecipesRequest, 'topicId' | 'facetId' | 'retry'>,
   now: () => Date = () => new Date(),
 ): Promise<Extract<ProposeRecipesResult, { kind: 'refused' | 'dry_run' }>> {
-  const prepared = await prepareProposal(db, request, now());
-  if ('kind' in prepared) return prepared as Extract<ProposeRecipesResult, { kind: 'refused' }>;
+  if (!validRetry(request.retry)) return { kind: 'refused', reason: 'retry_out_of_range' };
+  const prepared = await prepareProposal(db, request, request.retry ?? 0, now());
+  if ('kind' in prepared) return prepared;
   return {
     kind: 'dry_run',
     runId: prepared.runId,
@@ -205,29 +285,116 @@ export async function previewRecipeProposal(
  * Proposes recipes for a planet that already exists (#674, D-412): the model drafts, code decides.
  *
  * One request of the brief role, and at most one repair, on the production harness and its attempt ledger, so every paid
- * attempt is recorded and counted against the production caps. The run id is derived from the request (planet, facet, UTC day and
- * role version), never from what the request goes on to store: asking for the same thing again reaches the same run, so a redelivery
- * after a crash is answered from the ledger (or finds the recipes already stored) and never pays twice, and an attempt of unknown
- * outcome is never resent. Another day, or another facet, is a new request. No network wait or model call
- * holds a transaction: the recipes are stored, and the run closed, in one short production transaction after the answer.
+ * attempt is recorded and counted against the production caps. The run id is derived from the request (planet, facet, UTC day, retry
+ * number and role version), never from what the request goes on to store, and the first delivery freezes the context it sends in
+ * `content.recipe_proposals`: a later delivery sends that same context, so the harness answers from its ledger even when other recipes
+ * have been stored since, and a paid answer that was kept is never refused as a changed request. An attempt of unknown outcome is never
+ * resent and keeps its run open. A run that ended without recipes can be asked for again the same day with the next retry number, at most
+ * twice.
  *
- * Code accepts a draft only if its shape and lengths match the library rules, each page is one of the pages code holds and
- * passes the research URL rule, the pages' passage pool is in the source checker's range, it is not a near-duplicate of a
- * recipe of the planet, and its derived identity is unique. A refusal is a code; nothing the model wrote is kept.
- * Nothing here chooses a topic or a facet that the catalogue lacks, and nothing here sends a production job.
+ * No network wait or model call holds a transaction. After the answer, one short production transaction takes the planet's advisory lock,
+ * reads the recipes that exist now, checks every draft against them (so what is stored is judged against today's library, not the
+ * library the request was sent against), stores what passes, closes the proposing run and its harness run. Two runs or operators that
+ * propose the same angle at once are serialised by that lock, and the second finds the first.
+ *
+ * Code accepts a draft only if its shape and lengths match the library rules, neither field carries an address or markup, each page is
+ * one of the pages code holds and passes the research URL rule, the pages' passage pool is in the source checker's range, it is not a
+ * near-duplicate of a recipe of the planet (the same words, or the same facet on the same pages in other words), and its derived
+ * identity is unique. A refusal is a code; nothing the model wrote is kept. Nothing here chooses a topic or a facet that the
+ * catalogue lacks, and nothing here sends a production job.
  */
 export function makeProposeRecipes(deps: ProposeRecipesDependencies) {
+  const closedFailed = (
+    runId: string,
+    reason: 'failed' | 'nothing_accepted' | 'closed',
+    retry: number,
+  ): ProposeRecipesResult => ({
+    kind: 'closed_failed',
+    runId,
+    reason,
+    retry,
+    ...(retry < MAX_PROPOSAL_RETRY ? { nextRetry: retry + 1 } : {}),
+  });
+
+  /** A run that has ended: its recipes if it stored any, else the fact that it stored nothing. */
+  async function endedRun(runId: string, state: 'completed' | 'failed' | 'open', retry: number) {
+    const recipes = await readRecipesOfRun(deps.db, runId);
+    if (recipes.length > 0) return { kind: 'already_proposed', runId, recipes } as const;
+    return closedFailed(
+      runId,
+      state === 'failed' ? 'failed' : state === 'completed' ? 'nothing_accepted' : 'closed',
+      retry,
+    );
+  }
+
+  /** Checks the answer against the library as it is now and stores what passes, with the run closed, in one transaction. */
+  async function storeAnswer(
+    runId: string,
+    facts: RecipeBriefFacts,
+    request: ProposeRecipesRequest,
+    outcome: Extract<ProposeOutcome<RecipeBriefOutput>, { kind: 'proposed' }>,
+  ): Promise<ProposeRecipesResult> {
+    const stored = await deps.withScope(deps.authority, async (scope) => {
+      const tx = productionTransactionOf(scope);
+      await lockPlanetRecipes(tx, facts.topicId);
+      const decided = decideDrafts(outcome.output, facts, await recipeBookOf(tx).all(), request.facetId);
+      await storeAcceptedRecipes(tx, runId, decided.accepted);
+      await settleProposal(tx, runId, 'completed', decided.accepted.length);
+      await deps.harness.closeProductionRun(scope, { runId, state: 'completed' });
+      return decided;
+    });
+    // A scope that was switched off or changed stores nothing and closes nothing: the run stays open for a later delivery.
+    if (stored.kind !== 'entered')
+      return { kind: 'failed', runId, code: 'scope_refused', unknown: false, closed: false };
+    return {
+      kind: 'proposed',
+      runId,
+      repaired: outcome.repaired,
+      drafts: outcome.output.drafts.length,
+      accepted: stored.value.accepted.map((recipe) => ({
+        key: recipe.key,
+        facetId: recipe.facetId,
+        title: recipe.title,
+        pool: recipe.checks.pool,
+      })),
+      refused: stored.value.refused,
+      requestBound: RECIPE_BRIEF_REQUEST_BOUND,
+    };
+  }
+
+  /** Ends a run after a conclusive failure: the proposing run and the harness run close as failed, together. */
+  async function closeFailed(runId: string): Promise<boolean> {
+    const closed = await deps.withScope(deps.authority, async (scope) => {
+      await settleProposal(productionTransactionOf(scope), runId, 'failed', 0);
+      await deps.harness.closeProductionRun(scope, { runId, state: 'failed' });
+    });
+    return closed.kind === 'entered';
+  }
+
   return async function proposeRecipes(
     request: ProposeRecipesRequest,
     signal: AbortSignal,
   ): Promise<ProposeRecipesResult> {
+    if (!validRetry(request.retry)) return { kind: 'refused', reason: 'retry_out_of_range' };
+    const retry = request.retry ?? 0;
     const now = deps.now ?? (() => new Date());
     if (request.dryRun) return previewRecipeProposal(deps.db, request, now);
-    const prepared = await prepareProposal(deps.db, request, now());
+    const prepared = await prepareProposal(deps.db, request, retry, now());
     if ('kind' in prepared) return prepared;
-    const { facts, items, runId } = prepared;
-    const earlier = await readRecipesOfRun(deps.db, runId);
-    if (earlier.length > 0) return { kind: 'already_proposed', runId, recipes: earlier };
+    const { facts, runId } = prepared;
+    // The first delivery freezes its context; every later one sends that very context, whatever the library holds by then.
+    const proposal = await openProposal(deps.db, {
+      runId,
+      topicId: facts.topicId,
+      ...(request.facetId === undefined ? {} : { facetId: request.facetId }),
+      day: prepared.day,
+      retry,
+      items: prepared.items,
+    });
+    if (proposal.state !== 'open') return endedRun(runId, proposal.state, retry);
+    const items: readonly ContextItem[] | undefined = proposal.items;
+    if (items === undefined)
+      return { kind: 'failed', runId, code: 'frozen_context_unreadable', unknown: false, closed: false };
 
     const outcome = await deps.harness.proposeProduction(
       {
@@ -243,42 +410,25 @@ export function makeProposeRecipes(deps: ProposeRecipesDependencies) {
       },
       signal,
     );
-    if (outcome.kind === 'refused' && outcome.reason === 'run_closed')
-      return { kind: 'already_proposed', runId, recipes: await readRecipesOfRun(deps.db, runId) };
+    // Another delivery closed the run while this one waited: read how it ended.
+    if (outcome.kind === 'refused' && outcome.reason === 'run_closed') {
+      const ended = await readProposal(deps.db, runId);
+      return endedRun(runId, ended?.state ?? 'open', retry);
+    }
     if (outcome.kind === 'budget_exhausted' || outcome.kind === 'quota_unavailable')
       return { kind: 'paused', runId, code: pauseCode(outcome) };
-    if (outcome.kind !== 'proposed') {
-      const unknown = outcome.kind === 'unknown';
-      // An attempt that may have reached the provider keeps its run open: nothing resends it.
-      if (!unknown)
-        await deps.withScope(deps.authority, (scope) =>
-          deps.harness.closeProductionRun(scope, { runId, state: 'failed' }),
-        );
-      return { kind: 'failed', runId, code: uncheckedCode(outcome), unknown };
-    }
-    const { accepted, refused } = decideDrafts(
-      outcome.output,
-      facts,
-      await recipeBookOf(deps.db).all(),
-      request.facetId,
-    );
-    await deps.withScope(deps.authority, async (scope) => {
-      await storeAcceptedRecipes(productionTransactionOf(scope), runId, accepted);
-      await deps.harness.closeProductionRun(scope, { runId, state: 'completed' });
-    });
+    if (outcome.kind === 'proposed') return storeAnswer(runId, facts, request, outcome);
+    const code = uncheckedCode(outcome);
+    if (settlementOf(outcome) === 'open')
+      return { kind: 'failed', runId, code, unknown: outcome.kind === 'unknown', closed: false };
+    const closed = await closeFailed(runId);
     return {
-      kind: 'proposed',
+      kind: 'failed',
       runId,
-      repaired: outcome.repaired,
-      drafts: outcome.output.drafts.length,
-      accepted: accepted.map((recipe) => ({
-        key: recipe.key,
-        facetId: recipe.facetId,
-        title: recipe.title,
-        pool: recipe.checks.pool,
-      })),
-      refused,
-      requestBound: RECIPE_BRIEF_REQUEST_BOUND,
+      code: closed ? code : 'scope_refused',
+      unknown: false,
+      closed,
+      ...(closed && retry < MAX_PROPOSAL_RETRY ? { nextRetry: retry + 1 } : {}),
     };
   };
 }
