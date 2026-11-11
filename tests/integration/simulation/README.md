@@ -64,7 +64,7 @@ gate/        judges the lab as a whole: known failures still reproduced, every q
 | `reel-watcher` | Starts on a Reel and stays in Reels | Format stickiness, Reel evidence |
 | `link-reader-reels` | Follows two shared links to Reels of one system and watches both | A Reel-only reader forming a system (exact) |
 | `link-reader-scrolls` | Follows links to three Scrolls of one planet over two facets | A planet forming (exact) |
-| `link-reader-exoplanets` | Reads every Scroll of `space.exoplanets`, then returns to two | Planner demand for a finished topic (exact) |
+| `link-reader-exoplanets` | Reads every Scroll of `space.exoplanets`, then returns to two | Planner demand for a finished topic; regression for the planned-demand duplicate (#712) |
 | `topic-switcher` | Reads one topic until a place exists, then opens a region on purpose | Region encounters |
 | `binge-reader` | Reads everything new, skips what it has met, until nothing unseen is left, then some more (own five-planet library) | The end of the library, last-resort repeats |
 | `idle-tab` | Reads one stop, then leaves a tab open on the next for one to three hours | Inactivity never qualifies |
@@ -95,7 +95,6 @@ with the reason it fails and a `matches` that accepts only violations that fail 
 
 | Entry | Invariant | Slice | Why it fails today |
 | --- | --- | --- | --- |
-| `I3/planned-demand-duplicates-an-open-request` | I3 | 1.3 | Planner demand for a topic whose unread content is gone asks Supply to commission again although the person already has an open planned row for that brief (a ready one that reused content, and a deferred one that joined production). The lookup returns the ready row, so the second request joins the same work group and violates the unique index on one open planner row per work group. The Planner run throws, retries, dead-letters and stays prepared. Only a topic with a recipe Create may still choose (`space.exoplanets`) reaches it today. Exact scenario: `link-reader-exoplanets`. |
 | `I2/reel-only-evidence-forms-no-system` | I2 | 5.1 | A Reel has no coverage mapping or certificate; the trusted read serves only Scrolls, so a qualified Reel leaves no coverage reference (a Reel-only reader's Geography runs settle `no_support_yet`). Two qualified Reels of one system form nothing. The entry matches only that situation: the qualified units under the system are Reels and Personal Context holds no reference and no trusted support under any topic of it. |
 
 The lab keeps two promises about them. Every violation of an invariant must be explained by an entry, for a persona it
@@ -117,8 +116,11 @@ decision evaluated, or `unknown` when the decision cannot be read as expected), 
 
 No entry, so these are gates: no repeat while something unseen exists (its entry for slice 1.2 was deleted when #713
 made policy v2 dev's), planet formation from Scrolls (the exact `link-reader-scrolls`), isolation, pause and resume,
-bounded cost, and a Planner that survives a reader who has met more than 16 topics (`broad-skimmer`; its entry for
-slice 0.1 was deleted when #711 fixed it).
+bounded cost, a Planner that survives a reader who has met more than 16 topics (`broad-skimmer`; its entry for
+slice 0.1 was deleted when #711 fixed it), and a Planner whose demand for a finished topic leaves no failed or held run
+(`link-reader-exoplanets`: the one topic whose recipe Create may still choose; its entry for slice 1.3 was deleted when
+#712 stopped an older `ready` row from hiding a waiting one from Supply's lookup). The gate also checks that this persona
+still makes the Planner ask Supply for missing content and leaves planned rows, so its pass is not a vacuous one.
 
 ### Metrics
 

@@ -31,42 +31,7 @@ export interface KnownFailure {
   readonly matches: (violation: Violation) => boolean;
 }
 
-/** What the handlers of the violation's queue threw, as the lab saw it. */
-const messagesOf = (violation: Violation): readonly string[] => {
-  const messages = violation.detail['messages'];
-  return Array.isArray(messages) ? messages.filter((message): message is string => typeof message === 'string') : [];
-};
-
-/** The Planner's unique index on an open planner request per work group, which a second request for the same brief violates. */
-const PLANNED_DEMAND_CONSTRAINT = 'supply_requests_planner_open_work';
-
-/** The consequence of a failed delivery: pg-boss redelivers into a run whose claim is still held. */
-const CLAIM_WAKE_EARLY = 'PLANNER_CLAIM_WAKE_EARLY';
-
 export const KNOWN_FAILURES: readonly KnownFailure[] = [
-  {
-    id: 'I3/planned-demand-duplicates-an-open-request',
-    invariant: 'I3',
-    slice: '1.3',
-    reproducedBy: ['link-reader-exoplanets'],
-    reason:
-      'Planner demand for a topic whose unread content is gone asks Supply to commission again, although the person already has an open planned row for that brief (the ready one that reused content, and a deferred one that joined production). The lookup returns the ready row, so the second request joins the same work group and violates the unique index on one open planner row per work group. The Planner run throws, retries, dead-letters and stays prepared. Only a topic with a recipe Create may still choose (space.exoplanets) reaches it today.',
-    matches: (violation) => {
-      const messages = messagesOf(violation);
-      return (
-        violation.invariant === 'I3' &&
-        ['job_handler_failed', 'run_held_queued', 'job_failed', 'job_dead_lettered', 'job_not_completed'].includes(
-          violation.code,
-        ) &&
-        (violation.detail['queue'] === 'planner.run' ||
-          violation.detail['queue'] === 'planner.run.dead' ||
-          violation.detail['kind'] === 'planner') &&
-        // The worker's own error, not just the queue: the unique index, and nothing but its consequence.
-        messages.some((message) => message.includes(PLANNED_DEMAND_CONSTRAINT)) &&
-        messages.every((message) => message.includes(PLANNED_DEMAND_CONSTRAINT) || message.includes(CLAIM_WAKE_EARLY))
-      );
-    },
-  },
   {
     id: 'I2/reel-only-evidence-forms-no-system',
     invariant: 'I2',
