@@ -32,17 +32,28 @@ export interface CoverageDirty {
   readonly topics: readonly string[];
   readonly hasMore: boolean;
   readonly anySupport: boolean;
+  /** When the earliest topic in backoff may be tried again (ISO), or null when none waits. */
+  readonly nextRetryAt: string | null;
 }
 /** At most `limit` dirty topics (1..64). Reads only; the personal scope is the caller's. */
 export type ReadCoverageDirty = (scope: PersonalScopeTx, query: { readonly limit: number }) => Promise<CoverageDirty>;
 
 /**
- * Deletes the dirty rows of `topicIds` that are at or below `throughRevision`, the personal scope revision at which the
- * caller read them, so evidence that arrived since stays dirty. Returns how many rows went. Runs in the caller's scope.
+ * Settles what a run evaluated, in the caller's scope. The dirty rows of `topicIds` at or below `throughRevision` (the personal
+ * scope revision at which the caller read them) are deleted, so evidence that arrived since stays dirty. The rows of `deferTopicIds`
+ * at or below it are kept and put in backoff instead: they are not offered again until one minute, then two, doubling to an
+ * hour, after the last try, and are no longer counted by `ReadCoverageDirty` until then; new evidence ends the backoff. Returns
+ * how many rows were deleted.
  */
 export type ClearCoverageDirty = (
   scope: PersonalScopeTx,
-  input: { readonly topicIds: readonly string[]; readonly throughRevision: number },
+  input: {
+    readonly topicIds: readonly string[];
+    readonly throughRevision: number;
+    readonly deferTopicIds?: readonly string[];
+    /** A deferred row that has been tried this many times is deleted instead: only new evidence or an explicit reconcile brings it back. */
+    readonly maxAttempts?: number;
+  },
 ) => Promise<number>;
 
 /**
@@ -53,13 +64,24 @@ export type MarkCoverageDirty = (scope: PersonalScopeTx) => Promise<number>;
 
 /**
  * Candidate probes for named topics: for each facet of each topic, its newest `perFacet` support keys (distinct
- * explanation units), newest first, with the topics that have any key. `maxTopics` keeps only the topics whose newest key is the
+ * explanation units), newest first (or the `page`th run of them), with the topics that have any key. `maxTopics` keeps only the topics whose newest key is the
  * most recent (by topic id for a tie). These index keys are not trusted supports, unit counts or formation authority: a consumer must call
  * the current trusted read under the same root.
  */
 export type ReadCoverageInputs = (
   scope: PersonalScopeTx,
-  query: { readonly topicIds: readonly string[]; readonly perFacet: number; readonly maxTopics?: number },
+  query: {
+    /** The topics to read. Absent when `recent` names them. */
+    readonly topicIds?: readonly string[];
+    /** Instead of named topics: the `limit` most recently supported topics other than `exclude`. */
+    readonly recent?: { readonly limit: number; readonly exclude: readonly string[] };
+    readonly perFacet: number;
+    readonly maxTopics?: number;
+    /** The page of each facet's keys, newest first: 0 is the newest `perFacet`, 1 the next `perFacet`, and so on. */
+    readonly page?: number;
+    /** Read only these facets (topic and facet), for the next page of a facet whose newest keys were not trusted. */
+    readonly onlyFacets?: readonly { readonly topicId: string; readonly facetId: string }[];
+  },
 ) => Promise<{
   readonly revision: number;
   /** The topics (of those asked) that have at least one key, by id. */

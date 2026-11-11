@@ -345,13 +345,21 @@ describe('the quiet sweep (real PostgreSQL CI fixtures)', () => {
 
     await atDay(0).sweep();
     expect(await jobsOf(person)).toEqual([]);
-    // The sweep only moves each place's own scheduling time, a day ahead, so they leave the head of the index.
+    // The sweep only moves each place's own scheduling time, so they leave the head of the index: a run settles within minutes,
+    // so the places wait minutes (not a day) and the next pass tries them again (PR #723).
     const held = await stateOf(person);
     expect(held).toMatchObject({ revision: before.revision, activity_revision: before.activity_revision });
-    expect((await scheduleOf(person)).due!.getTime()).toBeGreaterThan(Date.now() + 23 * 3_600_000);
-    // A settle that was already queued stands aside rather than move the revision under the run.
+    const heldDue = (await scheduleOf(person)).due!.getTime();
+    expect(heldDue).toBeGreaterThan(Date.now() + 4 * 60_000);
+    expect(heldDue).toBeLessThanOrEqual(Date.now() + 5 * 60_000);
+    // A settle that was already queued stands aside rather than move the revision under the run, and the places wait minutes too.
+    await sql`update geography.objects set quiet_check_at = now() where universe_id = ${person.universeId}::uuid`.execute(
+      db(),
+    );
     expect(await atDay(0).settle(await settleJob(person))).toEqual({ outcome: 'run_active', changed: 0 });
     expect(await stateOf(person)).toEqual(held);
+    expect((await scheduleOf(person)).due!.getTime()).toBeLessThanOrEqual(Date.now() + 5 * 60_000);
+    expect((await scheduleOf(person)).due!.getTime()).toBeGreaterThan(Date.now() + 4 * 60_000);
 
     expect(await cartograph(person)).toBe(runId);
     const run = await db()
@@ -473,12 +481,15 @@ describe('the quiet sweep (real PostgreSQL CI fixtures)', () => {
     const store = quietSweepStore({ db: db(), enqueueInTransaction: makeEnqueueInTransaction(world.c.boss) });
     const pass = (limit: number) => {
       const now = new Date();
-      return store.handOverDue({
-        now,
-        limit,
-        leaseUntil: new Date(now.getTime() + 30 * 60_000),
-        parkUntil: new Date(now.getTime() + DAY),
-      });
+      return store
+        .handOverDue({
+          now,
+          limit,
+          leaseUntil: new Date(now.getTime() + 30 * 60_000),
+          parkUntil: new Date(now.getTime() + DAY),
+          runHeldUntil: new Date(now.getTime() + 5 * 60_000),
+        })
+        .then((result) => result.handedOver);
     };
     // Whatever earlier tests left due is leased or parked first, so only this test's places are at the head.
     await pass(10_000);
@@ -499,5 +510,56 @@ describe('the quiet sweep (real PostgreSQL CI fixtures)', () => {
     expect(await pass(10)).toBe(5);
     expect(await jobsOf(settleable)).toHaveLength(1);
     for (const person of refused) expect(await jobsOf(person)).toEqual([]);
+  });
+
+  it('does not refuse a settle for a place whose content was withdrawn: it keeps its activity and is not looked at again (PR #723)', async () => {
+    const person = await seedPerson(db());
+    const assets: string[] = [];
+    for (const facetId of [facet, otherFacet, facet]) {
+      const fixture = await world.fixture(undefined, topic, [facetId]);
+      assets.push(fixture.assetId);
+      await world.observe(person, fixture, [], 40 * 24 * 60);
+    }
+    await cartograph(person, { now: () => new Date(Date.now() - 39 * DAY) });
+    expect(new Set(states(await places(person)))).toEqual(new Set(['active']));
+    // The content is withdrawn with no reading: nothing is dirty, and the places are due, with a last support 40 days old.
+    await db().updateTable('content.assets').set({ status: 'withdrawn' }).where('id', 'in', assets).execute();
+    const late = atDay(0);
+    expect((await late.sweep()).handedOver).toBeGreaterThanOrEqual(5);
+    const [job] = await jobsOf(person);
+    // The carried last support is no support to cite, so no change is proposed (it used to be proposed without references and
+    // refused, for all 32 places of the settle, every time).
+    expect(await late.settle(job!.data)).toEqual({ outcome: 'nothing_due', changed: 0 });
+    expect(new Set(states(await places(person)))).toEqual(new Set(['active']));
+    expect(await scheduleOf(person)).toMatchObject({ scheduled: 0, supported: 0, places: 5 });
+  });
+
+  it('backs a place the settle cannot read off an hour, then more, and lets it go after six looks (PR #723)', async () => {
+    const person = await seedPerson(db());
+    await formedLongAgo(person);
+    // Its keys are gone (erased evidence): the settle finds nothing to read for the system and its star.
+    await sql`delete from personal_context.coverage_supports where universe_id = ${person.universeId}::uuid`.execute(
+      db(),
+    );
+    const systemIds = (
+      await sql<{ id: string }>`select id from geography.objects where universe_id = ${person.universeId}::uuid
+        and payload ->> 'kind' in ('system', 'star') order by id`.execute(db())
+    ).rows.map((row) => row.id);
+    const job = { ...(await settleJob(person)), objectIds: systemIds };
+    const nextLook = async () =>
+      (
+        await sql<{ hours: number | null; attempts: number }>`select
+          extract(epoch from (max(quiet_check_at) - now())) / 3600 as hours, max(quiet_attempts)::int as attempts
+          from geography.objects where id = any(${systemIds}::uuid[])`.execute(db())
+      ).rows[0]!;
+    const waits: (number | null)[] = [];
+    for (let look = 1; look <= 6; look++) {
+      await sql`update geography.objects set quiet_check_at = now() where id = any(${systemIds}::uuid[])`.execute(db());
+      expect((await atDay(0).settle(job)).outcome).toBe('nothing_due');
+      const row = await nextLook();
+      expect(row.attempts).toBe(look);
+      waits.push(row.hours === null ? null : Math.round(row.hours));
+    }
+    expect(waits).toEqual([1, 2, 4, 8, 16, null]);
   });
 });

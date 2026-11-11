@@ -170,17 +170,20 @@ export function formationEligible(f: FormationFacts, c: Candidate, subset = supp
 /** How long a place may go without new support before it is quiet. Inactivity never removes a place. */
 export const QUIET_AFTER_MS = FORMATION.quietAfterDays * 86400000;
 /**
- * When the newest support under a place was activated, as epoch milliseconds; absent when it has none. A system's
- * and a star's is the newest of what the facts hold and what an earlier evaluation carried for it
- * (`carriedSupportAt`), so reading one topic never makes the system look older than reading of another topic under it.
+ * When the newest support under a place was activated, as epoch milliseconds; absent when no support was read under it. A
+ * system's and a star's is the newest of what the facts hold and what an earlier evaluation carried for it
+ * (`carriedSupportAt`), so reading one topic never makes the system look older than reading of another topic under it. A
+ * carried time is never a support by itself: with nothing read under the place there is nothing to cite for a change, so the
+ * place keeps its activity until something under it is read (the same answer the whole catalogue gives when no support is
+ * trusted).
  */
 export function latestSupportAt(f: FormationFacts, c: Candidate): number | undefined {
   const read = supportsFor(f, c)
     .map((s) => Date.parse(s.activatedAt))
     .sort((a, b) => b - a)[0];
+  if (read === undefined) return undefined;
   const carried = c.kind === 'system' || c.kind === 'star' ? f.carriedSupportAt?.[c.key] : undefined;
-  if (carried === undefined) return read;
-  return read === undefined ? Date.parse(carried) : Math.max(read, Date.parse(carried));
+  return carried === undefined ? read : Math.max(read, Date.parse(carried));
 }
 export function activityFor(f: FormationFacts, c: Candidate): 'active' | 'quiet' | undefined {
   const latest = latestSupportAt(f, c);

@@ -721,6 +721,7 @@ export interface GeographyObjects {
   last_support_at: Timestamp | null;
   payload: Json;
   privacy_epoch: number;
+  quiet_attempts: Generated<number>;
   quiet_check_at: Timestamp | null;
   semantic_key: string;
   support_refs: Json;
@@ -1208,8 +1209,10 @@ export interface PersonalContextCoverageContributions {
 }
 
 export interface PersonalContextCoverageDirtyTopics {
+  attempts: Generated<number>;
   dirty_revision: number;
   privacy_epoch: number;
+  retry_after: Timestamp | null;
   topic_id: string;
   universe_id: string;
 }

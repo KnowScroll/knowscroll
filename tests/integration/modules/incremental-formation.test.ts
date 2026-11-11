@@ -3,7 +3,7 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { makeEnqueueInTransaction } from '@knowscroll/backend/infrastructure/jobs';
-import { CONCEPT_CATALOGUE_VERSION } from '@knowscroll/backend/modules/content';
+import { CONCEPTS, CONCEPT_CATALOGUE_VERSION } from '@knowscroll/backend/modules/content';
 import {
   catalogueOf,
   derivedPlaceId,
@@ -588,5 +588,99 @@ describe('incremental formation on real PostgreSQL (CI fixtures)', () => {
       expect(total(formed)).toBeGreaterThan(700);
       expect(new Set(formed.map((row) => row.state))).toEqual(new Set(['quiet']));
     }, 600_000);
+  });
+
+  describe('the review of PR #723', () => {
+    const runOutcome = async (runId: string) =>
+      (
+        await db()
+          .selectFrom('geography.runs')
+          .select(['status', 'outcome'])
+          .where('id', '=', runId)
+          .executeTakeFirstOrThrow()
+      ).outcome;
+    const dirtyRows = async (person: FixturePerson) =>
+      (
+        await sql<{
+          topic_id: string;
+          attempts: number;
+          waits: boolean;
+        }>`select topic_id, attempts, retry_after > now() as waits
+          from personal_context.coverage_dirty_topics where universe_id = ${person.universeId}::uuid order by topic_id`.execute(
+          db(),
+        )
+      ).rows;
+    const authorityChanged = {
+      version: 'trusted-coverage-read.v1',
+      completeness: 'not_asserted',
+      supportedFormats: ['scroll'],
+      availability: 'unavailable',
+      reason: 'authority_changed',
+      supports: [],
+      witnesses: [],
+      certificates: [],
+    } as never;
+
+    it('keeps the topics of a refused claim dirty in backoff and queues the next run, which forms them once it may (3)', async () => {
+      const person = await seedPerson(db());
+      await world.coherent(person);
+      const first = (await world.state(person)).activeRunId!;
+      await cartograph(person, { readTrusted: () => Promise.resolve(authorityChanged) });
+      expect(await runOutcome(first)).toBe('coverage_authority_changed');
+      // The reading is not lost with the claim: the topic waits a minute, and a successor run is queued for it.
+      expect(await dirtyRows(person)).toEqual([{ topic_id: topic, attempts: 1, waits: true }]);
+      const successor = (await world.state(person)).activeRunId;
+      expect(successor).toBeDefined();
+      expect(successor).not.toBe(first);
+      expect(await places(person)).toEqual([]);
+      // The minute passes; the successor takes the topic and forms its places.
+      await sql`update personal_context.coverage_dirty_topics set retry_after = now() where universe_id = ${person.universeId}::uuid`.execute(
+        db(),
+      );
+      expect((await cartograph(person)).runId).toBe(successor);
+      expect(await dirtyRows(person)).toEqual([]);
+      expect(total(await storedPlaces(person))).toBe(5);
+    });
+
+    it('marks only the topics that hold a unit whose coverage changed, out of any backoff (4)', async () => {
+      const person = await seedPerson(db());
+      const readTopic = await world.fixture(undefined, topic, [facet]);
+      const other = await world.fixture(undefined, 'earth.tides', ['earth.tides.forcing']);
+      await world.observe(person, readTopic);
+      await world.observe(person, other);
+      await cartograph(person);
+      expect(await dirtyRows(person)).toEqual([]);
+      const units = { universeId: person.universeId, units: [readTopic.unit] };
+      expect(await reconcileCoverageDirty(db(), { ...units, dryRun: true })).toEqual({ universes: 1, topics: 1 });
+      expect(await dirtyRows(person)).toEqual([]);
+      expect(await reconcileCoverageDirty(db(), { ...units, dryRun: false })).toEqual({ universes: 1, topics: 1 });
+      expect(await dirtyRows(person)).toEqual([{ topic_id: topic, attempts: 0, waits: null }]);
+      // A row waiting out a backoff is eligible again at once: its content is trusted now.
+      await sql`update personal_context.coverage_dirty_topics set attempts = 5, retry_after = now() + interval '1 hour'
+        where universe_id = ${person.universeId}::uuid`.execute(db());
+      expect(await reconcileCoverageDirty(db(), { ...units, dryRun: false })).toEqual({ universes: 1, topics: 1 });
+      expect(await dirtyRows(person)).toEqual([{ topic_id: topic, attempts: 0, waits: null }]);
+    });
+
+    it('records no_changes, not no_trusted_support, when the evaluated topics are untrusted but trusted support is read elsewhere (7)', async () => {
+      const person = await seedPerson(db());
+      const blackHoles = CONCEPTS.find((entry) => entry.id === 'space.black-holes')!;
+      const elsewhere = await world.fixture(undefined, blackHoles.id, [blackHoles.facets[0]!.id]);
+      await world.observe(person, elsewhere);
+      await cartograph(person);
+      expect(await dirtyRows(person)).toEqual([]);
+      // New reading under Earth, whose Scrolls are then withdrawn: nothing trusted in the topic the run evaluates, but the reader's
+      // Black holes reading is trusted. That is a withdrawn Scroll, not a fault of the reader's coverage.
+      const withdrawn = await world.fixture(undefined, topic, [facet]);
+      await world.observe(person, withdrawn);
+      await db()
+        .updateTable('content.assets')
+        .set({ status: 'withdrawn' })
+        .where('id', '=', withdrawn.assetId)
+        .execute();
+      const runId = (await world.state(person)).activeRunId!;
+      await cartograph(person);
+      expect(await runOutcome(runId)).toBe('no_changes');
+    });
   });
 });

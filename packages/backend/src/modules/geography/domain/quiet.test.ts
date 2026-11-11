@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CONCEPTS } from '../../content/public.js';
-import { activityChanges, placeSchedules } from './quiet.js';
+import { QUIET_SWEEP, activityChanges, placeSchedules, unreadRetryMs } from './quiet.js';
 import { requiredChanges } from './formation.js';
 import {
   QUIET_AFTER_MS,
@@ -138,5 +138,44 @@ describe('quiet places (authored fixtures only)', () => {
     // The carry never lowers what the facts read, and only systems and stars carry.
     const newer = { ...carried, carriedSupportAt: { [earthSystem.key]: daysAgo(60) } };
     expect(placeSchedules(newer)[0]!.lastSupportAt).toBe(daysAgo(45));
+  });
+
+  it('keeps the activity of a system whose carried last support is all that remains: nothing was read to cite (PR #723)', () => {
+    // A system last supported 40 days ago whose content was withdrawn: nothing is read under it now. The carried time is not a
+    // support, so no change is made (a change with no support to cite could never be applied) and nothing is scheduled.
+    const carried = {
+      ...facts([], [placed(earthSystem, 'active'), placed(earthStar, 'active')]),
+      carriedSupportAt: {
+        [earthSystem.key]: daysAgo(40),
+        [earthStar.key]: daysAgo(40),
+      },
+    };
+    expect(activityChanges(carried)).toEqual([]);
+    expect(
+      placeSchedules(carried).map((schedule) => [schedule.key, schedule.lastSupportAt, schedule.quietCheckAt]),
+    ).toEqual([
+      [earthSystem.key, null, null],
+      [earthStar.key, null, null],
+    ]);
+    // With something read under it, the carried time still counts: the newest of the two decides.
+    const read = { ...carried, supports: [support('a', daysAgo(2))] };
+    expect(activityChanges(read)).toEqual([]);
+    const readOld = { ...carried, supports: [support('a', daysAgo(35))] };
+    expect(activityChanges(readOld).map((change) => change.state)).toEqual(['quiet', 'quiet']);
+  });
+
+  it('backs off a place no settle can read: an hour, doubling to a day, and not at all from the sixth look (PR #723)', () => {
+    const waits = [1, 2, 3, 4, 5, 6, 7].map((looks) => unreadRetryMs(looks));
+    expect(waits).toEqual([3_600_000, 7_200_000, 14_400_000, 28_800_000, 57_600_000, undefined, undefined]);
+    expect(Math.max(...waits.filter((wait): wait is number => wait !== undefined))).toBeLessThanOrEqual(
+      QUIET_SWEEP.parkMs,
+    );
+  });
+
+  it('sizes the sweep for a migration-day backlog: 4.8 million places a day, a place held by a run waits minutes (PR #723)', () => {
+    const passesPerDay = 96;
+    expect(QUIET_SWEEP.batch * QUIET_SWEEP.pagesPerPass * passesPerDay).toBe(4_800_000);
+    expect(QUIET_SWEEP.runHeldMs).toBeLessThanOrEqual(15 * 60_000);
+    expect(QUIET_SWEEP.runHeldMs).toBeLessThan(QUIET_SWEEP.parkMs);
   });
 });

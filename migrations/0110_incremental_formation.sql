@@ -5,7 +5,9 @@
 --    key's reference was added or removed) since Geography last evaluated it. `dirty_revision` is the personal scope revision
 --    the changing transaction commits at (`revisionAtEntry + 1`), so a run that read the set at scope revision R has seen every
 --    row at or below R, and evidence that arrives during the run stays dirty. Derived, never evidence: the facts are in
---    `coverage_supports`. Activity-only changes touch no row.
+--    `coverage_supports`. Activity-only changes touch no row. A row a run could not settle (nothing trusted yet, a refused apply)
+--    is kept with `attempts` and `retry_after`, so it is retried after an exponential delay (one minute, doubling, at most an
+--    hour) without crowding fresh work out of a batch; new evidence for the topic clears both.
 -- 2. personal_context.coverage_supports.last_activated_at: when the newest exposure of the key was activated. It only orders a
 --    topic's keys newest first so a run can read a bounded number per facet; a removed reference leaves it where it was, so
 --    it can be later than the true newest and never decides what a place is.
@@ -16,7 +18,8 @@
 --    system's and star's value is the newest over everything evaluated under it). geography.objects.quiet_check_at: when the
 --    place next needs a look: its last support plus 30 days while it is active, now while its stored activity differs from what
 --    its support implies, null otherwise. The quiet sweep reads the places that are due with one indexed query across
---    universes. Both are derived scheduling state, never evidence, and never leave the server.
+--    universes. `quiet_attempts` counts the looks that could not read the place's support, so they back off (an hour,
+--    doubling) and stop after six. All three are derived scheduling state, never evidence, and never leave the server.
 --
 -- Query shapes: the dirty set is read by (universe, epoch, dirty_revision, topic) for the newest N, deleted by (universe, epoch,
 -- topic, revision); a topic's keys are read by the primary key prefix of coverage_supports; the sweep takes the oldest 100
@@ -37,6 +40,8 @@ create table personal_context.coverage_dirty_topics (
   privacy_epoch integer not null check (privacy_epoch >= 1),
   topic_id text not null check (length(topic_id) between 1 and 160),
   dirty_revision integer not null check (dirty_revision >= 1),
+  attempts integer not null default 0 check (attempts >= 0),
+  retry_after timestamptz,
   primary key (universe_id, privacy_epoch, topic_id)
 );
 create index coverage_dirty_oldest on personal_context.coverage_dirty_topics (universe_id, privacy_epoch, dirty_revision, topic_id);
@@ -87,6 +92,7 @@ alter table geography.state add column place_secret text
 
 alter table geography.objects add column last_support_at timestamptz;
 alter table geography.objects add column quiet_check_at timestamptz;
+alter table geography.objects add column quiet_attempts integer not null default 0 check (quiet_attempts >= 0);
 
 -- The objects of a world are at most 1000 per universe and the migrator's transaction cannot build an index CONCURRENTLY.
 -- squawk-ignore require-concurrent-index-creation

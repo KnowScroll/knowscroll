@@ -119,6 +119,13 @@ export interface EvaluationScope {
    * read, never from what an earlier evaluation stored, and a re-read of the same topics must do the same.
    */
   readonly systemsRead?: readonly string[];
+  /**
+   * The evaluated topics that have support keys none of which is trusted now (content withdrawn, a map corrected, a read that
+   * observed nothing). Their dirty rows are kept in backoff, not cleared, so they are judged again when the content is trusted.
+   */
+  readonly untrusted?: readonly string[];
+  /** Nothing trusted was found in the evaluated topics but the reader's other recent topics hold trusted support: healthy. */
+  readonly otherTrusted?: true;
 }
 export interface GeographyContext {
   readonly version: 'cartographer-context.v1';
@@ -157,7 +164,12 @@ export type GeographyPreparation =
       /** Places and relations stored, as the structure limit counts them. */
       readonly structure: StructureCounts;
     }
-  | { readonly kind: 'unavailable'; readonly reason: PreparationRefusal };
+  | {
+      readonly kind: 'unavailable';
+      readonly reason: PreparationRefusal;
+      /** What a run was trying to evaluate: the dirty topics it took and the revision it read them at. Absent when no dirty set was read. */
+      readonly attempted?: { readonly topics: readonly string[]; readonly dirtyThrough: number };
+    };
 /** Places and relations a universe stores, each counted up to 1001, which is past the structure limit. */
 export interface StructureCounts {
   readonly objects: number;
@@ -240,6 +252,11 @@ export interface GeographyStore {
   saveSchedule(scope: PersonalScopeTx, schedules: readonly PlaceSchedule[]): Promise<void>;
   /** Moves the next look of these places (by id) to `at`, for places a settle could not decide. */
   deferQuiet(scope: PersonalScopeTx, ids: readonly string[], at: Date): Promise<void>;
+  /**
+   * Looks at these places again later because a settle could not read them: `unreadRetryMs` after `now`, doubling with each
+   * look, and not at all from the `QUIET_SWEEP.unreadAttempts`th look (their next look is cleared until reading stores it again).
+   */
+  backOffQuiet(scope: PersonalScopeTx, ids: readonly string[], now: Date): Promise<void>;
   /** Places due for a look at `at` (oldest first, at most `limit`): what the dry run says a settle would see. */
   duePlaces(scope: PersonalScopeTx, at: Date, limit: number): Promise<readonly Place[]>;
   writeRun(scope: PersonalScopeTx, run: GeographyRun): Promise<void>;

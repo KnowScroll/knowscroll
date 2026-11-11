@@ -5,7 +5,7 @@ import type { RecordingScopeTx } from '../../identity/public.js';
 import type { CoverageProbe } from '../../personal-context/public.js';
 import { catalogueOf, type Catalogue, type CatalogueTopic } from '../domain/catalogue.js';
 import { newestKeysPerFacet } from '../domain/evaluation.js';
-import type { PlaceSchedule } from '../domain/quiet.js';
+import { unreadRetryMs, type PlaceSchedule } from '../domain/quiet.js';
 import { routeKey } from '../domain/ids.js';
 import type { Place, Route } from '../domain/policy.js';
 import type { UniverseDelta } from '@knowscroll/contracts';
@@ -123,9 +123,14 @@ export class World {
   readonly readings: Reading[] = [];
   /** Keys whose trusted read is refused, as if the content were withdrawn: `topic|facet|unit`. */
   readonly untrusted = new Set<string>();
-  readonly objects = new Map<string, Place & { lastSupportAt?: string; quietCheckAt?: string }>();
+  readonly objects = new Map<
+    string,
+    Place & { lastSupportAt?: string; quietCheckAt?: string; quietAttempts?: number }
+  >();
   readonly routes = new Map<string, Route>();
   readonly dirty = new Map<string, number>();
+  /** Dirty rows in backoff: when each may be tried again (ms since the epoch) and how many times it was tried. */
+  readonly backoff = new Map<string, { retryAt: number; attempts: number }>();
   readonly deltas = new Map<string, { hash: string; delta: UniverseDelta }>();
   readonly counters: Counters = { trustedReads: 0, inputReads: [], dirtyReads: 0 };
   readonly catalogue: Catalogue;
@@ -151,8 +156,26 @@ export class World {
   /** One encounter: a reference is added to a support key, and its topic is marked dirty at the revision it commits at. */
   read(...readings: readonly { topicId: string; facetId: string; unit: string; at?: string }[]): void {
     for (const reading of readings) this.readings.push({ ...reading, at: reading.at ?? this.now });
-    for (const topic of new Set(readings.map((reading) => reading.topicId))) this.dirty.set(topic, this.revision + 1);
+    for (const topic of new Set(readings.map((reading) => reading.topicId))) this.markDirty(topic);
     this.revision += 1;
+  }
+
+  /** The dirty topics not waiting out a backoff: what a run takes now. */
+  eligibleDirty(): string[] {
+    const at = new Date(this.now).getTime();
+    return [...this.dirty.keys()].filter((topic) => (this.backoff.get(topic)?.retryAt ?? 0) <= at);
+  }
+
+  /** A change with no reading of its own (content restored, a re-read) commits and marks the topic dirty. */
+  touch(topic: string): void {
+    this.markDirty(topic);
+    this.revision += 1;
+  }
+
+  /** A topic's trusted support changed: it is dirty at the revision the change commits at, and out of any backoff. */
+  markDirty(topic: string): void {
+    this.dirty.set(topic, this.revision + 1);
+    this.backoff.delete(topic);
   }
 
   /** The newest key of each support, with when its newest reading was activated. */
@@ -236,11 +259,23 @@ function portsOf(world: World): GeographyPorts {
         else stored.lastSupportAt = schedule.lastSupportAt;
         if (schedule.quietCheckAt === null) delete stored.quietCheckAt;
         else stored.quietCheckAt = schedule.quietCheckAt;
+        delete stored.quietAttempts;
       }
       return Promise.resolve();
     },
     deferQuiet: (_scope: unknown, ids: readonly string[], at: Date) => {
       for (const stored of world.objects.values()) if (ids.includes(stored.id)) stored.quietCheckAt = at.toISOString();
+      return Promise.resolve();
+    },
+    backOffQuiet: (_scope: unknown, ids: readonly string[], now: Date) => {
+      for (const stored of world.objects.values()) {
+        if (!ids.includes(stored.id)) continue;
+        const looks = (stored.quietAttempts ?? 0) + 1;
+        stored.quietAttempts = looks;
+        const wait = unreadRetryMs(looks);
+        if (wait === undefined) delete stored.quietCheckAt;
+        else stored.quietCheckAt = new Date(now.getTime() + wait).toISOString();
+      }
       return Promise.resolve();
     },
     duePlaces: (_scope: unknown, at: Date, limit: number) =>
@@ -271,50 +306,93 @@ function portsOf(world: World): GeographyPorts {
     applied: () => Promise.resolve(),
     readDirty: (_scope: unknown, { limit }: { limit: number }) => {
       world.counters.dirtyReads++;
-      const ordered = [...world.dirty].sort(([a, x], [b, y]) => y - x || a.localeCompare(b));
+      const now = new Date(world.now).getTime();
+      const waiting = [...world.backoff].filter(([topic, wait]) => world.dirty.has(topic) && wait.retryAt > now);
+      const ordered = [...world.dirty]
+        .filter(([topic]) => (world.backoff.get(topic)?.retryAt ?? 0) <= now)
+        .sort(([a, x], [b, y]) => y - x || a.localeCompare(b));
+      const next = waiting.map(([, wait]) => wait.retryAt).sort((a, b) => a - b)[0];
       return Promise.resolve({
         revision: world.revision,
         topics: ordered.slice(0, limit).map(([topic]) => topic),
         hasMore: ordered.length > limit,
         anySupport: world.readings.length > 0,
+        nextRetryAt: next === undefined ? null : new Date(next).toISOString(),
       });
     },
     clearDirty: (
       _scope: unknown,
-      { topicIds, throughRevision }: { topicIds: readonly string[]; throughRevision: number },
+      {
+        topicIds,
+        throughRevision,
+        deferTopicIds = [],
+        maxAttempts,
+      }: {
+        topicIds: readonly string[];
+        throughRevision: number;
+        deferTopicIds?: readonly string[];
+        maxAttempts?: number;
+      },
     ) => {
+      const now = new Date(world.now).getTime();
+      for (const topic of deferTopicIds) {
+        if ((world.dirty.get(topic) ?? Infinity) > throughRevision) continue;
+        const attempts = world.backoff.get(topic)?.attempts ?? 0;
+        if (maxAttempts !== undefined && attempts + 1 >= maxAttempts) {
+          world.dirty.delete(topic);
+          world.backoff.delete(topic);
+        } else
+          world.backoff.set(topic, {
+            retryAt: now + Math.min(3_600_000, 60_000 * 2 ** Math.min(attempts, 20)),
+            attempts: attempts + 1,
+          });
+      }
       let removed = 0;
       for (const topic of topicIds)
         if ((world.dirty.get(topic) ?? Infinity) <= throughRevision) {
           world.dirty.delete(topic);
+          world.backoff.delete(topic);
           removed++;
         }
       return Promise.resolve(removed);
     },
     markDirty: () => {
       const topics = new Set(world.readings.map((reading) => reading.topicId));
-      for (const topic of topics) world.dirty.set(topic, world.revision + 1);
+      for (const topic of topics) world.markDirty(topic);
       return Promise.resolve(topics.size);
     },
-    readInputs: (_scope: unknown, query: { topicIds: readonly string[]; perFacet: number; maxTopics?: number }) => {
-      world.counters.inputReads.push({ topicIds: query.topicIds, maxTopics: query.maxTopics });
-      const named = new Set(query.topicIds);
+    readInputs: (
+      _scope: unknown,
+      query: {
+        topicIds?: readonly string[];
+        recent?: { limit: number; exclude: readonly string[] };
+        perFacet: number;
+        maxTopics?: number;
+        page?: number;
+        onlyFacets?: readonly { topicId: string; facetId: string }[];
+      },
+    ) => {
+      world.counters.inputReads.push({ topicIds: query.topicIds ?? [], maxTopics: query.maxTopics });
       const newestOf = new Map<string, string>();
       for (const key of world.keys())
         if (!newestOf.has(key.topicId) || key.lastActivatedAt > newestOf.get(key.topicId)!)
           newestOf.set(key.topicId, key.lastActivatedAt);
-      // Topics newest first (the topic whose newest key is most recent), as the Postgres port orders `maxTopics`.
+      const named = query.recent ? undefined : new Set(query.topicIds);
+      const excluded = new Set(query.recent?.exclude ?? []);
+      // Topics newest first (the topic whose newest key is most recent), as the Postgres port orders `maxTopics` and `recent`.
       const supported = [...newestOf.keys()]
-        .filter((topic) => named.has(topic))
+        .filter((topic) => (named ? named.has(topic) : !excluded.has(topic)))
         .sort((a, b) => newestOf.get(b)!.localeCompare(newestOf.get(a)!) || a.localeCompare(b))
-        .slice(0, query.maxTopics ?? Infinity);
+        .slice(0, query.recent ? query.recent.limit : (query.maxTopics ?? Infinity));
+      const only = query.onlyFacets && new Set(query.onlyFacets.map((f) => `${f.topicId}|${f.facetId}`));
+      const page = query.page ?? 0;
       const keys = world
         .keys()
-        .filter((key) => supported.includes(key.topicId))
+        .filter((key) => supported.includes(key.topicId) && (!only || only.has(`${key.topicId}|${key.facetId}`)))
         .map((key) => ({ ...key }));
       const probes = newestKeysPerFacet(
         keys.map((key) => ({ ...key, lastActivatedAt: key.lastActivatedAt })),
-        query.perFacet,
+        (page + 1) * query.perFacet,
       )
         .sort(
           (a, b) =>
@@ -324,8 +402,19 @@ function portsOf(world: World): GeographyPorts {
               ? b.lastActivatedAt.localeCompare(a.lastActivatedAt)
               : a.explanationUnitId.localeCompare(b.explanationUnitId)),
         )
+        .filter((key, index, all) => {
+          // The `page`th run of `perFacet` keys of each facet, newest first.
+          const rank = all
+            .slice(0, index)
+            .filter((other) => other.topicId === key.topicId && other.facetId === key.facetId).length;
+          return rank >= page * query.perFacet;
+        })
         .map(({ topicId, facetId, explanationUnitId }) => ({ topicId, facetId, explanationUnitId }));
-      return Promise.resolve({ revision: world.revision, topics: supported, probes });
+      return Promise.resolve({
+        revision: world.revision,
+        topics: only ? [...new Set(probes.map((probe) => probe.topicId))] : supported,
+        probes,
+      });
     },
     readTrusted: (_scope: unknown, query: { probes: readonly CoverageProbe[] }) => {
       world.counters.trustedReads++;

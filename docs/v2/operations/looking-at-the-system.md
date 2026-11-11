@@ -139,6 +139,7 @@ history. To have the Cartographer read it once, newest first, in paced batches, 
 ```sh
 node dist/operator.js geography reconcile-coverage --dry-run             # counts, writes nothing
 node dist/operator.js geography reconcile-coverage [--universe <uuid>]   # marks; twice marks nothing new
+node dist/operator.js geography reconcile-coverage --unit <explanationUnitId>   # after Content's trust in a unit changed (readmit-coverage does this itself)
 ```
 
 It prints counts only, reads no support, calls no model and starts no run: each reader's next run (their next reading, or an

@@ -363,6 +363,53 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
     expect(read.probes.map((probe) => probe.topicId)).toEqual(['c', 'd']);
   });
 
+  it("reads the next page of a facet, only the facets asked for, and a reader's most recent other topics (PR #723)", async () => {
+    const p = await seedPerson(database.db);
+    // Topic x: facet f has five keys, u1 the newest; facet g has two. Topic y is older than x, z is the oldest.
+    await sql`insert into personal_context.coverage_supports(universe_id,privacy_epoch,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,reference_count,last_activated_at)
+      select ${p.universeId}::uuid,1,t,fa,repeat('0',64),u,repeat('0',64),1,now()-a*interval '1 hour'
+      from unnest(array['x','x','x','x','x','x','x','y','z'],array['f','f','f','f','f','g','g','f','f'],
+        array['u1','u2','u3','u4','u5','v1','v2','w1','w2'],array[1,2,3,4,5,6,7,50,90]) as seed(t,fa,u,a)`.execute(
+      database.db,
+    );
+    const units = (read: { probes: readonly { explanationUnitId: string }[] }) =>
+      read.probes.map((probe) => probe.explanationUnitId);
+    expect(units(await inScope(p, (scope) => readInputs(scope, { topicIds: ['x'], perFacet: 2 })))).toEqual([
+      'u1',
+      'u2',
+      'v1',
+      'v2',
+    ]);
+    // The next page of just facet f: the following two keys, newest first; g is not read again.
+    const next = await inScope(p, (scope) =>
+      readInputs(scope, { topicIds: ['x'], perFacet: 2, page: 1, onlyFacets: [{ topicId: 'x', facetId: 'f' }] }),
+    );
+    expect(units(next)).toEqual(['u3', 'u4']);
+    expect(next.topics).toEqual(['x']);
+    expect(
+      units(
+        await inScope(p, (scope) =>
+          readInputs(scope, { topicIds: ['x'], perFacet: 2, page: 2, onlyFacets: [{ topicId: 'x', facetId: 'f' }] }),
+        ),
+      ),
+    ).toEqual(['u5']);
+    expect(
+      (
+        await inScope(p, (scope) =>
+          readInputs(scope, { topicIds: ['x'], perFacet: 2, page: 3, onlyFacets: [{ topicId: 'x', facetId: 'f' }] }),
+        )
+      ).probes,
+    ).toEqual([]);
+    // The reader's most recent topics other than the ones excluded, newest first.
+    const recent = await inScope(p, (scope) =>
+      readInputs(scope, { recent: { limit: 1, exclude: ['x'] }, perFacet: 1 }),
+    );
+    expect(recent.topics).toEqual(['y']);
+    expect(units(recent)).toEqual(['w1']);
+    // Exactly one of named topics and a sample.
+    await expect(inScope(p, (scope) => readInputs(scope, { perFacet: 1 }))).rejects.toThrow();
+  });
+
   describe('the dirty set (#674, D-416)', () => {
     it('marks a topic when a reference is added to one of its support keys, at the revision the transaction commits at', async () => {
       const p = await seedPerson(database.db);
@@ -451,6 +498,56 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
       const page = await inScope(p, (scope) => readDirty(scope, { limit: 3 }));
       expect(page).toMatchObject({ topics: ['t5', 't4', 't3'], hasMore: true });
       await expect(inScope(p, (scope) => readDirty(scope, { limit: 65 }))).rejects.toThrow();
+    });
+
+    it('leaves a topic in backoff out of the read, reports when it is eligible, and a new reference ends the wait (PR #723)', async () => {
+      const p = await seedPerson(database.db),
+        f = await fixture();
+      await read(p, f);
+      const attempts = async () =>
+        (
+          await sql<{ attempts: number }>`select attempts from personal_context.coverage_dirty_topics
+            where universe_id = ${p.universeId}::uuid`.execute(database.db)
+        ).rows.map((row) => row.attempts);
+      const defer = async (maxAttempts?: number) => {
+        const [current] = await dirtyRows(p);
+        return inScope(p, (scope) =>
+          clearDirty(scope, {
+            topicIds: [],
+            throughRevision: current!.dirty_revision,
+            deferTopicIds: [topic],
+            ...(maxAttempts === undefined ? {} : { maxAttempts }),
+          }),
+        );
+      };
+      await defer();
+      const waiting = await inScope(p, (scope) => readDirty(scope, { limit: 4 }));
+      expect(waiting).toMatchObject({ topics: [], hasMore: false, anySupport: true });
+      expect(Date.parse(waiting.nextRetryAt!)).toBeGreaterThan(Date.now() + 30_000);
+      expect(await attempts()).toEqual([1]);
+      // Each try waits twice as long, up to an hour.
+      await sql`update personal_context.coverage_dirty_topics set retry_after = now() where universe_id = ${p.universeId}::uuid`.execute(
+        database.db,
+      );
+      await defer();
+      const [second] = (
+        await sql<{ secs: number; attempts: number }>`select extract(epoch from (retry_after - now())) as secs, attempts
+        from personal_context.coverage_dirty_topics where universe_id = ${p.universeId}::uuid`.execute(database.db)
+      ).rows;
+      expect(second!.attempts).toBe(2);
+      expect(Number(second!.secs)).toBeGreaterThan(100);
+      expect(Number(second!.secs)).toBeLessThanOrEqual(120);
+      // A new reference for the topic puts it back at once, out of any backoff.
+      await read(p, f);
+      expect(await inScope(p, (scope) => readDirty(scope, { limit: 4 }))).toMatchObject({
+        topics: [topic],
+        nextRetryAt: null,
+      });
+      expect(await attempts()).toEqual([0]);
+      // With a bound, a row already tried that often is let go instead of waiting again.
+      await defer();
+      await defer(2);
+      expect(await dirtyRows(p)).toEqual([]);
     });
 
     it('marks every topic with a support key for an explicit request, and records the newest activation of each key', async () => {

@@ -11,8 +11,8 @@ import type { GeographyPorts } from './ports.js';
  * - `nothing_due`: current support implies no change; only the next check time was stored.
  * - `disabled`: the Cartographer is switched off, so geography does not change.
  * - `not_current`: the universe, epoch, account or recording generation no longer holds. Nothing was written.
- * - `run_active`: a Cartographer run holds the universe, and a delta under it would void its answer.
- * - `support_unreadable`: support could not be read; the places wait before they are tried again.
+ * - `run_active`: a Cartographer run holds the universe, and a delta under it would void its answer. The places wait minutes.
+ * - `support_unreadable`: support could not be read; the places back off (an hour, doubling, a bounded number of times).
  * - `refused`: the delta was refused on fresh authority (support changed meanwhile). The sweep tries again.
  */
 export type SettleQuietOutcome =
@@ -41,15 +41,17 @@ export interface QuietSweepStore {
    * Looks at the first `limit` places whose `quiet_check_at` has passed, oldest first, across universes, in one
    * transaction. The places of each universe that can be settled now (no run holds it, its account is active, nothing
    * is being cleared, recording is on) go to its settles, at most `QUIET_SWEEP.placesPerSettle` each, and their
-   * `quiet_check_at` moves to `leaseUntil`. The places of each that cannot move to `parkUntil`, so a refused place never
-   * stays at the head of the index. Skips rows another transaction holds. Returns how many places were handed over.
+   * `quiet_check_at` moves to `leaseUntil`. The places of a universe a run holds move to `runHeldUntil`, those of any other
+   * universe that cannot be settled to `parkUntil`, so a refused place never stays at the head of the index. Skips rows
+   * another transaction holds. Returns how many places it looked at and how many were handed over.
    */
   handOverDue(input: {
     readonly now: Date;
     readonly limit: number;
     readonly leaseUntil: Date;
     readonly parkUntil: Date;
-  }): Promise<number>;
+    readonly runHeldUntil: Date;
+  }): Promise<{ readonly looked: number; readonly handedOver: number }>;
 }
 
 export interface SweepQuietPorts {
@@ -59,21 +61,27 @@ export interface SweepQuietPorts {
 }
 
 /**
- * Scheduled pass (D-104, D-416). One indexed query for the oldest due places across universes, bounded to a batch
- * whether or not they can be settled. It reads no support and calls no model; the settle does the work for each
- * universe. It writes nothing but each looked-at place's own `quiet_check_at`. With the Cartographer switched off it
- * does nothing.
+ * Scheduled pass (D-104, D-416). Pages of one indexed query each for the oldest due places across universes, each bounded
+ * to a batch whether or not they can be settled, up to `QUIET_SWEEP.pagesPerPass` pages (see `QUIET_SWEEP` for the capacity
+ * this gives). It reads no support and calls no model; the settle does the work for each universe. It writes nothing but
+ * each looked-at place's own `quiet_check_at`. With the Cartographer switched off it does nothing.
  */
 export function makeSweepQuiet(p: SweepQuietPorts): SweepQuiet {
   return async () => {
     if (!p.enabled()) return { handedOver: 0 };
-    const now = p.now();
-    const handedOver = await p.store.handOverDue({
-      now,
-      limit: QUIET_SWEEP.batch,
-      leaseUntil: new Date(now.getTime() + QUIET_SWEEP.leaseMs),
-      parkUntil: new Date(now.getTime() + QUIET_SWEEP.parkMs),
-    });
+    let handedOver = 0;
+    for (let page = 0; page < QUIET_SWEEP.pagesPerPass; page++) {
+      const now = p.now();
+      const result = await p.store.handOverDue({
+        now,
+        limit: QUIET_SWEEP.batch,
+        leaseUntil: new Date(now.getTime() + QUIET_SWEEP.leaseMs),
+        parkUntil: new Date(now.getTime() + QUIET_SWEEP.parkMs),
+        runHeldUntil: new Date(now.getTime() + QUIET_SWEEP.runHeldMs),
+      });
+      handedOver += result.handedOver;
+      if (result.looked < QUIET_SWEEP.batch) break;
+    }
     return { handedOver };
   };
 }
@@ -91,7 +99,7 @@ export function makeSweepQuiet(p: SweepQuietPorts): SweepQuiet {
  *
  * Side effects: when activity changed, one immutable delta with no run, the revision stamps, a
  * scene-projection job and a publish job, in the same transaction. Either way each place it read gets its last support
- * and next look stored, and a place it could not read waits a day. It never clears a dirty topic: a creation that is due
+ * and next look stored, and a place it could not read backs off (`unreadRetryMs`) and is let go after a bounded number of looks. It never clears a dirty topic: a creation that is due
  * belongs to the run that owns it. Safe to run twice or late: a second delivery finds nothing to change.
  */
 export function makeSettleQuiet(p: SettleQuietPorts): SettleQuiet {
@@ -122,13 +130,16 @@ async function settleUnderScope(
   if (gate.kind !== 'recording') return { outcome: 'not_current', changed: 0 };
   const state = await p.store.state(scope);
   // A run that froze its context at today's revision would be voided by a delta committed under it.
-  if (state.activeRunId) return { outcome: 'run_active', changed: 0 };
-  const wait = new Date(p.now().getTime() + QUIET_SWEEP.parkMs);
+  if (state.activeRunId) {
+    // The run settles within minutes: the places are tried again by the next pass, not tomorrow.
+    await p.store.deferQuiet(scope, job.objectIds, new Date(p.now().getTime() + QUIET_SWEEP.runHeldMs));
+    return { outcome: 'run_active', changed: 0 };
+  }
   const places = await p.store.placesById(scope, job.objectIds);
   const topics = await topicsOfPlaces(p, scope, places);
   const prepared = await prepareGeography(p, gate.scope, { kind: 'topics', topics });
   if (prepared.kind !== 'prepared') {
-    await p.store.deferQuiet(scope, job.objectIds, wait);
+    await p.store.backOffQuiet(scope, job.objectIds, p.now());
     return { outcome: 'support_unreadable', changed: 0 };
   }
   const { context } = prepared;
@@ -155,6 +166,6 @@ async function settleUnderScope(
         ? { outcome: 'refused', changed: 0 }
         : { outcome: 'applied', changed: operations.length };
   }
-  if (unread.length) await p.store.deferQuiet(scope, unread, wait);
+  if (unread.length) await p.store.backOffQuiet(scope, unread, p.now());
   return result;
 }

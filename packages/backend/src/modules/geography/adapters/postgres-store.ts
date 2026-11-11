@@ -12,6 +12,7 @@ import type {
   RegionConstraintPorts,
 } from '../application/ports.js';
 import { type Place, type Route } from '../domain/policy.js';
+import { QUIET_SWEEP } from '../domain/quiet.js';
 const owner = (s: Parameters<GeographyStore['state']>[0]) => ({
   tx: transactionOf(s),
   u: s.authority.universeId,
@@ -365,7 +366,7 @@ export const geographyStore: GeographyStore = {
   async saveSchedule(scope, schedules) {
     if (!schedules.length) return;
     const { tx, u, e } = owner(scope);
-    await sql`update geography.objects o set last_support_at=x.last_support_at,quiet_check_at=x.quiet_check_at
+    await sql`update geography.objects o set last_support_at=x.last_support_at,quiet_check_at=x.quiet_check_at,quiet_attempts=0
  from unnest(${schedules.map((s) => s.key)}::text[],${schedules.map((s) => s.lastSupportAt)}::timestamptz[],${schedules.map((s) => s.quietCheckAt)}::timestamptz[]) as x(semantic_key,last_support_at,quiet_check_at)
  where o.universe_id=${u}::uuid and o.privacy_epoch=${e} and o.semantic_key=x.semantic_key`.execute(tx);
   },
@@ -375,6 +376,18 @@ export const geographyStore: GeographyStore = {
     await sql`update geography.objects set quiet_check_at=${at.toISOString()}::timestamptz where universe_id=${u}::uuid and privacy_epoch=${e} and id=any(${[...ids]}::uuid[])`.execute(
       tx,
     );
+  },
+  async backOffQuiet(scope, ids, now) {
+    if (!ids.length) return;
+    const { tx, u, e } = owner(scope);
+    const base = QUIET_SWEEP.unreadBaseMs,
+      cap = QUIET_SWEEP.parkMs,
+      attempts = QUIET_SWEEP.unreadAttempts;
+    // The same rule as `unreadRetryMs`: base, doubling, up to the cap, and none after `attempts` looks.
+    await sql`update geography.objects set quiet_attempts=quiet_attempts+1,
+      quiet_check_at=case when quiet_attempts+1>=${attempts} then null
+        else ${now.toISOString()}::timestamptz + least(${cap}::float8,${base}::float8*power(2,quiet_attempts))*interval '1 millisecond' end
+      where universe_id=${u}::uuid and privacy_epoch=${e} and id=any(${[...ids]}::uuid[])`.execute(tx);
   },
   async duePlaces(scope, at, limit) {
     const { tx, u, e } = owner(scope);

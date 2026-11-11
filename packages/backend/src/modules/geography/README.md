@@ -136,7 +136,7 @@ are `insufficient`; none needs an engineer except the limits.
 |---|---|
 | `no_changes` | Nothing is due; reading alone does not ask a model |
 | `no_support_yet` | The person has no coverage references yet. Healthy. No coverage was read and no context built |
-| `no_trusted_support` | The topics read have references but none is current trusted support (content withdrawn, a map corrected). The evaluation is complete: places keep their activity, nothing is applied unless an activity change is due |
+| `no_trusted_support` | The topics read have references but none is current trusted support (content withdrawn, a map corrected), and neither is any of the reader's 8 other most recent topics (a sample of one key of each facet, `evaluated.otherTrusted`; the sample never enters the facts). The evaluation is complete: places keep their activity, nothing is applied unless an activity change is due. When the sample does find trusted support the run records `no_changes`, so one withdrawn Scroll among a reader's newest topics is not a fault of the watchdog's `geography_insufficient_repeat` |
 | `coverage_limit` | The trusted read cannot hold even one probe's proof |
 | `coverage_authority_changed` | Content or Evidence moved while the proof was read; the next reading tries again |
 | `structure_limit` | More than 1000 places, or routes and aliases, in one universe (counted, not loaded) |
@@ -161,11 +161,20 @@ PostgreSQL); **planned** for runtime verification on dev.
    or one with no support). Every apply, every settle and every run that evaluates a topic rewrites them (`placeSchedules`). They
    are scheduling state, never evidence, and never leave the server.
 2. `geography.sweep-quiet` (pg-boss cron every 15 minutes, worker) makes one indexed query (`geography_object_quiet_due`) for
-   the oldest 100 places whose `quiet_check_at` has passed, across universes. The places of a universe that no run holds, whose
+   the oldest 500 places whose `quiet_check_at` has passed, across universes, and takes up to 100 such pages a pass (50,000 places a
+   pass, 4,800,000 a day; see `QUIET_SWEEP`). The places of a universe that no run holds, whose
    account is active, that is not being cleared and whose recording is on go to `geography.settle-quiet` jobs that name them (at
    most 32 a job), in the same transaction, and their `quiet_check_at` moves 30 minutes ahead (a lease). The places of any other
-   universe are parked a day ahead. Every row a pass looks at leaves the head of the index, so a pass reads at most 100 rows
-   however many universes are refused. It reads no support.
+   universe wait: those of a universe a run holds 5 minutes (the run settles within minutes, so the next pass tries them), those of a
+   universe that is paused, being cleared or suspended a day. Every row a page looks at leaves the head of the index, so a page reads
+   at most 500 rows however many universes are refused. It reads no support. A place a settle could not read (its topic has no
+   support, or its support could not be read) backs off an hour, doubling up to a day, and is let go after the sixth look (its next
+   look is cleared until reading stores its schedule again, `quiet_attempts`); a place with no support is no longer looked at daily
+   for ever. **Capacity.** A migration-day backlog in which every place that is not quiet is due once drains within a day up to
+   4,800,000 places, which is about 96 non-quiet places for each of the 50,000 universes the operator's cost tests use; a development
+   database (tens of universes, at most 1000 places each) drains in its first pass or two. A page is one indexed query and at most 16
+   settle jobs (about 150 ms), so a full pass takes about 15 s against the queue's 120 s, and the 1,563 settles it hands over are
+   drained by the workers between passes.
 3. `geography.settle-quiet` enters the personal scope as a system actor and rechecks the account, epoch and the recording
    generation the sweep saw. It reads the **topics of the named places only** (a planet's or a region's planet's topic; a system's
    or a star's most recently supported topics) through the same evaluation a run uses, and applies only `activityChanges`
@@ -320,13 +329,28 @@ not no reading. `loading` and `lagging` need a real queued or prepared run.
   a reader whose every topic is dirty (the operator reconciliation, an explicit request) takes the topics in paced batches. On a
   disposable database a reader with 2,184 support keys over 240 topics (872 places) formed in 30 paced runs, the largest frozen
   context 302,487 bytes (the neighbour reads of four unformed systems in one batch), and one new reading in a formed topic read
-  that topic's 9 keys and froze 17,418 bytes (D-416). Past 500,000 bytes a run takes fewer topics.
+  that topic's 9 keys and froze 17,418 bytes (D-416). Past 500,000 bytes a run takes fewer topics. A facet whose newest keys are
+  withdrawn costs one more page of 3 keys per page it needs, at most 16 pages.
 - **Trusted read.** Probes are read in batches of 100; a batch that reaches the trusted read's own bound (candidate rows, assets,
   128 KiB of output) is split and read as two. The read returns one witness per support key, the newest valid one, so one
   re-read Scroll can never exceed the read's output (Personal Context README). If all eight candidate exposures of a key are
   invalid it has no witness that read.
-- **Withdrawn keys.** Only the newest 3 keys of a facet are probed. A facet whose newest keys are all untrusted (content
-  withdrawn) is read as it stands, and an older trusted key is not looked for until the topic changes again.
+- **Withdrawn keys.** The newest 3 keys of a facet are probed, and a facet that then holds fewer than 3 trusted keys while its
+  last page was full is read a page further (`READ_COVERAGE_INPUTS` `page` and `onlyFacets`), until it holds 3 or has no key left,
+  up to `EVALUATION.maxKeyPages` (16) pages. A withdrawn newest key therefore never hides an older trusted one, and what a run
+  evaluates equals what the whole catalogue holds (PR #723). Only a facet with more than 48 untrusted keys, all newer than its trusted
+  ones, keeps an older trusted key unread until it is the newest. The same paging serves the neighbours (one key a page).
+- **Topics that cannot be settled.** A topic whose keys were probed with nothing trusted (`evaluated.untrusted`), and the topics of a
+  refused apply or a refused claim (`coverage_authority_changed`, `coverage_limit`, `context_too_large`, `source_changed`,
+  `revision_changed`, `limit`), are not cleared: the dirty row waits out a backoff (a minute, doubling to an hour; new evidence
+  ends it), and the continuation run (`continueCartography`) is woken when the earliest backoff ends, while any dirty row remains.
+  A topic that stays untrusted is let go after `EVALUATION.untrustedAttempts` (8) tries, about two hours; a coverage readmission
+  (`content readmit-coverage` marks the topics holding the units whose head it appended, `geography reconcile-coverage --unit`) brings
+  it back. A refusal that is terminal (the scope is gone, the delta key was reused) leaves the rows alone.
+- **A formed system or star with no stored last support** (formed before places stored one, or with no support at all) has nothing to
+  carry, so a run that touches a topic under it also reads the topics beside it, as when support is lowered; a partial reading never
+  judges it older than what is beside it. A carried last support is never a support to cite: with nothing read under a place it keeps
+  its activity, so a quiet settle never proposes a change with no support behind it (PR #723).
 - **A system's last support** is exact when reading changes a topic (the new reading is the newest) and when support is lowered
   (the topics beside it are read). It can be older than the truth only when more than 8 other topics of the system hold the newer
   support and none is among the most recent 8.
@@ -348,7 +372,7 @@ not no reading. `loading` and `lagging` need a real queued or prepared run.
 
 ## Operator: the reconciliation
 
-`geography reconcile-coverage [--universe <uuid>] [--dry-run]` (worker operator command, `apps/worker/src/geography-operator.ts`)
+`geography reconcile-coverage [--universe <uuid>] [--unit <explanationUnitId>]... [--dry-run]` (worker operator command, `apps/worker/src/geography-operator.ts`)
 is the one-time pass for readers who read before dirty tracking existed: it marks every topic that has a support key dirty, for
 one universe or for all, at the universe's current revision. It reads no support, calls no model and starts no run; the next runs
 of those readers take the topics newest first, 16 at a time, paced. Running it twice marks nothing new. It prints counts only.

@@ -226,20 +226,28 @@ Formation costs what changed, so Personal Context tells Geography which topics c
   last had support), and a removal. A replay of the same certificate, an activity-only change and an unqualified encounter reach no
   support key and mark nothing. A rolled-back transaction marks nothing. An existing row keeps its later revision. It is derived,
   never evidence, and is erased with the other personal-context tables (Clear and full erasure).
-- **`READ_COVERAGE_DIRTY(scope, {limit 1..64})`.** The newest dirty topics (`dirty_revision desc, topic`), an honest `hasMore`
-  sentinel, the personal-context revision, and `anySupport` (the person has at least one support key), so an empty set means
-  "nothing changed" and not "nothing read". A reader at scope revision R has seen every row at or below R.
-- **`CLEAR_COVERAGE_DIRTY(scope, {topicIds, throughRevision})`.** Geography deletes, in the transaction that applies or settles a run,
-  the rows of the topics it evaluated at or below the revision it read, so evidence that arrived during the run keeps its higher
-  revision and stays dirty.
+- **`READ_COVERAGE_DIRTY(scope, {limit 1..64})`.** The newest dirty topics (`dirty_revision desc, topic`) that are not waiting out a
+  backoff, an honest `hasMore` sentinel, the personal-context revision, `nextRetryAt` (when the earliest topic in backoff may be tried
+  again, or null), and `anySupport` (the person has at least one support key or dirty row), so an empty set means "nothing changed"
+  and not "nothing read". A reader at scope revision R has seen every row at or below R.
+- **`CLEAR_COVERAGE_DIRTY(scope, {topicIds, throughRevision, deferTopicIds?, maxAttempts?})`.** Geography deletes, in the transaction that
+  applies or settles a run, the rows of the topics it evaluated at or below the revision it read, so evidence that arrived during the
+  run keeps its higher revision and stays dirty. The rows of `deferTopicIds` (topics the run could not settle: nothing trusted in
+  them, a refused apply or claim) are kept, `attempts` one higher and `retry_after` a minute away, doubling to an hour; with
+  `maxAttempts` a row already tried that many times is deleted instead. A new reference for the topic resets both (`markTopicsDirty`).
 - **`MARK_COVERAGE_DIRTY(scope)`.** Marks every topic the caller has a support key under, for an explicit cartography request.
   The operator's `geography reconcile-coverage` does the same for readers who read before this migration, at each universe's
-  current revision, in SQL (`adapters/coverage-reconcile.ts`).
-- **`READ_COVERAGE_INPUTS(scope, {topicIds, perFacet, maxTopics?})`.** Replaces the whole-person discovery of #674 slice 1.1 (the
+  current revision, in SQL (`adapters/coverage-reconcile.ts`). With `--unit` it marks only the topics that hold a key of those
+  explanation units and makes a row waiting out a backoff eligible at once: what Content trusts changed for them. `content
+  readmit-coverage` calls it for the units whose head it appended, so readers whose places were last judged while their content was
+  not trusted are evaluated again (PR #723).
+- **`READ_COVERAGE_INPUTS(scope, {topicIds | recent, perFacet, maxTopics?, page?, onlyFacets?})`.** Replaces the whole-person discovery of #674 slice 1.1 (the
   1000-key and 256 KiB bound is gone with it). `coverage_supports` holds one row per support key, however many exposures reference
   it, kept in step with both projections, so re-reading adds references and never keys. For each named topic that has a key, the
   newest `perFacet` distinct units of each facet are returned (`last_activated_at`, then unit id); `maxTopics` keeps the topics whose
-  newest key is most recent. `coverage_supports.last_activated_at` is set from the certificate of the exposure that adds a
+  newest key is most recent. `page` returns the next run of `perFacet` keys of each facet (0 is the newest) and `onlyFacets` restricts
+  it to the facets whose newest keys were not trusted, so Geography can read past withdrawn content; `recent: {limit, exclude}` names
+  the reader's most recently supported topics instead, for a sample. `coverage_supports.last_activated_at` is set from the certificate of the exposure that adds a
   reference and only orders keys (a removed reference leaves it where it was), so it can be later than the true newest and never
   decides a place. These keys are NOT trusted supports, unit counts or formation authority: Geography must call current
   `ReadTrustedCoverage` under the SAME live root through apply, preserving the Evidence and Content SHARE checks.

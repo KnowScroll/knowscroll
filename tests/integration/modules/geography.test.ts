@@ -638,7 +638,8 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     release({ kind: 'success', text: JSON.stringify(formation(frozen)) });
     await running;
     expect(r.model.calls).toHaveLength(1);
-    expect(await snapshot(p)).toMatchObject({ status: 'empty', geography: { revision: 0 } });
+    // No delta applied. The refused answer's topic waits out a backoff and a successor run is queued, so the universe is loading (PR #723).
+    expect(await snapshot(p)).toMatchObject({ status: 'loading', geography: { revision: 0 } });
     expect(
       (
         await database.db

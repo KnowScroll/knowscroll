@@ -12,6 +12,8 @@ interface DuePlace {
   readonly privacyEpoch: number;
   readonly recordingGeneration: number | null;
   readonly settleable: boolean;
+  /** The universe could be settled but a Cartographer run holds it right now. */
+  readonly runHeld: boolean;
 }
 
 /** Moves the next look of these places, found by universe and id, to `at`. */
@@ -31,9 +33,10 @@ async function moveQuietCheck(
  * first, through the partial index `geography_object_quiet_due`, across universes, and classifies the universe of each:
  * settleable when no Cartographer run holds it, the account is active, nothing is being cleared and recording is on. The
  * settleable universe gets settle jobs naming its due places (at most `QUIET_SWEEP.placesPerSettle` each) and the places
- * a short lease; the places of any other are parked a day ahead. Either way every place leaves the head of the index, so
- * one pass reads at most `limit` rows however many universes are refused, and the head is always settleable. A paused
- * universe is left exactly as it was except for these scheduling times.
+ * a short lease; the places of a universe a run holds wait minutes (`runHeldMs`), those of any other are parked a day
+ * ahead. Either way every place leaves the head of the index, so one page reads at most `limit` rows however many universes
+ * are refused, and the head is always settleable. A paused universe is left exactly as it was except for these scheduling
+ * times.
  *
  * It holds no personal root, so it only reads and writes the place rows it looked at, skips rows another
  * transaction holds, and leaves every decision to the settle's own authority recheck.
@@ -43,7 +46,7 @@ export function quietSweepStore(deps: {
   readonly enqueueInTransaction: EnqueueInTransaction;
 }): QuietSweepStore {
   return {
-    handOverDue: ({ now, limit, leaseUntil, parkUntil }) =>
+    handOverDue: ({ now, limit, leaseUntil, parkUntil, runHeldUntil }) =>
       withTransaction(deps.db, 'geography.sweep-quiet', async (trx) => {
         await sql`select set_config('statement_timeout','5000ms',true),set_config('lock_timeout','250ms',true)`.execute(
           trx,
@@ -59,7 +62,9 @@ export function quietSweepStore(deps: {
           select due.id, due.universe_id as "universeId", due.privacy_epoch as "privacyEpoch",
             u.recording_generation as "recordingGeneration",
             coalesce(s.active_run_id is null and u.status = 'active' and a.status = 'active'
-              and u.clear_operation_id is null and u.recording_on, false) as "settleable"
+              and u.clear_operation_id is null and u.recording_on, false) as "settleable",
+            coalesce(s.active_run_id is not null and u.status = 'active' and a.status = 'active'
+              and u.clear_operation_id is null and u.recording_on, false) as "runHeld"
           from due
           left join identity.universes u on u.id = due.universe_id and u.privacy_epoch = due.privacy_epoch
           left join identity.accounts a on a.id = u.account_id
@@ -70,9 +75,10 @@ export function quietSweepStore(deps: {
           { universe: DuePlace & { readonly recordingGeneration: number }; ids: string[] }
         >();
         const parked: DuePlace[] = [];
+        const held: DuePlace[] = [];
         for (const place of due.rows) {
           if (!place.settleable || place.recordingGeneration === null) {
-            parked.push(place);
+            (place.runHeld ? held : parked).push(place);
             continue;
           }
           const key = `${place.universeId}|${String(place.privacyEpoch)}`;
@@ -101,8 +107,9 @@ export function quietSweepStore(deps: {
         // The settle rewrites a lease. A parked time stands until the sweep looks again; a run's apply rewrites it
         // sooner. If a settle job is lost, the sweep finds the place when the lease ends.
         await moveQuietCheck(trx, leased, leaseUntil);
+        await moveQuietCheck(trx, held, runHeldUntil);
         await moveQuietCheck(trx, parked, parkUntil);
-        return handedOver;
+        return { looked: due.rows.length, handedOver };
       }),
   };
 }

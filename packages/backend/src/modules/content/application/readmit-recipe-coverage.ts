@@ -26,6 +26,11 @@ export interface ReadmitSummary {
   readonly unchanged: number;
   /** Revisions left alone, by reason: `no_recipe`, or a `not_admitted` code. */
   readonly skipped: Readonly<Record<string, number>>;
+  /**
+   * The explanation units of the revisions that got a new head, so a caller can tell the readers of what Content trusts now
+   * that it changed (the operator marks the topics holding these units dirty). Empty in a dry run.
+   */
+  readonly changedUnits: readonly string[];
 }
 
 /**
@@ -49,6 +54,7 @@ export async function readmitRecipeCoverage(
   const skip = (reason: string) => {
     skipped[reason] = (skipped[reason] ?? 0) + 1;
   };
+  const changedUnits = new Set<string>();
   let considered = 0;
   let appended = 0;
   let unchanged = 0;
@@ -61,8 +67,10 @@ export async function readmitRecipeCoverage(
     considered++;
     const outcome = await p.inAdmission((tx) => admitRecipeCoverage(coverage, tx, recipe, revision));
     if (outcome.kind === 'not_admitted') skip(outcome.code);
-    else if (outcome.change === 'appended') appended++;
-    else unchanged++;
+    else if (outcome.change === 'appended') {
+      appended++;
+      if (!options.dryRun) changedUnits.add(recipe.explanationUnitId);
+    } else unchanged++;
   }
-  return { dryRun: options.dryRun, considered, appended, unchanged, skipped };
+  return { dryRun: options.dryRun, considered, appended, unchanged, skipped, changedUnits: [...changedUnits].sort() };
 }

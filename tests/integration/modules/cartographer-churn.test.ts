@@ -315,7 +315,11 @@ describe('Cartographer runs under continuous reading (real PostgreSQL CI fixture
       .execute();
     flight.answer({ kind: 'success', text: JSON.stringify(formation(flight.frozen())) });
     await flight.finished;
-    expect(await runsOf(person)).toEqual([{ id: flight.runId, status: 'stale', outcome: 'source_changed' }]);
+    // The refused answer does not end the reading: its topic waits out a backoff and a successor run is queued for it (PR #723).
+    expect(await runsOf(person)).toEqual([
+      { id: flight.runId, status: 'stale', outcome: 'source_changed' },
+      { id: expect.any(String) as string, status: 'queued', outcome: null },
+    ]);
     expect(await ledgerOf(person)).toEqual(['cancelled']);
     expect(await placeKinds(person)).toEqual([]);
   });

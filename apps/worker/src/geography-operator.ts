@@ -6,13 +6,15 @@ import { reconcileCoverageDirty } from '@knowscroll/backend/modules/personal-con
 
 type Print = (result: Record<string, unknown>) => void;
 
-export const RECONCILE_USAGE = 'usage: operator.js geography reconcile-coverage [--universe <uuid>] [--dry-run]';
+export const RECONCILE_USAGE =
+  'usage: operator.js geography reconcile-coverage [--universe <uuid>] [--unit <explanationUnitId>]... [--dry-run]';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
- * `geography reconcile-coverage [--universe <uuid>] [--dry-run]` (#674, D-416): the one-time pass for readers who read
- * before dirty tracking existed. It marks every topic that has a support key dirty, for one universe or for all, so the
+ * `geography reconcile-coverage [--universe <uuid>] [--unit <id>]... [--dry-run]` (#674, D-416): the one-time pass for readers
+ * who read before dirty tracking existed. With `--unit` only the topics holding a key of those explanation units are marked,
+ * and a row waiting out a backoff is made eligible at once: what Content trusts changed for them. It marks every topic that has a support key dirty, for one universe or for all, so the
  * Cartographer's next runs read each topic once, newest first, in paced batches. It reads no support, calls no model and
  * starts no run; running it twice marks nothing new. It prints one JSON line of counts only. Exit 0 done, 2 bad usage,
  * 1 failure.
@@ -26,7 +28,11 @@ export async function reconcileCoverageCommand(
   try {
     args = parseArgs({
       args: [...argv],
-      options: { universe: { type: 'string' }, 'dry-run': { type: 'boolean', default: false } },
+      options: {
+        universe: { type: 'string' },
+        unit: { type: 'string', multiple: true },
+        'dry-run': { type: 'boolean', default: false },
+      },
       allowPositionals: true,
       strict: true,
     });
@@ -53,6 +59,7 @@ export async function reconcileCoverageCommand(
       const dryRun = args.values['dry-run'] === true;
       const result = await reconcileCoverageDirty(database.db, {
         ...(universe === undefined ? {} : { universeId: universe }),
+        ...(args.values.unit?.length ? { units: args.values.unit } : {}),
         dryRun,
       });
       print({ command: 'geography reconcile-coverage', result: dryRun ? 'would_mark' : 'marked', ...result });

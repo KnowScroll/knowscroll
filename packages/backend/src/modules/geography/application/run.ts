@@ -23,7 +23,7 @@ import { CartographyJobSchema } from '../events.js';
 import { prepareGeography } from './context.js';
 import { cartographerRole, geographyContextHashes, modelContextItems } from './role.js';
 import { continueCartography, ensureCartography } from './request.js';
-import { applyProposal, commitEvaluation } from './apply.js';
+import { applyProposal, commitEvaluation, deferEvaluated } from './apply.js';
 import { evaluationOf, nothingTrusted } from './context.js';
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 /** The state once a run is done: nobody holds it, and the person's next run waits its interval. */
@@ -481,7 +481,18 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
         if (prepared.kind === 'unavailable') {
           // Each cause is its own outcome. A reader with no coverage yet is healthy and builds no context.
           await p.store.writeRun(scope, { ...consumed, status: 'insufficient', outcome: prepared.reason });
-          await p.store.writeState(scope, idleAfterRun(p, state));
+          const idle = idleAfterRun(p, state);
+          await p.store.writeState(scope, idle);
+          // Reading already recorded is not lost with the claim: the topics this run tried wait out a backoff and a later run
+          // takes them (a changed authority or an oversized context is not an end). A reader with nothing to read, or a
+          // universe at its structure bound, has nothing a later run would change.
+          if (
+            prepared.attempted &&
+            prepared.reason !== 'no_support_yet' &&
+            prepared.reason !== 'structure_limit' &&
+            (await deferEvaluated(p, scope, { ...prepared.attempted }, {}))
+          )
+            await continueCartography(p, cap, idle);
           return undefined;
         }
         context = prepared.context;
@@ -563,7 +574,13 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
     // Formation is the rules' decision. A model only chooses labels and routes for places that are
     // due, so with none due a reading-triggered run makes no call.
     if (modelOptional && !placesDue(c.facts)) {
-      await settleUnadmitted(p, authority, purpose, nothingTrusted(c) ? 'no_trusted_support' : 'no_changes');
+      // Nothing trusted among the topics evaluated is a problem only when nothing is trusted anywhere the reader has been.
+      await settleUnadmitted(
+        p,
+        authority,
+        purpose,
+        nothingTrusted(c) && !c.evaluated?.otherTrusted ? 'no_trusted_support' : 'no_changes',
+      );
       return;
     }
     // A context too large for one request is not a reason to stop: the rules still apply what is due.

@@ -397,7 +397,8 @@ async function changeSupportCounts(
 
 /**
  * Marks topics dirty at the personal scope revision the calling transaction commits at, which is how a run that read the
- * set earlier knows a row is newer than what it evaluated. An existing row keeps the later revision.
+ * set earlier knows a row is newer than what it evaluated. An existing row keeps the later revision. New evidence ends any
+ * backoff the row was in: it is eligible at once.
  */
 export async function markTopicsDirty(scope: PersonalScopeTx, topicIds: readonly string[]): Promise<number> {
   if (!topicIds.length) return 0;
@@ -405,7 +406,7 @@ export async function markTopicsDirty(scope: PersonalScopeTx, topicIds: readonly
     await sql`insert into personal_context.coverage_dirty_topics(universe_id,privacy_epoch,topic_id,dirty_revision)
     select ${scope.authority.universeId}::uuid,${scope.authority.privacyEpoch},topic,${scope.revisionAtEntry + 1}
     from unnest(${[...topicIds]}::text[]) as topic
-    on conflict(universe_id,privacy_epoch,topic_id) do update set dirty_revision=greatest(personal_context.coverage_dirty_topics.dirty_revision,excluded.dirty_revision)`.execute(
+    on conflict(universe_id,privacy_epoch,topic_id) do update set dirty_revision=greatest(personal_context.coverage_dirty_topics.dirty_revision,excluded.dirty_revision),attempts=0,retry_after=null`.execute(
       transactionOf(scope),
     );
   return Number(result.numAffectedRows ?? 0);

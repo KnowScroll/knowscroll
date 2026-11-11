@@ -24,8 +24,9 @@ const placed = (kind: Place['kind'], conceptId: string, parentKey: string, n: nu
   originTransitionId: uuid(600),
   activity: { availability: 'available', state: 'active' },
 });
+/** Stores places as a run leaves them: each with the last support it was evaluated with. */
 function store(world: World, ...places: Place[]) {
-  for (const place of places) world.objects.set(place.key, place);
+  for (const place of places) world.objects.set(place.key, { ...place, lastSupportAt: NOW });
 }
 const formedEarth = () => [
   placed('system', 'earth', 'universe', 1),
@@ -293,13 +294,17 @@ describe('why a context was not prepared (#674, D-416)', () => {
     expect(nothingTrusted(untrusted.context)).toBe(true);
     expect(untrusted.context.facts.supports).toEqual([]);
     expect(untrusted.context.evaluated).toMatchObject({ topics: [seasons] });
+    // A refusal names what the run tried, so the claim can keep those topics dirty in backoff and ask for another run.
+    const attempted = { topics: [seasons], dirtyThrough: 2 };
     expect(await refusal(withReading({ trusted: () => unreadable('authority_changed') }))).toEqual({
       kind: 'unavailable',
       reason: 'coverage_authority_changed',
+      attempted,
     });
     expect(await refusal(withReading({ trusted: () => unreadable('limit') }))).toEqual({
       kind: 'unavailable',
       reason: 'coverage_limit',
+      attempted,
     });
     const crowded = withReading();
     for (let n = 0; n < 1001; n++)
@@ -349,6 +354,7 @@ describe('why a context was not prepared (#674, D-416)', () => {
     expect(await prepareGeography(world.ports(), world.cap(), { kind: 'dirty' })).toEqual({
       kind: 'unavailable',
       reason: 'context_too_large',
+      attempted: { topics: [seasons], dirtyThrough: 2 },
     });
   });
 

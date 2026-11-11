@@ -22,6 +22,20 @@ export const EVALUATION = {
   neighbourTopics: 8,
   /** The frozen context holds at most this many bytes of JSON. */
   contextBytes: 500_000,
+  /**
+   * A facet is read until it holds as many trusted keys as it was asked for (or no key is left): when the newest keys are
+   * withdrawn, the next page of keys is read, so what is evaluated is what the whole catalogue holds. At most this many pages
+   * of a facet are read; a facet with more untrusted keys than `maxKeyPages` pages hold, all newer than its trusted ones,
+   * keeps its older trusted keys unread until they are the newest.
+   */
+  maxKeyPages: 16,
+  /** Other recent topics a reader is sampled on when nothing trusted was found in the evaluated ones (`no_trusted_support`). */
+  sampleTopics: 8,
+  /**
+   * Times a topic whose keys were probed with nothing trusted is evaluated again (after a minute, doubling to an hour) before it
+   * is let go: the content may be withdrawn for good. A coverage readmission or new reading marks it dirty again.
+   */
+  untrustedAttempts: 8,
 } as const;
 
 /** A support key with when its newest exposure was activated, as Personal Context orders a topic's keys. */

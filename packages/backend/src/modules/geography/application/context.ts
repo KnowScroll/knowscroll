@@ -50,7 +50,10 @@ const label = (id: string) => {
   const value = id.split('.').at(-1)!.replaceAll('-', ' ');
   return value[0]!.toUpperCase() + value.slice(1);
 };
-const refused = (reason: PreparationRefusal): GeographyPreparation => ({ kind: 'unavailable', reason });
+const refused = (
+  reason: PreparationRefusal,
+  attempted?: { readonly topics: readonly string[]; readonly dirtyThrough: number },
+): GeographyPreparation => ({ kind: 'unavailable', reason, ...(attempted ? { attempted } : {}) });
 
 /** A trusted read that observed nothing: no support to build on, as the places under these topics read it. */
 const emptyCoverage = (): Coverage => ({
@@ -254,18 +257,20 @@ async function readTrustedInBatches(
     if (batch.kind === 'unavailable') return batch;
     reads.push(...batch.reads);
   }
+  return { kind: 'read', coverage: mergeCoverage(reads) };
+}
+
+/** The union of disjoint trusted reads; none is a read in which nothing was observed. */
+function mergeCoverage(reads: readonly Coverage[]): Coverage {
   const [first] = reads;
-  if (!first) return { kind: 'read', coverage: emptyCoverage() };
-  if (reads.length === 1) return { kind: 'read', coverage: first };
+  if (!first) return emptyCoverage();
+  if (reads.length === 1) return first;
   return {
-    kind: 'read',
-    coverage: {
-      ...first,
-      supports: reads.flatMap((read) => read.supports),
-      witnesses: reads.flatMap((read) => read.witnesses),
-      // A certificate shared by two bindings of one exposure is kept once.
-      certificates: [...new Map(reads.flatMap((read) => read.certificates).map((c) => [c.witnessKey, c])).values()],
-    },
+    ...first,
+    supports: reads.flatMap((read) => read.supports),
+    witnesses: reads.flatMap((read) => read.witnesses),
+    // A certificate shared by two bindings of one exposure is kept once.
+    certificates: [...new Map(reads.flatMap((read) => read.certificates).map((c) => [c.witnessKey, c])).values()],
   };
 }
 
@@ -413,6 +418,8 @@ interface Evaluation {
   readonly supportKeys: number;
   /** The topics evaluated in full. */
   readonly topics: readonly string[];
+  /** The evaluated topics that have keys and no trusted support. */
+  readonly untrusted: readonly string[];
   readonly pcRevision: number;
 }
 
@@ -424,6 +431,8 @@ interface Evaluation {
  * - A formed system whose stored last support is newer than anything read under it is one whose support was just
  *   lowered (a retraction, withdrawn content): its true last support is in the other topics under it, so the most recently
  *   supported of them are read and the stored value is not trusted.
+ * - A formed system or star with no stored last support has nothing to carry (it was formed before places stored one): the
+ *   same, so a partial reading never judges it older than the topics beside it.
  * A formed system with nothing due beside it and nothing lowered needs no neighbour: reading one of its topics changes
  * that topic's places only, and the system's last support is the newest of what was read and what was stored.
  */
@@ -459,9 +468,77 @@ function systemsNeedingNeighbours(
     const carried = facts.carriedSupportAt?.[systemKey];
     const lowered =
       formed && carried !== undefined && Date.parse(carried) > (readLatest.get(systemId) ?? Number.NEGATIVE_INFINITY);
-    if (lowered || !formed || planetDue) wanted.set(systemId, EVALUATION.neighbourTopics);
+    // A formed system or star with no stored last support (made before places stored it, or one that had no support) has
+    // nothing to carry: what was read under it may be older than what is beside it, so the topics beside it are read.
+    const unknown =
+      formed && (carried === undefined || facts.carriedSupportAt?.[semanticKey('star', systemId)] === undefined);
+    if (lowered || unknown || !formed || planetDue) wanted.set(systemId, EVALUATION.neighbourTopics);
   }
   return wanted;
+}
+
+/** How far one facet's keys have been read: `perFacet` keys a page, the page last read, and whether that page was full. */
+interface FacetRead {
+  readonly topicId: string;
+  readonly facetId: string;
+  readonly perFacet: number;
+  readonly page: number;
+  readonly full: boolean;
+}
+
+/** Records the keys one page returned for each facet; a facet with a full page may have more. */
+function noteFacets(facets: Map<string, FacetRead>, found: readonly CoverageProbe[], perFacet: number, page: number) {
+  const counts = new Map<string, { topicId: string; facetId: string; count: number }>();
+  for (const probe of found) {
+    const slot = JSON.stringify([probe.topicId, probe.facetId]);
+    const entry = counts.get(slot) ?? { topicId: probe.topicId, facetId: probe.facetId, count: 0 };
+    entry.count++;
+    counts.set(slot, entry);
+  }
+  for (const [slot, entry] of counts)
+    facets.set(slot, { topicId: entry.topicId, facetId: entry.facetId, perFacet, page, full: entry.count >= perFacet });
+}
+
+/**
+ * The next page of keys of every facet that holds fewer trusted keys than it was asked for while its last page was full. Updates
+ * `facets` to the pages it read. Empty when no facet needs more.
+ */
+async function nextKeyPage(
+  p: PreparationPorts,
+  scope: PersonalScopeTx,
+  facets: Map<string, FacetRead>,
+  entries: readonly CoverageEntry[],
+): Promise<CoverageProbe[]> {
+  const trusted = new Map<string, number>();
+  for (const { support } of entries) {
+    const slot = JSON.stringify([support.topicId, support.facetId]);
+    trusted.set(slot, (trusted.get(slot) ?? 0) + 1);
+  }
+  const wanted = new Map<string, { perFacet: number; page: number; facets: FacetRead[] }>();
+  for (const [slot, read] of facets) {
+    if (!read.full || (trusted.get(slot) ?? 0) >= read.perFacet) continue;
+    const group = `${String(read.perFacet)}|${String(read.page + 1)}`;
+    const entry = wanted.get(group) ?? { perFacet: read.perFacet, page: read.page + 1, facets: [] };
+    entry.facets.push(read);
+    wanted.set(group, entry);
+  }
+  const found: CoverageProbe[] = [];
+  for (const { perFacet, page, facets: asked } of wanted.values()) {
+    const read = await p.readInputs(scope, {
+      topicIds: [...new Set(asked.map((facet) => facet.topicId))],
+      onlyFacets: asked.map(({ topicId, facetId }) => ({ topicId, facetId })),
+      perFacet,
+      page,
+    });
+    found.push(...read.probes);
+    noteFacets(facets, read.probes, perFacet, page);
+    // A facet that returned nothing has no further keys.
+    const returned = new Set(read.probes.map((probe) => JSON.stringify([probe.topicId, probe.facetId])));
+    for (const facet of asked)
+      if (!returned.has(JSON.stringify([facet.topicId, facet.facetId])))
+        facets.set(JSON.stringify([facet.topicId, facet.facetId]), { ...facet, page, full: false });
+  }
+  return found;
 }
 
 /**
@@ -484,10 +561,14 @@ async function evaluateTopics(
   const evaluated = new Set(base);
   const main = await p.readInputs(scope, { topicIds: base, perFacet: EVALUATION.keysPerFacet });
   const probes: CoverageProbe[] = [...main.probes];
+  // What each facet was read to, so a facet whose newest keys are not trusted is read further (below).
+  const facets = new Map<string, FacetRead>();
+  noteFacets(facets, main.probes, EVALUATION.keysPerFacet, 0);
   const near = new Set<string>();
   if (given.length) {
     const earlier = await p.readInputs(scope, { topicIds: given, perFacet: 1 });
     probes.push(...earlier.probes);
+    noteFacets(facets, earlier.probes, 1, 0);
     for (const id of earlier.topics) near.add(id);
   }
   for (const [systemId, maxTopics] of expansions) {
@@ -497,18 +578,30 @@ async function evaluateTopics(
       .filter((id) => !evaluated.has(id) && !near.has(id));
     const found = await p.readInputs(scope, { topicIds: children, perFacet: 1, maxTopics });
     probes.push(...found.probes);
+    noteFacets(facets, found.probes, 1, 0);
     for (const id of found.topics) near.add(id);
   }
   const topics = [...evaluated].sort((a, b) => p.catalogue.rank(a) - p.catalogue.rank(b));
   const neighbours = [...near].sort((a, b) => p.catalogue.rank(a) - p.catalogue.rank(b));
-  let coverage: Coverage;
+  const parts: Coverage[] = [];
   let entries: CoverageEntry[] = [];
-  if (probes.length) {
-    const read = await readTrustedInBatches(p, scope, probes);
-    if (read.kind === 'unavailable') return read;
-    coverage = read.coverage;
-    entries = supportEntries(p, coverage);
-  } else coverage = emptyCoverage();
+  let newProbes: readonly CoverageProbe[] = probes;
+  for (let page = 0; ; page++) {
+    if (newProbes.length) {
+      const read = await readTrustedInBatches(p, scope, newProbes);
+      if (read.kind === 'unavailable') return read;
+      parts.push(read.coverage);
+      entries = supportEntries(p, mergeCoverage(parts));
+    }
+    // A key that is not trusted (withdrawn content) must not hide an older one that is: a facet that holds fewer trusted keys
+    // than it was asked for, and may hold more, is read a page further, so the evaluation equals the whole catalogue's.
+    if (page >= EVALUATION.maxKeyPages) break;
+    const further = await nextKeyPage(p, scope, facets, entries);
+    if (!further.length) break;
+    probes.push(...further);
+    newProbes = further;
+  }
+  const coverage = mergeCoverage(parts);
   const supports = entries.map((entry) => entry.support);
   const stored = await p.store.places(scope, placeKeys(p.catalogue, [...topics, ...neighbours]));
   const objects = stored.map((entry) => entry.place);
@@ -526,6 +619,9 @@ async function evaluateTopics(
         : [],
     ),
   );
+  const supported = new Set(supports.map((support) => support.topicId));
+  const probed = new Set(probes.map((probe) => probe.topicId));
+  const untrusted = topics.filter((id) => probed.has(id) && !supported.has(id));
   const relevant = relevantTopics(p.catalogue, supports, objects);
   // Planets and regions of the neighbours were read as a sample: they may join a route, but their activity is their own topic's to decide.
   const own = new Set(placeKeys(p.catalogue, topics));
@@ -561,9 +657,26 @@ async function evaluateTopics(
       coverage: kept,
       supportKeys: entries.length,
       topics,
+      untrusted,
       pcRevision: main.revision,
     },
   };
+}
+
+/**
+ * Whether the reader's other recent topics hold trusted support, for a run whose evaluated topics held none. Only the
+ * answer is used: the sample is read through the same trusted read and checks, but never enters the facts, so it changes no
+ * place. A reader with trusted support elsewhere is healthy (`no_changes`); one with none anywhere is `no_trusted_support`.
+ */
+async function sampledTrusted(
+  p: PreparationPorts,
+  scope: PersonalScopeTx,
+  exclude: readonly string[],
+): Promise<boolean> {
+  const found = await p.readInputs(scope, { recent: { limit: EVALUATION.sampleTopics, exclude }, perFacet: 1 });
+  if (!found.probes.length) return false;
+  const read = await readTrustedInBatches(p, scope, found.probes);
+  return read.kind === 'read' && supportEntries(p, read.coverage).length > 0;
 }
 
 /**
@@ -606,8 +719,13 @@ export async function prepareGeography(
       if (expansions.size)
         result = await evaluateTopics(p, scope, secret, base, [], expansions, new Set(expansions.keys()));
     }
-    if (result.kind === 'unavailable') return refused(result.reason);
+    if (result.kind === 'unavailable')
+      return refused(result.reason, incremental ? { topics: base, dirtyThrough: chosen.dirtyThrough } : undefined);
     const { evaluation } = result;
+    const otherTrusted =
+      incremental && evaluation.probes.length > 0 && evaluation.supportKeys === 0
+        ? await sampledTrusted(p, scope, [...evaluation.topics, ...evaluation.neighbours])
+        : false;
     const { evaluatedAt: _time, ...authorityFacts } = evaluation.facts;
     const context: GeographyContext = {
       version: 'cartographer-context.v1',
@@ -632,12 +750,18 @@ export async function prepareGeography(
         hasMore,
         ...(evaluation.neighbours.length ? { neighbours: evaluation.neighbours } : {}),
         ...(evaluation.systemsRead.length ? { systemsRead: evaluation.systemsRead } : {}),
+        ...(evaluation.untrusted.length ? { untrusted: evaluation.untrusted } : {}),
+        ...(otherTrusted ? { otherTrusted: true as const } : {}),
       },
     };
     if (new TextEncoder().encode(JSON.stringify(context)).byteLength <= EVALUATION.contextBytes)
       return { kind: 'prepared', context, supportKeys: evaluation.supportKeys, structure };
     // Too much for one frozen context: take fewer of the dirty topics and leave the rest for the next run.
-    if (!incremental || base.length <= 1) return refused('context_too_large');
+    if (!incremental || base.length <= 1)
+      return refused(
+        'context_too_large',
+        incremental ? { topics: base, dirtyThrough: chosen.dirtyThrough } : undefined,
+      );
     base = base.slice(0, Math.ceil(base.length / 2));
     hasMore = true;
   }

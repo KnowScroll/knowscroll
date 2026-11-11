@@ -37,7 +37,7 @@ database and in a browser (D-044). This is historical check evidence; current de
 - Point Grafana or `psql` at the `ks2_ops_reader` role and read the `ops` views.
 - From a server shell: `node dist/operator.js geography dry-run --universe <uuid>` and `planner dry-run --universe <uuid>` say
   what one Cartographer or Planner run would do for that universe, read-only and without a model (see Dry runs).
-- From a server shell, once after the dirty set shipped: `node dist/operator.js geography reconcile-coverage [--universe <uuid>] [--dry-run]`
+- From a server shell, once after the dirty set shipped: `node dist/operator.js geography reconcile-coverage [--universe <uuid>] [--unit <explanationUnitId>]... [--dry-run]`
   marks every topic with a support key dirty so each reader's history is read once, in paced runs (see the Geography README, "Operator:
   the reconciliation"; counts only).
 - Hear about trouble without looking: an hourly watchdog logs a `watchdog.alert` warning when a code-only health rule fires
@@ -120,7 +120,7 @@ and calls no model. A rule whose read fails (the view is missing, or the read pa
 | Dead-lettered jobs per queue | jobs in `<queue>.dead` | `dead_lettered_jobs`: 1 or more in 3 hours |
 | Same failure repeating | `state = failed`, grouped by queue and failure code | `failed_jobs_repeating`: 5 or more in 6 hours |
 | Personal runs held | Planner and Geography runs `queued` or `prepared` | `personal_runs_held`: row unmoved for 1 hour (a claim lasts 1150 s, a paced wake 5 minutes) |
-| Same unhealthy outcome repeating | the latest settled Cartographer runs of a universe with coverage references | `geography_insufficient_repeating`: 3 in a row on one `insufficient` outcome other than the healthy `no_changes`, `disabled`, `no_support_yet`; 1 or more universes, seen within 7 days |
+| Same unhealthy outcome repeating | the latest settled Cartographer runs of a universe with coverage references (`no_trusted_support` is recorded only when the reader's other recent topics are untrusted too, so a withdrawn Scroll among trusted reading is `no_changes`, PR #723) | `geography_insufficient_repeating`: 3 in a row on one `insufficient` outcome other than the healthy `no_changes`, `disabled`, `no_support_yet`; 1 or more universes, seen within 7 days |
 | A met explanation offered first beside an unseen one | `composer-policy.v2` vertical decisions with no exact target | `composer_repeat_offered`: 1 or more in 24 hours, among the newest 5,000 decisions of the last 7 days; v2 is built to make this impossible, so it fires only on a regression |
 | Unknown model attempts | attempts whose outcome is `unknown` | `unknown_attempts_old`: 1 or more for 6 hours |
 

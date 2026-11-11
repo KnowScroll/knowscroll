@@ -50,6 +50,7 @@ import {
   requestBoundOf,
 } from '@knowscroll/backend/modules/content';
 import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backend/modules/content/nest-providers';
+import { reconcileCoverageDirty } from '@knowscroll/backend/modules/personal-context/nest-providers';
 
 /**
  * `node dist/operator.js <area> <command> [options]`: operator commands of the worker release,
@@ -396,8 +397,14 @@ async function main(): Promise<number> {
         onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
       });
       try {
-        const summary = await readmitCoverageUseCase(contentDatabase.db)({ dryRun: args.values['dry-run'] });
-        print({ command: 'content readmit-coverage', ...summary });
+        const { changedUnits, ...summary } = await readmitCoverageUseCase(contentDatabase.db)({
+          dryRun: args.values['dry-run'],
+        });
+        // What Content trusts changed for these units: the topics that hold them are judged again (#674, D-416).
+        const marked = changedUnits.length
+          ? await reconcileCoverageDirty(contentDatabase.db, { units: changedUnits, dryRun: false })
+          : { universes: 0, topics: 0 };
+        print({ command: 'content readmit-coverage', ...summary, changedUnits: changedUnits.length, remarked: marked });
         return 0;
       } finally {
         await contentDatabase.close();
