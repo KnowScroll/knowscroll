@@ -5,9 +5,11 @@ import { personalStores } from '@knowscroll/backend/erasure-registry';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import {
+  makeWithDryRunPersonalScope,
   makeWithPersonalScope,
   fencePersonalRecording,
   insideTransaction,
+  readPersonalRecordingNow,
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
 import { FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
@@ -26,6 +28,7 @@ import {
   type RunPlanner,
 } from '@knowscroll/backend/modules/planner';
 import {
+  plannerDryRunFor,
   plannerRequestProviders,
   plannerStore,
   makeRunPlanner,
@@ -424,6 +427,139 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       intent: { topicIds: intentTopics },
       facts: { topics: expect.arrayContaining([...intentTopics, topic]) as string[] },
     });
+  });
+  /** The Planner dry run as the worker builds it (#674, D-411): the read-only scope over the same reads as the run. */
+  function dryRun(enabled = true) {
+    return plannerDryRunFor({
+      withPersonalScope: makeWithDryRunPersonalScope(database.db, { lockTimeoutMs: 5000 }),
+      fenceRecording: fencePersonalRecording,
+      readRecordingNow: readPersonalRecordingNow,
+      readSnapshot: c.readExploration,
+      readRecentTopics: c.readRecentTopics,
+      readInventory: readDiscoveryCandidates,
+      enabled: () => enabled,
+    });
+  }
+  /** What a Planner run could write for the person: rows, jobs and the root revision. A dry run must not move any. */
+  async function footprint(p: FixturePerson) {
+    const count = async (table: string) =>
+      (
+        await database.pool.query<{ n: string }>(`select count(*)::text as n from ${table} where universe_id = $1`, [
+          p.universeId,
+        ])
+      ).rows[0]!.n;
+    const tables = [
+      'planner.state',
+      'planner.runs',
+      'planner.revisions',
+      'reasoning.business_runs',
+      'reasoning.external_attempts',
+      'supply.requests',
+    ];
+    return {
+      counts: Object.fromEntries(await Promise.all(tables.map(async (table) => [table, await count(table)] as const))),
+      state: await state(p).catch(() => undefined),
+      jobs: (
+        await database.pool.query<{ n: string }>(
+          "select count(*)::text as n from pgboss.job where data->>'universeId' = $1",
+          [p.universeId],
+        )
+      ).rows[0]!.n,
+      revision: (
+        await database.db
+          .selectFrom('identity.universes')
+          .select('revision')
+          .where('id', '=', p.universeId)
+          .executeTakeFirstOrThrow()
+      ).revision,
+    };
+  }
+  it('dry run: reports what the run will freeze for a heavy reader, writes nothing, and the run then records the same counts', async () => {
+    const p = await seedPerson(database.db);
+    await qualify(p);
+    const intentTopics = Array.from({ length: DISCOVERY_MAX_TOPICS }, (_, i) => `ci.planner.dry.${randomUUID()}.${i}`);
+    expect(
+      await request(p.authority, { commandId: randomUUID(), intent: { language: 'en', topicIds: intentTopics } }),
+    ).toMatchObject({ kind: 'accepted' });
+    const before = await footprint(p);
+    const result = await dryRun()(p.universeId);
+    if (result.kind !== 'read') throw new Error('CI expected a read');
+    const report = result.report;
+    expect(report).toMatchObject({
+      outcome: 'calls_model',
+      wouldCallModel: true,
+      wouldRecord: null,
+      roleEnabled: true,
+      inventoryTopicBound: DISCOVERY_MAX_TOPICS,
+      intentTopics: DISCOVERY_MAX_TOPICS,
+      topicsTruncated: false,
+    });
+    expect(report.topics).toBeGreaterThanOrEqual(DISCOVERY_MAX_TOPICS + 1);
+    expect(report.evidence).toBeGreaterThan(0);
+    expect(report.contextBytes).toBeGreaterThan(1000);
+    expect(report.modelItems).toBeGreaterThan(0);
+    // Nothing moved, and no private word came out.
+    expect(await footprint(p)).toEqual(before);
+    expect(JSON.stringify(report)).not.toContain('ci.planner');
+    // The real run freezes a context with the counts the dry run gave.
+    const r = runner(p),
+      s = await state(p);
+    expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
+      kind: 'entered',
+      value: { kind: 'accepted' },
+    });
+    const context = (
+      await database.db
+        .selectFrom('planner.runs')
+        .select('context')
+        .where('universe_id', '=', p.universeId)
+        .where('id', '=', s.active_run_id!)
+        .executeTakeFirstOrThrow()
+    ).context as unknown as FrozenContext;
+    expect(report).toMatchObject({
+      topics: context.facts.topics.length,
+      inventoryItems: context.facts.inventory.length,
+      evidence: context.facts.evidence.length,
+      planOpportunities: context.currentPlan.length,
+    });
+  });
+  it('dry run: says a reader with no evidence is insufficient, as the run then records, and names a switched-off role', async () => {
+    const p = await seedPerson(database.db);
+    expect(await request(p.authority, { commandId: randomUUID() })).toMatchObject({ kind: 'accepted' });
+    const before = await footprint(p);
+    const result = await dryRun()(p.universeId);
+    if (result.kind !== 'read') throw new Error('CI expected a read');
+    expect(result.report).toMatchObject({
+      outcome: 'insufficient_evidence',
+      wouldCallModel: false,
+      wouldRecord: { status: 'insufficient', outcome: 'insufficient_evidence' },
+      evidence: 0,
+    });
+    const off = await dryRun(false)(p.universeId);
+    expect(off).toMatchObject({
+      kind: 'read',
+      report: {
+        outcome: 'disabled',
+        roleEnabled: false,
+        wouldRecord: { status: 'blocked', outcome: 'blocked_disabled' },
+      },
+    });
+    expect(await footprint(p)).toEqual(before);
+    const r = runner(p),
+      s = await state(p);
+    expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
+      kind: 'entered',
+      value: { kind: 'insufficient' },
+    });
+    expect(
+      await database.db
+        .selectFrom('planner.runs')
+        .select(['status', 'outcome'])
+        .where('universe_id', '=', p.universeId)
+        .where('id', '=', s.active_run_id!)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ status: 'insufficient', outcome: 'insufficient_evidence' });
+    expect(r.model.calls).toHaveLength(0);
   });
   it('runs after actual material PC/Evidence change, ignores replay, preserves the source audit, and accepts unadmitted opportunities only', async () => {
     const p = await seedPerson(database.db),

@@ -53,6 +53,7 @@ import {
 } from '../public.js';
 import { RECORD_PLANNED_DEMAND, type RecordPlannedDemand } from '../../supply/public.js';
 import { makeReadCurrentPlan } from '../application/read-plan.js';
+import { makePlannerDryRun, type PlannerDryRun, type PlannerDryRunPorts } from '../application/dry-run.js';
 const REQUEST_PORTS = Symbol('planner.request-ports');
 const PLANNER_PORTS = Symbol('planner.ports');
 const hash = (value: unknown) => requestHash('personal-planner.v0', value as Parameters<typeof requestHash>[1]);
@@ -324,3 +325,20 @@ export { plannerRole, plannerContextItems } from '../application/role.js';
 export function makeCheckPlannerRecordingRun(p: Pick<PlannerPorts, 'store' | 'now'>) {
   return makeOwnerChecker({ ...p, canonicalHash: canonicalSha256 });
 }
+
+/** The shell operator's `planner dry-run`: what a run would do, read-only, with no model (D-411). */
+export function plannerDryRunFor(
+  deps: Pick<
+    PlannerDryRunPorts,
+    | 'withPersonalScope'
+    | 'fenceRecording'
+    | 'readRecordingNow'
+    | 'readSnapshot'
+    | 'readRecentTopics'
+    | 'readInventory'
+    | 'enabled'
+  >,
+): PlannerDryRun {
+  return makePlannerDryRun({ ...deps, store: plannerStore, capabilities, hash, now });
+}
+export type { PlannerDryRun } from '../application/dry-run.js';

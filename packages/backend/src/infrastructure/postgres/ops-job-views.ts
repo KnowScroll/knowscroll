@@ -1,7 +1,8 @@
 import { sql, type Kysely } from 'kysely';
 
 /**
- * The `ops` views that read pg-boss's tables, and the grants of the read-only operator role.
+ * The `ops` views that read pg-boss's tables (and the `ops.watchdog` view that reads them with other sources), and the
+ * grants of the read-only operator role.
  *
  * pg-boss installs its schema after the SQL migrations and changes it when it upgrades. A view
  * that reads a table blocks PostgreSQL from dropping or retyping that table's columns, so these
@@ -33,9 +34,10 @@ export const OPS_READER_VIEWS: readonly string[] = [
   'jobs',
   'queue_backlog',
   'recent_errors',
+  'watchdog',
 ];
 
-const JOB_VIEWS_IN_DROP_ORDER = ['recent_errors', 'queue_backlog', 'jobs'] as const;
+const JOB_VIEWS_IN_DROP_ORDER = ['watchdog', 'recent_errors', 'queue_backlog', 'jobs'] as const;
 
 export interface DropOptions {
   /** How long one attempt waits for the exclusive lock a drop needs. Default 3 s. */
@@ -47,7 +49,7 @@ export interface DropOptions {
 const LOCK_NOT_AVAILABLE = '55P03';
 
 /**
- * Drops the pg-boss views (and `recent_errors`, which reads them). Nothing to do when they are absent.
+ * Drops the pg-boss views (and `recent_errors` and `watchdog`, which read them). Nothing to do when they are absent.
  * A drop waits for every running query on the views, so each attempt waits only `lockTimeoutMs` and the
  * drop is tried again; a reader that never lets go fails the deploy within seconds instead of stalling it.
  * (The reader role carries its own statement timeout, which ends such a query: see the runbook.)
@@ -72,7 +74,7 @@ export async function dropOpsJobViews<DB>(db: Kysely<DB>, options: DropOptions =
 }
 
 /**
- * Creates `ops.jobs`, `ops.queue_backlog` and `ops.recent_errors`. Needs pg-boss's schema and
+ * Creates `ops.jobs`, `ops.queue_backlog`, `ops.recent_errors` and `ops.watchdog`. Needs pg-boss's schema and
  * migration 0057's views. Run after {@link dropOpsJobViews} and pg-boss's own start.
  */
 export async function createOpsJobViews<DB>(db: Kysely<DB>): Promise<void> {
@@ -170,7 +172,106 @@ export async function createOpsJobViews<DB>(db: Kysely<DB>): Promise<void> {
         'Failures and unknown outcomes from jobs, model attempts, production, Reel orders and privacy operations: when, which record, its state and code. Unknown is listed because it needs reconciling, not because it failed.'`.execute(
       trx,
     );
+    await createOpsWatchdogView(trx);
   });
+}
+
+/**
+ * `ops.watchdog` (D-411): one row per observation the hourly watchdog may alert on, with a rule, a code-only
+ * subject and detail, the time it was observed and a magnitude. It holds no ID and no text, so the read-only role
+ * may read it, and the thresholds stay in code (`modules/operator/domain/watchdog.ts`): the view states facts, never
+ * whether they are bad. Each branch reads a small indexed set (dead letters and failed jobs within pg-boss's
+ * retention, runs that are still active, unknown attempts, the newest settled runs, `composer-policy.v2` decisions).
+ *
+ * - `dead_letter`: a job in a `<queue>.dead` queue. Subject: that queue.
+ * - `job_failed`: a failed job. Subject: its queue. Detail: its failure code (or class, or `none`).
+ * - `run_held`: a Planner or Geography run still `queued` or `prepared`. Subject: `planner` or `geography`.
+ *   Detail: its status. Observed: when its row last moved.
+ * - `attempt_unknown`: a model attempt whose outcome is `unknown`. Subject: `personal` or `production`.
+ * - `geography_unavailable_repeat`: a universe whose latest settled Cartographer runs ended on one unavailable
+ *   reason while it has coverage references. Subject: the reason. Magnitude: how many runs in a row. No universe is named.
+ * - `composer_repeat`: a `composer-policy.v2` decision that offered an explanation the person has met while it records
+ *   an eligible candidate that is established unseen. Subject: the policy version.
+ */
+async function createOpsWatchdogView<DB>(trx: Kysely<DB>): Promise<void> {
+  await sql`
+    create or replace function ops.json_array(value jsonb) returns jsonb
+    language sql immutable parallel safe
+    as $$ select case when jsonb_typeof(value) = 'array' then value else '[]'::jsonb end $$`.execute(trx);
+  await sql`
+    create view ops.watchdog as
+    select 'dead_letter'::text as rule, job.queue as subject, null::text as detail,
+      job.created_at as observed_at, 1::bigint as magnitude
+    from ops.jobs as job
+    where job.queue like '%.dead'
+    union all
+    select 'job_failed', job.queue, coalesce(job.failure_code, job.failure_class, job.failure, 'none'),
+      coalesce(job.completed_at, job.started_at, job.created_at), 1::bigint
+    from ops.jobs as job
+    where job.state = 'failed' and job.queue not like '%.dead'
+    union all
+    select 'run_held', 'geography', run.status, run.updated_at, 1::bigint
+    from geography.runs as run
+    where run.status in ('queued', 'prepared')
+    union all
+    select 'run_held', 'planner', run.status, run.updated_at, 1::bigint
+    from planner.runs as run
+    where run.status in ('queued', 'prepared')
+    union all
+    select 'attempt_unknown', attempt.scope_kind, null::text, coalesce(attempt.dispatched_at, attempt.reserved_at), 1::bigint
+    from ops.model_attempts as attempt
+    where attempt.state = 'unknown'
+    union all
+    select 'geography_unavailable_repeat', streak.outcome, null::text, streak.updated_at, streak.runs::bigint
+    from (
+      with settled as (
+        select run.universe_id, run.privacy_epoch, run.status, run.outcome, run.updated_at,
+          row_number() over (partition by run.universe_id, run.privacy_epoch order by run.created_at desc, run.id desc) as position
+        from geography.runs as run
+        where run.status in ('accepted', 'stale', 'rejected', 'insufficient')
+          and run.created_at > now() - interval '30 days'
+      ), latest as (
+        select * from settled
+        where position = 1 and status = 'insufficient' and outcome in ('coverage_unavailable', 'context_limit')
+      )
+      select latest.outcome, latest.universe_id, latest.privacy_epoch, latest.updated_at,
+        coalesce(
+          (select min(earlier.position) from settled as earlier
+            where earlier.universe_id = latest.universe_id and earlier.privacy_epoch = latest.privacy_epoch
+              and earlier.outcome is distinct from latest.outcome) - 1,
+          (select max(earlier.position) from settled as earlier
+            where earlier.universe_id = latest.universe_id and earlier.privacy_epoch = latest.privacy_epoch)
+        ) as runs
+      from latest
+    ) as streak
+    where exists (select 1 from personal_context.coverage_references as reference
+        where reference.universe_id = streak.universe_id and reference.privacy_epoch = streak.privacy_epoch)
+      or exists (select 1 from personal_context.recording_coverage_references as reference
+        where reference.universe_id = streak.universe_id and reference.privacy_epoch = streak.privacy_epoch)
+    union all
+    select 'composer_repeat', decision.policy_version, null::text, decision.recorded_at, 1::bigint
+    from composer.decisions as decision
+    where decision.policy_version = 'composer-policy.v2'
+      and exists (
+        select 1
+        from jsonb_array_elements(ops.json_array(decision.payload -> 'selection')) as offer(item)
+        join jsonb_array_elements(ops.json_array(decision.payload -> 'evaluations')) as candidate(item)
+          on candidate.item ->> 'assetId' = offer.item ->> 'assetId'
+          and candidate.item ->> 'assetRevision' = offer.item ->> 'assetRevision'
+        join jsonb_array_elements(ops.json_array(decision.payload #> '{input,evidence,established,units}')) as unit(item)
+          on unit.item ->> 'explanationUnitId' = candidate.item ->> 'explanationUnitId'
+        where unit.item ->> 'encountered' = 'true')
+      and exists (
+        select 1
+        from jsonb_array_elements(ops.json_array(decision.payload -> 'evaluations')) as candidate(item)
+        join jsonb_array_elements(ops.json_array(decision.payload #> '{input,evidence,established,units}')) as unit(item)
+          on unit.item ->> 'explanationUnitId' = candidate.item ->> 'explanationUnitId'
+        where candidate.item ->> 'eligible' = 'true' and unit.item ->> 'encountered' = 'false')`.execute(trx);
+  await sql`
+    comment on view ops.watchdog is
+      'One row per observation the watchdog may alert on: rule, code-only subject and detail, when, and a magnitude. No ID, no text. The thresholds are in code.'`.execute(
+    trx,
+  );
 }
 
 /**

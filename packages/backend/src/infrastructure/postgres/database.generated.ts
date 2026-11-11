@@ -1100,6 +1100,14 @@ export interface OpsRoomTurns {
   turn_id: string | null;
 }
 
+export interface OpsWatchdog {
+  detail: string | null;
+  magnitude: Int8 | null;
+  observed_at: Timestamp | null;
+  rule: string | null;
+  subject: string | null;
+}
+
 export interface PersonalContextContributions {
   explanation_unit_id: string;
   exposure_id: string;
@@ -2416,6 +2424,7 @@ export interface DB {
   "ops.rejected_answers": OpsRejectedAnswers;
   "ops.room_faces": OpsRoomFaces;
   "ops.room_turns": OpsRoomTurns;
+  "ops.watchdog": OpsWatchdog;
   "personal_context.contributions": PersonalContextContributions;
   "personal_context.coverage_contributions": PersonalContextCoverageContributions;
   "personal_context.coverage_references": PersonalContextCoverageReferences;

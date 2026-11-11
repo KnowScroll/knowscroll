@@ -11,6 +11,7 @@ import type {
   ScopeRefusal,
   ScopeWork,
   SharedScopeTx,
+  WithDryRunPersonalScope,
   WithPersonalScope,
   WithResolvedPersonalScope,
 } from '../../modules/identity/public.js';
@@ -81,6 +82,58 @@ class RollbackWith<O> extends Error {
   constructor(readonly outcome: O) {
     super('Resolved scope rolled back with a typed outcome');
   }
+}
+
+/** The longest any one statement of a dry run may run, set locally right after the transaction turns READ ONLY. */
+const DRY_RUN_STATEMENT_TIMEOUT_MS = 5_000;
+
+/**
+ * `withPersonalScope` for a dry run (#674, D-411): the same root lock and rechecks as
+ * {@link makeWithPersonalScope}, so the run waits behind the same holders a real read would, but
+ * the transaction is then set READ ONLY and always rolled back. Whatever `work` does, nothing it
+ * touches is written, and the value it returns is handed back after the rollback.
+ *
+ * The root lock is taken before the transaction turns read-only because PostgreSQL refuses any
+ * row lock in a READ ONLY transaction: work run here cannot take further row locks (a `FOR SHARE`
+ * on content, for example). A dry run applies nothing, so it does not need them; its readers use
+ * the lock-free variant of the check they would otherwise make under a lock. Right after READ ONLY, the transaction sets a
+ * local `statement_timeout` of 5 seconds, so a slow statement fails with `57014` instead of holding the root.
+ *
+ * The result is branded `WithDryRunPersonalScope`, so code that takes only that type (`withScopeAtCurrentEpoch`) can never be
+ * handed a scope that can write.
+ *
+ * Outputs and failures are those of `makeWithPersonalScope`: `refused` with a typed reason, a
+ * `ScopeBusyError` when the root is held too long, and an exception from `work` propagates.
+ * An attempted write fails with PostgreSQL `25006` and leaves the database as it was.
+ */
+export function makeWithDryRunPersonalScope(
+  db: Kysely<Database>,
+  options: PersonalScopeOptions,
+): WithDryRunPersonalScope {
+  // The one cast to the brand: this scope sets READ ONLY after the root lock and always rolls back.
+  return (<T>(claimed: PersonalAuthority, work: (scope: PersonalScopeTx) => Promise<T>): Promise<ScopeOutcome<T>> => {
+    const authority = freezeAuthority(claimed);
+    return runMarkedTransaction('personal-scope', async () => {
+      try {
+        return await db
+          .transaction()
+          .setIsolationLevel('read committed')
+          .execute(async (trx): Promise<ScopeOutcome<T>> => {
+            await setLockTimeout(trx, options.lockTimeoutMs);
+            const entry = await lockAndRecheck(trx, authority);
+            if (entry.kind === 'refused') return entry;
+            await sql`set transaction read only`.execute(trx);
+            // A dry run is an operator's look, never a request's work: a statement that runs long is cut off, not waited for.
+            await sql`select set_config('statement_timeout', ${`${DRY_RUN_STATEMENT_TIMEOUT_MS}ms`}, true)`.execute(trx);
+            const value = await runInScope(trx, authority, entry.revision, work);
+            throw new RollbackWith<ScopeOutcome<T>>({ kind: 'entered', value });
+          });
+      } catch (error) {
+        if (error instanceof RollbackWith) return error.outcome as ScopeOutcome<T>;
+        throw error;
+      }
+    });
+  }) as WithDryRunPersonalScope;
 }
 
 const openResolutions = new WeakMap<RootResolutionTx, Transaction<Database>>();

@@ -4,6 +4,7 @@ import {
   readApiConfig,
   readMigrateConfig,
   readOperatorConfig,
+  readDryRunOperatorConfig,
   readWorkerConfig,
   readWorkerOperatorConfig,
   readReelOperatorConfig,
@@ -679,6 +680,33 @@ describe('process configuration', () => {
     const config = readWorkerOperatorConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'dev' });
     expect(config.world).toBe('dev');
     expect(config.database.applicationName).toBe('knowscroll-operator-dev');
+  });
+
+  it('reads the dry-run commands configuration: the worker operator’s plus the role switches a real run would meet', () => {
+    expect(configurationError(() => readDryRunOperatorConfig({ DATABASE_URL: secretUrl })).problems).toEqual([
+      'KS_WORLD: missing_or_wrong_type',
+    ]);
+    const dev = readDryRunOperatorConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'dev' });
+    expect(dev).toMatchObject({ world: 'dev', cartographerEnabled: false, plannerEnabled: false });
+    expect(dev.database.applicationName).toBe('knowscroll-operator-dev');
+    // The Planner switch defaults on only in `local`, as the worker's does; the Cartographer's always defaults off.
+    expect(readDryRunOperatorConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' })).toMatchObject({
+      cartographerEnabled: false,
+      plannerEnabled: true,
+    });
+    expect(
+      readDryRunOperatorConfig({
+        DATABASE_URL: secretUrl,
+        KS_WORLD: 'dev',
+        KS_CARTOGRAPHER_ENABLED: '1',
+        KS_PLANNER_ENABLED: '1',
+      }),
+    ).toMatchObject({ cartographerEnabled: true, plannerEnabled: true });
+    expect(
+      configurationError(() =>
+        readDryRunOperatorConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'dev', KS_CARTOGRAPHER_ENABLED: 'yes' }),
+      ).problems,
+    ).toEqual(['KS_CARTOGRAPHER_ENABLED: not_allowed']);
   });
 
   it('defaults every role to MiniMax-M3.1-Flash unless the operator names another model', () => {

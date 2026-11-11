@@ -130,6 +130,18 @@ because Composer only reorders candidates it has already admitted. `READ_PLANNER
 the stricter read: it rechecks every reference against current inventory and evidence and reports
 `stale` instead. Nothing on the navigation path uses it.
 
+## Dry run (#674, D-411)
+
+`planner dry-run --universe <uuid>` (worker operator command, `application/dry-run.ts`) says what a Planner run would do for one
+universe now, without doing it. It enters the personal scope the way a read does (the root lock), in a READ ONLY transaction
+that always rolls back, freezes the context the run freezes (`prepareContext`) and checks it packages for a model. No model is
+called, no job is sent and no row changes. The output is counts and codes only (`domain/dry-run.ts`): `calls_model`,
+`insufficient_evidence` (no qualified evidence: the run settles `insufficient/insufficient_evidence` with no call),
+`proof_unavailable`, `context_bounds`, `disabled`, `recording_paused` or `not_runnable`; the topics in the frozen context, the
+topic bound the inventory read is given (`DISCOVERY_MAX_TOPICS`), the inventory items and evidence references, and the context's
+bytes. Never a topic, title, summary or unit. Status: **implemented**; covered by `application/dry-run.test.ts` and the "dry run"
+cases of `tests/integration/modules/planner.test.ts`, which check that the counts equal the context the run then freezes.
+
 ## Jobs, claims and recovery
 
 `planner.run` carries IDs only (universe, epoch, run, original recording generation and a wake or

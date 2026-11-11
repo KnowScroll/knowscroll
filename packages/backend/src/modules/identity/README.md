@@ -40,6 +40,9 @@ universe leaves identity alone.
   `RequestDataExport`, `ListDataExports`, `MintDataExportLink`, `ConsumeDataExportLink` (token
   `CONSUME_DATA_EXPORT_LINK`), the `AccountDeletionTx` capability, `deviceLabelOf`, and the queues
   `deleteAccountQueue`, `recoverAccountDeletionsQueue`, `buildDataExportQueue`.
+- `withScopeAtCurrentEpoch(withScope, universeId, purpose, work)` (D-411): enters a universe named without its epoch, for shell
+  operators (the dry runs). It claims epoch 1, then the epoch the scope's `epoch_changed` refusal names, as a system actor; `work`
+  runs at most once and any other refusal passes through. No account is named or checked.
 - Built by `adapters/nest-providers.ts`: `identityProviders` (read ports), `identityUseCases`
   (all sign-in use cases over one database; the mail sender from `IdentitySettings`),
   `signInProviders` (Nest wiring), `operatorSignInUseCase` (the operator command alone),

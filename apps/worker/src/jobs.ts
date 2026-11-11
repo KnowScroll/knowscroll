@@ -191,6 +191,8 @@ import {
 import { identitySweepProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { PURGE_REPORTS, purgeReportsQueue, type PurgeReports } from '@knowscroll/backend/modules/feedback';
 import { feedbackPurgeProviders } from '@knowscroll/backend/modules/feedback/nest-providers';
+import { RUN_WATCHDOG, watchdogQueue, type RunWatchdog } from '@knowscroll/backend/modules/operator';
+import { watchdogProviders } from '@knowscroll/backend/modules/operator/nest-providers';
 import {
   PRODUCTION_REASONING_HARNESS,
   PURGE_EXPIRED_REQUESTS,
@@ -314,6 +316,7 @@ export const jobWiring: Provider[] = [
   }),
   ...identitySweepProviders({ database: DATABASE }),
   ...feedbackPurgeProviders({ database: DATABASE, logEvent: LOG_EVENT }),
+  ...watchdogProviders({ database: DATABASE }),
   ...reasoningPurgeProviders({ database: DATABASE, logEvent: LOG_EVENT }),
   ...reasoningSweepProviders({ database: DATABASE, logEvent: LOG_EVENT, workerConfig: WORKER_CONFIG }),
   {
@@ -349,6 +352,7 @@ export const jobWiring: Provider[] = [
       PURGE_EXPIRED_REQUESTS,
       SWEEP_DISPATCHED_ATTEMPTS,
       PURGE_REPORTS,
+      RUN_WATCHDOG,
       RUN_NIGHTLY_RITUALS,
       RUN_FEED_HEARTBEAT,
       RUN_SCOUT_HEARTBEAT,
@@ -390,6 +394,7 @@ export const jobWiring: Provider[] = [
       purgeExpiredRequests: PurgeExpiredRequests,
       sweepDispatchedAttempts: SweepDispatchedAttempts,
       purgeReports: PurgeReports,
+      runWatchdog: RunWatchdog,
       runNightlyRituals: RunNightlyRituals,
       runFeedHeartbeat: RunFeedHeartbeat,
       runScoutHeartbeat: RunScoutHeartbeat,
@@ -589,6 +594,21 @@ export const jobWiring: Provider[] = [
       // Once a day: reports about deleted accounts whose 90 days are over (logs `feedback.reports_purged`, D-055).
       jobConsumer(purgeReportsQueue, async () => {
         await purgeReports();
+      }),
+      // Every hour: the code-only health rules over `ops.watchdog`. An alert is a warn diagnostic with a code, a count and
+      // the window; nothing is repaired and no person is named (D-411).
+      jobConsumer(watchdogQueue, async () => {
+        const { alerts, skipped } = await runWatchdog();
+        for (const alert of alerts)
+          logEvent('watchdog.alert', {
+            reasonCode: alert.code,
+            count: alert.count,
+            windowSeconds: alert.windowSeconds,
+            ...(alert.queue === undefined ? {} : { queue: alert.queue }),
+            ...(alert.context === undefined ? {} : { context: alert.context }),
+            ...(alert.outcome === undefined ? {} : { outcome: alert.outcome }),
+          });
+        for (const rule of skipped) logEvent('watchdog.rule_skipped', { reasonCode: rule });
       }),
     ],
   },

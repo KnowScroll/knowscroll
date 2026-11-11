@@ -23,6 +23,7 @@ export {
   claimAccountFence,
   enterSharedRoot,
   makeAuthorityHolds,
+  makeWithDryRunPersonalScope,
   makeWithPersonalScope,
   makeWithResolvedPersonalScope,
   readerOn,

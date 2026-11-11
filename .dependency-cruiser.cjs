@@ -56,6 +56,8 @@ const compositionRoots = [
   '^apps/worker/src/review-operator\\.ts$',
   // The composer operator replays stored decisions through the composer's provider, read-only (S-5, D-190).
   '^apps/worker/src/composer-operator\\.ts$',
+  // The dry-run commands build a Cartographer's and a Planner's read ports from the worker's own providers, read-only (#674, D-411).
+  '^apps/worker/src/dry-run-wiring\\.ts$',
 ];
 const testFile = '\\.test\\.tsx?$';
 

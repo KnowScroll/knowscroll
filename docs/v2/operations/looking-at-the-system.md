@@ -87,8 +87,8 @@ The next deploy's `migrate.js` grants `ks2_ops_reader` the views (a missing role
 its output: `migrate.warning`, `ops_reader_role_missing`). To grant now, run `migrate.js` again.
 
 The role may select `ops.business_runs`, `model_attempts`, `production_runs`, `rejected_answers`,
-`reel_orders`, `reel_attempts`, `geography_runs`, `privacy_operations`, `jobs`, `queue_backlog` and
-`recent_errors`. It cannot select `ops.journey_events` (scoped IDs), any table or pg-boss's own tables.
+`reel_orders`, `reel_attempts`, `geography_runs`, `privacy_operations`, `jobs`, `queue_backlog`,
+`recent_errors` and `watchdog`. It cannot select `ops.journey_events` (scoped IDs), any table or pg-boss's own tables.
 Examples:
 
 ```sql
@@ -100,6 +100,57 @@ select script_name, attempts, settled_cents, claimed_open_cents from ops.reel_or
 ```
 
 Dashboards and saved queries belong in `ops/observability/` when Grafana is installed. None exist yet.
+
+## What a run would do: the dry runs
+
+Before and after a fix to the Cartographer or the Planner, ask what one run would do for one universe, without doing it
+(#674, D-411). From the worker tree, with `KS_WORLD` and `DATABASE_URL` (and `KS_CARTOGRAPHER_ENABLED` /
+`KS_PLANNER_ENABLED` set as the worker has them, so the answer says whether the role would be off):
+
+```sh
+node dist/operator.js geography dry-run --universe <uuid>
+node dist/operator.js planner dry-run --universe <uuid>
+```
+
+Each prints one JSON line. It enters the universe's personal scope (the root lock a read takes), but in a READ ONLY
+transaction that is always rolled back: no row is written and no job is sent. It freezes the same context a real run
+freezes and applies the same rules; **no model is called**. The line holds counts and codes only, so it is safe to paste into
+a public issue: never a label, title, topic, unit, reference or text.
+
+- `geography dry-run`: `outcome` is what a reading-triggered run would do (`calls_model`, `applies_by_rules`,
+  `settles_no_changes`, `context_unavailable`, `context_limit`, `disabled`, `recording_paused`, `not_runnable`,
+  `would_fail`); `wouldRecord` is the status and outcome the run row would hold; `unavailableReason` names why no context
+  can be frozen (`no_references`, `discovery_limit`, `not_observed`, `trusted_limit`, `trusted_changed`, `object_limit`,
+  `route_limit`, `context_size`); `references` counts the keys discovery found, the trusted references read, the distinct
+  supports and how many compaction kept; `due` counts the places the rules entitle by kind and how many one delta applies;
+  `activityChanges` counts places due to go quiet or active again; `contextBytes` is the frozen context's size.
+- `planner dry-run`: `outcome` is `calls_model`, `insufficient_evidence`, `proof_unavailable`, `context_bounds`,
+  `disabled`, `recording_paused` or `not_runnable`; it counts the topics in the frozen context, the topic bound the
+  inventory read was given, the inventory items and evidence references, and the context's bytes.
+
+Exit 0 read, 2 refused (usage, unknown or suspended universe), 1 failure. It waits for the root lock like any read and
+gives up after five seconds. Running it twice changes nothing.
+
+## The watchdog
+
+Once an hour the worker runs `operator.watchdog`: code-only health rules over `ops.watchdog`. A rule that fires logs a
+`watchdog.alert` warning (`reasonCode`, `count`, `windowSeconds`, and a queue, module or outcome code where it applies);
+nothing is repaired and no person or record is named. `watchdog.rule_skipped` names a rule whose read failed. The rules
+and their thresholds are in `WATCHDOG_THRESHOLDS` (`modules/operator/domain/watchdog.ts`):
+
+| Alert (`reasonCode`) | Fires when | Threshold |
+|---|---|---|
+| `dead_lettered_jobs` | a queue has jobs in its dead-letter queue | 1 or more in the last 3 hours, per queue |
+| `failed_jobs_repeating` | a queue's jobs fail with the same code | 5 or more in the last 6 hours |
+| `personal_runs_held` | a Planner or Geography run is still `queued` or `prepared` and its row has not moved | for 1 hour |
+| `geography_unavailable_repeating` | a universe with coverage references has its latest 3 settled Cartographer runs end on the same unavailable reason | 1 or more universes, seen in the last 7 days |
+| `composer_repeat_offered` | a `composer-policy.v2` decision offered an explanation the person has met while it records an eligible unseen candidate | 1 or more in the last 24 hours (never fires before v2 exists) |
+| `unknown_attempts_old` | a model attempt is still `unknown` | for 6 hours |
+
+Find an alert: `journalctl -u ks2-worker@<world> | grep watchdog.alert`. Then follow the code: a dead letter or a repeated
+failure is `select * from ops.jobs where queue = '<queue>'`; a held run or a repeating universe is a `dry-run`; an old unknown
+attempt is `reasoning unknown`. `select * from ops.watchdog order by observed_at desc limit 50` shows the observations the rules
+read (the role `ks2_ops_reader` may select it).
 
 ## Logs
 

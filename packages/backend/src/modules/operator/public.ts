@@ -11,6 +11,20 @@ export {
   type ReadJourney,
 } from './application/read-journey.js';
 export type { ReadOperatorPanels } from './application/read-panels.js';
+export {
+  WATCHDOG_THRESHOLDS,
+  type WatchdogAlert,
+  type WatchdogAlertCode,
+  type WatchdogRule,
+  type WatchdogThresholds,
+} from './domain/watchdog.js';
+export {
+  makeRunWatchdog,
+  type RunWatchdog,
+  type RunWatchdogPorts,
+  type WatchdogPass,
+} from './application/run-watchdog.js';
+export { watchdogQueue } from './events.js';
 export { renderJourney } from './domain/render.js';
 export type { Journey, JourneyGap, JourneyStep, JourneySubject } from './domain/journey.js';
 export {
@@ -39,3 +53,4 @@ export {
 export const READ_OPERATOR_PANELS = Symbol('operator.readPanels');
 export const READ_JOURNEY = Symbol('operator.readJourney');
 export const IS_OPERATOR = Symbol('operator.isOperator');
+export const RUN_WATCHDOG = Symbol('operator.runWatchdog');

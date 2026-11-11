@@ -9,6 +9,7 @@ personal-scope lock protocol on `identity.universes` (status, privacy epoch, rev
 | `migrateToLatest(db, registry)` | Applies pending migrations from the static registry (`migrations/`) inside Kysely's migration lock, as **one** transaction: a failure rolls back the whole batch (`failed`, nothing applied), so no migration may use non-transactional statements such as `CREATE INDEX CONCURRENTLY`. Forward-only. Refuses text that does not match its recorded SHA-256, an applied migration whose recorded checksum (`migrator.migration_checksum`) differs from the registry, and an applied migration missing from the registry. |
 | `readLatestMigration(db)` | Newest applied migration name, or `none`. Used by `GET /health`. |
 | `makeWithPersonalScope(db, { lockTimeoutMs })` | The only way to obtain a `PersonalScopeTx` (blueprint §19). BEGIN → `SET LOCAL lock_timeout` → `SELECT … FROM identity.universes WHERE id = $1 FOR NO KEY UPDATE` → recheck existence, status, privacy epoch and (account actor) owner and account status **after** waiting → run the work → commit. Refusals are typed (`universe_missing`, `universe_suspended`, `account_mismatch`, `epoch_changed`) and write nothing; a lock wait beyond the timeout throws `ScopeBusyError` (retryable, 503). |
+| `makeWithDryRunPersonalScope(db, { lockTimeoutMs })` | `WithPersonalScope` for the shell dry runs (#674, D-411): the same root lock and rechecks as `makeWithPersonalScope`, then `SET TRANSACTION READ ONLY`, and the transaction **always rolls back** (the work's value is handed back after it). A write fails with PostgreSQL `25006`; so does any row lock (`FOR SHARE`, `FOR UPDATE`), which a READ ONLY transaction cannot take, so work run here reads through lock-free variants (`readCurrentCoverageAuthorities`). Same refusals and `ScopeBusyError` as the ordinary scope. Used by `geography dry-run` and `planner dry-run` only. |
 | `makeWithResolvedPersonalScope(db, { lockTimeoutMs })` | Identity's `WithResolvedPersonalScope` (sign-in, S1.3): one marked transaction in which `resolve(tx)` first takes identity's earlier locks (address, then sign-in link) and may create the account and its universe root, then the root is locked and rechecked exactly as above, then `work(scope)` runs. A stop, a refusal or an exception rolls back everything `resolve` wrote. `resolutionTransactionOf(tx)` gives identity's adapters the transaction during the first phase only. |
 | `transactionOf(scope)` | The transaction behind an open scope, for adapters only. Throws `ScopeClosedError` once the transaction ended. The scope's `authority` is a frozen copy. |
 | `enterSharedRoot(scope, rootLock)` | Locks at most one shared root after the personal root, in the same transaction, and returns the `SharedScopeTx` shared-scope ports need; a second call throws `LockOrderError`. |
@@ -51,7 +52,9 @@ shared-root and capability lifetime protections remain in force. No peer persona
 Ops views over pg-boss (#248, D-044): `ops-job-views.ts` drops, creates and grants the `ops` views that read
 `pgboss.job` (`ops.jobs`, `ops.queue_backlog`, `ops.recent_errors`) and grants the SELECT-only `ks2_ops_reader` role
 the allowlisted views. `migrate.js` calls it around pg-boss's own start, because a view blocks pg-boss's schema
-upgrades. The other `ops` views are migration 0057.
+upgrades. The other `ops` views are migration 0057. `ops.watchdog` (D-411) is built there too, because it reads `ops.jobs`
+beside the runs and decisions of other modules: one row per observation the hourly watchdog may alert on, code-only (see the
+Operator README).
 
 ## Focused checks
 

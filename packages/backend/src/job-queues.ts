@@ -5,6 +5,7 @@ import { answerQuickAnswerQueue, purgeQuickAnswersQueue, resolveSupplyQueue } fr
 import { produceAnswerQueue, produceScrollQueue } from './modules/content/public.js';
 import { plannerQueue } from './modules/planner/public.js';
 import { purgeReportsQueue } from './modules/feedback/public.js';
+import { watchdogQueue } from './modules/operator/public.js';
 import {
   castDueQueue,
   castPassQueue,
@@ -78,4 +79,5 @@ export const releaseQueues = queueRegistry([
   purgeExpiredRequestsQueue,
   sweepDispatchedAttemptsQueue,
   purgeReportsQueue,
+  watchdogQueue,
 ]);

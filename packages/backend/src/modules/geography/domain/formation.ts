@@ -25,8 +25,8 @@ const isCreation = (operation: Operation): operation is CreationOperation => 'ke
 const creationRank = (operation: CreationOperation) =>
   CREATION_ORDER.findIndex((kind) => CREATION_KIND[kind] === operation.kind);
 
-/** The places the formation rules already entitle and that are not established yet. */
-function dueCreations(facts: FormationFacts): CreationOperation[] {
+/** The places the formation rules already entitle and that are not established yet, parents first. */
+export function dueCreations(facts: FormationFacts): CreationOperation[] {
   const known = new Set(facts.objects.map((place) => place.key));
   const candidates = [...facts.candidates].sort(
     (a, b) => CREATION_ORDER.indexOf(a.kind) - CREATION_ORDER.indexOf(b.kind),

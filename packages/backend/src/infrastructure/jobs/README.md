@@ -23,7 +23,9 @@ deletes protected model request bytes past their retention) and `reasoning.sweep
 deletion), `content.produce-answer` (content; the production job of an ask order's answer, with a longer claim than `content.produce-scroll`, D-267), `supply.answer-quick-answer` (supply; writes one Quick answer, D-253) and `supply.purge-quick-answers` (supply;
 scheduled every ten minutes: deletes the Quick answers whose day is over, D-255) and
 `geography.sweep-quiet` (geography; scheduled every 15 minutes: hands each universe with a place due to go quiet to
-`geography.settle-quiet`, one universe per job, rules only, no model; D-104). A job
+`geography.settle-quiet`, one universe per job, rules only, no model; D-104) and
+`operator.watchdog` (operator; scheduled hourly: evaluates the code-only health rules over `ops.watchdog` and logs a
+`watchdog.alert` warning for each that fires; reads only, names no person, repairs nothing; D-411). A job
 that calls the reasoning harness declares `expireInSeconds` above what one delivery can take (see
 `reasoning/README.md`). Consumers are non-transactional: a
 handler opens its own short transactions, records its applied identity with its effects so a

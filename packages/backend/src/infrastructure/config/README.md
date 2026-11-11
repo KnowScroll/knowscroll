@@ -31,6 +31,10 @@ dev world sets 1 in its environment file (#236, D-035). It gates the personal Pl
 reservation and does not confer paid allowance. Disabled
 work remains durable and resumes only through an explicit same-business-run request.
 
+`readDryRunOperatorConfig` (D-411) is the worker operator's configuration (`KS_WORLD`, `DATABASE_URL`, `KS_DB_STATEMENT_TIMEOUT_MS`)
+plus `KS_CARTOGRAPHER_ENABLED` and `KS_PLANNER_ENABLED`, read as the worker reads them (the Planner's default is 1 in `local`, else
+0), for `geography dry-run` and `planner dry-run`. They only report whether a real run would be switched off; they never run a role.
+
 `KS_COMPOSER_POLICY` (v3 S-5, D-190, D-408) accepts `v0`, `v1` or `v2` and defaults to `v0` in both the API and the worker configuration (`composerPolicy`).
 It decides which Composer policy new decisions are made under; replay of a stored decision never reads it.
 
