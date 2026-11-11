@@ -148,7 +148,10 @@ is refused before any database or provider work. A published Scroll gets its pla
 coverage from its recipe in the same transaction (D-033).
 
 After editing the plan (a facet or planet added or reworded), decide coverage again for Scrolls that
-are already published. It is idempotent and appends corrected heads only where the decision changed:
+are already published, and for the Reels made from an approved script (a Reel's coverage is decided at
+its publication too, D-421). It is idempotent and appends corrected heads only where the decision changed.
+After the release that gave Reels coverage, run it once: the Reels already published get their first head, and
+the readers of their units are marked for another look at their places.
 
 ```sh
 node dist/operator.js content readmit-coverage --dry-run

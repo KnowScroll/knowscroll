@@ -22,7 +22,7 @@ import { coverageDigest, readWitness } from './coverage-store.js';
 const base = {
   version: 'trusted-coverage-read.v1',
   completeness: 'not_asserted',
-  supportedFormats: ['scroll'],
+  supportedFormats: ['scroll', 'reel'],
 } as const;
 const unavailable = (
   reason: 'limit' | 'authority_changed' | 'not_observed',

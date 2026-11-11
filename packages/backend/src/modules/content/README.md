@@ -34,7 +34,8 @@ still fit the immutable document, and a mismatch there is corrupt data and throw
 supports whose meaning changed in the same way. _Implemented._
 
 After a plan edit, the operator runs `dist/operator.js content readmit-coverage [--dry-run]`. It
-decides coverage again for every published generated Scroll revision through `admitRecipeCoverage`,
+decides coverage again for every published generated Scroll revision through `admitRecipeCoverage`
+(and every Reel made from an approved script through `admitReelCoverage`),
 one short transaction each: an unchanged decision appends nothing, a changed one appends a corrected
 head, and history is kept. It prints counts (`considered`, `appended`, `unchanged`, `skipped`). It
 uses shared content only (no provider, personal root or network) and is refused outside the operator
@@ -118,7 +119,43 @@ ends, blocking head correction and asset withdrawal. No personal revision/effect
 
 Consumers: Evidence credits a binding only when a qualified reading saw every required block
 (`observedBindings`), and Region candidates come from `content.region_bindings` (below). Neither
-changes qualification policy, and no Reel time mapping exists.
+changes qualification policy. A Reel's coverage is its own (next section).
+
+## Reel coverage (#674, slice 5.1, D-421)
+
+Status: implemented, CI-tested against real PostgreSQL. Not yet run against dev. Migration 0118.
+
+A Reel binds facets by the same kind of code rule, over what its script says. `reel-recipe-coverage.v1`
+(`domain/reel-coverage.ts`, `application/admit-reel-coverage.ts`) runs in the Reel's publication transaction
+(`postgresReelPublisher`), as `scroll-recipe-coverage.v1` runs in a Scroll's, with no model call and no network wait:
+
+- A **segment** is one narration sentence of the approved script (one sentence is one shot, as the script check requires),
+  numbered `s1`, `s2` ... Cutroom reports no shot times, so a segment's media window is estimated from its share of the
+  narration's words over the admitted duration: the windows tile the Reel from its first
+  millisecond to its last. The cut is part of the rule's version. The estimate is why Evidence judges watching against a widened window.
+- A segment is **eligible** when every claim it cites is listed in the script and rests on the twin Scroll at the revision the
+  script names. The primary facet of the recipe needs the first, middle and last eligible segment, so watching the opening
+  never counts; a supporting facet, when declared, needs the last two. Fewer than three eligible segments bind nothing: the
+  Reel stays published, watchable and unmapped, and the publication result names the code (`coverage`).
+- The mapping is `reel-static-coverage.v1`, in the same `coverage_revisions` and `coverage_heads` tables, for the Reel's
+  asset revision. Its bindings name the segment ids (`requiredBlockIds`) and each segment's window (`requiredSpans`), so the
+  observed coverage can be judged from the mapping alone. Its framing is factual, the digest a factual Scroll's is, and the
+  reading facts it binds are the Reel's stored duration facts.
+- The Reel's target is read from the stored document, provenance (`reel-provenance.v1` with its `brief`) and facts, and
+  from the twin Scroll revision, which must exist, be served under the same rules as the Reel, share its explanation unit
+  and be factual. A fixture Reel, a Reel whose provenance has no script (the three imported before scripts carried
+  claims), and a Reel whose twin is withdrawn or still held at the review gate have no target and no coverage.
+- A re-cut is another asset revision. It has its own head and windows; the earlier revision's readings keep proving what
+  they proved, as for a Scroll revision.
+- A Reel never joins a region by its own coverage. The mapping's policy differs from a Scroll's, the derived region lookup
+  keeps only the Scroll policy, and migration 0118 makes a revision of coverage whose policy does not match the kind of its
+  asset a data error. A Reel reaches a region only as the twin of a Scroll (D-404, below).
+- The standalone reviewed-command path cannot map a Reel (`CONTENT_COVERAGE_REEL_REQUIRES_RECIPE`); it can retract a
+  Reel's head.
+
+`content readmit-coverage` decides every Reel that has a script again, with the recipe its provenance names, and
+counts it with the Scrolls; a Reel whose recipe is no longer in the plan is skipped as `no_recipe`. It names the units it
+changed so their readers are judged again.
 
 A region also offers each covering Scroll's current Reel twin (#709, D-404): the admitted Reel sharing the Scroll
 revision's explanation unit, under the Scroll's own coverage. `readRegionEncounterCandidates` lists the Scroll, then its
@@ -152,7 +189,7 @@ leaves it), and nothing here records who read what.
 | `content.release_withdrawals`                           | `0115_content_release_policy`                    | Who withdrew a Scroll the release policy released, when, and what became of its topic's approval (D-418); the first withdrawal of a revision is kept | None: shared content       |
 | `content.release_policy_looks`                          | `0115_content_release_policy`                    | The last look of the release policy's sweep at each held library revision: the hold code and the rules version, so the sweep pages past revisions that stay held (D-418). A hint: deleting one only makes the sweep look again | None: shared content       |
 | `content.release_risk_raises`                           | `0115_content_release_policy`                    | Raises of one library revision's risk class (D-418): a model's or a person's proposal that the Scroll touches a sensitive category, so it waits for a person. Append-only (a trigger refuses any change), so a proposal can never lower anything                                               | None: shared content       |
-| `content.coverage_revisions` / `content.coverage_heads` | `0022_content_coverage`                          | One immutable facet-to-block mapping per correction or retraction, and one monotonic head per asset revision. `content.region_bindings` (`0037`) is the derived lookup by planet and facet                                                                                        | None: shared content       |
+| `content.coverage_revisions` / `content.coverage_heads` | `0022_content_coverage`, kind guard `0118`        | One immutable facet-to-block (a Reel's: facet-to-segment) mapping per correction or retraction, and one monotonic head per asset revision. `content.region_bindings` (`0037`) is the derived lookup by planet and facet                                                                                        | None: shared content       |
 | `content.reel_orders` / `content.reel_attempts`         | `0053_reel_orders`                               | The business run "make a Reel of this script" and the ledger of every request sent to Cutroom for it (request bytes, state, pool claim, cost). See "Reels from Cutroom"                                                                                                           | None: shared public        |
 | `content.media_objects` / `content.reel_imports`        | `0014_media_reels`, name check relaxed in `0053` | Content-addressed Reel bytes and which Cutroom run became which Reel revision                                                                                                                                                                                                     | None: shared content       |
 
@@ -175,7 +212,7 @@ The storage adapter validates derived reading facts against the canonical Scroll
 | `RecipeBook` (`recipeBookOf(db)`)                            | production, supply's chooser, the review gate, `readmit-coverage`, the support-check replay (recipe family per asset) | `get(key)`, `servingBrief(brief)` and `all()` over the library plan and `content.recipes` (D-412). Read-only on the shared table; takes a database handle or the caller's transaction; no lock |
 | `makeProposeRecipes(deps)(request, signal)`                  | Operator command `content propose-recipes --topic <planet> [--facet <facet>] [--dry-run]` | One `content.recipe-brief` request and at most one repair on the production harness; code checks every draft and stores the accepted ones as `checked` recipes with the run closed, in one production transaction. Run id from planet, facet, UTC day and role version: a redelivery pays nothing. Refuses unknown planets and facets and planets with no page held before any request |
 | `ChooseScrollRecipe` (token `CHOOSE_SCROLL_RECIPE`)          | supply (Create and the Planner's demand) | Which recipe (plan or stored) a catalogue brief commissions, from the recipe book and each recipe's standing, given which kinds the day's caps leave open and the unit a Planner opportunity aimed at. No lock, no write |
-| `readmitRecipeCoverage(ports, recipes, {dryRun})`            | Operator command `dist/operator.js content readmit-coverage [--dry-run]`   | Lists every stored revision of generated Scrolls, finds each recipe by asset ID, and runs `admitRecipeCoverage` in its own short admission transaction. Idempotent. With `--dry-run` nothing is written. Returns counts; shared content only, refused outside the operator worlds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `readmitRecipeCoverage(ports, recipes, {dryRun})`            | Operator command `dist/operator.js content readmit-coverage [--dry-run]`   | Lists every stored revision of generated Scrolls, finds each recipe by asset ID, and runs `admitRecipeCoverage` in its own short admission transaction; then every Reel revision whose provenance names a recipe, through `admitReelCoverage`. Idempotent. With `--dry-run` nothing is written. Returns counts; shared content only, refused outside the operator worlds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 `adapters/cutroom/wire-v1/` is the byte-for-byte vendored Cutroom wire schema (CF-61): not built,
 linted or formatted; verified by the `integrity` CI job.
@@ -677,7 +714,8 @@ How it keeps its promises:
 - **Receive costs nothing.** The second world rebuilds the request from the same script, checks it byte
   for byte against the pool's record, and publishes the same Reel. It never claims, sends or settles.
 - **The twin.** The Reel is admitted with the Scroll's explanation unit and planet, so Explore offers the
-  format switch between them. It carries the engine's own record, labelled "engine-attested, not
+  format switch between them. Its coverage is decided in the same transaction (see Reel coverage above) and the
+  publication result says whether it was `admitted` or why not. It carries the engine's own record, labelled "engine-attested, not
   independent".
 
 Layers: `domain/reel/` holds the pure rules (script checks, fingerprints, request compiler, chain fold

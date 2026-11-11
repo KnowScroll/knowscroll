@@ -89,7 +89,7 @@ revisions keep what they were published with.
   declaration becomes a new series revision.
 - Adding or renaming a facet, planet or system changes the catalogue digest. See "Library plan and
   concept catalogue" in `../../README.md`. Stored coverage stays readable; run `content readmit-coverage`
-  afterwards to decide it again for the published Scrolls.
+  afterwards to decide it again for the published Scrolls and for the Reels made from an approved script.
 
 ## Checking the pages
 
@@ -104,7 +104,7 @@ that added the plan for the summary); pages change, so re-run the script before 
 The Content catalogue derives identities and meanings from this plan. Production chooses the
 recipe; Scenes uses its declared visual family; coverage admission pins exact facet meanings.
 The operator's `content readmit-coverage --dry-run` previews coverage decisions for published
-revisions. It calls no provider but still needs an authorized disposable/operator database.
+Scroll and Reel revisions. It calls no provider but still needs an authorized disposable/operator database.
 Changing a brief is not permission to rewrite an already admitted revision or paid request ID.
 
 Run `pnpm --filter @knowscroll/backend exec vitest run src/modules/content/domain/library`

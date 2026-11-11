@@ -37,7 +37,7 @@ gate/        judges the lab as a whole: known failures still reproduced, every q
 1. **A library.** For each of the catalogue's planets (the 17 topics of the code catalogue) the lab admits several
    explanation units across the planet's facets, through the editorial import (the starter Scroll under a fixture
    identity) and the real coverage admission, attributes them to the planet, and gives the first two units of each planet, and some of
-   the others, a Reel twin that shares the unit. Ids and titles are fixtures: `ci-sim-<planet>-<n>` and `[CI sim] …` (the editorial grammar has no dots
+   the others, a Reel twin that shares the unit, with coverage decided by the code that decides a Reel's at publication. Ids and titles are fixtures: `ci-sim-<planet>-<n>` and `[CI sim] …` (the editorial grammar has no dots
    and refuses digits in a title). Nothing was written by a model.
 2. **A world.** `simulationWorld` builds the Experience navigation and activation, Evidence intake, Personal Context,
    Region encounters, and the consumers the worker registers on a reader's activity path (the evidence projections, the
@@ -62,7 +62,7 @@ gate/        judges the lab as a whole: known failures still reproduced, every q
 | `focused-deep-reader` | Reads one topic in full and skims the rest | Evidence concentrating, formation |
 | `broad-skimmer` | Taps Somewhere new, skims one open per topic until it has met every topic | Breadth: many topics touched, none qualified |
 | `reel-watcher` | Starts on a Reel and stays in Reels | Format stickiness, Reel evidence |
-| `link-reader-reels` | Follows two shared links to Reels of one system and watches both | A Reel-only reader forming a system (exact) |
+| `link-reader-reels` | Follows two shared links to Reels of one system and watches both | A Reel-only reader forming a system (D-421: this was a known failure until Reels had coverage) |
 | `link-reader-scrolls` | Follows links to three Scrolls of one planet over two facets | A planet forming (exact) |
 | `link-reader-exoplanets` | Reads every Scroll of `space.exoplanets`, then returns to two | Planner demand for a finished topic; regression for the planned-demand duplicate (#712) |
 | `topic-switcher` | Reads one topic until a place exists, then opens a region on purpose | Region encounters |
@@ -93,9 +93,8 @@ request.
 The current dev code breaks some of these. `known-failures.ts` lists them, each keyed by the #674 slice that fixes it,
 with the reason it fails and a `matches` that accepts only violations that fail for that reason:
 
-| Entry | Invariant | Slice | Why it fails today |
-| --- | --- | --- | --- |
-| `I2/reel-only-evidence-forms-no-system` | I2 | 5.1 | A Reel has no coverage mapping or certificate; the trusted read serves only Scrolls, so a qualified Reel leaves no coverage reference (a Reel-only reader's Geography runs settle `no_support_yet`). Two qualified Reels of one system form nothing. The entry matches only that situation: the qualified units under the system are Reels and Personal Context holds no reference and no trusted support under any topic of it. |
+No entry is open today: the last two (planned demand duplicating an open request, slice 1.3; Reel-only evidence forming no
+system, slice 5.1) are fixed and deleted.
 
 The lab keeps two promises about them. Every violation of an invariant must be explained by an entry, for a persona it
 names (any, if it names none), and for the stated reason, or the run fails ("unexpected violation"), so a new defect, or
@@ -104,7 +103,7 @@ as a whole: `gate/known-failures.test.ts` sums the reports of every lab file, so
 instance cannot fail it, and when a slice fixes the behaviour the entry's test fails with "now fixed" and the same pull
 request deletes the entry from `known-failures.ts`. From then on the invariant is a plain gate for the slice and every
 later one. That is the equivalent of `it.fails`, with the reason checked. An entry with a `reproducedBy` scenario (the
-Reel entry: `link-reader-reels`) is judged when that persona ran, so running one file alone is not blamed for the rest.
+exoplanets entry: `link-reader-exoplanets`) is judged when that persona ran, so running one file alone is not blamed for the rest.
 In CI, and in any local run that wrote every group (`readers`, `formation`, `binge`), the gate instead requires every such
 persona to have run and every group to have written a report, so a renamed file or persona cannot make an entry go
 unjudged without a word.
@@ -144,7 +143,8 @@ It does not prove:
 - **Real people.** Personas are bench patterns of attention, not measured behaviour. A pass says nothing about how people
   read.
 - **Content quality or truth.** Every Scroll is the starter document under a fixture identity; every Reel is a valid
-  document with no media.
+  document with no media, whose script is six fixed sentences. A Reel's segment windows are estimated from its words, as
+  they are for a published Reel, and a Reel is read by watching it through.
 - **Scale.** The 10,000-topic test waits for the catalogue in Postgres (slice 2.1); the topics are still the 17 planets of
   the code catalogue. Large mode (`KS_SIM_SIZE=large`) is as large as is practical on one machine: it passes the
   100-asset retrieval cliff of the discovery lanes, and it is not the design target. Run times and plans here are not
@@ -174,8 +174,9 @@ What the lab does not take from the product, so a pass is read for what it cover
   worker's provider list. It also binds a legacy prepared-activity read that the worker does not.
 - **The library.** Scrolls go through the real editorial import and coverage admission, but their topic attribution is
   inserted by the lab and the semantic review of their coverage is an approval the lab signs. Reel twins are inserted by
-  SQL as valid Reel documents with their facts and no media, because the real Reel admission needs Cutroom output and a
-  media file. Every document is the starter Scroll under a fixture identity.
+  SQL as valid Reel documents with their facts, the provenance of an approved script and no media, because the real Reel
+  admission needs Cutroom output and a media file; their coverage is decided by `admitReelCoverage`, the code the Reel
+  publication runs. Every document is the starter Scroll under a fixture identity.
 - **The queues.** The consumers are listed in `queues.ts`, not derived from the worker's registry (the worker builds it
   inside a Nest provider). `simulationWorld` refuses to start if its consumers differ from that list, and
   `gate/wiring.test.ts` fails if the release declares a queue that is neither drained nor listed with a reason, so a new

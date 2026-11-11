@@ -5,7 +5,10 @@ import type { Kysely } from 'kysely';
 import { CONCEPTS, COVERAGE_POLICY, CONCEPT_CATALOGUE_VERSION } from '@knowscroll/backend/modules/content';
 import type { CoverageCommand, CoverageMapping, ImportEditorialScroll } from '@knowscroll/backend/modules/content';
 import {
+  admitReelCoverage,
   coverageCatalogue,
+  coverageHeadPorts,
+  makeAdmissionStore,
   makeAdmitCoverage,
   makeCoverageAdmissionPorts,
 } from '@knowscroll/backend/modules/content/nest-providers';
@@ -86,8 +89,9 @@ const ORDINALS = [
  * Builds the fixture library through the real admission paths: each Scroll is admitted by the editorial
  * import use case (the starter document under a fixture identity), attributed to a planet of the real
  * code catalogue, and given observed-coverage admission for one facet of that planet; each Reel twin is
- * written the way the Reel tests write one (a valid document, no media). Nothing here was written by a
- * model and nothing claims to be real content.
+ * written the way a published Reel is stored (a document, the provenance of an approved script whose claims rest
+ * on its twin Scroll, no media bytes), and its coverage is decided by the same code that decides it at
+ * publication. Nothing here was written by a model and nothing claims to be real content.
  *
  * The catalogue is still code, so the library attaches to its 17 planets. A later slice moves the
  * catalogue into Postgres; `buildLibrary` then reads it from there.
@@ -127,7 +131,7 @@ export async function buildLibrary(
       // Each planet's first two units have a Reel twin, so a Reel watcher can meet two units of a system; the rest by share.
       const reel =
         index < 2 || rng.chance(config.library.reelTwinShare)
-          ? await admitReel(db, rng, unitId, title, planet.id)
+          ? await admitReel(db, rng, { unitId, title, topicId: planet.id, facetId: facet.id }, scroll)
           : undefined;
       units.push({
         unitId,
@@ -254,14 +258,28 @@ async function admitScroll(input: AdmitScrollInput): Promise<LibraryScroll> {
   };
 }
 
-/** A Reel twin the way the Reel tests write one: a valid document and its facts, no media bytes. */
+/** The six sentences of a lab Reel's script: one shot each, every one citing the claim of its own number. */
+const REEL_SENTENCES = [
+  'The question starts with one plain observation.',
+  'A first detail shows what changes and what stays.',
+  'A second detail adds the part people often miss.',
+  'Together they point to one cause.',
+  'The cause explains the pattern from the start.',
+  'That is the whole idea in a single picture.',
+];
+
+/**
+ * A Reel twin as a published Reel is stored: a valid document, the provenance of an approved script (six sentences, each
+ * citing a claim that rests on the unit's Scroll) and no media bytes. Its coverage is decided by the code that decides it
+ * at publication (`admitReelCoverage`), for the facet its unit binds.
+ */
 async function admitReel(
   db: Kysely<Database>,
   rng: Rng,
-  unitId: string,
-  title: string,
-  topicId: string,
+  unit: { readonly unitId: string; readonly title: string; readonly topicId: string; readonly facetId: string },
+  twin: LibraryScroll,
 ): Promise<LibraryReel> {
+  const { unitId, title, topicId, facetId } = unit;
   const assetId = rng.uuid();
   const durationMs = rng.int(20, 45) * 1000;
   const digest = canonicalSha256({ assetId, durationMs });
@@ -274,7 +292,7 @@ async function admitReel(
     summary: 'CI simulation fixture',
     language: 'en',
     truthLabel: 'generated',
-    fixture: true,
+    fixture: false,
     captions: 'burned_in',
     mediaKey: `sha256/${digest.slice(0, 2)}/${digest}.mp4`,
     durationMs,
@@ -290,16 +308,54 @@ async function admitReel(
     nested: [],
     reelDurationMs: durationMs,
   };
+  const brief = {
+    version: 1,
+    worldId: 'ci-sim',
+    narration: REEL_SENTENCES.map((text, index) => ({ text, claimIds: [`c${String(index + 1)}`] })),
+    claims: REEL_SENTENCES.map((_, index) => ({
+      id: `c${String(index + 1)}`,
+      role: index === 0 ? 'main' : 'supporting',
+    })),
+    claimSources: REEL_SENTENCES.map((_, index) => ({
+      claimId: `c${String(index + 1)}`,
+      assetId: twin.assetId,
+      assetRevision: twin.revision,
+    })),
+    criteria: { mustShow: [], mustNotShow: [], depictionPolicyVersion: 'policy-3' },
+    style: { id: 'ci-sim', version: 1, text: 'CI simulation fixture' },
+    title: reelTitle,
+    summary: 'CI simulation fixture',
+  };
+  const provenance = {
+    schemaVersion: 'reel-provenance.v1',
+    kind: 'cutroom_import',
+    script: assetId,
+    brief,
+    recipe: 'ci-sim',
+    twin: { assetId: twin.assetId, assetRevision: twin.revision, explanationUnitId: unitId },
+    fixture: false,
+  };
   await sql`insert into content.assets (id, revision, kind, status) values (${assetId}::uuid, 1, 'reel', 'admitted')`.execute(
     db,
   );
   await sql`insert into content.asset_revisions
       (asset_id, revision, provenance_kind, document_version, document, document_sha256, explanation_unit_id, language, title, reading_facts)
-    values (${assetId}::uuid, 1, 'authored_editorial', 'reel-document.v1', ${JSON.stringify(document)}::jsonb,
+    values (${assetId}::uuid, 1, 'cutroom_import', 'reel-document.v1', ${JSON.stringify(document)}::jsonb,
       ${digest}, ${unitId}, 'en', ${reelTitle}, ${JSON.stringify(facts)}::jsonb)`.execute(db);
+  await sql`insert into content.asset_provenance (asset_id, revision, provenance_version, provenance)
+    values (${assetId}::uuid, 1, 'reel-provenance.v1', ${JSON.stringify(provenance)}::jsonb)`.execute(db);
   await db
     .insertInto('content.encounter_topics')
     .values({ asset_id: assetId, asset_revision: 1, topic_id: topicId, role: 'primary', weight: 1 })
     .execute();
+  const outcome = await makeAdmissionStore(db).inAdmission((tx) =>
+    admitReelCoverage(
+      coverageHeadPorts,
+      tx,
+      { explanationUnitId: unitId, topicId, facetId },
+      { assetId, assetRevision: 1 },
+    ),
+  );
+  if (outcome.kind !== 'admitted') throw new Error(`SIM_LIBRARY_REEL_COVERAGE_REFUSED ${unitId} ${outcome.code}`);
   return { assetId, revision: 1, durationMs };
 }

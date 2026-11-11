@@ -28,7 +28,7 @@ export interface PublishInput {
  * `refused`: the Reel is made and will never be published, and its money is spent.
  */
 export type PublishOutcome =
-  | { readonly kind: 'published'; readonly assetId: string; readonly created: boolean }
+  | { readonly kind: 'published'; readonly assetId: string; readonly created: boolean; readonly coverage?: string }
   | { readonly kind: 'held'; readonly code: string }
   | { readonly kind: 'refused'; readonly code: string };
 
@@ -102,6 +102,7 @@ export async function publishFinishedReel(ports: ReelPorts, input: PublishInput)
     script: linted.script,
     twin: world.twin,
     topicId: recipeOf(linted.script).topicId,
+    recipe: recipeOf(linted.script),
     media: installed.media,
     provenance: provenanceOf(ports, input, world.twin, installed.media, answered.record),
     orderId: input.origin.kind === 'ordered' ? input.origin.orderId : undefined,

@@ -10,7 +10,7 @@ import type { Rng } from './rng.js';
  * timings drawn from the document's own reading facts (a Scroll's estimated reading time and block
  * weights, a Reel's duration), never from a constant.
  *
- * - `read`: the whole document at a natural pace (0.85 to 1.3 of the estimate). Qualifies.
+ * - `read`: the whole document at a natural pace (0.85 to 1.3 of the estimate); a Reel from start to finish. Qualifies.
  * - `partial`: the first fifth to two fifths. Not qualified.
  * - `skim`: one to three blocks (a Reel: two to four seconds), a few seconds. Not qualified.
  * - `idle`: the tab is left on one stop for one to three hours with the first screen visible. The
@@ -152,9 +152,10 @@ export function reelReading(
   rng: Rng,
 ): ReadingResult {
   if (kind === 'none') return { events: [], elapsedMs: rng.int(1, 3) * SECOND, expectQualified: false };
+  // A Reel is read by watching it through: a facet is proved only by the segments a person watched, the last among them.
   const watched =
     kind === 'read'
-      ? Math.round(reel.durationMs * rng.between(0.85, 1))
+      ? reel.durationMs
       : kind === 'partial'
         ? Math.round(reel.durationMs * rng.between(0.2, 0.4))
         : rng.int(2, 4) * SECOND;

@@ -364,6 +364,8 @@ export {
 export { readmitCoverageUseCase } from './readmit-coverage.js';
 export { readmitRecipeCoverage } from '../application/readmit-recipe-coverage.js';
 export { makeAdmitCoverage } from '../application/admit-coverage.js';
+/** Decides a Reel's coverage from its script and recipe (#674, slice 5.1): publication and `readmit-coverage` use it. */
+export { admitReelCoverage } from '../application/admit-reel-coverage.js';
 
 export { lockCurrentEncounters } from './current-encounters.js';
 export {
@@ -385,4 +387,7 @@ export { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.j
 /** The operator's Reel commands over real adapters (#240, D-041). */
 export { checkShippedReelScript, composeReelOperator, type ReelSettings } from './reel/compose.js';
 export { contentReelStores } from './reel/stores.js';
+/** Publishes a made Reel in one transaction, with its coverage decided by code (#674, slice 5.1). CI fixtures publish with it too. */
+export { postgresReelPublisher } from './reel/postgres-publisher.js';
 export type { ReelOperator } from '../application/reel/operator.js';
+export type { PublishReel } from '../application/reel/ports.js';

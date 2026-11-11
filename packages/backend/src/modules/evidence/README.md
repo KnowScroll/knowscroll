@@ -109,7 +109,8 @@ source kind (legacy/segment), exposure, generation, activity, qualification and 
 Retained exact audit checks never fall back to latest exposure identity; an existing committed
 legacy-g1 PC witness remains distinct from a new g1 segment. Content still owns current mapping,
 meaning and publication authority after any waits. Certificates remain factual static coverage,
-not learning or understanding, and Reel facet coverage remains unsupported.
+not learning or understanding. A Reel's certificate binds only the facets whose required segments were watched
+(see Observed static coverage).
 Segment certificates additionally bind the exact SAME-generation Evidence activity head and the
 known-policy legacy/session Q source pointer. Moving that current pointer refuses the previous
 certificate immediately, before the PC projector runs. A newer unrelated exposure-wide audit is
@@ -202,6 +203,13 @@ admitted revision's facts. `reel-qualification.v0` computes unique visible media
 unique active time, with experimental q≥0.6. Overlap, loops and duplicate delivery add no unique media;
 missing/gapped instrumentation leaves short encounters unknown. Consumer navigation/open/grant renewal
 is not evidence. Diagnostics retain q, unique media, active time, duration and policy version.
+
+Since #674 slice 5.1 (D-421) a Reel's summary (`v: 2`) also records `watched`: the unique media windows that were
+met, as disjoint `[from, to]` millisecond pairs rounded inward to 100 ms and kept to the 32 longest, so a stored row
+never says more than was watched (`reel-watched.v1`, `domain/reel-summary.ts`). It is empty when the media reported
+is longer than the active time that could have produced it, since one viewer cannot be at two positions in the same
+moment. q, the qualification and every threshold are unchanged. A row written before this version has no windows and
+binds no facet; it is not rewritten, and the next observation of the exposure writes a new revision that has them.
 
 ## Activity and prepared routing context
 
@@ -325,7 +333,16 @@ qualification-policy lineage, immutable Content facts v2 and the reviewed curren
 Each binding requires ALL mapped static top-level paragraph/quote/callout IDs in the persisted seen
 set. Partial qualified reading cannot credit unseen facets. Heading, disclosure descendants,
 interactive states, arbitrary topic tags/prefixes, social/supply and unviewed assets confer none.
-Reel certificates explicitly remain unsupported; aggregate media time cannot locate a facet.
+A Reel's certificate is made the same way from its own evidence (#674 slice 5.1, D-421): the latest owned
+qualified Reel revision (`reel-qualification.v0` or `.recording.v1`, q at least 0.6), Content's current mapping for that
+revision and the Reel's reading facts. Each binding names the media window of every segment it requires
+(`requiredSpans`, beside `requiredBlockIds`, which are segment ids `s1`, `s2` ...). A binding counts when the viewer
+watched every one of those windows (`reel-segment-seen.v1`, `domain/coverage.ts`): the window is estimated from the
+narration, because Cutroom reports no shot times, so it is widened by one second each way within the Reel, and at least
+95% of that widened window must have been watched. Watching the first 26 seconds of a Reel credits the segments in
+them and no later one; aggregate media time still cannot locate a facet, which is why the windows are recorded.
+The certificate, its checks (`CheckCoverageEvidence` and the recording check, which accept a Reel row by its policy and
+judge the windows from its stored summary) and its size bounds are otherwise a Scroll's.
 These are observed coverage facts, never learning, understanding, belief or identity claims.
 
 Certificates bind universe/epoch/activation, exact asset/document/provenance/explanation/framing,

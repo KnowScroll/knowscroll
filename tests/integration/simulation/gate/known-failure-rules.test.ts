@@ -58,18 +58,20 @@ describe('known failure rules', () => {
     expect(thrownBy(results, 'geography.cartograph')).toEqual([]);
   });
 
-  it('explains a Reel-only system failure only when Personal Context holds nothing under the system', () => {
-    const notFormed = (referencesUnderSystem: number, supportsUnderSystem: number, onlyWithReels = true) =>
+  it('explains no Reel-only system failure: a Reel counts toward formation now (D-421), so one is a new defect', () => {
+    const notFormed = (referencesUnderSystem: number, supportsUnderSystem: number, onlyWithReels: boolean) =>
       violation({
         invariant: 'I2',
         code: 'system_not_formed',
         detail: { onlyWithReels, referencesUnderSystem, supportsUnderSystem },
       });
-    expect(explainedBy(notFormed(0, 0))?.id).toBe('I2/reel-only-evidence-forms-no-system');
-    // Scroll evidence under the system that failed to form is a new defect, as is any reference or support under it.
-    expect(explainedBy(notFormed(0, 0, false))).toBeUndefined();
-    expect(explainedBy(notFormed(1, 0))).toBeUndefined();
-    expect(explainedBy(notFormed(0, 1))).toBeUndefined();
+    for (const onlyWithReels of [true, false])
+      for (const [references, supports] of [
+        [0, 0],
+        [1, 0],
+        [0, 1],
+      ] as const)
+        expect(explainedBy(notFormed(references, supports, onlyWithReels))).toBeUndefined();
   });
 
   it('judges what Geography settles against what the person held when the step began', () => {

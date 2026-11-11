@@ -5,6 +5,9 @@ import type { Database } from '../../../../infrastructure/postgres/database.js';
 import { withTransaction } from '../../../../infrastructure/postgres/personal-scope.js';
 import { validateTopics } from '../../domain/discovery.js';
 import type { PublishReel, PublishResult, ReelPublisher } from '../../application/reel/ports.js';
+import { admitReelCoverage } from '../../application/admit-reel-coverage.js';
+import { coverageHeadPorts } from '../coverage-store.js';
+import { inAdmissionTransaction } from '../postgres-store.js';
 
 const ATTRIBUTION_VERSION = 'reel-twin-taxonomy.v1';
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -103,6 +106,17 @@ async function attributeTopic(trx: Transaction<Database>, reel: PublishReel): Pr
     where asset_id = ${assetId}::uuid and asset_revision = 1`.execute(trx);
 }
 
+/**
+ * Decides the Reel's coverage by code in this transaction (D-421), as a Scroll's is decided at publication. A script
+ * whose claims cannot all be bound leaves the Reel published, watchable and unmapped, and the result says why.
+ */
+async function admitCoverage(trx: Transaction<Database>, reel: PublishReel): Promise<string> {
+  const outcome = await inAdmissionTransaction(trx, (admission) =>
+    admitReelCoverage(coverageHeadPorts, admission, reel.recipe, { assetId: reel.script.id, assetRevision: 1 }),
+  );
+  return outcome.kind === 'admitted' ? 'admitted' : outcome.code;
+}
+
 async function markOrder(trx: Transaction<Database>, orderId: string, assetId: string): Promise<void> {
   await sql`update content.reel_orders set asset_id = ${assetId}::uuid, published_at = clock_timestamp()
     where id = ${orderId}::uuid and asset_id is null`.execute(trx);
@@ -134,8 +148,9 @@ export function postgresReelPublisher(db: Kysely<Database>): ReelPublisher {
         if (!(await twinStillAdmitted(trx, reel))) return { kind: 'refused', code: 'twin_changed' };
         await insertAsset(trx, reel, await insertMedia(trx, reel));
         await attributeTopic(trx, reel);
+        const coverage = await admitCoverage(trx, reel);
         if (reel.orderId !== undefined) await markOrder(trx, reel.orderId, assetId);
-        return { kind: 'published', assetId, created: true };
+        return { kind: 'published', assetId, created: true, coverage };
       });
     },
   };
