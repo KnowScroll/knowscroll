@@ -1,5 +1,5 @@
 import type { ContentRequestStatus } from '@knowscroll/contracts';
-import { unavailableMessage } from './request-copy';
+import { unavailableCopy, unavailableMessage } from './request-copy';
 
 type Closed = Extract<ContentRequestStatus, { status: 'unavailable' }>;
 const closed = (limit: Closed['limit']): Closed => ({
@@ -38,5 +38,18 @@ describe('the words of a request closed by a daily limit (D-387)', () => {
 
   it('keeps the general words when no limit is named', () => {
     expect(unavailableMessage(closed(undefined), nextDay)).toMatch(/can't prepare new explanations right now/);
+  });
+});
+
+describe('the words of a request that nothing can make', () => {
+  const reasoned = (reason: 'no_production_path' | 'no_recipe_left'): Closed => ({ ...closed(undefined), reason });
+
+  it('says what cannot be made, not that a budget is used up', () => {
+    expect(unavailableMessage(reasoned('no_production_path'), nextDay)).toMatch(/new Reel, or another format/);
+    expect(unavailableMessage(reasoned('no_recipe_left'), nextDay)).toMatch(/don't have an explanation of this ready/);
+    for (const reason of ['no_production_path', 'no_recipe_left'] as const) {
+      expect(unavailableCopy[reason]).not.toMatch(/budget|prepare new explanations|try again|ask again/i);
+      expect(unavailableCopy[reason]).toMatch(/Your request is closed, so nothing is waiting/);
+    }
   });
 });

@@ -24,6 +24,7 @@ const panels = {
     refusedAnswers: { status: 'available', data: [] },
     reelOrders: { status: 'available', data: [] },
     usage: { status: 'unavailable', reason: 'view_missing' },
+    plannedDemand: { status: 'unavailable', reason: 'view_missing' },
   },
   universeChange: { cartographer: { status: 'unavailable', reason: 'read_failed' } },
   safety: { reports: { status: 'available', data: { last24Hours: 0, recent: [] } } },

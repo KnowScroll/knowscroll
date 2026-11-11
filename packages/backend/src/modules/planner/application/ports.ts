@@ -13,7 +13,7 @@ import type {
   ExplorationSnapshot,
 } from '../../personal-context/public.js';
 import type { RecordingReasoningHarness } from '../../../reasoning/public.js';
-import type { RecordPlannedDemand } from '../../supply/public.js';
+import type { CountPlannedDemand, RecordPlannedDemand } from '../../supply/public.js';
 import type { ClientCapabilities } from '@knowscroll/contracts';
 import type { PlannerJob } from '../events.js';
 import type { Opportunity, PlannerIntent, ValidationFacts } from '../domain/proposal.js';
@@ -130,6 +130,8 @@ export interface PlannerPorts {
   readonly harness: RecordingReasoningHarness;
   /** Supply's entry for missing-supply opportunities; called inside the plan's accepting transaction. */
   readonly recordDemand: RecordPlannedDemand;
+  /** Supply's counters of what became of each opportunity; called once per accepted plan, in the same transaction. */
+  readonly countDemand: CountPlannedDemand;
   /** Deployment config gate; does not replace provider allowance, harness budgets or quota. */
   readonly enabled: () => boolean;
   readonly prepareNormalWake: (scope: RecordingScopeTx, runId: string) => Promise<'ready' | 'busy' | 'unavailable'>;

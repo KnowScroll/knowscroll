@@ -30,6 +30,9 @@ import type {
 } from '../../content/public.js';
 import type { CheckRequestSource } from '../../experience/public.js';
 import type { ResolveSupplyJob } from '../events.js';
+import type { PlannedDemandOutcome, PlannedIntent, PlannedOutcomeCount } from '../domain/planned-demand.js';
+
+export type { PlannedDemandOutcome, PlannedIntent } from '../domain/planned-demand.js';
 
 /** Only admitted public catalogue meaning or exact public explanation lineage enters shared work. */
 export type CanonicalBrief = {
@@ -84,6 +87,8 @@ export interface Demand {
   /** `pending` until a `matching` ask has its match. */
   readonly decision: 'reuse' | 'join' | 'create' | 'refuse' | 'pending';
   readonly reason?: UnavailableReason;
+  /** What the Planner wanted, kept on the person's own planned demand (`planned_intent`); never shared, never evidence. */
+  readonly plannedIntent?: PlannedIntent;
   /** Set with `budget_unavailable` on a question asked from a Scroll. */
   readonly askLimit?: AskLimitKind;
   readonly content?: EncounterSnapshot;
@@ -136,11 +141,31 @@ export interface SupplyStore {
   reopen(scope: PersonalScopeTx, demand: Demand): Promise<void>;
   /** The person's own asks (not the Planner's), newest first. */
   listPersonDemands(scope: PersonalScopeTx, limit: number): Promise<readonly Demand[]>;
-  /** The person's open planned demand (`deferred` or `ready`) for exactly this canonical brief, if any. */
+  /**
+   * The person's open planned demand (`deferred` or `ready`) for exactly this canonical brief, if any. A waiting
+   * (`deferred`) one comes before one that already holds content, so an older `ready` row never hides it.
+   * `waitingSince` is when its current wait began.
+   */
   findOpenPlanned(
     scope: PersonalScopeTx,
     brief: CanonicalBrief,
-  ): Promise<{ readonly id: string; readonly state: 'deferred' | 'ready' } | undefined>;
+  ): Promise<{ readonly id: string; readonly state: 'deferred' | 'ready'; readonly waitingSince: Date } | undefined>;
+  /**
+   * Closes a planned demand that is still `deferred` as `unavailable` with `could_not_prepare`, the reason a waiter gets
+   * when it waited past the limit. Says whether it changed a row. The shared group is left as it is.
+   */
+  closeLostPlanned(scope: PersonalScopeTx, id: string, now: Date): Promise<boolean>;
+}
+/**
+ * Quartermaster's counters of what became of the Planner's missing-supply opportunities (`supply.planned_demand_outcomes`):
+ * a day, a code and a count, no person and no words.
+ */
+export interface PlannedDemandLedger {
+  /**
+   * Adds to the counters of the UTC day of `when`, in the caller's transaction. `counts` arrive sorted, and are written
+   * in that order, so two transactions never wait on each other's counter rows in opposite orders.
+   */
+  add(scope: PersonalScopeTx, when: Date, counts: readonly PlannedOutcomeCount[]): Promise<void>;
 }
 /** Quartermaster's ledger of ask orders: names no person and no words (see migration 0087). */
 export interface AskOrderLedger {
@@ -211,24 +236,20 @@ export interface PlannedDemandInput {
   readonly capabilities: CreateContentRequest['capabilities'];
   /** Explanations the person has already met. Reuse skips them: the opportunity asks for something new. */
   readonly alreadyMet: readonly string[];
+  /** What the model wanted of this opportunity, stored on the person's own demand row for a later step to commission from. */
+  readonly intent: PlannedIntent;
 }
-export type PlannedDemandOutcome =
-  /** Reuse: admitted content the person has not met already fits. */
-  | { readonly kind: 'ready'; readonly requestId: string }
-  /** The person already has open planned demand for this brief (an earlier plan asked); nothing is added. */
-  | { readonly kind: 'already_recorded'; readonly requestId: string }
-  /** Join or Create: waits on the shared group, and a resolver job binds it when its production ends. */
-  | { readonly kind: 'deferred'; readonly requestId: string; readonly joined: boolean }
-  /** Nothing can produce it now: the day's Create cap is reached, Create is off, or no recipe is left. Nothing is stored. */
-  | { readonly kind: 'not_commissioned' }
-  /** Not a code-admitted catalogue brief (topic outside the catalogue, or a language it cannot produce). */
-  | { readonly kind: 'unsupported' };
 /**
  * Records the Planner's missing-supply opportunity as private demand inside the caller's personal
  * scope, so it commits atomically with the accepted plan. Applies Reuse, then Join or Create: a
  * Create commits the shared production job with the plan.
  */
 export type RecordPlannedDemand = (scope: PersonalScopeTx, input: PlannedDemandInput) => Promise<PlannedDemandOutcome>;
+/**
+ * Counts what became of each opportunity of one accepted plan, in the plan's own transaction, so the counters and the
+ * plan commit or roll back together. Call it once per plan with every outcome: the counters are added in a fixed order.
+ */
+export type CountPlannedDemand = (scope: PersonalScopeTx, outcomes: readonly PlannedDemandOutcome[]) => Promise<void>;
 export interface SupplyPorts {
   readonly withScope: WithPersonalScope;
   readonly ownerActive: CheckPersonalOwnerActive;
@@ -272,6 +293,7 @@ export interface SupplyPorts {
   /** Where an ask order's production stands, read on the caller's own transaction. */
   readonly readOrderProduction: ReadMadeToOrderProductionIn;
   readonly askLedger: AskOrderLedger;
+  readonly plannedLedger: PlannedDemandLedger;
   /** Ask orders Create may make per UTC day for the world (0 turns them off) and for one person. */
   readonly askCaps: { readonly perDay: number; readonly perPersonPerDay: number };
   /** The recording gate: an ask from here is tied to what was read, so it needs recording on (D-083). */

@@ -29,10 +29,13 @@ async function recommission(p: SupplyPorts, scope: PersonalScopeTx, d: Demand): 
  * production ended without serving it; commission it when no production stands behind it at all.
  */
 async function waitingOutcome(p: SupplyPorts, scope: PersonalScopeTx, d: Demand): Promise<Ending> {
+  const waited = p.now().getTime() - Date.parse(waitStartOf(d));
+  // Planned demand past its wait limit is closed, never commissioned afresh: nobody is waiting for it, and the
+  // Planner decides the brief again with its next plan. This is also how the operator's recovery closes lost demand.
+  if (d.planned !== undefined && waited >= WAIT_LIMIT_MS) return { kind: 'unavailable', reason: 'could_not_prepare' };
   const work = d.workId === undefined ? undefined : await p.store.readWork(scope, d.workId);
   if (work?.recipe === undefined) return recommission(p, scope, d);
   const production = await p.readProduction(scope, work.recipe);
-  const waited = p.now().getTime() - Date.parse(waitStartOf(d));
   return isComing(production.state) && waited < WAIT_LIMIT_MS
     ? { kind: 'wait' }
     : { kind: 'unavailable', reason: 'could_not_prepare' };

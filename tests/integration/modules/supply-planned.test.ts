@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
+import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FULL_V1_CAPABILITIES } from '@knowscroll/scroll-model';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { PlannedDemandInput } from '@knowscroll/backend/modules/supply';
+import { expireStalePlannedDemand } from '@knowscroll/backend/modules/supply/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson } from '../support/fixtures.js';
-import { realSupply } from '../support/planned-demand.js';
+import { plannedIntent, realSupply } from '../support/planned-demand.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
 import { markLibraryV1 } from '../support/scroll-v2.js';
 
@@ -54,6 +56,7 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
     language: 'en',
     capabilities,
     alreadyMet: [],
+    intent: plannedIntent(),
     ...overrides,
   });
   const record = (person: Awaited<ReturnType<typeof seedPerson>>, input: PlannedDemandInput) =>
@@ -66,8 +69,14 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
 
   it('records nothing for a topic the catalogue does not admit', async () => {
     const person = await seedPerson(database.db);
-    expect(await record(person, demandInput(['ci.not-in-the-catalogue']))).toEqual({ kind: 'unsupported' });
-    expect(await record(person, demandInput(['earth.tides'], { language: 'fr' }))).toEqual({ kind: 'unsupported' });
+    expect(await record(person, demandInput(['ci.not-in-the-catalogue']))).toEqual({
+      kind: 'unsupported',
+      reason: 'topic_not_in_catalogue',
+    });
+    expect(await record(person, demandInput(['earth.tides'], { language: 'fr' }))).toEqual({
+      kind: 'unsupported',
+      reason: 'language_not_supported',
+    });
     expect(await rows(person.universeId)).toHaveLength(0);
   });
 
@@ -79,10 +88,14 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
         if (result.kind !== 'entered') throw new Error('CI scope refused');
         return result.value;
       });
-    expect(await recordWith(off.record, demandInput(['space.exoplanets']))).toEqual({ kind: 'not_commissioned' });
+    expect(await recordWith(off.record, demandInput(['space.exoplanets']))).toEqual({
+      kind: 'not_commissioned',
+      reason: 'create_off',
+    });
     // A Reel cannot be produced at all, whatever the cap.
     expect(await recordWith(supply.record, demandInput(['space.exoplanets'], { format: 'reel' }))).toEqual({
       kind: 'not_commissioned',
+      reason: 'no_production_path',
     });
     expect(await rows(person.universeId)).toHaveLength(0);
     expect((await database.pool.query("select id from pgboss.job where name='content.produce-scroll'")).rows).toEqual(
@@ -161,6 +174,7 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
     expect(await record(waiting, demandInput(['earth.tides'], { slot: 2 }))).toEqual({
       kind: 'already_recorded',
       requestId: (first as { requestId: string }).requestId,
+      open: 'deferred',
     });
     expect(await rows(waiting.universeId)).toHaveLength(1);
     // A different brief is a different demand; a closed one no longer counts. Its group chooses the same
@@ -208,5 +222,217 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
     const input = demandInput(['earth.tides']);
     await record(person, input);
     await expect(record(person, { ...input, topicIds: ['machine-learning.transformers'] })).rejects.toThrow();
+  });
+  /** The outcome counters as `outcome/reason` (or `outcome`) to count, summed over days. */
+  const counters = async () => {
+    const counted: Record<string, number> = {};
+    for (const row of await database.db.selectFrom('supply.planned_demand_outcomes').selectAll().execute()) {
+      const key = row.reason === '' ? row.outcome : `${row.outcome}/${row.reason}`;
+      counted[key] = (counted[key] ?? 0) + Number(row.total);
+    }
+    return counted;
+  };
+  const count = (person: Awaited<ReturnType<typeof seedPerson>>, outcomes: Awaited<ReturnType<typeof record>>[]) =>
+    withScope()(person.authority, (scope) => supply.count(scope, outcomes)).then((result) => {
+      if (result.kind !== 'entered') throw new Error('CI scope refused');
+    });
+  const growth = (before: Record<string, number>, after: Record<string, number>) =>
+    Object.fromEntries(
+      Object.entries(after)
+        .map(([key, total]) => [key, total - (before[key] ?? 0)] as const)
+        .filter(([, added]) => added !== 0),
+    );
+  /** Moves a demand's wait back in time, as if it had been waiting that many minutes. */
+  const ageRow = (id: string, minutes: number) =>
+    sql`update supply.requests set created_at = now() - make_interval(mins => ${minutes}),
+      updated_at = now() - make_interval(mins => ${minutes}) where id = ${id}::uuid`.execute(database.db);
+
+  it('counts every outcome of a plan by outcome and reason, naming no person, topic or words', async () => {
+    await admit('space.black-holes');
+    const off = realSupply(database, content.boss, { readExploration: content.readExploration });
+    const person = await seedPerson(database.db),
+      other = await seedPerson(database.db);
+    const before = await counters();
+    const outcomes = [
+      await record(person, demandInput(['ci.not-in-the-catalogue'])),
+      await record(person, demandInput(['earth.seasons'], { language: 'fr' })),
+      await record(person, demandInput(['earth.seasons'], { format: 'reel' })),
+      await withScope()(person.authority, (scope) => off.record(scope, demandInput(['earth.seasons']))).then((r) => {
+        if (r.kind !== 'entered') throw new Error('CI scope refused');
+        return r.value;
+      }),
+      await record(person, demandInput(['space.black-holes'])),
+      await record(person, demandInput(['earth.seasons'], { slot: 1 })),
+      await record(other, demandInput(['earth.seasons'])),
+      await record(person, demandInput(['earth.seasons'], { slot: 2 })),
+    ];
+    expect(outcomes.map((outcome) => outcome.kind)).toEqual([
+      'unsupported',
+      'unsupported',
+      'not_commissioned',
+      'not_commissioned',
+      'ready',
+      'deferred',
+      'deferred',
+      'already_recorded',
+    ]);
+    await count(person, outcomes);
+    expect(growth(before, await counters())).toEqual({
+      'unsupported/topic_not_in_catalogue': 1,
+      'unsupported/language_not_supported': 1,
+      'not_commissioned/no_production_path': 1,
+      'not_commissioned/create_off': 1,
+      reused: 1,
+      commissioned: 1,
+      joined: 1,
+      'already_recorded/waiting': 1,
+    });
+    // The table has a day, a code, a reason and a count: nothing that could name a person, a topic or a word.
+    expect(
+      Object.keys((await database.db.selectFrom('supply.planned_demand_outcomes').selectAll().executeTakeFirst())!),
+    ).toEqual(['day', 'outcome', 'reason', 'total']);
+  });
+
+  it('adds nothing to the counters for a plan with no missing-supply opportunity', async () => {
+    const person = await seedPerson(database.db);
+    const before = await counters();
+    await count(person, []);
+    expect(await counters()).toEqual(before);
+  });
+
+  it("adds to a day's counters one plan after another, and the database refuses a code it does not know", async () => {
+    const person = await seedPerson(database.db);
+    const before = await counters();
+    await count(person, [{ kind: 'unsupported', reason: 'topic_not_in_catalogue' }]);
+    await count(person, [{ kind: 'unsupported', reason: 'topic_not_in_catalogue' }]);
+    expect(growth(before, await counters())).toEqual({ 'unsupported/topic_not_in_catalogue': 2 });
+    await expect(
+      database.db
+        .insertInto('supply.planned_demand_outcomes')
+        .values({ day: new Date(), outcome: 'not_commissioned', reason: 'a_reason_nobody_declared', total: 1 })
+        .execute(),
+    ).rejects.toThrow(/planned_demand_outcomes_codes/);
+  });
+
+  it("keeps what the model wanted on the person's own demand row and nowhere else", async () => {
+    const intentA = plannedIntent({
+      move: 'example',
+      explanationUnitId: 'ci-unit-a',
+      brief: 'CI-PLANNED-BRIEF-A for a',
+    });
+    const intentB = plannedIntent({
+      move: 'limitation',
+      explanationUnitId: 'ci-unit-b',
+      brief: 'CI-PLANNED-BRIEF-B for b',
+    });
+    const a = await seedPerson(database.db),
+      b = await seedPerson(database.db);
+    await record(a, demandInput(['space.stars'], { intent: intentA }));
+    await record(b, demandInput(['space.stars'], { intent: intentB }));
+    const [rowA] = await rows(a.universeId),
+      [rowB] = await rows(b.universeId);
+    expect(rowA!.planned_intent).toEqual(intentA);
+    expect(rowB!.planned_intent).toEqual(intentB);
+    // Both waited on one shared group, and neither person's words are in it, in the canonical brief or in the command.
+    expect(rowA!.work_id).toBe(rowB!.work_id);
+    const group = await database.db
+      .selectFrom('supply.work')
+      .selectAll()
+      .where('id', '=', rowA!.work_id!)
+      .executeTakeFirstOrThrow();
+    for (const shared of [JSON.stringify(group), JSON.stringify(rowA!.command), JSON.stringify(rowA!.brief)])
+      expect(shared).not.toContain('CI-PLANNED-BRIEF');
+    // A person's own ask never carries one: the database refuses it.
+    await expect(
+      database.db
+        .insertInto('supply.requests')
+        .values({
+          ...rowA!,
+          id: randomUUID(),
+          origin: 'person',
+          planner_run_id: null,
+          planner_slot: null,
+          state: 'requested',
+        })
+        .execute(),
+    ).rejects.toThrow(/supply_requests_planned_intent/);
+  });
+
+  it('closes planned demand left waiting past the limit, so it stops blocking the next plan', async () => {
+    const person = await seedPerson(database.db);
+    const first = await record(person, demandInput(['space.stars']));
+    expect(first).toMatchObject({ kind: 'deferred' });
+    const firstId = (first as { requestId: string }).requestId;
+    // Past the wait limit but inside the grace: a live resolver closes it at its next look, so it is left alone.
+    await ageRow(firstId, 35);
+    expect(await record(person, demandInput(['space.stars'], { slot: 1 }))).toEqual({
+      kind: 'already_recorded',
+      requestId: firstId,
+      open: 'deferred',
+    });
+    // Long past it, no resolver is left: the demand is closed honestly and the brief is decided afresh.
+    await ageRow(firstId, 41);
+    const again = await record(person, demandInput(['space.stars'], { slot: 2 }));
+    expect(again).toMatchObject({ kind: 'deferred', expiredRequestId: firstId });
+    const [closed, fresh] = (await rows(person.universeId)).sort((x, y) => x.planner_slot! - y.planner_slot!);
+    expect(closed).toMatchObject({ id: firstId, state: 'unavailable', reason: 'could_not_prepare' });
+    expect(fresh).toMatchObject({ state: 'deferred', planner_slot: 2 });
+    // The expiry is counted beside the outcome of the call that found it.
+    const before = await counters();
+    await count(person, [again]);
+    expect(growth(before, await counters())).toMatchObject({ 'expired/no_resolver': 1 });
+  });
+
+  it('does not let an older ready demand hide a waiting one from the next plan', async () => {
+    const unread = await admit('earth.seasons');
+    const person = await seedPerson(database.db);
+    expect(await record(person, demandInput(['earth.seasons']))).toMatchObject({ kind: 'ready' });
+    // The person has met it since: nothing unread is left, so the brief waits on production.
+    const waiting = await record(person, demandInput(['earth.seasons'], { slot: 1, alreadyMet: [unread.unit] }));
+    expect(waiting).toMatchObject({ kind: 'deferred' });
+    // The ready row is older than the waiting one; the waiting one still answers.
+    expect(await record(person, demandInput(['earth.seasons'], { slot: 2, alreadyMet: [unread.unit] }))).toEqual({
+      kind: 'already_recorded',
+      requestId: (waiting as { requestId: string }).requestId,
+      open: 'deferred',
+    });
+  });
+
+  describe('the operator recovery for planned demand that lost its resolver', () => {
+    const resolverJobsFor = (requestId: string) =>
+      database.pool
+        .query("select id from pgboss.job where name='supply.resolve-request' and data->>'requestId' = $1", [requestId])
+        .then((result) => result.rows.length);
+
+    it('finds only demand long past the wait limit, sends one job each, and sends nothing twice on a day', async () => {
+      const lost = await seedPerson(database.db),
+        young = await seedPerson(database.db);
+      const lostId = ((await record(lost, demandInput(['space.exoplanets']))) as { requestId: string }).requestId;
+      const youngId = ((await record(young, demandInput(['space.exoplanets']))) as { requestId: string }).requestId;
+      await ageRow(lostId, 41);
+      await ageRow(youngId, 35);
+      const dry = await expireStalePlannedDemand(database.db, content.boss, { dryRun: true });
+      expect(dry).toMatchObject({ queued: 0, alreadyQueued: 0, more: false });
+      expect(dry.stale).toBeGreaterThanOrEqual(1);
+      const before = await resolverJobsFor(lostId);
+      const run = await expireStalePlannedDemand(database.db, content.boss, { dryRun: false });
+      expect(run.queued).toBe(dry.stale);
+      expect(await resolverJobsFor(lostId)).toBe(before + 1);
+      expect(await resolverJobsFor(youngId)).toBe(1);
+      expect(await expireStalePlannedDemand(database.db, content.boss, { dryRun: false })).toMatchObject({
+        queued: 0,
+        alreadyQueued: dry.stale,
+      });
+    });
+
+    it('takes at most the limit, oldest first, and says when more remain', async () => {
+      const people = [await seedPerson(database.db), await seedPerson(database.db)];
+      for (const [index, person] of people.entries()) {
+        const id = ((await record(person, demandInput(['space.exoplanets']))) as { requestId: string }).requestId;
+        await ageRow(id, 500 + index);
+      }
+      const run = await expireStalePlannedDemand(database.db, content.boss, { dryRun: true, limit: 1 });
+      expect(run).toMatchObject({ stale: 1, more: true });
+    });
   });
 });

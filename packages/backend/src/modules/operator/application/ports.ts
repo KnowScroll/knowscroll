@@ -5,6 +5,7 @@ import type {
   ErrorRow,
   OutcomeCount,
   Piece,
+  PlannedDemandSummary,
   PrivacySummary,
   ProductionRunRow,
   QueueRow,
@@ -42,6 +43,8 @@ export interface PanelStore {
   privacy(limit: number): Promise<Piece<PrivacySummary>>;
   reports(limit: number): Promise<Piece<ReportsSummary>>;
   roomCalls(limit: number): Promise<Piece<RoomCallsSummary>>;
+  /** What became of the Planner's missing-supply opportunities over the last `windowDays` UTC days. */
+  plannedDemand(windowDays: number): Promise<Piece<PlannedDemandSummary>>;
 }
 
 /** Reads `ops.watchdog`, one bounded read-only query per rule. It changes nothing. */

@@ -3,6 +3,7 @@ import type { PanelStore } from './ports.js';
 
 const PROVIDER_WINDOW_HOURS = 24;
 const LIST_LIMIT = 12;
+const PLANNED_DEMAND_WINDOW_DAYS = 7;
 const ERROR_LIMIT = 25;
 /** The panels never hold more than this many of the API's connections at once. */
 const MAX_CONCURRENT_READS = 3;
@@ -58,6 +59,7 @@ export function makeReadOperatorPanels(deps: {
       operations,
       reports,
       roomCalls,
+      plannedDemand,
     ] = await Promise.all([
       run(() => store.queues()),
       run(() => store.providerOutcomes(PROVIDER_WINDOW_HOURS)),
@@ -70,6 +72,7 @@ export function makeReadOperatorPanels(deps: {
       run(() => store.privacy(LIST_LIMIT)),
       run(() => store.reports(LIST_LIMIT)),
       run(() => store.roomCalls(LIST_LIMIT)),
+      run(() => store.plannedDemand(PLANNED_DEMAND_WINDOW_DAYS)),
     ]);
     return {
       generatedAt: deps.now(),
@@ -81,7 +84,7 @@ export function makeReadOperatorPanels(deps: {
         requestLatency: NO_TIER0_SOURCE,
         mediaDisk: NO_TIER0_SOURCE,
       },
-      production: { runs, refusedAnswers, reelOrders, usage },
+      production: { runs, refusedAnswers, reelOrders, usage, plannedDemand },
       universeChange: { cartographer },
       safety: { reports },
       rooms: { calls: roomCalls },

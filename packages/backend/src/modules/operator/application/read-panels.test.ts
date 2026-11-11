@@ -29,6 +29,7 @@ function store(overrides: Partial<PanelStore> = {}): PanelStore {
     privacy: () => Promise.resolve(available({ groups: [], failed: [] })),
     reports: () => Promise.resolve(available({ last24Hours: 0, recent: [] })),
     roomCalls: () => Promise.resolve(available({ rooms: [] })),
+    plannedDemand: (windowDays) => Promise.resolve(available({ windowDays, counts: [] })),
     ...overrides,
   };
 }
@@ -79,6 +80,7 @@ describe('the Operator panels', () => {
       privacy: slow(available({ groups: [], failed: [] })),
       reports: slow(available({ last24Hours: 0, recent: [] })),
       roomCalls: slow(available({ rooms: [] })),
+      plannedDemand: slow(available({ windowDays: 7, counts: [] })),
     };
     expect(Object.keys(bounded)).toEqual(Object.keys(base));
     const panels = await makeReadOperatorPanels({ store: bounded, now })();
@@ -105,6 +107,25 @@ describe('the Operator panels', () => {
       now,
     })();
     expect(panels.safety.reports).toEqual(available({ last24Hours: 1, recent }));
+  });
+
+  it("shows what became of the Planner's demand over the last seven days, counts and codes only", async () => {
+    const counts = [
+      { outcome: 'not_commissioned', reason: 'no_recipe_left', count: 4 },
+      { outcome: 'reused', reason: null, count: 2 },
+    ];
+    const asked: number[] = [];
+    const panels = await makeReadOperatorPanels({
+      store: store({
+        plannedDemand: (windowDays) => {
+          asked.push(windowDays);
+          return Promise.resolve(available({ windowDays, counts }));
+        },
+      }),
+      now,
+    })();
+    expect(asked).toEqual([7]);
+    expect(panels.production.plannedDemand).toEqual(available({ windowDays: 7, counts }));
   });
 
   it('keeps answering when one view cannot be read', async () => {

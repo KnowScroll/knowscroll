@@ -55,6 +55,10 @@ function wirePanels(panels: OperatorPanels): OperatorPanelsResponse {
         rows.map((row) => ({ ...row, createdAt: iso(row.createdAt), publishedAt: isoOrNull(row.publishedAt) })),
       ),
       usage: production.usage,
+      plannedDemand: mapPiece(production.plannedDemand, (summary) => ({
+        windowDays: summary.windowDays,
+        counts: summary.counts.map((row) => ({ ...row })),
+      })),
     },
     universeChange: {
       cartographer: mapPiece(universeChange.cartographer, (summary) => ({

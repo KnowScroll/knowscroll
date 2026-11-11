@@ -10,10 +10,11 @@ import {
 import type { CreateContentRequest } from '@knowscroll/contracts';
 import { CONCEPTS, type ScrollAskFacts } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import { MAX_OPEN_REQUESTS, MAX_RETRIES, commissionSupply } from './commission.js';
+import { MAX_OPEN_REQUESTS, MAX_RETRIES, WAIT_LIMIT_MS, commissionSupply } from './commission.js';
 import { askLimitOf, commissionAskOrder } from './ask-orders.js';
 import { reopenedAskOrder } from './ask-retry.js';
 import { isSuggestedQuestion } from '../domain/ask-order.js';
+import { isLostWaiter, plannedOutcomeCounts } from '../domain/planned-demand.js';
 import { briefOf, checkedRevision, inventory, snapshot, sourceOf } from './inventory.js';
 import type {
   SupplyPorts,
@@ -23,6 +24,8 @@ import type {
   CancelRequest,
   RetryRequest,
   RecordPlannedDemand,
+  CountPlannedDemand,
+  PlannedDemandOutcome,
 } from './ports.js';
 
 /** A free-text ask with no encounter context: the one kind of ask that waits for a catalogue match. */
@@ -353,14 +356,21 @@ export function makeRetryRequest(p: SupplyPorts): RetryRequest {
  * The Planner's missing-supply opportunity becomes private demand. The brief is built exactly like
  * a person's catalogue ask, so Reuse and Join/Create follow the same deterministic rules. Where Create
  * starts or joins production, the demand waits as `deferred` and a resolver job binds it when the
- * Scroll is admitted. Where nothing can start (the day's cap, Create switched off, or no recipe left),
- * nothing is stored: a later plan asks again. No receipt is written (the caller's accepted plan is
- * the idempotency boundary) and no client hint is sent (planned demand is not a request the person made).
+ * Scroll is admitted. Where nothing can start (the day's cap, Create switched off, no production path or
+ * no recipe left), nothing is stored and the outcome names why: a later plan asks again. No receipt is written
+ * (the caller's accepted plan is the idempotency boundary) and no client hint is sent (planned demand is not a
+ * request the person made).
+ *
+ * A stored demand keeps what the model wanted (`input.intent`) on the person's own row, never in the shared group.
+ * An earlier demand for the same brief that is still `deferred` long after the wait limit has lost its resolver:
+ * it is closed here as `could_not_prepare` and the brief is decided afresh, so a lost waiter cannot hold a
+ * planet's demand for ever. The outcome says so (`expiredRequestId`); the caller counts it with
+ * {@link makeCountPlannedDemand}.
  */
 export function makeRecordPlannedDemand(p: SupplyPorts): RecordPlannedDemand {
   return async (scope, input) => {
     const topicId = input.topicIds.find((id) => CONCEPTS.some((topic) => topic.id === id));
-    if (topicId === undefined) return { kind: 'unsupported' };
+    if (topicId === undefined) return { kind: 'unsupported', reason: 'topic_not_in_catalogue' };
     const command: CreateContentRequest = {
       version: 'content-request.v1',
       commandId: p.newId(),
@@ -373,7 +383,7 @@ export function makeRecordPlannedDemand(p: SupplyPorts): RecordPlannedDemand {
       capabilities: input.capabilities,
     };
     const brief = briefOf(command, undefined);
-    if (!brief) return { kind: 'unsupported' };
+    if (!brief) return { kind: 'unsupported', reason: 'language_not_supported' };
     const id = p.newId(),
       now = p.now().toISOString();
     const demand: Demand = {
@@ -381,6 +391,7 @@ export function makeRecordPlannedDemand(p: SupplyPorts): RecordPlannedDemand {
       command,
       brief,
       planned: { runId: input.plannerRunId, slot: input.slot },
+      plannedIntent: input.intent,
       requestRevision: 1,
       revision: scope.revisionAtEntry,
       createdAt: now,
@@ -391,9 +402,18 @@ export function makeRecordPlannedDemand(p: SupplyPorts): RecordPlannedDemand {
     const reusable = (await inventory(p, scope, command, brief, new Set(input.alreadyMet))).ready;
     // Plan after plan may ask for the same thing. One open waiter per brief is enough: a deferred one
     // is still waiting, and a ready one still has content to bind.
-    const open = await p.store.findOpenPlanned(scope, brief);
+    let open = await p.store.findOpenPlanned(scope, brief);
+    let expiredRequestId: string | undefined;
+    if (open?.state === 'deferred' && isLostWaiter(open.waitingSince, p.now(), WAIT_LIMIT_MS)) {
+      if (await p.store.closeLostPlanned(scope, open.id, p.now())) {
+        expiredRequestId = open.id;
+        open = undefined;
+      }
+    }
+    const outcome = (result: PlannedDemandOutcome): PlannedDemandOutcome =>
+      expiredRequestId === undefined ? result : { ...result, expiredRequestId };
     if (open && (open.state === 'deferred' || reusable?.encounter))
-      return { kind: 'already_recorded', requestId: open.id };
+      return outcome({ kind: 'already_recorded', requestId: open.id, open: open.state });
     if (reusable?.encounter) {
       await p.store.insert(scope, {
         ...demand,
@@ -402,12 +422,24 @@ export function makeRecordPlannedDemand(p: SupplyPorts): RecordPlannedDemand {
         content: reusable.encounter,
         contentAvailabilityRevision: reusable.availabilityRevision,
       });
-      return { kind: 'ready', requestId: id };
+      return outcome({ kind: 'ready', requestId: id });
     }
     const commissioned = await commissionSupply(p, scope, brief, 'planner');
-    if (commissioned.kind === 'unavailable') return { kind: 'not_commissioned' };
+    if (commissioned.kind === 'unavailable') return outcome({ kind: 'not_commissioned', reason: commissioned.cause });
     await p.store.insert(scope, { ...demand, workId: commissioned.workId, decision: commissioned.decision });
     await p.enqueue(scope, id);
-    return { kind: 'deferred', requestId: id, joined: commissioned.decision === 'join' };
+    return outcome({ kind: 'deferred', requestId: id, joined: commissioned.decision === 'join' });
+  };
+}
+
+/**
+ * Adds what became of one plan's opportunities to the day's outcome counters, so an operator can read how many were
+ * reused, waiting, commissioned, joined, not commissioned (and why), unsupported or expired. The counters hold codes
+ * and counts only: no person, no topic, no words. Runs in the plan's transaction, after its demand is recorded.
+ */
+export function makeCountPlannedDemand(p: Pick<SupplyPorts, 'plannedLedger' | 'now'>): CountPlannedDemand {
+  return async (scope, outcomes) => {
+    const counts = plannedOutcomeCounts(outcomes);
+    if (counts.length > 0) await p.plannedLedger.add(scope, p.now(), counts);
   };
 }

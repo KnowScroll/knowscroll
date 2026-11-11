@@ -103,6 +103,23 @@ node dist/operator.js supply recover-open-demand             # one job per open 
 It prints `open` (by state), `queued` and `alreadyQueued`. Running it again sends nothing new while the
 earlier jobs are retained. It calls no provider; the productions it leads to run under the caps above.
 
+### Planned demand that lost its resolver
+
+The Planner's demand (`deferred` rows of origin `planner`) is closed by its resolver at the 30-minute limit. A row still
+open ten minutes past it has lost its resolver (a poll chain dead-lettered, a worker down): the next plan that asks for the
+same brief closes it, and for a planet no plan asks about again this command does:
+
+```sh
+node dist/operator.js supply expire-stale-planned-demand --dry-run            # counts the stale rows, sends nothing
+node dist/operator.js supply expire-stale-planned-demand --limit 100           # one resolver job for each, oldest first
+```
+
+It prints `stale`, `queued`, `alreadyQueued` and `more` (run it again when `more` is true). Running it twice on one day
+sends nothing new. The resolver closes each row as `could_not_prepare` under the person's own scope and commissions
+nothing for demand this old; the command itself calls no provider and changes no row. What became of the Planner's
+opportunities (reused, commissioned, not commissioned and why, expired) is counted in `ops.planned_demand_outcomes` and
+shown under "Planner demand" in panel 3 of the Operator screen.
+
 ### Who may start a production
 
 Create has two daily counts, so the Planner cannot use what a person's own ask needs. People's asks use

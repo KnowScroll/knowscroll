@@ -83,6 +83,16 @@ const ReelOrderRow = z.strictObject({
   publishedAt: Time.nullable(),
 });
 
+/**
+ * What became of the Planner's missing-supply opportunities over the last seven days, from the counters: how many were
+ * reused, already recorded, commissioned, joined, not commissioned (with the reason), unsupported or expired. Counts of
+ * codes only: no person, no topic, no words.
+ */
+const PlannedDemandSummary = z.strictObject({
+  windowDays: Count,
+  counts: z.array(z.strictObject({ outcome: Code, reason: Code.nullable(), count: Count })).max(64),
+});
+
 const UsageSummary = z.strictObject({
   windowHours: Count,
   attempts: Count,
@@ -172,6 +182,7 @@ export const OperatorPanelsSchema = z.strictObject({
     refusedAnswers: piece(z.array(RefusedAnswerRow).max(50)),
     reelOrders: piece(z.array(ReelOrderRow).max(50)),
     usage: piece(UsageSummary),
+    plannedDemand: piece(PlannedDemandSummary),
   }),
   universeChange: z.strictObject({ cartographer: piece(CartographerSummary) }),
   safety: z.strictObject({ reports: piece(ReportsSummary) }),

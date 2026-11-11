@@ -15,6 +15,10 @@ export const unavailableCopy: Record<UnavailableReason, string> = {
   could_not_prepare:
     "We couldn't prepare this one. Your request is closed, so nothing is waiting. Ask a little differently, or try another subject.",
   source_unavailable: 'The original encounter is no longer available for this request.',
+  no_production_path:
+    "We can't make a new Reel, or another format of an explanation, on request yet. Your request is closed, so nothing is waiting.",
+  no_recipe_left:
+    "We don't have an explanation of this ready yet, and can't prepare one on request right now. Your request is closed, so nothing is waiting.",
 };
 
 const CLOSED = 'Your request is closed, so nothing is waiting.';

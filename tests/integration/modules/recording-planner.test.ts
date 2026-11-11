@@ -87,6 +87,7 @@ describe('Planner original recording provenance and exact wake ownership', () =>
       capabilities: { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] },
       harness,
       recordDemand: () => Promise.reject(new Error('CI negative protocol records no demand')),
+      countDemand: () => Promise.reject(new Error('CI negative protocol counts no demand')),
       enabled: () => true,
       hash: (x) => requestHash('personal-planner.v0', x as Parameters<typeof requestHash>[1]),
       newId: randomUUID,

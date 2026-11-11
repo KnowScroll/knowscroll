@@ -83,6 +83,17 @@ export interface ReelOrderRow {
   readonly publishedAt: Date | null;
 }
 
+/** What became of the Planner's missing-supply opportunities in the window, per outcome and reason. Counts only. */
+export interface PlannedDemandSummary {
+  readonly windowDays: number;
+  readonly counts: readonly {
+    readonly outcome: string;
+    /** Why, for the outcomes that have a reason (not commissioned, unsupported, already recorded, expired). */
+    readonly reason: string | null;
+    readonly count: number;
+  }[];
+}
+
 export interface CartographerRunRow {
   readonly runId: string;
   readonly status: string;
@@ -170,6 +181,7 @@ export interface OperatorPanels {
     readonly refusedAnswers: Piece<readonly RefusedAnswerRow[]>;
     readonly reelOrders: Piece<readonly ReelOrderRow[]>;
     readonly usage: Piece<UsageSummary>;
+    readonly plannedDemand: Piece<PlannedDemandSummary>;
   };
   readonly universeChange: { readonly cartographer: Piece<CartographerSummary> };
   readonly safety: { readonly reports: Piece<ReportsSummary> };

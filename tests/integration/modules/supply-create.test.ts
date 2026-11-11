@@ -47,6 +47,7 @@ import { clearRecordingPerson, pauseAndResume, recordingPerson, setRecording } f
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
+import { plannedIntent } from '../support/planned-demand.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
 import { markLibraryV1, markScrollV2, ORRIN_PLAN } from '../support/scroll-v2.js';
 
@@ -252,6 +253,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     language: 'en',
     capabilities,
     alreadyMet: [],
+    intent: plannedIntent(),
     ...overrides,
   });
   const recordFor = (person: FixturePerson, input: PlannedDemandInput) =>
@@ -388,7 +390,8 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     const again = await seedPerson(database.db);
     const jobsBefore = (await produceJobs()).length;
     const retry = await ask(again, catalogue('earth.tides', { facetId: 'earth.tides.forcing' }));
-    expect(await status(again, retry)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+    // Nothing was tried for this ask: it says no recipe is left, not that production failed.
+    expect(await status(again, retry)).toMatchObject({ status: 'unavailable', reason: 'no_recipe_left' });
     expect(await produceJobs()).toHaveLength(jobsBefore);
   });
 
@@ -524,7 +527,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
         value: { outcome: 'not_retryable' },
       });
       const reel = await ask(person, catalogue('machine-learning.transformers', { format: 'reel' }));
-      expect(await status(person, reel)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
+      expect(await status(person, reel)).toMatchObject({ status: 'unavailable', reason: 'no_production_path' });
       expect(await retry(person.authority, retryCommand(reel))).toMatchObject({
         kind: 'ok',
         value: { outcome: 'not_retryable' },
@@ -950,7 +953,10 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       const person = await seedPerson(database.db);
       expect(await recordFor(person, plan('machine-learning.transformers'))).toMatchObject({ kind: 'deferred' });
       // The Planner has used its one production today; a second brief of its own is not commissioned.
-      expect(await recordFor(person, plan('earth.tides', { slot: 1 }))).toEqual({ kind: 'not_commissioned' });
+      expect(await recordFor(person, plan('earth.tides', { slot: 1 }))).toEqual({
+        kind: 'not_commissioned',
+        reason: 'cap_reached',
+      });
 
       // People's asks have their own count: three still start, then the day's cap closes the fourth.
       const asker = await seedPerson(database.db);
@@ -999,7 +1005,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     await build({ cap: 10 });
     const other = await seedPerson(database.db);
     const reel = await ask(other, catalogue('machine-learning.transformers', { format: 'reel' }));
-    expect(await status(other, reel)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
+    expect(await status(other, reel)).toMatchObject({ status: 'unavailable', reason: 'no_production_path' });
     expect(await produceJobs()).toHaveLength(0);
   });
 
@@ -1028,6 +1034,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
         language: 'en',
         capabilities,
         alreadyMet: [],
+        intent: plannedIntent(),
       }),
     );
     if (outcome.kind !== 'entered' || outcome.value.kind !== 'deferred') throw new Error('CI planned demand refused');
@@ -1041,6 +1048,32 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     ).toEqual({ state: 'ready' });
     // A planned demand is not something the person asked for: their list shows none of it.
     expect(await list(person.authority)).toMatchObject({ kind: 'ok', value: { requests: [] } });
+  });
+
+  it("closes the Planner's demand past its wait limit when its resolver runs, and commissions nothing afresh for it", async () => {
+    await build();
+    const person = await seedPerson(database.db);
+    const outcome = await recordFor(person, plan('machine-learning.transformers'));
+    if (outcome.kind !== 'deferred') throw new Error('CI planned demand refused');
+    const requestId = outcome.requestId;
+    expect(await produceJobs()).toHaveLength(1);
+    // The group commissioned nothing (as one made before Create did), and the demand has waited past the limit. A waiter
+    // in that state used to commission a new group; planned demand this old is closed instead.
+    await sql`update supply.work set production_recipe = null where id = (select work_id from supply.requests where id = ${requestId})`.execute(
+      database.db,
+    );
+    await sql`update supply.requests set created_at = now() - interval '41 minutes', updated_at = now() - interval '41 minutes' where id = ${requestId}`.execute(
+      database.db,
+    );
+    await resolve(job(person, requestId));
+    expect(
+      await database.db
+        .selectFrom('supply.requests')
+        .select(['state', 'reason'])
+        .where('id', '=', requestId)
+        .executeTakeFirst(),
+    ).toEqual({ state: 'unavailable', reason: 'could_not_prepare' });
+    expect(await produceJobs()).toHaveLength(1);
   });
 
   it('lists only the person own asks, newest first, with titles that are their words or the catalogue topic', async () => {

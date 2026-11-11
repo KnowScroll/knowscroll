@@ -39,7 +39,7 @@ import {
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import type { FixturePerson } from '../support/fixtures.js';
 import { buildFromProviders } from '../support/providers.js';
-import { realRecordPlannedDemand } from '../support/planned-demand.js';
+import { realPlannerDemand } from '../support/planned-demand.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases, starterSource, textCapabilities } from '../support/scroll.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
@@ -160,7 +160,7 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
       readExact: readExactEncounter,
       capabilities: { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] },
       harness,
-      recordDemand: realRecordPlannedDemand(database, c.boss, {
+      ...realPlannerDemand(database, c.boss, {
         createDailyCap: 10,
         readExploration: c.readExploration,
       }),
@@ -288,6 +288,16 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
     return row.payload as unknown as ComposerDecision;
   }
 
+  /** The day's outcome counters of the Planner's demand, as `outcome/reason` to count, summed over days. */
+  const outcomeCounters = async () => {
+    const rows = await database.db.selectFrom('supply.planned_demand_outcomes').selectAll().execute();
+    const counters: Record<string, number> = {};
+    for (const row of rows) {
+      const key = row.reason === '' ? row.outcome : `${row.outcome}/${row.reason}`;
+      counters[key] = (counters[key] ?? 0) + Number(row.total);
+    }
+    return counters;
+  };
   const evidenceRows = (p: FixturePerson) =>
     database.db
       .selectFrom('evidence.activity_revisions')
@@ -324,6 +334,7 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
     expect(state).toMatchObject({ desired_revision: 1, accepted_revision: 0 });
     const job = await queuedJob(p);
     const evidenceBefore = await evidenceRows(p);
+    const countersBefore = await outcomeCounters();
 
     // 2. The worker prepares a context from that evidence, calls the role and accepts a plan.
     reply = async () => ({ kind: 'success', text: JSON.stringify(proposal(await frozenContext(p), planned)) });
@@ -361,6 +372,17 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
       .where('id', '=', demand[0]!.work_id!)
       .executeTakeFirstOrThrow();
     expect(group.active).toBe(true);
+    // The model's intent rides on the person's own row (the move, the unit, its brief) and nowhere in the shared group.
+    expect(demand[0]!.planned_intent).toEqual({
+      version: 'planned-intent.v1',
+      move: 'connection',
+      explanationUnitId: assets.watched!.unit,
+      brief: 'Authored CI brief; nothing is produced.',
+    });
+    expect(JSON.stringify(group.brief)).not.toContain('Authored CI brief');
+    // Every outcome of the plan was counted in the same transaction: its one missing-supply opportunity was commissioned.
+    const countersAfter = await outcomeCounters();
+    expect(countersAfter['commissioned']).toBe((countersBefore['commissioned'] ?? 0) + 1);
     // Create committed the group's production job with the plan; the waiter has its own resolver job.
     expect(group.production_recipe).toBe('tides');
     expect(
@@ -402,6 +424,10 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
         await database.db.selectFrom('supply.requests').select('id').where('universe_id', '=', p.universeId).execute()
       ).map((row) => row.id),
     ).toEqual(demand.map((row) => row.id));
+    // The later plan's opportunity was counted too: it found the first one still waiting.
+    expect((await outcomeCounters())['already_recorded/waiting']).toBe(
+      (countersAfter['already_recorded/waiting'] ?? 0) + 1,
+    );
   });
 
   it('requeues a run that was blocked while the Planner was off, so the next evidence yields a plan', async () => {

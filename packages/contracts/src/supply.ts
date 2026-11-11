@@ -188,6 +188,10 @@ export const ContentRequestStatusSchema = z.discriminatedUnion('status', [
       'budget_unavailable',
       'could_not_prepare',
       'source_unavailable',
+      /** A Reel or another format of an explanation was asked for, and nothing can make it on request yet. */
+      'no_production_path',
+      /** Nothing admitted serves the ask, and every recipe that could make it is made or cannot be taken again. */
+      'no_recipe_left',
     ]),
     /** Only on `budget_unavailable` for a question asked from a Scroll; absent otherwise, and on requests closed before this existed. */
     limit: AskLimitSchema.optional(),
