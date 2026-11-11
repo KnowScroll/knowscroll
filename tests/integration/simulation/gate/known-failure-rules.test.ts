@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { thrownBy, type Violation } from '../invariants.js';
+import { settledOutcomeViolations, thrownBy, type Violation } from '../invariants.js';
+import type { FormationPoint } from '../model.js';
 import type { PersonaResult } from '../run.js';
 import { KNOWN_FAILURES, explainedBy, explains, type KnownFailure } from '../known-failures.js';
 
@@ -67,6 +68,59 @@ describe('known failure rules', () => {
     ];
     expect(thrownBy(results, 'planner.run')).toEqual(['one', 'two', 'three']);
     expect(thrownBy(results, 'geography.cartograph')).toEqual([]);
+  });
+
+  it('explains a Reel-only system failure only when Personal Context holds nothing under the system', () => {
+    const notFormed = (referencesUnderSystem: number, supportsUnderSystem: number, onlyWithReels = true) =>
+      violation({
+        invariant: 'I2',
+        code: 'system_not_formed',
+        detail: { onlyWithReels, referencesUnderSystem, supportsUnderSystem },
+      });
+    expect(explainedBy(notFormed(0, 0))?.id).toBe('I2/reel-only-evidence-forms-no-system');
+    // Scroll evidence under the system that failed to form is a new defect, as is any reference or support under it.
+    expect(explainedBy(notFormed(0, 0, false))).toBeUndefined();
+    expect(explainedBy(notFormed(1, 0))).toBeUndefined();
+    expect(explainedBy(notFormed(0, 1))).toBeUndefined();
+  });
+
+  it('judges what Geography settles against what the person held when the step began', () => {
+    const point = (
+      encounter: number,
+      trustedSupports: number,
+      references: number,
+      insufficientOutcomes: Record<string, number>,
+    ): FormationPoint => ({
+      encounter,
+      systems: 0,
+      planets: 0,
+      regions: 0,
+      trustedSupports,
+      references,
+      insufficientOutcomes,
+    });
+    const codes = (points: FormationPoint[]) => settledOutcomeViolations('a-reader', points).map((entry) => entry.code);
+    // Healthy: nothing due, and no support yet while there are no references (also in the step the first one arrives).
+    expect(
+      codes([point(1, 0, 0, { no_support_yet: 1 }), point(2, 1, 1, { no_support_yet: 2, no_changes: 1 })]),
+    ).toEqual([]);
+    expect(codes([point(1, 1, 1, { no_changes: 1 }), point(2, 1, 1, { no_changes: 2, disabled: 1 })])).toEqual([]);
+    // no_support_yet once references existed, and any outcome that says the supports could not be used.
+    expect(codes([point(1, 1, 1, {}), point(2, 1, 1, { no_support_yet: 1 })])).toEqual([
+      'no_support_yet_with_references',
+    ]);
+    for (const outcome of [
+      'no_trusted_support',
+      'discovery_limit',
+      'coverage_limit',
+      'context_limit',
+      'context_unreadable',
+    ])
+      expect(codes([point(1, 1, 1, {}), point(2, 1, 1, { [outcome]: 1 })]), outcome).toEqual([
+        'insufficient_with_supports',
+      ]);
+    // The same outcomes are not blamed on someone who held no support when the step began.
+    expect(codes([point(1, 0, 0, {}), point(2, 1, 1, { no_trusted_support: 1 })])).toEqual([]);
   });
 
   it('keeps every entry narrow: a world-level job failure is never explained', () => {

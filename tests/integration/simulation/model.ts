@@ -62,6 +62,8 @@ export interface FormationPoint {
   readonly regions: number;
   /** Distinct trusted coverage supports Personal Context held after the drain. */
   readonly trustedSupports: number;
-  /** Runs that settled `coverage_unavailable`, in total, after the drain. */
-  readonly coverageUnavailableRuns: number;
+  /** Raw coverage references Personal Context held after the drain (one per qualified reading of a mapped facet). */
+  readonly references: number;
+  /** Geography runs that settled `insufficient`, by outcome, in total, after the drain. */
+  readonly insufficientOutcomes: Readonly<Record<string, number>>;
 }

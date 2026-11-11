@@ -432,20 +432,26 @@ export class PersonaRun {
 
   /** What Geography and Personal Context hold for the person right now. */
   async recordFormation() {
+    const db = this.world.geo.database.db;
+    const u = this.person.universeId;
     const rows = await sql<{
       systems: number;
       planets: number;
       regions: number;
       supports: number;
-      unavailable: number;
+      references: number;
     }>`select
-        (select count(*)::int from geography.objects where universe_id = ${this.person.universeId}::uuid and semantic_key like 'system:%') systems,
-        (select count(*)::int from geography.objects where universe_id = ${this.person.universeId}::uuid and semantic_key like 'planet:%') planets,
-        (select count(*)::int from geography.objects where universe_id = ${this.person.universeId}::uuid and semantic_key like 'region:%') regions,
-        (select count(*)::int from personal_context.coverage_supports where universe_id = ${this.person.universeId}::uuid) supports,
-        (select count(*)::int from geography.runs where universe_id = ${this.person.universeId}::uuid and outcome = 'coverage_unavailable') unavailable`.execute(
-      this.world.geo.database.db,
+        (select count(*)::int from geography.objects where universe_id = ${u}::uuid and semantic_key like 'system:%') systems,
+        (select count(*)::int from geography.objects where universe_id = ${u}::uuid and semantic_key like 'planet:%') planets,
+        (select count(*)::int from geography.objects where universe_id = ${u}::uuid and semantic_key like 'region:%') regions,
+        (select count(*)::int from personal_context.coverage_supports where universe_id = ${u}::uuid) supports,
+        (select count(*)::int from personal_context.coverage_references where universe_id = ${u}::uuid)
+          + (select count(*)::int from personal_context.recording_coverage_references where universe_id = ${u}::uuid) as references`.execute(
+      db,
     );
+    const outcomes = await sql<{ outcome: string; n: number }>`
+      select coalesce(outcome, 'none') outcome, count(*)::int n from geography.runs
+      where universe_id = ${u}::uuid and status = 'insufficient' group by 1`.execute(db);
     const row = rows.rows[0]!;
     this.formation.push({
       encounter: this.encounters.length,
@@ -453,7 +459,8 @@ export class PersonaRun {
       planets: row.planets,
       regions: row.regions,
       trustedSupports: row.supports,
-      coverageUnavailableRuns: row.unavailable,
+      references: row.references,
+      insufficientOutcomes: Object.fromEntries(outcomes.rows.map((entry) => [entry.outcome, entry.n])),
     });
   }
 

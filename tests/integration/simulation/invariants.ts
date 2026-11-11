@@ -2,6 +2,7 @@ import { sql } from 'kysely';
 import type { ComposerDecision } from '@knowscroll/backend/modules/composer';
 import { CONCEPTS } from '@knowscroll/backend/modules/content';
 import { unsettledJobs } from './collect.js';
+import type { FormationPoint } from './model.js';
 import type { PersonaResult } from './run.js';
 import type { SimWorld } from './world.js';
 
@@ -16,7 +17,7 @@ export const INVARIANTS: Readonly<Record<InvariantId, { readonly name: string; r
   I2: {
     name: 'formation',
     statement:
-      'When a person qualified enough distinct explanations, the system or planet forms within a bounded number of drains, and no Geography run settles coverage_unavailable while trusted supports exist.',
+      'When a person qualified enough distinct explanations, the system or planet forms within a bounded number of drains; no Geography run settles an insufficient outcome other than no_changes, disabled or no_support_yet while the person has trusted supports; and no_support_yet appears only for a person with no coverage references.',
   },
   I3: {
     name: 'work completes',
@@ -47,6 +48,14 @@ export interface Violation {
 /** Why an already-met explanation reached an offer while an unseen one was left out, read from the stored decision. */
 export type RepeatCause =
   'exploration_draw' | 'format_sticky' | 'soft_penalty' | 'retrieval' | 'other_exclusion' | 'unknown';
+
+/**
+ * The `insufficient` outcomes a run may settle while the person holds trusted supports: nothing is due, the role is off, or
+ * there is no support yet (which separately requires that the person has no references). Every other outcome says the
+ * supports could not be used (a limit, a moved authority, an unreadable context), which must not happen to a reader the lab
+ * knows has them.
+ */
+const SETTLED_WITHOUT_SUPPORT_CLAIM = ['no_changes', 'disabled', 'no_support_yet'];
 
 /** Planet formation needs this many distinct units over this many facets, a system this many units (policy.ts of Geography). */
 const FORMATION = { systemUnits: 2, planetUnits: 3, planetFacets: 2 } as const;
@@ -178,12 +187,16 @@ function formation(world: SimWorld, result: PersonaResult): Violation[] {
   for (const [system, units] of bySystem) {
     if (units.all.length < FORMATION.systemUnits || places.has(`system:${system}:factual`)) continue;
     const onlyWithReels = units.scrollOnly.length < FORMATION.systemUnits;
+    // Whether Personal Context holds any reference or trusted support under the system's topics at all.
+    const topicsOfSystem = CONCEPTS.filter((concept) => concept.parent === system).map((concept) => concept.id);
+    const referencesUnderSystem = topicsOfSystem.filter((topic) => db.referenceTopics.includes(topic)).length;
+    const supportsUnderSystem = topicsOfSystem.filter((topic) => db.supportTopics.includes(topic)).length;
     violations.push({
       invariant: 'I2',
       code: 'system_not_formed',
       persona,
       message: `${persona} qualified ${String(units.all.length)} distinct units under ${system}${onlyWithReels ? ` (${String(units.all.length - units.scrollOnly.length)} only as a Reel)` : ''} but no system formed after ${String(result.settleDrains)} settling drains.`,
-      detail: { system, units: units.all, onlyWithReels },
+      detail: { system, units: units.all, onlyWithReels, referencesUnderSystem, supportsUnderSystem },
     });
   }
   // A planet needs three distinct units over two facets of its topic, each read in a form that proves its facet (a Scroll).
@@ -205,22 +218,47 @@ function formation(world: SimWorld, result: PersonaResult): Violation[] {
       detail: { topic, units },
     });
   }
-  // No run may settle coverage_unavailable while Personal Context already holds trusted supports.
-  for (let index = 1; index < run.formation.length; index++) {
-    const before = run.formation[index - 1]!;
-    const after = run.formation[index]!;
-    if (
-      before.trustedSupports > 0 &&
-      after.trustedSupports > 0 &&
-      after.coverageUnavailableRuns > before.coverageUnavailableRuns
-    )
-      violations.push({
-        invariant: 'I2',
-        code: 'coverage_unavailable_with_supports',
-        persona,
-        message: `${persona}: a Geography run settled coverage_unavailable after encounter ${String(after.encounter)} although ${String(after.trustedSupports)} trusted supports existed.`,
-        detail: { encounter: after.encounter, trustedSupports: after.trustedSupports },
-      });
+  violations.push(...settledOutcomeViolations(persona, run.formation));
+  return violations;
+}
+
+/**
+ * What Geography may settle, run by run, read from the formation points the lab took after each step. A step's runs are
+ * judged against what the person already held when the step began (references and supports only grow), so a run that
+ * legitimately settled before the reading was projected is not blamed for what arrived later in the same step.
+ */
+export function settledOutcomeViolations(persona: string, points: readonly FormationPoint[]): Violation[] {
+  const violations: Violation[] = [];
+  const start: FormationPoint = {
+    encounter: 0,
+    systems: 0,
+    planets: 0,
+    regions: 0,
+    trustedSupports: 0,
+    references: 0,
+    insufficientOutcomes: {},
+  };
+  for (const [index, after] of points.entries()) {
+    const before = index === 0 ? start : points[index - 1]!;
+    for (const [outcome, count] of Object.entries(after.insufficientOutcomes)) {
+      if (count <= (before.insufficientOutcomes[outcome] ?? 0)) continue;
+      if (outcome === 'no_support_yet' && before.references > 0)
+        violations.push({
+          invariant: 'I2',
+          code: 'no_support_yet_with_references',
+          persona,
+          message: `${persona}: a Geography run settled no_support_yet after encounter ${String(after.encounter)} although ${String(before.references)} coverage references existed.`,
+          detail: { encounter: after.encounter, outcome, references: before.references },
+        });
+      else if (!SETTLED_WITHOUT_SUPPORT_CLAIM.includes(outcome) && before.trustedSupports > 0)
+        violations.push({
+          invariant: 'I2',
+          code: 'insufficient_with_supports',
+          persona,
+          message: `${persona}: a Geography run settled insufficient/${outcome} after encounter ${String(after.encounter)} although ${String(before.trustedSupports)} trusted supports existed.`,
+          detail: { encounter: after.encounter, outcome, trustedSupports: before.trustedSupports },
+        });
+    }
   }
   return violations;
 }

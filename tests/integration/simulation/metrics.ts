@@ -31,6 +31,8 @@ export interface PersonaMetrics {
   readonly decisions: number;
   readonly decisionKiBMean: number;
   readonly geographyRuns: number;
+  /** Geography runs by `status/outcome`, so a new outcome shows in the report. */
+  readonly geographyOutcomes: Readonly<Record<string, number>>;
   readonly plannerRuns: number;
   readonly plannerOpportunities: { readonly existing: number; readonly missingSupply: number };
   readonly supplyRows: Readonly<Record<string, number>>;
@@ -101,6 +103,9 @@ export function metricsOf(result: PersonaResult, libraryUnits: number): PersonaM
     decisions: db.decisions,
     decisionKiBMean: db.decisions === 0 ? 0 : Math.round(db.decisionBytes / db.decisions / 1024),
     geographyRuns: sum(db.geographyRuns.map((row) => row.n)),
+    geographyOutcomes: Object.fromEntries(
+      db.geographyRuns.map((row) => [`${row.status}/${row.outcome ?? 'none'}`, row.n]),
+    ),
     plannerRuns: sum(db.plannerRuns.map((row) => row.n)),
     plannerOpportunities: db.plannerOpportunities,
     supplyRows,

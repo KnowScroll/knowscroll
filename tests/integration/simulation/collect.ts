@@ -18,6 +18,9 @@ export interface DbSnapshot {
   readonly contextTopics: readonly string[];
   readonly geographyRuns: readonly { readonly status: string; readonly outcome: string | null; readonly n: number }[];
   readonly plannerRuns: readonly { readonly status: string; readonly outcome: string | null; readonly n: number }[];
+  /** Topics with at least one raw coverage reference, and topics with at least one trusted support, in Personal Context. */
+  readonly referenceTopics: readonly string[];
+  readonly supportTopics: readonly string[];
   /** The person's places, by semantic key. */
   readonly places: readonly string[];
   readonly supplyRows: readonly { readonly origin: string; readonly state: string; readonly n: number }[];
@@ -56,6 +59,13 @@ export async function collect(world: SimWorld, universeId: string): Promise<DbSn
     select topic_id from personal_context.topics where universe_id = ${u}::uuid and qualified_units > 0 order by topic_id`.execute(
     db,
   );
+  const referenceTopics = await sql<{ topic_id: string }>`
+    select topic_id from personal_context.coverage_references where universe_id = ${u}::uuid
+    union select topic_id from personal_context.recording_coverage_references where universe_id = ${u}::uuid`.execute(
+    db,
+  );
+  const supportTopics = await sql<{ topic_id: string }>`
+    select distinct topic_id from personal_context.coverage_supports where universe_id = ${u}::uuid`.execute(db);
   const geographyRuns = await sql<{ status: string; outcome: string | null; n: number }>`
     select status, outcome, count(*)::int n from geography.runs where universe_id = ${u}::uuid group by 1, 2 order by 1, 2`.execute(
     db,
@@ -88,6 +98,8 @@ export async function collect(world: SimWorld, universeId: string): Promise<DbSn
     evidenceExposures: evidence.rows.map((row) => row.exposure_id),
     observationExposures: observed.rows.map((row) => row.exposure_id),
     contextTopics: topics.rows.map((row) => row.topic_id),
+    referenceTopics: referenceTopics.rows.map((row) => row.topic_id),
+    supportTopics: supportTopics.rows.map((row) => row.topic_id),
     geographyRuns: geographyRuns.rows,
     plannerRuns: plannerRuns.rows,
     places: places.rows.map((row) => row.semantic_key),
