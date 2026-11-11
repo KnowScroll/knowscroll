@@ -56,6 +56,7 @@ export interface ExplorationSnapshot {
     readonly established: readonly {
       readonly explanationUnitId: string;
       readonly encountered: boolean;
+      readonly lastEncounteredAt?: string;
       readonly facets: readonly { readonly facetId: string; readonly encountered: boolean }[];
     }[];
     readonly hiddenAssetIds: readonly string[];

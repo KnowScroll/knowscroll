@@ -156,7 +156,7 @@ export async function scrollUseCases(
     /** Serves worker-prepared buffers and requests the next one on activation, like the API. */
     readonly buffers?: true;
     /** The Composer policy new decisions are made under (`KS_COMPOSER_POLICY`); `v0`, the default, unless a test says. */
-    readonly composerPolicy?: 'v0' | 'v1';
+    readonly composerPolicy?: 'v0' | 'v1' | 'v2';
     readonly activityDerived?: ActivityDerivedEffect;
     /** Who may open a Scroll ordered from code, as the module that orders it decides. */
     readonly orderAudience?: ReadOrderAudience;

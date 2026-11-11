@@ -1,6 +1,8 @@
-import type { ContinuityLink, EncounterRef, EncounterSnapshot } from '../../content/public.js';
+import { systemOfTopic, type ContinuityLink, type EncounterRef, type EncounterSnapshot } from '../../content/public.js';
+import { systemTopicIdsOf } from '../domain/encountered.js';
 import type { ComposerSnapshot, PreparedEvidenceInput, SemanticAssessments } from '../domain/types.js';
 import { sourceSeriesId } from '../domain/vertical-rules.js';
+import { OTHER_FORMAT_RESERVE } from './vertical-candidates.js';
 import type { ReadPreparedEvidenceInput } from './ports.js';
 
 /**
@@ -83,6 +85,7 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
   const { source, candidates, links } = input;
   const assessments = presentAssessments(input);
   const currentSeriesId = source ? sourceSeriesId(source, candidates) : undefined;
+  const systemTopicIds = input.mode === 'vertical' && source ? systemTopicsOf(source, candidates) : [];
   const full: ComposerSnapshot = {
     universeId: input.universeId,
     privacyEpoch: input.privacyEpoch,
@@ -105,6 +108,7 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
       ...(input.mode === 'vertical' && input.relatedAssetIds?.length
         ? { relatedAssetIds: [...input.relatedAssetIds] }
         : {}),
+      ...(systemTopicIds.length ? { systemTopicIds } : {}),
     },
     ...(source ? { source: refOf(source) } : {}),
     candidates: candidates.map((encounter) => candidateRow(input, encounter)),
@@ -119,6 +123,13 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
     },
   };
   return fitToBudget(full, input.hashCatalogWatermarks);
+}
+
+/** The topics of the candidates that share a catalogue system with the source's topics (the `same_system` place Composer records for analytics). */
+function systemTopicsOf(source: EncounterSnapshot, candidates: readonly EncounterSnapshot[]): readonly string[] {
+  const aboutTopics = (encounter: EncounterSnapshot) =>
+    encounter.topics.filter((t) => t.role !== 'incidental').map((t) => t.topicId);
+  return systemTopicIdsOf(aboutTopics(source), candidates.flatMap(aboutTopics), systemOfTopic);
 }
 
 /** Stored assessments may name candidates that are no longer retrieved; only present ones inform ranking. */
@@ -154,7 +165,7 @@ function sizeOf(snapshot: ComposerSnapshot): number {
 }
 
 /**
- * Drops trailing candidates until the snapshot fits. Each pass removes as many candidates as the
+ * Drops trailing candidates until the snapshot fits, keeping the other-format reserve (see {@link protectedKeys}) for last. Each pass removes as many candidates as the
  * average candidate size says the overshoot needs (at least one), so a snapshot is serialised a
  * few times at most. Retrieval order is the policy's, so truncation is deterministic.
  */
@@ -173,13 +184,40 @@ function fitToBudget(
   return { snapshot: current, truncated: current !== snapshot };
 }
 
-/** The snapshot restricted to its first `count` candidates, with evidence that only they need. */
+/**
+ * The candidates of the format the person is not in that truncation keeps whatever else it drops: the other-format reserve
+ * (`OTHER_FORMAT_RESERVE`, the first of that format in retrieval order). Policy v2 gives format stickiness way to an unseen
+ * candidate of the other format, so dropping them first would leave it nothing to give way to.
+ */
+function protectedKeys(snapshot: ComposerSnapshot): readonly string[] {
+  const { stickyFormat } = snapshot.intent;
+  if (snapshot.mode !== 'vertical' || stickyFormat === undefined) return [];
+  return snapshot.candidates
+    .filter((c) => c.encounter.kind !== stickyFormat)
+    .slice(0, OTHER_FORMAT_RESERVE)
+    .map((c) => keyOf(c.encounter));
+}
+
+/**
+ * The snapshot restricted to `count` candidates, with evidence that only they need: the protected other-format reserve first,
+ * then the rest in retrieval order.
+ */
 function keepFirst(
   snapshot: ComposerSnapshot,
   count: number,
   hashCatalogWatermarks: SnapshotInput['hashCatalogWatermarks'],
 ): ComposerSnapshot {
-  const kept = snapshot.candidates.slice(0, count);
+  const reserve = protectedKeys(snapshot);
+  const reserved = new Set(reserve.slice(0, count));
+  const room = count - reserved.size;
+  let taken = 0;
+  const kept = snapshot.candidates.filter((c) => {
+    const key = keyOf(c.encounter);
+    if (reserved.has(key)) return true;
+    if (reserve.includes(key) || taken >= room) return false;
+    taken += 1;
+    return true;
+  });
   const needed = {
     unitIds: new Set(kept.map((c) => c.encounter.explanationUnitId)),
     topicIds: new Set(kept.flatMap((c) => c.encounter.topics.map((t) => t.topicId))),

@@ -1,5 +1,5 @@
 /** The labels a stored decision can carry. A decision always replays under the policy it names. */
-export type ComposerPolicyVersion = 'composer-policy.v0' | 'composer-policy.v1';
+export type ComposerPolicyVersion = 'composer-policy.v0' | 'composer-policy.v1' | 'composer-policy.v2';
 
 /** Weights of a vertical move's score. `recentRepetition` and `recentTopic` are penalties: they are subtracted. */
 export interface VerticalWeights {
@@ -53,6 +53,25 @@ export interface ComposerPolicy {
    * crowded out. Reels are not drawn by level, so the Reel/Scroll split of the pool is unchanged (v1).
    */
   readonly explorationByPlayLevel: boolean;
+  /**
+   * How the exploration branch is drawn. `one-in-ten` is the literal draw v0 and v1 were stored with (it equals their
+   * `explorationFraction`, 0.10, and a stored decision must replay byte for byte); `by-fraction` reads
+   * `explorationFraction` itself (v2), so changing the fraction changes the draw.
+   */
+  readonly explorationDraw: 'one-in-ten' | 'by-fraction';
+  /**
+   * What decides between candidates with equal scores. `lexical` is the immutable asset/revision order v0 and v1 were
+   * stored with. `seeded-hash` orders them by a hash of the decision seed and the asset id (v2), so ties fall
+   * differently for each person and each decision and stay reproducible from the stored seed.
+   */
+  readonly tieBreak: 'lexical' | 'seeded-hash';
+  /**
+   * Whether an explanation the person has already met is a soft score term (`novelty`, v0 and v1) or is left out of every
+   * system-chosen offer while anything unseen is eligible, with a recorded last resort of the least recently met (`unseen-first`,
+   * v2, #674 owner decision). Only a vertical move without an exact target is system-chosen; series, related, variant,
+   * return and exact-target moves are the person's own and are never asked.
+   */
+  readonly encountered: 'score' | 'unseen-first';
 }
 
 const COMMON = {
@@ -89,6 +108,9 @@ export const COMPOSER_POLICY_V0: ComposerPolicy = Object.freeze({
   recentTopicSpan: 0,
   formatCellPrior: null,
   explorationByPlayLevel: false,
+  explorationDraw: 'one-in-ten',
+  tieBreak: 'lexical',
+  encountered: 'score',
 });
 
 /**
@@ -115,21 +137,47 @@ export const COMPOSER_POLICY_V1: ComposerPolicy = Object.freeze({
   recentTopicSpan: 3,
   formatCellPrior: 4,
   explorationByPlayLevel: true,
+  explorationDraw: 'one-in-ten',
+  tieBreak: 'lexical',
+  encountered: 'score',
+});
+
+/**
+ * Policy v2 (#674, slice 1.2, D-408): a person always gets new content. Every number of v1 is kept; the rules change.
+ * An explanation the person has already met (an activated exposure of its unit in either format) is left out of every
+ * system-chosen offer while anything unseen is eligible, which are ranked as v1 ranks them (so a subject move still usually
+ * leaves the topic, D-190); only when nothing unseen exists is the least recently met one offered, recorded. Exploration
+ * draws only among the unseen, at the fraction this object holds, and equal scores are told apart by a seeded hash instead
+ * of the asset id.
+ * A world makes decisions under v2 only where `KS_COMPOSER_POLICY=v2` is set.
+ */
+export const COMPOSER_POLICY_V2: ComposerPolicy = Object.freeze({
+  ...COMMON,
+  version: 'composer-policy.v2',
+  vertical: COMPOSER_POLICY_V1.vertical,
+  horizontal: COMPOSER_POLICY_V1.horizontal,
+  recentTopicSpan: COMPOSER_POLICY_V1.recentTopicSpan,
+  formatCellPrior: COMPOSER_POLICY_V1.formatCellPrior,
+  explorationByPlayLevel: true,
+  explorationDraw: 'by-fraction',
+  tieBreak: 'seeded-hash',
+  encountered: 'unseen-first',
 });
 
 /**
  * Which policy new decisions are made under (`KS_COMPOSER_POLICY`, D-190). It is chosen by configuration, so v1 is
  * not used before its numbers are: the default is `v0`. Replay never asks: a stored decision names its own policy.
  */
-export type ComposerPolicySetting = 'v0' | 'v1';
+export type ComposerPolicySetting = 'v0' | 'v1' | 'v2';
 
 export function composerPolicyFor(setting: ComposerPolicySetting): ComposerPolicy {
-  return setting === 'v1' ? COMPOSER_POLICY_V1 : COMPOSER_POLICY_V0;
+  return setting === 'v2' ? COMPOSER_POLICY_V2 : setting === 'v1' ? COMPOSER_POLICY_V1 : COMPOSER_POLICY_V0;
 }
 
 const POLICIES: Readonly<Record<ComposerPolicyVersion, ComposerPolicy>> = {
   'composer-policy.v0': COMPOSER_POLICY_V0,
   'composer-policy.v1': COMPOSER_POLICY_V1,
+  'composer-policy.v2': COMPOSER_POLICY_V2,
 };
 
 /** The policy a stored decision's label names. */
@@ -155,6 +203,24 @@ export function randomSource(seed: string): () => number {
     return (state >>> 0) / 4294967296;
   };
 }
+/**
+ * The tie-break of policy v2: FNV-1a over the decision seed and the asset id, so the order of equal scores differs per
+ * seed (per person and decision) and is the same every time for the same seed. Pure; not a security hash.
+ */
+export function tieHash(seed: string, assetId: string): number {
+  let state = 2166136261;
+  for (const char of `${seed}\u0000${assetId}`) {
+    state ^= char.codePointAt(0)!;
+    state = Math.imul(state, 16777619);
+  }
+  // A final avalanche so that ids differing only in their last characters do not order the same way for every seed.
+  state ^= state >>> 16;
+  state = Math.imul(state, 2246822507);
+  state ^= state >>> 13;
+  state = Math.imul(state, 3266489909);
+  state ^= state >>> 16;
+  return state >>> 0;
+}
 export function tokens(text: string): readonly string[] {
   return [...new Set(text.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) ?? [])].slice(0, 128);
 }
@@ -163,6 +229,11 @@ export function overlap(a: readonly string[], b: readonly string[]): number {
   const left = new Set(a);
   const right = new Set(b);
   return [...left].filter((value) => right.has(value)).length / new Set([...left, ...right]).size;
+}
+
+/** A draw that succeeds with probability `fraction` (policy v2 exploration). The generator has 2^32 steps, so the error is below 2^-32. */
+export function drawsWithin(random: () => number, fraction: number): boolean {
+  return random() < fraction;
 }
 
 /** Rejection sampling avoids modulo/floor bias, so branch and pool probabilities match the log. */

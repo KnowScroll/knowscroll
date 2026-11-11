@@ -208,6 +208,8 @@ export const diagnosticCatalogue = {
     module: 'evidence',
     fields: ['requestId', 'count', 'outcome', 'reasonCode'],
   },
+  // The scheduled decision prune (#674): rows deleted, and `partial` when a universe was left for the next pass. Counts only.
+  'composer.decisions_pruned': { severity: 'info', module: 'composer', fields: ['outcome', 'count'] },
   'composer.buffer_prepared': {
     severity: 'info',
     module: 'composer',

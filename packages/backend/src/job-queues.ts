@@ -15,7 +15,7 @@ import {
   scoutHeartbeatQueue,
   summariseQueue,
 } from './modules/rooms/public.js';
-import { prepareBufferQueue } from './modules/composer/public.js';
+import { prepareBufferQueue, pruneDecisionsQueue } from './modules/composer/public.js';
 import { resolveBranchesQueue, suggestDraftQueue, writeAnswerQueue } from './modules/scenarios/public.js';
 import { queueRegistry } from './infrastructure/jobs/queues.js';
 import {
@@ -62,6 +62,7 @@ export const releaseQueues = queueRegistry([
   resolveBranchesQueue,
   plannerQueue,
   prepareBufferQueue,
+  pruneDecisionsQueue,
   contributeQueue,
   castDueQueue,
   castPassQueue,

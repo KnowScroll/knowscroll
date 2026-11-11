@@ -4,7 +4,13 @@ import {
   type ExposureContextResponse,
   type NavigationOutcome,
 } from '@knowscroll/contracts';
-import { bufferIsServable, type BufferedSelection, type ComposerDecision } from '../../composer/public.js';
+import {
+  bufferIsServable,
+  evidenceQueryFor,
+  metUnitsOf,
+  type BufferedSelection,
+  type ComposerDecision,
+} from '../../composer/public.js';
 import type { EncounterSnapshot } from '../../content/public.js';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { originalRecordingGeneration, recordingRequest, type CommandKey } from './ports.js';
@@ -76,20 +82,23 @@ async function variants(
 /** The offers a navigation will commit, in order, with the content watermark each was ranked at. */
 interface Ranked {
   readonly selection: readonly BufferedSelection[];
+  /** The ranking promised unseen explanations only (policy v2, a system-chosen move), so serving rechecks them. */
+  readonly unseen: boolean;
   /** Present when ranked now; absent when a worker already ranked and stored the decision. */
   readonly decision?: ComposerDecision;
 }
 
 /** Ranks outside any transaction (blueprint §7), or takes the worker's stored ranking. */
 function rankPrepared(p: NavigationPorts, prepared: Prepared): Ranked {
-  if (prepared.ranking.kind === 'buffered') return { selection: prepared.ranking.buffer.selection };
+  if (prepared.ranking.kind === 'buffered')
+    return { selection: prepared.ranking.buffer.selection, unseen: prepared.ranking.buffer.unseenOutcome === 'unseen' };
   const { snapshot } = prepared.ranking;
   const decision = p.compose(snapshot);
   const selection = decision.selection.map((selected) => ({
     ...ref(selected),
     catalogWatermark: snapshot.candidates.find((c) => same(c.encounter, selected))!.encounter.catalogWatermark,
   }));
-  return { decision, selection };
+  return { decision, selection, unseen: decision.unseenLadder?.outcome === 'unseen' };
 }
 
 interface CommitContext {
@@ -230,7 +239,7 @@ async function lockRegionSelection(
 
 /**
  * Rereads each ranked candidate: still admitted, same content, not hidden, not marked "Not interested" (unless the
- * person named it), link still current. `undefined` is drift.
+ * person named it), link still current, and (under policy v2) still not met. `undefined` is drift.
  */
 async function selectStillEligible(
   p: NavigationPorts,
@@ -259,7 +268,26 @@ async function selectStillEligible(
       return undefined;
     selected.push(exact);
   }
+  // Under the lock the history is authoritative: an explanation met since it was ranked (another device or tab, a slow Jev
+  // call, an activation between the two transactions) is never offered again. Drift reranks, and a buffer is discarded.
+  if (ranked.unseen && (await metSinceRanking(p, scope, selected))) return undefined;
   return selected;
+}
+
+/** Whether any of the selected explanations has been met, read now under the personal lock (at most three units). */
+async function metSinceRanking(
+  p: NavigationPorts,
+  scope: PersonalScopeTx,
+  selected: readonly EncounterSnapshot[],
+): Promise<boolean> {
+  if (selected.length === 0) return false;
+  const evidence = await p.readPrepared(scope, evidenceQueryFor(selected, p.now().toISOString()));
+  return (
+    metUnitsOf(
+      evidence,
+      selected.map((encounter) => encounter.explanationUnitId),
+    ).length > 0
+  );
 }
 
 async function buildOffers(

@@ -39,13 +39,14 @@ describe('the worker ranks buffers under the policy its own configuration sets (
     expect(provider).toMatchObject({ inject: [WORKER_CONFIG] });
   });
 
-  it('makes a decision under v0 by default and under v1 only when the configuration says v1', () => {
+  it('makes a decision under v0 by default and under v1 or v2 only when the configuration says so', () => {
     const provider = providers[0]!;
     if (!('useFactory' in provider)) throw new Error('CI expected a factory provider');
-    const composeUnder = (composerPolicy: 'v0' | 'v1') =>
-      (provider.useFactory as (config: { composerPolicy: 'v0' | 'v1' }) => ComposeEncounter)({ composerPolicy });
+    const composeUnder = (composerPolicy: 'v0' | 'v1' | 'v2') =>
+      (provider.useFactory as (config: { composerPolicy: 'v0' | 'v1' | 'v2' }) => ComposeEncounter)({ composerPolicy });
     expect(composeUnder('v0')(SNAPSHOT).policyVersion).toBe('composer-policy.v0');
     expect(composeUnder('v1')(SNAPSHOT).policyVersion).toBe('composer-policy.v1');
+    expect(composeUnder('v2')(SNAPSHOT).policyVersion).toBe('composer-policy.v2');
   });
 });
 

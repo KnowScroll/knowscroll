@@ -4,9 +4,11 @@ import {
   bufferIsServable,
   evidenceQueryFor,
   readRelatedAssetIds,
+  readUnseenFirst,
   readVerticalCandidates,
   renderableFormats,
   validAssessments,
+  wantsUnseenFirst,
   type ComposerSnapshot,
   type PreparedBuffer,
   type SemanticAssessments,
@@ -16,6 +18,7 @@ import type {
   EncounterRef,
   EncounterSnapshot,
   RegionEncounterCandidate,
+  UnseenFirst,
 } from '../../content/public.js';
 import type { GeographyRegionConstraint } from '../../geography/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
@@ -262,6 +265,19 @@ async function relatedAssetIdsOf(
   return related.length > 0 ? { relatedAssetIds: related } : {};
 }
 
+/**
+ * What a system-chosen move asks of retrieval under policy v2: the person's unseen explanations first, so an explanation they
+ * have met is not all that a random slice of a large library holds (D-408). Empty under v0 and v1, which retrieve as before.
+ */
+async function unseenRetrieval(
+  p: NavigationPorts,
+  scope: PersonalScopeTx,
+): Promise<{ readonly unseenFirst?: UnseenFirst }> {
+  return p.readMetUnitIds && wantsUnseenFirst(p.compose)
+    ? { unseenFirst: await readUnseenFirst(p.readMetUnitIds, scope) }
+    : {};
+}
+
 /** Retrieves the candidates for the command's mode. */
 async function retrieve(
   p: NavigationPorts,
@@ -290,6 +306,8 @@ async function retrieve(
               formats: start.formats,
               capabilities: start.capabilities,
               ...(rules.stickyFormat ? { stickyFormat: rules.stickyFormat } : {}),
+              seed: command.commandId,
+              ...(await unseenRetrieval(p, scope)),
             }),
           };
     case 'return':
@@ -322,6 +340,7 @@ async function retrieveRegion(
     truthStatus: region.value.truthStatus,
     capabilities: start.capabilities,
     ...(expected ? { expected: ref(expected) } : {}),
+    ...(await unseenRetrieval(p, scope)),
   });
   if (result.kind !== 'read') return refuse('OFFER_UNAVAILABLE');
   const candidates = result.candidates.map((x) => x.encounter);

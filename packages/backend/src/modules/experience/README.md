@@ -442,7 +442,14 @@ Recording attribution wins an exact legacy tie. No current-generation filter rel
 facts; paused reads retain old eligible history while paused activations and correction-only
 segments add no encounter. The unreleased 0042 includes scoped recent/unit indexes and a partial
 facet-expression GIN. Established unit probes are exact; facet probes preserve ANY encountered
-unit semantics, independently of the candidate unit. At most 100 candidates/16 facets and 100 asset
+unit semantics, independently of the candidate unit. `readMetUnitIds` (policy v2, D-408) is the same notion as data for Content's retrieval: the explanation units with an activated exposure
+in the person's lineage or recording segments at or before now, newest first, each unit once, read by the two person-scoped time indexes
+(`lineage_recent_idx`, `recording_routing_recent`) at most `limit + 1` rows each (the caller asks for at most 1000), with `truncated` when
+the bound cuts the read. Navigation reads it and hands the ids to retrieval when the configured policy wants unseen explanations first, and the committing transaction of a navigation
+rechecks a ranking that promised unseen explanations against the history under the personal lock (a buffer served after an
+explanation was met elsewhere is discarded and the move ranked again). Each established unit also carries `lastEncounteredAt`, the newest
+activated exposure of the unit in either format at or before the read (absent when none), which only Composer policy v2's
+last resort reads (D-408). At most 100 candidates/16 facets and 100 asset
 IDs enter these probes. These are routing/novelty facts only: they neither qualify an exposure nor
 create Personal Context support, learning, credit, a session, or collection authority.
 

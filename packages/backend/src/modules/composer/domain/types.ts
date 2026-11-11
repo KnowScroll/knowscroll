@@ -115,7 +115,13 @@ export interface PreparedEvidenceInput {
     readonly watermark: string;
     readonly units: readonly {
       readonly explanationUnitId: string;
+      /** An activated exposure of this explanation exists, in either format (a routing fact, never a learning claim). */
       readonly encountered: boolean;
+      /**
+       * When the newest such exposure was activated. Absent when not encountered, and in inputs stored before policy v2.
+       * Only the last resort of policy v2 reads it, to offer the least recently met explanation.
+       */
+      readonly lastEncounteredAt?: string;
       readonly facets: readonly { readonly facetId: string; readonly encountered: boolean }[];
     }[];
   };
@@ -170,6 +176,12 @@ export interface ComposerSnapshot {
      * twins are excluded (`related_target`) unless that would leave nothing to offer.
      */
     readonly relatedAssetIds?: readonly string[];
+    /**
+     * Vertical moves only (policy v2). The topics, among those of the candidates, that belong to a system one of the
+     * source's topics belongs to: the `same_system` place (analytics). Frozen at assembly so a replay never depends on
+     * the catalogue as it is later. Absent in inputs stored before policy v2 (the step is then empty).
+     */
+    readonly systemTopicIds?: readonly string[];
   };
   readonly source?: EncounterRef;
   readonly candidates: readonly {
@@ -231,6 +243,30 @@ export interface RelatedTargetOutcome {
   readonly matched: number;
 }
 
+/**
+ * Where an explanation sits relative to the source of a vertical move: about a topic the source is about
+ * (`source_topic`), about another topic of a system the source's topics belong to (`same_system`), or neither
+ * (`elsewhere`, and every explanation when the move has no source). It is recorded for analytics only: selection never
+ * reads it, so a subject move keeps leaving the topic as often as policy v1's scoring says (D-190).
+ */
+export type SourcePlace = 'source_topic' | 'same_system' | 'elsewhere';
+
+/**
+ * What policy v2's two tiers did in one decision (vertical moves without an exact target): `unseen` (every offer is
+ * an explanation the person has not met, ranked by the usual score), `fell_back` (nothing unseen was eligible in either
+ * format, so the least recently met were offered: the last resort) or `none` (nothing at all was eligible: the existing
+ * exhausted path). The places are analytics and never affect which offers were chosen.
+ */
+export interface UnseenLadderOutcome {
+  readonly outcome: 'unseen' | 'fell_back' | 'none';
+  /** The place of the first offer; absent when nothing was offered. */
+  readonly place?: SourcePlace;
+  /** The place of each offer, in selection order. */
+  readonly offerPlaces: readonly SourcePlace[];
+  /** The eligible candidates by place: unseen ones under `unseen`, met ones under `fell_back`. */
+  readonly eligible: Readonly<Record<SourcePlace, number>>;
+}
+
 export interface ComposerDecision {
   readonly version: 'composer-decision.v0';
   /** The policy the decision was made under; it replays under exactly this policy. */
@@ -258,5 +294,7 @@ export interface ComposerDecision {
   readonly stickyFormat?: StickyFormatOutcome;
   /** Present when the input named related targets. */
   readonly relatedTarget?: RelatedTargetOutcome;
+  /** Present under policy v2 for a system-chosen vertical move. */
+  readonly unseenLadder?: UnseenLadderOutcome;
   readonly outcome: 'ready' | 'exhausted';
 }

@@ -5,13 +5,18 @@ import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infras
 import {
   PREPARE_COMPOSER_BUFFER,
   prepareBufferQueue,
+  readUnseenFirst,
   type ComposerDecision,
   type PrepareBuffer,
   type PrepareBufferJob,
 } from '@knowscroll/backend/modules/composer';
 import { composerBufferWorkerProviders, composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
-import { admitLibraryContinuityUseCase, contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
-import { experienceBufferSourceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
+import {
+  admitLibraryContinuityUseCase,
+  contentProviders,
+  readDiscoveryCandidates,
+} from '@knowscroll/backend/modules/content/nest-providers';
+import { experienceBufferSourceProviders, readMetUnitIds } from '@knowscroll/backend/modules/experience/nest-providers';
 import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
 import { RECORDING_REASONING_HARNESS } from '@knowscroll/backend/reasoning';
 import type { NavigationOutcome } from '@knowscroll/contracts';
@@ -120,15 +125,19 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
   }
 
   /** Opens the exact encounter, as a revisit does, and activates it: the person is on it. */
-  async function standOn(person: FixturePerson, target: { assetId: string; assetRevision: number }) {
+  async function standOn(
+    person: FixturePerson,
+    target: { assetId: string; assetRevision: number },
+    use: Cases = cases,
+  ) {
     const open = ready(
-      await cases.navigate(person.authority, {
+      await use.navigate(person.authority, {
         commandId: randomUUID(),
         target: { kind: 'return', ...target },
         capabilities: bothFormats,
       }),
     );
-    const activated = await cases.activateOffer(person.authority, {
+    const activated = await use.activateOffer(person.authority, {
       commandId: randomUUID(),
       target: {
         kind: 'offer',
@@ -146,8 +155,9 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
     stand: Awaited<ReturnType<typeof standOn>>,
     format?: Format,
     direction: 'next' | 'previous' = 'next',
+    use: Cases = cases,
   ) =>
-    cases.navigate(person.authority, {
+    use.navigate(person.authority, {
       commandId: randomUUID(),
       sessionId: stand.open.sessionId,
       expectedIntentRevision: stand.open.intentRevision,
@@ -166,7 +176,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
     decision.evaluations.find((evaluation) => evaluation.assetId === assetId)?.exclusions;
 
   /** The worker side over the real providers; Jev is off, so no model is involved. */
-  function worker(): PrepareBuffer {
+  function worker(policy?: 'v2'): PrepareBuffer {
     const { harness } = fixtureRecordingHarness(database.db, { model: undefined });
     const values = new Map<symbol, unknown>([
       [WITH_SCOPE, withScope()],
@@ -175,7 +185,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       [READ_COMPOSER_CONTEXT, cases.readComposerContext],
       ...[
         ...experienceBufferSourceProviders(),
-        ...composerProviders({ isOperator: () => false }),
+        ...composerProviders({ isOperator: () => false }, policy),
         ...contentProviders(),
       ].map((provider) => [provider.provide, provider.useValue] as const),
     ]);
@@ -185,7 +195,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       values,
     ) as PrepareBuffer;
   }
-  const prepareFor = async (universeId: string) => {
+  const prepareFor = async (universeId: string, policy?: 'v2') => {
     const [job] = (
       await sql<{
         data: PrepareBufferJob;
@@ -193,12 +203,12 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
         database.db,
       )
     ).rows;
-    const result = await worker()(job!.data, { jobId: randomUUID(), signal: new AbortController().signal });
+    const result = await worker(policy)(job!.data, { jobId: randomUUID(), signal: new AbortController().signal });
     expect(result).toMatchObject({ kind: 'prepared' });
     return (
       await sql<{
         decision_id: string;
-        selection: { assetId: string }[];
+        selection: { assetId: string; assetRevision: number }[];
       }>`select decision_id,selection from composer.buffers where universe_id=${universeId}::uuid`.execute(database.db)
     ).rows[0]!;
   };
@@ -472,6 +482,380 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       expect(exclusionsIn(decision, reelOfPart2.assetId)).toContain('same_series');
       expect(exclusionsIn(decision, hemispheres.assetId)).toContain('same_series');
       expect(decision.stickyFormat).toEqual({ preferred: 'reel', outcome: 'kept' });
+    });
+  });
+
+  // Last of all: policy v2 (#674). A person always gets new content; what they asked for is never a repeat.
+  describe('policy v2: a person always gets new content (real PostgreSQL, labelled CI fixtures)', () => {
+    let v2: Cases;
+    const topic = 'ci.newcontent.topic';
+    const own: Awaited<ReturnType<typeof admitScroll>>[] = [];
+    let ownReel: Awaited<ReturnType<typeof admitReel>>;
+
+    beforeAll(async () => {
+      v2 = await scrollUseCases(database, { composerPolicy: 'v2', buffers: true });
+      for (let n = 0; n < 3; n += 1) own.push(await admitScroll(topic));
+      ownReel = await admitReel(topic);
+    });
+    afterAll(async () => {
+      await v2.close();
+    });
+
+    const unitOf = async (assetId: string) =>
+      (
+        await sql<{
+          explanation_unit_id: string;
+        }>`select explanation_unit_id from content.asset_revisions where asset_id=${assetId}::uuid`.execute(database.db)
+      ).rows[0]!.explanation_unit_id;
+    const standOnV2 = (person: FixturePerson, target: { assetId: string; assetRevision: number }) =>
+      standOn(person, target, v2);
+    const nextV2 = (
+      person: FixturePerson,
+      stand: Awaited<ReturnType<typeof standOn>>,
+      format?: Format,
+      direction: 'next' | 'previous' = 'next',
+    ) => nextSubject(person, stand, format, direction, v2);
+
+    /** Every admitted asset of the kind, in a fixed order: the person meets each by standing on it. */
+    async function meetEvery(person: FixturePerson, kind: Format, except: readonly string[] = []) {
+      const assets = (
+        await sql<{
+          id: string;
+          revision: number;
+        }>`select id,revision from content.assets where status='admitted' and kind=${kind} order by id`.execute(
+          database.db,
+        )
+      ).rows.filter((asset) => !except.includes(asset.id));
+      const stands: Awaited<ReturnType<typeof standOn>>[] = [];
+      for (const asset of assets)
+        stands.push(await standOnV2(person, { assetId: asset.id, assetRevision: asset.revision }));
+      return { assets, stands };
+    }
+
+    const metUnits = async (offered: readonly { assetId: string }[], met: readonly string[]) => {
+      const units = new Set(await Promise.all(met.map(unitOf)));
+      return (await Promise.all(offered.map((offer) => unitOf(offer.assetId)))).filter((unit) => units.has(unit));
+    };
+
+    it('stores the decision under composer-policy.v2 and records its tier and where the offer sits', async () => {
+      const person = await seedPerson(database.db);
+      const stand = await standOnV2(person, own[0]!);
+      const next = ready(await nextV2(person, stand, 'scroll'));
+      const row = (
+        await sql<{
+          policy_version: string;
+        }>`select policy_version from composer.decisions where id=${next.decisionId}::uuid`.execute(database.db)
+      ).rows[0]!;
+      expect(row.policy_version).toBe('composer-policy.v2');
+      const decision = await decisionOf(next.decisionId);
+      expect(decision.unseenLadder).toMatchObject({ outcome: 'unseen' });
+      // The two other Scrolls of the topic are unseen and eligible beside the rest of the library: where an offer sits is
+      // recorded, and the ranking does not read it.
+      expect(decision.unseenLadder?.eligible.source_topic).toBe(2);
+      expect(decision.unseenLadder?.eligible.elsewhere).toBeGreaterThan(0);
+      expect(decision.unseenLadder?.offerPlaces).toHaveLength(offers(next).length);
+    });
+
+    it('a person who has met everything in a topic gets something unseen from elsewhere', async () => {
+      const person = await seedPerson(database.db);
+      await standOnV2(person, own[0]!);
+      await standOnV2(person, own[1]!);
+      const stand = await standOnV2(person, own[2]!);
+      const next = ready(await nextV2(person, stand, 'scroll'));
+      const offered = offers(next);
+      expect(offered.length).toBeGreaterThan(0);
+      expect(
+        await metUnits(
+          offered,
+          own.map((scroll) => scroll.assetId),
+        ),
+      ).toEqual([]);
+      const decision = await decisionOf(next.decisionId);
+      for (const scroll of own.slice(0, 2))
+        expect(exclusionsIn(decision, scroll.assetId)).toEqual(['already_encountered']);
+      // Nothing unseen is left in the topic, so what is offered sits elsewhere, and the decision did not fall back to a repeat.
+      expect(decision.unseenLadder).toMatchObject({ outcome: 'unseen', eligible: { source_topic: 0 } });
+      expect(decision.unseenLadder?.offerPlaces.every((place) => place !== 'source_topic')).toBe(true);
+    });
+
+    it('a Reel watcher who has met every Reel gets an unseen Scroll', async () => {
+      const person = await seedPerson(database.db);
+      const { stands } = await meetEvery(person, 'reel');
+      const next = ready(await nextV2(person, stands.at(-1)!, 'reel'));
+      expect(offers(next).length).toBeGreaterThan(0);
+      expect(offers(next).every((offer) => offer.metadata.kind === 'scroll')).toBe(true);
+      const decision = await decisionOf(next.decisionId);
+      expect(decision.stickyFormat).toEqual({ preferred: 'reel', outcome: 'fell_back' });
+      expect(decision.unseenLadder).toMatchObject({ outcome: 'unseen' });
+    });
+
+    it('only when nothing unseen exists in either format is a met one offered, the least recently met first, and it is counted', async () => {
+      const person = await seedPerson(database.db);
+      const scrolls = (
+        await sql<{
+          id: string;
+        }>`select id from content.assets where status='admitted' and kind='scroll' order by id`.execute(database.db)
+      ).rows.map((row) => row.id);
+      // Meet every Reel, then every Scroll, ending on the Scroll with no series and no links.
+      const last = own[2]!;
+      await meetEvery(person, 'reel');
+      const { assets, stands } = await meetEvery(person, 'scroll', [last.assetId]);
+      stands.push(await standOnV2(person, last));
+      const first = assets[0]!;
+      expect(scrolls).toContain(first.id);
+      const next = ready(await nextV2(person, stands.at(-1)!, 'scroll'));
+      expect(offers(next).length).toBeGreaterThan(0);
+      // The Scroll the person met first of all comes first, whatever the ranking would have said.
+      expect(offers(next)[0]!.assetId).toBe(first.id);
+      const decision = await decisionOf(next.decisionId);
+      expect(decision.unseenLadder).toMatchObject({ outcome: 'fell_back' });
+      expect(decision.unseenLadder!.offerPlaces).toHaveLength(offers(next).length);
+      // Every eligible candidate is one the person has met: the counts by place add up to the eligible ones.
+      const eligibleCount = decision.evaluations.filter((evaluation) => evaluation.eligible).length;
+      expect(Object.values(decision.unseenLadder!.eligible).reduce((sum, n) => sum + n, 0)).toBe(eligibleCount);
+      expect(eligibleCount).toBeGreaterThan(0);
+      expect(decision.exploration).toMatchObject({ branch: 'ranked', pool: [] });
+    });
+
+    it('what the person asks for is never a repeat: a return, a part, the related move and the other format all still open what they met', async () => {
+      const person = await seedPerson(database.db);
+      // Return: standing on something already met works as ever.
+      await standOnV2(person, own[0]!);
+      const again = await standOnV2(person, own[0]!);
+      expect(again.open.offer).toMatchObject({ assetId: own[0]!.assetId, relation: { kind: 'return' } });
+
+      // The other format of what the person is on: the Reel twin of a Scroll they have met.
+      const twin = await admitReel(topic, await unitOf(own[1]!.assetId));
+      const onScroll = await standOnV2(person, own[1]!);
+      const variant = await v2.navigate(person.authority, {
+        commandId: randomUUID(),
+        sessionId: onScroll.open.sessionId,
+        expectedIntentRevision: onScroll.open.intentRevision,
+        from: onScroll.from,
+        intent: { mode: 'variant', to: 'reel' },
+      });
+      expect(ready(variant).offer).toMatchObject({ assetId: twin.assetId, relation: { kind: 'format_variant' } });
+      expect(ownReel.assetId).not.toBe(twin.assetId);
+
+      // A series part and a related move, after the person has met both ends.
+      await standOnV2(person, hemispheres);
+      const onPart1 = await standOnV2(person, seasons);
+      const part = await v2.navigate(person.authority, {
+        commandId: randomUUID(),
+        sessionId: onPart1.open.sessionId,
+        expectedIntentRevision: onPart1.open.intentRevision,
+        from: onPart1.from,
+        intent: { mode: 'series', direction: 'next' },
+      });
+      expect(ready(part).offer).toMatchObject({
+        assetId: hemispheres.assetId,
+        relation: { kind: 'series_step', part: 2 },
+      });
+      await standOnV2(person, limits);
+      const onPart3 = await standOnV2(person, part3);
+      const related = await v2.navigate(person.authority, {
+        commandId: randomUUID(),
+        sessionId: onPart3.open.sessionId,
+        expectedIntentRevision: onPart3.open.intentRevision,
+        from: onPart3.from,
+        intent: { mode: 'related' },
+      });
+      expect(ready(related).offer).toMatchObject({ assetId: limits.assetId, relation: { kind: 'related_move' } });
+      // None of those decisions records a tier: they are the person's own moves.
+      for (const outcome of [variant, part, related]) {
+        const decisionId = ready(outcome).decisionId;
+        expect((await decisionOf(decisionId)).unseenLadder).toBeUndefined();
+      }
+    });
+
+    describe('what the person met after a ranking is never offered (serve time, D-408)', () => {
+      const bufferExists = async (decisionId: string) =>
+        (await sql`select 1 from composer.buffers where decision_id=${decisionId}::uuid`.execute(database.db)).rows
+          .length > 0;
+
+      it('serves a buffer whose offers are all still unseen, as before', async () => {
+        const person = await seedPerson(database.db);
+        const stand = await standOnV2(person, own[0]!);
+        const buffer = await prepareFor(person.universeId, 'v2');
+        expect((await decisionOf(buffer.decision_id)).unseenLadder).toMatchObject({ outcome: 'unseen' });
+        const next = ready(await nextV2(person, stand, 'scroll'));
+        expect(next.decisionId).toBe(buffer.decision_id);
+        expect(offers(next).map((offer) => offer.assetId)).toEqual(buffer.selection.map((s) => s.assetId));
+      });
+
+      it('discards a buffer when an offer in it was met meanwhile (another device or tab), and ranks the move again', async () => {
+        const person = await seedPerson(database.db);
+        const stand = await standOnV2(person, own[0]!);
+        const buffer = await prepareFor(person.universeId, 'v2');
+        const metMeanwhile = buffer.selection[0]!;
+        // The person opens that very explanation somewhere else inside the buffer's ten minutes.
+        await standOnV2(person, metMeanwhile);
+        const next = ready(await nextV2(person, stand, 'scroll'));
+        expect(next.decisionId).not.toBe(buffer.decision_id);
+        expect(offers(next).map((offer) => offer.assetId)).not.toContain(metMeanwhile.assetId);
+        expect(offers(next).length).toBeGreaterThan(0);
+        expect(await bufferExists(buffer.decision_id)).toBe(false);
+        expect((await decisionOf(next.decisionId)).policyVersion).toBe('composer-policy.v2');
+      });
+
+      it('rechecks a ranking made moments before too: an activation between the two navigation transactions', async () => {
+        const person = await seedPerson(database.db);
+        // Every explanation but the source's and one is met in the gap, so only the one is left to offer.
+        const keeper = own[1]!;
+        let afterRanking: (() => Promise<void>) | undefined;
+        const raced = await scrollUseCases(database, {
+          composerPolicy: 'v2',
+          wrapScope: (scope) => async (authority, work) => {
+            const result = await scope(authority, work);
+            const hook = afterRanking;
+            afterRanking = undefined;
+            if (hook) await hook();
+            return result;
+          },
+        });
+        try {
+          const stand = await standOn(person, own[0]!, raced);
+          afterRanking = async () => {
+            // Everything but the source's explanation and the keeper's, whichever format it is in (a Reel twin shares its unit).
+            const keep = [await unitOf(own[0]!.assetId), await unitOf(keeper.assetId)];
+            const everything = (
+              await sql<{
+                id: string;
+                revision: number;
+              }>`select a.id,a.revision from content.assets a join content.asset_revisions r on r.asset_id=a.id and r.revision=a.revision
+                where a.status='admitted' and not (r.explanation_unit_id = any(${keep}::text[])) order by a.id`.execute(
+                database.db,
+              )
+            ).rows;
+            for (const asset of everything)
+              await standOnV2(person, { assetId: asset.id, assetRevision: asset.revision });
+          };
+          const next = ready(await nextSubject(person, stand, 'scroll', 'next', raced));
+          // The stale ranking was refused under the lock and the move ranked again: only what is still unseen is offered.
+          expect(offers(next).map((offer) => offer.assetId)).toEqual([keeper.assetId]);
+          expect((await decisionOf(next.decisionId)).unseenLadder).toMatchObject({ outcome: 'unseen' });
+        } finally {
+          await raced.close();
+        }
+      });
+    });
+
+    it('retrieval, with the met units read through Experience, reads the explanations the person has not met before the ones they have', async () => {
+      const person = await seedPerson(database.db);
+      await standOnV2(person, own[0]!);
+      await standOnV2(person, own[1]!);
+      const read = await withScope()(person.authority, async (scope) =>
+        readDiscoveryCandidates(scope, {
+          languages: ['en'],
+          formats: ['scroll'],
+          capabilities: bothFormats,
+          limit: 100,
+          unseenFirst: await readUnseenFirst(readMetUnitIds, scope),
+          alwaysUnits: [],
+        }),
+      );
+      if (read.kind !== 'entered') throw new Error('CI scope refused');
+      const units = read.value.map((candidate) => candidate.explanationUnitId);
+      const metUnits = new Set([await unitOf(own[0]!.assetId), await unitOf(own[1]!.assetId)]);
+      const firstMet = units.findIndex((unit) => metUnits.has(unit));
+      expect(firstMet).toBeGreaterThan(0);
+      // Every unseen explanation precedes the first met one, and the met ones are still there as the last resort's material.
+      expect(units.slice(0, firstMet).some((unit) => metUnits.has(unit))).toBe(false);
+      expect(units.slice(firstMet).filter((unit) => metUnits.has(unit))).toHaveLength(2);
+      // For a person who has met nothing the order is the plain one.
+      const fresh = await seedPerson(database.db);
+      const plain = await withScope()(fresh.authority, (scope) =>
+        readDiscoveryCandidates(scope, {
+          languages: ['en'],
+          formats: ['scroll'],
+          capabilities: bothFormats,
+          limit: 100,
+        }),
+      );
+      const conditional = await withScope()(fresh.authority, async (scope) =>
+        readDiscoveryCandidates(scope, {
+          languages: ['en'],
+          formats: ['scroll'],
+          capabilities: bothFormats,
+          limit: 100,
+          unseenFirst: await readUnseenFirst(readMetUnitIds, scope),
+        }),
+      );
+      if (plain.kind !== 'entered' || conditional.kind !== 'entered') throw new Error('CI scope refused');
+      expect(conditional.value.map((c) => c.assetId)).toEqual(plain.value.map((c) => c.assetId));
+    });
+
+    describe('the met units port (Experience, newest first, bounded)', () => {
+      const metOf = (person: FixturePerson, limit: number) =>
+        withScope()(person.authority, (scope) => readMetUnitIds(scope, { limit }));
+
+      it('reports the explanations the person has met, newest first, once each, and nobody else’s', async () => {
+        const person = await seedPerson(database.db);
+        const stranger = await seedPerson(database.db);
+        await standOnV2(person, own[0]!);
+        await standOnV2(person, own[1]!);
+        await standOnV2(stranger, own[2]!);
+        const met = await metOf(person, 50);
+        if (met.kind !== 'entered') throw new Error('CI scope refused');
+        expect(met.value).toEqual({
+          unitIds: [await unitOf(own[1]!.assetId), await unitOf(own[0]!.assetId)],
+          truncated: false,
+        });
+        const fresh = await metOf(await seedPerson(database.db), 50);
+        if (fresh.kind !== 'entered') throw new Error('CI scope refused');
+        expect(fresh.value).toEqual({ unitIds: [], truncated: false });
+      });
+
+      it('reports the explanation unit of a Reel too: the unit, never the asset', async () => {
+        const person = await seedPerson(database.db);
+        await standOnV2(person, ownReel);
+        const met = await metOf(person, 50);
+        if (met.kind !== 'entered') throw new Error('CI scope refused');
+        expect(met.value.unitIds).toEqual([await unitOf(ownReel.assetId)]);
+      });
+
+      it('keeps the newest units and says so when the bound cuts, and not when it does not', async () => {
+        const person = await seedPerson(database.db);
+        await standOnV2(person, own[0]!);
+        await standOnV2(person, own[1]!);
+        await standOnV2(person, own[2]!);
+        const cut = await metOf(person, 2);
+        if (cut.kind !== 'entered') throw new Error('CI scope refused');
+        expect(cut.value).toEqual({
+          unitIds: [await unitOf(own[2]!.assetId), await unitOf(own[1]!.assetId)],
+          truncated: true,
+        });
+        const exact = await metOf(person, 3);
+        if (exact.kind !== 'entered') throw new Error('CI scope refused');
+        expect(exact.value.truncated).toBe(false);
+        expect(exact.value.unitIds).toHaveLength(3);
+      });
+
+      it('refuses a bound that is not a positive whole number within the most it will read', async () => {
+        const person = await seedPerson(database.db);
+        for (const limit of [0, -1, 1.5, 5001, Number.NaN])
+          await expect(metOf(person, limit)).rejects.toThrow('MET_UNITS_LIMIT');
+      });
+    });
+
+    it('the same history ranked under v0 still offers what was met: v0 decisions are untouched and keep replaying', async () => {
+      const person = await seedPerson(database.db);
+      await standOnV2(person, own[0]!);
+      await standOnV2(person, own[1]!);
+      const stand = await standOnV2(person, own[2]!);
+      // The v0 composition ranks the same person: the met Scrolls of the topic match it and are only softly penalised.
+      const next = ready(await nextSubject(person, stand, 'scroll'));
+      const decision = await decisionOf(next.decisionId);
+      expect(decision.policyVersion).toBe('composer-policy.v0');
+      expect(decision.unseenLadder).toBeUndefined();
+      expect(exclusionsIn(decision, own[0]!.assetId)).toEqual([]);
+      expect(
+        (
+          await sql`select id from composer.decisions where id=${next.decisionId}::uuid and policy_version='composer-policy.v0'`.execute(
+            database.db,
+          )
+        ).rows,
+      ).toHaveLength(1);
     });
   });
 });

@@ -31,7 +31,7 @@ dev world sets 1 in its environment file (#236, D-035). It gates the personal Pl
 reservation and does not confer paid allowance. Disabled
 work remains durable and resumes only through an explicit same-business-run request.
 
-`KS_COMPOSER_POLICY` (v3 S-5, D-190) accepts `v0` or `v1` and defaults to `v0` in both the API and the worker configuration (`composerPolicy`).
+`KS_COMPOSER_POLICY` (v3 S-5, D-190, D-408) accepts `v0`, `v1` or `v2` and defaults to `v0` in both the API and the worker configuration (`composerPolicy`).
 It decides which Composer policy new decisions are made under; replay of a stored decision never reads it.
 
 `KS_JEV_ENABLED` (#234) accepts 0/1 and defaults 0 in worker configuration. It switches on Jev, the

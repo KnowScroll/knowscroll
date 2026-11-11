@@ -28,6 +28,7 @@ import { PrepareBufferJobSchema, type PrepareBufferJob } from '../events.js';
 import { JEV_ASSESSMENT_VERSION, storedAssessments, type AssessShortlist, type JevResult } from './jev.js';
 import type {
   ComposeEncounter,
+  ReadMetUnitIds,
   PersistComposerDecision,
   ReadBufferSource,
   ReadComposerBuffer,
@@ -39,7 +40,7 @@ import type {
 } from './ports.js';
 import { assembleSnapshot, evidenceQueryFor, type SnapshotInput } from './snapshot-assembly.js';
 import { readRelatedAssetIds } from './related-targets.js';
-import { readVerticalCandidates, renderableFormats } from './vertical-candidates.js';
+import { readUnseenFirst, readVerticalCandidates, renderableFormats, wantsUnseenFirst } from './vertical-candidates.js';
 
 /** Jev, when it is switched on: the assessor, the recording-aware harness it runs on, the model and the person's pool. */
 export interface JevPorts {
@@ -66,6 +67,8 @@ export interface PrepareBufferPorts {
   readonly storeBuffer: StoreComposerBuffer;
   readonly persistDecision: PersistComposerDecision;
   readonly compose: ComposeEncounter;
+  /** Experience's read of the explanation units the person has met; used when the policy wants unseen explanations read first (v2). */
+  readonly readMetUnitIds?: ReadMetUnitIds;
   readonly hashCatalogWatermarks: (watermarks: readonly string[]) => string;
   readonly newId: () => string;
   readonly now: () => Date;
@@ -212,11 +215,16 @@ async function gather(
   const source = await ports.readExactEncounter(scope, { ...facts.source, capabilities: facts.capabilities });
   if (!source) return skip('source_unavailable');
 
+  const seed = `buffer:${key.sessionId}:${String(key.intentRevision)}:${key.source.offerId}`;
   const candidates = await readVerticalCandidates(ports.readDiscoveryCandidates, scope, {
     source,
     formats: renderableFormats(capabilities.data.documentSchemas),
     capabilities: facts.capabilities,
     stickyFormat: source.kind,
+    seed,
+    ...(ports.readMetUnitIds && wantsUnseenFirst(ports.compose)
+      ? { unseenFirst: await readUnseenFirst(ports.readMetUnitIds, scope) }
+      : {}),
   });
   const relatedAssetIds = await readRelatedAssetIds(ports.readContinuations, scope, source, candidates);
   const query = evidenceQueryFor(candidates, now.toISOString());
@@ -232,7 +240,7 @@ async function gather(
         universeId: scope.authority.universeId,
         privacyEpoch: scope.authority.privacyEpoch,
         evaluatedAt: now.toISOString(),
-        seed: `buffer:${key.sessionId}:${String(key.intentRevision)}:${key.source.offerId}`,
+        seed,
         mode: 'vertical',
         source,
         // A buffer is the next subject in the source's own format, which is what the client asks for.

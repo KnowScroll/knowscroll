@@ -33,6 +33,7 @@ import type {
   ReadComposerBuffer,
   PurgeExpiredComposerBuffer,
   ReadPreparedEvidenceInput,
+  ReadMetUnitIds,
   ReleaseComposerBuffer,
   RequestBufferPreparation,
 } from '../../composer/public.js';
@@ -97,6 +98,8 @@ export interface RoutingHistory {
   readonly established: readonly {
     readonly explanationUnitId: string;
     readonly encountered: boolean;
+    /** When the newest activated exposure of the explanation, in either format, happened; absent when none. */
+    readonly lastEncounteredAt?: string;
     readonly facets: readonly { readonly facetId: string; readonly encountered: boolean }[];
   }[];
   readonly hiddenAssetIds: readonly string[];
@@ -131,6 +134,8 @@ export interface NavigationPorts extends CommandPorts {
   /** The subset (at most 100) the person marked "Not interested" and that has not lapsed (D-055). */
   readonly readNotInterested: (scope: PersonalScopeTx, assetIds: readonly string[]) => Promise<readonly string[]>;
   readonly readDiscoveryCandidates: ReadDiscoveryCandidates;
+  /** The explanation units the person has met (newest first, bounded); read only when the policy wants unseen first. */
+  readonly readMetUnitIds?: ReadMetUnitIds;
   readonly readExactEncounter: ReadExactEncounter;
   readonly readContinuations: ReadContinuations;
   readonly readSeriesTotal: ReadSeriesTotal;

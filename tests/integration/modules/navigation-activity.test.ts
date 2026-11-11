@@ -1229,8 +1229,11 @@ describe('Experience navigation and actual routing activity (real PostgreSQL CI 
     expect(first.recent).toEqual([
       expect.objectContaining({ exposureId: x.exposureId, explanationUnitId: a.unit, facets: [facet] }),
     ]);
+    // The unit the person is on carries when it was last met; the unseen one carries no time.
+    const lastMet = first.established.units[0]?.lastEncounteredAt;
+    expect(Number.isFinite(Date.parse(lastMet ?? ''))).toBe(true);
     expect(first.established.units).toEqual([
-      { explanationUnitId: a.unit, encountered: true, facets: [] },
+      { explanationUnitId: a.unit, encountered: true, ...(lastMet ? { lastEncounteredAt: lastMet } : {}), facets: [] },
       {
         explanationUnitId: query.candidates[1]!.explanationUnitId,
         encountered: false,

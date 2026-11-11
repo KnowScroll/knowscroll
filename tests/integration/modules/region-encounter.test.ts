@@ -944,4 +944,32 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
     expect(await effects(person)).toEqual(before);
     expect((await ready(person, open(target, tail))).offer.assetId).toBe(tail.assetId);
   }, 60000);
+
+  it('orders a place’s bindings with the explanations the person has not met first when asked (policy v2), and leaves none out', async () => {
+    const person = await seedPerson(database.db),
+      mappedFacet = 'earth.seasons.hemispheres';
+    const bound = (
+      await sql<{ asset_id: string; unit: string }>`select b.asset_id,r.explanation_unit_id as unit
+        from content.region_bindings b join content.asset_revisions r on r.asset_id=b.asset_id and r.revision=b.asset_revision
+        where b.topic_id=${topic} and b.facet_id=${mappedFacet} order by b.asset_id`.execute(database.db)
+    ).rows;
+    expect(bound.length).toBeGreaterThan(100);
+    // Everything but the last by asset id has been met; the place's own order would put that one last (and, past 100, out).
+    const unseenFirst = { metUnitIds: bound.slice(0, -1).map((row) => row.unit) };
+    const query = { topicId: topic, facetId: mappedFacet, truthStatus: 'factual' as const, capabilities };
+    const plain = await scope()(person.authority, (sc) => p.readRegionCandidates(sc, query));
+    const ordered = await scope()(person.authority, (sc) => p.readRegionCandidates(sc, { ...query, unseenFirst }));
+    if (plain.kind !== 'entered' || plain.value.kind !== 'read') throw new Error('CI region read failed');
+    if (ordered.kind !== 'entered' || ordered.value.kind !== 'read') throw new Error('CI region read failed');
+    const unseenAsset = bound.at(-1)!.asset_id;
+    expect(plain.value.candidates.map((x) => x.encounter.assetId)).not.toContain(unseenAsset);
+    expect(ordered.value.candidates[0]?.encounter.assetId).toBe(unseenAsset);
+    // Nothing is left out: the same hundred places are read, the unseen one in place of the last met one.
+    expect(ordered.value.candidates).toHaveLength(plain.value.candidates.length);
+    expect(ordered.value.hasMore).toBe(true);
+    // The met units are data, bounded: a list that is not a bounded list of ids is refused before any query runs.
+    await expect(
+      scope()(person.authority, (sc) => p.readRegionCandidates(sc, { ...query, unseenFirst: { metUnitIds: [''] } })),
+    ).rejects.toThrow('UNSEEN_FIRST_INVALID');
+  }, 60000);
 });

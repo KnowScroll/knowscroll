@@ -340,17 +340,28 @@ export const readRoutingHistory: ReadRoutingHistory = async (scope, query) => {
   const established = await sql<{
     explanationUnitId: string;
     encountered: boolean;
+    lastEncounteredAt: string | null;
     facets: readonly { facetId: string; encountered: boolean }[];
-  }>`select c."explanationUnitId",(
-    exists(select 1 from experience.encounter_lineage l where l.universe_id=${u}::uuid and l.privacy_epoch=${e} and l.explanation_unit_id=c."explanationUnitId" and l.activated_at<=${q.evaluatedAt}::timestamptz)
-    or exists(select 1 from experience.recording_segments s where s.universe_id=${u}::uuid and s.privacy_epoch=${e} and s.explanation_unit_id=c."explanationUnitId" and s.first_eligible_activation_at is not null and s.first_eligible_activation_at<=${q.evaluatedAt}::timestamptz)) as encountered,
+  }>`select c."explanationUnitId",m.last_at is not null as encountered,
+    to_char(m.last_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as "lastEncounteredAt",
     coalesce((select jsonb_agg(jsonb_build_object('facetId',f.value,'encountered',
       exists(select 1 from experience.encounter_lineage l where l.universe_id=${u}::uuid and l.privacy_epoch=${e} and l.facets@>array[f.value] and l.activated_at<=${q.evaluatedAt}::timestamptz)
       or exists(select 1 from experience.recording_segments s where s.universe_id=${u}::uuid and s.privacy_epoch=${e} and s.first_eligible_activation_at is not null and s.first_eligible_activation_at<=${q.evaluatedAt}::timestamptz and (s.attribution_payload->'facets')@>jsonb_build_array(f.value))) order by f.value) from jsonb_array_elements_text(c.facets) f),'[]') as facets
-    from jsonb_to_recordset(${JSON.stringify(q.candidates)}::jsonb) c("explanationUnitId" text,facets jsonb)`.execute(
+    from jsonb_to_recordset(${JSON.stringify(q.candidates)}::jsonb) c("explanationUnitId" text,facets jsonb)
+    cross join lateral (select greatest(
+      (select max(l.activated_at) from experience.encounter_lineage l where l.universe_id=${u}::uuid and l.privacy_epoch=${e} and l.explanation_unit_id=c."explanationUnitId" and l.activated_at<=${q.evaluatedAt}::timestamptz),
+      (select max(s.first_eligible_activation_at) from experience.recording_segments s where s.universe_id=${u}::uuid and s.privacy_epoch=${e} and s.explanation_unit_id=c."explanationUnitId" and s.first_eligible_activation_at is not null and s.first_eligible_activation_at<=${q.evaluatedAt}::timestamptz)) as last_at) m`.execute(
     db,
   );
-  return { recent, established: established.rows, hiddenAssetIds: await readHidden(scope, q.candidateAssetIds) };
+  return {
+    recent,
+    // `lastEncounteredAt` is when the newest activated exposure of the unit (either format) happened; absent when none.
+    established: established.rows.map(({ lastEncounteredAt, ...unit }) => ({
+      ...unit,
+      ...(lastEncounteredAt === null ? {} : { lastEncounteredAt: new Date(lastEncounteredAt).toISOString() }),
+    })),
+    hiddenAssetIds: await readHidden(scope, q.candidateAssetIds),
+  };
 };
 export const readContextBase: NavigationPorts['readContextBase'] = async (scope, id) => {
   const { u, e, db } = own(scope);

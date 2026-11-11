@@ -35,7 +35,10 @@ a private store of every decision, and **worker-prepared buffers** with an optio
 | Jev reuse: a person's pool of recent assessments, `composer.jev_assessments`; a call only for candidates without one (D-058) | implemented, CI-tested against real PostgreSQL; run locally with the real model (12 activations: 1 call instead of 12); no live acceptance is asserted by this entry |
 | Jev is a background role: it stops at its share of the daily model budgets and falls back to the deterministic ranking (D-058) | implemented, CI-tested; no live acceptance is asserted by this entry |
 | Policy v1 (`composer-policy.v1`, D-190): Intent 0.35 to 0.30, a recent-topic penalty of 0.05, Format per play level (D-192), exploration per play level; v0 decisions replay byte for byte | implemented, CI-tested (60 frozen v0 hashes); **off unless `KS_COMPOSER_POLICY=v1`** (default `v0`; dev sets `v1`); the numbers were chosen from the replay of dev's stored decisions (D-190) |
-| `composer replay-policy`: stored vertical decisions re-run under v0 and v1, counts only | implemented, CI-tested; run on dev (2026-10-31) over 640 stored decisions, D-190 |
+| `composer replay-policy`: stored vertical decisions re-run under v0, v1 and v2, counts only: topic, series, format, repeats, already-met, tiers and places | implemented, CI-tested; run on dev (2026-10-31) over 640 stored decisions, D-190; the new-content counts are not yet run on dev |
+| Policy v2 (`composer-policy.v2`, D-408, #674): a person always gets new content. An explanation already met is left out of every system-chosen offer while anything unseen is eligible (the unseen are ranked as v1 ranks them, so a subject move still usually leaves the topic); only when nothing unseen exists is the least recently met offered, recorded as a fall back. Exploration draws only the unseen at the policy's fraction, ties fall by a seeded hash | implemented, CI-tested (unit, replay, real PostgreSQL); **off unless `KS_COMPOSER_POLICY=v2`**; not yet run on dev |
+| Retrieval is a rotating sample (D-408): primary before supporting topic roles, never incidental, ordered by a stable random key from a cursor the decision seed picks, text only when the person supplied text | implemented, CI-tested against real PostgreSQL; applies to every policy (retrieval is outside a frozen snapshot) |
+| `composer.prune-decisions`: expired decisions nothing holds are deleted on a schedule, in bounded batches | implemented, CI-tested against real PostgreSQL; offers are not deleted yet, so a decision an offer holds is not reclaimed (see "Private store and lifecycle") |
 | Jev `jev.2` (D-193): kind, play level, minutes, series part n of m and the myth a Scroll corrects; never play | implemented, unit-tested; one real run on dev still to do |
 
 `composeEncounter(snapshot)` takes an already authorized, immutable prepared snapshot. It performs
@@ -46,16 +49,19 @@ A decision/offer/buffer is not an activated encounter and contributes no persona
 
 ## Inputs and experimental policy
 
-A policy is versioned data (`domain/policy.ts`): `composer-policy.v0` and `composer-policy.v1` share maximum
+A policy is versioned data (`domain/policy.ts`): `composer-policy.v0`, `v1` and `v2` share maximum
 retrieval 100, chosen plus two buffers (maximum 3), MMR lambda 0.2, vertical exploration 0.10, and last 20 actual
-activated encounters within 24 hours of explicit `evaluatedAt`. These are code-selected experimental defaults, not
+activated encounters within 24 hours of explicit `evaluatedAt`. v2 keeps every number of v1; it changes rules (below),
+and three fields of the policy object name which rule a policy uses: `explorationDraw`, `tieBreak` and `encountered`. These are code-selected experimental defaults, not
 calibrated learned parameters. A decision names its policy and replays under exactly that policy
 (`policyOf(decision.policyVersion)`), which `persistComposerDecision` checks byte for byte, so an old decision never
-changes with a newer policy. Which policy new decisions are made under is configuration, `KS_COMPOSER_POLICY` (`v0` or
-`v1`, default `v0`, read by the API and the worker): v1's numbers were chosen from the dev replay (D-190), and a world uses v1 only when its configuration says so. A stored
-decision replays under its own policy whatever the setting, and the replay command always runs both. A change to v1's
-numbers after v1 decisions are stored needs `composer-policy.v2` and a migration (D-190).
-Seed and all inputs/watermarks are saved; ties use immutable asset/revision lexical order.
+changes with a newer policy. Which policy new decisions are made under is configuration, `KS_COMPOSER_POLICY` (`v0`, `v1`
+or `v2`, default `v0`, read by the API and the worker): v1's numbers were chosen from the dev replay (D-190), and a world
+uses v1 or v2 only when its configuration says so. A stored decision replays under its own policy whatever the setting, and
+the replay command always runs every policy. A change to a stored policy's numbers or rules needs a new label and a
+migration that widens the pin (v1 needed 0081, v2 needs 0108).
+Seed and all inputs/watermarks are saved; ties use immutable asset/revision lexical order under v0 and v1, and under v2 a
+hash of the seed and the asset id (see "Policy v2").
 
 Eligibility precedes scoring: admission/access/renderability, language, explicit format, exact
 revision, hidden asset, required topics, mode and admitted source/link lineage. `intent.topicIds`
@@ -108,7 +114,8 @@ below assessed ones by itself. Similarity is same-explanation 1, otherwise mean 
 missing overlap inputs are neutral 0.5. MMR repeatedly takes score minus 0.2 times maximum similarity
 to the chosen buffer and deduplicates explanation identity, including format twins.
 
-Vertical first-slot choice is a seeded mixture: ranked winner with mass 0.9 plus uniform eligible
+Vertical first-slot choice is a seeded mixture (policy v2 draws it at `policy.explorationFraction` and from the unseen
+candidates only, see "Policy v2"): ranked winner with mass 0.9 plus uniform eligible
 exploration pool with mass 0.1 (v1: a member is drawn uniformly and, only when it is a Scroll, replaced by a draw of a
 play level present among the pool's Scrolls and then of a Scroll of it, so no level is crowded out while the Reel/Scroll
 share of the pool is unchanged; the logged probability is epsilon times that share). FNV-1a/xorshift32 seed policy and rejection-sampled bounded integer
@@ -122,7 +129,7 @@ These are randomized-policy propensities, not response/confidence probabilities.
 
 | Table | Purpose / query | Growth / bound | Retention / erasure |
 |---|---|---|---|
-| `composer.decisions` (`0017`) | Immutable command/session binding, seed, complete bounded input snapshot, scope/epoch, feature/exclusion/score evaluation, selected MMR order/penalties, exploration branch/pool/propensity, versions/fallback/outcome and canonical SHA256 replay hash. Lookup by ID or unique own epoch+command. Own scope/time index supports operator retrieval and expiry index supports pruning. | One per committed decision, JSON<=256KiB; <=100 candidates, <=3 selections. No raw observations, prompts, model output or credentials. | Operator reads refuse logical expiry after 30 days. `pruneComposerDecisions(scope,1..1000)` physically deletes expired unreferenced rows under the caller's existing root lock; **maintenance wiring is pending**, so physical 30-day deletion is not claimed. Full erasure deletes every decision for the universe across epochs. Shared content survives. |
+| `composer.decisions` (`0017`) | Immutable command/session binding, seed, complete bounded input snapshot, scope/epoch, feature/exclusion/score evaluation, selected MMR order/penalties, exploration branch/pool/propensity, versions/fallback/outcome and canonical SHA256 replay hash. Lookup by ID or unique own epoch+command. Own scope/time index supports operator retrieval; the per-universe expiry index and, since 0108, `(expires_at, id)` support pruning. | One per committed decision, JSON<=256KiB; <=100 candidates, <=3 selections. No raw observations, prompts, model output or credentials. | Operator reads refuse logical expiry after 30 days. `pruneComposerDecisions(scope,1..1000)` physically deletes expired unreferenced rows under the caller's existing root lock. The scheduled `composer.prune-decisions` job calls it (below); a decision an offer holds is skipped, and offers are not deleted yet, so physical 30-day deletion is not claimed for those. Full erasure deletes every decision for the universe across epochs. Shared content survives. |
 
 `persistComposerDecision` requires the existing `PersonalScopeTx`, validates scope/epoch and binding,
 recomputes the pure output, and hashes canonical binding+decision bytes. Identical replay is a no-op;
@@ -140,8 +147,38 @@ only. Source/type generation/static checks do not prove a connected runtime jour
 Navigation 18 adds an owned decision foreign key from retained offers. Bounded pruning skips decisions
 referenced by retained offers in that exact scope/epoch. Their private operator read still refuses
 logical expiry after 30 days; physical deletion waits for those references to be removed. No physical
-30-day guarantee or maintenance scheduler is claimed. Full AccountScope erasure removes offers before
-decisions and remains complete.
+30-day guarantee is claimed. Full AccountScope erasure removes offers before decisions and remains complete.
+
+### Scheduled pruning (`composer.prune-decisions`)
+
+Status: implemented, CI-tested against real PostgreSQL; not yet runtime-verified on dev. Related: #674.
+
+Every thirty minutes (cron `7,37 * * * *`, payload `{ v: 1 }`, names no person) the worker looks for the universes that have a
+decision which expired within the last seven days and that no offer and no live buffer holds. It is one range scan of
+`composer_decisions_expired_idx` (0108), oldest first, probing `offers_decision_idx` (0108) and the one buffer a universe may
+have, so a held decision is passed without being read. For each of at most 25 universes it then enters the personal scope as the
+system actor `composer.prune-decisions` (the account, epoch and root lock are rechecked under the lock) and calls
+`pruneComposerDecisions` with a batch of 500, which also deletes the universe's expired buffer and Jev pool first. A universe
+that is gone, suspended or at a new epoch is refused and skipped; a busy root or a transient failure counts as `failed`,
+leaves that universe for the next pass and does not stop the others. No model, network or provider is involved, and a second
+pass finds nothing left. Logs `composer.decisions_pruned` (rows deleted; outcome `partial` when a universe was left) only when
+something was deleted or left.
+
+Limits. The pass looks only at decisions that expired in the last seven days, so a decision still there after that is held by
+an offer (or was missed for a week) and is left for erasure; this keeps a held decision from holding the head of the scan.
+Offers are never deleted yet (`experience.offers` has no retention job), and each offer holds its decision, so decisions of
+navigations that offered something are not reclaimed until Experience gives offers a retention. What this job reclaims are the
+decisions nothing references: an exhausted navigation, and a buffer's decision once its buffer is gone. Experience owns that
+follow-up.
+
+**Backfill.** `node dist/operator.js composer prune-backfill [--max-universes <1-5000>]` is the one-off pass with no lookback, so the
+old unheld decisions of universes that are never active again are reclaimed. It scans every expired decision once, oldest first,
+in pages that continue past the last key read (so held decisions, which are never returned, are not read again), and prunes each
+universe it finds in batches of 500 (at most 200 batches a universe) under that universe's own personal scope. Every guard of the
+scheduled pass holds: a decision an offer or a live buffer holds is never read or deleted, and a refused or busy universe is
+skipped. It stops after `--max-universes` (default 1000) and prints `complete: false`, so it can be run again. Prints counts only.
+A decision at a privacy epoch the universe has left is refused each time (erasure removes it) and shows as a universe with nothing
+deleted.
 
 
 ## Reading Personal Context
@@ -170,7 +207,8 @@ A vertical move (Explore's "Next subject") excludes every candidate whose explan
 the person is on, in either format (exclusion `current_explanation`). This is hard eligibility, not a
 penalty: the just-activated encounter may not have reached Evidence yet, and the person must never be
 offered what is already on screen. With nothing else to offer the move is exhausted
-(`no_eligible_content`), never a repeat. Series, related, variant and return moves are unchanged.
+(`no_eligible_content`), never a repeat. Series, related, variant and return moves are unchanged. Under policy v2 every
+explanation the person has already met is left out too, not only the one on screen (below).
 
 ## A subject move is a new topic in the same format
 
@@ -193,13 +231,108 @@ make a vertical move say the second.
   (`readRelatedAssetIds`: the source, its format twins and every other part of its series among the candidates).
   Those assets and their format twins are excluded unless that would leave nothing eligible, when the rule steps
   aside and the decision records `relatedTarget: { outcome: 'fell_back', matched }`. It runs before sticky format.
-- **Retrieval.** `readVerticalCandidates` reads the person's format first (up to 100) and the other format fills
-  the rest of the cap.
+- **Retrieval.** `readVerticalCandidates` reads the person's format first (up to 100 less `OTHER_FORMAT_RESERVE`, 20) and the
+  other format fills the rest of the cap, so some candidates of the other format are always read, even in a library with
+  more than 100 in the person's format (policy v2 needs something to give stickiness way to). It passes the decision's seed to
+  retrieval, which rotates each lane by it (see the Content README, "Discovery candidates and continuity").
 - **Buffers.** The worker passes the source's own format, series and related assets, so a buffer is the next topic in the
   source's format. Experience serves it only to a move that names that format.
 
 These fields are optional inputs, so they did not move the label (policy v1 moved it for its own reasons, D-190) and every
 stored decision replays unchanged. A move inside a region (Experience) takes none of the rules.
+
+## Policy v2: a person always gets new content (D-408)
+
+Status: implemented, CI-tested (unit, replay, real PostgreSQL); **off unless `KS_COMPOSER_POLICY=v2`**; not yet run on dev.
+Related: #674, owner decision 2026-11-11.
+
+An explanation the person has already met comes back only as a last resort, when nothing unseen exists in either format. A
+Reel and its Scroll twin are one explanation (the same `explanationUnitId`). "Met" is the notion `evidence.established.units[]
+.encountered` already carries, verified in `readRoutingHistory`: an activated exposure of that unit in either format (an
+encounter lineage row or a recording segment with a first eligible activation, at or before `evaluatedAt`), or an encounter
+in the recent window. History that was not read says nothing, so a candidate without it counts as unseen.
+
+**Which moves.** Only a system-chosen move is asked: a vertical move without an exact target (the next subject, and the next
+one inside a region). The person's own moves are never repeats and are never asked: resuming, a series part and the related
+move (horizontal), the other format of what they are on (variant), a return (an exact target), a saved item or shared link
+(an exact target), and a region opened on one encounter (`exactTarget`). Each is a test
+(`application/compose-v2.test.ts`, "what the person asks for is not a repeat"; `tests/integration/modules/composer-vertical-moves.test.ts`).
+
+**Eligibility.** After the usual exclusions (admission, language, hidden, `current_explanation`, `same_series` and the
+rest), `already_encountered` leaves out every met candidate while any unseen candidate is eligible. It runs before the related
+and format rules, so those choose only among what is new: an unseen related item beats a met unrelated one, and a Reel watcher
+who has met every Reel gets an unseen Scroll (format stickiness gives way only when no unseen candidate of the person's format
+exists, recorded as `stickyFormat: fell_back`). When nothing at all is eligible the outcome is `exhausted`, as before.
+
+**Two tiers.**
+
+1. `unseen`: every eligible candidate the person has not met, in either format. They are ranked exactly as v1 ranks them (the
+   same features, weights, MMR and diversity), so topic movement stays what D-190 measured: a subject move usually leaves the
+   topic, and an unseen candidate in the source's topic gets no preference beyond its Intent term. Nothing about the source's
+   topic or system affects which offers are chosen.
+2. `last_resort`: only when no unseen candidate is eligible in either format. The least recently met first
+   (`lastEncounteredAt`, the newest activated exposure of the unit in either format; a unit with no recorded time counts as
+   the oldest), then by score. The decision says `outcome: fell_back`.
+
+The decision records `unseenLadder`: `outcome` (`unseen`, `fell_back` or `none`), and, for analytics only, where each offer sits
+relative to the source (`place` of the first offer, `offerPlaces`, and `eligible`, the eligible candidates by place):
+`source_topic` (about a non-incidental topic of the source), `same_system` (about another topic of a catalogue system the
+source's topics belong to) or `elsewhere`. The same-system topics are named once at assembly (`intent.systemTopicIds`, from
+`systemOfTopic`) and frozen in the snapshot, so a later catalogue never changes a stored decision. The place labels are read by
+nothing in selection (a test drops `systemTopicIds` and expects identical offers); they exist so replay and dev can count how
+often a subject move stays in the topic under each policy.
+
+**Exploration.** The pool is the unseen eligible candidates, so it is empty in the last resort and never holds a repeat. The
+branch is drawn at `policy.explorationFraction` (`explorationDraw: 'by-fraction'`); v0 and v1 keep the literal one in ten they
+were stored with (`'one-in-ten'`). The logged probability uses the same fraction. On the exploration branch the first offer is
+a uniform pick among the unseen; the offers after it are chosen as usual by MMR.
+
+**Ties.** Equal scores are ordered by a hash of the decision seed and the asset id (`tieBreak: 'seeded-hash'`,
+`tieHash`), so cold-start ties fall differently for each person and decision and still replay from the stored seed. v0 and v1
+keep the lexical asset/revision order.
+
+**Replay.** v2 is a new label (`composer-policy.v2`) and the pin was widened by migration 0108, as 0081 did for v1. The inputs
+v2 reads are optional and ignored by v0 and v1: `intent.systemTopicIds` and `established.units[].lastEncounteredAt`. The 60
+frozen v0 hashes and the v1 fixtures are unchanged; a test composes every fixture under v0 and v1 with and without the new
+inputs and expects the same decision apart from the stored input. Retrieval is outside a frozen snapshot, so rebuilding it
+changes what future snapshots hold and never how a stored decision replays.
+
+**Retrieval reads the unseen first.** Retrieval cannot tell which of a large library the person has met, so a random slice of
+100 could hold only what they have met while unseen explanations exist outside it. Under v2 the caller (Experience's navigation,
+and the buffer worker) reads the explanation units the person has met through a public port (`ReadMetUnitIds`, implemented by
+Experience from its own lineage and recording segments: newest first, at most `UNSEEN_FIRST_MAX_UNITS` = 1000 ids, with a
+`truncated` flag when the bound cuts the read) and hands the ids to retrieval as data (`readUnseenFirst`, `unseenFirst: { metUnitIds }`;
+Content orders its own rows by `r.explanation_unit_id <> all($n::text[])` and reads no personal table; see the Content README).
+Every lane is then read twice, the unseen first and then without the list, so the unseen of the source's topic, then the other unseen, come before any met one, and the met ones
+still fill what is left (they are the last resort's material). The source's own unit is always read, so its format twin and its
+series are found. The reserve of other-format candidates is read the same way, so a Reel watcher near the end of the Reels has
+unseen Scrolls to be given. The list is read only when the configured policy wants it (`ComposeEncounter.policy`), so v0
+and v1 retrieve exactly as before. A region's own read (`readRegionCandidates`) takes the same list and only orders the
+place's bindings unseen first; nothing is left out, and an `expected` encounter (a region opened on one encounter) is explicit and
+unchanged.
+
+**The bound.** The met list holds at most 1000 units, newest first. For a person who has met more, the oldest met units are not
+named, so retrieval may order them as unseen (they can take a place in the first band that an unseen explanation would have had).
+That only changes which candidates retrieval reads first: the Composer's own `encountered` exclusion reads the real history for the
+candidates in the snapshot (exact per-unit probes) and filters the final pick, so a met explanation is still not offered while an
+unseen one is eligible (D-408).
+
+**Serve time recheck.** A ranking that promised unseen explanations (`unseenLadder.outcome: 'unseen'`, read from the decision for a
+stored buffer) is rechecked in the committing navigation transaction, under the personal lock where the history is authoritative:
+Experience reads the prepared history for the at most three selected units and, if any has been met since the ranking (another
+device or tab inside a buffer's ten minutes, a slow Jev call, an activation between the two navigation transactions), the offers
+are refused as drift. A buffer is then discarded with its decision and the move is ranked again once. A last-resort ranking is not
+rechecked, and v0 and v1 are not asked.
+
+**A plan lifts what it lifts under v1.** The best Intent a plan opportunity must tie with is taken over the candidates v1 would
+have called eligible (the met ones included), so the ranking among the unseen equals v1's with an active plan.
+
+**Truncation keeps the reserve.** When a snapshot exceeds its byte budget, the first `OTHER_FORMAT_RESERVE` candidates of the
+format the person is not in are dropped last, so format stickiness still has unseen candidates to give way to.
+
+Not here. Choosing a topic explicitly, long-term interest selecting candidates, and a content demand when the unseen run out
+belong to the later slices of #674. Retrieval with a condition probes the person's history once per row it reads; near the end of
+a very large library that is more rows than a plain slice, each an index lookup, and slice 4.2's lanes replace it.
 
 ## Prepared buffers and Jev
 
@@ -319,7 +452,7 @@ logs the same.
 | Item | Detail |
 |---|---|
 | Tables | `composer.decisions` (0017), `composer.buffers` (0047), `composer.jev_assessments` (0066: one row per person, at most 60 entries, newest first) |
-| Job | `composer.prepare-buffer` (concurrency 2, expiry 700 s, 2 retries, no dead letter, payload IDs only) |
+| Job | `composer.prepare-buffer` (concurrency 2, expiry 700 s, 2 retries, no dead letter, payload IDs only); `composer.prune-decisions` (cron `7,37 * * * *`, concurrency 1, expiry 600 s, 1 retry, no dead letter, payload `{ v: 1 }`) |
 | Notices | none; the next navigation reads the durable row |
 | Lock order | personal root first in both worker transactions; the model call is between them |
 | Erasure | Clear and full erasure delete `composer.buffers` before `composer.decisions`, `composer.jev_assessments` (it references nothing), and the queue payloads (`pgboss/composer.prepare-buffer`) |
@@ -354,27 +487,40 @@ the value before and after. When every same-topic candidate already has Intent 1
 the plan changes nothing among them. Capability state: implemented, CI-verified, run locally against the
 real model; not yet runtime-verified on dev.
 
-## Policy replay (D-190)
+## Policy replay (D-190, D-408)
 
 Status: implemented, CI-tested; no live acceptance is asserted by this entry.
 
 `node dist/operator.js composer replay-policy --since <ISO date> [--limit <1-20000>] [--intent-weight <0-1>]
 [--recent-topic-penalty <0-1>] [--sweep]` (worker release, server shell) re-runs the retained vertical decisions
-recorded since a date, newest first (default 2000), under `composer-policy.v0` and v1 on the same inputs, to choose
-the numbers of a policy from real decisions. Read-only: no model, no network, no write. It reads the decisions of
-every account in memory and prints one JSON line of **counts and shares only** (no person, universe, session, asset,
-title or text):
+recorded since a date, newest first (default 2000), under `composer-policy.v0`, v1 and v2 on the same inputs, to choose
+the numbers of a policy from real decisions and to shadow-compare a new one before a world switches to it. Read-only: no
+model, no network, no write. It reads the decisions of every account in memory and prints one JSON line of **counts and
+shares only** (no person, universe, session, asset, title or text):
 
 - `stored (as served)`, then one row per policy: the vertical decisions replayed, those with nothing to offer, and for
   the first offer (the one a pull-up lands on) how many stay on the source's topic, are another part of its series, and
   move to another Jev subject (language and primary topic; each is a possible Jev call under D-058). The same three
   counts for every offer, and how many decisions kept the person's format or fell back from it (`stickyFormat`).
+- `newContent` per row (D-408): the first offers (`firstOffers`), how many the person had already met (`alreadyMetFirstOffer`,
+  and `alreadyMetAllOffers` over every offer), how many repeat another first offer to the same person in the window
+  (`repeatedFirstOffer`, every one after the first; each decision is replayed on its own, so a variant's repeats are what its
+  choices would repeat if every decision were served), `tiers` (the first offers that were `unseen` and those that were a
+  `last_resort`, a met explanation) and `places` (the first offers by where they sit relative to the source: `source_topic`,
+  `same_system`, `elsewhere`; analytics, and `source_topic` equals `firstOffer.sameTopic`). Tiers and places are counted for every
+  policy by the same definitions, so v0 and v1 show how often they would have given a repeat as `last_resort`. `shares` holds
+  `unseenFirstOffer`, `alreadyMetFirstOffer`, `alreadyMetAllOffers` and `repeatFirstOffer`. Beside them, `sameTopicFirstOffer`
+  shows what v2 does to topic movement: with nothing met it is the v1 figure.
+- `replayedWithHistory`: how many replayed inputs read the person's retained history. An input without it counts everything as
+  unseen, so read the met counts only against this number. Inputs stored before v2 carry no `lastEncounteredAt`, so a
+  replayed last resort orders those by score.
 - `skipped`: decisions that are not vertical, whose source is not among their candidates, or that the current schema
   cannot read. `storedPolicies` counts the labels found.
 - `--intent-weight` and `--recent-topic-penalty` replay v1 with other numbers; `--sweep` replays v1 over a grid of
-  Intent weights {0.35, 0.25, 0.15, 0.10, 0.05} and penalties {0, 0.1, 0.25, 0.4}.
+  Intent weights {0.35, 0.25, 0.15, 0.10, 0.05} and penalties {0, 0.1, 0.25, 0.4}. With either, the report compares v0 with
+  the weighted v1 variants and leaves v2 out.
 
 A stored input is first named as today's assembly would name it (`normaliseForReplay`): the series and format the
-person was in, and the topics of each recent encounter, taken from candidates the input already holds. Old inputs lack
-them, and without them the report would mix the rules of D-131 and D-132 with the weights. The decision table is
-unchanged; the command adds no table.
+person was in, the topics of each recent encounter and the topics of the source's system, taken from candidates the input
+already holds. Old inputs lack them, and without them the report would mix the rules of D-131 and D-132 with the weights. The
+decision table is unchanged; the command adds no table.

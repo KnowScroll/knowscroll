@@ -33,8 +33,15 @@ export interface EncounterQuery {
   readonly formats: readonly ('reel' | 'scroll')[];
   readonly capabilities: unknown;
   readonly topicIds?: readonly string[];
+  /** What the person typed, if they did. Only then does retrieval search text; it never searches a source's summary. */
   readonly text?: string;
   readonly limit?: number;
+  /**
+   * A seed (a decision's seed) that picks where in the random order of each lane retrieval starts, so two decisions, and
+   * two people, see different slices of a large library. The same seed reads the same slice. Absent: the order starts at its
+   * beginning, which is still a stable random order and never the order of asset ids.
+   */
+  readonly rotation?: string;
 }
 export interface ContinuityLink {
   readonly linkId: string;

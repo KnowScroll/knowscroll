@@ -11,6 +11,7 @@ import { transactionOf } from '../../../infrastructure/postgres/personal-scope.j
 import {
   DISCOVERY_MAX_TOPICS,
   validateTopics,
+  validateUnseenFirst,
   type EncounterSnapshot,
   type ReadDiscoveryCandidates,
   type ReadExactEncounter,
@@ -114,6 +115,99 @@ async function rows(db: Kysely<Database>, filter: ReturnType<typeof sql>, limit:
  * Explore: it belongs to the thread it was made for (D-049). Exact reads still find it.
  */
 const notOrdered = sql`not exists (select 1 from content.made_to_order_scrolls o where o.asset_id=r.asset_id)`;
+/**
+ * Where in the random order (`serve_rand`, in [0, 1)) a lane starts: a point derived from the decision seed, so it varies per
+ * decision and is the same for the same seed. Without a seed it is the beginning.
+ */
+export function rotationCursor(rotation: string | undefined): number {
+  if (rotation === undefined || rotation === '') return 0;
+  return createHash('sha256').update(rotation).digest().readUInt32BE(0) / 4294967296;
+}
+
+/**
+ * A lane's distance from the cursor, going forward and wrapping round at 1: the sort key (`rot`) that orders a lane. A revision at
+ * the cursor is first, the one just before it last.
+ */
+const distance = (key: ReturnType<typeof sql>, cursor: number) =>
+  sql<number>`(case when ${key}>=${cursor}::float8 then ${key}-${cursor}::float8 else ${key}-${cursor}::float8+1 end)`;
+
+/**
+ * The rows of one retrieval's lanes. `band` 0 is the person's unseen explanations (only with `unseenFirst`: the rows whose
+ * unit is not among the met units) and 1 everything else, so with a list the unseen come first and the rest fill what is left.
+ * The met units are one bound array parameter. `<> all` is measured faster than an `unnest` anti-join here: the lane's index
+ * scan stops at its limit, so it probes only the rows it reads against the array.
+ */
+function laneRows(
+  q: Parameters<ReadDiscoveryCandidates>[1],
+  cursor: number,
+  band: 0 | 1,
+  metUnitIds: readonly string[] | undefined,
+) {
+  const topicIds = q.topicIds ?? [];
+  const text = (q.text ?? '').trim();
+  const current = sql`join content.assets a on a.id=r.asset_id and a.revision=r.revision`;
+  const only = metUnitIds === undefined ? sql`` : sql`and r.explanation_unit_id <> all(${metUnitIds}::text[])`;
+  const eligible = sql`a.status='admitted' and ${notOrdered} and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[]) ${only}`;
+  const topicLane = topicIds.length
+    ? sql`union all
+    (select asset_id,${sql.lit(band)} as band,0 as priority,min(role_rank) as role_rank,min(rot) as rot from (
+      select r.asset_id,(t.role='supporting')::int as role_rank,${distance(sql`d.serve_rand`, cursor)} as rot
+      from content.encounter_topics t join content.asset_revisions r on r.asset_id=t.asset_id and r.revision=t.asset_revision ${current}
+      join content.discovery_revisions d on d.asset_id=r.asset_id and d.asset_revision=r.revision
+      where ${eligible} and t.role in ('primary','supporting') and t.topic_id=any(${topicIds}::text[])) in_topics
+     group by asset_id order by min(role_rank),min(rot) limit 40)`
+    : sql``;
+  const textLane = text
+    ? sql`union all
+    (select r.asset_id,${sql.lit(band)} as band,1 as priority,0 as role_rank,${distance(sql`d.serve_rand`, cursor)} as rot
+      from content.discovery_revisions d join content.asset_revisions r on r.asset_id=d.asset_id and r.revision=d.asset_revision ${current}
+      where ${eligible} and d.search_text@@plainto_tsquery('simple',${text}) order by rot limit 30)`
+    : sql``;
+  // Two index range scans, from the cursor to the end and from the start up to the cursor, so the lane stays cheap however
+  // large the library is: neither walks more than the lane's share (with a condition, more rows are probed, each by an index).
+  const generalLane = sql`
+    (select asset_id,${sql.lit(band)} as band,2 as priority,0 as role_rank,rot from (
+      (select r.asset_id,${distance(sql`d.serve_rand`, cursor)} as rot
+        from content.discovery_revisions d join content.asset_revisions r on r.asset_id=d.asset_id and r.revision=d.asset_revision ${current}
+        where d.serve_rand>=${cursor}::float8 and ${eligible} order by d.serve_rand limit 100)
+      union all
+      (select r.asset_id,${distance(sql`d.serve_rand`, cursor)} as rot
+        from content.discovery_revisions d join content.asset_revisions r on r.asset_id=d.asset_id and r.revision=d.asset_revision ${current}
+        where d.serve_rand<${cursor}::float8 and ${eligible} order by d.serve_rand limit 100)) wrapped
+      order by rot limit 100)`;
+  return sql`${generalLane} ${topicLane} ${textLane}`;
+}
+
+/**
+ * The asset ids of one retrieval, in the order the candidates are read: the source's topics (primary before supporting,
+ * never incidental), then text matches when the person typed text, then a rotating sample of the library. Each lane is
+ * ordered by the stable random key of its revisions from the cursor, so no lane is the lowest asset ids. With `unseenFirst`
+ * every lane is read twice, the unseen first and then without the list, and the unseen of every lane come before any other
+ * explanation; `alwaysUnits` (the source's own unit, so its format twin is found) come before all of them.
+ */
+async function laneAssetIds(
+  db: Kysely<Database>,
+  q: Parameters<ReadDiscoveryCandidates>[1],
+  metUnitIds: readonly string[] | undefined,
+): Promise<string[]> {
+  const cursor = rotationCursor(q.rotation);
+  const always = q.alwaysUnits ?? [];
+  const alwaysLane = always.length
+    ? sql`union all
+    (select r.asset_id,-1 as band,0 as priority,0 as role_rank,0::float8 as rot
+      from content.asset_revisions r join content.assets a on a.id=r.asset_id and a.revision=r.revision
+      where a.status='admitted' and ${notOrdered} and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[])
+        and r.explanation_unit_id=any(${always}::text[]) limit 4)`
+    : sql``;
+  const unseenBand = metUnitIds === undefined ? sql`` : sql`union all ${laneRows(q, cursor, 0, metUnitIds)}`;
+  const ids = await sql<{ asset_id: string }>`select asset_id from (
+    ${laneRows(q, cursor, 1, undefined)}
+    ${unseenBand}
+    ${alwaysLane}
+  ) lanes group by asset_id order by min(band*100+priority*2+role_rank),min(rot),asset_id limit 100`.execute(db);
+  return ids.rows.map((row) => row.asset_id);
+}
+
 export const readDiscoveryCandidates: ReadDiscoveryCandidates = async (scope, q) => {
   if (
     q.languages.length < 1 ||
@@ -122,34 +216,25 @@ export const readDiscoveryCandidates: ReadDiscoveryCandidates = async (scope, q)
     q.formats.length > 2 ||
     (q.topicIds?.length ?? 0) > DISCOVERY_MAX_TOPICS ||
     (q.text?.length ?? 0) > 2000 ||
+    (q.rotation?.length ?? 0) > 160 ||
+    (q.alwaysUnits?.length ?? 0) > 4 ||
     !Number.isSafeInteger(q.limit ?? 100) ||
     (q.limit ?? 100) < 1 ||
     (q.limit ?? 100) > 100
   )
     throw new Error('DISCOVERY_QUERY_INVALID');
+  const metUnitIds = q.unseenFirst === undefined ? undefined : validateUnseenFirst(q.unseenFirst);
   const db = transactionOf(scope);
-  const ids = await sql<{ asset_id: string }>`select asset_id from (
-    (select r.asset_id,0 as priority from content.encounter_topics t join content.asset_revisions r on r.asset_id=t.asset_id and r.revision=t.asset_revision join content.assets a on a.id=r.asset_id and a.revision=r.revision
-      where a.status='admitted' and ${notOrdered} and t.topic_id=any(${q.topicIds ?? []}::text[]) and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[]) order by r.asset_id limit 40)
-    union all
-    (select r.asset_id,1 as priority from content.discovery_revisions d join content.asset_revisions r on r.asset_id=d.asset_id and r.revision=d.asset_revision join content.assets a on a.id=r.asset_id and a.revision=r.revision
-      where a.status='admitted' and ${notOrdered} and d.search_text@@plainto_tsquery('simple',${q.text ?? ''}) and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[]) order by r.asset_id limit 30)
-    union all
-    (select r.asset_id,2 as priority from content.asset_revisions r join content.assets a on a.id=r.asset_id and a.revision=r.revision where a.status='admitted' and ${notOrdered} and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[]) order by r.asset_id limit 100)
-  ) lanes group by asset_id order by min(priority),asset_id limit 100`.execute(db);
-  if (!ids.rows.length) return [];
-  const candidates = await rows(
-    db,
-    sql`r.revision=a.revision and r.asset_id=any(${ids.rows.map((r) => r.asset_id)}::uuid[])`,
-    100,
-  );
+  const assetIds = await laneAssetIds(db, q, metUnitIds);
+  if (!assetIds.length) return [];
+  const candidates = await rows(db, sql`r.revision=a.revision and r.asset_id=any(${assetIds}::uuid[])`, 100);
   const unsupportedV2 = candidates
     .filter((row) => row.kind === 'scroll' && isScrollDocumentV2(row.document) && !canRender(row, q.capabilities))
     .map((row) => row.asset_id);
   const fallbacks = await olderV1Rows(db, unsupportedV2);
   const byAsset = new Map(candidates.map((row) => [row.asset_id, row]));
-  return ids.rows
-    .flatMap(({ asset_id }) => {
+  return assetIds
+    .flatMap((asset_id) => {
       const row = byAsset.get(asset_id);
       if (row === undefined) return [];
       if (canRender(row, q.capabilities)) return [row];

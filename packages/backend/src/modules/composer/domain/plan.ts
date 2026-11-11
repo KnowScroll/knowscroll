@@ -77,17 +77,21 @@ function bestMatch(
  * an active opportunity. Nobody else changes: a candidate below the best is never lifted and none is
  * scaled down, so an old plan cannot outrank a candidate that matches the current intent better.
  * Returns an entry only for a candidate whose features changed, with the influence to record.
+ *
+ * `reference` are the candidates the best value is also taken over, besides `eligible`: under policy v2 the met candidates
+ * are left out of `eligible`, but a plan must lift exactly what it lifts under v1, where they still count as the best match.
  */
 export function planLifts(
   snapshot: ComposerSnapshot,
   eligible: readonly PlanCandidate[],
+  reference: readonly PlanCandidate[] = [],
 ): ReadonlyMap<string, PlanLift> {
   const lifts = new Map<string, PlanLift>();
   const feature = planFeature(snapshot.mode);
   const plan = snapshot.evidence?.plan;
   const active = activeOpportunities(snapshot);
   if (!plan || !feature || active.length === 0 || eligible.length === 0) return lifts;
-  const best = Math.max(...eligible.map(({ base }) => base[feature]));
+  const best = Math.max(...[...eligible, ...reference].map(({ base }) => base[feature]));
   for (const { candidate, base } of eligible) {
     const before = base[feature];
     if (before < best - PLAN_TIE_EPSILON) continue;

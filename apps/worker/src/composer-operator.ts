@@ -1,6 +1,6 @@
 import { ConfigurationError, readWorkerOperatorConfig } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
-import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { createDatabase, makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
   COMPOSER_POLICY_V1,
   DEFAULT_VARIANTS,
@@ -8,7 +8,7 @@ import {
   withVerticalWeights,
   type ReplayVariant,
 } from '@knowscroll/backend/modules/composer';
-import { readRetainedDecisions } from '@knowscroll/backend/modules/composer/nest-providers';
+import { composerPruneBackfill, readRetainedDecisions } from '@knowscroll/backend/modules/composer/nest-providers';
 
 type Print = (result: Record<string, unknown>) => void;
 
@@ -115,6 +115,55 @@ export async function replayPolicyCommand(
   } catch (error) {
     if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
     else logEvent('process.crashed', { reasonCode: 'composer_replay_policy_failed', error });
+    return 1;
+  }
+}
+
+const PRUNE_BACKFILL_DEFAULT_UNIVERSES = 1000;
+const PRUNE_BACKFILL_MAX_UNIVERSES = 5000;
+const PRUNE_BACKFILL_LOCK_TIMEOUT_MS = 5000;
+
+export interface PruneBackfillOptions {
+  readonly maxUniverses: string | undefined;
+}
+
+/**
+ * `composer prune-backfill [--max-universes <1-5000>]` (#674): the one-off pass behind the scheduled `composer.prune-decisions`.
+ * The scheduled pass looks back seven days only, so the old, unheld, expired decisions of universes that are never active again
+ * stay until this runs. It has no lookback, scans every expired decision once and prunes each universe it finds in bounded
+ * batches under that universe's own personal scope (the account, epoch and root lock rechecked, as the job does), and it never
+ * reads or deletes a decision an offer or a live buffer holds. It stops after `--max-universes` (default 1000) and says whether
+ * the scan finished, so it can simply be run again. Prints counts only: no person, universe, session or decision. Deletes rows
+ * and nothing else; no model, no network. Exit 0 done, 2 bad usage, 1 failure.
+ */
+export async function pruneBackfillCommand(
+  options: PruneBackfillOptions,
+  print: Print,
+  logEvent: LogEvent,
+): Promise<number> {
+  const maxUniverses =
+    options.maxUniverses === undefined ? PRUNE_BACKFILL_DEFAULT_UNIVERSES : Number(options.maxUniverses);
+  if (!Number.isInteger(maxUniverses) || maxUniverses < 1 || maxUniverses > PRUNE_BACKFILL_MAX_UNIVERSES) {
+    print({ result: 'usage', usage: 'usage: operator.js composer prune-backfill [--max-universes <1-5000>]' });
+    return 2;
+  }
+  try {
+    const config = readWorkerOperatorConfig(process.env);
+    const database = createDatabase<Database>(config.database, {
+      onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
+    });
+    try {
+      const withPersonalScope = makeWithPersonalScope(database.db, { lockTimeoutMs: PRUNE_BACKFILL_LOCK_TIMEOUT_MS });
+      const result = await composerPruneBackfill(database.db, withPersonalScope)({ maxUniverses });
+      logEvent('operator.read', { route: '/cli/composer/prune-backfill', outcome: 'done', count: result.deleted });
+      print({ command: 'composer prune-backfill', maxUniverses, ...result });
+      return 0;
+    } finally {
+      await database.close();
+    }
+  } catch (error) {
+    if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
+    else logEvent('process.crashed', { reasonCode: 'composer_prune_backfill_failed', error });
     return 1;
   }
 }
