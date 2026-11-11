@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Animated, StyleSheet } from 'react-native';
 import type { SceneProps } from '../scene-parts';
 import type { UniverseView } from '../universe-layout';
-import type { RigFocus } from './camera-rig';
+import { universeZoomMax, type RigFocus } from './camera-rig';
 import { layOutUniverse, looksById, looksOfState } from './space-model';
 import { SpaceOverlay } from './space-overlay';
 import { usePlayerValue } from '../animation/animated';
@@ -62,6 +62,12 @@ export function SpaceStage({
   const frame = state.frame;
   const camera: SpaceCameraSpec = useMemo(() => ({ focus, frame }), [focus, frame]);
 
+  // How far the whole-universe view may zoom depends on how much universe there is to fit (D-417): the session clamps
+  // the person's pinch to the same limit the camera rig applies.
+  const zoomMax = universeZoomMax(space.universeFocus, size.width / Math.max(size.height, 1));
+  useEffect(() => session.setZoomMax(zoomMax), [session, zoomMax]);
+  const onDetail = useDetailReport(session);
+
   const labels = useLabelOpacity(animation);
   const overlay = useCallback(
     ({ anchors, far }: SpaceOverlayInfo) => (
@@ -120,7 +126,45 @@ export function SpaceStage({
       overlay={overlay}
       fallback={(reason) => <Unavailable reason={reason} onUnavailable={onUnavailable} />}
       onChoose={choose}
+      onDetail={onDetail}
     />
+  );
+}
+
+/** The quiet between the drawing's last change of detail and the session hearing of it, in milliseconds. */
+export const DETAIL_REPORT_MS = 150;
+
+/**
+ * Tells the session which systems the drawing shows in full (D-417), the first time at once and after that once the
+ * camera has settled for a moment, so a pan through thousands of systems asks for the planets of the ones it stops at.
+ */
+function useDetailReport(session: SceneProps['session']): (systemIds: readonly string[]) => void {
+  const pending = useRef<{ timer: ReturnType<typeof setTimeout>; ids: readonly string[] } | undefined>(undefined);
+  const first = useRef(true);
+  useEffect(
+    () => () => {
+      if (pending.current !== undefined) clearTimeout(pending.current.timer);
+      pending.current = undefined;
+    },
+    [],
+  );
+  return useCallback(
+    (systemIds: readonly string[]) => {
+      if (first.current) {
+        first.current = false;
+        session.setDetail(systemIds);
+        return;
+      }
+      if (pending.current !== undefined) clearTimeout(pending.current.timer);
+      pending.current = {
+        ids: systemIds,
+        timer: setTimeout(() => {
+          pending.current = undefined;
+          session.setDetail(systemIds);
+        }, DETAIL_REPORT_MS),
+      };
+    },
+    [session],
   );
 }
 

@@ -2227,10 +2227,11 @@ export interface ScenesManifests {
 
 export interface ScenesObjects {
   chunk_id: string;
+  layout: Generated<string>;
   object_id: string;
   payload: Json;
   privacy_epoch: number;
-  slot: number;
+  slot: number | null;
   system_id: string;
   universe_id: string;
 }
@@ -2242,6 +2243,16 @@ export interface ScenesState {
   scene_revision: number;
   universe_id: string;
   world_seed: string;
+}
+
+export interface ScenesSystems {
+  cell: number | null;
+  object_count: number;
+  planet_count: number;
+  privacy_epoch: number;
+  scene_revision: number;
+  system_id: string;
+  universe_id: string;
 }
 
 export interface SocialCommandBindings {
@@ -2775,6 +2786,7 @@ export interface DB {
   "scenes.manifests": ScenesManifests;
   "scenes.objects": ScenesObjects;
   "scenes.state": ScenesState;
+  "scenes.systems": ScenesSystems;
   "social.command_bindings": SocialCommandBindings;
   "social.content_shares": SocialContentShares;
   "social.content_threads": SocialContentThreads;

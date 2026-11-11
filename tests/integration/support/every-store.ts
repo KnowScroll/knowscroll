@@ -454,6 +454,18 @@ export async function everyStoreSeeder(
         })
         .execute();
       await tx
+        .insertInto('scenes.systems')
+        .values({
+          universe_id: person.universeId,
+          privacy_epoch: 1,
+          system_id: sceneObjectId,
+          cell: null,
+          planet_count: 0,
+          object_count: 1,
+          scene_revision: 1,
+        })
+        .execute();
+      await tx
         .insertInto('scenes.looks')
         .values({
           universe_id: person.universeId,

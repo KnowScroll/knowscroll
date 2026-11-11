@@ -74,3 +74,24 @@ void main(){ float rho = .05 + .95 * fract(aRho - time * .016); float a = aArm *
 export const NEBULA_FRAGMENT = /* glsl */ `varying vec3 vC; varying float vA;
 void main(){ float d = length(gl_PointCoord - .5); if (d > .5) discard; float a = smoothstep(.5, .36, d);
   vec3 c = mix(vC, vec3(1.0), smoothstep(.2, 0.0, length(gl_PointCoord - vec2(.38, .36))) * .55); gl_FragColor = vec4(c, a * vA); }`;
+
+/**
+ * The far field (D-417): a system too far to be drawn in full is one glow point, an orange core in the haze of its
+ * family, so a map of thousands of systems is one draw call. `k` is the pixels one world unit spans at distance one,
+ * `worldSize` the width of a point in world units; a hidden point (its system is drawn in full) leaves the clip volume.
+ */
+export const FAR_VERTEX = /* glsl */ `attribute vec3 aInner; attribute vec3 aOuter; attribute float aCalm; attribute float aOn;
+uniform float pr; uniform float k; uniform float worldSize; uniform vec2 fogR;
+varying vec3 vI; varying vec3 vO; varying float vCalm; varying float vFog;
+void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vec4 mv = viewMatrix * w; vI = aInner; vO = aOuter; vCalm = aCalm;
+  vFog = smoothstep(fogR.x, fogR.y, length(cameraPosition - w.xyz));
+  float s = worldSize * k * pr / max(-mv.z, 0.1);
+  gl_PointSize = clamp(s, 2.0 * pr, 72.0 * pr);
+  gl_Position = aOn > 0.5 ? projectionMatrix * mv : vec4(2.0, 2.0, 2.0, 1.0); }`;
+
+export const FAR_FRAGMENT = /* glsl */ `varying vec3 vI; varying vec3 vO; varying float vCalm; varying float vFog;
+void main(){ float d = length(gl_PointCoord - .5) * 2.0; if (d > 1.0) discard;
+  float core = smoothstep(.34, .0, d); float halo = smoothstep(1.0, .08, d);
+  vec3 col = vec3(1.0, .72, .38) * core * 1.15 + mix(vI, vO, smoothstep(.1, .9, d)) * halo * .6;
+  float g = dot(col, vec3(.3, .59, .11)); col = mix(col, vec3(g) * .7, vCalm * .85) * mix(1.0, .6, vCalm);
+  gl_FragColor = vec4(col * (1.0 - vFog * .6), 1.0); }`;

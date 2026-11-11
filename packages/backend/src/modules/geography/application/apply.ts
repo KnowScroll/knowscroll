@@ -25,6 +25,10 @@ function settledScope(claimed: EvaluationScope, fresh: GeographyContext): Evalua
 }
 export function publicPlace(p: Place, universeId: string, objects: readonly Place[]): GeographyObject {
   const parentId = p.parentKey === 'universe' ? universeId : objects.find((o) => o.key === p.parentKey)?.id;
+  return publicPlaceOf(p, parentId);
+}
+/** The public form of a place whose parent's id is already known (a page of the map need not hold the parent). */
+export function publicPlaceOf(p: Place, parentId: string | undefined): GeographyObject {
   if (!parentId) throw new Error('GEOGRAPHY_PARENT_MISSING');
   return {
     id: p.id,
@@ -298,14 +302,25 @@ export async function applyProposal(
 }
 /**
  * Validate retained hierarchy and relations before any public read, against one release of the catalogue. A stored place whose
- * concept the release holds, retired or not, is valid; one it never held is not. Aliases have no creation operation.
+ * concept the release holds, retired or not, is valid; one it never held is not. Aliases have no creation operation. A `subset`
+ * view holds some systems of the map (D-417): the hierarchy and routes are checked within it, and the semantic key
+ * is not required to be the one the catalogue derives (that is fixed when a place is written, and is what makes a
+ * key unique).
  */
-export function validView(view: GeographyView, universeId: string, catalogue: Catalogue): boolean {
+export function validView(
+  view: Pick<GeographyView, 'state' | 'objects' | 'routes' | 'aliases'>,
+  universeId: string,
+  catalogue: Catalogue,
+  options: { readonly subset?: boolean } = {},
+): boolean {
   const ids = new Map(view.objects.map((o) => [o.id, o])),
     keys = new Map(view.objects.map((o) => [o.key, o]));
   if (ids.size !== view.objects.length || keys.size !== view.objects.length) return false;
   for (const o of view.objects) {
-    if (o.objectRevision > view.state.revision || o.key !== semanticKey(o.kind, o.conceptId, o.truthStatus))
+    if (
+      o.objectRevision > view.state.revision ||
+      (options.subset !== true && o.key !== semanticKey(o.kind, o.conceptId, o.truthStatus))
+    )
       return false;
     const topic = catalogue.topic(o.conceptId);
     if (o.kind === 'system' && (!topic || topic.parent !== null)) return false;

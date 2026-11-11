@@ -445,18 +445,15 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
     });
     await project(p.job);
     expect(await read(p, p.t)).toMatchObject({ kind: 'accepted', value: { status: 'available' } });
-    const state = await database.db
-      .selectFrom('scenes.state')
-      .select('payload')
-      .where('universe_id', '=', p.universeId)
-      .executeTakeFirstOrThrow();
-    const payload = state.payload as { manifest: { chunks: { objectIds: string[] }[] } };
-    payload.manifest.chunks[0]!.objectIds = payload.manifest.chunks[0]!.objectIds.filter((id) => id !== p.planet);
-    await database.db
-      .updateTable('scenes.state')
-      .set({ payload: JSON.stringify(payload) })
-      .where('universe_id', '=', p.universeId)
-      .execute();
+    // A target that is no longer a stored object of its system is not a current real target.
+    await database.pool.query('delete from scenes.looks where universe_id=$1 and object_id=$2', [
+      p.universeId,
+      p.planet,
+    ]);
+    await database.pool.query('delete from scenes.objects where universe_id=$1 and object_id=$2', [
+      p.universeId,
+      p.planet,
+    ]);
     expect(await api().claim(p.authority, claim(p.t))).toMatchObject({
       kind: 'accepted',
       value: { receipt: { outcome: 'not_claimed' } },
@@ -471,8 +468,8 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
       now: () => new Date(clock),
       scenes: {
         ...ports.scenes,
-        chunk: async (...args) => {
-          const result = await ports.scenes.chunk(...args);
+        currentChunk: async (...args) => {
+          const result = await ports.scenes.currentChunk(...args);
           clock += 2000;
           return result;
         },
@@ -492,8 +489,8 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
       now: () => new Date(clock),
       scenes: {
         ...ports.scenes,
-        chunk: async (...args) => {
-          const result = await ports.scenes.chunk(...args);
+        currentChunk: async (...args) => {
+          const result = await ports.scenes.currentChunk(...args);
           if (slowRead) clock += 2000;
           return result;
         },

@@ -5,8 +5,8 @@ import { exportNothing } from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { deleteJobPayloads, deleteClearJobPayloads } from '../../../infrastructure/jobs/erasure.js';
 import { projectSceneQueue, expireFormationQueue, recoverFormationQueue, backfillLooksQueue } from '../events.js';
-// Looks reference objects, so they are erased first.
-const tables = ['formation_presentations', 'looks', 'manifests', 'chunks', 'objects', 'state'] as const;
+// Looks and the sky's rows reference objects, so they are erased first.
+const tables = ['formation_presentations', 'looks', 'systems', 'manifests', 'chunks', 'objects', 'state'] as const;
 export const scenesErasure = declareErasure({
   module: 'scenes',
   tables: tables.map((table) => ({ schema: 'scenes', table, ownerColumn: 'universe_id' })),

@@ -13,6 +13,7 @@ import {
   SceneLookJsonSchema,
   SCENE_LOOK_VERSION,
   WORLD_GENERATOR_VERSION,
+  HAZE_FAMILIES,
   type SceneDescriptor,
   type SceneChunk,
   type SceneManifest,
@@ -99,6 +100,8 @@ export const SceneClientCapabilitiesSchema = z.strictObject({
   families: Versions,
   /** Look data a client can draw (D-102). Absent for a client that predates it. */
   looks: Versions.optional(),
+  /** The sky and per-system reads of a map at scale (D-417). Absent for a client that predates them. */
+  sky: Versions.optional(),
   detail: z.enum(['full', 'low']),
   reducedMotion: z.boolean(),
 });
@@ -125,6 +128,18 @@ export function supportsSceneLooks(capabilities: SceneClientCapabilities): boole
     capabilities.looks?.includes(SCENE_LOOK_VERSION) === true &&
     capabilities.generators.includes(WORLD_GENERATOR_VERSION)
   );
+}
+
+/** The version of the sky read: every system of the map in one compact entry each, and nothing below them (D-417). */
+export const SCENE_SKY_VERSION = 'scene-sky.v1' as const;
+
+/**
+ * A client that declares `scene-sky.v1` (and what the sky's entries carry: looks) reads a map at scale as the
+ * sky first and one system at a time. One that does not is served the whole map as before while it fits what
+ * it can hold, and is told it does not fit beyond that (D-417).
+ */
+export function supportsSceneSky(capabilities: SceneClientCapabilities): boolean {
+  return supportsSceneLooks(capabilities) && capabilities.sky?.includes(SCENE_SKY_VERSION) === true;
 }
 
 const Selection = z.discriminatedUnion('kind', [
@@ -264,7 +279,7 @@ function checkLooks(
 }
 function checkPending(
   p: z.infer<typeof PendingProjection>,
-  s: z.infer<typeof ReadSceneManifestSchema> & {
+  s: {
     currentGeography: z.infer<typeof GeographyRevisionsSchema>;
     scope: z.infer<typeof SceneReadScopeSchema>;
   },
@@ -292,6 +307,114 @@ function checkProjection(
     ctx.addIssue({ code: 'custom', message: 'Projection inputs must belong to current committed scope.' });
 }
 
+/** Bounds of the sky read, never a formation or consumption threshold. */
+export const SKY_LIMITS = {
+  /** Systems in one page of the sky. */
+  systemsPerPage: 200,
+} as const;
+
+/**
+ * Where the next page of a sky read goes on. It binds the scene revision the first page read, so a map that
+ * changed in between is read again from the start rather than mixed.
+ */
+const SkyCursor = z.strictObject({ sceneRevision: Counter, afterSystemId: UuidSchema });
+/**
+ * Systems only: no star, planet, region, route or chunk. `sinceSceneRevision` asks for the systems that changed
+ * after a revision the client already holds (a refresh), `cursor` continues a page.
+ */
+export const ReadSceneSkySchema = z
+  .strictObject({
+    capabilities: SceneClientCapabilitiesSchema,
+    limit: z.number().int().min(1).max(SKY_LIMITS.systemsPerPage),
+    sinceSceneRevision: Counter.optional(),
+    cursor: SkyCursor.optional(),
+  })
+  .refine(
+    (q) =>
+      q.cursor === undefined || q.sinceSceneRevision === undefined || q.cursor.sceneRevision > q.sinceSceneRevision,
+    'A cursor cannot start before the revision a refresh asks after.',
+  );
+
+/**
+ * One system of the sky: what the far view draws and the label index lists. The descriptor is the system's own
+ * (its anchor, seed, label and activity, as its chunk holds them), `haze` its look once it has one, `planetCount` how many planets
+ * it has, and `sceneRevision` the revision at which anything of the system last changed, so a client that holds an
+ * older one knows to read the system again. No count of reading, no support, no time.
+ */
+export const SceneSkySystemSchema = z
+  .strictObject({
+    descriptor: SceneDescriptorWireSchema,
+    haze: z.enum(HAZE_FAMILIES).optional(),
+    planetCount: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+    sceneRevision: Counter,
+  })
+  .refine((system) => system.descriptor.kind === 'system', 'A sky entry is a system.');
+export type SceneSkySystem = z.infer<typeof SceneSkySystemSchema>;
+
+const SkyFields = {
+  version: z.literal('scene-sky-read.v1'),
+  capabilities: SceneClientCapabilitiesSchema,
+  scope: SceneReadScopeSchema,
+  recordedAt: z.iso.datetime(),
+  currentGeography: GeographyRevisionsSchema,
+  /** The latest projected scene revision; every system's own revision is at or below it. */
+  sceneRevision: Counter,
+  sinceSceneRevision: Counter.optional(),
+};
+const SkyData = {
+  /** The projection inputs the sky was drawn from, as a manifest carries them. */
+  revisions: z.strictObject({
+    geographyRevision: Counter,
+    structureRevision: Counter,
+    activityRevision: Counter,
+    sceneRevision: Counter,
+    personalRevision: Counter,
+  }),
+  systems: z.array(SceneSkySystemSchema).max(SKY_LIMITS.systemsPerPage),
+  continuation: z.discriminatedUnion('status', [
+    z.strictObject({ status: z.literal('complete') }),
+    z.strictObject({ status: z.literal('more'), cursor: SkyCursor }),
+  ]),
+};
+export const SceneSkyReadSchema = z
+  .discriminatedUnion('status', [
+    z.strictObject({ ...SkyFields, status: z.literal('empty') }),
+    z.strictObject({ ...SkyFields, status: z.literal('ready'), ...SkyData }),
+    z.strictObject({ ...SkyFields, status: z.literal('lagging'), ...SkyData, pendingProjection: PendingProjection }),
+    z.strictObject({ ...SkyFields, status: z.literal('loading'), pendingProjection: PendingProjection }),
+    z.strictObject({
+      ...SkyFields,
+      status: z.literal('unavailable'),
+      reason: z.enum(['temporarily_unavailable', 'limit', 'snapshot_expired']),
+    }),
+    z.strictObject({ ...SkyFields, status: z.literal('unsupported_version') }),
+  ])
+  .superRefine((s, ctx) => {
+    if (supportsSceneSky(s.capabilities) === (s.status === 'unsupported_version'))
+      ctx.addIssue({ code: 'custom', message: 'Unsupported capabilities require an explicit fallback.' });
+    if ('pendingProjection' in s) checkPending(s.pendingProjection, s, ctx);
+    if (!('systems' in s)) return;
+    checkProjection(s.revisions, s, ctx);
+    const ids = new Set(s.systems.map((system) => system.descriptor.objectId));
+    if (
+      s.revisions.sceneRevision !== s.sceneRevision ||
+      ids.size !== s.systems.length ||
+      s.systems.some((system) => system.sceneRevision > s.sceneRevision) ||
+      // Haze is the system's look: given to a client that declared looks, and only to it. A system a world projected
+      // before looks existed has none until it is backfilled.
+      s.systems.some((system) => system.haze !== undefined && !supportsSceneLooks(s.capabilities)) ||
+      (s.status === 'ready' && s.revisions.geographyRevision !== s.currentGeography.revision) ||
+      (s.continuation.status === 'more' &&
+        (s.continuation.cursor.sceneRevision !== s.sceneRevision ||
+          s.continuation.cursor.afterSystemId !== s.systems.at(-1)?.descriptor.objectId))
+    )
+      ctx.addIssue({ code: 'custom', message: 'The sky is inconsistent with its scene revision or continuation.' });
+    if (s.sinceSceneRevision !== undefined && s.systems.some((system) => system.sceneRevision <= s.sinceSceneRevision!))
+      ctx.addIssue({ code: 'custom', message: 'A refresh holds only systems that changed after the revision asked.' });
+  });
+export type ReadSceneSky = z.infer<typeof ReadSceneSkySchema>;
+export type SceneSkyRead = z.infer<typeof SceneSkyReadSchema>;
+
 export type SceneReadScope = z.infer<typeof SceneReadScopeSchema>;
 export type ReadSceneManifest = z.infer<typeof ReadSceneManifestSchema>;
 export type ReadSceneChunk = z.infer<typeof ReadSceneChunkSchema>;
@@ -309,3 +432,13 @@ export const readSceneChunkContract = oc
   .route({ method: 'POST', path: '/v1/universe/scenes/chunks/read', successStatus: 200 })
   .input(ReadSceneChunkSchema)
   .output(SceneChunkReadSchema);
+
+/**
+ * Every system of the person's own map, a page at a time (D-417). A client that declared the sky capability reads
+ * this first and then one system at a time through `readSceneManifestContract` and `readSceneChunkContract` with
+ * `selection: system`. Own scope only, and it enqueues nothing.
+ */
+export const readSceneSkyContract = oc
+  .route({ method: 'POST', path: '/v1/universe/scenes/sky/read', successStatus: 200 })
+  .input(ReadSceneSkySchema)
+  .output(SceneSkyReadSchema);

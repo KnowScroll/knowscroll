@@ -21,13 +21,31 @@ export interface UniverseIndex {
   readonly planets: ReadonlyMap<string, readonly SceneDescriptor[]>;
   readonly regions: ReadonlyMap<string, readonly SceneDescriptor[]>;
   readonly routes: readonly SceneRoute[];
+  /**
+   * How many planets each system has, from the sky (D-417): a system whose planets are not loaded lists none, and this still
+   * says how many it has. Absent for a map that holds everything it draws.
+   */
+  readonly planetCounts: ReadonlyMap<string, number>;
+  /** The systems whose planets are loaded. Absent: every system is, as on a map that loads whole. */
+  readonly loaded: ReadonlySet<string> | undefined;
 }
+
+/** Planets a system has: the ones listed, or, while they are not loaded, the sky's count. */
+export const planetCountOf = (index: UniverseIndex, systemId: string): number =>
+  Math.max(index.planets.get(systemId)?.length ?? 0, index.planetCounts.get(systemId) ?? 0);
+/** Whether a system's planets, regions and routes are in hand. */
+export const planetsLoaded = (index: UniverseIndex, systemId: string): boolean =>
+  index.loaded === undefined || index.loaded.has(systemId);
 
 const byLabel = (a: SceneDescriptor, b: SceneDescriptor) =>
   a.label.localeCompare(b.label) || a.objectId.localeCompare(b.objectId);
 
 /** Groups descriptors by their parent. Order inside a group is by label, only for stable output. */
-export function indexUniverse(descriptors: readonly SceneDescriptor[], routes: readonly SceneRoute[]): UniverseIndex {
+export function indexUniverse(
+  descriptors: readonly SceneDescriptor[],
+  routes: readonly SceneRoute[],
+  sky?: { readonly planetCounts: ReadonlyMap<string, number>; readonly loaded: ReadonlySet<string> },
+): UniverseIndex {
   const byId = new Map(descriptors.map((d) => [d.objectId, d]));
   const stars = new Map<string, SceneDescriptor>();
   const planets = new Map<string, SceneDescriptor[]>();
@@ -47,6 +65,8 @@ export function indexUniverse(descriptors: readonly SceneDescriptor[], routes: r
     planets,
     regions,
     routes,
+    planetCounts: sky?.planetCounts ?? new Map(),
+    loaded: sky?.loaded,
   };
 }
 

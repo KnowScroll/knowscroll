@@ -266,6 +266,40 @@ export interface GeographyStore {
   backOffQuiet(scope: PersonalScopeTx, ids: readonly string[], now: Date): Promise<void>;
   /** Places due for a look at `at` (oldest first, at most `limit`): what the dry run says a settle would see. */
   duePlaces(scope: PersonalScopeTx, at: Date, limit: number): Promise<readonly Place[]>;
+  /**
+   * Bounded reads for a map at scale (D-417): none of them loads the whole map, and none fails because the map is
+   * large. The revisions and how many places exist.
+   */
+  head(scope: PersonalScopeTx): Promise<{ readonly state: GeographyState; readonly objectCount: number }>;
+  /**
+   * Exactly these systems: each system, its star, planets and regions, the routes between their planets and the aliases
+   * of those places. A system that does not exist contributes nothing.
+   */
+  systemView(
+    scope: PersonalScopeTx,
+    systemIds: readonly string[],
+  ): Promise<{
+    readonly objects: readonly Place[];
+    readonly routes: readonly Route[];
+    readonly aliases: readonly GeographyAlias[];
+  }>;
+  /**
+   * The systems, in id order after `after`, that hold a place or route whose revision stamp is above `since`: a place
+   * changed (created, relabelled, set active or quiet) or a route connected or withdrawn after that revision.
+   */
+  changedSystems(
+    scope: PersonalScopeTx,
+    since: number,
+    after: string | undefined,
+    limit: number,
+  ): Promise<{ readonly systemIds: readonly string[]; readonly more: boolean }>;
+  /** One page of every place of the universe in id order after `after`, each with its parent's id (null for a system). */
+  pageObjects(
+    scope: PersonalScopeTx,
+    after: string | undefined,
+    limit: number,
+  ): Promise<readonly { readonly place: Place; readonly parentId: string | null }[]>;
+  hasObject(scope: PersonalScopeTx, id: string): Promise<boolean>;
   writeRun(scope: PersonalScopeTx, run: GeographyRun): Promise<void>;
   findDelta(
     scope: PersonalScopeTx,
@@ -395,11 +429,24 @@ export interface GeographySceneInput {
   readonly privacyEpoch: number;
   readonly personalRevision: number;
   readonly geography: GeographyRevisions;
+  /** How many established places the universe holds, whether or not `objects` lists them. */
+  readonly objectCount: number;
   readonly objects: readonly (GeographyObject & { readonly meaningId: string })[];
   readonly routes: readonly GeographyRoute[];
   readonly aliases: readonly GeographyAlias[];
 }
-export type ReadGeographySceneInput = (scope: PersonalScopeTx) => Promise<
+/**
+ * What a scene input read lists (D-417). Omitted: every place of the universe, for readers that hold the whole map
+ * (it refuses with `limit` past 1000 places or relations). `head` lists none and answers from the revisions. `systems`
+ * lists exactly those systems with the routes between their planets, however large the rest of the map is. Aliases are
+ * only listed by a whole read.
+ */
+export type SceneInputSelection =
+  { readonly kind: 'head' } | { readonly kind: 'systems'; readonly systemIds: readonly string[] };
+export type ReadGeographySceneInput = (
+  scope: PersonalScopeTx,
+  selection?: SceneInputSelection,
+) => Promise<
   | { readonly kind: 'read'; readonly input: GeographySceneInput }
   | {
       readonly kind: 'unavailable';
@@ -409,6 +456,15 @@ export type ReadGeographySceneInput = (scope: PersonalScopeTx) => Promise<
     }
   | { readonly kind: 'refused' }
 >;
+/**
+ * The systems a scene projection has to look at again: those with a place whose revision is above `since`, in id order
+ * after `after`, at most `limit` of them. Read from the places' own revision stamps, so it holds for a map no delta
+ * was ever written for.
+ */
+export type ReadGeographyChangedSystems = (
+  scope: PersonalScopeTx,
+  query: { readonly since: number; readonly after?: string; readonly limit: number },
+) => Promise<{ readonly systemIds: readonly string[]; readonly more: boolean }>;
 export type GeographyApplied = (
   scope: RecordingScopeTx,
   input: {

@@ -65,7 +65,7 @@ describe('bounded versioned scene data (synthetic CI fixtures only)', () => {
     { label: '<script>' },
     { target: { kind: 'planet', objectId: 'javascript:run()' } },
     { anchor: { x: NaN, y: 0, layer: 1 } },
-    { anchor: { x: 10001, y: 0, layer: 1 } },
+    { anchor: { x: 100001, y: 0, layer: 1 } },
     { atmosphere: { density: 1.1 } },
     { detail: { roughness: -1 } },
     { activity: { availability: 'unavailable', state: 'active' } },

@@ -316,3 +316,48 @@ unique index deduplicates jobs. Disable residents to stop new starters; clients 
 0106 adds `conversation` to the existing room message AI-kind check (D-398, #668/#688). It holds only a code-authored
 social reply selected by an asked writer; factual kinds retain their citation/support pipeline. No columns,
 queues, ledger or retention change. Clients predating the additive kind must reload. Rooms owns the invariant.
+
+0122 is the map at scale (D-417, #674 slice 4.3). It adds `scenes.systems` (the sky: one row per system), a
+`layout` column on `scenes.objects` (every existing row is `canonical-lattice.v1`; `slot` becomes nullable and unique
+only within its layout), four indexes on `scenes.objects`/`scenes.chunks` (two of them the unique indexes that replace the old slot
+constraint) and four read indexes on Geography's places and relations, and `scenes.adopt_legacy_layout(universe, epoch)`, which the migration runs for every world that exists:
+it gives the world its sky rows and the new state shape (no manifest, no route list), and moves no slot, anchor,
+seed, family or chunk. `scenes.manifests` is no longer written.
+
+Stop the old workers first. An old `scenes.project` consumer is not adopted again: it writes the whole-map state with
+a scene revision that has gone back, `scenes.guard_state` refuses the write, and its job dead-letters. Stop the
+`scenes.project` consumers before migrating. Deploy the new worker and API with the migration, not after it.
+
+Locks and time. The migration runs under `lock_timeout` 5 s and `statement_timeout` 60 s, in one transaction. Each
+statement takes these locks:
+
+- `alter table scenes.objects add column layout ... default`, `drop not null`, the two `drop constraint` and the two
+  `add constraint` checks on `scenes.objects` and `scenes.state` take ACCESS EXCLUSIVE. The column has a constant
+  default, so it does not rewrite the table. The new checks scan each table once.
+- `create index` on `scenes.objects` (3, two of them unique), `scenes.chunks` (1), `geography.objects` (2) and
+  `geography.relations` (2) are not concurrent. Each takes SHARE: reads go on, writes to that table wait until the
+  index is built.
+- `create table scenes.systems` has foreign keys, so it takes SHARE ROW EXCLUSIVE on `identity.universes` and
+  `scenes.objects` for a moment.
+- `select scenes.adopt_legacy_layout(...)` runs once for every `scenes.state` row. Each call locks its state row,
+  inserts that world's `scenes.systems` rows and rewrites its state payload. All of it runs inside the 60 s budget.
+
+All of this is short on today's sizes. A statement that cannot get its lock in 5 s, or runs past 60 s, fails and the
+whole migration rolls back with nothing changed.
+
+Before production, run one query on the production database and read the numbers:
+
+```sql
+select
+  (select count(*) from scenes.state) as worlds,
+  (select count(*) from scenes.objects) as scene_objects,
+  (select count(*) from scenes.chunks) as scene_chunks,
+  (select count(*) from geography.objects) as geography_objects,
+  (select count(*) from geography.relations) as geography_relations,
+  (select coalesce(max(n), 0) from (select count(*) as n from scenes.objects group by universe_id, privacy_epoch) w)
+    as most_objects_in_one_world;
+```
+
+Rule of thumb. If any of those tables has hundreds of thousands of rows, or one world has more than a few thousand
+objects, take the API and the workers down for the migration. Otherwise migrate with them up, after the old
+`scenes.project` consumers are stopped.

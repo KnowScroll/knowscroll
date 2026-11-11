@@ -259,6 +259,7 @@ tests in `application/system-topic.test.ts`._
 | `READ_OWN_GEOGRAPHY`, `READ_OWN_DELTAS`           | Snapshot and catch-up reads                                                                                                                                                                               |
 | `READ_OWN_EMERGING`                               | Dust cues                                                                                                                                                                                                 |
 | `READ_GEOGRAPHY_SCENE_INPUT`, `GEOGRAPHY_APPLIED` | Scenes' input and the same-transaction hook; Social reads the same input to draw the list a friend may visit (D-047), and Rooms to place a room's station beside a system of the caller's own map (D-051) |
+| `READ_GEOGRAPHY_CHANGED_SYSTEMS`                  | The systems with a place or route stamped after a revision: what a Scenes projection looks at again (D-417)                                                                                              |
 | `READ_OWN_REGION_CONSTRAINT`                      | Exact region authority for region encounters (U04)                                                                                                                                                        |
 | `SWEEP_QUIET`, `SETTLE_QUIET`                     | Worker consumers of the quiet sweep and its per-universe settle (D-104)                                                                                                                                   |
 
@@ -308,10 +309,26 @@ it hands over, skipping any another transaction holds.
 ## Reads
 
 Reads are read-only. They never wake a role, call a model or write. `ReadOwnGeography` pages at
-most 100 objects with all their routes and aliases and checks hierarchy and cursors against the
-current revision (an old cursor answers `snapshot_expired`). `ReadOwnDeltas` returns at most ten
-contiguous deltas, or `snapshot_required` on a gap. An empty snapshot means no established places,
-not no reading. `loading` and `lagging` need a real queued or prepared run.
+most 100 objects and checks hierarchy and cursors against the current revision (an old cursor
+answers `snapshot_expired`). `ReadOwnDeltas` returns at most ten contiguous deltas, or
+`snapshot_required` on a gap. An empty snapshot means no established places, not no reading.
+`loading` and `lagging` need a real queued or prepared run.
+
+Two protocols share the use case, chosen by the request's `version`:
+
+- **Without `version`** (a client that predates the sky): the whole-map read it always was. It loads
+  the whole view, returns every route and alias of the selection on every page, and answers
+  `unavailable` with `limit` past 1000 places, past 1000 routes and aliases, or past 100 routes in
+  the selection. Nothing about it changed.
+- **`geography-read.v2`** (D-417): a read of a map at scale that never loads the whole map
+  (`application/read-map.ts`, bounded SQL in `adapters/postgres-store.ts`) and that no size of map
+  makes fail. The universe selection pages the places alone: in id order after the cursor, `limit`
+  per page, with no routes and no aliases. A system selection reads that system (its star, planets,
+  regions, the routes between its planets and their aliases) and returns each route and alias on the
+  page that holds its `fromObjectId`. A page ends early rather than hold more than 100 routes or 100
+  aliases, so a system with 153 routes among 18 planets is read in a few pages with every route once;
+  one place that alone owns more than 100 is `limit`. The status logic (`empty`, `loading`,
+  `lagging`, `snapshot_expired`, `selection_not_found`) is the same.
 
 ## Failure and recovery
 
@@ -364,8 +381,10 @@ not no reading. `loading` and `lagging` need a real queued or prepared run.
   support and none is among the most recent 8.
 - **Routes** join planets evaluated or read in the same run: a route to a planet formed earlier is offered when the new planet is
   due (its neighbours are read), not afterwards. A system with more than 8 supported neighbours offers the 8 most recent.
-- **Structure.** More than 1000 places or 1000 routes and aliases in one universe settle as `structure_limit` (the Scene map is
-  bounded the same, so this stays until the map reads by chunk). They are counted by index, not loaded.
+- **Structure.** More than 1000 places or 1000 routes and aliases in one universe settle as `structure_limit` (formation keeps this
+  bound). They are counted by index, not loaded. Reads and Scenes no longer depend on that ceiling (D-417): the scene input, the
+  changed-systems read and `geography-read.v2` are bounded by what they name, and the Scenes projection was measured on 5520 places
+  written directly (Scenes README).
 - **Model packaging.** A model request holds at most 64 context items. That limit is checked only when
   a model is called; a run that applies the rules alone is never stopped by it. When a context does not
   fit one request the model is skipped and the rules apply what is due (`applied_by_rules_context_limit`,
@@ -418,14 +437,31 @@ Context erases the dirty set with its other tables. The dust read has no store o
 ## Scenes boundary
 
 `ReadGeographySceneInput` returns canonical meaning IDs, public objects, routes, aliases and the
-current personal-root watermark, without supports, evidence, context or scores. `GeographyApplied`
+current personal-root watermark, without supports, evidence, context or scores. With no selection it
+reads the whole map (Social, Rooms and the older Scenes readers hold it all; it refuses with `limit`
+past 1000 places or relations). Two selections read a map at scale (D-417): `head` lists nothing and
+answers with the revisions, the watermark and `objectCount`; `systems` lists exactly the named
+systems and the routes between their planets. Neither loads the rest of the map. They check the
+hierarchy, kinds, truth status and the catalogue relation of system, planet and facet inside what
+was read, and do not require a place's semantic key to be the one the catalogue derives: that is
+fixed when a place is written, and is what makes the key unique.
+
+`ReadGeographyChangedSystems` lists, in id order, the systems that hold a place whose
+`objectRevision` or a route whose `relationRevision` is above a revision. It reads the places' own
+stamps and no delta table, so it holds for a map no delta was written for. This relies on one
+invariant of every writer: a place or route carries the revision of the commit that created or
+changed it (creation, `revise_label`, `set_activity`, `connect_route`, `withdraw_relation`). A new
+projection asks `since` the last revision it represented (0 for the first), and a delta that touches
+one system names that one system. `GeographyApplied`
 runs in the apply transaction: it enqueues one `scenes.project` job and records the U05 delivery
 facts of the creations just committed, so the Universe client can show each formation once. A
 creation delta without its delivery fact fails the whole transaction at commit.
 
 ## Verification
 
-`checks` runs the pure rules and properties (`domain/*.test.ts`, `application/role.test.ts`) and
+`scenes-scale.test.ts` (integration) reads a universe of 5520 synthetic places with `geography-read.v2`
+page by page (no route on a universe page), reads a system with 153 routes in two pages with every
+route once, and shows the version-less read refuse with `limit` as before. `checks` runs the pure rules and properties (`domain/*.test.ts`, `application/role.test.ts`) and
 PostgreSQL integration suites:
 `geography.test.ts` (authority, atomicity, replay, paging, erasure), `cartographer-formation.test.ts`
 (dust, system, planet, unrelated topics, inactivity, Clear with row counts and the place secret and dirty set removed, model

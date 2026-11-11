@@ -5,6 +5,7 @@ import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import {
   SceneManifestReadSchema,
   SceneChunkReadSchema,
+  SceneLookSchema,
   type PlanetLook,
   type SceneClientCapabilities,
   type SceneLook,
@@ -273,6 +274,7 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     expect(Object.keys(r.value).sort()).toEqual([
       'aliases',
       'geography',
+      'objectCount',
       'objects',
       'personalRevision',
       'privacyEpoch',
@@ -307,7 +309,7 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     });
     await project(job);
     expect((await snapshot(p)).status).toBe('ready');
-    expect((await sceneStoreState(p))!.manifest!.revisions.sceneRevision).toBe(1);
+    expect((await sceneStoreState(p))!.projected!.sceneRevision).toBe(1);
     expect(
       (await database.pool.query('select id from reasoning.external_attempts where universe_id=$1', [p.universeId]))
         .rows,
@@ -319,14 +321,17 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     ).toEqual([projectSceneQueue.name]);
   });
   async function looksOf(p: FixturePerson): Promise<readonly SceneLook[]> {
-    const r = await withScope()(p.authority, (s) => sceneStore.looks(s));
-    return r.kind === 'entered' ? r.value : [];
+    const rows = await database.pool.query<{ payload: unknown }>(
+      'select payload from scenes.looks where universe_id=$1 order by object_id',
+      [p.universeId],
+    );
+    return rows.rows.map((row) => SceneLookSchema.parse(row.payload));
   }
   /** Everything the projector stored about an object, as the previous release left it. */
   async function objectRows(p: FixturePerson): Promise<unknown[]> {
     return (
       await database.pool.query(
-        'select object_id,system_id,chunk_id,slot,payload from scenes.objects where universe_id=$1 order by object_id',
+        'select object_id,system_id,chunk_id,slot,layout,payload from scenes.objects where universe_id=$1 order by object_id',
         [p.universeId],
       )
     ).rows as unknown[];
@@ -355,7 +360,8 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
           conceptId,
           label,
           originTransitionId: randomUUID(),
-          objectRevision: 1,
+          // A place carries the revision of the commit that made it, as Geography stamps it.
+          objectRevision: old.revision + 1,
         },
         [],
       );
@@ -394,7 +400,7 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
           conceptId: facetId,
           label,
           originTransitionId: randomUUID(),
-          objectRevision: 1,
+          objectRevision: old.revision + 1,
         },
         [],
       );
@@ -497,7 +503,7 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     expect(await lookSnapshot(p, { ...lookCapabilities, generators: ['silhouette.v1'] })).not.toHaveProperty('looks');
     expect(await lookSnapshot(p, { ...lookCapabilities, looks: ['scene-look.v2'] })).not.toHaveProperty('looks');
     // The descriptors are the v1 data they were; the look is a sibling and never merged into them.
-    const objects = await withScope()(p.authority, (s) => sceneStore.objects(s));
+    const objects = await withScope()(p.authority, (s) => sceneStore.objectsOfSystems(s, [p.system]));
     expect(JSON.stringify(objects)).not.toMatch(/haze|siteCount|hueShift/);
   });
   it('keeps every look through a sibling arrival, a restart and a re-projection, and the database refuses to rewrite one', async () => {
@@ -589,10 +595,15 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     expect(await backfill(job!.data)).toEqual({ assigned: 3 });
     // Nothing the projector stored moved: slot, seed, family, anchor, chunk and the world seed are as they were.
     expect(await objectRows(p)).toEqual(objectsBefore);
-    expect(await sceneStoreState(p)).toEqual(stateBefore);
+    // The one thing a backfill moves is the scene revision: a system that was given its haze has changed for a client
+    // that holds the sky (D-417), so the projected revision and the system's own revision go up by one.
+    expect(await sceneStoreState(p)).toEqual({
+      ...stateBefore,
+      projected: { ...stateBefore!.projected!, sceneRevision: 2 },
+    });
     expect(await looksOf(p)).toHaveLength(3);
     expect(await root(p)).toBe(rootBefore + 1);
-    expect(await lookSnapshot(p)).toMatchObject({ status: 'ready', sceneRevision: 1 });
+    expect(await lookSnapshot(p)).toMatchObject({ status: 'ready', sceneRevision: 2 });
     // Idempotent: a second delivery assigns nothing and advances nothing, and the world is no longer found.
     expect(await backfill(job!.data)).toEqual({ assigned: 0 });
     expect(await root(p)).toBe(rootBefore + 1);
@@ -644,7 +655,7 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
       job = (await jobs(p))[0]!.data;
     await project(job);
     const first = await sceneStoreState(p);
-    const stored = await withScope()(p.authority, (s) => sceneStore.objects(s));
+    const stored = await withScope()(p.authority, (s) => sceneStore.objectsOfSystems(s, [p.system]));
     if (stored.kind !== 'entered') throw new Error('CI refused');
     await withScope()(p.authority, async (s) => {
       const cap = await recording(s);
@@ -690,7 +701,7 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     // The oldest job coalesces the latest current input, with no extra model/evidence work.
     await makeProjectScene(ports)(job);
     expect(await snapshot(p)).toMatchObject({ status: 'ready', sceneRevision: 2 });
-    const updated = await withScope()(p.authority, (s) => sceneStore.objects(s));
+    const updated = await withScope()(p.authority, (s) => sceneStore.objectsOfSystems(s, [p.system]));
     if (updated.kind !== 'entered') throw new Error('CI refused');
     for (const old of stored.value) {
       const now = updated.value.find((o) => o.descriptor.objectId === old.descriptor.objectId)!;
@@ -703,11 +714,13 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
       ...query,
       capabilities: { ...capabilities, detail: 'low', reducedMotion: true },
     });
+    const current = await snapshot(p);
     expect(low.kind === 'read' && 'manifest' in low.scene ? low.scene.manifest : undefined).toEqual(
-      (await sceneStoreState(p))!.manifest,
+      'manifest' in current ? current.manifest : undefined,
     );
     expect(first!.worldSeed).toBe((await sceneStoreState(p))!.worldSeed);
-    expect((await sceneStoreState(p))!.policyVersion).toBe('canonical-lattice.v1');
+    // A world that begins now is pinned to the layout new objects take (D-417).
+    expect((await sceneStoreState(p))!.policyVersion).toBe('canonical-lattice.v2');
   });
   it('serves only selected exact current manifest references; foreign/old/unknown references never expose chunks', async () => {
     const p = await fixture();
@@ -772,20 +785,19 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     expect(await snapshot(p)).toMatchObject({ status: 'unavailable', reason: 'temporarily_unavailable' });
     await project((await jobs(p))[0]!.data);
     expect(await snapshot(p)).toMatchObject({ status: 'unavailable', reason: 'temporarily_unavailable' });
-    expect((await sceneStoreState(p))!.manifest).toEqual(old!.manifest);
+    expect((await sceneStoreState(p))!.projected).toEqual(old!.projected);
   });
   it('enforces database immutability for version rows, seed, anchor, generator and chunk allocation', async () => {
     const p = await fixture();
     await project((await jobs(p))[0]!.data);
-    for (const table of ['chunks', 'manifests'])
-      await expect(
-        database.pool.query(`update scenes.${table} set payload=payload where universe_id=$1`, [p.universeId]),
-      ).rejects.toMatchObject({ code: '23514' });
+    await expect(
+      database.pool.query('update scenes.chunks set payload=payload where universe_id=$1', [p.universeId]),
+    ).rejects.toMatchObject({ code: '23514' });
     await expect(
       database.pool.query("update scenes.state set world_seed=repeat('b',64) where universe_id=$1", [p.universeId]),
     ).rejects.toMatchObject({ code: '23514' });
     await expect(
-      database.pool.query("update scenes.state set policy_version='canonical-lattice.v2' where universe_id=$1", [
+      database.pool.query("update scenes.state set policy_version='canonical-lattice.v1' where universe_id=$1", [
         p.universeId,
       ]),
     ).rejects.toMatchObject({ code: '23514' });
@@ -826,20 +838,20 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
       });
     });
     await project(job);
+    // The relabel is a new version of the system's chunk; the first stays, immutable.
     expect(
-      (await database.pool.query('select scene_revision from scenes.manifests where universe_id=$1', [p.universeId]))
-        .rows,
+      (await database.pool.query('select scene_revision from scenes.chunks where universe_id=$1', [p.universeId])).rows,
     ).toHaveLength(2);
     expect(await looksOf(p)).toHaveLength(3);
     // Additional old-epoch copies are explicit erasure-only CI rows, never active projection authority.
     for (const [table, columns] of [
-      ['objects', 'object_id,system_id,chunk_id,slot,payload'],
+      ['objects', 'object_id,system_id,chunk_id,slot,layout,payload'],
       ['looks', 'object_id,kind,payload'],
+      ['systems', 'system_id,cell,planet_count,object_count,scene_revision'],
       ['chunks', 'chunk_id,scene_revision,system_id,payload'],
-      ['manifests', 'scene_revision,payload'],
     ])
       await database.pool.query(
-        `insert into scenes.${table} select universe_id,2,${columns} from scenes.${table} where universe_id=$1 and privacy_epoch=1`,
+        `insert into scenes.${table}(universe_id,privacy_epoch,${columns}) select universe_id,2,${columns} from scenes.${table} where universe_id=$1 and privacy_epoch=1`,
         [p.universeId],
       );
     await database.pool.query(
@@ -860,7 +872,7 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
       .execute();
     await withScope()({ ...p.authority, privacyEpoch: 3 }, (s) => eraseUniverse(s, personalStores));
     await project(job);
-    for (const table of ['state', 'objects', 'looks', 'chunks', 'manifests'])
+    for (const table of ['state', 'objects', 'looks', 'systems', 'chunks', 'manifests'])
       expect(
         (await database.pool.query(`select * from scenes.${table} where universe_id=$1`, [p.universeId])).rows,
       ).toHaveLength(0);

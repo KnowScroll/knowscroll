@@ -3,7 +3,7 @@ import { AppState, Platform, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { AccountScope } from '@knowscroll/client-core';
+import type { AccountScope, UniverseSceneState } from '@knowscroll/client-core';
 import { Button, Icon, printedSurface, Skeleton, Text, useDisplay } from '@knowscroll/ui';
 import { space, spacing } from '@knowscroll/design-tokens';
 import { useAccountScope } from '../../providers/account-scope';
@@ -17,6 +17,7 @@ import { FormationNotice, FormationPresentation } from './formation-presentation
 import { lowMemoryDevice } from './space/low-memory-device';
 import { SkyBackdrop } from './space/sky-backdrop';
 import { indexUniverse } from './universe-layout';
+import { descriptorsOf, routesOf, skyOf } from './universe-places';
 import { UniverseSurface } from './universe-surface';
 import { useUniverseBack } from './use-universe-back';
 import { useUniverseSession } from './use-universe-session';
@@ -56,15 +57,13 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
   );
   useUniverseBack(session, foreground);
   const { read } = state;
-  const snapshot = read.snapshot;
-  const index = useMemo(
-    () =>
-      indexUniverse(
-        snapshot?.chunks.flatMap((chunk) => chunk.objects) ?? [],
-        snapshot?.chunks.flatMap((chunk) => chunk.routes) ?? [],
-      ),
-    [snapshot],
-  );
+  const { snapshot, sky, loadedSystemIds } = read;
+  // The map is its sky (every system) and the loaded systems' places (D-417); it is rebuilt only when one of them changes,
+  // not on a status that leaves them as they were.
+  const index = useMemo(() => {
+    const held: UniverseSceneState = { status: 'ready', active: true, snapshot, sky, loadedSystemIds };
+    return indexUniverse(descriptorsOf(held), routesOf(held), skyOf(held));
+  }, [snapshot, sky, loadedSystemIds]);
   // `?focus=last` puts the ship at the last place once, when the map first has something to fly to.
   const flown = useRef(false);
   useEffect(() => {

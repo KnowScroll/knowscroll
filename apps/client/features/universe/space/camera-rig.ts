@@ -83,14 +83,27 @@ export function fitDistance(halfWidth: number, halfDepth: number, aspect: number
   return Math.max(wide, tall, MIN_DISTANCE[kind]);
 }
 
+/**
+ * How far in the whole-universe view may zoom (D-417). A universe that fits a screen at a modest distance keeps the
+ * limit it always had. A larger one allows more, exactly as much as it takes for the camera to come down to
+ * {@link MIN_DISTANCE}`.universe` from where it fits everything, so a person can reach any system however many there
+ * are. Pure, so the screen can tell the session the same limit the rig applies.
+ */
+export function universeZoomMax(focus: Extract<RigFocus, { kind: 'universe' }>, aspect: number): number {
+  const fit = fitDistance(focus.halfWidth, focus.halfDepth, aspect, 'universe');
+  return Math.max(ZOOM_LIMITS.universe.max, fit / MIN_DISTANCE.universe);
+}
+
 /** The pose a spec asks for, before the slow breathing drift. */
 export function rigPose(spec: RigSpec): CameraPose {
   const { focus, frame, width, height } = spec;
   const kind = focus.kind;
-  const limits = ZOOM_LIMITS[kind];
-  const zoom = clamp(frame.scale, limits.min, limits.max);
+  const aspect = width / Math.max(height, 1);
   const { halfWidth, halfDepth, reach: extent } = extentOf(focus);
-  const distance = fitDistance(halfWidth, halfDepth, width / Math.max(height, 1), kind) / zoom;
+  const fit = fitDistance(halfWidth, halfDepth, aspect, kind);
+  const zoomMax = focus.kind === 'universe' ? universeZoomMax(focus, aspect) : ZOOM_LIMITS.system.max;
+  const zoom = clamp(frame.scale, ZOOM_LIMITS[kind].min, zoomMax);
+  const distance = fit / zoom;
   const unitsPerPixel = (2 * distance * TAN_HALF_FOV) / Math.max(height, 1);
   const reach = extent * PAN_REACH;
   const elevation = ELEVATION[kind];

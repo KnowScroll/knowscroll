@@ -378,3 +378,38 @@ describe('emerging universe cues', () => {
     expect(ReadEmergingUniverseSchema.safeParse({ topicId: 'earth' }).success).toBe(false);
   });
 });
+
+describe('the map-at-scale Geography read (D-417)', () => {
+  it('is selected by an explicit version, and an older read stays what it was', () => {
+    const plain = { selection: { kind: 'universe' }, limit: 100 };
+    expect(ReadGeographySchema.parse(plain)).toEqual(plain);
+    expect(ReadGeographySchema.parse({ ...plain, version: 'geography-read.v2' })).toEqual({
+      ...plain,
+      version: 'geography-read.v2',
+    });
+    expect(ReadGeographySchema.safeParse({ ...plain, version: 'geography-read.v3' }).success).toBe(false);
+    expect(ReadGeographySchema.safeParse({ ...plain, version: 2 }).success).toBe(false);
+    // Still one selection, one cursor and the page bound, in either version.
+    expect(ReadGeographySchema.safeParse({ ...plain, version: 'geography-read.v2', limit: 101 }).success).toBe(false);
+    expect(
+      ReadGeographySchema.safeParse({
+        selection: { kind: 'system', systemId: system.id },
+        limit: 10,
+        version: 'geography-read.v2',
+        cursor,
+      }).success,
+    ).toBe(false);
+  });
+  it('answers a page of places with routes on the page that holds their first end, and never past the page bound', () => {
+    // The snapshot shape is the one it always was: a page holds at most 100 routes and the places it names.
+    expect(GeographySnapshotSchema.parse(ready)).toEqual(ready);
+    const places = { ...page, routes: [] };
+    expect(GeographySnapshotSchema.safeParse({ ...ready, page: places }).success).toBe(true);
+    const many = Array.from({ length: GEOGRAPHY_LIMITS.routes + 1 }, (_, n) => ({ ...route, id: uuid(100 + n) }));
+    expect(GeographySnapshotSchema.safeParse({ ...ready, page: { ...page, routes: many } }).success).toBe(false);
+    expect(
+      GeographySnapshotSchema.safeParse({ ...ready, page: { ...page, routes: many.slice(0, GEOGRAPHY_LIMITS.routes) } })
+        .success,
+    ).toBe(true);
+  });
+});

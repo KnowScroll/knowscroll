@@ -308,9 +308,9 @@ dependency-cruiser read the sources through the `@knowscroll/source` export cond
 
 Related: #238.
 
-`POST /v1/universe/scenes/manifest/read` and
+`POST /v1/universe/scenes/sky/read`, `POST /v1/universe/scenes/manifest/read` and
 `POST /v1/universe/scenes/chunks/read` declare bounded, read-only **own-universe**
-scene reads. POST preserves one strict JSON selector/capability/reference shape,
+scene reads (the sky: see below). POST preserves one strict JSON selector/capability/reference shape,
 consistent with Geography reads. They are declarations only: no API controller,
 projection worker, renderer, browser/native journey or deployment acceptance is
 implemented here. Reads must not enqueue projection, formation or model work.
@@ -324,6 +324,18 @@ check UTF-8 bytes before native JSON parsing; the HTTP adapter must enforce its
 body ceiling before decoding. The core guards retain total byte/depth/node caps,
 strict nested keys, plain host-object checks, non-executable data and stable
 identity/hierarchy constraints. Wire validation establishes no access authority.
+
+**The sky and a map at scale (D-417).** A client that declares `sky: ['scene-sky.v1']` (and the looks it
+carries, `supportsSceneSky`) reads the map as its sky first: `ReadSceneSkySchema` /
+`SceneSkyReadSchema` list systems only, 200 a page (`SKY_LIMITS`), each as the system's descriptor, its
+optional `haze` look, its `planetCount` and the scene revision at which it last changed
+(`SceneSkySystemSchema`); `sinceSceneRevision` makes the read a refresh and a cursor binds one scene revision.
+It then reads one system at a time with `selection: system` on the manifest and chunk reads, whose shapes did
+not change, and `ReadGeographySchema` with `version: 'geography-read.v2'` (universe selection: places only, no
+routes; a system: its routes on the page that holds their first end). A client without the capability keeps
+the earlier protocol while the map fits what it can hold, and is told `limit` after that. `SCENE_LIMITS.anchor`
+(100,000) bounds a descriptor's anchor, `legacyAnchor` (10,000) what an older client parses, and
+`LOOK_LIMITS.variant` is 100,000.
 
 `SceneClientCapabilitiesSchema` advertises unique bounded version lists for
 manifest/chunk/descriptor/generator/family support, plus `full`/`low` detail and

@@ -9,6 +9,7 @@ import {
 import type { GeographyPorts, ReadOwnGeography, ReadOwnDeltas } from './ports.js';
 import { publicPlace, validView } from './apply.js';
 import { pinCatalogue } from './catalogue.js';
+import { readMapAtScale } from './read-map.js';
 const sameSelection = (
   a: Parameters<ReadOwnGeography>[1]['selection'],
   b: Parameters<ReadOwnGeography>[1]['selection'],
@@ -18,6 +19,8 @@ export function makeReadGeography(p: GeographyPorts): ReadOwnGeography {
   return async (authority, input) => {
     const q = ReadGeographySchema.parse(input);
     const result = await p.withScope(authority, async (scope) => {
+      // A client that declared the map-at-scale read is served without the whole map in memory (D-417).
+      if (q.version === 'geography-read.v2') return readMapAtScale(p, scope, q);
       const view = await p.store.view(scope),
         g = view.state;
       const base = {
