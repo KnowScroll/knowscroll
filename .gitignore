@@ -17,3 +17,5 @@ artifacts/
 expo-env.d.ts
 *.tsbuildinfo
 coverage/
+# Algorithm simulation lab reports (a CI artifact)
+tests/integration/simulation/output/
