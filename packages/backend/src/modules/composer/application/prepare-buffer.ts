@@ -28,6 +28,7 @@ import { PrepareBufferJobSchema, type PrepareBufferJob } from '../events.js';
 import { JEV_ASSESSMENT_VERSION, storedAssessments, type AssessShortlist, type JevResult } from './jev.js';
 import type {
   ComposeEncounter,
+  ReadInterestContext,
   ReadMetUnitIds,
   PersistComposerDecision,
   ReadBufferSource,
@@ -40,7 +41,15 @@ import type {
 } from './ports.js';
 import { assembleSnapshot, evidenceQueryFor, type SnapshotInput } from './snapshot-assembly.js';
 import { readRelatedAssetIds } from './related-targets.js';
-import { readUnseenFirst, readVerticalCandidates, renderableFormats, wantsUnseenFirst } from './vertical-candidates.js';
+import {
+  readInterestLeads,
+  readInterestRollups,
+  readUnseenFirst,
+  readVerticalCandidates,
+  renderableFormats,
+  wantsLanes,
+  wantsUnseenFirst,
+} from './vertical-candidates.js';
 
 /** Jev, when it is switched on: the assessor, the recording-aware harness it runs on, the model and the person's pool. */
 export interface JevPorts {
@@ -69,6 +78,8 @@ export interface PrepareBufferPorts {
   readonly compose: ComposeEncounter;
   /** Experience's read of the explanation units the person has met; used when the policy wants unseen explanations read first (v2). */
   readonly readMetUnitIds?: ReadMetUnitIds;
+  /** The person's top interest topics, planned units and roll-ups; used when the policy reads lanes (v3, D-420). */
+  readonly readInterestContext?: ReadInterestContext;
   readonly hashCatalogWatermarks: (watermarks: readonly string[]) => string;
   readonly newId: () => string;
   readonly now: () => Date;
@@ -216,6 +227,13 @@ async function gather(
   if (!source) return skip('source_unavailable');
 
   const seed = `buffer:${key.sessionId}:${String(key.intentRevision)}:${key.source.offerId}`;
+  const lanes =
+    ports.readInterestContext && ports.compose.policy && wantsLanes(ports.compose)
+      ? await readInterestLeads(ports.readInterestContext, scope, {
+          evaluatedAt: now.toISOString(),
+          topK: ports.compose.policy.interestTopK,
+        })
+      : undefined;
   const candidates = await readVerticalCandidates(ports.readDiscoveryCandidates, scope, {
     source,
     formats: renderableFormats(capabilities.data.documentSchemas),
@@ -225,11 +243,16 @@ async function gather(
     ...(ports.readMetUnitIds && wantsUnseenFirst(ports.compose)
       ? { unseenFirst: await readUnseenFirst(ports.readMetUnitIds, scope) }
       : {}),
+    ...(lanes ? { lanes } : {}),
   });
   const relatedAssetIds = await readRelatedAssetIds(ports.readContinuations, scope, source, candidates);
   const query = evidenceQueryFor(candidates, now.toISOString());
   const evidence = await ports.readPrepared(scope, query);
   const hiddenAssetIds = await ports.readHidden(scope, query.candidateAssetIds ?? []);
+  const interest =
+    evidence && ports.readInterestContext && wantsLanes(ports.compose)
+      ? await readInterestRollups(ports.readInterestContext, scope, candidates, now.toISOString())
+      : undefined;
   return {
     kind: 'gathered',
     gathered: {
@@ -251,6 +274,7 @@ async function gather(
         hiddenAssetIds,
         links: [],
         ...(evidence ? { evidence } : {}),
+        ...(interest ? { interest } : {}),
         fallbackContextWatermark: `unprepared:${String(scope.revisionAtEntry)}`,
         hashCatalogWatermarks: ports.hashCatalogWatermarks,
       },

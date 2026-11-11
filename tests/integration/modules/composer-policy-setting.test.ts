@@ -40,24 +40,26 @@ describe('the composer providers choose the policy for new decisions (labelled C
 
   const composeOf = (providers: readonly { provide: symbol; useValue?: unknown }[]) =>
     providers.find((provider) => provider.provide === COMPOSE_ENCOUNTER)!.useValue as ComposeEncounter;
-  const configured = (setting: 'v0' | 'v1' | 'v2'): ComposeEncounter => {
+  const configured = (setting: 'v0' | 'v1' | 'v2' | 'v3'): ComposeEncounter => {
     const provider = composerConfiguredProviders(access, CONFIG).find((p) => p.provide === COMPOSE_ENCOUNTER)!;
     if (!('useFactory' in provider) || provider.inject[0] !== CONFIG)
       throw new Error('CI expected a factory over the config');
     return provider.useFactory({ composerPolicy: setting });
   };
 
-  it('names v0 unless a setting says v1 or v2, for a fixed setting', () => {
+  it('names v0 unless a setting says v1, v2 or v3, for a fixed setting', () => {
     expect(composeOf(composerProviders(access))(snapshot).policyVersion).toBe('composer-policy.v0');
     expect(composeOf(composerProviders(access, 'v0'))(snapshot).policyVersion).toBe('composer-policy.v0');
     expect(composeOf(composerProviders(access, 'v1'))(snapshot).policyVersion).toBe('composer-policy.v1');
     expect(composeOf(composerProviders(access, 'v2'))(snapshot).policyVersion).toBe('composer-policy.v2');
+    expect(composeOf(composerProviders(access, 'v3'))(snapshot).policyVersion).toBe('composer-policy.v3');
   });
 
   it('follows the process configuration', () => {
     expect(configured('v0')(snapshot).policyVersion).toBe('composer-policy.v0');
     expect(configured('v1')(snapshot).policyVersion).toBe('composer-policy.v1');
     expect(configured('v2')(snapshot).policyVersion).toBe('composer-policy.v2');
+    expect(configured('v3')(snapshot).policyVersion).toBe('composer-policy.v3');
   });
 
   it('keeps the other providers whatever the policy', () => {
@@ -71,6 +73,7 @@ describe.each([
   ['v0', 'composer-policy.v0'],
   ['v1', 'composer-policy.v1'],
   ['v2', 'composer-policy.v2'],
+  ['v3', 'composer-policy.v3'],
 ] as const)('the Composer policy setting %s (real PostgreSQL, labelled CI fixtures)', (setting, label) => {
   let database: TestDatabase<Database> | undefined;
   let cases: Awaited<ReturnType<typeof scrollUseCases>> | undefined;
@@ -113,7 +116,13 @@ describe.each([
     // v1 and v2 carry the recent-topic share; a v0 decision has no such feature.
     const features = row.payload.evaluations.map((evaluation) => Object.keys(evaluation.features));
     expect(features.every((keys) => keys.includes('recentTopic'))).toBe(label !== 'composer-policy.v0');
-    // Only v2 records the tier of a system-chosen move, and the widened pin (migration 0108) let it be stored.
-    expect(row.payload.unseenLadder !== undefined).toBe(label === 'composer-policy.v2');
+    // Only v2 and v3 record the tier of a system-chosen move, and the widened pins (migrations 0108 and 0117) let them be stored.
+    expect(row.payload.unseenLadder !== undefined).toBe(
+      label === 'composer-policy.v2' || label === 'composer-policy.v3',
+    );
+    // Only v3 reads lanes, so only its candidates name the lane that read them (retrieval is outside a frozen snapshot).
+    expect(row.payload.input.candidates.every((c) => c.encounter.lane !== undefined)).toBe(
+      label === 'composer-policy.v3',
+    );
   });
 });

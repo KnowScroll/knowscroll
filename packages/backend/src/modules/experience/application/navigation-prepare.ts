@@ -3,11 +3,14 @@ import {
   assembleSnapshot,
   bufferIsServable,
   evidenceQueryFor,
+  readInterestLeads,
+  readInterestRollups,
   readRelatedAssetIds,
   readUnseenFirst,
   readVerticalCandidates,
   renderableFormats,
   validAssessments,
+  wantsLanes,
   wantsUnseenFirst,
   type ComposerSnapshot,
   type PreparedBuffer,
@@ -15,6 +18,7 @@ import {
 } from '../../composer/public.js';
 import type {
   ContinuityLink,
+  DiscoveryLanes,
   EncounterRef,
   EncounterSnapshot,
   RegionEncounterCandidate,
@@ -278,6 +282,26 @@ async function unseenRetrieval(
     : {};
 }
 
+/**
+ * What a system-chosen move asks of retrieval under policy v3: named lanes, fed by the person's top long-term interest topics (one
+ * index range scan) and the units a valid Planner opportunity names (D-420). Empty under v0 to v2, which retrieve as before.
+ */
+async function laneRetrieval(
+  p: NavigationPorts,
+  scope: PersonalScopeTx,
+  now: Date,
+): Promise<{ readonly lanes?: DiscoveryLanes }> {
+  const policy = p.compose.policy;
+  return p.readInterestContext && policy && wantsLanes(p.compose)
+    ? {
+        lanes: await readInterestLeads(p.readInterestContext, scope, {
+          evaluatedAt: now.toISOString(),
+          topK: policy.interestTopK,
+        }),
+      }
+    : {};
+}
+
 /** Retrieves the candidates for the command's mode. */
 async function retrieve(
   p: NavigationPorts,
@@ -308,6 +332,7 @@ async function retrieve(
               ...(rules.stickyFormat ? { stickyFormat: rules.stickyFormat } : {}),
               seed: command.commandId,
               ...(await unseenRetrieval(p, scope)),
+              ...(await laneRetrieval(p, scope, start.now)),
             }),
           };
     case 'return':
@@ -449,6 +474,11 @@ async function rankingInput(
   const query = evidenceQueryFor(found.candidates, start.now.toISOString());
   const hiddenAssetIds = await readWithheld(p, scope, query.candidateAssetIds ?? [], found.exact !== undefined);
   const evidence = await p.readPrepared(scope, query);
+  // Policy v3 shrinks interest and format toward the candidates' systems and the person's overall level (D-420).
+  const interest =
+    evidence && p.readInterestContext && wantsLanes(p.compose)
+      ? await readInterestRollups(p.readInterestContext, scope, found.candidates, start.now.toISOString())
+      : undefined;
   const variantFormat = 'intent' in command && command.intent.mode === 'variant' ? command.intent.to : undefined;
   const mode: ComposerSnapshot['mode'] =
     start.mode === 'series' || start.mode === 'related' ? 'horizontal' : start.mode;
@@ -466,6 +496,7 @@ async function rankingInput(
     ...(variantFormat ? { variantFormat } : {}),
     ...rules,
     ...(evidence ? { evidence } : {}),
+    ...(interest ? { interest } : {}),
     ...(assessments ? { semanticAssessments: assessments } : {}),
     fallbackContextWatermark: `unprepared:${String(scope.revisionAtEntry)}`,
     hashCatalogWatermarks: (watermarks) => p.hashRequest('content-candidate-watermarks', [...watermarks]),

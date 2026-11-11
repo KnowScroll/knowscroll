@@ -35,8 +35,9 @@ a private store of every decision, and **worker-prepared buffers** with an optio
 | Jev reuse: a person's pool of recent assessments, `composer.jev_assessments`; a call only for candidates without one (D-058) | implemented, CI-tested against real PostgreSQL; run locally with the real model (12 activations: 1 call instead of 12); no live acceptance is asserted by this entry |
 | Jev is a background role: it stops at its share of the daily model budgets and falls back to the deterministic ranking (D-058) | implemented, CI-tested; no live acceptance is asserted by this entry |
 | Policy v1 (`composer-policy.v1`, D-190): Intent 0.35 to 0.30, a recent-topic penalty of 0.05, Format per play level (D-192), exploration per play level; v0 decisions replay byte for byte | implemented, CI-tested (60 frozen v0 hashes); **off unless `KS_COMPOSER_POLICY=v1`** (default `v0`; dev sets `v1`); the numbers were chosen from the replay of dev's stored decisions (D-190) |
-| `composer replay-policy`: stored vertical decisions re-run under v0, v1 and v2, counts only: topic, series, format, repeats, already-met, tiers and places | implemented, CI-tested; run on dev (2026-10-31) over 640 stored decisions, D-190; the new-content counts are not yet run on dev |
+| `composer replay-policy`: stored vertical decisions re-run under v0, v1, v2 and v3, counts only: topic, series, format, repeats, already-met, tiers and places | implemented, CI-tested; run on dev (2026-10-31) over 640 stored decisions, D-190; the new-content counts are not yet run on dev |
 | Policy v2 (`composer-policy.v2`, D-408, #674): a person always gets new content. An explanation already met is left out of every system-chosen offer while anything unseen is eligible (the unseen are ranked as v1 ranks them, so a subject move still usually leaves the topic); only when nothing unseen exists is the least recently met offered, recorded as a fall back. Exploration draws only the unseen at the policy's fraction, ties fall by a seeded hash | implemented, CI-tested (unit, replay, real PostgreSQL); **off unless `KS_COMPOSER_POLICY=v2`**; not yet run on dev |
+| Policy v3 (`composer-policy.v3`, D-420, #674 slices 4.2 and 5.2): v2's rules and numbers, with long-term interest that selects candidates (retrieval lanes `source`, `planned`, `continue`, `adjacent`, `explore`), interest by shrinkage toward the topic's system and the person's overall level, format learned topic, then system, then person, then a duration prior, and a logged 5% format exploration | implemented, CI-tested (unit, replay, real PostgreSQL, the simulation lab under `KS_COMPOSER_POLICY=v3` with I1 green); **off unless `KS_COMPOSER_POLICY=v3`**; not yet run on dev |
 | Retrieval is a rotating sample (D-408): primary before supporting topic roles, never incidental, ordered by a stable random key from a cursor the decision seed picks, text only when the person supplied text | implemented, CI-tested against real PostgreSQL; applies to every policy (retrieval is outside a frozen snapshot) |
 | `composer.prune-decisions`: expired decisions nothing holds are deleted on a schedule, in bounded batches | implemented, CI-tested against real PostgreSQL; offers are not deleted yet, so a decision an offer holds is not reclaimed (see "Private store and lifecycle") |
 | Signals for the gap loop (D-414): a v2 decision that fell to the last resort, or offered the last unseen explanation of its topic, records a count in the same transaction, derived from the decision alone; the decision and its replay are unchanged | implemented, CI-tested (unit, real PostgreSQL); **off unless `KS_SUPPLY_GROWTH_ENABLED=1`**; not yet run on dev |
@@ -50,17 +51,17 @@ A decision/offer/buffer is not an activated encounter and contributes no persona
 
 ## Inputs and experimental policy
 
-A policy is versioned data (`domain/policy.ts`): `composer-policy.v0`, `v1` and `v2` share maximum
+A policy is versioned data (`domain/policy.ts`): `composer-policy.v0`, `v1`, `v2` and `v3` share maximum
 retrieval 100, chosen plus two buffers (maximum 3), MMR lambda 0.2, vertical exploration 0.10, and last 20 actual
 activated encounters within 24 hours of explicit `evaluatedAt`. v2 keeps every number of v1; it changes rules (below),
 and three fields of the policy object name which rule a policy uses: `explorationDraw`, `tieBreak` and `encountered`. These are code-selected experimental defaults, not
 calibrated learned parameters. A decision names its policy and replays under exactly that policy
 (`policyOf(decision.policyVersion)`), which `persistComposerDecision` checks byte for byte, so an old decision never
-changes with a newer policy. Which policy new decisions are made under is configuration, `KS_COMPOSER_POLICY` (`v0`, `v1`
-or `v2`, default `v0`, read by the API and the worker): v1's numbers were chosen from the dev replay (D-190), and a world
+changes with a newer policy. Which policy new decisions are made under is configuration, `KS_COMPOSER_POLICY` (`v0`, `v1`,
+`v2` or `v3`, default `v0`, read by the API and the worker): v1's numbers were chosen from the dev replay (D-190), and a world
 uses v1 or v2 only when its configuration says so. A stored decision replays under its own policy whatever the setting, and
 the replay command always runs every policy. A change to a stored policy's numbers or rules needs a new label and a
-migration that widens the pin (v1 needed 0081, v2 needs 0108).
+migration that widens the pin (v1 needed 0081, v2 0108, v3 0117).
 Seed and all inputs/watermarks are saved; ties use immutable asset/revision lexical order under v0 and v1, and under v2 a
 hash of the seed and the asset id (see "Policy v2").
 
@@ -361,6 +362,68 @@ Composer, decides what is kept (the catalogue's planets only, one mark a person,
 of it and reads none of it: demand is never evidence, and `modules/supply/gap-wall.test.ts` holds that for Composer, Evidence, Personal Context and
 Geography. See the [Supply README](../supply/README.md#the-gap-loop-content-that-is-running-out-674-d-414).
 
+## Policy v3: long-term interest selects candidates, format is learned with pooling (D-420)
+
+Status: implemented, CI-tested (unit, replay, real PostgreSQL, the simulation lab); **off unless `KS_COMPOSER_POLICY=v3`**; not
+yet run on dev. Related: #674 slices 4.2 and 5.2.
+
+v3 keeps every rule and number of v2 (a person always gets new content, D-408; unseen ranked as v1 ranks them). It changes what
+the interest and format features read, what retrieval is asked for, and adds one logged draw. Every new input is optional and
+ignored by v0 to v2, a v0 to v2 decision replays byte for byte (a test composes the labelled fixtures under each with and
+without the new inputs, and v3 with every new rule switched off equals v2), and every number is a field of the policy object
+(`interestModel`, `formatModel`, `formatExplorationFraction`, `retrieval`, `interestTopK`). The numbers are bench values for
+testing, not calibrated parameters.
+
+**Retrieval lanes.** Under `retrieval: 'lanes'` the callers (Experience's navigation and the buffer worker) first read the
+person's leads through `ReadInterestContext.leads` (implemented by Personal Context over Evidence's index, see the Evidence
+README): their top `interestTopK` = 32 long-term interest topics, strongest first, and the explanation units an unexpired Planner
+opportunity for existing content names. They hand both to Content as data (`lanes`), and Content reads the lanes `source`, `planned`,
+`continue` (the top topics, at most five candidates of any one system), `adjacent` (the other topics of the systems the source's
+topics belong to) and `explore` (a rotating sample of the whole library, stratified by system), with the unseen-first bands and the
+rotation cursor of D-408 applying to every lane (see the Content README). Each candidate carries the lane that read it first
+(`encounter.lane`) in the snapshot; scoring never reads it. The exploration pool is the `explore` lane when there is one (so exploration
+is stratified by system), and when none of it is eligible exploration still draws from every eligible candidate.
+
+**Interest with shrinkage.** The interest of a topic is `person → system → topic`, each step moving from its prior toward 1 by the
+saturating weight of its own evidence (`domain/interest.ts`, `shrunkInterest`):
+`person = 0.5 + 0.5·0.1·A_person/(A_person+10)`, `system = person + (1−person)·0.5·A_rest/(A_rest+3)` (`A_rest` is the system's
+activity less the topic's own), `topic = system + (1−system)·A_topic/(A_topic+1)`. With nothing known it is the neutral 0.5; it never
+falls as any activity grows and never goes below 0.5. So a topic met once scores above one never met (v2: `A/(1+A)` put it below), a
+never-met topic of a loved system scores above an unknown one, an old interest decays to its system's prior and never below an
+unknown topic, and a heavy reader's unknown topics are not all loved (the person's level moves the prior by at most 0.05). The
+inputs are the topic row, the system roll-up and the person roll-up of Evidence, read after retrieval and frozen in the snapshot
+(`evidence.person`, `evidence.systems`, `evidence.topicSystems`, the system of each candidate topic from Content's catalogue at
+assembly, so a later catalogue never changes a stored decision).
+
+**Format by hierarchical shrinkage.** The fit of a topic for a candidate's kind is a chain from the general to the particular
+(`hierarchicalFormatFit`): the person's other systems' rate against a prior chosen by the candidate's duration, then the system's rest
+against that, then the topic's rest, then the play-level cell of v1 against the topic (strengths 8, 6, 4 and 4 encounters). Each level
+is the rest of its parent, so no encounter is counted twice; a level with no counts equals the level above; with nothing known the
+fit is the duration prior. So evidence of Reels in a system informs a topic never read in it, which v2's per-(topic, kind) counts could not.
+The prior is by duration bucket (a Reel is always short, a Scroll by its reading minutes: under 3 minutes short, from 8 long, none stated
+medium), and **its default values are flat**: 0.5 for every bucket. Nothing measured supports a tilt, and duration is not independent of format
+(a Reel is always short), so any difference between buckets would be a preference between formats at a cold start, against equal status: an
+earlier draft with short 0.55 and long 0.45 sent the simulation lab's cold-start reader to Reels and broke its formation invariant, which is
+how this was found. The buckets are in the policy so a table measured later is a new policy label, not a code change (a test shows a tilted
+table is read per bucket and that evidence outweighs it). The observed counts are not bucketed by duration (storage is unchanged: topic, system and person rows by kind, and the play-level cells).
+
+**Format exploration (logged).** Format stickiness keeps a Reel watcher in Reels, so a person's evidence of Scrolls would never grow.
+For a system-chosen vertical move that kept the person's format and still has an unseen candidate of the other format that only
+stickiness holds back, a seeded draw at `formatExplorationFraction` = 0.05 takes the first offer from the other format, the best scored
+of those candidates (unseen by construction: `already_encountered` runs first). The draw uses its own generator (`seed:format-exploration`),
+so the exploration draw of the same decision is unchanged. The decision records `formatExploration { fraction, branch, personFormat,
+propensity }`, `propensity` being the probability of the branch taken (0.05 or 0.95), and `exploration.selectedProbability` is the first
+offer's probability under the whole mixture (0.05 for a drawn first offer; for the person's-format branch 0.95 times its probability
+within the branch), so an off-policy estimate can weight it. Not drawn, and nothing recorded, when the person gave an explicit format
+(a variant or an exact target is not system-chosen, and a snapshot cannot carry both a required and a sticky format), when stickiness gave
+way, when no unseen other-format candidate exists, or under v0 to v2. Buffers are drawn the same way, so a buffered first offer can be the other format.
+
+**Replay.** `composer replay-policy` compares v0, v1, v2 and v3 and, beside the new-content counts, reports for every variant the first
+offers by format (`firstOfferKinds`, `otherFormatFirstOffer`), the format exploration (`possible`, `drawn`) and the first offers by lane
+(an input stored before v3 names none, so it counts under `none`: read the lane counts only on decisions made under v3). A stored input
+before v3 carries no roll-ups, so v3 replayed on it reads no system or person prior: its interest and format differ from v2's only by the
+new arithmetic, which is what the comparison isolates.
+
 ## Prepared buffers and Jev
 
 Status: implemented, CI-tested against real PostgreSQL. Related: #234.
@@ -483,7 +546,7 @@ logs the same.
 | Notices | none; the next navigation reads the durable row |
 | Lock order | personal root first in both worker transactions; the model call is between them |
 | Erasure | Clear and full erasure delete `composer.buffers` before `composer.decisions`, `composer.jev_assessments` (it references nothing), and the queue payloads (`pgboss/composer.prepare-buffer`) |
-| Config | `KS_COMPOSER_POLICY` (API and worker, D-190); `KS_JEV_ENABLED` (worker); `KS_REASONING_BACKGROUND_SHARE_PERCENT` (worker, shared with the other background roles); the model is the harness's configured model |
+| Config | `KS_COMPOSER_POLICY` (API and worker, D-190, `v0` to `v3`); `KS_JEV_ENABLED` (worker); `KS_REASONING_BACKGROUND_SHARE_PERCENT` (worker, shared with the other background roles); the model is the harness's configured model |
 
 **Failure and recovery.** A job for a changed epoch, an unactivated offer or a superseded revision is
 skipped. A thrown error rolls back both transactions and pg-boss retries. A crash after the model call
@@ -520,7 +583,7 @@ Status: implemented, CI-tested; no live acceptance is asserted by this entry.
 
 `node dist/operator.js composer replay-policy --since <ISO date> [--limit <1-20000>] [--intent-weight <0-1>]
 [--recent-topic-penalty <0-1>] [--sweep]` (worker release, server shell) re-runs the retained vertical decisions
-recorded since a date, newest first (default 2000), under `composer-policy.v0`, v1 and v2 on the same inputs, to choose
+recorded since a date, newest first (default 2000), under `composer-policy.v0`, v1, v2 and v3 on the same inputs, to choose
 the numbers of a policy from real decisions and to shadow-compare a new one before a world switches to it. Read-only: no
 model, no network, no write. It reads the decisions of every account in memory and prints one JSON line of **counts and
 shares only** (no person, universe, session, asset, title or text):
@@ -541,6 +604,10 @@ shares only** (no person, universe, session, asset, title or text):
 - `replayedWithHistory`: how many replayed inputs read the person's retained history. An input without it counts everything as
   unseen, so read the met counts only against this number. Inputs stored before v2 carry no `lastEncounteredAt`, so a
   replayed last resort orders those by score.
+- `formatAndLanes` per row (D-420): the first offers by format and how many are in the format the move did not start from
+  (`firstOfferKinds`, `otherFormatFirstOffer`, share `otherFormatFirstOffer`), the decisions whose move could draw format exploration and
+  how many drew it (`formatExploration`), and the first offers by retrieval lane (`lanes`, the lane an input recorded, or `none` for an
+  input stored before v3). v3 reads against v2 on the same inputs.
 - `skipped`: decisions that are not vertical, whose source is not among their candidates, or that the current schema
   cannot read. `storedPolicies` counts the labels found.
 - `--intent-weight` and `--recent-topic-penalty` replay v1 with other numbers; `--sweep` replays v1 over a grid of

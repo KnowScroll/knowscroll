@@ -1,3 +1,4 @@
+import type { DiscoveryLane } from './discovery-lanes.js';
 import type { EncounterTraits } from './traits.js';
 
 /** Shared admitted facts only; never personal activity or model guesses. */
@@ -27,6 +28,8 @@ export interface EncounterSnapshot extends EncounterRef {
   readonly traits?: EncounterTraits;
   readonly catalogWatermark: string;
   readonly attributionVersion: string;
+  /** The retrieval lane that read this candidate first; present only on a lane-based read (policy v3, D-420). */
+  readonly lane?: DiscoveryLane;
 }
 export interface EncounterQuery {
   readonly languages: readonly string[];

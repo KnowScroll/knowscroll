@@ -46,12 +46,13 @@ import {
   type PersistComposerDecision,
   type PurgeExpiredComposerBuffer,
   type ReadComposerBuffer,
+  type ReadInterestContext,
   type ReadPreparedEvidenceInput,
   type ReleaseComposerBuffer,
   type RequestBufferPreparation,
 } from '../../composer/public.js';
 import { projectEncounterActivityQueue } from '../../evidence/public.js';
-import { READ_COMPOSER_CONTEXT } from '../../personal-context/public.js';
+import { READ_COMPOSER_CONTEXT, READ_INTEREST_CONTEXT } from '../../personal-context/public.js';
 import {
   FENCE_OWN_ACCOUNT,
   READ_RECORDING_LIFECYCLE,
@@ -121,6 +122,7 @@ export function navigationProviders(
         READ_SERIES_TOTAL,
         RESOLVE_CONTINUITY_LINK,
         READ_ENCOUNTER_ATTRIBUTION,
+        READ_INTEREST_CONTEXT,
         ...(options.region
           ? [READ_OWN_REGION_CONSTRAINT, READ_REGION_ENCOUNTER_CANDIDATES, LOCK_REGION_ENCOUNTER_CANDIDATES]
           : []),
@@ -144,6 +146,7 @@ export function navigationProviders(
         readSeriesTotal: ReadSeriesTotal,
         resolveContinuityLink: ResolveContinuityLink,
         readAttribution: ReadEncounterAttribution,
+        readInterestContext: ReadInterestContext,
         ...optional: readonly unknown[]
       ): NavigationPorts => {
         const readRegionConstraint = options.region ? (optional[0] as ReadOwnRegionConstraint) : undefined;
@@ -185,6 +188,7 @@ export function navigationProviders(
           ...(buffers ? { buffers } : {}),
           readDiscoveryCandidates,
           readMetUnitIds,
+          readInterestContext,
           readExactEncounter: gateExactEncounter(readExactEncounter, audience),
           readContinuations,
           readSeriesTotal,

@@ -51,7 +51,14 @@ import { notifyScopeChanged } from '../../../infrastructure/notices/index.js';
 import { requestHash } from '../../../infrastructure/receipts/index.js';
 import { projectEncounterActivityQueue, applyActionEvidenceQueue } from '../events.js';
 import { PROJECT_ENCOUNTER_ACTIVITY, RECONCILE_ENCOUNTER_ACTIVITY, READ_PREPARED_ACTIVITY } from '../public.js';
-import { READ_ACTIVITY_STATISTICS, READ_OBSERVATION_TAIL, READ_RECENT_TOPIC_IDS } from '../public.js';
+import {
+  READ_ACTIVITY_STATISTICS,
+  READ_INTEREST_ROLLUPS,
+  READ_OBSERVATION_TAIL,
+  READ_RECENT_TOPIC_IDS,
+  READ_TOP_INTEREST_TOPICS,
+} from '../public.js';
+import { readInterestRollups, readTopInterestTopics } from './interest-store.js';
 import { readActivityStatistics, readObservationTail, readRecentTopicIds } from './context-store.js';
 import {
   makeProjectEncounterActivity,
@@ -88,6 +95,8 @@ export function activityProviders(t: {
     { provide: READ_RECENT_TOPIC_IDS, inject: [], useFactory: () => readRecentTopicIds },
     { provide: READ_ACTIVITY_STATISTICS, inject: [], useFactory: () => readActivityStatistics },
     { provide: READ_OBSERVATION_TAIL, inject: [], useFactory: () => readObservationTail },
+    { provide: READ_TOP_INTEREST_TOPICS, inject: [], useFactory: () => readTopInterestTopics },
+    { provide: READ_INTEREST_ROLLUPS, inject: [], useFactory: () => readInterestRollups },
     {
       provide: ACTIVITY_PORTS,
       inject: [

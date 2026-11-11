@@ -232,7 +232,8 @@ jobs with an already-current vector do nothing. Required job failure rolls its o
 | `activity_revisions` | Immutable separate input vector, original channels, capped routing value; exact exposure/revision/hash keys | One per changed vector; bounded JSON; retained personal audit, full erasure |
 | `activity_current` | Current owned epoch/exposure -> matching revision FK | One/exposure; erase after topic contributions, before revisions |
 | `topic_contributions` | Current weighted capped value + independent original channel contributions and measured/qualified flags | <=16 actual attributed topics/exposure; sum topic weights<=1 enforced by content; replacement rather than additive replay |
-| `topic_context` | Scope/topic decayed activity and independent channel aggregates; per-topic-format Q/O | One/topic; exact requested topics<=100; update affected union<=32 topics, no lifetime scan |
+| `topic_context` | Scope/topic decayed activity and independent channel aggregates; per-topic-format Q/O; since 0117 `log_weight` and the top-interest index | One/topic; exact requested topics<=100; update affected union<=32 topics, no lifetime scan; top-K read is an index range scan |
+| `interest_rollups` (`0117`, D-420) | Per-system and per-person sum of the topic rows (same shape as `topic_context` plus `log_weight`), written in the same transaction; read by primary key | <=1 row per system a person has touched, plus 1; erased with `topic_context` |
 | `topic_format_cells` (`0082`, D-192) | Measured/qualified encounters per (topic, kind, play level), beside the `topic_context` counts, which are their parent over every level. `topic_contributions.play_level` records the level an exposure was counted at, so a correction moves its counts between cells. Reading only: no pick, result, spark or tier (D-063) | <=6 rows/topic; requested topics<=100; erased with `topic_context` |
 
 **Play-level cells** (implemented; CI-tested against real PostgreSQL, not yet run on dev). The play level (`plain`,
@@ -273,6 +274,35 @@ even though the first and third hashes coincide. Hash equality with older audit 
 uniqueness rule. The new current pointer and weighted scalar/channel/Q/O replacements commit
 atomically; final redelivery of already-current A does nothing and creates no qualification row.
 
+
+## Long-term interest: the top-K index and the roll-ups (D-420)
+
+Status: implemented, CI-tested against real PostgreSQL (unit, integration, the simulation lab); not yet run on dev. Related: #674
+slices 4.2 and 5.2, migration 0117. Reading only (D-063): no pick, result, spark or tier is a column or an input.
+
+Composer policy v3 selects candidates from the person's top long-term interest topics, so "the person's top K topics now" must not read
+every topic they have met. `evidence.topic_context.log_weight` is `ln(activity) + ln2 · evaluated_at_ms / half_life_ms`, written with the
+row (`logWeightOf`, `NULL` while the activity is 0). Every row decays by the same law, so ordering by this key is ordering by decayed activity at any later
+time, and the rows holding at least a floor of decayed activity at `now` are the rows above a fixed key. `ReadTopInterestTopics(limit ≤ 64,
+evaluatedAt, minActivity = 0.05)` is therefore one range scan of `topic_context_top_interest` (`universe_id, privacy_epoch, log_weight desc,
+topic_id`, partial on `log_weight is not null`): no sort, and it stops at `limit` whatever the number of topics. Measured on disposable data:
+for one person with 20,000 topics the plan is an Index Scan with no Sort that returns 32 rows from 35 buffers in 0.03 ms (the same ranking by
+sorting decayed activity read all 20,000 rows, 527 buffers, and took 131 ms), and the whole read including the personal scope entry takes about
+1.6 ms (`interest-rollups.test.ts` asserts the plan and the result; hosted CI does not assert the time).
+
+`evidence.interest_rollups` (`level` `system` or `person`, `subject_id` the catalogue system or empty) has the shape of `topic_context`
+(decayed activity, channels, reel and scroll measured and qualified, `log_weight`). `persistActivity` writes it in the same transaction as the
+topic rows: a roll-up is the sum of the topic rows beneath it, replaced exactly as a topic row is (the old aggregate decays once, this exposure's
+previous contribution is swapped for its new one at its own time), so a correction replaces and never adds, and a system less one topic is
+"the rest of the system". The system of a topic is Content's catalogue (`systemOfTopic`); a topic the catalogue does not hold counts for the
+person only. `ReadInterestRollups(systemIds ≤ 100, person, evaluatedAt)` reads the primary keys. Both reads are decayed to the time asked and
+clamp a row stored after it (clock skew) instead of growing it. Personal Context serves them to Composer (see its README). The migration
+backfills `log_weight`, the person row and the system rows of the code catalogue at 0117 (a test applies the migration's SQL to old-shape rows
+and compares); a topic the catalogue gains later gets its roll-up from the writes that follow it. An older writer leaves `log_weight` NULL and
+writes no roll-up until the new binary runs; v3 is off until a world sets `KS_COMPOSER_POLICY=v3`.
+
+Erasure: `interest_rollups` is in the erasure inventory beside `topic_context` (Clear and account deletion delete both by universe; a test clears a
+person and finds neither).
 
 ## Feeding Personal Context
 

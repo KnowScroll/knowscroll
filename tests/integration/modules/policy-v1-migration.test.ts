@@ -86,15 +86,16 @@ describe('migrations 0081 and 0082 over existing decisions and counts (real Post
       expect.arrayContaining(['0081_composer_policy_v1', '0082_evidence_play_cells']),
     );
 
-    // The old decision is untouched; a decision under v1 is accepted, and under v2 once 0108 (#674) has widened the pin
-    // again; another label is not.
+    // The old decision is untouched; a decision under v1 is accepted, and under v2 and v3 once 0108 and 0117 (#674) have widened
+    // the pin again; another label is not.
     const kept = await sql<{
       policy_version: string;
     }>`select policy_version from composer.decisions where id = ${oldDecisionId}::uuid`.execute(handle.db);
     expect(kept.rows).toEqual([{ policy_version: 'composer-policy.v0' }]);
     await decision(randomUUID(), 'composer-policy.v1');
     await decision(randomUUID(), 'composer-policy.v2');
-    await expect(decision(randomUUID(), 'composer-policy.v3')).rejects.toThrow(/decisions_policy_version_check/);
+    await decision(randomUUID(), 'composer-policy.v3');
+    await expect(decision(randomUUID(), 'composer-policy.v4')).rejects.toThrow(/decisions_policy_version_check/);
     // A decision cannot be rewritten to another policy.
     await expect(
       sql`update composer.decisions set policy_version = 'composer-policy.v1' where id = ${oldDecisionId}::uuid`.execute(

@@ -1,5 +1,8 @@
+import type { FormatModel, InterestModel } from './interest.js';
+
 /** The labels a stored decision can carry. A decision always replays under the policy it names. */
-export type ComposerPolicyVersion = 'composer-policy.v0' | 'composer-policy.v1' | 'composer-policy.v2';
+export type ComposerPolicyVersion =
+  'composer-policy.v0' | 'composer-policy.v1' | 'composer-policy.v2' | 'composer-policy.v3';
 
 /** Weights of a vertical move's score. `recentRepetition` and `recentTopic` are penalties: they are subtracted. */
 export interface VerticalWeights {
@@ -72,6 +75,35 @@ export interface ComposerPolicy {
    * return and exact-target moves are the person's own and are never asked.
    */
   readonly encountered: 'score' | 'unseen-first';
+  /**
+   * How a topic's interest is scored. `null`: `A / (1 + A)` of the topic's own activity, 0.5 when the topic has no row (v0 to
+   * v2). A model (v3, D-420): shrinkage toward the topic's system and the person's overall level, so a never-met topic of a
+   * loved system scores above an unknown one and an old interest decays toward its prior, not below an unknown topic.
+   */
+  readonly interestModel: InterestModel | null;
+  /**
+   * How the format fit of a topic is learned. `null`: the topic's (kind, play level) cell shrunk toward its other levels, with
+   * `formatCellPrior` (v0 to v2). A model (v3, D-420): topic, then system, then person, then a prior chosen by the candidate's
+   * duration, so evidence of one format in a system informs a topic never read in it.
+   */
+  readonly formatModel: FormatModel | null;
+  /**
+   * The share of system-chosen first offers that are drawn from the format the person is not in, so that evidence of the other
+   * format accrues where stickiness would never give it a chance (v3, D-420). The draw and its propensity are logged. 0 switches it off.
+   * An explicit format request is never drawn against.
+   */
+  readonly formatExplorationFraction: number;
+  /**
+   * How retrieval is asked to read: named lanes with quotas and the person's top interest topics (`lanes`, v3), or the topic,
+   * text and general lanes (`single`, v0 to v2). Retrieval is outside a frozen snapshot; the policy only says what to ask for,
+   * and a candidate's lane is recorded in the snapshot.
+   */
+  readonly retrieval: 'single' | 'lanes';
+  /**
+   * How many of the person's top long-term interest topics a lane-reading retrieval asks for (the `continue` lane). 0 for a
+   * policy that does not read lanes. Outside a frozen snapshot, like retrieval itself.
+   */
+  readonly interestTopK: number;
 }
 
 const COMMON = {
@@ -111,6 +143,11 @@ export const COMPOSER_POLICY_V0: ComposerPolicy = Object.freeze({
   explorationDraw: 'one-in-ten',
   tieBreak: 'lexical',
   encountered: 'score',
+  interestModel: null,
+  formatModel: null,
+  formatExplorationFraction: 0,
+  retrieval: 'single',
+  interestTopK: 0,
 });
 
 /**
@@ -140,6 +177,11 @@ export const COMPOSER_POLICY_V1: ComposerPolicy = Object.freeze({
   explorationDraw: 'one-in-ten',
   tieBreak: 'lexical',
   encountered: 'score',
+  interestModel: null,
+  formatModel: null,
+  formatExplorationFraction: 0,
+  retrieval: 'single',
+  interestTopK: 0,
 });
 
 /**
@@ -162,22 +204,69 @@ export const COMPOSER_POLICY_V2: ComposerPolicy = Object.freeze({
   explorationDraw: 'by-fraction',
   tieBreak: 'seeded-hash',
   encountered: 'unseen-first',
+  interestModel: null,
+  formatModel: null,
+  formatExplorationFraction: 0,
+  retrieval: 'single',
+  interestTopK: 0,
+});
+
+/**
+ * Policy v3 (#674, slices 4.2 and 5.2, D-420): long-term interest selects candidates, and format is learned with pooling.
+ * Every rule and weight of v2 is kept (a person always gets new content, D-408); what changes is what the interest and format
+ * features read and what retrieval is asked for. Interest is shrunk toward the topic's system and the person's overall level.
+ * Format fit is estimated per topic, then system, then person, then a prior chosen by duration, and 5% of system-chosen first
+ * offers are drawn from the format the person is not in, with the draw and its propensity logged, so evidence of the other
+ * format accrues. Retrieval reads named lanes. The numbers are bench values for testing, not calibrated parameters; they were
+ * compared with v2 by `composer replay-policy` before any world uses them. A world makes decisions under v3 only where
+ * `KS_COMPOSER_POLICY=v3` is set.
+ */
+export const COMPOSER_POLICY_V3: ComposerPolicy = Object.freeze({
+  ...COMPOSER_POLICY_V2,
+  version: 'composer-policy.v3',
+  interestModel: Object.freeze({
+    base: 0.5,
+    topicHalfSaturation: 1,
+    systemHalfSaturation: 3,
+    personHalfSaturation: 10,
+    systemWeight: 0.5,
+    personWeight: 0.1,
+  }),
+  formatModel: Object.freeze({
+    personStrength: 8,
+    systemStrength: 6,
+    topicStrength: 4,
+    cellStrength: 4,
+    shortBelowMinutes: 3,
+    longFromMinutes: 8,
+    prior: Object.freeze({ short: 0.5, medium: 0.5, long: 0.5 }),
+  }),
+  formatExplorationFraction: 0.05,
+  retrieval: 'lanes',
+  interestTopK: 32,
 });
 
 /**
  * Which policy new decisions are made under (`KS_COMPOSER_POLICY`, D-190). It is chosen by configuration, so v1 is
  * not used before its numbers are: the default is `v0`. Replay never asks: a stored decision names its own policy.
  */
-export type ComposerPolicySetting = 'v0' | 'v1' | 'v2';
+export type ComposerPolicySetting = 'v0' | 'v1' | 'v2' | 'v3';
 
 export function composerPolicyFor(setting: ComposerPolicySetting): ComposerPolicy {
-  return setting === 'v2' ? COMPOSER_POLICY_V2 : setting === 'v1' ? COMPOSER_POLICY_V1 : COMPOSER_POLICY_V0;
+  return setting === 'v3'
+    ? COMPOSER_POLICY_V3
+    : setting === 'v2'
+      ? COMPOSER_POLICY_V2
+      : setting === 'v1'
+        ? COMPOSER_POLICY_V1
+        : COMPOSER_POLICY_V0;
 }
 
 const POLICIES: Readonly<Record<ComposerPolicyVersion, ComposerPolicy>> = {
   'composer-policy.v0': COMPOSER_POLICY_V0,
   'composer-policy.v1': COMPOSER_POLICY_V1,
   'composer-policy.v2': COMPOSER_POLICY_V2,
+  'composer-policy.v3': COMPOSER_POLICY_V3,
 };
 
 /** The policy a stored decision's label names. */

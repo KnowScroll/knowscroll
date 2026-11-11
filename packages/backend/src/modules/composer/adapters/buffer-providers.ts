@@ -17,7 +17,7 @@ import {
   type ReadExactEncounter,
 } from '../../content/public.js';
 import type { WithPersonalScope } from '../../identity/public.js';
-import { READ_COMPOSER_CONTEXT } from '../../personal-context/public.js';
+import { READ_COMPOSER_CONTEXT, READ_INTEREST_CONTEXT } from '../../personal-context/public.js';
 import { makeCheckComposerRecordingRun } from '../application/check-recording-run.js';
 import { makeAssessShortlist } from '../application/jev.js';
 import { makePrepareBuffer, type PrepareBuffer } from '../application/prepare-buffer.js';
@@ -28,6 +28,7 @@ import type {
   ReadBufferSource,
   ReadHiddenAssets,
   ReadPreparedEvidenceInput,
+  ReadInterestContext,
   ReadMetUnitIds,
   RequestBufferPreparation,
 } from '../application/ports.js';
@@ -113,6 +114,7 @@ export function composerBufferWorkerProviders(t: {
         PERSIST_COMPOSER_DECISION,
         COMPOSE_ENCOUNTER,
         READ_MET_UNIT_IDS,
+        READ_INTEREST_CONTEXT,
       ],
       useFactory: (
         withPersonalScope: WithPersonalScope,
@@ -127,6 +129,7 @@ export function composerBufferWorkerProviders(t: {
         persistDecision: PersistComposerDecision,
         compose: ComposeEncounter,
         readMetUnitIds: ReadMetUnitIds,
+        readInterestContext: ReadInterestContext,
       ): PrepareBuffer =>
         makePrepareBuffer({
           withPersonalScope,
@@ -141,6 +144,7 @@ export function composerBufferWorkerProviders(t: {
           persistDecision,
           compose,
           readMetUnitIds,
+          readInterestContext,
           hashCatalogWatermarks: (watermarks) => requestHash('content-candidate-watermarks', [...watermarks]),
           newId: () => uuidv7(),
           now: () => new Date(),

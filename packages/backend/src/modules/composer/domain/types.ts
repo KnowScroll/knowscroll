@@ -23,6 +23,13 @@ export interface TopicAttribution {
   readonly role: 'primary' | 'supporting' | 'incidental';
   readonly weight: number;
 }
+/**
+ * The retrieval lane that read a candidate first (policy v3, D-420), named as Content names it: the encounter's own topics
+ * (`source`), a unit a Planner opportunity names (`planned`), text the person typed (`text`), the person's top interest topics
+ * (`continue`), the other topics of the source's systems (`adjacent`) or a sample of the whole library stratified by system
+ * (`explore`). Recorded with the candidate; never read by scoring.
+ */
+export type RetrievalLane = 'source' | 'planned' | 'text' | 'continue' | 'adjacent' | 'explore';
 export interface EncounterSnapshot extends EncounterRef {
   readonly kind: 'reel' | 'scroll';
   readonly explanationUnitId: string;
@@ -40,6 +47,8 @@ export interface EncounterSnapshot extends EncounterRef {
   readonly traits?: EncounterTraits;
   readonly catalogWatermark: string;
   readonly attributionVersion: string;
+  /** Absent in decisions stored before policy v3, and when retrieval did not name lanes. */
+  readonly lane?: RetrievalLane;
 }
 /**
  * The part of a Planner opportunity that Composer reads. Titles, purposes and supply briefs stay
@@ -71,6 +80,15 @@ export interface PlanInfluence {
   readonly before: number;
   readonly after: number;
 }
+/** A roll-up of reading over several topics, in the shape of one topic's statistics: activity and measured/qualified counts per kind. */
+export interface InterestRollup {
+  readonly activity: number;
+  readonly formats: readonly {
+    readonly kind: 'reel' | 'scroll';
+    readonly measured: number;
+    readonly qualified: number;
+  }[];
+}
 export interface PreparedEvidenceInput {
   readonly universeId: string;
   readonly privacyEpoch: number;
@@ -100,6 +118,21 @@ export interface PreparedEvidenceInput {
       readonly qualified: number;
     }[];
   }[];
+  /**
+   * The person's overall level (policy v3, D-420): the roll-up of every topic they have met, decayed to the evaluation time.
+   * Reading only (D-063). Absent in inputs stored before policy v3, and when the person has none.
+   */
+  readonly person?: InterestRollup;
+  /**
+   * The roll-ups of the systems of the candidates' topics (policy v3), each the sum of its topics, so a system less one topic is
+   * the rest of the system. A system the person has no row for is absent.
+   */
+  readonly systems?: readonly (InterestRollup & { readonly systemId: string })[];
+  /**
+   * The catalogue system of each candidate topic the catalogue holds (policy v3). Frozen at assembly from Content's catalogue, so
+   * a later catalogue never changes a stored decision.
+   */
+  readonly topicSystems?: readonly { readonly topicId: string; readonly systemId: string }[];
   /** Actual activated encounters only, newest first; never offers or generated supply. */
   readonly recent: readonly {
     readonly exposureId: string;
@@ -267,6 +300,20 @@ export interface UnseenLadderOutcome {
   readonly eligible: Readonly<Record<SourcePlace, number>>;
 }
 
+/**
+ * What policy v3's format exploration did in one decision (system-chosen vertical moves that name the format the person is in).
+ * A draw at `fraction` takes the first offer from the other format: `other_format` when the draw hit, `person_format` when it
+ * did not. `propensity` is the probability of the branch actually taken, so an off-policy estimate can weight it. Absent when the
+ * move cannot explore: an explicit format request, no other-format candidate eligible, the person's format already fell back, or
+ * a policy without it.
+ */
+export interface FormatExplorationOutcome {
+  readonly fraction: number;
+  readonly branch: 'person_format' | 'other_format';
+  readonly personFormat: 'reel' | 'scroll';
+  readonly propensity: number;
+}
+
 export interface ComposerDecision {
   readonly version: 'composer-decision.v0';
   /** The policy the decision was made under; it replays under exactly this policy. */
@@ -296,5 +343,7 @@ export interface ComposerDecision {
   readonly relatedTarget?: RelatedTargetOutcome;
   /** Present under policy v2 for a system-chosen vertical move. */
   readonly unseenLadder?: UnseenLadderOutcome;
+  /** Present under policy v3 when format exploration was drawn for this move. */
+  readonly formatExploration?: FormatExplorationOutcome;
   readonly outcome: 'ready' | 'exhausted';
 }

@@ -365,6 +365,21 @@ export interface EvidenceEncounterEvidence {
   universe_id: string;
 }
 
+export interface EvidenceInterestRollups {
+  activity: number;
+  channel_values: Json;
+  evaluated_at: Timestamp;
+  level: string;
+  log_weight: number | null;
+  privacy_epoch: number;
+  reel_measured: Generated<number>;
+  reel_qualified: Generated<number>;
+  scroll_measured: Generated<number>;
+  scroll_qualified: Generated<number>;
+  subject_id: string;
+  universe_id: string;
+}
+
 export interface EvidenceObservations {
   asset_id: string;
   asset_revision: number;
@@ -424,6 +439,7 @@ export interface EvidenceTopicContext {
   activity: number;
   channel_values: Json;
   evaluated_at: Timestamp;
+  log_weight: number | null;
   privacy_epoch: number;
   reel_measured: Generated<number>;
   reel_qualified: Generated<number>;
@@ -2507,6 +2523,7 @@ export interface DB {
   "evidence.activity_current": EvidenceActivityCurrent;
   "evidence.activity_revisions": EvidenceActivityRevisions;
   "evidence.encounter_evidence": EvidenceEncounterEvidence;
+  "evidence.interest_rollups": EvidenceInterestRollups;
   "evidence.observations": EvidenceObservations;
   "evidence.recording_exposure_credit": EvidenceRecordingExposureCredit;
   "evidence.recording_segment_heads": EvidenceRecordingSegmentHeads;

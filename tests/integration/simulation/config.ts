@@ -13,7 +13,7 @@ export interface SimConfig {
   /** The seed every persona's choices and every invented identifier derive from. */
   readonly seed: number;
   /** The Composer policy new decisions are made under: the one dev runs, set by the same variable the API and the worker read. */
-  readonly composerPolicy: 'v0' | 'v1' | 'v2';
+  readonly composerPolicy: 'v0' | 'v1' | 'v2' | 'v3';
   readonly library: {
     /** How many of the catalogue's planets the library covers (the catalogue has 17). */
     readonly planets: number;
@@ -75,14 +75,15 @@ export function bingeLibraryConfig(config: SimConfig): SimConfig {
 
 /**
  * The run's configuration: `KS_SIM_SIZE` picks the size and `KS_SIM_SEED` the seed. The Composer policy is the one dev
- * runs (`v2`), and `KS_COMPOSER_POLICY`, the variable the API and the worker read, changes it for a comparison run.
+ * runs (`v2`), and `KS_COMPOSER_POLICY`, the variable the API and the worker read, changes it for a comparison run. `v3` is
+ * the test-only mode: CI runs the lab under it beside the default (#674, D-420) until the coordinator switches dev.
  */
 export function simConfig(env: NodeJS.ProcessEnv = process.env): SimConfig {
   const base = env['KS_SIM_SIZE'] === 'large' ? LARGE : SMALL;
   const seed = Number(env['KS_SIM_SEED'] ?? base.seed);
   const policy = env['KS_COMPOSER_POLICY'];
   if (!Number.isInteger(seed) || seed < 0) throw new Error('KS_SIM_SEED must be a non-negative integer');
-  if (policy !== undefined && policy !== 'v0' && policy !== 'v1' && policy !== 'v2')
-    throw new Error('KS_COMPOSER_POLICY must be v0, v1 or v2');
+  if (policy !== undefined && policy !== 'v0' && policy !== 'v1' && policy !== 'v2' && policy !== 'v3')
+    throw new Error('KS_COMPOSER_POLICY must be v0, v1, v2 or v3');
   return { ...base, seed, composerPolicy: policy ?? base.composerPolicy };
 }

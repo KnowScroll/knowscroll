@@ -31,6 +31,36 @@ export type ReadMetUnitIds = (
   scope: PersonalScopeTx,
   query: { readonly limit: number },
 ) => Promise<{ readonly unitIds: readonly string[]; readonly truncated: boolean }>;
+/**
+ * What the person's long-term interest and Planner plan give retrieval before it reads (policy v3, D-420): the topics of the
+ * `continue` lane, strongest first, and the units of the `planned` lane. As data: Content reads no personal table.
+ */
+export interface InterestLeads {
+  /** The person's top interest topics by activity decayed to the read's time, strongest first. */
+  readonly topics: readonly { readonly topicId: string; readonly activity: number }[];
+  /** Explanation units an unexpired Planner opportunity for existing content names. */
+  readonly plannedUnitIds: readonly string[];
+}
+/** The roll-ups the interest and format features shrink toward, for the systems of the retrieved candidates (policy v3). */
+export interface InterestRollups {
+  readonly person?: NonNullable<PreparedEvidenceInput['person']>;
+  readonly systems: NonNullable<PreparedEvidenceInput['systems']>;
+}
+/**
+ * The person's long-term interest for policy v3 (D-420), implemented by the Personal Context owner over Evidence's index.
+ * `leads` is one range scan of the person's top `topK` topics (cost independent of how many they have met); `rollups` reads the
+ * roll-up rows of the given systems and of the person. Both are reads in the caller's transaction and write nothing.
+ */
+export interface ReadInterestContext {
+  readonly leads: (
+    scope: PersonalScopeTx,
+    query: { readonly evaluatedAt: string; readonly topK: number },
+  ) => Promise<InterestLeads>;
+  readonly rollups: (
+    scope: PersonalScopeTx,
+    query: { readonly evaluatedAt: string; readonly systemIds: readonly string[] },
+  ) => Promise<InterestRollups>;
+}
 /** Implemented by Personal Context compatibility read; missing topic history stays explicit and neutral. */
 export type ReadPreparedEvidenceInput = (
   scope: PersonalScopeTx,

@@ -39,14 +39,17 @@ export const KNOWN_FAILURES: readonly KnownFailure[] = [
     // Any reader who qualifies two Reels of a system meets it; `link-reader-reels` is the exact scenario.
     reproducedBy: ['link-reader-reels'],
     reason:
-      "A Reel has no coverage mapping or certificate, and the trusted read serves only Scrolls (supportedFormats: [scroll]), so a qualified Reel leaves no coverage reference (a Reel-only reader's Geography runs settle no_support_yet) and counts for dust and for no place. Reel and Scroll have equal status.",
+      "A Reel has no coverage mapping or certificate, and the trusted read serves only Scrolls (supportedFormats: [scroll]), so a qualified Reel leaves no coverage reference (a Reel-only reader's Geography runs settle no_support_yet) and counts for dust and for no place. A system needs two covered units, so one qualified Scroll and Reels do not form it either. Reel and Scroll have equal status.",
     matches: (violation) =>
       violation.code === 'system_not_formed' &&
       violation.detail['onlyWithReels'] === true &&
-      // The exact situation: the qualified units under the system are Reels, so Personal Context holds no coverage reference
-      // and no trusted support under any topic of it. Scroll evidence under the system that failed to form would not match.
-      violation.detail['referencesUnderSystem'] === 0 &&
-      violation.detail['supportsUnderSystem'] === 0,
+      // The exact situation: the qualified Scrolls under the system (none, or one: two would form it) are what Personal Context
+      // holds a coverage reference for, and it holds nothing more, because the rest are Reels. A qualified Scroll that left no
+      // reference, or a reference or support beyond the qualified Scrolls, would not match.
+      violation.detail['referencesUnderSystem'] === violation.detail['scrollOnlyUnits'] &&
+      typeof violation.detail['supportsUnderSystem'] === 'number' &&
+      typeof violation.detail['scrollOnlyUnits'] === 'number' &&
+      violation.detail['supportsUnderSystem'] <= violation.detail['scrollOnlyUnits'],
   },
 ];
 

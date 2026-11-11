@@ -436,6 +436,21 @@ Status: implemented, CI-tested against real PostgreSQL. Related: #674, D-408. No
   an `expected` encounter is read whatever the list says.
 - **Text lane.** Only when the query carries `text`, which only a person's own words supply. Retrieval never searches a source's
   title and summary. The match is a plain-text AND, as before.
+- **Named lanes (policy v3, D-420).** A query may carry `lanes: { continueTopicIds, plannedUnitIds }`, data the caller read from the
+  person's long-term interest (Personal Context over Evidence's top-K index: at most 64 topic ids, strongest first, and at most 12
+  explanation units a valid Planner opportunity names; anything else is refused, `DISCOVERY_LANES_INVALID`). The read is then the lanes
+  below instead of the topic, text and general lanes, each with its own quota (`DISCOVERY_LANE_QUOTAS`: source 20, planned 6, continue 28, adjacent 12, which are 66 together, and the text
+  lane's 20 that a subject move never asks for; `explore` is last and takes the rest of the cap of 100, at least 34), ordered by lane priority and, within a lane, by the stable
+  random key from the cursor; a candidate read by several lanes keeps the first lane, and every candidate carries it (`lane`, not part of the
+  catalogue watermark). `source`: the source's topics, primary before supporting. `planned`: the named units. `text`: as above. `continue`:
+  the candidates of the person's top topics ranked by the strongest topic they are about, at most five of any one catalogue system, so one
+  loved system cannot take the lane (a topic the catalogue does not hold is its own stratum). `adjacent`: the other topics of the systems of the
+  source's topics (`siblingTopicIds`, from the catalogue; never the source's own topic). `explore`: two index range scans of `serve_rand` from the
+  cursor (120 rows each side), each row put in the system of its heaviest primary topic and taken round-robin (the first of every system, then the
+  second of every system, and so on), so a person with no history and no source still gets a full read. The unseen-first bands of D-408 apply to every lane (every lane is read twice, with the list and without, and the unseen of every
+  lane come before any other row), as does `alwaysUnits`. Without `lanes` the read is exactly the one above, so v0 to v2 retrieve as before. At
+  scale the system of a topic is a join to the catalogue table that slice 2.1 adds; today it is the code catalogue, passed as two parallel
+  arrays (`topicSystemPairs`).
 - **No replay impact.** A stored decision freezes its candidates, so the order and sample retrieval reads change what future
   snapshots hold and never how a stored decision replays.
 - **Composer's use.** `readVerticalCandidates` passes the decision seed as `rotation` and always reads some candidates of the

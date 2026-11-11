@@ -13,7 +13,7 @@ Status: implemented, runs in hosted CI (`simulation` job in `checks.yml`) on eve
 | --- | --- |
 | `pnpm --filter @knowscroll/integration-tests test:simulation` | Small mode, the one CI runs: the lab (`--project simulation`, three files in parallel, each with its own world), then the gate (`--project simulation-gate`) that judges the run as a whole. Needs `KS_TEST_DATABASE_URL` for a disposable PostgreSQL 16 (see the [suite README](../README.md)). |
 | `KS_SIM_SIZE=large pnpm --filter @knowscroll/integration-tests test:simulation` | Large mode, for a manual or nightly run on one machine: about 170 Scrolls and longer sessions. |
-| `KS_SIM_SEED=7 KS_COMPOSER_POLICY=v1 … test:simulation` | Another seed, or another Composer policy for a comparison. The lab follows the policy dev runs (`v2`, set by `KS_COMPOSER_POLICY`, the variable the API and the worker read), so a change of dev's policy is a change of the default in `config.ts`. |
+| `KS_SIM_SEED=7 KS_COMPOSER_POLICY=v1 … test:simulation` | Another seed, or another Composer policy for a comparison. The lab follows the policy dev runs (`v2`, set by `KS_COMPOSER_POLICY`, the variable the API and the worker read), so a change of dev's policy is a change of the default in `config.ts`. `KS_COMPOSER_POLICY=v3` is the test-only mode of policy v3 (#674, D-420): CI runs the lab a second time under it, with its own report (`simulation-report-policy-v3`), and the same invariants and gate; dev keeps `v2` until the coordinator switches after reading `composer replay-policy`. |
 
 Small mode takes about 25 to 30 seconds on a laptop and should stay under 90 seconds on a hosted runner. The reports are
 written to `tests/integration/simulation/output/` (or `KS_SIM_OUTPUT`): `report.json` has every number below per
@@ -110,7 +110,7 @@ persona to have run and every group to have written a report, so a renamed file 
 unjudged without a word.
 
 I1 has no entry any more: composer policy v2 (#713) offers an explanation the person has met only as a last resort, and the
-lab runs under it. Any I1 violation is therefore a defect in the policy. Its message names the cause the lab read from the
+lab runs under it (and, in its test-only mode, under v3, which keeps the rule). Any I1 violation is therefore a defect in the policy. Its message names the cause the lab read from the
 stored decision (`soft_penalty`, `exploration_draw`, `format_sticky`, `retrieval` with the number of candidates the
 decision evaluated, or `unknown` when the decision cannot be read as expected), and nothing absorbs it.
 

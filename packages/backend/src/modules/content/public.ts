@@ -378,6 +378,13 @@ export { askSupportContext, askSupportRole, verdictsOf, type SupportPassage } fr
 export type { ProduceScrollResult } from './production/types.js';
 export { UNSEEN_FIRST_MAX_UNITS, validateUnseenFirst, type UnseenFirst } from './domain/unseen-first.js';
 export {
+  DISCOVERY_LANE_LIMITS,
+  DISCOVERY_LANES,
+  validateDiscoveryLanes,
+  type DiscoveryLane,
+  type DiscoveryLanes,
+} from './domain/discovery-lanes.js';
+export {
   validateTopics,
   type EncounterRef,
   type EncounterSnapshot,
@@ -395,6 +402,7 @@ import type {
   ContinuityAdmission,
 } from './domain/discovery.js';
 import type { UnseenFirst } from './domain/unseen-first.js';
+import type { DiscoveryLanes } from './domain/discovery-lanes.js';
 import type { AdmissionTx } from './application/ports.js';
 import type {
   CatalogueBrief,
@@ -421,6 +429,12 @@ export interface DiscoveryOptions {
   readonly unseenFirst?: UnseenFirst;
   /** Explanation units always read first, whatever the condition says: the source's own, so its format twin is found. */
   readonly alwaysUnits?: readonly string[];
+  /**
+   * Policy v3 (D-420): read named lanes (source, planned, continue, adjacent, explore) with their own quotas instead of the
+   * topic, text and general lanes, and label every candidate with the lane that read it. The unseen-first bands and the
+   * rotation cursor apply to every lane.
+   */
+  readonly lanes?: DiscoveryLanes;
 }
 export type ReadDiscoveryCandidates = (
   scope: PersonalScopeTx,

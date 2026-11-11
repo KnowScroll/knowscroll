@@ -58,18 +58,35 @@ describe('known failure rules', () => {
     expect(thrownBy(results, 'geography.cartograph')).toEqual([]);
   });
 
-  it('explains a Reel-only system failure only when Personal Context holds nothing under the system', () => {
-    const notFormed = (referencesUnderSystem: number, supportsUnderSystem: number, onlyWithReels = true) =>
+  it('explains a system that Reels kept from forming only when Personal Context holds just what the qualified Scrolls left', () => {
+    const notFormed = (
+      referencesUnderSystem: number,
+      supportsUnderSystem: number,
+      options: { onlyWithReels?: boolean; scrollOnlyUnits?: number } = {},
+    ) =>
       violation({
         invariant: 'I2',
         code: 'system_not_formed',
-        detail: { onlyWithReels, referencesUnderSystem, supportsUnderSystem },
+        detail: {
+          onlyWithReels: options.onlyWithReels ?? true,
+          scrollOnlyUnits: options.scrollOnlyUnits ?? 0,
+          referencesUnderSystem,
+          supportsUnderSystem,
+        },
       });
+    // Reels only: nothing under the system, as before.
     expect(explainedBy(notFormed(0, 0))?.id).toBe('I2/reel-only-evidence-forms-no-system');
-    // Scroll evidence under the system that failed to form is a new defect, as is any reference or support under it.
-    expect(explainedBy(notFormed(0, 0, false))).toBeUndefined();
+    // One qualified Scroll and Reels: the Scroll left its one reference (and its support, or none yet), two covered units are needed.
+    expect(explainedBy(notFormed(1, 1, { scrollOnlyUnits: 1 }))?.id).toBe('I2/reel-only-evidence-forms-no-system');
+    expect(explainedBy(notFormed(1, 0, { scrollOnlyUnits: 1 }))?.id).toBe('I2/reel-only-evidence-forms-no-system');
+    // Two qualified Scrolls would form it: not this defect. Neither is a Scroll that left no reference, nor anything beyond the Scrolls.
+    expect(explainedBy(notFormed(0, 0, { onlyWithReels: false }))).toBeUndefined();
+    expect(explainedBy(notFormed(2, 2, { onlyWithReels: false, scrollOnlyUnits: 2 }))).toBeUndefined();
+    expect(explainedBy(notFormed(0, 0, { scrollOnlyUnits: 1 }))).toBeUndefined();
     expect(explainedBy(notFormed(1, 0))).toBeUndefined();
     expect(explainedBy(notFormed(0, 1))).toBeUndefined();
+    expect(explainedBy(notFormed(2, 1, { scrollOnlyUnits: 1 }))).toBeUndefined();
+    expect(explainedBy(notFormed(1, 2, { scrollOnlyUnits: 1 }))).toBeUndefined();
   });
 
   it('judges what Geography settles against what the person held when the step began', () => {

@@ -22,6 +22,8 @@ export const ACTIVITY_CONTEXT_EFFECT = Symbol('personal-context.activityContextE
 export const READ_RECENT_CONTEXT_TOPICS = Symbol('personal-context.readRecentContextTopics');
 /** Implements Composer's existing backend-only prepared-input capability via the context owner. */
 export const READ_COMPOSER_CONTEXT = Symbol('personal-context.readComposerContext');
+/** Implements Composer's policy v3 read of the person's long-term interest (top topics, roll-ups, planned units) over Evidence (D-420). */
+export const READ_INTEREST_CONTEXT = Symbol('personal-context.readInterestContext');
 
 /** Exact current observed witnesses; raw retained support counts are not geography authority. */
 export { TrustedCoverageQuerySchema } from './domain/coverage.js';

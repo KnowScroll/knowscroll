@@ -48,6 +48,31 @@ export function systemOfTopic(topicId: string): string | undefined {
   return systemOfConcept.get(topicId);
 }
 
+/**
+ * Every catalogue concept with the system it belongs to, as two parallel arrays (topic ids, system ids): the strata of
+ * retrieval's `explore` lane (D-420). Content's own catalogue read for its own query; nothing personal.
+ */
+export function topicSystemPairs(): { readonly topicIds: readonly string[]; readonly systemIds: readonly string[] } {
+  return {
+    topicIds: CONCEPTS.map((concept) => concept.id),
+    systemIds: CONCEPTS.map((concept) => concept.parent ?? concept.id),
+  };
+}
+
+/**
+ * The topics that share a catalogue system with any of `topicIds` and are not among them: the `adjacent` lane's topics (D-420).
+ * Exact membership only; an id the catalogue does not hold has no siblings. A system is not its own sibling topic. Ordered as
+ * the catalogue is, bounded by `limit`.
+ */
+export function siblingTopicIds(topicIds: readonly string[], limit = 64): readonly string[] {
+  const systems = new Set(topicIds.flatMap((id) => systemOfConcept.get(id) ?? []));
+  return CONCEPTS.filter(
+    (concept) => concept.parent !== null && systems.has(concept.parent) && !topicIds.includes(concept.id),
+  )
+    .map((concept) => concept.id)
+    .slice(0, limit);
+}
+
 /** Exact membership only: a prefix, personal label or model string cannot admit a relationship. */
 export function conceptMeaning(topicId: string, facetId: string) {
   const topic = CONCEPTS.find((entry) => entry.id === topicId);

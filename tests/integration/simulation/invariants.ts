@@ -197,7 +197,14 @@ function formation(world: SimWorld, result: PersonaResult): Violation[] {
       code: 'system_not_formed',
       persona,
       message: `${persona} qualified ${String(units.all.length)} distinct units under ${system}${onlyWithReels ? ` (${String(units.all.length - units.scrollOnly.length)} only as a Reel)` : ''} but no system formed after ${String(result.settleDrains)} settling drains.`,
-      detail: { system, units: units.all, onlyWithReels, referencesUnderSystem, supportsUnderSystem },
+      detail: {
+        system,
+        units: units.all,
+        onlyWithReels,
+        scrollOnlyUnits: units.scrollOnly.length,
+        referencesUnderSystem,
+        supportsUnderSystem,
+      },
     });
   }
   // A planet needs three distinct units over two facets of its topic, each read in a form that proves its facet (a Scroll).

@@ -14,6 +14,13 @@ const Traits = z.strictObject({
   misconceptionClaim: z.string().min(1).max(240).optional(),
   seriesTotal: z.number().int().min(1).max(99).optional(),
 });
+const Lane = z.enum(['source', 'planned', 'text', 'continue', 'adjacent', 'explore']);
+const Count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+/** A roll-up of reading over several topics (policy v3, D-420): activity and measured/qualified counts per kind. */
+const Rollup = z.strictObject({
+  activity: z.number().min(0).max(Number.MAX_SAFE_INTEGER),
+  formats: z.array(z.strictObject({ kind: Format, measured: Count, qualified: Count })).max(2),
+});
 const Encounter = Ref.extend({
   kind: Format,
   explanationUnitId: Id,
@@ -38,6 +45,7 @@ const Encounter = Ref.extend({
   traits: Traits.optional(),
   catalogWatermark: z.string().min(1).max(240),
   attributionVersion: Id,
+  lane: Lane.optional(),
 });
 const Plan = z.strictObject({
   revision: Revision,
@@ -108,6 +116,15 @@ export const ComposerSnapshotSchema: z.ZodType<ComposerSnapshot> = z.strictObjec
       watermark: z.string().min(1).max(240),
       policyVersion: Id,
       plan: Plan.optional(),
+      person: Rollup.optional(),
+      systems: z
+        .array(Rollup.extend({ systemId: Id }))
+        .max(100)
+        .optional(),
+      topicSystems: z
+        .array(z.strictObject({ topicId: Id, systemId: Id }))
+        .max(400)
+        .optional(),
       topics: z
         .array(
           z.strictObject({

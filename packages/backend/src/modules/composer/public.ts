@@ -8,6 +8,7 @@ export {
   COMPOSER_POLICY_V0,
   COMPOSER_POLICY_V1,
   COMPOSER_POLICY_V2,
+  COMPOSER_POLICY_V3,
   policyOf,
   type ComposerPolicy,
   type ComposerPolicySetting,
@@ -38,9 +39,12 @@ export type {
 export { prepareBufferQueue, PrepareBufferJobSchema, pruneDecisionsQueue, type PrepareBufferJob } from './events.js';
 export { assembleSnapshot, evidenceQueryFor, type SnapshotInput } from './application/snapshot-assembly.js';
 export {
+  readInterestLeads,
+  readInterestRollups,
   readUnseenFirst,
   readVerticalCandidates,
   renderableFormats,
+  wantsLanes,
   wantsUnseenFirst,
 } from './application/vertical-candidates.js';
 export { readRelatedAssetIds } from './application/related-targets.js';
@@ -55,6 +59,9 @@ export {
 } from './domain/buffer.js';
 export type {
   ComposeEncounter,
+  InterestLeads,
+  InterestRollups,
+  ReadInterestContext,
   ReadMetUnitIds,
   ReadPreparedEvidenceInput,
   BufferSourceFacts,

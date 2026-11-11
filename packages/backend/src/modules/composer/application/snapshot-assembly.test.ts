@@ -170,4 +170,99 @@ describe('snapshot assembly (pure, labelled CI inputs)', () => {
       expect(scrolls.length).toBeLessThan(60);
     });
   });
+
+  describe('policy v3: lanes, roll-ups and the frozen system of each topic (D-420)', () => {
+    const evidence = {
+      universeId: 'universe',
+      privacyEpoch: 1,
+      evaluatedAt: '2026-10-20T12:00:00Z',
+      watermark: 'unprepared:1',
+      policyVersion: 'fixture',
+      topics: [
+        { topicId: 'earth.tides', activity: 1, formats: [] },
+        { topicId: 'space.stars', activity: 2, formats: [] },
+      ],
+      recent: [],
+      hiddenAssetIds: [],
+    };
+    const rollup = { activity: 3, formats: [{ kind: 'scroll' as const, measured: 2, qualified: 1 }] };
+    const interest = {
+      person: rollup,
+      systems: [
+        { systemId: 'earth', ...rollup },
+        { systemId: 'space', ...rollup },
+      ],
+    };
+    const on = (index: number, topicId: string, lane?: NonNullable<EncounterSnapshot['lane']>): EncounterSnapshot => ({
+      ...encounter(index),
+      topics: [{ topicId, role: 'primary', weight: 1 }],
+      ...(lane ? { lane } : {}),
+    });
+
+    it('freezes the system of every candidate topic the catalogue holds, sorted, and the roll-ups beside the topic rows', () => {
+      const { snapshot } = assembleSnapshot(
+        base([on(1, 'space.stars', 'explore'), on(2, 'earth.tides', 'continue'), on(3, 'topic.unknown', 'explore')], {
+          evidence,
+          interest,
+        }),
+      );
+      expect(snapshot.evidence?.topicSystems).toEqual([
+        { topicId: 'earth.tides', systemId: 'earth' },
+        { topicId: 'space.stars', systemId: 'space' },
+      ]);
+      expect(snapshot.evidence?.person).toEqual(rollup);
+      expect(snapshot.evidence?.systems?.map((s) => s.systemId)).toEqual(['earth', 'space']);
+    });
+
+    it('leaves the evidence exactly as it was when nothing was read for v3, so v0 to v2 snapshots do not change', () => {
+      const { snapshot } = assembleSnapshot(base([on(1, 'space.stars')], { evidence }));
+      expect(snapshot.evidence).toEqual(evidence);
+      expect(Object.keys(snapshot.evidence!)).not.toContain('topicSystems');
+    });
+
+    it('pools exploration from the explore lane when retrieval named lanes, and from every candidate otherwise', () => {
+      const laned = assembleSnapshot(
+        base([on(1, 'space.stars', 'source'), on(2, 'earth.tides', 'explore'), on(3, 'earth.seasons', 'continue')]),
+      ).snapshot;
+      expect(laned.explorationPool.map((p) => p.assetId)).toEqual(['asset-2']);
+      const plain = assembleSnapshot(base([on(1, 'space.stars'), on(2, 'earth.tides')])).snapshot;
+      expect(plain.explorationPool.map((p) => p.assetId)).toEqual(['asset-1', 'asset-2']);
+      // Lanes without an explore candidate leave nothing to prefer: every candidate is in the pool.
+      const noExplore = assembleSnapshot(
+        base([on(1, 'space.stars', 'source'), on(2, 'earth.tides', 'continue')]),
+      ).snapshot;
+      expect(noExplore.explorationPool).toHaveLength(2);
+    });
+
+    it('keeps the lane on each candidate and out of the catalogue watermark', () => {
+      const withLane = assembleSnapshot(base([on(1, 'space.stars', 'continue')])).snapshot;
+      const without = assembleSnapshot(base([on(1, 'space.stars')])).snapshot;
+      expect(withLane.candidates[0]!.encounter.lane).toBe('continue');
+      expect(withLane.watermarks.catalog).toBe(without.watermarks.catalog);
+    });
+
+    it('drops the system and topic rows of dropped candidates with them, and keeps the person’s roll-up', () => {
+      const long = (
+        index: number,
+        topicId: string,
+        lane: NonNullable<EncounterSnapshot['lane']>,
+      ): EncounterSnapshot => ({
+        ...on(index, topicId, lane),
+        metadata: { kind: 'scroll', title: `T${String(index)}`, summary: 'x'.repeat(4_000), language: 'en' },
+      });
+      const candidates = [
+        ...Array.from({ length: 60 }, (_, i) => long(i, 'space.stars', 'continue')),
+        ...Array.from({ length: 40 }, (_, i) => long(60 + i, 'earth.tides', 'explore')),
+      ];
+      const { snapshot, truncated } = assembleSnapshot(base(candidates, { evidence, interest }));
+      expect(truncated).toBe(true);
+      // Only space candidates stay, so only the space system, its topic and the person remain.
+      expect(snapshot.candidates.every((c) => c.encounter.topics[0]!.topicId === 'space.stars')).toBe(true);
+      expect(snapshot.evidence?.topicSystems).toEqual([{ topicId: 'space.stars', systemId: 'space' }]);
+      expect(snapshot.evidence?.systems?.map((s) => s.systemId)).toEqual(['space']);
+      expect(snapshot.evidence?.person).toEqual(rollup);
+      // No explore candidate is left, so the pool is every candidate that stayed.
+      expect(snapshot.explorationPool).toHaveLength(snapshot.candidates.length);
+    });
+  });
 });

@@ -139,6 +139,16 @@ The adapter performs no writes, advances no revision and adds no stores/erasure 
 API and worker instantiate it. Navigation requires its explicit token; legacy Evidence readers are
 available only through an opt-in compatibility-fixture provider, with no production fallback.
 
+## Interest context for Composer policy v3
+
+`READ_INTEREST_CONTEXT` implements Composer's `ReadInterestContext` (D-420, #674 slices 4.2 and 5.2) over Evidence's reads, in the
+caller's transaction, writing nothing. `leads` returns the person's top `topK` long-term interest topics (Evidence's index range scan,
+`ReadTopInterestTopics`) and the explanation units of the unexpired Planner opportunities for existing content (the same stored plan reader
+ranking uses; a plan is not evidence, a missing-supply opportunity names no unit). `rollups` returns the system roll-ups asked for and the
+person's, in the shape of a topic's statistics. Retrieval takes the leads as data; the snapshot freezes the roll-ups beside the topic rows.
+It adds no table, queue or erasure entry: the rows are Evidence's and erased with it. Status: implemented, CI-tested (unit and real
+PostgreSQL); not yet run on dev.
+
 ## Observed-coverage proofs
 
 Status: implemented, CI-tested against real PostgreSQL. Related: #237, migration 0023.
