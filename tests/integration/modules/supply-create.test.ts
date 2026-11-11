@@ -1000,7 +1000,10 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     it('never lets the Planner start work when Create is off for people', async () => {
       await build({ cap: 0, plannerCap: 5 });
       const person = await seedPerson(database.db);
-      expect(await recordFor(person, plan('machine-learning.transformers'))).toEqual({ kind: 'not_commissioned' });
+      expect(await recordFor(person, plan('machine-learning.transformers'))).toEqual({
+        kind: 'not_commissioned',
+        reason: 'create_off',
+      });
       expect(await produceJobs()).toHaveLength(0);
     });
   });
