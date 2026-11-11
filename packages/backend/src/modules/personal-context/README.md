@@ -166,7 +166,14 @@ stored hashes/epoch, batch-checks exact latest Evidence, rechecks current Conten
 the <=100 current asset/head authorities it just read (never the head a certificate names), then
 repeats Evidence checks AFTER lock waits and requires the same head it locked. All locks
 survive caller commit. Retracted or withdrawn authority, or a correction that changes the bindings,
-excludes old certificates even before another reading or reconciliation job.
+excludes old certificates even before another reading or reconciliation job. Output<=128KiB; overflow returns typed unavailable/limit and
+`completeness:not_asserted`, never a truncated completeness claim. No current observed witness returns unavailable/not_observed; this is not proof that all
+historical reading was projected. Each canonical topic/facet/meaning/unit/truth `supports` key appears once in deterministic order and
+references at least one current revalidated witness exposure. Separate exposure-level witnesses
+remain audit provenance; their row count never measures variety, and future formation must still
+distinct canonical units across multiple facet keys. Last current reference removes the support.
+Returned exact certificate IDs/digests and witnesses
+make unit/facet support inspectable without raw observations or provenance text.
 
 **When an old certificate still counts (D-406, #674).** `certificateValidOnHead` accepts a certificate
 issued on an earlier head of the same asset revision when the current head is active, every mapping
@@ -175,14 +182,8 @@ version), the facts digest is the head's, and every binding it claims is still i
 pins its facet meaning and required blocks). The catalogue digest and the head number and mapping digest
 are not compared: `content readmit-coverage` appends a head whose only change is the digest after any plan
 edit, and comparing them discarded real reading (D-033). `fenceCoverage` and `fenceRecordingCoverage`
-read the current mapping, lock that head, read it again and require the same head. Output<=128KiB; overflow returns typed unavailable/limit and
-`completeness:not_asserted`, never a truncated completeness claim. No current observed witness returns unavailable/not_observed; this is not proof that all
-historical reading was projected. Each canonical topic/facet/meaning/unit/truth `supports` key appears once in deterministic order and
-references at least one current revalidated witness exposure. Separate exposure-level witnesses
-remain audit provenance; their row count never measures variety, and future formation must still
-distinct canonical units across multiple facet keys. Last current reference removes the support.
-Returned exact certificate IDs/digests and witnesses
-make unit/facet support inspectable without raw observations or provenance text.
+read the current mapping, lock that head, read it again and require the same head. A head retracted and then admitted again with the same mapping makes
+old certificates count again: the retraction excluded them only while it was current.
 
 Migration 0023 adds `coverage_contributions` (current certificate<=16KiB plus real activity FK),
 `coverage_references` (<=16 exact binding witnesses/exposure, indexed by requested topic/facet/unit),

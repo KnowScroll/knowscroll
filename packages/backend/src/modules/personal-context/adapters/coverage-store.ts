@@ -11,14 +11,13 @@ import type { PersonalScopeTx, RecordingScopeTx } from '../../identity/public.js
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { recordingTransactionOf, fencePersonalRecording } from '../../../infrastructure/postgres/recording-scope.js';
 import {
-  certificateValidOnHead,
   coverageSupports,
   coverageSupportKey,
   RecordingCoverageSlotsSchema,
-  sameCoverageAuthority,
   selectedWitnesses,
   type RecordingWitnessPointer,
 } from '../domain/coverage.js';
+import { certificateValidOnHead, sameCoverageAuthority } from './coverage-rule.js';
 import type { Contribution } from '../domain/context.js';
 import type { StoredCoverage, CoverageDependencies } from '../application/coverage-ports.js';
 

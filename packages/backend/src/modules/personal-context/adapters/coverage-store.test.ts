@@ -3,7 +3,7 @@ import type { CoverageHead, CoverageRead } from '../../content/public.js';
 import { recordingCoverageKey, type ObservedCoverage, type RecordingCoverageWitness } from '../../evidence/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import type { CoverageDependencies } from '../application/coverage-ports.js';
-import { binding, certificate, digestOnlyHead, hash, head, secondBinding } from '../domain/coverage.fixture.js';
+import { binding, certificate, digestOnlyHead, hash, head, secondBinding } from './coverage.fixture.js';
 import { fenceCoverage, fenceRecordingCoverage } from './coverage-store.js';
 
 const scope = {} as PersonalScopeTx;

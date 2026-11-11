@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CoverageHead } from '../../content/public.js';
-import { certificateValidOnHead } from './coverage.js';
+import { certificateValidOnHead } from './coverage-rule.js';
 import { binding, certificate, digestOnlyHead, hash, head, secondBinding } from './coverage.fixture.js';
 
 describe('certificateValidOnHead', () => {

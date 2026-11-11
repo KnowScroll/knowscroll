@@ -10,13 +10,12 @@ import type { CoverageAuthority } from '../../content/public.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import {
   TrustedCoverageQuerySchema,
-  certificateValidOnHead,
   coverageSupports,
   coverageSupportKey,
   RecordingWitnessPointerSchema,
-  sameCoverageAuthority,
   type TrustedCoverageRead,
 } from '../domain/coverage.js';
+import { certificateValidOnHead, sameCoverageAuthority } from './coverage-rule.js';
 import type { ReadTrustedCoverage, CoverageDependencies } from '../application/coverage-ports.js';
 import { coverageDigest, readWitness } from './coverage-store.js';
 const base = {
