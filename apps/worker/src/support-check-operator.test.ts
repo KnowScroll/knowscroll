@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { supportCheckReplayCommand, type SupportCheckReplayOptions } from './support-check-operator.js';
+import { replayExitCode, supportCheckReplayCommand, type SupportCheckReplayOptions } from './support-check-operator.js';
 
 /**
  * The options of `content support-check-replay` are checked before anything else is touched: no configuration is read, no database is
@@ -41,8 +41,19 @@ describe('content support-check-replay refuses what it cannot run, before touchi
     expect(printed).toEqual([
       {
         result: 'usage',
-        usage: 'content support-check-replay [--since <ISO date>] [--limit <1-500>] --max-requests <0-1000>',
+        usage:
+          'content support-check-replay [--since <ISO date>] [--limit <1-500>] --max-requests <0-1000> [--fail-on-partial]',
       },
     ]);
+  });
+});
+
+describe('how a replay exits', () => {
+  it('exits 0 when done, 2 when stopped, and for a partial measure 0 unless asked to fail on it', () => {
+    expect(replayExitCode('done', false)).toBe(0);
+    expect(replayExitCode('done', true)).toBe(0);
+    expect(replayExitCode('stopped', false)).toBe(2);
+    expect(replayExitCode('partial', false)).toBe(0);
+    expect(replayExitCode('partial', true)).toBe(2);
   });
 });

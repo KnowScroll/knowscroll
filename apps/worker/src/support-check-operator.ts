@@ -23,14 +23,24 @@ export interface SupportCheckReplayOptions {
   readonly limit: string | undefined;
   /** `--max-requests <n>`: the most paid requests this replay may send. Required: a replay is paid for. */
   readonly maxRequests: string | undefined;
+  /** `--fail-on-partial`: exit 2 when some decided revisions were skipped for the cap, so a script cannot mistake a partial measure for a whole one. */
+  readonly failOnPartial?: boolean;
   readonly dispatchedBy: string;
 }
 
 const DEFAULT_LIMIT = 50;
 const COMMAND = 'content support-check-replay';
-const USAGE = `${COMMAND} [--since <ISO date>] [--limit <1-${String(LIBRARY_SUPPORT_REPLAY_MAX_REVISIONS)}>] --max-requests <0-${String(LIBRARY_SUPPORT_REPLAY_MAX_REQUESTS)}>`;
+const USAGE = `${COMMAND} [--since <ISO date>] [--limit <1-${String(LIBRARY_SUPPORT_REPLAY_MAX_REVISIONS)}>] --max-requests <0-${String(LIBRARY_SUPPORT_REPLAY_MAX_REQUESTS)}> [--fail-on-partial]`;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2}))?$/u;
+
+/**
+ * The exit status of a replay by how it ended: 0 for `done`, 2 for `stopped`, and for `partial` (some decided revisions were skipped for the request
+ * cap, so the agreement covers some of the decisions only) 0, or 2 with `--fail-on-partial` so that a script cannot take a partial measure for a whole one.
+ */
+export function replayExitCode(status: 'done' | 'partial' | 'stopped', failOnPartial: boolean): 0 | 2 {
+  return status === 'stopped' || (status === 'partial' && failOnPartial) ? 2 : 0;
+}
 
 /** A whole number in a range from the command line, or `undefined`. */
 function wholeNumber(raw: string, min: number, max: number): number | undefined {
@@ -55,7 +65,11 @@ function wholeNumber(raw: string, min: number, max: number): number | undefined 
  * Output: one JSON line for each revision with counts and codes only (no sentence, title or reason), then one for the end with the
  * agreement. It holds no body text, so it may be pasted into an issue.
  *
- * Exit status: 0 when it looked at every revision it read, 2 when it was refused or stopped early (a spent budget or quota, an attempt of
+ * The last line says `done`, `partial` or `stopped`. `partial`: some decided revisions were skipped for the cap (`skippedForCap`, by decision), so the
+ * agreement covers some of the decisions only. The agreement counts only decisions made with no result in existence and says plainly whether the
+ * number of rejected revisions is enough to conclude anything (`conclusion`).
+ *
+ * Exit status: 0 for `done` and `partial` (2 for `partial` with `--fail-on-partial`), 2 when it was refused or stopped early (a spent budget or quota, an attempt of
  * unknown outcome, a revoked production root, the wrong model, bad usage), 1 on a failure.
  */
 export async function supportCheckReplayCommand(
@@ -129,8 +143,9 @@ export async function supportCheckReplayCommand(
       const summary = await replay({ since, limit, maxRequests }, abort.signal, (line) =>
         print({ command: COMMAND, result: 'revision', ...line }),
       );
-      print({ command: COMMAND, result: summary.stopped === null ? 'done' : 'stopped', ...summary });
-      return summary.stopped === null ? 0 : 2;
+      const { status, ...rest } = summary;
+      print({ command: COMMAND, result: status, ...rest });
+      return replayExitCode(status, options.failOnPartial === true);
     } finally {
       process.off('SIGTERM', stop);
       process.off('SIGINT', stop);

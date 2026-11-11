@@ -9,6 +9,7 @@ import {
 } from '@knowscroll/scroll-model';
 import type { AnswerCheckSummary, CallVerdict } from '../domain/answer-check.js';
 import { LIBRARY_SUPPORT_POLICY, countsOf, decideRevision } from '../domain/library-support.js';
+import { NOT_COVERED_LINE } from '../production/library-support.js';
 import type { StoredLibraryCheck } from '../production/library-support-store.js';
 
 /**
@@ -122,21 +123,29 @@ export function answerCheckLines(check: AnswerCheckSummary | null): string[] {
 
 /**
  * What the library support check said, in words an operator can act on (D-415). It is a model's opinion about whether the cited passages
- * state each sentence; it never replaces reading the Scroll against its sources, and it says nothing about the picture, the answer keys or the
- * figures of a play block. A sentence it flagged, or could not judge, is listed with where it stands, so the read can begin there.
+ * state each sentence; it never replaces reading the Scroll against its sources, and the "Not covered" line says what it does not read. A sentence
+ * it flagged, or could not judge, is listed with where it stands, so the read can begin there, and so is every sentence it passed as stating no fact.
  * A revision with no result says so, because that is also a fact about how much to trust the read.
  */
 export function supportCheckLines(check: StoredLibraryCheck | null): string[] {
-  if (check === null) return ['Support check: not run for this revision yet. Read every sentence against its sources.'];
+  if (check === null)
+    return ['Support check: not run for this revision yet. Read every sentence against its sources.', NOT_COVERED_LINE];
   if (check.state === 'unchecked')
     return [
       `Support check: NOT CHECKED (${check.code ?? 'unknown'}). No sentence has a verdict. Read every sentence against its sources.`,
+      NOT_COVERED_LINE,
     ];
   const counts = countsOf(check.sentences);
   const verdict = decideRevision(counts, LIBRARY_SUPPORT_POLICY) === 'passed' ? 'PASSED' : 'FLAGGED';
   const lines = [
     `Support check: ${verdict} (${check.checkerVersion}, ${LIBRARY_SUPPORT_POLICY.id}). ${String(counts.sentences)} sentences: ${String(counts.supported)} supported, ${String(counts.unsupported)} unsupported, ${String(counts.unclear)} unclear, ${String(counts.noClaim)} state no fact.`,
   ];
+  const stated = check.sentences.filter((sentence) => sentence.outcome === 'no_claim');
+  if (stated.length > 0) lines.push('Passed as stating no fact (no passage was quoted for them):');
+  for (const sentence of stated)
+    lines.push(
+      `  [${sentence.part} ${sentence.field} #${String(sentence.n)}] ${sentence.ground ?? 'no ground'}: ${sentence.text}`,
+    );
   const attention = check.sentences.filter(
     (sentence) => sentence.outcome === 'unsupported' || sentence.outcome === 'unclear',
   );
@@ -150,6 +159,7 @@ export function supportCheckLines(check: StoredLibraryCheck | null): string[] {
       `  [${sentence.part} ${sentence.field} #${String(sentence.n)}] ${why}: ${sentence.text}${sentence.problem === undefined ? '' : ` -- ${sentence.problem}`}`,
     );
   }
+  lines.push(NOT_COVERED_LINE);
   return lines;
 }
 

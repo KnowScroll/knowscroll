@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { LibrarySentenceResult } from '../domain/library-support.js';
+import { LIBRARY_SUPPORT_POLICY, type LibrarySentenceResult } from '../domain/library-support.js';
 import type { StoredLibraryCheck } from '../production/library-support-store.js';
+import { LIBRARY_SUPPORT_CHECK_VERSION, NOT_COVERED_LINE } from '../production/library-support.js';
 import { supportCheckSummaryOf } from './review-gate.js';
 import { supportCheckLines } from './review-text.js';
 
@@ -19,12 +20,13 @@ const stored = (
 ): StoredLibraryCheck => ({
   assetId: '8a7d48fe-0397-4e00-91a8-b4700630880f',
   revision: 1,
-  checkerVersion: 'library-support-check.v1',
+  checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
   state: 'checked',
   code: null,
   verdict: 'passed',
-  policyVersion: 'library-support-policy.v1',
+  policyVersion: LIBRARY_SUPPORT_POLICY.id,
   round: 1,
+  batchFailures: {},
   sentenceCount: sentences.length,
   batches: 1,
   requests: 1,
@@ -53,11 +55,11 @@ describe('what the operator is told about the support check (D-415, labelled CI 
     // The stored verdict says passed, but the sentences are what decide: one unsupported and one unclear flag it.
     const summary = supportCheckSummaryOf({ ...flagged, verdict: 'passed' });
     expect(summary).toEqual({
-      checkerVersion: 'library-support-check.v1',
-      policy: 'library-support-policy.v1',
+      checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
+      policy: LIBRARY_SUPPORT_POLICY.id,
       state: 'checked',
       verdict: 'flagged',
-      counts: { sentences: 4, supported: 1, unsupported: 1, unclear: 1, noClaim: 1 },
+      counts: { sentences: 4, supported: 1, unsupported: 1, unclear: 1, noClaim: 1, noClaimLabel: 0 },
     });
     expect(JSON.stringify(summary)).not.toContain('Sentence 2');
     expect(JSON.stringify(summary)).not.toContain('narrower');
@@ -66,18 +68,19 @@ describe('what the operator is told about the support check (D-415, labelled CI 
   it('summarises a check that gave nothing with its code and the sentences it could not check', () => {
     const none = stored([], { state: 'unchecked', code: 'outcome_unknown', verdict: 'unchecked', sentenceCount: 57 });
     expect(supportCheckSummaryOf(none)).toEqual({
-      checkerVersion: 'library-support-check.v1',
-      policy: 'library-support-policy.v1',
+      checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
+      policy: LIBRARY_SUPPORT_POLICY.id,
       state: 'unchecked',
       verdict: 'unchecked',
       code: 'outcome_unknown',
-      counts: { sentences: 57, supported: 0, unsupported: 0, unclear: 0, noClaim: 0 },
+      counts: { sentences: 57, supported: 0, unsupported: 0, unclear: 0, noClaim: 0, noClaimLabel: 0 },
     });
   });
 
   it('says that no check ran, so the operator reads every sentence against its sources', () => {
     expect(supportCheckLines(null)).toEqual([
       'Support check: not run for this revision yet. Read every sentence against its sources.',
+      NOT_COVERED_LINE,
     ]);
   });
 
@@ -88,21 +91,35 @@ describe('what the operator is told about the support check (D-415, labelled CI 
       ),
     ).toEqual([
       'Support check: NOT CHECKED (revision_too_long). No sentence has a verdict. Read every sentence against its sources.',
+      NOT_COVERED_LINE,
     ]);
   });
 
-  it('passes a revision whose sentences are all supported or state no fact, and lists nothing to read first', () => {
-    expect(supportCheckLines(stored([result(1), result(2, { outcome: 'no_claim' })]))).toEqual([
-      'Support check: PASSED (library-support-check.v1, library-support-policy.v1). 2 sentences: 1 supported, 0 unsupported, 0 unclear, 1 state no fact.',
+  it('passes a revision whose sentences are all supported or state no fact, lists what passed as stating no fact and what is not covered, and nothing to read first', () => {
+    const lines = supportCheckLines(
+      stored([
+        result(1),
+        result(2, { outcome: 'no_claim', ground: 'label', label: true, field: 'heading', text: 'How it turns' }),
+      ]),
+    );
+    expect(lines).toEqual([
+      `Support check: PASSED (${LIBRARY_SUPPORT_CHECK_VERSION}, ${LIBRARY_SUPPORT_POLICY.id}). 2 sentences: 1 supported, 0 unsupported, 0 unclear, 1 state no fact.`,
+      'Passed as stating no fact (no passage was quoted for them):',
+      '  [s1 heading #2] label: How it turns',
+      NOT_COVERED_LINE,
     ]);
+    expect(lines.join('\n')).not.toContain('Read these first');
   });
 
   it('flags a revision and lists the unsupported and unclear sentences first, each with where it stands and why', () => {
     expect(supportCheckLines(flagged)).toEqual([
-      'Support check: FLAGGED (library-support-check.v1, library-support-policy.v1). 4 sentences: 1 supported, 1 unsupported, 1 unclear, 1 state no fact.',
+      `Support check: FLAGGED (${LIBRARY_SUPPORT_CHECK_VERSION}, ${LIBRARY_SUPPORT_POLICY.id}). 4 sentences: 1 supported, 1 unsupported, 1 unclear, 1 state no fact.`,
+      'Passed as stating no fact (no passage was quoted for them):',
+      '  [s1 paragraph #4] no ground: Sentence 4 of a labelled CI fixture.',
       'Read these first:',
       '  [s1 twist #2] unsupported (goes_beyond): Sentence 2 of a labelled CI fixture. -- A passage says something narrower.',
       '  [a1 aside-text #3] unclear (quote_not_about_sentence): Sentence 3 of a labelled CI fixture.',
+      NOT_COVERED_LINE,
     ]);
   });
 });

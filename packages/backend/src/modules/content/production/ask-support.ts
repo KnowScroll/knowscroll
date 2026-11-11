@@ -202,12 +202,21 @@ export function askSupportInstructions(rules: CheckerRules, intro: string = ASK_
     : 'Code needs the quote to carry at least two of the sentence’s own key words (one, if the sentence has only one), so choose the stretch that uses the sentence’s words or their near forms.';
   const noClaimGrounds = rules.shortNoClaim
     ? 'for a sentence of eight words or fewer with no number; and for any other sentence with no number that shares no key word with the passages it cites. Use "no_claim" only for a sentence that adds no fact, even where code would accept it for a short one. A sentence that has a number, or that names what the passages talk about and says something of it ("Fog hides the beam."), is a statement:'
-    : 'and for any other sentence with no number that shares no key word with the passages it cites. A sentence that has a number, or that names what the passages talk about and says something of it, is a statement:';
+    : rules.noClaimUnshared === false
+      ? 'and for nothing else. A sentence that has a number, that names what the passages talk about and says something of it, or that is a transition or a signpost with no key word in common with the passages it cites, is a statement (a transition that no passage can be quoted for is "unsupported", "not_stated"):'
+      : 'and for any other sentence with no number that shares no key word with the passages it cites. A sentence that has a number, or that names what the passages talk about and says something of it, is a statement:';
+  const own = rules.ownPassagesOnly === true;
+  const quoteSource = own
+    ? 'a passage the sentence cites (one of the handles in its "cites"; a passage it does not cite does not count, even when it is listed)'
+    : 'a cited passage (any passage listed, not only those the sentence cites)';
+  const judgedAgainst = own ? 'the passages the sentence cites' : 'the passages listed';
   return [
     intro,
     '',
     'Give one verdict for every sentence listed, in the order given, each with its own number "n":',
-    '- "supported": the cited passages state the sentence, say it in other words, or directly imply it. Putting together two statements the passages make counts, when the sentence says no more than the two mean together. Give "quote": three to twenty-five words copied exactly from a cited passage (any passage listed, not only those the sentence cites), the stretch that comes closest to the sentence. Copy them word for word; if you leave words out of the middle, mark the gap with "…", keep at least two words on each side of it, keep all of it inside one sentence of the passage, and never leave out a "not", "never", "no" or "without". Never join words of two passages and never change a word. ' +
+    '- "supported": the cited passages state the sentence, say it in other words, or directly imply it. Putting together two statements the passages make counts, when the sentence says no more than the two mean together. Give "quote": three to twenty-five words copied exactly from ' +
+      quoteSource +
+      ', the stretch that comes closest to the sentence. Copy them word for word; if you leave words out of the middle, mark the gap with "…", keep at least two words on each side of it, keep all of it inside one sentence of the passage, and never leave out a "not", "never", "no" or "without". Never join words of two passages and never change a word. ' +
       quoteKeyWords +
       ' When the sentence joins two statements, every part of the join must be stated. If one passage states both, quote words that cover both parts. If two passages state them, a quote cannot join two passages: quote the part that shares the most of the sentence’s words and check that a cited passage states the other part too.',
     '- "unsupported": the sentence gives a fact, a figure, a cause, a comparison or an example that the cited passages neither state nor imply; or says it with a wider scope or a stronger word than they do; or says it differently in a way that changes the meaning; or a cited passage contradicts it. Give "kind" and "problem". "problem" is one or two plain sentences: the few words of the sentence that are not supported, and what the passages say instead. Never refer to a sentence by its number.',
@@ -218,7 +227,9 @@ export function askSupportInstructions(rules: CheckerRules, intro: string = ASK_
     'The kinds of "unsupported": "not_stated" (the sentence gives a fact, cause, comparison or example that no cited passage states or implies), "contradicted" (a cited passage says otherwise), "goes_beyond" (a cited passage speaks of the same thing but says less or something narrower, so the sentence claims more: a stronger word, a wider scope or an added detail).',
     '',
     'Rules:',
-    '- Judge against the cited passages alone, which are the passages listed. Do not fill a gap with what you know, and do not accept a sentence because it is true in general: it is supported only if a cited passage states it or directly implies it.',
+    '- Judge against the cited passages alone, which are ' +
+      judgedAgainst +
+      '. Do not fill a gap with what you know, and do not accept a sentence because it is true in general: it is supported only if a cited passage states it or directly implies it.',
     '- Wording is not a fact. A sentence that says what a passage says in other words, with a more general or a more specific name for the same thing, in a shorter form or in a different order is supported. Do not flag wording, style or length, and do not flag a sentence only because it is simple or uses a word the passages do not.',
     '- "Directly implies" means one plain step: the sentence is what the passage’s statement means, or follows from it with nothing added. A new cause, mechanism, figure, comparison, example, direction or condition is not an implication, even when it is true and likely: it is a new fact.',
     '- Two statements the passages make apart may be put together when the sentence says no more than the two mean together. It is unsupported when one part of the join is not stated, or when the sentence draws a cause or a conclusion that neither statement gives: each part being true alone does not make the join stated.',
@@ -262,21 +273,8 @@ const Unsupported = z.strictObject({
 });
 const NoClaim = z.strictObject({ n: z.number().int(), verdict: z.literal('no_claim') });
 
-/**
- * The checker's reply for these sentences, read into the verdicts that count. The reply must have the shape: one entry for
- * every sentence, in order, each a well-formed verdict. A reply without it is refused as an invalid reply (one repair).
- * Every other rule is code's judgement of one sentence (D-265): a supported verdict needs a quote of enough words that is
- * in a passage the answer cites and is about the sentence, and "no fact" needs a ground code can see (`judgeVerdicts`). A verdict
- * that fails a rule makes that sentence unsupported with the rule's code; the other sentences keep their verdicts. Whether
- * the quoted words support the sentence is not a rule code can check: it is the checker's judgement.
- */
-export function askSupportSchema(
-  sentences: readonly SentenceUnderCheck[],
-  passages: readonly SupportPassage[],
-  answer: readonly SentenceUnderCheck[] = sentences,
-  rules: CheckerRules = STRICT_CHECK_RULES,
-) {
-  const textOf = new Map(passages.map((passage) => [passage.handle, passage.text]));
+/** The shape of a checker's reply for these sentences: one well-formed verdict for every sentence, in order. A reply without it is refused whole (one harness repair). */
+function askSupportReplyShape(sentences: readonly SentenceUnderCheck[]) {
   return z
     .strictObject({
       sentences: z
@@ -292,27 +290,73 @@ export function askSupportSchema(
           message: 'Invalid support reply',
           params: { safeCode: 'sentences_not_in_order' satisfies keyof typeof SAFE_HINTS },
         });
-    })
-    .transform((reply) => ({
-      sentences: judgeVerdicts(
-        reply.sentences.map((verdict): SentenceVerdict => {
-          switch (verdict.verdict) {
-            case 'supported':
-              return { number: verdict.n, verdict: 'supported', quote: verdict.quote };
-            case 'unsupported':
-              return { number: verdict.n, verdict: 'unsupported', kind: verdict.kind, problem: verdict.problem };
-            case 'no_claim':
-              return { number: verdict.n, verdict: 'no_claim' };
-          }
-        }),
-        sentences,
-        textOf,
-        answer,
-        rules,
-      ),
-    }));
+    });
 }
+
+type AskSupportReply = z.infer<ReturnType<typeof askSupportReplyShape>>;
+
+/** The verdicts a well-formed reply gives, in the domain's shape, before any rule is applied to them. */
+function verdictsOfReply(reply: AskSupportReply): SentenceVerdict[] {
+  return reply.sentences.map((verdict): SentenceVerdict => {
+    switch (verdict.verdict) {
+      case 'supported':
+        return { number: verdict.n, verdict: 'supported', quote: verdict.quote };
+      case 'unsupported':
+        return { number: verdict.n, verdict: 'unsupported', kind: verdict.kind, problem: verdict.problem };
+      case 'no_claim':
+        return { number: verdict.n, verdict: 'no_claim' };
+    }
+  });
+}
+
+/**
+ * The checker's reply for these sentences, read into the verdicts that count. The reply must have the shape: one entry for
+ * every sentence, in order, each a well-formed verdict. A reply without it is refused as an invalid reply (one repair).
+ * Every other rule is code's judgement of one sentence (D-265): a supported verdict needs a quote of enough words that is
+ * in a passage the answer cites and is about the sentence, and "no fact" needs a ground code can see (`judgeVerdicts`). A verdict
+ * that fails a rule makes that sentence unsupported with the rule's code; the other sentences keep their verdicts. Whether
+ * the quoted words support the sentence is not a rule code can check: it is the checker's judgement.
+ */
+export function askSupportSchema(
+  sentences: readonly SentenceUnderCheck[],
+  passages: readonly SupportPassage[],
+  answer: readonly SentenceUnderCheck[] = sentences,
+  rules: CheckerRules = STRICT_CHECK_RULES,
+) {
+  const textOf = new Map(passages.map((passage) => [passage.handle, passage.text]));
+  return askSupportReplyShape(sentences).transform((reply) => ({
+    sentences: judgeVerdicts(verdictsOfReply(reply), sentences, textOf, answer, rules),
+  }));
+}
+
+/**
+ * The library check's reply (D-415): the same shape and the same judgement of each verdict, and the quote the checker gave for every
+ * sentence it called supported, kept even when code set the verdict aside, so that a stricter rule can be applied to what was said later without
+ * asking again. `quotes` holds `[sentence number, quote]`.
+ */
+export function librarySupportSchema(
+  sentences: readonly SentenceUnderCheck[],
+  passages: readonly SupportPassage[],
+  rules: CheckerRules,
+) {
+  const textOf = new Map(passages.map((passage) => [passage.handle, passage.text]));
+  return askSupportReplyShape(sentences).transform((reply) => ({
+    sentences: judgeVerdicts(verdictsOfReply(reply), sentences, textOf, sentences, rules),
+    quotes: reply.sentences.flatMap((verdict): [number, string][] =>
+      verdict.verdict === 'supported' ? [[verdict.n, verdict.quote]] : [],
+    ),
+  }));
+}
+export type LibrarySupportAnswer = z.infer<ReturnType<typeof librarySupportSchema>>;
 export type AskSupportAnswer = z.infer<ReturnType<typeof askSupportSchema>>;
+
+/** What every support checker role shares besides its identity, instructions and schema: the one fixed repair hint, the output ceiling, the effort and the two context items. */
+export const SUPPORT_ROLE_SHAPE = {
+  safeCustomIssues: SAFE_HINTS,
+  maxOutputTokens: CHECK_MAX_OUTPUT_TOKENS,
+  effort: 'medium',
+  minContextItems: 2,
+} as const;
 
 /**
  * The checker role for these sentences (one batch of an answer). Interactive budget class: a production job waits on it. The

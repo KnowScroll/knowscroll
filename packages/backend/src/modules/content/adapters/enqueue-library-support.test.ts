@@ -1,6 +1,7 @@
 import type { PgBoss } from 'pg-boss';
 import { describe, expect, it } from 'vitest';
 import { checkLibrarySupportJob } from '../production/library-support-events.js';
+import { LIBRARY_SUPPORT_CHECK_VERSION } from '../production/library-support.js';
 import { makeEnqueueLibrarySupport } from './enqueue-library-support.js';
 
 const ASSET = '8a7d48fe-0397-4e00-91a8-b4700630880f';
@@ -24,8 +25,8 @@ describe('sending the support check of a held revision', () => {
     expect(sent).toEqual([
       {
         name: 'content.check-library-support',
-        data: { v: 1, assetId: ASSET, revision: 2, checkerVersion: 'library-support-check.v1' },
-        options: { singletonKey: `${ASSET}:2:library-support-check.v1` },
+        data: { v: 1, assetId: ASSET, revision: 2, checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION },
+        options: { singletonKey: `${ASSET}:2:${LIBRARY_SUPPORT_CHECK_VERSION}` },
       },
     ]);
   });

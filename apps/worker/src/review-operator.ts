@@ -59,23 +59,33 @@ async function withReviewGate(
 /**
  * `content review-list [--all]`: the library v2 Scrolls waiting for an operator, with their recipe,
  * revision, title, word count, reading time, picture and coverage. With `--all`, every revision that
- * went through the gate, with who decided and when. Titles and counts only, never body text.
+ * went through the gate, with who decided and when. Titles and counts only, never body text. What the library support check said is left out
+ * unless `--show-check` is given: while the check is measured against the operator's own decisions, the operator must not see its verdict (D-415).
  */
-export function reviewListCommand(options: { readonly all: boolean }, print: Print, logEvent: LogEvent) {
+export function reviewListCommand(
+  options: { readonly all: boolean; readonly showCheck?: boolean },
+  print: Print,
+  logEvent: LogEvent,
+) {
   return withReviewGate('review_list_failed', logEvent, async (gate) => {
-    const revisions = await gate.list(options);
+    const revisions = await gate.list({ all: options.all, showCheck: options.showCheck === true });
     print({ command: 'content review-list', all: options.all, count: revisions.length, revisions });
     return 0;
   });
 }
 
 /**
- * `content review-show --asset <id> [--revision <n>] [--sources]`: prints the Scroll as plain text for the
+ * `content review-show --asset <id> [--revision <n>] [--sources] [--show-check]`: prints the Scroll as plain text for the
  * operator to read on the server. The text goes to the terminal only; it is never logged. With `--sources`,
  * the source passages each part cites follow it.
  */
 export function reviewShowCommand(
-  options: { readonly asset?: string; readonly revision?: string; readonly sources: boolean },
+  options: {
+    readonly asset?: string;
+    readonly revision?: string;
+    readonly sources: boolean;
+    readonly showCheck?: boolean;
+  },
   print: Print,
   printText: (text: string) => void,
   logEvent: LogEvent,
@@ -86,7 +96,7 @@ export function reviewShowCommand(
     !ASSET_ID.test(options.asset) ||
     (options.revision !== undefined && revision === undefined)
   ) {
-    print({ result: 'usage', usage: 'content review-show --asset <uuid> [--revision <n>] [--sources]' });
+    print({ result: 'usage', usage: 'content review-show --asset <uuid> [--revision <n>] [--sources] [--show-check]' });
     return Promise.resolve(2);
   }
   const assetId = options.asset.toLowerCase();
@@ -95,6 +105,7 @@ export function reviewShowCommand(
       assetId,
       ...(revision === undefined ? {} : { revision }),
       withSources: options.sources,
+      showCheck: options.showCheck === true,
     });
     if (shown.kind === 'refused') {
       print({ command: 'content review-show', result: 'refused', reason: shown.reason });

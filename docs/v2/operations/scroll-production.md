@@ -333,8 +333,8 @@ Every wave of v2 Scrolls gets a factual read by a person before anyone is served
 **What held means.** The revision is stored, with its provenance, topic and coverage. It is not the asset's current revision, so discovery, Explore, series and related moves, the Universe's regions, sharing, saved items and opening a Scroll do not see it. A Scroll that already serves an earlier revision keeps serving it. A brand-new asset stays `held` and cannot be opened. `production-status` shows the recipe as `held` (with `heldRevision`), never `published`. `produce-library` skips a held recipe, and a person's ask never makes Quartermaster write a v2 recipe.
 
 ```sh
-node dist/operator.js content review-list [--all]                   # held revisions: recipe, revision, title, words, minutes, picture, coverage, what the answer check and the support check said. --all adds released and rejected, with who and when
-node dist/operator.js content review-show --asset <asset id> [--revision <n>] [--sources]   # the Scroll as plain text, to read on the server
+node dist/operator.js content review-list [--all] [--show-check]    # held revisions: recipe, revision, title, words, minutes, picture, coverage, what the answer check said. --all adds released and rejected, with who and when. --show-check adds what the support check said (hidden while it is measured)
+node dist/operator.js content review-show --asset <asset id> [--revision <n>] [--sources] [--show-check]   # the Scroll as plain text, to read on the server
 node dist/operator.js content release --asset <asset id> --revision <n>                      # serve exactly this revision
 node dist/operator.js content reject  --asset <asset id> --revision <n> --reason "<why>"      # keep it out, free the next take
 ```
@@ -594,43 +594,47 @@ pair in `versions.test.ts`), not to read answers by hand.
 
 ## Measure the library support check (#674 slice 3.2, D-415)
 
-Every held library Scroll gets a second model's reading of its sentences, the **support check**: each sentence a reader sees (the title, the dek, each stop's lines and plain restatement, calls' explanations and twists, asides, the recap) is read against the passages
-its own stop, aside or the recap cites, and the model says `supported` (with a quote), `unsupported` or `no_claim`. Code checks each verdict (a quote that is not in a cited passage, or is about something else, makes the sentence `unclear`, not `supported`) and decides the revision's verdict
-under a policy: `library-support-policy.v1` **passes** a revision with no `unsupported` and no `unclear` sentence and **flags** any other. The worker runs it for you: the delivery that holds a Scroll sends it, and a sweep every ten minutes sends it for any held revision that has none. It is background work on the
-production harness (role `content.library-support-check`, the background share of the daily caps, at most eleven requests for a Scroll, its own failure brake). **It releases, rejects and serves nothing: you still read every Scroll.** It exists to be measured. When its verdict agrees with your own past
-decisions well enough, the owner may let it approve per topic (slice 3.3); until then it is a hint.
+Every held library Scroll gets a second model's reading of its sentences, the **support check**: each sentence a reader sees (the title, the dek, each stop's lines and plain restatement, the points of a scale or a chart, calls' explanations and twists, asides, the recap) is read against the passages
+its own stop, aside or the recap cites, and the model says `supported` (with a quote from one of those passages), `unsupported` or `no_claim`. Code checks each verdict (a quote that is not in a passage the sentence cites, or is about something else, makes the sentence `unclear`, not `supported`; "no fact" is accepted only for a label of a few words or a plain admission of a gap, never because a sentence shares no word with its passages) and decides the revision's verdict
+under a policy: `library-support-policy.v2` **passes** a revision with no `unsupported` sentence, no `unclear` one and at most eight labels passed as stating no fact, and **flags** any other. The worker runs it for you: the delivery that holds a Scroll sends it, and a sweep every ten minutes sends it for any held revision that has none. It is background work on the
+production harness (role `content.library-support-check`, the background share of the daily caps, at most eleven requests for a Scroll over every try, its own failure brake). **It releases, rejects and serves nothing: you still read every Scroll.** It exists to be measured. When its verdict agrees with your own past
+decisions well enough, the owner may let it approve per topic (slice 3.3); until then it is a hint, and not even that while it is being measured.
 
-**What you see.** `review-list` shows `supportCheck` for each revision (`verdict`, `state`, `counts`; `null` while it has not run), and `review-show` prints the verdict under the header and, when the revision is flagged, "Read these first": each unsupported or unclear sentence, where it stands
-(`s3 paragraph #14`) and the checker's note or the rule's code. A line that says `NOT CHECKED (<code>)` means no sentence has a verdict: `outcome_unknown` (the attempt is listed by `reasoning unknown`; write it off when you have decided what it was), `invalid_output`, `provider_failed` (after three tries),
-`revision_too_long`, `citations_missing`, `provenance_unreadable` or `refused_<reason>`. A spent budget, quota or failure brake is not a result: the sweep asks again on its own. The check says nothing about the picture, the answer keys of the calls or the figures of a play block; read those as before.
+**You do not see it.** While the check is measured against your own decisions, `review-list` and `review-show` leave its verdict out, so your decisions stay your own. The results are stored all the same. `--show-check` on either command shows them (`supportCheck` in the list; the verdict, "Read these first" and a "Not covered:" line in the text); use it
+only after the measurement, and know that a decision you make with it visible is no longer an answer key. The checker version is a hash of the instructions, rules, policy and code that decide what it says (`library-support-check.` and eight hex digits), so any change to the check, the ask check's shared code included, is a new version and a new measurement.
 
-**The measurement.** Run it on dev after you have released and rejected some Scrolls (the more, the better; it uses your decisions as the answer key). It needs the production grant and the model the harness allows, as `ask-check` does.
+**The measurement.** Run it on dev after you have released and rejected some Scrolls (the more, the better; it uses your decisions as the answer key, and only a person's: `decided_by` must be `cli:<you>`). It needs the production grant and the model the harness allows, as `ask-check` does.
 
 ```sh
 # 1. What is already stored, with no spend. Reads your decisions and any results the worker made.
 node dist/operator.js content support-check-replay --max-requests 0
 # 2. Check the decided revisions that have no result yet, within a cap. A check is about six requests; a revision that might pass the cap is skipped, not started.
 node dist/operator.js content support-check-replay --limit 40 --max-requests 150
-# 3. Only decisions since a date (an ISO date or date and time).
-node dist/operator.js content support-check-replay --since 2026-11-01 --limit 100 --max-requests 300
+# 3. Only decisions since a date (an ISO date or date and time); fail with exit 2 if the cap left any decision out.
+node dist/operator.js content support-check-replay --since 2026-11-01 --limit 100 --max-requests 300 --fail-on-partial
 ```
 
 `--max-requests` is required (0 to 1,000): a replay is paid for, and the production scope's own daily cap and the background share still apply on top. `--limit` is how many of the newest decided revisions to look at (1 to 500, 50 by default). Running it again sends nothing for a revision already checked,
-so a spent budget only means "run it again later". It writes only the check's own result rows, the ones the worker writes: it changes no decision and no Scroll. It prints one JSON line for each revision (counts and codes, no sentence), then one for the end, so the output may be pasted into an issue.
+so a spent budget only means "run it again later"; a conclusive provider failure is tried again in a later round and asks only the batch that failed. It writes only the check's own result rows, the ones the worker writes: it changes no decision and no Scroll. It prints one JSON line for each revision (counts and codes, no sentence), then one for the end, so the output may be pasted into an issue.
 
-Read the last line:
+Read the last line, in this order:
 
-- `rejectedPassed` is **the dangerous number**: revisions you rejected that the check would have passed. Release can step down only if this is near zero over enough rejected revisions. `releasedFlagged` is the cost of the other mistake: Scrolls you served that the check would have held back.
-  `rejectedCaught` is the share of your rejections the check flags, `releasedPassedShare` the share of your releases it passes, `agreement` the share of checked revisions where check and you agree.
+- `result` is `done`, `partial` or `stopped`. **`partial` means the cap left decided revisions out** (`skippedForCap`, by released and rejected); the agreement covers the rest only, so run it again with a larger cap before reading it. `stopped` says why (`stopped`: a spent budget or quota, an attempt of unknown outcome, a revoked root, the wrong model).
+- `conclusion` says plainly whether the measure can conclude anything: it needs the upper end of the rejected-passed rate in the newer half of the decisions to be at most 10%, which takes about 30 rejected revisions with none passed. **If it says "Not enough to conclude", nothing below is a basis for stepping review down**, whatever the point estimates look like.
+- `checked` is how many decided revisions entered the matrix: those whose result was made at or after your decision. `exposed` counts the decisions you made after a result already existed (the worker's sweep makes one soon after a Scroll is held, so decisions made after that are reported here, even though the verdict was hidden from you). They are in no matrix and no family. `notChecked` counts the decided revisions with no result and why (`not_checked` means none yet; a code is the stored reason): a large number is a reason to run it again before reading anything.
+- `rejectedPassed` is **the dangerous number**: revisions you rejected that the check would have passed; `rejectedPassedRate` has its n (the rejected revisions checked), the Wilson 95% interval (`wilsonUpper` is the number to trust) and the rule of three (`ruleOfThree`, 3 / n) when none passed. `releasedFlagged` is the cost of the other mistake: Scrolls you served that the check would have held back (`releasedFlaggedRate`).
+  `flagRate` is the share of all checked revisions it flags. `rejectedCaught`, `releasedPassedShare` and `agreement` are the plain shares.
+- `split` is the older half of the decisions choosing limits (`chosen`, only with at least three rejected revisions in it, the loosest that passed none of them) and the newer half reporting them: `evaluationUnderPolicy` and `evaluationUnderChosen` are what the active policy and the chosen limits did on decisions that did not choose them. Quote the newer half, not the whole.
 - `byFamily` is the same matrix for each recipe family (the system of the recipe: `earth`, `space`, `machine-learning`...), because a checker that does well on one subject may not on another. A family with few revisions says little.
-- `notChecked` counts the decided revisions that have no result and why (`not_checked` means none yet; a code is the stored reason). They are in neither half of the matrix, so a large number is a reason to run it again before reading anything.
-- `choices` is the table of what looser limits would have done (`maxUnsupported`, `maxUnclear`, `null` for no limit) on the same stored results: if the policy flags nearly everything you released, the table shows whether tolerating a few `unclear` sentences fixes that and what it costs in `rejectedPassed`.
-- Each line also has `codes` (how many sentences are `unclear` because of which rule: many `quote_not_about_sentence` or `quote_not_in_cited_passages` is the checker's quoting, not the Scroll) and `kinds` (what the checker found unsupported). Look at them before you decide the checker is too strict.
+- `choices` is the table of what looser limits would have done (`maxUnsupported`, `maxUnclear`, `null` for no limit) on the same stored results: if the policy flags nearly everything you released, the table shows whether tolerating a few `unclear` sentences fixes that and what it costs in `rejectedPassed`. It is not a choice: `split.chosen` is.
+- Each revision's line has `codes` (how many sentences are `unclear` because of which rule: many `quote_not_about_sentence`, `quote_not_in_cited_passages` or `no_claim_without_ground` is the checker's quoting or its use of "no fact", not the Scroll) and `kinds` (what the checker found unsupported), and `blind` (whether it counts). Look at them before you decide the checker is too strict. The stored sentences keep each quote and how many key words it shares with its sentence, so a stricter rule can be tried later without asking the model again.
+- `notCovered` lists what the check does not read: questions put to the reader, a call's options and answer key, a sort's items and order, a fork's branch labels, a scale's axis and marker and a chart's shape and unit, the misconception, the landmark's name, the picture and the Ask suggestions. A rejection for one of those looks like "passed".
 
 **What the numbers cannot tell.** They say how the check agrees with you, not whether a Scroll is true: you may release a Scroll with a small flaw and reject one for its picture or its calls, which the check never reads. Revisions you rejected for a reason that is not a sentence's support will look like "passed"; say so when you read the
-number. A Scroll counts once per checker version, so a new version (a change to its instructions, rules or extraction) is a new measurement to make.
+number. A Scroll counts once per checker version, so a new version is a new measurement to make.
 
-Nothing is released automatically in this slice, and a policy or a checker change is a new version, not an edit.
+Nothing is released automatically in this slice, and a policy or a checker change is a new version, not an edit. A `NOT CHECKED (<code>)` result means no sentence has a verdict: `outcome_unknown` (the attempt is listed by `reasoning unknown`; write it off when you have decided what it was), `invalid_output`, `provider_failed_final` (after three tries or when another try could pass the eleven requests),
+`revision_too_long`, `citations_missing`, `provenance_unreadable` or `refused_<reason>`. A spent budget, quota or failure brake is not a result: the sweep asks again on its own. A revision that went through no review gate (a made-to-order one) is refused (`not_under_review`) and never stored.
 
 ## Facts about the model
 

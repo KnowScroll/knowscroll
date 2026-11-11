@@ -14,7 +14,7 @@ import {
 } from '../domain/library-support.js';
 import { recipeKeyOfAsset } from '../adapters/review-gate.js';
 import type { CheckLibrarySupport } from './library-support-check.js';
-import { LIBRARY_SUPPORT_CHECK_VERSION } from './library-support.js';
+import { LIBRARY_SUPPORT_CHECK_VERSION, NOT_COVERED } from './library-support.js';
 import { libraryCheckStore, type StoredLibraryCheck } from './library-support-store.js';
 import { SPIKE_MODEL } from './spike-v2/run.js';
 
@@ -49,6 +49,12 @@ export interface ReplayLine {
   readonly outcome: ReplayOutcome;
   /** The verdict under the current policy, or `null` when no result is stored. */
   readonly verdict: CheckVerdict | null;
+  /**
+   * Whether the operator decided with no result in existence (the result was made at or after the decision): only those count in the matrix. `false`
+   * means a result existed before the decision, `null` that none is stored or it gave nothing.
+   */
+  readonly blind: boolean | null;
+  readonly decidedAt: string;
   readonly sentences: number;
   readonly supported: number;
   readonly unsupported: number;
@@ -66,13 +72,24 @@ export interface ReplayLine {
 
 export type ReplayStop = 'paused' | 'outcome_unknown' | 'scope_refused' | 'aborted' | 'model_mismatch';
 
+/**
+ * `done`: every decided revision it read has a result, or a reason it cannot have one. `partial`: some were skipped for the request cap, so the
+ * agreement is over some of the decisions and says nothing about the rest. `stopped`: it ended early (`stopped` says why).
+ */
+export type ReplayStatus = 'done' | 'partial' | 'stopped';
+
 export interface ReplaySummary {
   readonly checkerVersion: string;
+  readonly status: ReplayStatus;
   readonly revisions: number;
   readonly requestsSent: number;
   readonly maxRequests: number;
+  /** The decided revisions skipped because their check might pass the cap, by the operator's decision. */
+  readonly skippedForCap: { readonly released: number; readonly rejected: number; readonly total: number };
   /** Why the replay did not look at every revision it read, or `null` when it did. */
   readonly stopped: ReplayStop | null;
+  /** What the check does not read, so the agreement is not taken for more than it measures. */
+  readonly notCovered: readonly string[];
   /** How the stored results of this checker version agree with the operator's decisions, whoever's replay stored them. */
   readonly agreement: AgreementSummary;
 }
@@ -106,8 +123,20 @@ const tally = (keys: readonly (string | undefined)[]): Record<string, number> =>
 };
 
 /** The line of a revision from its stored result (or none). */
+/** One decided revision as the store reads it. */
+interface DecidedRevision {
+  readonly assetId: string;
+  readonly revision: number;
+  readonly decision: HumanDecision;
+  readonly decidedAt: string;
+}
+
+/** Whether the operator decided before a result existed: the result was made at or after the decision. */
+const decidedBlind = (decided: DecidedRevision, stored: StoredLibraryCheck | undefined): boolean | null =>
+  stored?.state !== 'checked' ? null : Date.parse(stored.checkedAt) >= Date.parse(decided.decidedAt);
+
 function lineOf(
-  decided: { readonly assetId: string; readonly revision: number; readonly decision: HumanDecision },
+  decided: DecidedRevision,
   outcome: ReplayOutcome,
   stored: StoredLibraryCheck | undefined,
   requests: number,
@@ -123,6 +152,8 @@ function lineOf(
     decision: decided.decision,
     outcome,
     verdict: counts === undefined ? (stored === undefined ? null : 'unchecked') : decideRevision(counts, policy),
+    blind: decidedBlind(decided, stored),
+    decidedAt: decided.decidedAt,
     sentences: counts?.sentences ?? stored?.sentenceCount ?? 0,
     supported: counts?.supported ?? 0,
     unsupported: counts?.unsupported ?? 0,
@@ -156,15 +187,15 @@ export function makeLibrarySupportReplay(deps: LibrarySupportReplayDependencies)
   const policy = deps.policy ?? LIBRARY_SUPPORT_POLICY;
 
   /** The agreement of the stored results of this checker version for these decided revisions. */
-  async function agreement(
-    decided: readonly { readonly assetId: string; readonly revision: number; readonly decision: HumanDecision }[],
-  ): Promise<AgreementSummary> {
+  async function agreement(decided: readonly DecidedRevision[]): Promise<AgreementSummary> {
     const stored = await libraryCheckStore.readMany(deps.db, LIBRARY_SUPPORT_CHECK_VERSION, decided);
     const rows = decided.map((entry): DecidedCheck => {
       const check = stored.get(`${entry.assetId}:${String(entry.revision)}`);
       const { family } = familyOf(entry.assetId);
-      if (check?.state === 'checked') return { decision: entry.decision, family, counts: countsOf(check.sentences) };
-      return { decision: entry.decision, family, counts: null, code: check?.code ?? 'not_checked' };
+      const when = { decidedAt: entry.decidedAt, checkedAt: check?.checkedAt ?? null };
+      if (check?.state === 'checked')
+        return { decision: entry.decision, family, ...when, counts: countsOf(check.sentences) };
+      return { decision: entry.decision, family, ...when, counts: null, code: check?.code ?? 'not_checked' };
     });
     return agreementOf(rows, policy);
   }
@@ -176,16 +207,19 @@ export function makeLibrarySupportReplay(deps: LibrarySupportReplayDependencies)
   ): Promise<ReplaySummary> {
     const base = { checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION, maxRequests: target.maxRequests };
     const decided = await libraryCheckStore.decided(deps.db, { since: target.since, limit: target.limit });
+    const common = { ...base, revisions: decided.length, notCovered: NOT_COVERED };
     if (deps.model !== SPIKE_MODEL)
       return {
-        ...base,
-        revisions: decided.length,
+        ...common,
+        status: 'stopped',
         requestsSent: 0,
+        skippedForCap: { released: 0, rejected: 0, total: 0 },
         stopped: 'model_mismatch',
         agreement: await agreement(decided),
       };
     let requestsSent = 0;
     let stopped: ReplayStop | null = null;
+    const skipped = { released: 0, rejected: 0 };
     for (const entry of decided) {
       if (signal.aborted) {
         stopped = 'aborted';
@@ -202,6 +236,7 @@ export function makeLibrarySupportReplay(deps: LibrarySupportReplayDependencies)
           await emit(lineOf(entry, 'not_replayable', undefined, 0, policy, result.reason));
           break;
         case 'over_cap':
+          skipped[entry.decision] += 1;
           await emit(lineOf(entry, 'over_cap', undefined, 0, policy, 'over_request_cap'));
           break;
         case 'reused':
@@ -231,6 +266,14 @@ export function makeLibrarySupportReplay(deps: LibrarySupportReplayDependencies)
       }
       if (stopped !== null) break;
     }
-    return { ...base, revisions: decided.length, requestsSent, stopped, agreement: await agreement(decided) };
+    const skippedForCap = { ...skipped, total: skipped.released + skipped.rejected };
+    return {
+      ...common,
+      status: stopped !== null ? 'stopped' : skippedForCap.total > 0 ? 'partial' : 'done',
+      requestsSent,
+      skippedForCap,
+      stopped,
+      agreement: await agreement(decided),
+    };
   };
 }

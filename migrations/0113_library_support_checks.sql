@@ -9,7 +9,12 @@
 -- Scroll's own words (a stored revision is public once released) and the checker's short notes about the ones it flagged.
 -- One row per revision and checker version, so a new checker version is a new measurement of the same revision and an old one is never
 -- overwritten. `check_round` counts the tries: a check that ended on a provider failure (a conclusive failure ends the reasoning run for
--- good) is tried again in a new round, at most three.
+-- good) is tried again in a new round, at most three and within eleven paid requests for the revision in all (`requests` is the total over every
+-- round). `batch_failures` says how often each batch (by index) failed, so a later round asks only the batch that failed and those after it; the
+-- batches answered before it are read back from the attempt ledger for nothing. Code `provider_failed` is a result still to be tried again,
+-- `provider_failed_final` one that has used its rounds or its requests.
+-- The key references the review gate's row, not just the revision: only a library or generated Scroll that went through the review gate can have
+-- a check, so a made-to-order revision (a thread's branch, a person's question) can never be stored in this shared table.
 -- Query shapes: one revision's result by its key (the primary key: the operator's review list and show read it, and the check job asks
 -- whether it already ran); the held revisions that have no result yet (the held partial index of `content.revision_reviews`, then one
 -- primary-key probe each); the results that ended on a provider failure and are due another round (the partial index below); and the results
@@ -17,7 +22,7 @@
 -- Locking: the use case writes one row in one short transaction under the production root and closes the reasoning runs it used in the same
 -- transaction; no model or network wait holds it. Two deliveries racing for one revision both read "no row", the first writes and the
 -- second finds its runs closed or its insert a no-op.
--- Growth: one row per revision and checker version, about 10 KB of `sentences` for a checked revision (60 sentences). Retention: kept; it is
+-- Growth: one row per revision and checker version, about 20 KB of `sentences` for a checked revision (60 sentences with their quotes). Retention: kept; it is
 -- the evidence of how the check agreed with the operator.
 -- Rollout: additive. An older process never reads or writes the table, and the review list shows "not checked" for a revision with no row.
 set local lock_timeout = '5s';
@@ -34,6 +39,8 @@ create table content.library_support_checks (
   verdict text not null,
   policy_version text not null,
   check_round integer not null default 1,
+  -- How often each batch failed conclusively, by index: {"3": 1}. Empty when none did.
+  batch_failures jsonb not null default '{}'::jsonb,
   sentence_count integer not null,
   batches integer not null,
   -- Paid requests the check sent, one for each batch and one more when the harness repaired an unusable reply.
@@ -43,7 +50,7 @@ create table content.library_support_checks (
   checked_at timestamptz not null default now(),
   constraint library_support_checks_pkey primary key (asset_id, revision, checker_version),
   constraint library_support_checks_revision_fkey foreign key (asset_id, revision)
-    references content.asset_revisions (asset_id, revision) on delete restrict,
+    references content.revision_reviews (asset_id, revision) on delete restrict,
   constraint library_support_checks_state_check check (state in ('checked', 'unchecked')),
   constraint library_support_checks_verdict_check check (verdict in ('passed', 'flagged', 'unchecked')),
   -- A checked result has a verdict and no code; an unchecked one has a code and no verdict.
@@ -53,6 +60,7 @@ create table content.library_support_checks (
   constraint library_support_checks_version_check
     check (char_length(checker_version) between 1 and 64 and char_length(policy_version) between 1 and 64),
   constraint library_support_checks_round_check check (check_round between 1 and 3),
+  constraint library_support_checks_failures_check check (jsonb_typeof(batch_failures) = 'object'),
   constraint library_support_checks_counts_check check (sentence_count >= 0 and batches >= 0 and requests >= 0),
   constraint library_support_checks_sentences_check check (
     jsonb_typeof(sentences) = 'array'

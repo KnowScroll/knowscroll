@@ -1,7 +1,7 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
 import { z } from 'zod';
 import type { Database } from '../../../infrastructure/postgres/database.js';
-import { RULE_CODES, UNSUPPORTED_KINDS } from '../domain/ask-support.js';
+import { RULE_CODES, UNSUPPORTED_KINDS, type NoClaimGround } from '../domain/ask-support.js';
 import {
   LIBRARY_FIELDS,
   LIBRARY_SENTENCE_OUTCOMES,
@@ -19,8 +19,16 @@ import {
 /** A check that ended on a provider failure is tried again in a new round, at most this many times in all. */
 export const LIBRARY_SUPPORT_MAX_ROUNDS = 3;
 
-/** The code of a check that ended on a conclusive provider failure: the only one that is tried again (the run of its round is ended for good). */
+/**
+ * The code of a check that ended on a conclusive provider failure and may be tried again: its rounds and its requests are not spent. The run of
+ * the failed batch is ended for good, so a later round asks that batch in a run of its own and reads the batches before it from the ledger.
+ */
 export const RETRYABLE_CODE = 'provider_failed';
+
+/** The code of a provider failure that is not tried again: the third round failed, or another round could pass the revision's bound of requests. */
+export const FINAL_PROVIDER_CODE = 'provider_failed_final';
+
+const NO_CLAIM_GROUNDS = ['question', 'gap', 'label', 'short', 'unshared'] as const satisfies readonly NoClaimGround[];
 
 const StoredSentences = z.array(
   z.strictObject({
@@ -33,8 +41,16 @@ const StoredSentences = z.array(
     kind: z.enum(UNSUPPORTED_KINDS).optional(),
     code: z.enum(RULE_CODES).optional(),
     problem: z.string().min(1).max(400).optional(),
+    ground: z.enum(NO_CLAIM_GROUNDS).optional(),
+    quote: z.string().min(1).max(1_200).optional(),
+    keyWords: z.number().int().min(0).optional(),
+    quoteKeyWords: z.number().int().min(0).optional(),
+    shared: z.number().int().min(0).optional(),
   }),
 );
+
+/** How often each batch failed, by index. */
+const BatchFailures = z.record(z.string().regex(/^\d{1,3}$/u), z.number().int().min(1).max(3));
 
 /** One row as the use case, the review gate and the replay read it. */
 export interface StoredLibraryCheck {
@@ -47,8 +63,11 @@ export interface StoredLibraryCheck {
   readonly verdict: CheckVerdict;
   readonly policyVersion: string;
   readonly round: number;
+  /** How often each batch (by index) failed conclusively over the rounds; empty when none did. */
+  readonly batchFailures: Readonly<Record<string, number>>;
   readonly sentenceCount: number;
   readonly batches: number;
+  /** Paid requests in all, over every round. */
   readonly requests: number;
   /** The sentences with what became of each, in reading order; empty for a check that gave nothing. */
   readonly sentences: readonly LibrarySentenceResult[];
@@ -64,6 +83,7 @@ interface CheckRow {
   verdict: CheckVerdict;
   policy_version: string;
   check_round: number;
+  batch_failures: unknown;
   sentence_count: number;
   batches: number;
   requests: number;
@@ -71,11 +91,12 @@ interface CheckRow {
   checked_at: Date;
 }
 
-const COLUMNS = sql`asset_id, revision, checker_version, state, code, verdict, policy_version, check_round, sentence_count, batches, requests, sentences, checked_at`;
+const COLUMNS = sql`asset_id, revision, checker_version, state, code, verdict, policy_version, check_round, batch_failures, sentence_count, batches, requests, sentences, checked_at`;
 
 function storedOf(row: CheckRow): StoredLibraryCheck | undefined {
   const sentences = StoredSentences.safeParse(row.sentences);
-  if (!sentences.success) return undefined;
+  const failures = BatchFailures.safeParse(row.batch_failures);
+  if (!sentences.success || !failures.success) return undefined;
   return {
     assetId: row.asset_id,
     revision: row.revision,
@@ -85,6 +106,7 @@ function storedOf(row: CheckRow): StoredLibraryCheck | undefined {
     verdict: row.verdict,
     policyVersion: row.policy_version,
     round: row.check_round,
+    batchFailures: failures.data,
     sentenceCount: row.sentence_count,
     batches: row.batches,
     requests: row.requests,
@@ -163,13 +185,13 @@ export const libraryCheckStore = {
    */
   async write(trx: Transaction<Database>, check: Omit<StoredLibraryCheck, 'checkedAt'>): Promise<'written' | 'kept'> {
     const { rows } = await sql<{ check_round: number }>`insert into content.library_support_checks
-        (asset_id, revision, checker_version, state, code, verdict, policy_version, check_round, sentence_count, batches, requests, sentences)
+        (asset_id, revision, checker_version, state, code, verdict, policy_version, check_round, batch_failures, sentence_count, batches, requests, sentences)
       values (${check.assetId}::uuid, ${check.revision}::integer, ${check.checkerVersion}, ${check.state}, ${check.code},
-        ${check.verdict}, ${check.policyVersion}, ${check.round}::integer, ${check.sentenceCount}::integer, ${check.batches}::integer,
-        ${check.requests}::integer, ${JSON.stringify(check.sentences)}::jsonb)
+        ${check.verdict}, ${check.policyVersion}, ${check.round}::integer, ${JSON.stringify(check.batchFailures)}::jsonb,
+        ${check.sentenceCount}::integer, ${check.batches}::integer, ${check.requests}::integer, ${JSON.stringify(check.sentences)}::jsonb)
       on conflict (asset_id, revision, checker_version) do update set
         state = excluded.state, code = excluded.code, verdict = excluded.verdict, policy_version = excluded.policy_version,
-        check_round = excluded.check_round, sentence_count = excluded.sentence_count, batches = excluded.batches,
+        check_round = excluded.check_round, batch_failures = excluded.batch_failures, sentence_count = excluded.sentence_count, batches = excluded.batches,
         requests = excluded.requests, sentences = excluded.sentences, checked_at = now()
       where content.library_support_checks.state = 'unchecked'
         and content.library_support_checks.code = ${RETRYABLE_CODE}
@@ -202,7 +224,8 @@ export const libraryCheckStore = {
 
   /**
    * The revisions an operator released or rejected, newest decision first, with the decision and when it was made: what the replay
-   * measures the check against. `since` keeps only decisions made at or after it.
+   * measures the check against. Only a person's decisions count (`decided_by` is `cli:<operator>`): a later automatic release is no answer key
+   * for the check that made it. `since` keeps only decisions made at or after it.
    */
   async decided(
     db: Queryable,
@@ -224,7 +247,7 @@ export const libraryCheckStore = {
       decided_at: Date;
     }>`select review.asset_id, review.revision, review.state, review.decided_at
       from content.revision_reviews review
-      where review.state in ('released', 'rejected') ${since}
+      where review.state in ('released', 'rejected') and review.decided_by like 'cli:%' ${since}
       order by review.decided_at desc, review.asset_id, review.revision
       limit ${options.limit}::integer`.execute(db);
     return rows.map((row) => ({

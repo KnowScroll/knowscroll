@@ -146,6 +146,7 @@ export interface ContentEncounterTopics {
 
 export interface ContentLibrarySupportChecks {
   asset_id: string;
+  batch_failures: Generated<Json>;
   batches: number;
   check_round: Generated<number>;
   checked_at: Generated<Timestamp>;

@@ -302,6 +302,19 @@ export interface CheckerRules {
   readonly shortNoClaim: boolean;
   /** A sentence of at most {@link SHORT_SENTENCE_KEY_WORDS} key words needs one shared key word from a quote of two (D-306). */
   readonly oneKeyWordAbout: boolean;
+  /**
+   * A quote must come from a passage the sentence's own block cites, not from any passage the answer cites (D-305). The library check
+   * asks for it (D-415): a Scroll's stops rest on their own passages, so a sentence supported only by another stop's passage is not supported
+   * where the reader reads it. Absent means false, which is the ask check's rule.
+   */
+  readonly ownPassagesOnly?: boolean;
+  /**
+   * A figure-free sentence that shares no key word with the passages it cites may be marked as stating no fact (the `unshared` ground).
+   * Absent means true, which is the ask check's rule: an answer of 8 to 12 sentences can spare a transition. A library Scroll cannot: a
+   * sentence that shares no word with its passages could say anything, and "no fact" would be the way past the check, so the library turns
+   * it off (D-415) and such a verdict is set aside (`no_claim_without_ground`).
+   */
+  readonly noClaimUnshared?: boolean;
 }
 
 /** The rules of ask-support-check.v4, which a Quick answer and a resident's answer keep. */
@@ -450,6 +463,7 @@ export function noClaimGround(
   if (namesTheGap(sentence.text)) return 'gap';
   if (sentence.label === true) return wordsOf(sentence.text).length <= MAX_LABEL_WORDS ? 'label' : undefined;
   if (rules.shortNoClaim && wordsOf(sentence.text).length <= MAX_SHORT_NO_CLAIM_WORDS) return 'short';
+  if (rules.noClaimUnshared === false) return undefined;
   const cited = new Set(citedTexts.flatMap((text) => [...contentStems(text)]));
   return [...contentStems(sentence.text)].some((stem) => cited.has(stem)) ? undefined : 'unshared';
 }
@@ -472,7 +486,8 @@ function ruleBrokenBy(
       return noClaimGround(sentence, citedTexts, rules) === undefined ? 'no_claim_without_ground' : undefined;
     case 'supported':
       if (!hasEnoughWords(verdict.quote)) return 'quote_too_short';
-      if (!answerTexts.some((text) => quoteIsIn(verdict.quote, text))) return 'quote_not_in_cited_passages';
+      if (!(rules.ownPassagesOnly === true ? citedTexts : answerTexts).some((text) => quoteIsIn(verdict.quote, text)))
+        return 'quote_not_in_cited_passages';
       return isAboutSentence(verdict.quote, sentence.text, rules) ? undefined : 'quote_not_about_sentence';
   }
 }

@@ -64,7 +64,8 @@ describe('handing the check of a held revision to its queue', () => {
       return Promise.resolve('queued' as const);
     };
     await handOverHeldRevision({ held: true, assetId: ASSET, revision: 2 }, enqueue, () => undefined);
-    expect(sent).toEqual([{ v: 1, assetId: ASSET, revision: 2, checkerVersion: 'library-support-check.v1' }]);
+    expect(sent).toEqual([checkLibrarySupportJob(ASSET, 2)]);
+    expect(checkLibrarySupportJob(ASSET, 2).checkerVersion).toMatch(/^library-support-check\.[0-9a-f]{8}$/u);
     await handOverHeldRevision({ assetId: ASSET, revision: 2 }, enqueue, () => undefined);
     await handOverHeldRevision({ held: true }, enqueue, () => undefined);
     expect(sent).toHaveLength(1);
