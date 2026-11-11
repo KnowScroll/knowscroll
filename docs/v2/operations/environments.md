@@ -162,6 +162,34 @@ every `*@test.knowscroll.space` account qualifies until the list is set. `node d
 worker tree prints one record's timeline. The one-time `ks2_ops_reader` role for Grafana or psql is created by the
 owner. All of it is in `looking-at-the-system.md`.
 
+### Run the canary on dev (#674, D-413)
+
+The canary drives the deployed API and worker on dev with disposable readers and says whether the algorithms behave: no
+re-reads while unseen content exists, readings stored and qualified, places formed, no failed job, Planner runs settled. Run it
+after a deploy, from the **worker** tree, as the world's v2 user. It spends no money and calls no model.
+
+```sh
+sudo sh -c 'set -a; . /etc/knowscroll/dev.v2.env; . /etc/knowscroll/secrets/v2-dev/database.env; set +a;
+  cd /srv/knowscroll/dev/current/worker && exec runuser -u ks2-dev -- /usr/bin/node dist/operator.js canary run --speed max'
+```
+
+- **Needs** the operator sign-in settings of the API (`KS_ALLOW_OPERATOR_SIGN_IN=1`, `KS_OPERATOR_SIGN_IN_PATTERN=*@test.knowscroll.space`,
+  `KS_PUBLIC_ORIGIN`), which `dev.v2.env` carries. Only `dev`, `stage`, `ci` and `local` allow it; `--base-url` may only be the
+  world's own origin or this machine.
+- **Time.** Reading is in real time. All five personas at `--speed max` take about 30 to 40 minutes, mostly the reader of many
+  Scrolls; the wait after the journeys adds up to `--wait` seconds (default 600) for Planner runs. A quick check:
+  `--personas cold-start,deep-reader --speed max --wait 60` (about three minutes). `--many 6` shortens the long reader.
+- **Result.** One JSON line: `result` is `passed` or `failed`; `checks` lists every invariant with `ok` or `violated`;
+  `violations` names the code, the persona and a count. Never an id, title, address or link. Exit 0 passed, 1 violated or failed,
+  2 refused. A `lastResortRepeats` count above zero is allowed (nothing unseen was left) and tells you how often it happens.
+- **If it fails.** `repeat_while_unseen_exists`: replay `composer replay-policy` and check `KS_COMPOSER_POLICY=v2`
+  (`composerPolicies` in the result shows which policy the decisions were made under). `reading_not_*` or `job_failed`: read the
+  worker journal and `ops.recent_errors`. `formation_*_missing`: rerun with `--keep`, take the account ids from
+  `ops.operator_sign_ins` and read their `geography.run` steps with `journey --account <id>`. `planner_run_stuck`: the same wedge the #674 audit found.
+- **Cleanup.** Each account is deleted through the real deletion flow and its receipt must say `completed`; `cleanup` in the result
+  says how many. Without a deletion the accounts are only test accounts (`canary-<run>-<persona>@test.knowscroll.space`); `--keep`
+  leaves them on purpose. Each mint leaves an audit row in `ops.operator_sign_ins`, as `issue-sign-in` does.
+
 ### Reasoning operator commands (worker tree)
 
 Related: S2.2.

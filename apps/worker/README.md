@@ -304,6 +304,25 @@ or crash leaves durable due state for the next finite pass. The ordinal-only glo
 no personal UUID or per-account effect authority; full/Clear erases the personal row and all exact
 private expiry job states. Old late work cannot restore removed IDs or touch fresh-epoch data.
 
+## Canary (post-deploy, #674, D-413)
+
+`node dist/operator.js canary run [--personas <ids>] [--base-url <url>] [--speed <1-60|max>] [--many <1-60>] [--wait <seconds>] [--keep]`
+(`src/canary-operator.ts`; the journeys, rules and reads are the Operator module's, see its README) drives the deployed API and
+worker with disposable test accounts, the way a client does, and reports whether the algorithms behave. It makes one account per
+persona with the operator sign-in use case (`canary-<run>-<persona>@<operator pattern>`), redeems each link through the real HTTP
+route, and from then on uses only public routes. It writes nothing to the database, calls no model and spends nothing.
+Unless `--keep`, each account is deleted through the real deletion flow and the receipt must say `completed`.
+
+Configuration: the operator-sign-in variables of the API's `issue-sign-in` (`KS_WORLD`, `DATABASE_URL`, `KS_PUBLIC_ORIGIN`,
+`KS_ALLOW_OPERATOR_SIGN_IN=1`, `KS_OPERATOR_SIGN_IN_PATTERN` with one `*` in its local part). Refused (exit 2) in any world but
+`dev`, `stage`, `ci` and `local`, and for a `--base-url` that is neither the world's origin nor this machine. Reading is paced on the
+wall clock: the server bounds a claimed interval by the time since activation, so `--speed` only makes the readers quicker, never
+the canary. `--wait` (default 600 s) bounds the wait after the journeys for projection, formation and Planner runs.
+
+One JSON line on stdout with counts and codes only (never an id, title, address or link); diagnostics on stderr. Exit 0 passed,
+1 an invariant was violated or the run failed, 2 refused or bad usage. Runbook: `docs/v2/operations/environments.md`, "Run the
+canary on dev". Status: implemented; covered by `tests/integration/release/canary-operator.test.ts`.
+
 ## Personal recording composition
 
 Related: #381.
