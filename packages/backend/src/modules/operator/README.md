@@ -165,6 +165,66 @@ refused answers, run to asset, exposure to asset). It stops at 300 steps and kee
 - **Account search** is not in the screen or the API. `journey --account` resolves the account to its universe
   through Identity's read port, from the server shell.
 
+## The canary (#674, D-413)
+
+A post-deploy check that drives the real deployed API and worker with disposable test accounts and judges whether
+recommendation, formation and supply behave. It lives here because it is an operator tool: the worker's
+`canary run` command (`apps/worker/src/canary-operator.ts`) composes it, and nothing else calls it.
+
+Follow one run. Start at [run-canary.ts](application/canary/run-canary.ts).
+
+1. The command checks the world (`dev`, `stage`, `ci` or `local`, operator sign-in on) and makes one account per persona with
+   Identity's `issueOperatorSignIn`, at `canary-<run>-<persona>@<operator pattern>`. The link is redeemed through the real
+   `POST /auth/redeem` ([http-api.ts](adapters/canary/http-api.ts)).
+2. Each persona ([personas.ts](domain/canary/personas.ts)) runs on its own, at the same time, through
+   [session.ts](application/canary/session.ts): it opens, asks the system to move, activates the offer it is shown, and reads or
+   watches it. It uses only public routes, with the recording generation and scope claim a client sends.
+3. Reading is reported in the recorder's wire shapes ([reading-plan.ts](domain/canary/reading-plan.ts)): per-stop visible intervals,
+   active dwell and value-free call interactions for a Scroll, one-second samples for a Reel, every 15 s. Times come from the
+   Scroll's own document. The intake bounds every claim by the wall time since activation, so waits are real time; `--speed` makes a
+   reader quicker down to a floor an honest reader still qualifies at.
+4. After the journeys the run waits, within `--wait`, for evidence to be projected and for the places and Planner runs the reading
+   entitles. It reads the places through the public universe routes, and evidence, Planner and Cartographer runs and job state through
+   the read-only operator reads ([reads-store.ts](adapters/canary/reads-store.ts)): `ops.journey_events` and the pg-boss rows whose
+   payload names a canary universe. Evidence comes from the view because the dev diagnostics route answers only for the legacy
+   intake. The view shows a revision, not the watermark, so a reading's evidence is final once its revision has held still for six
+   seconds while the worker projects.
+5. [evaluate.ts](domain/canary/evaluate.ts) judges the invariants and returns counts and codes only. Then each account is deleted
+   through the real account deletion flow, and the receipt must say `completed`.
+
+| Persona | What it does | What it proves |
+|---|---|---|
+| `cold-start` | A new account reads what it is offered, then moves once | A new reader is offered something and it is recorded |
+| `deep-reader` | Follows a series part by part | Its system and planet form (two and three qualified units) |
+| `topic-switcher` | Reads a series, waits for the place, opens one region on purpose | Region open works on a place the run formed |
+| `reel-watcher` | Opens the Reel of what it is offered and keeps moving in Reels | A Reel is offered, served and qualifies |
+| `many-reads` | Skims `--many` (default 18) Scrolls in one sitting | No re-reads; the Planner past 16 topics where the library allows |
+
+| Invariant (code) | Fires when |
+|---|---|
+| `first_offer_missing` | A first open is not ready |
+| `repeat_while_unseen_exists` | A system-chosen offer repeats a unit the reader met while another canary reader was offered one this reader had not (a repeat with none is a counted last resort) |
+| `exhausted_while_unseen_exists` | The system says nothing is left while such a unit exists |
+| `reel_never_offered` | The Reel watcher never opened a Reel though Reels were offered |
+| `reading_not_stored`, `reading_not_projected`, `reading_not_qualified` | An honest reading was rejected, never projected, or judged short |
+| `formation_system_missing`, `formation_planet_missing` | Two (three) qualified units of one series left no system (planet) |
+| `reel_media_unreachable` | A Reel grant did not serve its first bytes |
+| `api_refused` | A route refused what a client may send (status and code only) |
+| `operator_reads_failed` | The operator reads could not be made |
+| `job_failed`, `job_dead_lettered` | A pg-boss job naming a canary universe failed or was dead-lettered |
+| `planner_run_unknown`, `planner_run_stuck`, `geography_run_stuck` | A run has an unknown outcome, or sat unsettled for over 15 minutes |
+| `cleanup_incomplete` | An account was not confirmed deleted |
+
+Limits, stated plainly. "Unseen exists" is proved only by what the canary's own readers were offered, so a repeat can be missed but
+none is invented. Formation is judged by series depth, because no public route says which topic an asset has. It is not a load test,
+a content-quality check or a model call. An aborted run leaves its disposable accounts (`canary-<run>-…`); delete them through the
+same account flow or leave them, they are test accounts.
+
+Tables, jobs, notices: none. The canary writes no row itself; its accounts, evidence and jobs are made by the public routes and
+the worker, and erased by account deletion. Runbook: `docs/v2/operations/environments.md`, "Run the canary on dev". Tests:
+`domain/canary/*.test.ts`, `application/canary/run-canary.test.ts` (a scripted world that validates every batch against the real
+wire contract) and `tests/integration/release/canary-operator.test.ts`.
+
 ## Entry points
 
 | Operation | Called from | Authority |

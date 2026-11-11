@@ -69,6 +69,8 @@ const compositionRoots = [
   '^apps/worker/src/composer-operator\\.ts$',
   // The dry-run commands build a Cartographer's and a Planner's read ports from the worker's own providers, read-only (#674, D-411).
   '^apps/worker/src/dry-run-wiring\\.ts$',
+  // The canary mints disposable accounts with the operator sign-in use case and drives the public API (#674, D-413).
+  '^apps/worker/src/canary-operator\\.ts$',
 ];
 const testFile = '\\.test\\.tsx?$';
 
