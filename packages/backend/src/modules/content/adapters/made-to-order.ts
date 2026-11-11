@@ -3,11 +3,11 @@ import { Framing } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { readerOn, transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import { RECIPE_KEYS, RECIPES } from '../domain/library/index.js';
 import { productionStanding, takeToSend, type ProductionJobState } from '../domain/library/serving.js';
 import { madeToOrderKey } from '../domain/order-key.js';
 import { SCROLL_PRODUCTION_VERSION } from '../production/topics.js';
 import { notUnderReview } from './review-gate-sql.js';
+import { recipeBookOf } from './stored-recipes.js';
 import type {
   CheckAssetAudience,
   ContentRef,
@@ -150,8 +150,10 @@ export const readScrollSourcePages: ReadScrollSourcePages = async (scope, root) 
     const pages = pagesOf(record.sources);
     if (pages.length > 0) return pages.slice(0, MAX_PAGES);
   }
-  const library = RECIPE_KEYS.find((key) => RECIPES[key].explanationUnitId === found.unit);
-  return library === undefined ? [] : RECIPES[library].pages.slice(0, MAX_PAGES);
+  const library = (await recipeBookOf(transactionOf(scope)).all()).find(
+    (recipe) => recipe.explanationUnitId === found.unit,
+  );
+  return library === undefined ? [] : library.pages.slice(0, MAX_PAGES);
 };
 
 /** The most claims a short answer is offered to cite. */

@@ -1,5 +1,10 @@
 import { RECIPES, type RecipeKey } from '../domain/library/index.js';
 import { ASK_SUPPORT_MAX_BATCHES } from '../domain/ask-support.js';
+import {
+  GENERATED_SCROLL_V2_PLAN,
+  isGeneratedRecipeKey,
+  type GeneratedRecipeKey,
+} from '../domain/library/generated.js';
 import type { ScrollV2Plan } from '../domain/library/plan.js';
 
 /** The current production recipe. A topic has one job per version; a new recipe is a new version. */
@@ -50,8 +55,22 @@ export function parseScrollTopic(raw: string | undefined): ScrollTopic | undefin
   return raw !== undefined && Object.hasOwn(TOPICS, raw) ? (raw as ScrollTopic) : undefined;
 }
 
-/** What the plan decides for a v2 recipe, or `undefined` for a recipe that stays a v1 Scroll. */
+/**
+ * The key of a recipe a job may run: a code recipe, or a stored one by its `gen-` shape (D-412). The shape says only that
+ * the key may be a stored recipe: whether the row exists is `subjectOf`'s question, asked of the database.
+ */
+export function parseProductionRecipe(raw: string | undefined): ScrollTopic | GeneratedRecipeKey | undefined {
+  if (raw === undefined) return undefined;
+  return parseScrollTopic(raw) ?? (isGeneratedRecipeKey(raw) ? raw : undefined);
+}
+
+/**
+ * What the plan decides for a v2 recipe, or `undefined` for a recipe that stays a v1 Scroll. Every stored recipe is a v2
+ * recipe with the same plan (plain, no misconception, D-397): a row cannot say otherwise, because SQL pins the plan it
+ * stores, so the key alone is enough here.
+ */
 export function scrollV2PlanOf(key: string): ScrollV2Plan | undefined {
+  if (isGeneratedRecipeKey(key)) return GENERATED_SCROLL_V2_PLAN;
   const topic = parseScrollTopic(key);
   return topic === undefined ? undefined : TOPICS[topic].scrollV2;
 }

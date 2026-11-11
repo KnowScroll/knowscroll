@@ -1,7 +1,7 @@
 import { ConfigurationError, readContentOperatorConfig } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
-import { makeReviewGate, recipeKeyOfAsset, type ReviewGate } from '@knowscroll/backend/modules/content/nest-providers';
+import { makeReviewGate, type ReviewGate } from '@knowscroll/backend/modules/content/nest-providers';
 
 type Print = (result: Record<string, unknown>) => void;
 
@@ -17,15 +17,16 @@ function parseRevision(raw: string | undefined): number | undefined {
  * The diagnostic record of a decision, next to the `content.revision_reviews` row that holds who, when and
  * why: the recipe key, what happened, the revision and a refusal's code. Never the Scroll or the reason given.
  */
-function recordDecision(
+async function recordDecision(
+  gate: ReviewGate,
   logEvent: LogEvent,
   assetId: string,
   revision: number,
   result: { readonly kind: string; readonly reason?: string },
-): void {
+): Promise<void> {
   logEvent('content.review_decided', {
     severity: result.kind === 'refused' ? 'warn' : 'info',
-    context: recipeKeyOfAsset(assetId) ?? 'unknown_recipe',
+    context: (await gate.recipeKeyOf(assetId)) ?? 'unknown_recipe',
     outcome: result.kind,
     revision,
     ...(result.reason === undefined ? {} : { reasonCode: result.reason }),
@@ -125,7 +126,7 @@ export function releaseCommand(
   return withReviewGate('review_release_failed', logEvent, async (gate) => {
     const result = await gate.release({ assetId, revision, decidedBy: options.decidedBy });
     const { kind, ...rest } = result;
-    recordDecision(logEvent, assetId, revision, result);
+    await recordDecision(gate, logEvent, assetId, revision, result);
     print({ command: 'content release', result: kind, ...rest });
     return kind === 'refused' ? 2 : 0;
   });
@@ -160,7 +161,7 @@ export function rejectCommand(
       decidedBy: options.decidedBy,
     });
     const { kind, ...rest } = result;
-    recordDecision(logEvent, assetId, revision, result);
+    await recordDecision(gate, logEvent, assetId, revision, result);
     print({ command: 'content reject', result: kind, ...rest });
     return kind === 'refused' ? 2 : 0;
   });

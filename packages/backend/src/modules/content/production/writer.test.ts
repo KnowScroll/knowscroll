@@ -1,3 +1,4 @@
+import { RECIPES } from '../domain/library/index.js';
 import { describe, expect, it } from 'vitest';
 import { AuthoredScroll, COPY_RUN_WORDS, copiedRuns, DocumentTitle } from '@knowscroll/scroll-model/producer';
 import { extractResearch } from '../../../infrastructure/research/public-pages.js';
@@ -36,7 +37,7 @@ const page = extractResearch(
 );
 const passages = evidencePassages([page]);
 const provenance = generatedProvenance({
-  identity: libraryIdentity('seasons'),
+  identity: libraryIdentity(RECIPES.seasons),
   runId: 'ci-writer-run',
   attemptIds: ['ci-attempt'],
   model: 'MiniMax-M3.1-Flash',

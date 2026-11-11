@@ -23,8 +23,12 @@ import only domain code. It has no behaviour, no storage and no model call.
 - `continuity.ts`: which recipes form a series (ordered, 2 to 4 parts, one planet) and which are
   related perspectives, by recipe key. `content admit-continuity` admits them (D-059). `continuity.test.ts`
   checks them.
-- `serving.ts`: pure rules over the plan: which recipes serve a catalogue brief, a recipe's standing from
+- `serving.ts`: pure rules over the plan and over stored recipes: which recipes serve a catalogue brief (`servingOrder` over any list, `recipesServing` for the plan alone), a recipe's standing from
   its takes, which take a send should name, and what a library run queues.
+- `generated.ts` and `recipe-draft.ts` (D-412): recipes stored in the database. `generated.ts` holds the reserved `gen-` key prefix, the key,
+  explanation-unit and plan every stored recipe has, the `BookRecipe` shape the `RecipeBook` hands out and the statuses. `recipe-draft.ts` holds the
+  strict shape of a model's proposal and `checkRecipeDraft`, which decides it (shape, facet, candidate pages and the passage pool, near-duplicates,
+  identity). A code recipe key, unit or asset never starts with the prefix (`generated.test.ts`).
 - `index.ts`: assembles the systems and the `RECIPES` record. `../../production/topics.ts` is a thin
   index over it.
 - `library.test.ts`: the plan's acceptance rules (50 to 60 recipes, at least 22 interactive over all

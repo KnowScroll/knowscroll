@@ -3,23 +3,26 @@ import { SCROLL_DOCUMENT_V2_SCHEMA_VERSION } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import { RECIPES, type RecipeKey } from '../domain/library/index.js';
+import { isGeneratedRecipeKey, type BookRecipe } from '../domain/library/generated.js';
 import { summariseAnswerChecks } from '../domain/answer-check.js';
 import {
   MAX_TAKES_PER_RECIPE,
   pickRecipeToProduce,
   productionStanding,
-  recipesServing,
   regenerationStanding,
   takeToSend,
   type CatalogueBrief,
+  type ChooseRecipeOptions,
   type LibraryRecipeStatus,
   type ProductionJobState,
+  type ProductionRecipeKey,
   type ScrollProductionReading,
   type ScrollRecipeChoice,
 } from '../domain/library/serving.js';
 import { answerChecksOf } from '../production/answer-check.js';
-import { planRefusalOf, productionVersionOf, scrollV2PlanOf } from '../production/topics.js';
+import { parseProductionRecipe, planRefusalOf, productionVersionOf, scrollV2PlanOf } from '../production/topics.js';
+import { codeRecipeOf } from '../application/recipe-book.js';
+import { recipeBookOf } from './stored-recipes.js';
 
 type Queryable = Kysely<Database> | Transaction<Database>;
 
@@ -56,6 +59,34 @@ function standingStateOf(run: RunRow): ProductionJobState {
   return run.review === 'rejected' ? 'rejected' : 'published';
 }
 
+/** What a recipe key resolves to for its standing: the asset its Scroll is, and whether it may still be produced. */
+interface RecipeIdentity {
+  readonly assetId: string;
+  readonly retired: boolean;
+}
+
+/** The asset of each named recipe: a code recipe's from the plan, a stored recipe's from `content.recipes`. */
+async function readRecipeIdentities(
+  db: Queryable,
+  recipes: readonly ProductionRecipeKey[],
+): Promise<ReadonlyMap<string, RecipeIdentity>> {
+  const identities = new Map<string, RecipeIdentity>();
+  const stored: string[] = [];
+  for (const recipe of recipes) {
+    if (isGeneratedRecipeKey(recipe)) stored.push(recipe);
+    else {
+      const code = codeRecipeOf(recipe);
+      if (code !== undefined) identities.set(recipe, { assetId: code.assetId, retired: false });
+    }
+  }
+  if (stored.length > 0) {
+    const { rows } = await sql<{ key: string; asset_id: string; status: string }>`
+      select key, asset_id, status from content.recipes where key in (${sql.join(stored)})`.execute(db);
+    for (const row of rows) identities.set(row.key, { assetId: row.asset_id, retired: row.status === 'retired' });
+  }
+  return identities;
+}
+
 /**
  * Every named recipe's production standing: its Scroll is admitted, its jobs at the current recipe
  * version are running, rejected (and may be taken again) or ended for good, or nothing has happened.
@@ -65,8 +96,12 @@ function standingStateOf(run: RunRow): ProductionJobState {
  */
 export async function readLibraryStatus(
   db: Queryable,
-  recipes: readonly RecipeKey[],
+  requested: readonly ProductionRecipeKey[],
 ): Promise<readonly LibraryRecipeStatus[]> {
+  if (requested.length === 0) return [];
+  const identities = await readRecipeIdentities(db, requested);
+  // A stored recipe the database no longer holds has no standing to report.
+  const recipes = requested.filter((recipe) => identities.has(recipe));
   if (recipes.length === 0) return [];
   const runs = (
     await sql<RunRow>`select run.topic, run.state, review.state as review, run.asset_revision as revision, run.outcomes
@@ -75,7 +110,8 @@ export async function readLibraryStatus(
       where (run.topic, run.policy_version) in (${sql.join(recipes.map((recipe) => sql`(${recipe}, ${productionVersionOf(recipe)})`))})
       order by run.topic, run.take`.execute(db)
   ).rows;
-  const assetIds = recipes.map((recipe) => RECIPES[recipe].assetId);
+  const assetOf = (recipe: ProductionRecipeKey): string => identities.get(recipe)!.assetId;
+  const assetIds = recipes.map(assetOf);
   const heldRevisions = await readHeldRevisions(db, assetIds);
   const assets = await db
     .selectFrom('content.assets as asset')
@@ -87,7 +123,7 @@ export async function readLibraryStatus(
     .execute();
   return recipes.map((recipe) => {
     const jobs = runs.filter((run) => run.topic === recipe);
-    const asset = assets.find((row) => row.id === RECIPES[recipe].assetId);
+    const asset = assets.find((row) => row.id === assetOf(recipe));
     const admitted =
       asset?.status === 'admitted' &&
       (scrollV2PlanOf(recipe) === undefined || asset.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION);
@@ -98,25 +134,25 @@ export async function readLibraryStatus(
       v2,
       admitted,
       jobs: jobStates,
-      heldRevision: heldRevisions.has(RECIPES[recipe].assetId),
+      heldRevision: heldRevisions.has(assetOf(recipe)),
     });
     const check = latest === undefined ? undefined : summariseAnswerChecks(answerChecksOf(latest.outcomes));
     const standing = productionStanding(jobStates, admitted);
     return {
       recipe,
       state:
-        // A recipe the plan does not allow can start no take, so nothing is sent for it and no request chooses it.
-        !admitted && planRefusalOf(recipe) !== undefined
+        // A recipe the plan does not allow, or a stored one retired, can start no take: nothing is sent for it and no request chooses it.
+        (!admitted && planRefusalOf(recipe) !== undefined) || identities.get(recipe)?.retired === true
           ? 'stopped'
           : // A revision an earlier production version left held still waits for a decision: no new take piles on it.
-            !admitted && heldRevisions.has(RECIPES[recipe].assetId) && ['not_started', 'retryable'].includes(standing)
+            !admitted && heldRevisions.has(assetOf(recipe)) && ['not_started', 'retryable'].includes(standing)
             ? 'held'
             : standing,
       ...(latest === undefined ? {} : { job: standingStateOf(latest) }),
       takes: jobs.length,
       ...(admitted ? { assetId: asset.id, revision: asset.revision } : {}),
-      ...(heldRevisions.has(RECIPES[recipe].assetId)
-        ? { assetId: asset?.id ?? RECIPES[recipe].assetId, heldRevision: heldRevisions.get(RECIPES[recipe].assetId) }
+      ...(heldRevisions.has(assetOf(recipe))
+        ? { assetId: asset?.id ?? assetOf(recipe), heldRevision: heldRevisions.get(assetOf(recipe)) }
         : {}),
       attempts: jobs.reduce(
         (total, job) => total + job.outcomes.reduce((sum, receipt) => sum + (receipt.attempts?.length ?? 0), 0),
@@ -129,40 +165,85 @@ export async function readLibraryStatus(
   });
 }
 
+const ALLOW_ALL: ChooseRecipeOptions = { allow: { code: true, generated: true } };
+
+/** The recipes that teach the facet go first; the planet's others follow in the order they came. */
+function facetFirst(recipes: readonly BookRecipe[], facetId: string): readonly BookRecipe[] {
+  return [
+    ...recipes.filter((recipe) => recipe.facetId === facetId),
+    ...recipes.filter((recipe) => recipe.facetId !== facetId),
+  ];
+}
+
 /**
  * Chooses the library recipe a Create decision commissions for a catalogue brief, and the take to
- * run (D-037): code only, from the plan and the recipes' current standing. Read inside the caller's
+ * run (D-037): code only, from the recipe book and the recipes' current standing. Read inside the caller's
  * personal transaction; no lock and no write.
  *
- * A v2 library recipe is never chosen: its Scroll waits for an operator to read it before anyone is
- * served (D-138), so a person's ask could not be answered by it and the production would only be
- * paid for. The operator's library run makes those.
+ * A code recipe the plan marks v2 is never chosen: its Scroll waits for an operator to read it before anyone is
+ * served (D-138), and a person's ask cannot be answered by it. A stored recipe is chosen though its Scroll is held the
+ * same way: it exists so that readers always get new content, the operator's read is the one temporary gate, and the
+ * Scroll is served once it is released (D-412). The kinds a decision may choose are `options.allow`: each has its own
+ * daily cap. When a recipe could be chosen but its kind's cap is used up, the answer is `none` with `capped`.
  */
-export async function chooseScrollRecipe(scope: PersonalScopeTx, brief: CatalogueBrief): Promise<ScrollRecipeChoice> {
-  const candidates = recipesServing(brief).filter((recipe) => scrollV2PlanOf(recipe) === undefined);
-  const standing = await readLibraryStatus(transactionOf(scope), candidates);
-  const row = (key: RecipeKey) => standing.find((entry) => entry.recipe === key);
-  const recipe = pickRecipeToProduce(candidates, (key) => row(key)?.state ?? 'stopped');
-  const chosen = recipe === undefined ? undefined : row(recipe);
+export async function chooseScrollRecipe(
+  scope: PersonalScopeTx,
+  brief: CatalogueBrief,
+  options: ChooseRecipeOptions = ALLOW_ALL,
+): Promise<ScrollRecipeChoice> {
+  const db = transactionOf(scope);
+  const book = recipeBookOf(db);
+  const aimedFacet =
+    brief.facetId === undefined && options.plannedUnit !== undefined
+      ? (await book.servingBrief({ topicId: brief.topicId })).find(
+          (recipe) => recipe.explanationUnitId === options.plannedUnit,
+        )?.facetId
+      : undefined;
+  const ranked =
+    aimedFacet === undefined
+      ? await book.servingBrief(brief)
+      : facetFirst(await book.servingBrief({ topicId: brief.topicId }), aimedFacet);
+  // A code recipe is Create's to make only while it is a v1 Scroll. A stored recipe has a status and is always v2.
+  const producible = ranked.filter((recipe) => recipe.status !== undefined || recipe.scrollV2 === undefined);
+  const standing = await readLibraryStatus(
+    db,
+    producible.map((recipe) => recipe.key as ProductionRecipeKey),
+  );
+  const row = (key: string) => standing.find((entry) => entry.recipe === key);
+  const stateOf = (key: string) => row(key)?.state ?? 'stopped';
+  const kindOpen = (recipe: BookRecipe) => (recipe.status === undefined ? options.allow.code : options.allow.generated);
+  const anyKey = pickRecipeToProduce(
+    producible.map((recipe) => recipe.key),
+    stateOf,
+  );
+  if (anyKey === undefined) return { kind: 'none' };
+  const key = pickRecipeToProduce(
+    producible.filter(kindOpen).map((recipe) => recipe.key),
+    stateOf,
+  );
+  if (key === undefined) return { kind: 'none', capped: true };
+  const chosen = row(key);
   const take = chosen === undefined ? undefined : takeToSend(chosen.state, chosen.takes);
-  return recipe === undefined || take === undefined ? { kind: 'none' } : { kind: 'recipe', recipe, take };
+  return take === undefined ? { kind: 'none' } : { kind: 'recipe', recipe: key as ProductionRecipeKey, take };
 }
 
 /**
  * The standing of one recipe's production and the take a send for it should name, for a waiter
  * deciding whether to keep waiting and for a request that joins work already under way.
  *
- * Nothing a person's ask waits on is coming from a v2 library recipe (D-138): the operator's library run
+ * Nothing a person's ask waits on is coming from a code recipe the plan marks v2 (D-138): the operator's library run
  * makes those, and its Scroll waits for a read. So a group that names one, from before the plan marked it
  * v2, reads as stopped until the Scroll is served: a join never sends its job again, and its waiters
- * close honestly instead of waiting on work Create does not own.
+ * close honestly instead of waiting on work Create does not own. A stored recipe is Create's own work, so its standing
+ * is read as it is: a waiter keeps waiting while it runs, and stops once its Scroll is held for the operator's read.
  */
 export async function readScrollProduction(scope: PersonalScopeTx, recipe: string): Promise<ScrollProductionReading> {
-  const key = Object.hasOwn(RECIPES, recipe) ? (recipe as RecipeKey) : undefined;
+  const key = parseProductionRecipe(recipe);
   if (key === undefined) return { state: 'stopped' };
   const [standing] = await readLibraryStatus(transactionOf(scope), [key]);
   if (standing === undefined) return { state: 'stopped' };
-  if (scrollV2PlanOf(key) !== undefined && standing.state !== 'published') return { state: 'stopped' };
+  if (!isGeneratedRecipeKey(key) && scrollV2PlanOf(key) !== undefined && standing.state !== 'published')
+    return { state: 'stopped' };
   const take = takeToSend(standing.state, standing.takes);
   return { state: standing.state, ...(take === undefined ? {} : { take }) };
 }

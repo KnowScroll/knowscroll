@@ -4,7 +4,7 @@ import { ScrollProvenanceV2 } from '@knowscroll/scroll-model/internal';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
 import { summariseAnswerChecks, withoutCallText, type AnswerCheckSummary } from '../domain/answer-check.js';
-import { RECIPE_KEYS, RECIPES, type RecipeKey } from '../domain/library/index.js';
+import { codeRecipes } from '../application/recipe-book.js';
 import { answerChecksOf } from '../production/answer-check.js';
 import {
   decideReject,
@@ -19,8 +19,8 @@ import { reviewTextOf, type ReviewEvidence } from './review-text.js';
 /** One revision at the review gate, as the operator's list shows it. Never any body text. */
 export interface ReviewListing {
   readonly assetId: string;
-  /** The library recipe that produced the Scroll, when the plan still names its asset. */
-  readonly recipe: RecipeKey | null;
+  /** The library recipe that produced the Scroll, when the plan or `content.recipes` names its asset. */
+  readonly recipe: string | null;
   readonly revision: number;
   readonly state: ReviewState;
   readonly title: string;
@@ -78,13 +78,19 @@ interface ListingRow {
   mapped: boolean;
   /** The receipts of the job that produced the revision; null for a revision no job made. */
   outcomes: unknown;
+  /** The stored recipe (D-412) whose asset this is, when the plan does not name it. */
+  stored_recipe: string | null;
 }
 
-const recipeOfAsset = new Map<string, RecipeKey>(RECIPE_KEYS.map((key) => [RECIPES[key].assetId, key]));
+const recipeOfAsset = new Map<string, string>(codeRecipes().map((recipe) => [recipe.assetId, recipe.key]));
 
-/** The library recipe whose Scroll an asset is, or `null` for an asset the plan does not name. */
-export function recipeKeyOfAsset(assetId: string): RecipeKey | null {
-  return recipeOfAsset.get(assetId.toLowerCase()) ?? null;
+/** The library recipe whose Scroll an asset is (the plan's, or a stored one, D-412), or `null` for an asset neither names. */
+async function recipeKeyOfAsset(db: Kysely<Database>, assetId: string): Promise<string | null> {
+  const id = assetId.toLowerCase();
+  const code = recipeOfAsset.get(id);
+  if (code !== undefined) return code;
+  const stored = await db.selectFrom('content.recipes').select('key').where('asset_id', '=', id).executeTakeFirst();
+  return stored?.key ?? null;
 }
 
 /** What the answer check said about the job that made a revision, with the text of its flagged calls; `null` when no check ran. */
@@ -99,7 +105,7 @@ function listingOf(row: ListingRow): ReviewListing | undefined {
   const { document } = parsed;
   return {
     assetId: row.asset_id,
-    recipe: recipeOfAsset.get(row.asset_id) ?? null,
+    recipe: recipeOfAsset.get(row.asset_id) ?? row.stored_recipe,
     revision: row.revision,
     state: row.state,
     title: row.title,
@@ -134,7 +140,8 @@ async function readListingRows(
           and mapping.status = 'active') as mapped,
       (select job.outcomes from content.scroll_production_runs job
         where job.asset_id = review.asset_id and job.asset_revision = review.revision
-        order by job.created_at desc limit 1) as outcomes
+        order by job.created_at desc limit 1) as outcomes,
+      (select recipe.key from content.recipes recipe where recipe.asset_id = review.asset_id) as stored_recipe
     from content.revision_reviews review
     join content.asset_revisions revision on revision.asset_id = review.asset_id and revision.revision = review.revision
     join content.assets asset on asset.id = review.asset_id
@@ -297,6 +304,7 @@ async function rejectRevision(
 export function makeReviewGate(db: Kysely<Database>) {
   return {
     list: (options: { readonly all: boolean }) => listRevisions(db, options),
+    recipeKeyOf: (assetId: string) => recipeKeyOfAsset(db, assetId),
     show: (request: Parameters<typeof showRevision>[1]) => showRevision(db, request),
     release: (request: Parameters<typeof releaseRevision>[1]) => releaseRevision(db, request),
     reject: (request: Parameters<typeof rejectRevision>[1]) => rejectRevision(db, request),

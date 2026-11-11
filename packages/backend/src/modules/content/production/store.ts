@@ -3,6 +3,7 @@ import { sql, type Kysely, type Transaction } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { RoleReceipt } from './types.js';
+import { isGeneratedRecipeKey } from '../domain/library/generated.js';
 import { MAX_TAKES_PER_RECIPE, productionVersionOf, scrollV2PlanOf } from './topics.js';
 
 /**
@@ -118,7 +119,14 @@ export function productionStore(db: Kysely<Database>) {
         await sql<ProductionRow>`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id) values (${randomUUID()},${topic},${productionVersionOf(topic)},${take},(select greatest(coalesce((select revision from content.assets where id=${assetId}),0),coalesce((select max(revision) from content.asset_revisions where asset_id=${assetId}),0))+1),${generation},'research',${randomUUID()}) on conflict (topic,policy_version,take) do nothing returning *`.execute(
           tx,
         );
-      if (inserted.rows[0]) return { kind: 'job', row: inserted.rows[0], created: true };
+      if (inserted.rows[0]) {
+        // A stored recipe's first job moves it from `checked` to `queued` in the transaction that creates the job (D-412).
+        if (isGeneratedRecipeKey(topic))
+          await sql`update content.recipes set status='queued', updated_at=now() where key=${topic} and status='checked'`.execute(
+            tx,
+          );
+        return { kind: 'job', row: inserted.rows[0], created: true };
+      }
       const raced = await read();
       if (!raced) throw new Error('PRODUCTION_RUN_MISSING');
       return { kind: 'job', row: raced, created: false };
@@ -147,9 +155,17 @@ export function productionStore(db: Kysely<Database>) {
       publication?: { readonly assetId: string; readonly revision: number },
       published?: { readonly authored: unknown; readonly claims: unknown },
     ): Promise<void> {
-      await sql`update content.scroll_production_runs set state=${state},outcomes=outcomes||${JSON.stringify(receipts)}::jsonb,writer_output=${published === undefined ? null : JSON.stringify(published.authored)}::jsonb,claims=${published === undefined ? null : JSON.stringify(published.claims)}::jsonb,asset_id=${publication?.assetId ?? null},asset_revision=${publication?.revision ?? null},completed_at=now() where id=${id} and state=${expectedStage}`.execute(
+      const finished = await sql<{
+        topic: string;
+      }>`update content.scroll_production_runs set state=${state},outcomes=outcomes||${JSON.stringify(receipts)}::jsonb,writer_output=${published === undefined ? null : JSON.stringify(published.authored)}::jsonb,claims=${published === undefined ? null : JSON.stringify(published.claims)}::jsonb,asset_id=${publication?.assetId ?? null},asset_revision=${publication?.revision ?? null},completed_at=now() where id=${id} and state=${expectedStage} returning topic`.execute(
         tx,
       );
+      // A stored recipe whose Scroll was stored (held or served) is `produced`, in the transaction that stores it.
+      const topic = finished.rows[0]?.topic;
+      if (state === 'published' && topic !== undefined && isGeneratedRecipeKey(topic))
+        await sql`update content.recipes set status='produced', updated_at=now() where key=${topic} and status in ('checked', 'queued')`.execute(
+          tx,
+        );
     },
   };
 }

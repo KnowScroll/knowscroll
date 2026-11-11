@@ -60,9 +60,17 @@ under way), ready, unavailable with a coarse reason, cancelled. No percentages, 
    - the day's Create cap for this origin is used up, or Create is switched off for it (a cap of 0): `budget_unavailable`.
      People's asks count against `KS_SUPPLY_CREATE_DAILY_CAP`; the Planner's demand against its own, smaller
      `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP` (never above the first), so the Planner cannot starve an ask;
-   - no recipe is left (all published, or none can be taken again): `no_recipe_left`. A v2 library recipe is never
-     chosen: its Scroll waits at the operator review gate before anyone is served it (D-138), so the operator's
-     library run makes those and an ask for such a meaning is answered once the Scroll is released.
+   - no recipe is left (all published, or none can be taken again): `no_recipe_left`. A code recipe the plan marks v2 is
+     never chosen: its Scroll waits at the operator review gate before anyone is served it (D-138), so the operator's
+     library run makes those and an ask for such a meaning is answered once the Scroll is released. A recipe stored in
+     the database (D-412) is chosen, though its Scroll is held the same way, so the library grows; code recipes go first.
+   - **Growth (D-412).** A stored recipe's production is growth and is counted apart: `KS_SUPPLY_GROWTH_DAILY_CAP` (default
+     10, 0 turns it off) counts the groups started today with a stored recipe whoever asked, and the person's and the
+     Planner's counts leave them out, so growth never uses what an ask or the Planner needs and is never taken from them.
+     Create switched off still stops every kind. `commissionSupply` tells the chooser which kinds each cap leaves open;
+     when a recipe could be made and only its kind's cap is used, the refusal is `cap_reached`, not `no_recipe_left`.
+     Because the Scroll is held, the waiter closes `could_not_prepare` once production ends and can try again after the
+     operator releases it.
 
    `could_not_prepare` is kept for work that was tried and did not deliver: production that ended without a Scroll or
    outlasted the wait limit, a model step that failed, an unknown outcome (D-410). A request closed `no_recipe_left` can be
@@ -111,8 +119,10 @@ outcome then reason: two accepting transactions never wait on each other's count
 Each stored demand keeps `planned_intent` on the person's own row: the opportunity's move, the explanation unit it aims
 at and the model's own brief (`PlannedIntentSchema`: at most 160 and 800 characters, a closed set of keys). It is model
 text about one person: it is never in `supply.work`, never in a canonical brief or the command, never evidence, and no
-other module may name it (`planned-intent-wall.test.ts`). It is erased with the request. Nothing reads it yet: Supply
-still chooses what to make by code, and a later step may commission from it after checking it.
+other module may name it (`planned-intent-wall.test.ts`). It is erased with the request. Supply still chooses what to
+make by code. The one thing read from it is the explanation unit: when the unit names a recipe of the brief's planet (a
+code recipe or a stored one, D-412), that recipe's facet is tried first by the chooser. The unit is passed to the chooser
+for that decision alone and is never copied to the group, the brief or a row; the recipe chosen is.
 
 `RecordPlannedDemand` checks it again before the row (`storablePlannedIntent`), because a plan must never be rolled back
 for what only decorates a demand: a value that fails the schema is left out, a NUL or a lone surrogate half (which `jsonb`

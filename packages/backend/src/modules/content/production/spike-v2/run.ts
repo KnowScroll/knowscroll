@@ -280,7 +280,7 @@ export function makeWriterSpikeV2(deps: WriterSpikeDeps) {
       return { line: { ...line, outcome: 'evidence_insufficient', code, wallMs: beforeWriter } };
     }
     const recipe = spikeRecipeV2(key, deps.blocks?.get(key));
-    const context: WriterV2Context = { publication: publicationV2(key), recipe, passages, pages };
+    const context: WriterV2Context = { publication: publicationV2(TOPICS[key]), recipe, passages, pages };
     const proposed = await deps.harness.proposeProduction(
       {
         run: {

@@ -22,6 +22,7 @@ KS_REASONING_PRODUCTION_REQUESTS_PER_DAY=200 # the production scope's own caps (
 KS_REASONING_PRODUCTION_TOKENS_PER_DAY=3000000
 KS_SUPPLY_CREATE_DAILY_CAP=10                # API and worker: productions people's requests may start per day
 KS_SUPPLY_PLANNER_CREATE_DAILY_CAP=5         # API and worker: the part the Planner's demand may use (default 5)
+KS_SUPPLY_GROWTH_DAILY_CAP=10                # API and worker: new Scrolls from stored recipes per day, held for a read (default 10; D-412)
 KS_SUPPLY_ASK_DAILY_CAP=8                    # API and worker: ask orders (a short Scroll for one person's question) per day (D-218)
 KS_SUPPLY_ASK_PERSON_DAILY_CAP=5             # API and worker: ask orders one person may have made per day (default 5; D-218)
 KS_SUPPLY_SCENARIO_DAILY_CAP=6               # API: branches of content threads (What if, perspectives) per day (D-049)
@@ -31,6 +32,12 @@ KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP=5        # API: branches one thread may have
 node dist/operator.js content production-status [--only seasons,tides]
 node dist/operator.js content produce-library --dry-run [--only seasons,tides] [--interactive-first]
 node dist/operator.js content produce-library [--only seasons,tides] [--interactive-first]
+
+# recipes stored in the database (D-412): propose them, list them, make them (see "New recipes for planets that exist")
+node dist/operator.js content propose-recipes --topic earth.tides --dry-run
+node dist/operator.js content propose-recipes --topic earth.tides [--facet earth.tides.<facet>]
+node dist/operator.js content recipes [--status checked|queued|produced|retired]
+node dist/operator.js content produce-library --only gen-<key> --dry-run
 
 # make another take of a v2 Scroll that is already served (stored held; see "Running a library wave")
 node dist/operator.js content regenerate --only seasons,seasons-hemispheres --dry-run
@@ -409,6 +416,30 @@ What to read for, besides the list above: each `PICTURE:` line says the figures 
 `reject` keeps the revision stored and unserved for good (it is never released), leaves the earlier revision served if there is one, and spends that take. `production-status` then shows the recipe `retryable` and `produce-library --only <key>` queues the next take, which writes a new revision (the next number). A recipe has three takes in all. If you reject all three, the recipe is `stopped`: the brief or the pages need a change in the plan, which is a code change and a new production version, so stop and say so in the issue. Tell the next person why in the reason (500 characters, plain words); `review-list --all` shows it with who and when.
 
 Nothing in the gate edits a revision: a Scroll is released as it was read. To correct a wording, reject and produce again.
+
+## New recipes for planets that exist (#674, slice 2.2, D-412)
+
+Recipes can live in the database, and the system proposes new ones for the planets and facets the library already has. It makes no
+planet, facet or system. Every Scroll made from a stored recipe is held for your read, like any v2 library Scroll, and nobody is served it before
+`content release`. The flow:
+
+1. **Propose.** `content propose-recipes --topic <planet id> [--facet <facet id>]` asks the model once (and repairs once) and stores the drafts code
+   accepts as `checked` recipes. It sends no production job. `--dry-run` prints the counts of what it would send and calls no provider. It needs pages
+   code already holds: a planet none of whose recipes was ever produced has none, and the command says `no_candidate_pages` without a request. The same
+   request on the same UTC day reaches the same run and pays nothing again; another day or another facet is a new request.
+   The result lists the accepted recipes (key, facet, title, passage pool) and a count of refusals by code: `title_shape`, `brief_shape`,
+   `brief_names_block`, `facet_unknown`, `facet_not_requested`, `pages_duplicate`, `page_not_candidate`, `page_refused`, `pool_out_of_range`,
+   `near_duplicate`, `identity_taken`. A refusal is a verdict on the draft, never a reason to loosen a check.
+2. **List.** `content recipes [--status]` shows each stored recipe with its planet, facet, status, page count and pool. It shows no brief and no page address.
+3. **Produce.** Either wait for a reader's ask or the Planner's demand for the planet (Create may choose a stored recipe within
+   `KS_SUPPLY_GROWTH_DAILY_CAP`, default 10 a day, counted apart from the people's and the Planner's caps), or send the job yourself with
+   `content produce-library --only <key>` (or `content produce-scroll --topic <key>`). Your own runs are not capped, as before. Six paid requests at most a take,
+   three takes at most, like any v2 library recipe.
+4. **Read and release.** `content review-list` shows the held Scroll with its recipe key; `content review-show --asset <id>` and `content release` or
+   `content reject` are as in "The review gate" above. After a release, `content admit-continuity` and `content readmit-coverage` as before.
+5. **Retire.** There is no command yet to retire a recipe. A recipe whose three takes were all rejected is `stopped` and never chosen again.
+
+A reader's ask closes `could_not_prepare` once its stored recipe's Scroll is held, and can be tried again after the release (D-410).
 
 ## Running a library wave (S-6a, S-6b, D-197 to D-199, D-217)
 

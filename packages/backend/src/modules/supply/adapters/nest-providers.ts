@@ -99,6 +99,8 @@ export interface SupplySettings {
   readonly supplyCreateDailyCap: number;
   /** Productions the Planner's demand may start per UTC day; never above the cap for people. */
   readonly supplyPlannerCreateDailyCap: number;
+  /** New Scrolls from stored recipes Create may start per UTC day (D-412); 0 or absent turns growth off. */
+  readonly supplyGrowthDailyCap?: number;
   /** Ask orders (a short Scroll made for a person's question) Create may make per UTC day for the world; 0 turns them off. */
   readonly supplyAskDailyCap: number;
   /** Ask orders one person may have made per UTC day. */
@@ -205,6 +207,7 @@ export function supplyProviders(t: {
           person: settings.supplyCreateDailyCap,
           planner: Math.min(settings.supplyPlannerCreateDailyCap, settings.supplyCreateDailyCap),
         },
+        growthDailyCap: settings.supplyGrowthDailyCap ?? 0,
         askCaps: { perDay: settings.supplyAskDailyCap, perPersonPerDay: settings.supplyAskPersonDailyCap },
         askLedger: askOrderLedger,
         plannedLedger: plannedDemandLedger,

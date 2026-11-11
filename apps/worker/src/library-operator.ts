@@ -8,12 +8,12 @@ import type { LogEvent } from '@knowscroll/backend/infrastructure/observability'
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
   libraryRecipes,
-  parseScrollTopic,
+  parseProductionRecipe,
   planLibraryProduction,
   planRegeneration,
   REQUEST_BOUND_V2_PER_TOPIC,
 } from '@knowscroll/backend/modules/content';
-import type { ProductionSend, ScrollTopic } from '@knowscroll/backend/modules/content';
+import type { ProductionRecipeKey, ProductionSend } from '@knowscroll/backend/modules/content';
 import {
   admitLibraryContinuityUseCase,
   makeEnqueueScrollProduction,
@@ -22,11 +22,17 @@ import {
 
 type Print = (result: Record<string, unknown>) => void;
 
-/** Recipes named by `--only a,b,c`, or every recipe; `undefined` when a name is not a recipe key. */
-function selectedRecipes(only: string | undefined): readonly ScrollTopic[] | undefined {
+/**
+ * Recipes named by `--only a,b,c`, or every recipe of the library plan; `undefined` when a name is not a recipe key. A name may be
+ * a stored recipe (`gen-…`, D-412): the shape is checked here, and a key the database does not hold has no standing to report.
+ * Stored recipes are never part of the default list: the operator names the ones to make.
+ */
+function selectedRecipes(only: string | undefined): readonly ProductionRecipeKey[] | undefined {
   if (only === undefined) return libraryRecipes();
-  const keys = only.split(',').map((key) => parseScrollTopic(key.trim()));
-  return keys.length > 0 && keys.every((key): key is ScrollTopic => key !== undefined) ? [...new Set(keys)] : undefined;
+  const keys = only.split(',').map((key) => parseProductionRecipe(key.trim()));
+  return keys.length > 0 && keys.every((key): key is ProductionRecipeKey => key !== undefined)
+    ? [...new Set(keys)]
+    : undefined;
 }
 
 /** Sends the production job of each take through the producer queue; a job already queued or running is not doubled. */

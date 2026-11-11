@@ -197,6 +197,21 @@ describe('process configuration', () => {
     expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: '501' })).toThrow();
     expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: '-1' })).toThrow();
   });
+  it('gives growth from stored recipes its own cap, ten a day unless set, apart from the two caps above', () => {
+    const worker = (env: Record<string, string>) => readWorkerConfig({ DATABASE_URL: secretUrl, ...env });
+    const api = (env: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', ...env });
+    expect(api({ KS_WORLD: 'dev' }).supplyGrowthDailyCap).toBe(10);
+    expect(worker({ KS_WORLD: 'local' }).supplyGrowthDailyCap).toBe(10);
+    expect(worker({ KS_WORLD: 'dev', KS_SUPPLY_GROWTH_DAILY_CAP: '3' }).supplyGrowthDailyCap).toBe(3);
+    expect(api({ KS_WORLD: 'local', KS_SUPPLY_GROWTH_DAILY_CAP: '0' }).supplyGrowthDailyCap).toBe(0);
+    // Setting it changes neither the people's nor the Planner's cap.
+    const set = api({ KS_WORLD: 'dev', KS_SUPPLY_GROWTH_DAILY_CAP: '3', KS_SUPPLY_CREATE_DAILY_CAP: '8' });
+    expect(set.supplyCreateDailyCap).toBe(8);
+    expect(set.supplyPlannerCreateDailyCap).toBe(5);
+    expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_GROWTH_DAILY_CAP: '501' })).toThrow();
+    expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_GROWTH_DAILY_CAP: '-1' })).toThrow();
+  });
   it('gives the production scope its own, larger daily caps and leaves the person and global caps alone', () => {
     const caps = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).reasoning.caps;
     expect(caps.productionScope).toEqual({ requestsPerDay: 200, tokensPerDay: 3_000_000 });

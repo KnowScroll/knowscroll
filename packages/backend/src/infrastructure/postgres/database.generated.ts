@@ -168,6 +168,25 @@ export interface ContentMediaObjects {
   size_bytes: number;
 }
 
+export interface ContentRecipes {
+  asset_id: string;
+  brief: string;
+  check_results: Generated<Json>;
+  created_at: Generated<Timestamp>;
+  explanation_unit_id: string;
+  facet_id: string;
+  key: string;
+  origin: string;
+  pages: string[];
+  proposing_run_id: string | null;
+  scroll_v2: Generated<Json>;
+  status: string;
+  supporting_facet_id: string | null;
+  title: string;
+  topic_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface ContentReelAttempts {
   ceiling_cents: number;
   dispatched_at: Timestamp | null;
@@ -2369,6 +2388,7 @@ export interface DB {
   "content.encounter_topics": ContentEncounterTopics;
   "content.made_to_order_scrolls": ContentMadeToOrderScrolls;
   "content.media_objects": ContentMediaObjects;
+  "content.recipes": ContentRecipes;
   "content.reel_attempts": ContentReelAttempts;
   "content.reel_imports": ContentReelImports;
   "content.reel_orders": ContentReelOrders;
