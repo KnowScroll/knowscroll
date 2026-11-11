@@ -61,13 +61,19 @@ export async function applyProposal(
   const view = await p.store.view(scope);
   if (!validView(view, c.universeId)) return { kind: 'refused', reason: 'stored_structure' };
   if (view.state.revision !== c.base.revision) return { kind: 'refused', reason: 'revision_changed' };
-  const fresh = await prepareGeography(p, cap, view, c);
-  if (!fresh || !(await p.ownerActive(scope))) return { kind: 'refused', reason: 'source_changed' };
+  const prepared = await prepareGeography(p, cap, view, c);
+  if (prepared.kind !== 'prepared' || !(await p.ownerActive(scope)))
+    return { kind: 'refused', reason: 'source_changed' };
+  const fresh = prepared.context;
   // New reading since the context was frozen does not void a proposal: it applies when every
   // operation still holds on today's authority. Support that was withdrawn, corrected or retracted
   // makes it fail here as `source_changed`.
   const issue = proposalIssue(proposal, fresh.facts);
   if (issue) return { kind: 'refused', reason: fresh.factsSha256 === c.factsSha256 ? issue : 'source_changed' };
+  // A place is created only from an identity the frozen context allocated. A concept that reading
+  // reached after the freeze has a new identity in `fresh` that no replay could reproduce.
+  if (proposal.operations.some((op) => 'key' in op && !c.facts.candidates.some((slot) => slot.key === op.key)))
+    return { kind: 'refused', reason: 'source_changed' };
   if (!proposal.operations.length) return { kind: 'refused', reason: 'no_changes' };
   const revision = view.state.revision + 1,
     objects = [...view.objects],

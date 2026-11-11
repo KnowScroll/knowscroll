@@ -9,7 +9,7 @@ import {
   type Support,
 } from '../domain/policy.js';
 import type { GeographyContext } from './ports.js';
-import { cartographerRole, cartographyContextItems } from './role.js';
+import { cartographerRole, cartographyContextItems, geographyContextHashes } from './role.js';
 
 /** Authored supports over the real concept catalogue; none of this is a person's reading. */
 const catalogue = CONCEPTS.map((topic) => ({
@@ -185,6 +185,39 @@ describe('what the Cartographer is asked', () => {
       const [issue] = result.error.issues;
       expect(issue?.path).toEqual(['operations', 0]);
       expect((issue as { params?: { safeCode?: string } }).params?.safeCode).toBe('support_authority');
+    });
+  });
+
+  describe('the model packaging limit (#674)', () => {
+    // 400 formed places do not fit the 64 context items of one model request.
+    const crowded = contextOf(
+      [support(planet.id, planet.facets[0]!.id, 'unit-a')],
+      Array.from({ length: 400 }, (_, n) => ({
+        ...candidates[n % candidates.length]!,
+        key: `planet:filler-${n}:factual`,
+        label: 'Filler',
+        objectRevision: 1,
+        originTransitionId: 'earlier',
+        activity: { availability: 'available' as const, state: 'active' as const },
+      })),
+    );
+    const hashOf = (value: unknown) => JSON.stringify(value);
+
+    it('refuses to package a context that does not fit a request, which only a model call needs', () => {
+      expect(() => cartographyContextItems(crowded)).toThrow('GEOGRAPHY_CONTEXT_LIMIT');
+    });
+
+    it('still hashes that context, so a run that asks no model is not blocked by the limit', () => {
+      const hashes = geographyContextHashes(crowded, 'run-1', hashOf);
+      expect(hashes.contextSha256).toBeTruthy();
+      expect(hashes.modelContextSha256).toContain('geography:run-1');
+    });
+
+    it('hashes a context that fits exactly as it did before, so a run claimed earlier stays readable', () => {
+      const items = cartographyContextItems(twoUnits);
+      expect(geographyContextHashes(twoUnits, 'run-1', hashOf).modelContextSha256).toBe(
+        hashOf({ bundleRef: 'geography:run-1', items }),
+      );
     });
   });
 

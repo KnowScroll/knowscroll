@@ -123,6 +123,24 @@ describe('Cartographer runs under continuous reading (real PostgreSQL CI fixture
     expect((await wakeOf(person, after.activeRunId!)).wakeId).toBe(wakeBefore);
   });
 
+  it('applies the answer in flight when reading has reached a concept the frozen context did not hold (#674)', async () => {
+    const { database, coherent, fixture, observe, formation } = world;
+    const person = await seedPerson(database.db);
+    await coherent(person);
+    const first = (await world.state(person)).activeRunId!;
+    const flight = await holdingRun(person);
+    // The frozen context holds Seasons only: a concept no reading has reached has no slot.
+    expect(flight.frozen().facts.candidates.some((slot) => slot.conceptId === 'earth.tides')).toBe(false);
+    await observe(person, await fixture(undefined, 'earth.tides', ['earth.tides.forcing']));
+
+    flight.answer({ kind: 'success', text: JSON.stringify(formation(flight.frozen())) });
+    await flight.finished;
+
+    // Tides has a slot only in the context the apply prepares, so the apply must not refuse for it.
+    expect(await placeKinds(person)).toEqual(['planet', 'region', 'region', 'star', 'system']);
+    expect(await runsOf(person)).toContainEqual({ id: first, status: 'accepted', outcome: 'applied' });
+  });
+
   it('asks no model and keeps no ledger run when reading leaves nothing for it to decide', async () => {
     const { database, fixture, observe, state, runner, job } = world;
     const person = await seedPerson(database.db);

@@ -120,12 +120,13 @@ async function settleUnderScope(
   const state = await p.store.state(scope);
   // A run that froze its context at today's revision would be voided by a delta committed under it.
   if (state.activeRunId) return { outcome: 'run_active', changed: 0 };
-  const context = await prepareGeography(p, gate.scope, await p.store.view(scope));
-  if (!context) {
+  const prepared = await prepareGeography(p, gate.scope, await p.store.view(scope));
+  if (prepared.kind !== 'prepared') {
     const retryAt = new Date(p.now().getTime() + QUIET_SWEEP.parkMs).toISOString();
     await p.store.writeState(scope, withNextQuietAt(state, retryAt));
     return { outcome: 'support_unreadable', changed: 0 };
   }
+  const { context } = prepared;
   const operations = activityChanges(context.facts).slice(0, MAX_PROPOSAL_OPERATIONS);
   if (!operations.length) {
     await p.store.writeState(scope, withNextQuietAt(state, nextQuietAt(context.facts)));

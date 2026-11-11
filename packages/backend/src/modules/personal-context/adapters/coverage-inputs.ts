@@ -2,38 +2,45 @@ import { sql } from 'kysely';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { ReadCoverageInputs } from '../public.js';
 import { readContextRevision } from './postgres-store.js';
+
+/** Distinct support keys one discovery returns; a consumer reads them in batches of 100. */
+const MAX_DISCOVERY_KEYS = 1000;
 const MAX_DISCOVERY_BYTES = 262144;
-/** Candidate discovery only. The separate current trusted read must fence every actual apply. */
+
+const ordinal = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * Candidate discovery only. The separate current trusted read must fence every actual apply.
+ *
+ * It lists the distinct (topic, facet, explanation unit) keys the person's projection holds, from
+ * `coverage_supports`: one row per support key however many times it was read, kept in step with the
+ * references by both projections (#674). Re-reading a Scroll adds exposures and references, never
+ * keys, so a heavy reader is never refused for how much they have read. Past 1000 distinct keys, or
+ * 256 KiB of keys, discovery is `unavailable` with reason `limit`.
+ */
 export const readCoverageInputs: ReadCoverageInputs = async (scope) => {
   const { revision } = await readContextRevision(scope);
-  const legacy = await sql<{
+  const keys = await sql<{
     topicId: string;
     facetId: string;
     explanationUnitId: string;
-  }>`select topic_id as "topicId",facet_id as "facetId",explanation_unit_id as "explanationUnitId"
- from personal_context.coverage_references where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch}
- order by topic_id,facet_id,explanation_unit_id,exposure_id limit 1001`.execute(transactionOf(scope));
-  const recording = await sql<{ topicId: string; facetId: string; explanationUnitId: string }>`
-    select topic_id as "topicId",facet_id as "facetId",explanation_unit_id as "explanationUnitId"
-    from personal_context.recording_coverage_references where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch}
-    order by topic_id,facet_id,explanation_unit_id,exposure_id limit 1001`.execute(transactionOf(scope));
-  // Count raw references before key deduplication. Duplicate keys cannot hide an arbitrarily
-  // long source history or cause a refill scan while the caller holds its personal root.
-  if (legacy.rows.length > 1000 || recording.rows.length > 1000 || legacy.rows.length + recording.rows.length > 1000)
-    return { revision, completeness: 'not_asserted', availability: 'unavailable', reason: 'limit', probes: [] };
-  const union = [
-    ...new Map(
-      [...legacy.rows, ...recording.rows].map((r) => [JSON.stringify([r.topicId, r.facetId, r.explanationUnitId]), r]),
-    ).values(),
-  ].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
-  // The raw-reference budget above already bounds the distinct keys to 1000. A consumer batches them
-  // (a trusted read takes 100 probes), so more than 100 distinct keys is not an overflow.
-  const overflow = new TextEncoder().encode(JSON.stringify(union)).byteLength > MAX_DISCOVERY_BYTES;
+  }>`select distinct topic_id as "topicId",facet_id as "facetId",explanation_unit_id as "explanationUnitId"
+ from personal_context.coverage_supports where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch}
+ limit ${MAX_DISCOVERY_KEYS + 1}`.execute(transactionOf(scope));
+  const probes = [...keys.rows].sort(
+    (a, b) =>
+      ordinal(a.topicId, b.topicId) ||
+      ordinal(a.facetId, b.facetId) ||
+      ordinal(a.explanationUnitId, b.explanationUnitId),
+  );
+  const overflow =
+    probes.length > MAX_DISCOVERY_KEYS ||
+    new TextEncoder().encode(JSON.stringify(probes)).byteLength > MAX_DISCOVERY_BYTES;
   return {
     revision,
     completeness: 'not_asserted',
     availability: overflow ? 'unavailable' : 'available',
     reason: overflow ? 'limit' : 'bounded',
-    probes: overflow ? [] : union,
+    probes: overflow ? [] : probes,
   };
 };

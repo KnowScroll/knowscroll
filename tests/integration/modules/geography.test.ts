@@ -447,13 +447,13 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       .execute();
     expect(await snapshot(p)).toMatchObject({ status: 'unavailable', reason: 'temporarily_unavailable' });
   });
-  it('raw discovery overflow is unavailable, never a truncated set of formation witnesses', async () => {
+  it('discovery overflow is unavailable, never a truncated set of formation witnesses', async () => {
     const p = await seedPerson(database.db),
       f = await fixture(),
       e = await observe(p, f);
     await scope()(p.authority, async (sc) => {
-      // Deliberately invalid RAW discovery overflow, never a claim of semantic support.
-      // Copy the actual modern complete source binding so every real composite FK remains valid.
+      // Deliberately invalid DISTINCT-key overflow, never a claim of semantic support. Discovery reads
+      // the distinct support keys the projection holds (#674), so more than 1000 of them is the limit.
       const source = await transactionOf(sc)
         .selectFrom('personal_context.recording_coverage_references')
         .selectAll()
@@ -461,11 +461,16 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
         .where('exposure_id', '=', e.exposureId)
         .executeTakeFirstOrThrow();
       const rows = Array.from({ length: 1001 }, (_, i) => ({
-        ...source,
+        universe_id: p.universeId,
+        privacy_epoch: 1,
         topic_id: `ci.overflow.${i}`,
         facet_id: `ci.overflow.${i}.facet`,
+        meaning_sha256: source.meaning_sha256,
+        explanation_unit_id: source.explanation_unit_id,
+        truth_sha256: source.truth_sha256,
+        reference_count: 1,
       }));
-      await transactionOf(sc).insertInto('personal_context.recording_coverage_references').values(rows).execute();
+      await transactionOf(sc).insertInto('personal_context.coverage_supports').values(rows).execute();
       expect(await base.readInputs(sc)).toMatchObject({
         availability: 'unavailable',
         completeness: 'not_asserted',

@@ -12,6 +12,7 @@ import {
   TrustedCoverageQuerySchema,
   coverageSupports,
   coverageSupportKey,
+  newestWitnessPerSupport,
   RecordingWitnessPointerSchema,
   type TrustedCoverageRead,
 } from '../domain/coverage.js';
@@ -41,7 +42,23 @@ interface Reference {
   explanation_unit_id: string;
   truth_sha256: string;
 }
-/** Both indexed source budgets are fixed BEFORE shadow resolution/certificate hydration. */
+/**
+ * What one support key puts forward as witnesses: the newest exposures of the key, at most two of
+ * each asset revision and eight in all. Each is checked in full and the newest that is valid proves
+ * the key. Re-reading one Scroll a thousand times adds references to a key but never candidates, so
+ * the read neither refuses nor grows with how much a person has read. Several asset revisions can
+ * carry one explanation unit (variants, a corrected revision), so they are ranked apart, and a
+ * withdrawn newest revision does not hide a valid older one.
+ */
+const CANDIDATES = { perAssetRevision: 2, perKey: 8 } as const;
+
+/**
+ * Both indexed source budgets are fixed BEFORE certificate hydration. Each source returns the
+ * candidates above for each probed support key, ranked by the certificate's activation time (the
+ * newest first, the exposure id breaking a tie), so the rows read are bounded by the keys asked for,
+ * never by the history behind them. A legacy exposure that has a recording projection is read through
+ * the recording source only.
+ */
 export function makeReadTrustedCoverage(p: CoverageDependencies): ReadTrustedCoverage {
   return async (scope, input) => {
     const q = TrustedCoverageQuerySchema.parse(input);
@@ -49,16 +66,32 @@ export function makeReadTrustedCoverage(p: CoverageDependencies): ReadTrustedCov
     const db = transactionOf(scope),
       u = scope.authority.universeId,
       epoch = scope.authority.privacyEpoch,
-      probes = q.probes.map((x) => ({ topic_id: x.topicId, facet_id: x.facetId, unit: x.explanationUnitId }));
+      probes = JSON.stringify(
+        q.probes.map((x) => ({ topic_id: x.topicId, facet_id: x.facetId, unit: x.explanationUnitId })),
+      );
     const legacy = await sql<
       Reference & { activity_id: string; input_sha256: string; payload: unknown }
-    >`select r.*,c.activity_id,c.input_sha256,c.payload
-      from jsonb_to_recordset(${JSON.stringify(probes)}::jsonb) probe(topic_id text,facet_id text,unit text)
-      cross join lateral(select * from personal_context.coverage_references where universe_id=${u}::uuid and privacy_epoch=${epoch}
-      and topic_id=probe.topic_id and facet_id=probe.facet_id and explanation_unit_id=probe.unit order by exposure_id limit 1001) r
-      join personal_context.coverage_contributions c on c.universe_id=r.universe_id and c.privacy_epoch=r.privacy_epoch and c.exposure_id=r.exposure_id limit 1001`.execute(
-      db,
-    );
+    >`with probe as (select * from jsonb_to_recordset(${probes}::jsonb) as probe(topic_id text,facet_id text,unit text)),
+      refs as (
+        select r.exposure_id,r.topic_id,r.facet_id,r.meaning_sha256,r.explanation_unit_id,r.truth_sha256,
+          c.activity_id,c.input_sha256,c.payload,
+          (c.payload->>'activatedAt')::timestamptz as activated_at,
+          c.payload->>'assetId' as asset_id,c.payload->>'assetRevision' as asset_revision
+        from probe
+        join personal_context.coverage_references r on r.universe_id=${u}::uuid and r.privacy_epoch=${epoch}
+          and r.topic_id=probe.topic_id and r.facet_id=probe.facet_id and r.explanation_unit_id=probe.unit
+        join personal_context.coverage_contributions c on c.universe_id=r.universe_id and c.privacy_epoch=r.privacy_epoch and c.exposure_id=r.exposure_id
+        where not exists (select 1 from personal_context.recording_coverage_contributions rc
+          where rc.universe_id=r.universe_id and rc.privacy_epoch=r.privacy_epoch and rc.exposure_id=r.exposure_id)),
+      per_revision as (
+        select refs.*,row_number() over (partition by topic_id,facet_id,explanation_unit_id,meaning_sha256,truth_sha256,asset_id,asset_revision
+          order by activated_at desc nulls last,exposure_id desc) as in_revision from refs),
+      per_key as (
+        select per_revision.*,row_number() over (partition by topic_id,facet_id,explanation_unit_id,meaning_sha256,truth_sha256
+          order by activated_at desc nulls last,exposure_id desc) as newest
+        from per_revision where in_revision<=${CANDIDATES.perAssetRevision})
+      select exposure_id,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,activity_id,input_sha256,payload
+      from per_key where newest<=${CANDIDATES.perKey} limit 1001`.execute(db);
     const recording = await sql<
       Reference & {
         source_kind: string;
@@ -67,30 +100,38 @@ export function makeReadTrustedCoverage(p: CoverageDependencies): ReadTrustedCov
         source_qualification_id: string;
         source_certificate_sha256: string;
       }
-    >`
-      select r.* from jsonb_to_recordset(${JSON.stringify(probes)}::jsonb) probe(topic_id text,facet_id text,unit text)
-      cross join lateral(select * from personal_context.recording_coverage_references where universe_id=${u}::uuid and privacy_epoch=${epoch}
-      and topic_id=probe.topic_id and facet_id=probe.facet_id and explanation_unit_id=probe.unit order by exposure_id limit 1001) r limit 1001`.execute(
-      db,
-    );
+    >`with probe as (select * from jsonb_to_recordset(${probes}::jsonb) as probe(topic_id text,facet_id text,unit text)),
+      refs as (
+        select r.exposure_id,r.topic_id,r.facet_id,r.meaning_sha256,r.explanation_unit_id,r.truth_sha256,
+          r.source_kind,r.source_generation,r.source_activity_id,r.source_qualification_id,r.source_certificate_sha256,
+          coalesce(h.coverage,lc.payload) as certificate
+        from probe
+        join personal_context.recording_coverage_references r on r.universe_id=${u}::uuid and r.privacy_epoch=${epoch}
+          and r.topic_id=probe.topic_id and r.facet_id=probe.facet_id and r.explanation_unit_id=probe.unit
+        left join personal_context.recording_segment_heads h on r.source_kind='segment' and h.universe_id=r.universe_id
+          and h.exposure_id=r.exposure_id and h.recording_generation=r.source_segment_generation
+        left join personal_context.coverage_contributions lc on r.source_kind='legacy' and lc.universe_id=r.universe_id
+          and lc.privacy_epoch=r.privacy_epoch and lc.exposure_id=r.exposure_id),
+      dated as (
+        select refs.*,(certificate->>'activatedAt')::timestamptz as activated_at,
+          certificate->>'assetId' as asset_id,certificate->>'assetRevision' as asset_revision from refs),
+      per_revision as (
+        select dated.*,row_number() over (partition by topic_id,facet_id,explanation_unit_id,meaning_sha256,truth_sha256,asset_id,asset_revision
+          order by activated_at desc nulls last,exposure_id desc) as in_revision from dated),
+      per_key as (
+        select per_revision.*,row_number() over (partition by topic_id,facet_id,explanation_unit_id,meaning_sha256,truth_sha256
+          order by activated_at desc nulls last,exposure_id desc) as newest
+        from per_revision where in_revision<=${CANDIDATES.perAssetRevision})
+      select exposure_id,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,
+        source_kind,source_generation,source_activity_id,source_qualification_id,source_certificate_sha256
+      from per_key where newest<=${CANDIDATES.perKey} limit 1001`.execute(db);
+    // Candidates are bounded per key, so this refuses only a batch of probes that is itself too wide;
+    // the consumer then reads it as two.
     if (legacy.rows.length > 1000 || recording.rows.length > 1000 || legacy.rows.length + recording.rows.length > 1000)
       return unavailable('limit');
-    const ids = [...new Set(legacy.rows.map((r) => r.exposure_id))];
-    const converted = ids.length
-      ? await db
-          .selectFrom('personal_context.recording_coverage_contributions')
-          .select('exposure_id')
-          .where('universe_id', '=', u)
-          .where('privacy_epoch', '=', epoch)
-          .where('exposure_id', 'in', ids)
-          .limit(1000)
-          .execute()
-      : [];
-    const shadowed = new Set(converted.map((r) => r.exposure_id));
     const sources = new Map<string, { witness: RecordingCoverageWitness; legacyCurrent: boolean }>();
     const refs: { reference: Reference; key: string }[] = [];
     for (const r of legacy.rows) {
-      if (shadowed.has(r.exposure_id)) continue;
       const c = ObservedCoverageSchema.parse(r.payload);
       if (
         c.universeId !== u ||
@@ -204,7 +245,7 @@ export function makeReadTrustedCoverage(p: CoverageDependencies): ReadTrustedCov
         return unavailable('authority_changed');
     }
     const available = new Map(mapped.map((s) => [recordingCoverageKey(s.witness), s.witness]));
-    const witnesses = refs.flatMap(({ reference: r, key }) => {
+    const proven = refs.flatMap(({ reference: r, key }) => {
       const w = available.get(key);
       if (!w) return [];
       const support = {
@@ -229,26 +270,20 @@ export function makeReadTrustedCoverage(p: CoverageDependencies): ReadTrustedCov
         },
       ];
     });
+    // One witness per support key, the newest valid one. Variety is by distinct units, never by the
+    // number of exposures, so the others are not returned and a re-read adds nothing to the proof.
+    const witnesses = newestWitnessPerSupport(proven, (w) => available.get(w.witnessKey)!.certificate.activatedAt);
     if (!witnesses.length) return unavailable('not_observed');
-    const groups = new Map<string, { support: ReturnType<typeof coverageSupports>[number]; exposures: Set<string> }>();
-    for (const w of witnesses) {
-      const key = coverageSupportKey(w),
-        group = groups.get(key) ?? {
-          support: {
-            topicId: w.topicId,
-            facetId: w.facetId,
-            meaningSha256: w.meaningSha256,
-            explanationUnitId: w.explanationUnitId,
-            truthSha256: w.truthSha256,
-          },
-          exposures: new Set<string>(),
-        };
-      group.exposures.add(w.exposureId);
-      groups.set(key, group);
-    }
-    const supports = [...groups]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([, g]) => ({ ...g.support, witnessExposureIds: [...g.exposures].sort() }));
+    const supports = witnesses
+      .map((w) => ({
+        topicId: w.topicId,
+        facetId: w.facetId,
+        meaningSha256: w.meaningSha256,
+        explanationUnitId: w.explanationUnitId,
+        truthSha256: w.truthSha256,
+        witnessExposureIds: [w.exposureId],
+      }))
+      .sort((a, b) => coverageSupportKey(a).localeCompare(coverageSupportKey(b)));
     witnesses.sort(
       (a, b) => coverageSupportKey(a).localeCompare(coverageSupportKey(b)) || a.witnessKey.localeCompare(b.witnessKey),
     );

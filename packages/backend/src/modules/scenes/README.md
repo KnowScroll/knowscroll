@@ -91,8 +91,10 @@ Current ready/empty data must match Geography; stale snapshots are never relabel
 Chunk reads require the exact selected current manifest and immutable reference. Old manifest
 references return stale_manifest, own unknown/nonselected chunks return unknown_chunk, and
 mixed universe/epoch references refuse without echoing or rewriting them. An honestly lagging
-current manifest may serve its exact older chunks. Reads expose neither world seeds nor private
-Geography context. The API scene controllers perform account/session/HTTP admission; these backend ports still
+current manifest may serve its exact older chunks. A chunk read loads and checks only the one chunk
+it names, so reading a map chunk by chunk costs one row each and not the whole map each time (#674,
+D-409); a manifest read lists the chunks of its selection once, and checks each against its reference.
+Reads expose neither world seeds nor private Geography context. The API scene controllers perform account/session/HTTP admission; these backend ports still
 require current own personal authority.
 
 ## The look of each place (U-1)
