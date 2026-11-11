@@ -9,6 +9,7 @@ import { canRenderScroll, isScrollDocumentV2 } from './render-scroll.js';
 import { notUnderReview } from './review-gate-sql.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import {
+  DISCOVERY_MAX_TOPICS,
   validateTopics,
   type EncounterSnapshot,
   type ReadDiscoveryCandidates,
@@ -119,7 +120,7 @@ export const readDiscoveryCandidates: ReadDiscoveryCandidates = async (scope, q)
     q.languages.length > 8 ||
     q.formats.length < 1 ||
     q.formats.length > 2 ||
-    (q.topicIds?.length ?? 0) > 16 ||
+    (q.topicIds?.length ?? 0) > DISCOVERY_MAX_TOPICS ||
     (q.text?.length ?? 0) > 2000 ||
     !Number.isSafeInteger(q.limit ?? 100) ||
     (q.limit ?? 100) < 1 ||

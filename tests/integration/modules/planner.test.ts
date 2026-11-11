@@ -14,6 +14,7 @@ import { FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '@knowscroll/backend
 import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import { requestHash } from '@knowscroll/backend/infrastructure/receipts';
 import { readDiscoveryCandidates, readExactEncounter } from '@knowscroll/backend/modules/content/nest-providers';
+import { DISCOVERY_MAX_TOPICS } from '@knowscroll/backend/modules/content';
 import {
   plannerQueue,
   PlannerJobSchema,
@@ -386,6 +387,43 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
           .executeTakeFirstOrThrow(),
       ).toEqual(head);
     }
+  });
+  it('runs for a reader whose intent and recent topics exceed the discovery limit, bounding the inventory read with intent first', async () => {
+    const p = await seedPerson(database.db);
+    await qualify(p);
+    // The reader's real recent topic (`topic`) plus a full intent of 16 others is 17 distinct topics.
+    const intentTopics = Array.from(
+      { length: DISCOVERY_MAX_TOPICS },
+      (_, i) => `ci.planner.intent.${randomUUID()}.${i}`,
+    );
+    expect(
+      await request(p.authority, { commandId: randomUUID(), intent: { language: 'en', topicIds: intentTopics } }),
+    ).toMatchObject({ kind: 'accepted' });
+    const r = runner(p),
+      s = await state(p),
+      reads: (readonly string[] | undefined)[] = [],
+      run = makeRunPlanner({
+        ...r.ports,
+        readInventory: (scope, query) => {
+          reads.push(query.topicIds);
+          return readDiscoveryCandidates(scope, query);
+        },
+      });
+    expect(await run(await job(p, s.active_run_id!), signal())).toMatchObject({
+      kind: 'entered',
+      value: { kind: 'accepted' },
+    });
+    expect(reads).toEqual([intentTopics]);
+    const { context } = await database.db
+      .selectFrom('planner.runs')
+      .select('context')
+      .where('universe_id', '=', p.universeId)
+      .where('id', '=', s.active_run_id!)
+      .executeTakeFirstOrThrow();
+    expect(context).toMatchObject({
+      intent: { topicIds: intentTopics },
+      facts: { topics: expect.arrayContaining([...intentTopics, topic]) as string[] },
+    });
   });
   it('runs after actual material PC/Evidence change, ignores replay, preserves the source audit, and accepts unadmitted opportunities only', async () => {
     const p = await seedPerson(database.db),

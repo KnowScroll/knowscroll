@@ -8,13 +8,14 @@ import {
   type RecordingCoverageWitness,
 } from '../../evidence/public.js';
 import type { PersonalScopeTx, RecordingScopeTx } from '../../identity/public.js';
-import type { CoverageHead } from '../../content/public.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { recordingTransactionOf, fencePersonalRecording } from '../../../infrastructure/postgres/recording-scope.js';
 import {
+  certificateValidOnHead,
   coverageSupports,
   coverageSupportKey,
   RecordingCoverageSlotsSchema,
+  sameCoverageAuthority,
   selectedWitnesses,
   type RecordingWitnessPointer,
 } from '../domain/coverage.js';
@@ -38,26 +39,31 @@ export async function readStoredCoverage(scope: PersonalScopeTx, id: string): Pr
     throw new Error('PERSONAL_COVERAGE_STORED_INVALID');
   return { activityId: row.activity_id, digest: row.input_sha256, certificate };
 }
-export function certificateMatchesHead(c: ObservedCoverage, head: CoverageHead): boolean {
-  if (!c.mapping || head.status !== 'active') return false;
-  const { version: _version, bindings, ...identity } = head.mapping;
+/**
+ * Locks the coverage head the certificate is valid on now, and confirms it still is under that lock.
+ *
+ * The certificate may have been issued against an older head. What is locked is the head read here,
+ * never the authority the certificate carries (#674). Content's lock then proves that head is still
+ * current and holds it until the personal transaction ends. The mapping is read again afterwards, so a
+ * head moved or retracted while the lock was awaited is refused. Lock order: personal root, asset
+ * SHARE, head SHARE. False means the caller must reject the certificate.
+ */
+async function lockHeadValidFor(scope: PersonalScopeTx, c: ObservedCoverage, p: CoverageDependencies) {
+  const ref = { assetId: c.assetId, assetRevision: c.assetRevision };
+  const before = await p.readMapping(scope, ref);
+  if (before.kind !== 'mapped' || !certificateValidOnHead(c, before.head)) return false;
+  if (!(await p.lockAuthorities(scope, [before.head.authority]))) return false;
+  const after = await p.readMapping(scope, ref);
   return (
-    canonicalSha256(c.mapping) === canonicalSha256({ authority: head.authority, ...identity }) &&
-    c.factsSha256 === identity.readingFactsSha256 &&
-    c.bindings.every((b) => bindings.some((x) => canonicalSha256(x) === canonicalSha256(b)))
+    after.kind === 'mapped' &&
+    sameCoverageAuthority(after.head.authority, before.head.authority) &&
+    certificateValidOnHead(c, after.head)
   );
 }
 /** Positive apply holds shared Content authority through commit and repeats Evidence after waits. */
 export async function fenceCoverage(scope: PersonalScopeTx, c: ObservedCoverage, p: CoverageDependencies) {
   if (c.availability !== 'available') return;
-  if (!c.mapping || !(await p.lockAuthorities(scope, [c.mapping.authority])))
-    throw new Error('PERSONAL_COVERAGE_AUTHORITY_CHANGED');
-  const current = await p.readMapping(scope, { assetId: c.assetId, assetRevision: c.assetRevision });
-  if (
-    current.kind !== 'mapped' ||
-    !certificateMatchesHead(c, current.head) ||
-    !(await p.checkEvidence(scope, [c])).includes(c.exposureId)
-  )
+  if (!(await lockHeadValidFor(scope, c, p)) || !(await p.checkEvidence(scope, [c])).includes(c.exposureId))
     throw new Error('PERSONAL_COVERAGE_AUTHORITY_CHANGED');
 }
 export async function applyCoverage(
@@ -174,12 +180,9 @@ export async function fenceRecordingCoverage(
   p: CoverageDependencies,
 ) {
   const c = w.certificate;
-  if (c.availability !== 'available' || !c.mapping || !(await p.lockAuthorities(scope, [c.mapping.authority])))
-    throw new Error('PERSONAL_COVERAGE_AUTHORITY_CHANGED');
-  const current = await p.readMapping(scope, { assetId: c.assetId, assetRevision: c.assetRevision });
   if (
-    current.kind !== 'mapped' ||
-    !certificateMatchesHead(c, current.head) ||
+    c.availability !== 'available' ||
+    !(await lockHeadValidFor(scope, c, p)) ||
     !(await p.checkRecordingEvidence(scope, [w])).includes(recordingCoverageKey(w))
   )
     throw new Error('PERSONAL_COVERAGE_AUTHORITY_CHANGED');

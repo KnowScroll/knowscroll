@@ -349,6 +349,12 @@ import type {
 } from './domain/discovery.js';
 import type { AdmissionTx } from './application/ports.js';
 import type { CatalogueBrief, ScrollProductionReading, ScrollRecipeChoice } from './domain/library/serving.js';
+/**
+ * The most topics one discovery read may filter by. A read with more is refused
+ * (`DISCOVERY_QUERY_INVALID`), so a caller that gathers topics from open-ended history must keep
+ * its most important topics first and slice to this bound.
+ */
+export const DISCOVERY_MAX_TOPICS = 16;
 export type ReadDiscoveryCandidates = (
   scope: PersonalScopeTx,
   query: EncounterQuery,

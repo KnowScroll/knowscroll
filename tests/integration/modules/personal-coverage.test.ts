@@ -30,6 +30,32 @@ import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
 import { recordingPerson } from '../support/recording-person.js';
+import { signal } from '../support/fixture-model.js';
+import { geographyWorld, type GeographyWorld } from '../support/geography-world.js';
+
+/**
+ * The head `content readmit-coverage` appends after the concept plan grew (#674): the same mapping under
+ * another catalogue digest, admitted through the normal reviewed path with that digest as the plan's.
+ */
+async function appendDigestOnlyHead(
+  db: TestDatabase<Database>['db'],
+  f: { readonly command: CoverageCommand; readonly map: CoverageMapping },
+  expectedHeadRevision: number,
+) {
+  const grown = {
+    ...coverageCatalogue,
+    sha256: canonicalSha256({ fixturePlan: 'ci-grown-concept-plan', expectedHeadRevision }),
+  };
+  const command: CoverageCommand = {
+    ...f.command,
+    expectedHeadRevision,
+    semanticReviewReference: 'ci-digest-only-fixture-review',
+    change: { kind: 'admit', mapping: { ...f.map, catalogueSha256: grown.sha256 } },
+  };
+  const reviewed = (digest: string, reference: string) =>
+    digest === canonicalSha256(command) && reference === command.semanticReviewReference;
+  return makeAdmitCoverage({ ...makeCoverageAdmissionPorts(db, reviewed), catalogue: grown })(command);
+}
 
 /** Synthetic semantic approvals and authored sources ONLY; no live source/map/formation claim. */
 describe('current observed personal coverage (PostgreSQL CI fixtures only)', () => {
@@ -789,5 +815,245 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
           .where('universe_id', '=', p.universeId)
           .execute(),
       ).toEqual([]);
+  });
+
+  /** #674: a certificate names the head it was issued against, but what it proves does not depend on that head's number or the catalogue digest. */
+  const supportRows = (p: FixturePerson) =>
+    database.db
+      .selectFrom('personal_context.coverage_supports')
+      .selectAll()
+      .where('universe_id', '=', p.universeId)
+      .execute();
+  it('keeps observed support on later heads that differ only in the catalogue digest and head number (#674)', async () => {
+    const p = await seedPerson(database.db),
+      f = await fixture();
+    await read(p, f);
+    const original = await proof(p, f.unit);
+    expect(original.witnesses).toHaveLength(1);
+    const supports = await supportRows(p);
+    expect(supports).toMatchObject([{ reference_count: 1, facet_id: facet }]);
+    await appendDigestOnlyHead(database.db, f, 1);
+    await appendDigestOnlyHead(database.db, f, 2);
+    // The stored heads differ in the digest alone, as the 54 appended heads on dev did.
+    const heads = await database.db
+      .selectFrom('content.coverage_revisions')
+      .select(['revision', 'mapping'])
+      .where('asset_id', '=', f.assetId)
+      .orderBy('revision')
+      .execute();
+    expect(heads.map((h) => h.revision)).toEqual([1, 2, 3]);
+    const { catalogueSha256: firstDigest, ...firstReading } = heads[0]!.mapping as CoverageMapping,
+      { catalogueSha256: lastDigest, ...lastReading } = heads[2]!.mapping as CoverageMapping;
+    expect(lastReading).toEqual(firstReading);
+    expect(lastDigest).not.toBe(firstDigest);
+    const after = await proof(p, f.unit);
+    expect(after).toMatchObject({ availability: 'available', reason: 'current' });
+    expect(after.witnesses).toEqual(original.witnesses);
+    expect(after.supports).toEqual(original.supports);
+    expect(after.certificates[0]?.certificate.mapping).toMatchObject({
+      authority: { headRevision: 1 },
+      catalogueSha256: firstDigest,
+    });
+    expect(await supportRows(p)).toEqual(supports);
+  });
+  it.each([
+    [
+      'the facet a binding names',
+      (f: Awaited<ReturnType<typeof fixture>>): CoverageMapping => ({
+        ...f.map,
+        bindings: [
+          {
+            ...f.map.bindings[0]!,
+            facetId: otherFacet,
+            meaningSha256: coverageCatalogue.meaningSha256(topic, otherFacet)!,
+          },
+        ],
+      }),
+    ],
+    [
+      'the blocks a binding needs',
+      (f: Awaited<ReturnType<typeof fixture>>): CoverageMapping => ({
+        ...f.map,
+        bindings: [{ ...f.map.bindings[0]!, requiredBlockIds: ['intro-look-up'] }],
+      }),
+    ],
+  ])(
+    'still excludes the certificate when a head after a digest-only one corrects %s (#674)',
+    async (_name, correct) => {
+      const p = await seedPerson(database.db),
+        f = await fixture();
+      await read(p, f);
+      await appendDigestOnlyHead(database.db, f, 1);
+      expect((await proof(p, f.unit)).witnesses).toHaveLength(1);
+      await admit()(
+        approved({ ...f.command, expectedHeadRevision: 2, change: { kind: 'admit', mapping: correct(f) } }),
+      );
+      const result = await proof(p, f.unit);
+      expect(result.witnesses).toEqual([]);
+      expect(result.supports).toEqual([]);
+    },
+  );
+  it('still excludes the certificate when a head after a digest-only one retracts the mapping (#674)', async () => {
+    const p = await seedPerson(database.db),
+      f = await fixture();
+    await read(p, f);
+    await appendDigestOnlyHead(database.db, f, 1);
+    expect((await proof(p, f.unit)).witnesses).toHaveLength(1);
+    await admit()(approved({ ...f.command, expectedHeadRevision: 2, change: { kind: 'retract' } }));
+    expect((await proof(p, f.unit)).witnesses).toEqual([]);
+    expect((await proof(p, f.unit)).supports).toEqual([]);
+  });
+  it('keeps an exact sealed old-generation certificate on an older head while recording is paused (#674)', async () => {
+    const p = await recordingPerson(database),
+      f = await fixture();
+    await read(p, f);
+    const original = (await proof(p, f.unit)).witnesses;
+    expect(original).toHaveLength(1);
+    expect(
+      await recordingPolicyFor(database.db, { lockTimeoutMs: 5000 }).set(p.authority, {
+        version: 'recording-policy.v1',
+        commandId: randomUUID(),
+        expectedPrivacyEpoch: 1,
+        expectedRecordingGeneration: 1,
+        on: false,
+      }),
+    ).toMatchObject({ kind: 'ok' });
+    await appendDigestOnlyHead(database.db, f, 1);
+    expect((await proof(p, f.unit)).witnesses).toEqual(original);
+  });
+  it('holds the current head, not the one the certificate names, until the personal commit (#674)', async () => {
+    const p = await seedPerson(database.db),
+      f = await fixture();
+    await read(p, f);
+    await appendDigestOnlyHead(database.db, f, 1);
+    let ready!: () => void, release!: () => void;
+    const entered = new Promise<void>((r) => {
+      ready = r;
+    });
+    const held = new Promise<void>((r) => {
+      release = r;
+    });
+    const consumer = makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(p.authority, async (s) => {
+      const result = await c.readTrustedCoverage(s, {
+        probes: [{ topicId: topic, facetId: facet, explanationUnitId: f.unit }],
+      });
+      expect(result.witnesses).toHaveLength(1);
+      ready();
+      await held;
+    });
+    await entered;
+    const correction = admit()(approved({ ...f.command, expectedHeadRevision: 2, change: { kind: 'retract' } }));
+    try {
+      await expect
+        .poll(async () => {
+          const r = await sql<{
+            count: number;
+          }>`select count(*)::int as count from pg_stat_activity where datname=current_database() and wait_event_type='Lock'`.execute(
+            database.db,
+          );
+          return r.rows[0]?.count ?? 0;
+        })
+        .toBeGreaterThan(0);
+    } finally {
+      release();
+    }
+    await consumer;
+    await correction;
+    expect((await proof(p, f.unit)).witnesses).toEqual([]);
+  });
+  it('re-projects a reading after a digest-only head onto the current head without disturbing support counts (#674)', async () => {
+    const p = await seedPerson(database.db),
+      f = await fixture(),
+      e = await read(p, f);
+    const original = await proof(p, f.unit),
+      supports = await supportRows(p);
+    const activity = await database.db
+      .selectFrom('evidence.recording_segment_heads')
+      .select('activity_id')
+      .where('recording_generation', '=', 1)
+      .where('universe_id', '=', p.universeId)
+      .where('exposure_id', '=', e.exposureId)
+      .executeTakeFirstOrThrow();
+    await appendDigestOnlyHead(database.db, f, 1);
+    expect(await c.projectActivity(job(p, e.exposureId))).toMatchObject({
+      kind: 'applied',
+      activityId: activity.activity_id,
+    });
+    const after = await proof(p, f.unit);
+    expect(after.supports).toEqual(original.supports);
+    expect(after.witnesses[0]?.certificateSha256).not.toBe(original.witnesses[0]?.certificateSha256);
+    expect(after.certificates[0]?.certificate.mapping?.authority.headRevision).toBe(2);
+    expect(await supportRows(p)).toEqual(supports);
+    expect(await c.projectActivity(job(p, e.exposureId))).toEqual({ kind: 'skipped', reason: 'already_applied' });
+  });
+  it('fences a certificate whose head moved by digest alone after it was prepared, instead of failing the projection (#674)', async () => {
+    const p = await seedPerson(database.db),
+      f = await fixture(),
+      e = await read(p, f);
+    const original = await proof(p, f.unit);
+    let moved = false;
+    // The head moves after Evidence prepared the certificate and before the context effect fences it.
+    const racing = await scrollUseCases(database, {
+      recording: true,
+      activityDerived: {
+        ...c.activityContextEffect,
+        applyRecording: async (scope, input) => {
+          if (!moved) {
+            moved = true;
+            await appendDigestOnlyHead(database.db, f, 1);
+          }
+          return c.activityContextEffect.applyRecording(scope, input);
+        },
+      },
+    });
+    try {
+      await expect(racing.projectActivity(job(p, e.exposureId))).resolves.toEqual({
+        kind: 'skipped',
+        reason: 'already_applied',
+      });
+    } finally {
+      await racing.close();
+    }
+    expect(moved).toBe(true);
+    const after = await proof(p, f.unit);
+    expect(after.witnesses).toEqual(original.witnesses);
+    expect(after.certificates[0]?.certificate.mapping?.authority.headRevision).toBe(1);
+  });
+});
+
+/** Authored CI sources and a fixture model only. Whether dev's own readers recover is for the coordinator to check there. */
+describe("Geography after the catalogue digest of a reader's coverage heads changed (real PostgreSQL CI fixtures)", () => {
+  let world: GeographyWorld;
+  beforeAll(async () => {
+    world = await geographyWorld('personal_coverage_geography');
+  });
+  afterAll(() => world.close());
+
+  it('forms what the rules entitle from reading whose heads changed by digest alone, not coverage_unavailable (#674)', async () => {
+    const { database, coherent, state, context, runner, job, snapshot } = world;
+    const p = await seedPerson(database.db);
+    const assets = await coherent(p);
+    for (const asset of assets) await appendDigestOnlyHead(database.db, asset, 1);
+    const runId = (await state(p)).activeRunId;
+    if (!runId) throw new Error('CI expected an active Cartographer run');
+    // A model that answers nonsense: formation here is the rules' decision.
+    await runner(p, () => ({ kind: 'malformed' })).run(await job(p, runId), signal());
+    expect((await context(p, runId)).facts.supports.length).toBeGreaterThan(0);
+    expect(
+      await database.db
+        .selectFrom('geography.runs')
+        .select(['status', 'outcome'])
+        .where('universe_id', '=', p.universeId)
+        .where('id', '=', runId)
+        .executeTakeFirstOrThrow(),
+    ).toMatchObject({ status: 'accepted', outcome: 'applied_by_rules' });
+    const universe = await snapshot(p);
+    expect('page' in universe ? universe.page.objects.map((place) => place.kind).sort() : []).toEqual([
+      'planet',
+      'region',
+      'region',
+      'star',
+      'system',
+    ]);
   });
 });
