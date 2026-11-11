@@ -2,7 +2,12 @@ import { ConfigurationError, readContentOperatorConfig } from '@knowscroll/backe
 import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
-import { expireStalePlannedDemand, recoverOpenDemand } from '@knowscroll/backend/modules/supply/nest-providers';
+import {
+  expireStalePlannedDemand,
+  readGapSummary,
+  recoverOpenDemand,
+} from '@knowscroll/backend/modules/supply/nest-providers';
+import { GAP_STATUSES, type GapStatus } from '@knowscroll/backend/modules/supply';
 
 /**
  * `supply recover-open-demand [--dry-run]`: the one-time recovery for asks that were left open before
@@ -82,6 +87,42 @@ export async function expireStalePlannedDemandCommand(
   } catch (error) {
     if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
     else logEvent('process.crashed', { reasonCode: 'expire_stale_planned_demand_failed', error });
+    return 1;
+  }
+}
+
+const USAGE_GAPS = `supply gaps [--status ${GAP_STATUSES.join('|')}]`;
+
+/**
+ * `supply gaps [--status <status>]`: the gaps the loop found in the library (#674, D-414), read from the operator's view
+ * (`ops.supply_gaps`): counts by status and kind, then the gaps, most pressing first, with their planet, facet, priority, readers,
+ * attempts and reason code. Codes, catalogue ids and counts only: no recipe text and no person. Read-only; no provider is called.
+ */
+export async function supplyGapsCommand(
+  options: { readonly status: string | undefined },
+  print: (result: Record<string, unknown>) => void,
+  logEvent: LogEvent,
+): Promise<number> {
+  const status = GAP_STATUSES.find((candidate): candidate is GapStatus => candidate === options.status);
+  if (options.status !== undefined && status === undefined) {
+    print({ result: 'usage', usage: USAGE_GAPS });
+    return 2;
+  }
+  try {
+    const config = readContentOperatorConfig(process.env);
+    const database = createDatabase<Database>(config.database, {
+      onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
+    });
+    try {
+      const summary = await readGapSummary(database.db, status === undefined ? {} : { status });
+      print({ command: 'supply gaps', ...(status === undefined ? {} : { status }), ...summary });
+      return 0;
+    } finally {
+      await database.close();
+    }
+  } catch (error) {
+    if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
+    else logEvent('process.crashed', { reasonCode: 'supply_gaps_failed', error });
     return 1;
   }
 }

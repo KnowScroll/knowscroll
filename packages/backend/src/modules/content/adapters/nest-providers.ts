@@ -35,6 +35,10 @@ import {
   RENDER_SCROLL,
   CHOOSE_SCROLL_RECIPE,
   READ_SCROLL_PRODUCTION,
+  READ_RELEASED_COVERAGE,
+  READ_GAP_RECIPES,
+  READ_RECIPE_STATES,
+  CHOOSE_SHARED_SCROLL_RECIPE,
   RECORD_MADE_TO_ORDER_SCROLL,
   READ_MADE_TO_ORDER_PRODUCTION,
   READ_MADE_TO_ORDER_PRODUCTION_IN,
@@ -83,7 +87,8 @@ import {
 import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './coverage-store.js';
 import { readContentSequence, readSeriesTotal } from './content-sequence.js';
 import { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.js';
-import { chooseScrollRecipe, readScrollProduction } from './production-state.js';
+import { chooseScrollRecipe, chooseScrollRecipeIn, readScrollProduction } from './production-state.js';
+import { readGapRecipes, readRecipeStates, readReleasedCoverage } from './gap-reads.js';
 import { readRegionEncounterCandidates, lockRegionEncounterCandidates } from './region-candidates.js';
 import { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
 import { readLibraryReels } from './library-reels.js';
@@ -185,6 +190,40 @@ export function libraryPassageProviders(tokens: { readonly database: symbol }) {
   ];
 }
 
+/**
+ * The shared-library reads and Create's chooser for the gap loop (#674, D-414): what the library can serve now, the recipes that
+ * would serve a planet, the standing of named stored recipes, and the recipe a catalogue brief commissions. They read shared
+ * tables only on the process's pool and take no personal scope; composition roots only.
+ */
+export function sharedLibraryProviders(tokens: { readonly database: symbol }) {
+  return [
+    {
+      provide: READ_RELEASED_COVERAGE,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => () => readReleasedCoverage(db),
+    },
+    {
+      provide: READ_GAP_RECIPES,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => (target: Parameters<typeof readGapRecipes>[1]) =>
+        readGapRecipes(db, target),
+    },
+    {
+      provide: READ_RECIPE_STATES,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => (keys: readonly string[]) => readRecipeStates(db, keys),
+    },
+    {
+      provide: CHOOSE_SHARED_SCROLL_RECIPE,
+      inject: [tokens.database],
+      useFactory:
+        (db: Kysely<Database>) =>
+        (brief: Parameters<typeof chooseScrollRecipeIn>[1], options?: Parameters<typeof chooseScrollRecipeIn>[2]) =>
+          chooseScrollRecipeIn(db, brief, options),
+    },
+  ];
+}
+
 /** The sender of production jobs outside a transaction, over the process's pg-boss (the branch resolver, the operator). */
 export function scrollProductionSenderProviders(tokens: { readonly boss: symbol }) {
   return [
@@ -235,6 +274,8 @@ export { makeMediaAccess } from './media-access.js';
 export { makeProduceScroll as produceScrollUseCase } from '../production/produce.js';
 /** The operator's `content propose-recipes` and `content recipes`: stored recipes for the planets that exist (#674, D-412). */
 export { makeProposeRecipes, previewRecipeProposal, type ProposeRecipesResult } from '../production/propose-recipes.js';
+export { readGapRecipes, readRecipeStates, readReleasedCoverage } from './gap-reads.js';
+export { chooseScrollRecipeIn, readScrollProductionIn } from './production-state.js';
 export { MAX_PROPOSAL_RETRY } from '../production/recipe-brief.js';
 export { listStoredRecipes } from './recipe-proposals.js';
 /** The operator's writer spike for `scroll-authoring.v2` (S-0, D-120): nothing is admitted or published. */

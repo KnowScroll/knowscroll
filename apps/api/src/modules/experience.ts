@@ -32,7 +32,7 @@ import {
 } from '@knowscroll/backend/modules/experience';
 import {
   composerBufferProviders,
-  composerConfiguredProviders,
+  composerRecordingProviders,
 } from '@knowscroll/backend/modules/composer/nest-providers';
 import {
   CHECK_ASSET_AUDIENCE,
@@ -41,6 +41,7 @@ import {
   type ReadSavedPageMetadata,
 } from '@knowscroll/backend/modules/content';
 import type { WithPersonalScope } from '@knowscroll/backend/modules/identity';
+import { RECORD_GAP_SIGNALS } from '@knowscroll/backend/modules/supply';
 import { savedCursors } from '../http/saved-cursors.js';
 import { API_CONFIG, DATABASE, ENQUEUE_JOB, WITH_PERSONAL_SCOPE } from '../tokens.js';
 
@@ -86,7 +87,8 @@ export const experienceWiring: Provider[] = [
     { recordingEffects: EXPERIENCE_RECORDING_EFFECTS },
   ),
   ...notInterestedProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
-  ...composerConfiguredProviders({ isOperator: () => false }, API_CONFIG),
+  // A decision that shows content running out records it in the same transaction, for the gap loop (#674, D-414); off unless configured.
+  ...composerRecordingProviders({ isOperator: () => false }, API_CONFIG, RECORD_GAP_SIGNALS),
   ...composerBufferProviders({ enqueueJob: ENQUEUE_JOB }),
   ...navigationProviders(
     { withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB },

@@ -116,7 +116,19 @@ export async function commissionSupply(
     },
     { allow: { code: codeOpen, generated: growthOpen }, ...(plannedUnit === undefined ? {} : { plannedUnit }) },
   );
-  if (choice.kind === 'none') return refused(choice.capped === true || !codeOpen ? 'cap_reached' : 'no_recipe_left');
+  if (choice.kind === 'none') {
+    const cause = choice.capped === true || !codeOpen ? 'cap_reached' : 'no_recipe_left';
+    // Missing content with nothing left to make is a signal for the gap loop: a count of readers, never the ask's words (D-414).
+    if (cause === 'no_recipe_left')
+      await p.recordGapSignals?.(scope, [
+        {
+          source: origin === 'person' ? 'ask' : 'planned_demand',
+          planet: subject.topicId,
+          ...(subject.facetId === undefined ? {} : { facet: subject.facetId }),
+        },
+      ]);
+    return refused(cause);
+  }
   const work = await p.store.joinOrCreate(scope, brief, p.newId(), { recipe: choice.recipe, origin });
   if (work.joined) return { kind: 'waiting', workId: work.id, decision: 'join' };
   await p.enqueueProduction(scope, choice.recipe, choice.take);

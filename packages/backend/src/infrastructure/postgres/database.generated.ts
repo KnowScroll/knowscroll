@@ -1139,6 +1139,24 @@ export interface OpsRoomTurns {
   turn_id: string | null;
 }
 
+export interface OpsSupplyGaps {
+  attempts: number | null;
+  closed_at: Timestamp | null;
+  commissioned_at: Timestamp | null;
+  facet: string | null;
+  first_seen_at: Timestamp | null;
+  gap_id: string | null;
+  kind: string | null;
+  last_attempt_at: Timestamp | null;
+  last_seen_at: Timestamp | null;
+  planet: string | null;
+  priority: number | null;
+  readers: number | null;
+  reason: string | null;
+  recipes: number | null;
+  status: string | null;
+}
+
 export interface OpsWatchdog {
   detail: string | null;
   magnitude: Int8 | null;
@@ -2311,6 +2329,47 @@ export interface SupplyAskOrders {
   support_checked: Generated<boolean>;
 }
 
+export interface SupplyGaps {
+  attempt_day: Timestamp | null;
+  attempts: Generated<number>;
+  closed_at: Timestamp | null;
+  commissioned_at: Timestamp | null;
+  facet: string | null;
+  first_seen_at: Generated<Timestamp>;
+  id: string;
+  key: string;
+  kind: string;
+  last_attempt_at: Timestamp | null;
+  last_seen_at: Generated<Timestamp>;
+  planet: string;
+  priority: number;
+  proposal_run_id: string | null;
+  readers: Generated<number>;
+  reason: string | null;
+  recipes: Generated<string[]>;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface SupplyGapSignalMarks {
+  counted: Generated<boolean>;
+  day: Timestamp;
+  facet: string | null;
+  key: string;
+  planet: string;
+  privacy_epoch: number;
+  source: string;
+  universe_id: string;
+}
+
+export interface SupplyGapSignals {
+  day: Timestamp;
+  facet: string | null;
+  key: string;
+  planet: string;
+  readers: number;
+}
+
 export interface SupplyPlannedDemandOutcomes {
   day: Timestamp;
   outcome: string;
@@ -2474,6 +2533,7 @@ export interface DB {
   "ops.rejected_answers": OpsRejectedAnswers;
   "ops.room_faces": OpsRoomFaces;
   "ops.room_turns": OpsRoomTurns;
+  "ops.supply_gaps": OpsSupplyGaps;
   "ops.watchdog": OpsWatchdog;
   "personal_context.contributions": PersonalContextContributions;
   "personal_context.coverage_contributions": PersonalContextCoverageContributions;
@@ -2571,6 +2631,9 @@ export interface DB {
   "social.visit_publications": SocialVisitPublications;
   "social.visit_systems": SocialVisitSystems;
   "supply.ask_orders": SupplyAskOrders;
+  "supply.gap_signal_marks": SupplyGapSignalMarks;
+  "supply.gap_signals": SupplyGapSignals;
+  "supply.gaps": SupplyGaps;
   "supply.planned_demand_outcomes": SupplyPlannedDemandOutcomes;
   "supply.quick_answer_ledger": SupplyQuickAnswerLedger;
   "supply.quick_answers": SupplyQuickAnswers;

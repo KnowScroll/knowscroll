@@ -297,6 +297,10 @@ recipes that exist now, runs every draft check again against them (`decideDrafts
 harness run. No network wait or model call holds it. `--dry-run` (`previewRecipeProposal`) reads the shared database only. The pages a proposal may use
 are the ones the planet's recipes' jobs froze (`readCandidatePages`): nothing is fetched, and a planet none of whose recipes was ever produced has none,
 so it is refused before any request.
+The UTC day in the run's identity is today's unless the request pins one (`ProposeRecipesRequest.day`): Supply's gap loop (D-414) pins the day of an
+attempt and sends it on every delivery, so a redelivery after midnight is the same request and the ledger answers it. The loop reads the outcome as
+recipe keys and codes (`proposed` and `already_proposed` are stored recipes, `closed_failed` a failed attempt, `refused` a refusal no retry changes, `paused`
+a spent budget, `failed` with an unknown or open run an attempt never to be resent) and records no model text.
 
 ## Publication: topic attribution and coverage
 

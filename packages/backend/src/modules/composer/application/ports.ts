@@ -9,6 +9,7 @@ import type {
   SemanticAssessments,
 } from '../domain/types.js';
 import type { ComposerPolicy } from '../domain/policy.js';
+import type { DecisionGapSignal } from '../domain/gap-signals.js';
 
 /**
  * Ranks one snapshot under the policy the process is configured for. `policy` names it, so the callers that read candidates
@@ -53,6 +54,11 @@ export type PersistComposerDecision = (
   binding: DecisionBinding,
   decision: ComposerDecision,
 ) => Promise<'stored' | 'replayed'>;
+/**
+ * Where a committed decision shows that content is running out, handed on in the same transaction (#674, D-414). The composition
+ * root binds it to Supply's recorder; Composer names no table of it and never reads what it records: demand is never evidence.
+ */
+export type RecordDecisionSignals = (scope: PersonalScopeTx, signals: readonly DecisionGapSignal[]) => Promise<void>;
 /** Authenticated operator adapter only. It rechecks the composition root's allowlist and own live scope. */
 export type ReadComposerDecision = (
   scope: PersonalScopeTx,

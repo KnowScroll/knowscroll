@@ -212,6 +212,26 @@ describe('process configuration', () => {
     expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_GROWTH_DAILY_CAP: '501' })).toThrow();
     expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_GROWTH_DAILY_CAP: '-1' })).toThrow();
   });
+  it('keeps the gap loop off in every world until it is switched on, and reads its depth target from one value', () => {
+    const worker = (env: Record<string, string>) => readWorkerConfig({ DATABASE_URL: secretUrl, ...env });
+    const api = (env: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', ...env });
+    for (const world of ['local', 'dev', 'stage']) {
+      expect(worker({ KS_WORLD: world }).supplyGrowthEnabled).toBe(false);
+      expect(api({ KS_WORLD: world }).supplyGrowthEnabled).toBe(false);
+    }
+    expect(worker({ KS_WORLD: 'dev', KS_SUPPLY_GROWTH_ENABLED: '1' }).supplyGrowthEnabled).toBe(true);
+    expect(api({ KS_WORLD: 'dev', KS_SUPPLY_GROWTH_ENABLED: '1' }).supplyGrowthEnabled).toBe(true);
+    expect(worker({ KS_WORLD: 'dev', KS_SUPPLY_GROWTH_ENABLED: '0' }).supplyGrowthEnabled).toBe(false);
+    expect(() => worker({ KS_WORLD: 'dev', KS_SUPPLY_GROWTH_ENABLED: 'yes' })).toThrow();
+    // The switch moves neither the growth cap nor the other caps.
+    expect(worker({ KS_WORLD: 'dev', KS_SUPPLY_GROWTH_ENABLED: '1' }).supplyGrowthDailyCap).toBe(10);
+    expect(worker({ KS_WORLD: 'local' }).supplyGapDepthTarget).toBe(6);
+    expect(worker({ KS_WORLD: 'local', KS_SUPPLY_GAP_DEPTH_TARGET: '9' }).supplyGapDepthTarget).toBe(9);
+    // A planet needs three explanations to stop being thin, so a depth target below that is not a target.
+    expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_GAP_DEPTH_TARGET: '2' })).toThrow();
+    expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_GAP_DEPTH_TARGET: '51' })).toThrow();
+  });
   it('gives the production scope its own, larger daily caps and leaves the person and global caps alone', () => {
     const caps = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).reasoning.caps;
     expect(caps.productionScope).toEqual({ requestsPerDay: 200, tokensPerDay: 3_000_000 });

@@ -2,6 +2,7 @@
 export { composeEncounter, validateSnapshot } from './application/compose.js';
 export { formatLeaning } from './domain/features.js';
 export { metUnitsOf } from './domain/encountered.js';
+export { gapSignalsOf, LOW_HEADROOM_UNITS, type DecisionGapSignal } from './domain/gap-signals.js';
 export {
   composerPolicyFor,
   COMPOSER_POLICY_V0,
@@ -66,6 +67,7 @@ export type {
   RequestBufferPreparation,
   DecisionBinding,
   PersistComposerDecision,
+  RecordDecisionSignals,
   ReadComposerDecision,
   PruneComposerDecisions,
   ComposerOperatorAccess,

@@ -8,6 +8,7 @@ import {
   RECORD_PLANNED_DEMAND,
   COUNT_PLANNED_DEMAND,
   COMMISSION_SCENARIO_ORDER,
+  RECORD_GAP_SIGNALS,
 } from '../public.js';
 import { CHECK_REQUEST_SOURCE, type CheckRequestSource } from '../../experience/public.js';
 import {
@@ -85,11 +86,14 @@ import { makeMatchRequest } from '../application/matching.js';
 import { makeResolveRequest } from '../application/resolve.js';
 import { resolveSupplyQueue } from '../events.js';
 import type { SupplyPorts } from '../application/ports.js';
+import type { RecordGapSignals } from '../application/gap-ports.js';
 import { supplyStore } from './postgres-store.js';
 import { askOrderLedger, makeReadAskOrderAudience } from './postgres-ask-orders.js';
 import { plannedDemandLedger } from './postgres-planned-demand-ledger.js';
 import { quickAnswerStore } from './postgres-quick-answers.js';
 import { makeCheckSupplyRecordingRun } from '../application/check-recording-run.js';
+import { makeRecordGapSignals } from '../application/gap-signals.js';
+import { gapMarkStore } from './postgres-gaps.js';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 export const SUPPLY_PORTS = Symbol('supply.ports');
@@ -101,6 +105,8 @@ export interface SupplySettings {
   readonly supplyPlannerCreateDailyCap: number;
   /** New Scrolls from stored recipes Create may start per UTC day (D-412); 0 or absent turns growth off. */
   readonly supplyGrowthDailyCap?: number;
+  /** `KS_SUPPLY_GROWTH_ENABLED`: the gap loop notices content running out and proposes recipes (D-414); absent is off. */
+  readonly supplyGrowthEnabled?: boolean;
   /** Ask orders (a short Scroll made for a person's question) Create may make per UTC day for the world; 0 turns them off. */
   readonly supplyAskDailyCap: number;
   /** Ask orders one person may have made per UTC day. */
@@ -208,6 +214,11 @@ export function supplyProviders(t: {
           planner: Math.min(settings.supplyPlannerCreateDailyCap, settings.supplyCreateDailyCap),
         },
         growthDailyCap: settings.supplyGrowthDailyCap ?? 0,
+        recordGapSignals: makeRecordGapSignals({
+          enabled: settings.supplyGrowthEnabled === true,
+          marks: gapMarkStore,
+          now: () => new Date(),
+        }),
         askCaps: { perDay: settings.supplyAskDailyCap, perPersonPerDay: settings.supplyAskPersonDailyCap },
         askLedger: askOrderLedger,
         plannedLedger: plannedDemandLedger,
@@ -312,6 +323,12 @@ export function supplyProviders(t: {
       inject: [SUPPLY_PORTS],
       useFactory: (p: SupplyPorts) => makeRecordPlannedDemand(p),
     },
+    // The same recorder the ports hold, for a caller that knows where content runs out in its own transaction (the Composer's decision).
+    {
+      provide: RECORD_GAP_SIGNALS,
+      inject: [SUPPLY_PORTS],
+      useFactory: (p: SupplyPorts): RecordGapSignals => p.recordGapSignals ?? (() => Promise.resolve()),
+    },
     {
       provide: COUNT_PLANNED_DEMAND,
       inject: [SUPPLY_PORTS],
@@ -367,6 +384,12 @@ export { makeMatchRequest } from '../application/matching.js';
 export { makeListRequests } from '../application/list.js';
 export { recoverOpenDemand, type RecoveredDemand } from './recover-open-demand.js';
 export { expireStalePlannedDemand, type ExpiredPlannedDemand } from './expire-stale-planned-demand.js';
+/** The gap loop's use cases and stores, composed by the worker (`apps/worker/src/growth-jobs.ts`) and the operator (#674, D-414). */
+export { makeScanGaps } from '../application/gap-scan.js';
+export { makeBriefGaps } from '../application/gap-brief.js';
+export { proposalOf } from '../application/gap-proposal.js';
+export { gapScanStore, gapBriefStore, readGapSummary, type GapSummary } from './postgres-gaps.js';
+export { growthStore } from './postgres-growth.js';
 export type { SupplyPorts } from '../application/ports.js';
 
 /**

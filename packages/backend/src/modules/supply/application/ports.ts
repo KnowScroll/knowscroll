@@ -30,6 +30,7 @@ import type {
 } from '../../content/public.js';
 import type { CheckRequestSource } from '../../experience/public.js';
 import type { ResolveSupplyJob } from '../events.js';
+import type { RecordGapSignals } from './gap-signal-ports.js';
 import type { PlannedDemandOutcome, PlannedIntent, PlannedOutcomeCount } from '../domain/planned-demand.js';
 
 export type { PlannedDemandOutcome, PlannedIntent } from '../domain/planned-demand.js';
@@ -293,6 +294,11 @@ export interface SupplyPorts {
    * `createDailyCaps` and never above them in effect: Create switched off for an origin stops growth for it too.
    */
   readonly growthDailyCap: number;
+  /**
+   * Notes, in the caller's transaction, that a catalogue meaning has no recipe left (#674, D-414): a count for the gap loop, at most one for
+   * each person, planet, facet and day, never the ask's words. Absent where the loop is not composed; where it is off it writes nothing.
+   */
+  readonly recordGapSignals?: RecordGapSignals;
   /**
    * Which of these explanations the person has already met, re-derived inside the scope. Planned demand
    * asks for something new, so it never binds to one of them.

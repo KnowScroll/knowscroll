@@ -28,6 +28,8 @@ export const supplyErasure = declareErasure({
     { schema: 'supply', table: 'requests', ownerColumn: 'universe_id' },
     // A Quick answer: the words the person asked and what the card shows, erased with them (D-253).
     { schema: 'supply', table: 'quick_answers', ownerColumn: 'universe_id' },
+    // The person's own one-a-day marks for the gap loop's counters (#674, D-414): derived, kept three days, erased with them.
+    { schema: 'supply', table: 'gap_signal_marks', ownerColumn: 'universe_id' },
   ],
   nonRowStores: [
     {
@@ -49,12 +51,17 @@ export const supplyErasure = declareErasure({
       .deleteFrom('supply.quick_answers')
       .where('universe_id', '=', scope.authority.universeId)
       .executeTakeFirst();
+    const marks =
+      await sql`delete from supply.gap_signal_marks where universe_id = ${scope.authority.universeId}::uuid`.execute(
+        transactionOf(scope),
+      );
     return {
       module: 'supply',
       status: 'completed',
       removed:
         Number(removed.numDeletedRows) +
         Number(answers.numDeletedRows) +
+        Number(marks.numAffectedRows ?? 0) +
         (await deleteJobPayloads(scope, [resolveSupplyQueue.name, answerQuickAnswerQueue.name])),
     };
   },
@@ -70,12 +77,17 @@ export const supplyErasure = declareErasure({
         .deleteFrom('supply.quick_answers')
         .where('universe_id', '=', scope.binding.universeId)
         .executeTakeFirst();
+      const marks =
+        await sql`delete from supply.gap_signal_marks where universe_id = ${scope.binding.universeId}::uuid`.execute(
+          clearCoreTransactionOf(scope),
+        );
       return {
         module: 'supply',
         status: 'completed',
         removed:
           Number(removed.numDeletedRows) +
           Number(answers.numDeletedRows) +
+          Number(marks.numAffectedRows ?? 0) +
           (await deleteClearJobPayloads(scope, [resolveSupplyQueue.name, answerQuickAnswerQueue.name])),
       };
     },
@@ -85,7 +97,7 @@ export const supplyErasure = declareErasure({
     exportReading(
       declaration,
       ['supply.requests', 'supply.quick_answers'],
-      'Queue jobs are delivery bookkeeping for the requests and Quick answers listed.',
+      'Queue jobs are delivery bookkeeping for the requests and Quick answers listed, and the one-a-day marks behind the library gap counters are derived bookkeeping kept three days with no words.',
       async (scope) => {
         const rows = await sql<{
           created_at: Date;

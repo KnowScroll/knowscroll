@@ -15,7 +15,9 @@ import {
   RECORD_PLANNED_DEMAND,
   COUNT_PLANNED_DEMAND,
   CREATE_CONTENT_REQUEST,
+  RECORD_GAP_SIGNALS,
   type CancelRequest,
+  type RecordGapSignals,
   type CreateRequest,
   type CountPlannedDemand,
   type PlannedIntent,
@@ -41,6 +43,8 @@ export function realSupply(
     plannerCreateDailyCap?: number;
     /** New Scrolls from stored recipes per day (D-412); absent: growth is off. */
     growthDailyCap?: number;
+    /** The gap loop (D-414): absent or false, no signal is recorded. */
+    growthEnabled?: boolean;
     readExploration: ReadExplorationSnapshot;
   },
 ) {
@@ -57,6 +61,7 @@ export function realSupply(
         supplyCreateDailyCap: options.createDailyCap ?? 0,
         supplyPlannerCreateDailyCap: options.plannerCreateDailyCap ?? options.createDailyCap ?? 0,
         ...(options.growthDailyCap === undefined ? {} : { supplyGrowthDailyCap: options.growthDailyCap }),
+        supplyGrowthEnabled: options.growthEnabled === true,
         supplyAskDailyCap: 0,
         supplyAskPersonDailyCap: 5,
       },
@@ -75,6 +80,7 @@ export function realSupply(
     count: build<CountPlannedDemand>(COUNT_PLANNED_DEMAND),
     read: build<ReadRequest>(READ_CONTENT_REQUEST),
     cancel: build<CancelRequest>(CANCEL_CONTENT_REQUEST),
+    gapSignals: build<RecordGapSignals>(RECORD_GAP_SIGNALS),
   };
 }
 

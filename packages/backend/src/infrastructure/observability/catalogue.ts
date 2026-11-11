@@ -273,6 +273,10 @@ export const diagnosticCatalogue = {
   'supply.quick_answers_purged': { severity: 'info', module: 'supply', fields: ['count'] },
   // The same job closed Quick answers still waiting after the wait limit (a job that never ran) and cleared their words (D-255).
   'supply.quick_answers_given_up': { severity: 'info', module: 'supply', fields: ['count'] },
+  // The gap loop (#674, D-414): one scan of the library for holes (how many gaps it opened) and one pass of the brief job (how many
+  // proposing attempts it made). Counts and codes only: no planet, no recipe, no text.
+  'supply.gaps_scanned': { severity: 'info', module: 'supply', fields: ['outcome', 'count'] },
+  'supply.gaps_briefed': { severity: 'info', module: 'supply', fields: ['outcome', 'count'] },
   'reasoning.purge_failed': { severity: 'warn', module: 'reasoning', fields: ['error'] },
   // A refused production answer could not be kept for diagnosis; the attempt's outcome is unchanged.
   'reasoning.rejected_answer_not_recorded': { severity: 'warn', module: 'reasoning', fields: ['attemptId', 'error'] },
