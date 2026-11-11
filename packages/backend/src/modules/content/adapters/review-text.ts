@@ -8,6 +8,8 @@ import {
   type ScrollDocumentV2,
 } from '@knowscroll/scroll-model';
 import type { AnswerCheckSummary, CallVerdict } from '../domain/answer-check.js';
+import { LIBRARY_SUPPORT_POLICY, countsOf, decideRevision } from '../domain/library-support.js';
+import type { StoredLibraryCheck } from '../production/library-support-store.js';
 
 /**
  * What an operator reads to judge a v2 Scroll before it is released (D-138): the title, every stop
@@ -118,11 +120,48 @@ export function answerCheckLines(check: AnswerCheckSummary | null): string[] {
   }
 }
 
-/** The Scroll as plain text for the operator's terminal. Pure. */
+/**
+ * What the library support check said, in words an operator can act on (D-415). It is a model's opinion about whether the cited passages
+ * state each sentence; it never replaces reading the Scroll against its sources, and it says nothing about the picture, the answer keys or the
+ * figures of a play block. A sentence it flagged, or could not judge, is listed with where it stands, so the read can begin there.
+ * A revision with no result says so, because that is also a fact about how much to trust the read.
+ */
+export function supportCheckLines(check: StoredLibraryCheck | null): string[] {
+  if (check === null) return ['Support check: not run for this revision yet. Read every sentence against its sources.'];
+  if (check.state === 'unchecked')
+    return [
+      `Support check: NOT CHECKED (${check.code ?? 'unknown'}). No sentence has a verdict. Read every sentence against its sources.`,
+    ];
+  const counts = countsOf(check.sentences);
+  const verdict = decideRevision(counts, LIBRARY_SUPPORT_POLICY) === 'passed' ? 'PASSED' : 'FLAGGED';
+  const lines = [
+    `Support check: ${verdict} (${check.checkerVersion}, ${LIBRARY_SUPPORT_POLICY.id}). ${String(counts.sentences)} sentences: ${String(counts.supported)} supported, ${String(counts.unsupported)} unsupported, ${String(counts.unclear)} unclear, ${String(counts.noClaim)} state no fact.`,
+  ];
+  const attention = check.sentences.filter(
+    (sentence) => sentence.outcome === 'unsupported' || sentence.outcome === 'unclear',
+  );
+  if (attention.length > 0) lines.push('Read these first:');
+  for (const sentence of attention) {
+    const why =
+      sentence.outcome === 'unsupported'
+        ? `unsupported${sentence.kind === undefined ? '' : ` (${sentence.kind})`}`
+        : `unclear${sentence.code === undefined ? '' : ` (${sentence.code})`}`;
+    lines.push(
+      `  [${sentence.part} ${sentence.field} #${String(sentence.n)}] ${why}: ${sentence.text}${sentence.problem === undefined ? '' : ` -- ${sentence.problem}`}`,
+    );
+  }
+  return lines;
+}
+
+/**
+ * The Scroll as plain text for the operator's terminal. Pure. `support` is the library support check's stored result: `undefined` leaves
+ * its line out, `null` says it has not run for this revision.
+ */
 export function reviewTextOf(
   document: ScrollDocumentV2,
   evidence?: ReviewEvidence,
   check: AnswerCheckSummary | null = null,
+  support?: StoredLibraryCheck | null,
 ): string {
   const words = readingWords(document);
   const lines: string[] = [
@@ -133,6 +172,7 @@ export function reviewTextOf(
       ? `Misconception: ${document.misconception.claim} (source: ${document.misconception.source.label}, reviewed: ${String(document.misconception.source.reviewed)})`
       : 'Misconception: none',
     ...answerCheckLines(check),
+    ...(support === undefined ? [] : supportCheckLines(support)),
     '',
   ];
   const pictures = new Map((document.stage?.states ?? []).map((state) => [state.stop, state.alt]));

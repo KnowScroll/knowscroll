@@ -544,10 +544,15 @@ export const ASK_SUPPORT_BATCH_SENTENCES = 10;
 /** The most batches one draft may need. An answer with more sentences than this holds is not checked (D-267). */
 export const ASK_SUPPORT_MAX_BATCHES = 4;
 
-/** The sentences split into runs of at most {@link ASK_SUPPORT_BATCH_SENTENCES}, in order. An empty answer has none. */
-export function batchesOf(sentences: readonly SentenceUnderCheck[]): readonly (readonly SentenceUnderCheck[])[] {
-  const batches: SentenceUnderCheck[][] = [];
-  for (let start = 0; start < sentences.length; start += ASK_SUPPORT_BATCH_SENTENCES)
-    batches.push(sentences.slice(start, start + ASK_SUPPORT_BATCH_SENTENCES));
+/**
+ * The sentences split into runs of at most `size` ({@link ASK_SUPPORT_BATCH_SENTENCES} by default), in order. An empty answer has none.
+ * The library's support check uses the same size and its own, longer, limit of batches (D-415).
+ */
+export function batchesOf<Sentence extends SentenceUnderCheck>(
+  sentences: readonly Sentence[],
+  size: number = ASK_SUPPORT_BATCH_SENTENCES,
+): readonly (readonly Sentence[])[] {
+  const batches: Sentence[][] = [];
+  for (let start = 0; start < sentences.length; start += size) batches.push(sentences.slice(start, start + size));
   return batches;
 }

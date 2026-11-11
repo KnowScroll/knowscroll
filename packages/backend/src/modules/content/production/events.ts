@@ -38,7 +38,7 @@ const TAKE_MARGIN_SECONDS = 180;
  * README, "Queue settings for a job that calls `propose`"), plus a margin for the research and the database steps (D-198).
  * A shorter claim would be lost while the take was still working, and the redelivery would then wait on the same ledger.
  */
-const claimSecondsFor = (requests: number): number =>
+export const claimSecondsFor = (requests: number): number =>
   requests * (MINIMAX_REQUEST_TIMEOUT_MAX_MS / 1000 + REQUEST_OVERHEAD_SECONDS) + TAKE_MARGIN_SECONDS;
 
 /** A library recipe's worst case is six requests: 6 x 320 s + 180 s = 2,100 s. */
@@ -47,7 +47,7 @@ export const PRODUCE_SCROLL_CLAIM_SECONDS = claimSecondsFor(REQUEST_BOUND_V2_PER
 /** The answer to a question sends up to fourteen requests, its support check in batches (D-267, D-297): 14 x 320 s + 180 s = 4,660 s. */
 export const PRODUCE_ANSWER_CLAIM_SECONDS = claimSecondsFor(REQUEST_BOUND_ASK_ORDER);
 
-const productionPolicy = (expireInSeconds: number) =>
+export const productionPolicy = (expireInSeconds: number) =>
   ({
     expireInSeconds,
     retryLimit: 2,

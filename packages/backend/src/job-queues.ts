@@ -8,7 +8,12 @@ import {
   resolveSupplyQueue,
   scanGapsQueue,
 } from './modules/supply/public.js';
-import { produceAnswerQueue, produceScrollQueue } from './modules/content/public.js';
+import {
+  checkLibrarySupportQueue,
+  produceAnswerQueue,
+  produceScrollQueue,
+  sweepLibrarySupportQueue,
+} from './modules/content/public.js';
 import { plannerQueue } from './modules/planner/public.js';
 import { purgeReportsQueue } from './modules/feedback/public.js';
 import { watchdogQueue } from './modules/operator/public.js';
@@ -66,6 +71,8 @@ export const releaseQueues = queueRegistry([
   briefGapQueue,
   produceScrollQueue,
   produceAnswerQueue,
+  checkLibrarySupportQueue,
+  sweepLibrarySupportQueue,
   suggestDraftQueue,
   writeAnswerQueue,
   resolveBranchesQueue,

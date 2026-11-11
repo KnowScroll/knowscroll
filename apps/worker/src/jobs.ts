@@ -416,6 +416,7 @@ export const jobWiring: Provider[] = [
       ...scrollProductionConsumers({
         config,
         db,
+        boss,
         harness: productionHarness,
         withScope: withProductionScope,
         logEvent,

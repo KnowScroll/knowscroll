@@ -271,6 +271,16 @@ export {
   type ProduceScrollJob,
 } from './production/events.js';
 export type { RunScrollProduction, ScrollProductionJobOutcome, ProduceScroll } from './production/job.js';
+/**
+ * The support check of a library Scroll (D-415): one check job for a held revision, and the sweep that hands over every held revision
+ * that has no result. IDs only; the worker consumes both and sends the check after the delivery that held a revision.
+ */
+export {
+  checkLibrarySupportQueue,
+  checkLibrarySupportJob,
+  sweepLibrarySupportQueue,
+  type CheckLibrarySupportJob,
+} from './production/library-support-events.js';
 export { libraryRecipes, planLibraryProduction, planRegeneration } from './domain/library/serving.js';
 export type {
   CatalogueBrief,

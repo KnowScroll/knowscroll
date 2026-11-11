@@ -29,11 +29,13 @@ export function fixtureProductionWorker(
     readonly checker?: Parameters<typeof routedScript>[1];
     /** The support checker's replies for an ask order's answer; by default every sentence is supported. */
     readonly support?: Parameters<typeof routedScript>[2];
+    /** The library support checker's replies for a stored Scroll revision (D-415); by default every sentence is supported or states no fact. */
+    readonly librarySupport?: Parameters<typeof routedScript>[3];
     /** The research fetch; defaults to the authored fixture pages. */
     readonly research?: (url: string) => Promise<ResearchPage>;
   } = {},
 ) {
-  const routed = routedScript(script, options.checker, options.support);
+  const routed = routedScript(script, options.checker, options.support, options.librarySupport);
   const fixture = fixtureModel(routed.script, {
     label: 'production-worker-CI-fixture',
     ...(options.quota ? { quota: options.quota } : {}),
@@ -61,10 +63,11 @@ export function fixtureProductionWorker(
     });
   return {
     fixture,
-    /** The writer's requests only, the answer checker's only and the support checker's only (live). `fixture.calls` holds all. */
+    /** The writer's requests only, the answer checker's only, the support checker's only and the library support checker's only (live). `fixture.calls` holds all. */
     writerCalls: routed.writerCalls,
     checkerCalls: routed.checkerCalls,
     supportCalls: routed.supportCalls,
+    librarySupportCalls: routed.librarySupportCalls,
     harness,
     producer,
     run: makeRunScrollProduction(producer()),

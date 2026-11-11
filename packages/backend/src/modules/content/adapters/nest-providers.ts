@@ -308,6 +308,21 @@ export {
   type CandidateCheckerInstructions,
   type CandidateReading,
 } from '../production/ask-support-candidate.js';
+/**
+ * The support check of a library Scroll (D-415): the use case, the job that runs it for a queue delivery, the sweep that finds held
+ * revisions with no result, the send that hands one over, and the operator's replay that measures the check against the
+ * operator's own release and reject decisions.
+ */
+export { makeCheckLibrarySupport } from '../production/library-support-check.js';
+export { makeRunLibrarySupportCheck, makeSweepLibrarySupport } from '../production/library-support-job.js';
+export { makeEnqueueLibrarySupport } from './enqueue-library-support.js';
+export {
+  LIBRARY_SUPPORT_REPLAY_MAX_REQUESTS,
+  LIBRARY_SUPPORT_REPLAY_MAX_REVISIONS,
+  makeLibrarySupportReplay,
+  type ReplayLine as LibrarySupportReplayLine,
+  type ReplaySummary as LibrarySupportReplaySummary,
+} from '../production/library-support-replay.js';
 /** The job one `content.produce-scroll` delivery runs, and the operator's enqueue and status reads. */
 export { makeRunScrollProduction } from '../production/job.js';
 export { makeEnqueueScrollProduction } from './enqueue-production.js';
