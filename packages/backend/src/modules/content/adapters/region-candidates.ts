@@ -11,6 +11,7 @@ import type {
 import { conceptMeaning } from '../domain/concepts.js';
 import { CoverageAuthoritySchema, CoverageRefSchema } from '../domain/coverage.js';
 import { readExactEncounter } from './discovery-store.js';
+import { renderUnitCondition } from './unit-condition.js';
 import { lockCurrentEncounters } from './current-encounters.js';
 import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './coverage-store.js';
 
@@ -54,7 +55,8 @@ async function isReelTwin(
  * current Reel twin, when it has one the client can play, under the same coverage (#709, D-404). An expected Reel is
  * found through the Scroll it is the twin of. */
 export const readRegionEncounterCandidates: ReadRegionEncounterCandidates = async (scope, input) => {
-  const q = Query.parse(input);
+  const { unseenFirst, ...rest } = input;
+  const q = Query.parse(rest);
   const tx = transactionOf(scope);
   if (!supported(q)) return { kind: 'unsupported' };
   const expected = q.expected
@@ -66,13 +68,18 @@ export const readRegionEncounterCandidates: ReadRegionEncounterCandidates = asyn
           where covered.asset_id=b.asset_id and covered.revision=b.asset_revision
             and twin.asset_id=${q.expected.assetId}::uuid and twin.revision=${q.expected.assetRevision}))`
     : sql``;
+  // The place's bindings with the explanations the person has not met first, when asked; otherwise by asset id as always.
+  const unseenFirstOrder = unseenFirst
+    ? sql`case when ${renderUnitCondition(unseenFirst, sql.ref('r.explanation_unit_id'))} then 0 else 1 end,`
+    : sql``;
   const keys = (
     await sql<{ asset_id: string; asset_revision: number; head_revision: number }>`
     select b.asset_id,b.asset_revision,b.head_revision
     from content.region_bindings b join content.assets a on a.id=b.asset_id
+    join content.asset_revisions r on r.asset_id=b.asset_id and r.revision=b.asset_revision
     where b.topic_id=${q.topicId} and b.facet_id=${q.facetId}
       and a.status='admitted' and a.kind='scroll' and a.revision=b.asset_revision ${expected}
-    order by b.asset_id,b.asset_revision limit 101`.execute(tx)
+    order by ${unseenFirstOrder}b.asset_id,b.asset_revision limit 101`.execute(tx)
   ).rows;
   const candidates: RegionEncounterCandidate[] = [];
   for (const key of keys.slice(0, 100)) {

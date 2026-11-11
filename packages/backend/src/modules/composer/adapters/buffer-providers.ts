@@ -28,6 +28,7 @@ import type {
   ReadBufferSource,
   ReadHiddenAssets,
   ReadPreparedEvidenceInput,
+  ReadUnseenCondition,
   RequestBufferPreparation,
 } from '../application/ports.js';
 import { prepareBufferQueue } from '../events.js';
@@ -40,6 +41,7 @@ import {
   READ_COMPOSER_BUFFER,
   PURGE_EXPIRED_COMPOSER_BUFFER,
   READ_HIDDEN_ASSETS,
+  READ_UNSEEN_CONDITION,
   RELEASE_COMPOSER_BUFFER,
   REQUEST_BUFFER_PREPARATION,
 } from '../public.js';
@@ -110,6 +112,7 @@ export function composerBufferWorkerProviders(t: {
         READ_COMPOSER_CONTEXT,
         PERSIST_COMPOSER_DECISION,
         COMPOSE_ENCOUNTER,
+        READ_UNSEEN_CONDITION,
       ],
       useFactory: (
         withPersonalScope: WithPersonalScope,
@@ -123,6 +126,7 @@ export function composerBufferWorkerProviders(t: {
         readPrepared: ReadPreparedEvidenceInput,
         persistDecision: PersistComposerDecision,
         compose: ComposeEncounter,
+        unseenCondition: ReadUnseenCondition,
       ): PrepareBuffer =>
         makePrepareBuffer({
           withPersonalScope,
@@ -136,6 +140,7 @@ export function composerBufferWorkerProviders(t: {
           storeBuffer: composerBufferStore.store,
           persistDecision,
           compose,
+          unseenCondition,
           hashCatalogWatermarks: (watermarks) => requestHash('content-candidate-watermarks', [...watermarks]),
           newId: () => uuidv7(),
           now: () => new Date(),

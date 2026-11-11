@@ -9,10 +9,10 @@ import {
   type ComposeEncounter,
 } from '../public.js';
 import { makeComposerStore } from './postgres-store.js';
-const composeUnder =
-  (setting: ComposerPolicySetting): ComposeEncounter =>
-  (snapshot) =>
-    composeEncounter(snapshot, composerPolicyFor(setting));
+const composeUnder = (setting: ComposerPolicySetting): ComposeEncounter => {
+  const policy = composerPolicyFor(setting);
+  return Object.assign((snapshot: Parameters<ComposeEncounter>[0]) => composeEncounter(snapshot, policy), { policy });
+};
 
 function storeProviders(access: ComposerOperatorAccess) {
   const store = makeComposerStore(access);
@@ -52,7 +52,7 @@ export {
   composerBufferWorkerProviders,
   composerRecordingOwnerProviders,
 } from './buffer-providers.js';
-export { composerPruneProviders } from './prune-providers.js';
+export { composerPruneBackfill, composerPruneProviders } from './prune-providers.js';
 export { composerBufferStore } from './buffer-store.js';
 export { jevPoolStore } from './jev-pool-store.js';
 export { readRetainedDecisions } from './replay-store.js';

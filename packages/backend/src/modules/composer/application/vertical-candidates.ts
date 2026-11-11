@@ -1,8 +1,12 @@
-import type { EncounterSnapshot, ReadDiscoveryCandidates } from '../../content/public.js';
+import type { EncounterSnapshot, ReadDiscoveryCandidates, UnitCondition } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
+import type { ComposeEncounter } from './ports.js';
 
 /** Retrieval cap of blueprint §9 (100 retrieved). */
 export const VERTICAL_RETRIEVAL_LIMIT = 100;
+
+/** Whether the configured policy wants retrieval to read the person's unseen explanations first (policy v2, D-408). */
+export const wantsUnseenFirst = (compose: ComposeEncounter): boolean => compose.policy?.encountered === 'unseen-first';
 
 /**
  * Candidates of the format the person is not in that are always read beside theirs. Format stickiness gives way when
@@ -32,6 +36,12 @@ export async function readVerticalCandidates(
     readonly stickyFormat?: 'reel' | 'scroll';
     /** The decision's seed: each decision reads a different slice of a large library, the same seed the same slice. */
     readonly seed?: string;
+    /**
+     * Policy v2: holds for an explanation the person has not met. Every lane then reads those first and fills what is left
+     * with the rest, so unseen explanations outside a random slice are found, and the format the person is not in has
+     * unseen candidates to give way to. The source's own unit is always read, so its format twin (and so its series) is found.
+     */
+    readonly unseenFirst?: UnitCondition;
   },
 ): Promise<readonly EncounterSnapshot[]> {
   if (input.formats.length === 0) return [];
@@ -43,6 +53,12 @@ export async function readVerticalCandidates(
       topicIds: input.source?.topics.filter((t) => t.role !== 'incidental').map((t) => t.topicId) ?? [],
       limit,
       ...(input.seed === undefined ? {} : { rotation: input.seed }),
+      ...(input.unseenFirst === undefined
+        ? {}
+        : {
+            unseenFirst: input.unseenFirst,
+            alwaysUnits: input.source ? [input.source.explanationUnitId] : [],
+          }),
     });
   const { stickyFormat } = input;
   const others = input.formats.filter((format) => format !== stickyFormat);

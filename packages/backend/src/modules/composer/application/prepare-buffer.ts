@@ -28,6 +28,7 @@ import { PrepareBufferJobSchema, type PrepareBufferJob } from '../events.js';
 import { JEV_ASSESSMENT_VERSION, storedAssessments, type AssessShortlist, type JevResult } from './jev.js';
 import type {
   ComposeEncounter,
+  ReadUnseenCondition,
   PersistComposerDecision,
   ReadBufferSource,
   ReadComposerBuffer,
@@ -39,7 +40,7 @@ import type {
 } from './ports.js';
 import { assembleSnapshot, evidenceQueryFor, type SnapshotInput } from './snapshot-assembly.js';
 import { readRelatedAssetIds } from './related-targets.js';
-import { readVerticalCandidates, renderableFormats } from './vertical-candidates.js';
+import { readVerticalCandidates, renderableFormats, wantsUnseenFirst } from './vertical-candidates.js';
 
 /** Jev, when it is switched on: the assessor, the recording-aware harness it runs on, the model and the person's pool. */
 export interface JevPorts {
@@ -66,6 +67,8 @@ export interface PrepareBufferPorts {
   readonly storeBuffer: StoreComposerBuffer;
   readonly persistDecision: PersistComposerDecision;
   readonly compose: ComposeEncounter;
+  /** Experience's "the person has not met it" condition; used when the policy wants unseen explanations read first (v2). */
+  readonly unseenCondition?: ReadUnseenCondition;
   readonly hashCatalogWatermarks: (watermarks: readonly string[]) => string;
   readonly newId: () => string;
   readonly now: () => Date;
@@ -219,6 +222,7 @@ async function gather(
     capabilities: facts.capabilities,
     stickyFormat: source.kind,
     seed,
+    ...(ports.unseenCondition && wantsUnseenFirst(ports.compose) ? { unseenFirst: ports.unseenCondition(scope) } : {}),
   });
   const relatedAssetIds = await readRelatedAssetIds(ports.readContinuations, scope, source, candidates);
   const query = evidenceQueryFor(candidates, now.toISOString());

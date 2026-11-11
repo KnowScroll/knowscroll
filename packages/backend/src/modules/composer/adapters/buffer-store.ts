@@ -11,6 +11,7 @@ import type {
 } from '../application/ports.js';
 
 const MODE = 'vertical';
+const UnseenOutcome = z.enum(['unseen', 'fell_back', 'none']);
 
 const SelectionSchema = z
   .array(
@@ -48,17 +49,20 @@ interface BufferRow {
   readonly assessments: unknown;
   readonly prepared_at: Date;
   readonly expires_at: Date;
+  readonly unseen_outcome: string | null;
 }
 
 /** The stored buffer for exactly this session, revision and source offer; any other row is not this key's. */
 const readComposerBuffer: ReadComposerBuffer = async (scope, key) => {
   const { universeId, privacyEpoch } = scope.authority;
   const rows =
-    await sql<BufferRow>`select session_id,intent_revision,source_offer_id,source_exposure_id,decision_id,selection,assessments,prepared_at,expires_at
-    from composer.buffers
-    where universe_id=${universeId}::uuid and mode=${MODE} and privacy_epoch=${privacyEpoch}
-      and session_id=${key.sessionId}::uuid and intent_revision=${key.intentRevision}
-      and source_offer_id=${key.source.offerId}::uuid and source_exposure_id=${key.source.exposureId}::uuid`.execute(
+    await sql<BufferRow>`select b.session_id,b.intent_revision,b.source_offer_id,b.source_exposure_id,b.decision_id,b.selection,b.assessments,b.prepared_at,b.expires_at,
+      d.payload #>> '{unseenLadder,outcome}' as unseen_outcome
+    from composer.buffers b
+    left join composer.decisions d on d.universe_id=b.universe_id and d.privacy_epoch=b.privacy_epoch and d.id=b.decision_id
+    where b.universe_id=${universeId}::uuid and b.mode=${MODE} and b.privacy_epoch=${privacyEpoch}
+      and b.session_id=${key.sessionId}::uuid and b.intent_revision=${key.intentRevision}
+      and b.source_offer_id=${key.source.offerId}::uuid and b.source_exposure_id=${key.source.exposureId}::uuid`.execute(
       transactionOf(scope),
     );
   const row = rows.rows[0];
@@ -72,6 +76,9 @@ const readComposerBuffer: ReadComposerBuffer = async (scope, key) => {
     preparedAt: new Date(row.prepared_at).toISOString(),
     expiresAt: new Date(row.expires_at).toISOString(),
     ...(row.assessments === null ? {} : { assessments: AssessmentsSchema.parse(row.assessments) }),
+    ...(UnseenOutcome.safeParse(row.unseen_outcome).success
+      ? { unseenOutcome: row.unseen_outcome as NonNullable<PreparedBuffer['unseenOutcome']> }
+      : {}),
   };
   return buffer;
 };

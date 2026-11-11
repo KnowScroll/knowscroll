@@ -56,7 +56,9 @@ describe('discovery lanes are a rotating sample (real PostgreSQL, labelled CI fi
     return assetId;
   }
 
-  const read = async (query: { topicIds?: string[]; text?: string; rotation?: string; limit?: number } = {}) => {
+  const read = async (
+    query: Omit<Parameters<typeof readDiscoveryCandidates>[1], 'languages' | 'formats' | 'capabilities'> = {},
+  ) => {
     const entered = await withScope()(person.authority, (scope) =>
       readDiscoveryCandidates(scope, { languages: ['en'], formats: ['reel'], capabilities, ...query }),
     );
@@ -79,12 +81,27 @@ describe('discovery lanes are a rotating sample (real PostgreSQL, labelled CI fi
     // Far more than the topic lane's 40 slots, which the old lane filled first by asset id.
     for (let n = 0; n < 60; n += 1) incidental.push(await admitReel([{ topicId: TOPIC, role: 'incidental' }]));
     findable = await admitReel([], '[Fixture] zzquasar finder');
+    // The keys are random by default, so a test could meet an unlucky draw. Pin them: evenly spaced in an order that is
+    // unrelated to the asset ids, so every assertion below is about the lanes and none about a lucky or unlucky key.
+    await sql`update content.discovery_revisions d set serve_rand = k.rank::float8 / k.total
+      from (select asset_id, asset_revision, row_number() over (order by md5(asset_id::text)) - 1 as rank, count(*) over () as total
+            from content.discovery_revisions) k
+      where d.asset_id = k.asset_id and d.asset_revision = k.asset_revision`.execute(database.db);
   });
   afterAll(async () => {
     await database.drop();
   });
 
   const everything = () => [...library, ...primary, ...supporting, ...incidental, findable];
+
+  /** A seed whose cursor lies in `[from, to)`, found by search: the hash of a seed is fixed, so this is deterministic. */
+  const seedBetween = (from: number, to: number, label: string): string => {
+    for (let n = 0; ; n += 1) {
+      const seed = `${label}-${String(n)}`;
+      const cursor = rotationCursor(seed);
+      if (cursor >= from && cursor < to) return seed;
+    }
+  };
 
   it('reads at most the cap, and not the lowest asset ids of the library', async () => {
     const found = await read();
@@ -97,16 +114,24 @@ describe('discovery lanes are a rotating sample (real PostgreSQL, labelled CI fi
   });
 
   it('reads the same slice for the same seed and a different slice for another seed', async () => {
-    const one = await read({ rotation: 'decision-one' });
-    expect(await read({ rotation: 'decision-one' })).toEqual(one);
-    const two = await read({ rotation: 'decision-two' });
+    // Two cursors a quarter of the order apart read slices that are shifted by about a quarter of the library: they overlap,
+    // but neither holds the other.
+    const seedOne = seedBetween(0.05, 0.1, 'one');
+    const seedTwo = seedBetween(0.35, 0.4, 'two');
+    const one = await read({ rotation: seedOne });
+    expect(await read({ rotation: seedOne })).toEqual(one);
+    const two = await read({ rotation: seedTwo });
     expect(two).not.toEqual(one);
-    expect(new Set(two.filter((id) => one.includes(id))).size).toBeLessThan(100);
+    expect(two.filter((id) => one.includes(id)).length).toBeLessThan(100);
+    expect(two.filter((id) => !one.includes(id)).length).toBeGreaterThan(10);
   });
 
   it('reaches every asset of a library over decisions, however large it is', async () => {
+    // A slice is about 46% of this library and no two of these cursors are 0.45 or more apart (going round), so the three
+    // slices cover all of it.
     const seen = new Set<string>();
-    for (let n = 0; n < 20; n += 1) for (const id of await read({ rotation: `command-${String(n)}` })) seen.add(id);
+    for (const seed of [seedBetween(0, 0.1, 'a'), seedBetween(0.3, 0.4, 'b'), seedBetween(0.65, 0.75, 'c')])
+      for (const id of await read({ rotation: seed })) seen.add(id);
     expect(everything().filter((id) => !seen.has(id))).toEqual([]);
   });
 
@@ -139,7 +164,76 @@ describe('discovery lanes are a rotating sample (real PostgreSQL, labelled CI fi
     expect(await read({ text: 'nomatchatall' })).toHaveLength(100);
   });
 
+  describe('with a condition that holds for an explanation the person has not met (policy v2, D-408)', () => {
+    // Content reads no personal table: the condition names a table of this test, as Experience names its own history.
+    const unseenFirst = { text: 'not exists (select 1 from ci_met_units m where m.unit = {unit})', values: [] };
+    let unseen: string[];
+
+    beforeAll(async () => {
+      await sql`create table ci_met_units (unit text primary key)`.execute(database.db);
+      unseen = [library[3]!, library[70]!, library[100]!, library[140]!, primary[0]!];
+      for (const id of everything().filter((candidate) => !unseen.includes(candidate)))
+        await sql`insert into ci_met_units (unit) values (${`ci-lanes-${id}`})`.execute(database.db);
+    });
+
+    it('reads the unseen first however the cursor falls, where a plain slice misses some of them', async () => {
+      // A plain slice is under half the library, so some seed misses at least one of the five: find one (deterministic).
+      const missing = async (): Promise<string> => {
+        for (let n = 0; ; n += 1) {
+          const candidate = `miss-${String(n)}`;
+          const plain = await read({ rotation: candidate });
+          if (unseen.some((id) => !plain.includes(id))) return candidate;
+        }
+      };
+      const rotation = await missing();
+      const found = await read({ rotation, unseenFirst });
+      expect(found).toHaveLength(100);
+      expect(new Set(found).size).toBe(100);
+      expect(found.slice(0, 5).sort()).toEqual([...unseen].sort());
+      // The rest of the cap is filled with what the person has met: the last resort's material is never lost.
+      expect(found.slice(5).some((id) => unseen.includes(id))).toBe(false);
+    });
+
+    it('reads the unseen of the source’s topic first, then the other unseen, then the rest', async () => {
+      const found = await read({ topicIds: [TOPIC], rotation: 'topic-seed', unseenFirst });
+      expect(found[0]).toBe(primary[0]);
+      expect(found.slice(1, 5).sort()).toEqual(unseen.filter((id) => id !== primary[0]).sort());
+      // Then the topic's met primary and supporting ones, ahead of the library's met ones.
+      expect(found.slice(5, 7).every((id) => primary.includes(id) || supporting.includes(id))).toBe(true);
+    });
+
+    it('always reads the named units first, met or not, so the source’s format twin is found', async () => {
+      const found = await read({ rotation: 'any', unseenFirst, alwaysUnits: [`ci-lanes-${library[0]!}`] });
+      expect(found[0]).toBe(library[0]);
+      expect(found.slice(1, 6).sort()).toEqual([...unseen].sort());
+    });
+
+    it('is the plain read, in the same order, when it holds for everything or for nothing', async () => {
+      const plain = await read({ rotation: 'same' });
+      expect(await read({ rotation: 'same', unseenFirst: { text: 'true', values: [] } })).toEqual(plain);
+      expect(await read({ rotation: 'same', unseenFirst: { text: 'false', values: [] } })).toEqual(plain);
+    });
+
+    it('refuses a condition that is not plain: a quote, a semicolon or a comment never reaches the database', async () => {
+      await expect(read({ unseenFirst: { text: "{unit} = 'x'", values: [] } })).rejects.toThrow(
+        'UNIT_CONDITION_INVALID',
+      );
+      await expect(read({ unseenFirst: { text: '{unit} is null; select 1', values: [] } })).rejects.toThrow(
+        'UNIT_CONDITION_INVALID',
+      );
+    });
+  });
+
   it('gives each revision its own stable key in [0, 1), and keeps the bound on topics', async () => {
+    // A revision admitted now is given its key by the column default (the projection trigger never names it).
+    const fresh = await admitReel();
+    const freshKey = (
+      await sql<{
+        serve_rand: number;
+      }>`select serve_rand from content.discovery_revisions where asset_id=${fresh}::uuid`.execute(database.db)
+    ).rows[0]!.serve_rand;
+    expect(freshKey).toBeGreaterThanOrEqual(0);
+    expect(freshKey).toBeLessThan(1);
     const rows = await sql<{ serve_rand: number }>`select serve_rand from content.discovery_revisions`.execute(
       database.db,
     );

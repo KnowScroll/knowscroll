@@ -171,6 +171,15 @@ navigations that offered something are not reclaimed until Experience gives offe
 decisions nothing references: an exhausted navigation, and a buffer's decision once its buffer is gone. Experience owns that
 follow-up.
 
+**Backfill.** `node dist/operator.js composer prune-backfill [--max-universes <1-5000>]` is the one-off pass with no lookback, so the
+old unheld decisions of universes that are never active again are reclaimed. It scans every expired decision once, oldest first,
+in pages that continue past the last key read (so held decisions, which are never returned, are not read again), and prunes each
+universe it finds in batches of 500 (at most 200 batches a universe) under that universe's own personal scope. Every guard of the
+scheduled pass holds: a decision an offer or a live buffer holds is never read or deleted, and a refused or busy universe is
+skipped. It stops after `--max-universes` (default 1000) and prints `complete: false`, so it can be run again. Prints counts only.
+A decision at a privacy epoch the universe has left is refused each time (erasure removes it) and shows as a universe with nothing
+deleted.
+
 
 ## Reading Personal Context
 
@@ -288,10 +297,35 @@ frozen v0 hashes and the v1 fixtures are unchanged; a test composes every fixtur
 inputs and expects the same decision apart from the stored input. Retrieval is outside a frozen snapshot, so rebuilding it
 changes what future snapshots hold and never how a stored decision replays.
 
-Not here. A buffer is ranked at activation and served for up to ten minutes; it is bound to the exact source the person is
-still on, so no other encounter can meet an item in between, and serve time does not recheck seen-ness. Choosing a topic
-explicitly, long-term interest selecting candidates, and a content demand when the unseen run out belong to the later slices of
-#674.
+**Retrieval reads the unseen first.** Retrieval cannot tell which of a large library the person has met, so a random slice of
+100 could hold only what they have met while unseen explanations exist outside it. Under v2 the caller (Experience's navigation,
+and the buffer worker) hands retrieval a condition that holds for an explanation the person has not met
+(`ReadUnseenCondition`, implemented by Experience from its own lineage and recording segments, applied by Content to its own unit
+column as data, never as a read of a personal table; see the Content README). Every lane is then read twice, the unseen first and
+then without the condition, so the unseen of the source's topic, then the other unseen, come before any met one, and the met ones
+still fill what is left (they are the last resort's material). The source's own unit is always read, so its format twin and its
+series are found. The reserve of other-format candidates is read the same way, so a Reel watcher near the end of the Reels has
+unseen Scrolls to be given. The condition is asked for only when the configured policy wants it (`ComposeEncounter.policy`), so v0
+and v1 retrieve exactly as before. A region's own read (`readRegionCandidates`) takes the same condition and only orders the
+place's bindings unseen first; nothing is left out, and an `expected` encounter (a region opened on one encounter) is explicit and
+unchanged.
+
+**Serve time recheck.** A ranking that promised unseen explanations (`unseenLadder.outcome: 'unseen'`, read from the decision for a
+stored buffer) is rechecked in the committing navigation transaction, under the personal lock where the history is authoritative:
+Experience reads the prepared history for the at most three selected units and, if any has been met since the ranking (another
+device or tab inside a buffer's ten minutes, a slow Jev call, an activation between the two navigation transactions), the offers
+are refused as drift. A buffer is then discarded with its decision and the move is ranked again once. A last-resort ranking is not
+rechecked, and v0 and v1 are not asked.
+
+**A plan lifts what it lifts under v1.** The best Intent a plan opportunity must tie with is taken over the candidates v1 would
+have called eligible (the met ones included), so the ranking among the unseen equals v1's with an active plan.
+
+**Truncation keeps the reserve.** When a snapshot exceeds its byte budget, the first `OTHER_FORMAT_RESERVE` candidates of the
+format the person is not in are dropped last, so format stickiness still has unseen candidates to give way to.
+
+Not here. Choosing a topic explicitly, long-term interest selecting candidates, and a content demand when the unseen run out
+belong to the later slices of #674. Retrieval with a condition probes the person's history once per row it reads; near the end of
+a very large library that is more rows than a plain slice, each an index lookup, and slice 4.2's lanes replace it.
 
 ## Prepared buffers and Jev
 

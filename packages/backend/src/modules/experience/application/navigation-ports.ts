@@ -33,6 +33,7 @@ import type {
   ReadComposerBuffer,
   PurgeExpiredComposerBuffer,
   ReadPreparedEvidenceInput,
+  ReadUnseenCondition,
   ReleaseComposerBuffer,
   RequestBufferPreparation,
 } from '../../composer/public.js';
@@ -133,6 +134,8 @@ export interface NavigationPorts extends CommandPorts {
   /** The subset (at most 100) the person marked "Not interested" and that has not lapsed (D-055). */
   readonly readNotInterested: (scope: PersonalScopeTx, assetIds: readonly string[]) => Promise<readonly string[]>;
   readonly readDiscoveryCandidates: ReadDiscoveryCandidates;
+  /** The condition that holds for an explanation the person has not met; asked for only when the policy wants unseen first. */
+  readonly unseenCondition?: ReadUnseenCondition;
   readonly readExactEncounter: ReadExactEncounter;
   readonly readContinuations: ReadContinuations;
   readonly readSeriesTotal: ReadSeriesTotal;

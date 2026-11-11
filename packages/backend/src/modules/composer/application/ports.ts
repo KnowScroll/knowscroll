@@ -8,7 +8,22 @@ import type {
   PreparedEvidenceInput,
   SemanticAssessments,
 } from '../domain/types.js';
-export type ComposeEncounter = (snapshot: ComposerSnapshot) => ComposerDecision;
+import type { UnitCondition } from '../../content/public.js';
+import type { ComposerPolicy } from '../domain/policy.js';
+
+/**
+ * Ranks one snapshot under the policy the process is configured for. `policy` names it, so the callers that read candidates
+ * can ask for what the policy needs of retrieval (policy v2 wants the person's unseen explanations first).
+ */
+export interface ComposeEncounter {
+  (snapshot: ComposerSnapshot): ComposerDecision;
+  readonly policy?: ComposerPolicy;
+}
+/**
+ * Experience's condition on an explanation unit that holds when the person has NOT met it, for their own scope. Composer
+ * hands it to retrieval; it never reads the person's history itself.
+ */
+export type ReadUnseenCondition = (scope: PersonalScopeTx) => UnitCondition;
 /** Implemented by Personal Context compatibility read; missing topic history stays explicit and neutral. */
 export type ReadPreparedEvidenceInput = (
   scope: PersonalScopeTx,

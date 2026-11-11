@@ -28,6 +28,12 @@ export interface PreparedBuffer extends BufferKey {
   readonly preparedAt: string;
   readonly expiresAt: string;
   readonly assessments?: SemanticAssessments;
+  /**
+   * What its decision said under policy v2: `unseen` (every offer was an explanation the person had not met), `fell_back`
+   * (the last resort) or `none`. Absent under v0 and v1. Serving rechecks an `unseen` buffer against what the person has met
+   * since it was ranked, so an explanation met on another device in its ten minutes is never offered again.
+   */
+  readonly unseenOutcome?: 'unseen' | 'fell_back' | 'none';
 }
 
 /** Whether the buffer is still within its life. Eligibility is rechecked separately when serving. */

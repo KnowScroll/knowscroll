@@ -241,6 +241,11 @@ the ranking and replaces the person's buffer in a second one. It ranks under the
 superseded intent, an unactivated offer or an old epoch is skipped. A redelivery does nothing. It logs
 `composer.buffer_prepared` with the outcome code and counts only.
 
+`node dist/operator.js composer prune-backfill [--max-universes <1-5000>]` (`src/composer-operator.ts`, #674) is the one-off pass with
+no lookback behind that job: it reclaims the old, unheld, expired Composer decisions of universes that are never active again, in
+pages and bounded batches under each universe's own personal scope, never touching a decision an offer or a live buffer holds. It
+stops after `--max-universes` (default 1000), prints counts and `complete`, and can be run again. See the Composer README.
+
 The registry also holds `composer.prune-decisions` (cron `7,37 * * * *`, #674): it finds the universes with a decision that expired
 within the last seven days and that no offer or live buffer holds, and for each of at most 25 prunes a batch of 500 in its own
 short transaction under the personal root as a system actor. It is rules and SQL only: no model, no network wait, no provider. A

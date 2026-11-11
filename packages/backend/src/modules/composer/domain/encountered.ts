@@ -1,4 +1,4 @@
-import type { ComposerSnapshot, SourcePlace, UnseenLadderOutcome } from './types.js';
+import type { ComposerSnapshot, PreparedEvidenceInput, SourcePlace, UnseenLadderOutcome } from './types.js';
 
 type Candidate = ComposerSnapshot['candidates'][number];
 
@@ -13,12 +13,24 @@ const aboutTopics = (candidate: Candidate): readonly string[] =>
  * without it is not met: absence is never an assertion either way.
  */
 export function isMet(snapshot: ComposerSnapshot, explanationUnitId: string): boolean {
-  const evidence = snapshot.evidence;
+  return isMetIn(snapshot.evidence, explanationUnitId);
+}
+
+/** {@link isMet} over prepared evidence alone, for a caller that holds no snapshot (a serve-time recheck). */
+export function isMetIn(evidence: PreparedEvidenceInput | undefined, explanationUnitId: string): boolean {
   if (evidence === undefined) return false;
   return (
     evidence.established?.units.some((u) => u.explanationUnitId === explanationUnitId && u.encountered) === true ||
     evidence.recent.some((r) => r.explanationUnitId === explanationUnitId)
   );
+}
+
+/** The explanation units, of those asked about, that the prepared evidence says the person has met. */
+export function metUnitsOf(
+  evidence: PreparedEvidenceInput | undefined,
+  explanationUnitIds: readonly string[],
+): string[] {
+  return explanationUnitIds.filter((unit) => isMetIn(evidence, unit));
 }
 
 /**

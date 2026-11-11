@@ -347,6 +347,18 @@ Status: implemented, CI-tested against real PostgreSQL. Related: #674, D-408. No
 - **Topic lane.** Only primary and supporting attributions count, primary first, then the random order; a mention that is only
   incidental never takes a slot or ranks as the topic. The lane reads the revisions of the named topics (at most 16, the bound
   of `topicIds`) and is bounded by what those topics hold.
+- **Unseen first (policy v2).** A query may carry `unseenFirst`, a `UnitCondition` the caller's owner of the person's history builds
+  (Experience: "no activated exposure of this explanation unit, in either format"), and `alwaysUnits`. The condition is data: a
+  fixed SQL text with `{unit}` where Content's own unit column goes and `{0}` to `{9}` for bound values; Content renders it over
+  `r.explanation_unit_id` after checking it (a short text of letters, digits, spaces and `_ . ( ) , : < > =` only, so a quote, a
+  semicolon or a comment is refused, `UNIT_CONDITION_INVALID`) and reads no personal table. Every lane is read twice, with the
+  condition and without, and the unseen rows of every lane come before any other row (topic lane first, then text, then general),
+  with the rest filling the cap, so nothing is left out and the last resort keeps its material. `alwaysUnits` (at most 4, the
+  source's own) come before all of them, so the source's format twin is found. A condition probes a row's unit by an index of the
+  person's own history, so near the end of a very large library a read probes more rows than a plain slice does. Without
+  `unseenFirst` the read is exactly the plain one. A region read (`readRegionEncounterCandidates`) takes the same `unseenFirst`
+  and only orders the place's bindings (unseen first, then by asset id): a region is a place the person chose, its read is the
+  place's own bindings (up to 100, `hasMore` beyond), and an `expected` encounter is read whatever the condition says.
 - **Text lane.** Only when the query carries `text`, which only a person's own words supply. Retrieval never searches a source's
   title and summary. The match is a plain-text AND, as before.
 - **No replay impact.** A stored decision freezes its candidates, so the order and sample retrieval reads change what future

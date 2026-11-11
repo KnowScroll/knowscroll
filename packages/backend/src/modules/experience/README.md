@@ -442,7 +442,11 @@ Recording attribution wins an exact legacy tie. No current-generation filter rel
 facts; paused reads retain old eligible history while paused activations and correction-only
 segments add no encounter. The unreleased 0042 includes scoped recent/unit indexes and a partial
 facet-expression GIN. Established unit probes are exact; facet probes preserve ANY encountered
-unit semantics, independently of the candidate unit. Each established unit also carries `lastEncounteredAt`, the newest
+unit semantics, independently of the candidate unit. `unseenUnitCondition` (policy v2, D-408) is the same notion as a condition on a unit for Content's retrieval: no activated exposure
+of the unit in the person's lineage or recording segments at or before now, by the two person-scoped unit indexes. Navigation
+hands it to retrieval when the configured policy wants unseen explanations first, and the committing transaction of a navigation
+rechecks a ranking that promised unseen explanations against the history under the personal lock (a buffer served after an
+explanation was met elsewhere is discarded and the move ranked again). Each established unit also carries `lastEncounteredAt`, the newest
 activated exposure of the unit in either format at or before the read (absent when none), which only Composer policy v2's
 last resort reads (D-408). At most 100 candidates/16 facets and 100 asset
 IDs enter these probes. These are routing/novelty facts only: they neither qualify an exposure nor

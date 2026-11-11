@@ -355,9 +355,30 @@ import type { CatalogueBrief, ScrollProductionReading, ScrollRecipeChoice } from
  * its most important topics first and slice to this bound.
  */
 export const DISCOVERY_MAX_TOPICS = 16;
+/**
+ * A condition on an explanation unit whose facts another module owns: here, the person's own history. It is data, not a
+ * query. `text` is a fixed SQL condition with `{unit}` where the unit column goes and `{0}` to `{9}` where `values` go
+ * (always bound as parameters, never interpolated). Content applies it to its own columns and reads no personal table; only
+ * letters, digits, spaces and `_ . ( ) , : < > =` are accepted in `text`, so a quote, a semicolon or a comment is refused.
+ */
+export interface UnitCondition {
+  readonly text: string;
+  readonly values: readonly (string | number)[];
+}
+/** What a read can ask beyond the encounter query: the person's unseen explanations first (policy v2, D-408). */
+export interface DiscoveryOptions {
+  /**
+   * Holds for an explanation the person has not met. Retrieval then orders every lane with those first and fills
+   * what is left with the rest, so a person near the end of the library is not shown a slice that holds only what they
+   * have met while unseen explanations exist outside it. Nothing is left out: the rest is the last resort's material.
+   */
+  readonly unseenFirst?: UnitCondition;
+  /** Explanation units always read first, whatever the condition says: the source's own, so its format twin is found. */
+  readonly alwaysUnits?: readonly string[];
+}
 export type ReadDiscoveryCandidates = (
   scope: PersonalScopeTx,
-  query: EncounterQuery,
+  query: EncounterQuery & DiscoveryOptions,
 ) => Promise<readonly EncounterSnapshot[]>;
 export type ReadExactEncounter = (
   scope: PersonalScopeTx,
@@ -459,6 +480,12 @@ export interface RegionEncounterQuery {
   readonly truthStatus: 'factual';
   readonly capabilities: unknown;
   readonly expected?: EncounterRef;
+  /**
+   * Policy v2 (D-408): order the place's bindings with the explanations the person has not met first, so a place with more
+   * than 100 bindings does not show only what they have met. Nothing is left out, and the place's own order follows. An
+   * `expected` encounter is read whatever the condition says.
+   */
+  readonly unseenFirst?: UnitCondition;
 }
 export type ReadRegionEncounterCandidates = (
   scope: PersonalScopeTx,
@@ -470,7 +497,7 @@ export type ReadRegionEncounterCandidates = (
 /** Holds exact current asset + canonical mapping SHARE fences until personal commit. */
 export type LockRegionEncounterCandidates = (
   scope: PersonalScopeTx,
-  query: Omit<RegionEncounterQuery, 'expected'> & {
+  query: Omit<RegionEncounterQuery, 'expected' | 'unseenFirst'> & {
     readonly candidates: readonly {
       readonly ref: EncounterRef;
       readonly coverage: CoverageAuthority;

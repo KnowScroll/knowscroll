@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { EncounterQuery, EncounterSnapshot } from '../../content/public.js';
-import { OTHER_FORMAT_RESERVE, VERTICAL_RETRIEVAL_LIMIT, readVerticalCandidates } from './vertical-candidates.js';
+import type { ComposeEncounter } from './ports.js';
+import { COMPOSER_POLICY_V1, COMPOSER_POLICY_V2 } from '../domain/policy.js';
+import {
+  OTHER_FORMAT_RESERVE,
+  VERTICAL_RETRIEVAL_LIMIT,
+  readVerticalCandidates,
+  wantsUnseenFirst,
+} from './vertical-candidates.js';
 
 function encounter(name: string, kind: 'reel' | 'scroll', topicId = 'earth.seasons'): EncounterSnapshot {
   return {
@@ -90,5 +97,42 @@ describe('vertical retrieval', () => {
     const { read, queries } = library({ reel: 5, scroll: 5 });
     expect(await readVerticalCandidates(read, scope, { formats: [], capabilities: {} })).toEqual([]);
     expect(queries).toEqual([]);
+  });
+
+  it('asks for the unseen first, and for the source’s own unit to be always read, only when it is given a condition', async () => {
+    const { read, queries } = library({ reel: 3, scroll: 3 });
+    const unseenFirst = { text: 'not exists (select 1 from t where t.u = {unit})', values: [] };
+    await readVerticalCandidates(read, scope, {
+      source: encounter('source', 'scroll'),
+      formats: ['reel', 'scroll'],
+      capabilities: {},
+      stickyFormat: 'scroll',
+      unseenFirst,
+    });
+    expect(queries).toHaveLength(2);
+    for (const query of queries) expect(query).toMatchObject({ unseenFirst, alwaysUnits: ['unit-source'] });
+
+    const plain = library({ reel: 3, scroll: 3 });
+    await readVerticalCandidates(plain.read, scope, { formats: ['scroll'], capabilities: {} });
+    expect(plain.queries[0]).not.toHaveProperty('unseenFirst');
+    expect(plain.queries[0]).not.toHaveProperty('alwaysUnits');
+  });
+
+  it('with no source there is no unit to always read', async () => {
+    const { read, queries } = library({ reel: 1, scroll: 1 });
+    await readVerticalCandidates(read, scope, {
+      formats: ['scroll'],
+      capabilities: {},
+      unseenFirst: { text: 'true', values: [] },
+    });
+    expect(queries[0]).toMatchObject({ alwaysUnits: [] });
+  });
+
+  it('only a policy that asks for it reads the unseen first: v2, not v0 or v1', () => {
+    const under = (policy?: ComposeEncounter['policy']): ComposeEncounter =>
+      Object.assign(() => ({}) as never, { policy });
+    expect(wantsUnseenFirst(under(COMPOSER_POLICY_V2))).toBe(true);
+    expect(wantsUnseenFirst(under(COMPOSER_POLICY_V1))).toBe(false);
+    expect(wantsUnseenFirst(under(undefined))).toBe(false);
   });
 });

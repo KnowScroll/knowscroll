@@ -10,8 +10,15 @@ import {
   type PrepareBufferJob,
 } from '@knowscroll/backend/modules/composer';
 import { composerBufferWorkerProviders, composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
-import { admitLibraryContinuityUseCase, contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
-import { experienceBufferSourceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
+import {
+  admitLibraryContinuityUseCase,
+  contentProviders,
+  readDiscoveryCandidates,
+} from '@knowscroll/backend/modules/content/nest-providers';
+import {
+  experienceBufferSourceProviders,
+  unseenUnitCondition,
+} from '@knowscroll/backend/modules/experience/nest-providers';
 import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
 import { RECORDING_REASONING_HARNESS } from '@knowscroll/backend/reasoning';
 import type { NavigationOutcome } from '@knowscroll/contracts';
@@ -171,7 +178,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
     decision.evaluations.find((evaluation) => evaluation.assetId === assetId)?.exclusions;
 
   /** The worker side over the real providers; Jev is off, so no model is involved. */
-  function worker(): PrepareBuffer {
+  function worker(policy?: 'v2'): PrepareBuffer {
     const { harness } = fixtureRecordingHarness(database.db, { model: undefined });
     const values = new Map<symbol, unknown>([
       [WITH_SCOPE, withScope()],
@@ -180,7 +187,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       [READ_COMPOSER_CONTEXT, cases.readComposerContext],
       ...[
         ...experienceBufferSourceProviders(),
-        ...composerProviders({ isOperator: () => false }),
+        ...composerProviders({ isOperator: () => false }, policy),
         ...contentProviders(),
       ].map((provider) => [provider.provide, provider.useValue] as const),
     ]);
@@ -190,7 +197,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       values,
     ) as PrepareBuffer;
   }
-  const prepareFor = async (universeId: string) => {
+  const prepareFor = async (universeId: string, policy?: 'v2') => {
     const [job] = (
       await sql<{
         data: PrepareBufferJob;
@@ -198,12 +205,12 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
         database.db,
       )
     ).rows;
-    const result = await worker()(job!.data, { jobId: randomUUID(), signal: new AbortController().signal });
+    const result = await worker(policy)(job!.data, { jobId: randomUUID(), signal: new AbortController().signal });
     expect(result).toMatchObject({ kind: 'prepared' });
     return (
       await sql<{
         decision_id: string;
-        selection: { assetId: string }[];
+        selection: { assetId: string; assetRevision: number }[];
       }>`select decision_id,selection from composer.buffers where universe_id=${universeId}::uuid`.execute(database.db)
     ).rows[0]!;
   };
@@ -488,7 +495,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
     let ownReel: Awaited<ReturnType<typeof admitReel>>;
 
     beforeAll(async () => {
-      v2 = await scrollUseCases(database, { composerPolicy: 'v2' });
+      v2 = await scrollUseCases(database, { composerPolicy: 'v2', buffers: true });
       for (let n = 0; n < 3; n += 1) own.push(await admitScroll(topic));
       ownReel = await admitReel(topic);
     });
@@ -661,6 +668,123 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
         const decisionId = ready(outcome).decisionId;
         expect((await decisionOf(decisionId)).unseenLadder).toBeUndefined();
       }
+    });
+
+    describe('what the person met after a ranking is never offered (serve time, D-408)', () => {
+      const bufferExists = async (decisionId: string) =>
+        (await sql`select 1 from composer.buffers where decision_id=${decisionId}::uuid`.execute(database.db)).rows
+          .length > 0;
+
+      it('serves a buffer whose offers are all still unseen, as before', async () => {
+        const person = await seedPerson(database.db);
+        const stand = await standOnV2(person, own[0]!);
+        const buffer = await prepareFor(person.universeId, 'v2');
+        expect((await decisionOf(buffer.decision_id)).unseenLadder).toMatchObject({ outcome: 'unseen' });
+        const next = ready(await nextV2(person, stand, 'scroll'));
+        expect(next.decisionId).toBe(buffer.decision_id);
+        expect(offers(next).map((offer) => offer.assetId)).toEqual(buffer.selection.map((s) => s.assetId));
+      });
+
+      it('discards a buffer when an offer in it was met meanwhile (another device or tab), and ranks the move again', async () => {
+        const person = await seedPerson(database.db);
+        const stand = await standOnV2(person, own[0]!);
+        const buffer = await prepareFor(person.universeId, 'v2');
+        const metMeanwhile = buffer.selection[0]!;
+        // The person opens that very explanation somewhere else inside the buffer's ten minutes.
+        await standOnV2(person, metMeanwhile);
+        const next = ready(await nextV2(person, stand, 'scroll'));
+        expect(next.decisionId).not.toBe(buffer.decision_id);
+        expect(offers(next).map((offer) => offer.assetId)).not.toContain(metMeanwhile.assetId);
+        expect(offers(next).length).toBeGreaterThan(0);
+        expect(await bufferExists(buffer.decision_id)).toBe(false);
+        expect((await decisionOf(next.decisionId)).policyVersion).toBe('composer-policy.v2');
+      });
+
+      it('rechecks a ranking made moments before too: an activation between the two navigation transactions', async () => {
+        const person = await seedPerson(database.db);
+        // Every explanation but the source's and one is met in the gap, so only the one is left to offer.
+        const keeper = own[1]!;
+        let afterRanking: (() => Promise<void>) | undefined;
+        const raced = await scrollUseCases(database, {
+          composerPolicy: 'v2',
+          wrapScope: (scope) => async (authority, work) => {
+            const result = await scope(authority, work);
+            const hook = afterRanking;
+            afterRanking = undefined;
+            if (hook) await hook();
+            return result;
+          },
+        });
+        try {
+          const stand = await standOn(person, own[0]!, raced);
+          afterRanking = async () => {
+            // Everything but the source's explanation and the keeper's, whichever format it is in (a Reel twin shares its unit).
+            const keep = [await unitOf(own[0]!.assetId), await unitOf(keeper.assetId)];
+            const everything = (
+              await sql<{
+                id: string;
+                revision: number;
+              }>`select a.id,a.revision from content.assets a join content.asset_revisions r on r.asset_id=a.id and r.revision=a.revision
+                where a.status='admitted' and not (r.explanation_unit_id = any(${keep}::text[])) order by a.id`.execute(
+                database.db,
+              )
+            ).rows;
+            for (const asset of everything)
+              await standOnV2(person, { assetId: asset.id, assetRevision: asset.revision });
+          };
+          const next = ready(await nextSubject(person, stand, 'scroll', 'next', raced));
+          // The stale ranking was refused under the lock and the move ranked again: only what is still unseen is offered.
+          expect(offers(next).map((offer) => offer.assetId)).toEqual([keeper.assetId]);
+          expect((await decisionOf(next.decisionId)).unseenLadder).toMatchObject({ outcome: 'unseen' });
+        } finally {
+          await raced.close();
+        }
+      });
+    });
+
+    it('retrieval, with the real condition, reads the explanations the person has not met before the ones they have', async () => {
+      const person = await seedPerson(database.db);
+      await standOnV2(person, own[0]!);
+      await standOnV2(person, own[1]!);
+      const read = await withScope()(person.authority, (scope) =>
+        readDiscoveryCandidates(scope, {
+          languages: ['en'],
+          formats: ['scroll'],
+          capabilities: bothFormats,
+          limit: 100,
+          unseenFirst: unseenUnitCondition(scope),
+          alwaysUnits: [],
+        }),
+      );
+      if (read.kind !== 'entered') throw new Error('CI scope refused');
+      const units = read.value.map((candidate) => candidate.explanationUnitId);
+      const metUnits = new Set([await unitOf(own[0]!.assetId), await unitOf(own[1]!.assetId)]);
+      const firstMet = units.findIndex((unit) => metUnits.has(unit));
+      expect(firstMet).toBeGreaterThan(0);
+      // Every unseen explanation precedes the first met one, and the met ones are still there as the last resort's material.
+      expect(units.slice(0, firstMet).some((unit) => metUnits.has(unit))).toBe(false);
+      expect(units.slice(firstMet).filter((unit) => metUnits.has(unit))).toHaveLength(2);
+      // For a person who has met nothing the order is the plain one.
+      const fresh = await seedPerson(database.db);
+      const plain = await withScope()(fresh.authority, (scope) =>
+        readDiscoveryCandidates(scope, {
+          languages: ['en'],
+          formats: ['scroll'],
+          capabilities: bothFormats,
+          limit: 100,
+        }),
+      );
+      const conditional = await withScope()(fresh.authority, (scope) =>
+        readDiscoveryCandidates(scope, {
+          languages: ['en'],
+          formats: ['scroll'],
+          capabilities: bothFormats,
+          limit: 100,
+          unseenFirst: unseenUnitCondition(scope),
+        }),
+      );
+      if (plain.kind !== 'entered' || conditional.kind !== 'entered') throw new Error('CI scope refused');
+      expect(conditional.value.map((c) => c.assetId)).toEqual(plain.value.map((c) => c.assetId));
     });
 
     it('the same history ranked under v0 still offers what was met: v0 decisions are untouched and keep replaying', async () => {

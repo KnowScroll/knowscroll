@@ -206,6 +206,16 @@ function exclusionsOf(
 }
 type Evaluation = ComposerDecision['evaluations'][number];
 
+/** The related-target and sticky-format rules, in their order, over candidates already screened by the hard ones. */
+function screenSoftRules<T extends Parameters<typeof applyRelatedExclusion>[1][number]>(
+  s: ComposerSnapshot,
+  entries: readonly T[],
+) {
+  const { screened: unrelated, related } = applyRelatedExclusion(s, entries);
+  const { screened, sticky } = applyStickyFormat(s, unrelated);
+  return { screened, sticky, related };
+}
+
 /** Every candidate with its exclusions, features and score under the policy. */
 function evaluate(s: ComposerSnapshot, policy: ComposerPolicy) {
   const seriesUnits = seriesUnitIds(s);
@@ -219,12 +229,14 @@ function evaluate(s: ComposerSnapshot, policy: ComposerPolicy) {
   const { screened: newFirst, lastResort } = unseenFirst
     ? applyEncounteredExclusion(s, considered)
     : { screened: considered, lastResort: false };
-  const { screened: unrelated, related } = applyRelatedExclusion(s, newFirst);
-  const { screened: assessed, sticky } = applyStickyFormat(s, unrelated);
-  // The plan lifts only among eligible candidates, after the intent has ranked them.
+  const { screened: assessed, sticky, related } = screenSoftRules(s, newFirst);
+  // The plan lifts only among eligible candidates, after the intent has ranked them. Under v2 the best Intent is still taken
+  // over what v1 would have called eligible (met candidates included), so a plan lifts exactly what it lifts under v1.
+  const eligibleOf = (entries: typeof assessed) => entries.filter(({ exclusions }) => exclusions.length === 0);
   const lifts = planLifts(
     s,
-    assessed.filter(({ exclusions }) => exclusions.length === 0),
+    eligibleOf(assessed),
+    unseenFirst ? eligibleOf(screenSoftRules(s, considered).screened) : [],
   );
   const evaluations: Evaluation[] = assessed.map(({ candidate: c, exclusions, base }) => {
     const lift = lifts.get(refKey(c.encounter));

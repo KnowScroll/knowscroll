@@ -11,7 +11,7 @@ import {
   type ComposerPolicy,
   type ComposerSnapshot,
 } from '../public.js';
-import { isMet, lastMetAt, placeOf, systemTopicIdsOf } from '../domain/encountered.js';
+import { isMet, lastMetAt, metUnitsOf, placeOf, systemTopicIdsOf } from '../domain/encountered.js';
 import { tieHash } from '../domain/policy.js';
 import { fixtureSnapshots } from './snapshot-fixtures.js';
 
@@ -571,6 +571,71 @@ describe('equal scores are told apart by a hash of the seed and the asset, not b
     expect(tieHash('seed', 'a')).not.toBe(tieHash('other', 'a'));
     expect(tieHash('seed', 'a')).toBeGreaterThanOrEqual(0);
     expect(tieHash('seed', 'a')).toBeLessThan(2 ** 32);
+  });
+});
+
+describe('an active plan lifts exactly what it lifts under v1 (the best Intent is read before the met ones are left out)', () => {
+  // The person has met a Scroll in the source's topic (the best Intent, 1). The unseen candidate elsewhere matches the plan.
+  // Under v1 the met one is still eligible, so the unseen one is not tied for the best Intent and is not lifted; v2 must not
+  // lift it either just because the met one was left out.
+  const metInTopic = candidate('met-in-topic', { unit: 'unit-met-in-topic' });
+  const elsewhere = candidate('unseen-elsewhere', { topic: OTHER_TOPIC });
+  const withPlan = (snapshot: ComposerSnapshot): ComposerSnapshot => ({
+    ...snapshot,
+    evidence: {
+      ...snapshot.evidence!,
+      plan: {
+        revision: 3,
+        opportunities: [
+          {
+            move: 'perspective',
+            topicIds: [OTHER_TOPIC],
+            explanationUnitId: 'unit-planned',
+            eligibility: ['vertical'],
+            formats: ['scroll'],
+            expiresAt: '2026-12-01T00:00:00.000Z',
+            target: 'missing_supply',
+          },
+        ],
+      },
+    },
+  });
+  const snapshot = withPlan(vertical([metInTopic, elsewhere], { met: { 'unit-met-in-topic': null } }));
+  const evaluationOf = (policy: ComposerPolicy, name: string) =>
+    composeEncounter(snapshot, policy).evaluations.find((e) => e.assetId === name)!;
+
+  it('does not lift the unseen candidate under v1, because a better match is eligible', () => {
+    expect(evaluationOf(V1, 'unseen-elsewhere').plan).toBeUndefined();
+  });
+
+  it('does not lift it under v2 either: the ranking among the unseen is the one v1 gives', () => {
+    const v2 = evaluationOf(V2, 'unseen-elsewhere');
+    expect(v2.plan).toBeUndefined();
+    expect(v2.features.intent).toBe(evaluationOf(V1, 'unseen-elsewhere').features.intent);
+    expect(v2.score).toBe(evaluationOf(V1, 'unseen-elsewhere').score);
+  });
+
+  it('still lifts it when nothing better matches, under both policies', () => {
+    const alone = withPlan(vertical([elsewhere]));
+    for (const policy of [V1, V2]) {
+      const lifted = composeEncounter(alone, policy).evaluations[0]!;
+      expect(lifted.plan).toMatchObject({ feature: 'intent', match: 'topic' });
+    }
+  });
+});
+
+describe('the units a person has met, read from prepared evidence alone', () => {
+  const snapshot = vertical([candidate('a'), candidate('b'), candidate('c')], {
+    met: { 'unit-a': null },
+    recent: ['unit-c'],
+  });
+
+  it('lists the asked units that the retained history or the recent window says were met', () => {
+    expect(metUnitsOf(snapshot.evidence, ['unit-a', 'unit-b', 'unit-c'])).toEqual(['unit-a', 'unit-c']);
+  });
+
+  it('says nothing of a person with no prepared evidence: absence is never met', () => {
+    expect(metUnitsOf(undefined, ['unit-a'])).toEqual([]);
   });
 });
 

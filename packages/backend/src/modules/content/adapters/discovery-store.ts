@@ -1,4 +1,5 @@
-import type { ReadEncounterAttribution, ReadPlayLevel } from '../public.js';
+import type { ReadEncounterAttribution, ReadPlayLevel, UnitCondition } from '../public.js';
+import { renderUnitCondition } from './unit-condition.js';
 import { traitsOfDocument } from '../domain/traits.js';
 import { createHash } from 'node:crypto';
 import { ClientCapabilities, ReelDocumentSchema } from '@knowscroll/contracts';
@@ -131,19 +132,23 @@ const distance = (key: ReturnType<typeof sql>, cursor: number) =>
   sql<number>`(case when ${key}>=${cursor}::float8 then ${key}-${cursor}::float8 else ${key}-${cursor}::float8+1 end)`;
 
 /**
- * The asset ids of one retrieval, in the order the candidates are read: the source's topics (primary before supporting,
- * never incidental), then text matches when the person typed text, then a rotating sample of the library. Each lane is
- * ordered by the stable random key of its revisions from the cursor, so no lane is the lowest asset ids.
+ * The rows of one retrieval's lanes. `band` 0 is the person's unseen explanations (only with `unseenFirst`) and 1 everything
+ * else, so with a condition the unseen come first and the rest fill what is left.
  */
-async function laneAssetIds(db: Kysely<Database>, q: Parameters<ReadDiscoveryCandidates>[1]): Promise<string[]> {
-  const cursor = rotationCursor(q.rotation);
+function laneRows(
+  q: Parameters<ReadDiscoveryCandidates>[1],
+  cursor: number,
+  band: 0 | 1,
+  unseen: UnitCondition | undefined,
+) {
   const topicIds = q.topicIds ?? [];
   const text = (q.text ?? '').trim();
   const current = sql`join content.assets a on a.id=r.asset_id and a.revision=r.revision`;
-  const eligible = sql`a.status='admitted' and ${notOrdered} and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[])`;
+  const only = unseen === undefined ? sql`` : sql`and ${renderUnitCondition(unseen, sql.ref('r.explanation_unit_id'))}`;
+  const eligible = sql`a.status='admitted' and ${notOrdered} and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[]) ${only}`;
   const topicLane = topicIds.length
     ? sql`union all
-    (select asset_id,0 as priority,min(role_rank) as role_rank,min(rot) as rot from (
+    (select asset_id,${sql.lit(band)} as band,0 as priority,min(role_rank) as role_rank,min(rot) as rot from (
       select r.asset_id,(t.role='supporting')::int as role_rank,${distance(sql`d.serve_rand`, cursor)} as rot
       from content.encounter_topics t join content.asset_revisions r on r.asset_id=t.asset_id and r.revision=t.asset_revision ${current}
       join content.discovery_revisions d on d.asset_id=r.asset_id and d.asset_revision=r.revision
@@ -152,14 +157,14 @@ async function laneAssetIds(db: Kysely<Database>, q: Parameters<ReadDiscoveryCan
     : sql``;
   const textLane = text
     ? sql`union all
-    (select r.asset_id,1 as priority,0 as role_rank,${distance(sql`d.serve_rand`, cursor)} as rot
+    (select r.asset_id,${sql.lit(band)} as band,1 as priority,0 as role_rank,${distance(sql`d.serve_rand`, cursor)} as rot
       from content.discovery_revisions d join content.asset_revisions r on r.asset_id=d.asset_id and r.revision=d.asset_revision ${current}
       where ${eligible} and d.search_text@@plainto_tsquery('simple',${text}) order by rot limit 30)`
     : sql``;
   // Two index range scans, from the cursor to the end and from the start up to the cursor, so the lane stays cheap however
-  // large the library is: neither walks more than the lane's share.
+  // large the library is: neither walks more than the lane's share (with a condition, more rows are probed, each by an index).
   const generalLane = sql`
-    (select asset_id,2 as priority,0 as role_rank,rot from (
+    (select asset_id,${sql.lit(band)} as band,2 as priority,0 as role_rank,rot from (
       (select r.asset_id,${distance(sql`d.serve_rand`, cursor)} as rot
         from content.discovery_revisions d join content.asset_revisions r on r.asset_id=d.asset_id and r.revision=d.asset_revision ${current}
         where d.serve_rand>=${cursor}::float8 and ${eligible} order by d.serve_rand limit 100)
@@ -168,11 +173,32 @@ async function laneAssetIds(db: Kysely<Database>, q: Parameters<ReadDiscoveryCan
         from content.discovery_revisions d join content.asset_revisions r on r.asset_id=d.asset_id and r.revision=d.asset_revision ${current}
         where d.serve_rand<${cursor}::float8 and ${eligible} order by d.serve_rand limit 100)) wrapped
       order by rot limit 100)`;
+  return sql`${generalLane} ${topicLane} ${textLane}`;
+}
+
+/**
+ * The asset ids of one retrieval, in the order the candidates are read: the source's topics (primary before supporting,
+ * never incidental), then text matches when the person typed text, then a rotating sample of the library. Each lane is
+ * ordered by the stable random key of its revisions from the cursor, so no lane is the lowest asset ids. With `unseenFirst`
+ * every lane is read twice, the unseen first and then without the condition, and the unseen of every lane come before any other
+ * explanation; `alwaysUnits` (the source's own unit, so its format twin is found) come before all of them.
+ */
+async function laneAssetIds(db: Kysely<Database>, q: Parameters<ReadDiscoveryCandidates>[1]): Promise<string[]> {
+  const cursor = rotationCursor(q.rotation);
+  const always = q.alwaysUnits ?? [];
+  const alwaysLane = always.length
+    ? sql`union all
+    (select r.asset_id,-1 as band,0 as priority,0 as role_rank,0::float8 as rot
+      from content.asset_revisions r join content.assets a on a.id=r.asset_id and a.revision=r.revision
+      where a.status='admitted' and ${notOrdered} and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[])
+        and r.explanation_unit_id=any(${always}::text[]) limit 4)`
+    : sql``;
+  const unseenBand = q.unseenFirst === undefined ? sql`` : sql`union all ${laneRows(q, cursor, 0, q.unseenFirst)}`;
   const ids = await sql<{ asset_id: string }>`select asset_id from (
-    ${generalLane}
-    ${topicLane}
-    ${textLane}
-  ) lanes group by asset_id order by min(priority*2+role_rank),min(rot),asset_id limit 100`.execute(db);
+    ${laneRows(q, cursor, 1, undefined)}
+    ${unseenBand}
+    ${alwaysLane}
+  ) lanes group by asset_id order by min(band*100+priority*2+role_rank),min(rot),asset_id limit 100`.execute(db);
   return ids.rows.map((row) => row.asset_id);
 }
 
@@ -185,6 +211,7 @@ export const readDiscoveryCandidates: ReadDiscoveryCandidates = async (scope, q)
     (q.topicIds?.length ?? 0) > DISCOVERY_MAX_TOPICS ||
     (q.text?.length ?? 0) > 2000 ||
     (q.rotation?.length ?? 0) > 160 ||
+    (q.alwaysUnits?.length ?? 0) > 4 ||
     !Number.isSafeInteger(q.limit ?? 100) ||
     (q.limit ?? 100) < 1 ||
     (q.limit ?? 100) > 100
