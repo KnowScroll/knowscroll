@@ -168,6 +168,38 @@ export interface ContentMediaObjects {
   size_bytes: number;
 }
 
+export interface ContentRecipeProposals {
+  accepted: Generated<number>;
+  context: Json;
+  created_at: Generated<Timestamp>;
+  day: Timestamp;
+  facet_id: string | null;
+  retry: Generated<number>;
+  run_id: string;
+  state: Generated<string>;
+  topic_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ContentRecipes {
+  asset_id: string;
+  brief: string;
+  check_results: Generated<Json>;
+  created_at: Generated<Timestamp>;
+  explanation_unit_id: string;
+  facet_id: string;
+  key: string;
+  origin: string;
+  pages: string[];
+  proposing_run_id: string | null;
+  scroll_v2: Generated<Json>;
+  status: string;
+  supporting_facet_id: string | null;
+  title: string;
+  topic_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface ContentReelAttempts {
   ceiling_cents: number;
   dispatched_at: Timestamp | null;
@@ -2369,6 +2401,8 @@ export interface DB {
   "content.encounter_topics": ContentEncounterTopics;
   "content.made_to_order_scrolls": ContentMadeToOrderScrolls;
   "content.media_objects": ContentMediaObjects;
+  "content.recipe_proposals": ContentRecipeProposals;
+  "content.recipes": ContentRecipes;
   "content.reel_attempts": ContentReelAttempts;
   "content.reel_imports": ContentReelImports;
   "content.reel_orders": ContentReelOrders;

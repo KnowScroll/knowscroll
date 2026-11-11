@@ -129,6 +129,12 @@ export interface SupplyStore {
   readWork(scope: PersonalScopeTx, id: string): Promise<WorkRecord | undefined>;
   /** Groups started since `since` by this origin with a production job: what a daily Create cap counts. */
   countCommissionedSince(scope: PersonalScopeTx, since: Date, origin: CommissionOrigin): Promise<number>;
+  /**
+   * Groups started since `since` with a stored recipe's production job, whoever commissioned them: what the daily growth
+   * cap counts (D-412). A stored recipe's group is never in `countCommissionedSince`, so growth never uses up what a
+   * person's ask or the Planner needs.
+   */
+  countGrowthSince(scope: PersonalScopeTx, since: Date): Promise<number>;
   /** The person's own asks that are still open (waiting to be matched or produced), which bound their poll jobs. */
   countOpenPersonDemands(scope: PersonalScopeTx): Promise<number>;
   /** Ask orders this person's requests made since `since`: what the person's daily ask cap counts. */
@@ -282,6 +288,11 @@ export interface SupplyPorts {
   readonly enqueueAnswerProduction: (scope: PersonalScopeTx, recipe: string, take: number) => Promise<void>;
   /** Shared Scroll productions Create may start per UTC day, by who asks; 0 turns Create off for that origin. */
   readonly createDailyCaps: Readonly<Record<CommissionOrigin, number>>;
+  /**
+   * New Scrolls from stored recipes Create may start per UTC day, for whoever asks (D-412); 0 turns growth off. Counted apart from
+   * `createDailyCaps` and never above them in effect: Create switched off for an origin stops growth for it too.
+   */
+  readonly growthDailyCap: number;
   /**
    * Which of these explanations the person has already met, re-derived inside the scope. Planned demand
    * asks for something new, so it never binds to one of them.

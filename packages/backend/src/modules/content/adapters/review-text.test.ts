@@ -1,3 +1,4 @@
+import { RECIPES } from '../domain/library/index.js';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { validateDocumentV2 } from '@knowscroll/scroll-model';
@@ -8,7 +9,7 @@ import { publicationV2, type WriterV2Context } from '../production/writer-v2.js'
 import { answerCheckLines, reviewTextOf } from './review-text.js';
 
 const context: WriterV2Context = {
-  publication: publicationV2('seasons'),
+  publication: publicationV2(RECIPES.seasons),
   recipe: {
     variant: 'stage',
     misconception: {

@@ -36,6 +36,8 @@ const compositionRoots = [
   '^apps/worker/src/production-jobs\\.ts$',
   '^apps/worker/src/library-operator\\.ts$',
   '^apps/worker/src/supply-operator\\.ts$',
+  // The recipe commands compose the production harness and the stored-recipe use cases (#674, D-412).
+  '^apps/worker/src/recipes-operator\\.ts$',
   // The journey inspector composes the read-only operator views (#248).
   '^apps/worker/src/journey-operator\\.ts$',
   // The rooms operator seeds rooms and names moderators (D-051).

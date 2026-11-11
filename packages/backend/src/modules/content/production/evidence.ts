@@ -130,6 +130,15 @@ export function evidencePassages(pages: readonly ResearchPage[]): readonly Evide
   return passages.slice(0, MAX_EVIDENCE_PASSAGES);
 }
 
+/**
+ * How many evidence passages one frozen page gives the writer: the count a recipe's page pool is made of. A recipe's pool is the
+ * sum over its pages, as `evidencePassages` offers them, which the source checker keeps between 6 and 63. Unlike
+ * `evidencePassages` it never throws and does not verify the page: the caller holds frozen research the job already verified.
+ */
+export function evidencePassageCount(page: ResearchPage): number {
+  return page.passages.reduce((total, source) => total + passagesOf(source.text).length, 0);
+}
+
 /** The context text the writer reads: one line per passage, `[e7] text`. */
 export function evidenceText(passages: readonly EvidencePassage[]): string {
   return passages.map((passage) => `[${passage.handle}] ${passage.text}`).join('\n');

@@ -12,18 +12,14 @@ import type {
 } from '../../../reasoning/public.js';
 import { coverageHeadPorts } from '../adapters/coverage-store.js';
 import { inAdmissionTransaction } from '../adapters/postgres-store.js';
+import { makeStoredRecipes } from '../adapters/stored-recipes.js';
 import { admitRecipeCoverage } from '../application/admit-recipe-coverage.js';
+import { codeRecipeOf } from '../application/recipe-book.js';
 import { validateTopics } from '../domain/discovery.js';
+import type { BookRecipe } from '../domain/library/generated.js';
 import { WRITER_PROMPT_VERSION } from './writer.js';
 import { WRITER_V2_PROMPT_VERSION } from './writer-v2.js';
-import {
-  explanationUnitFor,
-  parseScrollTopic,
-  PRODUCTION_VERSIONS,
-  productionVersionOf,
-  TOPICS,
-  type ScrollTopic,
-} from './topics.js';
+import { PRODUCTION_VERSIONS, productionVersionOf } from './topics.js';
 
 const ATTRIBUTION_VERSION = 'published-scroll-brief-taxonomy.v1';
 const SENT_STEP = /^(primary|repair)(\.[1-9])?$/;
@@ -55,10 +51,16 @@ const logicalStep = (step: string): string => step.split('.')[0] ?? step;
 
 /** A published generated revision whose job, recipe, document and writer attempts all agree. */
 interface VerifiedPublication {
-  readonly topic: ScrollTopic;
+  readonly recipe: PublicationRecipe;
   readonly assetId: string;
   readonly revision: number;
 }
+
+/** What publication needs of the recipe a job ran: its identity, its planet and its angles. From the plan or from `content.recipes`. */
+type PublicationRecipe = Pick<
+  BookRecipe,
+  'key' | 'assetId' | 'explanationUnitId' | 'topicId' | 'facetId' | 'supportingFacetId'
+>;
 
 type PublishedRevisionRow = NonNullable<Awaited<ReturnType<typeof readPublishedRevision>>>;
 
@@ -150,14 +152,13 @@ function storedLineage(row: PublishedRevisionRow): StoredLineage | undefined {
 }
 
 /** The stored document and provenance are the recipe's, at the revision the job targeted. */
-function matchesRecipe(row: PublishedRevisionRow, writerRunId: string) {
-  const topic = parseScrollTopic(row.topic);
+function matchesRecipe(row: PublishedRevisionRow, writerRunId: string, recipe: PublicationRecipe | undefined) {
   if (
-    topic === undefined ||
-    row.asset_id !== TOPICS[topic].assetId ||
+    recipe === undefined ||
+    row.asset_id !== recipe.assetId ||
     row.revision !== row.target_revision ||
-    row.explanation_unit_id !== explanationUnitFor(topic) ||
-    row.policy_version !== productionVersionOf(topic)
+    row.explanation_unit_id !== recipe.explanationUnitId ||
+    row.policy_version !== productionVersionOf(recipe.key)
   )
     return undefined;
   const stored = storedLineage(row);
@@ -179,7 +180,7 @@ function matchesRecipe(row: PublishedRevisionRow, writerRunId: string) {
     production.promptVersion !== stored.writerPromptVersion
   )
     return undefined;
-  return { topic, production };
+  return { recipe, production };
 }
 
 /** The job's single writer receipt names exactly the sent attempts the harness accounted. */
@@ -212,6 +213,11 @@ function matchesWriterAttempts(
   );
 }
 
+/** The recipe a job's key names: the plan's, or the stored one (even a retired one: its Scroll still belongs to its planet). */
+async function recipeOfJob(tx: Transaction<Database>, key: string): Promise<PublicationRecipe | undefined> {
+  return codeRecipeOf(key) ?? (await makeStoredRecipes(tx).get(key));
+}
+
 /**
  * Missing, foreign or fixture lineage yields `undefined` and the revision stays without attribution:
  * attribution never borrows authority from an explanation ID.
@@ -225,9 +231,9 @@ async function verifyPublication(
 ): Promise<VerifiedPublication | undefined> {
   const row = await readPublishedRevision(tx, jobId, writerRunId, generation);
   if (row === undefined || !row.claims_present || !row.writer_output_present) return undefined;
-  const recipe = matchesRecipe(row, writerRunId);
+  const recipe = matchesRecipe(row, writerRunId, await recipeOfJob(tx, row.topic));
   if (recipe === undefined || !matchesWriterAttempts(row.outcomes, attempts, recipe.production)) return undefined;
-  return { topic: recipe.topic, assetId: row.asset_id, revision: row.revision };
+  return { recipe: recipe.recipe, assetId: row.asset_id, revision: row.revision };
 }
 
 /**
@@ -245,7 +251,7 @@ async function attributeTopic(tx: Transaction<Database>, publication: VerifiedPu
     .forUpdate()
     .executeTakeFirst();
   if (metadata === undefined) return false;
-  const attribution = { topicId: TOPICS[publication.topic].topicId, role: 'primary' as const, weight: 1 };
+  const attribution = { topicId: publication.recipe.topicId, role: 'primary' as const, weight: 1 };
   validateTopics([attribution]);
   const existing = await tx
     .selectFrom('content.encounter_topics')
@@ -295,7 +301,7 @@ async function recordGap(tx: Transaction<Database>, jobId: string, code: string)
  */
 async function admitCoverage(tx: Transaction<Database>, jobId: string, publication: VerifiedPublication) {
   const outcome = await inAdmissionTransaction(tx, (admission) =>
-    admitRecipeCoverage(coverageHeadPorts, admission, TOPICS[publication.topic], {
+    admitRecipeCoverage(coverageHeadPorts, admission, publication.recipe, {
       assetId: publication.assetId,
       assetRevision: publication.revision,
     }),

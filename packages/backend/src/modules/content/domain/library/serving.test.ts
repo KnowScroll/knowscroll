@@ -9,6 +9,7 @@ import {
   productionStanding,
   recipesServing,
   regenerationStanding,
+  servingOrder,
   regenerationTake,
   takeToSend,
   type LibraryRecipeStatus,
@@ -109,10 +110,10 @@ describe('what a library run queues', () => {
     const interactiveFirst = planLibraryProduction(all, { interactiveFirst: true }).queue.map((send) => send.recipe);
     expect(plain).toEqual(libraryRecipes());
     expect(interactiveFirst).toHaveLength(plain.length);
-    const flags = interactiveFirst.map((recipe) => RECIPES[recipe].interactive);
+    const flags = interactiveFirst.map((recipe) => RECIPES[recipe as RecipeKey].interactive);
     expect(flags).toEqual([...flags].sort((a, b) => Number(b) - Number(a)));
-    expect(interactiveFirst.filter((recipe) => RECIPES[recipe].interactive)).toEqual(
-      plain.filter((recipe) => RECIPES[recipe].interactive),
+    expect(interactiveFirst.filter((recipe) => RECIPES[recipe as RecipeKey].interactive)).toEqual(
+      plain.filter((recipe) => RECIPES[recipe as RecipeKey].interactive),
     );
   });
 });
@@ -234,5 +235,73 @@ describe('regenerating a served v2 Scroll (D-197)', () => {
     const plan = planRegeneration([{ recipe: 'seasons', state: 'published', takes: 1, attempts: 0 }]);
     expect(plan.queue).toEqual([]);
     expect(plan.skipped).toEqual([{ recipe: 'seasons', reason: 'not_v2' }]);
+  });
+});
+
+describe('serving order over any list of recipes (D-412)', () => {
+  const recipes = [
+    { key: 'code-a', topicId: 'p', facetId: 'p.f1' },
+    { key: 'code-b', topicId: 'p', facetId: 'p.f2', supportingFacetId: 'p.f1' },
+    { key: 'other-planet', topicId: 'q', facetId: 'p.f1' },
+    { key: 'gen-c', topicId: 'p', facetId: 'p.f1' },
+    { key: 'gen-d', topicId: 'p', facetId: 'p.f3' },
+  ];
+
+  it('puts the recipes that teach the facet first, then those that support it, each in the order given', () => {
+    expect(servingOrder(recipes, { topicId: 'p', facetId: 'p.f1' }).map((recipe) => recipe.key)).toEqual([
+      'code-a',
+      'gen-c',
+      'code-b',
+    ]);
+  });
+
+  it('answers a brief with no facet with every recipe of the planet, in the order given', () => {
+    expect(servingOrder(recipes, { topicId: 'p' }).map((recipe) => recipe.key)).toEqual([
+      'code-a',
+      'code-b',
+      'gen-c',
+      'gen-d',
+    ]);
+  });
+
+  it('gives the code plan the same answer as before for the plan alone', () => {
+    const brief = { topicId: RECIPES.tides.topicId, facetId: RECIPES.tides.facetId };
+    expect(recipesServing(brief)).toEqual(
+      libraryRecipes().filter(
+        (key) => RECIPES[key].topicId === brief.topicId && RECIPES[key].facetId === brief.facetId,
+      ),
+    );
+  });
+});
+
+describe('which recipe to produce, with stored recipes among them', () => {
+  const states: Record<string, ScrollProductionState> = {
+    seasons: 'published',
+    'gen-new-11111111': 'not_started',
+    'gen-busy-22222222': 'running',
+    'gen-again-33333333': 'retryable',
+  };
+  const pick = (keys: readonly string[]) => pickRecipeToProduce(keys, (key) => states[key] ?? 'stopped');
+
+  it('treats a stored key like any other: running work first, then untried, then a retry', () => {
+    expect(pick(['seasons', 'gen-new-11111111'])).toBe('gen-new-11111111');
+    expect(pick(['gen-new-11111111', 'gen-busy-22222222'])).toBe('gen-busy-22222222');
+    expect(pick(['gen-again-33333333', 'seasons'])).toBe('gen-again-33333333');
+    expect(pick(['seasons'])).toBeUndefined();
+  });
+
+  it('queues a stored recipe for a library run and never sorts it as interactive', () => {
+    const rows: LibraryRecipeStatus[] = [
+      { recipe: 'gen-new-11111111', state: 'not_started', takes: 0, attempts: 0 },
+      { recipe: 'tides', state: 'not_started', takes: 0, attempts: 0 },
+    ];
+    expect(planLibraryProduction(rows, { interactiveFirst: true }).queue).toEqual([
+      { recipe: 'tides', take: 1 },
+      { recipe: 'gen-new-11111111', take: 1 },
+    ]);
+    expect(planLibraryProduction(rows, { interactiveFirst: false }).queue.map((send) => send.recipe)).toEqual([
+      'gen-new-11111111',
+      'tides',
+    ]);
   });
 });

@@ -136,3 +136,122 @@ describe('which closed asks a person may try again', () => {
       expect(isRetryableReason(reason)).toBe(false);
   });
 });
+
+/** The growth cap (D-412): a stored recipe's production counts against its own cap, apart from a person's and the Planner's. */
+describe('Create and the growth cap', () => {
+  type Choose = SupplyPorts['chooseRecipe'];
+  function growthWorld(options: {
+    cap?: number;
+    growthCap?: number;
+    commissionedToday?: number;
+    growthToday?: number;
+    choose: Choose;
+  }) {
+    const asked: unknown[] = [];
+    const counted: string[] = [];
+    const ports = {
+      createDailyCaps: { person: options.cap ?? 5, planner: options.cap ?? 5 },
+      growthDailyCap: options.growthCap ?? 10,
+      now: () => new Date('2026-11-11T10:00:00Z'),
+      store: {
+        lockCommissioning: () => Promise.resolve(),
+        findActiveWork: () => Promise.resolve(undefined),
+        closeWork: () => Promise.resolve(),
+        countCommissionedSince: (_scope: unknown, _since: Date, origin: string) => {
+          counted.push(`origin:${origin}`);
+          return Promise.resolve(options.commissionedToday ?? 0);
+        },
+        countGrowthSince: () => {
+          counted.push('growth');
+          return Promise.resolve(options.growthToday ?? 0);
+        },
+        joinOrCreate: (_scope: unknown, _brief: unknown, id: string) => Promise.resolve({ id, joined: false }),
+      },
+      readProduction: () => Promise.resolve({ state: 'not_started', take: 1 }),
+      chooseRecipe: (...args: Parameters<Choose>) => {
+        asked.push(args[2]);
+        return options.choose(...args);
+      },
+      enqueueProduction: () => Promise.resolve(),
+      newId: () => 'new-group',
+    } as unknown as SupplyPorts;
+    return { ports, asked, counted };
+  }
+  const stored = { kind: 'recipe' as const, recipe: 'gen-heart-valves-1a2b3c4d' as const, take: 1 };
+
+  it('lets a stored recipe be chosen when the person cap is used up and growth is open, and says what each kind may use', async () => {
+    const w = growthWorld({ cap: 2, commissionedToday: 2, growthToday: 3, choose: () => Promise.resolve(stored) });
+    expect(await commissionSupply(w.ports, scope, brief(), 'person')).toMatchObject({
+      kind: 'waiting',
+      decision: 'create',
+    });
+    expect(w.asked).toEqual([{ allow: { code: false, generated: true } }]);
+  });
+
+  it('keeps growth out of the cap of whoever asked: a full growth cap leaves a code recipe open', async () => {
+    const w = growthWorld({
+      growthCap: 10,
+      growthToday: 10,
+      commissionedToday: 1,
+      choose: () => Promise.resolve({ kind: 'recipe' as const, recipe: 'tides' as const, take: 1 }),
+    });
+    expect(await commissionSupply(w.ports, scope, brief(), 'planner')).toMatchObject({ kind: 'waiting' });
+    expect(w.asked).toEqual([{ allow: { code: true, generated: false } }]);
+  });
+
+  it('refuses, naming the cap, when both caps are used and never asks the chooser', async () => {
+    const w = growthWorld({
+      cap: 2,
+      commissionedToday: 2,
+      growthCap: 4,
+      growthToday: 4,
+      choose: () => Promise.resolve(stored),
+    });
+    expect(await commissionSupply(w.ports, scope, brief(), 'person')).toEqual({
+      kind: 'unavailable',
+      reason: 'budget_unavailable',
+      cause: 'cap_reached',
+    });
+    expect(w.asked).toEqual([]);
+  });
+
+  it('counts growth apart from the origin: the origin count excludes it and growth is counted for everyone', async () => {
+    const w = growthWorld({ choose: () => Promise.resolve(stored) });
+    await commissionSupply(w.ports, scope, brief(), 'planner');
+    expect(w.counted).toEqual(['origin:planner', 'growth']);
+  });
+
+  it('never opens growth when it is set to 0 or when Create is switched off', async () => {
+    const zero = growthWorld({ growthCap: 0, choose: () => Promise.resolve({ kind: 'none' }) });
+    expect(await commissionSupply(zero.ports, scope, brief(), 'person')).toMatchObject({ cause: 'no_recipe_left' });
+    expect(zero.asked).toEqual([{ allow: { code: true, generated: false } }]);
+    expect(zero.counted).toEqual(['origin:person']);
+    const off = growthWorld({ cap: 0, growthCap: 10, choose: () => Promise.resolve(stored) });
+    expect(await commissionSupply(off.ports, scope, brief(), 'person')).toMatchObject({ cause: 'create_off' });
+    expect(off.asked).toEqual([]);
+    expect(off.counted).toEqual([]);
+  });
+
+  it('says cap_reached, not no_recipe_left, when a recipe existed that the cap held back', async () => {
+    const held = growthWorld({ choose: () => Promise.resolve({ kind: 'none', capped: true }) });
+    expect(await commissionSupply(held.ports, scope, brief(), 'person')).toMatchObject({ cause: 'cap_reached' });
+    const noneLeft = growthWorld({ choose: () => Promise.resolve({ kind: 'none' }) });
+    expect(await commissionSupply(noneLeft.ports, scope, brief(), 'person')).toMatchObject({ cause: 'no_recipe_left' });
+    // With the person's own cap used up, a chooser that finds nothing open leaves the cap as the reason.
+    const closed = growthWorld({
+      cap: 1,
+      commissionedToday: 1,
+      growthToday: 0,
+      choose: () => Promise.resolve({ kind: 'none' }),
+    });
+    expect(await commissionSupply(closed.ports, scope, brief(), 'person')).toMatchObject({ cause: 'cap_reached' });
+  });
+
+  it('passes the unit a Planner opportunity aimed at to the chooser, and nothing else of it', async () => {
+    const w = growthWorld({ choose: () => Promise.resolve(stored) });
+    await commissionSupply(w.ports, scope, brief(), 'planner', 'history-industrial-revolution-causes-v1');
+    expect(w.asked).toEqual([
+      { allow: { code: true, generated: true }, plannedUnit: 'history-industrial-revolution-causes-v1' },
+    ]);
+  });
+});

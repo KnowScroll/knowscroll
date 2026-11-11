@@ -1,9 +1,12 @@
 import { sql, type Kysely } from 'kysely';
 import { Framing } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
+import { codeRecipeOf } from '../application/recipe-book.js';
+import { makeStoredRecipes } from '../adapters/stored-recipes.js';
+import { isGeneratedRecipeKey, type BookRecipe } from '../domain/library/generated.js';
 import type { ScrollV2Plan, StageKitId } from '../domain/library/plan.js';
+import type { ProductionRecipeKey } from '../domain/library/serving.js';
 import { isMadeToOrderKey, type MadeToOrderKey } from '../domain/order-key.js';
-import { parseScrollTopic, TOPICS, type ScrollTopic } from './topics.js';
 import {
   libraryIdentity,
   writerFormatOf,
@@ -12,8 +15,8 @@ import {
   type WriterMode,
 } from './writer.js';
 
-/** A key the production job may run: a library recipe or an order. */
-export type ProductionKey = ScrollTopic | MadeToOrderKey;
+/** A key the production job may run: a library recipe (code or stored, D-412) or an order. */
+export type ProductionKey = ProductionRecipeKey | MadeToOrderKey;
 
 /** What one production job writes: where its Scroll goes, what the writer is told and how it is framed. */
 export interface ProductionSubject {
@@ -39,13 +42,12 @@ export interface ProductionSubject {
   readonly readingTitle?: string;
 }
 
-/** The subject of a library recipe. */
-export function librarySubject(topic: ScrollTopic): ProductionSubject {
-  const recipe = TOPICS[topic];
+/** The subject of a library recipe, from the recipe book. */
+export function librarySubject(recipe: BookRecipe): ProductionSubject {
   return {
-    key: topic,
+    key: recipe.key as ProductionRecipeKey,
     mode: 'library',
-    identity: libraryIdentity(topic),
+    identity: libraryIdentity(recipe),
     brief: recipe.brief,
     pages: recipe.pages,
     format: writerFormatOf(recipe),
@@ -113,9 +115,16 @@ const readingTitleField = (brief: string): { readonly readingTitle?: string } =>
   return readingTitle === undefined ? {} : { readingTitle };
 };
 
-/** The subject a job's key names, or `undefined` for a key that is neither a library recipe nor a stored order. */
+/**
+ * The subject a job's key names, or `undefined` for a key that is neither a library recipe nor a stored order. A stored
+ * recipe that was retired is not a subject: nothing is produced for it any more.
+ */
 export async function subjectOf(db: Kysely<Database>, key: string): Promise<ProductionSubject | undefined> {
-  const library = parseScrollTopic(key);
-  if (library !== undefined) return librarySubject(library);
+  const code = codeRecipeOf(key);
+  if (code !== undefined) return librarySubject(code);
+  if (isGeneratedRecipeKey(key)) {
+    const stored = await makeStoredRecipes(db).get(key);
+    return stored === undefined || stored.status === 'retired' ? undefined : librarySubject(stored);
+  }
   return isMadeToOrderKey(key) ? madeToOrderSubject(db, key) : undefined;
 }

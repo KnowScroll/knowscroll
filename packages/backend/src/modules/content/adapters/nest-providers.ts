@@ -233,6 +233,10 @@ export { makeMediaAccess } from './media-access.js';
 
 /** Composition-only factory for the worker's bounded, nonpersonal Scroll operator. */
 export { makeProduceScroll as produceScrollUseCase } from '../production/produce.js';
+/** The operator's `content propose-recipes` and `content recipes`: stored recipes for the planets that exist (#674, D-412). */
+export { makeProposeRecipes, previewRecipeProposal, type ProposeRecipesResult } from '../production/propose-recipes.js';
+export { MAX_PROPOSAL_RETRY } from '../production/recipe-brief.js';
+export { listStoredRecipes } from './recipe-proposals.js';
 /** The operator's writer spike for `scroll-authoring.v2` (S-0, D-120): nothing is admitted or published. */
 export {
   makeWriterSpikeV2,
@@ -268,7 +272,7 @@ export { makeRunScrollProduction } from '../production/job.js';
 export { makeEnqueueScrollProduction } from './enqueue-production.js';
 export { readLibraryStatus } from './production-state.js';
 /** The operator's review gate for library v2 Scrolls: list, show, release, reject (D-138). */
-export { makeReviewGate, recipeKeyOfAsset, type ReviewGate } from './review-gate.js';
+export { makeReviewGate, type ReviewGate } from './review-gate.js';
 /** Bounded shared retrieval capabilities; no feature consumers are installed by this slice. */
 export {
   readEncounterAttribution,

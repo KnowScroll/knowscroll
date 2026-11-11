@@ -1,3 +1,4 @@
+import { RECIPES } from '../domain/library/index.js';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { stopWords, validateDocumentV2, WORDS_PER_MINUTE_V2, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
@@ -8,7 +9,7 @@ import { MIN_STOP_VISIBLE_MS, minVisibleMsOf, readingFactsOfV2, STOP_READ_SHARE 
 import { ReadingFactsSchema } from './reading-facts-schema.js';
 
 const compiled = compileGeneratedScrollV2(fixtureAuthoredV2(), {
-  publication: publicationV2('seasons'),
+  publication: publicationV2(RECIPES.seasons),
   recipe: {
     variant: 'stage',
     misconception: {

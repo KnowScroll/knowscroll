@@ -6,7 +6,7 @@ import { trimAskAnswer, unchanged, type CodeMadeLines, type TrimCounts } from '.
 import type { EvidencePassage } from './evidence.js';
 import type { ProductionSubject } from './subject.js';
 import { storedScrollV2, type ModelProduction } from './stored-v2.js';
-import { parseScrollTopic } from './topics.js';
+import { parseProductionRecipe } from './topics.js';
 import { publicationV2, WRITER_V2_PROMPT_VERSION, writerRoleV2, type WriterV2Context } from './writer-v2.js';
 import { askTrimRules, compileGeneratedScroll, generatedProvenance, promptVersionOf, writerRole } from './writer.js';
 
@@ -92,10 +92,9 @@ function v1Plan(input: WriterPlanInput): WriterPlan {
 }
 
 function v2Plan(input: WriterPlanInput, plan: NonNullable<ProductionSubject['scrollV2']>): WriterPlan {
-  const topic = parseScrollTopic(input.subject.key);
-  if (topic === undefined) throw new Error('SCROLL_V2_REQUIRES_LIBRARY_RECIPE');
+  if (parseProductionRecipe(input.subject.key) === undefined) throw new Error('SCROLL_V2_REQUIRES_LIBRARY_RECIPE');
   const context: WriterV2Context = {
-    publication: { ...publicationV2(topic), revision: input.revision },
+    publication: { ...publicationV2(input.subject.identity), revision: input.revision },
     recipe: input.subject.stageKit === undefined ? plan : { ...plan, kit: input.subject.stageKit },
     passages: input.passages,
     pages: input.pages,

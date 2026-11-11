@@ -1,3 +1,4 @@
+import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { InteractionEvent } from '@knowscroll/contracts';
 import { stopWords, WORDS_PER_MINUTE_V2 } from '@knowscroll/scroll-model';
@@ -39,7 +40,7 @@ import { markScrollV1, ORRIN_PLAN } from '../support/scroll-v2.js';
  */
 function orrin(): { readonly facts: ReadingFacts; readonly nominalMs: ReadonlyMap<string, number> } {
   const compiled = compileGeneratedScrollV2(fixtureAuthoredV2(), {
-    publication: publicationV2('seasons'),
+    publication: publicationV2(RECIPES.seasons),
     recipe: ORRIN_PLAN,
     passages: evidencePassages([fixtureResearchPageV2]),
     pages: [fixtureResearchPageV2],

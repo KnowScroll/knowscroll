@@ -23,7 +23,6 @@ import type { AdmissionIssue } from '../application/ports.js';
 import { CITATIONS_TOO_MANY, CITATIONS_TOO_MANY_HINT, citationLimitIssues } from './citation-limits.js';
 import { copyRepairNotes } from './copy-repair.js';
 import { authoringEvidence, MIN_EVIDENCE_PASSAGES, type EvidencePassage } from './evidence.js';
-import { explanationUnitFor, TOPICS, type ScrollTopic } from './topics.js';
 import { bannedNames, readerStrings, type BannedName } from './writer.js';
 
 /**
@@ -171,12 +170,12 @@ export function writerInstructionsV2(recipe: RecipeDataV2): string {
 }
 
 /** The identity of a library recipe's v2 Scroll: factual, with the recipe's own asset and explanation. */
-export function publicationV2(topic: ScrollTopic): PublicationV2 {
+export function publicationV2(recipe: { readonly assetId: string; readonly explanationUnitId: string }): PublicationV2 {
   return {
-    assetId: TOPICS[topic].assetId,
+    assetId: recipe.assetId,
     revision: 1,
     language: 'en',
-    explanationUnitId: explanationUnitFor(topic),
+    explanationUnitId: recipe.explanationUnitId,
     kicker: 'A closer look',
     framing: { kind: 'factual' },
     themeFamily: 'worlds',

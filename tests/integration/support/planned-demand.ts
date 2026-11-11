@@ -14,7 +14,9 @@ import {
   READ_CONTENT_REQUEST,
   RECORD_PLANNED_DEMAND,
   COUNT_PLANNED_DEMAND,
+  CREATE_CONTENT_REQUEST,
   type CancelRequest,
+  type CreateRequest,
   type CountPlannedDemand,
   type PlannedIntent,
   type ReadRequest,
@@ -34,7 +36,13 @@ import { buildFromProviders } from './providers.js';
 export function realSupply(
   database: TestDatabase<Database>,
   boss: PgBoss,
-  options: { createDailyCap?: number; plannerCreateDailyCap?: number; readExploration: ReadExplorationSnapshot },
+  options: {
+    createDailyCap?: number;
+    plannerCreateDailyCap?: number;
+    /** New Scrolls from stored recipes per day (D-412); absent: growth is off. */
+    growthDailyCap?: number;
+    readExploration: ReadExplorationSnapshot;
+  },
 ) {
   const SCOPE = Symbol('test.supply.scope'),
     ENQUEUE = Symbol('test.supply.enqueue'),
@@ -48,6 +56,7 @@ export function realSupply(
       {
         supplyCreateDailyCap: options.createDailyCap ?? 0,
         supplyPlannerCreateDailyCap: options.plannerCreateDailyCap ?? options.createDailyCap ?? 0,
+        ...(options.growthDailyCap === undefined ? {} : { supplyGrowthDailyCap: options.growthDailyCap }),
         supplyAskDailyCap: 0,
         supplyAskPersonDailyCap: 5,
       },
@@ -61,6 +70,7 @@ export function realSupply(
   values.set(SUPPLY_PORTS, buildFromProviders(providers, SUPPLY_PORTS, values));
   const build = <T>(token: symbol) => buildFromProviders(providers, token, values) as T;
   return {
+    create: build<CreateRequest>(CREATE_CONTENT_REQUEST),
     record: build<RecordPlannedDemand>(RECORD_PLANNED_DEMAND),
     count: build<CountPlannedDemand>(COUNT_PLANNED_DEMAND),
     read: build<ReadRequest>(READ_CONTENT_REQUEST),

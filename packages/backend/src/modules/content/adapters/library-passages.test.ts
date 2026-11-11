@@ -1,3 +1,4 @@
+import { RECIPES } from '../domain/library/index.js';
 import { describe, expect, it } from 'vitest';
 import { evidencePassages } from '../production/evidence.js';
 import { spikeRecipeV2 } from '../production/spike-v2/topics.js';
@@ -8,7 +9,7 @@ import { proseBlocksOf } from './library-passages.js';
 /** A labelled CI fixture: the recorded v2 writer answer for the seasons recipe, compiled as production would. */
 function fixtureDocument() {
   const outcome = compileGeneratedScrollV2(fixtureAuthoredV2(), {
-    publication: publicationV2('seasons'),
+    publication: publicationV2(RECIPES.seasons),
     recipe: spikeRecipeV2('seasons'),
     passages: evidencePassages([fixtureResearchPageV2]),
     pages: [fixtureResearchPageV2],

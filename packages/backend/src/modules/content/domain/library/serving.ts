@@ -1,5 +1,9 @@
 import type { AnswerCheckSummary } from '../answer-check.js';
+import type { GeneratedRecipeKey } from './generated.js';
 import { RECIPE_KEYS, RECIPES, type RecipeKey } from './index.js';
+
+/** The key of any recipe production can run: a code recipe, or one stored in the database (`gen-`, D-412). */
+export type ProductionRecipeKey = RecipeKey | GeneratedRecipeKey;
 
 /**
  * A recipe's job at one recipe version may be taken again after it was rejected, at most this many
@@ -122,7 +126,7 @@ export interface CatalogueBrief {
 
 /** One recipe's standing for the operator's status list. */
 export interface LibraryRecipeStatus {
-  readonly recipe: RecipeKey;
+  readonly recipe: ProductionRecipeKey;
   readonly state: ScrollProductionState;
   /** The latest take's own state at the current recipe version; absent before any job. */
   readonly job?: ProductionJobState;
@@ -143,21 +147,55 @@ export interface LibraryRecipeStatus {
   readonly check?: AnswerCheckSummary;
 }
 
+/** Which kinds of recipe a Create decision may choose, by what each kind's daily cap leaves open (D-037, D-412). */
+export interface ChooseRecipeOptions {
+  readonly allow: { readonly code: boolean; readonly generated: boolean };
+  /**
+   * An explanation unit the Planner's opportunity aimed at. When it names a recipe of the brief's planet, that recipe's
+   * facet decides which of the planet's recipes are tried first. It is read here and never kept: not in the group, not in
+   * the brief (D-410).
+   */
+  readonly plannedUnit?: string;
+}
+
 /** What a request for this catalogue meaning should produce, or `none` when nothing can. */
 export type ScrollRecipeChoice =
-  { readonly kind: 'recipe'; readonly recipe: RecipeKey; readonly take: number } | { readonly kind: 'none' };
+  | { readonly kind: 'recipe'; readonly recipe: ProductionRecipeKey; readonly take: number }
+  /** `capped`: a recipe could have been chosen but the day's cap for its kind (code or generated) is used up. */
+  | { readonly kind: 'none'; readonly capped?: true };
+
+/** What the serving order reads of a recipe: its planet and its angles. */
+export interface ServingFacts {
+  readonly topicId: string;
+  readonly facetId: string;
+  readonly supportingFacetId?: string;
+}
 
 /**
- * The recipes whose Scroll would satisfy the brief, best first: the recipes that teach the facet
- * itself, then those that cover it as their supporting facet. A brief without a facet is satisfied by
- * any recipe of the planet, in plan order. Pure; the plan guarantees every catalogue facet has one.
+ * The recipes whose Scroll would satisfy the brief, best first: the recipes that teach the facet itself, then those that
+ * cover it as their supporting facet. A brief without a facet is satisfied by any recipe of the planet. Each group keeps the
+ * order it was given, so a caller that lists code recipes before stored ones gets that order back. Pure.
+ */
+export function servingOrder<Recipe extends ServingFacts>(
+  recipes: readonly Recipe[],
+  brief: CatalogueBrief,
+): readonly Recipe[] {
+  const ofPlanet = recipes.filter((recipe) => recipe.topicId === brief.topicId);
+  if (brief.facetId === undefined) return ofPlanet;
+  const teaching = ofPlanet.filter((recipe) => recipe.facetId === brief.facetId);
+  const supporting = ofPlanet.filter((recipe) => recipe.supportingFacetId === brief.facetId);
+  return [...teaching, ...supporting];
+}
+
+/**
+ * The code-owned recipes whose Scroll would satisfy the brief, best first, in plan order. The plan guarantees every
+ * catalogue facet has one.
  */
 export function recipesServing(brief: CatalogueBrief): readonly RecipeKey[] {
-  const ofPlanet = RECIPE_KEYS.filter((key) => RECIPES[key].topicId === brief.topicId);
-  if (brief.facetId === undefined) return ofPlanet;
-  const teaching = ofPlanet.filter((key) => RECIPES[key].facetId === brief.facetId);
-  const supporting = ofPlanet.filter((key) => RECIPES[key].supportingFacetId === brief.facetId);
-  return [...teaching, ...supporting];
+  return servingOrder(
+    RECIPE_KEYS.map((key) => ({ key, ...RECIPES[key] })),
+    brief,
+  ).map((recipe) => recipe.key);
 }
 
 /**
@@ -165,10 +203,10 @@ export function recipesServing(brief: CatalogueBrief): readonly RecipeKey[] {
  * first that has not started, else the first whose rejected job may be taken again. Published and
  * stopped recipes are never chosen; `undefined` means nothing is left that could produce the Scroll.
  */
-export function pickRecipeToProduce(
-  candidates: readonly RecipeKey[],
-  stateOf: (recipe: RecipeKey) => ScrollProductionState,
-): RecipeKey | undefined {
+export function pickRecipeToProduce<Key extends string>(
+  candidates: readonly Key[],
+  stateOf: (recipe: Key) => ScrollProductionState,
+): Key | undefined {
   for (const wanted of ['running', 'not_started', 'retryable'] as const) {
     const found = candidates.find((recipe) => stateOf(recipe) === wanted);
     if (found !== undefined) return found;
@@ -183,7 +221,7 @@ export function libraryRecipes(): readonly RecipeKey[] {
 
 /** A job to send: the recipe and the take to run. */
 export interface ProductionSend {
-  readonly recipe: RecipeKey;
+  readonly recipe: ProductionRecipeKey;
   readonly take: number;
 }
 
@@ -193,7 +231,7 @@ export type RegenerationSkip = Exclude<RegenerationState, 'available' | 'running
 export interface RegenerationPlan {
   /** Takes to send, in plan order. A running take is sent again to resume it; a job already queued is not doubled. */
   readonly queue: readonly ProductionSend[];
-  readonly skipped: readonly { readonly recipe: RecipeKey; readonly reason: RegenerationSkip }[];
+  readonly skipped: readonly { readonly recipe: ProductionRecipeKey; readonly reason: RegenerationSkip }[];
 }
 
 /**
@@ -203,7 +241,7 @@ export interface RegenerationPlan {
  */
 export function planRegeneration(standing: readonly LibraryRecipeStatus[]): RegenerationPlan {
   const queue: ProductionSend[] = [];
-  const skipped: { recipe: RecipeKey; reason: RegenerationSkip }[] = [];
+  const skipped: { recipe: ProductionRecipeKey; reason: RegenerationSkip }[] = [];
   for (const row of standing) {
     const state = row.regeneration ?? 'not_v2';
     const take = regenerationTake(state, row.takes);
@@ -213,11 +251,18 @@ export function planRegeneration(standing: readonly LibraryRecipeStatus[]): Rege
   return { queue, skipped };
 }
 
+/** Whether a recipe's Scroll is interactive: a stored recipe never is (it is a plain, explanation-first Scroll). */
+const isInteractive = (key: ProductionRecipeKey): boolean =>
+  Object.hasOwn(RECIPES, key) && RECIPES[key as RecipeKey].interactive;
+
 export interface LibraryProductionPlan {
   /** Jobs to send, in the order to send them. A take above 1 retries a rejected recipe. */
   readonly queue: readonly ProductionSend[];
   /** Recipes with nothing left to do: their Scroll exists, or no take can start. */
-  readonly skipped: readonly { readonly recipe: RecipeKey; readonly reason: 'published' | 'held' | 'stopped' }[];
+  readonly skipped: readonly {
+    readonly recipe: ProductionRecipeKey;
+    readonly reason: 'published' | 'held' | 'stopped';
+  }[];
 }
 
 /**
@@ -240,7 +285,6 @@ export function planLibraryProduction(
     const take = takeToSend(row.state, row.takes);
     return take === undefined ? [] : [{ recipe: row.recipe, take }];
   });
-  if (options.interactiveFirst)
-    queue.sort((a, b) => Number(RECIPES[b.recipe].interactive) - Number(RECIPES[a.recipe].interactive));
+  if (options.interactiveFirst) queue.sort((a, b) => Number(isInteractive(b.recipe)) - Number(isInteractive(a.recipe)));
   return { queue, skipped };
 }

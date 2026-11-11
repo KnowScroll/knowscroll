@@ -1,3 +1,4 @@
+import { RECIPES } from '../domain/library/index.js';
 import { describe, expect, it } from 'vitest';
 import { kitDefinition, kitKeys, LIMITS_V2 } from '@knowscroll/scroll-model';
 import { AuthoredScrollV2 } from '@knowscroll/scroll-model/producer';
@@ -17,7 +18,7 @@ import {
 
 const passages = evidencePassages([fixtureResearchPageV2]);
 const context = (key: 'seasons' | 'dns-lookup' = 'seasons'): WriterV2Context => ({
-  publication: publicationV2(key),
+  publication: publicationV2(RECIPES[key]),
   recipe: spikeRecipeV2(key),
   passages,
   pages: [fixtureResearchPageV2],
@@ -331,7 +332,7 @@ const KIT_RECIPES = [
 describe.each(KIT_RECIPES)('the v19 writer for a recipe drawn with %s', (kit, key, sentence) => {
   const kitContext = (): WriterV2Context => ({
     ...context(),
-    publication: publicationV2(key),
+    publication: publicationV2(RECIPES[key]),
     recipe: spikeRecipeV2(key),
   });
 

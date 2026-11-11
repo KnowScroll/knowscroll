@@ -1,3 +1,4 @@
+import { RECIPES } from '../domain/library/index.js';
 import { describe, expect, it } from 'vitest';
 import { makeAnswerCheckStep } from './answer-check-step.js';
 import { evidencePassages } from './evidence.js';
@@ -18,7 +19,7 @@ import { storedScrollV2 } from './stored-v2.js';
 import { publicationV2, writerRoleV2, type WriterV2Context } from './writer-v2.js';
 
 const context: WriterV2Context = {
-  publication: publicationV2('seasons'),
+  publication: publicationV2(RECIPES.seasons),
   recipe: { variant: 'stage', misconception: { kind: 'none' } },
   passages: evidencePassages([fixtureResearchPageV2]),
   pages: [fixtureResearchPageV2],

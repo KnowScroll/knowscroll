@@ -276,6 +276,28 @@ system); `topics.ts` is only its index. The recipe key, the brief, the research 
 interactive block kind (`interactiveKind`) all come from the plan. Neither private research nor
 provenance is reachable through content's client-facing read ports.
 
+## Stored recipes and the brief role (#674, D-412)
+
+A recipe whose key starts with `gen-` lives in `content.recipes`. It runs through this job like a v2 library recipe: `subjectOf` reads its row
+(`librarySubject` builds the subject from the book recipe, with its own asset and explanation identity), `productionVersionOf` and `requestBoundOf`
+treat the key as a v2 recipe, the writer is the v2 writer with the plain, no-misconception plan, and the Scroll is stored held (`isHeldForReview`).
+`store.create` moves the recipe from `checked` to `queued` with the job row, and `store.finish` moves it to `produced` with the stored Scroll.
+
+`propose-recipes.ts` and `recipe-brief.ts` are the proposing step. The role `content.recipe-brief` (version `recipe-brief.v1`, background class, one
+request and at most one repair, `repairWithPreviousAnswer`) runs on the production harness through `proposeProduction`, so each paid attempt is in the
+attempt ledger. Its run is `stableUuid("content.recipe-brief:<version>|<planet>|<facet or ->|<UTC day>|<retry>")`: derived from the request and never
+from what it stores. `content.recipe_proposals` is the job row of this step: the first delivery freezes the context it sends there (`openProposal`),
+and every later delivery sends exactly that, so the harness answers from its ledger even when other recipes were stored since and a kept answer is never
+refused as a changed request. A row that is `completed` with recipes answers `already_proposed`; one that is `failed`, or `completed` with nothing
+stored, answers `closed_failed` with the next retry number (`--retry`, at most 2). The outcomes follow the production job's convention (`settlementOf`):
+a kept answer completes the run, an answer invalid after its repair or a conclusive provider failure closes it as failed, and an attempt of unknown
+outcome, any refusal of the harness (it may have been sent), a spent budget or quota, or a scope that refused leave it open and are never resent.
+After the answer one production transaction stores the recipes and closes the run: it takes the planet's advisory lock (`lockPlanetRecipes`), reads the
+recipes that exist now, runs every draft check again against them (`decideDrafts`), inserts the accepted ones, settles the proposal and closes the
+harness run. No network wait or model call holds it. `--dry-run` (`previewRecipeProposal`) reads the shared database only. The pages a proposal may use
+are the ones the planet's recipes' jobs froze (`readCandidatePages`): nothing is fetched, and a planet none of whose recipes was ever produced has none,
+so it is refused before any request.
+
 ## Publication: topic attribution and coverage
 
 `completeWriterPublication` is private to production and has no consumer/composition attribution
@@ -290,8 +312,8 @@ missing job, foreign lineage, incomplete job or contradictory metadata does not 
 The helpers read no reasoning SQL, request bytes, raw answers or research text. Actual closure
 and bounded accounting come through the existing harness within the same production transaction.
 
-Two things are then written in that same transaction, both decided by code from the recipe in
-`TOPICS` (the library plan in `domain/library/`, D-033):
+Two things are then written in that same transaction, both decided by code from the recipe in the recipe book (the library
+plan in `domain/library/`, D-033, or a recipe stored in `content.recipes`, D-412; `recipeOfJob` asks for the job's key):
 
 1. **Planet.** The `0016` trigger already creates the exact revision's baseline discovery row.
    The hook projects one primary topic with weight 1 (the recipe's planet, for example

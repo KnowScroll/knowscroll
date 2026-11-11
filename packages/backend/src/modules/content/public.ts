@@ -274,6 +274,7 @@ export type { RunScrollProduction, ScrollProductionJobOutcome, ProduceScroll } f
 export { libraryRecipes, planLibraryProduction, planRegeneration } from './domain/library/serving.js';
 export type {
   CatalogueBrief,
+  ChooseRecipeOptions,
   LibraryProductionPlan,
   LibraryRecipeStatus,
   ProductionSend,
@@ -283,8 +284,16 @@ export type {
   ScrollProductionState,
   ScrollRecipeChoice,
 } from './domain/library/serving.js';
-/** Chooses the library recipe a missing-supply request commissions; read inside the caller's personal transaction. */
-export type ChooseScrollRecipe = (scope: PersonalScopeTx, brief: CatalogueBrief) => Promise<ScrollRecipeChoice>;
+/**
+ * Chooses the library recipe a missing-supply request commissions; read inside the caller's personal transaction. The recipes
+ * come from the recipe book: the library plan's, and the ones stored in the database (D-412). `options.allow` says which of
+ * the two kinds the day's caps leave open, and `options.plannedUnit` the explanation unit a Planner opportunity aimed at.
+ */
+export type ChooseScrollRecipe = (
+  scope: PersonalScopeTx,
+  brief: CatalogueBrief,
+  options?: ChooseRecipeOptions,
+) => Promise<ScrollRecipeChoice>;
 export const CHOOSE_SCROLL_RECIPE = Symbol('content.chooseScrollRecipe');
 /**
  * Where one recipe's production stands (`stopped` for a key the plan does not hold) and the take a
@@ -295,6 +304,7 @@ export const READ_SCROLL_PRODUCTION = Symbol('content.readScrollProduction');
 
 /** Code-selected production topics and predictable model-request ceiling; no research is exported. */
 export {
+  parseProductionRecipe,
   parseScrollTopic,
   MAX_TAKES_PER_RECIPE,
   REQUEST_BOUND_PER_TOPIC,
@@ -303,6 +313,10 @@ export {
   SCROLL_PRODUCTION_VERSION,
 } from './production/topics.js';
 export type { ScrollTopic } from './production/topics.js';
+/** Every recipe production can run: a code recipe or a stored one (`gen-…`, D-412). */
+export type { ProductionRecipeKey } from './domain/library/serving.js';
+/** The statuses a stored recipe moves through, for the operator's list. */
+export { RECIPE_STATUSES, type RecipeStatus } from './domain/library/generated.js';
 /**
  * The words of a quote compared with a text, for a model's claim that a text says something (D-250, D-251): a claim
  * is accepted only when the quote is in the text. Pure. `sharedStems` counts the key words two texts share; a room's resident
@@ -350,7 +364,12 @@ import type {
 } from './domain/discovery.js';
 import type { UnseenFirst } from './domain/unseen-first.js';
 import type { AdmissionTx } from './application/ports.js';
-import type { CatalogueBrief, ScrollProductionReading, ScrollRecipeChoice } from './domain/library/serving.js';
+import type {
+  CatalogueBrief,
+  ChooseRecipeOptions,
+  ScrollProductionReading,
+  ScrollRecipeChoice,
+} from './domain/library/serving.js';
 /**
  * The most topics one discovery read may filter by. A read with more is refused
  * (`DISCOVERY_QUERY_INVALID`), so a caller that gathers topics from open-ended history must keep

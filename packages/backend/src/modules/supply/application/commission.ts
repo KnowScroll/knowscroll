@@ -82,6 +82,8 @@ export async function commissionSupply(
   scope: PersonalScopeTx,
   brief: CanonicalBrief,
   origin: CommissionOrigin,
+  /** The explanation unit the Planner's opportunity aimed at: it only orders the recipes tried, and is kept nowhere (D-410). */
+  plannedUnit?: string,
 ): Promise<Commission> {
   const { subject } = brief;
   if (subject.kind !== 'catalogue' || brief.format === 'reel') return refused('no_production_path');
@@ -100,12 +102,21 @@ export async function commissionSupply(
   const cap = p.createDailyCaps[origin];
   if (cap === 0) return refused('create_off');
   const startOfDay = new Date(Math.floor(p.now().getTime() / UTC_DAY_MS) * UTC_DAY_MS);
-  if ((await p.store.countCommissionedSince(scope, startOfDay, origin)) >= cap) return refused('cap_reached');
-  const choice = await p.chooseRecipe(scope, {
-    topicId: subject.topicId,
-    ...(subject.facetId === undefined ? {} : { facetId: subject.facetId }),
-  });
-  if (choice.kind === 'none') return refused('no_recipe_left');
+  // Two kinds of recipe, two caps (D-412). A code recipe counts against the asker's own cap. A stored recipe is growth: it
+  // counts only against the growth cap, so it never uses up what a person's ask or the Planner needs, and it is open only
+  // while Create is on for this origin (checked above).
+  const codeOpen = (await p.store.countCommissionedSince(scope, startOfDay, origin)) < cap;
+  const growthOpen = p.growthDailyCap > 0 && (await p.store.countGrowthSince(scope, startOfDay)) < p.growthDailyCap;
+  if (!codeOpen && !growthOpen) return refused('cap_reached');
+  const choice = await p.chooseRecipe(
+    scope,
+    {
+      topicId: subject.topicId,
+      ...(subject.facetId === undefined ? {} : { facetId: subject.facetId }),
+    },
+    { allow: { code: codeOpen, generated: growthOpen }, ...(plannedUnit === undefined ? {} : { plannedUnit }) },
+  );
+  if (choice.kind === 'none') return refused(choice.capped === true || !codeOpen ? 'cap_reached' : 'no_recipe_left');
   const work = await p.store.joinOrCreate(scope, brief, p.newId(), { recipe: choice.recipe, origin });
   if (work.joined) return { kind: 'waiting', workId: work.id, decision: 'join' };
   await p.enqueueProduction(scope, choice.recipe, choice.take);

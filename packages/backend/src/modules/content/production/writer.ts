@@ -32,7 +32,7 @@ import { isCodeMadeLimits } from './ask-answer-limits.js';
 import { titleAboutReading, trimAskAnswer, unchanged, type PreparedAnswer, type TrimRules } from './ask-answer-trim.js';
 import { copyRepairNotes } from './copy-repair.js';
 import { authoringEvidence, MIN_EVIDENCE_PASSAGES, type EvidencePassage } from './evidence.js';
-import { explanationUnitFor, TOPICS, type ScrollTopic } from './topics.js';
+import type { LibraryRecipe } from '../domain/library/plan.js';
 
 /**
  * The version of the writer's instructions and output contract. It is recorded in every
@@ -240,10 +240,10 @@ export interface PublicationIdentity {
 }
 
 /** The identity of a library recipe's Scroll: factual, with the recipe's own asset and explanation. */
-export function libraryIdentity(topic: ScrollTopic): PublicationIdentity {
+export function libraryIdentity(recipe: Pick<LibraryRecipe, 'assetId' | 'explanationUnitId'>): PublicationIdentity {
   return {
-    assetId: TOPICS[topic].assetId,
-    explanationUnitId: explanationUnitFor(topic),
+    assetId: recipe.assetId,
+    explanationUnitId: recipe.explanationUnitId,
     kicker: 'A closer look',
     framing: { kind: 'factual' },
   };

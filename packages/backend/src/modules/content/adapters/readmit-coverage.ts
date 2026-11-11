@@ -1,16 +1,16 @@
 import { sql, type Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { readmitRecipeCoverage } from '../application/readmit-recipe-coverage.js';
-import { RECIPE_KEYS, RECIPES } from '../domain/library/index.js';
 import { coverageHeadPorts } from './coverage-store.js';
 import { makeAdmissionStore } from './postgres-store.js';
+import { recipeBookOf } from './stored-recipes.js';
 
 /**
  * The operator's `content readmit-coverage`: decide coverage again for every published generated
- * Scroll revision, from the library plan as it is now. See `readmitRecipeCoverage`.
+ * Scroll revision, from the recipe book as it is now: the library plan and the stored recipes. See `readmitRecipeCoverage`.
  */
 export function readmitCoverageUseCase(db: Kysely<Database>) {
-  return (options: { readonly dryRun: boolean }) =>
+  return async (options: { readonly dryRun: boolean }) =>
     readmitRecipeCoverage(
       {
         coverage: coverageHeadPorts,
@@ -24,7 +24,7 @@ export function readmitCoverageUseCase(db: Kysely<Database>) {
           return rows.rows.map((row) => ({ assetId: row.asset_id, assetRevision: row.revision }));
         },
       },
-      RECIPE_KEYS.map((key) => RECIPES[key]),
+      await recipeBookOf(db).all(),
       options,
     );
 }

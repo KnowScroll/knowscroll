@@ -169,7 +169,18 @@ export const supplyStore: SupplyStore = {
       .selectFrom('supply.work')
       .select(sql<string>`count(*)`.as('count'))
       .where('production_recipe', 'is not', null)
+      // A stored recipe's production is growth: it is counted by `countGrowthSince`, never against a person's or the Planner's cap.
+      .where('production_recipe', 'not like', 'gen-%')
       .where('commissioned_by', '=', origin)
+      .where('created_at', '>=', since)
+      .executeTakeFirstOrThrow();
+    return Number(row.count);
+  },
+  async countGrowthSince(scope, since) {
+    const row = await transactionOf(scope)
+      .selectFrom('supply.work')
+      .select(sql<string>`count(*)`.as('count'))
+      .where('production_recipe', 'like', 'gen-%')
       .where('created_at', '>=', since)
       .executeTakeFirstOrThrow();
     return Number(row.count);

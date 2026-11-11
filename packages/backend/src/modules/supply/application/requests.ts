@@ -426,7 +426,7 @@ export function makeRecordPlannedDemand(p: SupplyPorts): RecordPlannedDemand {
       });
       return outcome({ kind: 'ready', requestId: id });
     }
-    const commissioned = await commissionSupply(p, scope, brief, 'planner');
+    const commissioned = await commissionSupply(p, scope, brief, 'planner', input.intent.explanationUnitId);
     if (commissioned.kind === 'unavailable') return outcome({ kind: 'not_commissioned', reason: commissioned.cause });
     await p.store.insert(scope, { ...demand, workId: commissioned.workId, decision: commissioned.decision });
     await p.enqueue(scope, id);
