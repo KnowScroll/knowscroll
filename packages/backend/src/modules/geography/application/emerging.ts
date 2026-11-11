@@ -1,27 +1,35 @@
-import { EmergingUniverseSchema, ReadEmergingUniverseSchema } from '@knowscroll/contracts';
+import { EMERGING_LIMITS, EmergingUniverseSchema, ReadEmergingUniverseSchema } from '@knowscroll/contracts';
 import { CONCEPTS } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { dustCueId, gatheringSystems } from '../domain/emerging.js';
+import type { Concept } from '../domain/policy.js';
 import type { EmergingPorts, ReadOwnEmerging } from './ports.js';
 
 /** The context query takes at most this many topic IDs. */
 const TOPICS_PER_QUERY = 100;
 
+const PRODUCT_CATALOGUE: readonly Concept[] = CONCEPTS.map((topic) => ({
+  id: topic.id,
+  parent: topic.parent,
+  facets: topic.facets.map((facet) => facet.id),
+}));
+
 /**
  * Own dust cues: the catalogue systems that qualified reading or watching has reached and that are
  * not established yet.
+ *
+ * At most `EMERGING_LIMITS.dust` cues are returned, the same systems on every read (a reader who is
+ * gathering toward more systems than the contract holds sees the first ones by ID, never an error).
  *
  * Authority: the caller's current personal scope and an active owner. Side effects: none; this
  * read never enqueues cartography or writes. The cue exists because Personal Context holds a
  * qualified explanation unit under one of the system's topics, so only an actual personal
  * encounter creates one, and a selective Clear that removes the evidence removes the cue.
  */
-export function makeReadOwnEmerging(p: EmergingPorts): ReadOwnEmerging {
-  const catalogue = CONCEPTS.map((topic) => ({
-    id: topic.id,
-    parent: topic.parent,
-    facets: topic.facets.map((facet) => facet.id),
-  }));
+export function makeReadOwnEmerging(
+  p: EmergingPorts,
+  catalogue: readonly Concept[] = PRODUCT_CATALOGUE,
+): ReadOwnEmerging {
   return async (authority, input) => {
     ReadEmergingUniverseSchema.parse(input);
     const result = await p.withScope(authority, async (scope) => {
@@ -35,7 +43,7 @@ export function makeReadOwnEmerging(p: EmergingPorts): ReadOwnEmerging {
       const established = new Set(
         view.objects.filter((place) => place.kind === 'system').map((place) => place.conceptId),
       );
-      const systems = gatheringSystems(catalogue, qualifiedTopicIds, established);
+      const systems = gatheringSystems(catalogue, qualifiedTopicIds, established, EMERGING_LIMITS.dust);
       return EmergingUniverseSchema.parse({
         version: 'universe-emerging.v1',
         universeId: scope.authority.universeId,

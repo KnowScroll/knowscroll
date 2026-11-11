@@ -1,24 +1,80 @@
 import { CONCEPTS, CONCEPT_CATALOGUE_VERSION } from '../../content/public.js';
 import type { PersonalScopeTx, RecordingScopeTx } from '../../identity/public.js';
 import type { TrustedCoverageQuery } from '../../personal-context/public.js';
-import type { GeographyContext, GeographyPorts, GeographyView } from './ports.js';
+import type {
+  GeographyContext,
+  GeographyPorts,
+  GeographyPreparation,
+  GeographyView,
+  PreparationRefusal,
+} from './ports.js';
 import { compactSupports, type WeightedSupport } from '../domain/compaction.js';
-import { semanticKey, type Candidate, type FormationFacts, type Support } from '../domain/policy.js';
+import {
+  formationEligible,
+  semanticKey,
+  type Candidate,
+  type Concept,
+  type FormationFacts,
+  type Place,
+  type Support,
+} from '../domain/policy.js';
 const label = (id: string) => {
   const value = id.split('.').at(-1)!.replaceAll('-', ' ');
   return value[0]!.toUpperCase() + value.slice(1);
 };
-/** Identity slots are allocated once in the frozen context, never invented by the model. */
-function candidates(p: GeographyPorts, view: GeographyView, previous?: readonly Candidate[]): readonly Candidate[] {
+const TOPICS: ReadonlyMap<string, (typeof CONCEPTS)[number]> = new Map(CONCEPTS.map((topic) => [topic.id, topic]));
+const refused = (reason: PreparationRefusal): GeographyPreparation => ({ kind: 'unavailable', reason });
+
+/**
+ * The catalogue topics this person has reached, or already holds a place for, with the systems they
+ * belong to. A place with no support can never be due (`formationEligible`), so no other concept
+ * needs a slot, a catalogue entry or a route in the frozen context. This is what keeps the context
+ * from growing with the catalogue (#674).
+ */
+function relevantTopicIds(supports: readonly Support[], objects: readonly Place[]): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const support of supports) ids.add(support.topicId);
+  // A region's concept is a facet; its planet is an object of its own and is added with the others.
+  for (const object of objects) if (object.kind !== 'region') ids.add(object.conceptId);
+  for (const id of [...ids]) {
+    const parent = TOPICS.get(id)?.parent;
+    if (parent) ids.add(parent);
+  }
+  return ids;
+}
+
+/** The catalogue entries of `topicIds`, in catalogue order, as the rules read them. */
+const catalogueSlice = (topicIds: ReadonlySet<string>): Concept[] =>
+  CONCEPTS.filter((topic) => topicIds.has(topic.id)).map((topic) => ({
+    id: topic.id,
+    parent: topic.parent,
+    facets: topic.facets.map((facet) => facet.id),
+  }));
+/**
+ * Identity slots are allocated once in the frozen context, never invented by the model. A slot is
+ * made for each reached or established system, star and planet, and for each region that is
+ * supported or established. An identity comes from the stored place, else from `previous` (the
+ * context being re-checked at apply), else a new one.
+ */
+function candidates(
+  p: GeographyPorts,
+  objects: readonly Place[],
+  supports: readonly Support[],
+  topicIds: ReadonlySet<string>,
+  previous?: readonly Candidate[],
+): readonly Candidate[] {
   const slots: Candidate[] = [];
+  const stored = new Map(objects.map((object) => [object.key, object]));
+  const frozen = new Map((previous ?? []).map((candidate) => [candidate.key, candidate]));
+  const supported = new Set(supports.map((support) => `${support.topicId}|${support.facetId}`));
+  const established = new Set(
+    objects.filter((object) => object.kind === 'region').map((object) => `${object.parentKey}|${object.conceptId}`),
+  );
   const add = (kind: Candidate['kind'], conceptId: string, parentKey: string, meaning: string) => {
-    const key = semanticKey(kind, conceptId),
-      old = view.objects.find((o) => o.key === key),
-      frozen = previous?.find((c) => c.key === key);
-    if (previous && !old && !frozen) throw new Error('GEOGRAPHY_CATALOGUE_CHANGED');
+    const key = semanticKey(kind, conceptId);
     slots.push({
       key,
-      id: old?.id ?? frozen?.id ?? p.newId(),
+      id: stored.get(key)?.id ?? frozen.get(key)?.id ?? p.newId(),
       kind,
       conceptId,
       parentKey,
@@ -27,15 +83,45 @@ function candidates(p: GeographyPorts, view: GeographyView, previous?: readonly 
     });
   };
   for (const topic of CONCEPTS) {
+    if (!topicIds.has(topic.id)) continue;
     if (topic.parent === null) {
       add('system', topic.id, 'universe', topic.meaning);
       add('star', topic.id, semanticKey('system', topic.id), topic.meaning);
-    } else {
-      add('planet', topic.id, semanticKey('system', topic.parent), topic.meaning);
-      for (const facet of topic.facets) add('region', facet.id, semanticKey('planet', topic.id), facet.meaning);
+      continue;
     }
+    const planetKey = semanticKey('planet', topic.id);
+    add('planet', topic.id, semanticKey('system', topic.parent), topic.meaning);
+    for (const facet of topic.facets)
+      if (supported.has(`${topic.id}|${facet.id}`) || established.has(`${planetKey}|${facet.id}`))
+        add('region', facet.id, planetKey, facet.meaning);
   }
   return slots;
+}
+
+/**
+ * Identities for the routes the rules could connect: every pair of planets of one system that are
+ * formed or due. A route only ever joins two such planets (`proposalIssue`), so no other pair needs
+ * one. An earlier context keeps the identities it allocated.
+ */
+function routeIdentities(
+  facts: FormationFacts,
+  previous: GeographyContext['routeIds'] | undefined,
+  newId: () => string,
+): Record<string, string> {
+  const formed = new Set(facts.objects.map((object) => object.key));
+  const bySystem = new Map<string, Candidate[]>();
+  for (const candidate of facts.candidates) {
+    if (candidate.kind !== 'planet' || !(formed.has(candidate.key) || formationEligible(facts, candidate))) continue;
+    bySystem.set(candidate.parentKey, [...(bySystem.get(candidate.parentKey) ?? []), candidate]);
+  }
+  const pairs: Record<string, string> = {};
+  for (const planets of bySystem.values())
+    for (let i = 0; i < planets.length; i++)
+      for (let j = i + 1; j < planets.length; j++) {
+        const key = [planets[i]!.key, planets[j]!.key].sort().join('|');
+        pairs[key] = previous?.[key] ?? newId();
+      }
+  return pairs;
 }
 /** A trusted read takes this many probes; more candidate keys are read in batches. */
 const PROBES_PER_READ = 100;
@@ -48,16 +134,20 @@ type CoverageEntry = WeightedSupport & {
   readonly certificates: Coverage['certificates'];
 };
 
+type BatchRead =
+  | { readonly kind: 'read'; readonly reads: Coverage[] }
+  | { readonly kind: 'unavailable'; readonly reason: Extract<PreparationRefusal, `coverage_${string}`> };
+
 /**
- * Reads one batch of probes. A trusted read refuses past its own bounds (raw references, assets, or
- * 128 KiB of output), so a batch that refuses with `limit` is split and read as two. A batch with
- * nothing observed contributes nothing. One probe always fits.
+ * Reads one batch of probes. A trusted read refuses past its own bounds, so a batch that refuses
+ * with `limit` is split and read as two. A batch with nothing observed contributes nothing. One
+ * probe always fits: the read returns one witness per support key, never one per re-read.
  */
 async function readBatch(
   p: GeographyPorts,
   scope: PersonalScopeTx,
   probes: TrustedCoverageQuery['probes'],
-): Promise<Coverage[] | undefined> {
+): Promise<BatchRead> {
   const read = await p.readTrusted(scope, { probes });
   if (read.availability === 'available') {
     if (
@@ -66,40 +156,49 @@ async function readBatch(
       read.supportedFormats[0] !== 'scroll'
     )
       throw new Error('GEOGRAPHY_COVERAGE_UNSUPPORTED');
-    return [read];
+    return { kind: 'read', reads: [read] };
   }
-  if (read.reason === 'not_observed') return [];
-  if (read.reason !== 'limit' || probes.length === 1) return undefined;
+  if (read.reason === 'not_observed') return { kind: 'read', reads: [] };
+  if (read.reason === 'authority_changed') return { kind: 'unavailable', reason: 'coverage_authority_changed' };
+  if (probes.length === 1) return { kind: 'unavailable', reason: 'coverage_limit' };
   const half = Math.ceil(probes.length / 2);
   const first = await readBatch(p, scope, probes.slice(0, half));
-  const second = first && (await readBatch(p, scope, probes.slice(half)));
-  return first && second ? [...first, ...second] : undefined;
+  if (first.kind === 'unavailable') return first;
+  const second = await readBatch(p, scope, probes.slice(half));
+  return second.kind === 'unavailable' ? second : { kind: 'read', reads: [...first.reads, ...second.reads] };
 }
 
 /**
  * Reads every candidate through the trusted coverage port, in batches under one root. The batches
  * are disjoint probes, so their union is the whole trusted read; certificates shared by two
  * bindings of one exposure are kept once. Any batch that cannot be read makes the whole read
- * unavailable, as does a read in which nothing was observed.
+ * unavailable, as does a read in which nothing was observed (`no_trusted_support`).
  */
 async function readTrustedInBatches(
   p: GeographyPorts,
   scope: PersonalScopeTx,
   probes: TrustedCoverageQuery['probes'],
-): Promise<Coverage | undefined> {
+): Promise<
+  | { readonly kind: 'read'; readonly coverage: Coverage }
+  | { readonly kind: 'unavailable'; readonly reason: PreparationRefusal }
+> {
   const reads: Coverage[] = [];
   for (let start = 0; start < probes.length; start += PROBES_PER_READ) {
     const batch = await readBatch(p, scope, probes.slice(start, start + PROBES_PER_READ));
-    if (!batch) return undefined;
-    reads.push(...batch);
+    if (batch.kind === 'unavailable') return batch;
+    reads.push(...batch.reads);
   }
   const [first] = reads;
-  if (!first || reads.length === 1) return first;
+  if (!first) return { kind: 'unavailable', reason: 'no_trusted_support' };
+  if (reads.length === 1) return { kind: 'read', coverage: first };
   return {
-    ...first,
-    supports: reads.flatMap((read) => read.supports),
-    witnesses: reads.flatMap((read) => read.witnesses),
-    certificates: [...new Map(reads.flatMap((read) => read.certificates).map((c) => [c.witnessKey, c])).values()],
+    kind: 'read',
+    coverage: {
+      ...first,
+      supports: reads.flatMap((read) => read.supports),
+      witnesses: reads.flatMap((read) => read.witnesses),
+      certificates: [...new Map(reads.flatMap((read) => read.certificates).map((c) => [c.witnessKey, c])).values()],
+    },
   };
 }
 
@@ -107,7 +206,7 @@ async function readTrustedInBatches(
 function supportEntries(p: GeographyPorts, coverage: Coverage): CoverageEntry[] {
   const entries: CoverageEntry[] = [];
   for (const s of coverage.supports) {
-    const topic = CONCEPTS.find((t) => t.id === s.topicId),
+    const topic = TOPICS.get(s.topicId),
       facet = topic?.facets.find((f) => f.id === s.facetId);
     // A facet that vanished or changed meaning since the evidence was recorded supports nothing now.
     // The catalogue grows with the library, so this is expected after a plan edit, not an error.
@@ -200,42 +299,47 @@ function coverageOf(coverage: Coverage, all: readonly CoverageEntry[], kept: rea
  * The rules read all trusted coverage; when it is more than one frozen context can hold, the context
  * keeps the supports they need (`compactSupports`), so a heavy reader's cartography degrades
  * instead of stopping.
+ *
+ * The context holds only what the person has reached: candidates, catalogue entries and route
+ * identities for concepts with support or an established place, and for their systems. `previous`,
+ * the context being re-checked at apply, gives identities to places it already allocated; a concept
+ * it did not hold (reading reached it since) is simply new, and never a refusal.
+ *
+ * Returns why no context was prepared as a typed refusal, so the caller can record a distinct outcome.
+ * A reader with no coverage references yet is refused before any coverage is read or any identity
+ * allocated.
  */
 export async function prepareGeography(
   p: GeographyPorts,
   cap: RecordingScopeTx,
   view: GeographyView,
   previous?: GeographyContext,
-): Promise<GeographyContext | undefined> {
+): Promise<GeographyPreparation> {
   await p.store.root(cap);
   const scope = cap.personal;
-  if (view.objects.length > 1000 || view.routes.length + view.aliases.length > 1000) return undefined;
+  if (view.objects.length > 1000 || view.routes.length + view.aliases.length > 1000) return refused('structure_limit');
   const input = await p.readInputs(scope);
-  if (input.availability !== 'available' || !input.probes.length) return undefined;
-  const trusted = await readTrustedInBatches(p, scope, input.probes);
-  if (!trusted) return undefined;
+  if (input.availability !== 'available') return refused('discovery_limit');
+  if (!input.probes.length) return refused('no_support_yet');
+  const read = await readTrustedInBatches(p, scope, input.probes);
+  if (read.kind === 'unavailable') return refused(read.reason);
+  const trusted = read.coverage;
   const all = supportEntries(p, trusted);
   const kept = compactSupports(all, SUPPORT_BUDGET);
   const coverage = coverageOf(trusted, all, kept);
   const supports = kept.map((entry) => entry.support);
+  const topicIds = relevantTopicIds(supports, view.objects);
   const facts: FormationFacts = {
-    catalogue: CONCEPTS.map((t) => ({ id: t.id, parent: t.parent, facets: t.facets.map((f) => f.id) })),
+    catalogue: catalogueSlice(topicIds),
     supports,
-    candidates: candidates(p, view, previous?.facts.candidates),
+    candidates: candidates(p, view.objects, supports, topicIds, previous?.facts.candidates),
     objects: view.objects,
     routes: view.routes,
     evaluatedAt: p.now().toISOString(),
     completeness: 'not_asserted',
   };
-  const pairs: Record<string, string> = {};
-  const planets = facts.candidates.filter((c) => c.kind === 'planet');
-  for (let i = 0; i < planets.length; i++)
-    for (let j = i + 1; j < planets.length; j++) {
-      const key = [planets[i]!.key, planets[j]!.key].sort().join('|');
-      pairs[key] = previous?.routeIds[key] ?? p.newId();
-    }
   const { evaluatedAt: _time, ...authorityFacts } = facts;
-  const result: GeographyContext = {
+  const context: GeographyContext = {
     version: 'cartographer-context.v1',
     universeId: scope.authority.universeId,
     privacyEpoch: scope.authority.privacyEpoch,
@@ -252,8 +356,8 @@ export async function prepareGeography(
       structureRevision: view.state.structureRevision,
       activityRevision: view.state.activityRevision,
     },
-    routeIds: pairs,
+    routeIds: routeIdentities(facts, previous?.routeIds, p.newId),
   };
-  if (new TextEncoder().encode(JSON.stringify(result)).byteLength > 500000) return undefined;
-  return result;
+  if (new TextEncoder().encode(JSON.stringify(context)).byteLength > 500000) return refused('context_too_large');
+  return { kind: 'prepared', context };
 }

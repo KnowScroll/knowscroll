@@ -118,6 +118,28 @@ export interface GeographyContext {
   readonly base: GeographyRevisions;
   readonly routeIds: Readonly<Record<string, string>>;
 }
+/**
+ * Why no frozen context could be prepared. Each is recorded as the run's outcome (`geography.runs.outcome`)
+ * so a healthy new reader is told apart from a limit that needs an engineer:
+ * - `no_support_yet`: the person has no coverage references yet. Healthy; nothing was read or allocated.
+ * - `no_trusted_support`: references exist, but none is current trusted support (content withdrawn, a map corrected).
+ * - `discovery_limit`: more distinct support keys than one discovery returns.
+ * - `coverage_limit`: the trusted read cannot hold even one probe's proof.
+ * - `coverage_authority_changed`: Content or Evidence moved while the proof was read; the next reading tries again.
+ * - `structure_limit`: more places or routes than one universe may hold.
+ * - `context_too_large`: the frozen context would pass its size bound.
+ */
+export type PreparationRefusal =
+  | 'no_support_yet'
+  | 'no_trusted_support'
+  | 'discovery_limit'
+  | 'coverage_limit'
+  | 'coverage_authority_changed'
+  | 'structure_limit'
+  | 'context_too_large';
+export type GeographyPreparation =
+  | { readonly kind: 'prepared'; readonly context: GeographyContext }
+  | { readonly kind: 'unavailable'; readonly reason: PreparationRefusal };
 export interface GeographyRunHeader {
   readonly recording?: { readonly accountId: string; readonly source: GeographySource };
   readonly contextSha256?: string;

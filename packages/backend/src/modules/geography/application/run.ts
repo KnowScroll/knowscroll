@@ -21,7 +21,7 @@ import { nextRunNotBefore } from '../domain/pacing.js';
 import { GEOGRAPHY_POLICY, type GeographyProposal } from '../domain/policy.js';
 import { CartographyJobSchema } from '../events.js';
 import { prepareGeography } from './context.js';
-import { cartographerRole, cartographyContextItems, geographyContextHashes } from './role.js';
+import { cartographerRole, geographyContextHashes, modelContextItems } from './role.js';
 import { ensureCartography } from './request.js';
 import { applyProposal } from './apply.js';
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
@@ -183,7 +183,8 @@ const PRE_ADMISSION_REFUSALS: ReadonlySet<string> = new Set<ProposeRefusal>([
 /**
  * Settles the exact current claim of a run that has no open ledger run to apply under or close:
  * the harness refused it before admitting it, a reading-triggered run with no place due that never
- * went to the harness (`no_changes`), or a run whose ledger run was closed under it (`run_closed`).
+ * went to the harness (`no_changes`), a context too large for one model request (`context_limit`),
+ * or a run whose ledger run was closed under it (`run_closed`).
  * Only actual accounting with no live attempt may settle it (zero retained attempts, or for
  * `run_closed` settled ones). The rules apply under the claim's own authority (same validation,
  * revision check and transaction as any apply); with nothing due the run is released with `reason`
@@ -245,7 +246,10 @@ async function settleUnadmitted(
       settlement =
         applied.kind === 'refused'
           ? { status: applied.reason === 'no_changes' ? 'insufficient' : 'stale', outcome: applied.reason }
-          : { status: 'accepted', outcome: OUTCOME_OF_SOURCE.rules };
+          : {
+              status: 'accepted',
+              outcome: reason === 'context_limit' ? MODEL_SKIPPED_FOR_SIZE : OUTCOME_OF_SOURCE.rules,
+            };
     }
     await p.store.finishUnadmitted(scope, purpose.businessRunId, purpose.claimId, settlement);
     const updated = await p.store.state(scope),
@@ -338,6 +342,12 @@ function planFor(
   const proposal = requiredChanges(facts);
   return proposal.operations.length ? { proposal, source: 'rules' } : undefined;
 }
+/**
+ * The outcome of a run whose rules applied places because the context did not fit one model request, so
+ * no model was asked. An operator tells it from an ordinary rules-only run (`applied_by_rules`) and from
+ * `context_limit`, which is the same cause with nothing due.
+ */
+const MODEL_SKIPPED_FOR_SIZE = 'applied_by_rules_context_limit';
 const OUTCOME_OF_SOURCE = {
   model: 'applied',
   model_with_rules: 'applied_with_rules',
@@ -451,9 +461,18 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
         await p.store.writeState(scope, { ...state, activeRunId: undefined });
         return undefined;
       }
-      const context = run.hasContext
-        ? await p.store.context(cap, run.id)
-        : await prepareGeography(p, cap, await p.store.view(scope));
+      let context: GeographyContext | undefined;
+      if (run.hasContext) context = await p.store.context(cap, run.id);
+      else {
+        const prepared = await prepareGeography(p, cap, await p.store.view(scope));
+        if (prepared.kind === 'unavailable') {
+          // Each cause is its own outcome. A reader with no coverage yet is healthy and builds no context.
+          await p.store.writeRun(scope, { ...consumed, status: 'insufficient', outcome: prepared.reason });
+          await p.store.writeState(scope, idleAfterRun(p, state));
+          return undefined;
+        }
+        context = prepared.context;
+      }
       if (
         !context ||
         context.version !== 'cartographer-context.v1' ||
@@ -461,19 +480,12 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
         context.privacyEpoch !== authority.privacyEpoch ||
         (run.hasContext && context.desiredRevision !== run.desiredRevision)
       ) {
-        await p.store.writeRun(scope, { ...consumed, status: 'insufficient', outcome: 'coverage_unavailable' });
+        await p.store.writeRun(scope, { ...consumed, status: 'insufficient', outcome: 'context_unreadable' });
         await p.store.writeState(scope, idleAfterRun(p, state));
         return undefined;
       }
-      let hashes: ReturnType<typeof geographyContextHashes>;
-      try {
-        hashes = geographyContextHashes(context, run.id, p.hash);
-      } catch (error) {
-        if (!(error instanceof Error) || error.message !== 'GEOGRAPHY_CONTEXT_LIMIT') throw error;
-        await p.store.writeRun(scope, { ...consumed, status: 'insufficient', outcome: 'context_limit' });
-        await p.store.writeState(scope, idleAfterRun(p, state));
-        return undefined;
-      }
+      // The hashes do not depend on whether a model request would fit: only a model call needs that.
+      const hashes = geographyContextHashes(context, run.id, p.hash);
       if (
         run.recording &&
         run.hasContext &&
@@ -540,6 +552,12 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       await settleUnadmitted(p, authority, purpose, 'no_changes');
       return;
     }
+    // A context too large for one request is not a reason to stop: the rules still apply what is due.
+    const items = modelContextItems(c);
+    if (!items) {
+      await settleUnadmitted(p, authority, purpose, 'context_limit');
+      return;
+    }
     const outcome = await p.harness.proposePersonal(
       {
         run: {
@@ -550,7 +568,7 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
           policyVersion: GEOGRAPHY_POLICY,
         },
         role: cartographerRole(c),
-        context: { bundleRef: `geography:${run.id}`, items: cartographyContextItems(c) },
+        context: { bundleRef: `geography:${run.id}`, items },
         limits: { allowRepair: true },
         recordingPurpose: purpose,
       },

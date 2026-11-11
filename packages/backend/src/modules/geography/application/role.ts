@@ -90,7 +90,8 @@ function packedBySize(values: readonly unknown[]): string[] {
   return texts;
 }
 
-export function cartographyContextItems(c: GeographyContext): readonly ContextItem[] {
+/** The model-facing items of a context, as many as it takes. Whether they fit one request is `cartographyContextItems`'s question. */
+function contextItems(c: GeographyContext): ContextItem[] {
   const items: ContextItem[] = [
     {
       ref: 'geography:policy',
@@ -118,6 +119,16 @@ export function cartographyContextItems(c: GeographyContext): readonly ContextIt
   ] as const)
     for (let i = 0; i < values.length; i += 5)
       items.push({ ref: `geography:${kind}:${i}`, kind, text: prepared(values.slice(i, i + 5)) });
+  return items;
+}
+
+/**
+ * The items of one model request. Throws `GEOGRAPHY_CONTEXT_LIMIT` when the context does not fit
+ * (64 items, 32,768 characters each, 180,000 bytes in all). Only a model call needs this: a run that
+ * applies the rules alone never packages a request, so it is not stopped by the limit.
+ */
+export function cartographyContextItems(c: GeographyContext): readonly ContextItem[] {
+  const items = contextItems(c);
   const bytes = items.reduce(
     (n, item) =>
       n +
@@ -131,9 +142,24 @@ export function cartographyContextItems(c: GeographyContext): readonly ContextIt
   return items;
 }
 
+/** The items of one model request, or `undefined` when the context does not fit one (see `cartographyContextItems`). */
+export function modelContextItems(c: GeographyContext): readonly ContextItem[] | undefined {
+  try {
+    return cartographyContextItems(c);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'GEOGRAPHY_CONTEXT_LIMIT') return undefined;
+    throw error;
+  }
+}
+
+/**
+ * The two hashes a run records when it is claimed. The model-facing hash covers the items whether or
+ * not they fit one request, so a context that is too large for a model is still hashed (and a context
+ * that fits hashes as it always did).
+ */
 export function geographyContextHashes(context: GeographyContext, runId: string, hash: (value: unknown) => string) {
   return {
     contextSha256: hash(context),
-    modelContextSha256: hash({ bundleRef: `geography:${runId}`, items: cartographyContextItems(context) }),
+    modelContextSha256: hash({ bundleRef: `geography:${runId}`, items: contextItems(context) }),
   };
 }

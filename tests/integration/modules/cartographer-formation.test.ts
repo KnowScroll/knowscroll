@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
-import { makeRunCartographer } from '@knowscroll/backend/modules/geography/nest-providers';
+import { geographyStore, makeRunCartographer } from '@knowscroll/backend/modules/geography/nest-providers';
 import { CONCEPTS } from '@knowscroll/backend/modules/content';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
@@ -13,6 +13,7 @@ import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction }
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { markRecipesV1 } from '../support/scroll-v2.js';
+import { seedOlderRereads } from '../support/rereads.js';
 
 /**
  * How reading becomes places: dust, then a system with its star, then a planet with its regions.
@@ -520,6 +521,170 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     const planet = universe.page.objects.find((place) => place.kind === 'planet')!;
     expect(universe.page.objects.some((place) => place.kind === 'system' && place.id === planet.parent.id)).toBe(true);
   }, 180_000);
+
+  describe('formation that never stops (#674)', () => {
+    async function runIdOf(person: FixturePerson) {
+      const asked = await world.request(person.authority, { commandId: randomUUID() });
+      if (asked.kind !== 'accepted') throw new Error('CI request refused');
+      return asked.runId;
+    }
+    async function storedContext(runId: string) {
+      return (
+        await database()
+          .selectFrom('geography.runs')
+          .select('context')
+          .where('id', '=', runId)
+          .executeTakeFirstOrThrow()
+      ).context;
+    }
+    const database = () => world.database.db;
+
+    it('settles a reader with no coverage references as no_support_yet, without reading coverage or building a context', async () => {
+      const { cartograph, runOf } = steps;
+      const person = await seedPerson(database());
+      const runId = await runIdOf(person);
+      const noCoverage = () => {
+        throw new Error('CI a reader with no references must not read trusted coverage');
+      };
+      const run = await cartograph(person, undefined, { readTrusted: noCoverage });
+      expect(run.runId).toBe(runId);
+      expect(await runOf(runId)).toMatchObject({ status: 'insufficient', outcome: 'no_support_yet' });
+      expect(await storedContext(runId)).toBeNull();
+      expect(run.model.calls).toHaveLength(0);
+      expect((await world.state(person)).activeRunId).toBeUndefined();
+    });
+
+    it('names a reader whose support is no longer trusted apart from one with none yet', async () => {
+      const { fixture, observe } = world;
+      const { cartograph, runOf } = steps;
+      const person = await seedPerson(database());
+      const only = await fixture(undefined, topic, [facet]);
+      await observe(person, only);
+      await database()
+        .updateTable('content.assets')
+        .set({ status: 'withdrawn' })
+        .where('id', '=', only.assetId)
+        .execute();
+      const runId = await runIdOf(person);
+      await cartograph(person, () => garbage);
+      expect(await runOf(runId)).toMatchObject({ status: 'insufficient', outcome: 'no_trusted_support' });
+    });
+
+    it('settles a reader with more distinct support keys than one discovery returns as discovery_limit', async () => {
+      const { cartograph, runOf } = steps;
+      const person = await seedPerson(database());
+      await sql`insert into personal_context.coverage_supports(universe_id,privacy_epoch,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,reference_count)
+        select ${person.universeId}::uuid,1,${topic},${facet},repeat('0',64),'ci-many-units-'||n,repeat('0',64),1 from generate_series(1,1001) n`.execute(
+        database(),
+      );
+      const runId = await runIdOf(person);
+      await cartograph(person, () => garbage);
+      expect(await runOf(runId)).toMatchObject({ status: 'insufficient', outcome: 'discovery_limit' });
+    });
+
+    it('holds only the concepts the person has reached, not one slot for every concept of the catalogue', async () => {
+      const { coherent } = world;
+      const { cartograph } = steps;
+      const person = await seedPerson(database());
+      await coherent(person);
+      let frozen: Parameters<NonNullable<Parameters<typeof cartograph>[1]>>[0] | undefined;
+      await cartograph(person, (context) => {
+        frozen = context;
+        return garbage;
+      });
+      if (!frozen) throw new Error('CI the model never saw a context');
+      const supportedFacets = [facet, otherFacet];
+      expect(frozen.facts.candidates.map((slot) => slot.key).sort()).toEqual(
+        [
+          'system:earth:factual',
+          'star:earth:factual',
+          `planet:${topic}:factual`,
+          ...supportedFacets.map((id) => `region:${id}:factual`),
+        ].sort(),
+      );
+      expect(frozen.facts.catalogue.map((entry) => entry.id)).toEqual(['earth', topic]);
+      expect(frozen.routeIds).toEqual({});
+      // The old layout held a slot for each of these.
+      const everySlot = CONCEPTS.reduce((n, t) => n + (t.parent === null ? 2 : 1 + t.facets.length), 0);
+      expect(everySlot).toBeGreaterThan(80);
+      expect(frozen.facts.candidates.length).toBeLessThan(everySlot / 10);
+    });
+
+    it('forms from a reader whose raw references on one key exceed 1000, as re-reading adds references and not keys', async () => {
+      const { fixture, observe, snapshot } = world;
+      const { cartograph, placeKinds, runOf } = steps;
+      const person = await seedPerson(database());
+      const first = await observe(person, await fixture(undefined, topic, [facet]));
+      await observe(person, await fixture(undefined, topic, [otherFacet]));
+      await observe(person, await fixture(undefined, topic, [facet]));
+      await seedOlderRereads(world.database, person, first.exposureId, 1100);
+      const raw = await database()
+        .selectFrom('personal_context.coverage_references')
+        .select(sql<number>`count(*)::int`.as('n'))
+        .where('universe_id', '=', person.universeId)
+        .executeTakeFirstOrThrow();
+      expect(raw.n).toBeGreaterThan(1000);
+      const run = await cartograph(person, () => garbage);
+      expect(await placeKinds(person)).toEqual(['planet', 'region', 'region', 'star', 'system']);
+      expect(await runOf(run.runId)).toMatchObject({ status: 'accepted', outcome: 'applied_by_rules' });
+      const universe = await snapshot(person);
+      expect(universe.status).toBe('ready');
+    }, 120_000);
+
+    describe('a context too large for one model request', () => {
+      /** A store whose first view carries 400 more routes than the person has, so the claim freezes an oversized context. */
+      function oversized(): Partial<Parameters<typeof world.runner>[2]> {
+        let first = true;
+        return {
+          store: {
+            ...geographyStore,
+            view: async (scope) => {
+              const view = await geographyStore.view(scope);
+              if (!first) return view;
+              first = false;
+              const routes = Array.from({ length: 400 }, (_, n) => ({
+                id: randomUUID(),
+                fromKey: `planet:filler-${n}:factual`,
+                toKey: `planet:filler-${n + 1}:factual`,
+                truthStatus: 'factual' as const,
+                relationRevision: 1,
+                originTransitionId: randomUUID(),
+                status: 'current' as const,
+              }));
+              return { ...view, routes: [...view.routes, ...routes] };
+            },
+          },
+        };
+      }
+
+      it('still forms what the rules require, and asks no model', async () => {
+        const { coherent } = world;
+        const { cartograph, placeKinds, runOf } = steps;
+        const person = await seedPerson(database());
+        await coherent(person);
+        const run = await cartograph(person, undefined, oversized());
+        expect(run.model.calls).toHaveLength(0);
+        expect(await attemptsOf(database(), person.universeId)).toEqual([]);
+        expect(await placeKinds(person)).toEqual(['planet', 'region', 'region', 'star', 'system']);
+        // Told apart from an ordinary rules-only run: the model was skipped for the context's size.
+        expect(await runOf(run.runId)).toMatchObject({ status: 'accepted', outcome: 'applied_by_rules_context_limit' });
+        expect((await world.state(person)).activeRunId).toBeUndefined();
+      });
+
+      it('releases an explicit request with nothing due as context_limit, asking no model', async () => {
+        const { fixture, observe } = world;
+        const { cartograph, runOf } = steps;
+        const person = await seedPerson(database());
+        await observe(person, await fixture(undefined, topic, [facet]));
+        const asked = await runIdOf(person);
+        const run = await cartograph(person, () => garbage, oversized());
+        expect(run.runId).toBe(asked);
+        expect(run.model.calls).toHaveLength(0);
+        expect(await runOf(asked)).toMatchObject({ status: 'insufficient', outcome: 'context_limit' });
+        expect((await world.state(person)).activeRunId).toBeUndefined();
+      });
+    });
+  });
 });
 
 describe('Cartographer failure brake (real PostgreSQL CI fixtures)', () => {

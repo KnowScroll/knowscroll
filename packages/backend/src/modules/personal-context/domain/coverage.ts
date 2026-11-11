@@ -38,6 +38,29 @@ export function coverageSupports(c: CoverageObservationSupport): readonly Covera
 }
 export const coverageSupportKey = (s: CoverageSupport) =>
   JSON.stringify([s.topicId, s.facetId, s.meaningSha256, s.explanationUnitId, s.truthSha256]);
+/**
+ * The newest witness of each support key: the latest activation, then the greater exposure ID.
+ * Variety is the number of distinct canonical units, never of witnesses, so a support that was read
+ * a hundred times is proved by one exposure. The newest also sets when the support was last
+ * activated, which decides when a place goes quiet. `activatedAt` is an ISO time; ties and the order
+ * of the input never change the choice.
+ */
+export function newestWitnessPerSupport<W extends CoverageSupport & { readonly exposureId: string }>(
+  witnesses: readonly W[],
+  activatedAt: (witness: W) => string,
+): W[] {
+  const newest = new Map<string, W>();
+  const newer = (a: W, b: W) => {
+    const byTime = Date.parse(activatedAt(a)) - Date.parse(activatedAt(b));
+    return byTime !== 0 ? byTime > 0 : a.exposureId > b.exposureId;
+  };
+  for (const witness of witnesses) {
+    const key = coverageSupportKey(witness);
+    const best = newest.get(key);
+    if (!best || newer(witness, best)) newest.set(key, witness);
+  }
+  return [...newest.values()];
+}
 export const RecordingWitnessPointerSchema = z.strictObject({
   topicId: Ref,
   facetId: Ref,

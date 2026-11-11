@@ -3,7 +3,7 @@
 Geography owns the places in a person's universe: systems, their organising stars, planets, regions
 and routes. It decides when reading is enough to form one, records every change as an immutable
 delta, and offers the unlabelled dust cues that come before a system. Scene projection, rendering,
-navigation and sharing belong to other modules. Decisions: D-033, D-038, D-052, D-104, D-105. Tracker: #237, #467.
+navigation and sharing belong to other modules. Decisions: D-033, D-038, D-052, D-104, D-105, D-409. Tracker: #237, #467, #674.
 
 A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
 
@@ -36,11 +36,14 @@ facet support today, so a Reel-only reader gets dust but no system until Reel co
    (`domain/pacing.ts`, D-052). Reading that keeps arriving is therefore one pending run, not one
    run per encounter. An explicit request is not paced: it starts a run at once when none is pending and otherwise joins the pending one.
 2. The worker (`geography.cartograph`) claims the run and, in a short transaction, freezes a
-   context: the canonical candidates, their stable IDs and labels, and the person's current
-   positive support. Support comes from Personal Context's trusted coverage, which itself checks
-   Evidence and Content under the person's root. A reader whose support is more than one context
-   holds gets the support the rules need (see Limits and degradation). The context is frozen when
-   the run starts, so a run that waited sees everything that arrived while it waited.
+   context: the candidates the person has reached, their stable IDs and labels, and the person's
+   current positive support. Support comes from Personal Context's trusted coverage, which itself
+   checks Evidence and Content under the person's root. A reader whose support is more than one
+   context holds gets the support the rules need (see Limits and degradation). The context holds
+   only what the person has reached (see What a frozen context holds), so it does not grow with the
+   catalogue. The context is frozen when the run starts, so a run that waited sees everything that
+   arrived while it waited. A reader with no coverage references yet settles the run as
+   `no_support_yet` before any coverage is read and without building a context.
 3. Formation is the rules' decision (D-038), so a model has something to choose only when a place is
    due. With none due, a reading-triggered run asks no model: it applies any activity change by the
    rules, or settles `insufficient/no_changes`, with no ledger run. An explicit request
@@ -85,6 +88,53 @@ the refusal as its outcome. A refusal that does come from a ledger run which is 
 settled the same way, without a second close. If the ledger run was closed under the run (the idle
 sweep), nothing can be applied under it; the run settles by the rules the same way, once accounting
 shows no live attempt.
+
+## What a frozen context holds
+
+A place with no support can never be due (`formationEligible`), so the frozen facts hold only what the
+person has reached (`application/context.ts`, #674, D-409):
+
+- **Candidates** (a slot with a stable ID and its labels) for each system and star, planet and region
+  that has a trusted support or an established place, and for the systems of those. A region is a slot
+  only when its facet is supported or the region is established. Nothing else gets a slot.
+- **Catalogue slice** (`facts.catalogue`): the catalogue entries of those topics and their systems, with
+  every facet of each topic, as the rules read them.
+- **Route IDs** (`routeIds`) only for pairs of planets of one system that are formed or due. A route
+  joins only such planets, so no other pair needs one.
+- An identity comes from the stored place, else from the context being re-checked at apply, else a new
+  one. At apply the re-prepare does not refuse a concept the frozen slice did not hold (reading reached
+  it since): it gets a new identity that no proposal can name, because a creation must name a slot of
+  the frozen context (`source_changed` otherwise).
+
+The context therefore grows with what a person has read, not with the catalogue. With today's 23
+catalogue topics a reader of one planet has a context of 2 catalogue entries and about 5 slots instead
+of 23 and 82, and no route IDs instead of 136.
+
+A run claimed before this layout shipped keeps its stored context. The hashes that bind it
+(`geographyContextHashes`) are computed exactly as before, so it is not retired as `context_changed`
+(D-052); it finishes on its frozen context, and its apply re-prepares in the new layout.
+
+## Run outcomes
+
+A run that ends without a place says why in `geography.runs.outcome` (and `ops.geography_runs`). Most
+are `insufficient`; none needs an engineer except the limits.
+
+| Outcome | Meaning |
+|---|---|
+| `no_changes` | Nothing is due; reading alone does not ask a model |
+| `no_support_yet` | The person has no coverage references yet. Healthy. No coverage was read and no context built |
+| `no_trusted_support` | References exist but none is current trusted support (content withdrawn, a map corrected) |
+| `discovery_limit` | More than 1000 distinct support keys, or 256 KiB of keys (see Limits) |
+| `coverage_limit` | The trusted read cannot hold even one probe's proof |
+| `coverage_authority_changed` | Content or Evidence moved while the proof was read; the next reading tries again |
+| `structure_limit` | More than 1000 places, or routes and aliases, in one universe |
+| `context_too_large` | The frozen context would pass 500,000 bytes |
+| `applied_by_rules_context_limit` | The context does not fit one model request, so no model was asked, and the rules applied what was due |
+| `context_limit` | The same cause with nothing due: no model was asked and nothing was applied |
+| `context_unreadable` | The stored frozen context is missing or for another scope |
+| `disabled`, `provider_unavailable`, `request_too_large`, ... | Role switched off, or a refusal before admission (see One journey) |
+
+Runs written before #674 may say `coverage_unavailable`, which covered the six causes above.
 
 ## Quiet without new reading
 
@@ -143,7 +193,8 @@ a mastery or belief claim. A place that went quiet keeps its ID, label and origi
 
 `ReadOwnEmerging` (`POST /v1/universe/emerging/read`, contract `universe-emerging.v1`) lists one
 opaque cue for each catalogue system that Personal Context holds a qualified unit for and that is
-not established. A cue has no label, topic or count. Its ID is derived from the universe, epoch and
+not established, at most `EMERGING_LIMITS.dust` (16), the first by system ID, so a reader who is gathering
+toward more systems sees the same cues on every read and never an error. A cue has no label, topic or count. Its ID is derived from the universe, epoch and
 system, so it is stable between reads and names nothing. The read never enqueues anything. A
 selective Clear removes the evidence and so the cue. Map visits and suggestions never create one.
 
@@ -251,14 +302,34 @@ not no reading. `loading` and `lagging` need a real queued or prepared run.
 ## Limits and degradation
 
 - **Support in one context.** Trusted coverage is read in batches of 100 probes; a batch that
-  reaches the trusted read's own bound (raw references, assets, 128 KiB of output) is split and read
+  reaches the trusted read's own bound (candidate rows, assets, 128 KiB of output) is split and read
   as two. When the supports do not fit one frozen context (100 supports and about 360 KB with their
   proofs), `compactSupports` keeps the newest support of every facet of every planet, then
   further distinct units up to what a planet needs, then the newest of the rest. Within that budget
   no place the rules would form and no activity they would set changes. Beyond it the oldest and most
   repetitive support goes first, so formation degrades and does not stop.
-- **Discovery.** Candidate discovery refuses past 1000 raw coverage references or 256 KiB of keys;
-  then the run settles as `coverage_unavailable` and the next reading tries again.
+- **Discovery.** Candidate discovery lists distinct support keys from `personal_context.coverage_supports`
+  (one row per topic, facet and unit however often it was read), so re-reading never counts. It refuses
+  past 1000 distinct keys or 256 KiB of keys; then the run settles as `discovery_limit` and the next
+  reading tries again. Slice 4.1 (incremental evaluation of the topics touched since the last run) removes
+  the single-run bound.
+- **Proof.** The trusted read returns one witness per support key, the newest valid one, so one
+  re-read Scroll can no longer exceed the read's 128 KiB bound (Personal Context README).
+- **Model packaging.** A model request holds at most 64 context items. That limit is checked only when
+  a model is called; a run that applies the rules alone is never stopped by it. When a context does not
+  fit one request the model is skipped and the rules apply what is due (`applied_by_rules_context_limit`,
+  told apart from an ordinary `applied_by_rules`); a run with nothing due ends `context_limit`.
+- **Known limit (slice 4.1): compaction past one context.** When the supports pass 100 or 360,000 bytes,
+  `compactSupports` keeps the newest support of every facet of every planet first, so every supported
+  region and the latest activity of every place are exact while the facets of all planets together
+  stay within the budget. Today's 53 facets and 17 planets stay within it. Past it (more than 100
+  planet-and-facet pairs with support, or certificates large enough to reach the byte bound first), the
+  oldest facet entries go and two things follow, both measured: a planet that has not formed yet and
+  loses the support of one of its two facets looks one facet short, so it forms later than the reading
+  allows, until newer reading brings the facet back; and a place whose every support is cut has no
+  newest support, so `activityFor` is undefined and it keeps its activity: a formed planet last read
+  100 days ago stays `active`, because the rules read no support for it (120 single-facet planets, 20
+  lose all support). A place is never removed. This is not redesigned here.
 - **One delta.** A run applies at most 32 operations. Anything still due is applied by the next run.
 - **Model and cost.** A run makes a model call only when the rules entitle a place, or on an
   explicit request, so calls follow formation events and not encounters. A call costs about 10,000
@@ -294,7 +365,17 @@ refusal and a closed ledger run end the run) and
 (31 days without reading make every place quiet with the same ids, labels and origins; nothing handed
 over when nothing is due; a new encounter wakes only what it supports; a run, a pause, the role switch
 and an earlier epoch stand the settle aside; the settle waits for the root; queued settles are erased;
-no ledger run is added). `domain/quiet.test.ts` covers the rule and the stored time. Sources, maps and model
+no ledger run is added). `domain/quiet.test.ts` covers the rule and the stored time. #674 adds, in
+`application/context.test.ts` (a frozen context holds only the concepts reached, route IDs only for
+formed or due pairs of one system, the rules read the slice exactly as they read the whole catalogue, a
+re-prepare keeps IDs and takes a concept reached since, each refusal named apart), `role.test.ts` (the
+packaging limit throws only when asked, and a context that does not fit still hashes), `emerging.test.ts`
+(dust stays within the cap) and, on PostgreSQL in `cartographer-formation.test.ts`: a reader with no
+references settles `no_support_yet` with no context and no trusted read, `no_trusted_support` and
+`discovery_limit` are named, a frozen context holds slots only for the supported concepts, a reader with
+more than 1000 raw references on one key still forms, and a context too large for one model request
+still forms by the rules with no model call; `cartographer-churn.test.ts` adds that an answer in flight
+applies when reading has reached a concept the frozen context did not hold. Sources, maps and model
 answers in tests are labelled CI fixtures. A local drive with a real sign-in, the release API and
 worker, three Scrolls from the production path and a real MiniMax call showed dust, then a system
 and star, then a planet (D-038). A timed local session (pg-boss consumers started as the worker
@@ -304,5 +385,5 @@ two regions formed (D-052).
 
 ## Related
 
-Blueprint §8, §12, §13, §16. Contracts: `packages/contracts/src/geography.ts`. Library plan:
+Blueprint §8, §12, §13, §16. Decisions: D-409. Contracts: `packages/contracts/src/geography.ts`. Library plan:
 `modules/content/domain/library/`. Scenes: `modules/scenes/README.md`.

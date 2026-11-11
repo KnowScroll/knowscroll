@@ -8,6 +8,7 @@ import {
   supportsSceneLooks,
   supportsSceneV1,
   type SceneLook,
+  type SceneManifest,
   type SceneManifestRead,
   type SceneChunkRead,
   type ReadSceneManifest,
@@ -15,12 +16,20 @@ import {
 import type { PersonalScopeTx } from '../../identity/public.js';
 import type { GeographySceneInput } from '../../geography/public.js';
 import type { ScenePorts, SceneState, ReadOwnSceneManifest, ReadOwnSceneChunk, StoredChunk } from './ports.js';
+
+type ChunkRef = SceneManifest['chunks'][number];
+/**
+ * The current chunks a read names, checked against their manifest references. A manifest read lists
+ * every chunk of the selection; a chunk read passes the one reference it asks for, so it loads that
+ * chunk only and does not touch the others (#674).
+ */
 async function selected(
   p: ScenePorts,
   scope: PersonalScopeTx,
   state: SceneState | undefined,
   input: GeographySceneInput,
   q: ReadSceneManifest,
+  refs: readonly ChunkRef[] = state?.manifest?.chunks ?? [],
 ) {
   if (
     q.selection.kind === 'system' &&
@@ -30,7 +39,7 @@ async function selected(
   )
     return undefined;
   const chunks: StoredChunk[] = [];
-  for (const ref of state?.manifest?.chunks ?? []) {
+  for (const ref of refs) {
     const c = await p.store.chunk(scope, ref.chunkId, ref.sceneRevision);
     if (!c) throw new Error('SCENE_CURRENT_CHUNK_MISSING');
     const parsed = SceneChunkSchema.parse(c.chunk);
@@ -221,12 +230,12 @@ export function makeReadSceneChunk(p: ScenePorts): ReadOwnSceneChunk {
       if (!supportsSceneV1(q.capabilities)) return reply({ ...fields, status: 'unsupported_version' });
       if (q.reference.manifestSceneRevision !== (state?.manifest?.revisions.sceneRevision ?? 0))
         return reply({ ...fields, status: 'unavailable', reason: 'stale_manifest' });
-      const chunks = await selected(p, scope, state, input, q);
-      if (!chunks) return { kind: 'refused', reason: 'selection_not_found' } as const;
       const ref = state?.manifest?.chunks.find(
-          (r) => r.chunkId === q.reference.chunkId && r.sceneRevision === q.reference.chunkSceneRevision,
-        ),
-        chunk = chunks.find((c) => c.chunk.chunkId === ref?.chunkId);
+        (r) => r.chunkId === q.reference.chunkId && r.sceneRevision === q.reference.chunkSceneRevision,
+      );
+      const chunks = await selected(p, scope, state, input, q, ref ? [ref] : []);
+      if (!chunks) return { kind: 'refused', reason: 'selection_not_found' } as const;
+      const chunk = chunks.find((c) => c.chunk.chunkId === ref?.chunkId);
       if (!ref || !chunk) return reply({ ...fields, status: 'unavailable', reason: 'unknown_chunk' });
       const current = await status(p, scope, input, state);
       if (current.kind === 'unavailable') return reply({ ...fields, status: 'unavailable', reason: current.reason });
