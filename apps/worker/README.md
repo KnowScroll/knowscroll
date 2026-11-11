@@ -182,8 +182,8 @@ runs", and the runbook `docs/v2/operations/looking-at-the-system.md`. Status: im
 
 The `operator.watchdog` consumer (D-411) runs every hour (cron `7 * * * *`): the code-only health rules over `ops.watchdog` (dead-lettered
 jobs per queue, the same failure code repeating, a Planner or Geography run held `queued` or `prepared`, a universe whose Cartographer
-keeps settling the same unavailable reason while it has coverage references, a `composer-policy.v2` decision that offered a met explanation
-beside an unseen candidate, and old `unknown` model attempts). Each rule that fires logs `watchdog.alert` (warn) with `reasonCode`,
+keeps settling the same unhealthy `insufficient` outcome while it has coverage references, a `composer-policy.v2` vertical decision whose first offer was met
+while an eligible candidate was not, and old `unknown` model attempts). Each rule that fires logs `watchdog.alert` (warn) with `reasonCode`,
 `count`, `windowSeconds` and a queue, module or outcome code where it applies; a rule whose read fails logs `watchdog.rule_skipped`. It
 reads only, repairs nothing, names no person and calls no model. The thresholds are one object (`WATCHDOG_THRESHOLDS`, Operator
 module). Status: implemented; covered by `tests/integration/modules/watchdog.test.ts`; not yet runtime-verified on dev.

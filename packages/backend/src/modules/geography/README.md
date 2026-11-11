@@ -341,20 +341,24 @@ not no reading. `loading` and `lagging` need a real queued or prepared run.
 
 `geography dry-run --universe <uuid>` (worker operator command, `application/dry-run.ts`) says what a Cartographer run would do
 for one universe now, without doing it. It enters the personal scope the way a read does (the root lock), in a READ ONLY
-transaction that always rolls back, freezes the context the run freezes (`prepareGeographyReport`: the same discovery, trusted
-read and compaction as `prepareGeography`, which now delegates to it) and applies the same pure rules (`dueCreations`,
-`activityChanges`). No model is called, no job is sent and no row changes. Its output is counts and codes only
-(`domain/dry-run.ts`, `shapeGeographyDryRun`): the outcome a reading-triggered run would reach (`calls_model`,
-`applies_by_rules`, `settles_no_changes`, `context_unavailable`, `context_limit`, `disabled`, `recording_paused`,
-`not_runnable`, `would_fail`), the status and outcome its row would hold, the reason no context can be frozen
-(`no_references`, `discovery_limit`, `not_observed`, `trusted_limit`, `trusted_changed`, `object_limit`, `route_limit`,
-`context_size`), the keys discovery found, the trusted references, distinct supports and supports kept after compaction, what is
-due by kind and how many one delta applies, the activity changes and the context's bytes. Never a label, topic, unit or
-reference. The unavailable reasons are the split of today's single `coverage_unavailable` outcome, in codes: a real run still
-records `coverage_unavailable` for all of them. Status: **implemented**; covered by `tests/integration/modules/geography-dry-run.test.ts`.
+transaction that always rolls back, freezes the context the run freezes (`prepareGeography`: the same discovery, trusted read and
+compaction) and applies the same pure rules (`dueCreations`, `activityChanges`, `modelContextItems`). No model is called, no job is
+sent and no row changes. Its output is counts and codes only (`domain/dry-run.ts`, `shapeGeographyDryRun`).
+
+`wouldRecord` is the status and outcome the run's row would hold, in **the codes a real run records**, not a second vocabulary: the
+refusals above (`no_support_yet`, `no_trusted_support`, `discovery_limit`, `coverage_limit`, `coverage_authority_changed`,
+`structure_limit`, `context_too_large`), `disabled`, `no_changes`, `applied_by_rules` (activity alone) and
+`applied_by_rules_context_limit` (places are due but the context does not fit one model request, so the rules apply them with no
+call). Its `outcome` is `null` when a model call decides it (`applied`, `applied_with_rules` or `applied_by_rules`). `action` says what
+would happen: `calls_model`, `applies_rules`, `stops`, `recording_paused`, `not_runnable` or `would_fail` (a `GEOGRAPHY_*` fault).
+The rest are counts: places and routes, the keys discovery found, the witnesses the frozen context holds, distinct supports before
+compaction and how many it kept, what is due by kind and how many one delta applies, the activity changes and the context's bytes. Never
+a label, topic, unit or reference. Status: **implemented**; covered by `tests/integration/modules/geography-dry-run.test.ts`, which also
+runs it through the worker's own wiring.
 
 `geography.state`, runs, objects, deltas, personal revision and jobs are identical before and after; the report of a reader with
-one unit equals what the run then records (`insufficient/no_changes`), and a reader with places due names the same places the run forms.
+one unit equals what the run then records (`insufficient/no_changes`), a reader with nothing read equals `insufficient/no_support_yet`,
+and a reader with places due names the same places the run forms.
 
 ## Erasure
 

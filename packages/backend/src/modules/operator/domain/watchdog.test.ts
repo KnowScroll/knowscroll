@@ -17,7 +17,7 @@ describe('the watchdog queries (D-411)', () => {
       'attempt_unknown',
       'composer_repeat',
       'dead_letter',
-      'geography_unavailable_repeat',
+      'geography_insufficient_repeat',
       'job_failed',
       'run_held',
     ]);
@@ -30,22 +30,27 @@ describe('the watchdog queries (D-411)', () => {
       rule: 'attempt_unknown',
       olderThan: new Date(NOW.getTime() - 6 * 3600_000),
     });
-    expect(queryOf('geography_unavailable_repeat')).toEqual({
-      rule: 'geography_unavailable_repeat',
+    expect(queryOf('geography_insufficient_repeat')).toEqual({
+      rule: 'geography_insufficient_repeat',
       newerThan: new Date(NOW.getTime() - 7 * 86_400_000),
       minMagnitude: 3,
     });
+  });
+
+  it('never asks a rule for more than the 7 days the view reads', () => {
+    expect(WATCHDOG_THRESHOLDS.composerRepeats.windowSeconds).toBeLessThanOrEqual(7 * 86_400);
+    expect(WATCHDOG_THRESHOLDS.geographyInsufficient.lookbackSeconds).toBeLessThanOrEqual(7 * 86_400);
   });
 
   it('takes every number from the one thresholds object', () => {
     const custom = {
       ...WATCHDOG_THRESHOLDS,
       deadLetters: { windowSeconds: 60, alertAtCount: 2 },
-      geographyUnavailable: { runs: 5, lookbackSeconds: 120, alertAtCount: 1 },
+      geographyInsufficient: { runs: 5, lookbackSeconds: 120, alertAtCount: 1 },
     };
     const changed = watchdogQueries(NOW, custom);
     expect(changed.find((query) => query.rule === 'dead_letter')!.newerThan).toEqual(new Date(NOW.getTime() - 60_000));
-    expect(changed.find((query) => query.rule === 'geography_unavailable_repeat')).toMatchObject({ minMagnitude: 5 });
+    expect(changed.find((query) => query.rule === 'geography_insufficient_repeat')).toMatchObject({ minMagnitude: 5 });
   });
 });
 
@@ -81,9 +86,9 @@ describe('the watchdog rules fire on their condition and never otherwise (D-411)
   });
 
   it('geography: counts the universes with the streak and names only the reason', () => {
-    expect(alertsFrom('geography_unavailable_repeat', [])).toEqual([]);
-    expect(alertsFrom('geography_unavailable_repeat', [group(7, 'coverage_unavailable')])).toEqual([
-      { code: 'geography_unavailable_repeating', count: 7, windowSeconds: 604_800, outcome: 'coverage_unavailable' },
+    expect(alertsFrom('geography_insufficient_repeat', [])).toEqual([]);
+    expect(alertsFrom('geography_insufficient_repeat', [group(7, 'no_trusted_support')])).toEqual([
+      { code: 'geography_insufficient_repeating', count: 7, windowSeconds: 604_800, outcome: 'no_trusted_support' },
     ]);
   });
 
@@ -106,7 +111,7 @@ describe('the watchdog rules fire on their condition and never otherwise (D-411)
       ...alertsFrom('dead_letter', [group(1, 'q.dead')]),
       ...alertsFrom('job_failed', [group(9, 'q', 'CODE')]),
       ...alertsFrom('run_held', [group(1, 'planner', 'queued')]),
-      ...alertsFrom('geography_unavailable_repeat', [group(1, 'context_limit')]),
+      ...alertsFrom('geography_insufficient_repeat', [group(1, 'context_limit')]),
       ...alertsFrom('composer_repeat', [group(1, 'composer-policy.v2')]),
       ...alertsFrom('attempt_unknown', [group(1, 'production')]),
     ];

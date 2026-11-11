@@ -120,9 +120,7 @@ describe('the Cartographer dry run report (D-411)', () => {
       places: 2,
       routes: 1,
     });
-    expect(
-      shapeGeographyDryRun(facts({ prepared: prepared(formation([support('a')])) })),
-    ).toMatchObject({
+    expect(shapeGeographyDryRun(facts({ prepared: prepared(formation([support('a')])) }))).toMatchObject({
       action: 'stops',
       wouldRecord: { status: 'insufficient', outcome: 'no_changes' },
       wouldCallModel: false,
@@ -178,15 +176,23 @@ describe('the Cartographer dry run report (D-411)', () => {
 
   it('reports what compaction dropped, and nulls for what was not reached', () => {
     const kept = formation([support('a'), support('b')]);
-    expect(
-      shapeGeographyDryRun(facts({ prepared: prepared(kept, { supportKeys: 140 }) })).references,
-    ).toMatchObject({ supportKeys: 140, supportsKept: 2, supportsDropped: 138 });
+    expect(shapeGeographyDryRun(facts({ prepared: prepared(kept, { supportKeys: 140 }) })).references).toMatchObject({
+      supportKeys: 140,
+      supportsKept: 2,
+      supportsDropped: 138,
+    });
     expect(
       shapeGeographyDryRun(facts({ refusal: 'structure_limit', prepared: undefined, places: 1001, routes: 0 })),
     ).toMatchObject({
       wouldRecord: { status: 'insufficient', outcome: 'structure_limit' },
       places: 1001,
-      references: { candidateKeys: null, witnessesHeld: null, supportKeys: null, supportsKept: null, supportsDropped: null },
+      references: {
+        candidateKeys: null,
+        witnessesHeld: null,
+        supportKeys: null,
+        supportsKept: null,
+        supportsDropped: null,
+      },
       contextBytes: null,
     });
   });

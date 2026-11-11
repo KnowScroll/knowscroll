@@ -64,8 +64,8 @@ describe('the Cartographer and Planner dry runs from the built release', () => {
     expect(JSON.parse(lines[0]!)).toMatchObject({
       command: 'geography dry-run',
       result: 'read',
-      outcome: 'context_unavailable',
-      unavailableReason: 'no_references',
+      action: 'stops',
+      wouldRecord: { status: 'insufficient', outcome: 'no_support_yet' },
       wouldCallModel: false,
       due: { total: 0 },
     });
@@ -90,7 +90,7 @@ describe('the Cartographer and Planner dry runs from the built release', () => {
     const result = await dryRun('geography', ['--universe', universeId]);
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout.trim())).toMatchObject({
-      outcome: 'disabled',
+      action: 'stops',
       roleEnabled: false,
       wouldRecord: { status: 'insufficient', outcome: 'disabled' },
     });

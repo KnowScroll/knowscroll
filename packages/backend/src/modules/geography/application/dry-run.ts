@@ -38,7 +38,9 @@ const FAULT_CODE = /^GEOGRAPHY_[A-Z_]{3,60}$/;
 async function recordingGate(
   p: GeographyDryRunPorts,
   scope: PersonalScopeTx,
-): Promise<{ readonly kind: 'open'; readonly cap: RecordingScopeTx } | { readonly kind: 'not_runnable' | 'recording_paused' }> {
+): Promise<
+  { readonly kind: 'open'; readonly cap: RecordingScopeTx } | { readonly kind: 'not_runnable' | 'recording_paused' }
+> {
   const now = await p.readRecordingNow(scope);
   if (now.kind !== 'recording') return { kind: now.kind === 'paused' ? 'recording_paused' : 'not_runnable' };
   const fenced = await p.fenceRecording(scope, now.generation);

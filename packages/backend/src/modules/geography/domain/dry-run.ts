@@ -15,7 +15,8 @@ import { activityChanges } from './quiet.js';
  * - `calls_model`: places are due and the context fits one request, so the run asks the model. Code then applies
  *   everything due.
  */
-export type GeographyDryRunAction = 'not_runnable' | 'recording_paused' | 'would_fail' | 'stops' | 'applies_rules' | 'calls_model';
+export type GeographyDryRunAction =
+  'not_runnable' | 'recording_paused' | 'would_fail' | 'stops' | 'applies_rules' | 'calls_model';
 
 /**
  * What the run's row would hold afterwards. `outcome` is exactly the code a real run records

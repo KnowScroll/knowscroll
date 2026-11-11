@@ -95,9 +95,9 @@ module owns only the runbook and the rule that their output is safe to paste int
 - **What they never do.** Write a row, advance a revision, send a job or call a model. The scope is READ ONLY and always
   rolls back; the content authority recheck is the lock-free one, because PostgreSQL refuses a row lock in a READ ONLY
   transaction. A test attempts a write and a row lock and expects `25006`.
-- **What they print.** One JSON line of counts and codes: the outcome a reading-triggered run would reach, the status and outcome
-  its row would hold, why no context can be frozen, how many keys, references, supports and places, what is due by kind,
-  activity changes, and the context's bytes. **Never** a label, title, topic id, unit id, support reference, text, universe or
+- **What they print.** One JSON line of counts and codes: what a reading-triggered run would do (`action`), the status and outcome
+  its row would hold, in the codes a real run records (no second vocabulary), how many keys, references, supports and places,
+  what is due by kind, activity changes, and the context's bytes. **Never** a label, title, topic id, unit id, support reference, text, universe or
   account. A unit test plants such words in the facts and expects none in the output.
 - **Authority.** The universe is named by its ID from a server shell, as `journey` is. The command claims epoch 1 and, told
   the current one by the scope's refusal, claims that: no account is named. A missing or suspended universe is refused (exit 2).
@@ -115,17 +115,36 @@ and calls no model. A rule whose read fails (the view is missing, or the read pa
 | Dead-lettered jobs per queue | jobs in `<queue>.dead` | `dead_lettered_jobs`: 1 or more in 3 hours |
 | Same failure repeating | `state = failed`, grouped by queue and failure code | `failed_jobs_repeating`: 5 or more in 6 hours |
 | Personal runs held | Planner and Geography runs `queued` or `prepared` | `personal_runs_held`: row unmoved for 1 hour (a claim lasts 1150 s, a paced wake 5 minutes) |
-| Same unavailable reason repeating | the latest settled Cartographer runs of a universe with coverage references | `geography_unavailable_repeating`: 3 in a row on `coverage_unavailable` or `context_limit`, seen within 7 days |
-| A met explanation offered beside an unseen one | `composer-policy.v2` decisions only | `composer_repeat_offered`: 1 or more in 24 hours; with no v2 decision the rule has nothing to read and never fires |
+| Same unhealthy outcome repeating | the latest settled Cartographer runs of a universe with coverage references | `geography_insufficient_repeating`: 3 in a row on one `insufficient` outcome other than the healthy `no_changes`, `disabled`, `no_support_yet`; 1 or more universes, seen within 7 days |
+| A met explanation offered first beside an unseen one | `composer-policy.v2` vertical decisions with no exact target | `composer_repeat_offered`: 1 or more in 24 hours, among the newest 5,000 decisions of the last 7 days; v2 is built to make this impossible, so it fires only on a regression |
 | Unknown model attempts | attempts whose outcome is `unknown` | `unknown_attempts_old`: 1 or more for 6 hours |
 
 `domain/watchdog.ts` holds the thresholds in one object and the pure rules (`alertsFrom`); `application/run-watchdog.ts` runs a
 pass; `adapters/watchdog-store.ts` reads `ops.watchdog` in one READ ONLY transaction per rule, with a 5-second statement
 timeout and at most 50 groups. The view is read by the application role and by `ks2_ops_reader`; it holds no ID. The
-`composer_repeat` rows read the stored decision's own record of what the person had met and which candidates were eligible
-(the `composer-decision` payload's `selection`, `evaluations` and `input.evidence.established.units`); the rule is written
-against that shape and is checked by `tests/integration/modules/watchdog.test.ts`, which widens the policy check in its own
-disposable database to plant a v2 decision. The Composer's v2 slice should re-run it when it fixes the payload.
+`composer_repeat` rows read the stored decision's own record, built by the Composer's code: `input.mode` and `input.intent.exactTarget`
+(the unseen-first rule applies to a vertical move with no exact target), the FIRST slot of `selection` (the offered item), the
+`evaluations` (`explanationUnitId`, `eligible`) and what the person had met (`input.evidence.established.units[].encountered`, or
+`input.evidence.recent`, the same notion as the Composer's `isMetIn`). It fires when the offered item was met while an eligible
+candidate was not. `tests/integration/modules/watchdog.test.ts` builds its decisions with `composeEncounter`: policy v2's own choices
+(unseen offered; the last resort) are stored through the Composer's own store and do not fire; a regression (the same code with
+unseen-first switched off, under the v2 label, which the store refuses to keep) is written raw and does; a second-slot repeat, a return, a
+move with an exact target and a v1 decision do not.
+
+**Cost at scale (EXPLAIN on a seeded scratch database, PostgreSQL 16, warm cache, 11 November 2026).** Seed: 50,000 universes and
+`geography.state` rows, 600,000 `geography.runs` (10,000 universes with 30 more runs of history, 5,000 queued), 100,000 rows in each reference
+table, 100,000 `composer.decisions` (about 25 kB of payload each, 280 MB, 40% under v2).
+
+| Rule | Plan | Time |
+|---|---|---|
+| `geography_insufficient_repeat` | seq scan of `geography.state` (11,202 rows with a run settled in 7 days), then per universe a read of its newest runs through `runs_pkey (universe_id, id)`, then 1,212 index-only probes of each reference table's `*_probe` index for the stuck ones | 113 ms warm, 499 ms cold; about 10 µs per active universe, so the 5-second statement timeout holds to roughly 400,000 universes active in a week, after which the rule is skipped and logged (`watchdog.rule_skipped`) until it is made incremental |
+| `composer_repeat` | backward range scan of `composer_decisions_expired_idx` for the newest 5,000 decisions expiring after now + 23 days, then the JSON checks on those 5,000 | 335 to 347 ms; bounded by the 5,000-row sample whatever the table's size |
+| `run_held` | bitmap scan of the partial index `geography_active_run` (and `planner_one_active_run`) | milliseconds for 5,000 active runs |
+
+An earlier shape built a CTE of every recent run and scanned it once per universe, and a full hash of both reference tables; the
+lateral read and the per-universe `limit 1` probes replaced them. The view orders a universe's runs by `id desc`, which is creation order
+because the server mints run ids as UUIDv7.
+
 
 ## Journeys
 

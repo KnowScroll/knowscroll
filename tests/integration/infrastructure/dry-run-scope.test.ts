@@ -56,6 +56,24 @@ describe('the dry-run personal scope (real database)', () => {
     expect(await revisionOf(person.universeId)).toBe(0);
   });
 
+  it('cuts any one statement off after five seconds, set locally right after READ ONLY', async () => {
+    const person = await seedPerson(database.db);
+    const dryRun = makeWithDryRunPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+    const inside = await dryRun(person.authority, async (scope) => {
+      const row = await sql<{ timeout: string; readOnly: string }>`
+        select current_setting('statement_timeout') as timeout, current_setting('transaction_read_only') as "readOnly"`.execute(
+        transactionOf(scope),
+      );
+      return row.rows[0];
+    });
+    expect(inside).toEqual({ kind: 'entered', value: { timeout: '5s', readOnly: 'on' } });
+    // Local to the transaction: the pool's own setting is untouched afterwards.
+    const after = await sql<{ timeout: string }>`select current_setting('statement_timeout') as timeout`.execute(
+      database.db,
+    );
+    expect(after.rows[0]!.timeout).not.toBe('5s');
+  });
+
   it('refuses every write with PostgreSQL 25006 and changes nothing', async () => {
     const person = await seedPerson(database.db);
     const dryRun = makeWithDryRunPersonalScope(database.db, { lockTimeoutMs: 5_000 });

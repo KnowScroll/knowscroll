@@ -15,14 +15,34 @@ import { READ_TRUSTED_COVERAGE } from '@knowscroll/backend/modules/personal-cont
 import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import { makeGeographyDryRun } from '@knowscroll/backend/modules/geography/nest-providers';
 import { plannerDryRunFor } from '@knowscroll/backend/modules/planner/nest-providers';
+import { dryRunsFor } from '../../../apps/worker/src/dry-run-wiring.js';
 import type { GeographyWorld } from './geography-world.js';
 import { buildRecursively } from './providers.js';
 
 /**
- * The dry runs as the worker builds them (#674, D-411): the same ports as a real run, with the read-only scope, and the
- * trusted read over the lock-free authority recheck. `enabled` is the role switch the report names.
+ * The dry runs exactly as the worker builds them (`dryRunsFor`, from the worker's own providers): what `operator.js
+ * geography dry-run` and `planner dry-run` run. `enabled` is the role switch the report names.
  */
-export function dryRunsOf(
+export function workerDryRuns(world: GeographyWorld, options: { readonly enabled?: boolean } = {}) {
+  const enabled = options.enabled ?? true;
+  return dryRunsFor(
+    world.database.db,
+    {
+      world: 'ci',
+      database: world.database.settings,
+      cartographerEnabled: enabled,
+      plannerEnabled: enabled,
+      scopeLockTimeoutMs: 5_000,
+    },
+    () => undefined,
+  );
+}
+
+/**
+ * The same dry runs composed by hand, with a clock the test sets: the worker's wiring has no clock to move, and a month of silence
+ * needs one. The ports are the same as the worker's: the read-only scope, and the trusted read over the lock-free authority recheck.
+ */
+export function dryRunsWithClock(
   world: GeographyWorld,
   options: { readonly enabled?: boolean; readonly now?: () => Date } = {},
 ) {

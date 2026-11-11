@@ -117,19 +117,20 @@ transaction that is always rolled back: no row is written and no job is sent. It
 freezes and applies the same rules; **no model is called**. The line holds counts and codes only, so it is safe to paste into
 a public issue: never a label, title, topic, unit, reference or text.
 
-- `geography dry-run`: `outcome` is what a reading-triggered run would do (`calls_model`, `applies_by_rules`,
-  `settles_no_changes`, `context_unavailable`, `context_limit`, `disabled`, `recording_paused`, `not_runnable`,
-  `would_fail`); `wouldRecord` is the status and outcome the run row would hold; `unavailableReason` names why no context
-  can be frozen (`no_references`, `discovery_limit`, `not_observed`, `trusted_limit`, `trusted_changed`, `object_limit`,
-  `route_limit`, `context_size`); `references` counts the keys discovery found, the trusted references read, the distinct
-  supports and how many compaction kept; `due` counts the places the rules entitle by kind and how many one delta applies;
-  `activityChanges` counts places due to go quiet or active again; `contextBytes` is the frozen context's size.
+- `geography dry-run`: `action` is what a reading-triggered run would do (`calls_model`, `applies_rules`, `stops`,
+  `recording_paused`, `not_runnable`, `would_fail`); `wouldRecord` is the status and outcome the run row would hold, **in the
+  codes a real run records** (`no_support_yet`, `no_trusted_support`, `discovery_limit`, `coverage_limit`,
+  `coverage_authority_changed`, `structure_limit`, `context_too_large`, `disabled`, `no_changes`, `applied_by_rules`,
+  `applied_by_rules_context_limit`; null when a model call decides); `references` counts the keys discovery found, the witnesses
+  the frozen context holds, the distinct supports and how many compaction kept; `due` counts the places the rules entitle by kind
+  and how many one delta applies; `activityChanges` counts places due to go quiet or active again; `contextBytes` is the frozen
+  context's size.
 - `planner dry-run`: `outcome` is `calls_model`, `insufficient_evidence`, `proof_unavailable`, `context_bounds`,
   `disabled`, `recording_paused` or `not_runnable`; it counts the topics in the frozen context, the topic bound the
   inventory read was given, the inventory items and evidence references, and the context's bytes.
 
 Exit 0 read, 2 refused (usage, unknown or suspended universe), 1 failure. It waits for the root lock like any read and
-gives up after five seconds. Running it twice changes nothing.
+gives up after five seconds, and no statement of it runs longer than five seconds. Running it twice changes nothing.
 
 ## The watchdog
 
@@ -143,8 +144,8 @@ and their thresholds are in `WATCHDOG_THRESHOLDS` (`modules/operator/domain/watc
 | `dead_lettered_jobs` | a queue has jobs in its dead-letter queue | 1 or more in the last 3 hours, per queue |
 | `failed_jobs_repeating` | a queue's jobs fail with the same code | 5 or more in the last 6 hours |
 | `personal_runs_held` | a Planner or Geography run is still `queued` or `prepared` and its row has not moved | for 1 hour |
-| `geography_unavailable_repeating` | a universe with coverage references has its latest 3 settled Cartographer runs end on the same unavailable reason | 1 or more universes, seen in the last 7 days |
-| `composer_repeat_offered` | a `composer-policy.v2` decision offered an explanation the person has met while it records an eligible unseen candidate | 1 or more in the last 24 hours (never fires before v2 exists) |
+| `geography_insufficient_repeating` | a universe with coverage references has its latest 3 settled Cartographer runs end `insufficient` on the same outcome, other than the healthy `no_changes`, `disabled`, `no_support_yet` | 1 or more universes, seen in the last 7 days |
+| `composer_repeat_offered` | a `composer-policy.v2` vertical decision with no exact target offered, as its first item, an explanation the person had met while an eligible candidate was not met | 1 or more in the last 24 hours, among the newest 5,000 decisions of the last 7 days (v2 is built to make this impossible: it fires on a regression) |
 | `unknown_attempts_old` | a model attempt is still `unknown` | for 6 hours |
 
 Find an alert: `journalctl -u ks2-worker@<world> | grep watchdog.alert`. Then follow the code: a dead letter or a repeated
@@ -172,5 +173,9 @@ events show who looked at the screen as counts and codes only, never who.
   code-only failure record (`failure`, `failure_class`, `failure_code`). The message is not stored (D-017).
 - An `unknown` model attempt: `reasoning unknown`, then `reasoning write-off` (`environments.md`).
 - The panels say "the view is not installed": run `migrate.js`; it rebuilds the job views.
+- **Rolling back past the PR that added `ops.watchdog` (D-411):** `ops.watchdog` reads `ops.jobs`, and an older release's `migrate.js`
+  does not know to drop it, so its drop of the job views fails with "cannot drop view ops.jobs because other objects depend on it".
+  Drop it first: `psql … -c 'drop view if exists ops.watchdog'`, then run the older release's `migrate.js`. (`ops.json_array` and
+  `ops.composer_met` are plain functions and can stay.)
 - A migration that changes a column read by an `ops` view fails with "cannot drop … because view … depends
   on it": drop and recreate the view in the same migration (never `cascade`).

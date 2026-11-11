@@ -188,16 +188,38 @@ export async function createOpsJobViews<DB>(db: Kysely<DB>): Promise<void> {
  * - `run_held`: a Planner or Geography run still `queued` or `prepared`. Subject: `planner` or `geography`.
  *   Detail: its status. Observed: when its row last moved.
  * - `attempt_unknown`: a model attempt whose outcome is `unknown`. Subject: `personal` or `production`.
- * - `geography_unavailable_repeat`: a universe whose latest settled Cartographer runs ended on one unavailable
- *   reason while it has coverage references. Subject: the reason. Magnitude: how many runs in a row. No universe is named.
- * - `composer_repeat`: a `composer-policy.v2` decision that offered an explanation the person has met while it records
- *   an eligible candidate that is established unseen. Subject: the policy version.
+ * - `geography_insufficient_repeat`: a universe whose latest settled Cartographer runs ended `insufficient` on one
+ *   outcome that is not healthy (`no_changes`, `disabled` and `no_support_yet` are), while it has coverage references.
+ *   Subject: the outcome code. Magnitude: how many runs in a row (at most 20). No universe is named. It walks the
+ *   universes of `geography.state` that settled a run in the last 7 days (the most the rule looks back) and reads each
+ *   one's newest settled runs through the primary key `(universe_id, id)`, newest first: run ids are minted as UUIDv7,
+ *   so id order is creation order and the read is a backward index scan of at most 20 rows however long the history.
+ *   It then probes the two reference tables' indexes once for each universe that is stuck: no pass over a table of runs
+ *   or references.
+ * - `composer_repeat`: among the newest 5,000 decisions whose expiry is in the last 7 days (a backward range scan of
+ *   `composer_decisions_expired_idx`), a `composer-policy.v2` vertical decision with no exact target whose FIRST selected
+ *   slot (the offered item) is an explanation the person had met while an eligible candidate was not. Subject: the policy
+ *   version. A sample at high volume, so a rate signal and not a census.
  */
 async function createOpsWatchdogView<DB>(trx: Kysely<DB>): Promise<void> {
   await sql`
     create or replace function ops.json_array(value jsonb) returns jsonb
     language sql immutable parallel safe
     as $$ select case when jsonb_typeof(value) = 'array' then value else '[]'::jsonb end $$`.execute(trx);
+  // Whether a stored Composer decision says the person had met an explanation: an activated exposure of its unit in either
+  // format (`input.evidence.established.units`) or an encounter in the recent window (`input.evidence.recent`). The same
+  // notion as `isMetIn` in the Composer module; history that was not read says nothing, so absence is not met.
+  await sql`
+    create or replace function ops.composer_met(payload jsonb, unit text) returns boolean
+    language sql immutable parallel safe
+    as $$
+      select exists (
+        select 1 from jsonb_array_elements(ops.json_array(payload #> '{input,evidence,established,units}')) as established(item)
+        where established.item ->> 'explanationUnitId' = unit and established.item ->> 'encountered' = 'true')
+      or exists (
+        select 1 from jsonb_array_elements(ops.json_array(payload #> '{input,evidence,recent}')) as recent(item)
+        where recent.item ->> 'explanationUnitId' = unit)
+    $$`.execute(trx);
   await sql`
     create view ops.watchdog as
     select 'dead_letter'::text as rule, job.queue as subject, null::text as detail,
@@ -222,51 +244,69 @@ async function createOpsWatchdogView<DB>(trx: Kysely<DB>): Promise<void> {
     from ops.model_attempts as attempt
     where attempt.state = 'unknown'
     union all
-    select 'geography_unavailable_repeat', streak.outcome, null::text, streak.updated_at, streak.runs::bigint
+    select 'geography_insufficient_repeat', candidate.outcome, null::text, candidate.updated_at, candidate.runs::bigint
     from (
-      with settled as (
-        select run.universe_id, run.privacy_epoch, run.status, run.outcome, run.updated_at,
-          row_number() over (partition by run.universe_id, run.privacy_epoch order by run.created_at desc, run.id desc) as position
-        from geography.runs as run
-        where run.status in ('accepted', 'stale', 'rejected', 'insufficient')
-          and run.created_at > now() - interval '30 days'
-      ), latest as (
-        select * from settled
-        where position = 1 and status = 'insufficient' and outcome in ('coverage_unavailable', 'context_limit')
-      )
-      select latest.outcome, latest.universe_id, latest.privacy_epoch, latest.updated_at,
-        coalesce(
-          (select min(earlier.position) from settled as earlier
-            where earlier.universe_id = latest.universe_id and earlier.privacy_epoch = latest.privacy_epoch
-              and earlier.outcome is distinct from latest.outcome) - 1,
-          (select max(earlier.position) from settled as earlier
-            where earlier.universe_id = latest.universe_id and earlier.privacy_epoch = latest.privacy_epoch)
-        ) as runs
-      from latest
-    ) as streak
-    where exists (select 1 from personal_context.coverage_references as reference
-        where reference.universe_id = streak.universe_id and reference.privacy_epoch = streak.privacy_epoch)
-      or exists (select 1 from personal_context.recording_coverage_references as reference
-        where reference.universe_id = streak.universe_id and reference.privacy_epoch = streak.privacy_epoch)
+      select state.universe_id, state.privacy_epoch, streak.outcome, streak.updated_at, streak.runs
+      from geography.state as state
+      cross join lateral (
+        select recent.outcomes[1] as outcome, recent.statuses[1] as status, recent.updated_ats[1] as updated_at,
+          coalesce(
+            (select min(position) - 1 from generate_subscripts(recent.outcomes, 1) as position
+              where recent.outcomes[position] is distinct from recent.outcomes[1]),
+            cardinality(recent.outcomes)
+          ) as runs
+        from (
+          select array_agg(latest.outcome order by latest.id desc) as outcomes,
+            array_agg(latest.status order by latest.id desc) as statuses,
+            array_agg(latest.updated_at order by latest.id desc) as updated_ats
+          from (
+            select run.id, run.status, run.outcome, run.updated_at
+            from geography.runs as run
+            where run.universe_id = state.universe_id and run.privacy_epoch = state.privacy_epoch
+              and run.status in ('accepted', 'stale', 'rejected', 'insufficient')
+            order by run.id desc
+            limit 20
+          ) as latest
+        ) as recent
+      ) as streak
+      where state.next_run_not_before > now() - interval '7 days'
+        and streak.status = 'insufficient'
+        and streak.outcome is not null
+        and streak.outcome not in ('no_changes', 'disabled', 'no_support_yet')
+      offset 0
+    ) as candidate
+    left join lateral (
+      select 1 as present from personal_context.coverage_references as reference
+      where reference.universe_id = candidate.universe_id and reference.privacy_epoch = candidate.privacy_epoch limit 1
+    ) as legacy on true
+    left join lateral (
+      select 1 as present from personal_context.recording_coverage_references as reference
+      where reference.universe_id = candidate.universe_id and reference.privacy_epoch = candidate.privacy_epoch limit 1
+    ) as recording on true
+    where legacy.present is not null or recording.present is not null
     union all
-    select 'composer_repeat', decision.policy_version, null::text, decision.recorded_at, 1::bigint
-    from composer.decisions as decision
-    where decision.policy_version = 'composer-policy.v2'
+    select 'composer_repeat', sampled.policy_version, null::text, sampled.recorded_at, 1::bigint
+    from (
+      select decision.id, decision.policy_version, decision.recorded_at, decision.payload
+      from composer.decisions as decision
+      where decision.expires_at > now() + interval '23 days'
+      order by decision.expires_at desc, decision.id desc
+      limit 5000
+    ) as sampled
+    where sampled.policy_version = 'composer-policy.v2'
+      and sampled.payload #>> '{input,mode}' = 'vertical'
+      and sampled.payload #> '{input,intent,exactTarget}' is null
       and exists (
         select 1
-        from jsonb_array_elements(ops.json_array(decision.payload -> 'selection')) as offer(item)
-        join jsonb_array_elements(ops.json_array(decision.payload -> 'evaluations')) as candidate(item)
-          on candidate.item ->> 'assetId' = offer.item ->> 'assetId'
-          and candidate.item ->> 'assetRevision' = offer.item ->> 'assetRevision'
-        join jsonb_array_elements(ops.json_array(decision.payload #> '{input,evidence,established,units}')) as unit(item)
-          on unit.item ->> 'explanationUnitId' = candidate.item ->> 'explanationUnitId'
-        where unit.item ->> 'encountered' = 'true')
+        from jsonb_array_elements(ops.json_array(sampled.payload -> 'evaluations')) as offered(item)
+        where offered.item ->> 'assetId' = sampled.payload #>> '{selection,0,assetId}'
+          and offered.item ->> 'assetRevision' = sampled.payload #>> '{selection,0,assetRevision}'
+          and ops.composer_met(sampled.payload, offered.item ->> 'explanationUnitId'))
       and exists (
         select 1
-        from jsonb_array_elements(ops.json_array(decision.payload -> 'evaluations')) as candidate(item)
-        join jsonb_array_elements(ops.json_array(decision.payload #> '{input,evidence,established,units}')) as unit(item)
-          on unit.item ->> 'explanationUnitId' = candidate.item ->> 'explanationUnitId'
-        where candidate.item ->> 'eligible' = 'true' and unit.item ->> 'encountered' = 'false')`.execute(trx);
+        from jsonb_array_elements(ops.json_array(sampled.payload -> 'evaluations')) as candidate(item)
+        where candidate.item ->> 'eligible' = 'true'
+          and not ops.composer_met(sampled.payload, candidate.item ->> 'explanationUnitId'))`.execute(trx);
   await sql`
     comment on view ops.watchdog is
       'One row per observation the watchdog may alert on: rule, code-only subject and detail, when, and a magnitude. No ID, no text. The thresholds are in code.'`.execute(

@@ -2,31 +2,27 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { z } from 'zod';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  applyQueueDeclarations,
-  createBoss,
-  defineQueue,
-  drainConsumers,
-  jobConsumer,
-  startConsumers,
-} from '@knowscroll/backend/infrastructure/jobs';
+import { uuidv7 } from '@knowscroll/backend/infrastructure/ids';
+import { applyQueueDeclarations, createBoss, defineQueue } from '@knowscroll/backend/infrastructure/jobs';
+import { COMPOSER_POLICY_V1, composeEncounter } from '@knowscroll/backend/modules/composer';
 import { RUN_WATCHDOG, type RunWatchdog } from '@knowscroll/backend/modules/operator';
 import { watchdogProviders } from '@knowscroll/backend/modules/operator/nest-providers';
+import { regressedDecision, snapshotOf, storeDecision, storeRaw, v2Decision } from '../support/composer-decisions.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { geographyWorld, type GeographyWorld } from '../support/geography-world.js';
 import { buildFromProviders } from '../support/providers.js';
 
 /**
  * The hourly watchdog (#674, D-411) over `ops.watchdog`, on real PostgreSQL and a real pg-boss: a planted dead letter, a repeated
- * failure, a stuck run, an old unknown attempt, a Cartographer that keeps settling unavailable for a reader with references, and a
- * repeated offer in a `composer-policy.v2` decision. Each rule fires on its condition and not otherwise; the alerts name only codes
- * and counts. Every record is a labelled CI fixture; no provider is called.
+ * failure, a stuck run, an old unknown attempt, a Cartographer that keeps settling the same unhealthy outcome for a reader with
+ * references, and a Composer v2 decision that repeats. Each rule fires on its condition and not otherwise; the alerts name only
+ * codes and counts. Every record is a labelled CI fixture; no provider is called.
  */
 const PRIVATE = 'CI-PRIVATE-WATCHDOG-TEXT';
 
 const failingQueue = defineQueue({
   name: 'fixture.watchdog-failing',
-  purpose: 'CI fixture: a handler that always fails and dead-letters, so the watchdog has something to see.',
+  purpose: 'CI fixture: jobs that fail for good and dead-letter, so the watchdog has something to see.',
   payload: z.object({ v: z.literal(1), taskId: z.string() }),
   policy: {
     expireInSeconds: 60,
@@ -60,37 +56,30 @@ describe('the watchdog (real PostgreSQL and pg-boss, CI fixtures)', () => {
   const only = async (code: string) => (await alerts()).filter((alert) => alert.code === code);
   const codes = async () => (await alerts()).map((alert) => alert.code).sort();
 
-  it('raises nothing on a quiet database, reads every rule, and tolerates having no composer-policy.v2 decision', async () => {
-    const pass = await watchdog();
-    expect(pass).toEqual({ alerts: [], skipped: [] });
+  it('raises nothing on a quiet database, reads every rule, and has no composer-policy.v2 decision to read', async () => {
+    expect(await watchdog()).toEqual({ alerts: [], skipped: [] });
   });
 
   describe('jobs', () => {
     const diagnostics = { onError: () => undefined, onWarning: () => undefined };
+    /**
+     * Fails `count` jobs of the fixture queue for good, with no consumer and no waiting: send, claim and fail them through
+     * pg-boss itself, which then writes the failed rows and copies each to the dead-letter queue.
+     */
     async function failJobs(count: number) {
-      const worker = createBoss(world.database.settings, 'consumer', diagnostics);
-      await worker.start();
-      await startConsumers(
-        worker,
-        [jobConsumer(failingQueue, () => Promise.reject(Object.assign(new Error(PRIVATE), { code: 'FIXTURE_CRASH' })))],
-        () => undefined,
-      );
+      const boss = createBoss(world.database.settings, 'producer', diagnostics);
+      await boss.start();
       try {
-        for (let n = 0; n < count; n++) await worker.send(failingQueue.name, { v: 1, taskId: PRIVATE });
-        const settled = async () =>
-          Number(
-            (
-              await sql<{ n: string }>`select count(*)::text as n from pgboss.job
-                where name = ${`${failingQueue.name}.dead`}`.execute(db())
-            ).rows[0]!.n,
-          );
-        const target = (await settled()) + count;
-        for (let waited = 0; (await settled()) < target; waited += 200) {
-          if (waited > 30_000) throw new Error('the fixture jobs did not dead-letter');
-          await new Promise((resolve) => setTimeout(resolve, 200));
-        }
+        for (let n = 0; n < count; n++) await boss.send(failingQueue.name, { v: 1, taskId: PRIVATE });
+        const claimed = await boss.fetch(failingQueue.name, { batchSize: count });
+        expect(claimed).toHaveLength(count);
+        await boss.fail(
+          failingQueue.name,
+          claimed.map((job) => job.id),
+          { failure: 'handler_failed', errorClass: 'Error', code: 'FIXTURE_CRASH' },
+        );
       } finally {
-        await drainConsumers(worker, 1, 5_000, () => undefined);
+        await boss.stop({ graceful: false });
       }
     }
 
@@ -236,112 +225,156 @@ describe('the watchdog (real PostgreSQL and pg-boss, CI fixtures)', () => {
     });
   });
 
-  describe('a Cartographer that keeps settling unavailable for a reader with references', () => {
-    const insertRuns = async (person: FixturePerson, outcomes: readonly string[]) => {
-      // Oldest first: the last element is the latest settled run.
-      for (const [index, outcome] of outcomes.entries())
+  describe('a Cartographer that keeps settling an unhealthy outcome for a reader with references', () => {
+    /**
+     * Settled runs, oldest first: the last element is the latest. Their ids are UUIDv7, as the server mints them, so id order is
+     * creation order (the view reads a universe's newest runs by id). The universe has settled a run lately, as every one that does.
+     */
+    const insertRuns = async (person: FixturePerson, outcomes: readonly string[], status = 'insufficient') => {
+      for (const [index, outcome] of outcomes.entries()) {
+        await new Promise((resolve) => setTimeout(resolve, 2));
         await sql`insert into geography.runs (universe_id, privacy_epoch, id, desired_revision, status, outcome, created_at, updated_at)
-          values (${person.universeId}::uuid, 1, ${randomUUID()}::uuid, ${index + 1}, 'insufficient', ${outcome},
+          values (${person.universeId}::uuid, 1, ${uuidv7()}::uuid, ${index + 1}, ${status}, ${outcome},
             now() - make_interval(mins => ${(outcomes.length - index) * 10}), now() - make_interval(mins => ${(outcomes.length - index) * 10}))`.execute(
           db(),
         );
+      }
+      await sql`insert into geography.state (universe_id, privacy_epoch, next_run_not_before)
+        values (${person.universeId}::uuid, 1, now())
+        on conflict (universe_id, privacy_epoch) do update set next_run_not_before = now()`.execute(db());
     };
     const withReading = async () => {
       const person = await seedPerson(db());
       await world.observe(person, await world.fixture());
       return person;
     };
-    // A person's own queued run (made by reading) is held in a way the first test below must not count.
-    it('counts a universe whose last three runs ended on one reason, and only one that has coverage references', async () => {
+    const repeating = () => only('geography_insufficient_repeating');
+    const repeats = (outcome: string, count = 1) => ({
+      code: 'geography_insufficient_repeating',
+      count,
+      windowSeconds: 7 * 86_400,
+      outcome,
+    });
+
+    it('counts a universe whose last three runs ended on one unhealthy outcome, and only one that has coverage references', async () => {
       const streak = await withReading();
-      await insertRuns(streak, ['coverage_unavailable', 'coverage_unavailable', 'coverage_unavailable']);
+      await insertRuns(streak, ['no_trusted_support', 'no_trusted_support', 'no_trusted_support']);
       const limit = await withReading();
-      await insertRuns(limit, ['context_limit', 'context_limit', 'context_limit', 'context_limit']);
+      await insertRuns(limit, ['context_too_large', 'context_too_large', 'context_too_large', 'context_too_large']);
       const noReferences = await seedPerson(db());
-      await insertRuns(noReferences, ['coverage_unavailable', 'coverage_unavailable', 'coverage_unavailable']);
+      await insertRuns(noReferences, ['no_trusted_support', 'no_trusted_support', 'no_trusted_support']);
       const tooFew = await withReading();
-      await insertRuns(tooFew, ['coverage_unavailable', 'coverage_unavailable']);
+      await insertRuns(tooFew, ['no_trusted_support', 'no_trusted_support']);
       const broken = await withReading();
-      await insertRuns(broken, ['coverage_unavailable', 'coverage_unavailable', 'no_changes', 'coverage_unavailable']);
-      const healthy = await withReading();
-      await insertRuns(healthy, ['no_changes', 'no_changes', 'no_changes']);
-      expect(await only('geography_unavailable_repeating')).toEqual([
-        { code: 'geography_unavailable_repeating', count: 1, windowSeconds: 7 * 86_400, outcome: 'context_limit' },
-        {
-          code: 'geography_unavailable_repeating',
-          count: 1,
-          windowSeconds: 7 * 86_400,
-          outcome: 'coverage_unavailable',
-        },
+      await insertRuns(broken, ['no_trusted_support', 'no_trusted_support', 'no_changes', 'no_trusted_support']);
+      expect(await repeating()).toEqual([repeats('context_too_large'), repeats('no_trusted_support')]);
+    });
+
+    it('lets the healthy outcomes repeat: no change, a role switched off, a reader with nothing read yet', async () => {
+      for (const outcome of ['no_changes', 'disabled', 'no_support_yet']) {
+        const person = await withReading();
+        await insertRuns(person, [outcome, outcome, outcome, outcome]);
+      }
+      expect(await repeating()).toEqual([repeats('context_too_large'), repeats('no_trusted_support')]);
+    });
+
+    it('flags any other repeating outcome, such as a limit, and ignores a streak of applied runs', async () => {
+      const limited = await withReading();
+      await insertRuns(limited, ['coverage_limit', 'coverage_limit', 'coverage_limit']);
+      const applied = await withReading();
+      await insertRuns(applied, ['applied_by_rules', 'applied_by_rules', 'applied_by_rules'], 'accepted');
+      expect(await repeating()).toEqual([
+        repeats('context_too_large'),
+        repeats('coverage_limit'),
+        repeats('no_trusted_support'),
       ]);
+    });
+
+    it('ignores a universe that has not settled a run for a month', async () => {
+      const stale = await withReading();
+      await insertRuns(stale, ['structure_limit', 'structure_limit', 'structure_limit']);
+      await sql`update geography.state set next_run_not_before = now() - interval '40 days'
+        where universe_id = ${stale.universeId}::uuid`.execute(db());
+      expect((await repeating()).map((alert) => alert.outcome)).not.toContain('structure_limit');
     });
   });
 
-  describe('Composer decisions that offer a met explanation while recording an unseen candidate', () => {
+  describe('Composer v2 decisions that offered a met explanation first while an unseen one was eligible', () => {
     let person: FixturePerson;
+    const asset = () => randomUUID();
+    const tides = 'earth.tides';
+    const seasons = 'earth.seasons';
+    /** A met explanation about the topic the person is moving towards, and a new one about another. */
+    const met = () => ({ asset: asset(), unit: `unit-met-${randomUUID()}`, topic: tides, met: true });
+    const fresh = () => ({ asset: asset(), unit: `unit-new-${randomUUID()}`, topic: seasons, met: false });
+    const repeated = () => only('composer_repeat_offered');
+
     beforeAll(async () => {
       person = await seedPerson(db());
-      // composer-policy.v2 does not exist yet. This disposable database lets its row in, to show the rule reads the shape it will have.
-      await sql`alter table composer.decisions drop constraint decisions_policy_version_check`.execute(db());
     });
-    const decision = async (
-      policy: string,
-      offered: string,
-      candidates: readonly { unit: string; asset: string; eligible: boolean; encountered: boolean | undefined }[],
-    ) => {
-      const payload = {
-        version: 'composer-decision.v0',
-        universeId: person.universeId,
-        privacyEpoch: 1,
-        policyVersion: policy,
-        input: {
-          evidence: {
-            established: {
-              units: candidates.flatMap((candidate) =>
-                candidate.encountered === undefined
-                  ? []
-                  : [{ explanationUnitId: candidate.unit, encountered: candidate.encountered, facets: [] }],
-              ),
-            },
-          },
-        },
-        evaluations: candidates.map((candidate) => ({
-          assetId: candidate.asset,
-          assetRevision: 1,
-          explanationUnitId: candidate.unit,
-          eligible: candidate.eligible,
-          title: PRIVATE,
-        })),
-        selection: [{ assetId: offered, assetRevision: 1, score: 1 }],
-      };
-      await sql`insert into composer.decisions (id, universe_id, privacy_epoch, command_id, input_sha256, policy_version, payload, expires_at)
-        values (${randomUUID()}::uuid, ${person.universeId}::uuid, 1, ${randomUUID()}::uuid, ${'b'.repeat(64)}, ${policy},
-          ${JSON.stringify(payload)}::jsonb, now() + interval '10 days')`.execute(db());
-    };
-    const met = { unit: 'unit-met', asset: 'asset-met', eligible: true, encountered: true };
-    const unseen = { unit: 'unit-unseen', asset: 'asset-unseen', eligible: true, encountered: false };
 
-    it('flags a v2 decision that offered a met explanation while an eligible unseen one was recorded, and no other', async () => {
-      // Fine: the last resort (nothing unseen existed), an unseen offer, an unseen candidate that is not eligible, and history that does not say.
-      await decision('composer-policy.v2', 'asset-met', [met]);
-      await decision('composer-policy.v2', 'asset-unseen', [met, unseen]);
-      await decision('composer-policy.v2', 'asset-met', [met, { ...unseen, eligible: false }]);
-      await decision('composer-policy.v2', 'asset-met', [met, { ...unseen, encountered: undefined }]);
-      // Earlier policies make the same choice today; the rule belongs to v2 and ignores them.
-      await decision('composer-policy.v1', 'asset-met', [met, unseen]);
-      expect(await only('composer_repeat_offered')).toEqual([]);
-      await decision('composer-policy.v2', 'asset-met', [met, unseen]);
-      await decision('composer-policy.v2', 'asset-met', [met, unseen]);
-      expect(await only('composer_repeat_offered')).toEqual([
+    it('is not fired by what policy v2 itself decides, stored through the Composer’s own store', async () => {
+      // v2 offers the unseen one (the met one is excluded), and, when nothing unseen exists, the met one as the last resort.
+      const unseen = v2Decision(snapshotOf(person, [met(), fresh()], { intentTopic: tides }));
+      expect(unseen.unseenLadder?.outcome).toBe('unseen');
+      const lastResort = v2Decision(snapshotOf(person, [met()], { intentTopic: tides }));
+      expect(lastResort.unseenLadder?.outcome).toBe('fell_back');
+      expect(await storeDecision(db(), person, unseen)).toBe('stored');
+      expect(await storeDecision(db(), person, lastResort)).toBe('stored');
+      expect(await repeated()).toEqual([]);
+    });
+
+    it('fires when a decision offers the met explanation first while an unseen one is eligible', async () => {
+      const candidates = [met(), fresh()];
+      const snapshot = snapshotOf(person, candidates, { intentTopic: tides });
+      // What Composer does today for this move, then what a regression of its guarantee would record: the same code with unseen-first
+      // off, under the v2 label. The store refuses it (it must replay under the real v2), so it is written the way only a bug would.
+      const correct = v2Decision(snapshot);
+      const regressed = regressedDecision(snapshot);
+      expect(correct.selection[0]?.assetId).toBe(candidates[1]!.asset);
+      expect(regressed.selection[0]?.assetId).toBe(candidates[0]!.asset);
+      await expect(storeDecision(db(), person, regressed)).rejects.toThrow('COMPOSER_REPLAY_INVALID');
+      await storeRaw(db(), person, regressed);
+      await storeRaw(db(), person, regressedDecision(snapshotOf(person, [met(), fresh()], { intentTopic: tides })));
+      expect(await repeated()).toEqual([
         { code: 'composer_repeat_offered', count: 2, windowSeconds: 86_400, outcome: 'composer-policy.v2' },
       ]);
-      expect(JSON.stringify(await alerts())).not.toContain(PRIVATE);
+      expect(JSON.stringify(await alerts())).not.toContain('CI Fixture');
     });
 
-    it('stops flagging a decision recorded before the window', async () => {
-      await sql`update composer.decisions set recorded_at = now() - interval '30 hours', expires_at = now() - interval '6 hours' + interval '24 hours'
+    it('reads only the first selected slot, only vertical moves, none with an exact target, and only policy v2', async () => {
+      const before = (await repeated())[0]!.count;
+      // The first offer is unseen and a met one follows it: not a repeat. (Intent towards the new topic ranks it first.)
+      const second = regressedDecision(snapshotOf(person, [met(), fresh()], { intentTopic: seasons }));
+      expect(second.selection.length).toBeGreaterThan(1);
+      expect(second.selection[0]?.assetId).not.toBe(second.selection[1]?.assetId);
+      await storeRaw(db(), person, second);
+      // The same regression on a move the person asked for, which the unseen-first rule never covered: a return, and a vertical move with an exact target.
+      const exact = met();
+      await storeRaw(
+        db(),
+        person,
+        regressedDecision(snapshotOf(person, [exact, fresh()], { intentTopic: tides, exactTarget: exact.asset })),
+      );
+      await storeRaw(
+        db(),
+        person,
+        regressedDecision(snapshotOf(person, [exact, fresh()], { mode: 'return', exactTarget: exact.asset })),
+      );
+      // An earlier policy makes this choice by design.
+      const v1 = composeEncounter(snapshotOf(person, [met(), fresh()], { intentTopic: tides }), COMPOSER_POLICY_V1);
+      expect(v1.selection[0]).toBeDefined();
+      await storeDecision(db(), person, v1);
+      expect((await repeated())[0]!.count).toBe(before);
+    });
+
+    it('stops flagging a decision recorded before the window, and a decision past the 7 days the view reads', async () => {
+      await sql`update composer.decisions set recorded_at = now() - interval '30 hours', expires_at = now() + interval '30 days' - interval '30 hours'
         where universe_id = ${person.universeId}::uuid`.execute(db());
-      expect(await only('composer_repeat_offered')).toEqual([]);
+      expect(await repeated()).toEqual([]);
+      await sql`update composer.decisions set recorded_at = now() - interval '10 days', expires_at = now() + interval '20 days'
+        where universe_id = ${person.universeId}::uuid`.execute(db());
+      expect(await repeated()).toEqual([]);
     });
   });
 

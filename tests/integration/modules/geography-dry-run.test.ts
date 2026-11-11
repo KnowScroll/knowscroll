@@ -1,20 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { makeWithDryRunPersonalScope } from '@knowscroll/backend/infrastructure/postgres';
+import { makeWithDryRunPersonalScope, readPersonalRecordingNow } from '@knowscroll/backend/infrastructure/postgres';
 import { makeGeographyDryRun, makeSettleQuiet } from '@knowscroll/backend/modules/geography/nest-providers';
 import { recordingPolicyFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { signal } from '../support/fixture-model.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { geographyWorld, topic, facet, otherFacet, type GeographyWorld } from '../support/geography-world.js';
-import { readPersonalRecordingNow } from '@knowscroll/backend/infrastructure/postgres';
-import { dryRunsOf, footprintOf } from '../support/dry-run.js';
+import { dryRunsWithClock, footprintOf, workerDryRuns } from '../support/dry-run.js';
 
 /**
- * `geography dry-run` (#674, D-411): what a Cartographer run would do, read-only. It freezes the context the run freezes
- * and applies the same rules, so its report matches what a real run then records. Reading, sources and the model's answers
- * are authored CI fixtures; the dry run calls no model.
+ * `geography dry-run` (#674, D-411): what a Cartographer run would do, read-only. It freezes the context the run freezes and
+ * applies the same rules, and says what the run would record in the codes the run records, so its report matches what a real
+ * run then records. Most cases run through the worker's own wiring (`dryRunsFor`), as `operator.js` does. Reading, sources and
+ * the model's answers are authored CI fixtures; the dry run calls no model.
  */
 const DAY = 86_400_000;
 const garbage: FixtureScenario = { kind: 'malformed' };
@@ -27,9 +27,9 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
   });
   afterAll(() => world.close());
 
-  const dry = () => dryRunsOf(world).geography;
+  const dry = () => workerDryRuns(world).geography;
 
-  /** Runs the person's pending Cartographer run once; the fixture model answers nothing usable. */
+  /** Runs the person's active Cartographer run once; the fixture model answers nothing usable. */
   async function cartograph(person: FixturePerson) {
     const runId = (await world.state(person)).activeRunId;
     if (!runId) throw new Error('CI expected an active Cartographer run');
@@ -53,22 +53,25 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
     return universe.status === 'ready' ? universe.page.objects.map((place) => place.kind).sort() : [];
   };
 
-  it('works for a reader with no coverage reference, and writes nothing', async () => {
+  it('works for a reader with no coverage reference, names it as a run records it, and writes nothing', async () => {
     const person = await seedPerson(world.database.db);
     const before = await footprintOf(world, person.universeId);
     const report = await reportOf(person);
     expect(report).toMatchObject({
-      outcome: 'context_unavailable',
-      unavailableReason: 'no_references',
-      wouldRecord: { status: 'insufficient', outcome: 'coverage_unavailable' },
+      action: 'stops',
+      wouldRecord: { status: 'insufficient', outcome: 'no_support_yet' },
       wouldCallModel: false,
       places: 0,
       routes: 0,
-      references: { candidateKeys: null, trusted: null, supportKeys: null, supportsKept: null },
+      references: { candidateKeys: null, witnessesHeld: null, supportKeys: null, supportsKept: null },
       due: { total: 0, appliedByNextRun: 0 },
       contextBytes: null,
     });
     expect(await footprintOf(world, person.universeId)).toEqual(before);
+    // An explicit request for a reader with nothing read starts a run, which settles on exactly that code.
+    expect(await world.request(person.authority, { commandId: randomUUID() })).toMatchObject({ kind: 'accepted' });
+    const recorded = await cartograph(person);
+    expect(recorded).toMatchObject({ ...report.wouldRecord, calls: 0 });
   });
 
   it('says a reader with one unit settles with no changes, and a real run then records exactly that', async () => {
@@ -78,11 +81,10 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
     const report = await reportOf(person);
     expect(report).toMatchObject({
       trigger: 'reading',
-      outcome: 'settles_no_changes',
+      action: 'stops',
       wouldRecord: { status: 'insufficient', outcome: 'no_changes' },
       wouldCallModel: false,
-      unavailableReason: null,
-      references: { candidateKeys: 1, trusted: 1, supportKeys: 1, supportsKept: 1, supportsDropped: 0 },
+      references: { candidateKeys: 1, witnessesHeld: 1, supportKeys: 1, supportsKept: 1, supportsDropped: 0 },
       due: { system: 0, star: 0, planet: 0, region: 0, total: 0 },
       activityChanges: { toQuiet: 0, toActive: 0 },
     });
@@ -102,7 +104,7 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
     const before = await footprintOf(world, person.universeId);
     const report = await reportOf(person);
     expect(report).toMatchObject({
-      outcome: 'calls_model',
+      action: 'calls_model',
       wouldCallModel: true,
       wouldRecord: { status: 'accepted', outcome: null },
       references: { candidateKeys: 2, supportKeys: 2, supportsKept: 2 },
@@ -123,12 +125,18 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
       await world.observe(person, await world.fixture(undefined, topic, [facetId]));
     const report = await reportOf(person);
     expect(report.due).toEqual({ system: 1, star: 1, planet: 1, region: 2, total: 5, appliedByNextRun: 5 });
-    expect(report.references).toMatchObject({ candidateKeys: 3, supportKeys: 3, supportsKept: 3, supportsDropped: 0 });
+    expect(report.references).toMatchObject({
+      candidateKeys: 3,
+      supportKeys: 3,
+      supportsKept: 3,
+      supportsDropped: 0,
+    });
     await cartograph(person);
     expect(await placeKinds(person)).toEqual(['planet', 'region', 'region', 'star', 'system']);
     // Everything formed: nothing is due now.
     expect(await reportOf(person)).toMatchObject({
-      outcome: 'settles_no_changes',
+      action: 'stops',
+      wouldRecord: { status: 'insufficient', outcome: 'no_changes' },
       due: { total: 0 },
       places: 5,
     });
@@ -138,10 +146,10 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
     const person = await seedPerson(world.database.db);
     await world.coherent(person);
     await cartograph(person);
-    const later = dryRunsOf(world, { now: () => new Date(Date.now() + 31 * DAY) }).geography;
+    const later = dryRunsWithClock(world, { now: () => new Date(Date.now() + 31 * DAY) }).geography;
     const report = await reportOf(person, later);
     expect(report).toMatchObject({
-      outcome: 'applies_by_rules',
+      action: 'applies_rules',
       wouldRecord: { status: 'accepted', outcome: 'applied_by_rules' },
       wouldCallModel: false,
       due: { total: 0 },
@@ -154,11 +162,17 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
     });
   });
 
+  it('gives the same report through the worker’s wiring as through the hand-composed ports', async () => {
+    const person = await seedPerson(world.database.db);
+    await world.coherent(person);
+    expect(await reportOf(person, dryRunsWithClock(world).geography)).toEqual(await reportOf(person));
+  });
+
   it('names the switch when the role is off, and the pause when recording is paused', async () => {
     const person = await seedPerson(world.database.db);
     await world.coherent(person);
-    expect(await reportOf(person, dryRunsOf(world, { enabled: false }).geography)).toMatchObject({
-      outcome: 'disabled',
+    expect(await reportOf(person, workerDryRuns(world, { enabled: false }).geography)).toMatchObject({
+      action: 'stops',
       roleEnabled: false,
       wouldRecord: { status: 'insufficient', outcome: 'disabled' },
       // The counts are still read, so an operator sees what the role would do once it is on.
@@ -172,7 +186,7 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
       expectedRecordingGeneration: 1,
       on: false,
     });
-    expect(await reportOf(person)).toMatchObject({ outcome: 'recording_paused', wouldRecord: null, places: null });
+    expect(await reportOf(person)).toMatchObject({ action: 'recording_paused', wouldRecord: null, places: null });
   });
 
   it('refuses a universe that is missing or suspended, and finds the epoch of one that was cleared', async () => {
@@ -185,7 +199,7 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
       .execute();
     expect(await dry()(suspended.universeId)).toEqual({ kind: 'refused', refusal: 'universe_suspended' });
     const later = await seedPerson(world.database.db, { privacyEpoch: 4 });
-    expect(await reportOf(later)).toMatchObject({ outcome: 'context_unavailable', unavailableReason: 'no_references' });
+    expect(await reportOf(later)).toMatchObject({ wouldRecord: { outcome: 'no_support_yet' } });
   });
 
   it('prints counts and codes only: no label, topic, unit or reference', async () => {
@@ -239,5 +253,30 @@ describe('the Cartographer dry run (real PostgreSQL CI fixtures)', () => {
         )
       ).rows,
     ).toEqual(objects.rows);
+  });
+
+  it('gives the Planner’s dry run, through the same wiring, counts of what reading made, and writes nothing', async () => {
+    const planner = () => workerDryRuns(world).planner;
+    const person = await seedPerson(world.database.db);
+    const none = await planner()(person.universeId);
+    expect(none).toMatchObject({
+      kind: 'read',
+      report: { outcome: 'insufficient_evidence', evidence: 0, wouldCallModel: false },
+    });
+    await world.coherent(person);
+    const before = await footprintOf(world, person.universeId);
+    const result = await planner()(person.universeId);
+    if (result.kind !== 'read') throw new Error('CI expected a read');
+    expect(result.report).toMatchObject({
+      outcome: 'calls_model',
+      wouldCallModel: true,
+      topics: 1,
+      evidence: 3,
+      intentTopics: 0,
+      roleEnabled: true,
+    });
+    expect(result.report.contextBytes).toBeGreaterThan(1000);
+    expect(await footprintOf(world, person.universeId)).toEqual(before);
+    expect(JSON.stringify(result.report)).not.toContain('earth.seasons');
   });
 });

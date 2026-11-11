@@ -10,7 +10,7 @@ export interface WatchdogThresholds {
   readonly deadLetters: { readonly windowSeconds: number; readonly alertAtCount: number };
   readonly failedJobsRepeating: { readonly windowSeconds: number; readonly alertAtCount: number };
   readonly runsHeld: { readonly heldSeconds: number; readonly alertAtCount: number };
-  readonly geographyUnavailable: {
+  readonly geographyInsufficient: {
     readonly runs: number;
     readonly lookbackSeconds: number;
     readonly alertAtCount: number;
@@ -31,13 +31,15 @@ export const WATCHDOG_THRESHOLDS: WatchdogThresholds = {
    */
   runsHeld: { heldSeconds: 3600, alertAtCount: 1 },
   /**
-   * Universes whose latest settled Geography runs all ended on the same unavailable reason, while they
-   * have coverage references. `runs` is the streak; `lookbackSeconds` ignores a universe that has not run since.
+   * Universes whose latest settled Geography runs all ended `insufficient` on the same outcome, while they have coverage
+   * references. The healthy outcomes (`no_changes`, `disabled`, `no_support_yet`) are left out in the view; any other
+   * repeating one alerts. `runs` is the streak; `lookbackSeconds` ignores a universe that has not run since.
    */
-  geographyUnavailable: { runs: 3, lookbackSeconds: 7 * 86400, alertAtCount: 1 },
+  geographyInsufficient: { runs: 3, lookbackSeconds: 7 * 86400, alertAtCount: 1 },
   /**
-   * Composer decisions within the window that offered an explanation the person has met while the decision records an
-   * eligible unseen candidate. Only `composer-policy.v2` decisions are read; with none, the rule never fires.
+   * Composer decisions within the window (at most 7 days: the view reads no further back) whose first offer is an
+   * explanation the person had met while the decision records an eligible candidate that was not. Only `composer-policy.v2`
+   * vertical decisions without an exact target are read: it is the guarantee of that policy, so it can only fire on a regression.
    */
   composerRepeats: { windowSeconds: 24 * 3600, alertAtCount: 1 },
   /** Model attempts whose outcome is still `unknown` after this long (an operator reconciles or writes them off). */
@@ -46,7 +48,7 @@ export const WATCHDOG_THRESHOLDS: WatchdogThresholds = {
 
 /** The kinds of observation `ops.watchdog` holds, one row per item. */
 export type WatchdogRule =
-  'dead_letter' | 'job_failed' | 'run_held' | 'geography_unavailable_repeat' | 'composer_repeat' | 'attempt_unknown';
+  'dead_letter' | 'job_failed' | 'run_held' | 'geography_insufficient_repeat' | 'composer_repeat' | 'attempt_unknown';
 
 /** What one rule's read asks of the store: observations newer or older than a time, grouped by subject and detail. */
 export interface WatchdogQuery {
@@ -68,7 +70,7 @@ export type WatchdogAlertCode =
   | 'dead_lettered_jobs'
   | 'failed_jobs_repeating'
   | 'personal_runs_held'
-  | 'geography_unavailable_repeating'
+  | 'geography_insufficient_repeating'
   | 'composer_repeat_offered'
   | 'unknown_attempts_old';
 
@@ -97,9 +99,9 @@ export function watchdogQueries(
     { rule: 'job_failed', newerThan: ago(now, thresholds.failedJobsRepeating.windowSeconds) },
     { rule: 'run_held', olderThan: ago(now, thresholds.runsHeld.heldSeconds) },
     {
-      rule: 'geography_unavailable_repeat',
-      newerThan: ago(now, thresholds.geographyUnavailable.lookbackSeconds),
-      minMagnitude: thresholds.geographyUnavailable.runs,
+      rule: 'geography_insufficient_repeat',
+      newerThan: ago(now, thresholds.geographyInsufficient.lookbackSeconds),
+      minMagnitude: thresholds.geographyInsufficient.runs,
     },
     { rule: 'composer_repeat', newerThan: ago(now, thresholds.composerRepeats.windowSeconds) },
     { rule: 'attempt_unknown', olderThan: ago(now, thresholds.unknownAttempts.olderThanSeconds) },
@@ -145,13 +147,13 @@ export function alertsFrom(
           context: group.subject,
           ...(group.detail === null ? {} : { outcome: group.detail }),
         }));
-    case 'geography_unavailable_repeat':
+    case 'geography_insufficient_repeat':
       return groups
-        .filter((group) => group.count >= thresholds.geographyUnavailable.alertAtCount)
+        .filter((group) => group.count >= thresholds.geographyInsufficient.alertAtCount)
         .map((group) => ({
-          code: 'geography_unavailable_repeating',
+          code: 'geography_insufficient_repeating',
           count: group.count,
-          windowSeconds: thresholds.geographyUnavailable.lookbackSeconds,
+          windowSeconds: thresholds.geographyInsufficient.lookbackSeconds,
           outcome: group.subject,
         }));
     case 'composer_repeat':

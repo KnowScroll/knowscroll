@@ -124,7 +124,9 @@ export function makeWithDryRunPersonalScope(
             if (entry.kind === 'refused') return entry;
             await sql`set transaction read only`.execute(trx);
             // A dry run is an operator's look, never a request's work: a statement that runs long is cut off, not waited for.
-            await sql`select set_config('statement_timeout', ${`${DRY_RUN_STATEMENT_TIMEOUT_MS}ms`}, true)`.execute(trx);
+            await sql`select set_config('statement_timeout', ${`${DRY_RUN_STATEMENT_TIMEOUT_MS}ms`}, true)`.execute(
+              trx,
+            );
             const value = await runInScope(trx, authority, entry.revision, work);
             throw new RollbackWith<ScopeOutcome<T>>({ kind: 'entered', value });
           });

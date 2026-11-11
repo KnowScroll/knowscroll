@@ -6,6 +6,7 @@ import {
   type ScopeOutcome,
   type ScopeRefusal,
   type WithDryRunPersonalScope,
+  type WithPersonalScope,
 } from './public.js';
 
 const UNIVERSE = '11111111-1111-4111-8111-111111111111';
@@ -66,5 +67,18 @@ describe('entering a universe named without its epoch (D-411)', () => {
       expect(claimed).toEqual([1]);
       expect(runs).toBe(0);
     }
+  });
+
+  it('takes only a scope made read-only, never an ordinary one that can write', () => {
+    const ordinary = (() => Promise.reject(new Error('CI never runs this'))) as unknown as WithPersonalScope;
+    const enter = () =>
+      withScopeAtCurrentEpoch(
+        // @ts-expect-error a scope that can commit a write is not a dry-run scope
+        ordinary,
+        UNIVERSE,
+        'ci',
+        () => Promise.resolve(0),
+      );
+    expect(typeof enter).toBe('function');
   });
 });
