@@ -21,7 +21,7 @@ import { composerBufferWorkerProviders, composerProviders } from '@knowscroll/ba
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceBufferSourceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
 import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
-import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
+import { READ_COMPOSER_CONTEXT, READ_INTEREST_CONTEXT } from '@knowscroll/backend/modules/personal-context';
 import { RECORDING_REASONING_HARNESS } from '@knowscroll/backend/reasoning';
 import type { NavigationOutcome } from '@knowscroll/contracts';
 import { openToEveryone } from '../support/audience.js';
@@ -364,6 +364,7 @@ describe('Not interested (real PostgreSQL)', () => {
         [workerConfig, { jevEnabled: false, reasoning: { minimax: { model: 'fixture-model-v1' } } }],
         [RECORDING_REASONING_HARNESS, harness],
         [READ_COMPOSER_CONTEXT, buffered.readComposerContext],
+        [READ_INTEREST_CONTEXT, buffered.readInterestContext],
         ...[
           ...experienceBufferSourceProviders(),
           ...composerProviders({ isOperator: () => false }),

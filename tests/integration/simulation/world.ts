@@ -24,6 +24,7 @@ import {
   MARK_COVERAGE_DIRTY,
   READ_COVERAGE_DIRTY,
   READ_COVERAGE_INPUTS,
+  READ_INTEREST_CONTEXT,
   READ_EXPLORATION_SNAPSHOT,
   READ_RECENT_CONTEXT_TOPICS,
   READ_TRUSTED_COVERAGE,
@@ -182,6 +183,7 @@ export async function simulationWorld(name: string, config: SimConfig): Promise<
     [WORKER_CONFIG, { jevEnabled: false, reasoning: {} }],
     [RECORDING_REASONING_HARNESS, bufferHarness],
     [READ_COMPOSER_CONTEXT, c.readComposerContext],
+    [READ_INTEREST_CONTEXT, c.readInterestContext],
     ...[
       ...experienceBufferSourceProviders(),
       ...composerProviders({ isOperator: () => false }, config.composerPolicy),

@@ -121,7 +121,7 @@ and calls no model. A rule whose read fails (the view is missing, or the read pa
 | Same failure repeating | `state = failed`, grouped by queue and failure code | `failed_jobs_repeating`: 5 or more in 6 hours |
 | Personal runs held | Planner and Geography runs `queued` or `prepared` | `personal_runs_held`: row unmoved for 1 hour (a claim lasts 1150 s, a paced wake 5 minutes) |
 | Same unhealthy outcome repeating | the latest settled Cartographer runs of a universe with coverage references (`no_trusted_support` is recorded only when the reader's other recent topics are untrusted too, so a withdrawn Scroll among trusted reading is `no_changes`, PR #723) | `geography_insufficient_repeating`: 3 in a row on one `insufficient` outcome other than the healthy `no_changes`, `disabled`, `no_support_yet`; 1 or more universes, seen within 7 days |
-| A met explanation offered first beside an unseen one | `composer-policy.v2` vertical decisions with no exact target | `composer_repeat_offered`: 1 or more in 24 hours, among the newest 5,000 decisions of the last 7 days; v2 is built to make this impossible, so it fires only on a regression |
+| A met explanation offered first beside an unseen one | `composer-policy.v2` and `v3` vertical decisions with no exact target | `composer_repeat_offered`: 1 or more in 24 hours, among the newest 5,000 decisions of the last 7 days; v2 is built to make this impossible, so it fires only on a regression |
 | Unknown model attempts | attempts whose outcome is `unknown` | `unknown_attempts_old`: 1 or more for 6 hours |
 
 `domain/watchdog.ts` holds the thresholds in one object and the pure rules (`alertsFrom`); `application/run-watchdog.ts` runs a

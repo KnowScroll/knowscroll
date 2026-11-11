@@ -183,7 +183,7 @@ export async function createOpsJobViews<DB>(db: Kysely<DB>): Promise<void> {
  * subject and detail, the time it was observed and a magnitude. It holds no ID and no text, so the read-only role
  * may read it, and the thresholds stay in code (`modules/operator/domain/watchdog.ts`): the view states facts, never
  * whether they are bad. Each branch reads a small indexed set (dead letters and failed jobs within pg-boss's
- * retention, runs that are still active, unknown attempts, the newest settled runs, `composer-policy.v2` decisions).
+ * retention, runs that are still active, unknown attempts, the newest settled runs, `composer-policy.v2` and `v3` decisions).
  *
  * - `dead_letter`: a job in a `<queue>.dead` queue. Subject: that queue.
  * - `job_failed`: a failed job. Subject: its queue. Detail: its failure code (or class, or `none`).
@@ -199,7 +199,7 @@ export async function createOpsJobViews<DB>(db: Kysely<DB>): Promise<void> {
  *   It then probes the two reference tables' indexes once for each universe that is stuck: no pass over a table of runs
  *   or references.
  * - `composer_repeat`: among the newest 5,000 decisions whose expiry is in the last 7 days (a backward range scan of
- *   `composer_decisions_expired_idx`), a `composer-policy.v2` vertical decision with no exact target whose FIRST selected
+ *   `composer_decisions_expired_idx`), a `composer-policy.v2` or `v3` vertical decision with no exact target whose FIRST selected
  *   slot (the offered item) is an explanation the person had met while an eligible candidate was not. Subject: the policy
  *   version. A sample at high volume, so a rate signal and not a census.
  */
@@ -295,7 +295,7 @@ async function createOpsWatchdogView<DB>(trx: Kysely<DB>): Promise<void> {
       order by decision.expires_at desc, decision.id desc
       limit 5000
     ) as sampled
-    where sampled.policy_version = 'composer-policy.v2'
+    where sampled.policy_version in ('composer-policy.v2', 'composer-policy.v3')
       and sampled.payload #>> '{input,mode}' = 'vertical'
       and sampled.payload #> '{input,intent,exactTarget}' is null
       and exists (

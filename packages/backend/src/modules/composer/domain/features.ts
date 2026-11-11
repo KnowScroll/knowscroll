@@ -1,6 +1,7 @@
 import type { EncounterSnapshot } from './types.js';
 import type { ComposerSnapshot, Features, PlayLevel } from './types.js';
 import { semanticFitOf } from './jev.js';
+import { durationBucketOf, hierarchicalFormatFit, shrunkInterest, type FormatCounts } from './interest.js';
 import { overlap, refKey, tokens, type ComposerPolicy } from './policy.js';
 export function similarity(a: EncounterSnapshot, b: EncounterSnapshot): number {
   if (a.explanationUnitId === b.explanationUnitId) return 1;
@@ -64,6 +65,60 @@ export function formatFitOf(
   return (cell.qualified + policy.formatCellPrior * prior) / (cell.measured + policy.formatCellPrior);
 }
 
+const countsOfKind = (
+  formats: readonly { readonly kind: 'reel' | 'scroll'; readonly measured: number; readonly qualified: number }[],
+  kind: 'reel' | 'scroll',
+): FormatCounts | undefined => formats.find((f) => f.kind === kind);
+
+/**
+ * What policy v3 reads of the person for one candidate topic: the topic's own row, its system's roll-up and the person's roll-up,
+ * all from the frozen snapshot. A level the input does not hold is absent (and reads as nothing known).
+ */
+function levelsOf(snapshot: ComposerSnapshot, topicId: string) {
+  const evidence = snapshot.evidence;
+  const systemId = evidence?.topicSystems?.find((t) => t.topicId === topicId)?.systemId;
+  return {
+    topic: evidence?.topics.find((t) => t.topicId === topicId),
+    system: systemId === undefined ? undefined : evidence?.systems?.find((s) => s.systemId === systemId),
+    person: evidence?.person,
+  };
+}
+
+/** Policy v3's interest of a candidate's topic (D-420): shrunk toward its system and the person's overall level. */
+function shrunkInterestOf(snapshot: ComposerSnapshot, topicId: string, policy: ComposerPolicy): number {
+  const { topic, system, person } = levelsOf(snapshot, topicId);
+  const own = topic?.activity ?? 0;
+  return shrunkInterest(policy.interestModel!, {
+    topicActivity: own,
+    systemRestActivity: Math.max(0, (system?.activity ?? 0) - own),
+    personActivity: person?.activity ?? 0,
+  });
+}
+
+/** Policy v3's format fit of a candidate for one of its topics (D-420): topic, then system, then person, then a duration prior. */
+function hierarchicalFormatOf(
+  snapshot: ComposerSnapshot,
+  topicId: string,
+  encounter: EncounterSnapshot,
+  policy: ComposerPolicy,
+): number {
+  const model = policy.formatModel!;
+  const { topic, system, person } = levelsOf(snapshot, topicId);
+  const kind = encounter.kind;
+  const level = playLevelOf(encounter);
+  const cell = topic?.cells?.find((c) => c.kind === kind && c.level === level);
+  return hierarchicalFormatFit(
+    model,
+    {
+      ...(person ? { person: countsOfKind(person.formats, kind) } : {}),
+      ...(system ? { system: countsOfKind(system.formats, kind) } : {}),
+      ...(topic ? { topic: countsOfKind(topic.formats, kind) } : {}),
+      ...(cell ? { cell } : {}),
+    },
+    model.prior[durationBucketOf(encounter, model)],
+  );
+}
+
 /**
  * How much of the person's last encounters were on the candidate's topics, in [0,1]: the newest `span`
  * encounters within the recent window, weighted `span, span-1, ..., 1`, each counting when it shares a
@@ -94,11 +149,11 @@ export function features(
 ): Features {
   const c = candidate.encounter;
   const relevant = c.topics.filter((t) => t.role !== 'incidental');
-  const weighted = (get: (topicId: string) => number): number => {
+  const weighted = (get: (topicId: string) => number, neutral = 0.5): number => {
     const total = relevant.reduce((sum, t) => sum + t.weight, 0);
     return Math.max(
       0,
-      Math.min(1, (1 - total) * 0.5 + relevant.reduce((sum, t) => sum + t.weight * get(t.topicId), 0)),
+      Math.min(1, (1 - total) * neutral + relevant.reduce((sum, t) => sum + t.weight * get(t.topicId), 0)),
     );
   };
   const recent = (snapshot.evidence?.recent ?? [])
@@ -145,17 +200,24 @@ export function features(
         : 0;
   return {
     intent: match,
-    interest: weighted((topicId) => {
-      const activity = snapshot.evidence?.topics.find((t) => t.topicId === topicId)?.activity;
-      return activity === undefined ? 0.5 : activity / (1 + activity);
-    }),
-    format: weighted((topicId) =>
-      formatFitOf(
-        snapshot.evidence?.topics.find((t) => t.topicId === topicId),
-        c,
-        policy,
-      ),
-    ),
+    interest: policy.interestModel
+      ? weighted((topicId) => shrunkInterestOf(snapshot, topicId, policy), policy.interestModel.base)
+      : weighted((topicId) => {
+          const activity = snapshot.evidence?.topics.find((t) => t.topicId === topicId)?.activity;
+          return activity === undefined ? 0.5 : activity / (1 + activity);
+        }),
+    format: policy.formatModel
+      ? weighted(
+          (topicId) => hierarchicalFormatOf(snapshot, topicId, c, policy),
+          policy.formatModel.prior[durationBucketOf(c, policy.formatModel)],
+        )
+      : weighted((topicId) =>
+          formatFitOf(
+            snapshot.evidence?.topics.find((t) => t.topicId === topicId),
+            c,
+            policy,
+          ),
+        ),
     novelty,
     semanticFit: semanticFit(snapshot, c),
     continuity: candidate.continuity?.strength ?? 0.5,

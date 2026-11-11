@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { planSnapshot } from '../../content/public.js';
 import { composeEncounter, type ComposerSnapshot } from '../public.js';
-import { COMPOSER_POLICY_V0, COMPOSER_POLICY_V1, COMPOSER_POLICY_V2 } from '../domain/policy.js';
+import { COMPOSER_POLICY_V0, COMPOSER_POLICY_V1, COMPOSER_POLICY_V2, COMPOSER_POLICY_V3 } from '../domain/policy.js';
 import { fixtureSnapshots } from './snapshot-fixtures.js';
 import {
   DEFAULT_VARIANTS,
@@ -242,11 +242,12 @@ describe('new content: repeats, already met, tiers and places (#674)', () => {
     };
   };
 
-  it('compares v0, v1 and v2 by default, v2 last', () => {
+  it('compares v0, v1, v2 and v3 by default, v3 last so it reads against v2', () => {
     expect(DEFAULT_VARIANTS.map((v) => v.label)).toEqual([
       'composer-policy.v0',
       'composer-policy.v1',
       'composer-policy.v2',
+      'composer-policy.v3',
     ]);
   });
 
@@ -339,7 +340,81 @@ describe('new content: repeats, already met, tiers and places (#674)', () => {
     });
     const report = replay.report();
     expect(report.storedPolicies).toEqual({ 'composer-policy.v2': 1 });
-    expect(report.variants).toHaveLength(4);
+    expect(report.variants).toHaveLength(5);
     expect(JSON.stringify(report)).not.toContain('person');
+  });
+});
+
+describe('policy v3 against v2 (#674, D-420)', () => {
+  const seeds = Array.from({ length: 300 }, (_, n) => `v3-seed-${String(n)}`);
+  /** A person in Scrolls with an unseen Reel on a topic of another system, so format exploration can draw. */
+  const withReel = (seed: string): ComposerSnapshot => {
+    const input = storedInput(seed);
+    const reel: Candidate = {
+      ...scroll('reel-stars', 'space.stars'),
+      encounter: {
+        ...scroll('reel-stars', 'space.stars').encounter,
+        kind: 'reel',
+        metadata: { kind: 'reel', title: 'Fixture reel', summary: '', language: 'en' },
+      },
+    };
+    return { ...input, candidates: [...input.candidates, reel], intent: { ...input.intent, stickyFormat: 'scroll' } };
+  };
+  const run = () => {
+    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    for (const seed of seeds) replay.add(stored(withReel(seed)));
+    const [, , , v2, v3] = replay.report().variants;
+    return { v2: v2!, v3: v3! };
+  };
+
+  it('reports format exploration and first offers by format: v3 draws the other format about 5% of the time, v2 never', () => {
+    const { v2, v3 } = run();
+    expect(v2.formatAndLanes.formatExploration).toEqual({ possible: 0, drawn: 0 });
+    expect(v2.formatAndLanes.otherFormatFirstOffer).toBe(0);
+    expect(v3.formatAndLanes.formatExploration.possible).toBe(300);
+    const share = v3.formatAndLanes.formatExploration.drawn / 300;
+    expect(share).toBeGreaterThan(0.025);
+    expect(share).toBeLessThan(0.085);
+    // Every draw is a first offer in the other format, and the other first offers are exactly those drawn.
+    expect(v3.formatAndLanes.otherFormatFirstOffer).toBe(v3.formatAndLanes.formatExploration.drawn);
+    expect(v3.shares.otherFormatFirstOffer).toBe(
+      Math.round((v3.formatAndLanes.otherFormatFirstOffer / 300) * 1000) / 1000,
+    );
+    expect(v3.formatAndLanes.firstOfferKinds.reel).toBe(v3.formatAndLanes.otherFormatFirstOffer);
+    expect(v3.formatAndLanes.firstOfferKinds.reel + v3.formatAndLanes.firstOfferKinds.scroll).toBe(
+      v3.newContent.firstOffers,
+    );
+  });
+
+  it('keeps the new-content guarantee: v3 offers nothing the person had met while something unseen exists, as v2', () => {
+    const { v2, v3 } = run();
+    expect(v3.newContent.alreadyMetFirstOffer).toBe(v2.newContent.alreadyMetFirstOffer);
+    expect(v3.newContent.tiers.last_resort).toBe(v2.newContent.tiers.last_resort);
+  });
+
+  it('counts first offers by retrieval lane, and an input from before lanes under none', () => {
+    const { v2, v3 } = run();
+    for (const variant of [v2, v3]) {
+      expect(variant.formatAndLanes.lanes.none).toBe(variant.newContent.firstOffers);
+      expect(Object.values(variant.formatAndLanes.lanes).reduce((sum, n) => sum + n, 0)).toBe(
+        variant.newContent.firstOffers,
+      );
+    }
+    const laned = startPolicyReplay([{ label: 'v3', policy: COMPOSER_POLICY_V3 }]);
+    const input = withReel('laned');
+    laned.add(
+      stored({
+        ...input,
+        candidates: input.candidates.map((c) => ({ ...c, encounter: { ...c.encounter, lane: 'continue' as const } })),
+      }),
+    );
+    expect(laned.report().variants[1]!.formatAndLanes.lanes).toMatchObject({ continue: 1, none: 0 });
+  });
+
+  it('names no id and holds only counts, shares and labels, as the rest of the report', () => {
+    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    for (const seed of seeds.slice(0, 20)) replay.add(stored(withReel(seed)));
+    const text = JSON.stringify(replay.report());
+    for (const secret of ['fixture-universe', 'asset-', 'Fixture', 'unit-']) expect(text).not.toContain(secret);
   });
 });

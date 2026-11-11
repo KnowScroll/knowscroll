@@ -107,10 +107,12 @@ describe('process configuration', () => {
     expect(api({ KS_COMPOSER_POLICY: 'v1' }).composerPolicy).toBe('v1');
     expect(worker({ KS_COMPOSER_POLICY: 'v2' }).composerPolicy).toBe('v2');
     expect(api({ KS_COMPOSER_POLICY: 'v2' }).composerPolicy).toBe('v2');
+    expect(worker({ KS_COMPOSER_POLICY: 'v3' }).composerPolicy).toBe('v3');
+    expect(api({ KS_COMPOSER_POLICY: 'v3' }).composerPolicy).toBe('v3');
     expect(worker({ KS_COMPOSER_POLICY: 'v0' }).composerPolicy).toBe('v0');
-    for (const value of ['v3', 'V1', 'V2', '1', 'composer-policy.v2', ''])
+    for (const value of ['v4', 'V1', 'V2', 'V3', '1', 'composer-policy.v3', ''])
       expect(() => worker({ KS_COMPOSER_POLICY: value })).toThrow();
-    expect(() => api({ KS_COMPOSER_POLICY: 'v3' })).toThrow();
+    expect(() => api({ KS_COMPOSER_POLICY: 'v4' })).toThrow();
   });
   it('lets Create start productions by default only in the local world, bounded per day', () => {
     const worker = (env: Record<string, string>) => readWorkerConfig({ DATABASE_URL: secretUrl, ...env });

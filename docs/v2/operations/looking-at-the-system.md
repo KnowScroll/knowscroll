@@ -161,7 +161,7 @@ and their thresholds are in `WATCHDOG_THRESHOLDS` (`modules/operator/domain/watc
 | `failed_jobs_repeating` | a queue's jobs fail with the same code | 5 or more in the last 6 hours |
 | `personal_runs_held` | a Planner or Geography run is still `queued` or `prepared` and its row has not moved | for 1 hour |
 | `geography_insufficient_repeating` | a universe with coverage references has its latest 3 settled Cartographer runs end `insufficient` on the same outcome, other than the healthy `no_changes`, `disabled`, `no_support_yet` | 1 or more universes, seen in the last 7 days |
-| `composer_repeat_offered` | a `composer-policy.v2` vertical decision with no exact target offered, as its first item, an explanation the person had met while an eligible candidate was not met | 1 or more in the last 24 hours, among the newest 5,000 decisions of the last 7 days (v2 is built to make this impossible: it fires on a regression) |
+| `composer_repeat_offered` | a `composer-policy.v2` or `v3` vertical decision with no exact target offered, as its first item, an explanation the person had met while an eligible candidate was not met | 1 or more in the last 24 hours, among the newest 5,000 decisions of the last 7 days (v2 is built to make this impossible: it fires on a regression) |
 | `unknown_attempts_old` | a model attempt is still `unknown` | for 6 hours |
 
 Find an alert: `journalctl -u ks2-worker@<world> | grep watchdog.alert`. Then follow the code: a dead letter or a repeated

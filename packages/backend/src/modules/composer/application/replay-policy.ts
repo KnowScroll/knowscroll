@@ -5,10 +5,17 @@ import {
   COMPOSER_POLICY_V0,
   COMPOSER_POLICY_V1,
   COMPOSER_POLICY_V2,
+  COMPOSER_POLICY_V3,
   type ComposerPolicy,
   type VerticalWeights,
 } from '../domain/policy.js';
-import type { ComposerDecision, ComposerSnapshot, EncounterSnapshot, SourcePlace } from '../domain/types.js';
+import type {
+  ComposerDecision,
+  ComposerSnapshot,
+  EncounterSnapshot,
+  RetrievalLane,
+  SourcePlace,
+} from '../domain/types.js';
 import { inCurrentSeries, seriesUnitIds, sourceSeriesId } from '../domain/vertical-rules.js';
 import { decideValidated, validateSnapshot } from './compose.js';
 import { ComposerSnapshotSchema } from './snapshot-schema.js';
@@ -40,11 +47,12 @@ export function withVerticalWeights(
   };
 }
 
-/** The policies every report compares. v2 comes last, so the first three rows are the ones D-190 chose from. */
+/** The policies every report compares. v2 and v3 come last, so the first rows are the ones D-190 chose from and v3 reads against v2 (D-420). */
 export const DEFAULT_VARIANTS: readonly ReplayVariant[] = [
   { label: COMPOSER_POLICY_V0.version, policy: COMPOSER_POLICY_V0 },
   { label: COMPOSER_POLICY_V1.version, policy: COMPOSER_POLICY_V1 },
   { label: COMPOSER_POLICY_V2.version, policy: COMPOSER_POLICY_V2 },
+  { label: COMPOSER_POLICY_V3.version, policy: COMPOSER_POLICY_V3 },
 ];
 
 export interface FirstOfferCounts {
@@ -83,6 +91,21 @@ export interface NewContentCounts {
   readonly places: Readonly<Record<SourcePlace, number>>;
 }
 
+/**
+ * What policy v3 changes about format and retrieval, counted for every policy by the same definitions (D-420). A stored input
+ * from before v3 names no lane, so its first offers count under `none`: read the lane counts only against decisions made under v3.
+ */
+export interface FormatAndLaneCounts {
+  /** First offers by format. */
+  readonly firstOfferKinds: { readonly reel: number; readonly scroll: number };
+  /** First offers in the format the move did not start from (the source's other format). */
+  readonly otherFormatFirstOffer: number;
+  /** Decisions whose move could draw format exploration (stickiness kept, an unseen other-format candidate held back), and how many drew it. */
+  readonly formatExploration: { readonly possible: number; readonly drawn: number };
+  /** First offers by the lane that read the candidate. */
+  readonly lanes: Readonly<Record<RetrievalLane | 'none', number>>;
+}
+
 export interface VariantReport {
   readonly label: string;
   /** Vertical decisions replayed; the same for every variant. */
@@ -96,6 +119,8 @@ export interface VariantReport {
   readonly stickyFormat: { readonly kept: number; readonly fellBack: number; readonly notAsked: number };
   /** Repeats and already-met offers, and the tier and place of each first offer. */
   readonly newContent: NewContentCounts;
+  /** First offers by format and by retrieval lane, and the format exploration drawn (policy v3). */
+  readonly formatAndLanes: FormatAndLaneCounts;
   /** Shares of `decisions` (first offer) and of `allOffers.offers`, rounded to three decimals. */
   readonly shares: {
     readonly sameTopicFirstOffer: number;
@@ -108,6 +133,8 @@ export interface VariantReport {
     readonly alreadyMetAllOffers: number;
     /** Of the first offers: how many repeat another to the same person in the window. */
     readonly repeatFirstOffer: number;
+    /** Of the first offers: how many are in the format the move did not start from. */
+    readonly otherFormatFirstOffer: number;
   };
 }
 
@@ -209,6 +236,10 @@ interface Tally {
     tiers: { unseen: number; last_resort: number };
     places: Record<SourcePlace, number>;
   };
+  kinds: { reel: number; scroll: number };
+  otherFormat: number;
+  exploration: { possible: number; drawn: number };
+  lanes: Record<RetrievalLane | 'none', number>;
   /** The explanations each person's first offers named, in memory only, to count repeats. Never printed. */
   firstUnitsByPerson: Map<string, Set<string>>;
 }
@@ -227,6 +258,10 @@ const emptyTally = (): Tally => ({
     tiers: { unseen: 0, last_resort: 0 },
     places: { source_topic: 0, same_system: 0, elsewhere: 0 },
   },
+  kinds: { reel: 0, scroll: 0 },
+  otherFormat: 0,
+  exploration: { possible: 0, drawn: 0 },
+  lanes: { source: 0, planned: 0, text: 0, continue: 0, adjacent: 0, explore: 0, none: 0 },
   firstUnitsByPerson: new Map(),
 });
 
@@ -237,6 +272,7 @@ function tally(
   source: Candidate,
   offers: readonly { readonly assetId: string; readonly assetRevision: number }[],
   sticky: ComposerDecision['stickyFormat'],
+  formatExploration: ComposerDecision['formatExploration'],
 ): void {
   const byKey = new Map(input.candidates.map((c) => [refKey(c.encounter), c]));
   const sourceTopics = relevantTopicIds(source.encounter);
@@ -246,6 +282,10 @@ function tally(
   if (offers.length === 0) into.exhausted += 1;
   if (sticky === undefined) into.sticky.notAsked += 1;
   else into.sticky[sticky.outcome === 'kept' ? 'kept' : 'fellBack'] += 1;
+  if (formatExploration !== undefined) {
+    into.exploration.possible += 1;
+    if (formatExploration.branch === 'other_format') into.exploration.drawn += 1;
+  }
   offers.forEach((offer, index) => {
     const candidate = byKey.get(refKey(offer));
     if (candidate === undefined) return;
@@ -256,7 +296,12 @@ function tally(
     if (sameSeries) into.all.sameSeries += 1;
     const met = isMet(input, candidate.encounter.explanationUnitId);
     if (met) into.fresh.alreadyMetAll += 1;
-    if (index === 0) tallyFirstOffer(into, input, candidate, met);
+    if (index === 0) {
+      tallyFirstOffer(into, input, candidate, met);
+      into.kinds[candidate.encounter.kind] += 1;
+      if (candidate.encounter.kind !== source.encounter.kind) into.otherFormat += 1;
+      into.lanes[candidate.encounter.lane ?? 'none'] += 1;
+    }
     if (index !== 0) return;
     if (sameTopic) into.first.sameTopic += 1;
     if (sameSeries) into.first.sameSeries += 1;
@@ -294,6 +339,12 @@ function reportOf(label: string, t: Tally): VariantReport {
       tiers: { ...t.fresh.tiers },
       places: { ...t.fresh.places },
     },
+    formatAndLanes: {
+      firstOfferKinds: { ...t.kinds },
+      otherFormatFirstOffer: t.otherFormat,
+      formatExploration: { ...t.exploration },
+      lanes: { ...t.lanes },
+    },
     shares: {
       sameTopicFirstOffer: share(t.first.sameTopic, t.decisions),
       sameSeriesFirstOffer: share(t.first.sameSeries, t.decisions),
@@ -303,6 +354,7 @@ function reportOf(label: string, t: Tally): VariantReport {
       alreadyMetFirstOffer: share(t.fresh.alreadyMetFirst, t.fresh.firstOffers),
       alreadyMetAllOffers: share(t.fresh.alreadyMetAll, t.all.offers),
       repeatFirstOffer: share(t.fresh.repeatedFirst, t.fresh.firstOffers),
+      otherFormatFirstOffer: share(t.otherFormat, t.fresh.firstOffers),
     },
   };
 }
@@ -357,10 +409,17 @@ export function startPolicyReplay(
       }
       counts.replayed += 1;
       if (input.evidence?.established !== undefined) counts.withHistory += 1;
-      tally(stored, input, source, read.decision.selection, read.decision.stickyFormat);
+      tally(
+        stored,
+        input,
+        source,
+        read.decision.selection,
+        read.decision.stickyFormat,
+        read.decision.formatExploration,
+      );
       variants.forEach(({ policy }, index) => {
         const made = decideValidated(input, policy);
-        tally(replayed[index]!, input, source, made.selection, made.stickyFormat);
+        tally(replayed[index]!, input, source, made.selection, made.stickyFormat, made.formatExploration);
       });
     },
     report(): PolicyReplayReport {

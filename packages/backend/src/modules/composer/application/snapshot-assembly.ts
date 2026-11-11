@@ -3,7 +3,7 @@ import { systemTopicIdsOf } from '../domain/encountered.js';
 import type { ComposerSnapshot, PreparedEvidenceInput, SemanticAssessments } from '../domain/types.js';
 import { sourceSeriesId } from '../domain/vertical-rules.js';
 import { OTHER_FORMAT_RESERVE } from './vertical-candidates.js';
-import type { ReadPreparedEvidenceInput } from './ports.js';
+import type { InterestRollups, ReadPreparedEvidenceInput } from './ports.js';
 
 /**
  * Durable bound for the complete private decision input. The SQL limit on a stored decision is
@@ -65,6 +65,12 @@ export interface SnapshotInput {
   /** Vertical subject moves: the assets reachable by the Related tab, excluded as another perspective (`related_target`). */
   readonly relatedAssetIds?: readonly string[];
   readonly evidence?: PreparedEvidenceInput;
+  /**
+   * Policy v3 (D-420): the person's overall level and the roll-ups of the systems of the candidates' topics, which the interest
+   * and format features shrink toward. Merged into the snapshot's evidence beside the catalogue system of each candidate topic,
+   * which is frozen here so a later catalogue never changes a stored decision. Absent under v0 to v2, which leave the snapshot as it was.
+   */
+  readonly interest?: InterestRollups;
   readonly semanticAssessments?: SemanticAssessments;
   /** Used when no prepared context exists, so the decision still names what it was ranked against. */
   readonly fallbackContextWatermark: string;
@@ -114,8 +120,8 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
     },
     ...(source ? { source: refOf(source) } : {}),
     candidates: candidates.map((encounter) => candidateRow(input, encounter)),
-    explorationPool: input.mode === 'vertical' ? candidates.map(refOf) : [],
-    ...(input.evidence ? { evidence: input.evidence } : {}),
+    explorationPool: input.mode === 'vertical' ? explorationPoolOf(candidates) : [],
+    ...(input.evidence ? { evidence: withInterest(input.evidence, input.interest, candidates, input.systemOf) } : {}),
     ...(assessments ? { semanticAssessments: assessments } : {}),
     watermarks: {
       catalog: input.hashCatalogWatermarks(candidates.map((c) => c.catalogWatermark)),
@@ -125,6 +131,45 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
     },
   };
   return fitToBudget(full, input.hashCatalogWatermarks);
+}
+
+/**
+ * The candidates exploration may draw from: the `explore` lane when retrieval named lanes (a sample stratified by system), else
+ * every candidate. A snapshot without lanes is therefore pooled exactly as before.
+ */
+function explorationPoolOf(candidates: readonly EncounterSnapshot[]): readonly EncounterRef[] {
+  const explored = candidates.filter((candidate) => candidate.lane === 'explore');
+  return (explored.length > 0 ? explored : candidates).map(refOf);
+}
+
+/** The catalogue system of each of the candidates' topics that the catalogue holds, sorted, bounded: policy v3's frozen hierarchy. */
+function topicSystemsOf(
+  candidates: readonly Pick<EncounterSnapshot, 'topics'>[],
+  systemOf: (topicId: string) => string | undefined,
+): NonNullable<PreparedEvidenceInput['topicSystems']> {
+  const topics = [...new Set(candidates.flatMap((candidate) => candidate.topics.map((t) => t.topicId)))].sort();
+  return topics
+    .flatMap((topicId) => {
+      const systemId = systemOf(topicId);
+      return systemId === undefined ? [] : [{ topicId, systemId }];
+    })
+    .slice(0, 400);
+}
+
+/** Evidence with policy v3's roll-ups and topic systems added; unchanged when none were read. */
+function withInterest(
+  evidence: PreparedEvidenceInput,
+  interest: InterestRollups | undefined,
+  candidates: readonly Pick<EncounterSnapshot, 'topics'>[],
+  systemOf: (topicId: string) => string | undefined,
+): PreparedEvidenceInput {
+  if (interest === undefined) return evidence;
+  return {
+    ...evidence,
+    ...(interest.person ? { person: interest.person } : {}),
+    ...(interest.systems.length > 0 ? { systems: interest.systems } : {}),
+    topicSystems: topicSystemsOf(candidates, systemOf),
+  };
 }
 
 /** The topics of the candidates that share a catalogue system with the source's topics (the `same_system` place Composer records for analytics). */
@@ -234,7 +279,7 @@ function keepFirst(
   return {
     ...snapshot,
     candidates: kept,
-    explorationPool: snapshot.mode === 'vertical' ? kept.map((c) => refOf(c.encounter)) : [],
+    explorationPool: snapshot.mode === 'vertical' ? explorationPoolOf(kept.map((c) => c.encounter)) : [],
     ...(evidence ? { evidence: restrictEvidence(evidence, kept, needed) } : {}),
     ...(semanticAssessments
       ? {
@@ -261,8 +306,12 @@ function restrictEvidence(
   },
 ): PreparedEvidenceInput {
   const { established } = evidence;
+  const topicSystems = evidence.topicSystems?.filter((t) => needed.topicIds.has(t.topicId));
+  const systemIds = new Set(topicSystems?.map((t) => t.systemId));
   return {
     ...evidence,
+    ...(topicSystems ? { topicSystems } : {}),
+    ...(evidence.systems ? { systems: evidence.systems.filter((system) => systemIds.has(system.systemId)) } : {}),
     topics: evidence.topics.filter((t) => needed.topicIds.has(t.topicId)),
     hiddenAssetIds: evidence.hiddenAssetIds.filter((id) => needed.assetIds.has(id)),
     ...(established

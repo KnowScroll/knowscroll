@@ -32,7 +32,7 @@ import {
   type CoverageCommand,
 } from '@knowscroll/backend/modules/content';
 import { composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
-import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
+import { READ_COMPOSER_CONTEXT, READ_INTEREST_CONTEXT } from '@knowscroll/backend/modules/personal-context';
 import { READ_OWN_REGION_CONSTRAINT } from '@knowscroll/backend/modules/geography';
 import { geographyProviders } from '@knowscroll/backend/modules/geography/nest-providers';
 import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
@@ -83,6 +83,7 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
       [READ_RECORDING_LIFECYCLE, identity.readRecordingLifecycle],
       [ENQUEUE, makeEnqueueJob(c.boss)],
       [READ_COMPOSER_CONTEXT, c.readComposerContext],
+      [READ_INTEREST_CONTEXT, c.readInterestContext],
       [CHECK_ASSET_AUDIENCE, openToEveryone],
       ...contentProviders().map((x) => [x.provide, x.useValue] as const),
       ...composerProviders({ isOperator: () => false }).map((x) => [x.provide, x.useValue] as const),

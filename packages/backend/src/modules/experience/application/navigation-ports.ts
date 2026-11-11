@@ -34,6 +34,7 @@ import type {
   ReadComposerBuffer,
   PurgeExpiredComposerBuffer,
   ReadPreparedEvidenceInput,
+  ReadInterestContext,
   ReadMetUnitIds,
   ReleaseComposerBuffer,
   RequestBufferPreparation,
@@ -139,6 +140,8 @@ export interface NavigationPorts extends CommandPorts {
   readonly readDiscoveryCandidates: ReadDiscoveryCandidates;
   /** The explanation units the person has met (newest first, bounded); read only when the policy wants unseen first. */
   readonly readMetUnitIds?: ReadMetUnitIds;
+  /** The person's top interest topics, planned units and roll-ups; read only when the policy reads lanes (v3, D-420). */
+  readonly readInterestContext?: ReadInterestContext;
   readonly readExactEncounter: ReadExactEncounter;
   readonly readContinuations: ReadContinuations;
   readonly readSeriesTotal: ReadSeriesTotal;

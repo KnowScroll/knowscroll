@@ -102,8 +102,11 @@ export const v2Decision = (snapshot: ComposerSnapshot): ComposerDecision =>
  * beside an eligible unseen one, under the v2 label. The store refuses to keep it (it must replay under the real v2), so
  * `storeRaw` writes it the way only a bug would.
  */
-export const regressedDecision = (snapshot: ComposerSnapshot): ComposerDecision => {
-  const regressed: ComposerPolicy = { ...COMPOSER_POLICY_V2, encountered: 'score' };
+export const regressedDecision = (
+  snapshot: ComposerSnapshot,
+  base: ComposerPolicy = COMPOSER_POLICY_V2,
+): ComposerDecision => {
+  const regressed: ComposerPolicy = { ...base, encountered: 'score' };
   return composeEncounter(snapshot, regressed);
 };
 

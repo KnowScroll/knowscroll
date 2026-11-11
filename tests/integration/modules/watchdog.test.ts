@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { uuidv7 } from '@knowscroll/backend/infrastructure/ids';
 import { applyQueueDeclarations, createBoss, defineQueue } from '@knowscroll/backend/infrastructure/jobs';
-import { COMPOSER_POLICY_V1, composeEncounter } from '@knowscroll/backend/modules/composer';
+import { COMPOSER_POLICY_V1, COMPOSER_POLICY_V3, composeEncounter } from '@knowscroll/backend/modules/composer';
 import { RUN_WATCHDOG, type RunWatchdog } from '@knowscroll/backend/modules/operator';
 import { watchdogProviders } from '@knowscroll/backend/modules/operator/nest-providers';
 import { regressedDecision, snapshotOf, storeDecision, storeRaw, v2Decision } from '../support/composer-decisions.js';
@@ -375,6 +375,16 @@ describe('the watchdog (real PostgreSQL and pg-boss, CI fixtures)', () => {
       await sql`update composer.decisions set recorded_at = now() - interval '10 days', expires_at = now() + interval '20 days'
         where universe_id = ${person.universeId}::uuid`.execute(db());
       expect(await repeated()).toEqual([]);
+    });
+
+    it('reads policy v3 too, which keeps the guarantee: a v3 decision that offered a met explanation first fires', async () => {
+      const other = await seedPerson(db());
+      const snapshot = snapshotOf(other, [met(), fresh()], { intentTopic: tides });
+      expect(composeEncounter(snapshot, COMPOSER_POLICY_V3).unseenLadder?.outcome).toBe('unseen');
+      await storeRaw(db(), other, regressedDecision(snapshot, COMPOSER_POLICY_V3));
+      expect(await repeated()).toEqual([
+        { code: 'composer_repeat_offered', count: 1, windowSeconds: 86_400, outcome: 'composer-policy.v3' },
+      ]);
     });
   });
 

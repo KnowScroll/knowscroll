@@ -3,18 +3,23 @@ import {
   assembleSnapshot,
   bufferIsServable,
   evidenceQueryFor,
+  readInterestLeads,
+  readInterestRollups,
   readRelatedAssetIds,
   readUnseenFirst,
   readVerticalCandidates,
   renderableFormats,
   validAssessments,
+  wantsLanes,
   wantsUnseenFirst,
   type ComposerSnapshot,
   type PreparedBuffer,
   type SemanticAssessments,
 } from '../../composer/public.js';
 import type {
+  CatalogueSnapshot,
   ContinuityLink,
+  DiscoveryLanes,
   EncounterRef,
   EncounterSnapshot,
   RegionEncounterCandidate,
@@ -132,13 +137,21 @@ export async function prepare(
     };
 
   const rules = subjectMoveRules(command, started, region);
-  const found = await retrieve(p, scope, command, started, region, rules);
+  // One release of the topic catalogue for the whole move: retrieval's lanes, the roll-ups and the systems frozen into the decision agree.
+  const catalogue = await p.catalogue.current();
+  const found = await retrieve(p, scope, command, started, region, rules, catalogue);
   if (found.kind !== 'retrieved') return found;
   const related = await relatedAssetIdsOf(p, scope, started, found, rules);
-  const { snapshot, truncated } = await rankingInput(p, scope, command, started, found, stored.assessments, {
-    ...rules,
-    ...related,
-  });
+  const { snapshot, truncated } = await rankingInput(
+    p,
+    scope,
+    command,
+    started,
+    found,
+    stored.assessments,
+    { ...rules, ...related },
+    catalogue,
+  );
   return {
     ...common,
     links: found.links,
@@ -278,6 +291,29 @@ async function unseenRetrieval(
     : {};
 }
 
+/**
+ * What a system-chosen move asks of retrieval under policy v3: named lanes, fed by the person's top long-term interest topics (one
+ * index range scan) and the units a valid Planner opportunity names (D-420). Empty under v0 to v2, which retrieve as before.
+ */
+async function laneRetrieval(
+  p: NavigationPorts,
+  scope: PersonalScopeTx,
+  now: Date,
+  catalogue: CatalogueSnapshot,
+): Promise<{ readonly lanes?: DiscoveryLanes }> {
+  const policy = p.compose.policy;
+  return p.readInterestContext && policy && wantsLanes(p.compose)
+    ? {
+        lanes: await readInterestLeads(
+          p.readInterestContext,
+          scope,
+          { evaluatedAt: now.toISOString(), topK: policy.interestTopK },
+          catalogue,
+        ),
+      }
+    : {};
+}
+
 /** Retrieves the candidates for the command's mode. */
 async function retrieve(
   p: NavigationPorts,
@@ -286,6 +322,7 @@ async function retrieve(
   start: Start,
   region: CommandRegion,
   rules: SubjectMoveRules,
+  catalogue: CatalogueSnapshot,
 ): Promise<Retrieved | NavigationResult> {
   const nothing: Retrieved = {
     kind: 'retrieved',
@@ -308,6 +345,7 @@ async function retrieve(
               ...(rules.stickyFormat ? { stickyFormat: rules.stickyFormat } : {}),
               seed: command.commandId,
               ...(await unseenRetrieval(p, scope)),
+              ...(await laneRetrieval(p, scope, start.now, catalogue)),
             }),
           };
     case 'return':
@@ -445,10 +483,22 @@ async function rankingInput(
   found: Retrieved,
   assessments: SemanticAssessments | undefined,
   rules: SubjectMoveRules,
+  catalogue: CatalogueSnapshot,
 ): Promise<{ snapshot: ComposerSnapshot; truncated: boolean }> {
   const query = evidenceQueryFor(found.candidates, start.now.toISOString());
   const hiddenAssetIds = await readWithheld(p, scope, query.candidateAssetIds ?? [], found.exact !== undefined);
   const evidence = await p.readPrepared(scope, query);
+  // Policy v3 shrinks interest and format toward the candidates' systems and the person's overall level (D-420).
+  const interest =
+    evidence && p.readInterestContext && wantsLanes(p.compose)
+      ? await readInterestRollups(
+          p.readInterestContext,
+          scope,
+          found.candidates,
+          start.now.toISOString(),
+          catalogue.systemOf,
+        )
+      : undefined;
   const variantFormat = 'intent' in command && command.intent.mode === 'variant' ? command.intent.to : undefined;
   const mode: ComposerSnapshot['mode'] =
     start.mode === 'series' || start.mode === 'related' ? 'horizontal' : start.mode;
@@ -466,9 +516,10 @@ async function rankingInput(
     ...(variantFormat ? { variantFormat } : {}),
     ...rules,
     ...(evidence ? { evidence } : {}),
+    ...(interest ? { interest } : {}),
     ...(assessments ? { semanticAssessments: assessments } : {}),
     fallbackContextWatermark: `unprepared:${String(scope.revisionAtEntry)}`,
     hashCatalogWatermarks: (watermarks) => p.hashRequest('content-candidate-watermarks', [...watermarks]),
-    systemOf: (await p.catalogue.current()).systemOf,
+    systemOf: catalogue.systemOf,
   });
 }

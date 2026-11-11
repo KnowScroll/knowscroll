@@ -24,7 +24,9 @@ import type {
   ComposerDecision,
   ComposerSnapshot,
   EncounterRef,
+  FormatExplorationOutcome,
   SourcePlace,
+  StickyFormatOutcome,
   UnseenLadderOutcome,
 } from '../domain/types.js';
 function validRef(ref: { readonly assetId: string; readonly assetRevision: number }): boolean {
@@ -129,6 +131,17 @@ export function validateSnapshot(s: ComposerSnapshot): void {
       e.hiddenAssetIds.length > 1000 ||
       new Set(e.topics.map((t) => t.topicId)).size !== e.topics.length ||
       new Set(e.recent.map((r) => r.exposureId)).size !== e.recent.length
+    )
+      fail();
+    const rollups = [...(e.person ? [e.person] : []), ...(e.systems ?? [])];
+    if (
+      new Set((e.systems ?? []).map((system) => system.systemId)).size !== (e.systems ?? []).length ||
+      new Set((e.topicSystems ?? []).map((entry) => entry.topicId)).size !== (e.topicSystems ?? []).length ||
+      rollups.some(
+        (rollup) =>
+          new Set(rollup.formats.map((f) => f.kind)).size !== rollup.formats.length ||
+          rollup.formats.some((f) => !Number.isSafeInteger(f.measured) || f.qualified > f.measured),
+      )
     )
       fail();
     for (const t of e.topics)
@@ -271,6 +284,16 @@ function tieBreakOf(s: ComposerSnapshot, policy: ComposerPolicy): (a: EncounterR
 }
 
 /**
+ * The exploration pool among the eligible candidates, in the immutable asset/revision order. Under a lane-reading policy (v3) the
+ * snapshot's pool is the `explore` lane (a sample stratified by system); when none of it is eligible exploration still draws, from
+ * every eligible candidate, rather than going silent.
+ */
+function explorationPoolOf(s: ComposerSnapshot, eligible: readonly Evaluation[], policy: ComposerPolicy): Evaluation[] {
+  const pooled = eligible.filter((e) => s.explorationPool.some((p) => refKey(p) === refKey(e))).sort(byKey);
+  return policy.retrieval === 'lanes' && pooled.length === 0 ? [...eligible].sort(byKey) : pooled;
+}
+
+/**
  * The first offer (the ranked winner, or on the exploration branch a draw from the pool) and then up to
  * `maxOffers - 1` more by maximal marginal relevance. Deterministic for a snapshot and a policy.
  *
@@ -285,6 +308,7 @@ function choose(
   evaluations: readonly Evaluation[],
   policy: ComposerPolicy,
   unseenFirst: { readonly lastResort: boolean } | undefined,
+  forced?: { readonly first: Evaluation; readonly probability: number },
 ) {
   const tie = tieBreakOf(s, policy);
   const rows = new Map(s.candidates.map((c) => [refKey(c.encounter), c]));
@@ -296,10 +320,8 @@ function choose(
       ? byNumber(lastMetAt(s, encounter(a).explanationUnitId), lastMetAt(s, encounter(b).explanationUnitId))
       : 0;
   const eligible = evaluations.filter((e) => e.eligible).sort((a, b) => ahead(a, b) || b.score - a.score || tie(a, b));
-  const rankedWinner = eligible[0];
-  const pool = unseenFirst?.lastResort
-    ? []
-    : eligible.filter((e) => s.explorationPool.some((p) => refKey(p) === refKey(e))).sort(byKey);
+  const rankedWinner = forced?.first ?? eligible[0];
+  const pool = forced || unseenFirst?.lastResort ? [] : explorationPoolOf(s, eligible, policy);
   const members = pool.map((evaluation) => ({
     evaluation,
     kind: encounter(evaluation).kind,
@@ -344,8 +366,10 @@ function choose(
   const member = first && members.find((m) => refKey(m.evaluation) === refKey(first));
   const probability = !first
     ? 0
-    : (rankedWinner && refKey(first) === refKey(rankedWinner) ? 1 - fraction : 0) +
-      (member ? explorationMass(fraction, members, member, policy.explorationByPlayLevel) : 0);
+    : forced
+      ? forced.probability
+      : (rankedWinner && refKey(first) === refKey(rankedWinner) ? 1 - fraction : 0) +
+        (member ? explorationMass(fraction, members, member, policy.explorationByPlayLevel) : 0);
   const unseenLadder: UnseenLadderOutcome | undefined =
     unseenFirst === undefined
       ? undefined
@@ -370,6 +394,48 @@ function choose(
   };
 }
 
+/** What format exploration decided for one decision: the draw, and for the drawn branch the evaluations it offers from. */
+interface FormatExploration {
+  readonly outcome: FormatExplorationOutcome;
+  /** Present when the draw hit: the evaluations with stickiness lifted, and the first offer (the best of the other format). */
+  readonly other?: { readonly evaluations: readonly Evaluation[]; readonly first: Evaluation };
+}
+
+const stickyOnly = (e: Evaluation): boolean => e.exclusions.length === 1 && e.exclusions[0] === 'format_sticky';
+
+/**
+ * Policy v3 format exploration (D-420). For a system-chosen vertical move that stays in the person's format and still has an
+ * unseen candidate of the other format that only stickiness keeps out, a seeded draw at `formatExplorationFraction` takes the
+ * first offer from the other format: the best scored of those candidates. Without it the person's format would be the only one
+ * the person's evidence could ever grow in. An explicit format request is never drawn against: a variant move is not
+ * system-chosen, and a snapshot cannot carry both a required and a sticky format. Applies only when stickiness was kept (when the
+ * person's format has nothing eligible the other format is offered anyway). The draw uses its own generator, so it leaves the
+ * exploration draw of the same decision unchanged.
+ */
+function exploreFormat(
+  s: ComposerSnapshot,
+  policy: ComposerPolicy,
+  evaluations: readonly Evaluation[],
+  sticky: StickyFormatOutcome | undefined,
+): FormatExploration | undefined {
+  const fraction = policy.formatExplorationFraction;
+  if (fraction <= 0 || sticky?.outcome !== 'kept' || s.intent.format !== undefined || !unseenFirstApplies(s))
+    return undefined;
+  const tie = tieBreakOf(s, policy);
+  const heldBack = evaluations.filter(stickyOnly).sort((a, b) => b.score - a.score || tie(a, b));
+  const best = heldBack[0];
+  if (best === undefined) return undefined;
+  const drawn = drawsWithin(randomSource(`${s.seed}:format-exploration`), fraction);
+  const personFormat = sticky.preferred;
+  if (!drawn) return { outcome: { fraction, branch: 'person_format', personFormat, propensity: 1 - fraction } };
+  const lifted = evaluations.map((e) => (stickyOnly(e) ? { ...e, eligible: true, exclusions: [] } : e));
+  const first = lifted.find((e) => refKey(e) === refKey(best))!;
+  return {
+    outcome: { fraction, branch: 'other_format', personFormat, propensity: fraction },
+    other: { evaluations: lifted, first },
+  };
+}
+
 /**
  * Pure policy: caller prepares an authorized bounded snapshot; activation later rechecks eligibility.
  * The caller names the policy (the composition roots choose it from `KS_COMPOSER_POLICY`); without one it is v0. A
@@ -391,8 +457,26 @@ export function composeEncounter(
  * many stored decisions under several policies needs it (one validation, one decision per policy).
  */
 export function decideValidated(s: ComposerSnapshot, policy: ComposerPolicy): ComposerDecision {
-  const { evaluations, sticky, related, unseenFirst } = evaluate(s, policy);
-  const { selection, exploration, unseenLadder } = choose(s, evaluations, policy, unseenFirst);
+  const evaluated = evaluate(s, policy);
+  const { sticky, related, unseenFirst } = evaluated;
+  const explored = exploreFormat(s, policy, evaluated.evaluations, sticky);
+  const evaluations = explored?.other?.evaluations ?? evaluated.evaluations;
+  const chosen = choose(
+    s,
+    evaluations,
+    policy,
+    unseenFirst,
+    explored?.other ? { first: explored.other.first, probability: explored.outcome.propensity } : undefined,
+  );
+  const { selection, unseenLadder } = chosen;
+  // The person's-format branch was reached with probability 1 - fraction, so its first offer's propensity carries that factor.
+  const exploration =
+    explored?.outcome.branch === 'person_format'
+      ? {
+          ...chosen.exploration,
+          selectedProbability: chosen.exploration.selectedProbability * explored.outcome.propensity,
+        }
+      : chosen.exploration;
   return {
     version: 'composer-decision.v0',
     policyVersion: policy.version,
@@ -408,6 +492,7 @@ export function decideValidated(s: ComposerSnapshot, policy: ComposerPolicy): Co
     ...(sticky ? { stickyFormat: sticky } : {}),
     ...(related ? { relatedTarget: related } : {}),
     ...(unseenLadder ? { unseenLadder } : {}),
+    ...(explored ? { formatExploration: explored.outcome } : {}),
     outcome: selection.length ? 'ready' : 'exhausted',
   };
 }

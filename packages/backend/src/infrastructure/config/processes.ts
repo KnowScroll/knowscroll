@@ -125,7 +125,7 @@ export interface ApiConfig extends ReleaseIdentity {
   /** `KS_ROOMS_STARS_PER_DAY`: the most stars one room earns on a UTC day (D-174); three unless a world raises it. */
   readonly roomStarsPerDay: number;
   /** `KS_COMPOSER_POLICY`: the policy navigation ranks new decisions under (D-190). */
-  readonly composerPolicy: 'v0' | 'v1' | 'v2';
+  readonly composerPolicy: 'v0' | 'v1' | 'v2' | 'v3';
 }
 
 /** The operator sign-in command (`dist/operator.js`), refused unless enabled outside live. */
@@ -166,7 +166,7 @@ export interface WorkerConfig extends ReleaseIdentity {
   /** Jev's optional semantic assessment in the Composer buffer job; default off, on for dev. */
   readonly jevEnabled: boolean;
   /** `KS_COMPOSER_POLICY`: the policy the buffer job ranks new decisions under (D-190); default `v0`. */
-  readonly composerPolicy: 'v0' | 'v1' | 'v2';
+  readonly composerPolicy: 'v0' | 'v1' | 'v2' | 'v3';
   /** Shared Scroll productions that people's requests may start per UTC day; 0 turns Create off. */
   readonly supplyCreateDailyCap: number;
   /** Productions the Planner's demand may start per UTC day; never above `supplyCreateDailyCap`. */
@@ -385,10 +385,10 @@ const supplyScenarioDailyCapVariable = z.coerce.number().int().min(0).max(500).o
 const supplyScenarioThreadCapVariable = z.coerce.number().int().min(1).max(100).default(5);
 /**
  * `KS_COMPOSER_POLICY`: the Composer policy new decisions are made under (D-190, D-408). Default `v0`; a world moves to `v1`
- * or `v2` by configuration once its numbers and rules are deployed. Replay of a stored decision does not read it: a decision
+ * `v2` or `v3` by configuration once its numbers and rules are deployed. Replay of a stored decision does not read it: a decision
  * names its own policy.
  */
-const composerPolicyVariable = z.enum(['v0', 'v1', 'v2']).default('v0');
+const composerPolicyVariable = z.enum(['v0', 'v1', 'v2', 'v3']).default('v0');
 
 /**
  * `KS_CONTENT_AUTO_RELEASE_ENABLED`: the kill switch of the release policy (D-418). Default `0` in every world: a held library Scroll
