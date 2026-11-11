@@ -10,11 +10,11 @@ import {
 import type { CreateContentRequest } from '@knowscroll/contracts';
 import { CONCEPTS, type ScrollAskFacts } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import { MAX_OPEN_REQUESTS, MAX_RETRIES, WAIT_LIMIT_MS, commissionSupply } from './commission.js';
+import { MAX_OPEN_REQUESTS, MAX_RETRIES, WAIT_LIMIT_MS, commissionSupply, isRetryableReason } from './commission.js';
 import { askLimitOf, commissionAskOrder } from './ask-orders.js';
 import { reopenedAskOrder } from './ask-retry.js';
 import { isSuggestedQuestion } from '../domain/ask-order.js';
-import { isLostWaiter, plannedOutcomeCounts } from '../domain/planned-demand.js';
+import { isLostWaiter, plannedOutcomeCounts, storablePlannedIntent } from '../domain/planned-demand.js';
 import { briefOf, checkedRevision, inventory, snapshot, sourceOf } from './inventory.js';
 import type {
   SupplyPorts,
@@ -272,7 +272,7 @@ export function makeRetryRequest(p: SupplyPorts): RetryRequest {
       const retryable =
         (d.brief !== undefined || d.askOrder !== undefined) &&
         status.status === 'unavailable' &&
-        status.reason === 'could_not_prepare' &&
+        isRetryableReason(status.reason) &&
         (d.retries ?? 0) < MAX_RETRIES;
       let outcome: 'retrying' | 'already_open' | 'not_retryable' =
         status.status === 'preparing' || status.status === 'ready' ? 'already_open' : 'not_retryable';
@@ -386,12 +386,14 @@ export function makeRecordPlannedDemand(p: SupplyPorts): RecordPlannedDemand {
     if (!brief) return { kind: 'unsupported', reason: 'language_not_supported' };
     const id = p.newId(),
       now = p.now().toISOString();
+    // What the model wanted decorates the demand: if it cannot be kept as it is, keep less of it, never fail the plan.
+    const plannedIntent = storablePlannedIntent(input.intent);
     const demand: Demand = {
       id,
       command,
       brief,
       planned: { runId: input.plannerRunId, slot: input.slot },
-      plannedIntent: input.intent,
+      ...(plannedIntent === undefined ? {} : { plannedIntent }),
       requestRevision: 1,
       revision: scope.revisionAtEntry,
       createdAt: now,

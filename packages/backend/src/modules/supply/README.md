@@ -40,7 +40,7 @@ headings may be marked as stating no fact, and a long answer is checked in batch
   only an exact catalogue member. Anything else closes honestly as `unsupported_request`.
 - Ask for the same explanation in the other format (a variant).
 - Read the state of one request or of their recent requests, and cancel one that is still preparing.
-- Try again a request that closed as "could not prepare" (`RetryRequest`, below).
+- Try again a request that closed as "could not prepare" or with no recipe left (`RetryRequest`, below).
 - Ask a question from a Scroll they are reading (D1) and get a short Scroll made for them alone (ask orders, below).
 
 States a person sees: preparing (`requested` while their words are matched, `preparing` once work is
@@ -65,9 +65,11 @@ under way), ready, unavailable with a coarse reason, cancelled. No percentages, 
      library run makes those and an ask for such a meaning is answered once the Scroll is released.
 
    `could_not_prepare` is kept for work that was tried and did not deliver: production that ended without a Scroll or
-   outlasted the wait limit, a model step that failed, an unknown outcome (D-410). A request closed with any of the three
-   codes above is not retried: nothing a retry could use has changed. An operator sees the finer cause (a cap used up and
-   Create switched off are both `budget_unavailable` to the person) in the Planner demand counters below.
+   outlasted the wait limit, a model step that failed, an unknown outcome (D-410). A request closed `no_recipe_left` can be
+   tried again: a Scroll the operator releases, or a recipe that can be taken again, changes what Reuse and Create find.
+   One closed `no_production_path` or `budget_unavailable` is not retried: a retry would meet the same wall. An operator
+   sees the finer cause (a cap used up and Create switched off are both `budget_unavailable` to the person) in the
+   Planner demand counters below.
 
    Only an exact catalogue meaning can be produced. The catalogue is derived from the library plan and
    a library test proves every facet has a recipe, but a recipe that is v2 exists only through the operator.
@@ -98,7 +100,7 @@ counts only (no person, no topic, no words), so they survive erasure like the ot
 | `joined` | none | it joined production already under way |
 | `not_commissioned` | `no_production_path`, `cap_reached`, `create_off`, `no_recipe_left` | nothing could start; nothing is stored |
 | `unsupported` | `topic_not_in_catalogue`, `language_not_supported` | not a brief Supply can serve; nothing is stored |
-| `expired` | `no_resolver` | this call first closed an earlier demand for the same brief that had lost its resolver (below) |
+| `expired` | `no_resolver` | an earlier demand that had lost its resolver was closed: by the next plan that asked for its brief, or by the resolver the operator's recovery woke (below) |
 
 An operator reads them in the Operator screen (3 · Content production, "Planner demand", last seven days) or in
 `ops.planned_demand_outcomes`. The rows are shared by every person's plan, so they are locked last, in the order
@@ -111,6 +113,11 @@ at and the model's own brief (`PlannedIntentSchema`: at most 160 and 800 charact
 text about one person: it is never in `supply.work`, never in a canonical brief or the command, never evidence, and no
 other module may name it (`planned-intent-wall.test.ts`). It is erased with the request. Nothing reads it yet: Supply
 still chooses what to make by code, and a later step may commission from it after checking it.
+
+`RecordPlannedDemand` checks it again before the row (`storablePlannedIntent`), because a plan must never be rolled back
+for what only decorates a demand: a value that fails the schema is left out, a NUL or a lone surrogate half (which `jsonb`
+refuses) is removed or replaced, and a brief that would exceed the column's 4096 bytes (control characters escape to six
+bytes each) is cut from the end until it fits.
 
 ### Demand that lost its resolver
 
@@ -125,7 +132,8 @@ waiter gets for waiting too long:
   first), for demand that is stale and that no plan asks about again. It sends one resolver job for each (the job's
   identity names the request and the UTC day), prints how many it found, queued and already queued and whether more
   remain, and calls no provider. The resolver does the closing under the person's own scope; for planned demand past its
-  limit it closes and never commissions afresh.
+  limit it closes and never commissions afresh, and it counts `expired` when the demand had outlived its limit and its
+  grace (a demand a live resolver closes at the limit is a plain timeout and is not counted).
 
 ## Ask from here and ask orders (D-218, D-230, D-231; v3 S-7)
 
@@ -211,6 +219,13 @@ and acts:
 | The group commissioned no production (it predates Create) | commissions as if the person had just asked: joins or starts a group that has work, or closes with an honest reason |
 | Still waiting 30 minutes after the request | closes as `could_not_prepare`; the shared work carries on. Planned demand this old is closed and never commissioned afresh |
 
+A waiter that ends closes its shared group only when no other request is still waiting on it (D-410). Another person's live
+request keeps the group open, so a later ask for the same brief joins it instead of opening a new group and using up the
+day's Create count. Whoever ends last closes it. The check reads only whether another waiter exists
+(`closeWorkWhenUnused`, an index over open requests by group); no ID, word or person leaves the query. If two waiters end at
+the same moment in separate transactions, the group may stay open: the next Create finds it with nothing coming, closes it
+and starts afresh.
+
 The 30-minute limit also applies when the request is read: an open request older than that reads as
 `could_not_prepare` even if no job ever closed it (a poll was dead-lettered, the worker stayed down), and the
 next write freezes the same outcome.
@@ -224,7 +239,7 @@ content's current admission. A redelivery changes nothing that is already decide
 
 ## Trying a request again
 
-`RetryRequest` reopens a request that closed as `could_not_prepare`: the same row and request ID, the same
+`RetryRequest` reopens a request that closed as `could_not_prepare` or `no_recipe_left`: the same row and request ID, the same
 words and brief, a new wait. It decides the brief the way Create does (Reuse, then Join or Create), so it
 respects the day's Create cap, the open-request limit (`too_many_open`, no receipt) and the recipes still
 left. `retries` counts the retries (three at most) and `wait_started_at` starts the new wait: the wait limit,
@@ -237,7 +252,7 @@ The command answers with an immutable receipt:
 |---|---|
 | `retrying` | The request is waiting again, or already served from what exists. Read its status for which. |
 | `already_open` | It is still preparing or already ready. Nothing changed. |
-| `not_retryable` | It was cancelled or closed for another reason, its retries are used, it is a free-text ask that was never matched, or nothing can start now (the day's limit). Nothing changed. |
+| `not_retryable` | It was cancelled or closed for another reason (`no_production_path`, the day's limit), its retries are used, it is a free-text ask that was never matched, or nothing can start now (the day's limit, or still no recipe). Nothing changed. |
 
 A free-text ask that was never matched is not retried: its model attempt may have had an outcome nobody
 saw, and unknown outcomes are never resent. A retry never calls a model and never resends a paid attempt:
@@ -306,7 +321,8 @@ transaction that makes the branch, so a retry never gets here twice. The scenari
 | `supply.quick_answer_ledger` | The ledger of Quick answers: an ID and a time, no person and no words. The world's day cap reads it. | Names no person and no words; survives erasure. |
 | `pgboss/supply.answer-quick-answer` | IDs only (`universeId`, `privacyEpoch`, `quickAnswerId`). Four at a time, 1,950 s expiry (six paid attempts at the largest request deadline, as the reasoning README counts it), one retry. | The eraser removes every queued, active, retained and dead-lettered payload of the owner. |
 | `pgboss/supply.purge-quick-answers` | Cron, every ten minutes: first closes the Quick answers still waiting after the wait limit and clears their words, then deletes the ones whose day is over, 500 per transaction, at most ten batches a run. Logs `supply.quick_answers_given_up` and `supply.quick_answers_purged` with counts. | Nothing personal. |
-| `supply.planned_demand_outcomes` | Counters of what became of the Planner's missing-supply opportunities: UTC day, outcome, reason, total (D-410, migration 0109). Read by `ops.planned_demand_outcomes`. | Names no person, no topic and no words; survives erasure. |
+| `supply.planned_demand_outcomes` | Counters of what became of the Planner's missing-supply opportunities: UTC day, outcome, reason, total (D-410, migration 0110). Read by `ops.planned_demand_outcomes`. | Names no person, no topic and no words; survives erasure. |
+| `supply_requests_open_by_work` | A partial index (migration 0110) over the work group of requests that are `requested` or `deferred`: the question "does anyone else still wait on this group?" answers from open rows only. | Index only. |
 | `supply.requests.planned_intent` | What the Planner's model wanted of the opportunity (move, explanation unit, brief), on a planned demand only. | Erased with the request. |
 | `supply.ask_orders` | The ledger of ask orders: order ID, when it was made, when its Scroll was first seen admitted, and whether it was made under the support check (`support_checked`, D-252). The world's cap and the "usually" time read it (D-218). | Names no person and no words; survives erasure. |
 | `supply.requests.ask_limit` | Which limit closed a question asked from a Scroll as `budget_unavailable` (`person`, `world`, `off`; D-387). Null for every other request. | Erased with the request. |

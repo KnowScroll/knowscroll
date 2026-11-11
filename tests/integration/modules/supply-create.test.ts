@@ -443,6 +443,34 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       });
     });
 
+    it('retries a request nothing could be started for once a recipe can be made again, and not before', async () => {
+      await build();
+      const person = await seedPerson(database.db);
+      // Every recipe for this facet waits at the operator's review gate (D-138): Create has none to start.
+      const undo = markScrollV2('tides', ORRIN_PLAN);
+      let requestId: string;
+      try {
+        requestId = await ask(person, facet());
+        expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'no_recipe_left' });
+        // Nothing has changed, so a retry leaves the request as it was.
+        expect(await retry(person.authority, retryCommand(requestId))).toMatchObject({
+          kind: 'ok',
+          value: { outcome: 'not_retryable' },
+        });
+        expect(await rowOf(requestId)).toMatchObject({ state: 'unavailable', reason: 'no_recipe_left', retries: 0 });
+      } finally {
+        undo();
+      }
+      // A recipe can be made now: the same request goes again, on the same row.
+      expect(await retry(person.authority, retryCommand(requestId))).toMatchObject({
+        kind: 'ok',
+        value: { outcome: 'retrying', requestId },
+      });
+      expect(await rowOf(requestId)).toMatchObject({ state: 'requested', reason: null, retries: 1 });
+      expect(await status(person, requestId)).toMatchObject({ status: 'preparing', requestId });
+      expect((await workOf(requestId)).production_recipe).toBe('tides');
+    });
+
     it('says already_open for a request that is still preparing or ready, and changes nothing', async () => {
       await build();
       const person = await seedPerson(database.db);
@@ -1074,6 +1102,65 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
         .executeTakeFirst(),
     ).toEqual({ state: 'unavailable', reason: 'could_not_prepare' });
     expect(await produceJobs()).toHaveLength(1);
+    // It had outlived its resolver, so the closing is counted as expired, beside the plan path's count.
+    const expired = async () =>
+      Number(
+        (
+          await database.db
+            .selectFrom('supply.planned_demand_outcomes')
+            .select(sql<string>`coalesce(sum(total), 0)`.as('total'))
+            .where('outcome', '=', 'expired')
+            .executeTakeFirstOrThrow()
+        ).total,
+      );
+    expect(await expired()).toBe(1);
+
+    // A demand a live resolver closes at its limit is a plain timeout, not an expiry.
+    const timely = await recordFor(person, plan('earth.tides'));
+    if (timely.kind !== 'deferred') throw new Error('CI planned demand refused');
+    await sql`update supply.requests set created_at = now() - interval '35 minutes', updated_at = now() - interval '35 minutes' where id = ${timely.requestId}`.execute(
+      database.db,
+    );
+    await resolve(job(person, timely.requestId));
+    expect(
+      await database.db
+        .selectFrom('supply.requests')
+        .select('state')
+        .where('id', '=', timely.requestId)
+        .executeTakeFirst(),
+    ).toEqual({ state: 'unavailable' });
+    expect(await expired()).toBe(1);
+  });
+
+  it('keeps a shared group open for the people still waiting on it, and closes it when the last one is done', async () => {
+    await build();
+    const [first, joiner, later] = await Promise.all([
+      seedPerson(database.db),
+      seedPerson(database.db),
+      seedPerson(database.db),
+    ]);
+    const a = await ask(first, catalogue('machine-learning.transformers'));
+    const b = await ask(joiner, catalogue('machine-learning.transformers'));
+    const group = (await workOf(a)).id;
+    expect((await workOf(b)).id).toBe(group);
+    const older = (requestId: string) =>
+      sql`update supply.requests set created_at = now() - interval '31 minutes', updated_at = now() - interval '31 minutes' where id = ${requestId}`.execute(
+        database.db,
+      );
+    await older(a);
+    await resolve(job(first, a));
+    expect(await status(first, a)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+    // The joiner still waits on the group, so it stays open and a new ask joins it instead of opening another.
+    expect((await workOf(a)).active).toBe(true);
+    const c = await ask(later, catalogue('machine-learning.transformers'));
+    expect((await workOf(c)).id).toBe(group);
+    expect(await produceJobs()).toHaveLength(1);
+    await older(b);
+    await resolve(job(joiner, b));
+    expect((await workOf(b)).active).toBe(true);
+    await older(c);
+    await resolve(job(later, c));
+    expect((await workOf(c)).active).toBe(false);
   });
 
   it('lists only the person own asks, newest first, with titles that are their words or the catalogue topic', async () => {

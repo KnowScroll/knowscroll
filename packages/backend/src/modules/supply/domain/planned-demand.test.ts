@@ -4,6 +4,7 @@ import {
   PlannedIntentSchema,
   isLostWaiter,
   plannedOutcomeCounts,
+  storablePlannedIntent,
   type PlannedDemandOutcome,
 } from './planned-demand.js';
 
@@ -94,5 +95,80 @@ describe("the intent a plan keeps on the person's own demand", () => {
       { ...intent, evidenceRefs: ['x'] },
     ])
       expect(PlannedIntentSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
+describe('the intent as the database can keep it', () => {
+  const intent = {
+    version: 'planned-intent.v1',
+    move: 'mechanism',
+    explanationUnitId: 'unit-1',
+    brief: 'A brief.',
+  } as const;
+  /** The bytes of the `jsonb` text of an intent: `jsonb` writes `"key": value, "key": value`. */
+  const jsonbBytes = (value: object | undefined) =>
+    new TextEncoder().encode(
+      `{${Object.entries(value ?? {})
+        .map(([key, text]) => `${JSON.stringify(key)}: ${JSON.stringify(text)}`)
+        .join(', ')}}`,
+    ).length;
+
+  it('keeps an ordinary intent exactly as it is', () => {
+    expect(storablePlannedIntent(intent)).toEqual(intent);
+    expect(
+      storablePlannedIntent({ ...intent, brief: 'x'.repeat(800), explanationUnitId: 'u'.repeat(160) }),
+    ).toMatchObject({
+      brief: 'x'.repeat(800),
+    });
+  });
+
+  it('drops what fails the schema, and never throws for any input', () => {
+    for (const bad of [
+      undefined,
+      null,
+      'a brief',
+      {},
+      { ...intent, brief: '' },
+      { ...intent, brief: 'x'.repeat(801) },
+      { ...intent, move: 'Not A Move' },
+      { ...intent, extra: true },
+    ])
+      expect(storablePlannedIntent(bad)).toBeUndefined();
+  });
+
+  it('removes what jsonb refuses: NUL, and a surrogate half with no partner', () => {
+    expect(storablePlannedIntent({ ...intent, brief: 'a\u0000b' })?.brief).toBe('ab');
+    expect(storablePlannedIntent({ ...intent, brief: 'a\uD800b' })?.brief).toBe('a\uFFFDb');
+    expect(storablePlannedIntent({ ...intent, brief: 'a\uDC00' })?.brief).toBe('a\uFFFD');
+    // A real pair (an emoji) is left alone.
+    expect(storablePlannedIntent({ ...intent, brief: 'a\u{1F600}b' })?.brief).toBe('a\u{1F600}b');
+    // Nothing left after cleaning is no intent.
+    expect(storablePlannedIntent({ ...intent, brief: '\u0000\u0000' })).toBeUndefined();
+    expect(storablePlannedIntent({ ...intent, explanationUnitId: '\u0000' })).toBeUndefined();
+  });
+
+  it("cuts a brief that would exceed the column's bytes (control characters escape to six each), never past what fits", () => {
+    const heavy = { ...intent, brief: '\u0001'.repeat(800), explanationUnitId: 'u'.repeat(160) };
+    // As given it would be over the 4096-byte check: the guard exists because the schema alone does not bound it.
+    expect(jsonbBytes(heavy)).toBeGreaterThan(4096);
+    const kept = storablePlannedIntent(heavy);
+    expect(kept).toBeDefined();
+    expect(jsonbBytes(kept)).toBeLessThanOrEqual(4096);
+    expect(kept!.brief.length).toBeGreaterThan(300);
+    expect(kept!.brief.length).toBeLessThan(800);
+    expect(kept!.explanationUnitId).toBe(heavy.explanationUnitId);
+    // Four-byte characters at the longest allowed length fit as they are.
+    const wide = storablePlannedIntent({
+      ...intent,
+      brief: '\u{1F600}'.repeat(400),
+      explanationUnitId: '\u{1F600}'.repeat(80),
+    });
+    expect(wide?.brief).toBe('\u{1F600}'.repeat(400));
+  });
+
+  it('is cut on a character boundary, so a pair is never split', () => {
+    const kept = storablePlannedIntent({ ...intent, brief: '\u0001'.repeat(450) + '\u{1F600}'.repeat(350) });
+    expect(kept?.brief).not.toMatch(/\uFFFD/u);
+    expect(jsonbBytes(kept)).toBeLessThanOrEqual(4096);
   });
 });

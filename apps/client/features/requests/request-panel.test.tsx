@@ -101,6 +101,32 @@ describe('E04 request panel', () => {
     }
   });
 
+  it('offers Try again when nothing was ready to answer, and not when a Reel or another format was asked for', async () => {
+    const h = requestHarness();
+    const screen = await render(sheet(h, jest.fn()));
+    try {
+      await fireEvent.changeText(screen.getByLabelText('What would you like now?'), 'Football tactics');
+      await fireEvent.press(screen.getByRole('button', { name: 'Send request' }));
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+
+      h.setStatus({ ...h.fields, requestRevision: 2, status: 'unavailable', reason: 'no_recipe_left' });
+      await act(() => h.session.refresh());
+      expect(screen.getByLabelText("Couldn't prepare")).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+      await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+      expect(h.calls.filter((call) => call.path.endsWith('/retry'))).toHaveLength(1);
+
+      h.setStatus({ ...h.fields, requestRevision: 6, status: 'unavailable', reason: 'no_production_path' });
+      await act(() => h.session.refresh());
+      expect(screen.getByLabelText("Can't be made")).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    } finally {
+      await screen.unmount();
+      await act(() => h.scope.end());
+    }
+  });
+
   it('Try again retries this same request, shows it preparing again, and says plainly when it cannot be tried again', async () => {
     const h = requestHarness();
     const screen = await render(sheet(h, jest.fn()));

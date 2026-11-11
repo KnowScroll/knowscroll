@@ -6,7 +6,8 @@
 --
 -- 1. `supply.planned_demand_outcomes`: counters of what became of each missing-supply opportunity of an accepted plan
 --    (reused, already recorded, commissioned, joined, not commissioned with the reason, unsupported with the reason, and
---    expired when a lost waiter was closed). Authoritative. One row per UTC day, outcome and reason; the code adds to the row
+--    expired when a planned demand that lost its resolver was closed, either by the next plan that asks for its brief or
+--    by the resolver the operator's recovery command wakes). Authoritative. One row per UTC day, outcome and reason; the code adds to the row
 --    in the transaction that accepts the plan, locking the rows in a fixed order (outcome, then reason), last.
 --    Query shapes: the operator panel's last seven days; `ops.planned_demand_outcomes` for Grafana or psql.
 --    Index: the primary key (day first).
@@ -22,6 +23,9 @@
 -- 3. `supply.requests.reason` gains `no_production_path` (a Reel or a variant was asked for; nothing can make it) and
 --    `no_recipe_left` (every recipe that could serve the brief is made or cannot be taken again). Until now the first was
 --    stored as `budget_unavailable` and the second as `could_not_prepare`, so neither said what it was.
+-- 4. `supply_requests_open_by_work`: a partial index on the work group of the requests that are still waiting. The
+--    resolver closes a shared group only when no other request is waiting on it, and asks that with this index. It holds
+--    open rows only, so it stays small however many requests have ended. Growth: at most one entry per open request.
 --
 -- Locking: unchanged. Rollout: additive. An older process neither reads nor writes the new column, table and view, and
 -- never writes the two new reasons. A client older than this build cannot read a request closed with one of them, so the
@@ -75,3 +79,6 @@ alter table supply.requests add constraint requests_reason_check
 -- Every existing row holds one of the earlier six reasons, so the wider check holds.
 -- squawk-ignore constraint-missing-not-valid
 alter table supply.requests validate constraint requests_reason_check;
+
+-- squawk-ignore require-concurrent-index-creation
+create index supply_requests_open_by_work on supply.requests(work_id) where state in ('requested', 'deferred');

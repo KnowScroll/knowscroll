@@ -358,6 +358,37 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
     ).rejects.toThrow(/supply_requests_planned_intent/);
   });
 
+  it("keeps a plan whole when the model's brief holds text the database cannot store", async () => {
+    const person = await seedPerson(database.db);
+    const awkward = await record(
+      person,
+      demandInput(['space.stars'], { intent: plannedIntent({ brief: 'CI-PLANNED-BRIEF a\u0000b \uD800 end' }) }),
+    );
+    expect(awkward).toMatchObject({ kind: 'deferred' });
+    const [stored] = await rows(person.universeId);
+    expect(stored!.planned_intent).toMatchObject({ brief: 'CI-PLANNED-BRIEF ab \uFFFD end' });
+
+    // Control characters escape to six bytes each: the brief is cut to fit the column, and the plan still stands.
+    const heavy = await seedPerson(database.db);
+    const outcome = await record(
+      heavy,
+      demandInput(['space.stars'], { intent: plannedIntent({ brief: '\u0001'.repeat(800) }) }),
+    );
+    expect(outcome).toMatchObject({ kind: 'deferred' });
+    const [cut] = await sql<{ chars: number; bytes: number }>`select char_length(planned_intent->>'brief') as chars,
+      octet_length(planned_intent::text) as bytes from supply.requests where universe_id = ${heavy.universeId}::uuid`
+      .execute(database.db)
+      .then((result) => result.rows);
+    expect(cut!.chars).toBeLessThan(800);
+    expect(cut!.bytes).toBeLessThanOrEqual(4096);
+
+    // An intent that fails its schema is left out; the demand is still recorded.
+    const bare = await seedPerson(database.db);
+    const malformed = plannedIntent({ move: 'Not A Move' });
+    expect(await record(bare, demandInput(['space.stars'], { intent: malformed }))).toMatchObject({ kind: 'deferred' });
+    expect((await rows(bare.universeId))[0]!.planned_intent).toBeNull();
+  });
+
   it('closes planned demand left waiting past the limit, so it stops blocking the next plan', async () => {
     const person = await seedPerson(database.db);
     const first = await record(person, demandInput(['space.stars']));

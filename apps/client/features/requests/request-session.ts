@@ -7,6 +7,7 @@ import type {
   RetryContentRequest,
 } from '@knowscroll/contracts';
 import { ENCOUNTER_CAPABILITIES } from '../encounter/capabilities';
+import { canTryAgain } from './request-copy';
 
 type Source = Extract<CreateContentRequest['intent'], { kind: 'variant' }>['source'];
 type Format = 'reel' | 'scroll' | 'either';
@@ -443,7 +444,7 @@ export function createRequestSession(
     tryAgain() {
       if (!valid() || !visible || state.phase !== 'accepted' || !state.receipt) return;
       const status = state.status;
-      if (status?.status !== 'unavailable' || status.reason !== 'could_not_prepare') return;
+      if (status?.status !== 'unavailable' || !canTryAgain(status.reason)) return;
       retryCommand = { version: 'content-request-retry.v1', commandId: newId(), requestId: state.receipt.requestId };
       void runRetry();
     },

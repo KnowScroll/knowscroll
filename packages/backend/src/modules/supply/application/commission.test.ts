@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import { commissionSupply } from './commission.js';
+import { commissionSupply, isRetryableReason } from './commission.js';
 import type { CanonicalBrief, SupplyPorts } from './ports.js';
 
 const scope = {} as PersonalScopeTx;
@@ -117,5 +117,22 @@ describe('Create says why it started nothing', () => {
     const ended = world({ recipe: 'tides', running: { recipe: 'tides', state: 'stopped' } });
     expect(await commissionSupply(ended.ports, scope, brief(), 'planner')).toMatchObject({ decision: 'create' });
     expect(ended.events).toContain('close-group');
+  });
+});
+
+describe('which closed asks a person may try again', () => {
+  it('allows work that was tried and failed, and nothing ready that a release may change, and nothing else', () => {
+    expect(isRetryableReason('could_not_prepare')).toBe(true);
+    expect(isRetryableReason('no_recipe_left')).toBe(true);
+    for (const reason of [
+      'no_production_path',
+      'budget_unavailable',
+      'unsupported_request',
+      'no_compatible_supply',
+      'not_permitted',
+      'source_unavailable',
+      undefined,
+    ] as const)
+      expect(isRetryableReason(reason)).toBe(false);
   });
 });

@@ -97,6 +97,23 @@ describe("recording the Planner's demand", () => {
     expect(w.sent).toEqual(['production tides', 'resolver id-2']);
   });
 
+  it("never fails the plan for the model's intent: one it cannot keep is cleaned, cut or left out", async () => {
+    const odd = world({ recipe: 'tides' });
+    // NUL and a lone surrogate would make the insert fail; control characters would break the column's byte bound.
+    await odd.record(scope, input({ intent: { ...intent, brief: 'a\u0000b\uD800c' } }));
+    expect(odd.inserted[0]?.plannedIntent?.brief).toBe('ab\uFFFDc');
+    const heavy = world({ recipe: 'tides' });
+    await heavy.record(scope, input({ intent: { ...intent, brief: '\u0001'.repeat(800) } }));
+    expect(heavy.inserted[0]?.plannedIntent?.brief.length).toBeLessThan(800);
+    expect(heavy.inserted[0]?.plannedIntent?.brief.length).toBeGreaterThan(0);
+    const bad = world({ recipe: 'tides' });
+    const malformed = { ...intent, move: 'Not A Move' } as unknown as PlannedDemandInput['intent'];
+    expect(await bad.record(scope, input({ intent: malformed }))).toMatchObject({ kind: 'deferred' });
+    expect(bad.inserted).toHaveLength(1);
+    expect(bad.inserted[0]).not.toHaveProperty('plannedIntent');
+    expect(bad.sent).toEqual(['production tides', 'resolver id-2']);
+  });
+
   it('says why nothing was started, stores nothing, and sends nothing', async () => {
     const reel = world({ recipe: 'tides' });
     expect(await reel.record(scope, input({ format: 'reel' }))).toEqual({

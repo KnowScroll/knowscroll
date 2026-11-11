@@ -128,7 +128,7 @@ export const supplyStore: SupplyStore = {
       .where('id', '=', d.id)
       .where('origin', '=', 'person')
       .where(
-        sql<boolean>`(state in ('requested','deferred') or (state = 'unavailable' and reason = 'could_not_prepare'))`,
+        sql<boolean>`(state in ('requested','deferred') or (state = 'unavailable' and reason in ('could_not_prepare','no_recipe_left')))`,
       )
       .executeTakeFirst();
     if (changed.numUpdatedRows !== 1n) throw new Error('SUPPLY_REQUEST_NOT_RETRYABLE');
@@ -246,6 +246,14 @@ export const supplyStore: SupplyStore = {
       .where('state', '=', 'deferred')
       .executeTakeFirst();
     return changed.numUpdatedRows === 1n;
+  },
+  async closeWorkWhenUnused(scope, id, requestId) {
+    await sql`update supply.work set active = false, closed_at = now()
+      where id = ${id}::uuid and active
+        and not exists (
+          select 1 from supply.requests as waiting
+          where waiting.work_id = ${id}::uuid and waiting.id <> ${requestId}::uuid
+            and waiting.state in ('requested', 'deferred'))`.execute(transactionOf(scope));
   },
   async closeWork(scope, id) {
     await transactionOf(scope)

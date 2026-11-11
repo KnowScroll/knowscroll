@@ -3,6 +3,14 @@ import type { ContentRequestStatus } from '@knowscroll/contracts';
 export type UnavailableReason = Extract<ContentRequestStatus, { status: 'unavailable' }>['reason'];
 
 /**
+ * Whether the person may press "Try again" on a request closed for this reason: the same request goes again.
+ * `could_not_prepare` (the work was tried and failed) and `no_recipe_left` (nothing was ready then, and what is ready can
+ * change). Not `no_production_path` (a Reel or another format cannot be made on request) and not a daily cap.
+ */
+export const canTryAgain = (reason: UnavailableReason): boolean =>
+  reason === 'could_not_prepare' || reason === 'no_recipe_left';
+
+/**
  * What a closed request says, in the words of E04 and E07: honest, short, and nothing about prompts,
  * models, budgets or machinery. Every one says the request is closed, so nothing is left waiting.
  */
@@ -18,7 +26,7 @@ export const unavailableCopy: Record<UnavailableReason, string> = {
   no_production_path:
     "We can't make a new Reel, or another format of an explanation, on request yet. Your request is closed, so nothing is waiting.",
   no_recipe_left:
-    "We don't have an explanation of this ready yet, and can't prepare one on request right now. Your request is closed, so nothing is waiting.",
+    "We don't have an explanation of this ready yet, and can't prepare one right now. Your request is closed, so nothing is waiting. You can try again later.",
 };
 
 const CLOSED = 'Your request is closed, so nothing is waiting.';

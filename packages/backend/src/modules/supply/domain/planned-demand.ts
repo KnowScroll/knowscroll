@@ -25,6 +25,42 @@ export const PlannedIntentSchema = z.strictObject({
 });
 export type PlannedIntent = z.infer<typeof PlannedIntentSchema>;
 
+/** The most bytes the database accepts for the intent's `jsonb` text (`supply_requests_planned_intent`). */
+const PLANNED_INTENT_MAX_BYTES = 4096;
+/** `jsonb` prints a space after every `:` and `,`; the four keys add seven bytes to `JSON.stringify`'s text. One more is margin. */
+const JSONB_TEXT_EXTRA_BYTES = 8;
+/** A UTF-16 surrogate half with no partner (in unicode mode a valid pair is one code point, so only a lone half matches). */
+const LONE_SURROGATE = /[\uD800-\uDFFF]/gu;
+
+const storedBytes = (intent: PlannedIntent): number =>
+  new TextEncoder().encode(JSON.stringify(intent)).length + JSONB_TEXT_EXTRA_BYTES;
+
+/** Text `jsonb` can hold: no NUL (which it refuses) and no lone surrogate half. */
+const storableText = (text: string): string => text.replaceAll('\u0000', '').replace(LONE_SURROGATE, '\uFFFD');
+
+/**
+ * The intent as the database can keep it, or nothing. The Planner already checked the model's answer, but a plan must
+ * never be rolled back for what only decorates a demand, so this is the last guard before the row: a value that fails
+ * {@link PlannedIntentSchema} is dropped; text `jsonb` cannot hold is cleaned (NUL removed, a lone surrogate replaced); a
+ * brief that would still exceed the column's byte bound (control characters escape to six bytes each) is cut from the
+ * end until it fits, never past one character. Never throws.
+ */
+export function storablePlannedIntent(candidate: unknown): PlannedIntent | undefined {
+  const parsed = PlannedIntentSchema.safeParse(candidate);
+  if (!parsed.success) return undefined;
+  const explanationUnitId = storableText(parsed.data.explanationUnitId);
+  let brief = storableText(parsed.data.brief);
+  if (explanationUnitId === '' || brief === '') return undefined;
+  let intent: PlannedIntent = { ...parsed.data, explanationUnitId, brief };
+  while (storedBytes(intent) > PLANNED_INTENT_MAX_BYTES) {
+    if (brief.length <= 1) return undefined;
+    brief = storableText(brief.slice(0, Math.max(1, Math.floor(brief.length * 0.75))));
+    if (brief === '') return undefined;
+    intent = { ...intent, brief };
+  }
+  return intent;
+}
+
 /** What became of one missing-supply opportunity of an accepted plan. */
 export type PlannedDemandOutcome =
   /** Reuse: admitted content the person has not met already fits. */
@@ -53,6 +89,9 @@ export type PlannedDemandOutcome =
 export type PlannedOutcomeCode =
   'reused' | 'already_recorded' | 'commissioned' | 'joined' | 'not_commissioned' | 'unsupported' | 'expired';
 
+/** What the counters add when a lost waiter is closed: one `expired` with the reason `no_resolver`. */
+const EXPIRED = { outcome: 'expired', reason: 'no_resolver' } as const;
+
 export interface PlannedOutcomeCount {
   readonly outcome: PlannedOutcomeCode;
   readonly reason: string;
@@ -76,7 +115,7 @@ function codesOf(
         return { outcome: 'unsupported', reason: outcome.reason };
     }
   })();
-  return outcome.expiredRequestId === undefined ? [own] : [own, { outcome: 'expired', reason: 'no_resolver' }];
+  return outcome.expiredRequestId === undefined ? [own] : [own, EXPIRED];
 }
 
 /**
@@ -96,6 +135,9 @@ export function plannedOutcomeCounts(outcomes: readonly PlannedDemandOutcome[]):
       (a.reason < b.reason ? -1 : a.reason > b.reason ? 1 : 0),
   );
 }
+
+/** The counter a resolver adds when it closes a planned demand that had lost its resolver (the plan path counts it too). */
+export const LOST_WAITER_COUNT: PlannedOutcomeCount = { ...EXPIRED, total: 1 };
 
 /**
  * How long past the wait limit a planned demand may stay open before it is called lost. A resolver whose poll chain is

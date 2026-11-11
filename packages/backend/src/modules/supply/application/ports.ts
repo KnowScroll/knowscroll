@@ -135,6 +135,14 @@ export interface SupplyStore {
   countAskOrdersSince(scope: PersonalScopeTx, since: Date): Promise<number>;
   closeWork(scope: PersonalScopeTx, id: string): Promise<void>;
   /**
+   * Closes the shared group only when no request other than `requestId` is still waiting on it. A waiter that ends (or
+   * is expired) must not close a group other people's live requests stand on: the next ask would open a new group and
+   * use up the day's Create count. Reads only whether another waiter exists; no ID, word or person leaves the query.
+   * A waiter that ends at the same moment in another transaction may leave the group open: the next Create finds it
+   * with nothing coming, closes it and starts afresh.
+   */
+  closeWorkWhenUnused(scope: PersonalScopeTx, id: string, requestId: string): Promise<void>;
+  /**
    * Reopens a request that closed as could-not-prepare (or that read as closed by its wait limit before
    * anything froze it): same row, same ID, a new wait. Throws when the row is no longer in such a state.
    */

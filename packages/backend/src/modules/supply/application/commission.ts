@@ -31,6 +31,14 @@ export type Commission =
    */
   | { readonly kind: 'unavailable'; readonly reason: UnavailableReason; readonly cause: NotCommissionedReason };
 
+/**
+ * The closed reasons a person may try again. `could_not_prepare`: the work was tried and did not deliver. `no_recipe_left`:
+ * nothing was ready and nothing could be started then, which an operator's release of a held Scroll changes (D-138, D-410).
+ * `no_production_path` and `budget_unavailable` are not: a retry would meet the same wall.
+ */
+export const isRetryableReason = (reason: UnavailableReason | undefined): boolean =>
+  reason === 'could_not_prepare' || reason === 'no_recipe_left';
+
 /** What the person is told for each cause. */
 const REASON_OF_CAUSE: Readonly<Record<NotCommissionedReason, UnavailableReason>> = {
   no_production_path: 'no_production_path',
