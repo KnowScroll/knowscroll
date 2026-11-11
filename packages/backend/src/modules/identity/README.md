@@ -33,7 +33,9 @@ universe leaves identity alone.
   look (#248); never for display, mail or logs.
 - Sign-in use cases (tokens `REQUEST_SIGN_IN`, `PEEK_SIGN_IN_LINK`, `REDEEM_SIGN_IN`,
   `RESOLVE_SESSION`, `SESSION_VALID`, `SIGN_OUT`, `SWEEP_SIGN_IN_RECORDS`) and
-  `IssueOperatorSignIn`, with their typed results; `OPERATOR_WORLDS`, `operatorAddressMatcher`;
+  `IssueOperatorSignIn`, with their typed results; `CheckPersonalAccountDisposable` (whether the account's address is disposable, read inside a locked
+  personal root, for Supply's rule that a test account feeds no shared supply, D-413, D-414) and `ListDisposableAddresses` (disposable addresses by prefix and domain, for the
+  canary's cleanup of its own accounts); `OPERATOR_WORLDS`, `operatorAddressMatcher`;
   the sweep's queue `sweepSignInRecordsQueue` (`events.ts`).
 - Account privacy (#246): `ListSessions`, `EndSession`, `EndOtherSessions` (tokens `LIST_SESSIONS`, `END_SESSION`,
   `END_OTHER_SESSIONS`), `RequestAccountDeletion`, `ReadAccountDeletion`, `RetryAccountDeletion`,

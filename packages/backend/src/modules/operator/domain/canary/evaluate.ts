@@ -22,10 +22,14 @@ export interface OfferRecord {
   readonly alreadyMet: boolean;
   /** The offer says a Reel of the same explanation is ready. */
   readonly readyReelVariant: boolean;
+  /** When the system made the offer, on the run's one clock (ms): a witness counts only from then on. */
+  readonly at: number;
 }
 
 export interface MoveRecord {
   readonly mode: MoveMode;
+  /** When the system answered, on the run's one clock (ms). */
+  readonly at: number;
   readonly outcome: 'ready' | 'pending' | 'exhausted';
   /** The chosen offer first, then the prepared ones. Empty unless ready. */
   readonly offers: readonly OfferRecord[];
@@ -37,7 +41,12 @@ export interface MoveRecord {
   readonly retries: number;
 }
 
-export type EvidenceState = 'qualified' | 'not_qualified' | 'unknown' | 'not_projected' | 'not_applicable';
+/**
+ * `not_projected`: the worker had nothing pending and still committed no evidence. `inconclusive`: evidence was
+ * still being projected when the wait ran out, so what it will say is not known: not red, and not green either.
+ */
+export type EvidenceState =
+  'qualified' | 'not_qualified' | 'unknown' | 'not_projected' | 'inconclusive' | 'not_applicable';
 
 export interface EncounterRecord {
   readonly unitId: string;
@@ -90,6 +99,10 @@ export interface OperatorReads {
   readonly jobs: readonly JobRow[];
   /** Composer decisions by policy label. */
   readonly policies: readonly { readonly label: string; readonly count: number }[];
+  /** Supply requests of the run's universes, and the shared work they started or joined (D-413: always 0). */
+  readonly supply: { readonly requests: number; readonly commissionedWork: number };
+  /** Model attempts whose request left, by the purpose of the run they belong to: what the canary spent. */
+  readonly attempts: readonly { readonly role: string; readonly count: number }[];
 }
 
 export interface CanaryRun {
@@ -114,6 +127,7 @@ export const VIOLATION_CODES = [
   'operator_reads_failed',
   'job_failed',
   'job_dead_lettered',
+  'shared_supply_touched',
   'planner_run_unknown',
   'planner_run_stuck',
   'geography_run_stuck',
@@ -151,9 +165,9 @@ function systemChosen(move: MoveRecord): boolean {
 }
 
 /**
- * Units some canary reader was offered by discovery, that this reader had not met. They exist in the library and
- * were eligible for someone, which is the only public proof there is that "unseen exists". A unit of the series the
- * reader moved from is left out, because a subject move leaves its own series (D-408).
+ * Units some canary reader was offered by discovery, at or before this move, that this reader had not met. They existed
+ * in the library and were eligible for someone, which is the only public proof there is that "unseen exists". A unit of
+ * the series the reader moved from is left out, because a subject move leaves its own series (D-408).
  */
 function unseenWitnesses(run: CanaryRun, move: MoveRecord, repeated: ReadonlySet<string>): number {
   const met = new Set(move.metBefore);
@@ -163,6 +177,8 @@ function unseenWitnesses(run: CanaryRun, move: MoveRecord, repeated: ReadonlySet
     for (const other of persona.moves)
       for (const offer of other.offers) {
         if (offer.relation !== 'discovery') continue;
+        // A unit first offered after this move may not have existed yet (a Scroll released mid-run): not a witness.
+        if (offer.at > move.at) continue;
         if (met.has(offer.unitId) || repeated.has(offer.unitId)) continue;
         if (sourceSeries !== undefined && offer.seriesId === sourceSeries) continue;
         witnessed.add(offer.unitId);
@@ -258,6 +274,8 @@ function operatorChecks(reads: OperatorReads | undefined): Violation[] {
   if (unknown > 0) out.push({ code: 'planner_run_unknown', count: unknown });
   if (stuck(reads.planner) > 0) out.push({ code: 'planner_run_stuck', count: stuck(reads.planner) });
   if (stuck(reads.geography) > 0) out.push({ code: 'geography_run_stuck', count: stuck(reads.geography) });
+  if (reads.supply.commissionedWork > 0)
+    out.push({ code: 'shared_supply_touched', count: reads.supply.commissionedWork });
   return out;
 }
 
@@ -266,6 +284,8 @@ export interface PersonaSummary {
   readonly moves: { readonly ready: number; readonly pending: number; readonly exhausted: number };
   readonly encounters: { readonly scroll: number; readonly reel: number; readonly glanced: number };
   readonly qualified: number;
+  /** Readings whose evidence was still being projected when the wait ran out: neither green nor red. */
+  readonly inconclusive: number;
   readonly observations: { readonly accepted: number; readonly duplicates: number; readonly rejected: number };
   readonly seriesDepth: number;
   readonly formation: FormationReading | null;
@@ -274,20 +294,36 @@ export interface PersonaSummary {
   readonly regionSwitch: PersonaRecord['regionSwitch'];
 }
 
+/**
+ * `ok`: the invariant was exercised and held. `violated`: it was exercised and broke. `not_exercised`: what it
+ * guards never happened in this run, so nothing was proved either way. `inconclusive`: its evidence was still being
+ * projected when the wait ran out.
+ */
+export type CheckStatus = 'ok' | 'violated' | 'not_exercised' | 'inconclusive';
+
 export interface Evaluation {
+  /** No invariant was violated and, under `strict`, every one was exercised and conclusive. */
   readonly passed: boolean;
+  readonly strict: boolean;
   readonly violations: readonly Violation[];
-  /** Every invariant with the number of violations it found, so a green run shows what was checked. */
+  /** Every invariant with its status and the number of violations it found, so a green run shows what was checked. */
   readonly checks: readonly {
     readonly code: ViolationCode;
-    readonly status: 'ok' | 'violated';
+    readonly status: CheckStatus;
     readonly count: number;
   }[];
+  readonly notExercised: readonly ViolationCode[];
   readonly personas: readonly PersonaSummary[];
   readonly planner: Readonly<Record<string, number>>;
   readonly geography: Readonly<Record<string, number>>;
   readonly jobs: { readonly failed: number; readonly deadLettered: number };
   readonly composerPolicies: Readonly<Record<string, number>>;
+  /** What the run asked of shared supply and of models, for the owner to see it cost nothing it should not. */
+  readonly spend: {
+    readonly supplyRequests: number;
+    readonly commissionedWork: number;
+    readonly modelAttempts: Readonly<Record<string, number>>;
+  };
 }
 
 function tally(rows: readonly RunRow[]): Record<string, number> {
@@ -315,6 +351,7 @@ function summaryOf(persona: PersonaRecord, lastResort: ReadonlyMap<PersonaId, nu
       glanced: persona.encounters.filter((encounter) => encounter.attendance === 'glance').length,
     },
     qualified: persona.encounters.filter((encounter) => encounter.evidence === 'qualified').length,
+    inconclusive: persona.encounters.filter((encounter) => encounter.evidence === 'inconclusive').length,
     observations: {
       accepted: sum((e) => e.accepted),
       duplicates: sum((e) => e.duplicates),
@@ -327,8 +364,62 @@ function summaryOf(persona: PersonaRecord, lastResort: ReadonlyMap<PersonaId, nu
   };
 }
 
+/** Whether anything in the run could have broken the invariant: what it guards happened at least once. */
+function exercised(code: ViolationCode, run: CanaryRun): boolean {
+  const personas = run.personas;
+  const moves = personas.flatMap((persona) => persona.moves);
+  const reads = run.reads;
+  const readEncounters = personas.flatMap((persona) =>
+    persona.encounters.filter((encounter) => encounter.attendance === 'read'),
+  );
+  switch (code) {
+    case 'first_offer_missing':
+    case 'api_refused':
+      return personas.length > 0;
+    case 'repeat_while_unseen_exists':
+      // A system-chosen move asked after the reader had met something: the only place a re-read can happen.
+      return moves.some((move) => systemChosen(move) && move.metBefore.length > 0 && move.outcome !== 'pending');
+    case 'exhausted_while_unseen_exists':
+      return moves.some((move) => systemChosen(move) && move.outcome === 'exhausted');
+    case 'reel_never_offered':
+      return (
+        personas.some((persona) => persona.persona === 'reel-watcher') &&
+        moves.some((move) => move.offers.some((offer) => offer.format === 'reel' || offer.readyReelVariant))
+      );
+    case 'reading_not_stored':
+    case 'reading_not_projected':
+    case 'reading_not_qualified':
+      return readEncounters.length > 0;
+    case 'formation_system_missing':
+      return personas.some(
+        (persona) => persona.formation !== undefined && seriesDepth(persona) >= SERIES_UNITS_FOR_SYSTEM,
+      );
+    case 'formation_planet_missing':
+      return personas.some(
+        (persona) => persona.formation !== undefined && seriesDepth(persona) >= SERIES_UNITS_FOR_PLANET,
+      );
+    case 'reel_media_unreachable':
+      return personas.some((persona) => persona.media.checked > 0);
+    case 'operator_reads_failed':
+      return true;
+    case 'job_failed':
+    case 'job_dead_lettered':
+    case 'shared_supply_touched':
+      return reads !== undefined;
+    case 'planner_run_unknown':
+    case 'planner_run_stuck':
+      // A Planner that is switched off only parks its runs (`blocked`); then nothing about it was tested.
+      return reads !== undefined && reads.planner.some((row) => row.state !== 'blocked');
+    case 'geography_run_stuck':
+      return reads !== undefined && reads.geography.length > 0;
+    case 'cleanup_incomplete':
+      return !run.cleanup.kept;
+  }
+}
+
 /** Judges a run. Passed means no invariant was violated; the summaries carry counts and codes only. */
-export function evaluateCanary(run: CanaryRun): Evaluation {
+export function evaluateCanary(run: CanaryRun, options: { readonly strict?: boolean } = {}): Evaluation {
+  const strict = options.strict === true;
   const rereads = noRereads(run);
   const violations: Violation[] = [...rereads.violations];
   for (const persona of run.personas) {
@@ -346,23 +437,39 @@ export function evaluateCanary(run: CanaryRun): Evaluation {
 
   const total = (code: ViolationCode) =>
     violations.filter((violation) => violation.code === code).reduce((sum, violation) => sum + violation.count, 0);
+  const anyInconclusive = run.personas.some((persona) =>
+    persona.encounters.some((encounter) => encounter.evidence === 'inconclusive'),
+  );
+  const statusOf = (code: ViolationCode): CheckStatus => {
+    if (total(code) > 0) return 'violated';
+    if (!exercised(code, run)) return 'not_exercised';
+    const waitsOnEvidence = code === 'reading_not_projected' || code === 'reading_not_qualified';
+    return waitsOnEvidence && anyInconclusive ? 'inconclusive' : 'ok';
+  };
+  const checks = VIOLATION_CODES.map((code) => ({ code, status: statusOf(code), count: total(code) }));
+  const notExercised = checks.filter((check) => check.status === 'not_exercised').map((check) => check.code);
+  const unfinished = notExercised.length > 0 || checks.some((check) => check.status === 'inconclusive');
+
   const jobs = run.reads?.jobs ?? [];
   const jobCount = (dead: boolean) =>
     jobs
       .filter((row) => row.queue.endsWith(DEAD_LETTER_SUFFIX) === dead && (dead || row.state === 'failed'))
       .reduce((sum, row) => sum + row.count, 0);
   return {
-    passed: violations.length === 0,
+    passed: violations.length === 0 && !(strict && unfinished),
+    strict,
     violations,
-    checks: VIOLATION_CODES.map((code) => ({
-      code,
-      status: total(code) > 0 ? ('violated' as const) : ('ok' as const),
-      count: total(code),
-    })),
+    checks,
+    notExercised,
     personas: run.personas.map((persona) => summaryOf(persona, rereads.lastResort)),
     planner: tally(run.reads?.planner ?? []),
     geography: tally(run.reads?.geography ?? []),
     jobs: { failed: jobCount(false), deadLettered: jobCount(true) },
     composerPolicies: Object.fromEntries((run.reads?.policies ?? []).map((row) => [row.label, row.count])),
+    spend: {
+      supplyRequests: run.reads?.supply.requests ?? 0,
+      commissionedWork: run.reads?.supply.commissionedWork ?? 0,
+      modelAttempts: Object.fromEntries((run.reads?.attempts ?? []).map((row) => [row.role, row.count])),
+    },
   };
 }

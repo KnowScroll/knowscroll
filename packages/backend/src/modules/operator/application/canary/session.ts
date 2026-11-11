@@ -20,6 +20,7 @@ import {
   type ReelWatchPlan,
 } from '../../domain/canary/reading-plan.js';
 import {
+  CanaryAborted,
   CanaryApiError,
   type CanaryApi,
   type CanaryReads,
@@ -33,8 +34,8 @@ export const REPORT_INTERVAL_MS = 15_000;
 const PENDING_ASKS = 6;
 const PENDING_WAIT_MS = 4_000;
 const POLL_MS = 3_000;
-/** Evidence counts as final once its latest revision has not moved for this long: the projection runs after each batch. */
-const EVIDENCE_STABLE_MS = 6_000;
+/** How long a worker with nothing to project may leave a reading without evidence before that is a finding. */
+const IDLE_GRACE_MS = 6_000;
 const FORMATION_POLL_MS = 5_000;
 const MAX_EVENTS_PER_BATCH = 40;
 const MAX_BLOCKS_PER_COVERAGE = 24;
@@ -168,7 +169,17 @@ export class ReaderSession {
     private readonly pacer: Pacer,
     private readonly newId: () => string,
     private readonly shares: Shares,
+    private readonly signal?: AbortSignal,
   ) {}
+
+  /** Ends the journey the moment the run is told to stop, at the next step it takes. */
+  private checkpoint(): void {
+    if (this.signal?.aborted === true) throw new CanaryAborted();
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return this.pacer.sleep(ms, this.signal);
+  }
 
   /** Runs one call; a refusal is recorded and answers `undefined`, so a journey ends its step, not the run. */
   private async guard<T>(call: () => Promise<T>): Promise<T | undefined> {
@@ -215,7 +226,7 @@ export class ReaderSession {
     );
   }
 
-  private offerRecord(offer: EncounterOffer): OfferRecord {
+  private offerRecord(offer: EncounterOffer, at: number): OfferRecord {
     return {
       unitId: offer.explanationUnitId,
       format: offer.metadata.kind,
@@ -223,6 +234,7 @@ export class ReaderSession {
       seriesId: offer.relation.kind === 'series_step' ? offer.relation.seriesId : undefined,
       alreadyMet: this.met.has(offer.explanationUnitId),
       readyReelVariant: offer.variants.some((variant) => variant.kind === 'reel' && variant.status === 'ready'),
+      at,
     };
   }
 
@@ -238,6 +250,7 @@ export class ReaderSession {
     const sourceSeriesId = this.current?.encounter.seriesId;
     let retries = 0;
     for (;;) {
+      this.checkpoint();
       const outcome = await this.guard(() => call(this.newId()));
       // No answer: a refusal was recorded, or the region said it has nothing to open (no move happened).
       if (outcome === undefined) return undefined;
@@ -246,14 +259,16 @@ export class ReaderSession {
       this.intentRevision = outcome.intentRevision;
       if (outcome.status === 'pending' && outcome.reason === 'buffer_preparing' && retries < PENDING_ASKS) {
         retries += 1;
-        await this.pacer.sleep(PENDING_WAIT_MS);
+        await this.sleep(PENDING_WAIT_MS);
         continue;
       }
       const offers = outcome.status === 'ready' ? [outcome.offer, ...outcome.bufferedOffers] : [];
+      const at = this.pacer.nowMs();
       this.moves.push({
         mode,
+        at,
         outcome: outcome.status,
-        offers: offers.map((offer) => this.offerRecord(offer)),
+        offers: offers.map((offer) => this.offerRecord(offer, at)),
         metBefore,
         sourceSeriesId,
         retries,
@@ -291,6 +306,7 @@ export class ReaderSession {
    * encounter and moves on without reporting anything, which is the only way to leave an offer one is shown.
    */
   async meet(offer: EncounterOffer, attendance: 'read' | 'glance'): Promise<boolean> {
+    this.checkpoint();
     const sessionId = this.sessionId;
     if (sessionId === undefined) return false;
     const activateId = this.newId();
@@ -375,9 +391,11 @@ export class ReaderSession {
       };
     };
     while (reported < source.durationMs) {
+      this.checkpoint();
       const target = Math.min(source.durationMs, reported + REPORT_INTERVAL_MS);
       const wait = startedAt + target - this.pacer.nowMs();
-      if (wait > 0) await this.pacer.sleep(wait);
+      if (wait > 0) await this.sleep(wait);
+      this.checkpoint();
       const events = source.events(reported, target, envelope);
       reported = target;
       for (const batch of chunks(events, MAX_EVENTS_PER_BATCH)) {
@@ -402,45 +420,48 @@ export class ReaderSession {
   }
 
   /**
-   * Waits, within the deadline, for each reading's evidence to be committed and to stop moving, then notes what it
-   * qualified as. The operator view is the only read that shows a recorder-v2 reading's evidence, and it carries
-   * the revision but not the watermark, so "final" is a revision that has held still while the worker projects.
+   * Waits, within the deadline, until the worker has nothing left to project for this reader, then notes what each
+   * reading qualified as. Each accepted batch queued a projection in the same transaction, which projects the
+   * exposure's whole watermark when it runs, so evidence is final once none is queued, retrying or running. If time
+   * runs out first, a reading with evidence so far is `inconclusive` (not red), and one with none is too: the
+   * worker had not got to it. With nothing pending and no evidence, it is `not_projected`.
    */
   async settleEvidence(deadlineMs: number): Promise<void> {
     const pending = this.unprojected.splice(0);
     if (pending.length === 0) return;
-    let seen = '';
-    let steadySince = this.pacer.nowMs();
+    let idleSince: number | undefined;
     for (;;) {
-      const rows = await this.reads.evidence(this.api.account.universeId);
-      const latest = new Map(rows.map((row) => [row.exposureId, row]));
-      const signature = pending.map((item) => latest.get(item.exposureId)?.revision ?? 0).join(',');
-      if (signature !== seen) {
-        seen = signature;
-        steadySince = this.pacer.nowMs();
-      }
+      this.checkpoint();
+      const read = await this.reads.evidence(this.api.account.universeId);
+      const latest = new Map(read.rows.map((row) => [row.exposureId, row]));
       const now = this.pacer.nowMs();
-      const committed = pending.every((item) => latest.has(item.exposureId));
-      if ((committed && now - steadySince >= EVIDENCE_STABLE_MS) || now >= deadlineMs) {
+      const idle = read.projectionsPending === 0;
+      idleSince = idle ? (idleSince ?? now) : undefined;
+      const complete = idle && pending.every((item) => latest.has(item.exposureId));
+      // Idle with evidence missing is given a moment (a job may be about to be queued), then it is a finding.
+      const gaveUp = idleSince !== undefined && now - idleSince >= IDLE_GRACE_MS;
+      if (complete || gaveUp || now >= deadlineMs) {
         for (const item of pending) {
           const row = latest.get(item.exposureId);
-          if (row !== undefined) item.encounter.evidence = row.qualification;
+          if (!idle) item.encounter.evidence = 'inconclusive';
+          else if (row !== undefined) item.encounter.evidence = row.qualification;
         }
         return;
       }
-      await this.pacer.sleep(POLL_MS);
+      await this.sleep(POLL_MS);
     }
   }
 
   /** Reads the reader's places; waits, within the deadline, while its qualified units entitle one that is not there. */
   async settleFormation(deadlineMs: number): Promise<void> {
     for (;;) {
+      this.checkpoint();
       const read = await this.guard(() => this.api.formation());
       if (read === undefined) return;
       this.formation = read.reading;
       this.regions = read.regions;
       if (formationSatisfied(seriesDepth(this.snapshot()), read.reading) || this.pacer.nowMs() >= deadlineMs) return;
-      await this.pacer.sleep(FORMATION_POLL_MS);
+      await this.sleep(FORMATION_POLL_MS);
     }
   }
 

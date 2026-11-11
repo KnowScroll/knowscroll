@@ -30,6 +30,8 @@ export interface FieldTypes {
   traceId: string;
   spanId: string;
   // Operational facts
+  /** The eight-hex label of one canary run (D-413): the disposable accounts' addresses carry it; it names no person. */
+  canaryRun: string;
   outcome: string;
   reasonCode: string;
   durationMs: number;
@@ -337,6 +339,9 @@ export const diagnosticCatalogue = {
   },
   // A watchdog rule could not be read (the view is missing or the read timed out); the other rules still ran.
   'watchdog.rule_skipped': { severity: 'warn', module: 'operator', fields: ['reasonCode'] },
+  // The post-deploy canary (D-413): the run id goes to stderr at the start so a killed run's accounts can be found again.
+  'operator.canary_started': { severity: 'info', module: 'operator', fields: ['canaryRun', 'count'] },
+  'operator.canary_stopped': { severity: 'warn', module: 'operator', fields: ['canaryRun', 'reasonCode', 'count'] },
 } as const satisfies Record<string, EventSpec>;
 
 export type DiagnosticEvent = keyof typeof diagnosticCatalogue;

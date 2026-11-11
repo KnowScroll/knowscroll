@@ -4,6 +4,7 @@ import {
   PERSONA_IDS,
   REEL_WATCH_FLOOR,
   canaryAddressFor,
+  canaryAddressShape,
   parsePersonas,
   parseSpeed,
   personaPlan,
@@ -69,5 +70,37 @@ describe('canary personas', () => {
     expect(canaryAddressFor('fixed@test.example', 'ab12cd34', 'cold-start')).toBeUndefined();
     expect(canaryAddressFor('*a*@test.example', 'ab12cd34', 'cold-start')).toBeUndefined();
     expect(canaryAddressFor('no-at-sign', 'ab12cd34', 'cold-start')).toBeUndefined();
+  });
+
+  it('recognises exactly the addresses the canary makes, to find a run again', () => {
+    const shape = canaryAddressShape('*@test.knowscroll.space')!;
+    expect(shape.localPrefix).toBe('canary-');
+    expect(shape.domain).toBe('test.knowscroll.space');
+    for (const persona of PERSONA_IDS) {
+      const address = canaryAddressFor('*@test.knowscroll.space', 'ab12cd34', persona)!;
+      expect(shape.runOf(address)).toBe('ab12cd34');
+    }
+    // Nothing else is ever taken for the canary's: not a person's, not a look-alike, not another domain.
+    for (const other of [
+      'alice@test.knowscroll.space',
+      'canary-ab12cd34-cold-start@evil.example',
+      'canary-ab12cd34-cold-start@test.knowscroll.space.evil.example',
+      'canary-AB12CD34-cold-start@test.knowscroll.space',
+      'canary-ab12cd3-cold-start@test.knowscroll.space',
+      'canary-ab12cd34-somebody@test.knowscroll.space',
+      'xcanary-ab12cd34-cold-start@test.knowscroll.space',
+      'canary-ab12cd34-cold-start@test.knowscroll.space\n@x',
+      'canary-ab12cd34-cold-start+x@test.knowscroll.space',
+    ])
+      expect(shape.runOf(other), other).toBeUndefined();
+  });
+
+  it('keeps a pattern prefix and suffix in the shape, and refuses a pattern that cannot make unique addresses', () => {
+    const shape = canaryAddressShape('qa+*.x@Test.Example')!;
+    expect(shape.localPrefix).toBe('qa+canary-');
+    expect(shape.runOf(canaryAddressFor('qa+*.x@Test.Example', '00ff00ff', 'deep-reader')!)).toBe('00ff00ff');
+    expect(shape.runOf('canary-00ff00ff-deep-reader@test.example')).toBeUndefined();
+    expect(canaryAddressShape('fixed@test.example')).toBeUndefined();
+    expect(canaryAddressShape('*a*@test.example')).toBeUndefined();
   });
 });

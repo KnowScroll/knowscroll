@@ -85,6 +85,13 @@ under way), ready, unavailable with a coarse reason, cancelled. No percentages, 
 A person may have at most 10 asks open at once; an eleventh is refused (`too_many_open`, HTTP 429, no
 receipt) until one ends or is cancelled. The limit bounds the polling jobs.
 
+A disposable test account feeds no shared supply (D-413, D-414). Before Join or Create, `commissionSupply` asks Identity whether the
+account is disposable (`CheckPersonalAccountDisposable`, the same port the gap loop reads: made by operator sign-in, cleared when a mailed link
+proves the address). If it is, Create is off for it (`create_off`, `budget_unavailable` to the person): nothing is commissioned, a person's
+ask closes, a planned demand that needs production stores nothing (`not_commissioned`), and neither starts a group or production job, joins
+one that is under way, or leaves a gap signal. Reuse of admitted content is unaffected. It is the one check; the post-deploy canary relies on
+it and reports the commissioned work of its universes (0).
+
 The planned demand of the Planner follows the same rules (`RecordPlannedDemand`). Where nothing can
 start it stores nothing and says why (`not_commissioned` with `no_production_path`, `cap_reached`, `create_off` or
 `no_recipe_left`); a later plan asks again. A brief Supply cannot serve is `unsupported`, with `topic_not_in_catalogue`

@@ -306,22 +306,35 @@ private expiry job states. Old late work cannot restore removed IDs or touch fre
 
 ## Canary (post-deploy, #674, D-413)
 
-`node dist/operator.js canary run [--personas <ids>] [--base-url <url>] [--speed <1-60|max>] [--many <1-60>] [--wait <seconds>] [--keep]`
-(`src/canary-operator.ts`; the journeys, rules and reads are the Operator module's, see its README) drives the deployed API and
-worker with disposable test accounts, the way a client does, and reports whether the algorithms behave. It makes one account per
-persona with the operator sign-in use case (`canary-<run>-<persona>@<operator pattern>`), redeems each link through the real HTTP
-route, and from then on uses only public routes. It writes nothing to the database, calls no model and spends nothing.
+`node dist/operator.js canary run [--personas <ids>] [--base-url <url>] [--speed <1-60|max>] [--many <1-60>] [--wait <seconds>]
+[--timeout <minutes>] [--keep] [--strict] [--allow-stage]` and `canary cleanup [--run <id>] [--dry-run]` (`src/canary-operator.ts`;
+the journeys, rules and reads are the Operator module's, see its README) drive the deployed API and worker with disposable test
+accounts, the way a client does, and report whether the algorithms behave. It makes one account per persona with the operator
+sign-in use case (`canary-<run>-<persona>@<operator pattern>`; minting writes the accounts and their audit rows), redeems each
+link through the real HTTP route, and from then on uses only public routes. What those routes cause is what a reader causes:
+the worker projects the evidence, and the Planner, Cartographer and Jev make their model calls within the world's caps. A
+disposable account never starts or joins shared supply (Supply's one check on the account's disposable flag), so the run
+commissions no production; the summary reports the model attempts by role and the commissioned work, which must be 0.
 Unless `--keep`, each account is deleted through the real deletion flow and the receipt must say `completed`.
 
 Configuration: the operator-sign-in variables of the API's `issue-sign-in` (`KS_WORLD`, `DATABASE_URL`, `KS_PUBLIC_ORIGIN`,
 `KS_ALLOW_OPERATOR_SIGN_IN=1`, `KS_OPERATOR_SIGN_IN_PATTERN` with one `*` in its local part). Refused (exit 2) in any world but
-`dev`, `stage`, `ci` and `local`, and for a `--base-url` that is neither the world's origin nor this machine. Reading is paced on the
-wall clock: the server bounds a claimed interval by the time since activation, so `--speed` only makes the readers quicker, never
-the canary. `--wait` (default 600 s) bounds the wait after the journeys for projection, formation and Planner runs.
+`dev`, `stage`, `ci` and `local`, on `stage` without `--allow-stage`, and for a `--base-url` that is neither the world's origin
+nor this machine. Reading is paced on the wall clock: the server bounds a claimed interval by the time since activation, so
+`--speed` only makes the readers quicker, never the canary. `--wait` (default 600 s) bounds the wait after the journeys for
+projection, formation and Planner runs; `--timeout` (default 90 minutes) bounds the whole run.
 
-One JSON line on stdout with counts and codes only (never an id, title, address or link); diagnostics on stderr. Exit 0 passed,
-1 an invariant was violated or the run failed, 2 refused or bad usage. Runbook: `docs/v2/operations/environments.md`, "Run the
-canary on dev". Status: implemented; covered by `tests/integration/release/canary-operator.test.ts`.
+The run id goes to stderr at the start. SIGINT, SIGTERM, SIGHUP and the timeout stop the journeys, skip the judging and delete the
+run's accounts within a bounded wait (a second signal exits at once); the result is `aborted`. `canary cleanup` finds this world's
+`canary-<run>-<persona>` accounts again (optionally one run) and deletes them through the same flow; it opens no other address, and
+`--dry-run` only counts. A long run belongs under `tmux` or `nohup` so a closed terminal does not stop it.
+
+One JSON line on stdout with counts and codes only (never an id, title, address or link), even after a crash (`result: "failed"`
+with a `reasonCode`); diagnostics on stderr. Each invariant reports `ok`, `violated`, `not_exercised` (what it guards never happened)
+or `inconclusive` (its evidence was still being projected); `--strict` also fails a run with any `not_exercised` or `inconclusive`.
+Exit 0 passed or done, 1 an invariant was violated, the run was aborted or it failed, 2 refused or bad usage. Runbook:
+`docs/v2/operations/environments.md`, "Run the canary on dev". Status: implemented; covered by
+`tests/integration/release/canary-operator.test.ts`.
 
 ## Personal recording composition
 

@@ -75,6 +75,42 @@ export function canaryAddressFor(pattern: string, runId: string, persona: Person
   return `${prefix}canary-${runId}-${persona}${suffix}${pattern.slice(at)}`.toLowerCase();
 }
 
+const ESCAPE = /[.*+?^${}()|[\]\\]/g;
+const escapeRegExp = (text: string): string => text.replace(ESCAPE, '\\$&');
+
+/** What the canary made for a run: how to find its accounts again, and nothing else. */
+export interface CanaryAddressShape {
+  /** The start of every address the canary makes: the pattern's own prefix and `canary-`. */
+  readonly localPrefix: string;
+  readonly domain: string;
+  /** The run an address was made for, or `undefined` for any address that is not exactly one the canary makes. */
+  runOf(address: string): string | undefined;
+}
+
+/**
+ * The exact shape of the addresses `canaryAddressFor` makes under an operator pattern, to find a run's accounts
+ * again after an aborted run (`canary cleanup`). Only an address of precisely `<prefix>canary-<8 hex>-<persona><suffix>@<domain>`
+ * matches, so no other test account is ever taken for the canary's. `undefined` for a pattern with no single `*`.
+ */
+export function canaryAddressShape(pattern: string): CanaryAddressShape | undefined {
+  const at = pattern.lastIndexOf('@');
+  if (at < 1) return undefined;
+  const [prefix, suffix, extra] = pattern.slice(0, at).split('*');
+  if (prefix === undefined || suffix === undefined || extra !== undefined) return undefined;
+  const domain = pattern.slice(at + 1).toLowerCase();
+  const exact = new RegExp(
+    `^${escapeRegExp(prefix.toLowerCase())}canary-([0-9a-f]{8})-(?:${PERSONA_IDS.join('|')})${escapeRegExp(suffix.toLowerCase())}@${escapeRegExp(domain)}$`,
+  );
+  return {
+    localPrefix: `${prefix}canary-`.toLowerCase(),
+    domain,
+    runOf: (address) => exact.exec(address)?.[1],
+  };
+}
+
+/** A run id: the eight hex characters in every address the canary made for it. */
+export const RUN_ID_PATTERN = /^[0-9a-f]{8}$/;
+
 /** `a,b` → the personas in the given order, no repeats; `undefined` when one is unknown or none is named. */
 export function parsePersonas(raw: string | undefined): readonly PersonaId[] | undefined {
   if (raw === undefined) return PERSONA_IDS;

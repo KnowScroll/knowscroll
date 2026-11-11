@@ -49,6 +49,7 @@ import {
   SIGN_OUT,
   SWEEP_SIGN_IN_RECORDS,
   type ReadAccountAddress,
+  type ListDisposableAddresses,
   type ReadAccountUniverse,
   type ReadUniverseAccess,
   type SweepSignInRecords,
@@ -110,6 +111,22 @@ export function identityProviders(tokens: { readonly database: symbol }) {
           readUniverseAccess(db, accountId, universeId),
     },
   ];
+}
+
+/** The disposable-address list over one database handle, for the canary's cleanup outside Nest. */
+export function disposableAddressListerFor(db: Kysely<Database>): ListDisposableAddresses {
+  return async ({ localPrefix, domain, limit }) => {
+    const escaped = localPrefix.replace(/[\\%_]/g, (char) => `\\${char}`);
+    const rows = await db
+      .selectFrom('identity.email_addresses')
+      .select('address')
+      .where('disposable', '=', true)
+      .where('address', 'like', `${escaped}%@${domain.replace(/[\\%_]/g, (char) => `\\${char}`)}`)
+      .orderBy('created_at')
+      .limit(limit)
+      .execute();
+    return rows.map((row) => row.address);
+  };
 }
 
 /** The account-to-universe read over one database handle, for operator commands outside Nest. */
