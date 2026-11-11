@@ -1,3 +1,4 @@
+import { AsyncResource } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -37,6 +38,13 @@ import { geographyWorld, type GeographyWorld } from '../support/geography-world.
  * The head `content readmit-coverage` appends after the concept plan grew (#674): the same mapping under
  * another catalogue digest, admitted through the normal reviewed path with that digest as the plan's.
  */
+/**
+ * Runs `work` in the async context of module load, outside any marked transaction, as a concurrent
+ * admission on another connection would run. Content takes no lock in the personal transaction before
+ * the coverage fence, so this cannot wait on it.
+ */
+const outsideTransaction = AsyncResource.bind(<T>(work: () => Promise<T>): Promise<T> => work());
+
 async function appendDigestOnlyHead(
   db: TestDatabase<Database>['db'],
   f: { readonly command: CoverageCommand; readonly map: CoverageMapping },
@@ -1000,7 +1008,8 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
         applyRecording: async (scope, input) => {
           if (!moved) {
             moved = true;
-            await appendDigestOnlyHead(database.db, f, 1);
+            // A concurrent admission on its own connection, not nested in this personal transaction.
+            await outsideTransaction(() => appendDigestOnlyHead(database.db, f, 1));
           }
           return c.activityContextEffect.applyRecording(scope, input);
         },
