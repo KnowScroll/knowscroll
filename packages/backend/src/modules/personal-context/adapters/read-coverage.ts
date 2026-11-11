@@ -15,8 +15,9 @@ import {
   RecordingWitnessPointerSchema,
   type TrustedCoverageRead,
 } from '../domain/coverage.js';
+import { certificateValidOnHead, sameCoverageAuthority } from './coverage-rule.js';
 import type { ReadTrustedCoverage, CoverageDependencies } from '../application/coverage-ports.js';
-import { coverageDigest, certificateMatchesHead, readWitness } from './coverage-store.js';
+import { coverageDigest, readWitness } from './coverage-store.js';
 const base = {
   version: 'trusted-coverage-read.v1',
   completeness: 'not_asserted',
@@ -159,13 +160,18 @@ export function makeReadTrustedCoverage(p: CoverageDependencies): ReadTrustedCov
     for (const [key, ref] of assets) maps.set(key, await p.readMapping(scope, ref));
     const mapped = valid.filter(({ witness: { certificate: c } }) => {
       const m = maps.get(`${c.assetId}@${String(c.assetRevision)}`);
-      return m?.kind === 'mapped' && certificateMatchesHead(c, m.head);
+      return m?.kind === 'mapped' && certificateValidOnHead(c, m.head);
     });
+    // A certificate may have been issued against an older head. Lock the head it was just found valid
+    // on, the one already read, not the authority the certificate carries (#674).
     const authorities = new Map<string, CoverageAuthority>();
     for (const {
       witness: { certificate: c },
-    } of mapped)
-      authorities.set(`${c.assetId}@${String(c.assetRevision)}`, c.mapping!.authority);
+    } of mapped) {
+      const key = `${c.assetId}@${String(c.assetRevision)}`,
+        m = maps.get(key);
+      if (m?.kind === 'mapped') authorities.set(key, m.head.authority);
+    }
     if (authorities.size && !(await p.lockAuthorities(scope, [...authorities.values()])))
       return unavailable('authority_changed');
     // Full composite identity survives waits; current Content is checked again under held SHARE locks.
@@ -185,11 +191,15 @@ export function makeReadTrustedCoverage(p: CoverageDependencies): ReadTrustedCov
     for (const [key, ref] of assets) mapsAfterWait.set(key, await p.readMapping(scope, ref));
     for (const s of mapped) {
       const c = s.witness.certificate,
-        m = mapsAfterWait.get(`${c.assetId}@${String(c.assetRevision)}`);
+        key = `${c.assetId}@${String(c.assetRevision)}`,
+        locked = authorities.get(key),
+        m = mapsAfterWait.get(key);
       if (
         (s.legacyCurrent ? !legacyAgain.has(c.exposureId) : !again.has(recordingCoverageKey(s.witness))) ||
         m?.kind !== 'mapped' ||
-        !certificateMatchesHead(c, m.head)
+        !locked ||
+        !sameCoverageAuthority(m.head.authority, locked) ||
+        !certificateValidOnHead(c, m.head)
       )
         return unavailable('authority_changed');
     }

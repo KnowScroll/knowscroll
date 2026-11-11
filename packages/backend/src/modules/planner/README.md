@@ -85,6 +85,10 @@ data. The context never holds raw observations, provisional encounters, other pe
 playback positions. The same frozen bytes are used on every redelivery and are hashed twice (module
 body and model items) so a change is detected, not replayed.
 
+Inventory is read by topic, and Content refuses a read over `DISCOVERY_MAX_TOPICS` topics. The
+Planner therefore filters inventory by the first `DISCOVERY_MAX_TOPICS` of intent, then current-plan, then recent topics,
+so a reader with a long history still gets a run; the context's own topic list keeps its wider bound.
+
 Each inventory item is marked `encountered` when the person has already met its explanation. If the
 person has no qualified evidence the run ends as `insufficient` and no model call is made.
 

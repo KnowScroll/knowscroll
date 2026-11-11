@@ -1,3 +1,4 @@
+import { DISCOVERY_MAX_TOPICS } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { encounteredUnitsOf } from '../../personal-context/public.js';
 import { PLANNER_LIMITS, opportunityIssue } from '../domain/proposal.js';
@@ -19,7 +20,7 @@ export async function prepareContext(
     capabilities: p.capabilities,
     topicIds: [
       ...new Set([...(state.intent?.topicIds ?? []), ...current.flatMap((x) => x.topicIds), ...recent.topicIds]),
-    ].slice(0, 100),
+    ].slice(0, DISCOVERY_MAX_TOPICS),
     limit: 100,
   });
   const allTopics = [

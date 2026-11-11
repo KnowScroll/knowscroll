@@ -70,8 +70,10 @@ facet support today, so a Reel-only reader gets dust but no system until Reel co
    enqueues `geography.publish-delta` and calls `GeographyApplied` so Scenes can project. Any
    failure rolls everything back, including the ledger closure. Reading that arrived while the
    model worked does not void a proposal: it applies when every operation still holds on today's
-   authority, and the later reading gets its own paced run. Withdrawn, corrected or retracted
-   support makes it `stale/source_changed`, and only then is a valid answer cancelled.
+   authority, and the later reading gets its own paced run. Withdrawn or retracted support, or a
+   correction that changes a binding, makes it `stale/source_changed`, and only then is a valid
+   answer cancelled. A new coverage head that changes only the catalogue digest is not a correction
+   (D-406).
 6. An answer that is unusable with nothing due settles the run. The next qualified encounter
    starts another one, which waits its interval. Only an `unknown` attempt holds a run.
 
