@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { conceptMeaning } from './concepts.js';
+import { canonicalSha256 } from '@knowscroll/scroll-model';
+import { seedSnapshot } from './catalogue/seed.js';
 import {
   CoverageMappingSchema,
   currentCoverageMapping,
@@ -8,6 +9,7 @@ import {
   validateCoverageMapping,
   type CoverageTarget,
 } from './coverage.js';
+import { LIBRARY_SYSTEMS } from './library/index.js';
 import {
   planReelCoverage,
   ReelCoverageProvenanceSchema,
@@ -22,10 +24,13 @@ const recipe = {
   topicId: 'earth.seasons',
   facetId: 'earth.seasons.axial-tilt',
 } as const;
+const plan = seedSnapshot(LIBRARY_SYSTEMS, canonicalSha256);
 const catalogue = {
   sha256: digest('catalogue'),
   meaningSha256: (topicId: string, facetId: string) =>
-    conceptMeaning(topicId, facetId) ? digest([topicId, facetId]) : undefined,
+    plan.meaning(topicId, facetId) ? digest([topicId, facetId]) : undefined,
+  acceptsMeaning: (topicId: string, facetId: string, sha256: string) =>
+    plan.meaning(topicId, facetId) !== undefined && sha256 === digest([topicId, facetId]),
 };
 const twin = { assetId: '6f1c2b0e-3d6a-4a53-9a8a-0f4a1c9b2d11', assetRevision: 1, explanationUnitId: 'fixture-unit' };
 

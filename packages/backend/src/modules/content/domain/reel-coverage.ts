@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CONCEPT_CATALOGUE_VERSION } from './concepts.js';
+import { CONCEPT_CATALOGUE_VERSION } from './catalogue/types.js';
 import { REEL_COVERAGE_POLICY, type CoverageCatalogue, type CoverageMapping, type CoverageTarget } from './coverage.js';
 import type { LibraryRecipe } from './library/plan.js';
 import { ReelBriefSchema } from './reel/script.js';

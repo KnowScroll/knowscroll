@@ -227,6 +227,10 @@ export function fixtureSnapshot(
   concepts: readonly { readonly id: string; readonly parent: string | null; readonly facets?: readonly string[] }[],
   releaseId = 1,
   status: { readonly waiting?: readonly string[]; readonly retired?: readonly string[] } = {},
+  /** The formation thresholds a node sets, by node id (D-419): the others keep the defaults. */
+  policies: Readonly<
+    Record<string, { readonly systemUnits?: number; readonly planetUnits?: number; readonly planetFacets?: number }>
+  > = {},
 ): CatalogueSnapshot {
   const nodes: NodeRow[] = [];
   const revisions: RevisionRow[] = [];
@@ -250,9 +254,9 @@ export function fixtureSnapshot(
       meaning,
       meaningSha256: canonicalSha256(meaning),
       compatibleWith: [],
-      systemUnits: null,
-      planetUnits: null,
-      planetFacets: null,
+      systemUnits: policies[id]?.systemUnits ?? null,
+      planetUnits: policies[id]?.planetUnits ?? null,
+      planetFacets: policies[id]?.planetFacets ?? null,
       sceneFamily: kind === 'system' ? 'terraced.v1' : null,
       haze: kind === 'system' ? 'teal' : null,
     });

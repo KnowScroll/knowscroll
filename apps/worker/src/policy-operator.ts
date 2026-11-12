@@ -5,7 +5,7 @@ import {
 } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
-import { makeReleasePolicy, type ReleasePolicy } from '@knowscroll/backend/modules/content/nest-providers';
+import { makeCatalogue, makeReleasePolicy, type ReleasePolicy } from '@knowscroll/backend/modules/content/nest-providers';
 
 type Print = (result: Record<string, unknown>) => void;
 
@@ -37,7 +37,7 @@ async function withReleasePolicy(
       onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
     });
     try {
-      return await work(makeReleasePolicy(database.db));
+      return await work(makeReleasePolicy(database.db, makeCatalogue(database.db)));
     } finally {
       await database.close();
     }

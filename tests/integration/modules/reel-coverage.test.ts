@@ -7,11 +7,11 @@ import { checkErasureInventory, eraseUniverse } from '@knowscroll/backend/infras
 import { personalStores } from '@knowscroll/backend/erasure-registry';
 import {
   admitReelCoverage,
-  coverageCatalogue,
   coverageHeadPorts,
   makeAdmissionStore,
   makeAdmitCoverage,
   makeCoverageAdmissionPorts,
+  planCoverageCatalogue,
   postgresReelPublisher,
   readmitCoverageUseCase,
   type PublishReel,
@@ -793,11 +793,11 @@ describe('Reels count toward formation (real PostgreSQL CI fixtures)', () => {
   });
 
   describe('a head that changed only in the catalogue digest (D-406)', () => {
-    const grown = { ...coverageCatalogue, sha256: canonicalSha256({ fixturePlan: 'ci-grown-concept-plan' }) };
+    const grown = { ...planCoverageCatalogue(), sha256: canonicalSha256({ fixturePlan: 'ci-grown-concept-plan' }) };
     const readmitWithGrownPlan = (reel: Reel, facetId: string) =>
       makeAdmissionStore(world.database.db).inAdmission((tx) =>
         admitReelCoverage(
-          { ...coverageHeadPorts, catalogue: grown },
+          { ...coverageHeadPorts, catalogue: () => Promise.resolve(grown) },
           tx,
           { explanationUnitId: reel.unit, topicId: topic, facetId },
           { assetId: reel.assetId, assetRevision: 1 },
@@ -814,16 +814,16 @@ describe('Reels count toward formation (real PostgreSQL CI fixtures)', () => {
       const original = await trusted(p, one);
       expect(original.witnesses).toHaveLength(1);
 
-      // `content readmit-coverage` after the plan grew: the same mapping, a new digest and head number.
+      // `content readmit-coverage` after a catalogue release that changed only the digest (D-419): the same decision, so no new head.
       expect(await readmitWithGrownPlan(one, facet)).toMatchObject({
         kind: 'admitted',
-        change: 'appended',
-        head: { authority: { headRevision: 2 } },
+        change: 'unchanged',
+        head: { authority: { headRevision: 1 } },
       });
       expect(await readmitWithGrownPlan(two, otherFacet)).toMatchObject({
         kind: 'admitted',
-        change: 'appended',
-        head: { authority: { headRevision: 2 } },
+        change: 'unchanged',
+        head: { authority: { headRevision: 1 } },
       });
       const after = await trusted(p, one);
       expect(after).toMatchObject({ availability: 'available', reason: 'current' });

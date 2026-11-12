@@ -1,6 +1,6 @@
 import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
-import { CONCEPTS } from '../../content/public.js';
+import { planSnapshot } from '../../content/public.js';
 import { dueCreations, requiredChanges } from '../domain/formation.js';
 import { EVALUATION } from '../domain/evaluation.js';
 import { derivedRouteId } from '../domain/ids.js';
@@ -25,6 +25,8 @@ import { NOW, World, planetReadings, uuid, type Reading } from '../adapters/worl
  * apply over the dirty set, a batch at a time, forms exactly the places that evaluating the whole catalogue forms, with the
  * same activity. Readings, topics and times are authored fixtures over the real concept catalogue.
  */
+/** The catalogue of the library plan (release 1): the fixture these readings are authored over. */
+const CONCEPTS = planSnapshot().all();
 const DAY = 86_400_000;
 const systems = [...new Set(CONCEPTS.filter((topic) => topic.parent !== null).map((topic) => topic.parent!))].slice(
   0,

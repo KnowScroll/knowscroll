@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { conceptMeaning } from '../domain/concepts.js';
+import { canonicalSha256 } from '@knowscroll/scroll-model';
+import { seedSnapshot } from '../domain/catalogue/seed.js';
 import type { CoverageTarget } from '../domain/coverage.js';
+import { LIBRARY_SYSTEMS } from '../domain/library/index.js';
 import { REEL_RECIPE_COVERAGE_RULE } from '../domain/reel-coverage.js';
 import { admitRecipeCoverage } from './admit-recipe-coverage.js';
 import { admitReelCoverage } from './admit-reel-coverage.js';
@@ -38,15 +40,20 @@ function reelTarget(segments: number, unit: string = recipe.explanationUnitId): 
   };
 }
 
+const plan = seedSnapshot(LIBRARY_SYSTEMS, canonicalSha256);
+
 function memoryPorts(target: CoverageTarget | undefined, catalogueSha256 = digest('catalogue-1')) {
   const heads: CoverageHead[] = [];
   const ports: CoverageHeadPorts = {
     hash: digest,
     bytes: (value) => JSON.stringify(value).length,
-    catalogue: {
-      sha256: catalogueSha256,
-      meaningSha256: (topicId, facetId) => (conceptMeaning(topicId, facetId) ? digest([topicId, facetId]) : undefined),
-    },
+    catalogue: () =>
+      Promise.resolve({
+        sha256: catalogueSha256,
+        meaningSha256: (topicId, facetId) => (plan.meaning(topicId, facetId) ? digest([topicId, facetId]) : undefined),
+        acceptsMeaning: (topicId, facetId, sha256) =>
+          plan.meaning(topicId, facetId) !== undefined && sha256 === digest([topicId, facetId]),
+      }),
     lockTarget: () => Promise.resolve(target),
     readHead: () => Promise.resolve(heads.at(-1)),
     append: (_tx, _command, head) => {
@@ -56,6 +63,15 @@ function memoryPorts(target: CoverageTarget | undefined, catalogueSha256 = diges
   };
   return { ports, heads };
 }
+
+/** The same ports reading a catalogue that differs from the first in the given way. */
+const withCatalogue = (
+  ports: CoverageHeadPorts,
+  changes: Partial<Awaited<ReturnType<CoverageHeadPorts['catalogue']>>>,
+): CoverageHeadPorts => ({
+  ...ports,
+  catalogue: async (at) => ({ ...(await ports.catalogue(at)), ...changes }),
+});
 
 describe('admitReelCoverage (in-memory ports; the SQL adapter is covered in integration)', () => {
   it('appends the first head from the recipe, with the Reel rule and recipe as its basis', async () => {
@@ -71,12 +87,21 @@ describe('admitReelCoverage (in-memory ports; the SQL adapter is covered in inte
     expect(heads[0]?.mapping.bindings.map((binding) => binding.requiredBlockIds)).toEqual([['s1', 's3', 's6']]);
   });
 
-  it('replays an identical decision and appends a corrected head after a catalogue change', async () => {
+  it('replays an identical decision, and appends a corrected head only when what a binding pins changed (D-419)', async () => {
     const { ports, heads } = memoryPorts(reelTarget(6));
     await admitReelCoverage(ports, tx, recipe, ref);
     expect(await admitReelCoverage(ports, tx, recipe, ref)).toMatchObject({ change: 'unchanged' });
-    const grown = { ...ports, catalogue: { ...ports.catalogue, sha256: digest('catalogue-2') } };
-    expect(await admitReelCoverage(grown, tx, recipe, ref)).toMatchObject({ change: 'appended' });
+    // A new catalogue release that changed only the digest is not a changed decision.
+    const grown = withCatalogue(ports, { sha256: digest('catalogue-2') });
+    expect(await admitReelCoverage(grown, tx, recipe, ref)).toMatchObject({ change: 'unchanged' });
+    expect(heads).toHaveLength(1);
+    // A facet that means something else now is.
+    const moved = withCatalogue(ports, {
+      sha256: digest('catalogue-3'),
+      meaningSha256: (topicId: string, facetId: string) => digest([topicId, facetId, 'moved']),
+      acceptsMeaning: () => false,
+    });
+    expect(await admitReelCoverage(moved, tx, recipe, ref)).toMatchObject({ change: 'appended' });
     expect(heads.map((head) => head.authority.headRevision)).toEqual([1, 2]);
   });
 
@@ -178,7 +203,7 @@ describe('a head an operator retracted (#674, slice 5.1)', () => {
 
   it('stays retracted after a catalogue change alone: a new digest is not a new decision', async () => {
     const { ports, heads } = await retracted();
-    const grown = { ...ports, catalogue: { ...ports.catalogue, sha256: digest('catalogue-2') } };
+    const grown = withCatalogue(ports, { sha256: digest('catalogue-2') });
     expect(await admitReelCoverage(grown, tx, recipe, ref)).toEqual({ kind: 'not_admitted', code: 'retracted' });
     expect(heads).toHaveLength(2);
   });

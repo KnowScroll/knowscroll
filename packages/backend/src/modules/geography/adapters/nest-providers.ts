@@ -81,7 +81,6 @@ import type {
 import { makeReadGeographySceneInput } from '../application/scene-input.js';
 import type { GeographyApplied } from '../public.js';
 import { geographyStore, readRegionPlace } from './postgres-store.js';
-import { PRODUCT_CATALOGUE } from '../application/catalogue.js';
 import { makeReadOwnRegionConstraint } from '../application/region-constraint.js';
 import { makeReadOwnSystemTopic } from '../application/system-topic.js';
 import { makeSettleQuiet, makeSweepQuiet } from '../application/quiet.js';
@@ -209,7 +208,6 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
         markDirty,
         readInputs,
         readTrusted,
-        catalogue: PRODUCT_CATALOGUE,
         ownerActive,
         store: geographyStore,
         hash: (value) => canonicalSha256(value),
@@ -442,6 +440,7 @@ export function geographyContextHashes(c: GeographyContext, runId: string) {
 export { prepareGeography } from '../application/context.js';
 /** The pinned catalogue and the derived ids, for operator tools and tests that evaluate against a catalogue of their own (D-416). */
 export { catalogueOf, type Catalogue, type CatalogueTopic } from '../domain/catalogue.js';
+export { pinCatalogue } from '../application/catalogue.js';
 export { derivedPlaceId, derivedRouteId } from '../domain/ids.js';
 export { geographyStore } from './postgres-store.js';
 export type { GeographyPorts, CartographerPorts, GeographyContext } from '../application/ports.js';
