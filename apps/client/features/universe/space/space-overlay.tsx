@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react';
 import type { SceneDescriptor } from '@knowscroll/scene-core';
 import { BodyTarget, LABEL_HEIGHT, labelWidth, MapLabel, SceneLayer } from '../scene-parts';
 import { isQuiet, placeLabels, type LabelRequest, type Size, type UniverseIndex } from '../universe-layout';
+import { ANCHOR_CAP } from './detail-set';
 import { CROWDED_TARGET, separateTargets } from './separate-targets';
 import type { SpaceOverlayInfo } from './space-view';
 import type { SpaceAnchor } from './space-surface';
@@ -56,7 +57,11 @@ function reachable(anchor: SpaceAnchor, systemId: string | undefined, far: boole
  */
 export const SpaceOverlay = memo(function SpaceOverlay(props: SpaceOverlayProps) {
   const { anchors, far, index, size, systemId, selectedId, lately, lastPlaceId } = props;
-  const shown = useMemo(() => anchors.filter((anchor) => reachable(anchor, systemId, far)), [anchors, systemId, far]);
+  // The renderer of a map at scale already hands over no more than a frame can use; the cap holds for any other source.
+  const shown = useMemo(
+    () => anchors.filter((anchor) => reachable(anchor, systemId, far)).slice(0, ANCHOR_CAP),
+    [anchors, systemId, far],
+  );
   const labels = useMemo(() => {
     const requests: LabelRequest[] = shown
       .filter((anchor) => anchor.kind !== 'dust' && !(anchor.kind === 'station' && far))

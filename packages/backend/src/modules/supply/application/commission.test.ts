@@ -20,10 +20,13 @@ function world(
     commissionedToday?: number;
     recipe?: string;
     running?: { recipe: string; state: 'not_started' | 'running' | 'stopped' };
+    /** The account is a disposable test account (D-413). */
+    disposable?: boolean;
   } = {},
 ) {
   const events: string[] = [];
   const ports = {
+    accountDisposable: () => Promise.resolve(options.disposable === true),
     createDailyCaps: { person: options.cap ?? 5, planner: options.cap ?? 5 },
     now: () => new Date('2026-11-11T10:00:00Z'),
     store: {
@@ -120,6 +123,55 @@ describe('Create says why it started nothing', () => {
   });
 });
 
+describe('a disposable test account feeds no shared supply (D-413, D-414)', () => {
+  for (const origin of ['person', 'planner'] as const) {
+    it(`never starts shared production for ${origin} demand, and says Create is off for it`, async () => {
+      const w = world({ recipe: 'tides', disposable: true });
+      expect(await commissionSupply(w.ports, scope, brief(), origin)).toEqual({
+        kind: 'unavailable',
+        reason: 'budget_unavailable',
+        cause: 'create_off',
+      });
+      // Not a lock, a count, a group or a production job: nothing shared was touched.
+      expect(w.events).toEqual([]);
+    });
+
+    it(`never joins work that is already under way for ${origin} demand`, async () => {
+      const w = world({ recipe: 'tides', disposable: true, running: { recipe: 'tides', state: 'running' } });
+      expect(await commissionSupply(w.ports, scope, brief(), origin)).toMatchObject({ kind: 'unavailable' });
+      expect(w.events).toEqual([]);
+    });
+  }
+
+  it('leaves no gap signal either, though nothing is left to make', async () => {
+    const w = world({ recipe: undefined, disposable: true });
+    const recorded: unknown[] = [];
+    (w.ports as { recordGapSignals?: (scope: unknown, signals: unknown) => Promise<void> }).recordGapSignals = (
+      _scope,
+      signals,
+    ) => {
+      recorded.push(signals);
+      return Promise.resolve();
+    };
+    await commissionSupply(w.ports, scope, brief(), 'person');
+    expect(recorded).toEqual([]);
+  });
+
+  it('still joins and creates for a real account, so the check is what stops the test account', async () => {
+    const created = world({ recipe: 'tides' });
+    expect(await commissionSupply(created.ports, scope, brief(), 'planner')).toMatchObject({
+      kind: 'waiting',
+      decision: 'create',
+    });
+    expect(created.events).toContain('send tides 1');
+    const joined = world({ recipe: 'tides', running: { recipe: 'tides', state: 'running' } });
+    expect(await commissionSupply(joined.ports, scope, brief(), 'person')).toMatchObject({
+      kind: 'waiting',
+      decision: 'join',
+    });
+  });
+});
+
 describe('which closed asks a person may try again', () => {
   it('allows work that was tried and failed, and nothing ready that a release may change, and nothing else', () => {
     expect(isRetryableReason('could_not_prepare')).toBe(true);
@@ -150,6 +202,7 @@ describe('Create and the growth cap', () => {
     const asked: unknown[] = [];
     const counted: string[] = [];
     const ports = {
+      accountDisposable: () => Promise.resolve(false),
       createDailyCaps: { person: options.cap ?? 5, planner: options.cap ?? 5 },
       growthDailyCap: options.growthCap ?? 10,
       now: () => new Date('2026-11-11T10:00:00Z'),

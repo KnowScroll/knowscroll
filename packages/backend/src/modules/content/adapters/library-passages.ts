@@ -8,7 +8,8 @@ import {
   walkBlocks,
 } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
-import { CONCEPTS } from '../domain/concepts.js';
+import type { CatalogueSnapshot } from '../domain/catalogue/snapshot.js';
+import { readCatalogueIn } from './catalogue-store.js';
 import type {
   LibraryCallSource,
   LibraryPassageSource,
@@ -51,13 +52,17 @@ export function proseBlocksOf(stored: unknown): readonly Block[] {
   });
 }
 
-/** The topic IDs a library topic covers: a system covers each of its planets, a planet itself. */
-export function topicIdsOf(topic: { readonly kind: 'system' | 'planet'; readonly id: string }): readonly string[] {
-  return topic.kind === 'planet'
-    ? CONCEPTS.some((concept) => concept.id === topic.id && concept.parent !== null)
-      ? [topic.id]
-      : []
-    : CONCEPTS.filter((concept) => concept.parent === topic.id).map((concept) => concept.id);
+/**
+ * The topic IDs a library topic covers in one release of the catalogue: a system covers each of its servable planets, a planet itself
+ * while it is a live planet of the catalogue. A topic that is not served yet, or retired, covers nothing a person is offered.
+ */
+export function topicIdsOf(
+  catalogue: CatalogueSnapshot,
+  topic: { readonly kind: 'system' | 'planet'; readonly id: string },
+): readonly string[] {
+  if (topic.kind === 'system') return catalogue.children(topic.id).map((planet) => planet.id);
+  const planet = catalogue.concept(topic.id);
+  return planet?.kind === 'topic' && planet.servable ? [topic.id] : [];
 }
 
 /** A Scroll made for a thread belongs to that thread and is nobody's daily item (D-049). */
@@ -77,7 +82,7 @@ export const makeReadLibraryPassages =
   (db: Kysely<Database>): ReadLibraryPassages =>
   async (topic, limit, only) => {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > READ_LIMIT_MAX) throw new Error('LIBRARY_PASSAGES_LIMIT');
-    const topicIds = topicIdsOf(topic);
+    const topicIds = topicIdsOf(await readCatalogueIn(db), topic);
     if (topicIds.length === 0) return [];
     const result = await sql<Row>`select r.asset_id, r.revision, r.title, d.summary, r.document
       ${servedScrolls}
@@ -127,7 +132,7 @@ export const makeReadLibraryCalls =
   (db: Kysely<Database>): ReadLibraryCalls =>
   async (topic, limit, only) => {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > READ_LIMIT_MAX) throw new Error('LIBRARY_CALLS_LIMIT');
-    const topicIds = topicIdsOf(topic);
+    const topicIds = topicIdsOf(await readCatalogueIn(db), topic);
     if (topicIds.length === 0) return [];
     const result = await sql<Row>`select r.asset_id, r.revision, r.title, d.summary, r.document
       ${servedScrolls}

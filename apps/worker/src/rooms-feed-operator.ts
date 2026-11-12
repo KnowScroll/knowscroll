@@ -7,7 +7,7 @@ import {
   postgresProductionHarnessPorts,
   roomHarnessSettings,
 } from '@knowscroll/backend/reasoning/nest-providers';
-import { makeReadLibraryFinds } from '@knowscroll/backend/modules/content/nest-providers';
+import { makeCatalogue, makeReadLibraryFinds } from '@knowscroll/backend/modules/content/nest-providers';
 import { composeFeedHeartbeat, composeScoutHeartbeat } from '@knowscroll/backend/modules/rooms/nest-providers';
 
 type Print = (result: Record<string, unknown>) => void;
@@ -56,6 +56,7 @@ export async function roomsFeedCommand(
       const model = configuredModelPort(config.reasoning);
       const heartbeatDeps = {
         db: database.db,
+        catalogue: makeCatalogue(database.db),
         harness: makeProductionReasoningHarness(
           postgresProductionHarnessPorts({
             db: database.db,

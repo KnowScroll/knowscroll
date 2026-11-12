@@ -5,6 +5,8 @@ import { LOCK_CURRENT_ENCOUNTERS } from '../public.js';
 import type { Kysely } from 'kysely';
 import type { PgBoss } from 'pg-boss';
 import type { Database } from '../../../infrastructure/postgres/database.js';
+import { withSessionLock } from '../../../infrastructure/postgres/session-lock.js';
+import type { TopicGrowthLock } from '../production/grow-topics.js';
 import { makeImportEditorialScroll } from '../application/import-editorial-scroll.js';
 import { makeEnqueueScrollProduction } from './enqueue-production.js';
 import {
@@ -52,6 +54,8 @@ import {
   READ_LIBRARY_CALLS,
   READ_LIBRARY_REELS,
   READ_LIBRARY_FINDS,
+  CATALOGUE,
+  type Catalogue,
   type CheckAssetAudience,
   type EnqueueScrollProduction,
   type ReadMadeToOrderProduction,
@@ -90,6 +94,7 @@ import { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.j
 import { chooseScrollRecipe, chooseScrollRecipeIn, readScrollProduction } from './production-state.js';
 import { readGapRecipes, readRecipeStates, readReleasedCoverage } from './gap-reads.js';
 import { readRegionEncounterCandidates, lockRegionEncounterCandidates } from './region-candidates.js';
+import { makeCatalogue } from './catalogue-store.js';
 import { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
 import { readLibraryReels } from './library-reels.js';
 import { makeReadLibraryFinds } from './library-finds.js';
@@ -133,6 +138,20 @@ export function contentProviders() {
     { provide: LOCK_CURRENT_COVERAGE_AUTHORITIES, useValue: lockCurrentCoverageAuthorities },
     { provide: CHOOSE_SCROLL_RECIPE, useValue: chooseScrollRecipe },
     { provide: READ_SCROLL_PRODUCTION, useValue: readScrollProduction },
+  ];
+}
+
+/**
+ * The `Catalogue` port (#674, D-419) over the process's pool, for every process that reads the topic catalogue: it keeps the
+ * current release for a few seconds and reads a newer one without a restart. Shared tables only; composition roots only.
+ */
+export function catalogueProviders(tokens: { readonly database: symbol }) {
+  return [
+    {
+      provide: CATALOGUE,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>): Catalogue => makeCatalogue(db),
+    },
   ];
 }
 
@@ -265,6 +284,45 @@ export function importEditorialScrollUseCase(db: Kysely<Database>) {
 }
 
 export { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
+/** The operator's `content catalogue sync` and `status` (D-419), and the catalogue over a handle for composition roots and fixtures. */
+export { catalogueStatus, showServableTopics, syncCatalogue, type CatalogueSyncSummary } from './catalogue-sync.js';
+export { appendRelease, makeCatalogue, readCatalogueIn } from './catalogue-store.js';
+/**
+ * Topic growth (#674, D-422): the scheduled step's pieces and the operator's `content propose-topic` and `content topic-candidates`. A new topic
+ * grows from a candidate page code found, a model places it under an existing system, and code admits it as a catalogue release that is not
+ * servable until the library has released supply for it.
+ */
+export { makeProposeTopic, previewTopicProposal, type ProposeTopicResult } from '../production/propose-topic.js';
+export { makeSeedTopicCandidates, type ReadResearchPage, type SeedResult } from '../production/topic-seeds.js';
+export {
+  makeGrowTopics,
+  proposeUnderLock,
+  type GrowTopicsIdle,
+  type GrowTopicsResult,
+  type TopicGrowthLock,
+} from '../production/grow-topics.js';
+export {
+  CANDIDATE_STATUSES,
+  countCandidates,
+  listCandidates,
+  readCandidate,
+  type CandidateListing,
+  type CandidateStatus,
+} from './topic-candidates.js';
+export { TOPIC_GROWTH_POLICY } from '../domain/catalogue/topic-growth.js';
+/** The owner's approval of each topic that grew (D-422): the text an operator reads, and the decision. */
+export {
+  decideTopic,
+  reviewCandidates,
+  type GrownTopicText,
+  type ReviewedCandidate,
+  type TopicDecisionResult,
+} from '../production/topic-review.js';
+export { fetchResearchWithLinks } from '../../../infrastructure/research/public-pages.js';
+/** The topic growth pass's session advisory lock: one pass at a time, on one dedicated connection, with no transaction across a model call. */
+export const topicGrowthLock = (db: Kysely<Database>): TopicGrowthLock => ({
+  exclusively: (work) => withSessionLock(db, 'content.grow-topics', work),
+});
 export { readLibraryReels } from './library-reels.js';
 export { makeReadLibraryFinds } from './library-finds.js';
 export { makeCutroomReelImporter, type CutroomImportSettings } from './import-cutroom-reel.js';
@@ -353,7 +411,8 @@ export { makeAdmissionStore } from './postgres-store.js';
 export {
   coverageAdmissionUseCase,
   makeCoverageAdmissionPorts,
-  coverageCatalogue,
+  coverageCatalogueOf,
+  planCoverageCatalogue,
   readAdmittedCoverageMapping,
   makeReadAdmittedCoverageMapping,
   coverageHeadPorts,
@@ -364,6 +423,8 @@ export {
 export { readmitCoverageUseCase } from './readmit-coverage.js';
 export { readmitRecipeCoverage } from '../application/readmit-recipe-coverage.js';
 export { makeAdmitCoverage } from '../application/admit-coverage.js';
+/** Decides a Reel's coverage from its script and recipe (#674, slice 5.1): publication and `readmit-coverage` use it. */
+export { admitReelCoverage } from '../application/admit-reel-coverage.js';
 
 export { lockCurrentEncounters } from './current-encounters.js';
 export {
@@ -385,4 +446,7 @@ export { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.j
 /** The operator's Reel commands over real adapters (#240, D-041). */
 export { checkShippedReelScript, composeReelOperator, type ReelSettings } from './reel/compose.js';
 export { contentReelStores } from './reel/stores.js';
+/** Publishes a made Reel in one transaction, with its coverage decided by code (#674, slice 5.1). CI fixtures publish with it too. */
+export { postgresReelPublisher } from './reel/postgres-publisher.js';
 export type { ReelOperator } from '../application/reel/operator.js';
+export type { PublishReel } from '../application/reel/ports.js';

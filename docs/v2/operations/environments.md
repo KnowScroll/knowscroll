@@ -162,6 +162,46 @@ every `*@test.knowscroll.space` account qualifies until the list is set. `node d
 worker tree prints one record's timeline. The one-time `ks2_ops_reader` role for Grafana or psql is created by the
 owner. All of it is in `looking-at-the-system.md`.
 
+### Run the canary on dev (#674, D-413)
+
+The canary drives the deployed API and worker on dev with disposable readers and says whether the algorithms behave: no
+re-reads while unseen content exists, readings stored and qualified, places formed, no failed job, Planner runs settled. Run it
+after a deploy, from the **worker** tree, as the world's v2 user. Minting writes the accounts and their audit rows. The readers
+then cause what any reader causes, including the Planner, Cartographer and Jev model calls within dev's caps. A disposable
+account never starts or joins shared production, so the run commissions nothing; the summary says what it spent.
+
+A run is long: **start it under `tmux` or `nohup`** so a closed terminal does not stop it.
+
+```sh
+sudo sh -c 'set -a; . /etc/knowscroll/dev.v2.env; . /etc/knowscroll/secrets/v2-dev/database.env; set +a;
+  cd /srv/knowscroll/dev/current/worker && exec nohup runuser -u ks2-dev -- /usr/bin/node dist/operator.js canary run --speed max > /tmp/canary.out 2> /tmp/canary.err &'
+```
+
+- **Needs** the operator sign-in settings of the API (`KS_ALLOW_OPERATOR_SIGN_IN=1`, `KS_OPERATOR_SIGN_IN_PATTERN=*@test.knowscroll.space`,
+  `KS_PUBLIC_ORIGIN`), which `dev.v2.env` carries. Only `dev`, `stage`, `ci` and `local` allow it, `stage` also needs
+  `--allow-stage`, and `--base-url` may only be the world's own origin or this machine.
+- **Time.** Reading is in real time. All five personas at `--speed max` take about 30 to 40 minutes, mostly the reader of many
+  Scrolls; the wait after the journeys adds up to `--wait` seconds (default 600) for Planner runs, and `--timeout` (default 90
+  minutes) bounds the whole run. A quick check: `--personas cold-start,deep-reader --speed max --wait 60` (about three
+  minutes). `--many 6` shortens the long reader.
+- **Result.** One JSON line, also after a crash: `result` is `passed`, `failed` or `aborted`; `checks` lists every invariant as
+  `ok`, `violated`, `not_exercised` (what it guards never happened, so nothing was proved) or `inconclusive` (evidence was
+  still being projected when the wait ran out); `violations` names the code, the persona and a count; `spend` gives the shared
+  supply requests, the commissioned work (must be 0) and the model attempts by role. Never an id, title, address or link. Exit
+  0 passed, 1 violated, aborted or failed, 2 refused. `--strict` also fails on any `not_exercised` or `inconclusive`: use it for a
+  run built to reach everything. A `lastResortRepeats` count above zero is allowed (nothing unseen was left).
+- **If it fails.** `repeat_while_unseen_exists`: replay `composer replay-policy` and check `KS_COMPOSER_POLICY=v2`
+  (`composerPolicies` in the result shows which policy the decisions were made under). `reading_not_*` or `job_failed`: read the
+  worker journal and `ops.recent_errors`. `formation_*_missing`: rerun with `--keep`, take the account ids from
+  `ops.operator_sign_ins` and read their `geography.run` steps with `journey --account <id>`. `planner_run_stuck`: the same wedge
+  the #674 audit found. `shared_supply_touched`: Supply's disposable check is broken; stop and report it.
+- **Stopping it.** Ctrl-C or `kill <pid>` (SIGINT, SIGTERM, SIGHUP) stops the journeys and deletes the run's accounts within a
+  minute; the line says `aborted` and what was deleted. Stop it by that PID only. The run id is on stderr at the start.
+- **Cleanup.** Each account is deleted through the real deletion flow and its receipt must say `completed`; `cleanup` in the
+  result says how many. After a kill, a crash or `--keep`, `node dist/operator.js canary cleanup --dry-run` counts this world's
+  `canary-<run>-<persona>@test.knowscroll.space` accounts and `canary cleanup [--run <id>]` deletes them through the same flow.
+  It opens no other address. Each mint leaves an audit row in `ops.operator_sign_ins`, as `issue-sign-in` does.
+
 ### Reasoning operator commands (worker tree)
 
 Related: S2.2.
@@ -187,6 +227,23 @@ attempt's reserved budget. `reasoning purge-expired` deletes expired protected r
 (the worker also does it every 15 minutes). Results are one JSON line on stdout; exit 0 done, 2
 refused or not applicable, 1 failure. Protected request bytes hold personal model context: only
 the harness reads them; nothing here prints them.
+
+### Switching Composer policy v3 on (D-420, #674)
+
+Composer policy v3 reads long-term interest roll-ups that migration 0121 creates empty, so a world turns it on in this order. Dev keeps
+`KS_COMPOSER_POLICY=v2` until all of it is done.
+
+1. Deploy. `migrate.js` applies 0121 before the new release starts; it takes no long lock (nullable columns, an empty table, a partial index that
+   starts empty, a `NOT VALID` pin, no backfill). From then the new binary writes the roll-ups and every writer, an older binary included, gets a
+   correct `log_weight` from the trigger.
+2. Rebuild, from the worker release tree on the server: `node dist/operator.js evidence rebuild-interest-rollups` (add `--max-universes <1-5000>`;
+   it prints counts and `"complete": true` when every person with topic rows has been visited, and can be run again until it does). It is idempotent
+   and safe beside live traffic: each person is one transaction under their own personal scope. It writes derived rows only; no model, no network.
+3. Read `node dist/operator.js composer replay-policy --since <date>` on the world's stored decisions (v3 beside v2).
+4. Set `KS_COMPOSER_POLICY=v3` in the world's env file for the API and the worker alike, and restart both.
+
+After any rollback to a binary that does not write roll-ups, run step 2 again before v3 is read. Switching the setting back to `v2` strands nothing
+(a stored decision replays under its own label).
 
 ### Admitting the starter Scroll on dev or stage (D-005)
 

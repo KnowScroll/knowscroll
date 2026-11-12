@@ -160,4 +160,13 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
   { name: '0113_library_support_checks', sha256: '6ecbe6d04258dd0f7c628411eca36ec20b858f1f57781b0e7be65666757ec519' },
   { name: '0114_incremental_formation', sha256: 'dc78e35f8dd1fd56c090fd042d514be8569572fac2478888ab6c1f55c49f2a44' },
   { name: '0115_content_release_policy', sha256: 'dc0a93ebec2801fa030d7505e69c8136fedcf1c3718fb0209a95437ffb8e2b1e' },
+  { name: '0116_reel_coverage', sha256: '3299dcbfd40870e4e9e7060ab50850e9f76222686898e8f22e759c9eb6d5be14' },
+  { name: '0117_topic_catalogue', sha256: '8fbe1273f703f0c80f39ba4a04404496ca4fa4faaed7c04684b4c3410a3d810e' },
+  {
+    name: '0118_request_catalogue_release',
+    sha256: 'e34b8574539a99c5de70523432a273ede1c41629bfa1a56bfcb20901f5a3daa9',
+  },
+  { name: '0120_topic_growth', sha256: '3da30b9bb64ce64651fa5c5286b109beff33e7ef82bc496f17e3eadbabdafb96' },
+  { name: '0121_interest_format_v3', sha256: 'fd92b00771296d620b4a3dc3d7195be5ca22cac32f3e8af94f4e69563ff7e02c' },
+  { name: '0122_scene_map_at_scale', sha256: 'a0d392f2a11179a6821c55250820f0cabd595708a2955eb012f2f84e4c6a78b6' },
 ];

@@ -387,6 +387,18 @@ export const CHECK_PERSONAL_OWNER_ACTIVE = Symbol('identity.checkPersonalOwnerAc
 export type CheckPersonalAccountDisposable = (scope: PersonalScopeTx) => Promise<boolean>;
 export const CHECK_PERSONAL_ACCOUNT_DISPOSABLE = Symbol('identity.checkPersonalAccountDisposable');
 
+/**
+ * The addresses of disposable accounts whose local part starts with `localPrefix` and whose domain is `domain`, oldest
+ * first, at most `limit`. For the canary's cleanup of its own test accounts: it asks for `canary-` addresses of the
+ * operator pattern's domain, and the caller checks each against the exact shape it made. No lock; a read of
+ * addresses only, never an account, session or universe.
+ */
+export type ListDisposableAddresses = (query: {
+  readonly localPrefix: string;
+  readonly domain: string;
+  readonly limit: number;
+}) => Promise<readonly string[]>;
+
 /** Current Identity authority, valid only while its account fence transaction stays open.
  * Never use a saved snapshot as a reusable authorization capability.
  */

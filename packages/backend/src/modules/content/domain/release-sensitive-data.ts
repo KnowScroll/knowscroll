@@ -9,7 +9,7 @@
  */
 
 /** The version of this file's rules. Changing any list or number below is a new version, so a decision can be traced to the rules it was made under. */
-export const SENSITIVITY_VERSION = 'release-sensitivity.v1';
+export const SENSITIVITY_VERSION = 'release-sensitivity.v2';
 
 export const SENSITIVE_CATEGORIES = [
   'medicine',
@@ -32,6 +32,12 @@ export const SENSITIVE_SYSTEMS: Readonly<Record<string, readonly SensitiveCatego
   'human-body': ['medicine', 'health'],
   history: ['political_history', 'religious_history'],
 };
+
+/**
+ * The systems the owner decided are ordinary. The catalogue is data now (D-419): a system a release adds is in neither list until the owner
+ * decides it here, and a Scroll of its topics waits for a person (`unknown_topic`) until then, so a new system is never released unread by default.
+ */
+export const ORDINARY_SYSTEMS: readonly string[] = ['earth', 'space', 'machine-learning', 'computing'];
 
 /**
  * The keys of a stored Scroll document whose values are not the Scroll's words: its identity, versions, measures, integrity hash and the references one part

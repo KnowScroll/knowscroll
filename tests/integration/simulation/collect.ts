@@ -20,6 +20,8 @@ export interface DbSnapshot {
   readonly plannerRuns: readonly { readonly status: string; readonly outcome: string | null; readonly n: number }[];
   /** Topics with at least one raw coverage reference, and topics with at least one trusted support, in Personal Context. */
   readonly referenceTopics: readonly string[];
+  /** Exposures that hold a coverage reference: the reading proved a facet of its unit. */
+  readonly referencedExposures: readonly string[];
   readonly supportTopics: readonly string[];
   /** The person's places, by semantic key. */
   readonly places: readonly string[];
@@ -64,6 +66,11 @@ export async function collect(world: SimWorld, universeId: string): Promise<DbSn
     union select topic_id from personal_context.recording_coverage_references where universe_id = ${u}::uuid`.execute(
     db,
   );
+  const referencedExposures = await sql<{ exposure_id: string }>`
+    select exposure_id from personal_context.coverage_references where universe_id = ${u}::uuid
+    union select exposure_id from personal_context.recording_coverage_references where universe_id = ${u}::uuid`.execute(
+    db,
+  );
   const supportTopics = await sql<{ topic_id: string }>`
     select distinct topic_id from personal_context.coverage_supports where universe_id = ${u}::uuid`.execute(db);
   const geographyRuns = await sql<{ status: string; outcome: string | null; n: number }>`
@@ -100,6 +107,7 @@ export async function collect(world: SimWorld, universeId: string): Promise<DbSn
     contextTopics: topics.rows.map((row) => row.topic_id),
     referenceTopics: referenceTopics.rows.map((row) => row.topic_id),
     supportTopics: supportTopics.rows.map((row) => row.topic_id),
+    referencedExposures: referencedExposures.rows.map((row) => row.exposure_id),
     geographyRuns: geographyRuns.rows,
     plannerRuns: plannerRuns.rows,
     places: places.rows.map((row) => row.semantic_key),

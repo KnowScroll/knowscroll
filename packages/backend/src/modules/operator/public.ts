@@ -1,7 +1,8 @@
 /**
  * Operator's framework-free public surface: the use cases that let an operator look at the running
- * system through the allowlisted `ops` views (D-044), and the types they answer with. Nothing here
- * writes. The use cases are built by `adapters/nest-providers.ts`.
+ * system through the allowlisted `ops` views (D-044), and the types they answer with. None of them
+ * writes. The post-deploy canary (D-413) is also exposed here: it mints disposable accounts (which writes the
+ * accounts and their audit rows) and from then on acts only through the product's own public routes. The use cases are built by `adapters/nest-providers.ts`.
  */
 export { makeIsOperator, type IsOperator } from './application/operator-access.js';
 export {
@@ -26,6 +27,21 @@ export {
 } from './application/run-watchdog.js';
 export { watchdogQueue } from './events.js';
 export { renderJourney } from './domain/render.js';
+export { runCanary, CanaryRunFailed, type AbortReason, type CanaryReport } from './application/canary/run-canary.js';
+export { cleanupCanary, type CleanupReport } from './application/canary/cleanup-canary.js';
+export type { CanaryOptions, CanaryPorts } from './application/canary/ports.js';
+export {
+  DEFAULT_MANY_READS,
+  MAX_MANY_READS,
+  RUN_ID_PATTERN,
+  canaryAddressFor,
+  canaryAddressShape,
+  parsePersonas,
+  parseSpeed,
+  type PersonaId,
+  type Speed,
+} from './domain/canary/personas.js';
+export { VIOLATION_CODES, type Evaluation, type ViolationCode } from './domain/canary/evaluate.js';
 export type { Journey, JourneyGap, JourneyStep, JourneySubject } from './domain/journey.js';
 export {
   RETENTION_QUEUES,

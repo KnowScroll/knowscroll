@@ -30,6 +30,8 @@ export interface FieldTypes {
   traceId: string;
   spanId: string;
   // Operational facts
+  /** The eight-hex label of one canary run (D-413): the disposable accounts' addresses carry it; it names no person. */
+  canaryRun: string;
   outcome: string;
   reasonCode: string;
   durationMs: number;
@@ -240,6 +242,12 @@ export const diagnosticCatalogue = {
     module: 'content',
     fields: ['context', 'revision', 'error'],
   },
+  // A topic catalogue release was made without a deploy (#674, D-419): the topics that became servable once the library had released
+  // supply for them. A count and a code only: no topic, no label, no meaning.
+  'content.catalogue_released': { severity: 'info', module: 'content', fields: ['outcome', 'count'] },
+  // One pass of topic growth (#674, D-422) that read links or proposed a place: `outcome` is done, admitted, paused or busy and `count` the topics
+  // it admitted (not servable yet). Counts and codes only: no page, no topic, no label.
+  'content.topic_growth': { severity: 'info', module: 'content', fields: ['outcome', 'count'] },
   // Evidence intake (API) and projection (worker). Counts and codes; no event, block or exposure
   // content (D-017); personal-linkable IDs are withheld from the journal by the sink projection.
   'evidence.observations_ingested': {
@@ -337,6 +345,9 @@ export const diagnosticCatalogue = {
   },
   // A watchdog rule could not be read (the view is missing or the read timed out); the other rules still ran.
   'watchdog.rule_skipped': { severity: 'warn', module: 'operator', fields: ['reasonCode'] },
+  // The post-deploy canary (D-413): the run id goes to stderr at the start so a killed run's accounts can be found again.
+  'operator.canary_started': { severity: 'info', module: 'operator', fields: ['canaryRun', 'count'] },
+  'operator.canary_stopped': { severity: 'warn', module: 'operator', fields: ['canaryRun', 'reasonCode', 'count'] },
 } as const satisfies Record<string, EventSpec>;
 
 export type DiagnosticEvent = keyof typeof diagnosticCatalogue;

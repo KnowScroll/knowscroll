@@ -6,12 +6,13 @@ import { afterAll, beforeAll, describe, it } from 'vitest';
 import type { NavigationOutcome } from '@knowscroll/contracts';
 import { createDatabase, type Database, type DatabaseHandle } from '@knowscroll/backend/infrastructure/postgres';
 import { jobConsumer } from '@knowscroll/backend/infrastructure/jobs';
-import { CONCEPTS } from '@knowscroll/backend/modules/content';
+import { planSnapshot } from '@knowscroll/backend/modules/content';
 import { readReleasedCoverage, readRecipeStates } from '@knowscroll/backend/modules/content/nest-providers';
 import { prepareBufferQueue } from '@knowscroll/backend/modules/composer';
-import type { CatalogueTopic } from '@knowscroll/backend/modules/geography/nest-providers';
-import { gapScanStore, makeScanGaps } from '@knowscroll/backend/modules/supply/nest-providers';
+import { pinCatalogue, type CatalogueTopic } from '@knowscroll/backend/modules/geography/nest-providers';
+import { catalogueTopics, gapScanStore, makeScanGaps } from '@knowscroll/backend/modules/supply/nest-providers';
 import { drain } from '../simulation/drain.js';
+import { catalogueOf } from '../support/catalogue.js';
 import { geographyWorld, type GeographyWorld } from '../support/geography-world.js';
 import type { FixturePerson } from '../support/fixtures.js';
 import { workerDryRuns } from '../support/dry-run.js';
@@ -598,10 +599,12 @@ describe('load test: the design target (#674, slice 4.4)', () => {
   // The Universe / sky read
   // ----------------------------------------------------------------------------------------------------------------
   it('the Universe read: the heavy reader, and a reader whose whole product catalogue is formed', async () => {
-    // A reader over the real, code catalogue: every planet formed, so the read can be answered and Scenes can project it.
-    const entries = CONCEPTS as unknown as CatalogueTopic[];
+    // A reader over the real catalogue (release 1 of the library plan): every planet formed, so the read can be answered and Scenes can project it.
+    const snapshot = planSnapshot();
+    const pinned = pinCatalogue(snapshot);
+    const entries: CatalogueTopic[] = snapshot.all().map((concept) => pinned.topic(concept.id)!);
     const planets = entries.filter((entry) => entry.parent !== null && entry.facets.length > 0);
-    const realFx = formationFixture(entries, planets, { halfBuilt: false });
+    const realFx = formationFixture(entries, planets, { halfBuilt: false, snapshot });
     await realFx.seed(seedDb.db, complete.universeId, planets.length);
     const runner = formationRunner(world, realFx.overrides);
     const asked = await world.request(complete.authority, { commandId: randomUUID() });
@@ -798,6 +801,7 @@ describe('load test: the design target (#674, slice 4.4)', () => {
       from unnest(${reader}::uuid[]) as u(id) cross join generate_series(1, ${perReader}::int) as k`.execute(seedDb.db);
     await sql`analyze supply.gap_signal_marks`.execute(seedDb.db);
     const scan = makeScanGaps({
+      readCatalogue: async () => catalogueTopics(await catalogueOf(db()).current()),
       enabled: true,
       depthTarget: 6,
       maxRounds: 3,
@@ -826,7 +830,7 @@ describe('load test: the design target (#674, slice 4.4)', () => {
       notes: [
         `${String(reader.length * perReader)} uncounted marks from ${String(reader.length)} readers, counted into the daily signals by this scan; the library has ${String(library.assets)} assets and ${String(library.releasedBindings)} released bindings over ${String(library.topics)} topics.`,
         `Outcome: ${JSON.stringify(first.value.value)}.`,
-        `The structural pass walks the code catalogue (17 planets): the catalogue is not injectable into the scan, so the in-memory part over a 10,000-topic catalogue is not measured. The library read (\`readReleasedCoverage\`, SQL over all ${String(library.releasedBindings)} bindings) alone took ${coverageOnly.ms.toFixed(0)} ms and returned ${String(coverageOnly.value.planets.length)} planets.`,
+        `The structural pass walks the release-1 catalogue read from the database (17 planets); the scan is given that catalogue, not the 10,000-topic synthetic one, so the in-memory part over a 10,000-topic catalogue is not measured. The library read (\`readReleasedCoverage\`, SQL over all ${String(library.releasedBindings)} bindings) alone took ${coverageOnly.ms.toFixed(0)} ms and returned ${String(coverageOnly.value.planets.length)} planets.`,
       ],
       ...(slow ? { explain: await explain(world.database.name, slow, queries) } : {}),
     });

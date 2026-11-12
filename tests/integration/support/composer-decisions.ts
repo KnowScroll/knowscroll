@@ -101,9 +101,18 @@ export const v2Decision = (snapshot: ComposerSnapshot): ComposerDecision =>
  * What a regression of policy v2 would record: the same code with unseen-first switched off, so a met explanation can be offered
  * beside an eligible unseen one, under the v2 label. The store refuses to keep it (it must replay under the real v2), so
  * `storeRaw` writes it the way only a bug would.
+ *
+ * Exploration is switched off too (`explorationFraction: 0`), so the first slot is always the ranked winner and the regression is
+ * the only thing that decides it. A lane-reading policy (v3) explores from every eligible candidate when its snapshot's pool has
+ * none eligible, and these fixtures carry no pool: with the random seed of `snapshotOf` the draw hit in 9.7% of 4,000 decisions
+ * and, between a met and an unseen candidate, put the unseen one first in 4.9%, so a test of "the first offer is a met one" failed
+ * about one run in twenty. v2 has no such fallback, so for it this changes nothing.
  */
-export const regressedDecision = (snapshot: ComposerSnapshot): ComposerDecision => {
-  const regressed: ComposerPolicy = { ...COMPOSER_POLICY_V2, encountered: 'score' };
+export const regressedDecision = (
+  snapshot: ComposerSnapshot,
+  base: ComposerPolicy = COMPOSER_POLICY_V2,
+): ComposerDecision => {
+  const regressed: ComposerPolicy = { ...base, encountered: 'score', explorationFraction: 0 };
   return composeEncounter(snapshot, regressed);
 };
 

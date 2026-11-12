@@ -37,7 +37,19 @@ node dist/operator.js content produce-library [--only seasons,tides] [--interact
 node dist/operator.js content propose-recipes --topic earth.tides --dry-run
 node dist/operator.js content propose-recipes --topic earth.tides [--facet earth.tides.<facet>] [--retry 1]
 node dist/operator.js content recipes [--status checked|queued|produced|retired]
+
+# new topics under existing systems (D-422): the candidate pages code found, and a model's placement of one (see "New topics grow from pages the library trusts")
+node dist/operator.js content topic-candidates [--status pending|eligible|rejected|proposed|refused|admitted|blocked_unknown]
+node dist/operator.js content propose-topic --page https://en.wikipedia.org/wiki/<candidate page> --dry-run
+node dist/operator.js content propose-topic --page https://en.wikipedia.org/wiki/<candidate page>
+node dist/operator.js content topic approve --topic <topic id>
+node dist/operator.js content topic reject --topic <topic id>
 node dist/operator.js content produce-library --only gen-<key> --dry-run
+
+# the topic catalogue as data (D-419): import the library plan as the next release, make topics with released supply servable (see "The topic catalogue")
+node dist/operator.js content catalogue sync --dry-run
+node dist/operator.js content catalogue sync
+node dist/operator.js content catalogue status
 
 # make another take of a v2 Scroll that is already served (stored held; see "Running a library wave")
 node dist/operator.js content regenerate --only seasons,seasons-hemispheres --dry-run
@@ -148,7 +160,10 @@ is refused before any database or provider work. A published Scroll gets its pla
 coverage from its recipe in the same transaction (D-033).
 
 After editing the plan (a facet or planet added or reworded), decide coverage again for Scrolls that
-are already published. It is idempotent and appends corrected heads only where the decision changed:
+are already published, and for the Reels made from an approved script (a Reel's coverage is decided at
+its publication too, D-421). It is idempotent and appends corrected heads only where the decision changed.
+After the release that gave Reels coverage, run it once: the Reels already published get their first head, and
+the readers of their units are marked for another look at their places.
 
 ```sh
 node dist/operator.js content readmit-coverage --dry-run
@@ -417,6 +432,28 @@ What to read for, besides the list above: each `PICTURE:` line says the figures 
 
 Nothing in the gate edits a revision: a Scroll is released as it was read. To correct a wording, reject and produce again.
 
+## The topic catalogue (#674, slice 2.1, D-419)
+
+Systems, planets and facets live in Postgres as numbered, append-only releases, so adding a topic needs no deploy of the code that reads it. The library
+plan in TypeScript is still where an author writes them, and the first release is exactly that plan.
+
+1. **Edit the plan** (`content/domain/library/*.ts`): add a planet with at least two facets, or a facet after the others, or change a meaning. A meaning
+   that only rewords the old one lists the old text in `sameMeaningAs` of the same node (certificates decided against it stay valid); leave it out for a
+   change of meaning. A new system may leave out its `sceneFamily` and `haze`.
+2. **Preview.** `content catalogue sync --dry-run` prints the release it would make (counts, codes, how many nodes the plan no longer names) and writes nothing.
+3. **Import.** `content catalogue sync` appends the release (the plan's changes, in as many releases as the 20,000-node limit needs) and then makes servable the
+   topics whose supply has been released. Running it again makes nothing. Any refusal (an id taken, a parent missing, a duplicate label, a meaning out of
+   bounds, a topic with fewer than two facets, a changed silhouette or haze) writes nothing and prints its code and the node.
+4. **A new topic is invisible** to readers (not offered, not matched to a request, not a room, not a scout's choice) until the library has released three
+   explanations over two of its facets. Write for it as for any planet (`content propose-recipes --topic <new planet>`, `content produce-library --only gen-<key>`,
+   `content review-list`, `content release`); `showServableTopics` runs in the gap scan's every pass and in `content catalogue sync`, and makes the topic
+   servable in a release of its own (`source` `visibility`).
+5. **After a change of meaning**, run `content readmit-coverage [--dry-run]` to decide coverage again for the published Scrolls. A release changes
+   only the digest, not any certificate: nothing needs doing after adding a topic.
+
+`content catalogue status` prints the release, its digest and the counts of systems, planets, facets, servable planets, planets waiting for supply and, of those, the ones that grew and wait for your approval (`awaitingApproval`). A release is never
+undone: a node is retired by a later release, never deleted, and its id is never reused. Nothing here calls a provider.
+
 ## New recipes for planets that exist (#674, slice 2.2, D-412)
 
 Recipes can live in the database, and the system proposes new ones for the planets and facets the library already has. It makes no
@@ -484,6 +521,35 @@ uses; `KS_SUPPLY_GAP_DEPTH_TARGET` (default 6) is how many released explanations
 6. **Cost.** At most one model request and one repair for each proposing attempt, on the production harness and its attempt ledger, counted against the
    production caps. Two passes never overlap (the second does nothing while the first holds its lock), and a test account's reading is never counted. A redelivered job or a restarted worker repeats nothing that was paid: the gap pins the UTC day of its attempt and the same request is
    answered by the ledger, even after midnight.
+
+## New topics grow from pages the library trusts (#674, slice 3.4, D-422)
+
+Topics can grow under the systems that exist, with no engineer choosing them. Code finds the candidate pages, a model places one and names its facets, code admits it
+or not, and the topic then waits, **invisible to readers**, for the same supply every new topic waits for: three explanations over two of its facets, released by you.
+It makes no system (new systems are the owner's), serves nothing and releases nothing: every Scroll written for it is held for your read like any other, and **a topic that grew is not servable until you approve it** (step 2), however much supply it has. It is **off in
+every world** until `KS_SUPPLY_GROWTH_ENABLED=1` **and** `KS_TOPIC_GROWTH_ENABLED=1` on the worker (and `KS_REASONING_PRODUCTION_ENABLED=1`); the coordinator turns it on for dev. Set either to
+`0` and restart to stop it: no page is read, no model is asked, nothing is written. The research host list stays a human decision (`research/public-pages.ts`): growth fetches
+nothing from a host that is not on it.
+
+1. **See the candidates.** `content topic-candidates [--status ...]` prints the counts by status and the candidates, newest first: the page's address, its host, the status
+   (`pending` found but not read, `eligible` read and fit, `rejected` with the code why, `proposed` a run in flight, `refused` with the code why, `admitted` with the topic made,
+   `blocked_unknown`), the verdict code, how many attempts, and for an admitted one the topic's label, its facets' labels and whether it is servable yet. Rejection codes:
+   `not_an_article`, `disambiguation`, `list_page`, `stub`, `duplicate_topic`, `duplicate_page`, `recipe_page`, `page_unreachable` and `page_<the fetch's code>`.
+2. **Approve each topic before it can be served.** The label, meaning and facets of an admitted topic are the model's words, and they reach readers when the topic becomes servable. Read them
+   in `content topic-candidates --status admitted` (the topic's label and meaning, each facet's label and meaning, whether it is servable, and your decision, which starts `pending`).
+   `content topic approve --topic <id>` records who approved and when, and makes the topic servable at once if the library has already released its three explanations over two facets; otherwise it becomes
+   servable at the next gap scan after they are. `content topic reject --topic <id>` retires the topic and its facets by a release (its id is never reused) and its held Scrolls need never be released.
+   Nothing, not the gap scan, `content catalogue sync` nor a release made by hand, can make an unapproved topic servable (`not_approved`). A decision is made once and cannot be taken back; rewording or merging
+   a topic that grew is not built, so reject it and let the loop find the page again only if the owner wants that. Recipes and Scrolls for a topic you have not decided yet may be produced meanwhile (held, within the growth cap).
+3. **Its recipes and Scrolls.** The gap scan sees an admitted topic as a `thin_planet` hole (`supply gaps`) and the brief job proposes its first recipes from the page it grew from,
+   within the growth cap; or ask yourself: `content propose-recipes --topic <the new topic id>`. Then it is the flow in "New recipes for planets that exist" and "The review gate":
+   `content produce-library --only gen-<key>`, `content review-list`, `content release`; at three released explanations over two facets the next gap scan makes the topic servable in a release of its own.
+4. **Ask by hand.** `content propose-topic --page <the address of an eligible candidate> [--dry-run]` asks the model once (and repairs once) for that candidate (it refuses with `busy` while a scheduled pass holds the lock, and with `backed_off` for a candidate that failed or that no system had room for today); `--dry-run` prints the
+   counts of what would be sent and calls no provider. The page must be one code found: an operator never names a page of their own. A candidate that is `blocked_unknown` had an attempt of unknown outcome
+   (find it with `reasoning unknown` and write it off as for any unknown attempt); it is never asked again.
+5. **The brake.** At most one proposal a pass (twice an hour); no new run once today's runs reached `KS_SUPPLY_GROWTH_DAILY_CAP` (default 10); none while as many topics wait for supply as that cap;
+   none when every system holds `KS_TOPIC_GROWTH_MAX_PER_SYSTEM` topics (default 12, servable or not). A candidate is asked about twice at most, on different days, and a candidate whose attempt failed waits for the next UTC day. If the provider is down the role's failure brake (five failed runs a day) pauses the step and blocks no candidate. Each request is at
+   most one model request and one repair on the production harness (background class), counted against the production caps; a redelivered job repeats nothing that was paid.
 
 ## Running a library wave (S-6a, S-6b, D-197 to D-199, D-217)
 

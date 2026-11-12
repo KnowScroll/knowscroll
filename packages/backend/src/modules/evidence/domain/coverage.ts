@@ -1,9 +1,22 @@
 import { z } from 'zod';
 import { SCROLL_QUALIFICATION_POLICY_V0, SCROLL_RECORDING_QUALIFICATION_POLICY } from './policy.js';
+import { intervalsLength, intersectIntervals, mergeIntervals, type Interval } from './intervals.js';
+import {
+  REEL_QUALIFICATION_POLICY_V0,
+  REEL_RECORDING_QUALIFICATION_POLICY,
+  REEL_SUMMARY_VERSION,
+  REEL_WATCHED_POLICY,
+} from './reel-summary.js';
 
 export const OBSERVED_COVERAGE_POLICY = 'observed-static-coverage.v1' as const;
 const Hash = z.string().regex(/^[a-f0-9]{64}$/u);
 const Ref = z.string().min(1).max(160);
+/**
+ * The policy version of a Reel's coverage mapping in Content (`REEL_COVERAGE_POLICY`), which a test keeps equal.
+ * A Reel exposure is judged only against a mapping of this version, and a Scroll exposure never is.
+ */
+export const REEL_MAPPING_POLICY = 'reel-static-coverage.v1' as const;
+const Span = z.tuple([z.number().int().min(0).max(60_000), z.number().int().min(1).max(60_000)]);
 export const CoverageEvidenceIdentitySchema = z.strictObject({
   id: z.uuid(),
   revision: z.number().int().positive(),
@@ -33,6 +46,7 @@ export const ObservedCoverageSchema = z
       'mapping_unmapped',
       'mapping_retracted',
       'identity_mismatch',
+      'segments_unavailable',
       'limit',
     ]),
     evidence: CoverageEvidenceIdentitySchema.nullable(),
@@ -63,6 +77,8 @@ export const ObservedCoverageSchema = z
           facetId: Ref,
           meaningSha256: Hash,
           requiredBlockIds: z.array(Ref).min(1).max(8),
+          /** A Reel's binding: the media window of each required segment, in the order of `requiredBlockIds`. */
+          requiredSpans: z.array(Span).min(1).max(8).optional(),
         }),
       )
       .max(16),
@@ -124,6 +140,7 @@ interface CoverageHeadInput {
       readonly facetId: string;
       readonly meaningSha256: string;
       readonly requiredBlockIds: readonly string[];
+      readonly requiredSpans?: readonly (readonly [number, number])[] | undefined;
     }[];
   };
 }
@@ -176,5 +193,107 @@ export function observedBindings(
         !facts.nested.some((b) => b.id === id)
       );
     }),
+  );
+}
+
+export const ReelCoverageSummarySchema = z.strictObject({
+  v: z.literal(REEL_SUMMARY_VERSION),
+  uniqueMediaMs: z.number().int().nonnegative(),
+  durationMs: z.number().int().positive(),
+  instrumentationVersion: z.number().int().nonnegative(),
+  sequenceGaps: z.number().int().nonnegative(),
+  reports: z.number().int().nonnegative(),
+  watched: z.array(Span).max(REEL_WATCHED_POLICY.maxIntervals),
+});
+
+/**
+ * When a segment of a Reel counts as watched (#674, slice 5.1). Cutroom reports no shot times, so a segment's
+ * window is an estimate from its narration. The viewer must therefore have watched that window widened by
+ * `marginMs` each way (within the Reel), and the unwatched part may be at most `1 - minShare` of it: watching
+ * the neighbours of a segment is what shows the segment itself was met. Values are policy; a new value is a new
+ * version.
+ */
+export const REEL_SEGMENT_SEEN_POLICY = {
+  version: 'reel-segment-seen.v1',
+  marginMs: 1000,
+  minShare: 0.95,
+  /**
+   * A viewer who starts or finishes within this long of the Reel's first or last millisecond has met that end: playback
+   * starts at a position a few hundred milliseconds in and the last report ends before the media does. It applies only to
+   * a window that reaches the Reel's start or end.
+   */
+  edgeToleranceMs: 500,
+} as const;
+
+/**
+ * Whether the watched media covers a segment's estimated window under `REEL_SEGMENT_SEEN_POLICY`: the window widened
+ * by the margin, with the first and last `edgeToleranceMs` of the Reel not required. Pure.
+ */
+export function reelSegmentSeen(
+  watched: readonly Interval[],
+  span: readonly [number, number],
+  durationMs: number,
+): boolean {
+  const policy = REEL_SEGMENT_SEEN_POLICY;
+  const wideFrom = Math.max(0, span[0] - policy.marginMs);
+  const wideTo = Math.min(durationMs, span[1] + policy.marginMs);
+  const from = wideFrom < policy.edgeToleranceMs ? Math.min(policy.edgeToleranceMs, wideTo) : wideFrom;
+  const to =
+    wideTo > durationMs - policy.edgeToleranceMs ? Math.max(durationMs - policy.edgeToleranceMs, from) : wideTo;
+  if (to <= from) return false;
+  const covered = intervalsLength(intersectIntervals(mergeIntervals(watched), [[from, to]]));
+  return covered >= (to - from) * policy.minShare;
+}
+
+/** Whether every required segment of a Reel binding was watched; a binding without windows never was. */
+export function reelBindingWatched(
+  binding: {
+    readonly requiredBlockIds: readonly string[];
+    readonly requiredSpans?: readonly (readonly [number, number])[] | undefined;
+  },
+  watched: readonly Interval[],
+  durationMs: number,
+): boolean {
+  const spans = binding.requiredSpans;
+  return (
+    spans !== undefined &&
+    spans.length === binding.requiredBlockIds.length &&
+    spans.every((span) => reelSegmentSeen(watched, span, durationMs))
+  );
+}
+
+/**
+ * The bindings of a Reel's mapping whose every required segment the qualified watching covers. Like
+ * `observedBindings`, it returns nothing unless the evidence is a qualified, fully lineage-checked Reel
+ * summary of the facts the mapping was decided against. An unqualified, unknown or position-less summary (one
+ * written before positions were recorded) binds nothing. Partial watching credits only the segments it covered.
+ */
+export function observedReelBindings(
+  evidence: CoverageEvidence,
+  facts: CoverageFacts,
+  head: CoverageHeadInput,
+  hash: (value: unknown) => string,
+) {
+  const summary = ReelCoverageSummarySchema.safeParse(evidence.summary);
+  const policy =
+    evidence.policyVersion === REEL_RECORDING_QUALIFICATION_POLICY.version
+      ? REEL_RECORDING_QUALIFICATION_POLICY
+      : REEL_QUALIFICATION_POLICY_V0;
+  if (
+    !summary.success ||
+    evidence.policyVersion !== policy.version ||
+    evidence.qualification !== 'qualified' ||
+    evidence.q < policy.minQ ||
+    summary.data.instrumentationVersion < policy.minInstrumentationVersion ||
+    !summary.data.watched.length ||
+    facts.reelDurationMs === undefined ||
+    summary.data.durationMs !== facts.reelDurationMs ||
+    evidence.estimatedReadingMs !== facts.estimatedReadingMs ||
+    facts.blocks.length > 0 ||
+    hash(facts) !== head.mapping.readingFactsSha256
+  )
+    return undefined;
+  return head.mapping.bindings.filter((binding) =>
+    reelBindingWatched(binding, summary.data.watched, summary.data.durationMs),
   );
 }

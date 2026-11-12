@@ -1,8 +1,10 @@
 # Library plan
 
-Code-owned data that says what KnowScroll holds Scrolls for. It lives in `domain/` because the
-concept catalogue (`../concepts.ts`, `content-concepts.v1`) is derived from it and domain code may
-import only domain code. It has no behaviour, no storage and no model call.
+Code-owned data that says what KnowScroll holds Scrolls for. It is the **authoring source** of the topic catalogue (D-419):
+`content catalogue sync` imports its systems, planets and facets as the next release of the catalogue in Postgres (`../catalogue/`,
+`content-concepts.v1`), and the first release is exactly this plan. What the code reads of topics, facets, labels, looks and thresholds is the
+catalogue port, not this file; the recipes below are still read from here (and from `content.recipes`) through the `RecipeBook`.
+It lives in `domain/` because the catalogue's import and its seed are pure functions of it. It has no behaviour, no storage and no model call.
 
 | Term               | Meaning                                                                                                                                                                                                                                     | Blueprint                     |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
@@ -14,9 +16,11 @@ import only domain code. It has no behaviour, no storage and no model call.
 ## Files
 
 - `plan.ts`: the shapes (`LibrarySystem`, `LibraryRecipe`, `INTERACTIVE_KINDS`, `STAGE_KIT_IDS`, `ScrollV2Plan`).
-  A `LibrarySystem` also names its `sceneFamily` (the silhouette) and its `haze` (one of teal, cobalt,
-  coral, amber, pink, violet; a different one for each system). Scenes gives both to a system once and never
-  changes them, so edit them for new systems only (D-102).
+  A `LibrarySystem` may also name its `sceneFamily` (the silhouette) and its `haze` (one of teal, cobalt,
+  coral, amber, pink, violet; a different one for each of the first six systems). Scenes gives both to a system once and never
+  changes them, so edit them for new systems only (D-102); a new system that names none gets them assigned from its id, and may repeat
+  one (D-419). A system, planet or facet may also carry `sameMeaningAs`: the earlier wordings that its new wording only rephrases, which
+  keeps the certificates decided against them valid (see "Rules for editing the plan").
 - `earth.ts`, `space.ts`, `machine-learning.ts`, `human-body.ts`, `computing.ts`, `history.ts`: one
   system each, with its planets, facets and recipes. The record key of a recipe is the operator key
   (`content produce-scroll --topic <key>`).
@@ -87,9 +91,14 @@ revisions keep what they were published with.
   different facet of the same planet, or to a planet the brief itself leans on; never to a series
   neighbour. Series ids and part order never change for Scrolls already admitted: a changed
   declaration becomes a new series revision.
-- Adding or renaming a facet, planet or system changes the catalogue digest. See "Library plan and
-  concept catalogue" in `../../README.md`. Stored coverage stays readable; run `content readmit-coverage`
-  afterwards to decide it again for the published Scrolls.
+- Adding a facet, planet or system, or editing a meaning, takes effect when `content catalogue sync` imports the plan as a new release
+  (no deploy of the code that reads it; see "Library plan and concept catalogue" in `../../README.md`). Stored coverage stays readable
+  across a release, because a binding pins its own facet's meaning and a release only changes the digest. Editing a meaning is a
+  semantic change unless you declare it a rewording: put the old text in `sameMeaningAs` of the same node (`catalogue sync` checks it
+  is the wording being replaced) and certificates decided against the old wording stay valid; leave it out and they are dropped from reads
+  until `content readmit-coverage` decides them again (for the published Scrolls and for the Reels made from an approved script). A facet is added after the existing ones and never reordered: its place in the list is
+  the site its region is drawn on. A node is never deleted from the plan to retire it: `sync` reports what the plan no longer names and
+  retires nothing.
 
 ## Checking the pages
 
@@ -101,10 +110,10 @@ that added the plan for the summary); pages change, so re-run the script before 
 
 ## Follow a plan edit through its callers
 
-The Content catalogue derives identities and meanings from this plan. Production chooses the
-recipe; Scenes uses its declared visual family; coverage admission pins exact facet meanings.
-The operator's `content readmit-coverage --dry-run` previews coverage decisions for published
-revisions. It calls no provider but still needs an authorized disposable/operator database.
+`content catalogue sync` imports identities, labels and meanings from this plan as a release of the catalogue. Production chooses the
+recipe; Scenes uses the node's visual family from the release; coverage admission pins exact facet meanings of the current release.
+`content catalogue sync --dry-run` previews the import and `content readmit-coverage --dry-run` previews coverage decisions for published
+Scroll and Reel revisions. It calls no provider but still needs an authorized disposable/operator database.
 Changing a brief is not permission to rewrite an already admitted revision or paid request ID.
 
 Run `pnpm --filter @knowscroll/backend exec vitest run src/modules/content/domain/library`

@@ -136,6 +136,8 @@ admitted or unchanged, 1 refused or failed, 2 usage. The release tree carries th
 | `KS_SUPPLY_GROWTH_ENABLED` | 0 | the gap loop's switch (see the API row): the scan and the brief job return at once while it is `0`; the brief job also needs `KS_REASONING_PRODUCTION_ENABLED=1` |
 | `KS_SUPPLY_GAP_DEPTH_TARGET` | 6 (3 to 50) | how many released explanations a planet should have before the gap loop stops calling it shallow (the one value the depth rule reads; the floors of three explanations and two facets are fixed). The worker reads it |
 | `KS_SUPPLY_GAP_MAX_ROUNDS` | 3 (1 to 10) | the gap loop's circuit breaker (D-414): a commissioned gap whose take an operator rejected, or whose recipes all ended without a release, is tried again and a failed production round is counted; at this many the gap is rejected as `production_rejected`. The worker reads it |
+| `KS_TOPIC_GROWTH_ENABLED` | 0 in every world | topic growth's own switch (D-422): the scheduled `content.grow-topics` step (candidate pages found from the links of research pages already accepted for recipes, a model's placement of one under an existing system, admitted by code as a topic that is not servable until the library has released supply for it) runs only while this **and** `KS_SUPPLY_GROWTH_ENABLED` are `1` and `KS_REASONING_PRODUCTION_ENABLED=1`; off, it reads no page, asks no model and writes nothing. The worker reads it |
+| `KS_TOPIC_GROWTH_MAX_PER_SYSTEM` | 12 (1 to 500) | the one size limit of topic growth (D-422): a system that holds this many topics, servable or not, is offered no more, so a system never grows past what a person can read. The worker and the operator's `content propose-topic` read it. New systems are the owner's and are never made by growth. The step also stays within `KS_SUPPLY_GROWTH_DAILY_CAP` |
 | `KS_REASONING_MAX_REQUEST_BYTES` | 262144 (max 262144) | largest request body; a larger one is refused (`request_too_large`) before anything is written |
 | `KS_REASONING_REQUEST_RETENTION_HOURS` | 48 (max 720) | how long the protected request bytes are kept before the scheduled purge deletes them |
 
@@ -210,9 +212,10 @@ Planner. With `MiniMax-M3.1-Flash` it needs `KS_MINIMAX_REQUEST_TIMEOUT_MS=30000
 `RequestPlanner` with `resumeRunId` resumes the same business run. This does not alter reasoning
 caps, quota or failure-brake policy and does not grant permission to use the #232 allowance.
 
-`KS_COMPOSER_POLICY` (API and worker, `v0`, `v1` or `v2`, default `v0`; any other value is refused at start): the Composer policy
-that new decisions are made under (D-190, D-408). `v2` (#674) never offers an explanation the person has already met while anything
-unseen is eligible; run `composer replay-policy` on the world's stored decisions before setting it. The API ranks a navigation under it and the worker ranks the buffer under it, so
+`KS_COMPOSER_POLICY` (API and worker, `v0`, `v1`, `v2` or `v3`, default `v0`; any other value is refused at start): the Composer policy
+that new decisions are made under (D-190, D-408, D-420). `v2` (#674) never offers an explanation the person has already met while anything
+unseen is eligible; run `composer replay-policy` on the world's stored decisions before setting it. `v3` (#674) keeps that and adds retrieval lanes
+fed by the person's long-term interest, interest and format learned with pooling, and a logged 5% format exploration; dev stays `v2` until its replay has been read (`v3` is test-only in the simulation lab). Before a world sets it, run `evidence rebuild-interest-rollups` once (docs/v2/operations/environments.md, "Switching Composer policy v3 on"). The API ranks a navigation under it and the worker ranks the buffer under it, so
 set both processes of a world alike (they read one environment file). The numbers of `v1` were chosen from `composer replay-policy` on dev (D-190), and dev sets `v1`; other worlds stay `v0` until they
 are set. A stored decision replays under the policy it names,
 whatever this is set to, so switching back and forth strands nothing, and `composer replay-policy` always replays every policy.

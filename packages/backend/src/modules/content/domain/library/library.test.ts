@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { researchUrl } from '../../../../infrastructure/research/public-pages.js';
-import { CONCEPTS, conceptMeaning } from '../concepts.js';
+import { canonicalSha256 } from '@knowscroll/scroll-model';
+import { seedSnapshot } from '../catalogue/seed.js';
 import {
   EARTH_SKY_KIT,
   GUIDE_CHARACTERS,
@@ -17,7 +18,14 @@ import {
   STAGE_FIGURE_SLOT_IDS,
   STAGE_KIT_IDS,
 } from './plan.js';
-import { LIBRARY_SYSTEMS, RECIPES, RECIPE_KEYS, RECIPE_SETS, hazeFamilyOf, sceneFamilyOf } from './index.js';
+import { LIBRARY_SYSTEMS, RECIPES, RECIPE_KEYS, RECIPE_SETS } from './index.js';
+
+/** The catalogue the plan seeds, which is what the plan's own checks read: concepts, meanings, silhouettes and hazes. */
+const plan = seedSnapshot(LIBRARY_SYSTEMS, canonicalSha256);
+const CONCEPTS = plan.all();
+const conceptMeaning = plan.meaning;
+const sceneFamilyOf = plan.sceneFamilyOf;
+const hazeFamilyOf = plan.hazeOf;
 
 const recipes = RECIPE_KEYS.map((key) => ({ key, ...RECIPES[key] }));
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;

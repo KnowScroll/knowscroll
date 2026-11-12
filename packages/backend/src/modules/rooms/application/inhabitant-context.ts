@@ -1,5 +1,4 @@
 import { AI_INHABITANT_LABELS } from '@knowscroll/contracts';
-import { CONCEPTS } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { pointedKind } from '../domain/asks.js';
 import { CONTEXT_MESSAGES } from '../domain/contribution.js';
@@ -185,7 +184,7 @@ export async function assembleMaterial(
     refs: discussion.root === null ? [] : [discussion.root],
   });
   const root = discussion.root === null ? undefined : titleOf(reduced.cardOf.get(keyOf(discussion.root)));
-  const topic = CONCEPTS.find((concept) => concept.id === room.topic.id);
+  const topic = (await p.catalogue.current()).concept(room.topic.id);
   const focusAt =
     parts.focus === undefined ? -1 : reduced.messages.findIndex((entry) => entry.row.messageId === parts.focus);
   const focusable = focusAt >= 0 && !reduced.messages[focusAt]!.keptOut;

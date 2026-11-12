@@ -16,29 +16,63 @@ Database, fake-provider and installed-process checks are in the
 [integration suite](../../../../../tests/integration/README.md). Real provider calls require the
 [provider budget rules](../../../../../docs/v2/engineering/contributing.md#providers-and-money).
 
-## Library plan and concept catalogue
+## Library plan and the topic catalogue (#674, D-419)
 
-The library plan is code-owned data in [`domain/library/`](domain/library/README.md): the topic
-**systems**, the **planets** (topics) in each, the **facets** (kinds of angle) each planet can be
-explained from, and the explanation **recipes** the generator runs. `content-concepts.v1` is
-derived from it, so a system, planet or facet exists exactly where the plan declares it, with a
-parent and a one-line meaning. Prefixes, titles, discovery tags and personal or model labels never
-establish membership. The catalogue and each facet meaning have deterministic SHA-256 identities.
-_Implemented._
+The topic catalogue (`content-concepts.v1`) is **data in Postgres**: **systems**, **planets** (topics) and **facets** (kinds of angle), each a
+node with a stable id that is never reused, a label, a meaning and a chain of immutable revisions. The library plan in TypeScript
+([`domain/library/`](domain/library/README.md)) is its authoring source and the recipes the generator runs; what the code reads of
+topics is the `Catalogue` port (`CATALOGUE`, `current()` and `release(n)`), never a constant. Prefixes, titles, discovery tags and personal
+or model labels never establish membership. _Implemented; migration 0117 seeds release 1 exactly as the plan was._
 
-A coverage mapping records the catalogue digest it was decided against, but reads do not compare it:
-the plan grows, and every edit changes the digest. Each binding pins its own facet meaning instead.
-When a read finds a binding whose facet has vanished or changed meaning, it leaves that binding out of
-the returned mapping (the facet is unmapped), and never throws. Target identity and locators must
-still fit the immutable document, and a mismatch there is corrupt data and throws. Geography ignores
-supports whose meaning changed in the same way. _Implemented._
+- **Releases.** A release is one numbered, append-only step. The catalogue of release N is every node and revision introduced up to N, so
+  what a Geography run pinned reads the same for ever. A release's digest is the SHA-256 of the meanings in the first catalogue's
+  shape (so release 1's is the digest every earlier mapping recorded as `catalogueSha256`); it also covers topics not yet servable and
+  nodes that retired, and only when there are any. The pointer (`content.concept_current`) only moves forward.
+- **Snapshots.** `CatalogueSnapshot` is one release, immutable and synchronous: `concept(id)`, `systems()`, `topics()`, `allTopics()`, `children(system)`,
+  `slice(ids)`, `systemOf`, `meaning`, `meaningSha256`, `acceptsMeaning`, `label`, `sceneFamilyOf`, `hazeOf`, with formation thresholds on each node
+  (defaults 2, 3 and 2). A use case reads one snapshot and everything from it, so a rule that looks twice never sees two releases. A lookup by id finds
+  a node of any status, so what was stored for a retired node still resolves; the listings leave out retired nodes and topics that are not servable, and `slice(ids)`
+  (what new formation reads) leaves out retired nodes too. `adapters/catalogue-store.ts` reads a release once per process
+  (keyed by release and digest) and `makeCatalogue(db)` re-checks the pointer every few seconds without blocking a reader (a stale release is a valid
+  catalogue), so a release made by one process is read by the others without a restart. It keeps every release it has read by number, so `release(n)` for one of
+  those answers from memory with no query: a read inside a personal transaction never takes a second pool connection for one it has already read. Content's own adapters read the release through the transaction they are already in.
+- **Admission is by code** (`domain/catalogue/release.ts`): an id has the plan's shape and sits under its parent, a parent exists and is of the right kind and
+  live, a normalised id and a normalised label are unique across the whole catalogue for systems and for topics (and among the facets of one topic, since facets
+  such as "Limits" repeat across topics), a meaning is 16 to 300 characters without an address or markup, a topic has two to sixteen facets
+  in its own release, a node keeps its place, kind, silhouette and haze for ever, and a rewording is declared the same meaning only of the wording it replaces.
+  Any refusal refuses the whole release. A facet is never retired alone, only with its topic. **A merge is refused** (`merge_unsupported`): sending a retired
+  topic's readers, places, rooms and certificates to another topic is not built, so a topic is retired, never merged, and `merged_into` stays null. Triggers
+  in the migration refuse a node or revision introduced at or below the release the pointer names, and a show or retirement in a release the pointer has passed.
+- **A new topic waits for supply.** It is added not servable (not offered, matched, listed or made a room) until the library has released, coverage-mapped supply
+  for it: at least three distinct explanations over two of its own facets by default (its own thresholds), counted from `content.region_bindings` of admitted
+  Scrolls only (`readReleasedCoverage`), and only the bindings whose pinned meaning the catalogue still accepts (a facet whose meaning changed is not supplied by a Scroll mapped to the old one). `showServableTopics` makes such topics servable in a release of its own; the gap loop's scan runs it each pass, and
+  `content catalogue sync` runs it too. Production and the gap loop work on topics that are not yet servable (`allTopics()`). A topic can also be added by growth
+  (D-422, "Topic growth" below), in a release whose source is `growth`; it waits the same way.
+- **A wording-only revision keeps certificates valid.** A revision lists the identities of the earlier wordings it only rephrases (`compatible_with`), so
+  `acceptsMeaning` still accepts a certificate decided against them; a semantic change lists none and the binding is dropped from reads, never thrown on. New decisions
+  pin the current wording (`meaningSha256`). A release that changes nothing a binding pins changes only the digest, which a read never compares, and re-admission
+  treats it as no change (no new coverage head); so does a wording-only revision: a binding decided against an earlier wording the catalogue still accepts stands as it is, so
+  `content readmit-coverage` appends no head and the certificates read against the head stay valid. Re-admission reads the catalogue once, so a release that lands while it runs cannot fail the publication.
+- **Import.** `dist/operator.js content catalogue sync [--dry-run]` compares the plan with the current release (ids, labels, meanings, looks), adds what is new, revises what
+  changed (a changed silhouette or haze is refused), reports what the plan no longer names (it retires nothing), splits a large plan into releases of at most 20,000
+  nodes (never between a topic and its facets), and then makes servable the topics with supply. Running it twice makes one release.
+  `content catalogue status` prints the release and counts. Output is counts and codes only.
+- **Prompts that listed the catalogue** (free-text match, the scope of a question asked from a Scroll) are shown a bounded, code-built shortlist
+  (`shortlistTopics`: all servable topics while there are at most 24, otherwise the 24 whose label, meaning or facets share the most key words with the text) and the
+  model's answer must be one of them. Where nothing shares a key word the free-text match makes no call and says no topic fits.
 
-After a plan edit, the operator runs `dist/operator.js content readmit-coverage [--dry-run]`. It
-decides coverage again for every published generated Scroll revision through `admitRecipeCoverage`,
-one short transaction each: an unchanged decision appends nothing, a changed one appends a corrected
-head, and history is kept. It prints counts (`considered`, `appended`, `unchanged`, `skipped`). It
-uses shared content only (no provider, personal root or network) and is refused outside the operator
-worlds. _Implemented; not yet run against dev._
+A coverage mapping records the catalogue digest (of the release) it was decided against, but reads do not compare it: the catalogue grows, and every
+release changes it. Each binding pins its own facet meaning instead. When a read finds a binding whose facet has vanished or changed meaning (and no
+revision declared the old wording the same), it leaves that binding out of the returned mapping (the facet is unmapped), and never throws. Target identity
+and locators must still fit the immutable document, and a mismatch there is corrupt data and throws. Geography ignores supports whose meaning changed in
+the same way. _Implemented._
+
+After a semantic change, the operator runs `dist/operator.js content readmit-coverage [--dry-run]`. It decides coverage again for every published
+generated Scroll revision through `admitRecipeCoverage` (and every Reel made from an approved script through `admitReelCoverage`), one short transaction each: an unchanged decision appends nothing, a changed one appends a corrected
+head, and history is kept. It prints counts (`considered`, `appended`, `unchanged`, `skipped`). It uses shared content only (no provider, personal root or
+network) and is refused outside the operator worlds. _Implemented; not yet run against dev._
+
+_Implemented; real-PostgreSQL tests: `tests/integration/modules/catalogue-release.test.ts`._
 
 ## Scroll coverage
 
@@ -118,7 +152,51 @@ ends, blocking head correction and asset withdrawal. No personal revision/effect
 
 Consumers: Evidence credits a binding only when a qualified reading saw every required block
 (`observedBindings`), and Region candidates come from `content.region_bindings` (below). Neither
-changes qualification policy, and no Reel time mapping exists.
+changes qualification policy. A Reel's coverage is its own (next section).
+
+## Reel coverage (#674, slice 5.1, D-421)
+
+Status: implemented, CI-tested against real PostgreSQL. Not yet run against dev. Migration 0116.
+
+A Reel binds facets by the same kind of code rule, over what its script says. `reel-recipe-coverage.v1`
+(`domain/reel-coverage.ts`, `application/admit-reel-coverage.ts`) runs in the Reel's publication transaction
+(`postgresReelPublisher`), as `scroll-recipe-coverage.v1` runs in a Scroll's, with no model call and no network wait:
+
+- A **segment** is one narration sentence of the approved script (one sentence is one shot, as the script check requires),
+  numbered `s1`, `s2` ... Cutroom reports no shot times, so a segment's media window is estimated from its share of the
+  narration's words over the admitted duration: the windows tile the Reel from its first
+  millisecond to its last. The cut is part of the rule's version. The estimate is why Evidence judges watching against a widened window.
+- A segment is **eligible** when every claim it cites is listed in the script and rests on the twin Scroll at the revision the
+  script names. The primary facet of the recipe needs the first, middle and last eligible segment, so watching the opening
+  never counts; a supporting facet, when declared, needs the last two. Fewer than three eligible segments bind nothing: the
+  Reel stays published, watchable and unmapped, and the publication result names the code (`coverage`).
+- The mapping is `reel-static-coverage.v1`, in the same `coverage_revisions` and `coverage_heads` tables, for the Reel's
+  asset revision. Its bindings name the segment ids (`requiredBlockIds`) and each segment's window (`requiredSpans`), so the
+  observed coverage can be judged from the mapping alone. Its framing is factual, the digest a factual Scroll's is, and the
+  reading facts it binds are the Reel's stored duration facts.
+- The Reel's target is read from the stored document, provenance (`reel-provenance.v1` with its `brief`) and facts, and
+  from the twin Scroll revision, which must exist, be served under the same rules as the Reel, **be the Scroll's current
+  revision**, share its explanation unit and be factual. A fixture Reel, a Reel whose provenance has no script (the three
+  imported before scripts carried claims), and a Reel whose twin is withdrawn, still held at the review gate, or has been
+  corrected since (a newer revision) have no target and no coverage: they stop crediting readers the moment that
+  happens, and `readmit-coverage` finds no target and appends nothing.
+- A segment is truth-supported only when every claim of the twin's provenance is documented or a synthesis, the truth
+  states the Scroll rule accepts. A Reel's claims are named locally (`c1`) and rest on the twin revision as a whole, so
+  which twin claims a segment depends on cannot be told, and a twin with an interpretation, a disputed, modelled,
+  counterfactual or fictional claim leaves every segment unsupported.
+- A re-cut is another asset revision. It has its own head and windows; the earlier revision's readings keep proving what
+  they proved, as for a Scroll revision.
+- A Reel never joins a region by its own coverage. The mapping's policy differs from a Scroll's, the derived region lookup
+  keeps only the Scroll policy, and migration 0116 makes a revision of coverage whose policy does not match the kind of its
+  asset a data error. A Reel reaches a region only as the twin of a Scroll (D-404, below).
+- The standalone reviewed-command path cannot map a Reel (`CONTENT_COVERAGE_REEL_REQUIRES_RECIPE`); it can retract a
+  Reel's head.
+
+`content readmit-coverage` decides every Reel that has a script again, with the recipe its provenance names, and
+counts it with the Scrolls; a Reel whose recipe is no longer in the plan is skipped as `no_recipe`. A head an operator
+retracted stays retracted while the decision is what it was (a new catalogue digest alone is not a new decision) and is
+counted as skipped (`retracted`); only a different reading, such as another script or facet, appends a head after it. It names the units it
+changed so their readers are judged again.
 
 A region also offers each covering Scroll's current Reel twin (#709, D-404): the admitted Reel sharing the Scroll
 revision's explanation unit, under the Scroll's own coverage. `readRegionEncounterCandidates` lists the Scroll, then its
@@ -145,14 +223,22 @@ leaves it), and nothing here records who read what.
 | `content.asset_provenance`                              | `0010_content_asset_revisions`                   | The internal provenance of a revision (claims, sources, bindings, checks, production record). Written by admission, **read by no API route**: the consumer document and its provenance are separate tables, so no read of the document can return them                            | None: shared content       |
 | `content.scroll_production_runs`                        | `0015_scroll_production`, key shape `0045`       | Private nonpersonal recipe-key/version jobs, frozen research/passages, accepted claims, code-only outcomes, draft and publication pointer; no consumer read port                                                                                                                  | None: shared public supply |
 | `content.recipes`                                       | `0111_content_recipes`                           | Recipes stored in the database (D-412): key (`gen-…` for a proposal), origin (`code` / `proposal`), status (`checked` / `queued` / `produced` / `retired`), title, planet, facet, optional supporting facet, asset id and explanation unit derived by code, brief, one to three pages, the plain v2 plan SQL pins, the proposing run and the check numbers. Authoritative, shared and nonpersonal | None: shared content       |
+| `content.concept_releases`                              | `0117_topic_catalogue`                           | One row per catalogue release (D-419): its number, the SHA-256 digest of the catalogue it made, its source (`seed`, `plan`, `visibility`, `operator`) and counts. Append-only (a trigger refuses an update or a delete). Authoritative, shared and nonpersonal | None: shared content       |
+| `content.concept_nodes`                                 | `0117_topic_catalogue`                           | The systems, topics and facets by stable id (never reused), parent, creation order (`seq`, a facet's site), `introduced_in`, `visible_in` (when a topic became servable), `retired_in`, status and `merged_into`. Only the last three and `visible_in` may change, once (a trigger); never deleted. Shared and nonpersonal | None: shared content       |
+| `content.concept_node_revisions`                        | `0117_topic_catalogue`                           | Immutable revisions of a node: label, meaning, the identity of the wording, `compatible_with` (earlier wordings it only rephrases), formation thresholds, silhouette and haze. Shared and nonpersonal | None: shared content       |
+| `content.concept_current`                               | `0117_topic_catalogue`                           | The one row that names the current release; it only moves forward | None: shared content       |
 | `content.recipe_proposals`                              | `0111_content_recipes`                           | One proposing run of the recipe brief role (D-412): its run id, planet, facet, UTC day and retry number, the frozen context it was sent (public pages and library text only), and `open` / `completed` / `failed`. Authoritative, shared and nonpersonal | None: shared content       |
+| `content.topic_seed_sources` | `0120_topic_growth` | A research page already accepted for a recipe whose links code has read, once, with the outcome and counts (D-422). Shared, nonpersonal | None: shared content |
+| `content.topic_candidates` | `0120_topic_growth` | A page code found by following those links, keyed by its canonical address, and what became of it: `pending`, `eligible`, `rejected` (the verdict code), `proposed`, `refused`, `admitted` (the topic made) or `blocked_unknown`; `not_before`, the first UTC day it may be proposed for again; and the owner's `approval` of the topic made (`pending`, `approved`, `rejected`, with who and when). Holds the page's public paragraphs while it can be proposed for or has become a topic. No person | None: shared content |
+| `content.topic_proposals` | `0120_topic_growth` | One proposing run of the topic proposal role: the frozen context, the systems the model was offered, where the run stands and what code decided | None: shared content |
+| `pgboss/content.grow-topics` | Queue declaration, no table | Cron at :24 and :54 (D-422): payload a version only, naming no person, page or candidate. Seeds candidates and proposes a place for at most one; it returns at once unless `KS_SUPPLY_GROWTH_ENABLED` and `KS_TOPIC_GROWTH_ENABLED` are both on | Nothing personal |
 | `content.revision_reviews`                              | `0072_content_review_gate`                       | The review gate (D-138): one row for each v2 library revision that was stored held, its state `held` / `released` / `rejected`, and for a decision who (`cli:<operator>`), when and (rejection) why                                                                            | None: shared content       |
 | `content.library_support_checks`                        | `0113_library_support_checks`                    | What a version of the library support check (D-415) said about a stored library revision: the state, the verdict code decided from the sentences, the counts and every sentence's outcome. Informs the operator at the review gate and is the measure of the check; releases and rejects nothing | None: shared content       |
 | `content.release_topic_approvals`                       | `0115_content_release_policy`                    | The topics a person approved for the release policy (D-418): one row for each approval, who and when, and when, by whom and why it was revoked (`operator` or `withdrawal`). One live row for a topic at most. Approving changes nothing by itself: the policy is off until the owner switches it on | None: shared content       |
 | `content.release_withdrawals`                           | `0115_content_release_policy`                    | Who withdrew a Scroll the release policy released, when, and what became of its topic's approval (D-418); the first withdrawal of a revision is kept | None: shared content       |
 | `content.release_policy_looks`                          | `0115_content_release_policy`                    | The last look of the release policy's sweep at each held library revision: the hold code and the rules version, so the sweep pages past revisions that stay held (D-418). A hint: deleting one only makes the sweep look again | None: shared content       |
 | `content.release_risk_raises`                           | `0115_content_release_policy`                    | Raises of one library revision's risk class (D-418): a model's or a person's proposal that the Scroll touches a sensitive category, so it waits for a person. Append-only (a trigger refuses any change), so a proposal can never lower anything                                               | None: shared content       |
-| `content.coverage_revisions` / `content.coverage_heads` | `0022_content_coverage`                          | One immutable facet-to-block mapping per correction or retraction, and one monotonic head per asset revision. `content.region_bindings` (`0037`) is the derived lookup by planet and facet                                                                                        | None: shared content       |
+| `content.coverage_revisions` / `content.coverage_heads` | `0022_content_coverage`, kind guard `0116`        | One immutable facet-to-block (a Reel's: facet-to-segment) mapping per correction or retraction, and one monotonic head per asset revision. `content.region_bindings` (`0037`) is the derived lookup by planet and facet                                                                                        | None: shared content       |
 | `content.reel_orders` / `content.reel_attempts`         | `0053_reel_orders`                               | The business run "make a Reel of this script" and the ledger of every request sent to Cutroom for it (request bytes, state, pool claim, cost). See "Reels from Cutroom"                                                                                                           | None: shared public        |
 | `content.media_objects` / `content.reel_imports`        | `0014_media_reels`, name check relaxed in `0053` | Content-addressed Reel bytes and which Cutroom run became which Reel revision                                                                                                                                                                                                     | None: shared content       |
 
@@ -172,10 +258,13 @@ The storage adapter validates derived reading facts against the canonical Scroll
 | `RenderScroll` (token `RENDER_SCROLL`)                       | experience                                                                 | Reads the stored consumer document (never provenance), parses it on the client path, and **negotiates** it for the capabilities the client declared (D-012): unsupported blocks become readable fallbacks, essential ones are reported. Parsed documents are cached (immutable, 32 entries)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `FindAssetForAction` (token `FIND_ASSET_FOR_ACTION`)         | experience actions                                                         | Does the asset exist, is it admitted, at which revision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `admitRecipeCoverage(ports, tx, recipe, ref)`                | The production publication hook only                                       | Inside the production transaction: lock the revision's coverage, read the stored document and provenance, derive the bindings from the recipe (`scroll-recipe-coverage.v1`) and append the next head, or return `not_admitted` with a code. Idempotent for an identical decision. No model call, no network, no personal root                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `Catalogue` (token `CATALOGUE`; `makeCatalogue(db)`) | geography, scenes, supply, rooms, composer, experience | `current()` and `release(n)`: one `CatalogueSnapshot` (the topic catalogue, D-419). Reads shared tables on the pool; never blocks on a refresh |
 | `RecipeBook` (`recipeBookOf(db)`)                            | production, supply's chooser, the review gate, `readmit-coverage`, the support-check replay (recipe family per asset) | `get(key)`, `servingBrief(brief)` and `all()` over the library plan and `content.recipes` (D-412). Read-only on the shared table; takes a database handle or the caller's transaction; no lock |
 | `makeProposeRecipes(deps)(request, signal)`                  | Operator command `content propose-recipes --topic <planet> [--facet <facet>] [--dry-run]` | One `content.recipe-brief` request and at most one repair on the production harness; code checks every draft and stores the accepted ones as `checked` recipes with the run closed, in one production transaction. Run id from planet, facet, UTC day and role version: a redelivery pays nothing. Refuses unknown planets and facets and planets with no page held before any request |
+| `makeProposeTopic(deps)(request, signal)` | Operator command `content propose-topic --page <url> [--dry-run]`; the scheduled `content.grow-topics` | One `content.topic-proposal` request and at most one repair on the production harness for a candidate page code found; code checks the answer and, in one production transaction under the catalogue's release lock, makes the release that admits the topic (not servable), settles the candidate and the run and closes the harness run. Run id from candidate page, the UTC day the attempt began on and which attempt it is: a redelivery pays nothing, an attempt of unknown outcome blocks the candidate and is never resent. Refuses a page that is no candidate or not open, and a catalogue with no room, before any request (D-422) |
+| `makeSeedTopicCandidates(deps)(signal)` and `makeGrowTopics(ports)(signal)` | The scheduled `content.grow-topics` job | Seeding reads the links of research pages already accepted for recipes (a network wait, outside any transaction) and the candidate pages, and stores each with a verdict. The pass runs only while `KS_SUPPLY_GROWTH_ENABLED` and `KS_TOPIC_GROWTH_ENABLED` are on, within the growth cap, one at a time (D-422) |
 | `ChooseScrollRecipe` (token `CHOOSE_SCROLL_RECIPE`)          | supply (Create and the Planner's demand) | Which recipe (plan or stored) a catalogue brief commissions, from the recipe book and each recipe's standing, given which kinds the day's caps leave open and the unit a Planner opportunity aimed at. No lock, no write |
-| `readmitRecipeCoverage(ports, recipes, {dryRun})`            | Operator command `dist/operator.js content readmit-coverage [--dry-run]`   | Lists every stored revision of generated Scrolls, finds each recipe by asset ID, and runs `admitRecipeCoverage` in its own short admission transaction. Idempotent. With `--dry-run` nothing is written. Returns counts; shared content only, refused outside the operator worlds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `readmitRecipeCoverage(ports, recipes, {dryRun})`            | Operator command `dist/operator.js content readmit-coverage [--dry-run]`   | Lists every stored revision of generated Scrolls, finds each recipe by asset ID, and runs `admitRecipeCoverage` in its own short admission transaction; then every Reel revision whose provenance names a recipe, through `admitReelCoverage`. Idempotent. With `--dry-run` nothing is written. Returns counts; shared content only, refused outside the operator worlds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 `adapters/cutroom/wire-v1/` is the byte-for-byte vendored Cutroom wire schema (CF-61): not built,
 linted or formatted; verified by the `integrity` CI job.
@@ -308,6 +397,44 @@ the process's database handle, on shared tables only, never a personal scope (`a
 
 Status: implemented, CI-verified on real PostgreSQL (`tests/integration/modules/supply-gaps.test.ts`); not runtime-verified on dev.
 
+## Topic growth: new topics under the systems that exist (#674, D-422)
+
+The plan and `content catalogue sync` are still how the owner adds a system or a topic by hand. Topics can also **grow**, under an **existing** system
+only, from pages the library already trusts. Code finds the candidates and decides which may be proposed for, a model places one and names its facets,
+code admits it or not, and the topic waits, invisible, for the same supply every topic waits for (D-419). Every Scroll made for it is held for an operator's read.
+
+- **Seeding** (`production/topic-seeds.ts`, tables `content.topic_seed_sources` and `content.topic_candidates`): the research pages of every recipe that is not retired
+  are the sources, each read once (again after a day if the network failed it) with the link reader of `infrastructure/research` (links of the prose, allow-listed hosts only, articles only). The links that are
+  not a recipe's own page, not a candidate already and not shown to be a list, a disambiguation or a namespace page by their address become `pending` candidates (ten
+  a source). Pending candidates are then read (five a pass) and decided by code (`domain/catalogue/topic-growth.ts`): `rejected` with a code (`not_an_article`,
+  `disambiguation`, `list_page`, `stub` below eight evidence passages, `duplicate_topic` when the title's words equal or share 0.6 of an existing topic's label,
+  `duplicate_page` for a redirect to a page already known, `recipe_page`, `page_unreachable`, or `page_<fetch code>`), or `eligible`, keeping the page's paragraphs.
+  No person, no demand and no model is involved. Output of the operator's list is codes and counts.
+- **Proposing** (`production/propose-topic.ts`, role `production/topic-proposal.ts`): `content propose-topic --page <candidate address> [--dry-run]`, or the scheduled step. One
+  `content.topic-proposal` request and at most one repair, background class, on the production harness. The frozen context is built by code: the page's title and
+  lead passages, a **shortlist of the systems that have room** under the size limit (`KS_TOPIC_GROWTH_MAX_PER_SYSTEM`, default 12, counting topics that are not servable),
+  with some of the topics each has, and one topic of the catalogue as the shape of an answer. The model returns one topic or none: a system id from the list, a
+  label, a one-line meaning and three to five facets, each with a label, a meaning and a quote copied from one passage. It never writes an id. The run id is
+  derived from the candidate, the UTC day the attempt began on (pinned on the candidate) and which attempt it is, and the first delivery freezes its context in
+  `content.topic_proposals`, so a redelivery sends the same request and the harness answers from its ledger: nothing is paid twice, a crash between the answer and the
+  store loses nothing, and an attempt of unknown outcome blocks the candidate and is never resent. A refusal of the harness that sent nothing (no provider, scope off, the role's failure brake) pauses the run and blocks nobody. A conclusive failure is counted and the candidate waits
+  for the next UTC day (`not_before`); it is asked about twice at most, on different days. A page no system offers itself for is backed off the same way and the pass moves on to the next candidate.
+- **Admission** (`admitTopicProposal`, then the catalogue's own `planRelease`, D-419): the system must be one that was offered, exist and have room; no address or markup; the label shares a key word with the page's title; each facet's label and meaning share two with the passage it quotes;
+  the id is `<system>.<slug of the label>` and must not be taken by any node of any status; no existing topic in any system has the same label or nearly it; facet
+  labels are distinct and there are at least three; every quote is a stretch of one of the page's own passages and no two quote the same stretch. It is checked again
+  and the release made in **one production transaction** under the release lock (`appendReleaseIn`), against the catalogue as it stands then, with the candidate and
+  the run settled in it. The release's source is `growth`. A refusal makes no release and refuses the candidate with a code; its text is dropped.
+- **Not servable until supply, and until the owner approves it.** The new topic is invisible (not offered, matched, listed, made a room or offered a scout, D-419). `content.topic_candidates.approval` is `pending` until an operator has read the topic's label, meaning and facets (`content topic-candidates --status admitted`) and decided: `content topic approve --topic <id>` allows it to become servable (and makes it so at once if it has its supply), `content topic reject --topic <id>` retires it and its facets by a release. `showServableTopics` never shows an unapproved topic, and the store of releases refuses any change that would (`not_approved`). The gap scan sees it as a `thin_planet`
+  hole and the gap loop's brief job proposes its first recipes: `propose-recipes` counts the page a topic grew from as a page held for it (`readTopicOriginPages`). Its Scrolls are
+  held, read and released by an operator; at three released explanations over two facets `showServableTopics` makes it servable in a release of its own.
+- **The scheduled step** (`production/grow-topics.ts`, queue `content.grow-topics`, `production/topic-growth-events.ts`): twice an hour, one pass at a time. It does
+  nothing unless `KS_SUPPLY_GROWTH_ENABLED=1` **and** `KS_TOPIC_GROWTH_ENABLED=1` and the production grant is held; the operator's `content propose-topic` runs under the same session lock, so the two never run at once. Within the growth cap: no proposing run once today's runs reached
+  `KS_SUPPLY_GROWTH_DAILY_CAP`, none while as many topics wait for supply as that cap, none when every system is full. It seeds when fewer than three candidates are eligible and
+  proposes for at most one (a run in flight first, then the oldest eligible). `content topic-candidates [--status]` lists the candidates (an admitted one shows the topic's label
+  and its facets' labels, so a person can read the model's words before the topic is served).
+
+Status: implemented, with integration tests on real PostgreSQL and a labelled fixture model and fixture pages (`tests/integration/modules/topic-growth.test.ts`). Not runtime-verified on dev: no real provider call or page fetch has been made for it.
+
 ## The review gate for library v2 Scrolls (D-138)
 
 Status: **implemented**, runtime-verified on real PostgreSQL with labelled fixtures, not yet on dev.
@@ -362,7 +489,7 @@ the gate's states: a policy release is the gate's own `release`, with `decided_b
   coverage mapping, an answer check that did not pass, and a missing (`no_support_check`), stale-version (`stale_support_check`), unchecked or flagged
   support check. `assessRisk` makes the class: the catalogue's systems, the words and every recorded raise each propose a class and the highest wins
   (`raiseRisk`), so nothing lowers it. `domain/release-sensitive-data.ts` is the one data file of the owner's sensitive categories (systems, whole-word
-  keywords, recent years, and the keys of a document that are not its words), versioned as `release-sensitivity.v1`. The words are `proseOf(document)`: every
+  keywords, recent years, and the keys of a document that are not its words), versioned as `release-sensitivity.v2`. The words are `proseOf(document)`: every
   string of the document's own fields except identity, versions, measures and the integrity hash, so no text is dropped by how it begins.
 - **The decision is made in the release transaction.** `adapters/release-policy.ts` (`makeReleasePolicy`: `sweep`, `releaseOne`, `approveTopic`, `revokeTopic`,
   `withdraw`, `proposeRaise`, `status`) passes the review gate a `ReleaseGuard`. Under the asset's lock the guard takes the policy lock, locks the
@@ -479,6 +606,25 @@ Status: implemented, CI-tested against real PostgreSQL. Related: #674, D-408. No
   an `expected` encounter is read whatever the list says.
 - **Text lane.** Only when the query carries `text`, which only a person's own words supply. Retrieval never searches a source's
   title and summary. The match is a plain-text AND, as before.
+- **Named lanes (policy v3, D-420).** A query may carry `lanes: { continueTopicIds, plannedUnitIds }`, data the caller read from the
+  person's long-term interest (Personal Context over Evidence's top-K index: at most 64 topic ids, strongest first, and at most 12
+  explanation units a valid Planner opportunity names; anything else is refused, `DISCOVERY_LANES_INVALID`). The read is then the lanes
+  below instead of the topic, text and general lanes, each with its own quota (`DISCOVERY_LANE_QUOTAS`: source 20, planned 6, continue 28, adjacent 12, which are 66 together, and the text
+  lane's 20 that a subject move never asks for; `explore` is last and takes the rest of the cap of 100, at least 34), ordered by lane priority and, within a lane, by the stable
+  random key from the cursor; a candidate read by several lanes keeps the first lane, and every candidate carries it (`lane`, not part of the
+  catalogue watermark). `source`: the source's topics, primary before supporting. `planned`: the named units. `text`: as above. `continue`:
+  a capped window (`continuePerTopic`, 6) of each of the person's top topics, read as two index range scans of `encounter_topics_rand_idx` (migration 0121: `encounter_topics.serve_rand`, a stable random key per topic attribution set by a trigger, index `(topic_id, serve_rand)`) from the cursor, so the cost of a topic is its window and not its size, however many topics there are and however large the library is (measured: 20,000 assets, 32 topics, 5 ms against 268 ms for reading every eligible asset of the topics); candidates rank by the strongest topic they are about, at most five of any one catalogue system, so one
+  loved system cannot take the lane (a topic the catalogue does not hold is its own stratum). `adjacent`: the other topics of the systems of the
+  source's topics (`siblingTopicIds`, from the catalogue release; never the source's own topic). `explore`: two index range scans of `serve_rand` from the
+  cursor (120 rows each side), each row put in the system of its heaviest primary topic and taken round-robin (the first of every system, then the
+  second of every system, and so on), so a person with no history and no source still gets a full read. The unseen-first bands of D-408 apply to every lane (every lane is read twice, with the list and without, and the unseen of every
+  lane come before any other row), as does `alwaysUnits`. Without `lanes` the read is exactly the one above, so v0 to v2 retrieve as before. The
+  caller hands `lanes` the one `CatalogueSnapshot` it read for the decision (D-419): the strata of `continue` (the system of each top topic,
+  `systemOf`) and `explore` (`topicSystemPairs`, the servable topics of the release with their systems, passed to SQL as two parallel arrays)
+  and the topics of `adjacent` (`siblingTopicIds`) all come from it, so retrieval and the systems frozen into the decision's snapshot are of
+  the same release. Only servable, active topics are listed: a topic still waiting for supply and a retired topic are in no stratum and no
+  sibling list (a candidate whose lead topic is one is its own stratum, like a topic the catalogue does not hold). A `lanes` without a
+  catalogue is refused (`DISCOVERY_LANES_INVALID`).
 - **No replay impact.** A stored decision freezes its candidates, so the order and sample retrieval reads change what future
   snapshots hold and never how a stored decision replays.
 - **Composer's use.** `readVerticalCandidates` passes the decision seed as `rotation` and always reads some candidates of the
@@ -677,7 +823,8 @@ How it keeps its promises:
 - **Receive costs nothing.** The second world rebuilds the request from the same script, checks it byte
   for byte against the pool's record, and publishes the same Reel. It never claims, sends or settles.
 - **The twin.** The Reel is admitted with the Scroll's explanation unit and planet, so Explore offers the
-  format switch between them. It carries the engine's own record, labelled "engine-attested, not
+  format switch between them. Its coverage is decided in the same transaction (see Reel coverage above) and the
+  publication result says whether it was `admitted` or why not. It carries the engine's own record, labelled "engine-attested, not
   independent".
 
 Layers: `domain/reel/` holds the pure rules (script checks, fingerprints, request compiler, chain fold

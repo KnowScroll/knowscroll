@@ -15,12 +15,13 @@ import type { AdmissionTx } from '../application/ports.js';
 import type {
   CoverageAdmissionPorts,
   CoverageHead,
+  CoverageRead,
   CoverageHeadPorts,
   LockCurrentCoverageAuthorities,
   ReadAdmittedCoverageMapping,
 } from '../application/coverage-ports.js';
 import { makeAdmitCoverage } from '../application/admit-coverage.js';
-import { CONCEPTS, CONCEPT_CATALOGUE_VERSION, conceptMeaning } from '../domain/concepts.js';
+import type { CatalogueSnapshot } from '../domain/catalogue/snapshot.js';
 import {
   CoverageAuthoritySchema,
   CoverageMappingSchema,
@@ -30,18 +31,41 @@ import {
   type CoverageRef,
   type CoverageTarget,
 } from '../domain/coverage.js';
+import { RELEASE_1_PLAN } from '../domain/catalogue/release-1.fixture.js';
+import { seedSnapshot } from '../domain/catalogue/seed.js';
+import { readCatalogueIn } from './catalogue-store.js';
 import { admissionTransaction, makeAdmissionStore } from './postgres-store.js';
 import { coverageTargetOfV2 } from './coverage-target-v2.js';
+import { coverageTargetOfReel } from './coverage-target-reel.js';
+import { ReelCoverageProvenanceSchema } from '../domain/reel-coverage.js';
 import { notUnderReview } from './review-gate-sql.js';
 import { readingFactsOf } from './scroll-compiler.js';
 
-export const coverageCatalogue = {
-  sha256: canonicalSha256({ version: CONCEPT_CATALOGUE_VERSION, concepts: CONCEPTS }),
-  meaningSha256(topicId: string, facetId: string) {
-    const meaning = conceptMeaning(topicId, facetId);
-    return meaning ? canonicalSha256(meaning) : undefined;
-  },
-};
+/**
+ * The coverage catalogue of one release: its digest, the identity of each facet's wording, and which recorded identities still stand.
+ * Fixtures decide coverage against release 1, the one a freshly migrated database holds (`planCoverageCatalogue`); the use cases
+ * read the current release in their own transaction.
+ */
+export function coverageCatalogueOf(snapshot: CatalogueSnapshot): CoverageCatalogue {
+  return {
+    sha256: snapshot.digest,
+    meaningSha256: (topicId, facetId) => snapshot.meaningSha256(topicId, facetId),
+    acceptsMeaning: (topicId, facetId, sha256) => snapshot.acceptsMeaning(topicId, facetId, sha256),
+  };
+}
+
+/**
+ * Release 1, the seeded release, as a coverage catalogue: for fixtures that decide coverage against a freshly migrated database.
+ * Built from the frozen copy of the plan release 1 was seeded with, not from the plan in code, so the plan growing never
+ * changes the digest or the meaning identities these fixtures record.
+ */
+export const planCoverageCatalogue = (): CoverageCatalogue =>
+  coverageCatalogueOf(seedSnapshot(RELEASE_1_PLAN, canonicalSha256));
+
+/** The current release as a coverage catalogue, read through the given transaction or handle. */
+async function currentCoverageCatalogue(db: Transaction<Database> | Kysely<Database>): Promise<CoverageCatalogue> {
+  return coverageCatalogueOf(await readCatalogueIn(db));
+}
 
 /** No live semantic map has been reviewed/admitted by this foundation. Never consume request config. */
 const SOURCE_REVIEWED_COMMANDS: readonly {
@@ -54,6 +78,44 @@ const SOURCE_REVIEWED_COMMANDS: readonly {
  * revision the review gate holds, for deciding its coverage at publication and again after a plan change.
  */
 type TargetScope = 'served' | 'stored';
+
+/** The Reel's own revision and the twin Scroll revision its claims rest on, under the same reachability. */
+async function readReelTarget(
+  db: Transaction<Database>,
+  ref: CoverageRef,
+  reachable: ReturnType<typeof sql>,
+): Promise<CoverageTarget | undefined> {
+  const result = await sql<{
+    document: unknown;
+    document_sha256: string;
+    explanation_unit_id: string;
+    provenance_kind: string;
+    provenance_version: string;
+    provenance: unknown;
+    reading_facts: unknown;
+  }>`select r.document,r.document_sha256,r.explanation_unit_id,r.provenance_kind,p.provenance_version,p.provenance,r.reading_facts
+    from content.assets a join content.asset_revisions r on r.asset_id=a.id
+    join content.asset_provenance p on p.asset_id=r.asset_id and p.revision=r.revision
+    where a.id=${ref.assetId}::uuid and a.kind='reel' and ${reachable}
+      and r.revision=${ref.assetRevision}`.execute(db);
+  const row = result.rows[0];
+  const provenance = ReelCoverageProvenanceSchema.safeParse(row?.provenance);
+  if (!row || !provenance.success) return undefined;
+  const { twin } = provenance.data;
+  // The twin must be the Scroll as it is served now: a Reel cut from a Scroll that was corrected since rests on claims the
+  // Scroll no longer makes, and one whose twin was withdrawn rests on nothing a reader may be shown.
+  const twinRows = await sql<{
+    explanation_unit_id: string;
+    framing_kind: string | null;
+    provenance: unknown;
+  }>`select r.explanation_unit_id,r.document->'framing'->>'kind' as framing_kind,p.provenance
+    from content.assets a join content.asset_revisions r on r.asset_id=a.id and r.revision=a.revision
+    join content.asset_provenance p on p.asset_id=r.asset_id and p.revision=r.revision
+    where a.id=${twin.assetId}::uuid and a.kind='scroll' and ${reachable} and r.revision=${twin.assetRevision}`.execute(
+    db,
+  );
+  return coverageTargetOfReel(row, twinRows.rows[0], ref);
+}
 
 async function readTarget(
   db: Transaction<Database>,
@@ -78,7 +140,7 @@ async function readTarget(
     where a.id=${ref.assetId}::uuid and a.kind='scroll' and ${reachable}
       and r.revision=${ref.assetRevision}`.execute(db);
   const row = result.rows[0];
-  if (!row) return undefined;
+  if (!row) return readReelTarget(db, ref, reachable);
   if (row.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION) return coverageTargetOfV2(row, ref);
   const parsed = admitDocument(row.document);
   const provenance = ScrollProvenance.safeParse(row.provenance);
@@ -159,7 +221,7 @@ async function readHead(db: Transaction<Database>, ref: CoverageRef): Promise<Co
 export const coverageHeadPorts: CoverageHeadPorts = {
   hash: canonicalSha256,
   bytes: (value) => utf8ByteLength(canonicalJson(value)),
-  catalogue: coverageCatalogue,
+  catalogue: (tx) => currentCoverageCatalogue(admissionTransaction(tx)),
   async lockTarget(tx: AdmissionTx, ref: CoverageRef) {
     const trx = admissionTransaction(tx);
     await sql`select pg_advisory_xact_lock(hashtextextended(${`content.coverage:${ref.assetId}:${String(ref.assetRevision)}`},0))`.execute(
@@ -211,27 +273,37 @@ export function coverageAdmissionUseCase(db: Kysely<Database>) {
   );
 }
 
+type MappingCatalogue = Pick<CoverageCatalogue, 'acceptsMeaning'>;
+
+async function readMapping(
+  trx: Transaction<Database>,
+  ref: CoverageRef,
+  catalogue: MappingCatalogue,
+): Promise<CoverageRead> {
+  const target = await readTarget(trx, ref, 'served');
+  if (!target) return { kind: 'unavailable' };
+  const head = await readHead(trx, ref);
+  if (!head) return { kind: 'unmapped' };
+  if (head.status === 'retracted') return { kind: 'retracted', authority: head.authority };
+  return { kind: 'mapped', head: { ...head, mapping: currentCoverageMapping(head.mapping, target, catalogue) } };
+}
+
 /**
  * Reads one exact revision's current coverage in the caller's personal transaction. Bindings whose
  * facet meaning no longer matches the catalogue are dropped from the returned mapping (see
  * `currentCoverageMapping`); the head's authority is unchanged, so locks and certificates still bind
- * to the stored head. Takes the catalogue so tests can read against an edited plan.
+ * to the stored head. The catalogue is the release the transaction sees; a test passes its own to read against an edited one.
  */
 export function makeReadAdmittedCoverageMapping(
-  catalogue: Pick<CoverageCatalogue, 'meaningSha256'>,
+  catalogue: (trx: Transaction<Database>) => Promise<MappingCatalogue> = currentCoverageCatalogue,
 ): ReadAdmittedCoverageMapping {
   return async (scope, input) => {
     const ref = CoverageRefSchema.parse(input);
     const trx = transactionOf(scope);
-    const target = await readTarget(trx, ref, 'served');
-    if (!target) return { kind: 'unavailable' };
-    const head = await readHead(trx, ref);
-    if (!head) return { kind: 'unmapped' };
-    if (head.status === 'retracted') return { kind: 'retracted', authority: head.authority };
-    return { kind: 'mapped', head: { ...head, mapping: currentCoverageMapping(head.mapping, target, catalogue) } };
+    return readMapping(trx, ref, await catalogue(trx));
   };
 }
-export const readAdmittedCoverageMapping = makeReadAdmittedCoverageMapping(coverageCatalogue);
+export const readAdmittedCoverageMapping = makeReadAdmittedCoverageMapping();
 
 const Authorities = z.array(CoverageAuthoritySchema).min(1).max(100);
 
@@ -251,6 +323,7 @@ function makeCurrentCoverageAuthorityCheck(lock: boolean): LockCurrentCoverageAu
       a.assetId < b.assetId ? -1 : a.assetId > b.assetId ? 1 : a.assetRevision - b.assetRevision,
     );
     const trx = transactionOf(scope);
+    const catalogue = await currentCoverageCatalogue(trx);
     // Personal root -> canonical assets -> canonical mapping heads. Admission never takes personal roots.
     if (lock)
       for (const ref of expected)
@@ -260,10 +333,7 @@ function makeCurrentCoverageAuthorityCheck(lock: boolean): LockCurrentCoverageAu
         await sql`select revision from content.coverage_heads where asset_id=${ref.assetId}::uuid and asset_revision=${ref.assetRevision} for share`.execute(
           trx,
         );
-      const current = await readAdmittedCoverageMapping(scope, {
-        assetId: ref.assetId,
-        assetRevision: ref.assetRevision,
-      });
+      const current = await readMapping(trx, { assetId: ref.assetId, assetRevision: ref.assetRevision }, catalogue);
       if (
         current.kind !== 'mapped' ||
         current.head.authority.headRevision !== ref.headRevision ||

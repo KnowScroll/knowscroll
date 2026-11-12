@@ -146,6 +146,7 @@ import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
 import { jobConsumer, type JobConsumer } from '@knowscroll/backend/infrastructure/jobs';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import {
+  catalogueProviders,
   contentProviders,
   libraryPassageProviders,
   madeToOrderProviders,
@@ -211,6 +212,7 @@ import { reasoningPurgeProviders, reasoningSweepProviders } from '@knowscroll/ba
 import { scrollProductionConsumers } from './production-jobs.js';
 import { gapLoopConsumers } from './growth-jobs.js';
 import { releasePolicyConsumers } from './release-policy-jobs.js';
+import { topicGrowthConsumers } from './topic-growth-jobs.js';
 import {
   ENQUEUE_JOB,
   DATABASE,
@@ -296,6 +298,8 @@ export const jobWiring: Provider[] = [
   // Jev runs on the recording-aware harness; its owner check asks Experience whether the exposure was activated (D-270).
   ...composerRecordingOwnerProviders(),
   ...contentProviders(),
+  // The topic catalogue (D-419): data in Postgres, read by every module that names a topic.
+  ...catalogueProviders({ database: DATABASE }),
   ...madeToOrderProviders({ database: DATABASE, orderAudiences: [READ_ORDER_AUDIENCE, READ_ASK_ORDER_AUDIENCE] }),
   ...scrollProductionSenderProviders({ boss: PG_BOSS }),
   // Scenarios (D-049): the planner answers a draft, and a sweep binds branches to their Scrolls.
@@ -427,6 +431,9 @@ export const jobWiring: Provider[] = [
       ...gapLoopConsumers({ config, db, boss, harness: productionHarness, withScope: withProductionScope, logEvent }),
       // The release policy's sweep (D-418): shared content only, on every worker, and a no-op until KS_CONTENT_AUTO_RELEASE_ENABLED=1.
       ...releasePolicyConsumers({ config, db, logEvent }),
+      // Topic growth (#674, D-422): candidate pages found by code, a place proposed for one, admitted by code as a topic that is not servable
+      // until the library has supply for it. Part of the gap loop's switch and its own; does nothing while either is off.
+      ...topicGrowthConsumers({ config, db, harness: productionHarness, withScope: withProductionScope, logEvent }),
       ...clearExplorationConsumers(
         clearExplorationFor(db, boss, {
           reasoning: clearReasoning,

@@ -1,6 +1,6 @@
 import { stationCaption } from '@knowscroll/client-core';
 import type { RoomStation } from '@knowscroll/contracts';
-import { isQuiet, type UniverseIndex } from './universe-layout';
+import { isQuiet, planetCountOf, planetsLoaded, type UniverseIndex } from './universe-layout';
 
 /** One planet as a list reads it: how many regions have formed on it, and where the person was last. */
 export interface ListedPlanet {
@@ -28,6 +28,10 @@ export interface ListedSystem {
   readonly id: string;
   readonly name: string;
   readonly planets: readonly ListedPlanet[];
+  /** How many planets the system has, also while they are not loaded (a map read as its sky). */
+  readonly planetCount: number;
+  /** The planets are in hand. A system that is not loaded lists none, and opening it loads them. */
+  readonly loaded: boolean;
   readonly rooms: readonly ListedRoom[];
   readonly quiet: boolean;
   readonly hypothetical: boolean;
@@ -79,6 +83,8 @@ export function listUniverse(
       id: system.objectId,
       name: system.label,
       planets: recentFirst(planets),
+      planetCount: planetCountOf(index, system.objectId),
+      loaded: planetsLoaded(index, system.objectId),
       rooms: rooms.filter((room) => room.systemId === system.objectId),
       quiet: isQuiet(system),
       hypothetical: system.truthStatus === 'hypothetical',

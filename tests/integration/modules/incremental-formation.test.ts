@@ -3,13 +3,18 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { makeEnqueueInTransaction } from '@knowscroll/backend/infrastructure/jobs';
-import { CONCEPTS, CONCEPT_CATALOGUE_VERSION } from '@knowscroll/backend/modules/content';
 import {
-  catalogueOf,
+  CONCEPT_CATALOGUE_VERSION,
+  fixtureSnapshot,
+  planSnapshot,
+  staticCatalogue,
+} from '@knowscroll/backend/modules/content';
+import {
   derivedPlaceId,
   derivedRouteId,
   makeSettleQuiet,
   makeSweepQuiet,
+  pinCatalogue,
   quietSweepStore,
   type Catalogue,
   type CatalogueTopic,
@@ -27,6 +32,8 @@ import { geographyWorld, topic, facet, otherFacet, type GeographyWorld } from '.
  * topics and thousands of support keys; the trusted read is a labelled CI fixture over them (the real Content and Evidence
  * checks are exercised by the other suites), everything else is the real code and database.
  */
+/** The catalogue of the library plan (release 1), which the world's database seeds. */
+const CONCEPTS = planSnapshot().all();
 const DAY = 86_400_000;
 const garbage: FixtureScenario = { kind: 'malformed' };
 
@@ -297,7 +304,11 @@ describe('incremental formation on real PostgreSQL (CI fixtures)', () => {
         })),
       })),
     ]);
-    const catalogue: Catalogue = catalogueOf(topics);
+    // The catalogue the reader's world holds: a labelled fixture release of these topics, pinned the way a run pins one.
+    const snapshot = fixtureSnapshot(
+      topics.map((entry) => ({ id: entry.id, parent: entry.parent, facets: entry.facets.map((f) => f.id) })),
+    );
+    const catalogue: Catalogue = pinCatalogue(snapshot);
     const planets = topics.filter((entry) => entry.parent !== null);
     const hash = (value: unknown) => canonicalSha256(value);
     const truthSha256 = hash({ kind: 'factual' });
@@ -381,7 +392,7 @@ describe('incremental formation on real PostgreSQL (CI fixtures)', () => {
           ? ({
               version: 'trusted-coverage-read.v1',
               completeness: 'not_asserted',
-              supportedFormats: ['scroll'],
+              supportedFormats: ['scroll', 'reel'],
               availability: 'available',
               reason: 'current',
               supports: found.map((row) => row.support),
@@ -391,7 +402,7 @@ describe('incremental formation on real PostgreSQL (CI fixtures)', () => {
           : ({
               version: 'trusted-coverage-read.v1',
               completeness: 'not_asserted',
-              supportedFormats: ['scroll'],
+              supportedFormats: ['scroll', 'reel'],
               availability: 'unavailable',
               reason: 'not_observed',
               supports: [],
@@ -400,7 +411,7 @@ describe('incremental formation on real PostgreSQL (CI fixtures)', () => {
             } as const),
       );
     }) as unknown as CartographerPorts['readTrusted'];
-    const overrides: Partial<CartographerPorts> = { catalogue, readTrusted: trusted };
+    const overrides: Partial<CartographerPorts> = { catalogue: staticCatalogue(snapshot), readTrusted: trusted };
 
     /** The support index rows the projections keep, seeded directly: the keys, how recent each is and one reference each. */
     async function seedReader(person: FixturePerson) {
@@ -613,7 +624,7 @@ describe('incremental formation on real PostgreSQL (CI fixtures)', () => {
     const authorityChanged = {
       version: 'trusted-coverage-read.v1',
       completeness: 'not_asserted',
-      supportedFormats: ['scroll'],
+      supportedFormats: ['scroll', 'reel'],
       availability: 'unavailable',
       reason: 'authority_changed',
       supports: [],

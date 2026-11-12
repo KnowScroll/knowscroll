@@ -59,14 +59,20 @@ export const broadSkimmer: PersonaSpec = {
   },
 };
 
-/** Starts on a Reel when one is offered and watches Reels through; reads a Scroll only when nothing else is left. */
+/**
+ * Starts on a Reel when one is offered and mostly watches Reels through (a full watch, as a player plays one), sometimes
+ * to 85-95% of the way and sometimes less; reads a Scroll only when nothing else is left. A Reel watched to 85-95%
+ * qualifies and proves no facet (its closing segment is not met), so it adds no support toward a system or a planet.
+ */
 export const reelWatcher: PersonaSpec = {
   id: 'reel-watcher',
   title: 'Reel-preferring watcher: stays in Reels',
   encounters: (config) => config.sessions.typical,
   choose: (offers) => offers.find((offer) => offer.kind === 'reel') ?? offers[0]!,
   reading: (offer, { rng }) =>
-    offer.kind === 'reel' ? mixOf(rng, { read: 0.85, partial: 0.15 }) : mixOf(rng, { skim: 0.7, partial: 0.3 }),
+    offer.kind === 'reel'
+      ? mixOf(rng, { read: 0.7, nearly: 0.15, partial: 0.15 })
+      : mixOf(rng, { skim: 0.7, partial: 0.3 }),
 };
 
 /**
@@ -169,6 +175,20 @@ export const linkReaderReels: PersonaSpec = {
   encounters: () => 2,
   script: twoReelsOfOneSystem,
   reading: () => 'read',
+};
+
+/**
+ * Follows the same two links to Reels of one system and watches each to 85-95% of its length, then leaves. Both readings
+ * qualify (q is at least 0.6), so the person has two qualified Reels under the system, and neither met the closing segment
+ * its primary facet needs. The expected outcome is stated, not discovered: no coverage reference exists for either
+ * encounter, no support is trusted, and no system forms, only dust.
+ */
+export const linkReaderReelsNearly: PersonaSpec = {
+  id: 'link-reader-reels-nearly',
+  title: 'Reel-only reader who leaves just before the end: two qualified Reels prove nothing',
+  encounters: () => 2,
+  script: twoReelsOfOneSystem,
+  reading: () => 'nearly',
 };
 
 /** Follows links to three Scrolls of one planet over two facets and reads each in full: a planet must form. */

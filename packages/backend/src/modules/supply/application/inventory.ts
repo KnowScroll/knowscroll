@@ -1,7 +1,6 @@
 import { ContentRequestStatusSchema } from '@knowscroll/contracts';
 import type { AskLimit, CreateContentRequest } from '@knowscroll/contracts';
-import { CONCEPTS } from '../../content/public.js';
-import type { EncounterSnapshot } from '../../content/public.js';
+import type { CatalogueSnapshot, EncounterSnapshot } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { WAIT_LIMIT_MS, waitStartOf } from './commission.js';
 import { typicalSeconds } from '../domain/ask-order.js';
@@ -13,7 +12,11 @@ export const sameRef = (
   a: { readonly assetId: string; readonly assetRevision: number },
   b: { readonly assetId: string; readonly assetRevision: number },
 ) => a.assetId.toLowerCase() === b.assetId.toLowerCase() && a.assetRevision === b.assetRevision;
-export function briefOf(c: CreateContentRequest, source: EncounterSnapshot | undefined): CanonicalBrief | undefined {
+export function briefOf(
+  c: CreateContentRequest,
+  source: EncounterSnapshot | undefined,
+  catalogue: CatalogueSnapshot,
+): CanonicalBrief | undefined {
   // The admitted catalogue/production policy currently supports English only. Do not put an
   // arbitrary bounded language string or a private-use locale into a shared canonical brief.
   if (c.language !== 'en') return undefined;
@@ -36,8 +39,9 @@ export function briefOf(c: CreateContentRequest, source: EncounterSnapshot | und
   // A contextual ask has additional meaning that this deterministic catalogue matcher cannot admit.
   if (c.intent.context || c.intent.subject.kind !== 'catalogue') return undefined;
   const subject = c.intent.subject;
-  const topic = CONCEPTS.find((t) => t.id === subject.topicId);
-  if (!topic || (subject.facetId && !topic.facets.some((f) => f.id === subject.facetId))) return undefined;
+  // Only a servable topic can be briefed: a retired one, or a new one still waiting for released supply, is not offered.
+  const topic = catalogue.concept(subject.topicId);
+  if (!topic?.servable || (subject.facetId && !topic.facets.some((f) => f.id === subject.facetId))) return undefined;
   return catalogueBrief(c, subject, c.intent.format);
 }
 /** The shared brief of a catalogue meaning, built exactly as for a person's own catalogue ask. */

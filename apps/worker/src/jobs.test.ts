@@ -10,9 +10,10 @@ import {
   nightlyRitualsQueue,
   scoutHeartbeatQueue,
 } from '@knowscroll/backend/modules/rooms';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { RUN_WATCHDOG, watchdogQueue } from '@knowscroll/backend/modules/operator';
 import { jobWiring } from './jobs.js';
-import { WORKER_CONFIG } from './tokens.js';
+import { DATABASE, WORKER_CONFIG } from './tokens.js';
 
 /** A labelled CI fixture: a vertical move with nothing to offer, which still names the policy it was made under. */
 const SNAPSHOT: ComposerSnapshot = {
@@ -40,14 +41,17 @@ describe('the worker ranks buffers under the policy its own configuration sets (
     expect(provider).toMatchObject({ inject: [WORKER_CONFIG] });
   });
 
-  it('makes a decision under v0 by default and under v1 or v2 only when the configuration says so', () => {
+  it('makes a decision under v0 by default and under v1, v2 or v3 only when the configuration says so', () => {
     const provider = providers[0]!;
     if (!('useFactory' in provider)) throw new Error('CI expected a factory provider');
-    const composeUnder = (composerPolicy: 'v0' | 'v1' | 'v2') =>
-      (provider.useFactory as (config: { composerPolicy: 'v0' | 'v1' | 'v2' }) => ComposeEncounter)({ composerPolicy });
+    const composeUnder = (composerPolicy: 'v0' | 'v1' | 'v2' | 'v3') =>
+      (provider.useFactory as (config: { composerPolicy: 'v0' | 'v1' | 'v2' | 'v3' }) => ComposeEncounter)({
+        composerPolicy,
+      });
     expect(composeUnder('v0')(SNAPSHOT).policyVersion).toBe('composer-policy.v0');
     expect(composeUnder('v1')(SNAPSHOT).policyVersion).toBe('composer-policy.v1');
     expect(composeUnder('v2')(SNAPSHOT).policyVersion).toBe('composer-policy.v2');
+    expect(composeUnder('v3')(SNAPSHOT).policyVersion).toBe('composer-policy.v3');
   });
 });
 
@@ -117,5 +121,15 @@ describe('the hourly watchdog (operator.watchdog, #674, D-411)', () => {
       (provider) => typeof provider === 'object' && 'provide' in provider && provider.provide === RUN_WATCHDOG,
     );
     expect(provided).toHaveLength(1);
+  });
+});
+
+describe('the topic catalogue (D-419)', () => {
+  it('is provided once to every module the worker composes, over the process database', () => {
+    const providers = jobWiring.filter(
+      (provider) => typeof provider === 'object' && 'provide' in provider && provider.provide === CATALOGUE,
+    );
+    expect(providers).toHaveLength(1);
+    expect(providers[0]).toMatchObject({ inject: [DATABASE] });
   });
 });

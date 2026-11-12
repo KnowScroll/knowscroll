@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { RoomStation } from '@knowscroll/contracts';
 import type { SceneLook } from '@knowscroll/scene-core';
 import type { UniverseIndex } from '../universe-layout';
@@ -62,6 +62,13 @@ export function useOrbitDial(input: {
     shown.findIndex((system) => system.id === (chosenSystem ?? startAt)),
   );
   const system: DialSystem | undefined = shown[systemAt];
+  // The dial lists the planets of the system it rests on, so they are loaded while it does (a map that loads whole is not asked).
+  const restingOn = system?.id;
+  useEffect(() => {
+    if (restingOn === undefined) return;
+    session.keepSystems([restingOn]);
+    return () => session.keepSystems([]);
+  }, [session, restingOn]);
   const named = system?.planets.findIndex((entry) => entry.id === chosenPlanet) ?? -1;
   const planetAt = named >= 0 ? named : Math.max(0, system?.planets.findIndex((entry) => entry.here) ?? 0);
   const planetSearch = useMemo(

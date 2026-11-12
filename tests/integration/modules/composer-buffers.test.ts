@@ -1,3 +1,5 @@
+import { catalogueOf } from '../support/catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -21,7 +23,7 @@ import {
 } from '@knowscroll/backend/modules/composer/nest-providers';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceBufferSourceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
-import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
+import { READ_COMPOSER_CONTEXT, READ_INTEREST_CONTEXT } from '@knowscroll/backend/modules/personal-context';
 import { RECORDING_REASONING_HARNESS } from '@knowscroll/backend/reasoning';
 import { guardedModelPort, type HarnessSettings } from '@knowscroll/backend/reasoning/nest-providers';
 import type { NavigationOutcome } from '@knowscroll/contracts';
@@ -101,10 +103,12 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
       beforeApply: () => beforeApply(),
     }).harness;
     const values = new Map<symbol, unknown>([
+      [CATALOGUE, catalogueOf(database.db)],
       [WITH_SCOPE, withScope()],
       [WORKER_CONFIG, { jevEnabled: jev !== undefined, reasoning: { minimax: { model: 'fixture-model-v1' } } }],
       [RECORDING_REASONING_HARNESS, recording],
       [READ_COMPOSER_CONTEXT, cases.readComposerContext],
+      [READ_INTEREST_CONTEXT, cases.readInterestContext],
       ...[
         ...experienceBufferSourceProviders(),
         ...composerProviders({ isOperator: () => false }),

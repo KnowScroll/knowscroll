@@ -1,6 +1,7 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import { sql } from 'kysely';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
+import { CATALOGUE, type Catalogue } from '../../content/public.js';
 import {
   CLEAR_COVERAGE_DIRTY,
   MARK_COVERAGE_DIRTY,
@@ -50,6 +51,7 @@ import {
   GEOGRAPHY_MATERIAL_CHANGE,
   GEOGRAPHY_APPLIED,
   READ_GEOGRAPHY_SCENE_INPUT,
+  READ_GEOGRAPHY_CHANGED_SYSTEMS,
   REQUEST_CARTOGRAPHY,
   RUN_CARTOGRAPHER,
   READ_OWN_GEOGRAPHY,
@@ -77,10 +79,9 @@ import type {
   GeographyAccountingHeader,
   RequestCartographyResult,
 } from '../application/ports.js';
-import { makeReadGeographySceneInput } from '../application/scene-input.js';
+import { makeReadGeographySceneInput, makeReadGeographyChangedSystems } from '../application/scene-input.js';
 import type { GeographyApplied } from '../public.js';
 import { geographyStore, readRegionPlace } from './postgres-store.js';
-import { PRODUCT_CATALOGUE } from '../application/catalogue.js';
 import { makeReadOwnRegionConstraint } from '../application/region-constraint.js';
 import { makeReadOwnSystemTopic } from '../application/system-topic.js';
 import { makeSettleQuiet, makeSweepQuiet } from '../application/quiet.js';
@@ -140,9 +141,10 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
   return [
     {
       provide: READ_OWN_REGION_CONSTRAINT,
-      inject: [CHECK_PERSONAL_OWNER_ACTIVE],
-      useFactory: (ownerActive: CheckPersonalOwnerActive) =>
+      inject: [CHECK_PERSONAL_OWNER_ACTIVE, CATALOGUE],
+      useFactory: (ownerActive: CheckPersonalOwnerActive, catalogue: Catalogue) =>
         makeReadOwnRegionConstraint({
+          catalogue,
           ownerActive,
           state: (scope) => geographyStore.state(scope),
           object: readRegionPlace,
@@ -150,9 +152,10 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
     },
     {
       provide: READ_OWN_SYSTEM_TOPIC,
-      inject: [CHECK_PERSONAL_OWNER_ACTIVE],
-      useFactory: (ownerActive: CheckPersonalOwnerActive) =>
+      inject: [CHECK_PERSONAL_OWNER_ACTIVE, CATALOGUE],
+      useFactory: (ownerActive: CheckPersonalOwnerActive, catalogue: Catalogue) =>
         makeReadOwnSystemTopic({
+          catalogue,
           ownerActive,
           state: (scope) => geographyStore.state(scope),
           object: readRegionPlace,
@@ -172,6 +175,7 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
         READ_TRUSTED_COVERAGE,
         CHECK_PERSONAL_OWNER_ACTIVE,
         GEOGRAPHY_APPLIED,
+        CATALOGUE,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -185,7 +189,9 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
         readTrusted: ReadTrustedCoverage,
         ownerActive: CheckPersonalOwnerActive,
         applied: GeographyApplied,
+        catalogue: Catalogue,
       ): GeographyPorts => ({
+        catalogue,
         withScope,
         fenceOwn,
         fenceRecording,
@@ -203,7 +209,6 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
         markDirty,
         readInputs,
         readTrusted,
-        catalogue: PRODUCT_CATALOGUE,
         ownerActive,
         store: geographyStore,
         hash: (value) => canonicalSha256(value),
@@ -355,6 +360,11 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
       useFactory: (p: GeographyPorts) => makeReadGeographySceneInput(p),
     },
     {
+      provide: READ_GEOGRAPHY_CHANGED_SYSTEMS,
+      inject: [GEOGRAPHY_PORTS],
+      useFactory: (p: GeographyPorts) => makeReadGeographyChangedSystems(p),
+    },
+    {
       provide: GEOGRAPHY_MATERIAL_CHANGE,
       inject: [GEOGRAPHY_PORTS],
       useFactory: (p: GeographyPorts) => makeGeographyMaterialChange(p),
@@ -436,6 +446,7 @@ export function geographyContextHashes(c: GeographyContext, runId: string) {
 export { prepareGeography } from '../application/context.js';
 /** The pinned catalogue and the derived ids, for operator tools and tests that evaluate against a catalogue of their own (D-416). */
 export { catalogueOf, type Catalogue, type CatalogueTopic } from '../domain/catalogue.js';
+export { pinCatalogue } from '../application/catalogue.js';
 export { derivedPlaceId, derivedRouteId } from '../domain/ids.js';
 export { geographyStore } from './postgres-store.js';
 export type { GeographyPorts, CartographerPorts, GeographyContext } from '../application/ports.js';

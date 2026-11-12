@@ -1,14 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { UNSEEN_FIRST_MAX_UNITS, type EncounterQuery, type EncounterSnapshot } from '../../content/public.js';
-import type { ComposeEncounter, ReadMetUnitIds } from './ports.js';
-import { COMPOSER_POLICY_V1, COMPOSER_POLICY_V2 } from '../domain/policy.js';
+import {
+  UNSEEN_FIRST_MAX_UNITS,
+  planSnapshot,
+  type EncounterQuery,
+  type EncounterSnapshot,
+} from '../../content/public.js';
+import type { ComposeEncounter, ReadInterestContext, ReadMetUnitIds } from './ports.js';
+import { COMPOSER_POLICY_V1, COMPOSER_POLICY_V2, COMPOSER_POLICY_V3 } from '../domain/policy.js';
 import {
   OTHER_FORMAT_RESERVE,
   VERTICAL_RETRIEVAL_LIMIT,
+  readInterestLeads,
+  readInterestRollups,
   readUnseenFirst,
   readVerticalCandidates,
+  systemIdsOf,
+  wantsLanes,
   wantsUnseenFirst,
 } from './vertical-candidates.js';
+
+/** One release of the topic catalogue (the library plan's): the systems of the fixture topics. */
+const catalogue = planSnapshot();
+const systemOf = catalogue.systemOf;
 
 function encounter(name: string, kind: 'reel' | 'scroll', topicId = 'earth.seasons'): EncounterSnapshot {
   return {
@@ -145,5 +158,91 @@ describe('vertical retrieval', () => {
     expect(wantsUnseenFirst(under(COMPOSER_POLICY_V2))).toBe(true);
     expect(wantsUnseenFirst(under(COMPOSER_POLICY_V1))).toBe(false);
     expect(wantsUnseenFirst(under(undefined))).toBe(false);
+  });
+});
+
+describe('lane-reading retrieval (policy v3, D-420)', () => {
+  const compose = (policy: typeof COMPOSER_POLICY_V3): ComposeEncounter =>
+    Object.assign(() => undefined as never, { policy });
+  const interestContext = (): ReadInterestContext & { readonly calls: unknown[] } => {
+    const calls: unknown[] = [];
+    return {
+      calls,
+      leads: (_scope, query) => {
+        calls.push(['leads', query]);
+        return Promise.resolve({
+          topics: [
+            { topicId: 'space.stars', activity: 2 },
+            { topicId: 'earth.tides', activity: 1 },
+          ],
+          plannedUnitIds: ['unit-planned'],
+        });
+      },
+      rollups: (_scope, query) => {
+        calls.push(['rollups', query]);
+        return Promise.resolve({ systems: [] });
+      },
+    };
+  };
+
+  it('asks for lanes only under a policy that reads them', () => {
+    expect(wantsLanes(compose(COMPOSER_POLICY_V3))).toBe(true);
+    expect(wantsLanes(compose(COMPOSER_POLICY_V2 as never))).toBe(false);
+    expect(wantsLanes(compose(COMPOSER_POLICY_V1 as never))).toBe(false);
+    expect(wantsLanes((() => undefined) as never)).toBe(false);
+  });
+
+  it('turns the person’s leads into the lanes Content reads: top interest topics strongest first, and planned units', async () => {
+    const context = interestContext();
+    const lanes = await readInterestLeads(context, scope, { evaluatedAt: 'T', topK: 32 }, catalogue);
+    // The lanes carry the one catalogue release the decision reads, whose systems stratify retrieval.
+    expect(lanes).toEqual({
+      continueTopicIds: ['space.stars', 'earth.tides'],
+      plannedUnitIds: ['unit-planned'],
+      catalogue,
+    });
+    expect(context.calls).toEqual([['leads', { evaluatedAt: 'T', topK: 32 }]]);
+  });
+
+  it('hands the lanes to retrieval on every query, the person’s format and the other format alike', async () => {
+    const { read, queries } = library({ reel: 30, scroll: 30 });
+    const lanes = { continueTopicIds: ['space.stars'], plannedUnitIds: [], catalogue };
+    await readVerticalCandidates(read, scope, {
+      source: encounter('source', 'scroll'),
+      formats: ['reel', 'scroll'],
+      capabilities: {},
+      stickyFormat: 'scroll',
+      lanes,
+    });
+    expect(queries).toHaveLength(2);
+    for (const query of queries) expect(query).toMatchObject({ lanes });
+  });
+
+  it('sends no lanes to a caller that asked for none, so v0 to v2 retrieve exactly as before', async () => {
+    const { read, queries } = library({ reel: 3, scroll: 3 });
+    await readVerticalCandidates(read, scope, { formats: ['reel', 'scroll'], capabilities: {}, seed: 's' });
+    expect(queries[0]).not.toHaveProperty('lanes');
+  });
+
+  it('reads the roll-ups of the systems of the retrieved candidates, once each, and of the person', async () => {
+    const context = interestContext();
+    const candidates = [
+      encounter('a', 'scroll', 'earth.tides'),
+      encounter('b', 'scroll', 'earth.seasons'),
+      encounter('c', 'scroll', 'space.stars'),
+      encounter('d', 'scroll', 'topic.unknown'),
+    ];
+    expect(systemIdsOf(candidates, systemOf)).toEqual(['earth', 'space']);
+    await readInterestRollups(context, scope, candidates, 'T', systemOf);
+    expect(context.calls).toEqual([['rollups', { evaluatedAt: 'T', systemIds: ['earth', 'space'] }]]);
+  });
+
+  it('names a system for a non-incidental topic only: an incidental mention of a topic names none', () => {
+    // `encounter()` gives each candidate an incidental earth.tides, which must not name the earth system.
+    expect(systemIdsOf([encounter('x', 'scroll', 'space.stars')], systemOf)).toEqual(['space']);
+    expect(systemIdsOf([], systemOf)).toEqual([]);
+    expect(
+      systemIdsOf([encounter('y', 'scroll', 'earth.tides'), encounter('z', 'scroll', 'space.stars')], systemOf, 1),
+    ).toEqual(['earth']);
   });
 });

@@ -5,7 +5,7 @@ import type {
   ProductionScopeTx,
   WithProductionScope,
 } from '../../../reasoning/public.js';
-import { CONCEPTS } from '../../content/public.js';
+import type { CatalogueSnapshot } from '../../content/public.js';
 import { FEED_RULES, slotOf } from '../domain/feed.js';
 import { MEMORY_RULES, memoryDue, memoryProblem } from '../domain/memory.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
@@ -53,9 +53,10 @@ type Claim =
 export function memoryMaterial(
   parts: { readonly turnId: string; readonly room: FeedRoom },
   window: readonly MemoryMessage[],
+  catalogue: CatalogueSnapshot,
 ): MemoryMaterial {
   const numbers = new Map<string, number>();
-  const topic = CONCEPTS.find((concept) => concept.id === parts.room.topic.id);
+  const topic = catalogue.concept(parts.room.topic.id);
   return {
     turnId: parts.turnId,
     roomName: parts.room.name,
@@ -82,7 +83,7 @@ export function memoryMaterial(
  * listens to, a rest after a refresh that wrote nothing, and a cap all end before step 2.
  */
 export function makeMemoryRefresh(
-  p: Pick<FeedPassPorts, 'store' | 'model' | 'generation' | 'turnIdFor' | 'now'>,
+  p: Pick<FeedPassPorts, 'catalogue' | 'store' | 'model' | 'generation' | 'turnIdFor' | 'now'>,
   harness: ProductionReasoningHarness,
   withRoomScope: WithProductionScope,
 ) {
@@ -227,7 +228,9 @@ export function makeMemoryRefresh(
             policyVersion: MEMORY_POLICY_VERSION,
           },
           role: memoryRole(outcome.call.memberNames),
-          context: memoryContext(memoryMaterial({ turnId, room: outcome.call.room }, outcome.call.window)),
+          context: memoryContext(
+            memoryMaterial({ turnId, room: outcome.call.room }, outcome.call.window, await p.catalogue.current()),
+          ),
           limits: { allowRepair: true },
         },
         signal,

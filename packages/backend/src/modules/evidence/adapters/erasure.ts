@@ -14,6 +14,7 @@ const tables = [
   'activity_current',
   'activity_revisions',
   'topic_format_cells',
+  'interest_rollups',
   'topic_context',
   'encounter_evidence',
   'observations',

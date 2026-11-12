@@ -121,7 +121,7 @@ and calls no model. A rule whose read fails (the view is missing, or the read pa
 | Same failure repeating | `state = failed`, grouped by queue and failure code | `failed_jobs_repeating`: 5 or more in 6 hours |
 | Personal runs held | Planner and Geography runs `queued` or `prepared` | `personal_runs_held`: row unmoved for 1 hour (a claim lasts 1150 s, a paced wake 5 minutes) |
 | Same unhealthy outcome repeating | the latest settled Cartographer runs of a universe with coverage references (`no_trusted_support` is recorded only when the reader's other recent topics are untrusted too, so a withdrawn Scroll among trusted reading is `no_changes`, PR #723) | `geography_insufficient_repeating`: 3 in a row on one `insufficient` outcome other than the healthy `no_changes`, `disabled`, `no_support_yet`; 1 or more universes, seen within 7 days |
-| A met explanation offered first beside an unseen one | `composer-policy.v2` vertical decisions with no exact target | `composer_repeat_offered`: 1 or more in 24 hours, among the newest 5,000 decisions of the last 7 days; v2 is built to make this impossible, so it fires only on a regression |
+| A met explanation offered first beside an unseen one | `composer-policy.v2` and `v3` vertical decisions with no exact target | `composer_repeat_offered`: 1 or more in 24 hours, among the newest 5,000 decisions of the last 7 days; v2 is built to make this impossible, so it fires only on a regression |
 | Unknown model attempts | attempts whose outcome is `unknown` | `unknown_attempts_old`: 1 or more for 6 hours |
 
 `domain/watchdog.ts` holds the thresholds in one object and the pure rules (`alertsFrom`); `application/run-watchdog.ts` runs a
@@ -164,6 +164,89 @@ refused answers, run to asset, exposure to asset). It stops at 300 steps and kee
   step with no recorded end after 30 minutes is shown as having no recorded completion.
 - **Account search** is not in the screen or the API. `journey --account` resolves the account to its universe
   through Identity's read port, from the server shell.
+
+## The canary (#674, D-413)
+
+A post-deploy check that drives the real deployed API and worker with disposable test accounts and judges whether
+recommendation, formation and supply behave. It lives here because it is an operator tool: the worker's `canary run` and
+`canary cleanup` commands (`apps/worker/src/canary-operator.ts`) compose it, and nothing else calls it.
+
+Follow one run. Start at [run-canary.ts](application/canary/run-canary.ts).
+
+1. The command checks the world (`dev`, `stage` with `--allow-stage`, `ci` or `local`, operator sign-in on), prints the run id on
+   stderr, and makes one account per persona with Identity's `issueOperatorSignIn`, at `canary-<run>-<persona>@<operator pattern>`.
+   Minting writes the accounts and their audit rows. The link is redeemed through the real `POST /auth/redeem`
+   ([http-api.ts](adapters/canary/http-api.ts)).
+2. Each persona ([personas.ts](domain/canary/personas.ts)) runs on its own, at the same time, through
+   [session.ts](application/canary/session.ts): it opens, asks the system to move, activates the offer it is shown, and reads or
+   watches it. It uses only public routes, with the recording generation and scope claim a client sends. What those routes cause
+   is what a reader causes: the worker projects evidence, and the Planner, Cartographer and Jev call models within the world's
+   caps. A disposable account never starts or joins shared supply: Supply checks the account's disposable flag first (see below).
+3. Reading is reported in the recorder's wire shapes ([reading-plan.ts](domain/canary/reading-plan.ts)): per-stop visible intervals,
+   active dwell and value-free call interactions for a Scroll, one-second samples for a Reel, every 15 s. Times come from the
+   Scroll's own document. The intake bounds every claim by the wall time since activation, so waits are real time; `--speed` makes a
+   reader quicker down to a floor an honest reader still qualifies at.
+4. After the journeys the run waits, within `--wait`, for the places and Planner runs the reading entitles. It reads the places
+   through the public universe routes, and evidence, runs, supply and model attempts through the read-only operator reads
+   ([reads-store.ts](adapters/canary/reads-store.ts)): `ops.journey_events` and the pg-boss rows whose payload names a canary
+   universe. Evidence comes from the view because the dev diagnostics route answers only for the legacy intake. It is final once the
+   worker has no `evidence.project-scroll-reading` job queued, retrying or running for that universe: each accepted batch queued one
+   in the same transaction, and a job projects the exposure's whole watermark when it runs. A reading still being projected when the
+   wait ends is `inconclusive`, not red.
+5. [evaluate.ts](domain/canary/evaluate.ts) judges the invariants and returns counts and codes only. Then each account is deleted
+   through the real account deletion flow, and the receipt must say `completed`.
+
+**Stopping.** SIGINT, SIGTERM, SIGHUP and `--timeout` (default 90 minutes) abort the run: the journeys end at their next step,
+nothing is judged, and the run's accounts are deleted within a bounded wait; the result is `aborted`. A crash still prints one
+`failed` line and deletes what it made. `canary cleanup [--run <id>] [--dry-run]` ([cleanup-canary.ts](application/canary/cleanup-canary.ts))
+finds a world's canary accounts again by the exact address shape (`canary-<8 hex>-<persona>` inside the operator pattern, and a
+disposable account) and deletes them through the same flow; it opens no other address.
+
+| Persona | What it does | What it proves |
+|---|---|---|
+| `cold-start` | A new account reads what it is offered, then moves once | A new reader is offered something and it is recorded |
+| `deep-reader` | Follows a series part by part | Its system and planet form (two and three qualified units) |
+| `topic-switcher` | Reads a series, waits for the place, opens one region on purpose | Region open works on a place the run formed |
+| `reel-watcher` | Opens the Reel of what it is offered and keeps moving in Reels | A Reel is offered, served and qualifies |
+| `many-reads` | Skims `--many` (default 18) Scrolls in one sitting | No re-reads; the Planner past 16 topics where the library allows |
+
+Every invariant reports a status: `ok` (exercised and held), `violated`, `not_exercised` (what it guards never happened, so nothing was
+proved) or `inconclusive` (evidence still being projected). `--strict` fails a run with any `not_exercised` or `inconclusive`.
+
+| Invariant (code) | Fires when | Exercised when |
+|---|---|---|
+| `first_offer_missing` | A first open is not ready | any persona ran |
+| `repeat_while_unseen_exists` | A system-chosen offer repeats a unit the reader met while another canary reader was offered one this reader had not, at or before that move (a repeat with none is a counted last resort) | a system-chosen move came after the reader had met something |
+| `exhausted_while_unseen_exists` | The system says nothing is left while such a unit exists | the system answered `exhausted` to a system-chosen move |
+| `reel_never_offered` | The Reel watcher never opened a Reel though Reels were offered | the Reel watcher ran and a Reel was offered to someone |
+| `reading_not_stored`, `reading_not_projected`, `reading_not_qualified` | An honest reading was rejected, never projected, or judged short | a reading was reported |
+| `formation_system_missing`, `formation_planet_missing` | Two (three) qualified units of one series left no system (planet) | a reader reached that series depth |
+| `reel_media_unreachable` | A Reel grant did not serve its first bytes | a Reel was watched |
+| `api_refused` | A route refused what a client may send (status and code only) | any persona ran |
+| `operator_reads_failed` | The operator reads could not be made | always |
+| `job_failed`, `job_dead_lettered` | A pg-boss job naming a canary universe failed or was dead-lettered | the reads were made |
+| `shared_supply_touched` | A canary universe started or joined shared work (must be 0) | the reads were made |
+| `planner_run_unknown`, `planner_run_stuck`, `geography_run_stuck` | A run has an unknown outcome, or sat unsettled for over 15 minutes | a run that is not parked (`blocked`, a Planner that is switched off) exists |
+| `cleanup_incomplete` | An account was not confirmed deleted | the accounts were not kept |
+
+The summary also reports `spend`: the supply requests of the run's universes, the shared work they commissioned (0), and the model
+attempts whose request left, by the purpose of their run.
+
+**A disposable account feeds no shared supply (D-413, D-414).** `commissionSupply` asks Identity, through `CheckPersonalAccountDisposable`
+(the port the gap loop also reads), whether the account's address is disposable (made by operator sign-in, not yet proved by a mailed
+link). If so, Create is off for it (`create_off`): a person's ask is recorded and closes `budget_unavailable`, and the Planner's demand
+is recorded when admitted content already serves it and otherwise stores nothing (`not_commissioned`); neither starts nor joins a shared
+group, and no gap signal is left. Planner and Cartographer model calls stay allowed: they are what the canary tests.
+
+Limits, stated plainly. "Unseen exists" is proved only by what the canary's own readers were offered, so a repeat can be missed but
+none is invented. Formation is judged by series depth, because no public route says which topic an asset has. It is not a load test
+or a content-quality check. A reader killed with `SIGKILL` leaves its accounts: `canary cleanup` finds them.
+
+Tables, jobs, notices: none. Minting writes accounts, universes, receipts and `ops.operator_sign_ins` rows through Identity; everything
+else the canary causes is made by the public routes and the worker, and erased by account deletion. Runbook:
+`docs/v2/operations/environments.md`, "Run the canary on dev". Tests: `domain/canary/*.test.ts`, `application/canary/*.test.ts` (a
+scripted world that validates every batch against the real wire contract and judges readings with Evidence's own qualification) and
+`tests/integration/release/canary-operator.test.ts`.
 
 ## Entry points
 

@@ -16,7 +16,7 @@ import {
   importEditorialScrollUseCase,
   makeAdmitCoverage,
   makeCoverageAdmissionPorts,
-  coverageCatalogue,
+  planCoverageCatalogue,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { createEmptyDatabase } from '../support/empty-database.js';
 import { freePort, startReleaseProcess, waitForHttp, type ReleaseProcess } from '../support/processes.js';
@@ -155,12 +155,12 @@ describe('Region current authority through installed API release (Actions only)'
           readingFactsVersion: 2,
           readingFactsSha256: canonicalSha256(row.reading_facts),
           catalogueVersion: CONCEPT_CATALOGUE_VERSION,
-          catalogueSha256: coverageCatalogue.sha256,
+          catalogueSha256: planCoverageCatalogue().sha256,
           bindings: [
             {
               topicId: topic,
               facetId: facet,
-              meaningSha256: coverageCatalogue.meaningSha256(topic, facet)!,
+              meaningSha256: planCoverageCatalogue().meaningSha256(topic, facet)!,
               requiredBlockIds: ['intro-look-up'],
             },
           ],

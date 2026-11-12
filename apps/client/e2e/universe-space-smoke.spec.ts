@@ -15,6 +15,7 @@ import { tapOrbitingTarget } from './orbiting-target';
 const READS = new Set([
   '/v1/universe/geography/read',
   '/v1/universe/geography/deltas/read',
+  '/v1/universe/scenes/sky/read',
   '/v1/universe/scenes/manifest/read',
   '/v1/universe/scenes/chunks/read',
   '/v1/universe/emerging/read',

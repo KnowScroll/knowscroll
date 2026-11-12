@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { DiscussionView, RoomView } from '@knowscroll/contracts';
-import { CONCEPTS } from '@knowscroll/backend/modules/content';
+import { planSnapshot } from '@knowscroll/backend/modules/content';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { seedRooms, setRoomModerator } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
@@ -24,6 +24,9 @@ import {
 import { consumptionRows, friendCommand, seedContent, seedFriend, withdraw, type Friend } from '../support/talk.js';
 import { seedPerson } from '../support/fixtures.js';
 import { addReelRevision, seedReel } from '../support/thread-fixtures.js';
+
+/** The catalogue of the library plan (release 1), which the migrated database seeds: the topics these journeys use. */
+const CONCEPTS = planSnapshot().all();
 
 const version = 'rooms.v1' as const;
 

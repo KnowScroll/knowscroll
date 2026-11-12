@@ -15,7 +15,7 @@ import { recordingContract } from './recording.js';
 import { keepContract } from './keep.js';
 import { removeKeepEntryContract } from './keep-remove.js';
 import { sharingContract } from './sharing.js';
-import { readSceneManifestContract, readSceneChunkContract } from './scenes.js';
+import { readSceneManifestContract, readSceneChunkContract, readSceneSkyContract } from './scenes.js';
 import {
   readEmergingUniverseContract,
   readGeographyContract,
@@ -72,7 +72,11 @@ export const apiContract: {
   scenarios: typeof scenariosContract;
   contentShares: typeof contentSharesContract;
   publicContentShares: typeof publicContentSharesContract;
-  scenes: { manifest: typeof readSceneManifestContract; chunk: typeof readSceneChunkContract };
+  scenes: {
+    manifest: typeof readSceneManifestContract;
+    chunk: typeof readSceneChunkContract;
+    sky: typeof readSceneSkyContract;
+  };
   formation: typeof formationPresentationContract;
   geography: {
     read: typeof readGeographyContract;
@@ -135,7 +139,7 @@ export const apiContract: {
   scenarios: scenariosContract,
   contentShares: contentSharesContract,
   publicContentShares: publicContentSharesContract,
-  scenes: { manifest: readSceneManifestContract, chunk: readSceneChunkContract },
+  scenes: { manifest: readSceneManifestContract, chunk: readSceneChunkContract, sky: readSceneSkyContract },
   formation: formationPresentationContract,
   geography: {
     read: readGeographyContract,

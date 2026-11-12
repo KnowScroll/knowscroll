@@ -10,6 +10,7 @@
 import type { z } from 'zod';
 import type { ConversationContentProjectionSchema } from '@knowscroll/contracts';
 import {
+  canonicalSha256,
   INTERACTION_KINDS,
   INTERACTION_KINDS_V2,
   type BlockStateSnapshot,
@@ -22,6 +23,11 @@ import type { AssetKind } from './domain/provenance.js';
 import type { CoverageAuthority } from './domain/coverage.js';
 import type { ReadingFacts } from './domain/reading-facts.js';
 import type { PlayLevel } from './domain/traits.js';
+import { seedSnapshot } from './domain/catalogue/seed.js';
+import { labelOfId, makeSnapshot, type CatalogueSnapshot } from './domain/catalogue/snapshot.js';
+import type { NodeRow, RevisionRow } from './domain/catalogue/types.js';
+import type { Catalogue } from './application/catalogue.js';
+import { LIBRARY_SYSTEMS } from './domain/library/index.js';
 
 export { PROVENANCE_KINDS, type AssetKind, type ProvenanceKind } from './domain/provenance.js';
 export { type ReadingFacts } from './domain/reading-facts.js';
@@ -195,13 +201,83 @@ export type ReadScrollQuickAnswerFacts = (
 
 export const READ_SCROLL_QUICK_ANSWER_FACTS = Symbol('content.readScrollQuickAnswerFacts');
 
-/** Shared semantic catalogue and exact-revision sidecars; no wire or personal coverage consumer. */
-export { CONCEPT_CATALOGUE_VERSION, CONCEPTS, conceptLabel, systemOfTopic } from './domain/concepts.js';
-/** Which Scene family draws a system, star or planet, and a system's haze family; defined by the library plan. */
-export { sceneFamilyOf, hazeFamilyOf } from './domain/library/index.js';
+/**
+ * The topic catalogue (#674, D-419): systems, topics and facets as data in Postgres, released in numbered steps, so a topic is added
+ * with no deploy. A use case asks the `Catalogue` port for one snapshot and reads everything of it from there, so a rule that looks
+ * twice never sees two releases. A Geography run pins the release it was frozen against and reads that one for ever.
+ */
+export { CONCEPT_CATALOGUE_VERSION, FORMATION_DEFAULTS } from './domain/catalogue/types.js';
+export type { FormationPolicy } from './domain/catalogue/types.js';
+export type { CatalogueConcept, CatalogueFacet, CatalogueSnapshot, FacetMeaning } from './domain/catalogue/snapshot.js';
+export { SHORTLIST_TOPICS, shortlistTopics } from './domain/catalogue/shortlist.js';
+export type { Catalogue } from './application/catalogue.js';
+export const CATALOGUE = Symbol('content.catalogue');
+/** The catalogue the library plan seeds (release 1): the fixture tests read, and the source `content catalogue sync` imports. Never what a use case reads. */
+export function planSnapshot(): CatalogueSnapshot {
+  seeded ??= seedSnapshot(LIBRARY_SYSTEMS, canonicalSha256);
+  return seeded;
+}
+let seeded: CatalogueSnapshot | undefined;
+/**
+ * A catalogue of invented concepts, for tests that need more (or other) topics than the library plan has: each concept is a
+ * system (`parent: null`) or a topic under one, with the facet ids it lists, all servable unless `status` says a topic waits for supply
+ * (`waiting`) or is retired (`retired`, with its facets). Labelled fixture: never product data.
+ */
+export function fixtureSnapshot(
+  concepts: readonly { readonly id: string; readonly parent: string | null; readonly facets?: readonly string[] }[],
+  releaseId = 1,
+  status: { readonly waiting?: readonly string[]; readonly retired?: readonly string[] } = {},
+  /** The formation thresholds a node sets, by node id (D-419): the others keep the defaults. */
+  policies: Readonly<
+    Record<string, { readonly systemUnits?: number; readonly planetUnits?: number; readonly planetFacets?: number }>
+  > = {},
+): CatalogueSnapshot {
+  const nodes: NodeRow[] = [];
+  const revisions: RevisionRow[] = [];
+  const add = (id: string, kind: NodeRow['kind'], parentId: string | null, visible: boolean, retired = false) => {
+    nodes.push({
+      nodeId: id,
+      kind,
+      parentId,
+      seq: nodes.length + 1,
+      introducedIn: releaseId,
+      visibleIn: visible ? releaseId : null,
+      retiredIn: retired ? releaseId : null,
+      mergedInto: null,
+    });
+    const meaning = `Fixture meaning of ${id}, invented for a test.`;
+    revisions.push({
+      nodeId: id,
+      revision: 1,
+      introducedIn: releaseId,
+      label: labelOfId(id),
+      meaning,
+      meaningSha256: canonicalSha256(meaning),
+      compatibleWith: [],
+      systemUnits: policies[id]?.systemUnits ?? null,
+      planetUnits: policies[id]?.planetUnits ?? null,
+      planetFacets: policies[id]?.planetFacets ?? null,
+      sceneFamily: kind === 'system' ? 'terraced.v1' : null,
+      haze: kind === 'system' ? 'teal' : null,
+    });
+  };
+  for (const concept of concepts) {
+    const retired = status.retired?.includes(concept.id) ?? false;
+    const visible = concept.parent !== null && !(status.waiting?.includes(concept.id) ?? false);
+    add(concept.id, concept.parent === null ? 'system' : 'topic', concept.parent, visible, retired);
+    for (const facet of concept.facets ?? []) add(facet, 'facet', concept.id, false, retired);
+  }
+  return makeSnapshot({ releaseId, digest: canonicalSha256(concepts), nodes, revisions }, canonicalSha256);
+}
+/** A `Catalogue` that always answers one snapshot: for a test that needs no database. */
+export const staticCatalogue = (snapshot: CatalogueSnapshot): Catalogue => ({
+  current: () => Promise.resolve(snapshot),
+  release: (releaseId) => Promise.resolve(releaseId === snapshot.releaseId ? snapshot : undefined),
+});
 export type { HazeFamilyName } from './domain/library/plan.js';
 export {
   COVERAGE_POLICY,
+  REEL_COVERAGE_POLICY,
   CoverageCommandSchema,
   CoverageMappingSchema,
   CoverageAuthoritySchema,
@@ -272,6 +348,11 @@ export {
   ProduceScrollJobSchema,
   type ProduceScrollJob,
 } from './production/events.js';
+/**
+ * The scheduled topic growth step (#674, D-422): the queue only. What it does (seeding candidates, proposing a place, admitting a topic)
+ * is composed in the worker from `nest-providers`.
+ */
+export { growTopicsQueue, GrowTopicsPayloadSchema, type GrowTopicsPayload } from './production/topic-growth-events.js';
 export type { RunScrollProduction, ScrollProductionJobOutcome, ProduceScroll } from './production/job.js';
 /**
  * The support check of a library Scroll (D-415): one check job for a held revision, and the sweep that hands over every held revision
@@ -385,6 +466,13 @@ export { askSupportContext, askSupportRole, verdictsOf, type SupportPassage } fr
 export type { ProduceScrollResult } from './production/types.js';
 export { UNSEEN_FIRST_MAX_UNITS, validateUnseenFirst, type UnseenFirst } from './domain/unseen-first.js';
 export {
+  DISCOVERY_LANE_LIMITS,
+  DISCOVERY_LANES,
+  validateDiscoveryLanes,
+  type DiscoveryLane,
+  type DiscoveryLanes,
+} from './domain/discovery-lanes.js';
+export {
   validateTopics,
   type EncounterRef,
   type EncounterSnapshot,
@@ -402,6 +490,7 @@ import type {
   ContinuityAdmission,
 } from './domain/discovery.js';
 import type { UnseenFirst } from './domain/unseen-first.js';
+import type { DiscoveryLanes } from './domain/discovery-lanes.js';
 import type { AdmissionTx } from './application/ports.js';
 import type {
   CatalogueBrief,
@@ -428,6 +517,12 @@ export interface DiscoveryOptions {
   readonly unseenFirst?: UnseenFirst;
   /** Explanation units always read first, whatever the condition says: the source's own, so its format twin is found. */
   readonly alwaysUnits?: readonly string[];
+  /**
+   * Policy v3 (D-420): read named lanes (source, planned, continue, adjacent, explore) with their own quotas instead of the
+   * topic, text and general lanes, and label every candidate with the lane that read it. The unseen-first bands and the
+   * rotation cursor apply to every lane.
+   */
+  readonly lanes?: DiscoveryLanes;
 }
 export type ReadDiscoveryCandidates = (
   scope: PersonalScopeTx,

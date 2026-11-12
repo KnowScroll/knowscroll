@@ -36,6 +36,10 @@ export interface DialSystem {
   readonly name: string;
   readonly haze: HazeFamily;
   readonly planets: readonly DialPlanet[];
+  /** How many planets the system has, also while they are not loaded (a map read as its sky). */
+  readonly planetCount: number;
+  /** Its planets are in hand: a system that is not loaded lists none until the dial opens it. */
+  readonly loaded: boolean;
   readonly rooms: number;
   /** Formed regions in all its planets. */
   readonly regions: number;
@@ -85,6 +89,8 @@ export function buildDial(input: {
       name: system.name,
       haze: systemLook?.kind === 'system' ? systemLook.haze : 'teal',
       planets,
+      planetCount: system.planetCount,
+      loaded: system.loaded,
       rooms: system.rooms.length,
       regions: planets.reduce((sum, planet) => sum + planet.regions, 0),
       here: system.id === hereSystem,

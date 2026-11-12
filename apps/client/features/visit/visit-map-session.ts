@@ -183,6 +183,10 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
     land: () => false,
     refresh: () => (live() ? options.refresh() : Promise.resolve()),
     travel: () => false,
+    // A visit holds only what the owner shared: there is nothing to load or let go of.
+    setDetail() {},
+    keepSystems() {},
+    setZoomMax() {},
     geometry(object, low = false): SceneGeometry | undefined {
       // Only a place of the current list, drawn while the screen is open: a held reference to a place
       // that was withdrawn since cannot be drawn again.

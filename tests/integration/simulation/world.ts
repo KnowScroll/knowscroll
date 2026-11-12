@@ -7,7 +7,7 @@ import {
   accountAccessUseCases,
   identityScopeOwnerProviders,
 } from '@knowscroll/backend/modules/identity/nest-providers';
-import { READ_DISCOVERY_CANDIDATES, READ_EXACT_ENCOUNTER } from '@knowscroll/backend/modules/content';
+import { CATALOGUE, READ_DISCOVERY_CANDIDATES, READ_EXACT_ENCOUNTER } from '@knowscroll/backend/modules/content';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import { PREPARE_COMPOSER_BUFFER, prepareBufferQueue, type PrepareBuffer } from '@knowscroll/backend/modules/composer';
 import { composerBufferWorkerProviders, composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
@@ -24,6 +24,7 @@ import {
   MARK_COVERAGE_DIRTY,
   READ_COVERAGE_DIRTY,
   READ_COVERAGE_INPUTS,
+  READ_INTEREST_CONTEXT,
   READ_EXPLORATION_SNAPSHOT,
   READ_RECENT_CONTEXT_TOPICS,
   READ_TRUSTED_COVERAGE,
@@ -55,6 +56,7 @@ import { geographyStore, makeCheckGeographyRecordingRun } from '@knowscroll/back
 import { PROJECT_SCENE, projectSceneQueue, type ProjectScene } from '@knowscroll/backend/modules/scenes';
 import { sceneAppliedProviders, sceneProviders } from '@knowscroll/backend/modules/scenes/nest-providers';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
+import { catalogueOf } from '../support/catalogue.js';
 import { evidenceUseCase } from '../support/evidence.js';
 import { fixtureModel } from '../support/fixture-model.js';
 import { geographyWorld, type GeographyWorld } from '../support/geography-world.js';
@@ -151,7 +153,9 @@ export async function simulationWorld(name: string, config: SimConfig): Promise<
     plannerCreateDailyCap: 5,
     readExploration: c.readExploration,
   });
+  const catalogue = catalogueOf(database.db);
   const plannerValues = new Map<symbol, unknown>([
+    [CATALOGUE, catalogue],
     [SCOPE, withScope],
     [ENQUEUE, makeEnqueueJob(c.boss)],
     [FENCE_OWN_ACCOUNT, own],
@@ -174,10 +178,12 @@ export async function simulationWorld(name: string, config: SimConfig): Promise<
   // --- the buffer the Composer prepares on every activation --------------------------------------
   const { harness: bufferHarness } = fixtureRecordingHarness(database.db, { model: undefined });
   const bufferValues = new Map<symbol, unknown>([
+    [CATALOGUE, catalogue],
     [SCOPE, withScope],
     [WORKER_CONFIG, { jevEnabled: false, reasoning: {} }],
     [RECORDING_REASONING_HARNESS, bufferHarness],
     [READ_COMPOSER_CONTEXT, c.readComposerContext],
+    [READ_INTEREST_CONTEXT, c.readInterestContext],
     ...[
       ...experienceBufferSourceProviders(),
       ...composerProviders({ isOperator: () => false }, config.composerPolicy),
@@ -216,6 +222,7 @@ export async function simulationWorld(name: string, config: SimConfig): Promise<
     ...visitRefreshProviders({ withPersonalScope: SCOPE }),
   ];
   const sceneValues = new Map<symbol, unknown>([
+    [CATALOGUE, catalogue],
     [SCOPE, withScope],
     [LOG, () => undefined],
     [ENQUEUE, makeEnqueueJob(c.boss)],

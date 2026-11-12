@@ -13,7 +13,7 @@ Status: implemented, runs in hosted CI (`simulation` job in `checks.yml`) on eve
 | --- | --- |
 | `pnpm --filter @knowscroll/integration-tests test:simulation` | Small mode, the one CI runs: the lab (`--project simulation`, three files in parallel, each with its own world), then the gate (`--project simulation-gate`) that judges the run as a whole. Needs `KS_TEST_DATABASE_URL` for a disposable PostgreSQL 16 (see the [suite README](../README.md)). |
 | `KS_SIM_SIZE=large pnpm --filter @knowscroll/integration-tests test:simulation` | Large mode, for a manual or nightly run on one machine: about 170 Scrolls and longer sessions. |
-| `KS_SIM_SEED=7 KS_COMPOSER_POLICY=v1 … test:simulation` | Another seed, or another Composer policy for a comparison. The lab follows the policy dev runs (`v2`, set by `KS_COMPOSER_POLICY`, the variable the API and the worker read), so a change of dev's policy is a change of the default in `config.ts`. |
+| `KS_SIM_SEED=7 KS_COMPOSER_POLICY=v1 … test:simulation` | Another seed, or another Composer policy for a comparison. The lab follows the policy dev runs (`v2`, set by `KS_COMPOSER_POLICY`, the variable the API and the worker read), so a change of dev's policy is a change of the default in `config.ts`. `KS_COMPOSER_POLICY=v3` is the test-only mode of policy v3 (#674, D-420): CI runs the lab a second time under it, with its own report (`simulation-report-policy-v3`), and the same invariants and gate; dev keeps `v2` until the coordinator switches after reading `composer replay-policy`. |
 
 Small mode takes about 25 to 30 seconds on a laptop and should stay under 90 seconds on a hosted runner. The reports are
 written to `tests/integration/simulation/output/` (or `KS_SIM_OUTPUT`): `report.json` has every number below per
@@ -37,7 +37,7 @@ gate/        judges the lab as a whole: known failures still reproduced, every q
 1. **A library.** For each of the catalogue's planets (the 17 topics of the code catalogue) the lab admits several
    explanation units across the planet's facets, through the editorial import (the starter Scroll under a fixture
    identity) and the real coverage admission, attributes them to the planet, and gives the first two units of each planet, and some of
-   the others, a Reel twin that shares the unit. Ids and titles are fixtures: `ci-sim-<planet>-<n>` and `[CI sim] …` (the editorial grammar has no dots
+   the others, a Reel twin that shares the unit, with coverage decided by the code that decides a Reel's at publication. Ids and titles are fixtures: `ci-sim-<planet>-<n>` and `[CI sim] …` (the editorial grammar has no dots
    and refuses digits in a title). Nothing was written by a model.
 2. **A world.** `simulationWorld` builds the Experience navigation and activation, Evidence intake, Personal Context,
    Region encounters, and the consumers the worker registers on a reader's activity path (the evidence projections, the
@@ -47,7 +47,8 @@ gate/        judges the lab as a whole: known failures still reproduced, every q
 3. **Personas** (`personas.ts`) decide what a person does next: which move, which offer, how to read it. A seeded random
    source (`rng.ts`) draws their choices and every identifier the lab invents. Reading timings come from each
    document's own reading facts (a Scroll's estimated reading time and block weights, a Reel's duration), and the
-   recorder's claims are shaped like the app's.
+   recorder's claims are shaped like the app's: a Reel's events are made by the app's own `createReelRecorder` from
+   jittered player ticks (`support/reel-playback.ts`), with the gaps, offsets and clipping the intake really sees.
 4. **A session** (`driver.ts`) is, per encounter: navigate (Somewhere new, Next, a region, a link), pick an offer, activate
    it, let the worker prepare the buffer, read it and report observations, then drain the queues until idle. After the
    last encounter the lab drains up to six more times.
@@ -61,8 +62,9 @@ gate/        judges the lab as a whole: known failures still reproduced, every q
 | `cold-start-explorer` | No history; reads, half-reads and skims at random | The first offers, the mix |
 | `focused-deep-reader` | Reads one topic in full and skims the rest | Evidence concentrating, formation |
 | `broad-skimmer` | Taps Somewhere new, skims one open per topic until it has met every topic | Breadth: many topics touched, none qualified |
-| `reel-watcher` | Starts on a Reel and stays in Reels | Format stickiness, Reel evidence |
-| `link-reader-reels` | Follows two shared links to Reels of one system and watches both | A Reel-only reader forming a system (exact) |
+| `reel-watcher` | Starts on a Reel and stays in Reels; watches most of them through, some to 85-95% | Format stickiness, Reel evidence, and that only a Reel watched to its end proves a facet |
+| `link-reader-reels` | Follows two shared links to Reels of one system and watches both to the end | A Reel-only reader forming a system (D-421: this was a known failure until Reels had coverage) |
+| `link-reader-reels-nearly` | Follows the same two links and leaves each at 85-95% | Qualified Reels that prove nothing: the closing segment is unmet, so no coverage reference, no trusted support and no system (its outcome is asserted, not only judged) |
 | `link-reader-scrolls` | Follows links to three Scrolls of one planet over two facets | A planet forming (exact) |
 | `link-reader-exoplanets` | Reads every Scroll of `space.exoplanets`, then returns to two | Planner demand for a finished topic; regression for the planned-demand duplicate (#712) |
 | `topic-switcher` | Reads one topic until a place exists, then opens a region on purpose | Region encounters |
@@ -79,9 +81,9 @@ cause the lab read from the stored decision or job.
 | Id | Statement |
 | --- | --- |
 | I1 | A system-chosen offer (every slot of an answer: the one shown first and the buffered ones) never repeats an explanation the person has already met, in either format, while an unseen eligible one exists (owner decision on #674: no re-reads except as a last resort). A Region the person opens, a move made inside it, and a link the person follows are their own ask and are not checked. What a person opens while recording is paused is not history, so it is not "met". |
-| I2 | When a person qualified enough distinct explanations (two under a system in either format, three Scrolls over two facets for a planet), the system or planet forms within the bounded number of settling drains, no Geography run settles an `insufficient` outcome other than `no_changes`, `disabled` or `no_support_yet` while Personal Context holds trusted supports (a limit, a moved authority or an unreadable context must not happen to a reader who has them), and `no_support_yet` appears only for a person with no coverage references. Runs are judged against what the person held when the step began. |
+| I2 | When a person qualified enough distinct explanations whose reading proved their facet (two under a system in either format, three over two facets for a planet; a Reel proves its facet only when watched to its end), the system or planet forms within the bounded number of settling drains, no Geography run settles an `insufficient` outcome other than `no_changes`, `disabled` or `no_support_yet` while Personal Context holds trusted supports (a limit, a moved authority or an unreadable context must not happen to a reader who has them), and `no_support_yet` appears only for a person with no coverage references; and no system forms from fewer than two such units. Runs are judged against what the person held when the step began. |
 | I3 | No job handler throws while the lab drains, not even one that a retry then recovers; no job anywhere in the database is left unfinished or dead-lettered, whatever its payload names (only the production queues, which the lab never runs, and pg-boss's own bookkeeping are excluded); no Planner or Cartographer run is held queued; every drain settles. |
-| I4 | Evidence exists only for exposures the person activated and reported; Personal Context counts qualified units only under topics the person qualified; offers, buffers and demand create no exposure; a pause creates none; another person's step never changes a row of this person's rows in the evidence, Personal Context, Geography, Scenes, Composer, Experience, Planner and Supply tables (a fingerprint of every such table before and after each step, taken only once the neighbour has nothing waiting for a worker); and a reading qualifies exactly when it should (a full read does, a skim, a half-read and an idle tab do not). |
+| I4 | Evidence exists only for exposures the person activated and reported; Personal Context counts qualified units only under topics the person qualified; offers, buffers and demand create no exposure; a pause creates none; another person's step never changes a row of this person's rows in the evidence, Personal Context, Geography, Scenes, Composer, Experience, Planner and Supply tables (a fingerprint of every such table before and after each step, taken only once the neighbour has nothing waiting for a worker); and a reading qualifies exactly when it should (a full read does, a skim, a half-read and an idle tab do not), and a qualified reading holds a coverage reference exactly when it proved its facet (a Reel left at 85-95% qualifies and holds none). |
 | I5 | Composer decisions per move, and Geography and Planner runs per activity change (an encounter, a Like or a Save), stay within `config.bounds`. |
 
 I2's thresholds (two units under a system, three Scrolls over two facets for a planet) mirror Geography's formation
@@ -93,9 +95,8 @@ request.
 The current dev code breaks some of these. `known-failures.ts` lists them, each keyed by the #674 slice that fixes it,
 with the reason it fails and a `matches` that accepts only violations that fail for that reason:
 
-| Entry | Invariant | Slice | Why it fails today |
-| --- | --- | --- | --- |
-| `I2/reel-only-evidence-forms-no-system` | I2 | 5.1 | A Reel has no coverage mapping or certificate; the trusted read serves only Scrolls, so a qualified Reel leaves no coverage reference (a Reel-only reader's Geography runs settle `no_support_yet`). Two qualified Reels of one system form nothing. The entry matches only that situation: the qualified units under the system are Reels and Personal Context holds no reference and no trusted support under any topic of it. |
+No entry is open today: the last two (planned demand duplicating an open request, slice 1.3; Reel-only evidence forming no
+system, slice 5.1) are fixed and deleted.
 
 The lab keeps two promises about them. Every violation of an invariant must be explained by an entry, for a persona it
 names (any, if it names none), and for the stated reason, or the run fails ("unexpected violation"), so a new defect, or
@@ -104,13 +105,13 @@ as a whole: `gate/known-failures.test.ts` sums the reports of every lab file, so
 instance cannot fail it, and when a slice fixes the behaviour the entry's test fails with "now fixed" and the same pull
 request deletes the entry from `known-failures.ts`. From then on the invariant is a plain gate for the slice and every
 later one. That is the equivalent of `it.fails`, with the reason checked. An entry with a `reproducedBy` scenario (the
-Reel entry: `link-reader-reels`) is judged when that persona ran, so running one file alone is not blamed for the rest.
+exoplanets entry: `link-reader-exoplanets`) is judged when that persona ran, so running one file alone is not blamed for the rest.
 In CI, and in any local run that wrote every group (`readers`, `formation`, `binge`), the gate instead requires every such
 persona to have run and every group to have written a report, so a renamed file or persona cannot make an entry go
 unjudged without a word.
 
 I1 has no entry any more: composer policy v2 (#713) offers an explanation the person has met only as a last resort, and the
-lab runs under it. Any I1 violation is therefore a defect in the policy. Its message names the cause the lab read from the
+lab runs under it (and, in its test-only mode, under v3, which keeps the rule). Any I1 violation is therefore a defect in the policy. Its message names the cause the lab read from the
 stored decision (`soft_penalty`, `exploration_draw`, `format_sticky`, `retrieval` with the number of candidates the
 decision evaluated, or `unknown` when the decision cannot be read as expected), and nothing absorbs it.
 
@@ -144,7 +145,8 @@ It does not prove:
 - **Real people.** Personas are bench patterns of attention, not measured behaviour. A pass says nothing about how people
   read.
 - **Content quality or truth.** Every Scroll is the starter document under a fixture identity; every Reel is a valid
-  document with no media.
+  document with no media, whose script is six fixed sentences. A Reel's segment windows are estimated from its words, as
+  they are for a published Reel, and a Reel is read by watching it through.
 - **Scale.** The 10,000-topic test waits for the catalogue in Postgres (slice 2.1); the topics are still the 17 planets of
   the code catalogue. Large mode (`KS_SIM_SIZE=large`) is as large as is practical on one machine: it passes the
   100-asset retrieval cliff of the discovery lanes, and it is not the design target. Run times and plans here are not
@@ -174,8 +176,9 @@ What the lab does not take from the product, so a pass is read for what it cover
   worker's provider list. It also binds a legacy prepared-activity read that the worker does not.
 - **The library.** Scrolls go through the real editorial import and coverage admission, but their topic attribution is
   inserted by the lab and the semantic review of their coverage is an approval the lab signs. Reel twins are inserted by
-  SQL as valid Reel documents with their facts and no media, because the real Reel admission needs Cutroom output and a
-  media file. Every document is the starter Scroll under a fixture identity.
+  SQL as valid Reel documents with their facts, the provenance of an approved script and no media, because the real Reel
+  admission needs Cutroom output and a media file; their coverage is decided by `admitReelCoverage`, the code the Reel
+  publication runs. Every document is the starter Scroll under a fixture identity.
 - **The queues.** The consumers are listed in `queues.ts`, not derived from the worker's registry (the worker builds it
   inside a Nest provider). `simulationWorld` refuses to start if its consumers differ from that list, and
   `gate/wiring.test.ts` fails if the release declares a queue that is neither drained nor listed with a reason, so a new

@@ -97,6 +97,7 @@ describe('the API contract', () => {
       ...Object.values(apiContract.formation),
       apiContract.scenes.manifest,
       apiContract.scenes.chunk,
+      apiContract.scenes.sky,
       apiContract.geography.read,
       apiContract.geography.deltas,
       apiContract.geography.emerging,
@@ -295,6 +296,15 @@ describe('the API contract', () => {
       for (const field of ['accountId', 'ownerId', 'commandId', 'shown', 'skipped', 'returnLocator'])
         expect(input).not.toContain(`"${field}"`);
     }
+    const sky = document.paths?.['/v1/universe/scenes/sky/read']?.post;
+    expect(sky?.requestBody).toBeDefined();
+    expect(sky?.responses?.['200']).toBeDefined();
+    const skyInput = JSON.stringify(sky?.requestBody);
+    for (const field of ['capabilities', 'limit', 'sinceSceneRevision', 'cursor']) expect(skyInput).toContain(field);
+    for (const field of ['accountId', 'ownerId', 'commandId', 'selection'])
+      expect(skyInput).not.toContain(`"${field}"`);
+    for (const field of ['scene-sky-read.v1', 'planetCount', 'haze', 'continuation'])
+      expect(JSON.stringify(sky?.responses?.['200'])).toContain(field);
     const manifestWire = JSON.stringify(manifest?.responses?.['200']);
     for (const field of [
       'empty',

@@ -9,8 +9,11 @@ import {
   type SceneLook,
   type SystemLook,
 } from '@knowscroll/contracts';
-import { CONCEPTS } from '../../content/public.js';
-import { assignLooks, LookRefused, RESERVED_SITES, type LookSubject } from './assign-looks.js';
+import { fixtureSnapshot, planSnapshot } from '../../content/public.js';
+import { assignLooks, LookRefused, RESERVED_SITES, TypeUse, type LookSubject } from './assign-looks.js';
+
+/** The catalogue of the library plan (release 1): the fixture these rules are exercised on. */
+const CONCEPTS = planSnapshot().all();
 
 /**
  * Each planet's facets in the order a region's site is taken from (D-078, D-102). A region's site is the
@@ -94,7 +97,7 @@ const FACET_ORDER: Readonly<Record<string, readonly string[]>> = {
 
 /** The looks `assignLooks` gives; a test that needs the skipped regions reads the whole result. */
 const assign = (subjects: readonly LookSubject[], existing: readonly SceneLook[]) =>
-  assignLooks(subjects, existing).created;
+  assignLooks(subjects, existing, planSnapshot()).created;
 
 // Authored CI subjects built from the real catalogue. They are not product geography.
 const id = (n: number) => `00000000-0000-4000-a000-${String(n).padStart(12, '0')}`;
@@ -345,7 +348,7 @@ describe('the look rule (authored CI subjects over the real catalogue)', () => {
     const storedAtThreeFacets: SceneLook[] = drawn.map((l) =>
       l === planetLook ? { ...planetLook, siteCount: 3 + RESERVED_SITES } : l,
     );
-    const outcome = assignLooks(world.subjects, storedAtThreeFacets);
+    const outcome = assignLooks(world.subjects, storedAtThreeFacets, planSnapshot());
     expect(outcome.skipped).toEqual([]);
     expect(outcome.created).toEqual([
       expect.objectContaining({ objectId: regions[3]!.objectId, kind: 'region', site: 3 }),
@@ -365,6 +368,7 @@ describe('the look rule (authored CI subjects over the real catalogue)', () => {
     const outcome = assignLooks(
       world.subjects.filter((s) => s.kind !== 'region' || s.parentId === planet.objectId),
       [{ ...planetLook, siteCount: 2 }],
+      planSnapshot(),
     );
     expect(outcome.skipped).toEqual([
       { objectId: regions[2]!.objectId, reason: 'site_beyond_capacity' },
@@ -449,6 +453,81 @@ describe('the look rule (authored CI subjects over the real catalogue)', () => {
   });
 });
 
+describe('the look rule from a universe aggregate (D-417)', () => {
+  /** The aggregate the store reads in one query: how many planets hold each type. */
+  const aggregate = (looks: readonly SceneLook[]) => new Map(byType(looks));
+
+  it('gives exactly the looks the rule gave when it recounted every look, from the counts alone', () => {
+    const { subjects, planets } = catalogueWorld();
+    const base = assign(onlyPlanets(subjects, planets.slice(0, 8)), []);
+    const recounted = assignLooks(subjects, base, planSnapshot());
+    const fromCounts = assignLooks(subjects, base, planSnapshot(), new TypeUse(aggregate(base)));
+    expect(fromCounts).toEqual(recounted);
+    expect(fromCounts.created.length).toBeGreaterThan(0);
+  });
+
+  it('assigns a map one system at a time, each batch seeing only its own looks, to the same stable result', () => {
+    const { subjects } = catalogueWorld();
+    const systems = subjects.filter((s) => s.kind === 'system');
+    const use = new TypeUse();
+    let all: SceneLook[] = [];
+    for (const system of systems) {
+      const batch = subjects.filter((s) => s.systemId === system.systemId);
+      const ids = new Set(batch.map((s) => s.objectId));
+      const given = assignLooks(
+        batch,
+        all.filter((look) => ids.has(look.objectId)),
+        planSnapshot(),
+        use,
+      );
+      expect(given.skipped).toEqual([]);
+      all = [...all, ...given.created];
+    }
+    // Every system, planet and region has a look, once.
+    expect(new Set(all.map((l) => l.objectId)).size).toBe(all.length);
+    expect(all.filter((l) => l.kind === 'system')).toHaveLength(systems.length);
+    // The least-used rule held across the batches: counts stay within one of each other (the planets arrive in system order).
+    const counts = [...byType(all).values()];
+    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
+    // Running it again over every batch gives nothing, however the aggregate is read.
+    const again = new TypeUse(aggregate(all));
+    for (const system of systems) {
+      const batch = subjects.filter((s) => s.systemId === system.systemId);
+      const ids = new Set(batch.map((s) => s.objectId));
+      expect(
+        assignLooks(
+          batch,
+          all.filter((look) => ids.has(look.objectId)),
+          planSnapshot(),
+          again,
+        ).created,
+      ).toEqual([]);
+    }
+  });
+
+  it('takes a new planet from the universe counts even when its own system holds none of the type', () => {
+    const { subjects, planets } = catalogueWorld();
+    const base = assign(onlyPlanets(subjects, planets.slice(0, 6)), []);
+    const next = planets[6]!;
+    // The planet, its system and its star: all this batch holds.
+    const batch = subjects.filter(
+      (s) =>
+        s.objectId === next.objectId || (s.systemId === next.systemId && s.kind !== 'planet' && s.kind !== 'region'),
+    );
+    const ids = new Set(batch.map((s) => s.objectId));
+    // Six planets hold six types; the seventh takes the least used, and its variant counts the planets of that type.
+    const [look] = planetLooks(
+      assignLooks(
+        batch,
+        base.filter((l) => ids.has(l.objectId)),
+        planSnapshot(),
+        new TypeUse(aggregate(base)),
+      ).created,
+    );
+    expect(look!.variant).toBe(1);
+  });
+});
+
 describe('the look rule refuses what the plan cannot explain', () => {
   const world = catalogueWorld();
   const looks = assign(world.subjects, []);
@@ -475,5 +554,45 @@ describe('the look rule refuses what the plan cannot explain', () => {
 
   it('a look whose object is no longer stored', () => {
     refused([], [looks[0]!]);
+  });
+});
+
+describe('looks for a catalogue that grew without a deploy (D-419)', () => {
+  const grown = fixtureSnapshot([
+    { id: 'geology', parent: null },
+    { id: 'geology.rocks', parent: 'geology', facets: ['geology.rocks.igneous', 'geology.rocks.sediment'] },
+    { id: 'geology.crust', parent: 'geology', facets: ['geology.crust.plates', 'geology.crust.faults'] },
+  ]);
+  const subject = (n: number, kind: LookSubject['kind'], meaningId: string, parent?: LookSubject): LookSubject => ({
+    objectId: id(n),
+    kind,
+    parentId: parent ? parent.objectId : id(0),
+    systemId: kind === 'system' ? id(n) : parent!.systemId,
+    meaningId,
+    seed: seedOf(n),
+  });
+
+  it('draws a new system, planet and region from the node revisions of the release it reads, and repeats a haze for a second system', () => {
+    const system = subject(1, 'system', 'geology');
+    const planet = subject(2, 'planet', 'geology.rocks', system);
+    const region = subject(3, 'region', 'geology.rocks.sediment', planet);
+    const [systemLook, planetLook, regionLook] = assignLooks([system, planet, region], [], grown).created;
+    expect(systemLook).toMatchObject({ kind: 'system', haze: grown.hazeOf('geology') });
+    expect(planetLook).toMatchObject({ kind: 'planet', siteCount: 2 + RESERVED_SITES });
+    // The region is the second facet of its planet: its site is its place in the node's list, which never changes.
+    expect(regionLook).toMatchObject({ kind: 'region', site: 1 });
+    const second = subject(4, 'system', 'geology');
+    expect(assignLooks([second], [], grown).created[0]).toMatchObject({
+      kind: 'system',
+      haze: grown.hazeOf('geology'),
+    });
+  });
+
+  it('refuses a system whose node has no haze, and a planet the release does not hold, as it always did', () => {
+    const lost = subject(1, 'system', 'nowhere');
+    expect(() => assignLooks([lost], [], grown)).toThrow('system_without_haze');
+    const system = subject(2, 'system', 'geology');
+    const stray = subject(3, 'planet', 'geology.nothing', system);
+    expect(() => assignLooks([system, stray], [], grown)).toThrow('planet_without_plan');
   });
 });

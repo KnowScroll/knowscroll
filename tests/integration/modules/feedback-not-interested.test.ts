@@ -3,6 +3,8 @@
  * of the marked asset, a lapse by itself, no evidence, and the three erasures. CI fixture Scrolls and
  * accounts; no provider.
  */
+import { catalogueOf } from '../support/catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -19,7 +21,7 @@ import { composerBufferWorkerProviders, composerProviders } from '@knowscroll/ba
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceBufferSourceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
 import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
-import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
+import { READ_COMPOSER_CONTEXT, READ_INTEREST_CONTEXT } from '@knowscroll/backend/modules/personal-context';
 import { RECORDING_REASONING_HARNESS } from '@knowscroll/backend/reasoning';
 import type { NavigationOutcome } from '@knowscroll/contracts';
 import { openToEveryone } from '../support/audience.js';
@@ -357,10 +359,12 @@ describe('Not interested (real PostgreSQL)', () => {
       const workerConfig = Symbol('test.workerConfig');
       const { harness } = fixtureRecordingHarness(database.db, { model: undefined });
       const values = new Map<symbol, unknown>([
+        [CATALOGUE, catalogueOf(database.db)],
         [withScope, makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })],
         [workerConfig, { jevEnabled: false, reasoning: { minimax: { model: 'fixture-model-v1' } } }],
         [RECORDING_REASONING_HARNESS, harness],
         [READ_COMPOSER_CONTEXT, buffered.readComposerContext],
+        [READ_INTEREST_CONTEXT, buffered.readInterestContext],
         ...[
           ...experienceBufferSourceProviders(),
           ...composerProviders({ isOperator: () => false }),

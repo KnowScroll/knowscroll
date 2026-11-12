@@ -38,8 +38,8 @@ export const WATCHDOG_THRESHOLDS: WatchdogThresholds = {
   geographyInsufficient: { runs: 3, lookbackSeconds: 7 * 86400, alertAtCount: 1 },
   /**
    * Composer decisions within the window (at most 7 days: the view reads no further back) whose first offer is an
-   * explanation the person had met while the decision records an eligible candidate that was not. Only `composer-policy.v2`
-   * vertical decisions without an exact target are read: it is the guarantee of that policy, so it can only fire on a regression.
+   * explanation the person had met while the decision records an eligible candidate that was not. Only `composer-policy.v2` and `v3`
+   * vertical decisions without an exact target are read: it is the guarantee of those policies (v3 keeps it), so it can only fire on a regression.
    */
   composerRepeats: { windowSeconds: 24 * 3600, alertAtCount: 1 },
   /** Model attempts whose outcome is still `unknown` after this long (an operator reconciles or writes them off). */

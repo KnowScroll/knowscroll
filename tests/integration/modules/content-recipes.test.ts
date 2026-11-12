@@ -13,7 +13,7 @@ import {
   postgresProductionHarnessPorts,
   guardedModelPort,
 } from '@knowscroll/backend/reasoning/nest-providers';
-import { CONCEPTS, planLibraryProduction } from '@knowscroll/backend/modules/content';
+import { planSnapshot, planLibraryProduction } from '@knowscroll/backend/modules/content';
 import type { WithProductionScope } from '@knowscroll/backend/reasoning';
 import {
   makeProposeRecipes,
@@ -45,6 +45,9 @@ import { answerWith, enableProductionScope, fixtureProduction } from '../support
 import { plannedIntent, realSupply } from '../support/planned-demand.js';
 import { scrollUseCases } from '../support/scroll.js';
 import { orrinResearchFor, plainOrrin, v2Capabilities } from '../support/scroll-v2.js';
+
+/** The catalogue of the library plan (release 1), which the migrated database seeds: the topics these journeys use. */
+const CONCEPTS = planSnapshot().all();
 
 /**
  * Recipes stored in the database (#674, slice 2.2, D-412): proposed by the brief role, checked by code, chosen by Create and the

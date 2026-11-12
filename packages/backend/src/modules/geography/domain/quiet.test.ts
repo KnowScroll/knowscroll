@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONCEPTS } from '../../content/public.js';
+import { planSnapshot } from '../../content/public.js';
 import { QUIET_SWEEP, activityChanges, placeSchedules, unreadRetryMs } from './quiet.js';
 import { requiredChanges } from './formation.js';
 import {
@@ -10,6 +10,9 @@ import {
   type Place,
   type Support,
 } from './policy.js';
+
+/** The catalogue of the library plan (release 1): the fixture these rules are exercised on. */
+const CONCEPTS = planSnapshot().all();
 
 /** Authored supports over the real concept catalogue; none of this is a person's reading. */
 const catalogue = CONCEPTS.map((topic) => ({

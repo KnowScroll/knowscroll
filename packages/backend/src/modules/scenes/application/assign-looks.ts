@@ -11,7 +11,7 @@ import {
   type SceneLook,
   type SystemLook,
 } from '@knowscroll/contracts';
-import { CONCEPTS, hazeFamilyOf } from '../../content/public.js';
+import type { CatalogueSnapshot } from '../../content/public.js';
 
 /**
  * The rule that gives each place its look, once (D-077, D-078, D-102, D-103). It is pure: the same
@@ -92,13 +92,25 @@ const KIND_RANK = { system: 0, star: 1, planet: 2, region: 3 } as const;
 const byCreation = (a: LookSubject, b: LookSubject) =>
   KIND_RANK[a.kind] - KIND_RANK[b.kind] || (a.objectId < b.objectId ? -1 : a.objectId > b.objectId ? 1 : 0);
 
-/** Which types a universe already uses, and which a system already holds. */
-class TypeUse {
-  private readonly counts = new Map<PlanetType, number>();
+/**
+ * Which types a universe already uses, and which a system already holds. A map at scale starts it from the
+ * universe's aggregate (how many planets hold each type, one query) instead of from every look, and keeps it across
+ * the systems of one projection so each new look counts for the next (D-417).
+ */
+export class TypeUse {
+  private readonly counts: Map<PlanetType, number>;
   private readonly bySystem = new Map<string, Set<PlanetType>>();
 
+  constructor(counts: ReadonlyMap<PlanetType, number> = new Map()) {
+    this.counts = new Map(counts);
+  }
+  /** A planet that was given its type now: it counts for the universe and for its system. */
   add(systemId: string, type: PlanetType): void {
     this.counts.set(type, this.count(type) + 1);
+    this.hold(systemId, type);
+  }
+  /** A planet that already had its type: its system holds it (the universe's aggregate already counted it). */
+  hold(systemId: string, type: PlanetType): void {
     const held = this.bySystem.get(systemId) ?? new Set<PlanetType>();
     held.add(type);
     this.bySystem.set(systemId, held);
@@ -181,15 +193,30 @@ function planetLook(
  * facet. A region whose ordinal is past its planet's sites is skipped and reported, never refused, so
  * one grown planet cannot take the scene down. It never changes or repeats a look in `existing`.
  * Throws `LookRefused` only when the plan and the stored objects structurally disagree.
+ *
+ * `catalogue` is one release of the topic catalogue (D-419): the haze, facets and sites are read from it, so a topic added
+ * without a deploy gets its look from the node revision of the release the caller read.
+ *
+ * `universeUse` is the universe's type use when `subjects` are only some of its systems (D-417): it already counts
+ * every planet that has a look, so `existing` (the looks of those subjects) only tells it what each system holds.
+ * Without it the subjects are the whole universe and `existing` is every look, as before.
  */
-export function assignLooks(subjects: readonly LookSubject[], existing: readonly SceneLook[]): LookAssignment {
+export function assignLooks(
+  subjects: readonly LookSubject[],
+  existing: readonly SceneLook[],
+  catalogue: CatalogueSnapshot,
+  universeUse?: TypeUse,
+): LookAssignment {
   const subjectOf = new Map(subjects.map((subject) => [subject.objectId, subject]));
   const known = new Map(existing.map((look) => [look.objectId, look]));
-  const use = new TypeUse();
+  const use = universeUse ?? new TypeUse();
   for (const look of existing) {
     const subject = subjectOf.get(look.objectId);
     if (!subject) throw new LookRefused('look_without_object');
-    if (look.kind === 'planet') use.add(subject.systemId, look.type);
+    if (look.kind === 'planet') {
+      if (universeUse === undefined) use.add(subject.systemId, look.type);
+      else use.hold(subject.systemId, look.type);
+    }
   }
   const created: SceneLook[] = [];
   const skipped: SkippedLook[] = [];
@@ -197,10 +224,10 @@ export function assignLooks(subjects: readonly LookSubject[], existing: readonly
   for (const subject of [...pending].sort(byCreation)) {
     const look =
       subject.kind === 'system'
-        ? systemLook(subject)
+        ? systemLook(subject, catalogue)
         : subject.kind === 'planet'
-          ? newPlanetLook(subject, subjectOf, use)
-          : regionLook(subject, subjectOf, known);
+          ? newPlanetLook(subject, subjectOf, use, catalogue)
+          : regionLook(subject, subjectOf, known, catalogue);
     if (look === 'beyond_capacity') {
       skipped.push({ objectId: subject.objectId, reason: 'site_beyond_capacity' });
       continue;
@@ -211,8 +238,8 @@ export function assignLooks(subjects: readonly LookSubject[], existing: readonly
   return { created, skipped };
 }
 
-function systemLook(subject: LookSubject): SystemLook {
-  const haze = hazeFamilyOf(subject.meaningId);
+function systemLook(subject: LookSubject, catalogue: CatalogueSnapshot): SystemLook {
+  const haze = catalogue.hazeOf(subject.meaningId);
   if (!haze) throw new LookRefused('system_without_haze');
   return {
     schemaVersion: SCENE_LOOK_VERSION,
@@ -223,10 +250,15 @@ function systemLook(subject: LookSubject): SystemLook {
   };
 }
 
-function newPlanetLook(subject: LookSubject, subjectOf: ReadonlyMap<string, LookSubject>, use: TypeUse): PlanetLook {
+function newPlanetLook(
+  subject: LookSubject,
+  subjectOf: ReadonlyMap<string, LookSubject>,
+  use: TypeUse,
+  catalogue: CatalogueSnapshot,
+): PlanetLook {
   const system = subjectOf.get(subject.systemId);
-  const haze = system && hazeFamilyOf(system.meaningId);
-  const facets = CONCEPTS.find((concept) => concept.id === subject.meaningId)?.facets.length ?? 0;
+  const haze = system && catalogue.hazeOf(system.meaningId);
+  const facets = catalogue.concept(subject.meaningId)?.facets.length ?? 0;
   if (!haze || facets < 1) throw new LookRefused('planet_without_plan');
   const type = chooseType(subject.seed, use, subject.systemId);
   const variant = use.count(type);
@@ -238,10 +270,11 @@ function regionLook(
   subject: LookSubject,
   subjectOf: ReadonlyMap<string, LookSubject>,
   known: ReadonlyMap<string, SceneLook>,
+  catalogue: CatalogueSnapshot,
 ): RegionLook | 'beyond_capacity' {
   const planet = known.get(subject.parentId);
   const planetMeaning = subjectOf.get(subject.parentId)?.meaningId;
-  const site = CONCEPTS.find((concept) => concept.id === planetMeaning)?.facets.findIndex(
+  const site = (planetMeaning === undefined ? undefined : catalogue.concept(planetMeaning))?.facets.findIndex(
     (facet) => facet.id === subject.meaningId,
   );
   if (planet?.kind !== 'planet' || site === undefined || site < 0) throw new LookRefused('region_without_site');

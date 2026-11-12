@@ -6,7 +6,9 @@ import type { ActivityPorts } from '../application/activity.js';
 import type { ActivityChannels } from '../domain/activity.js';
 import { activity, decay, replaceContribution } from '../domain/activity.js';
 import { moveCellCounts, readCells } from './cell-store.js';
-import type { PlayLevel } from '../../content/public.js';
+import { applyInterestRollups, type TopicCountedChange } from './interest-store.js';
+import { parseCounted, type CountedState } from '../domain/interest-rollup.js';
+import type { Catalogue, PlayLevel } from '../../content/public.js';
 export const readQualification: ActivityPorts['readQualification'] = async (cap, id, domain, initializedAt) => {
   const scope = cap.personal;
   const rows = await sql<{
@@ -62,7 +64,19 @@ function contributionChannels(channels: ActivityChannels, weight: number): Chann
     R: Number(channels.R) * weight,
   };
 }
-export const persistActivity: ActivityPorts['persist'] = async (cap, x) => {
+/**
+ * Persists one exposure's activity. The system roll-ups it feeds (D-420) are made from the topic catalogue release read when the
+ * projection starts: one release for the whole exposure, so every topic it touches is placed in a system by the same catalogue.
+ */
+export const makePersistActivity =
+  (catalogue: Pick<Catalogue, 'current'>): ActivityPorts['persist'] =>
+  async (cap, x) =>
+    persistActivityWith(cap, x, (await catalogue.current()).systemOf);
+async function persistActivityWith(
+  cap: Parameters<ActivityPorts['persist']>[0],
+  x: Parameters<ActivityPorts['persist']>[1],
+  systemOf: (topicId: string) => string | undefined,
+): Promise<void> {
   const scope = cap.personal;
   const db = recordingTransactionOf(cap),
     u = scope.authority.universeId,
@@ -107,6 +121,7 @@ export const persistActivity: ActivityPorts['persist'] = async (cap, x) => {
     inputHash: x.inputHash,
     vector: x.inputVector,
   });
+  const interestChanges: TopicCountedChange[] = [];
   for (const topicId of new Set([...old.rows.map((t) => t.topic_id), ...x.metadata.topics.map((t) => t.topicId)])) {
     const topic = x.metadata.topics.find((t) => t.topicId === topicId);
     const before = old.rows.find((t) => t.topic_id === topicId);
@@ -121,6 +136,7 @@ export const persistActivity: ActivityPorts['persist'] = async (cap, x) => {
       reel_qualified: number;
       scroll_measured: number;
       scroll_qualified: number;
+      rollup_counted: unknown;
     }>`select * from evidence.topic_context where universe_id=${u}::uuid and privacy_epoch=${e} and topic_id=${topicId}`.execute(
       db,
     );
@@ -149,6 +165,21 @@ export const persistActivity: ActivityPorts['persist'] = async (cap, x) => {
     const reel = x.exposure.kind === 'reel';
     const m = measured - (before?.measured ?? 0),
       q = qualified - (before?.qualified ?? 0);
+    const reelMeasured = (a?.reel_measured ?? 0) + (reel ? m : 0),
+      reelQualified = (a?.reel_qualified ?? 0) + (reel ? q : 0),
+      scrollMeasured = (a?.scroll_measured ?? 0) + (reel ? 0 : m),
+      scrollQualified = (a?.scroll_qualified ?? 0) + (reel ? 0 : q);
+    // What the roll-ups will be told this topic row now holds, stored with the row so the next change takes away exactly that.
+    const counted: CountedState = {
+      a: activity,
+      t: Date.parse(x.evaluatedAt),
+      ch: channelValues,
+      rm: reelMeasured,
+      rq: reelQualified,
+      sm: scrollMeasured,
+      sq: scrollQualified,
+    };
+    interestChanges.push({ topicId, previous: parseCounted(a?.rollup_counted), next: counted });
     // The play level of the Scroll read decides which cell this encounter counts in (D-192).
     await moveCellCounts(
       db,
@@ -156,10 +187,17 @@ export const persistActivity: ActivityPorts['persist'] = async (cap, x) => {
       before ? { level: before.play_level, measured: before.measured, qualified: before.qualified } : undefined,
       { level: x.playLevel, measured, qualified },
     );
-    await sql`insert into evidence.topic_context(universe_id,privacy_epoch,topic_id,channel_values,activity,evaluated_at,reel_measured,reel_qualified,scroll_measured,scroll_qualified) values(${u}::uuid,${e},${topicId},${JSON.stringify(channelValues)}::jsonb,${activity},${x.evaluatedAt}::timestamptz,${(a?.reel_measured ?? 0) + (reel ? m : 0)},${(a?.reel_qualified ?? 0) + (reel ? q : 0)},${(a?.scroll_measured ?? 0) + (reel ? 0 : m)},${(a?.scroll_qualified ?? 0) + (reel ? 0 : q)}) on conflict(universe_id,topic_id) do update set channel_values=excluded.channel_values,activity=excluded.activity,evaluated_at=excluded.evaluated_at,reel_measured=excluded.reel_measured,reel_qualified=excluded.reel_qualified,scroll_measured=excluded.scroll_measured,scroll_qualified=excluded.scroll_qualified,privacy_epoch=excluded.privacy_epoch`.execute(
+    await sql`insert into evidence.topic_context(universe_id,privacy_epoch,topic_id,channel_values,activity,evaluated_at,reel_measured,reel_qualified,scroll_measured,scroll_qualified,rollup_counted) values(${u}::uuid,${e},${topicId},${JSON.stringify(channelValues)}::jsonb,${activity},${x.evaluatedAt}::timestamptz,${reelMeasured},${reelQualified},${scrollMeasured},${scrollQualified},${JSON.stringify(counted)}::jsonb) on conflict(universe_id,topic_id) do update set channel_values=excluded.channel_values,activity=excluded.activity,evaluated_at=excluded.evaluated_at,reel_measured=excluded.reel_measured,reel_qualified=excluded.reel_qualified,scroll_measured=excluded.scroll_measured,scroll_qualified=excluded.scroll_qualified,privacy_epoch=excluded.privacy_epoch,rollup_counted=excluded.rollup_counted`.execute(
       db,
     );
   }
+  // The system and person roll-ups follow the topic rows in the same transaction, by what each topic was counted as (D-420).
+  await applyInterestRollups(
+    db,
+    { universeId: u, privacyEpoch: e, atMs: Date.parse(x.evaluatedAt) },
+    interestChanges,
+    systemOf,
+  );
   await sql`delete from evidence.topic_contributions where universe_id=${u}::uuid and exposure_id=${x.exposure.exposureId}::uuid`.execute(
     db,
   );
@@ -167,7 +205,7 @@ export const persistActivity: ActivityPorts['persist'] = async (cap, x) => {
     await sql`insert into evidence.topic_contributions(universe_id,privacy_epoch,exposure_id,topic_id,channel_values,value,measured,qualified,play_level) values(${u}::uuid,${e},${x.exposure.exposureId}::uuid,${t.topicId},${JSON.stringify(contributionChannels(x.channels, t.weight))}::jsonb,${t.weight * x.value},${t.role !== 'incidental' && x.measured ? 1 : 0},${t.role !== 'incidental' && x.qualified ? 1 : 0},${x.playLevel})`.execute(
       db,
     );
-};
+}
 export const readTopicContext: ActivityPorts['readTopicContext'] = async (scope, ids, at) => {
   if (!ids.length) return [];
   const rows = await sql<{

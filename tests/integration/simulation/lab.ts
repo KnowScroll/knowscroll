@@ -17,6 +17,11 @@ export interface LabPlan {
   /** Two personas that share the world and take turns, to check isolation. */
   readonly sideBySide?: readonly [PersonaSpec, PersonaSpec];
   readonly config?: (base: SimConfig) => SimConfig;
+  /**
+   * What a scenario's outcome must be, stated in the plan: run after the personas, with their results, so an exact scenario
+   * asserts the outcome it was written for, not only that no invariant broke.
+   */
+  readonly outcomes?: (results: readonly PersonaResult[]) => void;
 }
 
 const ORDER = Object.keys(INVARIANTS) as InvariantId[];
@@ -69,6 +74,11 @@ export function defineLab(plan: LabPlan): void {
       expect(ran).toEqual(planned);
       for (const result of results) expect(result.run.encounters.length, result.run.spec.id).toBeGreaterThan(0);
     });
+
+    if (plan.outcomes)
+      it('has the outcome its scenarios state', () => {
+        plan.outcomes!(results);
+      });
 
     if (plan.sideBySide)
       it('the isolation check can see: it fingerprints the personal tables and sees each person change their own rows', () => {

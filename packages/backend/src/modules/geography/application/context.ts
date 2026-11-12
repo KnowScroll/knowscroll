@@ -14,6 +14,7 @@ import {
   type Route,
   type Support,
 } from '../domain/policy.js';
+import { pinCatalogue } from './catalogue.js';
 import type {
   EvaluationScope,
   GeographyContext,
@@ -28,6 +29,26 @@ export type PreparationPorts = Pick<
   GeographyPorts,
   'store' | 'readDirty' | 'readInputs' | 'readTrusted' | 'catalogue' | 'hash' | 'mac' | 'seed' | 'newId' | 'now'
 >;
+/** The ports an evaluation reads through once it has pinned one release of the catalogue (D-419): every lookup is of that release. */
+type ReadPorts = Omit<PreparationPorts, 'catalogue'>;
+type PinnedPorts = ReadPorts & { readonly catalogue: Catalogue };
+
+/**
+ * The release an evaluation reads, read once: the one a frozen context pinned (the apply re-checks what the run decided on, whatever
+ * has been released since), else the one the caller already pinned, else the current release. A context frozen before releases
+ * existed pinned none and is read against the current one, which for the seeded catalogue is the same.
+ */
+export async function pinnedCatalogue(
+  p: Pick<PreparationPorts, 'catalogue'>,
+  pin: { readonly catalogue?: Catalogue; readonly catalogueRelease?: number } = {},
+): Promise<Catalogue> {
+  if (pin.catalogue !== undefined) return pin.catalogue;
+  if (pin.catalogueRelease !== undefined) {
+    const release = await p.catalogue.release(pin.catalogueRelease);
+    if (release !== undefined) return pinCatalogue(release);
+  }
+  return pinCatalogue(await p.catalogue.current());
+}
 
 /**
  * What a context evaluates:
@@ -41,9 +62,15 @@ export type PreparationRequest =
   | { readonly kind: 'evaluated'; readonly evaluated: EvaluationScope }
   | { readonly kind: 'topics'; readonly topics: readonly string[] };
 
-/** `readOnly`: the scope cannot write (the dry run), so a universe with no place secret yet gets an unsaved one. */
+/**
+ * `readOnly`: the scope cannot write (the dry run), so a universe with no place secret yet gets an unsaved one.
+ * `catalogue`: a release the caller pinned already, so one pass reads one catalogue. `catalogueRelease`: the release a frozen context
+ * pinned, which the apply reads again (D-419).
+ */
 export interface PreparationOptions {
   readonly readOnly?: boolean;
+  readonly catalogue?: Catalogue;
+  readonly catalogueRelease?: number;
 }
 
 const label = (id: string) => {
@@ -59,7 +86,7 @@ const refused = (
 const emptyCoverage = (): Coverage => ({
   version: 'trusted-coverage-read.v1',
   completeness: 'not_asserted',
-  supportedFormats: ['scroll'],
+  supportedFormats: ['scroll', 'reel'],
   availability: 'available',
   reason: 'current',
   supports: [],
@@ -78,6 +105,7 @@ const conceptOf = (topic: CatalogueTopic): Concept => ({
   id: topic.id,
   parent: topic.parent,
   facets: topic.facets.map((facet) => facet.id),
+  ...(topic.policy ? { policy: topic.policy } : {}),
 });
 
 /**
@@ -142,9 +170,10 @@ function relevantTopics(
     const parent = catalogue.topic(id)?.parent;
     if (parent) ids.add(parent);
   }
+  // A topic a release retired forms nothing new: it leaves the slice (what is stored for it stays valid, `validView`).
   return [...ids]
     .map((id) => catalogue.topic(id))
-    .filter((topic): topic is CatalogueTopic => topic !== undefined)
+    .filter((topic): topic is CatalogueTopic => topic !== undefined && !catalogue.retired(topic.id))
     .sort((a, b) => catalogue.rank(a.id) - catalogue.rank(b.id));
 }
 
@@ -168,7 +197,7 @@ function candidates(
       .filter((object) => object.kind === 'region')
       .map((object) => `${object.parentKey}|${object.conceptId}`),
   );
-  const add = (kind: Candidate['kind'], conceptId: string, parentKey: string, meaning: string) => {
+  const add = (kind: Candidate['kind'], conceptId: string, parentKey: string, name: string, meaning: string) => {
     const key = semanticKey(kind, conceptId);
     slots.push({
       key,
@@ -177,20 +206,20 @@ function candidates(
       conceptId,
       parentKey,
       truthStatus: 'factual',
-      labels: [label(conceptId), meaning].filter((x, i, a) => x.length <= 160 && a.indexOf(x) === i),
+      labels: [name, meaning].filter((x, i, a) => x.length <= 160 && a.indexOf(x) === i),
     });
   };
   for (const topic of topics) {
     if (topic.parent === null) {
-      add('system', topic.id, 'universe', topic.meaning);
-      add('star', topic.id, semanticKey('system', topic.id), topic.meaning);
+      add('system', topic.id, 'universe', topic.label ?? label(topic.id), topic.meaning);
+      add('star', topic.id, semanticKey('system', topic.id), topic.label ?? label(topic.id), topic.meaning);
       continue;
     }
     const planetKey = semanticKey('planet', topic.id);
-    add('planet', topic.id, semanticKey('system', topic.parent), topic.meaning);
+    add('planet', topic.id, semanticKey('system', topic.parent), topic.label ?? label(topic.id), topic.meaning);
     for (const facet of topic.facets)
       if (supported.has(`${topic.id}|${facet.id}`) || established.has(`${planetKey}|${facet.id}`))
-        add('region', facet.id, planetKey, facet.meaning);
+        add('region', facet.id, planetKey, facet.label ?? label(facet.id), facet.meaning);
   }
   return slots;
 }
@@ -214,7 +243,7 @@ type BatchRead =
  * probe always fits: the read returns one witness per support key, never one per re-read.
  */
 async function readBatch(
-  p: PreparationPorts,
+  p: ReadPorts,
   scope: PersonalScopeTx,
   probes: TrustedCoverageQuery['probes'],
 ): Promise<BatchRead> {
@@ -222,8 +251,9 @@ async function readBatch(
   if (read.availability === 'available') {
     if (
       read.completeness !== 'not_asserted' ||
-      read.supportedFormats.length !== 1 ||
-      read.supportedFormats[0] !== 'scroll'
+      read.supportedFormats.length !== 2 ||
+      read.supportedFormats[0] !== 'scroll' ||
+      read.supportedFormats[1] !== 'reel'
     )
       throw new Error('GEOGRAPHY_COVERAGE_UNSUPPORTED');
     return { kind: 'read', reads: [read] };
@@ -244,7 +274,7 @@ async function readBatch(
  * was observed is a complete answer with no support (`nothingTrusted`).
  */
 async function readTrustedInBatches(
-  p: PreparationPorts,
+  p: ReadPorts,
   scope: PersonalScopeTx,
   probes: readonly CoverageProbe[],
 ): Promise<
@@ -275,20 +305,12 @@ function mergeCoverage(reads: readonly Coverage[]): Coverage {
 }
 
 /** Each trusted support with the witnesses and certificates that prove it, checked against the catalogue and truth. */
-function supportEntries(p: PreparationPorts, coverage: Coverage): CoverageEntry[] {
+function supportEntries(p: PinnedPorts, coverage: Coverage): CoverageEntry[] {
   const entries: CoverageEntry[] = [];
   for (const s of coverage.supports) {
-    const topic = p.catalogue.topic(s.topicId),
-      facet = topic?.facets.find((f) => f.id === s.facetId);
-    // A facet that vanished or changed meaning since the evidence was recorded supports nothing now.
-    // The catalogue grows with the library, so this is expected after a plan edit, not an error.
-    if (
-      !topic ||
-      !facet ||
-      s.meaningSha256 !==
-        p.hash({ topicId: topic.id, topicMeaning: topic.meaning, facetId: facet.id, facetMeaning: facet.meaning })
-    )
-      continue;
+    // A facet that vanished or changed meaning since the evidence was recorded supports nothing now. A wording a release
+    // declared the same meaning still stands (D-419). The catalogue grows, so this is expected after a release, not an error.
+    if (!p.catalogue.acceptsMeaning(s.topicId, s.facetId, s.meaningSha256)) continue;
     const witnesses = coverage.witnesses.filter(
       (w) =>
         w.topicId === s.topicId &&
@@ -346,9 +368,44 @@ function supportEntries(p: PreparationPorts, coverage: Coverage): CoverageEntry[
   );
 }
 
+/**
+ * How many newest keys of each facet an evaluation of `topicIds` reads (D-419). A planet needs `planetUnits` units and its system
+ * `systemUnits`: a facet holding that many keys already holds enough, so reading that many of each facet changes no place the
+ * rules form. For a catalogue that never changed a threshold this is `EVALUATION.keysPerFacet`, exactly as before.
+ */
+function keysFor(catalogue: Catalogue, topicIds: readonly string[]): number {
+  let keys: number = EVALUATION.keysPerFacet;
+  for (const id of topicIds) {
+    const topic = catalogue.topic(id);
+    const system = topic?.parent === undefined || topic.parent === null ? undefined : catalogue.topic(topic.parent);
+    keys = Math.max(
+      keys,
+      topic?.policy?.planetUnits ?? 0,
+      topic?.policy?.systemUnits ?? 0,
+      system?.policy?.systemUnits ?? 0,
+    );
+  }
+  return keys;
+}
+
+/** How many keys of each facet of the other topics of a system are read: one, unless the system asks for more units than that to form. */
+function neighbourKeys(catalogue: Catalogue, systemId: string): number {
+  return Math.max(1, catalogue.topic(systemId)?.policy?.systemUnits ?? 0);
+}
+
 /** The topics a person's due places are read through (the quiet settle and the dry run). */
 export async function topicsOfPlaces(
   p: Pick<PreparationPorts, 'readInputs' | 'catalogue'>,
+  scope: PersonalScopeTx,
+  places: readonly Pick<Place, 'kind' | 'conceptId' | 'parentKey'>[],
+  pinned?: Catalogue,
+): Promise<string[]> {
+  return topicsOfPlacesIn(p, await pinnedCatalogue(p, { catalogue: pinned }), scope, places);
+}
+
+async function topicsOfPlacesIn(
+  p: Pick<ReadPorts, 'readInputs'>,
+  catalogue: Catalogue,
   scope: PersonalScopeTx,
   places: readonly Pick<Place, 'kind' | 'conceptId' | 'parentKey'>[],
 ): Promise<string[]> {
@@ -362,16 +419,20 @@ export async function topicsOfPlaces(
     } else systems.add(place.conceptId);
   }
   for (const systemId of systems) {
-    const children = p.catalogue.childrenOf(systemId).map((topic) => topic.id);
-    const read = await p.readInputs(scope, { topicIds: children, perFacet: 1, maxTopics: EVALUATION.neighbourTopics });
+    const children = catalogue.childrenOf(systemId).map((topic) => topic.id);
+    const read = await p.readInputs(scope, {
+      topicIds: children,
+      perFacet: neighbourKeys(catalogue, systemId),
+      maxTopics: EVALUATION.neighbourTopics,
+    });
     for (const id of read.topics) topics.add(id);
   }
-  return [...topics].sort((a, b) => p.catalogue.rank(a) - p.catalogue.rank(b));
+  return [...topics].sort((a, b) => catalogue.rank(a) - catalogue.rank(b));
 }
 
 /** The topics to evaluate for a request, and what the dirty set said about the person. */
 async function chooseTopics(
-  p: PreparationPorts,
+  p: PinnedPorts,
   scope: PersonalScopeTx,
   request: PreparationRequest,
 ): Promise<
@@ -397,7 +458,7 @@ async function chooseTopics(
   const topics = new Set(dirty.topics);
   if (request.alsoDueBy) {
     const due = await p.store.duePlaces(scope, request.alsoDueBy, 100);
-    for (const id of await topicsOfPlaces(p, scope, due)) topics.add(id);
+    for (const id of await topicsOfPlacesIn(p, p.catalogue, scope, due)) topics.add(id);
   }
   return {
     kind: 'topics',
@@ -504,7 +565,7 @@ function noteFacets(facets: Map<string, FacetRead>, found: readonly CoverageProb
  * `facets` to the pages it read. Empty when no facet needs more.
  */
 async function nextKeyPage(
-  p: PreparationPorts,
+  p: ReadPorts,
   scope: PersonalScopeTx,
   facets: Map<string, FacetRead>,
   entries: readonly CoverageEntry[],
@@ -547,7 +608,7 @@ async function nextKeyPage(
  * places among them found by key, the routes already joining those planets, and the candidates the rules may form.
  */
 async function evaluateTopics(
-  p: PreparationPorts,
+  p: PinnedPorts,
   scope: PersonalScopeTx,
   secret: string,
   base: readonly string[],
@@ -559,16 +620,23 @@ async function evaluateTopics(
   | { readonly kind: 'unavailable'; readonly reason: PreparationRefusal }
 > {
   const evaluated = new Set(base);
-  const main = await p.readInputs(scope, { topicIds: base, perFacet: EVALUATION.keysPerFacet });
+  const mainKeys = keysFor(p.catalogue, base);
+  const main = await p.readInputs(scope, { topicIds: base, perFacet: mainKeys });
   const probes: CoverageProbe[] = [...main.probes];
   // What each facet was read to, so a facet whose newest keys are not trusted is read further (below).
   const facets = new Map<string, FacetRead>();
-  noteFacets(facets, main.probes, EVALUATION.keysPerFacet, 0);
+  noteFacets(facets, main.probes, mainKeys, 0);
   const near = new Set<string>();
-  if (given.length) {
-    const earlier = await p.readInputs(scope, { topicIds: given, perFacet: 1 });
+  // The neighbours an earlier evaluation read are read again as it read them: by the keys of each facet their system asks for.
+  const givenBySystem = new Map<number, string[]>();
+  for (const id of given) {
+    const keys = neighbourKeys(p.catalogue, p.catalogue.topic(id)?.parent ?? id);
+    givenBySystem.set(keys, [...(givenBySystem.get(keys) ?? []), id]);
+  }
+  for (const [keys, topicIds] of givenBySystem) {
+    const earlier = await p.readInputs(scope, { topicIds, perFacet: keys });
     probes.push(...earlier.probes);
-    noteFacets(facets, earlier.probes, 1, 0);
+    noteFacets(facets, earlier.probes, keys, 0);
     for (const id of earlier.topics) near.add(id);
   }
   for (const [systemId, maxTopics] of expansions) {
@@ -576,9 +644,10 @@ async function evaluateTopics(
       .childrenOf(systemId)
       .map((topic) => topic.id)
       .filter((id) => !evaluated.has(id) && !near.has(id));
-    const found = await p.readInputs(scope, { topicIds: children, perFacet: 1, maxTopics });
+    const keys = neighbourKeys(p.catalogue, systemId);
+    const found = await p.readInputs(scope, { topicIds: children, perFacet: keys, maxTopics });
     probes.push(...found.probes);
-    noteFacets(facets, found.probes, 1, 0);
+    noteFacets(facets, found.probes, keys, 0);
     for (const id of found.topics) near.add(id);
   }
   const topics = [...evaluated].sort((a, b) => p.catalogue.rank(a) - p.catalogue.rank(b));
@@ -668,11 +737,7 @@ async function evaluateTopics(
  * answer is used: the sample is read through the same trusted read and checks, but never enters the facts, so it changes no
  * place. A reader with trusted support elsewhere is healthy (`no_changes`); one with none anywhere is `no_trusted_support`.
  */
-async function sampledTrusted(
-  p: PreparationPorts,
-  scope: PersonalScopeTx,
-  exclude: readonly string[],
-): Promise<boolean> {
+async function sampledTrusted(p: PinnedPorts, scope: PersonalScopeTx, exclude: readonly string[]): Promise<boolean> {
   const found = await p.readInputs(scope, { recent: { limit: EVALUATION.sampleTopics, exclude }, perFacet: 1 });
   if (!found.probes.length) return false;
   const read = await readTrustedInBatches(p, scope, found.probes);
@@ -694,11 +759,13 @@ async function sampledTrusted(
  * coverage reference yet is refused before any coverage is read or any identity made.
  */
 export async function prepareGeography(
-  p: PreparationPorts,
+  ports: PreparationPorts,
   cap: RecordingScopeTx,
   request: PreparationRequest,
   options: PreparationOptions = {},
 ): Promise<GeographyPreparation> {
+  // One release of the catalogue for the whole evaluation, read before anything else (D-419): the context pins it.
+  const p: PinnedPorts = { ...ports, catalogue: await pinnedCatalogue(ports, options) };
   await p.store.root(cap);
   const scope = cap.personal;
   const structure = await p.store.structure(scope);
@@ -729,6 +796,7 @@ export async function prepareGeography(
     const { evaluatedAt: _time, ...authorityFacts } = evaluation.facts;
     const context: GeographyContext = {
       version: 'cartographer-context.v1',
+      catalogueRelease: p.catalogue.releaseId,
       universeId: scope.authority.universeId,
       privacyEpoch: scope.authority.privacyEpoch,
       transitionId: p.newId(),

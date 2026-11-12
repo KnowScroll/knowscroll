@@ -1,3 +1,5 @@
+import { catalogueOf } from './catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { FULL_V1_CAPABILITIES } from '@knowscroll/scroll-model';
@@ -64,6 +66,7 @@ export async function supplyWorld(purpose: string) {
     recordingHarness: RECORDING,
   });
   const values = new Map<symbol, unknown>([
+    [CATALOGUE, catalogueOf(database.db)],
     [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
     [ENQUEUE, makeEnqueueJob(content.boss)],
     [

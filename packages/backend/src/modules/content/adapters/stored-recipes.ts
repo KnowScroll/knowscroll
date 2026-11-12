@@ -1,6 +1,7 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
-import { makeRecipeBook, systemOfTopic, type RecipeBook, type StoredRecipes } from '../application/recipe-book.js';
+import { makeRecipeBook, type RecipeBook, type StoredRecipes } from '../application/recipe-book.js';
+import { readCatalogueIn } from './catalogue-store.js';
 import type { BookRecipe, RecipeOrigin, RecipeStatus } from '../domain/library/generated.js';
 import type { ScrollV2Plan } from '../domain/library/plan.js';
 
@@ -29,8 +30,11 @@ const COLUMNS = sql.raw(
   'key, origin, status, title, topic_id, facet_id, supporting_facet_id, asset_id, explanation_unit_id, brief, pages, scroll_v2, proposing_run_id, check_results, created_at',
 );
 
-/** A stored recipe as the library plan's own shape: a plain Scroll, never interactive, never drawn with a kit. */
-export function bookRecipeOf(row: StoredRecipeRow): BookRecipe {
+/**
+ * A stored recipe as the library plan's own shape: a plain Scroll, never interactive, never drawn with a kit. `systemId` is the
+ * planet's system in the catalogue, empty for a planet the catalogue does not hold.
+ */
+export function bookRecipeOf(row: StoredRecipeRow, systemId: string): BookRecipe {
   return {
     key: row.key,
     origin: row.origin,
@@ -38,7 +42,7 @@ export function bookRecipeOf(row: StoredRecipeRow): BookRecipe {
     title: row.title,
     explanationUnitId: row.explanation_unit_id,
     assetId: row.asset_id,
-    systemId: systemOfTopic(row.topic_id),
+    systemId,
     topicId: row.topic_id,
     facetId: row.facet_id,
     ...(row.supporting_facet_id === null ? {} : { supportingFacetId: row.supporting_facet_id }),
@@ -52,21 +56,26 @@ export function bookRecipeOf(row: StoredRecipeRow): BookRecipe {
 
 /** The stored recipes, read from `content.recipes` on the caller's handle or transaction. */
 export function makeStoredRecipes(db: Queryable): StoredRecipes {
+  const booked = async (rows: readonly StoredRecipeRow[]): Promise<BookRecipe[]> => {
+    if (rows.length === 0) return [];
+    const catalogue = await readCatalogueIn(db);
+    return rows.map((row) => bookRecipeOf(row, catalogue.systemOf(row.topic_id) ?? ''));
+  };
   return {
     async get(key) {
       const row = (await sql<StoredRecipeRow>`select ${COLUMNS} from content.recipes where key = ${key}`.execute(db))
         .rows[0];
-      return row === undefined ? undefined : bookRecipeOf(row);
+      return row === undefined ? undefined : (await booked([row]))[0];
     },
     async ofPlanet(topicId) {
       const { rows } = await sql<StoredRecipeRow>`select ${COLUMNS} from content.recipes
         where topic_id = ${topicId} and status <> 'retired' order by created_at, key`.execute(db);
-      return rows.map(bookRecipeOf);
+      return booked(rows);
     },
     async all() {
       const { rows } =
         await sql<StoredRecipeRow>`select ${COLUMNS} from content.recipes order by created_at, key`.execute(db);
-      return rows.map(bookRecipeOf);
+      return booked(rows);
     },
   };
 }

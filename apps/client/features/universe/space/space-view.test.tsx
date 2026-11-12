@@ -33,13 +33,16 @@ interface MockRenderer {
   dispose: jest.Mock;
 }
 let mockRenderers: MockRenderer[] = [];
+/** The options each renderer was created with, newest last. */
+let mockOptions: unknown[] = [];
 let mockCreateFails = false;
 let mockDrawFails = false;
 jest.mock('./load-space-renderer', () => ({
   loadSpaceRenderer: () =>
     Promise.resolve({
-      createSpaceRenderer: () => {
+      createSpaceRenderer: (_surface: unknown, _definition: unknown, options?: unknown) => {
         if (mockCreateFails) throw new Error('Error creating WebGL context.');
+        mockOptions.push(options);
         const created: MockRenderer = {
           draw: jest.fn<void, [number]>((): void => {
             if (mockDrawFails) throw new Error('GL error');
@@ -83,6 +86,7 @@ beforeEach(() => {
   mockCreateFails = false;
   mockDrawFails = false;
   mockRenderers = [];
+  mockOptions = [];
   mockHostProps = null;
   mockHost = ({ onSurface }) => onSurface(surface);
   frameCallbacks = [];
@@ -100,13 +104,16 @@ async function runFrame(nowMs: number): Promise<void> {
   await act(() => callbacks.forEach((callback) => callback(nowMs)));
 }
 
-async function mount(options: { reducedMotion?: boolean; strict?: boolean } = {}) {
+async function mount(
+  options: { reducedMotion?: boolean; strict?: boolean; onDetail?: (systemIds: readonly string[]) => void } = {},
+) {
   const failures: SpaceFailure[] = [];
   const view = (
     <DisplayProvider value={{ reducedMotion: options.reducedMotion ?? false }}>
       <SpaceView
         definition={SAMPLE_SPACE}
         fallback={() => <SpaceSimpleLists definition={SAMPLE_SPACE} />}
+        {...(options.onDetail === undefined ? {} : { onDetail: options.onDetail })}
         diagnostics={{ onFrame: () => undefined, onFailure: (reason) => failures.push(reason) }}
       />
     </DisplayProvider>
@@ -159,6 +166,25 @@ describe('the space view', () => {
     frameCallbacks = [];
     await act(() => appState('active'));
     expect(frameCallbacks).toHaveLength(1);
+  });
+
+  it('hands the renderer a way to report the systems it draws in full, and to build them all at once in a still frame', async () => {
+    const reported: (readonly string[])[] = [];
+    await mount({ onDetail: (ids) => reported.push(ids) });
+    const live = mockOptions.at(-1) as { onDetail: (ids: readonly string[]) => void; buildsPerFrame?: number };
+    live.onDetail(['a', 'b']);
+    expect(reported).toEqual([['a', 'b']]);
+    // A loop finishes the building over later frames; a still frame has none, so it builds all at once.
+    expect(live.buildsPerFrame).toBeUndefined();
+    mockOptions = [];
+    await mount({ reducedMotion: true });
+    expect((mockOptions.at(-1) as { buildsPerFrame?: number }).buildsPerFrame).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it('says nothing about detail when the screen asked for none', async () => {
+    await mount();
+    const live = mockOptions.at(-1) as { onDetail: (ids: readonly string[]) => void };
+    expect(() => live.onDetail(['a'])).not.toThrow();
   });
 
   it('with reduced motion draws one frame and schedules no loop', async () => {

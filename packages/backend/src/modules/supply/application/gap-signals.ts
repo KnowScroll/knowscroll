@@ -1,11 +1,14 @@
-import { CONCEPTS } from '../../content/public.js';
+import type { CatalogueSnapshot } from '../../content/public.js';
 import type { CheckPersonalAccountDisposable } from '../../identity/public.js';
 import { gapIdentity, isCatalogueTarget, type CatalogueTopic } from '../domain/gaps.js';
 import type { GapMarkStore, GapSignalInput, RecordGapSignals } from './gap-ports.js';
 
-/** The planets of the catalogue and the facets of each, as the loop checks every name against them (exact membership). */
-export const catalogueTopics = (): readonly CatalogueTopic[] =>
-  CONCEPTS.filter((concept) => concept.parent !== null).map((concept) => ({
+/**
+ * The planets of the catalogue and the facets of each, as the loop checks every name against them (exact membership). It includes the
+ * planets that are not servable yet: the loop is what gives them the supply that makes them so.
+ */
+export const catalogueTopics = (catalogue: CatalogueSnapshot): readonly CatalogueTopic[] =>
+  catalogue.allTopics().map((concept) => ({
     id: concept.id,
     facets: concept.facets.map((facet) => facet.id),
   }));
@@ -48,8 +51,8 @@ export interface RecordGapSignalsPorts {
   /** Whether the person's account is a disposable test account: such an account never feeds shared supply (identity's public port). */
   readonly isDisposable: CheckPersonalAccountDisposable;
   readonly now: () => Date;
-  /** Defaults to the library's catalogue. */
-  readonly catalogue?: readonly CatalogueTopic[];
+  /** The planets and facets every named planet and facet is checked against (exact membership): the topic catalogue's, from `catalogueTopics`. */
+  readonly catalogue: () => Promise<readonly CatalogueTopic[]>;
 }
 
 /**
@@ -62,7 +65,7 @@ export interface RecordGapSignalsPorts {
 export function makeRecordGapSignals(ports: RecordGapSignalsPorts): RecordGapSignals {
   return async (scope, signals) => {
     if (!ports.enabled || signals.length === 0) return;
-    const kept = recordableSignals(ports.catalogue ?? catalogueTopics(), signals);
+    const kept = recordableSignals(await ports.catalogue(), signals);
     if (kept.length === 0) return;
     // A disposable test account's reading is never shared supply's business: no mark, so no counter, no gap and no recipe.
     if (await ports.isDisposable(scope)) return;

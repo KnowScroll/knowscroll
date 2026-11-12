@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
-import { CONCEPTS } from '@knowscroll/backend/modules/content';
+import { planSnapshot } from '@knowscroll/backend/modules/content';
 import {
   importEditorialScrollUseCase,
   makeReadLibraryPassageText,
@@ -14,6 +14,9 @@ import {
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { starterSource } from '../support/scroll.js';
+
+/** The catalogue of the library plan (release 1), which the migrated database seeds: the topics these journeys use. */
+const CONCEPTS = planSnapshot().all();
 
 const PLANET = CONCEPTS.find((concept) => concept.parent === 'computing')!.id;
 const OTHER_PLANET = CONCEPTS.find((concept) => concept.parent === 'history')!.id;

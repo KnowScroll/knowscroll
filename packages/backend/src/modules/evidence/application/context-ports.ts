@@ -83,6 +83,45 @@ export type ReadActivityStatistics = (
   scope: PersonalScopeTx,
   query: { readonly topicIds: readonly string[]; readonly evaluatedAt: string },
 ) => Promise<readonly ActivityStatistics[]>;
+/** One topic of the person's long-term interest: its activity decayed to the read's evaluation time. */
+export interface InterestTopic {
+  readonly topicId: string;
+  readonly activity: number;
+}
+
+/**
+ * The person's `limit` topics with the most decayed activity at `evaluatedAt` and at least `minActivity` of it (default 0.05),
+ * strongest first (ties by topic id). It reads the index on `log_weight` (migration 0121, D-420): a range scan that stops at
+ * `limit`, so its cost does not depend on how many topics the person has met. Reading only, like every number here (D-063).
+ */
+export type ReadTopInterestTopics = (
+  scope: PersonalScopeTx,
+  query: { readonly limit: number; readonly evaluatedAt: string; readonly minActivity?: number },
+) => Promise<readonly InterestTopic[]>;
+
+/**
+ * A roll-up of the topics of one system, or of every topic of the person, in the shape of a topic's statistics. It is the sum of
+ * the topic rows beneath it, so the roll-up less a topic is "the rest of the system". Decayed to the read's evaluation time.
+ */
+export interface InterestRollup {
+  readonly level: 'system' | 'person';
+  /** The catalogue system; empty for the person. */
+  readonly subjectId: string;
+  readonly activity: number;
+  /** Per kind, over every play level and topic below it. */
+  readonly formats: readonly {
+    readonly kind: 'reel' | 'scroll';
+    readonly measured: number;
+    readonly qualified: number;
+  }[];
+}
+
+/** The roll-ups of up to 100 systems and, when asked, of the person. A system or person with no row is absent. */
+export type ReadInterestRollups = (
+  scope: PersonalScopeTx,
+  query: { readonly systemIds: readonly string[]; readonly person: boolean; readonly evaluatedAt: string },
+) => Promise<readonly InterestRollup[]>;
+
 export type ReadObservationTail = (
   scope: PersonalScopeTx,
   query: { readonly exposureIds: readonly string[]; readonly limit: number },

@@ -449,7 +449,10 @@ the bound cuts the read. Navigation reads it and hands the ids to retrieval when
 rechecks a ranking that promised unseen explanations against the history under the personal lock (a buffer served after an
 explanation was met elsewhere is discarded and the move ranked again). Each established unit also carries `lastEncounteredAt`, the newest
 activated exposure of the unit in either format at or before the read (absent when none), which only Composer policy v2's
-last resort reads (D-408). At most 100 candidates/16 facets and 100 asset
+last resort reads (D-408). Under Composer policy v3 (D-420) a system-chosen move also reads the person's long-term interest through the
+Personal Context capability `READ_INTEREST_CONTEXT` before retrieval (their top topics and the units a Planner opportunity names, handed to
+Content as lanes) and the roll-ups of the retrieved candidates' systems after it, in the same transaction; nothing is stored by this and no
+new Experience table exists. At most 100 candidates/16 facets and 100 asset
 IDs enter these probes. These are routing/novelty facts only: they neither qualify an exposure nor
 create Personal Context support, learning, credit, a session, or collection authority.
 

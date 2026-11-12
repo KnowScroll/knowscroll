@@ -95,6 +95,48 @@ export interface ContentAssets {
   status: string;
 }
 
+export interface ContentConceptCurrent {
+  release_id: number;
+  singleton: Generated<boolean>;
+}
+
+export interface ContentConceptNodeRevisions {
+  compatible_with: Generated<string[]>;
+  created_at: Generated<Timestamp>;
+  haze: string | null;
+  introduced_in: number;
+  label: string;
+  meaning: string;
+  meaning_sha256: string;
+  node_id: string;
+  planet_facets: number | null;
+  planet_units: number | null;
+  revision: number;
+  scene_family: string | null;
+  system_units: number | null;
+}
+
+export interface ContentConceptNodes {
+  created_at: Generated<Timestamp>;
+  introduced_in: number;
+  kind: string;
+  merged_into: string | null;
+  node_id: string;
+  parent_id: string | null;
+  retired_in: number | null;
+  seq: number;
+  status: Generated<string>;
+  visible_in: number | null;
+}
+
+export interface ContentConceptReleases {
+  created_at: Generated<Timestamp>;
+  digest: string;
+  release_id: number;
+  source: string;
+  summary: Generated<Json>;
+}
+
 export interface ContentContinuityLinks {
   active: Generated<boolean>;
   authority_reference: string;
@@ -140,6 +182,7 @@ export interface ContentEncounterTopics {
   asset_id: string;
   asset_revision: number;
   role: string;
+  serve_rand: number | null;
   topic_id: string;
   weight: number;
 }
@@ -347,6 +390,52 @@ export interface ContentSeriesUnits {
   series_revision: number;
 }
 
+export interface ContentTopicCandidates {
+  approval: Generated<string>;
+  attempt_day: Timestamp | null;
+  attempts: Generated<number>;
+  created_at: Generated<Timestamp>;
+  decided_at: Timestamp | null;
+  decided_by: string | null;
+  fetches: Generated<number>;
+  host: string;
+  not_before: Timestamp | null;
+  page_sha256: string | null;
+  page_url: string;
+  passage_count: number | null;
+  passages: Json | null;
+  policy_version: string;
+  source_url: string | null;
+  status: Generated<string>;
+  title: string | null;
+  topic_id: string | null;
+  updated_at: Generated<Timestamp>;
+  verdict: Generated<string>;
+}
+
+export interface ContentTopicProposals {
+  context: Json;
+  created_at: Generated<Timestamp>;
+  day: Timestamp;
+  outcome: string | null;
+  page_url: string;
+  retry: Generated<number>;
+  run_id: string;
+  shortlist: string[];
+  state: Generated<string>;
+  topic_id: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ContentTopicSeedSources {
+  candidates: Generated<number>;
+  host: string;
+  links: Generated<number>;
+  outcome: string;
+  page_url: string;
+  read_at: Generated<Timestamp>;
+}
+
 export interface EvidenceActionEvents {
   action_id: string;
   asset_id: string;
@@ -397,6 +486,21 @@ export interface EvidenceEncounterEvidence {
   recording_generation: Generated<number>;
   revision: number;
   summary: Json;
+  universe_id: string;
+}
+
+export interface EvidenceInterestRollups {
+  activity: number;
+  channel_values: Json;
+  evaluated_at: Timestamp;
+  level: string;
+  log_weight: number | null;
+  privacy_epoch: number;
+  reel_measured: Generated<number>;
+  reel_qualified: Generated<number>;
+  scroll_measured: Generated<number>;
+  scroll_qualified: Generated<number>;
+  subject_id: string;
   universe_id: string;
 }
 
@@ -459,9 +563,11 @@ export interface EvidenceTopicContext {
   activity: number;
   channel_values: Json;
   evaluated_at: Timestamp;
+  log_weight: number | null;
   privacy_epoch: number;
   reel_measured: Generated<number>;
   reel_qualified: Generated<number>;
+  rollup_counted: Json | null;
   scroll_measured: Generated<number>;
   scroll_qualified: Generated<number>;
   topic_id: string;
@@ -2139,10 +2245,11 @@ export interface ScenesManifests {
 
 export interface ScenesObjects {
   chunk_id: string;
+  layout: Generated<string>;
   object_id: string;
   payload: Json;
   privacy_epoch: number;
-  slot: number;
+  slot: number | null;
   system_id: string;
   universe_id: string;
 }
@@ -2154,6 +2261,16 @@ export interface ScenesState {
   scene_revision: number;
   universe_id: string;
   world_seed: string;
+}
+
+export interface ScenesSystems {
+  cell: number | null;
+  object_count: number;
+  planet_count: number;
+  privacy_epoch: number;
+  scene_revision: number;
+  system_id: string;
+  universe_id: string;
 }
 
 export interface SocialCommandBindings {
@@ -2474,6 +2591,7 @@ export interface SupplyRequests {
   ask_limit: string | null;
   ask_order_id: string | null;
   brief: Json | null;
+  catalogue_release: number | null;
   command: Json;
   content: Json | null;
   content_availability_revision: number | null;
@@ -2521,6 +2639,10 @@ export interface DB {
   "content.asset_provenance": ContentAssetProvenance;
   "content.asset_revisions": ContentAssetRevisions;
   "content.assets": ContentAssets;
+  "content.concept_current": ContentConceptCurrent;
+  "content.concept_node_revisions": ContentConceptNodeRevisions;
+  "content.concept_nodes": ContentConceptNodes;
+  "content.concept_releases": ContentConceptReleases;
   "content.continuity_links": ContentContinuityLinks;
   "content.coverage_heads": ContentCoverageHeads;
   "content.coverage_revisions": ContentCoverageRevisions;
@@ -2542,10 +2664,14 @@ export interface DB {
   "content.revision_reviews": ContentRevisionReviews;
   "content.scroll_production_runs": ContentScrollProductionRuns;
   "content.series_units": ContentSeriesUnits;
+  "content.topic_candidates": ContentTopicCandidates;
+  "content.topic_proposals": ContentTopicProposals;
+  "content.topic_seed_sources": ContentTopicSeedSources;
   "evidence.action_events": EvidenceActionEvents;
   "evidence.activity_current": EvidenceActivityCurrent;
   "evidence.activity_revisions": EvidenceActivityRevisions;
   "evidence.encounter_evidence": EvidenceEncounterEvidence;
+  "evidence.interest_rollups": EvidenceInterestRollups;
   "evidence.observations": EvidenceObservations;
   "evidence.recording_exposure_credit": EvidenceRecordingExposureCredit;
   "evidence.recording_segment_heads": EvidenceRecordingSegmentHeads;
@@ -2679,6 +2805,7 @@ export interface DB {
   "scenes.manifests": ScenesManifests;
   "scenes.objects": ScenesObjects;
   "scenes.state": ScenesState;
+  "scenes.systems": ScenesSystems;
   "social.command_bindings": SocialCommandBindings;
   "social.content_shares": SocialContentShares;
   "social.content_threads": SocialContentThreads;

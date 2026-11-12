@@ -9,11 +9,16 @@ import {
   type RegionEncounterQuery,
   type RegionEncounterCandidate,
 } from '../public.js';
-import { conceptMeaning } from '../domain/concepts.js';
+import type { CatalogueSnapshot } from '../domain/catalogue/snapshot.js';
 import { CoverageAuthoritySchema, CoverageRefSchema } from '../domain/coverage.js';
 import { readExactEncounter } from './discovery-store.js';
 import { lockCurrentEncounters } from './current-encounters.js';
-import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './coverage-store.js';
+import { readCatalogueIn } from './catalogue-store.js';
+import {
+  coverageCatalogueOf,
+  lockCurrentCoverageAuthorities,
+  makeReadAdmittedCoverageMapping,
+} from './coverage-store.js';
 
 const Query = z.strictObject({
   topicId: z.string().min(1).max(160),
@@ -23,8 +28,11 @@ const Query = z.strictObject({
   expected: CoverageRefSchema.optional(),
 });
 const SCROLL_SCHEMAS = ['scroll-document.v1', 'scroll-document.v2'];
-const supported = (q: RegionEncounterQuery & { readonly capabilities: z.infer<typeof ClientCapabilities> }) =>
-  !!conceptMeaning(q.topicId, q.facetId) &&
+const supported = (
+  q: RegionEncounterQuery & { readonly capabilities: z.infer<typeof ClientCapabilities> },
+  catalogue: CatalogueSnapshot,
+) =>
+  catalogue.meaning(q.topicId, q.facetId) !== undefined &&
   SCROLL_SCHEMAS.some((schema) => q.capabilities.documentSchemas.includes(schema));
 
 /**
@@ -58,7 +66,10 @@ export const readRegionEncounterCandidates: ReadRegionEncounterCandidates = asyn
   const { unseenFirst, ...rest } = input;
   const q = Query.parse(rest);
   const tx = transactionOf(scope);
-  if (!supported(q)) return { kind: 'unsupported' };
+  // One release for the whole read: the facet exists in it and every mapping is read against it.
+  const catalogue = await readCatalogueIn(tx);
+  if (!supported(q, catalogue)) return { kind: 'unsupported' };
+  const readMapping = makeReadAdmittedCoverageMapping(() => Promise.resolve(coverageCatalogueOf(catalogue)));
   const expected = q.expected
     ? sql`and ((b.asset_id=${q.expected.assetId}::uuid and b.asset_revision=${q.expected.assetRevision})
         or exists(select 1 from content.asset_revisions covered
@@ -84,7 +95,7 @@ export const readRegionEncounterCandidates: ReadRegionEncounterCandidates = asyn
   const candidates: RegionEncounterCandidate[] = [];
   for (const key of keys.slice(0, 100)) {
     const ref = { assetId: key.asset_id, assetRevision: key.asset_revision };
-    const mapping = await readAdmittedCoverageMapping(scope, ref);
+    const mapping = await readMapping(scope, ref);
     if (
       mapping.kind !== 'mapped' ||
       mapping.head.authority.headRevision !== key.head_revision ||
@@ -117,8 +128,9 @@ const LockQuery = Query.omit({ expected: true }).extend({
  * Scroll, or that Scroll's current Reel twin under the Scroll's coverage (#709, D-404). */
 export const lockRegionEncounterCandidates: LockRegionEncounterCandidates = async (scope, input) => {
   const q = LockQuery.parse(input);
-  transactionOf(scope);
-  if (!supported(q) || new Set(q.candidates.map((c) => c.ref.assetId)).size !== q.candidates.length) return false;
+  const catalogue = await readCatalogueIn(transactionOf(scope));
+  if (!supported(q, catalogue) || new Set(q.candidates.map((c) => c.ref.assetId)).size !== q.candidates.length)
+    return false;
   if (!q.candidates.length) return true;
   // Personal root -> every asset the selection touches (the candidates and the Scrolls whose coverage they use), in one
   // UUID order, so a Reel and its covering Scroll are never locked in opposite orders by two transactions.
@@ -142,11 +154,12 @@ export const lockRegionEncounterCandidates: LockRegionEncounterCandidates = asyn
   ];
   if (new Set(coverages.map((c) => `${c.assetId}@${String(c.assetRevision)}`)).size !== coverages.length) return false;
   if (!(await lockCurrentCoverageAuthorities(scope, coverages))) return false;
+  const readMapping = makeReadAdmittedCoverageMapping(() => Promise.resolve(coverageCatalogueOf(catalogue)));
   for (const candidate of q.candidates) {
     const covering = { assetId: candidate.coverage.assetId, assetRevision: candidate.coverage.assetRevision };
     const own = candidate.ref.assetId === covering.assetId && candidate.ref.assetRevision === covering.assetRevision;
     if (!own && !(await isReelTwin(scope, candidate.ref, covering))) return false;
-    const mapping = await readAdmittedCoverageMapping(scope, covering);
+    const mapping = await readMapping(scope, covering);
     if (
       mapping.kind !== 'mapped' ||
       !mapping.head.mapping.bindings.some((b) => b.topicId === q.topicId && b.facetId === q.facetId)

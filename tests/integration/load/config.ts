@@ -5,7 +5,7 @@
  */
 export interface LoadSize {
   readonly name: 'target' | 'small';
-  /** Distinct topic ids in the library (synthetic: the catalogue is still code, see README). */
+  /** Distinct topic ids in the library (synthetic: the seeded catalogue holds 17 topics, see README). */
   readonly topics: number;
   /** Explanation units; each has a Scroll, and `reelTwinShare` of them a Reel twin sharing the unit. */
   readonly units: number;

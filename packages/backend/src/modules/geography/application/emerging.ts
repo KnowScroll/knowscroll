@@ -1,5 +1,5 @@
 import { EMERGING_LIMITS, EmergingUniverseSchema, ReadEmergingUniverseSchema } from '@knowscroll/contracts';
-import { CONCEPTS } from '../../content/public.js';
+import type { CatalogueSnapshot } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { dustCueId, gatheringSystems } from '../domain/emerging.js';
 import type { Concept } from '../domain/policy.js';
@@ -8,11 +8,15 @@ import type { EmergingPorts, ReadOwnEmerging } from './ports.js';
 /** The context query takes at most this many topic IDs. */
 const TOPICS_PER_QUERY = 100;
 
-const PRODUCT_CATALOGUE: readonly Concept[] = CONCEPTS.map((topic) => ({
-  id: topic.id,
-  parent: topic.parent,
-  facets: topic.facets.map((facet) => facet.id),
-}));
+/** The systems and topics a person may be offered, in the shape the dust rule reads. */
+const servedConcepts = (catalogue: CatalogueSnapshot): readonly Concept[] =>
+  catalogue
+    .all()
+    .flatMap((concept) =>
+      concept.servable
+        ? [{ id: concept.id, parent: concept.parent, facets: concept.facets.map((facet) => facet.id) }]
+        : [],
+    );
 
 /**
  * Own dust cues: the catalogue systems that qualified reading or watching has reached and that are
@@ -26,14 +30,12 @@ const PRODUCT_CATALOGUE: readonly Concept[] = CONCEPTS.map((topic) => ({
  * qualified explanation unit under one of the system's topics, so only an actual personal
  * encounter creates one, and a selective Clear that removes the evidence removes the cue.
  */
-export function makeReadOwnEmerging(
-  p: EmergingPorts,
-  catalogue: readonly Concept[] = PRODUCT_CATALOGUE,
-): ReadOwnEmerging {
+export function makeReadOwnEmerging(p: EmergingPorts): ReadOwnEmerging {
   return async (authority, input) => {
     ReadEmergingUniverseSchema.parse(input);
     const result = await p.withScope(authority, async (scope) => {
       if (!(await p.ownerActive(scope))) return undefined;
+      const catalogue = servedConcepts(await p.catalogue.current());
       const view = await p.store.view(scope);
       const qualifiedTopicIds = await readQualifiedTopics(
         p,

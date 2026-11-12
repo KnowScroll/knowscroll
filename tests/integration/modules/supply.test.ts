@@ -1,3 +1,5 @@
+import { catalogueOf } from '../support/catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
@@ -64,6 +66,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
       CONFIG = Symbol('config');
     const providers = supplyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE, config: CONFIG });
     const values = new Map<symbol, unknown>([
+      [CATALOGUE, catalogueOf(database.db)],
       [SCOPE, withScope()],
       [ENQUEUE, makeEnqueueJob(content.boss)],
       [
@@ -635,5 +638,58 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     expect(
       await withScope()(p.authority, (s) => checkRequestSource(s, { ...asset, exposureId: randomUUID() })),
     ).toEqual({ kind: 'entered', value: false });
+  });
+  it("a disposable test account's ask is recorded for the person but starts and joins no shared production (D-413)", async () => {
+    const test = await seedPerson(database.db),
+      again = await seedPerson(database.db),
+      real = await seedPerson(database.db);
+    for (const person of [test, again])
+      await database.db
+        .insertInto('identity.email_addresses')
+        .values({ account_id: person.accountId, address: `canary-${randomUUID()}@test.example`, disposable: true })
+        .execute();
+    const producing = (await produceJobs()).length;
+    const workRows = async () => (await database.db.selectFrom('supply.work').select('id').execute()).length;
+    const works = await workRows();
+
+    // Nothing can serve it now, so the person's own request closes honestly and creates nothing shared.
+    const refused = await ask(test, catalogue('earth.seasons'));
+    expect(await status(test, refused.requestId)).toMatchObject({
+      status: 'unavailable',
+      reason: 'budget_unavailable',
+    });
+    expect(await workRows()).toBe(works);
+    expect(await produceJobs()).toHaveLength(producing);
+    expect(
+      (
+        await database.db
+          .selectFrom('supply.requests')
+          .select('work_id')
+          .where('id', '=', refused.requestId)
+          .executeTakeFirstOrThrow()
+      ).work_id,
+    ).toBeNull();
+
+    // A real person's identical ask is what starts the work, so the check is what stopped the test account.
+    const started = await ask(real, catalogue('earth.seasons'));
+    expect(await status(real, started.requestId)).toMatchObject({ status: 'preparing' });
+    expect(await workRows()).toBe(works + 1);
+    expect(await produceJobs()).toHaveLength(producing + 1);
+
+    // And it does not join work that is already under way.
+    const joined = await ask(again, catalogue('earth.seasons'));
+    expect(await status(again, joined.requestId)).toMatchObject({
+      status: 'unavailable',
+      reason: 'budget_unavailable',
+    });
+    expect(await workRows()).toBe(works + 1);
+    expect(await produceJobs()).toHaveLength(producing + 1);
+    const waiters = await database.db
+      .selectFrom('supply.requests')
+      .select('id')
+      .where('work_id', 'is not', null)
+      .where('id', 'in', [refused.requestId, joined.requestId])
+      .execute();
+    expect(waiters).toEqual([]);
   });
 });

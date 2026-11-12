@@ -26,7 +26,7 @@ import {
 } from '@knowscroll/contracts';
 import type { z } from 'zod';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
-import { CONCEPTS } from '../../content/public.js';
+import type { CatalogueSnapshot } from '../../content/public.js';
 import { CARD_LIFE_MS, welcomeText } from '../domain/away.js';
 import { nameOf } from '../domain/cast.js';
 import { isModerator, joinDecision, roomAcceptsPosts } from '../domain/membership.js';
@@ -171,8 +171,8 @@ const residentAuthor = (room: RoomRow, inhabitant: 'explainer' | 'skeptic'): AiA
  * The welcome a member reads until they have read the AI notice: the Explainer's own, from a template filled with the
  * room's name and the meaning of its topic. No model is asked, so it costs no call (D-168).
  */
-function welcomeFor(room: RoomRow): RoomWelcome {
-  const meaning = CONCEPTS.find((concept) => concept.id === room.topic.id)?.meaning;
+function welcomeFor(room: RoomRow, catalogue: CatalogueSnapshot): RoomWelcome {
+  const meaning = catalogue.concept(room.topic.id)?.meaning;
   return {
     resident: residentAuthor(room, 'explainer'),
     text: welcomeText({ name: room.name, topicMeaning: meaning }),
@@ -218,6 +218,7 @@ const questionsFor = (questions: RoomQuestions | undefined) => (questions === un
 async function memberView(p: RoomPorts, scope: PersonalScopeTx, entered: EnteredRoom & { member: MemberRow }) {
   const { lock } = entered;
   const { room } = entered.standing;
+  const catalogue = await p.catalogue.current();
   const [rows, general, here, memberTotal, lastMessageAt] = await Promise.all([
     p.discussions.list(lock, DISCUSSIONS_PER_ROOM_VIEW),
     p.discussions.general(lock),
@@ -234,7 +235,7 @@ async function memberView(p: RoomPorts, scope: PersonalScopeTx, entered: Entered
   const [generalSummary, ...summaries] = await discussionSummaries(p, scope, entered, shown, figures);
   return {
     status: 'member' as const,
-    room: roomSummary(room),
+    room: roomSummary(room, catalogue),
     role: entered.member.role,
     ...(room.guidelines === null ? {} : { guidelines: room.guidelines }),
     hasModerator: entered.standing.hasModerator,
@@ -247,7 +248,7 @@ async function memberView(p: RoomPorts, scope: PersonalScopeTx, entered: Entered
     memberTotal,
     ...(lastMessageAt === undefined ? {} : { lastMessageAt: lastMessageAt.toISOString() }),
     limits: limitsOf(),
-    ...(entered.member.noticeSeenAt === null ? { welcome: welcomeFor(room) } : {}),
+    ...(entered.member.noticeSeenAt === null ? { welcome: welcomeFor(room, catalogue) } : {}),
     ...awayFor(await awayOf(p, entered, entered.member)),
     sky: await skyOfRoom(p, lock),
     ...todayFor(await todayStrip(p, lock, p.now())),
@@ -263,6 +264,7 @@ async function memberView(p: RoomPorts, scope: PersonalScopeTx, entered: Entered
 async function previewOf(p: RoomPorts, scope: PersonalScopeTx, entered: EnteredRoom, readId: string) {
   const { lock, owner, standing } = entered;
   const { room } = standing;
+  const catalogue = await p.catalogue.current();
   const needsFriends = room.joinRule === 'friends_of_members' && !standing.invited;
   const friends = needsFriends ? await p.friends.accounts(scope, owner.accountId, FRIEND_LOOKUP_LIMIT) : [];
   const decision = joinDecision({
@@ -282,7 +284,7 @@ async function previewOf(p: RoomPorts, scope: PersonalScopeTx, entered: EnteredR
     ...roomEnvelope(scope),
     readId,
     status: 'preview',
-    room: roomSummary(room),
+    room: roomSummary(room, catalogue),
     ...(room.guidelines === null ? {} : { guidelines: room.guidelines }),
     hasModerator: standing.hasModerator,
     inhabitants: inhabitantsOf(room.cast),
@@ -309,12 +311,13 @@ export function makeRoomReads(p: RoomPorts) {
         const gate = await p.fenceOwn(scope);
         if (gate.kind !== 'active') return refuse('unavailable');
         const rows = await p.rooms.listFor(scope, gate.owner.accountId);
+        const catalogue = await p.catalogue.current();
         return ok(
           RoomListSchema.parse({
             ...roomEnvelope(scope),
             readId: parsed.data.readId,
             status: 'ready',
-            items: rows.map((row) => ({ room: roomSummary(row.room), standing: row.standing })),
+            items: rows.map((row) => ({ room: roomSummary(row.room, catalogue), standing: row.standing })),
           }),
         );
       });

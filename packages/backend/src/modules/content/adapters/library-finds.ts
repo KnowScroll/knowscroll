@@ -2,6 +2,7 @@ import { sql, type Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import type { LibraryFindSource, ReadLibraryFinds } from '../public.js';
 import { notUnderReview } from './review-gate-sql.js';
+import { readCatalogueIn } from './catalogue-store.js';
 import { topicIdsOf } from './library-passages.js';
 
 interface Row {
@@ -26,7 +27,9 @@ export const makeReadLibraryFinds =
   async (topic, limit, only, within, format) => {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > READ_LIMIT_MAX) throw new Error('LIBRARY_FINDS_LIMIT');
     // A choice of planets narrows the topic and never widens it: only the topic's own planets count.
-    const topicIds = topicIdsOf(topic).filter((id) => within === undefined || within.includes(id));
+    const topicIds = topicIdsOf(await readCatalogueIn(db), topic).filter(
+      (id) => within === undefined || within.includes(id),
+    );
     if (topicIds.length === 0) return [];
     const result = await sql<Row>`select a.id as asset_id, a.revision, a.kind, r.title, d.summary
       from content.assets a

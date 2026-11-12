@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { BookRecipe } from '../domain/library/generated.js';
 import { GENERATED_SCROLL_V2_PLAN } from '../domain/library/generated.js';
 import { RECIPE_KEYS, RECIPES } from '../domain/library/index.js';
-import { codeRecipeOf, codeRecipes, makeRecipeBook, systemOfTopic, type StoredRecipes } from './recipe-book.js';
+import { canonicalSha256 } from '@knowscroll/scroll-model';
+import { seedSnapshot } from '../domain/catalogue/seed.js';
+import { LIBRARY_SYSTEMS } from '../domain/library/index.js';
+import { codeRecipeOf, codeRecipes, makeRecipeBook, type StoredRecipes } from './recipe-book.js';
+
+const plan = seedSnapshot(LIBRARY_SYSTEMS, canonicalSha256);
+const systemOfTopic = (topicId: string) => plan.systemOf(topicId) ?? '';
 
 const stored = (
   key: string,

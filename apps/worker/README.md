@@ -143,6 +143,12 @@ The same grant runs the support check of a held library Scroll (#674, D-415): `c
 
 `content.sweep-release-policy` (`src/release-policy-jobs.ts`, #674, D-418) is the release step of the release policy: a cron every ten minutes that releases a held library Scroll the policy allows (a new asset, a topic a person approved, nothing sensitive, an answer check and a library support check of this build's checker version that passed) through the review gate, as `policy:<name>`, within a per-day cap. It calls no model and no provider, so it is consumed by **every** worker, with or without the production grant. It is **off in every world**: `KS_CONTENT_AUTO_RELEASE_ENABLED` (`0`/`1`, default `0`) is the kill switch (with it off the job finishes having read nothing), and `KS_CONTENT_AUTO_RELEASE_DAILY_CAP` (default 5, 1 to 500) bounds the releases of a UTC day, counted from the review rows. Set `0` and restart the worker to stop it. It logs `content.release_policy_released` (the topic and the revision) for each release and `content.release_policy_swept` (a count, an outcome and the commonest hold) for a pass, only while the switch is on.
 
+One consumer grows the topic catalogue (#674, D-422, `src/topic-growth-jobs.ts`): `content.grow-topics` (twice an hour at :24 and :54, background class, one pass at a time) reads the links of
+research pages already accepted for recipes, proposes a place for at most one candidate through the production harness (role `content.topic-proposal`), and lets code admit it as a topic under an existing
+system that is not servable until the library has released supply for it. It is registered on every worker and does nothing unless `KS_SUPPLY_GROWTH_ENABLED=1` **and** `KS_TOPIC_GROWTH_ENABLED=1`
+(both off in every world) and `KS_REASONING_PRODUCTION_ENABLED=1` hold; it stays within `KS_SUPPLY_GROWTH_DAILY_CAP` and `KS_TOPIC_GROWTH_MAX_PER_SYSTEM`. It logs counts only
+(`content.topic_growth`). The operator's `content propose-topic --page <candidate address> [--dry-run]` (under the pass's own lock), `content topic-candidates [--status]` and the owner's `content topic approve --topic <id>` / `content topic reject --topic <id>` (`src/topic-operator.ts`) are its commands: a topic that grew is not servable until it is approved.
+
 Two consumers belong to Quick answers (v3 S-9b, D-253 to D-255). `supply.answer-quick-answer` writes one answer through the personal reasoning harness (role `supply.quick-answer`), has a second model check each sentence of it (role `supply.quick-answer-support`, S-7b's checker, D-250), makes at most one rewrite and one more check, and settles the row, with at most six paid attempts and a 1,950 s claim; it is on the same switch as the personal harness and its caps are `KS_SUPPLY_QUICK_ANSWER_DAILY_CAP` (default 20 in `local`, 0 elsewhere; 0 is off) and `KS_SUPPLY_QUICK_ANSWER_PERSON_DAILY_CAP` (default 10), the same values as the API. `supply.purge-quick-answers` is a cron every ten minutes that closes the answers still waiting after the wait limit (clearing their words), deletes the ones whose day is over, and logs `supply.quick_answers_given_up` and `supply.quick_answers_purged`.
 
 Three consumers belong to What if and Another perspective (#244, D-049, D-211). `scenarios.write-answer` writes the short answer card of
@@ -231,7 +237,7 @@ when the recorded total plus its estimate would pass $1 in all. `--dry-run` call
 
 `node dist/operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends
 the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and
-`content propose-recipes --topic <planet id> [--facet <facet id>] [--dry-run]` and `content recipes [--status]` (`src/recipes-operator.ts`, D-412) propose recipes for a planet that exists (one model request and at most one repair, no job sent) and list the stored ones with no body text. `content production-status [--only <keys>]` lists every recipe's standing, and for a v2 recipe its regeneration state, the takes it has
+`content catalogue sync [--dry-run]` and `content catalogue status` (`src/catalogue-operator.ts`, D-419) import the library plan as the next release of the topic catalogue (and make servable the topics whose supply has been released) and print the release and its counts; shared tables only, no provider. `content propose-recipes --topic <planet id> [--facet <facet id>] [--dry-run]` and `content recipes [--status]` (`src/recipes-operator.ts`, D-412) propose recipes for a planet that exists (one model request and at most one repair, no job sent) and list the stored ones with no body text. `content production-status [--only <keys>]` lists every recipe's standing, and for a v2 recipe its regeneration state, the takes it has
 left and what the answer check said. `content regenerate --only <keys> [--dry-run]` (`src/library-operator.ts`, D-197) sends the next take of a
 v2 recipe whose Scroll is served; the new take is stored held. These touch only the shared database and pg-boss; no provider is called. `content ask-check (--asset <id,…> | --recent <n>) --out <file> [--checker-instructions <absolute path>]` (`src/ask-check-operator.ts`, D-250 to D-252, D-280) runs the support checker again over stored ask answers through the production harness, a batch of sentences at a time: counts (and how many sentences each rule code set aside) on stdout, the sentences and verdicts in the file; it stores nothing (runbook: scroll-production.md). With `--checker-instructions` it asks with candidate instructions from a file, every line labelled `candidate: true` with the file's hash; no other command accepts the option and production never reads such a file. `content admit-continuity [--dry-run]` admits the library
 plan's series (Part tabs) and related moves (Related tab) between the published Scrolls: idempotent,
@@ -284,6 +290,13 @@ no lookback behind that job: it reclaims the old, unheld, expired Composer decis
 pages and bounded batches under each universe's own personal scope, never touching a decision an offer or a live buffer holds. It
 stops after `--max-universes` (default 1000), prints counts and `complete`, and can be run again. See the Composer README.
 
+`node dist/operator.js evidence rebuild-interest-rollups [--max-universes <1-5000>]` (`src/evidence-operator.ts`, #674, D-420) builds every
+person's system and person interest roll-ups from their topic rows, stamps what each topic row was counted as and lets the table's trigger fill
+the `log_weight` of rows no writer touched since migration 0121. It is idempotent (a person already rebuilt gets the same rows), takes one
+transaction per person under their own personal scope, stops after `--max-universes` (default 1000), prints counts and `complete`, and can be run
+again. Run it after the deploy that applies 0121 and before `KS_COMPOSER_POLICY=v3` is set, and after any rollback to a binary that does not write
+roll-ups. See the Evidence README and docs/v2/operations/environments.md.
+
 The registry also holds `composer.prune-decisions` (cron `7,37 * * * *`, #674): it finds the universes with a decision that expired
 within the last seven days and that no offer or live buffer holds, and for each of at most 25 prunes a batch of 500 in its own
 short transaction under the personal root as a system actor. It is rules and SQL only: no model, no network wait, no provider. A
@@ -303,6 +316,38 @@ again, and overlapping scheduled passes may revisit due rows. Exhausted final de
 or crash leaves durable due state for the next finite pass. The ordinal-only global cursor has
 no personal UUID or per-account effect authority; full/Clear erases the personal row and all exact
 private expiry job states. Old late work cannot restore removed IDs or touch fresh-epoch data.
+
+## Canary (post-deploy, #674, D-413)
+
+`node dist/operator.js canary run [--personas <ids>] [--base-url <url>] [--speed <1-60|max>] [--many <1-60>] [--wait <seconds>]
+[--timeout <minutes>] [--keep] [--strict] [--allow-stage]` and `canary cleanup [--run <id>] [--dry-run]` (`src/canary-operator.ts`;
+the journeys, rules and reads are the Operator module's, see its README) drive the deployed API and worker with disposable test
+accounts, the way a client does, and report whether the algorithms behave. It makes one account per persona with the operator
+sign-in use case (`canary-<run>-<persona>@<operator pattern>`; minting writes the accounts and their audit rows), redeems each
+link through the real HTTP route, and from then on uses only public routes. What those routes cause is what a reader causes:
+the worker projects the evidence, and the Planner, Cartographer and Jev make their model calls within the world's caps. A
+disposable account never starts or joins shared supply (Supply's one check on the account's disposable flag), so the run
+commissions no production; the summary reports the model attempts by role and the commissioned work, which must be 0.
+Unless `--keep`, each account is deleted through the real deletion flow and the receipt must say `completed`.
+
+Configuration: the operator-sign-in variables of the API's `issue-sign-in` (`KS_WORLD`, `DATABASE_URL`, `KS_PUBLIC_ORIGIN`,
+`KS_ALLOW_OPERATOR_SIGN_IN=1`, `KS_OPERATOR_SIGN_IN_PATTERN` with one `*` in its local part). Refused (exit 2) in any world but
+`dev`, `stage`, `ci` and `local`, on `stage` without `--allow-stage`, and for a `--base-url` that is neither the world's origin
+nor this machine. Reading is paced on the wall clock: the server bounds a claimed interval by the time since activation, so
+`--speed` only makes the readers quicker, never the canary. `--wait` (default 600 s) bounds the wait after the journeys for
+projection, formation and Planner runs; `--timeout` (default 90 minutes) bounds the whole run.
+
+The run id goes to stderr at the start. SIGINT, SIGTERM, SIGHUP and the timeout stop the journeys, skip the judging and delete the
+run's accounts within a bounded wait (a second signal exits at once); the result is `aborted`. `canary cleanup` finds this world's
+`canary-<run>-<persona>` accounts again (optionally one run) and deletes them through the same flow; it opens no other address, and
+`--dry-run` only counts. A long run belongs under `tmux` or `nohup` so a closed terminal does not stop it.
+
+One JSON line on stdout with counts and codes only (never an id, title, address or link), even after a crash (`result: "failed"`
+with a `reasonCode`); diagnostics on stderr. Each invariant reports `ok`, `violated`, `not_exercised` (what it guards never happened)
+or `inconclusive` (its evidence was still being projected); `--strict` also fails a run with any `not_exercised` or `inconclusive`.
+Exit 0 passed or done, 1 an invariant was violated, the run was aborted or it failed, 2 refused or bad usage. Runbook:
+`docs/v2/operations/environments.md`, "Run the canary on dev". Status: implemented; covered by
+`tests/integration/release/canary-operator.test.ts`.
 
 ## Personal recording composition
 

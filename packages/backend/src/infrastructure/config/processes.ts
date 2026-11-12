@@ -125,7 +125,7 @@ export interface ApiConfig extends ReleaseIdentity {
   /** `KS_ROOMS_STARS_PER_DAY`: the most stars one room earns on a UTC day (D-174); three unless a world raises it. */
   readonly roomStarsPerDay: number;
   /** `KS_COMPOSER_POLICY`: the policy navigation ranks new decisions under (D-190). */
-  readonly composerPolicy: 'v0' | 'v1' | 'v2';
+  readonly composerPolicy: 'v0' | 'v1' | 'v2' | 'v3';
 }
 
 /** The operator sign-in command (`dist/operator.js`), refused unless enabled outside live. */
@@ -166,7 +166,7 @@ export interface WorkerConfig extends ReleaseIdentity {
   /** Jev's optional semantic assessment in the Composer buffer job; default off, on for dev. */
   readonly jevEnabled: boolean;
   /** `KS_COMPOSER_POLICY`: the policy the buffer job ranks new decisions under (D-190); default `v0`. */
-  readonly composerPolicy: 'v0' | 'v1' | 'v2';
+  readonly composerPolicy: 'v0' | 'v1' | 'v2' | 'v3';
   /** Shared Scroll productions that people's requests may start per UTC day; 0 turns Create off. */
   readonly supplyCreateDailyCap: number;
   /** Productions the Planner's demand may start per UTC day; never above `supplyCreateDailyCap`. */
@@ -179,6 +179,10 @@ export interface WorkerConfig extends ReleaseIdentity {
   readonly supplyGapDepthTarget: number;
   /** `KS_SUPPLY_GAP_MAX_ROUNDS`: how many failed production rounds (a rejected take, recipes that all ended) reject a gap (D-414). */
   readonly supplyGapMaxRounds: number;
+  /** `KS_TOPIC_GROWTH_ENABLED`: new topics grow under existing systems from candidate pages; needs `supplyGrowthEnabled` too (D-422). Off unless set. */
+  readonly topicGrowthEnabled: boolean;
+  /** `KS_TOPIC_GROWTH_MAX_PER_SYSTEM`: the most topics (servable or not) a system may hold before growth stops adding to it (D-422). */
+  readonly topicGrowthMaxPerSystem: number;
   /** Ask orders (a short Scroll made for a person's question, D-218) Quartermaster may make per UTC day; 0 turns them off. */
   readonly supplyAskDailyCap: number;
   /** Ask orders one person may have made per UTC day. */
@@ -335,6 +339,20 @@ const supplyGapDepthTargetVariable = z.coerce.number().int().min(3).max(50).defa
 const supplyGapMaxRoundsVariable = z.coerce.number().int().min(1).max(10).default(3);
 
 /**
+ * `KS_TOPIC_GROWTH_ENABLED`: topic growth (D-422): the scheduled step that finds candidate pages from the links of research pages already
+ * accepted for recipes, asks the proposal role where one belongs, and admits it as a topic that is not servable until the library has released
+ * supply for it. It is part of the gap loop: it also needs `KS_SUPPLY_GROWTH_ENABLED=1`. Off by default in every world.
+ */
+const topicGrowthEnabledVariable = z.enum(['0', '1']).default('0');
+
+/**
+ * `KS_TOPIC_GROWTH_MAX_PER_SYSTEM`: the one size limit of topic growth (D-422): a system that already holds this many topics, servable or not,
+ * is offered no more. New systems stay with the owner. The default, 12, leaves the seeded systems (three to four topics each) room to
+ * grow several times over before anyone has to look.
+ */
+const topicGrowthMaxPerSystemVariable = z.coerce.number().int().min(1).max(500).default(12);
+
+/**
  * `KS_SUPPLY_ASK_DAILY_CAP`: how many ask orders (a short Scroll made for one person's question, each one writer call
  * and at most one repair a take) Quartermaster may make per UTC day for the whole world. It is counted apart from every
  * other Create cap. 0 turns ask orders off. Default 20 in `local`, 0 in every other world (D-218).
@@ -367,10 +385,10 @@ const supplyScenarioDailyCapVariable = z.coerce.number().int().min(0).max(500).o
 const supplyScenarioThreadCapVariable = z.coerce.number().int().min(1).max(100).default(5);
 /**
  * `KS_COMPOSER_POLICY`: the Composer policy new decisions are made under (D-190, D-408). Default `v0`; a world moves to `v1`
- * or `v2` by configuration once its numbers and rules are deployed. Replay of a stored decision does not read it: a decision
+ * `v2` or `v3` by configuration once its numbers and rules are deployed. Replay of a stored decision does not read it: a decision
  * names its own policy.
  */
-const composerPolicyVariable = z.enum(['v0', 'v1', 'v2']).default('v0');
+const composerPolicyVariable = z.enum(['v0', 'v1', 'v2', 'v3']).default('v0');
 
 /**
  * `KS_CONTENT_AUTO_RELEASE_ENABLED`: the kill switch of the release policy (D-418). Default `0` in every world: a held library Scroll
@@ -870,6 +888,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         KS_SUPPLY_GROWTH_ENABLED: supplyGrowthEnabledVariable,
         KS_SUPPLY_GAP_DEPTH_TARGET: supplyGapDepthTargetVariable,
         KS_SUPPLY_GAP_MAX_ROUNDS: supplyGapMaxRoundsVariable,
+        KS_TOPIC_GROWTH_ENABLED: topicGrowthEnabledVariable,
+        KS_TOPIC_GROWTH_MAX_PER_SYSTEM: topicGrowthMaxPerSystemVariable,
         KS_SUPPLY_ASK_DAILY_CAP: supplyAskDailyCapVariable,
         KS_SUPPLY_ASK_PERSON_DAILY_CAP: supplyAskPersonCapVariable,
         KS_SUPPLY_QUICK_ANSWER_DAILY_CAP: supplyQuickAnswerDailyCapVariable,
@@ -892,6 +912,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         'KS_SUPPLY_GROWTH_ENABLED',
         'KS_SUPPLY_GAP_DEPTH_TARGET',
         'KS_SUPPLY_GAP_MAX_ROUNDS',
+        'KS_TOPIC_GROWTH_ENABLED',
+        'KS_TOPIC_GROWTH_MAX_PER_SYSTEM',
         'KS_SUPPLY_ASK_DAILY_CAP',
         'KS_SUPPLY_ASK_PERSON_DAILY_CAP',
         'KS_SUPPLY_QUICK_ANSWER_DAILY_CAP',
@@ -927,6 +949,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     supplyGrowthEnabled: parsed.KS_SUPPLY_GROWTH_ENABLED === '1',
     supplyGapDepthTarget: parsed.KS_SUPPLY_GAP_DEPTH_TARGET,
     supplyGapMaxRounds: parsed.KS_SUPPLY_GAP_MAX_ROUNDS,
+    topicGrowthEnabled: parsed.KS_TOPIC_GROWTH_ENABLED === '1',
+    topicGrowthMaxPerSystem: parsed.KS_TOPIC_GROWTH_MAX_PER_SYSTEM,
     supplyAskDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_ASK_DAILY_CAP, release.world),
     supplyAskPersonDailyCap: parsed.KS_SUPPLY_ASK_PERSON_DAILY_CAP,
     supplyQuickAnswerDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_QUICK_ANSWER_DAILY_CAP, release.world),
@@ -1103,6 +1127,22 @@ export function readRoomFaceOperatorConfig(env: Environment): RoomFaceOperatorCo
     reasoning: reasoningSettings(reasoning),
     mediaRoot: scope.KS_MEDIA_ROOT,
   };
+}
+
+/** What the operator's topic growth commands read besides the world and the database (D-422). */
+export interface TopicGrowthOperatorConfig {
+  readonly topicGrowthMaxPerSystem: number;
+}
+
+/** `KS_TOPIC_GROWTH_MAX_PER_SYSTEM` for the operator's `content propose-topic`: the one size limit, read as the worker reads it. */
+export function readTopicGrowthOperatorConfig(env: Environment): TopicGrowthOperatorConfig {
+  const [parsed] = combineChecks(
+    checkEnvironment(
+      z.object({ KS_TOPIC_GROWTH_MAX_PER_SYSTEM: topicGrowthMaxPerSystemVariable }),
+      pick(env, ['KS_TOPIC_GROWTH_MAX_PER_SYSTEM']),
+    ),
+  );
+  return { topicGrowthMaxPerSystem: parsed.KS_TOPIC_GROWTH_MAX_PER_SYSTEM };
 }
 
 /** The bounded, nonpersonal Scroll operator's validated world, database and harness settings. */

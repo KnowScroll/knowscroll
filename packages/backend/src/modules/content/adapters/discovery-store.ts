@@ -8,10 +8,14 @@ import type { Database } from '../../../infrastructure/postgres/database.js';
 import { canRenderScroll, isScrollDocumentV2 } from './render-scroll.js';
 import { notUnderReview } from './review-gate-sql.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import { distance, notOrdered, rotationCursor } from './discovery-sql.js';
+import { laneAssetIds as laneAssetIdsOf } from './discovery-lanes.js';
 import {
   DISCOVERY_MAX_TOPICS,
+  validateDiscoveryLanes,
   validateTopics,
   validateUnseenFirst,
+  type DiscoveryLane,
   type EncounterSnapshot,
   type ReadDiscoveryCandidates,
   type ReadExactEncounter,
@@ -65,7 +69,7 @@ async function olderV1Rows(db: Kysely<Database>, assetIds: readonly string[]): P
   const older = await rows(db, sql`(r.asset_id,r.revision) in (${pairs})`, 100);
   return new Map(older.map((row) => [row.asset_id, row]));
 }
-function snapshot(row: Row): EncounterSnapshot {
+function snapshot(row: Row, lane?: DiscoveryLane): EncounterSnapshot {
   validateTopics(row.topics);
   const series = row.series
     ? { seriesId: row.series.seriesId, seriesRevision: row.series.seriesRevision, part: row.series.part }
@@ -95,6 +99,7 @@ function snapshot(row: Row): EncounterSnapshot {
       )
       .digest('hex'),
     attributionVersion: row.attribution_version,
+    ...(lane === undefined ? {} : { lane }),
   };
 }
 /** One bounded join, no provenance or personal history; exact lookup may read an older admitted revision. */
@@ -110,27 +115,6 @@ async function rows(db: Kysely<Database>, filter: ReturnType<typeof sql>, limit:
     );
   return result.rows;
 }
-/**
- * A Scroll ordered from code (a thread's what-if or perspective) is never a candidate for anyone's
- * Explore: it belongs to the thread it was made for (D-049). Exact reads still find it.
- */
-const notOrdered = sql`not exists (select 1 from content.made_to_order_scrolls o where o.asset_id=r.asset_id)`;
-/**
- * Where in the random order (`serve_rand`, in [0, 1)) a lane starts: a point derived from the decision seed, so it varies per
- * decision and is the same for the same seed. Without a seed it is the beginning.
- */
-export function rotationCursor(rotation: string | undefined): number {
-  if (rotation === undefined || rotation === '') return 0;
-  return createHash('sha256').update(rotation).digest().readUInt32BE(0) / 4294967296;
-}
-
-/**
- * A lane's distance from the cursor, going forward and wrapping round at 1: the sort key (`rot`) that orders a lane. A revision at
- * the cursor is first, the one just before it last.
- */
-const distance = (key: ReturnType<typeof sql>, cursor: number) =>
-  sql<number>`(case when ${key}>=${cursor}::float8 then ${key}-${cursor}::float8 else ${key}-${cursor}::float8+1 end)`;
-
 /**
  * The rows of one retrieval's lanes. `band` 0 is the person's unseen explanations (only with `unseenFirst`: the rows whose
  * unit is not among the met units) and 1 everything else, so with a list the unseen come first and the rest fill what is left.
@@ -224,8 +208,14 @@ export const readDiscoveryCandidates: ReadDiscoveryCandidates = async (scope, q)
   )
     throw new Error('DISCOVERY_QUERY_INVALID');
   const metUnitIds = q.unseenFirst === undefined ? undefined : validateUnseenFirst(q.unseenFirst);
+  const lanes = q.lanes === undefined ? undefined : validateDiscoveryLanes(q.lanes);
   const db = transactionOf(scope);
-  const assetIds = await laneAssetIds(db, q, metUnitIds);
+  const found =
+    lanes === undefined
+      ? (await laneAssetIds(db, q, metUnitIds)).map((assetId) => ({ assetId, lane: undefined }))
+      : await laneAssetIdsOf(db, q, lanes, metUnitIds);
+  const assetIds = found.map((entry) => entry.assetId);
+  const laneOf = new Map(found.map((entry) => [entry.assetId, entry.lane]));
   if (!assetIds.length) return [];
   const candidates = await rows(db, sql`r.revision=a.revision and r.asset_id=any(${assetIds}::uuid[])`, 100);
   const unsupportedV2 = candidates
@@ -242,7 +232,7 @@ export const readDiscoveryCandidates: ReadDiscoveryCandidates = async (scope, q)
       return older !== undefined && canRender(older, q.capabilities) ? [older] : [];
     })
     .slice(0, q.limit ?? 100)
-    .map(snapshot);
+    .map((row) => snapshot(row, laneOf.get(row.asset_id)));
 };
 export const readExactEncounter: ReadExactEncounter = async (scope, q) => {
   const row = (
@@ -402,3 +392,5 @@ export const readPlayLevel: ReadPlayLevel = async (scope, ref) => {
   ).rows[0];
   return row === undefined ? 'plain' : traitsOfDocument(row.document).playLevel;
 };
+
+export { rotationCursor };

@@ -23,6 +23,7 @@ import {
 } from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import { SPIKE_MODEL } from '../../../packages/backend/src/modules/content/production/spike-v2/run.js';
 import { TOPICS, type ScrollTopic } from '../../../packages/backend/src/modules/content/production/topics.js';
+import { catalogueOf } from '../support/catalogue.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import {
@@ -99,7 +100,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
   let checker: 'passes' | 'flags' = 'passes';
   const takes = new Map<ScrollTopic, number>();
   const gate = () => makeReviewGate(database.db);
-  const policy = () => makeReleasePolicy(database.db);
+  const policy = () => makeReleasePolicy(database.db, catalogueOf(database.db));
   const withScope = () => makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 });
   const check = () =>
     makeCheckLibrarySupport({ db: database.db, authority, withScope: withScope(), harness: worker.harness });

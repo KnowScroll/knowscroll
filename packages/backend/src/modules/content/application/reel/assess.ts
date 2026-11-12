@@ -21,6 +21,9 @@ export interface RecipeFacts {
   readonly assetId: string;
   readonly explanationUnitId: string;
   readonly topicId: string;
+  /** What the Reel's coverage binds (#674, slice 5.1): the recipe's angle and, when declared, its second one. */
+  readonly facetId: string;
+  readonly supportingFacetId?: string | undefined;
 }
 
 export const recipeOf = (script: ReelScript): RecipeFacts => RECIPES[script.recipe as RecipeKey];

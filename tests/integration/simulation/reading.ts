@@ -2,6 +2,7 @@ import { sql, type Kysely } from 'kysely';
 import type { InteractionEvent } from '@knowscroll/contracts';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { dwell, event, type OpenedFixture } from '../support/observations.js';
+import { recordPlayback } from '../support/reel-playback.js';
 import type { LibraryReel, LibraryScroll } from './library.js';
 import type { Rng } from './rng.js';
 
@@ -10,14 +11,17 @@ import type { Rng } from './rng.js';
  * timings drawn from the document's own reading facts (a Scroll's estimated reading time and block
  * weights, a Reel's duration), never from a constant.
  *
- * - `read`: the whole document at a natural pace (0.85 to 1.3 of the estimate). Qualifies.
+ * - `read`: the whole document at a natural pace (0.85 to 1.3 of the estimate); a Reel from start to finish, as a player
+ *   plays it (starting a few hundred milliseconds in, the last report short of the end). Qualifies, and proves its facet.
+ * - `nearly`: a Reel watched for 85 to 95% of its length and then left. Qualifies (q is at least 0.6), but the closing
+ *   segment, which the primary facet needs, is not met: no facet is proved and nothing forms from it. A Scroll read is `read`.
  * - `partial`: the first fifth to two fifths. Not qualified.
  * - `skim`: one to three blocks (a Reel: two to four seconds), a few seconds. Not qualified.
  * - `idle`: the tab is left on one stop for one to three hours with the first screen visible. The
  *   coverage stays below half, so it does not qualify however long it stays.
  * - `none`: opened, activated and left at once: no observation is reported.
  */
-export type ReadingKind = 'read' | 'partial' | 'skim' | 'idle' | 'none';
+export type ReadingKind = 'read' | 'nearly' | 'partial' | 'skim' | 'idle' | 'none';
 
 export interface ReadingResult {
   /** The events the recorder would report. Empty for `none`. */
@@ -26,6 +30,12 @@ export interface ReadingResult {
   readonly elapsedMs: number;
   /** What the evidence rules should conclude. The lab asserts the product's answer against this expectation. */
   readonly expectQualified: boolean;
+  /**
+   * Whether the reading met what the unit's facet needs, so a coverage reference must exist for it and the unit counts
+   * toward a system and a planet. A Scroll proves its facet exactly when it qualifies (it was read through); a Reel only
+   * when it was watched to its end.
+   */
+  readonly provesFacet: boolean;
 }
 
 const SECOND = 1000;
@@ -91,8 +101,9 @@ export function scrollReading(
   kind: ReadingKind,
   rng: Rng,
 ): ReadingResult {
-  if (kind === 'none') return { events: [], elapsedMs: rng.int(1, 3) * SECOND, expectQualified: false };
-  if (kind === 'read') {
+  if (kind === 'none')
+    return { events: [], elapsedMs: rng.int(1, 3) * SECOND, expectQualified: false, provesFacet: false };
+  if (kind === 'read' || kind === 'nearly') {
     const totalMs = Math.round(scroll.estimatedReadingMs * rng.between(0.85, 1.3));
     const intervals = blockIntervals(scroll, scroll.blocks, totalMs);
     const end = intervals[intervals.length - 1]!.interval[1];
@@ -100,6 +111,7 @@ export function scrollReading(
       events: [...coverageEvents(exposure, sessionId, intervals), event(exposure, dwell([0, end]), { sessionId })],
       elapsedMs: end + 3 * SECOND,
       expectQualified: true,
+      provesFacet: true,
     };
   }
   if (kind === 'partial') {
@@ -111,6 +123,7 @@ export function scrollReading(
       events: [...coverageEvents(exposure, sessionId, intervals), event(exposure, dwell([0, end]), { sessionId })],
       elapsedMs: end + 3 * SECOND,
       expectQualified: false,
+      provesFacet: false,
     };
   }
   if (kind === 'skim') {
@@ -121,6 +134,7 @@ export function scrollReading(
       events: [...coverageEvents(exposure, sessionId, intervals), event(exposure, dwell([0, end]), { sessionId })],
       elapsedMs: end + 2 * SECOND,
       expectQualified: false,
+      provesFacet: false,
     };
   }
   // idle: the first screen stays visible while the person is away.
@@ -131,44 +145,48 @@ export function scrollReading(
     events: [...coverageEvents(exposure, sessionId, intervals), event(exposure, dwell([0, idleMs]), { sessionId })],
     elapsedMs: idleMs + 3 * SECOND,
     expectQualified: false,
+    provesFacet: false,
   };
 }
 
-/** Continuous playback samples of at most 1.5 s each, as the Reel player reports them. */
-function playbackSamples(fromMs: number, toMs: number) {
-  const samples: { activeMs: [number, number]; mediaMs: [number, number] }[] = [];
-  for (let at = fromMs; at < toMs; at += SECOND) {
-    const end = Math.min(toMs, at + SECOND);
-    samples.push({ activeMs: [at, end], mediaMs: [at, end] });
-  }
-  return samples;
-}
-
-export function reelReading(
+/**
+ * A viewer's Reel, as the app's own recorder reports it from a player's jittered ticks (`recordPlayback`): the same events,
+ * gaps and offsets the intake receives from a client, never hand-written samples.
+ */
+export async function reelReading(
   exposure: OpenedFixture,
   sessionId: string,
   reel: LibraryReel,
   kind: ReadingKind,
   rng: Rng,
-): ReadingResult {
-  if (kind === 'none') return { events: [], elapsedMs: rng.int(1, 3) * SECOND, expectQualified: false };
-  const watched =
-    kind === 'read'
-      ? Math.round(reel.durationMs * rng.between(0.85, 1))
-      : kind === 'partial'
-        ? Math.round(reel.durationMs * rng.between(0.2, 0.4))
-        : rng.int(2, 4) * SECOND;
+): Promise<ReadingResult> {
+  if (kind === 'none')
+    return { events: [], elapsedMs: rng.int(1, 3) * SECOND, expectQualified: false, provesFacet: false };
+  const duration = reel.durationMs;
   // A Reel left on a stop plays on loop; the recorder reports no unique media beyond the first pass.
-  const played = kind === 'idle' ? Math.round(reel.durationMs * 0.3) : watched;
-  const samples = playbackSamples(0, played);
-  // One report carries at most 64 samples.
-  const events: InteractionEvent[] = [];
-  for (let start = 0; start < samples.length; start += 64)
-    events.push(
-      event(exposure, { kind: 'reel.playback', payload: { samples: samples.slice(start, start + 64) } }, { sessionId }),
-    );
-  const elapsedMs = (kind === 'idle' ? rng.int(60, 180) * 60 * SECOND : played) + 3 * SECOND;
-  return { events, elapsedMs, expectQualified: kind === 'read' };
+  const played =
+    kind === 'read'
+      ? duration
+      : kind === 'nearly'
+        ? Math.round(duration * rng.between(0.85, 0.95))
+        : kind === 'partial'
+          ? Math.round(duration * rng.between(0.2, 0.4))
+          : kind === 'idle'
+            ? Math.round(duration * 0.3)
+            : rng.int(2, 4) * SECOND;
+  const playback = await recordPlayback(exposure, {
+    durationMs: duration,
+    spans: [[0, played]],
+    random: rng,
+    sessionId,
+  });
+  const elapsedMs = (kind === 'idle' ? rng.int(60, 180) * 60 * SECOND : playback.elapsedMs) + 3 * SECOND;
+  return {
+    events: playback.events,
+    elapsedMs,
+    expectQualified: kind === 'read' || kind === 'nearly',
+    provesFacet: kind === 'read',
+  };
 }
 
 /**

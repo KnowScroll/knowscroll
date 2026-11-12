@@ -1,5 +1,7 @@
 /** Authored CI Geography commits, real PostgreSQL and normal adapters. Not live formation,
  * provider output, HUMAN approval or proof that an actual client displayed anything. */
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
+import { catalogueOf } from '../support/catalogue.js';
 import { randomUUID } from 'node:crypto';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { UniverseDeltaSchema, type SceneClientCapabilities } from '@knowscroll/contracts';
@@ -150,6 +152,7 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
       ...sceneProviders({ withPersonalScope: SCOPE, logEvent: LOG }),
     ];
     const values = new Map<symbol, unknown>([
+      [CATALOGUE, catalogueOf(database.db)],
       [SCOPE, scope()],
       [LOG, () => undefined],
       [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
@@ -442,18 +445,15 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
     });
     await project(p.job);
     expect(await read(p, p.t)).toMatchObject({ kind: 'accepted', value: { status: 'available' } });
-    const state = await database.db
-      .selectFrom('scenes.state')
-      .select('payload')
-      .where('universe_id', '=', p.universeId)
-      .executeTakeFirstOrThrow();
-    const payload = state.payload as { manifest: { chunks: { objectIds: string[] }[] } };
-    payload.manifest.chunks[0]!.objectIds = payload.manifest.chunks[0]!.objectIds.filter((id) => id !== p.planet);
-    await database.db
-      .updateTable('scenes.state')
-      .set({ payload: JSON.stringify(payload) })
-      .where('universe_id', '=', p.universeId)
-      .execute();
+    // A target that is no longer a stored object of its system is not a current real target.
+    await database.pool.query('delete from scenes.looks where universe_id=$1 and object_id=$2', [
+      p.universeId,
+      p.planet,
+    ]);
+    await database.pool.query('delete from scenes.objects where universe_id=$1 and object_id=$2', [
+      p.universeId,
+      p.planet,
+    ]);
     expect(await api().claim(p.authority, claim(p.t))).toMatchObject({
       kind: 'accepted',
       value: { receipt: { outcome: 'not_claimed' } },
@@ -468,8 +468,8 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
       now: () => new Date(clock),
       scenes: {
         ...ports.scenes,
-        chunk: async (...args) => {
-          const result = await ports.scenes.chunk(...args);
+        currentChunk: async (...args) => {
+          const result = await ports.scenes.currentChunk(...args);
           clock += 2000;
           return result;
         },
@@ -489,8 +489,8 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
       now: () => new Date(clock),
       scenes: {
         ...ports.scenes,
-        chunk: async (...args) => {
-          const result = await ports.scenes.chunk(...args);
+        currentChunk: async (...args) => {
+          const result = await ports.scenes.currentChunk(...args);
           if (slowRead) clock += 2000;
           return result;
         },

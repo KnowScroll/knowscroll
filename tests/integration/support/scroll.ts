@@ -1,3 +1,4 @@
+import { catalogueOf } from './catalogue.js';
 import {
   FENCE_OWN_ACCOUNT,
   FENCE_PERSONAL_RECORDING,
@@ -25,6 +26,7 @@ import {
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
 import {
+  CATALOGUE,
   CHECK_ASSET_AUDIENCE,
   RENDER_SCROLL,
   type ImportEditorialScroll,
@@ -54,15 +56,17 @@ import {
   type ReadRecentContextTopics,
   READ_RECENT_CONTEXT_TOPICS,
   READ_COMPOSER_CONTEXT,
+  READ_INTEREST_CONTEXT,
 } from '@knowscroll/backend/modules/personal-context';
 import {
   READ_ACTIVITY_STATISTICS,
   CHECK_COVERAGE_EVIDENCE,
+  type CheckCoverageEvidence,
   CHECK_RECORDING_COVERAGE_EVIDENCE,
   READ_OBSERVATION_TAIL,
   READ_RECENT_TOPIC_IDS,
 } from '@knowscroll/backend/modules/evidence';
-import type { ReadPreparedEvidenceInput } from '@knowscroll/backend/modules/composer';
+import type { ReadInterestContext, ReadPreparedEvidenceInput } from '@knowscroll/backend/modules/composer';
 import type {
   NavigateEncounter,
   ActivateOffer,
@@ -163,7 +167,7 @@ export async function scrollUseCases(
     /** Mounts Region encounters (opening a formed place of the person's map), as the API does. */
     readonly region?: true;
     /** The Composer policy new decisions are made under (`KS_COMPOSER_POLICY`); `v0`, the default, unless a test says. */
-    readonly composerPolicy?: 'v0' | 'v1' | 'v2';
+    readonly composerPolicy?: 'v0' | 'v1' | 'v2' | 'v3';
     readonly activityDerived?: ActivityDerivedEffect;
     /** Who may open a Scroll ordered from code, as the module that orders it decides. */
     readonly orderAudience?: ReadOrderAudience;
@@ -191,8 +195,11 @@ export async function scrollUseCases(
   readonly reconcileActivity: ReconcileEncounterActivity;
   readonly readPrepared: ReadPreparedEvidenceInput;
   readonly readComposerContext: ReadPreparedEvidenceInput;
+  /** Policy v3's view of the person's long-term interest: top topics, planned units and roll-ups (D-420). */
+  readonly readInterestContext: ReadInterestContext;
   readonly readExploration: ReadExplorationSnapshot;
   readonly readTrustedCoverage: ReadTrustedCoverage;
+  readonly checkCoverageEvidence: CheckCoverageEvidence;
   readonly readRecentTopics: ReadRecentContextTopics;
   readonly importScroll: ImportEditorialScroll;
   readonly openExposure: OpenExposure;
@@ -220,6 +227,7 @@ export async function scrollUseCases(
     [FENCE_OWN_ACCOUNT, identity.fenceOwnAccount],
     [READ_RECORDING_LIFECYCLE, identity.readRecordingLifecycle],
     [DATABASE, database.db],
+    [CATALOGUE, catalogueOf(database.db)],
     [SCOPE, options.wrapScope ? options.wrapScope(scope) : scope],
     [ENQUEUE, options.wrapEnqueue === undefined ? enqueue : options.wrapEnqueue(enqueue)],
     ...(options.activityDerived ? [[ACTIVITY_CONTEXT_EFFECT, options.activityDerived] as [symbol, unknown]] : []),
@@ -318,6 +326,7 @@ export async function scrollUseCases(
   values.set(READ_RECENT_TOPIC_IDS, build(READ_RECENT_TOPIC_IDS));
   values.set(READ_EXPLORATION_SNAPSHOT, build(READ_EXPLORATION_SNAPSHOT));
   values.set(READ_COMPOSER_CONTEXT, build(READ_COMPOSER_CONTEXT));
+  values.set(READ_INTEREST_CONTEXT, build(READ_INTEREST_CONTEXT));
   values.set(NAVIGATION_PORTS, build(NAVIGATION_PORTS));
   return {
     navigate: build(NAVIGATE_ENCOUNTER) as NavigateEncounter,
@@ -337,8 +346,10 @@ export async function scrollUseCases(
     reconcileActivity: build(RECONCILE_ENCOUNTER_ACTIVITY) as ReconcileEncounterActivity,
     readPrepared: values.get(READ_PREPARED_ACTIVITY) as ReadPreparedEvidenceInput,
     readComposerContext: values.get(READ_COMPOSER_CONTEXT) as ReadPreparedEvidenceInput,
+    readInterestContext: values.get(READ_INTEREST_CONTEXT) as ReadInterestContext,
     readExploration: build(READ_EXPLORATION_SNAPSHOT) as ReadExplorationSnapshot,
     readTrustedCoverage: build(READ_TRUSTED_COVERAGE) as ReadTrustedCoverage,
+    checkCoverageEvidence: build(CHECK_COVERAGE_EVIDENCE) as CheckCoverageEvidence,
     readRecentTopics: build(READ_RECENT_CONTEXT_TOPICS) as ReadRecentContextTopics,
     importScroll: importEditorialScrollUseCase(database.db),
     openExposure: build(OPEN_EXPOSURE) as OpenExposure,

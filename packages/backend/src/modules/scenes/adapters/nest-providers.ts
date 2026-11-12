@@ -22,7 +22,9 @@ import { canonicalSha256 } from '@knowscroll/scroll-model';
 import {
   GEOGRAPHY_APPLIED,
   READ_GEOGRAPHY_SCENE_INPUT,
+  READ_GEOGRAPHY_CHANGED_SYSTEMS,
   type GeographyApplied,
+  type ReadGeographyChangedSystems,
   type ReadGeographySceneInput,
 } from '../../geography/public.js';
 import {
@@ -36,10 +38,18 @@ import { notifyScopeChanged } from '../../../infrastructure/notices/index.js';
 import type { LogEvent } from '../../../infrastructure/observability/index.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import { projectSceneQueue } from '../events.js';
-import { PROJECT_SCENE, BACKFILL_SCENE_LOOKS, READ_OWN_SCENE_MANIFEST, READ_OWN_SCENE_CHUNK } from '../public.js';
+import {
+  PROJECT_SCENE,
+  BACKFILL_SCENE_LOOKS,
+  READ_OWN_SCENE_MANIFEST,
+  READ_OWN_SCENE_CHUNK,
+  READ_OWN_SCENE_SKY,
+} from '../public.js';
 import { makeProjectScene } from '../application/project.js';
 import { makeBackfillSceneLooks } from '../application/backfill-looks.js';
 import { makeReadSceneManifest, makeReadSceneChunk } from '../application/read.js';
+import { makeReadSceneSky } from '../application/read-sky.js';
+import { CATALOGUE, type Catalogue } from '../../content/public.js';
 import type { ScenePorts } from '../application/ports.js';
 import { sceneStore } from './postgres-store.js';
 export const SCENE_PORTS = Symbol('scenes.ports');
@@ -72,16 +82,27 @@ export function sceneProviders(t: { readonly withPersonalScope: symbol; readonly
   return [
     {
       provide: SCENE_PORTS,
-      inject: [t.withPersonalScope, CHECK_PERSONAL_OWNER_ACTIVE, READ_GEOGRAPHY_SCENE_INPUT, t.logEvent],
+      inject: [
+        t.withPersonalScope,
+        CHECK_PERSONAL_OWNER_ACTIVE,
+        READ_GEOGRAPHY_SCENE_INPUT,
+        READ_GEOGRAPHY_CHANGED_SYSTEMS,
+        t.logEvent,
+        CATALOGUE,
+      ],
       useFactory: (
         withScope: WithPersonalScope,
         ownerActive: CheckPersonalOwnerActive,
         readInput: ReadGeographySceneInput,
+        readChangedSystems: ReadGeographyChangedSystems,
         logEvent: LogEvent,
+        catalogue: Catalogue,
       ): ScenePorts => ({
+        catalogue,
         withScope,
         ownerActive,
         readInput,
+        readChangedSystems,
         store: sceneStore,
         seed: () => randomBytes(32).toString('hex'),
         hash: canonicalSha256,
@@ -103,12 +124,14 @@ export function sceneProviders(t: { readonly withPersonalScope: symbol; readonly
       useFactory: (p: ScenePorts) => makeReadSceneManifest(p),
     },
     { provide: READ_OWN_SCENE_CHUNK, inject: [SCENE_PORTS], useFactory: (p: ScenePorts) => makeReadSceneChunk(p) },
+    { provide: READ_OWN_SCENE_SKY, inject: [SCENE_PORTS], useFactory: (p: ScenePorts) => makeReadSceneSky(p) },
   ];
 }
 export { makeProjectScene } from '../application/project.js';
 export { makeBackfillSceneLooks } from '../application/backfill-looks.js';
 export { sendBackfillLooks, type BackfillLooksSent } from './send-backfill-looks.js';
 export { makeReadSceneManifest, makeReadSceneChunk } from '../application/read.js';
+export { makeReadSceneSky } from '../application/read-sky.js';
 export { sceneStore } from './postgres-store.js';
 export type { ScenePorts } from '../application/ports.js';
 
@@ -134,7 +157,8 @@ export function formationPortsFor(
     store: formationStore,
     scenes: {
       state: (scope) => sceneStore.state(scope),
-      chunk: (scope, id, revision) => sceneStore.chunk(scope, id, revision),
+      objectsById: (scope, ids) => sceneStore.objectsById(scope, ids),
+      currentChunk: (scope, id) => sceneStore.currentChunk(scope, id),
       pending: formationProjectionPending,
     },
     receipts: {

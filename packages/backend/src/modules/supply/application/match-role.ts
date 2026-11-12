@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { CONCEPTS } from '../../content/public.js';
+import type { CatalogueConcept } from '../../content/public.js';
 import type { ProposeOutcome, ReasoningContext, ReasoningRole } from '../../../reasoning/public.js';
 
-/** Changes with the instructions or the answer schema; recorded on every run and attempt. */
-export const MATCH_ROLE_VERSION = 'match.1';
+/** Changes with the instructions or the answer schema; recorded on every run and attempt. `match.2`: the catalogue items are a bounded shortlist and the answer must be one of them (D-419). */
+export const MATCH_ROLE_VERSION = 'match.2';
 export const MATCH_POLICY_VERSION = 'supply-match.v1';
 
 const SAFE_HINTS = {
@@ -19,33 +19,32 @@ export interface CatalogueMatch {
   readonly facetId?: string;
 }
 
-/** The topics a match may choose: planets, never systems. */
-export const PLANETS = CONCEPTS.filter((concept) => concept.parent !== null);
-
 /**
- * The model's answer. Exact catalogue membership is part of the schema, so a made-up or near-miss id
- * is refused with a fixed hint for the one repair instead of ever reaching a brief.
+ * The model's answer. Exact membership of the shortlist it was shown is part of the schema, so a made-up or near-miss id, or a real
+ * topic it was not shown, is refused with a fixed hint for the one repair instead of ever reaching a brief.
  */
-export const MatchAnswerSchema = z
-  .strictObject({
-    topicId: z.string().min(1).max(160).nullable(),
-    facetId: z.string().min(1).max(160).nullable(),
-  })
-  .superRefine((answer, context) => {
-    const issue = (safeCode: keyof typeof SAFE_HINTS) =>
-      context.addIssue({ code: 'custom', path: [], message: 'Invalid match', params: { safeCode } });
-    if (answer.topicId === null) {
-      if (answer.facetId !== null) issue('facet_without_topic');
-      return;
-    }
-    const planet = PLANETS.find((concept) => concept.id === answer.topicId);
-    if (planet === undefined) return issue('unknown_topic');
-    if (answer.facetId !== null && !planet.facets.some((facet) => facet.id === answer.facetId)) issue('unknown_facet');
-  });
-export type MatchAnswer = z.infer<typeof MatchAnswerSchema>;
+export const matchAnswerSchema = (shortlist: readonly CatalogueConcept[]) =>
+  z
+    .strictObject({
+      topicId: z.string().min(1).max(160).nullable(),
+      facetId: z.string().min(1).max(160).nullable(),
+    })
+    .superRefine((answer, context) => {
+      const issue = (safeCode: keyof typeof SAFE_HINTS) =>
+        context.addIssue({ code: 'custom', path: [], message: 'Invalid match', params: { safeCode } });
+      if (answer.topicId === null) {
+        if (answer.facetId !== null) issue('facet_without_topic');
+        return;
+      }
+      const planet = shortlist.find((concept) => concept.id === answer.topicId);
+      if (planet === undefined) return issue('unknown_topic');
+      if (answer.facetId !== null && !planet.facets.some((facet) => facet.id === answer.facetId))
+        issue('unknown_facet');
+    });
+export type MatchAnswer = { readonly topicId: string | null; readonly facetId: string | null };
 
 const INSTRUCTIONS = [
-  "You match a learner's request to KnowScroll's catalogue of topics. The request is in the item of kind learner_request. The catalogue items list the topics, each with an id, a meaning and its facets (angles on the topic).",
+  "You match a learner's request to KnowScroll's catalogue of topics. The request is in the item of kind learner_request. The catalogue items list the topics that might fit, each with an id, a meaning and its facets (angles on the topic).",
   'Choose the one topic the request is about. Choose a facet only when the request clearly asks for that angle; otherwise answer null for the facet.',
   'Answer with one JSON object {"topicId": "<id>" or null, "facetId": "<id>" or null}. Copy ids exactly from the catalogue items.',
   'When no topic is what the request asks about (live events, news, people, anything the catalogue does not cover), answer {"topicId": null, "facetId": null}. Never invent an id and never choose a near miss.',
@@ -53,38 +52,47 @@ const INSTRUCTIONS = [
 ].join('\n');
 
 /** One call, no tool loop. Thinking tokens count against the ceiling, so it is generous for a ~30-token answer. */
-export const MATCH_ROLE: ReasoningRole<MatchAnswer> = {
+export const matchRole = (shortlist: readonly CatalogueConcept[]): ReasoningRole<MatchAnswer> => ({
   id: 'supply.match-request',
   version: MATCH_ROLE_VERSION,
   instructions: INSTRUCTIONS,
-  outputSchema: MatchAnswerSchema,
+  outputSchema: matchAnswerSchema(shortlist),
   safeCustomIssues: SAFE_HINTS,
   maxOutputTokens: 4096,
   effort: 'low',
   minContextItems: 2,
-};
+});
 
-/** The catalogue as context items, one per system: the topics a match may choose, with their meaning and facets. */
-export function catalogueItems(): ReasoningContext['items'] {
-  const systems = CONCEPTS.filter((concept) => concept.parent === null);
+/**
+ * The shortlist as context items, one per system: the topics a match may choose, with their meaning and facets. The shortlist is
+ * built by code (`shortlistTopics`), so the prompt is bounded however large the catalogue grows.
+ */
+export function catalogueItems(shortlist: readonly CatalogueConcept[]): ReasoningContext['items'] {
+  const systems = [...new Set(shortlist.flatMap((planet) => (planet.parent === null ? [] : [planet.parent])))];
   return systems.map((system) => ({
-    ref: `catalogue:${system.id}`,
+    ref: `catalogue:${system}`,
     kind: 'catalogue',
     text: JSON.stringify(
-      PLANETS.filter((planet) => planet.parent === system.id).map((planet) => ({
-        topicId: planet.id,
-        meaning: planet.meaning,
-        facets: planet.facets,
-      })),
+      shortlist
+        .filter((planet) => planet.parent === system)
+        .map((planet) => ({
+          topicId: planet.id,
+          meaning: planet.meaning,
+          facets: planet.facets.map(({ id, meaning }) => ({ id, meaning })),
+        })),
     ),
   }));
 }
 
-/** The person's words and the catalogue, one item per system. Only what the match needs. */
-export function matchContext(requestId: string, text: string): ReasoningContext {
+/** The person's words and the shortlist, one item per system. Only what the match needs. */
+export function matchContext(
+  requestId: string,
+  text: string,
+  shortlist: readonly CatalogueConcept[],
+): ReasoningContext {
   return {
     bundleRef: `supply-match:${requestId}`,
-    items: [{ ref: 'request', kind: 'learner_request', text }, ...catalogueItems()],
+    items: [{ ref: 'request', kind: 'learner_request', text }, ...catalogueItems(shortlist)],
   };
 }
 

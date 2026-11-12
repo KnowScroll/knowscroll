@@ -1,5 +1,7 @@
 import { askCheckCommand, isCheckerInstructionsMisplaced } from './ask-check-operator.js';
+import { canaryCommand } from './canary-operator.js';
 import { pruneBackfillCommand, replayPolicyCommand } from './composer-operator.js';
+import { rebuildInterestRollupsCommand } from './evidence-operator.js';
 import {
   admitContinuityCommand,
   produceLibraryCommand,
@@ -9,7 +11,9 @@ import {
 import { dryRunCommand } from './dry-run-operator.js';
 import { reconcileCoverageCommand } from './geography-operator.js';
 import { journeyCommand } from './journey-operator.js';
+import { catalogueCommand } from './catalogue-operator.js';
 import { proposeRecipesCommand, recipesCommand } from './recipes-operator.js';
+import { proposeTopicCommand, topicCandidatesCommand, topicDecisionCommand } from './topic-operator.js';
 import { reelCommand } from './reel-operator.js';
 import { roomsCommand } from './rooms-operator.js';
 import { backfillLooksCommand } from './scenes-operator.js';
@@ -64,9 +68,12 @@ import { reconcileCoverageDirty } from '@knowscroll/backend/modules/personal-con
  *   reasoning purge-expired                                delete expired protected requests
  *   reasoning rejected [--limit <n>]                       refused answers of Scroll production, newest first
  *   reasoning rejected --attempt <uuid>                    one refused answer with its text and findings
+ *   canary run [--personas <ids>] [--base-url <url>] [--speed <1-60|max>] [--many <n>] [--wait <seconds>] [--timeout <minutes>] [--keep] [--strict] [--allow-stage]   post-deploy canary: disposable accounts drive the public API, algorithm invariants are judged, accounts are deleted; a signal or the timeout stops it and deletes them; counts and codes only (canary-operator.ts, #674, D-413)
+ *   canary cleanup [--run <id>] [--dry-run]   finds this world's canary-<run>-<persona> accounts again and deletes them through the account flow; counts only
  *   reel check|order|follow|receive|status|write-off|settle  Reels from Cutroom (reel-operator.ts, docs/v2/operations/cutroom-and-spend.md)
  *   journey <id> | journey --account <accountId> [--json]    one record's journey across modules (journey-operator.ts, docs/v2/operations/looking-at-the-system.md)
  *   rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove]   idea rooms, one per library system (rooms-operator.ts)
+ *   evidence rebuild-interest-rollups [--max-universes <1-5000>]   one-off: build every person's interest roll-ups from their topic rows (run before Composer policy v3 is switched on); idempotent, counts only (evidence-operator.ts, D-420)
  *   composer prune-backfill [--max-universes <1-5000>]   one-off: delete old expired Composer decisions nothing holds, no lookback, in bounded batches; counts only (composer-operator.ts, #674)
  *   geography dry-run --universe <uuid> | planner dry-run --universe <uuid>   what one Cartographer or Planner run would do for one universe now: READ ONLY, rolled back, no model, counts and codes only (dry-run-operator.ts, D-411)
  *   geography reconcile-coverage [--universe <uuid>] [--dry-run]   one-time: mark every topic that has a support key dirty, so the Cartographer reads each once, newest first, in paced batches; counts only, no model, no run (geography-operator.ts, D-416)
@@ -79,6 +86,10 @@ import { reconcileCoverageDirty } from '@knowscroll/backend/modules/personal-con
  *   content writer-spike-v2 --topics <keys> [--blocks <k=sort+ray,…>] [--out <file>] [--concurrency <1-4>] [--spike-id <id>]   the v15 writer on real recipes; admits and publishes nothing (writer-spike-operator.ts, S-0)
  *   content propose-recipes --topic <planet id> [--facet <facet id>] [--retry <1-2>] [--dry-run]   the brief role drafts recipes for a planet that exists; code accepts them as stored `checked` recipes (recipes-operator.ts, D-412)
  *   content recipes [--status <s>]                          the stored recipes with their standing; no body text (recipes-operator.ts, D-412)
+ *   content propose-topic --page <url> [--dry-run]             the proposal role places a candidate page as a new topic under an existing system; code admits it, not servable until the library has supply (topic-operator.ts, D-422)
+ *   content topic-candidates [--status <s>]                    the candidate pages code found, with their status and verdict; no page text (topic-operator.ts, D-422)
+ *   content topic approve --topic <id> | content topic reject --topic <id>   the owner's decision on a topic that grew; it is not servable until approved (topic-operator.ts, D-422)
+ *   content catalogue sync [--dry-run] | content catalogue status   the topic catalogue as data: import the library plan as the next release, make topics with released supply servable (catalogue-operator.ts, D-419)
  *   content regenerate --only <keys> [--dry-run]            another take of a served v2 library Scroll, stored held until release (library-operator.ts, D-197)
  *   content review-list [--all] [--show-check] | review-show --asset <id> [--revision <n>] [--sources] [--show-check]   library v2 Scrolls held for review, and their text with the answer check (review-operator.ts, D-138, D-198)
  *   content release --asset <id> --revision <n> | reject --asset <id> --revision <n> --reason <text>   the two decisions; both are recorded with who and when
@@ -91,7 +102,7 @@ import { reconcileCoverageDirty } from '@knowscroll/backend/modules/personal-con
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js geography dry-run --universe <uuid> | operator.js geography reconcile-coverage [--universe <uuid>] [--dry-run] | operator.js planner dry-run --universe <uuid> | operator.js composer prune-backfill [--max-universes <1-5000>] | operator.js composer replay-policy --since <ISO date> [--limit <1-20000>] [--intent-weight <0-1>] [--recent-topic-penalty <0-1>] [--sweep] | operator.js scenes backfill-looks [--dry-run] [--limit <1-1000>] | operator.js rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | rooms kit | kit-list | kit-review | backdrop | backdrop-list | backdrop-review | spend | backdrop-reconcile | backdrop-write-off | rituals | ritual-list | ritual-review | feed | scout (see `rooms` for its options) | operator.js journey <id> | journey --account <accountId> [--json] | operator.js reel <check | order | follow | receive | status | write-off | settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content writer-spike-v2 --topics <recipe keys> [--blocks <recipe=sort | fork | scale | chart | ray,…>] [--out <file>] [--concurrency <1-4>] [--spike-id <id>] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content propose-recipes --topic <planet id> [--facet <facet id>] [--retry <1-2>] [--dry-run] | operator.js content propose-recipes --topic <planet id> [--facet <facet id>] [--dry-run] | operator.js content recipes [--status checked | queued | produced | retired] | operator.js content regenerate --only <keys> [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js supply expire-stale-planned-demand [--dry-run] [--limit <1-1000>] | operator.js supply gaps [--status open | briefed | commissioned | closed | rejected | blocked_unknown] | supply gaps settle --key <hex> [--reopen | --close] | operator.js content readmit-coverage [--dry-run] | operator.js content admit-continuity [--dry-run] | operator.js content review-list [--all] [--show-check] | content review-show --asset <uuid> [--revision <n>] [--sources] [--show-check] | operator.js content review-list [--all] | content review-show --asset <uuid> [--revision <n>] [--sources] | content release --asset <uuid> --revision <n> | content reject --asset <uuid> --revision <n> --reason <text> | operator.js content ask-check (--asset <uuid,…> | --recent <1-20>) --out <file> [--checker-instructions <absolute path>] | operator.js content policy approve-topic --topic <id> | content policy revoke-topic --topic <id> | content policy withdraw --asset <uuid> --revision <n> | content policy status | operator.js content support-check-replay [--since <ISO date>] [--limit <1-500>] --max-requests <0-1000> [--fail-on-partial] | operator.js content support-check-replay [--since <ISO date>] [--limit <1-500>] --max-requests <0-1000> | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
+  'usage: operator.js geography dry-run --universe <uuid> | operator.js geography reconcile-coverage [--universe <uuid>] [--dry-run] | operator.js planner dry-run --universe <uuid> | operator.js evidence rebuild-interest-rollups [--max-universes <1-5000>] | operator.js composer prune-backfill [--max-universes <1-5000>] | operator.js composer replay-policy --since <ISO date> [--limit <1-20000>] [--intent-weight <0-1>] [--recent-topic-penalty <0-1>] [--sweep] | operator.js scenes backfill-looks [--dry-run] [--limit <1-1000>] | operator.js rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | rooms kit | kit-list | kit-review | backdrop | backdrop-list | backdrop-review | spend | backdrop-reconcile | backdrop-write-off | rituals | ritual-list | ritual-review | feed | scout (see `rooms` for its options) | operator.js journey <id> | journey --account <accountId> [--json] | operator.js reel <check | order | follow | receive | status | write-off | settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content writer-spike-v2 --topics <recipe keys> [--blocks <recipe=sort | fork | scale | chart | ray,…>] [--out <file>] [--concurrency <1-4>] [--spike-id <id>] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content propose-recipes --topic <planet id> [--facet <facet id>] [--retry <1-2>] [--dry-run] | operator.js content propose-recipes --topic <planet id> [--facet <facet id>] [--dry-run] | operator.js content recipes [--status checked | queued | produced | retired] | operator.js content propose-topic --page <url> [--dry-run] | operator.js content topic-candidates [--status pending | eligible | operator.js content catalogue sync [--dry-run] | content catalogue status | operator.js content regenerate --only <keys> [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js supply expire-stale-planned-demand [--dry-run] [--limit <1-1000>] | operator.js supply gaps [--status open | briefed | commissioned | closed | rejected | proposed | refused | admitted | blocked_unknown] | operator.js content topic approve --topic <topic id> | content topic reject --topic <topic id> | supply gaps settle --key <hex> [--reopen | --close] | operator.js content readmit-coverage [--dry-run] | operator.js content admit-continuity [--dry-run] | operator.js content review-list [--all] [--show-check] | content review-show --asset <uuid> [--revision <n>] [--sources] [--show-check] | operator.js content review-list [--all] | content review-show --asset <uuid> [--revision <n>] [--sources] | content release --asset <uuid> --revision <n> | content reject --asset <uuid> --revision <n> --reason <text> | operator.js content ask-check (--asset <uuid,…> | --recent <1-20>) --out <file> [--checker-instructions <absolute path>] | operator.js content policy approve-topic --topic <id> | content policy revoke-topic --topic <id> | content policy withdraw --asset <uuid> --revision <n> | content policy status | operator.js content support-check-replay [--since <ISO date>] [--limit <1-500>] --max-requests <0-1000> [--fail-on-partial] | operator.js content support-check-replay [--since <ISO date>] [--limit <1-500>] --max-requests <0-1000> | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>] | operator.js canary run [--personas <ids>] [--base-url <url>] [--speed <1-60 | max>] [--many <1-60>] [--wait <seconds>] [--timeout <minutes>] [--keep] [--strict] [--allow-stage] | operator.js canary cleanup [--run <id>] [--dry-run] | max>] [--many <1-60>] [--wait <seconds>] [--keep]';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -122,6 +133,8 @@ async function main(): Promise<number> {
     revision: commitForDiagnostics(process.env),
     destination: process.stderr,
   });
+  if (process.argv[2] === 'canary')
+    return canaryCommand(process.argv.slice(3), print, logEvent, operatorSource(process.env));
   if (process.argv[2] === 'reel') return reelCommand(process.argv.slice(3), print, logEvent);
   if (process.argv[2] === 'journey') return journeyCommand(process.argv.slice(3), print, logEvent);
   if (process.argv[2] === 'rooms') return roomsCommand(process.argv.slice(3), print, logEvent);
@@ -136,6 +149,7 @@ async function main(): Promise<number> {
       options: {
         topic: { type: 'string' },
         facet: { type: 'string' },
+        page: { type: 'string' },
         retry: { type: 'string' },
         status: { type: 'string' },
         key: { type: 'string' },
@@ -273,6 +287,8 @@ async function main(): Promise<number> {
       print,
       logEvent,
     );
+  if (area === 'content' && command === 'catalogue' && args.positionals.length === 3)
+    return catalogueCommand({ subcommand: args.positionals[2], dryRun: args.values['dry-run'] }, print, logEvent);
   if (area === 'content' && command === 'propose-recipes' && args.positionals.length === 2)
     return proposeRecipesCommand(
       {
@@ -287,12 +303,28 @@ async function main(): Promise<number> {
     );
   if (area === 'content' && command === 'recipes' && args.positionals.length === 2)
     return recipesCommand({ status: args.values.status }, print, logEvent);
+  if (area === 'content' && command === 'propose-topic' && args.positionals.length === 2)
+    return proposeTopicCommand(
+      { page: args.values.page, dryRun: args.values['dry-run'], dispatchedBy: operatorSource(process.env) },
+      print,
+      logEvent,
+    );
+  if (area === 'content' && command === 'topic-candidates' && args.positionals.length === 2)
+    return topicCandidatesCommand({ status: args.values.status }, print, logEvent);
+  if (area === 'content' && command === 'topic' && args.positionals.length === 3)
+    return topicDecisionCommand(
+      { decision: args.positionals[2], topic: args.values.topic, decidedBy: operatorSource(process.env) },
+      print,
+      logEvent,
+    );
   if (area === 'content' && command === 'regenerate' && args.positionals.length === 2)
     return regenerateCommand(
       { ...(args.values.only === undefined ? {} : { only: args.values.only }), dryRun: args.values['dry-run'] },
       print,
       logEvent,
     );
+  if (area === 'evidence' && command === 'rebuild-interest-rollups' && args.positionals.length === 2)
+    return rebuildInterestRollupsCommand({ maxUniverses: args.values['max-universes'] }, print, logEvent);
   if (area === 'composer' && command === 'prune-backfill' && args.positionals.length === 2)
     return pruneBackfillCommand({ maxUniverses: args.values['max-universes'] }, print, logEvent);
   if (area === 'composer' && command === 'replay-policy' && args.positionals.length === 2)

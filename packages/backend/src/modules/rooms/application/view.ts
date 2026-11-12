@@ -7,7 +7,7 @@ import {
   type RoomSummary,
   type RoomYou,
 } from '@knowscroll/contracts';
-import { conceptLabel } from '../../content/public.js';
+import type { CatalogueSnapshot } from '../../content/public.js';
 import type { CastMember } from '../domain/cast.js';
 import { PERSON_ASKS_PER_HOUR, ROOM_ASKS_PER_DAY } from '../domain/contribution.js';
 import { FEED_RULES } from '../domain/feed.js';
@@ -28,12 +28,12 @@ export function identityOf(room: RoomRow): RoomIdentity {
 }
 
 /** A room as lists and previews name it. No member, activity or online count. */
-export function roomSummary(room: RoomRow): RoomSummary {
+export function roomSummary(room: RoomRow, catalogue: CatalogueSnapshot): RoomSummary {
   return {
     roomId: room.roomId,
     name: room.name,
     description: room.description,
-    topic: { kind: room.topic.kind, id: room.topic.id, label: conceptLabel(room.topic.id) },
+    topic: { kind: room.topic.kind, id: room.topic.id, label: catalogue.label(room.topic.id) },
     joinRule: room.joinRule,
     status: room.status,
     identity: identityOf(room),

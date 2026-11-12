@@ -86,8 +86,8 @@ export const SceneDescriptorJsonSchema = object({
   atmosphere: object({ density: number(0, 1) }),
   detail: object({ roughness: number(0, 1) }),
   anchor: object({
-    x: number(-SCENE_LIMITS.coordinate, SCENE_LIMITS.coordinate),
-    y: number(-SCENE_LIMITS.coordinate, SCENE_LIMITS.coordinate),
+    x: number(-SCENE_LIMITS.anchor, SCENE_LIMITS.anchor),
+    y: number(-SCENE_LIMITS.anchor, SCENE_LIMITS.anchor),
     layer: number(-16, 16, true),
   }),
   target: object({ kind, objectId: id }),

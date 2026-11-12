@@ -1,9 +1,13 @@
+import { catalogueOf } from '../support/catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
   PREPARE_COMPOSER_BUFFER,
+  composeEncounter,
+  policyOf,
   prepareBufferQueue,
   readUnseenFirst,
   type ComposerDecision,
@@ -17,7 +21,7 @@ import {
   readDiscoveryCandidates,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceBufferSourceProviders, readMetUnitIds } from '@knowscroll/backend/modules/experience/nest-providers';
-import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
+import { READ_COMPOSER_CONTEXT, READ_INTEREST_CONTEXT } from '@knowscroll/backend/modules/personal-context';
 import { RECORDING_REASONING_HARNESS } from '@knowscroll/backend/reasoning';
 import type { NavigationOutcome } from '@knowscroll/contracts';
 import { RECIPES, type RecipeKey } from '../../../packages/backend/src/modules/content/domain/library/index.js';
@@ -176,13 +180,15 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
     decision.evaluations.find((evaluation) => evaluation.assetId === assetId)?.exclusions;
 
   /** The worker side over the real providers; Jev is off, so no model is involved. */
-  function worker(policy?: 'v2'): PrepareBuffer {
+  function worker(policy?: 'v2' | 'v3'): PrepareBuffer {
     const { harness } = fixtureRecordingHarness(database.db, { model: undefined });
     const values = new Map<symbol, unknown>([
+      [CATALOGUE, catalogueOf(database.db)],
       [WITH_SCOPE, withScope()],
       [WORKER_CONFIG, { jevEnabled: false, reasoning: {} }],
       [RECORDING_REASONING_HARNESS, harness],
       [READ_COMPOSER_CONTEXT, cases.readComposerContext],
+      [READ_INTEREST_CONTEXT, cases.readInterestContext],
       ...[
         ...experienceBufferSourceProviders(),
         ...composerProviders({ isOperator: () => false }, policy),
@@ -195,7 +201,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       values,
     ) as PrepareBuffer;
   }
-  const prepareFor = async (universeId: string, policy?: 'v2') => {
+  const prepareFor = async (universeId: string, policy?: 'v2' | 'v3') => {
     const [job] = (
       await sql<{
         data: PrepareBufferJob;
@@ -856,6 +862,189 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
           )
         ).rows,
       ).toHaveLength(1);
+    });
+  });
+
+  // Policy v3 (#674, slices 4.2 and 5.2, D-420): retrieval lanes, long-term interest with roll-ups, and a logged format exploration.
+  describe('policy v3: lanes, long-term interest and format exploration (real PostgreSQL, labelled CI fixtures)', () => {
+    let v3: Cases;
+    const own: Awaited<ReturnType<typeof admitScroll>>[] = [];
+    const holes: Awaited<ReturnType<typeof admitScroll>>[] = [];
+    const v3Reels: Awaited<ReturnType<typeof admitReel>>[] = [];
+
+    beforeAll(async () => {
+      v3 = await scrollUseCases(database, { composerPolicy: 'v3', buffers: true });
+      for (let n = 0; n < 3; n += 1) own.push(await admitScroll('computing.algorithms'));
+      for (let n = 0; n < 3; n += 1) holes.push(await admitScroll('space.black-holes'));
+      for (let n = 0; n < 4; n += 1) v3Reels.push(await admitReel('history.industrial-revolution'));
+    });
+    afterAll(async () => {
+      await v3.close();
+    });
+
+    const standOnV3 = (person: FixturePerson, target: { assetId: string; assetRevision: number }) =>
+      standOn(person, target, v3);
+    const nextV3 = (person: FixturePerson, stand: Awaited<ReturnType<typeof standOn>>, format?: Format) =>
+      nextSubject(person, stand, format, 'next', v3);
+    const canonical = (value: unknown): string =>
+      JSON.stringify(value, (_key, v: unknown) =>
+        v !== null && typeof v === 'object' && !Array.isArray(v)
+          ? Object.fromEntries(
+              Object.entries(v as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+            )
+          : v,
+      );
+    /** A deterministic command id, so the seed (and so every draw) of each navigation is the same on every run. */
+    const commandId = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
+
+    it('stores the decision under composer-policy.v3 with the lane of every candidate and the system of every topic, and replays it', async () => {
+      const person = await seedPerson(database.db);
+      const stand = await standOnV3(person, own[0]!);
+      const next = ready(await nextV3(person, stand, 'scroll'));
+      const row = (
+        await sql<{
+          policy_version: string;
+        }>`select policy_version from composer.decisions where id=${next.decisionId}::uuid`.execute(database.db)
+      ).rows[0]!;
+      expect(row.policy_version).toBe('composer-policy.v3');
+      const decision = await decisionOf(next.decisionId);
+      expect(decision.input.candidates.length).toBeGreaterThan(5);
+      expect(decision.input.candidates.every((c) => c.encounter.lane !== undefined)).toBe(true);
+      const lanes = new Set(decision.input.candidates.map((c) => c.encounter.lane));
+      expect(lanes.has('source')).toBe(true);
+      expect(lanes.has('explore')).toBe(true);
+      // The catalogue systems of the candidates' topics are frozen into the snapshot.
+      const systems = new Map((decision.input.evidence?.topicSystems ?? []).map((t) => [t.topicId, t.systemId]));
+      expect(systems.get('space.black-holes')).toBe('space');
+      expect(systems.get('computing.algorithms')).toBe('computing');
+      // A person with no history has no roll-up: absence is not zero.
+      expect(decision.input.evidence?.person).toBeUndefined();
+      expect(decision.input.evidence?.systems).toBeUndefined();
+      // The unseen-first guarantee of v2 stands under v3.
+      expect(decision.unseenLadder).toMatchObject({ outcome: 'unseen' });
+      expect(canonical(composeEncounter(decision.input, policyOf(decision.policyVersion)))).toBe(canonical(decision));
+    });
+
+    it('logs the format exploration of a system-chosen move with its propensity, and the draws take an unseen Reel first, about 5% of the time', async () => {
+      const N = 160;
+      let drawn = 0;
+      let considered = 0;
+      for (let n = 0; n < N; n += 1) {
+        const person = await seedPerson(database.db);
+        const stand = await standOnV3(person, own[n % own.length]!);
+        const next = ready(
+          await v3.navigate(person.authority, {
+            commandId: commandId(n + 1),
+            sessionId: stand.open.sessionId,
+            expectedIntentRevision: stand.open.intentRevision,
+            from: stand.from,
+            intent: { mode: 'vertical', direction: 'next', format: 'scroll' },
+          }),
+        );
+        const decision = await decisionOf(next.decisionId);
+        expect(decision.formatExploration).toMatchObject({ fraction: 0.05, personFormat: 'scroll' });
+        considered += 1;
+        if (decision.formatExploration?.branch === 'other_format') {
+          drawn += 1;
+          expect(decision.formatExploration.propensity).toBe(0.05);
+          expect(decision.exploration.selectedProbability).toBe(0.05);
+          expect(offers(next)[0]!.metadata.kind).toBe('reel');
+          expect(decision.unseenLadder).toMatchObject({ outcome: 'unseen' });
+        } else {
+          expect(decision.formatExploration?.propensity).toBe(0.95);
+          expect(offers(next)[0]!.metadata.kind).toBe('scroll');
+        }
+        // Every stored decision replays under its own label, drawn or not.
+        if (n < 20)
+          expect(canonical(composeEncounter(decision.input, policyOf(decision.policyVersion)))).toBe(
+            canonical(decision),
+          );
+      }
+      expect(considered).toBe(N);
+      expect(drawn / N).toBeGreaterThan(0.01);
+      expect(drawn / N).toBeLessThan(0.12);
+    }, 240_000);
+
+    it('does not draw against an explicit format request: a variant move names its format', async () => {
+      const person = await seedPerson(database.db);
+      const twinned = own[0]!;
+      const unit = (
+        await sql<{
+          explanation_unit_id: string;
+        }>`select explanation_unit_id from content.asset_revisions where asset_id=${twinned.assetId}::uuid`.execute(
+          database.db,
+        )
+      ).rows[0]!.explanation_unit_id;
+      const twin = await admitReel('computing.algorithms', unit);
+      const onScroll = await standOnV3(person, twinned);
+      const variant = await v3.navigate(person.authority, {
+        commandId: randomUUID(),
+        sessionId: onScroll.open.sessionId,
+        expectedIntentRevision: onScroll.open.intentRevision,
+        from: onScroll.from,
+        intent: { mode: 'variant', to: 'reel' },
+      });
+      expect(ready(variant).offer).toMatchObject({ assetId: twin.assetId, relation: { kind: 'format_variant' } });
+      expect((await decisionOf(ready(variant).decisionId)).formatExploration).toBeUndefined();
+    });
+
+    it('reads the person’s top interest topics into the continue lane, and scores their system and the person’s level into the interest feature', async () => {
+      const person = await seedPerson(database.db);
+      // A person who has read about black holes: authored rows in the shape the projection writes (a fixture, not an encounter).
+      const at = new Date();
+      const logWeight = (activity: number) => Math.log(activity) + (Math.LN2 * at.getTime()) / 1_209_600_000;
+      const channels = JSON.stringify({ q: 0, L: 0, B: 0, S: 0, H: 0, R: 0 });
+      await sql`insert into evidence.topic_context(universe_id,privacy_epoch,topic_id,channel_values,activity,evaluated_at,scroll_measured,scroll_qualified,log_weight)
+        values(${person.universeId}::uuid,1,'space.black-holes',${channels}::jsonb,2.4,${at.toISOString()}::timestamptz,3,3,${logWeight(2.4)})`.execute(
+        database.db,
+      );
+      for (const [level, subject] of [
+        ['system', 'space'],
+        ['person', ''],
+      ] as const)
+        await sql`insert into evidence.interest_rollups(universe_id,privacy_epoch,level,subject_id,channel_values,activity,evaluated_at,scroll_measured,scroll_qualified,log_weight)
+          values(${person.universeId}::uuid,1,${level},${subject},${channels}::jsonb,2.4,${at.toISOString()}::timestamptz,3,3,${logWeight(2.4)})`.execute(
+          database.db,
+        );
+      const stand = await standOnV3(person, own[0]!);
+      // The worker prepares the next move under v3 on activation; the navigation that follows serves that very ranking.
+      const buffer = await prepareFor(person.universeId, 'v3');
+      const next = ready(await nextV3(person, stand, 'scroll'));
+      expect(next.decisionId).toBe(buffer.decision_id);
+      const decision = await decisionOf(next.decisionId);
+      expect(decision.policyVersion).toBe('composer-policy.v3');
+      const holeIds = holes.map((h) => h.assetId);
+      const continued = decision.input.candidates
+        .filter((c) => c.encounter.lane === 'continue')
+        .map((c) => c.encounter.assetId);
+      expect(continued.sort()).toEqual([...holeIds].sort());
+      // The snapshot holds the topic row, the space system and the person's level, all frozen.
+      expect(decision.input.evidence?.topics.map((t) => t.topicId)).toContain('space.black-holes');
+      expect(decision.input.evidence?.systems?.map((s) => s.systemId)).toEqual(['space']);
+      expect(decision.input.evidence?.person?.activity).toBeGreaterThan(2);
+      // Interest: the candidate on the topic the person has read outscores a candidate on one they have not met.
+      const featureOf = (assetId: string) => decision.evaluations.find((e) => e.assetId === assetId)!.features.interest;
+      const unknown = decision.input.candidates.find(
+        (c) => c.encounter.lane === 'explore' && c.encounter.topics.every((t) => !t.topicId.startsWith('space.')),
+      );
+      expect(featureOf(holes[0]!.assetId)).toBeGreaterThan(0.5);
+      expect(unknown).toBeDefined();
+      expect(featureOf(holes[0]!.assetId)).toBeGreaterThan(featureOf(unknown!.encounter.assetId));
+      expect(decision.formatExploration).toBeDefined();
+      expect(canonical(composeEncounter(decision.input, policyOf(decision.policyVersion)))).toBe(canonical(decision));
+    });
+
+    it('is not asked of a person with a buffer from v2: v2 and v3 decisions of one world each keep their own label', async () => {
+      const person = await seedPerson(database.db);
+      const stand = await standOnV3(person, own[1]!);
+      const next = ready(await nextV3(person, stand, 'scroll'));
+      expect((await decisionOf(next.decisionId)).policyVersion).toBe('composer-policy.v3');
+      // The v0 composition of the same world still ranks under v0 and its candidates name no lane.
+      const other = await seedPerson(database.db);
+      const earlier = ready(await nextSubject(other, await standOn(other, own[2]!), 'scroll'));
+      const old = await decisionOf(earlier.decisionId);
+      expect(old.policyVersion).toBe('composer-policy.v0');
+      expect(old.input.candidates.every((c) => c.encounter.lane === undefined)).toBe(true);
     });
   });
 });

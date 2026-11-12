@@ -77,8 +77,8 @@ it('fences late abort-ignoring replies after pause, capability replacement and s
   );
   const s = createUniverseViewSession(h.scope);
   s.setForeground(true);
-  // The map's first read is the one in flight (Geography is read first); the person's own play is read beside it and held by the same gate.
-  await waitFor(() => expect(h.calls.filter((path) => path.endsWith('/geography/read'))).toHaveLength(1));
+  // The map's first read is the one in flight (the sky is read first); the person's own play is read beside it and held by the same gate.
+  await waitFor(() => expect(h.calls.filter((path) => path.endsWith('/scenes/sky/read'))).toHaveLength(1));
   s.setForeground(false);
   s.configure({ detail: 'low', reducedMotion: true });
   h.scope.end();
@@ -116,6 +116,7 @@ it('does not reuse a private return locator when the selected immutable chunk ha
   const locator = s.getState().locator!;
   expect(locator.chunkId).toBe(h.world.chunks[0]!.chunkId);
   h.world.chunks[0]!.chunkId = fixtureId(20000); // adversarial but structurally valid protocol fixture, never product maintenance
+  h.world.bump();
   await s.refresh();
   expect(s.getState().read.status).toBe('ready');
   expect(s.getState().focusId).toBeNull();

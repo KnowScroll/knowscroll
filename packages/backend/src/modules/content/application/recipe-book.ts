@@ -1,4 +1,3 @@
-import { CONCEPTS } from '../domain/concepts.js';
 import { isGeneratedRecipeKey, titleOfKey, type BookRecipe } from '../domain/library/generated.js';
 import { RECIPE_KEYS, RECIPES, type RecipeKey } from '../domain/library/index.js';
 import { servingOrder, type CatalogueBrief } from '../domain/library/serving.js';
@@ -50,10 +49,6 @@ export const codeRecipes = (): readonly BookRecipe[] => RECIPE_KEYS.map(bookReci
 /** The code-owned recipe a key names, or `undefined`. Synchronous: the plan is in memory. */
 export const codeRecipeOf = (key: string): BookRecipe | undefined =>
   Object.hasOwn(RECIPES, key) ? bookRecipeOfCode(key as RecipeKey) : undefined;
-
-/** The system a planet belongs to in the catalogue; empty for a planet the catalogue no longer holds. */
-export const systemOfTopic = (topicId: string): string =>
-  CONCEPTS.find((concept) => concept.id === topicId)?.parent ?? '';
 
 export function makeRecipeBook(stored: StoredRecipes): RecipeBook {
   return {

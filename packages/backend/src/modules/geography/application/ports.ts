@@ -33,7 +33,7 @@ import type {
   TrustedCoverageRead,
 } from '../../personal-context/public.js';
 import type { RecordingReasoningHarness } from '../../../reasoning/public.js';
-import type { Catalogue } from '../domain/catalogue.js';
+import type { Catalogue as CatalogueSource } from '../../content/public.js';
 import type { Mac } from '../domain/ids.js';
 import type { PlaceSchedule } from '../domain/quiet.js';
 import type { GeographyProposal, FormationFacts, Place, Route } from '../domain/policy.js';
@@ -73,6 +73,7 @@ export type ReadOwnSystemTopic = (
   | { readonly kind: 'refused' }
 >;
 export interface RegionConstraintPorts {
+  readonly catalogue: CatalogueSource;
   readonly ownerActive: CheckPersonalOwnerActive;
   readonly state: GeographyStore['state'];
   /** One indexed own/epoch lookup per call, never the whole Geography view. */
@@ -129,6 +130,12 @@ export interface EvaluationScope {
 }
 export interface GeographyContext {
   readonly version: 'cartographer-context.v1';
+  /**
+   * The catalogue release this context was frozen against (D-419). The re-check at apply reads that release, not a newer one, so
+   * a topic added in between never changes a decision already made. Absent only on a context frozen before releases existed:
+   * it is read against the current release, which for the seeded catalogue is the same one.
+   */
+  readonly catalogueRelease?: number;
   readonly transitionId: string;
   readonly universeId: string;
   readonly privacyEpoch: number;
@@ -259,6 +266,40 @@ export interface GeographyStore {
   backOffQuiet(scope: PersonalScopeTx, ids: readonly string[], now: Date): Promise<void>;
   /** Places due for a look at `at` (oldest first, at most `limit`): what the dry run says a settle would see. */
   duePlaces(scope: PersonalScopeTx, at: Date, limit: number): Promise<readonly Place[]>;
+  /**
+   * Bounded reads for a map at scale (D-417): none of them loads the whole map, and none fails because the map is
+   * large. The revisions and how many places exist.
+   */
+  head(scope: PersonalScopeTx): Promise<{ readonly state: GeographyState; readonly objectCount: number }>;
+  /**
+   * Exactly these systems: each system, its star, planets and regions, the routes between their planets and the aliases
+   * of those places. A system that does not exist contributes nothing.
+   */
+  systemView(
+    scope: PersonalScopeTx,
+    systemIds: readonly string[],
+  ): Promise<{
+    readonly objects: readonly Place[];
+    readonly routes: readonly Route[];
+    readonly aliases: readonly GeographyAlias[];
+  }>;
+  /**
+   * The systems, in id order after `after`, that hold a place or route whose revision stamp is above `since`: a place
+   * changed (created, relabelled, set active or quiet) or a route connected or withdrawn after that revision.
+   */
+  changedSystems(
+    scope: PersonalScopeTx,
+    since: number,
+    after: string | undefined,
+    limit: number,
+  ): Promise<{ readonly systemIds: readonly string[]; readonly more: boolean }>;
+  /** One page of every place of the universe in id order after `after`, each with its parent's id (null for a system). */
+  pageObjects(
+    scope: PersonalScopeTx,
+    after: string | undefined,
+    limit: number,
+  ): Promise<readonly { readonly place: Place; readonly parentId: string | null }[]>;
+  hasObject(scope: PersonalScopeTx, id: string): Promise<boolean>;
   writeRun(scope: PersonalScopeTx, run: GeographyRun): Promise<void>;
   findDelta(
     scope: PersonalScopeTx,
@@ -271,6 +312,8 @@ export interface GeographyStore {
   writeDelta(scope: PersonalScopeTx, runId: string | undefined, hash: string, delta: UniverseDelta): Promise<void>;
 }
 export interface GeographyPorts {
+  /** The topic catalogue (D-419): a use case reads one release of it and pins that release for the whole evaluation. */
+  readonly catalogue: CatalogueSource;
   readonly withScope: WithPersonalScope;
   readonly fenceOwn: FenceOwnAccount;
   readonly fenceRecording: FencePersonalRecording;
@@ -281,7 +324,6 @@ export interface GeographyPorts {
   readonly markDirty: MarkCoverageDirty;
   readonly readInputs: ReadCoverageInputs;
   readonly readTrusted: ReadTrustedCoverage;
-  readonly catalogue: Catalogue;
   readonly hash: (value: unknown) => string;
   /** HMAC-SHA-256 as hex. Derived ids are `mac(placeSecret, key)`. */
   readonly mac: Mac;
@@ -360,7 +402,10 @@ export type ReadOwnDeltas = (
 >;
 
 /** Dust cues read the same scope and store as the other own reads, plus Personal Context's snapshot. */
-export interface EmergingPorts extends Pick<GeographyPorts, 'withScope' | 'ownerActive' | 'store' | 'hash' | 'now'> {
+export interface EmergingPorts extends Pick<
+  GeographyPorts,
+  'catalogue' | 'withScope' | 'ownerActive' | 'store' | 'hash' | 'now'
+> {
   readonly readSnapshot: ReadExplorationSnapshot;
 }
 export type ReadOwnPlaceConcepts = (
@@ -384,11 +429,24 @@ export interface GeographySceneInput {
   readonly privacyEpoch: number;
   readonly personalRevision: number;
   readonly geography: GeographyRevisions;
+  /** How many established places the universe holds, whether or not `objects` lists them. */
+  readonly objectCount: number;
   readonly objects: readonly (GeographyObject & { readonly meaningId: string })[];
   readonly routes: readonly GeographyRoute[];
   readonly aliases: readonly GeographyAlias[];
 }
-export type ReadGeographySceneInput = (scope: PersonalScopeTx) => Promise<
+/**
+ * What a scene input read lists (D-417). Omitted: every place of the universe, for readers that hold the whole map
+ * (it refuses with `limit` past 1000 places or relations). `head` lists none and answers from the revisions. `systems`
+ * lists exactly those systems with the routes between their planets, however large the rest of the map is. Aliases are
+ * only listed by a whole read.
+ */
+export type SceneInputSelection =
+  { readonly kind: 'head' } | { readonly kind: 'systems'; readonly systemIds: readonly string[] };
+export type ReadGeographySceneInput = (
+  scope: PersonalScopeTx,
+  selection?: SceneInputSelection,
+) => Promise<
   | { readonly kind: 'read'; readonly input: GeographySceneInput }
   | {
       readonly kind: 'unavailable';
@@ -398,6 +456,15 @@ export type ReadGeographySceneInput = (scope: PersonalScopeTx) => Promise<
     }
   | { readonly kind: 'refused' }
 >;
+/**
+ * The systems a scene projection has to look at again: those with a place whose revision is above `since`, in id order
+ * after `after`, at most `limit` of them. Read from the places' own revision stamps, so it holds for a map no delta
+ * was ever written for.
+ */
+export type ReadGeographyChangedSystems = (
+  scope: PersonalScopeTx,
+  query: { readonly since: number; readonly after?: string; readonly limit: number },
+) => Promise<{ readonly systemIds: readonly string[]; readonly more: boolean }>;
 export type GeographyApplied = (
   scope: RecordingScopeTx,
   input: {

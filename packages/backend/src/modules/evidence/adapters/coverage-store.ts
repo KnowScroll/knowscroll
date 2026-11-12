@@ -2,7 +2,13 @@ import { z } from 'zod';
 import { sql } from 'kysely';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-import { ObservedCoverageSchema, ReadingCoverageSummarySchema } from '../domain/coverage.js';
+import {
+  ObservedCoverageSchema,
+  ReadingCoverageSummarySchema,
+  ReelCoverageSummarySchema,
+  reelBindingWatched,
+  type ObservedCoverage,
+} from '../domain/coverage.js';
 import {
   recordingCoverageKey,
   type CheckRecordingCoverageEvidence,
@@ -10,6 +16,39 @@ import {
   type ObservedCoveragePorts,
 } from '../application/coverage-ports.js';
 import { SCROLL_QUALIFICATION_POLICY_V0, SCROLL_RECORDING_QUALIFICATION_POLICY } from '../domain/policy.js';
+import { REEL_QUALIFICATION_POLICY_V0, REEL_RECORDING_QUALIFICATION_POLICY } from '../domain/reel-summary.js';
+
+/** The qualification policies whose rows a legacy (initial generation) certificate may rest on, Scroll and Reel. */
+const LEGACY_POLICIES = [SCROLL_QUALIFICATION_POLICY_V0, REEL_QUALIFICATION_POLICY_V0];
+/** The same for a recorded session. */
+const SESSION_POLICIES = [SCROLL_RECORDING_QUALIFICATION_POLICY, REEL_RECORDING_QUALIFICATION_POLICY];
+
+/**
+ * Whether the stored evidence row still shows the reading a certificate claims: qualified under the policy it was
+ * written by, and every block (a Scroll) or segment (a Reel) a binding requires still seen. A row of one format never
+ * satisfies a certificate of the other: a Scroll's summary has no media windows, a Reel's has no seen blocks.
+ */
+function evidenceStillShows(
+  row: { policy_version: string; qualification: string; q: number; coverage: number; summary: unknown },
+  c: ObservedCoverage,
+): boolean {
+  if (row.qualification !== 'qualified') return false;
+  if (row.policy_version.startsWith('reel-')) {
+    const summary = ReelCoverageSummarySchema.safeParse(row.summary);
+    return (
+      summary.success &&
+      row.q >= REEL_QUALIFICATION_POLICY_V0.minQ &&
+      c.bindings.every((b) => reelBindingWatched(b, summary.data.watched, summary.data.durationMs))
+    );
+  }
+  const summary = ReadingCoverageSummarySchema.safeParse(row.summary);
+  return (
+    summary.success &&
+    row.q >= SCROLL_QUALIFICATION_POLICY_V0.minQ &&
+    row.coverage >= SCROLL_QUALIFICATION_POLICY_V0.minCoverage &&
+    c.bindings.every((b) => b.requiredBlockIds.every((id) => summary.data.seenBlocks.includes(id)))
+  );
+}
 export const readCoverageEvidence: ObservedCoveragePorts['readEvidence'] = async (
   scope,
   id,
@@ -29,7 +68,7 @@ export const readCoverageEvidence: ObservedCoveragePorts['readEvidence'] = async
     estimated_reading_ms: number;
     summary: unknown;
   }>`select id,revision,input_watermark,policy_version,asset_id,asset_revision,qualification,q,coverage,estimated_reading_ms,summary
-    from evidence.encounter_evidence where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch} and exposure_id=${id}::uuid and recording_generation=${generation ?? 1} and (${generation === undefined} and policy_version='scroll-qualification.v0' or ${generation !== undefined} and (${qualificationId !== undefined} and id=${qualificationId ?? null}::uuid or ${qualificationId === undefined} and id=(select qualification_id from evidence.recording_segment_heads where universe_id=${scope.authority.universeId}::uuid and exposure_id=${id}::uuid and recording_generation=${generation ?? 1}))) order by revision desc limit 1`.execute(
+    from evidence.encounter_evidence where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch} and exposure_id=${id}::uuid and recording_generation=${generation ?? 1} and (${generation === undefined} and policy_version in('scroll-qualification.v0','reel-qualification.v0') or ${generation !== undefined} and (${qualificationId !== undefined} and id=${qualificationId ?? null}::uuid or ${qualificationId === undefined} and id=(select qualification_id from evidence.recording_segment_heads where universe_id=${scope.authority.universeId}::uuid and exposure_id=${id}::uuid and recording_generation=${generation ?? 1}))) order by revision desc limit 1`.execute(
     transactionOf(scope),
   );
   const r = rows.rows[0];
@@ -76,9 +115,7 @@ export const checkCoverageEvidence: CheckCoverageEvidence = async (scope, input)
   return certificates
     .filter((c) => {
       const r = byId.get(c.exposureId),
-        e = c.evidence,
-        p = SCROLL_QUALIFICATION_POLICY_V0;
-      const summary = ReadingCoverageSummarySchema.safeParse(r?.summary);
+        e = c.evidence;
       return (
         c.universeId === scope.authority.universeId &&
         c.privacyEpoch === scope.authority.privacyEpoch &&
@@ -89,14 +126,10 @@ export const checkCoverageEvidence: CheckCoverageEvidence = async (scope, input)
         r.revision === e.revision &&
         r.input_watermark === e.inputWatermark &&
         r.policy_version === e.policyVersion &&
-        r.policy_version === p.version &&
-        r.qualification === 'qualified' &&
-        r.q >= p.minQ &&
-        r.coverage >= p.minCoverage &&
+        LEGACY_POLICIES.some((policy) => policy.version === r.policy_version) &&
         r.asset_id === c.assetId &&
         r.asset_revision === c.assetRevision &&
-        summary.success &&
-        c.bindings.every((b) => b.requiredBlockIds.every((id) => summary.data.seenBlocks.includes(id))) &&
+        evidenceStillShows(r, c) &&
         canonicalSha256(r.summary) === e.summarySha256
       );
     })
@@ -165,8 +198,7 @@ export const checkRecordingCoverageEvidence: CheckRecordingCoverageEvidence = as
         transactionOf(scope),
       )
     ).rows[0];
-    const policy = w.sourceKind === 'legacy' ? SCROLL_QUALIFICATION_POLICY_V0 : SCROLL_RECORDING_QUALIFICATION_POLICY;
-    const summary = ReadingCoverageSummarySchema.safeParse(row?.summary);
+    const policies = w.sourceKind === 'legacy' ? LEGACY_POLICIES : SESSION_POLICIES;
     if (
       row &&
       // A retained generation keeps its sealed head. Within that same generation, a real
@@ -174,24 +206,20 @@ export const checkRecordingCoverageEvidence: CheckRecordingCoverageEvidence = as
       // Independent legacy-base witnesses never borrow a newer segment's authority.
       (w.sourceKind === 'legacy' ||
         (row.head_activity_id === w.activityId &&
-          (row.policy_version === SCROLL_QUALIFICATION_POLICY_V0.version
+          (LEGACY_POLICIES.some((policy) => policy.version === row.policy_version)
             ? row.head_legacy_q === w.qualificationId
             : row.head_session_q === w.qualificationId))) &&
-      row.qualification === 'qualified' &&
-      (row.policy_version === policy.version ||
+      (policies.some((policy) => policy.version === row.policy_version) ||
         (w.sourceKind === 'segment' &&
           w.recordingGeneration === 1 &&
-          row.policy_version === SCROLL_QUALIFICATION_POLICY_V0.version)) &&
-      row.q >= policy.minQ &&
-      row.coverage >= policy.minCoverage &&
+          LEGACY_POLICIES.some((policy) => policy.version === row.policy_version))) &&
+      evidenceStillShows(row, c) &&
       row.revision === c.evidence.revision &&
       row.input_watermark === c.evidence.inputWatermark &&
       row.policy_version === c.evidence.policyVersion &&
       row.asset_id === c.assetId &&
       row.asset_revision === c.assetRevision &&
       canonicalSha256(row.summary) === c.evidence.summarySha256 &&
-      summary.success &&
-      c.bindings.every((b) => b.requiredBlockIds.every((id) => summary.data.seenBlocks.includes(id))) &&
       (w.sourceKind === 'legacy'
         ? row.input_vector.policy === 'activity.v0' && row.input_vector.qualificationRevision === row.revision
         : row.input_vector.policy === 'recording-credit.v1' &&

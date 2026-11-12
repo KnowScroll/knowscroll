@@ -20,6 +20,12 @@ The returned page carries its policy version, URL, retrieval time, content hash 
 passage identities. This is production source material, not personal encounter evidence. The
 adapter has no tables, jobs or personal erasure store of its own.
 
+The link reader (`extractResearchLinks`, `fetchResearchWithLinks`, #674, D-422) reads the links of a page's prose paragraphs, in order, for topic growth: the same body the passages
+are read from (navigation, footer, reference lists and footnote markers are excluded), each link made absolute against the page, without its fragment or a trailing slash, and kept only
+if the URL rule above allows it (a host that is not on the reviewed list, a credential, a port or a query makes it disappear), it names an article (on Wikipedia `/wiki/<Title>` with
+no namespace, never the main page; any other host any path below its root) and it is not the page itself, at most 300. Nothing is fetched or executed by it; the fetch that returns the
+links is the same fetch, with the same DNS, redirect and size checks, that returns the passages.
+
 Run `pnpm --filter @knowscroll/backend exec vitest run src/infrastructure/research` from the root.
 Authored network fixtures cover refused URLs and addresses, redirects, limits and extraction;
 they make no live network calls and do not verify that an upstream page remains available.

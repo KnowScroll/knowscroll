@@ -6,6 +6,12 @@ import type { UniverseMapSession } from '../universe-session';
 import { PlaceRow, RowGroup, SIMPLE } from './place-rows';
 
 /**
+ * A map of thousands of systems lists this many, in the map's order; the person reaches the rest by search, and the list
+ * says so. A list of every system would be thousands of rows, and a screen reader would read them all (D-417).
+ */
+export const LISTED_SYSTEM_LIMIT = 60;
+
+/**
  * The list the Simple view and the desktop panel share: each system's name as a heading with the
  * number of its planets, its planets as rows under it (how many countries each holds, or where the
  * person was), and the rooms at the end. It lists only what has formed (D-109); a visitor's rows say
@@ -31,9 +37,10 @@ export function SystemSections({
   /** Where a system's name can be pressed because the map shows the result (the desktop panel); the Simple view has none. */
   readonly onSystem?: (systemId: string) => void;
 }) {
+  const shown = listed.systems.slice(0, LISTED_SYSTEM_LIMIT);
   return (
     <>
-      {listed.systems.map((system, position) => (
+      {shown.map((system, position) => (
         <View key={system.id} testID={`simple-system-${system.id}`}>
           <View style={[styles.systemHead, position === 0 ? styles.first : null]}>
             <View style={styles.systemWords}>
@@ -61,7 +68,7 @@ export function SystemSections({
               ) : null}
             </View>
             <Text variant="uiS" color={SIMPLE.ink2}>
-              {countOf(system.planets.length, 'planet')}
+              {countOf(system.planetCount, 'planet')}
             </Text>
           </View>
           {visitor ? null : (
@@ -77,6 +84,16 @@ export function SystemSections({
             </RowGroup>
           )}
           <RowGroup label={`Planets in ${system.name}`}>
+            {system.loaded || system.planetCount === 0 ? null : (
+              // The planets of a system load when it is opened; the row says so and opens it.
+              <PlaceRow
+                testID={`simple-system-open-${system.id}`}
+                title="Show planets"
+                meta={countOf(system.planetCount, 'planet')}
+                accessibilityLabel={`Show the planets of ${system.name}`}
+                onPress={() => session.focus(system.id)}
+              />
+            )}
             {system.planets.map((planet) => (
               <PlaceRow
                 key={planet.id}
@@ -107,6 +124,13 @@ export function SystemSections({
           </RowGroup>
         </View>
       ))}
+      {listed.systems.length > shown.length ? (
+        <View testID="simple-systems-more" style={styles.label}>
+          <Text variant="uiS" color={SIMPLE.ink2}>
+            {`Showing ${shown.length} of ${countOf(listed.systems.length, 'system')}. Search to find the rest.`}
+          </Text>
+        </View>
+      ) : null}
       {listed.rooms.length > 0 ? (
         <View>
           <View style={styles.label}>

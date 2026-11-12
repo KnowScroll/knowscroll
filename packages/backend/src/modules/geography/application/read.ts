@@ -8,6 +8,8 @@ import {
 } from '@knowscroll/contracts';
 import type { GeographyPorts, ReadOwnGeography, ReadOwnDeltas } from './ports.js';
 import { publicPlace, validView } from './apply.js';
+import { pinCatalogue } from './catalogue.js';
+import { readMapAtScale } from './read-map.js';
 const sameSelection = (
   a: Parameters<ReadOwnGeography>[1]['selection'],
   b: Parameters<ReadOwnGeography>[1]['selection'],
@@ -17,6 +19,8 @@ export function makeReadGeography(p: GeographyPorts): ReadOwnGeography {
   return async (authority, input) => {
     const q = ReadGeographySchema.parse(input);
     const result = await p.withScope(authority, async (scope) => {
+      // A client that declared the map-at-scale read is served without the whole map in memory (D-417).
+      if (q.version === 'geography-read.v2') return readMapAtScale(p, scope, q);
       const view = await p.store.view(scope),
         g = view.state;
       const base = {
@@ -38,7 +42,10 @@ export function makeReadGeography(p: GeographyPorts): ReadOwnGeography {
           snapshot: GeographySnapshotSchema.parse({ ...base, status: 'unavailable', reason }),
         }) as const;
       if (view.objects.length > 1000 || view.routes.length + view.aliases.length > 1000) return unavailable('limit');
-      if (!validView(view, scope.authority.universeId) || !(await p.ownerActive(scope)))
+      if (
+        !validView(view, scope.authority.universeId, pinCatalogue(await p.catalogue.current())) ||
+        !(await p.ownerActive(scope))
+      )
         return unavailable('temporarily_unavailable');
       const systemId = q.selection.kind === 'system' ? q.selection.systemId : undefined;
       const selectedSystem =

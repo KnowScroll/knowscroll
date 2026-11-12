@@ -405,6 +405,130 @@ export const geographyStore: GeographyStore = {
       return r.payload;
     });
   },
+  async head(scope) {
+    const { tx, u, e } = owner(scope);
+    const count = (
+      await sql<{
+        n: string;
+      }>`select count(*)::text as n from geography.objects where universe_id=${u}::uuid and privacy_epoch=${e}`.execute(
+        tx,
+      )
+    ).rows[0]!.n;
+    return { state: await geographyStore.state(scope), objectCount: Number(count) };
+  },
+  async systemView(scope, systemIds) {
+    const { tx, u, e } = owner(scope);
+    if (!systemIds.length) return { objects: [], routes: [], aliases: [] };
+    const placesWhere = (column: ReturnType<typeof sql>, values: readonly string[], cast: 'uuid' | 'text') =>
+      sql<{ id: string; semantic_key: string; payload: Place }>`select id,semantic_key,payload from geography.objects
+        where universe_id=${u}::uuid and privacy_epoch=${e} and ${column} in (${sql.join(values.map((v) => (cast === 'uuid' ? sql`${v}::uuid` : sql`${v}`)))})
+        order by id`.execute(tx);
+    const systems = (await placesWhere(sql`id`, systemIds, 'uuid')).rows.filter((r) => r.payload.kind === 'system');
+    const children = systems.length
+      ? (
+          await placesWhere(
+            sql`payload->>'parentKey'`,
+            systems.map((r) => r.semantic_key),
+            'text',
+          )
+        ).rows
+      : [];
+    const planets = children.filter((r) => r.payload.kind === 'planet');
+    const regions = planets.length
+      ? (
+          await placesWhere(
+            sql`payload->>'parentKey'`,
+            planets.map((r) => r.semantic_key),
+            'text',
+          )
+        ).rows
+      : [];
+    const rows = [...systems, ...children, ...regions];
+    if (rows.some((r) => r.id !== r.payload.id || r.semantic_key !== r.payload.key))
+      throw new Error('GEOGRAPHY_STORED_IDENTITY');
+    const planetKeys = planets.map((r) => r.semantic_key);
+    const routes = planetKeys.length
+      ? (
+          await sql<{
+            id: string;
+            payload: Route;
+          }>`select id,payload from geography.relations where universe_id=${u}::uuid and privacy_epoch=${e} and kind='route'
+            and payload->>'fromKey' in (${sql.join(planetKeys)}) order by id`.execute(tx)
+        ).rows
+      : [];
+    if (routes.some((r) => r.id !== r.payload.id)) throw new Error('GEOGRAPHY_STORED_IDENTITY');
+    const ids = rows.map((r) => r.id);
+    const aliases = ids.length
+      ? (
+          await sql<{
+            payload: unknown;
+          }>`select payload from geography.relations where universe_id=${u}::uuid and privacy_epoch=${e} and kind='alias'
+            and (payload->>'fromObjectId' in (${sql.join(ids)}) or payload->>'toObjectId' in (${sql.join(ids)})) order by id`.execute(
+            tx,
+          )
+        ).rows
+      : [];
+    return {
+      objects: rows.map((r) => r.payload),
+      routes: routes.map((r) => r.payload),
+      aliases: aliases.map((r) => GeographyAliasSchema.parse(r.payload)),
+    };
+  },
+  async changedSystems(scope, since, after, limit) {
+    const { tx, u, e } = owner(scope);
+    const floor = after ?? '00000000-0000-0000-0000-000000000000';
+    const rows = (
+      await sql<{ id: string }>`
+        with changed_objects as (
+          select payload from geography.objects
+          where universe_id=${u}::uuid and privacy_epoch=${e} and (payload->>'objectRevision')::integer>${since}
+        ), changed_routes as (
+          select payload->>'fromKey' as from_key from geography.relations
+          where universe_id=${u}::uuid and privacy_epoch=${e} and kind='route' and (payload->>'relationRevision')::integer>${since}
+        ), system_keys as (
+          select payload->>'key' as key from changed_objects where payload->>'kind'='system'
+          union select payload->>'parentKey' from changed_objects where payload->>'kind' in ('star','planet')
+          union select planet.payload->>'parentKey' from changed_objects c
+            join geography.objects planet on planet.universe_id=${u}::uuid and planet.privacy_epoch=${e} and planet.semantic_key=c.payload->>'parentKey'
+            where c.payload->>'kind'='region'
+          union select planet.payload->>'parentKey' from changed_routes r
+            join geography.objects planet on planet.universe_id=${u}::uuid and planet.privacy_epoch=${e} and planet.semantic_key=r.from_key
+        )
+        select s.id from geography.objects s
+        where s.universe_id=${u}::uuid and s.privacy_epoch=${e} and s.payload->>'kind'='system' and s.id>${floor}::uuid
+          and s.semantic_key in (select key from system_keys)
+        order by s.id limit ${limit + 1}`.execute(tx)
+    ).rows;
+    return { systemIds: rows.slice(0, limit).map((r) => r.id), more: rows.length > limit };
+  },
+  async pageObjects(scope, after, limit) {
+    const { tx, u, e } = owner(scope);
+    const floor = after ?? '00000000-0000-0000-0000-000000000000';
+    const rows = (
+      await sql<{
+        id: string;
+        semantic_key: string;
+        payload: Place;
+        parent_id: string | null;
+      }>`select o.id,o.semantic_key,o.payload,parent.id as parent_id from geography.objects o
+        left join geography.objects parent on parent.universe_id=o.universe_id and parent.privacy_epoch=o.privacy_epoch and parent.semantic_key=o.payload->>'parentKey'
+        where o.universe_id=${u}::uuid and o.privacy_epoch=${e} and o.id>${floor}::uuid
+        order by o.id limit ${limit}`.execute(tx)
+    ).rows;
+    if (rows.some((r) => r.id !== r.payload.id || r.semantic_key !== r.payload.key))
+      throw new Error('GEOGRAPHY_STORED_IDENTITY');
+    return rows.map((r) => ({ place: r.payload, parentId: r.parent_id }));
+  },
+  async hasObject(scope, id) {
+    const { tx, u, e } = owner(scope);
+    return (
+      (
+        await sql`select 1 from geography.objects where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid`.execute(
+          tx,
+        )
+      ).rows.length === 1
+    );
+  },
   async writeRun(scope, r) {
     const { tx, u, e } = owner(scope);
     // Updating an existing exact row must not propose an incomplete INSERT tuple: PostgreSQL

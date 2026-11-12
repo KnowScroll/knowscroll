@@ -13,9 +13,11 @@ import type {
   PersonalScopeTx,
   WithPersonalScope,
   CheckPersonalOwnerActive,
+  CheckPersonalAccountDisposable,
   FencePersonalRecording,
 } from '../../identity/public.js';
 import type {
+  Catalogue,
   ChooseScrollRecipe,
   EncounterSnapshot,
   ReadMadeToOrderProductionIn,
@@ -87,6 +89,12 @@ export interface Demand {
   readonly askOrder?: AskOrderLink;
   /** `pending` until a `matching` ask has its match. */
   readonly decision: 'reuse' | 'join' | 'create' | 'refuse' | 'pending';
+  /**
+   * The catalogue release a `matching` request was recorded against (D-419). The shortlist the model is shown is made from this release
+   * and the person's words, so every delivery of the request shows the same shortlist and a paid answer is checked against it.
+   * Absent on a request recorded before the release was kept: the matcher then reads the current release.
+   */
+  readonly catalogueRelease?: number;
   readonly reason?: UnavailableReason;
   /** What the Planner wanted, kept on the person's own planned demand (`planned_intent`); never shared, never evidence. */
   readonly plannedIntent?: PlannedIntent;
@@ -266,8 +274,16 @@ export type RecordPlannedDemand = (scope: PersonalScopeTx, input: PlannedDemandI
  */
 export type CountPlannedDemand = (scope: PersonalScopeTx, outcomes: readonly PlannedDemandOutcome[]) => Promise<void>;
 export interface SupplyPorts {
+  /** The topic catalogue (D-419): which topics exist, their facets and labels, and the shortlist a model is shown. */
+  readonly catalogue: Catalogue;
   readonly withScope: WithPersonalScope;
   readonly ownerActive: CheckPersonalOwnerActive;
+  /**
+   * Whether the account behind the scope is a disposable test account (the Identity port the gap loop reads). Its demand
+   * never starts or joins shared production and never leaves a gap signal (D-413, D-414): the one check `commissionSupply`
+   * makes first.
+   */
+  readonly accountDisposable: CheckPersonalAccountDisposable;
   readonly store: SupplyStore;
   readonly readCandidates: ReadDiscoveryCandidates;
   /**

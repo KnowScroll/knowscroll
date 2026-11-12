@@ -18,12 +18,18 @@ import { makeCoverageActivityContextEffect } from './activity-effect.js';
 import { READ_TRUSTED_COVERAGE } from '../public.js';
 import {
   READ_ACTIVITY_STATISTICS,
+  READ_INTEREST_ROLLUPS,
   READ_OBSERVATION_TAIL,
   READ_RECENT_TOPIC_IDS,
+  READ_TOP_INTEREST_TOPICS,
+  type ReadInterestRollups,
   type ReadRecentTopicIds,
   type ReadActivityStatistics,
   type ReadObservationTail,
+  type ReadTopInterestTopics,
 } from '../../evidence/public.js';
+import type { ReadInterestContext } from '../../composer/public.js';
+import { makeReadInterestContext } from '../application/read-interest-context.js';
 import { READ_ROUTING_HISTORY, type ReadRoutingHistory } from '../../experience/public.js';
 import { formatFit, interest } from '../domain/context.js';
 import { makeReadExplorationSnapshot } from '../application/read-snapshot.js';
@@ -35,6 +41,7 @@ import {
   ACTIVITY_CONTEXT_EFFECT,
   READ_RECENT_CONTEXT_TOPICS,
   READ_COMPOSER_CONTEXT,
+  READ_INTEREST_CONTEXT,
 } from '../public.js';
 import { applyProjectedEncounter, readContextRevision, readStructure } from './postgres-store.js';
 /**
@@ -52,6 +59,20 @@ export function personalContextProviders(tokens: { readonly readCurrentPlan?: sy
       inject: [READ_EXPLORATION_SNAPSHOT, ...(tokens.readCurrentPlan ? [tokens.readCurrentPlan] : [])],
       useFactory: (read: ReadExplorationSnapshot, readCurrentPlan?: ReadCurrentPlan) =>
         makeReadComposerContext(read, readCurrentPlan),
+    },
+    {
+      provide: READ_INTEREST_CONTEXT,
+      inject: [
+        READ_TOP_INTEREST_TOPICS,
+        READ_INTEREST_ROLLUPS,
+        ...(tokens.readCurrentPlan ? [tokens.readCurrentPlan] : []),
+      ],
+      useFactory: (
+        readTop: ReadTopInterestTopics,
+        readRollups: ReadInterestRollups,
+        readCurrentPlan?: ReadCurrentPlan,
+      ): ReadInterestContext =>
+        makeReadInterestContext({ readTop, readRollups, ...(readCurrentPlan ? { readCurrentPlan } : {}) }),
     },
     {
       provide: READ_RECENT_CONTEXT_TOPICS,

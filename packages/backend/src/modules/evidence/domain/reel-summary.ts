@@ -1,4 +1,4 @@
-import { intervalsLength, mergeIntervals, type Interval } from './intervals.js';
+import { intervalsLength, mergeIntervals, mergeIntervalsBridging, type Interval } from './intervals.js';
 import type { ObservationRecord } from './reading-summary.js';
 
 export const REEL_QUALIFICATION_POLICY_V0 = {
@@ -6,6 +6,57 @@ export const REEL_QUALIFICATION_POLICY_V0 = {
   minQ: 0.6,
   minInstrumentationVersion: 1,
 } as const;
+
+/**
+ * Which media a Reel summary says was watched (#674, slice 5.1), recorded beside the qualification so a segment's
+ * coverage can be judged later without the raw observations. It changes neither q nor the thresholds above.
+ * Values are policy, not measurements: a new value is a new version.
+ */
+export const REEL_WATCHED_POLICY = {
+  version: 'reel-watched.v1',
+  /**
+   * Two reports of continuous playback that are at most this far apart in media time are one watched window. A sample's
+   * media end is clipped at intake to its active length (the wire allows a sample 100 ms more media than active time, and
+   * a player's position jitters), so honest consecutive samples leave gaps of a few milliseconds. A larger gap is not
+   * bridged: a seek, a stall or a dropped sample.
+   */
+  bridgeMs: 100,
+  /** Intervals are rounded inward to this grid, so what is recorded is never more than was watched. */
+  gridMs: 100,
+  /** The summary keeps at most this many intervals (the longest), a bound on a stored row. */
+  maxIntervals: 32,
+  /**
+   * Watched media longer than the active time that could have produced it (by this ratio, plus the allowance) is not
+   * attributed to any position: the reports overlap in wall time with different media positions, which one viewer
+   * cannot do. The allowance covers the 100 ms a sample may exceed its own active time.
+   */
+  dwellRatio: 1.1,
+  dwellAllowanceMs: 1000,
+} as const;
+
+/** The version of the Reel summary that carries `watched`. Earlier rows have no positions and bind no facet. */
+export const REEL_SUMMARY_VERSION = 2;
+
+/**
+ * The unique media a viewer watched as disjoint `[from, to]` windows, joined across the gaps intake leaves between honest
+ * samples, rounded inward and bounded (the 32 longest, after the joining); empty when the media reported cannot have been
+ * watched in the active time (see `REEL_WATCHED_POLICY`). Pure.
+ */
+export function watchedMedia(media: readonly Interval[], activeDwellMs: number): [number, number][] {
+  const policy = REEL_WATCHED_POLICY;
+  // The tamper bound reads the media as reported, never the bridged windows: bridging adds nothing to what may be claimed.
+  if (intervalsLength(mergeIntervals(media)) > activeDwellMs * policy.dwellRatio + policy.dwellAllowanceMs) return [];
+  const rounded = mergeIntervalsBridging(media, policy.bridgeMs)
+    .map(([from, to]): [number, number] => [
+      Math.ceil(from / policy.gridMs) * policy.gridMs,
+      Math.floor(to / policy.gridMs) * policy.gridMs,
+    ])
+    .filter(([from, to]) => to > from);
+  return rounded
+    .sort((a, b) => b[1] - b[0] - (a[1] - a[0]) || a[0] - b[0])
+    .slice(0, policy.maxIntervals)
+    .sort((a, b) => a[0] - b[0]);
+}
 /** Media coverage is a union, capped by both unique active wall time and admitted duration.
  * Missing samples or sequence gaps leave a short encounter unknown; an observed qualifying union
  * remains positive evidence. Sample boundaries exclude seeks, loops, buffering and hidden time. */
@@ -72,12 +123,13 @@ export function summariseReel(
     activeDwellMs,
     estimatedReadingMs: durationMs,
     summary: {
-      v: 1,
+      v: REEL_SUMMARY_VERSION,
       uniqueMediaMs,
       durationMs,
       instrumentationVersion: Number.isFinite(instrumentation) ? instrumentation : 0,
       sequenceGaps: gaps,
       reports,
+      watched: watchedMedia(media, activeDwellMs),
     },
   } as const;
 }

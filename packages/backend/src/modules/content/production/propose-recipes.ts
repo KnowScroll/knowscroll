@@ -21,7 +21,8 @@ import {
   storeAcceptedRecipes,
 } from '../adapters/recipe-proposals.js';
 import { recipeBookOf } from '../adapters/stored-recipes.js';
-import { CONCEPTS } from '../domain/concepts.js';
+import { readTopicOriginPages } from '../adapters/topic-candidates.js';
+import { readCatalogueIn } from '../adapters/catalogue-store.js';
 import { generatedKeyOf, type BookRecipe } from '../domain/library/generated.js';
 import {
   checkRecipeDraft,
@@ -155,17 +156,25 @@ async function factsOf(
   db: Kysely<Database>,
   request: Pick<ProposeRecipesRequest, 'topicId' | 'facetId'>,
 ): Promise<{ readonly facts: RecipeBriefFacts } | Extract<ProposeRecipesResult, { kind: 'refused' }>> {
-  const topic = CONCEPTS.find((concept) => concept.id === request.topicId && concept.parent !== null);
+  // A topic that is not servable yet is still one the library may write recipes for: it becomes servable by having supply.
+  const catalogue = await readCatalogueIn(db);
+  const found = catalogue.concept(request.topicId);
+  const topic = found?.kind === 'topic' && !found.retired ? found : undefined;
   if (topic === undefined) return { kind: 'refused', reason: 'topic_unknown' };
   if (request.facetId !== undefined && !topic.facets.some((facet) => facet.id === request.facetId))
     return { kind: 'refused', reason: 'facet_unknown' };
   const planet = (await recipeBookOf(db).servingBrief({ topicId: topic.id })).filter(
     (recipe) => recipe.status !== 'retired',
   );
-  const candidates = await readCandidatePages(
+  const held = await readCandidatePages(
     db,
     planet.map((recipe) => recipe.key),
   );
+  // A topic that grew from a candidate page (#674, D-422) holds that page, which is all its first recipes can rest on.
+  const candidates = [
+    ...held,
+    ...(await readTopicOriginPages(db, topic.id)).filter((origin) => !held.some((page) => page.url === origin.url)),
+  ];
   if (candidates.length === 0) return { kind: 'refused', reason: 'no_candidate_pages' };
   return {
     facts: {

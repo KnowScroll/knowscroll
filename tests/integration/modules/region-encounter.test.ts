@@ -1,4 +1,6 @@
 /** Authored CI mappings/geography only. No live semantic approval, model call or formation. */
+import { catalogueOf } from '../support/catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
@@ -19,7 +21,7 @@ import {
 } from '@knowscroll/backend/modules/experience/nest-providers';
 import {
   contentProviders,
-  coverageCatalogue,
+  planCoverageCatalogue,
   makeAdmitCoverage,
   makeCoverageAdmissionPorts,
 } from '@knowscroll/backend/modules/content/nest-providers';
@@ -30,7 +32,7 @@ import {
   type CoverageCommand,
 } from '@knowscroll/backend/modules/content';
 import { composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
-import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
+import { READ_COMPOSER_CONTEXT, READ_INTEREST_CONTEXT } from '@knowscroll/backend/modules/personal-context';
 import { READ_OWN_REGION_CONSTRAINT } from '@knowscroll/backend/modules/geography';
 import { geographyProviders } from '@knowscroll/backend/modules/geography/nest-providers';
 import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
@@ -75,11 +77,13 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
       ENQUEUE = Symbol('enqueue');
     const identity = accountAccessUseCases({ db: database.db, lockTimeoutMs: 2000 });
     const values = new Map<symbol, unknown>([
+      [CATALOGUE, catalogueOf(database.db)],
       [SCOPE, scope()],
       [FENCE_OWN_ACCOUNT, identity.fenceOwnAccount],
       [READ_RECORDING_LIFECYCLE, identity.readRecordingLifecycle],
       [ENQUEUE, makeEnqueueJob(c.boss)],
       [READ_COMPOSER_CONTEXT, c.readComposerContext],
+      [READ_INTEREST_CONTEXT, c.readInterestContext],
       [CHECK_ASSET_AUDIENCE, openToEveryone],
       ...contentProviders().map((x) => [x.provide, x.useValue] as const),
       ...composerProviders({ isOperator: () => false }).map((x) => [x.provide, x.useValue] as const),
@@ -154,12 +158,12 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
           readingFactsVersion: 2,
           readingFactsSha256: canonicalSha256(row.reading_facts),
           catalogueVersion: CONCEPT_CATALOGUE_VERSION,
-          catalogueSha256: coverageCatalogue.sha256,
+          catalogueSha256: planCoverageCatalogue().sha256,
           bindings: [
             {
               topicId: topic,
               facetId: mappedFacet,
-              meaningSha256: coverageCatalogue.meaningSha256(topic, mappedFacet)!,
+              meaningSha256: planCoverageCatalogue().meaningSha256(topic, mappedFacet)!,
               requiredBlockIds: ['intro-look-up'],
             },
           ],

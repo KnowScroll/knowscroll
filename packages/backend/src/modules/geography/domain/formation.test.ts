@@ -1,6 +1,6 @@
 import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
-import { CONCEPTS } from '../../content/public.js';
+import { planSnapshot } from '../../content/public.js';
 import { EVALUATION, newestKeysPerFacet } from './evaluation.js';
 import { placesDue, reconcileWithRules, requiredChanges } from './formation.js';
 import {
@@ -12,11 +12,15 @@ import {
   proposalIssue,
   semanticKey,
   type Candidate,
+  type Concept,
   type FormationFacts,
   type GeographyProposal,
   type Place,
   type Support,
 } from './policy.js';
+
+/** The catalogue of the library plan (release 1): the fixture these rules are exercised on. */
+const CONCEPTS = planSnapshot().all();
 
 /** Authored supports over the real concept catalogue; none of this is a person's reading. */
 const catalogue = CONCEPTS.map((topic) => ({
@@ -455,5 +459,42 @@ describe('the proof an operation cites (D-416)', () => {
     const rules = requiredChanges(f);
     for (const operation of rules.operations) expect(operation.supportRefs.length).toBeLessThanOrEqual(PROOF_REFS);
     expect(proposalIssue(rules, f)).toBeUndefined();
+  });
+});
+
+describe('formation thresholds as the catalogue carries them (D-419)', () => {
+  const planetKey = semanticKey('planet', seasons);
+  const planet = candidates.find((candidate) => candidate.key === planetKey)!;
+  const system = candidates.find((candidate) => candidate.key === semanticKey('system', 'earth'))!;
+  const threeUnits = [support('u1', tilt), support('u2', hemispheres), support('u3', limits)];
+  const withPolicy = (id: string, policy: NonNullable<Concept['policy']>) =>
+    catalogue.map((entry) => (entry.id === id ? { ...entry, policy } : entry));
+
+  it('forms a planet from three units over two facets, and a system from two units, when a node sets nothing', () => {
+    expect(formationEligible(facts(threeUnits), planet)).toBe(true);
+    expect(formationEligible(facts(threeUnits.slice(0, 2)), planet)).toBe(false);
+    expect(formationEligible(facts(threeUnits.slice(0, 2)), system)).toBe(true);
+    expect(formationEligible(facts(threeUnits.slice(0, 1)), system)).toBe(false);
+  });
+
+  it('asks a topic for the units and facets it sets, not the defaults', () => {
+    expect(
+      formationEligible({ ...facts(threeUnits), catalogue: withPolicy(seasons, { planetUnits: 4 }) }, planet),
+    ).toBe(false);
+    expect(
+      formationEligible({ ...facts(threeUnits), catalogue: withPolicy(seasons, { planetFacets: 3 }) }, planet),
+    ).toBe(true);
+    expect(
+      formationEligible(
+        { ...facts(threeUnits.slice(0, 2)), catalogue: withPolicy(seasons, { planetUnits: 2 }) },
+        planet,
+      ),
+    ).toBe(true);
+    expect(
+      formationEligible(
+        { ...facts(threeUnits.slice(0, 2)), catalogue: withPolicy('earth', { systemUnits: 3 }) },
+        system,
+      ),
+    ).toBe(false);
   });
 });

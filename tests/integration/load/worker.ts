@@ -6,7 +6,9 @@ import {
   accountAccessUseCases,
   identityScopeOwnerProviders,
 } from '@knowscroll/backend/modules/identity/nest-providers';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
+import { catalogueOf } from '../support/catalogue.js';
 import { PREPARE_COMPOSER_BUFFER, type PrepareBuffer } from '@knowscroll/backend/modules/composer';
 import { composerBufferWorkerProviders, composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
 import { experienceBufferSourceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
@@ -14,6 +16,7 @@ import {
   CLEAR_COVERAGE_DIRTY,
   MARK_COVERAGE_DIRTY,
   READ_COMPOSER_CONTEXT,
+  READ_INTEREST_CONTEXT,
   READ_COVERAGE_DIRTY,
   READ_COVERAGE_INPUTS,
   READ_TRUSTED_COVERAGE,
@@ -47,11 +50,14 @@ export function workerParts(world: GeographyWorld, composerPolicy: 'v0' | 'v1' |
   const { database, c } = world;
   const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
   const { harness } = fixtureRecordingHarness(database.db, { model: undefined });
+  const catalogue = catalogueOf(database.db);
   const bufferValues = new Map<symbol, unknown>([
+    [CATALOGUE, catalogue],
     [SCOPE, withScope],
     [WORKER_CONFIG, { jevEnabled: false, reasoning: {} }],
     [RECORDING_REASONING_HARNESS, harness],
     [READ_COMPOSER_CONTEXT, c.readComposerContext],
+    [READ_INTEREST_CONTEXT, c.readInterestContext],
     ...[
       ...experienceBufferSourceProviders(),
       ...composerProviders({ isOperator: () => false }, composerPolicy),
@@ -70,6 +76,7 @@ export function workerParts(world: GeographyWorld, composerPolicy: 'v0' | 'v1' |
     ...sceneProviders({ withPersonalScope: SCOPE, logEvent: LOG }),
   ];
   const sceneValues = new Map<symbol, unknown>([
+    [CATALOGUE, catalogue],
     [SCOPE, withScope],
     [LOG, () => undefined],
     [ENQUEUE, makeEnqueueJob(c.boss)],

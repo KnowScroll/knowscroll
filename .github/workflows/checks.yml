@@ -218,6 +218,21 @@ jobs:
           path: tests/integration/simulation/output
           if-no-files-found: ignore
           retention-days: 14
+      # Composer policy v3 (#674, D-420) is test-only until the coordinator switches dev after reading its replay: the lab above runs
+      # the policy dev runs (v2), and this run holds v3 to the same invariants (I1 included) and gate, with its own report.
+      - name: Algorithm simulation lab under Composer policy v3 (test-only mode; dev keeps v2)
+        env:
+          KS_COMPOSER_POLICY: v3
+          KS_SIM_OUTPUT: ${{ github.workspace }}/tests/integration/simulation/output-v3
+        run: pnpm --filter @knowscroll/integration-tests test:simulation
+      - name: Upload the simulation report of policy v3
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: simulation-report-policy-v3
+          path: tests/integration/simulation/output-v3
+          if-no-files-found: ignore
+          retention-days: 14
 
   build:
     runs-on: ubuntu-latest

@@ -34,6 +34,8 @@ import {
   produceScrollSingletonKey,
   produceScrollQueue,
   produceAnswerQueue,
+  CATALOGUE,
+  type Catalogue,
   type ChooseScrollRecipe,
   type ReadDiscoveryCandidates,
   type ReadExactEncounter,
@@ -94,7 +96,7 @@ import { askOrderLedger, makeReadAskOrderAudience } from './postgres-ask-orders.
 import { plannedDemandLedger } from './postgres-planned-demand-ledger.js';
 import { quickAnswerStore } from './postgres-quick-answers.js';
 import { makeCheckSupplyRecordingRun } from '../application/check-recording-run.js';
-import { makeRecordGapSignals } from '../application/gap-signals.js';
+import { catalogueTopics, makeRecordGapSignals } from '../application/gap-signals.js';
 import { gapMarkStore } from './postgres-gaps.js';
 import { bestEffort } from '../../../infrastructure/postgres/best-effort.js';
 import type { LogEvent } from '../../../infrastructure/observability/index.js';
@@ -202,6 +204,7 @@ export function supplyProviders(t: {
         READ_MADE_TO_ORDER_PRODUCTION_IN,
         FENCE_PERSONAL_RECORDING,
         CHECK_PERSONAL_ACCOUNT_DISPOSABLE,
+        CATALOGUE,
         ...(t.logEvent === undefined ? [] : [t.logEvent]),
       ],
       useFactory: (
@@ -223,10 +226,13 @@ export function supplyProviders(t: {
         readOrderProduction: ReadMadeToOrderProductionIn,
         fenceRecording: FencePersonalRecording,
         accountDisposable: CheckPersonalAccountDisposable,
+        catalogue: Catalogue,
         logEvent?: LogEvent,
       ): SupplyPorts => ({
+        catalogue,
         withScope,
         ownerActive,
+        accountDisposable,
         store: supplyStore,
         chooseRecipe,
         readProduction,
@@ -239,6 +245,7 @@ export function supplyProviders(t: {
         // A count for the gap loop never fails or delays the ask or the demand that knew it: a savepoint, a short lock wait, the error logged by code.
         recordGapSignals: guardedGapSignals(
           makeRecordGapSignals({
+            catalogue: async () => catalogueTopics(await catalogue.current()),
             enabled: settings.supplyGrowthEnabled === true,
             marks: gapMarkStore,
             isDisposable: accountDisposable,
@@ -354,9 +361,14 @@ export function supplyProviders(t: {
     // It is not the guarded one: its caller guards it, as the Composer's persist port does, so nothing runs under two savepoints.
     {
       provide: RECORD_GAP_SIGNALS,
-      inject: [t.config, CHECK_PERSONAL_ACCOUNT_DISPOSABLE],
-      useFactory: (settings: SupplySettings, accountDisposable: CheckPersonalAccountDisposable): RecordGapSignals =>
+      inject: [t.config, CHECK_PERSONAL_ACCOUNT_DISPOSABLE, CATALOGUE],
+      useFactory: (
+        settings: SupplySettings,
+        accountDisposable: CheckPersonalAccountDisposable,
+        catalogue: Catalogue,
+      ): RecordGapSignals =>
         makeRecordGapSignals({
+          catalogue: async () => catalogueTopics(await catalogue.current()),
           enabled: settings.supplyGrowthEnabled === true,
           marks: gapMarkStore,
           isDisposable: accountDisposable,
@@ -420,6 +432,8 @@ export { recoverOpenDemand, type RecoveredDemand } from './recover-open-demand.j
 export { expireStalePlannedDemand, type ExpiredPlannedDemand } from './expire-stale-planned-demand.js';
 /** The gap loop's use cases and stores, composed by the worker (`apps/worker/src/growth-jobs.ts`) and the operator (#674, D-414). */
 export { makeScanGaps } from '../application/gap-scan.js';
+/** The planets and facets of one catalogue release, in the shape the gap loop checks names against. */
+export { catalogueTopics } from '../application/gap-signals.js';
 export { makeBriefGaps } from '../application/gap-brief.js';
 export { proposalOf } from '../application/gap-proposal.js';
 export {

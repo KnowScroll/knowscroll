@@ -185,6 +185,11 @@ const ADDRESS =
 /** Markup in prose: angle brackets (tags, autolinks), backticks, a Markdown link or image, a reference link or its definition. */
 const MARKUP = /[<>`]|\]\(|\]\[|^\s*\[[^\]]+\]:/mu;
 
+/** Whether a text carries a web address (see above): the topic growth step holds a topic's own words to the same rule as a recipe's. */
+export const textHasAddress = (text: string): boolean => ADDRESS.test(text);
+/** Whether a text carries markup (see above). */
+export const textHasMarkup = (text: string): boolean => MARKUP.test(text);
+
 /**
  * Decides one draft. The draft is the model's; every other input is code's. The first check a draft fails names its refusal.
  * A model's page is accepted only if it is one of the candidates, code's URL rule allows it, and the writer would be offered

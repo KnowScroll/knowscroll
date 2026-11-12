@@ -139,6 +139,16 @@ The adapter performs no writes, advances no revision and adds no stores/erasure 
 API and worker instantiate it. Navigation requires its explicit token; legacy Evidence readers are
 available only through an opt-in compatibility-fixture provider, with no production fallback.
 
+## Interest context for Composer policy v3
+
+`READ_INTEREST_CONTEXT` implements Composer's `ReadInterestContext` (D-420, #674 slices 4.2 and 5.2) over Evidence's reads, in the
+caller's transaction, writing nothing. `leads` returns the person's top `topK` long-term interest topics (Evidence's index range scan,
+`ReadTopInterestTopics`) and the explanation units of the unexpired Planner opportunities for existing content that are suited to a vertical move (`eligibility` includes `vertical`, as plan lifts require; a related-only opportunity names no unit here) (the same stored plan reader
+ranking uses; a plan is not evidence, a missing-supply opportunity names no unit). `rollups` returns the system roll-ups asked for and the
+person's, in the shape of a topic's statistics. Retrieval takes the leads as data; the snapshot freezes the roll-ups beside the topic rows.
+It adds no table, queue or erasure entry: the rows are Evidence's and erased with it. Status: implemented, CI-tested (unit and real
+PostgreSQL); not yet run on dev.
+
 ## Observed-coverage proofs
 
 Status: implemented, CI-tested against real PostgreSQL. Related: #237, migration 0023.
@@ -212,6 +222,22 @@ Rollout requires ordered 0001–0023, reviewed API/worker composition, separatel
 semantic maps and explicit bounded existing reconciliation. Empty Content approvals remain empty.
 CI fixtures use synthetic semantic approvals only; no live map, observed dev coverage, provider,
 geography, planet, native/browser journey or deployment acceptance is established by source/CI.
+
+## Reels in trusted coverage (#674, slice 5.1, D-421)
+
+Status: implemented, CI-tested against real PostgreSQL. Migration 0116 (a Content guard only).
+
+`ReadTrustedCoverage` serves Reel certificates beside Scroll certificates (`supportedFormats: ['scroll', 'reel']`).
+Nothing in this module knows a format: a certificate is a certificate, and the same checks run for a Reel's: current
+exact Evidence, Content's current mapping under `certificateValidOnHead` (D-406, so a head that changed only in the
+catalogue digest keeps a Reel's reading, and a re-cut, which is another asset revision with its own head, does not
+inherit the earlier cut's windows), and the SHARE locks. The support key is the same, and its `truthSha256` is the
+factual framing digest a Reel and its Scroll twin share, so a Reel and its twin that bind one facet are one key with two
+references and one explanation unit: they count once, and Geography counts distinct units, never references. The
+dirty set is marked by a Reel's references exactly as by a Scroll's. A Reel with no twin Scroll gets no coverage at all
+(its target needs the twin, below), so what is watched of it counts for dust and nothing more; and a Reel whose twin Scroll
+was corrected or withdrawn after the Reel was published stops proving anything, for earlier readers as for new ones, because
+the trusted read no longer finds a mapping for it.
 
 ## The dirty set and the keys a run reads (#674, slice 4.1, D-416)
 

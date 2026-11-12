@@ -40,6 +40,12 @@ const compositionRoots = [
   '^apps/worker/src/supply-operator\\.ts$',
   // The recipe commands compose the production harness and the stored-recipe use cases (#674, D-412).
   '^apps/worker/src/recipes-operator\\.ts$',
+  // The catalogue command imports the plan as a release of the topic catalogue (#674, D-419).
+  '^apps/worker/src/catalogue-operator\\.ts$',
+  // Topic growth's consumer composes the seeding of candidate pages, the proposal role on the production harness and the pass (#674, D-422).
+  '^apps/worker/src/topic-growth-jobs\\.ts$',
+  // The topic commands compose the production harness and the candidate reads (#674, D-422).
+  '^apps/worker/src/topic-operator\\.ts$',
   // The journey inspector composes the read-only operator views (#248).
   '^apps/worker/src/journey-operator\\.ts$',
   // The reconciliation marks every topic with support dirty through Personal Context's adapter (#674, D-416).
@@ -67,8 +73,12 @@ const compositionRoots = [
   '^apps/worker/src/policy-operator\\.ts$',
   // The composer operator replays stored decisions through the composer's provider, read-only (S-5, D-190).
   '^apps/worker/src/composer-operator\\.ts$',
+  // The evidence operator rebuilds a person's interest roll-ups through the module's provider, derived rows only (#674, D-420).
+  '^apps/worker/src/evidence-operator\\.ts$',
   // The dry-run commands build a Cartographer's and a Planner's read ports from the worker's own providers, read-only (#674, D-411).
   '^apps/worker/src/dry-run-wiring\\.ts$',
+  // The canary mints disposable accounts with the operator sign-in use case and drives the public API (#674, D-413).
+  '^apps/worker/src/canary-operator\\.ts$',
 ];
 const testFile = '\\.test\\.tsx?$';
 

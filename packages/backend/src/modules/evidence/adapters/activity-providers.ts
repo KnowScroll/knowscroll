@@ -6,8 +6,10 @@ import { makePrepareObservedCoverage } from '../application/prepare-coverage.js'
 import { readCoverageEvidence, checkCoverageEvidence, checkRecordingCoverageEvidence } from './coverage-store.js';
 import { CHECK_COVERAGE_EVIDENCE, CHECK_RECORDING_COVERAGE_EVIDENCE } from '../public.js';
 import {
+  CATALOGUE,
   READ_ADMITTED_COVERAGE_MAPPING,
   READ_SCROLL_READING_FACTS,
+  type Catalogue,
   type ReadAdmittedCoverageMapping,
   type ReadScrollReadingFacts,
 } from '../../content/public.js';
@@ -51,7 +53,14 @@ import { notifyScopeChanged } from '../../../infrastructure/notices/index.js';
 import { requestHash } from '../../../infrastructure/receipts/index.js';
 import { projectEncounterActivityQueue, applyActionEvidenceQueue } from '../events.js';
 import { PROJECT_ENCOUNTER_ACTIVITY, RECONCILE_ENCOUNTER_ACTIVITY, READ_PREPARED_ACTIVITY } from '../public.js';
-import { READ_ACTIVITY_STATISTICS, READ_OBSERVATION_TAIL, READ_RECENT_TOPIC_IDS } from '../public.js';
+import {
+  READ_ACTIVITY_STATISTICS,
+  READ_INTEREST_ROLLUPS,
+  READ_OBSERVATION_TAIL,
+  READ_RECENT_TOPIC_IDS,
+  READ_TOP_INTEREST_TOPICS,
+} from '../public.js';
+import { readInterestRollups, readTopInterestTopics } from './interest-store.js';
 import { readActivityStatistics, readObservationTail, readRecentTopicIds } from './context-store.js';
 import {
   makeProjectEncounterActivity,
@@ -63,7 +72,7 @@ import {
 import {
   currentActivity,
   pendingActivity,
-  persistActivity,
+  makePersistActivity,
   readQualification,
   readTopicContext,
 } from './activity-store.js';
@@ -88,6 +97,8 @@ export function activityProviders(t: {
     { provide: READ_RECENT_TOPIC_IDS, inject: [], useFactory: () => readRecentTopicIds },
     { provide: READ_ACTIVITY_STATISTICS, inject: [], useFactory: () => readActivityStatistics },
     { provide: READ_OBSERVATION_TAIL, inject: [], useFactory: () => readObservationTail },
+    { provide: READ_TOP_INTEREST_TOPICS, inject: [], useFactory: () => readTopInterestTopics },
+    { provide: READ_INTEREST_ROLLUPS, inject: [], useFactory: () => readInterestRollups },
     {
       provide: ACTIVITY_PORTS,
       inject: [
@@ -107,6 +118,7 @@ export function activityProviders(t: {
         READ_ACTIVITY_RECONCILE_PAGE,
         READ_ADMITTED_COVERAGE_MAPPING,
         READ_SCROLL_READING_FACTS,
+        CATALOGUE,
         ...(t.derivedProjection ? [t.derivedProjection] : []),
         ...(t.materialChange ? [t.materialChange] : []),
       ],
@@ -127,6 +139,7 @@ export function activityProviders(t: {
         readReconcilePage: ReadActivityReconcilePage,
         readMapping: ReadAdmittedCoverageMapping,
         readFacts: ReadScrollReadingFacts,
+        catalogue: Catalogue,
         derived?: ActivityPorts['derived'],
         materialChange?: ActivityPorts['materialChange'],
       ): ActivityPorts => ({
@@ -155,7 +168,7 @@ export function activityProviders(t: {
         readHistory,
         readReconcilePage,
         currentActivity,
-        persist: persistActivity,
+        persist: makePersistActivity(catalogue),
         readQualification,
         readTopicContext,
         pending: pendingActivity,

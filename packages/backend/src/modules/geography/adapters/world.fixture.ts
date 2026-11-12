@@ -1,9 +1,16 @@
 import { createHmac } from 'node:crypto';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
-import { CONCEPTS, CONCEPT_CATALOGUE_VERSION } from '../../content/public.js';
+import {
+  CONCEPT_CATALOGUE_VERSION,
+  fixtureSnapshot,
+  planSnapshot,
+  type Catalogue as CatalogueSource,
+  type CatalogueSnapshot,
+} from '../../content/public.js';
 import type { RecordingScopeTx } from '../../identity/public.js';
 import type { CoverageProbe } from '../../personal-context/public.js';
-import { catalogueOf, type Catalogue, type CatalogueTopic } from '../domain/catalogue.js';
+import { pinCatalogue } from '../application/catalogue.js';
+import type { Catalogue, CatalogueTopic } from '../domain/catalogue.js';
 import { newestKeysPerFacet } from '../domain/evaluation.js';
 import { unreadRetryMs, type PlaceSchedule } from '../domain/quiet.js';
 import { routeKey } from '../domain/ids.js';
@@ -35,7 +42,7 @@ export const unreadable = (reason: 'limit' | 'authority_changed' | 'not_observed
   ({
     version: 'trusted-coverage-read.v1',
     completeness: 'not_asserted',
-    supportedFormats: ['scroll'],
+    supportedFormats: ['scroll', 'reel'],
     availability: 'unavailable',
     reason,
     supports: [],
@@ -94,7 +101,7 @@ export function coverageOf(catalogue: Catalogue, readings: readonly Reading[], p
   return {
     version: 'trusted-coverage-read.v1',
     completeness: 'not_asserted',
-    supportedFormats: ['scroll'],
+    supportedFormats: ['scroll', 'reel'],
     availability: 'available',
     reason: 'current',
     supports: rows.map((row) => row.support),
@@ -106,11 +113,16 @@ export function coverageOf(catalogue: Catalogue, readings: readonly Reading[], p
 export interface Counters {
   trustedReads: number;
   inputReads: { topicIds: readonly string[]; maxTopics: number | undefined }[];
+  /** The keys of each facet every input read asked for, in order. */
+  keysPerFacet: (number | undefined)[];
   dirtyReads: number;
 }
 
 export interface WorldOptions {
+  /** Invented topics instead of the library plan's (a labelled fixture catalogue, release 1). */
   readonly catalogue?: readonly CatalogueTopic[];
+  /** Or an exact release of the catalogue. */
+  readonly snapshot?: CatalogueSnapshot;
   /** The trusted read answers this for a batch of probes, instead of what the readings hold. */
   readonly trusted?: (probes: readonly CoverageProbe[]) => TrustedRead;
   /** Extra characters in every witness, to make a context large. */
@@ -132,8 +144,12 @@ export class World {
   /** Dirty rows in backoff: when each may be tried again (ms since the epoch) and how many times it was tried. */
   readonly backoff = new Map<string, { retryAt: number; attempts: number }>();
   readonly deltas = new Map<string, { hash: string; delta: UniverseDelta }>();
-  readonly counters: Counters = { trustedReads: 0, inputReads: [], dirtyReads: 0 };
+  readonly counters: Counters = { trustedReads: 0, inputReads: [], keysPerFacet: [], dirtyReads: 0 };
+  /** The catalogue the world started with, pinned: what readings are authored against. */
   readonly catalogue: Catalogue;
+  /** Every release the world holds, by number, and the one that is current: a later release is made with `release`. */
+  readonly releases = new Map<number, CatalogueSnapshot>();
+  currentRelease = 1;
   secret: string | undefined;
   now = NOW;
   /** The personal scope revision the next change commits at, minus one: what a transaction entering now sees. */
@@ -149,8 +165,35 @@ export class World {
   ids = 0;
 
   constructor(readonly options: WorldOptions = {}) {
-    this.catalogue = catalogueOf(options.catalogue ?? CONCEPTS);
+    const initial =
+      options.snapshot ??
+      (options.catalogue
+        ? fixtureSnapshot(
+            options.catalogue.map((topic) => ({
+              id: topic.id,
+              parent: topic.parent,
+              facets: topic.facets.map((facet) => facet.id),
+            })),
+          )
+        : planSnapshot());
+    this.releases.set(initial.releaseId, initial);
+    this.currentRelease = initial.releaseId;
+    this.catalogue = pinCatalogue(initial);
     this.secret = options.secret;
+  }
+
+  /** The topic catalogue as the services read it: the current release, and any earlier one by number. */
+  get source(): CatalogueSource {
+    return {
+      current: () => Promise.resolve(this.releases.get(this.currentRelease)!),
+      release: (releaseId) => Promise.resolve(this.releases.get(releaseId)),
+    };
+  }
+
+  /** A later release of the catalogue becomes the current one; earlier releases stay readable. */
+  release(snapshot: CatalogueSnapshot): void {
+    this.releases.set(snapshot.releaseId, snapshot);
+    this.currentRelease = snapshot.releaseId;
   }
 
   /** One encounter: a reference is added to a support key, and its topic is marked dirty at the revision it commits at. */
@@ -373,6 +416,7 @@ function portsOf(world: World): GeographyPorts {
       },
     ) => {
       world.counters.inputReads.push({ topicIds: query.topicIds ?? [], maxTopics: query.maxTopics });
+      world.counters.keysPerFacet.push(query.perFacet);
       const newestOf = new Map<string, string>();
       for (const key of world.keys())
         if (!newestOf.has(key.topicId) || key.lastActivatedAt > newestOf.get(key.topicId)!)
@@ -433,7 +477,7 @@ function portsOf(world: World): GeographyPorts {
         wanted.length ? coverageOf(world.catalogue, wanted, world.options.padding ?? 0) : unreadable('not_observed'),
       );
     },
-    catalogue: world.catalogue,
+    catalogue: world.source,
     hash,
     mac: (secret: string, message: string) =>
       createHmac('sha256', Buffer.from(secret, 'hex')).update(message).digest('hex'),

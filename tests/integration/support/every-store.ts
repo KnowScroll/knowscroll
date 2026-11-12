@@ -5,7 +5,7 @@ import { COVERAGE_POLICY, CONCEPT_CATALOGUE_VERSION, type CoverageCommand } from
 import {
   makeAdmitCoverage,
   makeCoverageAdmissionPorts,
-  coverageCatalogue,
+  planCoverageCatalogue,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { createHash, randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
@@ -113,12 +113,12 @@ export async function everyStoreSeeder(
         readingFactsVersion: 2,
         readingFactsSha256: canonicalSha256(coverageSource.reading_facts),
         catalogueVersion: CONCEPT_CATALOGUE_VERSION,
-        catalogueSha256: coverageCatalogue.sha256,
+        catalogueSha256: planCoverageCatalogue().sha256,
         bindings: [
           {
             topicId: 'earth.seasons',
             facetId: 'earth.seasons.axial-tilt',
-            meaningSha256: coverageCatalogue.meaningSha256('earth.seasons', 'earth.seasons.axial-tilt')!,
+            meaningSha256: planCoverageCatalogue().meaningSha256('earth.seasons', 'earth.seasons.axial-tilt')!,
             requiredBlockIds: ['intro-look-up'],
           },
         ],
@@ -451,6 +451,18 @@ export async function everyStoreSeeder(
           chunk_id: sceneChunkId,
           slot: 0,
           payload: sceneFixture,
+        })
+        .execute();
+      await tx
+        .insertInto('scenes.systems')
+        .values({
+          universe_id: person.universeId,
+          privacy_epoch: 1,
+          system_id: sceneObjectId,
+          cell: null,
+          planet_count: 0,
+          object_count: 1,
+          scene_revision: 1,
         })
         .execute();
       await tx

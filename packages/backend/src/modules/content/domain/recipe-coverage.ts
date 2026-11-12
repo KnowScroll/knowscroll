@@ -1,4 +1,4 @@
-import { CONCEPT_CATALOGUE_VERSION } from './concepts.js';
+import { CONCEPT_CATALOGUE_VERSION } from './catalogue/types.js';
 import {
   coverageLocatorTypes,
   COVERAGE_POLICY,

@@ -1,17 +1,67 @@
 import {
   UNSEEN_FIRST_MAX_UNITS,
+  type CatalogueSnapshot,
+  type DiscoveryLanes,
   type EncounterSnapshot,
   type ReadDiscoveryCandidates,
   type UnseenFirst,
 } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import type { ComposeEncounter, ReadMetUnitIds } from './ports.js';
+import type { ComposeEncounter, InterestRollups, ReadInterestContext, ReadMetUnitIds } from './ports.js';
 
 /** Retrieval cap of blueprint §9 (100 retrieved). */
 export const VERTICAL_RETRIEVAL_LIMIT = 100;
 
 /** Whether the configured policy wants retrieval to read the person's unseen explanations first (policy v2, D-408). */
 export const wantsUnseenFirst = (compose: ComposeEncounter): boolean => compose.policy?.encountered === 'unseen-first';
+
+/** Whether the configured policy reads named retrieval lanes and the person's long-term interest (policy v3, D-420). */
+export const wantsLanes = (compose: ComposeEncounter): boolean => compose.policy?.retrieval === 'lanes';
+
+/**
+ * What a lane-reading retrieval needs of the person before it reads (policy v3): their top interest topics, as one index range
+ * scan of Evidence, and the units a valid Planner opportunity names. Content gets them as data, with the one catalogue release the
+ * decision reads, whose systems stratify the lanes.
+ */
+export async function readInterestLeads(
+  read: ReadInterestContext,
+  scope: PersonalScopeTx,
+  query: { readonly evaluatedAt: string; readonly topK: number },
+  catalogue: CatalogueSnapshot,
+): Promise<DiscoveryLanes> {
+  const leads = await read.leads(scope, query);
+  return {
+    continueTopicIds: leads.topics.map((topic) => topic.topicId),
+    plannedUnitIds: leads.plannedUnitIds,
+    catalogue,
+  };
+}
+
+/** The catalogue systems of the candidates' non-incidental topics, in first-seen order, bounded for one roll-up read. */
+export function systemIdsOf(
+  candidates: readonly Pick<EncounterSnapshot, 'topics'>[],
+  systemOf: (topicId: string) => string | undefined,
+  limit = 100,
+): readonly string[] {
+  const systems = candidates.flatMap((candidate) =>
+    candidate.topics.filter((t) => t.role !== 'incidental').flatMap((t) => systemOf(t.topicId) ?? []),
+  );
+  return [...new Set(systems)].slice(0, limit);
+}
+
+/**
+ * The roll-ups policy v3's interest and format features shrink toward: the person's overall level and the systems of the
+ * retrieved candidates. Read after retrieval, in the same transaction, and written into the snapshot beside the topic rows.
+ */
+export function readInterestRollups(
+  read: ReadInterestContext,
+  scope: PersonalScopeTx,
+  candidates: readonly Pick<EncounterSnapshot, 'topics'>[],
+  evaluatedAt: string,
+  systemOf: (topicId: string) => string | undefined,
+): Promise<InterestRollups> {
+  return read.rollups(scope, { evaluatedAt, systemIds: systemIdsOf(candidates, systemOf) });
+}
 
 /**
  * What policy v2's retrieval needs of the person's history: the explanation units they have met, read through Experience's
@@ -59,6 +109,8 @@ export async function readVerticalCandidates(
      * series) is found.
      */
     readonly unseenFirst?: UnseenFirst;
+    /** Policy v3: read named lanes with quotas (the person's top interest topics, planned units) and label each candidate with its lane. */
+    readonly lanes?: DiscoveryLanes;
   },
 ): Promise<readonly EncounterSnapshot[]> {
   if (input.formats.length === 0) return [];
@@ -76,6 +128,7 @@ export async function readVerticalCandidates(
             unseenFirst: input.unseenFirst,
             alwaysUnits: input.source ? [input.source.explanationUnitId] : [],
           }),
+      ...(input.lanes === undefined ? {} : { lanes: input.lanes }),
     });
   const { stickyFormat } = input;
   const others = input.formats.filter((format) => format !== stickyFormat);

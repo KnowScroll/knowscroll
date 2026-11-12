@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { CONCEPTS } from '../../content/public.js';
+import { fixtureSnapshot, planSnapshot } from '../../content/public.js';
 import { requiredChanges } from '../domain/formation.js';
 import { derivedPlaceId, derivedRouteId } from '../domain/ids.js';
 import { semanticKey, type Place } from '../domain/policy.js';
 import { evaluationOf, nothingTrusted, prepareGeography, topicsOfPlaces } from './context.js';
 import type { GeographyContext } from './ports.js';
 import { NOW, World, coverageOf, planetReadings, unreadable, uuid } from '../adapters/world.fixture.js';
+
+/** The catalogue of the library plan (release 1): the fixture these readings are authored over. */
+const CONCEPTS = planSnapshot().all();
 
 /** Authored readings over the real concept catalogue; none of this is a person's reading. */
 const earth = ['earth.seasons', 'earth.tides', 'earth.greenhouse-effect'] as const;
@@ -386,5 +389,78 @@ describe('the topics a due place is read through (the quiet settle)', () => {
     expect(await topicsOfPlaces(ports, scope, [region])).toEqual([tides]);
     expect(await topicsOfPlaces(ports, scope, [system])).toEqual([seasons, tides]);
     expect(await topicsOfPlaces(ports, scope, [planet, region])).toEqual([seasons, tides]);
+  });
+});
+
+describe('a context pins the catalogue release it was frozen against (#674, D-419)', () => {
+  const concepts = [
+    { id: 'earth', parent: null },
+    { id: 'earth.seasons', parent: 'earth', facets: ['earth.seasons.a', 'earth.seasons.b'] },
+    { id: 'earth.tides', parent: 'earth', facets: ['earth.tides.a', 'earth.tides.b'] },
+  ] as const;
+
+  it('records the release in the context it freezes', async () => {
+    const world = new World();
+    world.read(...planetReadings(world.catalogue, seasons));
+    expect((await prepared(world)).catalogueRelease).toBe(planSnapshot().releaseId);
+  });
+
+  it('re-checks a frozen context against its own release, whatever has been released since', async () => {
+    const world = new World();
+    world.read(...planetReadings(world.catalogue, seasons));
+    const frozen = await prepared(world);
+    // A later release holds none of the plan's wordings: read against it, nothing the reading decided on would count.
+    world.release(fixtureSnapshot([{ id: 'earth', parent: null }], 2));
+    const again = await prepareGeography(
+      world.ports(),
+      world.cap(),
+      { kind: 'evaluated', evaluated: evaluationOf(frozen) },
+      { catalogueRelease: frozen.catalogueRelease },
+    );
+    if (again.kind !== 'prepared') throw new Error(`expected a context, got ${again.reason}`);
+    expect(again.context.catalogueRelease).toBe(1);
+    expect(again.context.facts.catalogue).toEqual(frozen.facts.catalogue);
+    expect(keysOf(again.context)).toEqual(keysOf(frozen));
+    expect(again.context.factsSha256).toBe(frozen.factsSha256);
+  });
+
+  it('reads the current release for a context that pinned none', async () => {
+    const world = new World();
+    world.read(...planetReadings(world.catalogue, seasons));
+    world.release(fixtureSnapshot([{ id: 'earth', parent: null }], 2));
+    // The current release does not hold the facets the reading was authored against: no support of it counts any more.
+    const result = await prepareGeography(world.ports(), world.cap(), { kind: 'dirty' });
+    expect(result).toMatchObject({ kind: 'prepared', supportKeys: 0 });
+    if (result.kind === 'prepared') expect(result.context.catalogueRelease).toBe(2);
+  });
+
+  it('leaves a retired topic out of the slice: nothing new forms on it', async () => {
+    const world = new World({ snapshot: fixtureSnapshot(concepts, 1, { retired: ['earth.seasons'] }) });
+    world.read(...planetReadings(world.catalogue, 'earth.seasons'), ...planetReadings(world.catalogue, 'earth.tides'));
+    const context = await prepared(world);
+    expect(context.facts.catalogue.map((entry) => entry.id)).toEqual(['earth', 'earth.tides']);
+    expect(keysOf(context).filter((key) => key.includes('earth.seasons'))).toEqual([]);
+  });
+
+  it('reads as many keys of each facet as a node asks units of it, and freezes a threshold only where it is not the default', async () => {
+    const world = new World({
+      snapshot: fixtureSnapshot(concepts, 1, {}, { 'earth.seasons': { planetUnits: 5 }, earth: { systemUnits: 4 } }),
+    });
+    world.read(...planetReadings(world.catalogue, 'earth.seasons'));
+    const context = await prepared(world);
+    expect(context.facts.catalogue).toEqual([
+      { id: 'earth', parent: null, facets: [], policy: { systemUnits: 4 } },
+      {
+        id: 'earth.seasons',
+        parent: 'earth',
+        facets: ['earth.seasons.a', 'earth.seasons.b'],
+        policy: { planetUnits: 5 },
+      },
+    ]);
+    expect(world.counters.keysPerFacet[0]).toBe(5);
+    const plain = new World({ snapshot: fixtureSnapshot(concepts) });
+    plain.read(...planetReadings(plain.catalogue, 'earth.seasons'));
+    await prepared(plain);
+    expect(plain.counters.keysPerFacet[0]).toBe(3);
   });
 });
