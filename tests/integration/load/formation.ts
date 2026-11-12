@@ -1,12 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
-import { CONCEPT_CATALOGUE_VERSION } from '@knowscroll/backend/modules/content';
 import {
-  catalogueOf,
+  CONCEPT_CATALOGUE_VERSION,
+  fixtureSnapshot,
+  staticCatalogue,
+  type CatalogueSnapshot,
+} from '@knowscroll/backend/modules/content';
+import {
   geographyStore,
   makeCheckGeographyRecordingRun,
   makeRunCartographer,
+  pinCatalogue,
   type CartographerPorts,
   type Catalogue,
   type CatalogueTopic,
@@ -20,9 +25,9 @@ import { seedSupports, type SupportKey } from './seed.js';
 import { SYSTEM_SIZE, topicId } from './config.js';
 
 /**
- * Formation over a catalogue of any size. The product's catalogue is a TypeScript constant of 17 topics (#674 slice 2.1, the catalogue
- * in Postgres, is not on dev), so a catalogue of 10,000 topics is a labelled fixture: the Cartographer's `catalogue` port is replaced,
- * and the trusted read (Content's and Evidence's certificate checks, which are exercised by their own suites) vouches for each support
+ * Formation over a catalogue of any size. The product's catalogue is data in Postgres (#674, D-419; release 1 holds 17 topics), so a
+ * catalogue of 10,000 topics is a labelled fixture: the Cartographer's `catalogue` port answers one fixture snapshot (`fixtureSnapshot`,
+ * `staticCatalogue`), and the trusted read (Content's and Evidence's certificate checks, which are exercised by their own suites) vouches for each support
  * the seed wrote. Every other part of a run is the real code on the real database. The pattern is incremental-formation.test.ts's.
  */
 export const FACETS_PER_PLANET = 2;
@@ -52,10 +57,15 @@ const keyOf = (topic: string, facet: string, unit: string) => `${topic}\u0000${f
 export function formationFixture(
   entries: readonly CatalogueTopic[],
   planets: readonly CatalogueTopic[],
-  options: { readonly halfBuilt?: boolean } = {},
+  options: { readonly halfBuilt?: boolean; readonly snapshot?: CatalogueSnapshot } = {},
 ): FormationFixture {
   const half = (index: number) => options.halfBuilt !== false && halfBuilt(index);
-  const catalogue = catalogueOf(entries);
+  const snapshot =
+    options.snapshot ??
+    fixtureSnapshot(
+      entries.map((entry) => ({ id: entry.id, parent: entry.parent, facets: entry.facets.map((f) => f.id) })),
+    );
+  const catalogue = pinCatalogue(snapshot);
   const known = new Map<string, { ageDays: number }>();
   const hash = (value: unknown) => canonicalSha256(value);
   const truthSha256 = hash({ kind: 'factual' });
@@ -116,7 +126,7 @@ export function formationFixture(
         ? ({
             version: 'trusted-coverage-read.v1',
             completeness: 'not_asserted',
-            supportedFormats: ['scroll'],
+            supportedFormats: ['scroll', 'reel'],
             availability: 'available',
             reason: 'current',
             supports: rows.map((row) => row.support),
@@ -126,7 +136,7 @@ export function formationFixture(
         : ({
             version: 'trusted-coverage-read.v1',
             completeness: 'not_asserted',
-            supportedFormats: ['scroll'],
+            supportedFormats: ['scroll', 'reel'],
             availability: 'unavailable',
             reason: 'not_observed',
             supports: [],
@@ -139,7 +149,7 @@ export function formationFixture(
   return {
     catalogue,
     planets,
-    overrides: { catalogue, readTrusted: trusted },
+    overrides: { catalogue: staticCatalogue(snapshot), readTrusted: trusted },
     async seed(db, universeId, planetCount) {
       const keys: SupportKey[] = [];
       for (let index = 0; index < planetCount; index++) {

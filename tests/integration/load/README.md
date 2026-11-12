@@ -47,15 +47,15 @@ in the table).
 - **The library** is bulk-inserted: ids are `md5`-derived, titles say `Load unit n`, every Scroll carries the real compiled starter Scroll's
   document (read back from the database after the real import) and every Reel a valid Reel document with no media. Topics are
   `load.sNNN.tNNNNN` strings over a hundred synthetic systems. Nothing was written by a model or a person.
-- **The topic catalogue is still TypeScript** (17 topics; the catalogue in Postgres, slice 2.1, is not on dev). The library, retrieval,
-  Evidence and Personal Context accept any topic id, so the 10,000 topics are real to them. Formation and the Universe read are tied to the
-  code catalogue, so the Cartographer's `catalogue` port is replaced by a generated catalogue of 10,000 planets and its trusted read is a
+- **The topic catalogue in Postgres holds the 17 topics of release 1** (D-419). The library, retrieval, Evidence and Personal Context
+  accept any topic id, so the 10,000 topics are real to them. Formation and the Universe read are tied to the seeded catalogue, so the
+  Cartographer's `catalogue` port is replaced by a fixture release (`fixtureSnapshot`) of 10,000 planets and its trusted read is a
   labelled fixture that vouches for the support rows the seed wrote (Content's and Evidence's real certificate checks have their own suites).
   Everything else in a run, including the model harness with a fixture model, is the real code. The Universe read and Scenes, which cannot
   be given a catalogue, are measured twice: for the heavy reader (what the code answers for thousands of synthetic places) and for a reader
   whose whole real catalogue is formed (what it answers when it can answer).
-- **The gap scan** walks the code catalogue's 17 planets in memory but reads the whole library's coverage by SQL; the catalogue is not
-  injectable into it.
+- **The gap scan** walks the seeded catalogue's 17 planets in memory (it is given release 1 through `readCatalogue`) but reads the whole
+  library's coverage by SQL; the 10,000-topic synthetic catalogue is not given to it.
 - **Readers' history** is written by SQL rows of the shape the projections write (an exposure and its lineage; `evidence.topic_context`,
   `topic_format_cells`, `personal_context.topics`, `coverage_supports`), not by qualifying thousands of encounters. The navigation checks
   confirm the real code honours it (offers never repeat an explanation the reader has met).
