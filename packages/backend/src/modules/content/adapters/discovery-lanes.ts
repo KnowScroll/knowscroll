@@ -80,11 +80,15 @@ function textLane(text: string, cursor: number, band: Band, eligible: ReturnType
 }
 
 /**
- * The person's top interest topics, at most `continuePerSystem` candidates of any one system. Topics arrive strongest first, so a
- * candidate ranks by the strongest topic it is about, and the quota is applied per system after that ranking: a person whose
- * interest is mostly one system still gets candidates from their other systems.
+ * The person's top interest topics, at most `continuePerSystem` candidates of any one system. Each topic is read as a capped window,
+ * not as every asset it holds: the first `continuePerTopic` eligible attributions of the topic in the stable random order of
+ * `encounter_topics.serve_rand` from the cursor (two index range scans of `encounter_topics_rand_idx`, from the cursor to the end
+ * and from the start to the cursor), so the read of a topic costs its window and not its size, however many topics there are and
+ * however large the library is. Topics arrive strongest first, so a candidate ranks by the strongest topic it is about, and the
+ * quota is applied per system after that ranking: a person whose interest is mostly one system still gets candidates from their
+ * other systems.
  */
-function continueLane(
+export function continueLane(
   catalogue: CatalogueSnapshot,
   topicIds: readonly string[],
   cursor: number,
@@ -93,16 +97,24 @@ function continueLane(
 ) {
   if (topicIds.length === 0) return sql``;
   const systemIds = topicIds.map((id) => catalogue.systemOf(id) ?? id);
+  const window = DISCOVERY_LANE_QUOTAS.continuePerTopic;
+  const side = (condition: ReturnType<typeof sql>, wrap: number) => sql`
+        (select t.asset_id,t.serve_rand-${cursor}::float8+${wrap}::float8 as rot
+          from content.encounter_topics t join content.asset_revisions r on r.asset_id=t.asset_id and r.revision=t.asset_revision ${current}
+          where t.topic_id=c.topic_id and t.role in ('primary','supporting') and ${condition} and ${eligible}
+          order by t.serve_rand limit ${window})`;
   return sql`union all
     (select asset_id,${sql.lit(band)} as band,${sql.lit(PRIORITY.continue)} as priority,topic_rank as role_rank,rot,'continue'::text as lane from (
       select asset_id,topic_rank,rot,row_number() over (partition by system_id order by topic_rank,rot) as in_system from (
-        select r.asset_id,c.system_id,min(c.rank)::int as topic_rank,min(${distance(sql`d.serve_rand`, cursor)}) as rot
+        select w.asset_id,c.system_id,min(c.rank)::int as topic_rank,min(w.rot) as rot
         from unnest(${topicIds}::text[],${systemIds}::text[]) with ordinality as c(topic_id,system_id,rank)
-        join content.encounter_topics t on t.topic_id=c.topic_id and t.role in ('primary','supporting')
-        join content.asset_revisions r on r.asset_id=t.asset_id and r.revision=t.asset_revision ${current}
-        ${discovery}
-        where ${eligible}
-        group by r.asset_id,c.system_id) per_system) ranked
+        cross join lateral (
+          select asset_id,rot from (
+            ${side(sql`t.serve_rand>=${cursor}::float8`, 0)}
+            union all
+            ${side(sql`t.serve_rand<${cursor}::float8`, 1)}) both_sides
+          order by rot limit ${window}) w
+        group by w.asset_id,c.system_id) per_system) ranked
      where in_system<=${DISCOVERY_LANE_QUOTAS.continuePerSystem} order by topic_rank,rot limit ${DISCOVERY_LANE_QUOTAS.continue})`;
 }
 

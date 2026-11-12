@@ -186,3 +186,4 @@ export function evidenceIntakeProviders(tokens: {
 /** Partial test assemblies that only build action audit need no projection producer. */
 const MISSING_PROJECTION_ENQUEUE = Symbol('evidence.projectionProducerRequired');
 export { activityProviders, ACTIVITY_PORTS, makeExperienceRecordingEffects } from './activity-providers.js';
+export { evidenceRebuildInterestRollups } from './interest-rebuild.js';

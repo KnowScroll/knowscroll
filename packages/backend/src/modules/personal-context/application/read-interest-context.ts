@@ -25,7 +25,13 @@ export function makeReadInterestContext(deps: {
       const plannedUnitIds = [
         ...new Set(
           (plan?.opportunities ?? [])
-            .filter((opportunity) => opportunity.target === 'existing' && Date.parse(opportunity.expiresAt) > now)
+            .filter(
+              (opportunity) =>
+                opportunity.target === 'existing' &&
+                // A vertical read is a subject move: an opportunity suited to the related thread only is not for it (as plan lifts are).
+                opportunity.eligibility.includes('vertical') &&
+                Date.parse(opportunity.expiresAt) > now,
+            )
             .map((opportunity) => opportunity.explanationUnitId),
         ),
       ];

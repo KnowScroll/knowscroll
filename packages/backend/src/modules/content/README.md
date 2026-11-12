@@ -613,7 +613,7 @@ Status: implemented, CI-tested against real PostgreSQL. Related: #674, D-408. No
   lane's 20 that a subject move never asks for; `explore` is last and takes the rest of the cap of 100, at least 34), ordered by lane priority and, within a lane, by the stable
   random key from the cursor; a candidate read by several lanes keeps the first lane, and every candidate carries it (`lane`, not part of the
   catalogue watermark). `source`: the source's topics, primary before supporting. `planned`: the named units. `text`: as above. `continue`:
-  the candidates of the person's top topics ranked by the strongest topic they are about, at most five of any one catalogue system, so one
+  a capped window (`continuePerTopic`, 6) of each of the person's top topics, read as two index range scans of `encounter_topics_rand_idx` (migration 0117: `encounter_topics.serve_rand`, a stable random key per topic attribution set by a trigger, index `(topic_id, serve_rand)`) from the cursor, so the cost of a topic is its window and not its size, however many topics there are and however large the library is (measured: 20,000 assets, 32 topics, 5 ms against 268 ms for reading every eligible asset of the topics); candidates rank by the strongest topic they are about, at most five of any one catalogue system, so one
   loved system cannot take the lane (a topic the catalogue does not hold is its own stratum). `adjacent`: the other topics of the systems of the
   source's topics (`siblingTopicIds`, from the catalogue; never the source's own topic). `explore`: two index range scans of `serve_rand` from the
   cursor (120 rows each side), each row put in the system of its heaviest primary topic and taken round-robin (the first of every system, then the

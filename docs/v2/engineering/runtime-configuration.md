@@ -215,7 +215,7 @@ caps, quota or failure-brake policy and does not grant permission to use the #23
 `KS_COMPOSER_POLICY` (API and worker, `v0`, `v1`, `v2` or `v3`, default `v0`; any other value is refused at start): the Composer policy
 that new decisions are made under (D-190, D-408, D-420). `v2` (#674) never offers an explanation the person has already met while anything
 unseen is eligible; run `composer replay-policy` on the world's stored decisions before setting it. `v3` (#674) keeps that and adds retrieval lanes
-fed by the person's long-term interest, interest and format learned with pooling, and a logged 5% format exploration; dev stays `v2` until its replay has been read (`v3` is test-only in the simulation lab). The API ranks a navigation under it and the worker ranks the buffer under it, so
+fed by the person's long-term interest, interest and format learned with pooling, and a logged 5% format exploration; dev stays `v2` until its replay has been read (`v3` is test-only in the simulation lab). Before a world sets it, run `evidence rebuild-interest-rollups` once (docs/v2/operations/environments.md, "Switching Composer policy v3 on"). The API ranks a navigation under it and the worker ranks the buffer under it, so
 set both processes of a world alike (they read one environment file). The numbers of `v1` were chosen from `composer replay-policy` on dev (D-190), and dev sets `v1`; other worlds stay `v0` until they
 are set. A stored decision replays under the policy it names,
 whatever this is set to, so switching back and forth strands nothing, and `composer replay-policy` always replays every policy.

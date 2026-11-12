@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { makeCatalogue } from '@knowscroll/backend/modules/content/nest-providers';
+import { evidenceRebuildInterestRollups } from '@knowscroll/backend/modules/evidence/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
@@ -215,6 +216,77 @@ describe('interest roll-ups and the top-K read (real PostgreSQL, authored CI fix
     expect((await topicRows(person)).rows).toEqual(topicBefore);
   });
 
+  /** Every roll-up equals the sum of the topic rows beneath it (systems by the catalogue, the person over all), compared at one time. */
+  async function expectRollupsToSumTheTopics(person: FixturePerson) {
+    const topics = (await topicRows(person)).rows;
+    const rollups = (await rollupRows(person)).rows;
+    const at = Date.now() + 5 * DAY;
+    const systemOf = (topic: string) => topic.split('.')[0]!;
+    const sum = (
+      pick: (topic: string) => boolean,
+      field: 'activity' | 'scroll_measured' | 'scroll_qualified' | 'reel_measured',
+    ) =>
+      topics
+        .filter((t) => pick(t.topic_id))
+        .reduce((total, t) => total + (field === 'activity' ? decayed(t.activity, t.evaluated_at, at) : t[field]), 0);
+    const bySystem = [...new Set(topics.map((t) => systemOf(t.topic_id)))].sort();
+    expect(rollups.map((r) => `${r.level}:${r.subject_id}`)).toEqual([
+      'person:',
+      ...bySystem.map((system) => `system:${system}`),
+    ]);
+    for (const rollup of rollups) {
+      const pick = (topic: string) => rollup.level === 'person' || systemOf(topic) === rollup.subject_id;
+      expect(decayed(rollup.activity, rollup.evaluated_at, at)).toBeCloseTo(sum(pick, 'activity'), 9);
+      expect(rollup.scroll_measured).toBe(sum(pick, 'scroll_measured'));
+      expect(rollup.scroll_qualified).toBe(sum(pick, 'scroll_qualified'));
+      expect(rollup.reel_measured).toBe(sum(pick, 'reel_measured'));
+    }
+  }
+
+  it('corrects a topic an older binary changed without counting it: the next write takes away what was counted and adds what is', async () => {
+    const person = await recordingPerson(database);
+    await qualifiedRead(person, 'earth.seasons');
+    await qualifiedRead(person, 'space.stars');
+    await expectRollupsToSumTheTopics(person);
+    // The older binary writes the topic row (log_weight is still derived by the trigger) and leaves the roll-ups alone.
+    await sql`update evidence.topic_context set activity = activity * 3, scroll_measured = scroll_measured + 2, scroll_qualified = scroll_qualified + 2
+      where universe_id = ${person.universeId}::uuid and topic_id = 'earth.seasons'`.execute(database.db);
+    await qualifiedRead(person, 'earth.seasons');
+    await expectRollupsToSumTheTopics(person);
+  });
+
+  it('never subtracts what the roll-ups did not add: a topic an older binary wrote, then the new binary reads again', async () => {
+    const person = await recordingPerson(database);
+    // The system's and the person's roll-ups exist already (a sibling topic was counted), so a wrong subtraction would not be seen as
+    // a missing roll-up: it would show as a roll-up short of its topics.
+    await qualifiedRead(person, 'earth.tides');
+    // The older binary left this topic row with a history and no roll-up and no counted state.
+    await sql`insert into evidence.topic_context(universe_id,privacy_epoch,topic_id,channel_values,activity,evaluated_at,scroll_measured,scroll_qualified)
+      values(${person.universeId}::uuid,1,'earth.seasons','{"q":2,"L":0,"B":0,"S":0,"H":0,"R":0}'::jsonb,2,now(),2,2)`.execute(
+      database.db,
+    );
+    await qualifiedRead(person, 'earth.seasons');
+    await qualifiedRead(person, 'earth.seasons');
+    await expectRollupsToSumTheTopics(person);
+    const topic = (await topicRows(person)).rows[0]!;
+    expect(topic.scroll_measured).toBe(4);
+  });
+
+  it('rebuilds the roll-ups when they have lost what they are asked to take away', async () => {
+    const person = await recordingPerson(database);
+    await qualifiedRead(person, 'earth.seasons');
+    await qualifiedRead(person, 'space.stars');
+    await qualifiedRead(person, 'earth.tides');
+    // Roll-up rows lost (a restore, a manual delete): the next write cannot subtract from what is not there.
+    await sql`delete from evidence.interest_rollups where universe_id = ${person.universeId}::uuid and level = 'system'`.execute(
+      database.db,
+    );
+    await qualifiedRead(person, 'earth.seasons');
+    // Every roll-up is whole again, the systems this write did not touch included.
+    await expectRollupsToSumTheTopics(person);
+    expect((await rollupRows(person)).rows.map((r) => r.subject_id)).toEqual(['', 'earth', 'space']);
+  });
+
   it('is erased with the person: Clear removes the topic keys and both kinds of roll-up', async () => {
     const person = await recordingPerson(database);
     await qualifiedRead(person, 'earth.seasons');
@@ -330,20 +402,108 @@ function flatten(node: PlanNode): PlanNode[] {
   return [node, ...(node.Plans ?? []).flatMap(flatten)];
 }
 
-describe('migration 0117 backfills the topic keys and both roll-ups of an existing person (authored CI fixtures)', () => {
+describe('log_weight is derived by the table, and the roll-ups are rebuilt by one idempotent pass (authored CI fixtures)', () => {
   let database: TestDatabase<Database>;
+  let c: Awaited<ReturnType<typeof scrollUseCases>>;
+  const channels = (q: number) => JSON.stringify({ q, L: 0, B: 0, S: 0, H: 0, R: 0 });
+  const t0 = Date.parse('2026-10-20T00:00:00Z');
+  const ISO = (ms: number) => new Date(ms).toISOString();
+  const logWeight = (activity: number, atMs: number) => Math.log(activity) + (Math.LN2 * atMs) / HALF_LIFE_MS;
+
+  beforeAll(async () => {
+    database = await createTestDatabase<Database>('interest_rebuild');
+    c = await scrollUseCases(database, { composerPolicy: 'v3' });
+  });
   afterAll(async () => {
+    await c.close();
     await database.drop();
   });
 
-  it('computes log_weight for every topic row and rolls the rows up by system and for the person, as the writer would', async () => {
-    database = await createTestDatabase<Database>('interest_backfill');
+  const insertTopic = (
+    person: FixturePerson,
+    topic: string,
+    activity: number,
+    atMs: number,
+    counts: [number, number, number, number],
+    q = activity,
+  ) =>
+    sql`insert into evidence.topic_context(universe_id,privacy_epoch,topic_id,channel_values,activity,evaluated_at,reel_qualified,reel_measured,scroll_qualified,scroll_measured)
+      values(${person.universeId}::uuid,1,${topic},${channels(q)}::jsonb,${activity},${ISO(atMs)}::timestamptz,${counts[0]},${counts[1]},${counts[2]},${counts[3]})`.execute(
+      database.db,
+    );
+  const keys = (person: FixturePerson) =>
+    sql<{
+      topic_id: string;
+      activity: number;
+      evaluated_at: Date;
+      log_weight: number | null;
+      rollup_counted: unknown;
+    }>`select topic_id,activity,evaluated_at,log_weight,rollup_counted
+      from evidence.topic_context where universe_id=${person.universeId}::uuid order by topic_id`.execute(database.db);
+  const rollups = (person: FixturePerson) =>
+    sql<{
+      level: string;
+      subject_id: string;
+      activity: number;
+      evaluated_at: Date;
+      channel_values: { q: number };
+      reel_measured: number;
+      reel_qualified: number;
+      scroll_measured: number;
+      scroll_qualified: number;
+      log_weight: number;
+    }>`
+      select level,subject_id,activity,evaluated_at,channel_values,reel_measured,reel_qualified,scroll_measured,scroll_qualified,log_weight from evidence.interest_rollups
+      where universe_id=${person.universeId}::uuid order by level,subject_id`.execute(database.db);
+
+  it('derives log_weight on every write whatever the writer says: an insert, an update, a value it set wrongly, and zero activity', async () => {
     const person = await seedPerson(database.db);
-    // Put the schema back as it was before 0117, with rows as the old writer left them.
-    await sql`alter table evidence.topic_context drop column log_weight`.execute(database.db);
-    await sql`drop table evidence.interest_rollups`.execute(database.db);
-    const channels = (q: number) => JSON.stringify({ q, L: 0, B: 0, S: 0, H: 0, R: 0 });
-    const t0 = Date.parse('2026-10-20T00:00:00Z');
+    await insertTopic(person, 'earth.seasons', 2, t0, [0, 0, 1, 1]);
+    let row = (await keys(person)).rows[0]!;
+    expect(row.log_weight).toBeCloseTo(logWeight(2, t0), 9);
+    // An older binary updates the activity and time and knows nothing of the column.
+    await sql`update evidence.topic_context set activity = 5, evaluated_at = ${ISO(t0 + DAY)}::timestamptz where universe_id=${person.universeId}::uuid`.execute(
+      database.db,
+    );
+    row = (await keys(person)).rows[0]!;
+    expect(row.log_weight).toBeCloseTo(logWeight(5, t0 + DAY), 9);
+    // A writer that names a value gets the derived one.
+    await sql`update evidence.topic_context set log_weight = 123 where universe_id=${person.universeId}::uuid`.execute(
+      database.db,
+    );
+    expect((await keys(person)).rows[0]!.log_weight).toBeCloseTo(logWeight(5, t0 + DAY), 9);
+    await sql`update evidence.topic_context set activity = 0 where universe_id=${person.universeId}::uuid`.execute(
+      database.db,
+    );
+    expect((await keys(person)).rows[0]!.log_weight).toBeNull();
+  });
+
+  it('derives it for the roll-up table too, and leaves a row nothing has written since the migration to the rebuild', async () => {
+    const person = await seedPerson(database.db);
+    await sql`insert into evidence.interest_rollups(universe_id,privacy_epoch,level,subject_id,channel_values,activity,evaluated_at)
+      values(${person.universeId}::uuid,1,'person','',${channels(1)}::jsonb,3,${ISO(t0)}::timestamptz)`.execute(
+      database.db,
+    );
+    expect((await rollups(person)).rows[0]!.log_weight).toBeCloseTo(logWeight(3, t0), 9);
+    // Rows that existed before the migration have no key: simulate them with the trigger off, as the migration leaves them.
+    const stale = await seedPerson(database.db);
+    await sql`alter table evidence.topic_context disable trigger topic_context_log_weight`.execute(database.db);
+    try {
+      await insertTopic(stale, 'earth.seasons', 2, t0, [0, 0, 1, 1]);
+    } finally {
+      await sql`alter table evidence.topic_context enable trigger topic_context_log_weight`.execute(database.db);
+    }
+    expect((await keys(stale)).rows[0]!.log_weight).toBeNull();
+    await evidenceRebuildInterestRollups(
+      database.db,
+      makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 }),
+      makeCatalogue(database.db),
+    )({ maxUniverses: 5000 });
+    expect((await keys(stale)).rows[0]!.log_weight).toBeCloseTo(logWeight(2, t0), 9);
+  });
+
+  it('rebuilds a person’s roll-ups from their topic rows and stamps what each row was counted as, as the writer would', async () => {
+    const person = await seedPerson(database.db);
     const rows = [
       { topic: 'earth.seasons', activity: 2, at: t0, reel: [1, 1], scroll: [2, 3], q: 1.5 },
       { topic: 'earth.tides', activity: 1, at: t0 + 7 * DAY, reel: [0, 0], scroll: [1, 1], q: 0.9 },
@@ -351,60 +511,35 @@ describe('migration 0117 backfills the topic keys and both roll-ups of an existi
       { topic: 'ci.not-in-the-catalogue', activity: 3, at: t0 + 14 * DAY, reel: [0, 0], scroll: [3, 3], q: 2 },
       { topic: 'earth.zero', activity: 0, at: t0, reel: [0, 0], scroll: [0, 0], q: 0 },
     ];
-    for (const r of rows)
-      await sql`insert into evidence.topic_context(universe_id,privacy_epoch,topic_id,channel_values,activity,evaluated_at,reel_qualified,reel_measured,scroll_qualified,scroll_measured)
-        values(${person.universeId}::uuid,1,${r.topic},${channels(r.q)}::jsonb,${r.activity},${new Date(r.at).toISOString()}::timestamptz,${r.reel[0]},${r.reel[1]},${r.scroll[0]},${r.scroll[1]})`.execute(
-        database.db,
-      );
-    const migration = readFileSync(new URL('../../../migrations/0117_interest_format_v3.sql', import.meta.url), 'utf8');
-    await database.db.transaction().execute(async (trx) => {
-      await sql.raw(migration).execute(trx);
-    });
-
-    const keyed = (
-      await sql<{
-        topic_id: string;
-        activity: number;
-        log_weight: number | null;
-        evaluated_at: Date;
-      }>`select topic_id,activity,log_weight,evaluated_at from evidence.topic_context
-        where universe_id=${person.universeId}::uuid order by topic_id`.execute(database.db)
-    ).rows;
-    expect(keyed).toHaveLength(5);
-    for (const row of keyed) {
-      if (row.activity > 0)
-        expect(row.log_weight).toBeCloseTo(
-          Math.log(row.activity) + (Math.LN2 * row.evaluated_at.getTime()) / HALF_LIFE_MS,
-          9,
-        );
-      else expect(row.log_weight).toBeNull();
+    await sql`alter table evidence.topic_context disable trigger topic_context_log_weight`.execute(database.db);
+    try {
+      for (const r of rows)
+        await insertTopic(person, r.topic, r.activity, r.at, [r.reel[0]!, r.reel[1]!, r.scroll[0]!, r.scroll[1]!], r.q);
+    } finally {
+      await sql`alter table evidence.topic_context enable trigger topic_context_log_weight`.execute(database.db);
     }
-
-    const rollups = (
-      await sql<{
-        level: string;
-        subject_id: string;
-        activity: number;
-        evaluated_at: Date;
-        channel_values: { q: number };
-        reel_measured: number;
-        reel_qualified: number;
-        scroll_measured: number;
-        scroll_qualified: number;
-        log_weight: number;
-      }>`
-        select level,subject_id,activity,evaluated_at,channel_values,reel_measured,reel_qualified,scroll_measured,scroll_qualified,log_weight from evidence.interest_rollups
-        where universe_id=${person.universeId}::uuid order by level,subject_id`.execute(database.db)
-    ).rows;
-    expect(rollups.map((r) => `${r.level}:${r.subject_id}`)).toEqual(['person:', 'system:earth', 'system:space']);
-    // Compared at one time: the roll-up is the sum of its topic rows decayed to that time.
+    const run = evidenceRebuildInterestRollups(
+      database.db,
+      makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 }),
+      makeCatalogue(database.db),
+    );
+    const first = await run({ maxUniverses: 5000 });
+    expect(first.failed).toBe(0);
+    const snapshot = async () => ({ keys: (await keys(person)).rows, rollups: (await rollups(person)).rows });
+    const once = await snapshot();
+    // Every topic row has its key and its counted state; a topic is counted into the person and, when the catalogue holds it, its system.
+    for (const row of once.keys) {
+      if (row.activity > 0) expect(row.log_weight).toBeCloseTo(logWeight(row.activity, row.evaluated_at.getTime()), 9);
+      expect(row.rollup_counted).toMatchObject({ a: row.activity });
+    }
+    expect(once.rollups.map((r) => `${r.level}:${r.subject_id}`)).toEqual(['person:', 'system:earth', 'system:space']);
     const at = t0 + 60 * DAY;
     const sumAt = (
       pick: (r: (typeof rows)[number]) => boolean,
       field: (r: (typeof rows)[number]) => number = (r) => r.activity,
     ) => rows.filter(pick).reduce((total, r) => total + decayed(field(r), new Date(r.at), at), 0);
     const rollupAt = (level: string, subject: string, field: 'activity' | 'q') => {
-      const row = rollups.find((r) => r.level === level && r.subject_id === subject)!;
+      const row = once.rollups.find((r) => r.level === level && r.subject_id === subject)!;
       return decayed(field === 'activity' ? row.activity : row.channel_values.q, row.evaluated_at, at);
     };
     const inEarth = (r: (typeof rows)[number]) => r.topic.startsWith('earth.');
@@ -417,26 +552,53 @@ describe('migration 0117 backfills the topic keys and both roll-ups of an existi
       sumAt((r) => r.topic === 'space.stars'),
       9,
     );
-    // The person is every topic, whether or not the catalogue holds it; 'earth.zero' is not a catalogue topic, so it counts for the person only.
+    // The person is every topic, whether or not the catalogue holds it.
     expect(rollupAt('person', '', 'activity')).toBeCloseTo(
       sumAt(() => true),
       9,
     );
-    const person_ = rollups.find((r) => r.level === 'person')!;
-    expect(person_).toMatchObject({ reel_measured: 3, reel_qualified: 1, scroll_measured: 7, scroll_qualified: 6 });
-    expect(rollups.find((r) => r.subject_id === 'earth')).toMatchObject({
+    expect(once.rollups.find((r) => r.level === 'person')).toMatchObject({
+      reel_measured: 3,
+      reel_qualified: 1,
+      scroll_measured: 7,
+      scroll_qualified: 6,
+    });
+    expect(once.rollups.find((r) => r.subject_id === 'earth')).toMatchObject({
       reel_measured: 1,
       scroll_measured: 4,
       scroll_qualified: 3,
     });
-    for (const r of rollups)
-      expect(r.log_weight).toBeCloseTo(Math.log(r.activity) + (Math.LN2 * r.evaluated_at.getTime()) / HALF_LIFE_MS, 9);
-    // The pin of the Composer's decisions now names v3.
-    await expect(
-      sql`insert into composer.decisions(id,universe_id,privacy_epoch,command_id,input_sha256,policy_version,payload,expires_at)
-        values(gen_random_uuid(),${person.universeId}::uuid,1,gen_random_uuid(),${'c'.repeat(64)},'composer-policy.v4','{}'::jsonb,now())`.execute(
+    for (const r of once.rollups) expect(r.log_weight).toBeCloseTo(logWeight(r.activity, r.evaluated_at.getTime()), 9);
+    // Idempotent: a second pass writes the same rows.
+    await run({ maxUniverses: 5000 });
+    expect(await snapshot()).toEqual(once);
+  });
+
+  it('visits persons in pages, stops at the cap and says whether it finished, skips a person the root refuses and keeps the others', async () => {
+    const people = [await seedPerson(database.db), await seedPerson(database.db), await seedPerson(database.db)];
+    for (const person of people) await insertTopic(person, 'earth.tides', 1, t0, [0, 0, 1, 1]);
+    // One of them has topic rows of an epoch the universe has left: the personal root refuses it.
+    await sql`update evidence.topic_context set privacy_epoch = 2 where universe_id = ${people[2]!.universeId}::uuid`.execute(
+      database.db,
+    );
+    const total = (
+      await sql<{ n: string }>`select count(distinct universe_id)::text as n from evidence.topic_context`.execute(
         database.db,
-      ),
-    ).rejects.toThrow();
+      )
+    ).rows[0]!.n;
+    const run = evidenceRebuildInterestRollups(
+      database.db,
+      makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 }),
+      makeCatalogue(database.db),
+    );
+    const capped = await run({ maxUniverses: 1 });
+    expect(capped).toMatchObject({ complete: false });
+    expect(capped.rebuilt + capped.skipped + capped.failed).toBe(1);
+    const all = await run({ maxUniverses: 5000 });
+    expect(all.complete).toBe(true);
+    expect(all.rebuilt + all.skipped + all.failed).toBe(Number(total));
+    expect(all.skipped).toBeGreaterThanOrEqual(1);
+    expect((await rollups(people[0]!)).rows).toHaveLength(2);
+    expect((await rollups(people[2]!)).rows).toEqual([]);
   });
 });

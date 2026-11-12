@@ -143,7 +143,7 @@ available only through an opt-in compatibility-fixture provider, with no product
 
 `READ_INTEREST_CONTEXT` implements Composer's `ReadInterestContext` (D-420, #674 slices 4.2 and 5.2) over Evidence's reads, in the
 caller's transaction, writing nothing. `leads` returns the person's top `topK` long-term interest topics (Evidence's index range scan,
-`ReadTopInterestTopics`) and the explanation units of the unexpired Planner opportunities for existing content (the same stored plan reader
+`ReadTopInterestTopics`) and the explanation units of the unexpired Planner opportunities for existing content that are suited to a vertical move (`eligibility` includes `vertical`, as plan lifts require; a related-only opportunity names no unit here) (the same stored plan reader
 ranking uses; a plan is not evidence, a missing-supply opportunity names no unit). `rollups` returns the system roll-ups asked for and the
 person's, in the shape of a topic's statistics. Retrieval takes the leads as data; the snapshot freezes the roll-ups beside the topic rows.
 It adds no table, queue or erasure entry: the rows are Evidence's and erased with it. Status: implemented, CI-tested (unit and real

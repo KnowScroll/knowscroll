@@ -11,6 +11,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { readDiscoveryCandidates } from '@knowscroll/backend/modules/content/nest-providers';
 import { rotationCursor } from '../../../packages/backend/src/modules/content/adapters/discovery-store.js';
+import { continueLane } from '../../../packages/backend/src/modules/content/adapters/discovery-lanes.js';
+import { DISCOVERY_LANE_QUOTAS } from '../../../packages/backend/src/modules/content/domain/discovery-lanes.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { textCapabilities } from '../support/scroll.js';
@@ -282,5 +284,127 @@ describe('retrieval lanes (real PostgreSQL, labelled CI fixtures)', () => {
       'DISCOVERY_LANES_INVALID',
     );
     expect(await laned({ limit: 12 })).toHaveLength(12);
+  });
+});
+
+describe('the continue lane reads a capped window of each top topic, however large the topics are (real PostgreSQL)', () => {
+  let database: TestDatabase<Database>;
+  let person: FixturePerson;
+  const TOPICS = [
+    'earth.seasons',
+    'earth.tides',
+    'space.stars',
+    'space.exoplanets',
+    'computing.browsers',
+    'machine-learning.attention',
+    'human-body.immune-system',
+    'history.industrial-revolution',
+  ];
+  const PER_TOPIC = 800;
+  const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+
+  beforeAll(async () => {
+    database = await createTestDatabase<Database>('content_lanes_v3_window');
+    person = await seedPerson(database.db);
+    // Eight topics of 800 admitted Reels each (6,400 in all): the shape a large library gives a person's top topics.
+    // Ids are derived, so one statement of each kind creates the library.
+    const total = TOPICS.length * PER_TOPIC;
+    const document = JSON.stringify({
+      schemaVersion: 'reel-document.v1',
+      assetId: '00000000-0000-4000-8000-000000000000',
+      revision: 1,
+      title: 'Fixture',
+      summary: 'CI fixture',
+      language: 'en',
+      truthLabel: 'generated',
+      fixture: true,
+      captions: 'burned_in',
+      mediaKey: `sha256/aa/${'a'.repeat(64)}.mp4`,
+      durationMs: 20_000,
+      width: 1080,
+      height: 1920,
+    });
+    await sql`insert into content.assets(id, revision, kind, status)
+      select md5('ci-window-' || n)::uuid, 1, 'reel', 'admitted' from generate_series(1, ${total}) n`.execute(
+      database.db,
+    );
+    await sql`insert into content.asset_revisions(asset_id, revision, provenance_kind, document_version, document, document_sha256, explanation_unit_id, language, title, reading_facts)
+      select md5('ci-window-' || n)::uuid, 1, 'generated', 'reel-document.v1', ${document}::jsonb, ${'0'.repeat(64)}, 'ci-window-' || n, 'en', 'Fixture', '{}'::jsonb
+      from generate_series(1, ${total}) n`.execute(database.db);
+    await sql`insert into content.encounter_topics(asset_id, asset_revision, topic_id, role, weight)
+      select md5('ci-window-' || n)::uuid, 1, (${TOPICS}::text[])[1 + (n % ${TOPICS.length})], 'primary', 1 from generate_series(1, ${total}) n`.execute(
+      database.db,
+    );
+    // Autovacuum would have analysed a library of this size; a test database has not had the time.
+    for (const table of ['assets', 'asset_revisions', 'discovery_revisions', 'encounter_topics'])
+      await sql`analyze ${sql.table(`content.${table}`)}`.execute(database.db);
+  });
+  afterAll(async () => {
+    await database.drop();
+  });
+
+  interface PlanNode {
+    'Node Type': string;
+    'Index Name'?: string;
+    'Actual Rows'?: number;
+    'Actual Loops'?: number;
+    'Shared Hit Blocks'?: number;
+    'Shared Read Blocks'?: number;
+    Plans?: PlanNode[];
+  }
+  const flatten = (node: PlanNode): PlanNode[] => [node, ...(node.Plans ?? []).flatMap(flatten)];
+
+  it('plans an index scan of each topic’s window, so what it reads is the windows and not the 6,400 assets', async () => {
+    const eligible = sql`a.status='admitted' and r.language='en' and a.kind='reel'`;
+    const plan = await sql<{
+      'QUERY PLAN': { Plan: PlanNode; 'Execution Time': number }[];
+    }>`explain (analyze, buffers, format json)
+      select asset_id from ((select null::uuid as asset_id,0 as band,0 as priority,0 as role_rank,0::float8 as rot,'source'::text as lane where false)
+        ${continueLane(TOPICS, 0.37, 1, eligible)}) lanes`.execute(database.db);
+    const nodes = flatten(plan.rows[0]!['QUERY PLAN'][0]!.Plan);
+    const scans = nodes.filter((n) => n['Index Name'] === 'encounter_topics_rand_idx');
+    expect(scans.length).toBeGreaterThan(0);
+    // The attributions it read: at most the windows (eight topics, two sides, six each), whatever the topics hold.
+    const read = scans.reduce((sum, n) => sum + (n['Actual Rows'] ?? 0) * (n['Actual Loops'] ?? 1), 0);
+    expect(read).toBeLessThanOrEqual(TOPICS.length * 2 * DISCOVERY_LANE_QUOTAS.continuePerTopic);
+    // Nothing reads the table: no sequential scan anywhere in the lane.
+    expect(
+      nodes.some(
+        (n) => n['Node Type'] === 'Seq Scan' && n['Index Name'] === undefined && (n['Actual Rows'] ?? 0) > 100,
+      ),
+    ).toBe(false);
+    const buffers = nodes.reduce((sum, n) => sum + (n['Shared Hit Blocks'] ?? 0) + (n['Shared Read Blocks'] ?? 0), 0);
+    expect(buffers).toBeLessThan(40_000);
+  });
+
+  it('still gives each top topic its candidates, at most five of any one system, from a window that moves with the cursor', async () => {
+    const read = async (rotation: string) => {
+      const entered = await withScope()(person.authority, (scope) =>
+        readDiscoveryCandidates(scope, {
+          languages: ['en'],
+          formats: ['reel'],
+          capabilities,
+          rotation,
+          lanes: { continueTopicIds: TOPICS, plannedUnitIds: [] },
+        }),
+      );
+      if (entered.kind !== 'entered') throw new Error('CI scope refused');
+      return entered.value.filter((c) => c.lane === 'continue');
+    };
+    const one = await read('window-one');
+    expect(one.length).toBeGreaterThan(10);
+    expect(one.length).toBeLessThanOrEqual(DISCOVERY_LANE_QUOTAS.continue);
+    const perTopic = new Map<string, number>();
+    for (const c of one) perTopic.set(c.topics[0]!.topicId, (perTopic.get(c.topics[0]!.topicId) ?? 0) + 1);
+    for (const count of perTopic.values()) expect(count).toBeLessThanOrEqual(DISCOVERY_LANE_QUOTAS.continuePerTopic);
+    expect(await read('window-one')).toEqual(one);
+    // Another cursor reads another window of the same topics.
+    let other = 'window-two';
+    const apart = (seed: string) => {
+      const gap = Math.abs(rotationCursor(seed) - rotationCursor('window-one'));
+      return Math.min(gap, 1 - gap);
+    };
+    while (apart(other) < 0.3) other += 'x';
+    expect((await read(other)).map((c) => c.assetId)).not.toEqual(one.map((c) => c.assetId));
   });
 });

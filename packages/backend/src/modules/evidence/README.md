@@ -292,25 +292,41 @@ Status: implemented, CI-tested against real PostgreSQL (unit, integration, the s
 slices 4.2 and 5.2, migration 0117. Reading only (D-063): no pick, result, spark or tier is a column or an input.
 
 Composer policy v3 selects candidates from the person's top long-term interest topics, so "the person's top K topics now" must not read
-every topic they have met. `evidence.topic_context.log_weight` is `ln(activity) + ln2 · evaluated_at_ms / half_life_ms`, written with the
-row (`logWeightOf`, `NULL` while the activity is 0). Every row decays by the same law, so ordering by this key is ordering by decayed activity at any later
-time, and the rows holding at least a floor of decayed activity at `now` are the rows above a fixed key. `ReadTopInterestTopics(limit ≤ 64,
-evaluatedAt, minActivity = 0.05)` is therefore one range scan of `topic_context_top_interest` (`universe_id, privacy_epoch, log_weight desc,
-topic_id`, partial on `log_weight is not null`): no sort, and it stops at `limit` whatever the number of topics. Measured on disposable data:
-for one person with 20,000 topics the plan is an Index Scan with no Sort that returns 32 rows from 35 buffers in 0.03 ms (the same ranking by
-sorting decayed activity read all 20,000 rows, 527 buffers, and took 131 ms), and the whole read including the personal scope entry takes about
-1.6 ms (`interest-rollups.test.ts` asserts the plan and the result; hosted CI does not assert the time).
+every topic they have met. `evidence.topic_context.log_weight` is `ln(activity) + ln2 · evaluated_at_ms / half_life_ms`, **derived by a
+`BEFORE INSERT OR UPDATE` trigger** (`evidence.derive_log_weight`), so any writer, an older binary in the deploy window included, leaves it
+correct whatever it names (`logWeightOf` is the same formula for the read's floor, and `NULL` while the activity is 0). Every row decays by
+the same law, so ordering by this key is ordering by decayed activity at any later time, and the rows holding at least a floor of decayed
+activity at `now` are the rows above a fixed key. `ReadTopInterestTopics(limit ≤ 64, evaluatedAt, minActivity = 0.05)` is therefore one range
+scan of `topic_context_top_interest` (`universe_id, privacy_epoch, log_weight desc, topic_id`, partial on `log_weight is not null`): no sort,
+and it stops at `limit` whatever the number of topics. Measured on disposable data: for one person with 20,000 topics the plan is an Index
+Scan with no Sort that returns 32 rows from 35 buffers in 0.03 ms (the same ranking by sorting decayed activity read all 20,000 rows, 527
+buffers, and took 131 ms), and the whole read including the personal scope entry takes about 1.6 ms (`interest-rollups.test.ts` asserts the
+plan and the result; hosted CI does not assert the time).
 
 `evidence.interest_rollups` (`level` `system` or `person`, `subject_id` the catalogue system or empty) has the shape of `topic_context`
-(decayed activity, channels, reel and scroll measured and qualified, `log_weight`). `persistActivity` writes it in the same transaction as the
-topic rows: a roll-up is the sum of the topic rows beneath it, replaced exactly as a topic row is (the old aggregate decays once, this exposure's
-previous contribution is swapped for its new one at its own time), so a correction replaces and never adds, and a system less one topic is
-"the rest of the system". The system of a topic is Content's catalogue (`systemOfTopic`); a topic the catalogue does not hold counts for the
-person only. `ReadInterestRollups(systemIds ≤ 100, person, evaluatedAt)` reads the primary keys. Both reads are decayed to the time asked and
-clamp a row stored after it (clock skew) instead of growing it. Personal Context serves them to Composer (see its README). The migration
-backfills `log_weight`, the person row and the system rows of the code catalogue at 0117 (a test applies the migration's SQL to old-shape rows
-and compares); a topic the catalogue gains later gets its roll-up from the writes that follow it. An older writer leaves `log_weight` NULL and
-writes no roll-up until the new binary runs; v3 is off until a world sets `KS_COMPOSER_POLICY=v3`.
+(decayed activity, channels, reel and scroll measured and qualified, `log_weight` by the same trigger). `persistActivity` writes it in the same
+transaction as the topic rows. A roll-up is the sum of the topic rows beneath it, so a system less one topic is "the rest of the system", and it
+is changed by what each topic **was counted as**: every topic row stores `rollup_counted`, the activity (and time), channels and counts it last
+contributed, and a write adds the topic's new state and takes away exactly that, never a value the roll-up did not hold. A topic an older binary
+changed without counting it is corrected by the next write of the new binary (the stale counted state goes, the current one comes), and a topic
+nothing counted yet (`NULL`) is added whole. A roll-up that would go negative, or is absent for a topic that was counted, has lost something
+(a deleted row, a restore): the person's roll-ups are rebuilt from their topic rows in that transaction (`rebuildInterestRollups`). The system of
+a topic is Content's catalogue (`systemOfTopic`); a topic the catalogue does not hold counts for the person only.
+`ReadInterestRollups(systemIds ≤ 100, person, evaluatedAt)` reads the primary keys. Both reads are decayed to the time asked and clamp a row
+stored after it (clock skew) instead of growing it. Personal Context serves them to Composer (see its README).
+
+**Migration 0117 holds no long lock.** The columns are nullable with no default, the new table is empty, the index is partial on `log_weight is not
+null` (so on the existing rows it starts empty and building it is one cheap scan), the `composer.decisions` pin is added `NOT VALID` and not
+validated (every existing row names v0 to v2; every new row is checked), and nothing backfills a large table. Rows that exist when it runs have no
+key, no counted state and no roll-up; **`node dist/operator.js evidence rebuild-interest-rollups [--max-universes <1-5000>]` fills them**: for each
+person with topic rows, in a page of 50 persons at a time, one transaction under that person's own personal scope (the account, epoch and root lock
+rechecked, so it never runs beside their projection), it streams their topic rows in pages of 2,000, sums them by catalogue system and for the
+person, replaces their roll-up rows and stamps every topic row as counted as it is now (which lets the trigger derive `log_weight` for rows no writer
+touched since the migration). It is idempotent (a second run writes the same rows), counts only, stops at `--max-universes` (default 1000) and says
+whether the scan finished. **Run it after the deploy that applies 0117 and before a world sets `KS_COMPOSER_POLICY=v3`**, and again after any
+rollback to a binary that does not write roll-ups (docs/v2/operations/environments.md, "Switching Composer policy v3 on"). Until it has run, an
+existing person's roll-ups lag and their top-K read lacks rows no writer has touched; v3 is off, and a world that runs v3 without it reads no system or
+person prior for that person (it reads what v2 reads).
 
 Erasure: `interest_rollups` is in the erasure inventory beside `topic_context` (Clear and account deletion delete both by universe; a test clears a
 person and finds neither).

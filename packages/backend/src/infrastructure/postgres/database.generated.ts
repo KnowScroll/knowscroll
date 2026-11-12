@@ -182,6 +182,7 @@ export interface ContentEncounterTopics {
   asset_id: string;
   asset_revision: number;
   role: string;
+  serve_rand: number | null;
   topic_id: string;
   weight: number;
 }
@@ -566,6 +567,7 @@ export interface EvidenceTopicContext {
   privacy_epoch: number;
   reel_measured: Generated<number>;
   reel_qualified: Generated<number>;
+  rollup_counted: Json | null;
   scroll_measured: Generated<number>;
   scroll_qualified: Generated<number>;
   topic_id: string;

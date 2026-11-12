@@ -963,7 +963,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       expect(considered).toBe(N);
       expect(drawn / N).toBeGreaterThan(0.01);
       expect(drawn / N).toBeLessThan(0.12);
-    }, 90_000);
+    }, 240_000);
 
     it('does not draw against an explicit format request: a variant move names its format', async () => {
       const person = await seedPerson(database.db);

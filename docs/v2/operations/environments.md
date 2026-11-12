@@ -228,6 +228,23 @@ attempt's reserved budget. `reasoning purge-expired` deletes expired protected r
 refused or not applicable, 1 failure. Protected request bytes hold personal model context: only
 the harness reads them; nothing here prints them.
 
+### Switching Composer policy v3 on (D-420, #674)
+
+Composer policy v3 reads long-term interest roll-ups that migration 0117 creates empty, so a world turns it on in this order. Dev keeps
+`KS_COMPOSER_POLICY=v2` until all of it is done.
+
+1. Deploy. `migrate.js` applies 0117 before the new release starts; it takes no long lock (nullable columns, an empty table, a partial index that
+   starts empty, a `NOT VALID` pin, no backfill). From then the new binary writes the roll-ups and every writer, an older binary included, gets a
+   correct `log_weight` from the trigger.
+2. Rebuild, from the worker release tree on the server: `node dist/operator.js evidence rebuild-interest-rollups` (add `--max-universes <1-5000>`;
+   it prints counts and `"complete": true` when every person with topic rows has been visited, and can be run again until it does). It is idempotent
+   and safe beside live traffic: each person is one transaction under their own personal scope. It writes derived rows only; no model, no network.
+3. Read `node dist/operator.js composer replay-policy --since <date>` on the world's stored decisions (v3 beside v2).
+4. Set `KS_COMPOSER_POLICY=v3` in the world's env file for the API and the worker alike, and restart both.
+
+After any rollback to a binary that does not write roll-ups, run step 2 again before v3 is read. Switching the setting back to `v2` strands nothing
+(a stored decision replays under its own label).
+
 ### Admitting the starter Scroll on dev or stage (D-005)
 
 Related: #229.
