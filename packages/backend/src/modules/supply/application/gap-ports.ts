@@ -1,5 +1,13 @@
 import type { GapRecipe, ReleasedCoverage } from '../../content/public.js';
-import type { GapKind, GapStatus, GapTarget, GapTransition, GapCandidate, ProposalResult } from '../domain/gaps.js';
+import type {
+  CatalogueTopic,
+  GapKind,
+  GapStatus,
+  GapTarget,
+  GapTransition,
+  GapCandidate,
+  ProposalResult,
+} from '../domain/gaps.js';
 import type { CanonicalBrief } from './ports.js';
 
 export type { GapSignalInput, RecordGapSignals, GapMarkStore } from './gap-signal-ports.js';
@@ -62,6 +70,8 @@ export interface GapScanStore {
 }
 
 export interface GapScanPorts {
+  /** The planets of the topic catalogue and their facets, with the planets that are not servable yet (`catalogueTopics`). */
+  readonly readCatalogue: () => Promise<readonly CatalogueTopic[]>;
   /** `KS_SUPPLY_GROWTH_ENABLED`. Off: the scan does nothing and reads nothing. */
   readonly enabled: boolean;
   readonly depthTarget: number;

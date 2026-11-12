@@ -1,4 +1,4 @@
-import type { CoverageCommand, CoverageRef } from '../domain/coverage.js';
+import type { CoverageCommand, CoverageMapping, CoverageRef } from '../domain/coverage.js';
 import type { LibraryRecipe } from '../domain/library/plan.js';
 import { planRecipeCoverage, type RecipeCoveragePlan } from '../domain/recipe-coverage.js';
 import { appendCoverageHead } from './admit-coverage.js';
@@ -21,8 +21,10 @@ type CoverageRecipe = Pick<LibraryRecipe, 'explanationUnitId' | 'topicId' | 'fac
  * Runs inside the caller's admission transaction, so the coverage head commits with the revision it
  * describes or not at all. Takes the Content coverage lock, reads the stored document and provenance,
  * derives the bindings (`planRecipeCoverage`) and appends the next head. Calling it again for the same
- * revision is safe: an identical mapping replays without appending, and a changed one (a catalogue
- * change, say) appends a corrected head after the current one, so history is kept.
+ * revision is safe: an identical decision replays without appending, and a changed one (a facet that
+ * means something else now, say) appends a corrected head after the current one, so history is kept. A new
+ * catalogue release that changes nothing a binding pins changes only the digest the mapping records, and is not a
+ * changed decision: it appends nothing (D-419).
  *
  * Returns `not_admitted` when the revision is not an admissible factual Scroll or has too few body
  * blocks to bind. Nothing is written then, and the Scroll stays readable but unmapped.
@@ -36,10 +38,11 @@ export async function admitRecipeCoverage(
   const target = await p.lockTarget(tx, ref);
   // A Reel's coverage is decided by its own rule (`admitReelCoverage`), never as a Scroll's.
   if (target === undefined || target.format === 'reel') return { kind: 'not_admitted', code: 'target_unavailable' };
-  const plan = planRecipeCoverage(recipe, target, p.catalogue);
+  const plan = planRecipeCoverage(recipe, target, await p.catalogue(tx));
   if (plan.kind === 'refused') return { kind: 'not_admitted', code: plan.code };
   const previous = await p.readHead(tx, ref);
-  if (previous?.status === 'active' && previous.authority.mappingSha256 === p.hash(plan.mapping))
+  const decided = (mapping: CoverageMapping) => p.hash({ ...mapping, catalogueSha256: '' });
+  if (previous?.status === 'active' && decided(previous.mapping) === decided(plan.mapping))
     return { kind: 'admitted', head: previous, change: 'unchanged' };
   const command: CoverageCommand = {
     version: 'content-coverage-command.v1',

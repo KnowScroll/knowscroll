@@ -14,7 +14,7 @@ import {
   type GapTarget,
   type PlanetFacts,
 } from '../domain/gaps.js';
-import { catalogueTopics, utcDay } from './gap-signals.js';
+import { utcDay } from './gap-signals.js';
 import type { GapScanPorts, GapScanResult, ScanGaps } from './gap-ports.js';
 
 const DAY_MS = 86_400_000;
@@ -36,7 +36,7 @@ export function makeScanGaps(ports: GapScanPorts): ScanGaps {
   return async (): Promise<GapScanResult> => {
     if (!ports.enabled) return { kind: 'disabled' };
     const now = ports.now();
-    const catalogue = catalogueTopics();
+    const catalogue = await ports.readCatalogue();
     const coverage = await ports.readCoverage();
     const facts = new Map<string, PlanetFacts>(
       coverage.planets.map((planet) => [

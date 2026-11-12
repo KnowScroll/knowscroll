@@ -13,6 +13,7 @@ import {
   DEFAULT_VARIANTS,
   startPolicyReplay,
 } from '@knowscroll/backend/modules/composer';
+import { planSnapshot } from '@knowscroll/backend/modules/content';
 import { readRetainedDecisions } from '@knowscroll/backend/modules/composer/nest-providers';
 import { fixtureSnapshots } from '../../../packages/backend/src/modules/composer/application/snapshot-fixtures.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
@@ -98,7 +99,7 @@ describe('composer replay-policy over stored decisions (real PostgreSQL, labelle
   });
 
   it('feeds the replay, whose report names nobody and nothing', async () => {
-    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    const replay = startPolicyReplay(DEFAULT_VARIANTS, planSnapshot().systemOf);
     for await (const stored of readRetainedDecisions(database.db, { since: base, limit: 1000 })) replay.add(stored);
     const report = replay.report();
     expect(report).toMatchObject({ read: 90, storedPolicies: { 'composer-policy.v0': 90 } });

@@ -3,7 +3,7 @@ import { sql } from 'kysely';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
-  coverageCatalogue,
+  planCoverageCatalogue,
   coverageHeadPorts,
   makeAdmissionStore,
   makeReadAdmittedCoverageMapping,
@@ -268,12 +268,16 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     const editedCatalogue = {
       sha256: 'e'.repeat(64),
       meaningSha256: (topicId: string, facetId: string) =>
-        facetId === 'earth.tides.coasts' ? 'f'.repeat(64) : coverageCatalogue.meaningSha256(topicId, facetId),
+        facetId === 'earth.tides.coasts' ? 'f'.repeat(64) : planCoverageCatalogue().meaningSha256(topicId, facetId),
+      acceptsMeaning: (topicId: string, facetId: string, sha256: string) =>
+        facetId === 'earth.tides.coasts'
+          ? sha256 === 'f'.repeat(64)
+          : planCoverageCatalogue().acceptsMeaning(topicId, facetId, sha256),
     };
-    const readEdited = makeReadAdmittedCoverageMapping(editedCatalogue);
+    const readEdited = makeReadAdmittedCoverageMapping(() => Promise.resolve(editedCatalogue));
     const recipes = Object.values(RECIPES);
-    const readmitPorts = (catalogue: typeof editedCatalogue | typeof coverageCatalogue) => ({
-      coverage: { ...coverageHeadPorts, catalogue },
+    const readmitPorts = (catalogue: typeof editedCatalogue | ReturnType<typeof planCoverageCatalogue>) => ({
+      coverage: { ...coverageHeadPorts, catalogue: () => Promise.resolve(catalogue) },
       inAdmission: makeAdmissionStore(database.db).inAdmission,
       listGeneratedRevisions: async () =>
         (

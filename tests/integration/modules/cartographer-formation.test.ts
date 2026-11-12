@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
 import { geographyStore, makeRunCartographer } from '@knowscroll/backend/modules/geography/nest-providers';
-import { CONCEPTS } from '@knowscroll/backend/modules/content';
+import { planSnapshot } from '@knowscroll/backend/modules/content';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
@@ -14,6 +14,9 @@ import { TOPICS } from '../../../packages/backend/src/modules/content/production
 import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { markRecipesV1 } from '../support/scroll-v2.js';
 import { seedOlderRereads } from '../support/rereads.js';
+
+/** The catalogue of the library plan (release 1), which the migrated database seeds: the topics these journeys use. */
+const CONCEPTS = planSnapshot().all();
 
 /**
  * How reading becomes places: dust, then a system with its star, then a planet with its regions.

@@ -40,6 +40,7 @@ import { PROJECT_SCENE, BACKFILL_SCENE_LOOKS, READ_OWN_SCENE_MANIFEST, READ_OWN_
 import { makeProjectScene } from '../application/project.js';
 import { makeBackfillSceneLooks } from '../application/backfill-looks.js';
 import { makeReadSceneManifest, makeReadSceneChunk } from '../application/read.js';
+import { CATALOGUE, type Catalogue } from '../../content/public.js';
 import type { ScenePorts } from '../application/ports.js';
 import { sceneStore } from './postgres-store.js';
 export const SCENE_PORTS = Symbol('scenes.ports');
@@ -72,13 +73,15 @@ export function sceneProviders(t: { readonly withPersonalScope: symbol; readonly
   return [
     {
       provide: SCENE_PORTS,
-      inject: [t.withPersonalScope, CHECK_PERSONAL_OWNER_ACTIVE, READ_GEOGRAPHY_SCENE_INPUT, t.logEvent],
+      inject: [t.withPersonalScope, CHECK_PERSONAL_OWNER_ACTIVE, READ_GEOGRAPHY_SCENE_INPUT, t.logEvent, CATALOGUE],
       useFactory: (
         withScope: WithPersonalScope,
         ownerActive: CheckPersonalOwnerActive,
         readInput: ReadGeographySceneInput,
         logEvent: LogEvent,
+        catalogue: Catalogue,
       ): ScenePorts => ({
+        catalogue,
         withScope,
         ownerActive,
         readInput,

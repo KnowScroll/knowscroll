@@ -9,6 +9,7 @@ import {
   type ReplayVariant,
 } from '@knowscroll/backend/modules/composer';
 import { composerPruneBackfill, readRetainedDecisions } from '@knowscroll/backend/modules/composer/nest-providers';
+import { makeCatalogue } from '@knowscroll/backend/modules/content/nest-providers';
 
 type Print = (result: Record<string, unknown>) => void;
 
@@ -98,7 +99,12 @@ export async function replayPolicyCommand(
       onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
     });
     try {
-      const replay = startPolicyReplay(variantsFor({ intentWeight, recentTopicPenalty, sweep: options.sweep }));
+      // The system of each topic is read from today's catalogue: a decision stores the system it was made with, and only an old one without it is named again.
+      const catalogue = await makeCatalogue(database.db).current();
+      const replay = startPolicyReplay(
+        variantsFor({ intentWeight, recentTopicPenalty, sweep: options.sweep }),
+        catalogue.systemOf,
+      );
       for await (const decision of readRetainedDecisions(database.db, { since: new Date(since), limit }))
         replay.add(decision);
       logEvent('operator.read', { route: '/cli/composer/replay-policy', outcome: 'done' });

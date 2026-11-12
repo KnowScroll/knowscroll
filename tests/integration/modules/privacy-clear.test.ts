@@ -7,7 +7,7 @@ import { COVERAGE_POLICY, CONCEPT_CATALOGUE_VERSION, type CoverageCommand } from
 import {
   makeAdmitCoverage,
   makeCoverageAdmissionPorts,
-  coverageCatalogue,
+  planCoverageCatalogue,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { composeEncounter } from '@knowscroll/backend/modules/composer';
 import { makeComposerStore } from '@knowscroll/backend/modules/composer/nest-providers';
@@ -691,12 +691,12 @@ describe('durable selective Clear', () => {
           readingFactsVersion: 2,
           readingFactsSha256: canonicalSha256(coverageSource.reading_facts),
           catalogueVersion: CONCEPT_CATALOGUE_VERSION,
-          catalogueSha256: coverageCatalogue.sha256,
+          catalogueSha256: planCoverageCatalogue().sha256,
           bindings: [
             {
               topicId: 'earth.seasons',
               facetId: 'earth.seasons.axial-tilt',
-              meaningSha256: coverageCatalogue.meaningSha256('earth.seasons', 'earth.seasons.axial-tilt')!,
+              meaningSha256: planCoverageCatalogue().meaningSha256('earth.seasons', 'earth.seasons.axial-tilt')!,
               requiredBlockIds: ['intro-look-up'],
             },
           ],

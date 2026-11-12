@@ -12,14 +12,14 @@ Status words used below: **implemented** (in source, covered by `checks`), **run
 
 ## How reading becomes places
 
-| Stage | What the person has done | What they get | Status |
-|---|---|---|---|
-| Dust | One qualified encounter under a topic of a system that is not established yet | An unlabelled cue from the `emerging` read | implemented, runtime-verified locally and on dev (2 Nov, fidelity-v3) |
-| System and star | Two distinct qualified explanation units under one system | The system and its organising star | implemented, runtime-verified locally and on dev (2 Nov, fidelity-v3) |
-| Planet | Three distinct units under one planet that cover two of its facets | The planet | implemented, runtime-verified locally and on dev (2 Nov, fidelity-v3) |
-| Region | A supported facet of a formed planet | The region | implemented, runtime-verified locally and on dev (2 Nov, fidelity-v3) |
-| Route | Support at both ends, two formed planets of one system | A route, only if the model proposes it | implemented |
-| Quiet | The latest support is more than 30 days old, whether or not the person reads again | The place goes quiet; it is never removed. A Cartographer run or the quiet sweep sets it (see Quiet without new reading) | implemented |
+| Stage           | What the person has done                                                           | What they get                                                                                                            | Status                                                                |
+| --------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| Dust            | One qualified encounter under a topic of a system that is not established yet      | An unlabelled cue from the `emerging` read                                                                               | implemented, runtime-verified locally and on dev (2 Nov, fidelity-v3) |
+| System and star | Two distinct qualified explanation units under one system                          | The system and its organising star                                                                                       | implemented, runtime-verified locally and on dev (2 Nov, fidelity-v3) |
+| Planet          | Three distinct units under one planet that cover two of its facets                 | The planet                                                                                                               | implemented, runtime-verified locally and on dev (2 Nov, fidelity-v3) |
+| Region          | A supported facet of a formed planet                                               | The region                                                                                                               | implemented, runtime-verified locally and on dev (2 Nov, fidelity-v3) |
+| Route           | Support at both ends, two formed planets of one system                             | A route, only if the model proposes it                                                                                   | implemented                                                           |
+| Quiet           | The latest support is more than 30 days old, whether or not the person reads again | The place goes quiet; it is never removed. A Cartographer run or the quiet sweep sets it (see Quiet without new reading) | implemented                                                           |
 
 The thresholds are the experimental policy `geography-passive.v1` (`domain/policy.ts`). A unit is a
 canonical `explanationUnitId`. Variants, a Reel and its Scroll twin, witnesses and replays are the
@@ -107,11 +107,18 @@ history holds, so it works for a person with thousands of topics and years of re
   just lowered), the run also reads up to 8 other supported topics of that system, the most recently supported first, one key of
   each facet. They are read, not evaluated: a neighbour that was dirty stays dirty. A formed system with nothing due beside it
   reads none, so the steady state of a heavy reader is the touched topics alone.
-- **Facts** (`facts`): the catalogue entries of the topics with support or a stored place and their systems, the supports,
+- **Facts** (`facts`): the catalogue entries of the topics with support or a stored place and their systems (`facts.catalogue`, with every
+  facet of each topic, from one release of the topic catalogue, D-419; a node's formation thresholds `systemUnits`, `planetUnits`,
+  `planetFacets` are in the slice only where they are not the defaults 2, 3 and 2, and `formationEligible` reads them), the supports,
   the candidates (a slot with a derived id and its labels) for each system, star, planet and the regions that are supported or
   established, the stored places loaded by semantic key (a topic's system, star, planet and the regions of its facets), and the
   routes already joining those planets. A system's and a star's stored last support is carried in `carriedSupportAt`, so reading
   one topic never makes the system look older than reading of another under it.
+- **The pinned release** (`catalogueRelease`): the catalogue release the context was frozen against. The re-check at apply reads that
+  release (`Catalogue.release(n)`), not a newer one, so a topic or a wording released in between never changes a decision already made;
+  a context frozen before releases existed reads the current release, which for the seeded catalogue is the same. A support whose
+  recorded meaning is no longer the current wording, and was not declared the same meaning, supports nothing (`acceptsMeaning`). A topic
+  the release retired leaves the slice and forms nothing new.
 - **Proof**: each support's witnesses (their digests name the certificates, which stay in Personal Context), a few hundred
   bytes a support. An operation cites at most 20 supports (`PROOF_REFS`): the newest of each facet, then of each distinct unit,
   then the newest of the rest, so 32 operations fit the 64 KiB a stored proposal holds and a place's row the 100 references it
@@ -229,31 +236,31 @@ catalogue topic of each established factual planet of the caller's universe, wit
 against. It exists so the Universe can set a landmark, which `play` keeps against a Scroll's topic, on that topic's
 planet (D-084, D-089). A topic is a public catalogue id, so the answer adds nothing personal beyond which planets exist,
 which the snapshot already says. It is a read of the same stored places (no write, no cartography request, no model); it
-holds nothing from play and `play` never imports this module (D-180). *Implemented; runtime-verified on dev (2 Nov, fidelity-v3: the waiting landmark names its planet and stands on it once formed) and locally
-(`tests/integration/modules/play.test.ts`).*
+holds nothing from play and `play` never imports this module (D-180). _Implemented; runtime-verified on dev (2 Nov, fidelity-v3: the waiting landmark names its planet and stands on it once formed) and locally
+(`tests/integration/modules/play.test.ts`)._
 
 ## A system's topic (#697, D-403)
 
 `ReadOwnSystemTopic` (`READ_OWN_SYSTEM_TOPIC`) names the catalogue topic of one of the caller's own established factual
 systems, read by id under the existing personal root, so Experience can list that system's Reels and Scrolls before it has
 a planet. A foreign, unknown, hypothetical or non-system id answers `not_on_map` alike. A stored row that no longer matches
-the catalogue or the map answers `temporarily_unavailable`, never a guessed topic. It writes nothing. *Implemented; unit
-tests in `application/system-topic.test.ts`.*
+the catalogue or the map answers `temporarily_unavailable`, never a guessed topic. It writes nothing. _Implemented; unit
+tests in `application/system-topic.test.ts`._
 
 ## Public entry points and dependencies
 
 `public.ts` exports the use cases and queues. Other modules reach Geography only through it.
 
-| Entry point | Purpose |
-|---|---|
-| `GEOGRAPHY_MATERIAL_CHANGE` | Evidence/Personal Context hook: records a desired revision and the run |
-| `REQUEST_CARTOGRAPHY` | Backend-only explicit request or resume of the same business run |
-| `RUN_CARTOGRAPHER`, `PUBLISH_GEOGRAPHY_DELTA` | Worker consumers |
-| `READ_OWN_GEOGRAPHY`, `READ_OWN_DELTAS` | Snapshot and catch-up reads |
-| `READ_OWN_EMERGING` | Dust cues |
+| Entry point                                       | Purpose                                                                                                                                                                                                   |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GEOGRAPHY_MATERIAL_CHANGE`                       | Evidence/Personal Context hook: records a desired revision and the run                                                                                                                                    |
+| `REQUEST_CARTOGRAPHY`                             | Backend-only explicit request or resume of the same business run                                                                                                                                          |
+| `RUN_CARTOGRAPHER`, `PUBLISH_GEOGRAPHY_DELTA`     | Worker consumers                                                                                                                                                                                          |
+| `READ_OWN_GEOGRAPHY`, `READ_OWN_DELTAS`           | Snapshot and catch-up reads                                                                                                                                                                               |
+| `READ_OWN_EMERGING`                               | Dust cues                                                                                                                                                                                                 |
 | `READ_GEOGRAPHY_SCENE_INPUT`, `GEOGRAPHY_APPLIED` | Scenes' input and the same-transaction hook; Social reads the same input to draw the list a friend may visit (D-047), and Rooms to place a room's station beside a system of the caller's own map (D-051) |
-| `READ_OWN_REGION_CONSTRAINT` | Exact region authority for region encounters (U04) |
-| `SWEEP_QUIET`, `SETTLE_QUIET` | Worker consumers of the quiet sweep and its per-universe settle (D-104) |
+| `READ_OWN_REGION_CONSTRAINT`                      | Exact region authority for region encounters (U04)                                                                                                                                                        |
+| `SWEEP_QUIET`, `SETTLE_QUIET`                     | Worker consumers of the quiet sweep and its per-universe settle (D-104)                                                                                                                                   |
 
 Dependencies point inward: `adapters/` (Postgres, Nest wiring) use `application/` (run, apply,
 context, reads), which uses `domain/` (policy, formation, emerging). Geography reads Personal

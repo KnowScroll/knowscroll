@@ -39,6 +39,11 @@ node dist/operator.js content propose-recipes --topic earth.tides [--facet earth
 node dist/operator.js content recipes [--status checked|queued|produced|retired]
 node dist/operator.js content produce-library --only gen-<key> --dry-run
 
+# the topic catalogue as data (D-419): import the library plan as the next release, make topics with released supply servable (see "The topic catalogue")
+node dist/operator.js content catalogue sync --dry-run
+node dist/operator.js content catalogue sync
+node dist/operator.js content catalogue status
+
 # make another take of a v2 Scroll that is already served (stored held; see "Running a library wave")
 node dist/operator.js content regenerate --only seasons,seasons-hemispheres --dry-run
 node dist/operator.js content regenerate --only seasons,seasons-hemispheres
@@ -419,6 +424,28 @@ What to read for, besides the list above: each `PICTURE:` line says the figures 
 `reject` keeps the revision stored and unserved for good (it is never released), leaves the earlier revision served if there is one, and spends that take. `production-status` then shows the recipe `retryable` and `produce-library --only <key>` queues the next take, which writes a new revision (the next number). A recipe has three takes in all. If you reject all three, the recipe is `stopped`: the brief or the pages need a change in the plan, which is a code change and a new production version, so stop and say so in the issue. Tell the next person why in the reason (500 characters, plain words); `review-list --all` shows it with who and when.
 
 Nothing in the gate edits a revision: a Scroll is released as it was read. To correct a wording, reject and produce again.
+
+## The topic catalogue (#674, slice 2.1, D-419)
+
+Systems, planets and facets live in Postgres as numbered, append-only releases, so adding a topic needs no deploy of the code that reads it. The library
+plan in TypeScript is still where an author writes them, and the first release is exactly that plan.
+
+1. **Edit the plan** (`content/domain/library/*.ts`): add a planet with at least two facets, or a facet after the others, or change a meaning. A meaning
+   that only rewords the old one lists the old text in `sameMeaningAs` of the same node (certificates decided against it stay valid); leave it out for a
+   change of meaning. A new system may leave out its `sceneFamily` and `haze`.
+2. **Preview.** `content catalogue sync --dry-run` prints the release it would make (counts, codes, how many nodes the plan no longer names) and writes nothing.
+3. **Import.** `content catalogue sync` appends the release (the plan's changes, in as many releases as the 20,000-node limit needs) and then makes servable the
+   topics whose supply has been released. Running it again makes nothing. Any refusal (an id taken, a parent missing, a duplicate label, a meaning out of
+   bounds, a topic with fewer than two facets, a changed silhouette or haze) writes nothing and prints its code and the node.
+4. **A new topic is invisible** to readers (not offered, not matched to a request, not a room, not a scout's choice) until the library has released three
+   explanations over two of its facets. Write for it as for any planet (`content propose-recipes --topic <new planet>`, `content produce-library --only gen-<key>`,
+   `content review-list`, `content release`); `showServableTopics` runs in the gap scan's every pass and in `content catalogue sync`, and makes the topic
+   servable in a release of its own (`source` `visibility`).
+5. **After a change of meaning**, run `content readmit-coverage [--dry-run]` to decide coverage again for the published Scrolls. A release changes
+   only the digest, not any certificate: nothing needs doing after adding a topic.
+
+`content catalogue status` prints the release, its digest and the counts of systems, planets, facets, servable planets and planets waiting for supply. A release is never
+undone: a node is retired by a later release, never deleted, and its id is never reused. Nothing here calls a provider.
 
 ## New recipes for planets that exist (#674, slice 2.2, D-412)
 

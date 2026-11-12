@@ -9,6 +9,7 @@ import {
   postgresProductionHarnessPorts,
   roomHarnessSettings,
 } from '@knowscroll/backend/reasoning/nest-providers';
+import { makeCatalogue } from '@knowscroll/backend/modules/content/nest-providers';
 import { composeFaceOperator } from '@knowscroll/backend/modules/rooms/nest-providers';
 
 type Print = (result: Record<string, unknown>) => void;
@@ -156,6 +157,7 @@ export async function roomsFaceCommand(
       const model = configuredModelPort(config.reasoning);
       const face = composeFaceOperator({
         db: database.db,
+        catalogue: makeCatalogue(database.db),
         harness: makeProductionReasoningHarness(
           postgresProductionHarnessPorts({
             db: database.db,

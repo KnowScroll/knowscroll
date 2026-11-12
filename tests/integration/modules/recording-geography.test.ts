@@ -1,3 +1,5 @@
+import { catalogueOf } from '../support/catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import type { PgBoss } from 'pg-boss';
 import { randomUUID } from 'node:crypto';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
@@ -60,6 +62,7 @@ describe('Geography original generation and exact wake ownership (Actions only)'
         ...geographyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
       ];
     const values = new Map<symbol, unknown>([
+      [CATALOGUE, catalogueOf(database.db)],
       [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
       [ENQUEUE, makeEnqueueJob(boss)],
       [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],

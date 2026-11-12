@@ -1,12 +1,12 @@
 import type { CreateContentRequest } from '@knowscroll/contracts';
-import type { ReadLibraryPassages } from '../../content/public.js';
+import { shortlistTopics, type ReadLibraryPassages } from '../../content/public.js';
 import { applyClosingRun, proposeWhenRecording, runToClose } from '../../../reasoning/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import { MATCH_POLICY_VERSION, MATCH_ROLE, matchContext, matchVerdict } from './match-role.js';
+import { MATCH_POLICY_VERSION, matchContext, matchRole, matchVerdict } from './match-role.js';
 import {
   ASK_SCOPE_POLICY_VERSION,
-  ASK_SCOPE_ROLE,
   askScopeContext,
+  askScopeRole,
   askScopeVerdict,
   type AskScopeFacts,
   type AskScopeVerdict,
@@ -230,6 +230,18 @@ async function matchText(
   asked: Extract<Asked, { readonly kind: 'text' }>,
   signal: AbortSignal,
 ): Promise<void> {
+  // The model is shown a bounded shortlist built by code, never the whole catalogue (D-419). Nothing in the catalogue shares a key
+  // word with the request: no topic can be chosen, so no call is made.
+  const shortlist = shortlistTopics(await deps.p.catalogue.current(), asked.text);
+  if (shortlist.length === 0)
+    return applyQuestionVerdict(
+      deps,
+      authority,
+      job.requestId,
+      undefined,
+      { kind: 'no_topic', end: 'completed' },
+      undefined,
+    );
   const { outcome, purpose } = await proposeWhenRecording(
     deps.recording.harness,
     asked.owner,
@@ -241,8 +253,8 @@ async function matchText(
         purpose: 'match-request',
         policyVersion: MATCH_POLICY_VERSION,
       },
-      role: MATCH_ROLE,
-      context: matchContext(job.requestId, asked.text),
+      role: matchRole(shortlist),
+      context: matchContext(job.requestId, asked.text, shortlist),
       limits: { allowRepair: true },
     },
     signal,
@@ -279,6 +291,7 @@ async function placeQuestion(
 ): Promise<void> {
   const { p, recording, readLibrary } = deps;
   if (asked.kind === 'source_gone') return closeUnplaced(p, authority, job.requestId, 'source_unavailable');
+  const shortlist = shortlistTopics(await p.catalogue.current(), asked.facts.question);
   const { outcome, purpose } = await proposeAtGeneration(
     recording.harness,
     asked.owner,
@@ -290,8 +303,8 @@ async function placeQuestion(
         purpose: 'ask-scope',
         policyVersion: ASK_SCOPE_POLICY_VERSION,
       },
-      role: ASK_SCOPE_ROLE,
-      context: askScopeContext(job.requestId, asked.facts),
+      role: askScopeRole(shortlist),
+      context: askScopeContext(job.requestId, asked.facts, shortlist),
       limits: { allowRepair: true },
     },
     signal,

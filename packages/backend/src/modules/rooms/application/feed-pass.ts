@@ -5,7 +5,7 @@ import type {
   ProductionScopeTx,
   WithProductionScope,
 } from '../../../reasoning/public.js';
-import { CONCEPTS, conceptLabel, type ReadLibraryFinds } from '../../content/public.js';
+import type { Catalogue, ReadLibraryFinds } from '../../content/public.js';
 import {
   FEED_RULES,
   findTitle,
@@ -35,6 +35,8 @@ import {
 } from './feed-role.js';
 
 export interface FeedPassPorts {
+  /** The topic catalogue: the room's topic meaning and the labels of a scout's topics. */
+  readonly catalogue: Catalogue;
   readonly store: FeedStore;
   readonly readFinds: ReadLibraryFinds;
   /** The model the worker is configured for; recorded on every find. */
@@ -329,9 +331,10 @@ export function makeFeedPass(
   }
 
   /** Step 2: the one model call. The role and what it reads differ by author; nothing else does. */
-  function propose(call: Call, asset: FindCandidate, subject: FindSubject, signal: AbortSignal) {
+  async function propose(call: Call, asset: FindCandidate, subject: FindSubject, signal: AbortSignal) {
     const { turn } = call;
-    const topic = CONCEPTS.find((concept) => concept.id === call.room.topic.id);
+    const catalogue = await p.catalogue.current();
+    const topic = catalogue.concept(call.room.topic.id);
     const { author } = turn;
     const flavour = flavourOf(author);
     return harness.proposeProduction(
@@ -351,7 +354,7 @@ export function makeFeedPass(
           find: asset,
           memory: call.memory,
           ...(subject.kind === 'scout'
-            ? { askedFor: subject.interests.map((interest) => conceptLabel(interest)) }
+            ? { askedFor: subject.interests.map((interest) => catalogue.label(interest)) }
             : {}),
         }),
         limits: { allowRepair: true },

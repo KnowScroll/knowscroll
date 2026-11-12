@@ -12,7 +12,7 @@ import {
   makeProductionReasoningHarness,
   postgresProductionHarnessPorts,
 } from '@knowscroll/backend/reasoning/nest-providers';
-import { CONCEPTS } from '@knowscroll/backend/modules/content';
+import { planSnapshot } from '@knowscroll/backend/modules/content';
 import type { WithProductionScope } from '@knowscroll/backend/reasoning';
 import {
   chooseScrollRecipeIn,
@@ -27,6 +27,7 @@ import { COMPOSER_POLICY_V2, composeEncounter, type ComposerSnapshot } from '@kn
 import { makeComposerStore, withGapSignals } from '@knowscroll/backend/modules/composer/nest-providers';
 import type { PlannedDemandInput } from '@knowscroll/backend/modules/supply';
 import {
+  catalogueTopics,
   gapBriefLock,
   gapBriefStore,
   gapScanStore,
@@ -40,6 +41,7 @@ import {
 import { extractResearch } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { gapKeyOf } from '../../../packages/backend/src/modules/supply/adapters/postgres-gaps.js';
 import { SCROLL_PRODUCTION_VERSION } from '../../../packages/backend/src/modules/content/production/topics.js';
+import { catalogueOf } from '../support/catalogue.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureModel, fixtureSettings, gate, silent, signal } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
@@ -48,6 +50,9 @@ import { answerWith, enableProductionScope, fixtureProduction } from '../support
 import { plannedIntent, realSupply } from '../support/planned-demand.js';
 import { scrollUseCases } from '../support/scroll.js';
 import { orrinResearchFor, plainOrrin, v2Capabilities } from '../support/scroll-v2.js';
+
+/** The catalogue of the library plan (release 1), which the migrated database seeds: the topics these journeys use. */
+const CONCEPTS = planSnapshot().all();
 
 /**
  * The gap loop (#674, slice 3.1, D-414): where content runs out is noticed by code and new recipes are proposed within budget,
@@ -187,6 +192,7 @@ describe('The gap loop (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
       newId: randomUUID,
     });
     const scan = makeScanGaps({
+      readCatalogue: async () => catalogueTopics(await catalogueOf(db()).current()),
       enabled,
       depthTarget: 6,
       maxRounds: options.maxRounds ?? 3,

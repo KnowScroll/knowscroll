@@ -1,3 +1,5 @@
+import { catalogueOf } from '../support/catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -101,6 +103,7 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
       beforeApply: () => beforeApply(),
     }).harness;
     const values = new Map<symbol, unknown>([
+      [CATALOGUE, catalogueOf(database.db)],
       [WITH_SCOPE, withScope()],
       [WORKER_CONFIG, { jevEnabled: jev !== undefined, reasoning: { minimax: { model: 'fixture-model-v1' } } }],
       [RECORDING_REASONING_HARNESS, recording],

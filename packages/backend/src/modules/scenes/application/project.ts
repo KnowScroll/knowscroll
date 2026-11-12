@@ -38,6 +38,7 @@ export function makeProjectScene(p: ScenePorts): ProjectScene {
           chunks.push(c);
         }
         const worldSeed = old?.worldSeed ?? p.seed();
+        const catalogue = await p.catalogue.current();
         try {
           const projection = projectBounded(
             input,
@@ -47,10 +48,11 @@ export function makeProjectScene(p: ScenePorts): ProjectScene {
             (old?.manifest?.revisions.sceneRevision ?? 0) + 1,
             p.hash,
             old?.routeChunks,
+            catalogue,
           );
           // Looks are given in the same transaction as the places they describe, never from what is in
           // use now: an object that already has one keeps it (D-102).
-          const { created, skipped } = missingLooks(projection.objects, input, priorLooks);
+          const { created, skipped } = missingLooks(projection.objects, input, priorLooks, catalogue);
           await p.store.save(
             scope,
             {

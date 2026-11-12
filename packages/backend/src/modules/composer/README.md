@@ -279,7 +279,8 @@ The decision records `unseenLadder`: `outcome` (`unseen`, `fell_back` or `none`)
 relative to the source (`place` of the first offer, `offerPlaces`, and `eligible`, the eligible candidates by place):
 `source_topic` (about a non-incidental topic of the source), `same_system` (about another topic of a catalogue system the
 source's topics belong to) or `elsewhere`. The same-system topics are named once at assembly (`intent.systemTopicIds`, from
-`systemOfTopic`) and frozen in the snapshot, so a later catalogue never changes a stored decision. The place labels are read by
+the topic catalogue's `systemOf`, read from one release and passed in as `SnapshotInput.systemOf`) and frozen in the snapshot, so a later
+catalogue release never changes a stored decision. The place labels are read by
 nothing in selection (a test drops `systemTopicIds` and expects identical offers); they exist so replay and dev can count how
 often a subject move stays in the topic under each policy.
 

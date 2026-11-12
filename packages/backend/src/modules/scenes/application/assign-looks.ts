@@ -11,7 +11,7 @@ import {
   type SceneLook,
   type SystemLook,
 } from '@knowscroll/contracts';
-import { CONCEPTS, hazeFamilyOf } from '../../content/public.js';
+import type { CatalogueSnapshot } from '../../content/public.js';
 
 /**
  * The rule that gives each place its look, once (D-077, D-078, D-102, D-103). It is pure: the same
@@ -182,7 +182,11 @@ function planetLook(
  * one grown planet cannot take the scene down. It never changes or repeats a look in `existing`.
  * Throws `LookRefused` only when the plan and the stored objects structurally disagree.
  */
-export function assignLooks(subjects: readonly LookSubject[], existing: readonly SceneLook[]): LookAssignment {
+export function assignLooks(
+  subjects: readonly LookSubject[],
+  existing: readonly SceneLook[],
+  catalogue: CatalogueSnapshot,
+): LookAssignment {
   const subjectOf = new Map(subjects.map((subject) => [subject.objectId, subject]));
   const known = new Map(existing.map((look) => [look.objectId, look]));
   const use = new TypeUse();
@@ -197,10 +201,10 @@ export function assignLooks(subjects: readonly LookSubject[], existing: readonly
   for (const subject of [...pending].sort(byCreation)) {
     const look =
       subject.kind === 'system'
-        ? systemLook(subject)
+        ? systemLook(subject, catalogue)
         : subject.kind === 'planet'
-          ? newPlanetLook(subject, subjectOf, use)
-          : regionLook(subject, subjectOf, known);
+          ? newPlanetLook(subject, subjectOf, use, catalogue)
+          : regionLook(subject, subjectOf, known, catalogue);
     if (look === 'beyond_capacity') {
       skipped.push({ objectId: subject.objectId, reason: 'site_beyond_capacity' });
       continue;
@@ -211,8 +215,8 @@ export function assignLooks(subjects: readonly LookSubject[], existing: readonly
   return { created, skipped };
 }
 
-function systemLook(subject: LookSubject): SystemLook {
-  const haze = hazeFamilyOf(subject.meaningId);
+function systemLook(subject: LookSubject, catalogue: CatalogueSnapshot): SystemLook {
+  const haze = catalogue.hazeOf(subject.meaningId);
   if (!haze) throw new LookRefused('system_without_haze');
   return {
     schemaVersion: SCENE_LOOK_VERSION,
@@ -223,10 +227,15 @@ function systemLook(subject: LookSubject): SystemLook {
   };
 }
 
-function newPlanetLook(subject: LookSubject, subjectOf: ReadonlyMap<string, LookSubject>, use: TypeUse): PlanetLook {
+function newPlanetLook(
+  subject: LookSubject,
+  subjectOf: ReadonlyMap<string, LookSubject>,
+  use: TypeUse,
+  catalogue: CatalogueSnapshot,
+): PlanetLook {
   const system = subjectOf.get(subject.systemId);
-  const haze = system && hazeFamilyOf(system.meaningId);
-  const facets = CONCEPTS.find((concept) => concept.id === subject.meaningId)?.facets.length ?? 0;
+  const haze = system && catalogue.hazeOf(system.meaningId);
+  const facets = catalogue.concept(subject.meaningId)?.facets.length ?? 0;
   if (!haze || facets < 1) throw new LookRefused('planet_without_plan');
   const type = chooseType(subject.seed, use, subject.systemId);
   const variant = use.count(type);
@@ -238,10 +247,11 @@ function regionLook(
   subject: LookSubject,
   subjectOf: ReadonlyMap<string, LookSubject>,
   known: ReadonlyMap<string, SceneLook>,
+  catalogue: CatalogueSnapshot,
 ): RegionLook | 'beyond_capacity' {
   const planet = known.get(subject.parentId);
   const planetMeaning = subjectOf.get(subject.parentId)?.meaningId;
-  const site = CONCEPTS.find((concept) => concept.id === planetMeaning)?.facets.findIndex(
+  const site = (planetMeaning === undefined ? undefined : catalogue.concept(planetMeaning))?.facets.findIndex(
     (facet) => facet.id === subject.meaningId,
   );
   if (planet?.kind !== 'planet' || site === undefined || site < 0) throw new LookRefused('region_without_site');

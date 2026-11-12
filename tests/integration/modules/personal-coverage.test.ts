@@ -15,7 +15,7 @@ import { personalStores } from '@knowscroll/backend/erasure-registry';
 import {
   makeAdmitCoverage,
   makeCoverageAdmissionPorts,
-  coverageCatalogue,
+  planCoverageCatalogue,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import {
   COVERAGE_POLICY,
@@ -61,7 +61,7 @@ async function appendDigestOnlyHead(
   expectedHeadRevision: number,
 ) {
   const grown = {
-    ...coverageCatalogue,
+    ...planCoverageCatalogue(),
     sha256: canonicalSha256({ fixturePlan: 'ci-grown-concept-plan', expectedHeadRevision }),
   };
   const command: CoverageCommand = {
@@ -72,7 +72,9 @@ async function appendDigestOnlyHead(
   };
   const reviewed = (digest: string, reference: string) =>
     digest === canonicalSha256(command) && reference === command.semanticReviewReference;
-  return makeAdmitCoverage({ ...makeCoverageAdmissionPorts(db, reviewed), catalogue: grown })(command);
+  return makeAdmitCoverage({ ...makeCoverageAdmissionPorts(db, reviewed), catalogue: () => Promise.resolve(grown) })(
+    command,
+  );
 }
 
 /** Synthetic semantic approvals and authored sources ONLY; no live source/map/formation claim. */
@@ -142,12 +144,12 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
       readingFactsVersion: 2,
       readingFactsSha256: canonicalSha256(row.reading_facts),
       catalogueVersion: CONCEPT_CATALOGUE_VERSION,
-      catalogueSha256: coverageCatalogue.sha256,
+      catalogueSha256: planCoverageCatalogue().sha256,
       bindings: [
         {
           topicId: topic,
           facetId: facet,
-          meaningSha256: coverageCatalogue.meaningSha256(topic, facet)!,
+          meaningSha256: planCoverageCatalogue().meaningSha256(topic, facet)!,
           requiredBlockIds: ['intro-look-up', 'intro-short-version'],
         },
       ],
@@ -675,7 +677,7 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
         {
           ...a.map.bindings[0]!,
           facetId: otherFacet,
-          meaningSha256: coverageCatalogue.meaningSha256(topic, otherFacet)!,
+          meaningSha256: planCoverageCatalogue().meaningSha256(topic, otherFacet)!,
         },
       ],
     };
@@ -1151,7 +1153,7 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
           {
             ...f.map.bindings[0]!,
             facetId: otherFacet,
-            meaningSha256: coverageCatalogue.meaningSha256(topic, otherFacet)!,
+            meaningSha256: planCoverageCatalogue().meaningSha256(topic, otherFacet)!,
           },
         ],
       }),

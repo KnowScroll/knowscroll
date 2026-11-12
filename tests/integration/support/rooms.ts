@@ -4,6 +4,8 @@ import { ROOM_STARS_PER_DAY_DEFAULT } from '@knowscroll/contracts';
 import { sql, type Kysely } from 'kysely';
 import type { PgBoss } from 'pg-boss';
 import { expect } from 'vitest';
+import { planSnapshot } from '@knowscroll/backend/modules/content';
+import { catalogueOf } from './catalogue.js';
 import { createBoss, makeEnqueueJob, type EnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import {
   fencePersonalRecording,
@@ -31,7 +33,7 @@ import {
   castPassQueue,
   contributeQueue,
   launchSettleQueue,
-  libraryRoomSeeds,
+  libraryRoomSeeds as seedsOfCatalogue,
   SETTLE_LAUNCH,
   summariseQueue,
   type CastDueJob,
@@ -250,6 +252,7 @@ export async function roomWorld(
   };
   const access = accountAccessUseCases({ db: database.db, lockTimeoutMs: 10_000 });
   const deps = {
+    catalogue: catalogueOf(database.db),
     withScope: makeWithPersonalScope(database.db, { lockTimeoutMs: 10_000 }),
     fenceOwn: access.fenceOwnAccount,
     fenceRecording: fencePersonalRecording,
@@ -565,7 +568,9 @@ export const votePoll = (world: RoomWorld, person: Friend, roomId: string, activ
 export const readActivity = async (world: RoomWorld, person: Friend, roomId: string, activityId: string) =>
   unwrap(await world.rooms.readActivity(person.authority, { version, readId: randomUUID(), roomId, activityId }));
 
-export { befriend, libraryRoomSeeds };
+/** One room for each system of the seeded catalogue (the library plan), as the operator's `rooms seed` makes them. */
+export const libraryRoomSeeds = () => seedsOfCatalogue(planSnapshot());
+export { befriend };
 
 /** The caller's device says the room is open (or closed): the lease behind a face. */
 export const setPresence = (world: RoomWorld, person: Friend, roomId: string, state: 'here' | 'away' = 'here') =>

@@ -1,3 +1,5 @@
+import { catalogueOf } from '../support/catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { randomUUID } from 'node:crypto';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import {
@@ -8,7 +10,7 @@ import {
   type SceneLook,
   type SceneManifestRead,
 } from '@knowscroll/contracts';
-import { CONCEPTS } from '@knowscroll/backend/modules/content';
+import { planSnapshot } from '@knowscroll/backend/modules/content';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
 import { makeEnqueueJob, deadLetterQueueName } from '@knowscroll/backend/infrastructure/jobs';
@@ -71,6 +73,9 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases } from '../support/scroll.js';
 import { buildFromProviders } from '../support/providers.js';
+
+/** The catalogue of the library plan (release 1), which the migrated database seeds: the topics these journeys use. */
+const CONCEPTS = planSnapshot().all();
 const capabilities: SceneClientCapabilities = {
   version: 'scene-client.v1',
   descriptors: ['scene-descriptor.v1'],
@@ -124,6 +129,7 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
       ...sceneProviders({ withPersonalScope: SCOPE, logEvent: LOG }),
     ];
     const values = new Map<symbol, unknown>([
+      [CATALOGUE, catalogueOf(database.db)],
       [SCOPE, withScope()],
       [LOG, (event: string, fields?: unknown) => void events.push({ event, fields })],
       [ENQUEUE, makeEnqueueJob(c.boss)],

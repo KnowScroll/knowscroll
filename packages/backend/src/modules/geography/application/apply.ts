@@ -15,7 +15,7 @@ import {
   type Route,
 } from '../domain/policy.js';
 import { placeSchedules } from '../domain/quiet.js';
-import { PRODUCT_CATALOGUE } from './catalogue.js';
+import { pinCatalogue } from './catalogue.js';
 import type { EvaluationScope, GeographyPorts, GeographyContext, GeographyView } from './ports.js';
 import { evaluationOf, prepareGeography } from './context.js';
 /** The claim's scope with the topics found untrusted under today's authority, which decides, not the claim's. */
@@ -121,6 +121,11 @@ export async function applyProposal(
       ? { kind: 'replayed', delta: prior.delta, more: false }
       : { kind: 'refused', reason: 'transition_key_reused' };
   }
+  // The release the context was frozen against, read once: the re-check reads that one, not a newer (D-419).
+  const snapshot =
+    c.catalogueRelease === undefined ? await p.catalogue.current() : await p.catalogue.release(c.catalogueRelease);
+  if (snapshot === undefined) return { kind: 'refused', reason: 'stored_structure' };
+  const catalogue = pinCatalogue(snapshot);
   const state = await p.store.state(scope);
   const evaluated = evaluationOf(c);
   // A refusal that more reading or time can cure keeps what it covered dirty, in backoff, and asks for another run.
@@ -130,11 +135,11 @@ export async function applyProposal(
     more: await deferEvaluated(p, scope, evaluated, options),
   });
   if (state.revision !== c.base.revision) return retry('revision_changed');
-  const prepared = await prepareGeography(p, cap, { kind: 'evaluated', evaluated });
+  const prepared = await prepareGeography(p, cap, { kind: 'evaluated', evaluated }, { catalogue });
   if (prepared.kind !== 'prepared' || !(await p.ownerActive(scope))) return retry('source_changed');
   const fresh = prepared.context;
   const view: GeographyView = { state, objects: fresh.facts.objects, routes: fresh.facts.routes, aliases: [] };
-  if (!validView(view, c.universeId, p.catalogue)) return { kind: 'refused', reason: 'stored_structure' };
+  if (!validView(view, c.universeId, catalogue)) return { kind: 'refused', reason: 'stored_structure' };
   // New reading since the context was frozen does not void a proposal: it applies when every
   // operation still holds on today's authority. Support that was withdrawn, corrected or retracted
   // makes it fail here as `source_changed`.
@@ -291,8 +296,11 @@ export async function applyProposal(
   });
   return { kind: 'applied', delta, more: settled.more };
 }
-/** Validate retained hierarchy and relations before any public read. Aliases have no creation operation. */
-export function validView(view: GeographyView, universeId: string, catalogue: Catalogue = PRODUCT_CATALOGUE): boolean {
+/**
+ * Validate retained hierarchy and relations before any public read, against one release of the catalogue. A stored place whose
+ * concept the release holds, retired or not, is valid; one it never held is not. Aliases have no creation operation.
+ */
+export function validView(view: GeographyView, universeId: string, catalogue: Catalogue): boolean {
   const ids = new Map(view.objects.map((o) => [o.id, o])),
     keys = new Map(view.objects.map((o) => [o.key, o]));
   if (ids.size !== view.objects.length || keys.size !== view.objects.length) return false;

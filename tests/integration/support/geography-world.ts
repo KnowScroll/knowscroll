@@ -1,3 +1,5 @@
+import { catalogueOf } from './catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { sceneAppliedProviders } from '@knowscroll/backend/modules/scenes/nest-providers';
 import { randomUUID } from 'node:crypto';
 import { expect } from 'vitest';
@@ -17,7 +19,7 @@ import {
 import {
   makeAdmitCoverage,
   makeCoverageAdmissionPorts,
-  coverageCatalogue,
+  planCoverageCatalogue,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import {
   COVERAGE_POLICY,
@@ -111,6 +113,7 @@ export async function geographyWorld(
       ...geographyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
     ];
   const values = new Map<symbol, unknown>([
+    [CATALOGUE, catalogueOf(database.db)],
     [SCOPE, scope()],
     [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
     [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
@@ -174,11 +177,11 @@ export async function geographyWorld(
       readingFactsVersion: 2,
       readingFactsSha256: canonicalSha256(row.reading_facts),
       catalogueVersion: CONCEPT_CATALOGUE_VERSION,
-      catalogueSha256: coverageCatalogue.sha256,
+      catalogueSha256: planCoverageCatalogue().sha256,
       bindings: facets.map((f) => ({
         topicId: t,
         facetId: f,
-        meaningSha256: coverageCatalogue.meaningSha256(t, f)!,
+        meaningSha256: planCoverageCatalogue().meaningSha256(t, f)!,
         requiredBlockIds: f === facets[0] ? ['intro-look-up'] : ['intro-look-up', 'intro-short-version'],
       })),
     };

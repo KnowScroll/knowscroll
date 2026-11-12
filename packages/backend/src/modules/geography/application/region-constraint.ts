@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { RegionEncounterTargetSchema } from '@knowscroll/contracts';
-import { CONCEPTS, CONCEPT_CATALOGUE_VERSION } from '../../content/public.js';
+import { CONCEPT_CATALOGUE_VERSION } from '../../content/public.js';
 import { semanticKey } from '../domain/policy.js';
 import type { ReadOwnRegionConstraint, RegionConstraintPorts, GeographyRegionConstraint } from './ports.js';
 
@@ -51,7 +51,8 @@ export function makeReadOwnRegionConstraint(p: RegionConstraintPorts): ReadOwnRe
     const planetRead = Place.safeParse(await p.object(scope, { key: region.parentKey }));
     if (!planetRead.success) return unavailable('temporarily_unavailable');
     const planet = planetRead.data;
-    const topic = CONCEPTS.find((t) => t.id === planet.conceptId);
+    const catalogue = await p.catalogue.current();
+    const topic = catalogue.concept(planet.conceptId);
     if (
       planet.kind !== 'planet' ||
       planet.truthStatus !== 'factual' ||
@@ -69,7 +70,7 @@ export function makeReadOwnRegionConstraint(p: RegionConstraintPorts): ReadOwnRe
       system.key !== planet.parentKey ||
       system.conceptId !== topic.parent ||
       system.parentKey !== 'universe' ||
-      !CONCEPTS.some((t) => t.id === system.conceptId && t.parent === null)
+      catalogue.concept(system.conceptId)?.parent !== null
     )
       return unavailable('unsupported_region');
     const places = [region, planet, system];

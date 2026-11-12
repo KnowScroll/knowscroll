@@ -8,7 +8,7 @@ import {
   type ProductionReasoningHarness,
   type WithProductionScope,
 } from '../../../reasoning/public.js';
-import { READ_LIBRARY_FINDS, type ReadLibraryFinds } from '../../content/public.js';
+import { CATALOGUE, READ_LIBRARY_FINDS, type Catalogue, type ReadLibraryFinds } from '../../content/public.js';
 import { makeFeedHeartbeat, type FeedHeartbeat } from '../application/feed-heartbeat.js';
 import type { FeedPassPorts } from '../application/feed-pass.js';
 import { makeScoutHeartbeat, type ScoutHeartbeat } from '../application/scout-heartbeat.js';
@@ -17,6 +17,7 @@ import { feedStore } from './postgres-feed.js';
 
 interface HeartbeatDeps {
   readonly db: Kysely<Database>;
+  readonly catalogue: Catalogue;
   readonly harness: ProductionReasoningHarness;
   readonly withRoomScope: WithProductionScope;
   readonly readFinds: ReadLibraryFinds;
@@ -28,6 +29,7 @@ interface HeartbeatDeps {
 /** The pass's ports over a database: the same for residents and scouts, so both look at a room the same way. */
 function passPorts(deps: HeartbeatDeps): FeedPassPorts {
   return {
+    catalogue: deps.catalogue,
     store: feedStore(deps.db),
     readFinds: deps.readFinds,
     model: deps.model,
@@ -62,6 +64,7 @@ const heartbeatInjections = (tokens: { readonly database: symbol; readonly worke
   WITH_ROOM_SCOPE,
   READ_LIBRARY_FINDS,
   tokens.workerConfig,
+  CATALOGUE,
 ];
 
 /**
@@ -79,8 +82,10 @@ export function roomsFeedProviders(tokens: { readonly database: symbol; readonly
         withRoomScope: WithProductionScope,
         readFinds: ReadLibraryFinds,
         config: WorkerConfig,
+        catalogue: Catalogue,
       ): RunFeedHeartbeat => {
         const heartbeat = composeFeedHeartbeat({
+          catalogue,
           db,
           harness,
           withRoomScope,
@@ -108,8 +113,10 @@ export function roomsScoutProviders(tokens: { readonly database: symbol; readonl
         withRoomScope: WithProductionScope,
         readFinds: ReadLibraryFinds,
         config: WorkerConfig,
+        catalogue: Catalogue,
       ): RunScoutHeartbeat => {
         const heartbeat = composeScoutHeartbeat({
+          catalogue,
           db,
           harness,
           withRoomScope,

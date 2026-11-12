@@ -1,6 +1,9 @@
 import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
-import { CONCEPTS, CONCEPT_CATALOGUE_VERSION, conceptMeaning } from './concepts.js';
+import { canonicalSha256 } from '@knowscroll/scroll-model';
+import { seedSnapshot } from './catalogue/seed.js';
+import { CONCEPT_CATALOGUE_VERSION } from './catalogue/types.js';
+import { LIBRARY_SYSTEMS } from './library/index.js';
 import {
   COVERAGE_POLICY,
   CoverageCommandSchema,
@@ -11,6 +14,9 @@ import {
   type CoverageTarget,
 } from './coverage.js';
 
+/** The catalogue the library plan seeds (release 1). */
+const plan = seedSnapshot(LIBRARY_SYSTEMS, canonicalSha256);
+const conceptMeaning = plan.meaning;
 const hash = 'a'.repeat(64);
 const target: CoverageTarget = {
   documentSha256: hash,
@@ -22,7 +28,11 @@ const target: CoverageTarget = {
   readingFactsSha256: hash,
   blocks: [{ id: 'fixture-paragraph', type: 'paragraph', nested: false, truthSupported: true }],
 };
-const catalogue = { sha256: hash, meaningSha256: () => hash };
+const catalogue = {
+  sha256: hash,
+  meaningSha256: () => hash,
+  acceptsMeaning: (_t: string, _f: string, sha: string) => sha === hash,
+};
 function mapping(): CoverageMapping {
   return {
     version: COVERAGE_POLICY,
@@ -47,11 +57,8 @@ function mapping(): CoverageMapping {
 }
 describe('Content static coverage admission, synthetic source fixtures only', () => {
   it('has explicit immutable meanings and parent relationships, without a map or personal evidence', () => {
-    expect(Object.isFrozen(CONCEPTS)).toBe(true);
-    for (const topic of CONCEPTS) {
-      expect(Object.isFrozen(topic)).toBe(true);
-      expect(Object.isFrozen(topic.facets)).toBe(true);
-      if (topic.parent !== null) expect(CONCEPTS.some((parent) => parent.id === topic.parent)).toBe(true);
+    for (const topic of plan.all()) {
+      if (topic.parent !== null) expect(plan.concept(topic.parent)?.kind).toBe('system');
     }
     expect(conceptMeaning('earth.seasons', 'earth.seasons.axial-tilt')).toBeDefined();
     expect(conceptMeaning('earth', 'earth.seasons.axial-tilt')).toBeUndefined();
@@ -130,7 +137,7 @@ describe('Content static coverage admission, synthetic source fixtures only', ()
   });
   describe('read-time view of a stored mapping', () => {
     it('ignores the catalogue digest, so a plan edit does not make coverage unreadable', () => {
-      const grown = { sha256: 'c'.repeat(64), meaningSha256: () => hash };
+      const grown = { ...catalogue, sha256: 'c'.repeat(64) };
       expect(() => validateCoverageMapping(mapping(), target, grown)).toThrow('CONTENT_COVERAGE_IDENTITY_MISMATCH');
       expect(currentCoverageMapping(mapping(), target, grown)).toEqual(mapping());
     });
@@ -138,13 +145,13 @@ describe('Content static coverage admission, synthetic source fixtures only', ()
       const two = mapping();
       two.bindings.push({ ...two.bindings[0]!, facetId: 'earth.seasons.hemispheres' });
       const reworded = {
-        meaningSha256: (_topic: string, facet: string) =>
-          facet === 'earth.seasons.axial-tilt' ? 'd'.repeat(64) : hash,
+        acceptsMeaning: (_topic: string, facet: string, sha: string) =>
+          facet !== 'earth.seasons.axial-tilt' && sha === hash,
       };
       expect(currentCoverageMapping(two, target, reworded).bindings.map((b) => b.facetId)).toEqual([
         'earth.seasons.hemispheres',
       ]);
-      expect(currentCoverageMapping(two, target, { meaningSha256: () => undefined }).bindings).toEqual([]);
+      expect(currentCoverageMapping(two, target, { acceptsMeaning: () => false }).bindings).toEqual([]);
     });
     it('still refuses a mapping that does not fit the immutable document', () => {
       expect(() => currentCoverageMapping(mapping(), { ...target, documentSha256: 'b'.repeat(64) }, catalogue)).toThrow(

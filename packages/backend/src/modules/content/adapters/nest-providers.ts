@@ -52,6 +52,8 @@ import {
   READ_LIBRARY_CALLS,
   READ_LIBRARY_REELS,
   READ_LIBRARY_FINDS,
+  CATALOGUE,
+  type Catalogue,
   type CheckAssetAudience,
   type EnqueueScrollProduction,
   type ReadMadeToOrderProduction,
@@ -90,6 +92,7 @@ import { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.j
 import { chooseScrollRecipe, chooseScrollRecipeIn, readScrollProduction } from './production-state.js';
 import { readGapRecipes, readRecipeStates, readReleasedCoverage } from './gap-reads.js';
 import { readRegionEncounterCandidates, lockRegionEncounterCandidates } from './region-candidates.js';
+import { makeCatalogue } from './catalogue-store.js';
 import { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
 import { readLibraryReels } from './library-reels.js';
 import { makeReadLibraryFinds } from './library-finds.js';
@@ -133,6 +136,20 @@ export function contentProviders() {
     { provide: LOCK_CURRENT_COVERAGE_AUTHORITIES, useValue: lockCurrentCoverageAuthorities },
     { provide: CHOOSE_SCROLL_RECIPE, useValue: chooseScrollRecipe },
     { provide: READ_SCROLL_PRODUCTION, useValue: readScrollProduction },
+  ];
+}
+
+/**
+ * The `Catalogue` port (#674, D-419) over the process's pool, for every process that reads the topic catalogue: it keeps the
+ * current release for a few seconds and reads a newer one without a restart. Shared tables only; composition roots only.
+ */
+export function catalogueProviders(tokens: { readonly database: symbol }) {
+  return [
+    {
+      provide: CATALOGUE,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>): Catalogue => makeCatalogue(db),
+    },
   ];
 }
 
@@ -265,6 +282,9 @@ export function importEditorialScrollUseCase(db: Kysely<Database>) {
 }
 
 export { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
+/** The operator's `content catalogue sync` and `status` (D-419), and the catalogue over a handle for composition roots and fixtures. */
+export { catalogueStatus, showServableTopics, syncCatalogue, type CatalogueSyncSummary } from './catalogue-sync.js';
+export { appendRelease, makeCatalogue, readCatalogueIn } from './catalogue-store.js';
 export { readLibraryReels } from './library-reels.js';
 export { makeReadLibraryFinds } from './library-finds.js';
 export { makeCutroomReelImporter, type CutroomImportSettings } from './import-cutroom-reel.js';
@@ -353,7 +373,8 @@ export { makeAdmissionStore } from './postgres-store.js';
 export {
   coverageAdmissionUseCase,
   makeCoverageAdmissionPorts,
-  coverageCatalogue,
+  coverageCatalogueOf,
+  planCoverageCatalogue,
   readAdmittedCoverageMapping,
   makeReadAdmittedCoverageMapping,
   coverageHeadPorts,

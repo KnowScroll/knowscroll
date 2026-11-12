@@ -13,22 +13,33 @@ export type InteractiveKind = (typeof INTERACTIVE_KINDS)[number];
  * cosmetic convention, not classification. Once an object has been drawn its family never changes,
  * so edit these for new systems and planets only.
  */
-export type SceneFamilyName = 'terraced.v1' | 'ridged.v1' | 'archipelago.v1';
+export const SCENE_FAMILY_NAMES = ['terraced.v1', 'ridged.v1', 'archipelago.v1'] as const;
+export type SceneFamilyName = (typeof SCENE_FAMILY_NAMES)[number];
 
 /**
  * The colour of the haze around a system's orange sun in the New Universe (D-077). Scenes keeps its
  * own list of the six and a test keeps the two in step.
  */
-export type HazeFamilyName = 'teal' | 'cobalt' | 'coral' | 'amber' | 'pink' | 'violet';
+export const HAZE_FAMILY_NAMES = ['teal', 'cobalt', 'coral', 'amber', 'pink', 'violet'] as const;
+export type HazeFamilyName = (typeof HAZE_FAMILY_NAMES)[number];
+
+/**
+ * Earlier wordings of a node's meaning that the current wording only rephrases (D-419). `content catalogue sync` reads it as the
+ * author's declaration that certificates decided against the earlier wording stay valid; leave it out when the meaning
+ * changes, and they do not. Code checks only that each text was a wording of the node; a person judges that nothing changed.
+ */
+export interface SameMeaning {
+  readonly sameMeaningAs?: readonly string[];
+}
 
 /** A kind of angle on a topic (mechanism, example, limitation...), written as a topic-specific id. */
-export interface LibraryFacet {
+export interface LibraryFacet extends SameMeaning {
   readonly id: string;
   readonly meaning: string;
 }
 
 /** A planet: an explored subtopic. Needs at least three recipes over at least two facets to form. */
-export interface LibraryTopic {
+export interface LibraryTopic extends SameMeaning {
   readonly id: string;
   readonly meaning: string;
   /** Overrides the system's family for this planet. Its regions inherit it. */
@@ -37,16 +48,19 @@ export interface LibraryTopic {
 }
 
 /** A broad domain: the container for related planets and their organising star. */
-export interface LibrarySystem {
+export interface LibrarySystem extends SameMeaning {
   readonly id: string;
   readonly meaning: string;
-  /** The family of the system and its star, and the default for its planets. */
-  readonly sceneFamily: SceneFamilyName;
   /**
-   * The haze family of this system, one per system. Assigned once with the system's look and never
-   * changed, so edit it for new systems only (D-102).
+   * The family of the system and its star, and the default for its planets. A new system may leave it out: it is then
+   * assigned from its id, and repeats are allowed (D-419).
    */
-  readonly haze: HazeFamilyName;
+  readonly sceneFamily?: SceneFamilyName;
+  /**
+   * The haze family of this system. Assigned once with the system's look and never changed, so edit it for new systems only
+   * (D-102). A new system may leave it out: it is then assigned from its id, and repeats are allowed once the six are used (D-419).
+   */
+  readonly haze?: HazeFamilyName;
   readonly topics: readonly LibraryTopic[];
 }
 

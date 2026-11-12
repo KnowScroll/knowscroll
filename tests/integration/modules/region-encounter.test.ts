@@ -1,4 +1,6 @@
 /** Authored CI mappings/geography only. No live semantic approval, model call or formation. */
+import { catalogueOf } from '../support/catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
@@ -19,7 +21,7 @@ import {
 } from '@knowscroll/backend/modules/experience/nest-providers';
 import {
   contentProviders,
-  coverageCatalogue,
+  planCoverageCatalogue,
   makeAdmitCoverage,
   makeCoverageAdmissionPorts,
 } from '@knowscroll/backend/modules/content/nest-providers';
@@ -75,6 +77,7 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
       ENQUEUE = Symbol('enqueue');
     const identity = accountAccessUseCases({ db: database.db, lockTimeoutMs: 2000 });
     const values = new Map<symbol, unknown>([
+      [CATALOGUE, catalogueOf(database.db)],
       [SCOPE, scope()],
       [FENCE_OWN_ACCOUNT, identity.fenceOwnAccount],
       [READ_RECORDING_LIFECYCLE, identity.readRecordingLifecycle],
@@ -154,12 +157,12 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
           readingFactsVersion: 2,
           readingFactsSha256: canonicalSha256(row.reading_facts),
           catalogueVersion: CONCEPT_CATALOGUE_VERSION,
-          catalogueSha256: coverageCatalogue.sha256,
+          catalogueSha256: planCoverageCatalogue().sha256,
           bindings: [
             {
               topicId: topic,
               facetId: mappedFacet,
-              meaningSha256: coverageCatalogue.meaningSha256(topic, mappedFacet)!,
+              meaningSha256: planCoverageCatalogue().meaningSha256(topic, mappedFacet)!,
               requiredBlockIds: ['intro-look-up'],
             },
           ],

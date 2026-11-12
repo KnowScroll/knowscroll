@@ -1,3 +1,5 @@
+import { catalogueOf } from '../support/catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
@@ -64,6 +66,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
       CONFIG = Symbol('config');
     const providers = supplyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE, config: CONFIG });
     const values = new Map<symbol, unknown>([
+      [CATALOGUE, catalogueOf(database.db)],
       [SCOPE, withScope()],
       [ENQUEUE, makeEnqueueJob(content.boss)],
       [

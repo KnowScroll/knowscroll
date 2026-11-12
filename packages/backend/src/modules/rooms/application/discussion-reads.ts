@@ -203,6 +203,7 @@ export function makeDiscussionReads(p: RoomPorts) {
         (envelope) => DiscussionViewSchema.parse({ ...envelope, readId: query.readId, status: 'unavailable' }),
         async (scope, entered, lock, discussion) => {
           const { room } = entered.standing;
+          const catalogue = await p.catalogue.current();
           // The counters are read before the messages, so a message that commits meanwhile is read again by catch-up, never missed.
           const rows = await p.discussions.messages(lock, discussion.discussionId, {
             limit: query.limit,
@@ -251,7 +252,7 @@ export function makeDiscussionReads(p: RoomPorts) {
             ...roomEnvelope(scope),
             readId: query.readId,
             status: 'ready',
-            room: roomSummary(room),
+            room: roomSummary(room, catalogue),
             role: entered.member!.role,
             you,
             discussion: {

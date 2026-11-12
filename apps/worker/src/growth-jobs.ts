@@ -6,14 +6,17 @@ import type { LogEvent } from '@knowscroll/backend/infrastructure/observability'
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
   chooseScrollRecipeIn,
+  makeCatalogue,
   makeEnqueueScrollProduction,
   makeProposeRecipes,
   readGapRecipes,
   readRecipeStates,
   readReleasedCoverage,
+  showServableTopics,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { briefGapQueue, scanGapsQueue } from '@knowscroll/backend/modules/supply';
 import {
+  catalogueTopics,
   gapBriefLock,
   gapBriefStore,
   gapScanStore,
@@ -39,7 +42,9 @@ export function gapLoopConsumers(deps: {
   readonly logEvent: LogEvent;
 }): readonly JobConsumer<unknown>[] {
   const { config, db, logEvent } = deps;
+  const catalogue = makeCatalogue(db);
   const scan = makeScanGaps({
+    readCatalogue: async () => catalogueTopics(await catalogue.current()),
     enabled: config.supplyGrowthEnabled,
     depthTarget: config.supplyGapDepthTarget,
     maxRounds: config.supplyGapMaxRounds,
@@ -79,6 +84,12 @@ export function gapLoopConsumers(deps: {
         result.opened + result.closed + result.reopened + result.rebriefed + result.rejected + result.counted > 0
       )
         logEvent('supply.gaps_scanned', { outcome: 'scanned', count: result.opened });
+      // The scan is where released supply is counted: a topic that now has enough becomes servable, in a release of its own (D-419).
+      if (result.kind === 'scanned') {
+        const shown = await showServableTopics(db);
+        if (shown.kind === 'appended')
+          logEvent('content.catalogue_released', { outcome: 'servable', count: shown.summary.shown });
+      }
     }),
     jobConsumer(briefGapQueue, async (_payload, delivery) => {
       const result = await brief(delivery.signal);

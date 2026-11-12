@@ -1,4 +1,3 @@
-import { systemOfTopic } from '../../content/public.js';
 import { isMet, placeOf, systemTopicIdsOf } from '../domain/encountered.js';
 import { jevSubjectOf } from '../domain/jev-pool.js';
 import {
@@ -150,7 +149,11 @@ const relevantTopicIds = (encounter: Pick<EncounterSnapshot, 'topics'>): readonl
  * a replay could not tell the rules of D-131 and D-132 or the recent-topic penalty from the weights.
  * Fields the input already has are kept.
  */
-export function normaliseForReplay(input: ComposerSnapshot, source: Candidate): ComposerSnapshot {
+export function normaliseForReplay(
+  input: ComposerSnapshot,
+  source: Candidate,
+  systemOf: (topicId: string) => string | undefined,
+): ComposerSnapshot {
   const unit = input.intent.explanationUnitId ?? source.encounter.explanationUnitId;
   const seriesId =
     input.intent.currentSeriesId ??
@@ -167,7 +170,7 @@ export function normaliseForReplay(input: ComposerSnapshot, source: Candidate): 
     systemTopicIdsOf(
       relevantTopicIds(source.encounter),
       input.candidates.flatMap((c) => relevantTopicIds(c.encounter)),
-      systemOfTopic,
+      systemOf,
     );
   const { evidence } = input;
   return {
@@ -317,7 +320,10 @@ function readStored(stored: StoredDecision): { input: ComposerSnapshot; decision
  * hold one decision in memory. Each decision is replayed only when it is a vertical move whose source is
  * among its candidates, because only then can "the same topic as the source" be told.
  */
-export function startPolicyReplay(variants: readonly ReplayVariant[]) {
+export function startPolicyReplay(
+  variants: readonly ReplayVariant[],
+  systemOf: (topicId: string) => string | undefined,
+) {
   const stored = emptyTally();
   const replayed = variants.map(() => emptyTally());
   const counts = { read: 0, replayed: 0, withHistory: 0, notVertical: 0, sourceNotInCandidates: 0, unreadable: 0 };
@@ -342,7 +348,7 @@ export function startPolicyReplay(variants: readonly ReplayVariant[]) {
         counts.sourceNotInCandidates += 1;
         return;
       }
-      const input = normaliseForReplay(read.input, source);
+      const input = normaliseForReplay(read.input, source, systemOf);
       try {
         validateSnapshot(input);
       } catch {

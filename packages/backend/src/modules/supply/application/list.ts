@@ -1,5 +1,5 @@
 import { ContentRequestListSchema, type CreateContentRequest } from '@knowscroll/contracts';
-import { conceptLabel } from '../../content/public.js';
+import type { CatalogueSnapshot } from '../../content/public.js';
 import { snapshot } from './inventory.js';
 import type { Demand, ListRequests, SupplyPorts } from './ports.js';
 
@@ -16,7 +16,7 @@ function formatOf(command: CreateContentRequest): 'reel' | 'scroll' | 'either' {
 const TITLE_LIMIT = 160;
 
 /** The person's own words (an ask's question), the catalogue topic they chose, or the Scroll that is ready: never an internal brief. */
-function titleOf(d: Demand): string {
+function titleOf(d: Demand, catalogue: CatalogueSnapshot): string {
   const { intent } = d.command;
   if (intent.kind === 'ask') return intent.question.trim().slice(0, TITLE_LIMIT);
   const title = d.content
@@ -25,7 +25,7 @@ function titleOf(d: Demand): string {
       ? `The same explanation as a ${intent.to === 'reel' ? 'Reel' : 'Scroll'}`
       : intent.subject.kind === 'text'
         ? intent.subject.text.trim()
-        : conceptLabel(intent.subject.topicId, intent.subject.facetId);
+        : catalogue.label(intent.subject.topicId, intent.subject.facetId);
   return title.slice(0, TITLE_LIMIT);
 }
 
@@ -38,8 +38,13 @@ export function makeListRequests(p: SupplyPorts): ListRequests {
   return async (authority) => {
     const result = await p.withScope(authority, async (scope) => {
       const requests = [];
+      const catalogue = await p.catalogue.current();
       for (const d of await p.store.listPersonDemands(scope, LIST_LIMIT))
-        requests.push({ title: titleOf(d), format: formatOf(d.command), status: await snapshot(p, scope, d) });
+        requests.push({
+          title: titleOf(d, catalogue),
+          format: formatOf(d.command),
+          status: await snapshot(p, scope, d),
+        });
       return ContentRequestListSchema.parse({ version: 'content-request-list.v1', requests });
     });
     return result.kind === 'entered'

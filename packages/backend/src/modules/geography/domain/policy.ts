@@ -75,6 +75,11 @@ export interface Concept {
   readonly id: string;
   readonly parent: string | null;
   readonly facets: readonly string[];
+  /**
+   * The formation thresholds this node sets where they are not the defaults (D-419): present only then, so a catalogue that never
+   * changed them freezes the same facts as before. A system sets `systemUnits`; a topic sets `planetUnits` and `planetFacets`.
+   */
+  readonly policy?: { readonly systemUnits?: number; readonly planetUnits?: number; readonly planetFacets?: number };
 }
 export interface FormationFacts {
   readonly catalogue: readonly Concept[];
@@ -157,13 +162,15 @@ export function formationEligible(f: FormationFacts, c: Candidate, subset = supp
   if (c.truthStatus !== 'factual') return false;
   const supports = subset.filter((s) => supportsFor(f, c).some((x) => x.ref === s.ref));
   const units = new Set(supports.map((s) => s.explanationUnitId)).size;
+  const concept = f.catalogue.find((t) => t.id === c.conceptId);
   if (c.kind === 'system' || c.kind === 'star')
-    return f.catalogue.some((t) => t.id === c.conceptId && t.parent === null) && units >= FORMATION.systemUnits;
+    return concept?.parent === null && units >= (concept.policy?.systemUnits ?? FORMATION.systemUnits);
   if (c.kind === 'planet')
     return (
-      f.catalogue.some((t) => t.id === c.conceptId && t.parent !== null) &&
-      units >= FORMATION.planetUnits &&
-      new Set(supports.map((s) => s.facetId)).size >= FORMATION.planetFacets
+      concept !== undefined &&
+      concept.parent !== null &&
+      units >= (concept.policy?.planetUnits ?? FORMATION.planetUnits) &&
+      new Set(supports.map((s) => s.facetId)).size >= (concept.policy?.planetFacets ?? FORMATION.planetFacets)
     );
   return units >= 1;
 }

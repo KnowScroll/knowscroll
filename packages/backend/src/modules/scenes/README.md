@@ -34,9 +34,12 @@ No network/provider work runs in the transaction.
 ## Stored appearance and finite policy
 
 `canonical-lattice.v1` selects only explicit canonical catalogue IDs, and reads the family from the
-content library plan (`content/domain/library/`, exposed as `sceneFamilyOf`): a system and its star
-take the system's `sceneFamily`, a planet takes its own or its system's, and a region inherits its
-planet's. Earth keeps what it always had: system, star and Seasons `terraced.v1`, Tides
+topic catalogue's node revisions (`Catalogue`, D-419; `CatalogueSnapshot.sceneFamilyOf`, from one release): a system and its star
+take the system's `scene_family`, a planet takes its own or its system's, and a region inherits its
+planet's. A system's haze (`hazeOf`) comes from its node revision too. A new system whose author named neither gets them
+assigned from its id when it is added (a small stable hash, so two systems may share a haze once the six are used), and
+a node's look is fixed by its first revision: a later revision may not change it. A region's site is the place of its facet in
+its topic's list, and a facet is only ever added after the others, so a site never moves. Earth keeps what it always had: system, star and Seasons `terraced.v1`, Tides
 `archipelago.v1`, Greenhouse `ridged.v1`. The three families are the ones `scene-core` draws
 (`terraced.v1`, `ridged.v1`, `archipelago.v1`). This is a cosmetic convention, not scientific or
 personal classification. A system or star must be a catalogue system, a planet must be a planet
@@ -114,11 +117,11 @@ It lives in `scenes.looks`, a sibling of `scenes.objects` (which `scenes.guard_o
 descriptors, chunks and manifests stay `scene-descriptor.v1`, `scene-chunk.v1` and
 `scene-manifest.v1`. Stars have no look.
 
-| Object | Look (`scene-look.v1`, generator `worldmap.v1`)                       | From |
-| ------ | ------------------------------------------------------------------- | ---- |
-| System | `haze`                                                              | the library plan (`LibrarySystem.haze`) |
-| Planet | `type`, `rings`, `moon`, `hueShift`, `variant`, `siteCount`           | the rule in `application/assign-looks.ts` (D-103), the planet's seed and its catalogue facets |
-| Region | `site`                                                              | the ordinal of its facet in its planet's catalogue entry |
+| Object | Look (`scene-look.v1`, generator `worldmap.v1`)             | From                                                                                          |
+| ------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| System | `haze`                                                      | the library plan (`LibrarySystem.haze`)                                                       |
+| Planet | `type`, `rings`, `moon`, `hueShift`, `variant`, `siteCount` | the rule in `application/assign-looks.ts` (D-103), the planet's seed and its catalogue facets |
+| Region | `site`                                                      | the ordinal of its facet in its planet's catalogue entry                                      |
 
 - **Assigned once.** The projector gives a look to every system, planet and region that has none, in
   the transaction that stores the object. `assignLooks` is pure and reads only the stored looks and

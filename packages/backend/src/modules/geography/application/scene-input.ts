@@ -1,5 +1,6 @@
 import { GeographyObjectSchema, GeographyRouteSchema } from '@knowscroll/contracts';
 import { publicPlace, validView } from './apply.js';
+import { pinCatalogue } from './catalogue.js';
 import type { GeographyPorts, ReadGeographySceneInput } from './ports.js';
 /** Uses the caller's locked scope, including the current root watermark after any prior writes. */
 export function makeReadGeographySceneInput(p: GeographyPorts): ReadGeographySceneInput {
@@ -11,7 +12,7 @@ export function makeReadGeographySceneInput(p: GeographyPorts): ReadGeographySce
       personalRevision = await p.rootRevision(scope);
     if (view.objects.length > 1000 || view.routes.length + view.aliases.length > 1000)
       return { kind: 'unavailable', reason: 'limit', geography, personalRevision };
-    if (!validView(view, scope.authority.universeId))
+    if (!validView(view, scope.authority.universeId, pinCatalogue(await p.catalogue.current())))
       return { kind: 'unavailable', reason: 'temporarily_unavailable', geography, personalRevision };
     return {
       kind: 'read',

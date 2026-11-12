@@ -1,3 +1,4 @@
+import type { Catalogue } from '../../content/public.js';
 import { ClientCapabilities } from '@knowscroll/contracts';
 import {
   applyClosingRun,
@@ -56,6 +57,8 @@ export interface JevPorts {
 }
 
 export interface PrepareBufferPorts {
+  /** The topic catalogue: the system of each topic the decision names, frozen into its snapshot. */
+  readonly catalogue: Catalogue;
   readonly withPersonalScope: WithPersonalScope;
   readonly readSource: ReadBufferSource;
   readonly readHidden: ReadHiddenAssets;
@@ -253,6 +256,7 @@ async function gather(
         ...(evidence ? { evidence } : {}),
         fallbackContextWatermark: `unprepared:${String(scope.revisionAtEntry)}`,
         hashCatalogWatermarks: ports.hashCatalogWatermarks,
+        systemOf: (await ports.catalogue.current()).systemOf,
       },
     },
   };

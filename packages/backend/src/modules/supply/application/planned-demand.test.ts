@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { planSnapshot, staticCatalogue } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { WAIT_LIMIT_MS } from './commission.js';
 import type { Demand, PlannedDemandInput, SupplyPorts } from './ports.js';
@@ -41,6 +42,7 @@ function world(
   const ports = {
     // A real account: the rules of planned demand are tested apart from the disposable-account check (commission.test.ts).
     accountDisposable: () => Promise.resolve(false),
+    catalogue: staticCatalogue(planSnapshot()),
     now: () => NOW,
     newId: () => `id-${String((ids += 1))}`,
     readCandidates: () => Promise.resolve([]),

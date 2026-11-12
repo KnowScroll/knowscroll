@@ -22,6 +22,7 @@ import type {
   ReadSeriesTotal,
   ResolveContinuityLink,
   ReadEncounterAttribution,
+  Catalogue,
   EncounterRef,
   EncounterAttribution,
   ReadRegionEncounterCandidates,
@@ -105,6 +106,8 @@ export interface RoutingHistory {
   readonly hiddenAssetIds: readonly string[];
 }
 export interface NavigationPorts extends CommandPorts {
+  /** The topic catalogue: the system of each topic a decision names. */
+  readonly catalogue: Catalogue;
   readonly readRegionConstraint: ReadOwnRegionConstraint;
   readonly readRegionCandidates: ReadRegionEncounterCandidates;
   readonly lockRegionCandidates: LockRegionEncounterCandidates;

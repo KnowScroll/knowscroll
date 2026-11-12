@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EncounterSnapshot } from '../../content/public.js';
+import { planSnapshot, type EncounterSnapshot } from '../../content/public.js';
 import { SNAPSHOT_BYTE_BUDGET, assembleSnapshot, evidenceQueryFor, type SnapshotInput } from './snapshot-assembly.js';
 
 function encounter(index: number, summaryLength = 10): EncounterSnapshot {
@@ -28,6 +28,7 @@ const base = (candidates: readonly EncounterSnapshot[], extra: Partial<SnapshotI
   links: [],
   fallbackContextWatermark: 'unprepared:1',
   hashCatalogWatermarks: (watermarks) => `hash(${watermarks.join(',')})`,
+  systemOf: (topicId) => planSnapshot().systemOf(topicId),
   ...extra,
 });
 

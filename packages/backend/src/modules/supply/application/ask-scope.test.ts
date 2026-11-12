@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
+import { planSnapshot, shortlistTopics } from '../../content/public.js';
 import type { ProposeOutcome } from '../../../reasoning/public.js';
 import {
-  ASK_SCOPE_ROLE,
-  AskScopeAnswerSchema,
+  askScopeAnswerSchema,
   askScopeContext,
+  askScopeRole,
   askScopeVerdict,
   type AskScopeAnswer,
 } from './ask-scope.js';
+
+/** What the model is shown for these questions: the whole of the library plan's seventeen topics, which is under the shortlist bound. */
+const SHORTLIST = shortlistTopics(planSnapshot(), 'tides');
+const AskScopeAnswerSchema = askScopeAnswerSchema(SHORTLIST);
+const ASK_SCOPE_ROLE = askScopeRole(SHORTLIST);
 
 const proposed = (output: AskScopeAnswer): ProposeOutcome<AskScopeAnswer> =>
   ({ kind: 'proposed', output, attemptId: 'ci-attempt', usage: {}, repaired: false, reconciled: false }) as never;
@@ -66,7 +72,11 @@ describe('where a question asked from a Scroll belongs', () => {
   });
 
   it('shows the model the question, the Scroll and the stop as data, and the catalogue, and names the one-call role', () => {
-    const context = askScopeContext('request-1', { question: 'Why?', title: 'A title', stopText: 'The stop words.' });
+    const context = askScopeContext(
+      'request-1',
+      { question: 'Why?', title: 'A title', stopText: 'The stop words.' },
+      SHORTLIST,
+    );
     expect(context.items.slice(0, 3)).toEqual([
       { ref: 'request', kind: 'learner_request', text: 'Why?' },
       { ref: 'scroll', kind: 'current_scroll', text: 'A title' },

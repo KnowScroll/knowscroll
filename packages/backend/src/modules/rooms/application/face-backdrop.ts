@@ -1,4 +1,4 @@
-import { conceptLabel } from '../../content/public.js';
+import type { Catalogue } from '../../content/public.js';
 import type { ImageOutcome, ImagePort } from '../../../reasoning/public.js';
 import { BACKDROP_PRICING, BACKDROP_SPEND_CAP_MICRO_USD, decideSpend } from '../domain/backdrop-spend.js';
 import { backdropPrompt } from './backdrop-prompt.js';
@@ -29,6 +29,8 @@ export const BACKDROP_MONEY: BackdropMoney = {
 };
 
 export interface FaceBackdropPorts {
+  /** The topic catalogue: the room's topic label, which the picture's prompt names. */
+  readonly catalogue: Catalogue;
   readonly store: FaceStore;
   /** Where pictures are kept; absent where no media root is configured. */
   readonly media: BackdropMedia | undefined;
@@ -146,12 +148,14 @@ export function makeFaceBackdropOperator(p: FaceBackdropPorts): FaceBackdropOper
 
   /** Step 1, in one transaction under the spend lock: decide, and record the attempt as dispatched. */
   async function reserve(slug: string, dryRun: boolean, by: string) {
+    // Read before the transaction opens: the catalogue is not a ledger row, and nothing waits on it under the spend lock.
+    const catalogue = await p.catalogue.current();
     return p.store.inLedgerTransaction(async (ledger) => {
       const state = await ledger.roomState(slug);
       if (state === undefined) return { kind: 'unknown_room' } as const;
       const recorded = await ledger.recordedSpend();
       const kit = kitToShow(state.approvedKit?.kit, state.room.roomId);
-      const prompt = backdropPrompt({ topicLabel: conceptLabel(state.room.topic.id), kit });
+      const prompt = backdropPrompt({ topicLabel: catalogue.label(state.room.topic.id), kit });
       const spend = decideSpend(recorded, money.microUsdPerImage, money.capMicroUsd);
       const refusal: RefusalReason | undefined =
         state.unresolved > 0

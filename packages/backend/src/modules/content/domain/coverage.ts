@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CONCEPT_CATALOGUE_VERSION, conceptMeaning } from './concepts.js';
+import { CONCEPT_CATALOGUE_VERSION } from './catalogue/types.js';
 
 export const COVERAGE_POLICY = 'scroll-static-coverage.v1' as const;
 /**
@@ -100,9 +100,15 @@ export interface CoverageTarget {
     readonly span?: readonly [number, number];
   }[];
 }
+/**
+ * The catalogue a coverage decision is made or read against: one release of it (`catalogueSha256` is the release's digest). A binding
+ * pins the exact meaning of its topic and facet; `meaningSha256` is the identity of today's wording and `acceptsMeaning` also accepts
+ * an earlier wording a revision declared to mean the same, so a wording-only edit loses no one's reading (D-419).
+ */
 export interface CoverageCatalogue {
   readonly sha256: string;
   readonly meaningSha256: (topicId: string, facetId: string) => string | undefined;
+  readonly acceptsMeaning: (topicId: string, facetId: string, sha256: string) => boolean;
 }
 
 function assertTargetIdentity(map: CoverageMapping, target: CoverageTarget): void {
@@ -153,11 +159,7 @@ export function validateCoverageMapping(
   const bindings = new Set<string>();
   for (const binding of map.bindings) {
     const key = JSON.stringify([binding.topicId, binding.facetId]);
-    if (
-      bindings.has(key) ||
-      !conceptMeaning(binding.topicId, binding.facetId) ||
-      binding.meaningSha256 !== catalogue.meaningSha256(binding.topicId, binding.facetId)
-    )
+    if (bindings.has(key) || binding.meaningSha256 !== catalogue.meaningSha256(binding.topicId, binding.facetId))
       throw new Error('CONTENT_COVERAGE_BINDING_INVALID');
     bindings.add(key);
     assertLocators(binding, target);
@@ -165,16 +167,17 @@ export function validateCoverageMapping(
 }
 
 /**
- * Read-time view of a stored mapping. The catalogue digest is not compared, because the plan grows
- * and every edit changes it. Each binding pins its own facet meaning instead: a binding whose facet
+ * Read-time view of a stored mapping. The catalogue digest is not compared, because the catalogue grows
+ * and every release changes it. Each binding pins its own facet meaning instead: a binding whose facet
  * has vanished or changed meaning since admission is dropped, never thrown on, so the mapping stays
- * readable and that facet is simply unmapped until coverage is admitted again. Target identity and
+ * readable and that facet is simply unmapped until coverage is admitted again. A binding decided against an earlier
+ * wording that a revision declared the same meaning is kept. Target identity and
  * locators still must match the immutable document: a mismatch there is corrupt data and throws.
  */
 export function currentCoverageMapping(
   map: CoverageMapping,
   target: CoverageTarget,
-  catalogue: Pick<CoverageCatalogue, 'meaningSha256'>,
+  catalogue: Pick<CoverageCatalogue, 'acceptsMeaning'>,
 ): CoverageMapping {
   assertTargetIdentity(map, target);
   const seen = new Set<string>();
@@ -183,7 +186,7 @@ export function currentCoverageMapping(
     if (seen.has(key)) throw new Error('CONTENT_COVERAGE_BINDING_INVALID');
     seen.add(key);
     assertLocators(binding, target);
-    return binding.meaningSha256 === catalogue.meaningSha256(binding.topicId, binding.facetId);
+    return catalogue.acceptsMeaning(binding.topicId, binding.facetId, binding.meaningSha256);
   });
   return { ...map, bindings };
 }

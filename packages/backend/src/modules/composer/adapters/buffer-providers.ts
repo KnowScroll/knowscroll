@@ -9,9 +9,11 @@ import {
   type RecordingReasoningHarness,
 } from '../../../reasoning/public.js';
 import {
+  CATALOGUE,
   READ_CONTINUATIONS,
   READ_DISCOVERY_CANDIDATES,
   READ_EXACT_ENCOUNTER,
+  type Catalogue,
   type ReadContinuations,
   type ReadDiscoveryCandidates,
   type ReadExactEncounter,
@@ -113,6 +115,7 @@ export function composerBufferWorkerProviders(t: {
         PERSIST_COMPOSER_DECISION,
         COMPOSE_ENCOUNTER,
         READ_MET_UNIT_IDS,
+        CATALOGUE,
       ],
       useFactory: (
         withPersonalScope: WithPersonalScope,
@@ -127,8 +130,10 @@ export function composerBufferWorkerProviders(t: {
         persistDecision: PersistComposerDecision,
         compose: ComposeEncounter,
         readMetUnitIds: ReadMetUnitIds,
+        catalogue: Catalogue,
       ): PrepareBuffer =>
         makePrepareBuffer({
+          catalogue,
           withPersonalScope,
           readSource,
           readHidden,

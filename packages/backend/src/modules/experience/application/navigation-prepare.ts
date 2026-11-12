@@ -469,5 +469,6 @@ async function rankingInput(
     ...(assessments ? { semanticAssessments: assessments } : {}),
     fallbackContextWatermark: `unprepared:${String(scope.revisionAtEntry)}`,
     hashCatalogWatermarks: (watermarks) => p.hashRequest('content-candidate-watermarks', [...watermarks]),
+    systemOf: (await p.catalogue.current()).systemOf,
   });
 }

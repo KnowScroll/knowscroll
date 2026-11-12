@@ -29,7 +29,12 @@ export function makeBackfillSceneLooks(p: ScenePorts): BackfillSceneLooks {
         if (!(await p.ownerActive(scope))) return nothing;
         const read = await p.readInput(scope);
         if (read.kind !== 'read') return nothing;
-        const { created, skipped } = missingLooks(await p.store.objects(scope), read.input, await p.store.looks(scope));
+        const { created, skipped } = missingLooks(
+          await p.store.objects(scope),
+          read.input,
+          await p.store.looks(scope),
+          await p.catalogue.current(),
+        );
         if (created.length) {
           await p.store.saveLooks(scope, created);
           await p.notify(scope, await p.advance(scope));
