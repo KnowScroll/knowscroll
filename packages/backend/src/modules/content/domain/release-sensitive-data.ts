@@ -34,6 +34,25 @@ export const SENSITIVE_SYSTEMS: Readonly<Record<string, readonly SensitiveCatego
 };
 
 /**
+ * The keys of a stored Scroll document whose values are not the Scroll's words: its identity, versions, measures, integrity hash and the references one part
+ * makes to another. Their values (a UUID, a hash, `s3`) are skipped when the document is scanned, because a run of four digits inside an identifier would
+ * read as a year. Every other string of the document is scanned, so a field this list does not know is read like prose: the scan errs toward holding.
+ */
+export const NON_PROSE_KEYS: ReadonlySet<string> = new Set([
+  'schemaVersion',
+  'limitsVersion',
+  'assetId',
+  'explanationUnitId',
+  'id',
+  'stop',
+  'anchorStop',
+  'revealStage',
+  'smallPrintAside',
+  'measures',
+  'integrity',
+]);
+
+/**
  * The years that read as the present or the near future: a Scroll that names one of 2023 to 2100 is about something recent or projected,
  * which is current events and ages out. Numeric policy values, versioned with the file.
  */

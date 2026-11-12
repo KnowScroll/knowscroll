@@ -1,13 +1,19 @@
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { makeWithProductionScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  makeWithPersonalScope,
+  makeWithProductionScope,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
 import { makeReleasePolicy, makeReviewGate } from '@knowscroll/backend/modules/content/nest-providers';
+import { readScrollSourcePages } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
 import { extractResearch } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { LIBRARY_CHECK_RULES } from '../../../packages/backend/src/modules/content/domain/library-support.js';
 import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
 import { RELEASE_POLICY } from '../../../packages/backend/src/modules/content/domain/release-policy.js';
 import { makeCheckLibrarySupport } from '../../../packages/backend/src/modules/content/production/library-support-check.js';
 import { makeLibrarySupportReplay } from '../../../packages/backend/src/modules/content/production/library-support-replay.js';
+import { releasePolicyStore } from '../../../packages/backend/src/modules/content/adapters/release-policy-store.js';
 import { libraryCheckStore } from '../../../packages/backend/src/modules/content/production/library-support-store.js';
 import { LIBRARY_SUPPORT_CHECK_VERSION } from '../../../packages/backend/src/modules/content/production/library-support.js';
 import {
@@ -26,6 +32,7 @@ import {
   supportReply,
   supportRequestOf,
 } from '../support/generated-scroll.js';
+import { seedPerson } from '../support/fixtures.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
 
 /**
@@ -178,6 +185,25 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
     sql`update content.revision_reviews set decided_at = decided_at - interval '1 day'
       where decided_by like 'policy:%'`.execute(database.db);
 
+  /** A topic a person approved: approved now, or already by an earlier test. */
+  const approved = async (topicId: string) =>
+    expect(['approved', 'already_approved']).toContain(
+      (await policy().approveTopic({ topicId, approvedBy: person })).kind,
+    );
+
+  /** The pages a what-if of this revision may draw on: the revision's own recorded sources, so none for a Scroll nobody is served. */
+  const sourcePagesOf = async (held: Held) => {
+    const person = await seedPerson(database.db);
+    const entered = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(person.authority, (scope) =>
+      readScrollSourcePages(scope, { assetId: held.assetId, assetRevision: held.revision }),
+    );
+    if (entered.kind !== 'entered') throw new Error('CI scope refused');
+    return entered.value;
+  };
+
+  /** A look is a hint the sweep leaves for itself; a test that changes a Scroll under it makes the sweep look again. */
+  const forgetLooks = () => sql`delete from content.release_policy_looks`.execute(database.db);
+
   describe('the topic approval and the switch', () => {
     let seasons: Held;
 
@@ -245,6 +271,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
       for (const topicId of ['human-body.immune-system', 'astrology.signs']) {
         await setTopic(seasons, topicId);
         await approveDirectly(topicId);
+        await forgetLooks();
         expect(await policy().sweep(on)).toMatchObject({
           kind: 'swept',
           considered: 1,
@@ -257,6 +284,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
       await sql`delete from content.release_topic_approvals where topic_id in ('human-body.immune-system', 'astrology.signs')`.execute(
         database.db,
       );
+      await forgetLooks();
       expect(await holds()).toMatchObject({ wouldRelease: 1 });
     });
 
@@ -280,6 +308,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
       expect(await holds()).toEqual({ evaluated: 1, wouldRelease: 0, byReason: { sensitive: 1 } });
       await sql`update content.asset_revisions set document = ${JSON.stringify(original.document)}::jsonb
         where asset_id = ${seasons.assetId}::uuid and revision = ${seasons.revision}::integer`.execute(database.db);
+      await forgetLooks();
       expect(await holds()).toMatchObject({ wouldRelease: 1 });
     });
 
@@ -399,6 +428,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
     });
 
     it('withdraws a Scroll it released and revokes its topic in one go, with the existing withdrawal', async () => {
+      expect((await sourcePagesOf(seasons)).length).toBeGreaterThan(0);
       expect(
         await policy().withdraw({ assetId: seasons.assetId, revision: seasons.revision, withdrawnBy: person }),
       ).toEqual({
@@ -409,6 +439,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
         approval: 'revoked',
       });
       // The asset is withdrawn, so every read treats it as not served; the review row still says who released it.
+      expect(await sourcePagesOf(seasons)).toEqual([]);
       expect(await assetOf(seasons)).toMatchObject({ status: 'withdrawn' });
       expect(await reviewOf(seasons)).toMatchObject({ state: 'released', decided_by: RELEASE_POLICY.decidedBy });
       const listed = await gate().list({ all: true });
@@ -417,6 +448,22 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
         { approved_by: person, revoked_by: person, revoked_for: 'operator' },
         { approved_by: person, revoked_by: person, revoked_for: 'withdrawal' },
       ]);
+      // Who withdrew it, when and what became of the topic's approval are kept; a repeat by another operator keeps the first.
+      const audit = await sql<{
+        withdrawn_by: string;
+        withdrawn_at: Date;
+        topic_id: string | null;
+        approval: string;
+      }>`select withdrawn_by, withdrawn_at, topic_id, approval from content.release_withdrawals
+        where asset_id = ${seasons.assetId}::uuid and revision = ${seasons.revision}::integer`.execute(database.db);
+      expect(audit.rows).toEqual([
+        {
+          withdrawn_by: person,
+          withdrawn_at: expect.any(Date) as Date,
+          topic_id: 'earth.seasons',
+          approval: 'revoked',
+        },
+      ]);
       // Repeating it changes nothing; the topic is no longer approved for the policy.
       expect(
         await policy().withdraw({ assetId: seasons.assetId, revision: seasons.revision, withdrawnBy: person }),
@@ -424,6 +471,15 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
         kind: 'already_withdrawn',
         approval: 'already_revoked',
       });
+      expect(
+        await policy().withdraw({ assetId: seasons.assetId, revision: seasons.revision, withdrawnBy: 'cli:ci-second' }),
+      ).toMatchObject({ kind: 'already_withdrawn' });
+      expect(
+        (
+          await sql<{ withdrawn_by: string }>`select withdrawn_by from content.release_withdrawals
+            where asset_id = ${seasons.assetId}::uuid`.execute(database.db)
+        ).rows,
+      ).toEqual([{ withdrawn_by: person }]);
       const later = await ready('seasons-limits');
       expect(await holds()).toEqual({ evaluated: 1, wouldRelease: 0, byReason: { topic_not_approved: 1 } });
       await discard(later);
@@ -565,6 +621,385 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
       expect(printed).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/u);
       expect(printed).not.toContain('earth.seasons');
       expect(printed).not.toContain('space.stars');
+    });
+  });
+
+  describe('the release decision is made inside the release transaction', () => {
+    let target: Held;
+    const attempt = () => policy().releaseOne(target, on);
+    const jobRow = () =>
+      database.db
+        .selectFrom('content.scroll_production_runs')
+        .select(['id', 'outcomes'])
+        .where('asset_id', '=', target.assetId)
+        .where('asset_revision', '=', target.revision)
+        .executeTakeFirstOrThrow();
+
+    /** The coverage head of the revision gets a new revision: a retraction, or an admission again (the head only moves forward). */
+    const moveCoverage = (status: 'retracted' | 'active') =>
+      sql`with next as (select max(revision) + 1 as revision from content.coverage_revisions
+          where asset_id = ${target.assetId}::uuid and asset_revision = ${target.revision}::integer),
+        added as (insert into content.coverage_revisions (asset_id, asset_revision, revision, status, mapping_sha256, command_sha256, semantic_review_reference, mapping)
+          select src.asset_id, src.asset_revision, next.revision, ${status}, src.mapping_sha256, src.command_sha256, src.semantic_review_reference, src.mapping
+          from content.coverage_revisions src, next
+          where src.asset_id = ${target.assetId}::uuid and src.asset_revision = ${target.revision}::integer and src.revision = 1
+          returning revision)
+        update content.coverage_heads set revision = (select revision from added)
+        where asset_id = ${target.assetId}::uuid and asset_revision = ${target.revision}::integer`.execute(database.db);
+
+    const checkRows = () =>
+      sql<Record<string, unknown>>`select * from content.library_support_checks
+        where asset_id = ${target.assetId}::uuid and revision = ${target.revision}::integer`
+        .execute(database.db)
+        .then((result) => result.rows);
+    const putCheck = (row: {
+      readonly checker_version: string;
+      readonly state: string;
+      readonly code: string | null;
+      readonly verdict: string;
+      readonly policy_version: string;
+      readonly sentence_count: number;
+      readonly batches: number;
+      readonly requests: number;
+      readonly sentences: unknown;
+    }) =>
+      sql`insert into content.library_support_checks (asset_id, revision, checker_version, state, code, verdict, policy_version, sentence_count, batches, requests, sentences)
+        values (${target.assetId}::uuid, ${target.revision}::integer, ${row.checker_version}, ${row.state}, ${row.code}, ${row.verdict}, ${row.policy_version},
+          ${row.sentence_count}::integer, ${row.batches}::integer, ${row.requests}::integer, ${JSON.stringify(row.sentences)}::jsonb)`.execute(
+        database.db,
+      );
+    const dropChecks = () =>
+      sql`delete from content.library_support_checks where asset_id = ${target.assetId}::uuid and revision = ${target.revision}::integer`.execute(
+        database.db,
+      );
+
+    it('releases nothing a fact changed after it was read: each fact is read again inside the transaction, and the release is refused with its code', async () => {
+      target = await ready('black-hole-formation');
+      await approved('space.black-holes');
+      // The sweep would find it ready, and the decision on its facts is a release.
+      expect(await holds()).toEqual({ evaluated: 1, wouldRelease: 1, byReason: {} });
+      const originalCheck = (await checkRows()).find(
+        (row) => row['checker_version'] === LIBRARY_SUPPORT_CHECK_VERSION,
+      )!;
+      const spoiled = (originalCheck['sentences'] as { outcome: string }[]).map((sentence, index) =>
+        index === 0 ? { ...sentence, outcome: 'unsupported', kind: 'goes_beyond' } : sentence,
+      );
+      const original = {
+        checker_version: originalCheck['checker_version'] as string,
+        state: originalCheck['state'] as string,
+        code: originalCheck['code'] as string | null,
+        verdict: originalCheck['verdict'] as string,
+        policy_version: originalCheck['policy_version'] as string,
+        sentence_count: originalCheck['sentence_count'] as number,
+        batches: originalCheck['batches'] as number,
+        requests: originalCheck['requests'] as number,
+        sentences: originalCheck['sentences'],
+      };
+      const job = await jobRow();
+      const document = await database.db
+        .selectFrom('content.asset_revisions')
+        .select('document')
+        .where('asset_id', '=', target.assetId)
+        .where('revision', '=', target.revision)
+        .executeTakeFirstOrThrow();
+      const primary = sql`asset_id = ${target.assetId}::uuid and asset_revision = ${target.revision}::integer and role = 'primary'`;
+
+      const cases: readonly {
+        readonly reason: string;
+        readonly tamper: () => Promise<unknown>;
+        readonly restore: () => Promise<unknown>;
+      }[] = [
+        {
+          reason: 'topic_not_approved',
+          tamper: () => policy().revokeTopic({ topicId: 'space.black-holes', revokedBy: person }),
+          restore: () => policy().approveTopic({ topicId: 'space.black-holes', approvedBy: person }),
+        },
+        {
+          reason: 'unmapped',
+          tamper: () => moveCoverage('retracted'),
+          restore: () => moveCoverage('active'),
+        },
+        {
+          reason: 'sensitive',
+          tamper: () => setTopic(target, 'human-body.immune-system'),
+          restore: () => setTopic(target, 'space.black-holes'),
+        },
+        {
+          reason: 'sensitive',
+          tamper: () => setTopic(target, 'astrology.signs'),
+          restore: () => setTopic(target, 'space.black-holes'),
+        },
+        {
+          reason: 'no_topic',
+          tamper: () => sql`delete from content.encounter_topics where ${primary}`.execute(database.db),
+          restore: () =>
+            sql`insert into content.encounter_topics (asset_id, asset_revision, topic_id, role, weight)
+              values (${target.assetId}::uuid, ${target.revision}::integer, 'space.black-holes', 'primary', 1)`.execute(
+              database.db,
+            ),
+        },
+        {
+          reason: 'no_support_check',
+          tamper: dropChecks,
+          restore: async () => {
+            await dropChecks();
+            await putCheck(original);
+          },
+        },
+        {
+          reason: 'stale_support_check',
+          tamper: async () => {
+            await dropChecks();
+            await putCheck({ ...original, checker_version: 'library-support-check.00000000' });
+          },
+          restore: async () => {
+            await dropChecks();
+            await putCheck(original);
+          },
+        },
+        {
+          reason: 'support_unchecked',
+          tamper: async () => {
+            await dropChecks();
+            await putCheck({
+              ...original,
+              state: 'unchecked',
+              code: 'provider_failed_final',
+              verdict: 'unchecked',
+              sentence_count: 0,
+              batches: 0,
+              requests: 0,
+              sentences: [],
+            });
+          },
+          restore: async () => {
+            await dropChecks();
+            await putCheck(original);
+          },
+        },
+        {
+          reason: 'support_flagged',
+          tamper: async () => {
+            await dropChecks();
+            await putCheck({ ...original, sentences: spoiled });
+          },
+          restore: async () => {
+            await dropChecks();
+            await putCheck(original);
+          },
+        },
+        {
+          reason: 'answer_check_not_passed',
+          tamper: () =>
+            sql`update content.scroll_production_runs set outcomes = '[]'::jsonb where id = ${job.id}`.execute(
+              database.db,
+            ),
+          restore: () =>
+            sql`update content.scroll_production_runs set outcomes = ${JSON.stringify(job.outcomes)}::jsonb where id = ${job.id}`.execute(
+              database.db,
+            ),
+        },
+        {
+          reason: 'unreadable',
+          tamper: () =>
+            sql`update content.asset_revisions set document = '{}'::jsonb where asset_id = ${target.assetId}::uuid and revision = ${target.revision}::integer`.execute(
+              database.db,
+            ),
+          restore: () =>
+            sql`update content.asset_revisions set document = ${JSON.stringify(document.document)}::jsonb
+              where asset_id = ${target.assetId}::uuid and revision = ${target.revision}::integer`.execute(database.db),
+        },
+        {
+          reason: 'sensitive',
+          tamper: () =>
+            sql`update content.asset_revisions set document = jsonb_set(document, '{askSuggestions,0}', '"Is it legal to feed one?"')
+              where asset_id = ${target.assetId}::uuid and revision = ${target.revision}::integer`.execute(database.db),
+          restore: () =>
+            sql`update content.asset_revisions set document = ${JSON.stringify(document.document)}::jsonb
+              where asset_id = ${target.assetId}::uuid and revision = ${target.revision}::integer`.execute(database.db),
+        },
+      ];
+      for (const { reason, tamper, restore } of cases) {
+        await tamper();
+        try {
+          expect(await attempt(), reason).toEqual({ kind: 'refused', reason });
+          expect(await reviewOf(target), reason).toMatchObject({ state: 'held', decided_by: null });
+          expect(await assetOf(target), reason).toMatchObject({ status: 'held' });
+        } finally {
+          await restore();
+        }
+      }
+      // The day's cap is read in the transaction too.
+      expect(await policy().releaseOne(target, { dailyCap: 0 })).toEqual({
+        kind: 'refused',
+        reason: 'daily_cap_reached',
+      });
+      // With every fact restored nothing refuses it: the same facts that were refused one by one now release.
+      expect(await holds()).toEqual({ evaluated: 1, wouldRelease: 1, byReason: {} });
+    });
+
+    it('releases it, as the policy and through the review gate, once every fact holds again', async () => {
+      const done = await attempt();
+      expect(done).toMatchObject({ kind: 'released', assetId: target.assetId, revision: target.revision });
+      expect(await reviewOf(target)).toMatchObject({ state: 'released', decided_by: RELEASE_POLICY.decidedBy });
+    });
+
+    it('is not told by a raise recorded after the sweep read: the raise is read in the transaction and holds the Scroll for good', async () => {
+      const raised = await ready('black-hole-evidence');
+      expect(await holds()).toEqual({ evaluated: 1, wouldRelease: 1, byReason: {} });
+      await policy().proposeRaise({
+        assetId: raised.assetId,
+        revision: raised.revision,
+        category: 'law',
+        proposedBy: 'model:ci-risk-reader',
+      });
+      expect(await policy().releaseOne(raised, on)).toEqual({ kind: 'refused', reason: 'sensitive' });
+      await discard(raised);
+    });
+
+    /** Holds a transaction open (its work done, not committed) while `during` runs, then commits it. */
+    async function whileHeld(
+      work: (trx: Parameters<Parameters<ReturnType<typeof database.db.transaction>['execute']>[0]>[0]) => Promise<void>,
+      during: () => Promise<unknown>,
+    ) {
+      let started!: () => void;
+      let finish!: () => void;
+      const hasStarted = new Promise<void>((resolve) => (started = resolve));
+      const mayFinish = new Promise<void>((resolve) => (finish = resolve));
+      const holder = database.db.transaction().execute(async (trx) => {
+        await work(trx);
+        started();
+        await mayFinish;
+      });
+      await hasStarted;
+      const pending = during();
+      const settled = await Promise.race([
+        pending.then(() => 'done'),
+        new Promise<string>((resolve) => setTimeout(() => resolve('pending'), 500)),
+      ]);
+      finish();
+      await holder;
+      return { settled, result: await pending };
+    }
+
+    it('waits for a revocation that is under way and then refuses: the approval is locked, not remembered', async () => {
+      const waiting = await ready('exoplanet-habitable-zone');
+      await approved('space.exoplanets');
+      target = waiting;
+      const { settled, result } = await whileHeld(
+        async (trx) => {
+          await sql`update content.release_topic_approvals set revoked_by = ${person}, revoked_at = now(), revoked_for = 'operator'
+            where topic_id = 'space.exoplanets' and revoked_at is null`.execute(trx);
+        },
+        () => attempt(),
+      );
+      expect(settled).toBe('pending');
+      expect(result).toEqual({ kind: 'refused', reason: 'topic_not_approved' });
+      expect(await reviewOf(waiting)).toMatchObject({ state: 'held' });
+    });
+
+    it('waits for a coverage change that is under way and then refuses: the head is read after the asset lock', async () => {
+      await approved('space.exoplanets');
+      const { settled, result } = await whileHeld(
+        async (trx) => {
+          // As admission does: the asset's lock first, then the new head.
+          await sql`select pg_advisory_xact_lock(hashtextextended(${`content.asset:${target.assetId}`}, 0))`.execute(
+            trx,
+          );
+          await sql`with added as (insert into content.coverage_revisions (asset_id, asset_revision, revision, status, mapping_sha256, command_sha256, semantic_review_reference, mapping)
+              select asset_id, asset_revision, 2, 'retracted', mapping_sha256, command_sha256, semantic_review_reference, mapping
+              from content.coverage_revisions where asset_id = ${target.assetId}::uuid and asset_revision = ${target.revision}::integer and revision = 1 returning revision)
+            update content.coverage_heads set revision = (select revision from added)
+            where asset_id = ${target.assetId}::uuid and asset_revision = ${target.revision}::integer`.execute(trx);
+        },
+        () => attempt(),
+      );
+      expect(settled).toBe('pending');
+      expect(result).toEqual({ kind: 'refused', reason: 'unmapped' });
+      await discard(target);
+    });
+  });
+
+  describe('the sweep pages past revisions that stay held', () => {
+    const crowd = 105;
+    const clones = sql`with clones as (select n, ('00000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid as id from generate_series(1, ${crowd}::integer) n)`;
+
+    it('releases the newest ready Scroll behind more than a page of older ones that stay held, looks at each stuck one once, and reads none of them again', async () => {
+      const newest = await ready('black-hole-evidence');
+      const topic = 'space.black-holes';
+      await approved(topic);
+      // A crowd of older held Scrolls in the same approved topic, each ready on every fact that needs no body, and each stuck on one that does: no answer check.
+      const src = sql`src.asset_id = ${newest.assetId}::uuid and src.revision = ${newest.revision}::integer`;
+      await sql`${clones} insert into content.assets (id, revision, kind, status) select id, 1, 'scroll', 'held' from clones`.execute(
+        database.db,
+      );
+      await sql`${clones} insert into content.asset_revisions (asset_id, revision, provenance_kind, document_version, document, document_sha256, explanation_unit_id, language, title, reading_facts)
+        select clones.id, 1, src.provenance_kind, src.document_version, src.document, src.document_sha256, src.explanation_unit_id, src.language, src.title, src.reading_facts
+        from clones cross join content.asset_revisions src where ${src}`.execute(database.db);
+      await sql`${clones} insert into content.revision_reviews (asset_id, revision, state, held_at)
+        select id, 1, 'held', now() - interval '2 days' + n * interval '1 second' from clones`.execute(database.db);
+      await sql`${clones} insert into content.encounter_topics (asset_id, asset_revision, topic_id, role, weight) select id, 1, ${topic}, 'primary', 1 from clones`.execute(
+        database.db,
+      );
+      await sql`${clones} insert into content.coverage_revisions (asset_id, asset_revision, revision, status, mapping_sha256, command_sha256, semantic_review_reference, mapping)
+        select clones.id, 1, 1, src.status, src.mapping_sha256, src.command_sha256, src.semantic_review_reference, src.mapping
+        from clones cross join content.coverage_revisions src where src.asset_id = ${newest.assetId}::uuid and src.asset_revision = ${newest.revision}::integer and src.revision = 1`.execute(
+        database.db,
+      );
+      await sql`${clones} insert into content.coverage_heads (asset_id, asset_revision, revision) select id, 1, 1 from clones`.execute(
+        database.db,
+      );
+      await sql`${clones} insert into content.library_support_checks (asset_id, revision, checker_version, state, code, verdict, policy_version, check_round, batch_failures, sentence_count, batches, requests, sentences)
+        select clones.id, 1, src.checker_version, src.state, src.code, src.verdict, src.policy_version, src.check_round, src.batch_failures, src.sentence_count, src.batches, src.requests, src.sentences
+        from clones cross join content.library_support_checks src where src.asset_id = ${newest.assetId}::uuid and src.revision = ${newest.revision}::integer`.execute(
+        database.db,
+      );
+
+      const result = await policy().sweep(on);
+      expect(result).toMatchObject({
+        kind: 'swept',
+        considered: crowd + 1,
+        released: [{ assetId: newest.assetId, revision: newest.revision, topicId: topic }],
+        held: { answer_check_not_passed: crowd },
+        capReached: false,
+      });
+      expect(await reviewOf(newest)).toMatchObject({ state: 'released', decided_by: RELEASE_POLICY.decidedBy });
+      const looks = await sql<{
+        hold_code: string;
+        n: number;
+      }>`select hold_code, count(*)::integer as n from content.release_policy_looks
+        where asset_id::text like '00000000-0000-4000-8000-%' group by hold_code`.execute(database.db);
+      expect(looks.rows).toEqual([{ hold_code: 'answer_check_not_passed', n: crowd }]);
+
+      // The next sweep goes past them: a hold that cannot change under the rules they were judged by is not read again.
+      expect(await policy().sweep(on)).toEqual({
+        kind: 'swept',
+        considered: 0,
+        released: [],
+        held: {},
+        capReached: false,
+      });
+      // A change of the rules is a reason to look again.
+      // The order of a page is the revision least recently looked at first and one never looked at before any, not the oldest hold first: a revision looked at
+      // today does not stand in front of one that was not.
+      const never = '00000000-0000-4000-8000-000000000050';
+      await sql`delete from content.release_policy_looks where asset_id = ${never}::uuid`.execute(database.db);
+      const page = await releasePolicyStore.heldSummaries(database.db, {
+        checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
+        onlyReady: true,
+        limit: 3,
+        paging: { rulesVersion: 'no such rules', lookedBefore: '2100-01-01 00:00:00+00' },
+      });
+      const leastRecent = await sql<{ asset_id: string }>`select asset_id from content.release_policy_looks
+        where asset_id::text like '00000000-0000-4000-8000-%' order by looked_at limit 2`.execute(database.db);
+      expect(page.map((entry) => entry.assetId)).toEqual([never, ...leastRecent.rows.map((row) => row.asset_id)]);
+      await sql`update content.release_policy_looks set rules_version = 'older rules'`.execute(database.db);
+      expect(await policy().sweep(on)).toMatchObject({
+        kind: 'swept',
+        considered: crowd,
+        released: [],
+        held: { answer_check_not_passed: crowd },
+      });
     });
   });
 });

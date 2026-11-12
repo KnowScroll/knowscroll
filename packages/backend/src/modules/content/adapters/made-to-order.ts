@@ -117,9 +117,11 @@ async function explanationRecords(
   const trx = transactionOf(scope);
   const unit = await trx
     .selectFrom('content.asset_revisions as r')
+    .innerJoin('content.assets as a', 'a.id', 'r.asset_id')
     .select('r.explanation_unit_id')
     .where('r.asset_id', '=', root.assetId)
     .where('r.revision', '=', root.assetRevision)
+    .where('a.status', '=', 'admitted')
     .where(sql<boolean>`${notUnderReview('r.asset_id', 'r.revision')}`)
     .executeTakeFirst();
   if (unit === undefined) return undefined;

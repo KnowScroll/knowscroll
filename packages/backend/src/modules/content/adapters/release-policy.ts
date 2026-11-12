@@ -1,5 +1,5 @@
-import { sql, type Kysely } from 'kysely';
-import { parseDocumentV2, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import { sql, type Kysely, type Transaction } from 'kysely';
+import { parseDocumentV2 } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
 import { summariseAnswerChecks } from '../domain/answer-check.js';
@@ -11,6 +11,7 @@ import {
   categoriesOfTopic,
   decideAutoRelease,
   isCatalogueTopic,
+  proseOf,
   releasesLeftToday,
   type AnswerCheckFact,
   type AutoReleaseFacts,
@@ -21,11 +22,19 @@ import { answerChecksOf } from '../production/answer-check.js';
 import { LIBRARY_SUPPORT_CHECK_VERSION } from '../production/library-support.js';
 import { libraryCheckStore } from '../production/library-support-store.js';
 import { releasePolicyStore, type HeldSummary, type PolicyCounts } from './release-policy-store.js';
-import { lockAssetForReview, makeReviewGate, type ReleaseGuard } from './review-gate.js';
-import { reviewTextOf } from './review-text.js';
+import { lockAssetForReview, makeReviewGate, type ReleaseGuard, type ReleaseResult } from './review-gate.js';
 
-/** The most held revisions one sweep reads (the ones that pass every check that needs no body, oldest hold first). */
+/** The most held revisions one page of the sweep reads (the ones that pass every check that needs no body, least recently looked at first). */
 export const RELEASE_POLICY_SWEEP_LIMIT = 100;
+
+/** The most pages one sweep reads, so one pass is bounded however many revisions wait: a thousand looks. The next pass starts with the ones not looked at yet. */
+export const RELEASE_POLICY_SWEEP_PAGES = 10;
+
+/**
+ * The rules a hold was judged under: the policy, the sensitivity file and the support checker's version. A recorded permanent hold is skipped only while this is
+ * the same, so changing any of them makes the sweep look again.
+ */
+const rulesVersion = (): string => `${RELEASE_POLICY.id}|${SENSITIVITY_VERSION}|${LIBRARY_SUPPORT_CHECK_VERSION}`;
 
 /** The most held revisions `status` evaluates. */
 export const RELEASE_POLICY_STATUS_LIMIT = 1_000;
@@ -106,23 +115,11 @@ export interface PolicyStatus {
   };
 }
 
+type Queryable = Kysely<Database> | Transaction<Database>;
+
 const bump = (counts: Record<string, number>, key: string): void => {
   counts[key] = (counts[key] ?? 0) + 1;
 };
-
-/** The line of `reviewTextOf` that carries the Scroll's measures (`1450 words · 7 minutes · …`): a count of words is not a year, so it is not scanned. */
-const MEASURES_LINE = /^\d+ words · \d+(?:\.\d+)? minutes · /u;
-
-/**
- * What the release policy scans for sensitive words: everything an operator reads of the Scroll (the title, every stop, call, aside, the recap and the Ask
- * suggestions, the picture's descriptions), without the line of measures and the answer check's note, which are not the Scroll's words.
- */
-export function scanTextOf(document: ScrollDocumentV2): string {
-  return reviewTextOf(document)
-    .split('\n')
-    .filter((line) => !MEASURES_LINE.test(line) && !line.startsWith('Answer check: '))
-    .join('\n');
-}
 
 /** What the production job's answer check said about the revision, from the receipts the job kept. */
 function answerCheckFact(outcomes: unknown): AnswerCheckFact {
@@ -130,7 +127,7 @@ function answerCheckFact(outcomes: unknown): AnswerCheckFact {
 }
 
 /** The facts of a held revision the policy decides from, read from stored rows: nothing is asked of a model. */
-async function factsOf(db: Kysely<Database>, summary: HeldSummary): Promise<AutoReleaseFacts> {
+async function factsOf(db: Queryable, summary: HeldSummary): Promise<AutoReleaseFacts> {
   const topicId = summary.topicIds.length === 1 ? (summary.topicIds[0] ?? null) : null;
   const [body, raised, supportCheck] = await Promise.all([
     releasePolicyStore.readBody(db, summary.assetId, summary.revision),
@@ -142,7 +139,7 @@ async function factsOf(db: Kysely<Database>, summary: HeldSummary): Promise<Auto
     assetStatus: summary.assetStatus,
     topicId,
     topicApproved: summary.approved,
-    risk: assessRisk({ topicId, text: parsed?.kind === 'valid' ? scanTextOf(parsed.document) : '', raised }),
+    risk: assessRisk({ topicId, text: parsed?.kind === 'valid' ? proseOf(parsed.document) : '', raised }),
     documentReadable: parsed?.kind === 'valid',
     coverageMapped: summary.mapped,
     answerCheck: answerCheckFact(body?.outcomes),
@@ -154,7 +151,7 @@ async function factsOf(db: Kysely<Database>, summary: HeldSummary): Promise<Auto
  * What the library support check said for this build's checker version. The verdict is code's: it is read again from every stored
  * sentence under the policy in force, and a stored `passed` that the sentences no longer support counts as `flagged`.
  */
-async function supportCheckFact(db: Kysely<Database>, summary: HeldSummary): Promise<SupportCheckFact> {
+async function supportCheckFact(db: Queryable, summary: HeldSummary): Promise<SupportCheckFact> {
   const current = summary.currentCheck;
   if (current === null) return summary.otherVersionCheck ? { kind: 'stale' } : { kind: 'none' };
   if (current.state === 'unchecked') return { kind: 'unchecked' };
@@ -165,22 +162,28 @@ async function supportCheckFact(db: Kysely<Database>, summary: HeldSummary): Pro
 }
 
 /**
- * The conditions of a policy release that are checked again inside the release transaction, under the asset's lock: a new asset, a topic that is
- * still approved, no raise recorded since, and the day's cap. Taking the policy lock first makes the cap's count and the release one step, so two
- * releases cannot both take the last place.
+ * The decision of a policy release, made inside the release transaction under the asset's lock, from rows read there and nowhere else: the asset's status,
+ * the primary topic and its approval, the coverage head, the support check of this build's checker version, the answer check, the document and every raise, then the
+ * day's cap. Nothing a sweep read earlier is trusted, so a topic revoked, a coverage retracted, a check replaced or a raise recorded after the sweep looked still
+ * stops the release. The policy lock comes first, so the cap's count and the release are one step and two releases cannot both take the last place; the approval
+ * row is locked `for share`, so a revocation that arrives later waits for the release to commit.
  */
 function guardFor(target: { readonly assetId: string; readonly revision: number }, dailyCap: number): ReleaseGuard {
-  return async (trx, { assetStatus }) => {
-    if (assetStatus !== 'held') return 'replaces_served';
+  return async (trx) => {
     await releasePolicyStore.lockPolicy(trx);
-    const topics = await releasePolicyStore.primaryTopics(trx, target.assetId, target.revision);
-    const topic = topics.length === 1 ? topics[0] : undefined;
-    if (topic === undefined) return 'no_topic';
-    if (categoriesOfTopic(topic).length > 0) return 'sensitive';
-    if (!(await releasePolicyStore.isApproved(trx, topic))) return 'topic_not_approved';
-    if ((await releasePolicyStore.raisesOf(trx, target.assetId, target.revision)).length > 0) return 'sensitive';
-    if (releasesLeftToday(dailyCap, await releasePolicyStore.releasedToday(trx)) === 0) return 'daily_cap_reached';
-    return undefined;
+    await releasePolicyStore.lockApproval(trx, target.assetId, target.revision);
+    const [summary] = await releasePolicyStore.heldSummaries(trx, {
+      checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
+      onlyReady: false,
+      limit: 1,
+      only: target,
+    });
+    if (summary === undefined) return 'not_held';
+    const decision = decideAutoRelease(await factsOf(trx, summary));
+    if (decision.kind === 'hold') return decision.reason;
+    return releasesLeftToday(dailyCap, await releasePolicyStore.releasedToday(trx)) === 0
+      ? 'daily_cap_reached'
+      : undefined;
   };
 }
 
@@ -194,42 +197,67 @@ function guardFor(target: { readonly assetId: string; readonly revision: number 
 export function makeReleasePolicy(db: Kysely<Database>) {
   const gate = makeReviewGate(db);
 
-  /** One sweep of the worker's release step. With the switch off it reads nothing. */
+  /**
+   * One attempt to release a held revision as the policy: the review gate's own release, with the policy's whole decision made inside its transaction
+   * (see `guardFor`). The sweep does exactly this for each candidate it finds, and nothing it read to find the candidate is passed on.
+   */
+  function releaseOne(
+    target: { readonly assetId: string; readonly revision: number },
+    settings: Pick<ReleasePolicySettings, 'dailyCap'>,
+  ): Promise<ReleaseResult> {
+    return gate.release({
+      assetId: target.assetId,
+      revision: target.revision,
+      decidedBy: RELEASE_POLICY.decidedBy,
+      guard: guardFor(target, settings.dailyCap),
+    });
+  }
+
+  /**
+   * One sweep of the worker's release step. With the switch off it reads nothing. Otherwise it pages through the held revisions that pass the checks that
+   * need no body, least recently looked at first (never looked at before any), and tries to release each; what stays held is recorded with its code, so the next
+   * page, and the next sweep, go past it: a revision whose hold is permanent is not read again, and a crowd of held revisions cannot stand in front of a new one.
+   */
   async function sweep(settings: ReleasePolicySettings): Promise<SweepResult> {
     if (!settings.enabled) return { kind: 'off' };
     const held: Record<string, number> = {};
     const released: PolicyRelease[] = [];
     const left = releasesLeftToday(settings.dailyCap, await releasePolicyStore.releasedToday(db));
     if (left === 0) return { kind: 'swept', considered: 0, released, held, capReached: true };
-    const candidates = await releasePolicyStore.heldSummaries(db, {
-      checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
-      onlyReady: true,
-      limit: RELEASE_POLICY_SWEEP_LIMIT,
-    });
+    const rules = rulesVersion();
+    const startedAt = await releasePolicyStore.clock(db);
     let considered = 0;
     let capReached = false;
-    for (const candidate of candidates) {
-      considered += 1;
-      const facts = await factsOf(db, candidate);
-      const decision = decideAutoRelease(facts);
-      if (decision.kind === 'hold') {
-        bump(held, decision.reason);
-        continue;
-      }
-      const result = await gate.release({
-        assetId: candidate.assetId,
-        revision: candidate.revision,
-        decidedBy: RELEASE_POLICY.decidedBy,
-        guard: guardFor(candidate, settings.dailyCap),
+    for (let page = 0; page < RELEASE_POLICY_SWEEP_PAGES && !capReached; page += 1) {
+      const candidates = await releasePolicyStore.heldSummaries(db, {
+        checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
+        onlyReady: true,
+        limit: RELEASE_POLICY_SWEEP_LIMIT,
+        paging: { rulesVersion: rules, lookedBefore: startedAt },
       });
-      if (result.kind === 'released' && facts.topicId !== null)
-        released.push({ assetId: candidate.assetId, revision: candidate.revision, topicId: facts.topicId });
-      else if (result.kind === 'refused') {
-        if (result.reason === 'daily_cap_reached') {
-          capReached = true;
-          break;
+      if (candidates.length === 0) break;
+      for (const candidate of candidates) {
+        considered += 1;
+        const result = await releaseOne(candidate, settings);
+        if (result.kind === 'released') {
+          released.push({
+            assetId: candidate.assetId,
+            revision: candidate.revision,
+            topicId: candidate.topicIds[0] ?? 'unknown',
+          });
+        } else if (result.kind === 'refused') {
+          if (result.reason === 'daily_cap_reached') {
+            capReached = true;
+            break;
+          }
+          bump(held, result.reason);
+          await releasePolicyStore.recordLook(db, {
+            assetId: candidate.assetId,
+            revision: candidate.revision,
+            holdCode: result.reason,
+            rulesVersion: rules,
+          });
         }
-        bump(held, result.reason);
       }
     }
     return { kind: 'swept', considered, released, held, capReached };
@@ -296,6 +324,13 @@ export function makeReleasePolicy(db: Kysely<Database>) {
         topicId === null
           ? 'no_topic'
           : await releasePolicyStore.revokeTopic(trx, topicId, request.withdrawnBy, 'withdrawal');
+      await releasePolicyStore.recordWithdrawal(trx, {
+        assetId: request.assetId,
+        revision: request.revision,
+        withdrawnBy: request.withdrawnBy,
+        topicId,
+        approval,
+      });
       return {
         kind: asset.status === 'withdrawn' ? 'already_withdrawn' : 'withdrawn',
         assetId: request.assetId,
@@ -343,7 +378,7 @@ export function makeReleasePolicy(db: Kysely<Database>) {
     };
   }
 
-  return { sweep, approveTopic, revokeTopic, withdraw, proposeRaise, status };
+  return { sweep, releaseOne, approveTopic, revokeTopic, withdraw, proposeRaise, status };
 }
 
 export type ReleasePolicy = ReturnType<typeof makeReleasePolicy>;

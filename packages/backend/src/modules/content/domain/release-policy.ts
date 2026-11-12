@@ -1,5 +1,6 @@
 import { CONCEPTS, systemOfTopic } from './concepts.js';
 import {
+  NON_PROSE_KEYS,
   RECENT_YEAR_FROM,
   RECENT_YEAR_TO,
   SENSITIVE_CATEGORIES,
@@ -105,6 +106,24 @@ function namesRecentYear(text: string): boolean {
   return false;
 }
 
+/**
+ * Every string of a stored document that is its words, joined by line breaks: the title, kicker and dek, each stop's lines, simpler words, guide, play
+ * blocks and calls, the asides, the recap, the Ask suggestions, the picture's descriptions and the misconception. It walks the document's own fields and takes
+ * every string except the values under {@link NON_PROSE_KEYS} (identity, versions, measures, the integrity hash, references between parts), so nothing is
+ * filtered out of a text by its look and a field added to the format is scanned until the owner says it is not words. Pure.
+ */
+export function proseOf(value: unknown): string {
+  const strings: string[] = [];
+  const walk = (node: unknown): void => {
+    if (typeof node === 'string') strings.push(node);
+    else if (Array.isArray(node)) for (const item of node) walk(item);
+    else if (typeof node === 'object' && node !== null)
+      for (const [key, child] of Object.entries(node)) if (!NON_PROSE_KEYS.has(key)) walk(child);
+  };
+  walk(value);
+  return strings.join('\n');
+}
+
 /** The sensitive categories the words of a Scroll put it in, in the data file's order. The text is whatever a reader (or an operator) reads. */
 export function categoriesOfText(text: string): readonly SensitiveCategory[] {
   const found = SENSITIVE_CATEGORIES.filter((category) => KEYWORD_PATTERNS.get(category)?.test(text) === true);
@@ -189,8 +208,24 @@ export const AUTO_RELEASE_HOLDS = [
 ] as const;
 export type AutoReleaseHold = (typeof AUTO_RELEASE_HOLDS)[number];
 
-/** What stops a release inside the transaction that would make it: a hold the facts missed, or the day's cap. */
-export type AutoReleaseRefusal = AutoReleaseHold | 'daily_cap_reached';
+/**
+ * What stops a release inside the transaction that would make it: a hold the facts give when they are read there, the day's cap, or a revision that is
+ * no longer held (`not_held`, which the review gate's own checks make unreachable and which is kept so that a guard never has to guess).
+ */
+export type AutoReleaseRefusal = AutoReleaseHold | 'daily_cap_reached' | 'not_held';
+
+/**
+ * The holds nothing but a person or a new version of the rules can change: the Scroll's words, its document, its answer check, its attribution and a verdict of
+ * the current checker version are all fixed once stored, so the sweep does not read such a revision again under the rules it was judged by. Every other hold
+ * (a topic without an approval, a missing check) can pass later.
+ */
+export const PERMANENT_HOLDS: readonly AutoReleaseHold[] = [
+  'no_topic',
+  'sensitive',
+  'unreadable',
+  'answer_check_not_passed',
+  'support_flagged',
+];
 
 export type AutoReleaseDecision =
   { readonly kind: 'release' } | { readonly kind: 'hold'; readonly reason: AutoReleaseHold };

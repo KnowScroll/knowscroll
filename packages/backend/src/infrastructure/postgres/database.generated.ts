@@ -274,6 +274,14 @@ export interface ContentRegionBindings {
   topic_id: string;
 }
 
+export interface ContentReleasePolicyLooks {
+  asset_id: string;
+  hold_code: string;
+  looked_at: Generated<Timestamp>;
+  revision: number;
+  rules_version: string;
+}
+
 export interface ContentReleaseRiskRaises {
   asset_id: string;
   category: string;
@@ -290,6 +298,15 @@ export interface ContentReleaseTopicApprovals {
   revoked_by: string | null;
   revoked_for: string | null;
   topic_id: string;
+}
+
+export interface ContentReleaseWithdrawals {
+  approval: string;
+  asset_id: string;
+  revision: number;
+  topic_id: string | null;
+  withdrawn_at: Generated<Timestamp>;
+  withdrawn_by: string;
 }
 
 export interface ContentRevisionReviews {
@@ -2518,8 +2535,10 @@ export interface DB {
   "content.reel_imports": ContentReelImports;
   "content.reel_orders": ContentReelOrders;
   "content.region_bindings": ContentRegionBindings;
+  "content.release_policy_looks": ContentReleasePolicyLooks;
   "content.release_risk_raises": ContentReleaseRiskRaises;
   "content.release_topic_approvals": ContentReleaseTopicApprovals;
+  "content.release_withdrawals": ContentReleaseWithdrawals;
   "content.revision_reviews": ContentRevisionReviews;
   "content.scroll_production_runs": ContentScrollProductionRuns;
   "content.series_units": ContentSeriesUnits;

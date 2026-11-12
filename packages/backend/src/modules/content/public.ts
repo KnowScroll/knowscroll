@@ -131,7 +131,8 @@ export interface ScrollPlayFacts {
 /**
  * Port: the calls and the landmark of one stored Scroll revision, read from its immutable document
  * inside the caller's personal transaction. `undefined` when the revision does not exist, is not a
- * `scroll-document.v2`, or is held or rejected by the review gate (D-138); no calls when it has none.
+ * `scroll-document.v2`, is held or rejected by the review gate (D-138), or belongs to an asset that is not admitted (withdrawn, D-418);
+ * no calls when it has none.
  */
 export type ReadScrollPlayFacts = (
   scope: PersonalScopeTx,
@@ -154,7 +155,7 @@ export interface ScrollAskFacts {
 /**
  * Port: the ask facts of one stop of an exact Scroll revision, read from its immutable document inside the caller's
  * personal transaction. `undefined` when the revision does not exist, is not a `scroll-document.v2`, is held or
- * rejected by the review gate (D-138), or has no stop with that ID: an anchor that is not in the revision is no anchor.
+ * rejected by the review gate (D-138), belongs to an asset that is not admitted (withdrawn, D-418), or has no stop with that ID: an anchor that is not in the revision is no anchor.
  */
 export type ReadScrollAskFacts = (
   scope: PersonalScopeTx,
@@ -183,7 +184,8 @@ export interface ScrollQuickAnswerFacts {
  * Port: the passages a Quick answer asked from one stop of an exact Scroll revision may rest on, read from its
  * immutable document inside the caller's personal transaction. Never a stop after the anchor and never a call, so the
  * answer cannot spoil what the person has not reached. `undefined` when the revision does not exist, is not a
- * `scroll-document.v2`, is held or rejected by the review gate (D-138), or the anchor is not a read stop of it.
+ * `scroll-document.v2`, is held or rejected by the review gate (D-138), belongs to an asset that is not admitted (withdrawn, D-418), or the
+ * anchor is not a read stop of it.
  */
 export type ReadScrollQuickAnswerFacts = (
   scope: PersonalScopeTx,

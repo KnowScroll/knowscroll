@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CONCEPTS } from './concepts.js';
 import {
   AUTO_RELEASE_HOLDS,
+  PERMANENT_HOLDS,
   POLICY_DECIDER_PREFIX,
   RELEASE_POLICY,
   assessRisk,
@@ -9,6 +10,7 @@ import {
   categoriesOfTopic,
   decideAutoRelease,
   isCatalogueTopic,
+  proseOf,
   raiseRisk,
   releasesLeftToday,
   type AutoReleaseFacts,
@@ -178,6 +180,42 @@ describe('whether the policy may release a Scroll', () => {
       kind: 'hold',
       reason: 'replaces_served',
     });
+  });
+});
+
+describe('the words of a document', () => {
+  it('are every string of its fields, joined by line breaks, except the identity, version, measure and integrity values', () => {
+    const document = {
+      schemaVersion: 'scroll-document.v2',
+      assetId: '00000000-2024-4000-8000-000000000000',
+      title: 'A title',
+      stops: [{ id: 's1', blocks: [{ type: 'line', text: 'A line.' }], options: ['One', 'Two'], answer: 1 }],
+      measures: { version: 'm.v2', stops: [{ stopId: 's1' }] },
+      integrity: { sha256: 'a'.repeat(64) },
+    };
+    expect(proseOf(document)).toBe('A title\nline\nA line.\nOne\nTwo');
+  });
+
+  it('keep a line however it begins, and find nothing in a value that is not a string or an object', () => {
+    expect(proseOf({ line: 'Answer check: legal?' })).toBe('Answer check: legal?');
+    expect(proseOf(null)).toBe('');
+    expect(proseOf(42)).toBe('');
+    expect(proseOf([])).toBe('');
+  });
+});
+
+describe('the holds that cannot change', () => {
+  it('are holds the policy can give, and never one that a later approval or check could clear', () => {
+    for (const hold of PERMANENT_HOLDS) expect(AUTO_RELEASE_HOLDS).toContain(hold);
+    for (const hold of [
+      'topic_not_approved',
+      'no_support_check',
+      'stale_support_check',
+      'support_unchecked',
+      'unmapped',
+      'replaces_served',
+    ] as const)
+      expect(PERMANENT_HOLDS).not.toContain(hold);
   });
 });
 

@@ -1,7 +1,7 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
 import { z } from 'zod';
 import type { Database } from '../../../infrastructure/postgres/database.js';
-import { POLICY_DECIDER_PREFIX } from '../domain/release-policy.js';
+import { PERMANENT_HOLDS, POLICY_DECIDER_PREFIX } from '../domain/release-policy.js';
 import { SENSITIVE_CATEGORIES, type SensitiveCategory } from '../domain/release-sensitive-data.js';
 
 /**
@@ -96,33 +96,46 @@ export const releasePolicyStore = {
   },
 
   /**
-   * Whether a person's approval of the topic is live. The row is locked `for share`, so inside a release transaction a revocation waits for
-   * the release to commit instead of slipping in between the check and the release.
-   */
-  async isApproved(trx: Transaction<Database>, topicId: string): Promise<boolean> {
-    const { rows } = await sql<{ seen: boolean }>`select true as seen from content.release_topic_approvals
-      where topic_id = ${topicId} and revoked_at is null for share`.execute(trx);
-    return rows.length > 0;
-  },
-
-  /**
-   * The held revisions of scrolls, oldest hold first, with the facts that need no body. With `onlyReady` it keeps only those the policy
-   * could release on these facts: a new asset, an approved topic, an active mapping and a stored `checked` result of this checker version
-   * with the verdict `passed`. That keeps a revision that is held for a good reason from crowding out the next ones, and the body of
-   * every other revision unread. The stored verdict is a filter only: the use case decides it again from the sentences.
+   * The held revisions of Scrolls with the facts that need no body. `only` names one revision (the release transaction reads its own that way, under the asset's lock).
+   * With `onlyReady` it keeps only those the policy could release on these facts: a new asset, an approved topic, an active mapping and a stored `checked` result
+   * of this checker version with the verdict `passed`, so a revision that is held for a good reason does not make the body of every other one be read. The stored
+   * verdict is a filter only: the release transaction decides it again from the sentences.
+   * With `paging` (the sweep) the order is the revision least recently looked at first, never looked at before any, oldest hold first among equals; a revision looked at
+   * since `lookedBefore` is left out, so a sweep's pages end; and one whose recorded hold is permanent under `rulesVersion` is left out. Without it the order is the
+   * oldest hold first.
    */
   async heldSummaries(
     db: Queryable,
-    options: { readonly checkerVersion: string; readonly onlyReady: boolean; readonly limit: number },
+    options: {
+      readonly checkerVersion: string;
+      readonly onlyReady: boolean;
+      readonly limit: number;
+      readonly only?: { readonly assetId: string; readonly revision: number };
+      readonly paging?: { readonly rulesVersion: string; readonly lookedBefore: string };
+    },
   ): Promise<readonly HeldSummary[]> {
     const ready = options.onlyReady
       ? sql`and asset.status = 'held' and approved.flag and mapped.flag and this_version.state = 'checked' and this_version.verdict = 'passed'`
       : sql``;
+    const only =
+      options.only === undefined
+        ? sql``
+        : sql`and review.asset_id = ${options.only.assetId}::uuid and review.revision = ${options.only.revision}::integer`;
+    const paging =
+      options.paging === undefined
+        ? sql``
+        : sql`and (look.looked_at is null or look.looked_at < ${options.paging.lookedBefore}::timestamptz)
+          and not coalesce(look.hold_code = any(${[...PERMANENT_HOLDS]}::text[]) and look.rules_version = ${options.paging.rulesVersion}, false)`;
+    const order =
+      options.paging === undefined
+        ? sql`review.held_at, review.asset_id, review.revision`
+        : sql`look.looked_at nulls first, review.held_at, review.asset_id, review.revision`;
     const { rows } = await sql<HeldRow>`select review.asset_id, review.revision, asset.status as asset_status,
         topics.ids as topic_ids, approved.flag as approved, mapped.flag as mapped,
         this_version.state as current_state, this_version.verdict as current_verdict, other.flag as other_version
       from content.revision_reviews review
       join content.assets asset on asset.id = review.asset_id and asset.kind = 'scroll'
+      left join content.release_policy_looks look on look.asset_id = review.asset_id and look.revision = review.revision
       cross join lateral (select coalesce(array_agg(topic.topic_id order by topic.topic_id), '{}'::text[]) as ids
         from content.encounter_topics topic
         where topic.asset_id = review.asset_id and topic.asset_revision = review.revision and topic.role = 'primary') topics
@@ -140,8 +153,8 @@ export const releasePolicyStore = {
       cross join lateral (select exists (select 1 from content.library_support_checks check_row
         where check_row.asset_id = review.asset_id and check_row.revision = review.revision
           and check_row.checker_version <> ${options.checkerVersion}) as flag) other
-      where review.state = 'held' ${ready}
-      order by review.held_at, review.asset_id, review.revision
+      where review.state = 'held' ${only} ${ready} ${paging}
+      order by ${order}
       limit ${options.limit}::integer`.execute(db);
     return rows.map((row) => ({
       assetId: row.asset_id,
@@ -154,6 +167,57 @@ export const releasePolicyStore = {
         row.current_state === null ? null : { state: row.current_state, verdict: row.current_verdict ?? 'unchecked' },
       otherVersionCheck: row.other_version,
     }));
+  },
+
+  /** The database's clock, as text so that its microseconds survive: where a sweep's pages begin and end (a look is stamped with the same clock). */
+  async clock(db: Queryable): Promise<string> {
+    const { rows } = await sql<{ now: string }>`select clock_timestamp()::text as now`.execute(db);
+    return rows[0]?.now ?? '';
+  },
+
+  /** Records what the sweep made of a held revision: the code it stayed held for and the rules it was judged under. Replaces the earlier look. */
+  async recordLook(
+    db: Queryable,
+    look: {
+      readonly assetId: string;
+      readonly revision: number;
+      readonly holdCode: string;
+      readonly rulesVersion: string;
+    },
+  ): Promise<void> {
+    await sql`insert into content.release_policy_looks (asset_id, revision, hold_code, rules_version, looked_at)
+      values (${look.assetId}::uuid, ${look.revision}::integer, ${look.holdCode.slice(0, 64)}, ${look.rulesVersion}, clock_timestamp())
+      on conflict (asset_id, revision) do update
+        set hold_code = excluded.hold_code, rules_version = excluded.rules_version, looked_at = excluded.looked_at`.execute(
+      db,
+    );
+  },
+
+  /**
+   * Locks the live approval of the revision's primary topic `for share`, so inside a release transaction a revocation waits for the release to commit
+   * instead of slipping in between the check and the release. Takes nothing when there is no live approval (then the release is refused anyway).
+   */
+  async lockApproval(trx: Transaction<Database>, assetId: string, revision: number): Promise<void> {
+    await sql`select approval.id from content.release_topic_approvals approval
+      join content.encounter_topics topic on topic.topic_id = approval.topic_id and topic.role = 'primary'
+        and topic.asset_id = ${assetId}::uuid and topic.asset_revision = ${revision}::integer
+      where approval.revoked_at is null for share of approval`.execute(trx);
+  },
+
+  /** Records who withdrew a Scroll the policy released, and what became of its topic's approval. The first withdrawal of a revision is kept. */
+  async recordWithdrawal(
+    trx: Transaction<Database>,
+    withdrawal: {
+      readonly assetId: string;
+      readonly revision: number;
+      readonly withdrawnBy: string;
+      readonly topicId: string | null;
+      readonly approval: 'revoked' | 'already_revoked' | 'never_approved' | 'no_topic';
+    },
+  ): Promise<void> {
+    await sql`insert into content.release_withdrawals (asset_id, revision, withdrawn_by, topic_id, approval)
+      values (${withdrawal.assetId}::uuid, ${withdrawal.revision}::integer, ${withdrawal.withdrawnBy}, ${withdrawal.topicId}, ${withdrawal.approval})
+      on conflict (asset_id, revision) do nothing`.execute(trx);
   },
 
   /** The document of a revision and the receipts of the job that produced it (the answer check is among them); `undefined` when there is no such revision. */

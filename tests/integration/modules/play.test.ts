@@ -172,6 +172,22 @@ describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
     ]);
   });
 
+  it('refuses a call of a Scroll withdrawn after the person opened it, and judges it again once it is served', async () => {
+    const person = await reader();
+    const [first] = callIt();
+    const setStatus = (status: 'admitted' | 'withdrawn') =>
+      sql`update content.assets set status = ${status} where id = ${scroll.assetId}::uuid`.execute(database.db);
+    const before = await rows(person);
+    await setStatus('withdrawn');
+    try {
+      expect(await lock(person, first!, picks(first!).right)).toEqual({ kind: 'refused', reason: 'call_not_found' });
+      expect(await rows(person)).toEqual(before);
+    } finally {
+      await setStatus('admitted');
+    }
+    expect(await lock(person, first!, picks(first!).right)).toMatchObject({ kind: 'saved' });
+  });
+
   it('is idempotent by command ID: a retry answers the stored lock and writes nothing', async () => {
     const person = await reader();
     const [first] = callIt();
