@@ -89,6 +89,12 @@ export interface Demand {
   readonly askOrder?: AskOrderLink;
   /** `pending` until a `matching` ask has its match. */
   readonly decision: 'reuse' | 'join' | 'create' | 'refuse' | 'pending';
+  /**
+   * The catalogue release a `matching` request was recorded against (D-419). The shortlist the model is shown is made from this release
+   * and the person's words, so every delivery of the request shows the same shortlist and a paid answer is checked against it.
+   * Absent on a request recorded before the release was kept: the matcher then reads the current release.
+   */
+  readonly catalogueRelease?: number;
   readonly reason?: UnavailableReason;
   /** What the Planner wanted, kept on the person's own planned demand (`planned_intent`); never shared, never evidence. */
   readonly plannedIntent?: PlannedIntent;

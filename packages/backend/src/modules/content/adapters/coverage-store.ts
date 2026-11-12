@@ -22,7 +22,6 @@ import type {
 } from '../application/coverage-ports.js';
 import { makeAdmitCoverage } from '../application/admit-coverage.js';
 import type { CatalogueSnapshot } from '../domain/catalogue/snapshot.js';
-import { planSnapshot } from '../public.js';
 import {
   CoverageAuthoritySchema,
   CoverageMappingSchema,
@@ -32,6 +31,8 @@ import {
   type CoverageRef,
   type CoverageTarget,
 } from '../domain/coverage.js';
+import { RELEASE_1_PLAN } from '../domain/catalogue/release-1.fixture.js';
+import { seedSnapshot } from '../domain/catalogue/seed.js';
 import { readCatalogueIn } from './catalogue-store.js';
 import { admissionTransaction, makeAdmissionStore } from './postgres-store.js';
 import { coverageTargetOfV2 } from './coverage-target-v2.js';
@@ -42,7 +43,8 @@ import { readingFactsOf } from './scroll-compiler.js';
 
 /**
  * The coverage catalogue of one release: its digest, the identity of each facet's wording, and which recorded identities still stand.
- * Fixtures decide coverage against the seeded release's (`planCoverageCatalogue`); the use cases read the current release in their own transaction.
+ * Fixtures decide coverage against release 1, the one a freshly migrated database holds (`planCoverageCatalogue`); the use cases
+ * read the current release in their own transaction.
  */
 export function coverageCatalogueOf(snapshot: CatalogueSnapshot): CoverageCatalogue {
   return {
@@ -52,8 +54,13 @@ export function coverageCatalogueOf(snapshot: CatalogueSnapshot): CoverageCatalo
   };
 }
 
-/** The seeded release (the library plan) as a coverage catalogue: for fixtures that decide coverage against it. The same digest the migrated database stores for release 1. */
-export const planCoverageCatalogue = (): CoverageCatalogue => coverageCatalogueOf(planSnapshot());
+/**
+ * Release 1, the seeded release, as a coverage catalogue: for fixtures that decide coverage against a freshly migrated database.
+ * Built from the frozen copy of the plan release 1 was seeded with, not from the plan in code, so the plan growing never
+ * changes the digest or the meaning identities these fixtures record.
+ */
+export const planCoverageCatalogue = (): CoverageCatalogue =>
+  coverageCatalogueOf(seedSnapshot(RELEASE_1_PLAN, canonicalSha256));
 
 /** The current release as a coverage catalogue, read through the given transaction or handle. */
 async function currentCoverageCatalogue(db: Transaction<Database> | Kysely<Database>): Promise<CoverageCatalogue> {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planSnapshot, staticCatalogue } from '../../content/public.js';
+import { fixtureSnapshot, planSnapshot, staticCatalogue, type CatalogueSnapshot } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { WAIT_LIMIT_MS } from './commission.js';
 import type { Demand, PlannedDemandInput, SupplyPorts } from './ports.js';
@@ -32,6 +32,7 @@ function world(
     open?: { id: string; state: 'deferred' | 'ready'; waitingSince: Date };
     recipe?: string;
     cap?: number;
+    catalogue?: CatalogueSnapshot;
   } = {},
 ) {
   const inserted: Demand[] = [];
@@ -42,7 +43,7 @@ function world(
   const ports = {
     // A real account: the rules of planned demand are tested apart from the disposable-account check (commission.test.ts).
     accountDisposable: () => Promise.resolve(false),
-    catalogue: staticCatalogue(planSnapshot()),
+    catalogue: staticCatalogue(options.catalogue ?? planSnapshot()),
     now: () => NOW,
     newId: () => `id-${String((ids += 1))}`,
     readCandidates: () => Promise.resolve([]),
@@ -145,6 +146,26 @@ describe("recording the Planner's demand", () => {
       reason: 'language_not_supported',
     });
     expect(w.inserted).toEqual([]);
+  });
+
+  it('records no demand for a topic that is retired or still waits for released supply (#674)', async () => {
+    const concepts = [
+      { id: 'earth', parent: null },
+      { id: 'earth.tides', parent: 'earth', facets: ['earth.tides.forcing', 'earth.tides.coasts'] },
+      { id: 'earth.seasons', parent: 'earth', facets: ['earth.seasons.tilt', 'earth.seasons.limits'] },
+    ];
+    for (const status of [{ retired: ['earth.tides'] }, { waiting: ['earth.tides'] }]) {
+      const w = world({ recipe: 'tides', catalogue: fixtureSnapshot(concepts, 1, status) });
+      expect(await w.record(scope, input())).toEqual({ kind: 'unsupported', reason: 'topic_not_in_catalogue' });
+      expect(w.inserted).toEqual([]);
+      expect(w.sent).toEqual([]);
+    }
+    // The first listed topic that can be served is the one used, so a retired one is skipped, not the whole plan refused.
+    const skipped = world({ recipe: 'tides', catalogue: fixtureSnapshot(concepts, 1, { retired: ['earth.tides'] }) });
+    expect(await skipped.record(scope, input({ topicIds: ['earth.tides', 'earth.seasons'] }))).toMatchObject({
+      kind: 'deferred',
+    });
+    expect(skipped.inserted[0]?.brief).toMatchObject({ subject: { topicId: 'earth.seasons' } });
   });
 
   it('leaves a waiting demand alone while a live resolver may still close it', async () => {

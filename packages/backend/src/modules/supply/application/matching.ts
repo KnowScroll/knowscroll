@@ -41,10 +41,23 @@ type Authority = Parameters<SupplyPorts['withScope']>[0];
 
 /** What a waiting request needs a model to place: free text to match, or a question with the place it was asked from. */
 type Asked =
-  /** `owner` is absent while recording is paused: the match is then refused without a run (D-270). */
-  | { readonly kind: 'text'; readonly text: string; readonly owner: RunOwner | undefined }
+  /**
+   * `owner` is absent while recording is paused: the match is then refused without a run (D-270). `release` is the catalogue release
+   * the request was recorded against: the shortlist is made from it, so every delivery shows the model the same one.
+   */
+  | {
+      readonly kind: 'text';
+      readonly text: string;
+      readonly owner: RunOwner | undefined;
+      readonly release: number | undefined;
+    }
   /** `owner` names the account and the recording generation the question was asked at (D-264). */
-  | { readonly kind: 'ask'; readonly facts: AskScopeFacts; readonly owner: RunOwner }
+  | {
+      readonly kind: 'ask';
+      readonly facts: AskScopeFacts;
+      readonly owner: RunOwner;
+      readonly release: number | undefined;
+    }
   /** The Scroll the question was asked from can no longer be read: there is nothing to place it by. */
   | { readonly kind: 'source_gone' };
 
@@ -79,6 +92,7 @@ async function askedOf(
     return {
       kind: 'ask',
       facts: { question: intent.question, title: facts.title, stopText: facts.stopText },
+      release: d.catalogueRelease,
       owner: {
         accountId,
         universeId: scope.authority.universeId,
@@ -89,7 +103,23 @@ async function askedOf(
     };
   }
   if (intent.kind !== 'topic' || intent.subject.kind !== 'text') return undefined;
-  return { kind: 'text', text: intent.subject.text, owner: await startRunOwner(recording.harness, scope, d.id) };
+  return {
+    kind: 'text',
+    text: intent.subject.text,
+    owner: await startRunOwner(recording.harness, scope, d.id),
+    release: d.catalogueRelease,
+  };
+}
+
+/**
+ * The shortlist a model is shown for a request: a bounded set of servable topics made by code (D-419) from the person's words and the
+ * catalogue release the request was recorded against. The same words and the same release always make the same shortlist, so a
+ * redelivery, after any number of releases, sends the exact request the first delivery paid for and a kept answer is checked against
+ * the shortlist it was given. A request with no recorded release (made before it was kept) reads the current one.
+ */
+async function shortlistOf(p: SupplyPorts, release: number | undefined, words: string) {
+  const pinned = release === undefined ? undefined : await p.catalogue.release(release);
+  return shortlistTopics(pinned ?? (await p.catalogue.current()), words);
 }
 
 /**
@@ -232,7 +262,7 @@ async function matchText(
 ): Promise<void> {
   // The model is shown a bounded shortlist built by code, never the whole catalogue (D-419). Nothing in the catalogue shares a key
   // word with the request: no topic can be chosen, so no call is made.
-  const shortlist = shortlistTopics(await deps.p.catalogue.current(), asked.text);
+  const shortlist = await shortlistOf(deps.p, asked.release, asked.text);
   if (shortlist.length === 0)
     return applyQuestionVerdict(
       deps,
@@ -291,7 +321,7 @@ async function placeQuestion(
 ): Promise<void> {
   const { p, recording, readLibrary } = deps;
   if (asked.kind === 'source_gone') return closeUnplaced(p, authority, job.requestId, 'source_unavailable');
-  const shortlist = shortlistTopics(await p.catalogue.current(), asked.facts.question);
+  const shortlist = await shortlistOf(p, asked.release, asked.facts.question);
   const { outcome, purpose } = await proposeAtGeneration(
     recording.harness,
     asked.owner,

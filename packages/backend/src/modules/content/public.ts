@@ -220,15 +220,17 @@ export function planSnapshot(): CatalogueSnapshot {
 let seeded: CatalogueSnapshot | undefined;
 /**
  * A catalogue of invented concepts, for tests that need more (or other) topics than the library plan has: each concept is a
- * system (`parent: null`) or a topic under one, with the facet ids it lists, all servable. Labelled fixture: never product data.
+ * system (`parent: null`) or a topic under one, with the facet ids it lists, all servable unless `status` says a topic waits for supply
+ * (`waiting`) or is retired (`retired`, with its facets). Labelled fixture: never product data.
  */
 export function fixtureSnapshot(
   concepts: readonly { readonly id: string; readonly parent: string | null; readonly facets?: readonly string[] }[],
   releaseId = 1,
+  status: { readonly waiting?: readonly string[]; readonly retired?: readonly string[] } = {},
 ): CatalogueSnapshot {
   const nodes: NodeRow[] = [];
   const revisions: RevisionRow[] = [];
-  const add = (id: string, kind: NodeRow['kind'], parentId: string | null, visible: boolean) => {
+  const add = (id: string, kind: NodeRow['kind'], parentId: string | null, visible: boolean, retired = false) => {
     nodes.push({
       nodeId: id,
       kind,
@@ -236,7 +238,7 @@ export function fixtureSnapshot(
       seq: nodes.length + 1,
       introducedIn: releaseId,
       visibleIn: visible ? releaseId : null,
-      retiredIn: null,
+      retiredIn: retired ? releaseId : null,
       mergedInto: null,
     });
     const meaning = `Fixture meaning of ${id}, invented for a test.`;
@@ -256,8 +258,10 @@ export function fixtureSnapshot(
     });
   };
   for (const concept of concepts) {
-    add(concept.id, concept.parent === null ? 'system' : 'topic', concept.parent, concept.parent !== null);
-    for (const facet of concept.facets ?? []) add(facet, 'facet', concept.id, false);
+    const retired = status.retired?.includes(concept.id) ?? false;
+    const visible = concept.parent !== null && !(status.waiting?.includes(concept.id) ?? false);
+    add(concept.id, concept.parent === null ? 'system' : 'topic', concept.parent, visible, retired);
+    for (const facet of concept.facets ?? []) add(facet, 'facet', concept.id, false, retired);
   }
   return makeSnapshot({ releaseId, digest: canonicalSha256(concepts), nodes, revisions }, canonicalSha256);
 }

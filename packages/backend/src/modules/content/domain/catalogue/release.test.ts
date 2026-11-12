@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import type { HazeFamilyName, LibrarySystem } from '../library/plan.js';
-import { LIBRARY_SYSTEMS } from '../library/index.js';
+import { RELEASE_1_COUNTS, RELEASE_1_PLAN } from './release-1.fixture.js';
 import { changesToMatch } from './diff.js';
 import { assignedHaze, nodesOfPlan, type NodeDraft } from './plan-import.js';
 import { planRelease, type RefusalCode, type ReleaseChange, type ReleasePlan } from './release.js';
@@ -9,7 +9,7 @@ import { seedRelease } from './seed.js';
 import { makeSnapshot } from './snapshot.js';
 import type { ReleaseRows } from './types.js';
 
-const seedRows = seedRelease(LIBRARY_SYSTEMS, canonicalSha256).rows;
+const seedRows = seedRelease(RELEASE_1_PLAN, canonicalSha256).rows;
 const plan = (changes: readonly ReleaseChange[], base: ReleaseRows = seedRows): ReleasePlan =>
   planRelease(base, changes, canonicalSha256);
 const add = (draft: NodeDraft): ReleaseChange => ({ kind: 'add', draft });
@@ -81,6 +81,38 @@ describe('admission is decided by code', () => {
     expect(refusedWith(plan(twins.map(add)))).toContain('id_duplicate');
   });
 
+  it('compares a new system or topic with every system or topic of the catalogue, not only its siblings (#674)', () => {
+    // A topic of another system whose normalised id or label is that of a topic that exists elsewhere.
+    expect(refusedWith(plan(topicWithFacets('space.sea-sons', 'space').map(add)))).toContain('id_duplicate');
+    const sameLabel = [
+      draft('space.quakes', 'topic', 'space', { label: 'Seasons' }),
+      ...topicWithFacets('space.quakes', 'space').slice(1),
+    ];
+    expect(refusedWith(plan(sameLabel.map(add)))).toContain('label_duplicate');
+    // Likewise for systems.
+    expect(refusedWith(plan([add(draft('e-arth', 'system', null))]))).toContain('id_duplicate');
+    expect(refusedWith(plan([add(draft('terra', 'system', null, { label: 'EARTH' }))]))).toContain('label_duplicate');
+    // Two new topics of different systems in one batch are compared with each other too.
+    const twins = [...topicWithFacets('earth.ash', 'earth'), ...topicWithFacets('space.a-sh', 'space')];
+    expect(refusedWith(plan(twins.map(add)))).toContain('id_duplicate');
+  });
+
+  it('lets facets repeat their labels across topics, as the seeded catalogue does with “Limits”', () => {
+    const facets = [
+      draft('space.quasars', 'topic', 'space', { label: 'Quasars' }),
+      draft('space.quasars.limits', 'facet', 'space.quasars', { label: 'Limits' }),
+      draft('space.quasars.light', 'facet', 'space.quasars', { label: 'Light' }),
+    ];
+    expect(plan(facets.map(add)).kind).toBe('release');
+  });
+
+  it('frees the names of a retired topic for a topic of another system, and keeps its id taken', () => {
+    const retired = plan([{ kind: 'retire', nodeId: 'earth.seasons' }]);
+    if (retired.kind !== 'release') throw new Error('expected a release');
+    expect(plan(topicWithFacets('space.sea-sons', 'space').map(add), retired.rows).kind).toBe('release');
+    expect(refusedWith(plan(topicWithFacets('earth.seasons', 'earth').map(add), retired.rows))).toContain('id_taken');
+  });
+
   it('refuses a meaning that is too short, too long or carries an address or markup', () => {
     const [topic, ...facets] = topicWithFacets('earth.volcanoes', 'earth');
     const attempt = (meaning: string) => refusedWith(plan([add({ ...topic!, meaning }), ...facets.map(add)]));
@@ -129,7 +161,7 @@ describe('admission is decided by code', () => {
 });
 
 describe('revisions, visibility and retirement', () => {
-  const coasts = nodesOfPlan(LIBRARY_SYSTEMS).find((node) => node.id === 'earth.tides.coasts')!;
+  const coasts = nodesOfPlan(RELEASE_1_PLAN).find((node) => node.id === 'earth.tides.coasts')!;
 
   it('makes a no-change release nowhere: the same plan twice is one release', () => {
     expect(plan([]).kind).toBe('unchanged');
@@ -155,7 +187,7 @@ describe('revisions, visibility and retirement', () => {
   });
 
   it('never changes a node’s identity, place, silhouette or haze', () => {
-    const system = nodesOfPlan(LIBRARY_SYSTEMS).find((node) => node.id === 'earth')!;
+    const system = nodesOfPlan(RELEASE_1_PLAN).find((node) => node.id === 'earth')!;
     expect(refusedWith(plan([{ kind: 'revise', draft: { ...system, haze: 'pink' } }]))).toContain('look_changed');
     expect(refusedWith(plan([{ kind: 'revise', draft: { ...system, sceneFamily: 'ridged.v1' } }]))).toContain(
       'look_changed',
@@ -181,15 +213,12 @@ describe('revisions, visibility and retirement', () => {
     expect(refusedWith(plan([{ kind: 'show', nodeId: 'earth.seasons' }]))).toContain('already_servable');
   });
 
-  it('retires a node with what is under it, and refuses a merge into a different kind', () => {
-    const retired = plan([{ kind: 'retire', nodeId: 'earth.tides', mergedInto: 'earth.seasons' }]);
+  it('retires a node with what is under it, and refuses every merge: readers cannot be redirected yet', () => {
+    const retired = plan([{ kind: 'retire', nodeId: 'earth.tides' }]);
     expect(retired).toMatchObject({ kind: 'release', summary: { retired: 4 } });
-    expect(refusedWith(plan([{ kind: 'retire', nodeId: 'earth.tides', mergedInto: 'earth' }]))).toContain(
-      'merge_target',
-    );
-    expect(refusedWith(plan([{ kind: 'retire', nodeId: 'earth.tides', mergedInto: 'earth.tides' }]))).toContain(
-      'merge_target',
-    );
+    // Even a well-formed merge (a topic into another topic of the same kind) is refused, and nothing is retired by it.
+    for (const mergedInto of ['earth.seasons', 'earth', 'earth.tides'])
+      expect(refusedWith(plan([{ kind: 'retire', nodeId: 'earth.tides', mergedInto }]))).toEqual(['merge_unsupported']);
   });
 
   it('never retires a facet alone: a stored place or certificate may name it', () => {
@@ -211,11 +240,11 @@ describe('importing the library plan', () => {
   const snapshot = makeSnapshot(seedRows, canonicalSha256);
 
   it('finds nothing to do when the catalogue already is the plan', () => {
-    expect(changesToMatch(snapshot, nodesOfPlan(LIBRARY_SYSTEMS))).toEqual({ changes: [], missingFromPlan: [] });
+    expect(changesToMatch(snapshot, nodesOfPlan(RELEASE_1_PLAN))).toEqual({ changes: [], missingFromPlan: [] });
   });
 
   it('adds a topic the plan gained, with its place after what exists, and nothing else', () => {
-    const grown: LibrarySystem[] = LIBRARY_SYSTEMS.map((system) =>
+    const grown: LibrarySystem[] = RELEASE_1_PLAN.map((system) =>
       system.id === 'earth'
         ? {
             ...system,
@@ -247,7 +276,7 @@ describe('importing the library plan', () => {
   });
 
   it('reports a node the plan no longer names and does not retire it', () => {
-    const smaller: LibrarySystem[] = LIBRARY_SYSTEMS.map((system) =>
+    const smaller: LibrarySystem[] = RELEASE_1_PLAN.map((system) =>
       system.id === 'history' ? { ...system, topics: [] } : system,
     );
     const { changes, missingFromPlan } = changesToMatch(snapshot, nodesOfPlan(smaller));
@@ -257,7 +286,7 @@ describe('importing the library plan', () => {
 
   it('turns an edited meaning into a revision, and a declared rewording into one that keeps certificates', () => {
     const edited = (sameMeaningAs: boolean): LibrarySystem[] =>
-      LIBRARY_SYSTEMS.map((system) => ({
+      RELEASE_1_PLAN.map((system) => ({
         ...system,
         topics: system.topics.map((topic) =>
           topic.id === 'earth.tides'
@@ -318,7 +347,7 @@ describe('a catalogue of ten thousand topics', () => {
     const second = plan(drafts.slice(20_000).map(add), first.rows);
     if (second.kind !== 'release') throw new Error(`expected a release, got ${second.kind}`);
     const snapshot = makeSnapshot(second.rows, canonicalSha256);
-    expect(snapshot.allTopics()).toHaveLength(17 + topics);
+    expect(snapshot.allTopics()).toHaveLength(RELEASE_1_COUNTS.topics + topics);
     expect(snapshot.slice(['earth.topic-9999', 'earth.topic-5', 'earth']).map((entry) => entry.id)).toEqual([
       'earth',
       'earth.topic-5',

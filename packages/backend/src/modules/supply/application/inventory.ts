@@ -39,8 +39,9 @@ export function briefOf(
   // A contextual ask has additional meaning that this deterministic catalogue matcher cannot admit.
   if (c.intent.context || c.intent.subject.kind !== 'catalogue') return undefined;
   const subject = c.intent.subject;
+  // Only a servable topic can be briefed: a retired one, or a new one still waiting for released supply, is not offered.
   const topic = catalogue.concept(subject.topicId);
-  if (!topic || (subject.facetId && !topic.facets.some((f) => f.id === subject.facetId))) return undefined;
+  if (!topic?.servable || (subject.facetId && !topic.facets.some((f) => f.id === subject.facetId))) return undefined;
   return catalogueBrief(c, subject, c.intent.format);
 }
 /** The shared brief of a catalogue meaning, built exactly as for a person's own catalogue ask. */

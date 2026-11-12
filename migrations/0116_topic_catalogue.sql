@@ -13,8 +13,10 @@
 --    a facet's site on its planet, so adding a facet never moves one. `introduced_in`, `visible_in` and `retired_in` are
 --    release numbers: a topic is servable (offered, matched, listed, made a room) from `visible_in`, which a new topic gets only
 --    when the library has released supply for it (three explanations over two facets by default), and a seeded topic has at
---    once. `status` and `merged_into` say where a retired node's readers go. Only `visible_in` and `retired_in`, `status` and `merged_into` may ever
---    change, once, from empty (a trigger), and a row is never deleted.
+--    once. `status` and `merged_into` say where a retired node's readers go (`merged_into` is reserved: admission refuses a merge,
+--    and it is always null). Only `visible_in` and `retired_in`, `status` and `merged_into` may ever change, once, from empty and
+--    only to a release the pointer has not reached (a trigger), and a row is never deleted. A node or a revision may be inserted
+--    only for a release after the one the pointer names (a trigger), so a release that exists never grows.
 -- 3. `content.concept_node_revisions`: immutable revisions of a node: label, meaning and `meaning_sha256` (the identity of that
 --    wording), `compatible_with` (the identities of earlier wordings this one only rephrases, so a wording-only edit keeps the
 --    certificates decided against them valid; a semantic change lists none), the formation thresholds a node carries (defaults 2
@@ -96,9 +98,9 @@ create table content.concept_node_revisions (
   meaning text not null,
   meaning_sha256 text not null,
   compatible_with text[] not null default '{}',
-  system_units smallint,
-  planet_units smallint,
-  planet_facets smallint,
+  system_units integer,
+  planet_units integer,
+  planet_facets integer,
   scene_family text,
   haze text,
   created_at timestamptz not null default now(),
@@ -320,12 +322,34 @@ begin
      or (old.merged_into is not null and new.merged_into is distinct from old.merged_into) then
     raise exception using message = 'CONTENT_CONCEPT_IMMUTABLE', errcode = '23514';
   end if;
+  -- A node is shown or retired by a release that is still to come, never by one the pointer has already passed.
+  if (new.visible_in is distinct from old.visible_in and new.visible_in <= (select release_id from content.concept_current))
+     or (new.retired_in is distinct from old.retired_in and new.retired_in <= (select release_id from content.concept_current)) then
+    raise exception using message = 'CONTENT_CONCEPT_IMMUTABLE', errcode = '23514';
+  end if;
   return new;
 end;
 $$;
 
 create trigger concept_nodes_monotonic before update or delete on content.concept_nodes
 for each row execute function content.concept_node_monotonic();
+
+-- A release is made by adding rows introduced in the release after the one the pointer names: a node or a revision introduced at or
+-- below the pointer would change a release that already exists, which a Geography run may have pinned. The seed above is
+-- inserted before this trigger and the pointer exist, and is the only such write.
+create function content.concept_introduced_after_pointer() returns trigger language plpgsql as $$
+begin
+  if new.introduced_in <= (select release_id from content.concept_current) then
+    raise exception using message = 'CONTENT_CONCEPT_IMMUTABLE', errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger concept_nodes_introduced before insert on content.concept_nodes
+for each row execute function content.concept_introduced_after_pointer();
+create trigger concept_node_revisions_introduced before insert on content.concept_node_revisions
+for each row execute function content.concept_introduced_after_pointer();
 
 create function content.concept_current_monotonic() returns trigger language plpgsql as $$
 begin

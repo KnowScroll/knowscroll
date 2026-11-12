@@ -17,6 +17,7 @@ import {
 } from '@knowscroll/backend/infrastructure/postgres';
 import { FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
 import {
+  appendRelease,
   contentProviders,
   makeReadLibraryPassages,
   makeReviewGate,
@@ -2744,6 +2745,58 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         .where('recipe', '=', order.recipe)
         .executeTakeFirstOrThrow();
       expect(stored.brief).toBe('');
+    });
+  });
+
+  describe('the shortlist a model is shown is frozen with the request (#674, D-419)', () => {
+    it('is made from the release the question was asked at, so a redelivery after a release sends the very request the first one paid for', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      const question = 'Why do volcanoes erupt?';
+      const requestId = await ask(person, askCommand(exposure, question));
+      const askedAt = (await catalogueOf(database.db).current()).releaseId;
+      expect((await requestRow(requestId)).catalogue_release).toBe(askedAt);
+      // After the question was asked and before a worker took it, a topic is added and made servable.
+      const volcanoes = (id: string, kind: 'topic' | 'facet', parentId: string, label: string) => ({
+        kind: 'add' as const,
+        draft: {
+          id,
+          kind,
+          parentId,
+          label,
+          meaning: `${label}: an invented topic for a test, long enough to be admitted.`,
+          sceneFamily: null,
+          haze: null,
+          sameMeaningAs: [],
+        },
+      });
+      expect(
+        await appendRelease(
+          database.db,
+          [
+            volcanoes('earth.volcanoes', 'topic', 'earth', 'Volcanoes'),
+            volcanoes('earth.volcanoes.magma', 'facet', 'earth.volcanoes', 'Magma'),
+            volcanoes('earth.volcanoes.plates', 'facet', 'earth.volcanoes', 'Plates'),
+          ],
+          'operator',
+        ),
+      ).toMatchObject({ kind: 'appended' });
+      expect(
+        await appendRelease(database.db, [{ kind: 'show', nodeId: 'earth.volcanoes' }], 'visibility'),
+      ).toMatchObject({ kind: 'appended' });
+      expect((await catalogueOf(database.db).current()).topics().map((topic) => topic.id)).toContain('earth.volcanoes');
+      await resolve(job(person, requestId));
+      // The first request names the topics of the release it was asked at, not the one that is current now.
+      expect(scopeModel.calls).toHaveLength(1);
+      expect(scopeModel.calls[0]!.request.user).toContain('earth.tides');
+      expect(scopeModel.calls[0]!.request.user).not.toContain('earth.volcanoes');
+      // A question asked after the release is shown the new topic.
+      const later = await reader();
+      const lateId = await ask(later.person, askCommand(later.exposure, question));
+      expect((await requestRow(lateId)).catalogue_release).toBeGreaterThan(askedAt);
+      await resolve(job(later.person, lateId));
+      expect(scopeModel.calls).toHaveLength(2);
+      expect(scopeModel.calls[1]!.request.user).toContain('earth.volcanoes');
     });
   });
 });

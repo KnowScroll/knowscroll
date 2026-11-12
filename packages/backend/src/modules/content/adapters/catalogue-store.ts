@@ -155,7 +155,10 @@ export interface CatalogueOptions {
 
 /**
  * The `Catalogue` over the process's pool: the current release is kept for `revalidateMs` and then checked against the pointer, so a
- * release made by another process is read within seconds without a deploy; a pinned release is read once and kept for good. A failed check keeps the release
+ * release made by another process is read within seconds without a deploy. A release never changes, so every release this
+ * handle has read is kept by its number (the last few): `release(n)` for one of those, and for the current one, answers from memory
+ * and never touches the pool, which a read inside a personal transaction must not do (it would hold a second connection while
+ * holding the first). Only a release the process has never read is read, once, on the pool. A failed check keeps the release
  * the process has, which is a valid catalogue, and is tried again on the next read.
  */
 export function makeCatalogue(db: Kysely<Database>, options: CatalogueOptions = {}): Catalogue {
@@ -164,10 +167,17 @@ export function makeCatalogue(db: Kysely<Database>, options: CatalogueOptions = 
   let current: CatalogueSnapshot | undefined;
   let checkedAt = 0;
   let inflight: Promise<CatalogueSnapshot> | undefined;
+  const byNumber = new Map<number, CatalogueSnapshot>();
+  const remember = (snapshot: CatalogueSnapshot): CatalogueSnapshot => {
+    byNumber.delete(snapshot.releaseId);
+    byNumber.set(snapshot.releaseId, snapshot);
+    while (byNumber.size > KEPT_RELEASES) byNumber.delete(byNumber.keys().next().value!);
+    return snapshot;
+  };
   const refresh = (): Promise<CatalogueSnapshot> => {
     inflight ??= readCatalogueIn(db)
       .then((snapshot) => {
-        current = snapshot;
+        current = remember(snapshot);
         checkedAt = Date.now();
         return snapshot;
       })
@@ -185,7 +195,12 @@ export function makeCatalogue(db: Kysely<Database>, options: CatalogueOptions = 
       refresh().catch(() => undefined);
       return current;
     },
-    release: (releaseId) => readCatalogueRelease(db, releaseId),
+    async release(releaseId) {
+      const held = current?.releaseId === releaseId ? current : byNumber.get(releaseId);
+      if (held !== undefined) return held;
+      const read = await readCatalogueRelease(db, releaseId);
+      return read === undefined ? undefined : remember(read);
+    },
   };
 }
 
@@ -276,7 +291,6 @@ export async function appendRelease(
         .set({
           ...(update.visibleIn === undefined ? {} : { visible_in: update.visibleIn }),
           ...(update.retiredIn === undefined ? {} : { retired_in: update.retiredIn, status: 'retired' }),
-          ...(update.mergedInto === undefined ? {} : { merged_into: update.mergedInto }),
         })
         .where('node_id', '=', update.nodeId)
         .execute();
