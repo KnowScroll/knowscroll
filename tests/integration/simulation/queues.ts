@@ -65,6 +65,8 @@ export const NOT_DRAINED: Readonly<Record<string, string>> = {
   'supply.scan-gaps': 'scheduled gap scan (D-414); off unless KS_SUPPLY_GROWTH_ENABLED=1; no reader activity',
   'supply.brief-gap':
     'scheduled gap briefing and commissioning (D-414); off unless KS_SUPPLY_GROWTH_ENABLED=1; calls a model; the lab runs no production',
+  'content.grow-topics':
+    'scheduled topic growth (D-422); off unless KS_SUPPLY_GROWTH_ENABLED=1 and KS_TOPIC_GROWTH_ENABLED=1; reads public research pages and calls a model; the lab runs no production and no reader activity',
   'identity.clear-exploration': 'account lifecycle: privacy reset',
   'identity.recover-clear-operations': 'account lifecycle: privacy reset recovery',
   'identity.delete-account': 'account lifecycle: deletion',

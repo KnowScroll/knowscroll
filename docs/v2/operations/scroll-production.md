@@ -37,6 +37,11 @@ node dist/operator.js content produce-library [--only seasons,tides] [--interact
 node dist/operator.js content propose-recipes --topic earth.tides --dry-run
 node dist/operator.js content propose-recipes --topic earth.tides [--facet earth.tides.<facet>] [--retry 1]
 node dist/operator.js content recipes [--status checked|queued|produced|retired]
+
+# new topics under existing systems (D-422): the candidate pages code found, and a model's placement of one (see "New topics grow from pages the library trusts")
+node dist/operator.js content topic-candidates [--status pending|eligible|rejected|proposed|refused|admitted|blocked_unknown]
+node dist/operator.js content propose-topic --page https://en.wikipedia.org/wiki/<candidate page> --dry-run
+node dist/operator.js content propose-topic --page https://en.wikipedia.org/wiki/<candidate page>
 node dist/operator.js content produce-library --only gen-<key> --dry-run
 
 # the topic catalogue as data (D-419): import the library plan as the next release, make topics with released supply servable (see "The topic catalogue")
@@ -514,6 +519,32 @@ uses; `KS_SUPPLY_GAP_DEPTH_TARGET` (default 6) is how many released explanations
 6. **Cost.** At most one model request and one repair for each proposing attempt, on the production harness and its attempt ledger, counted against the
    production caps. Two passes never overlap (the second does nothing while the first holds its lock), and a test account's reading is never counted. A redelivered job or a restarted worker repeats nothing that was paid: the gap pins the UTC day of its attempt and the same request is
    answered by the ledger, even after midnight.
+
+## New topics grow from pages the library trusts (#674, slice 3.4, D-422)
+
+Topics can grow under the systems that exist, with no engineer choosing them. Code finds the candidate pages, a model places one and names its facets, code admits it
+or not, and the topic then waits, **invisible to readers**, for the same supply every new topic waits for: three explanations over two of its facets, released by you.
+It makes no system (new systems are the owner's), serves nothing and releases nothing: every Scroll written for it is held for your read like any other. It is **off in
+every world** until `KS_SUPPLY_GROWTH_ENABLED=1` **and** `KS_TOPIC_GROWTH_ENABLED=1` on the worker (and `KS_REASONING_PRODUCTION_ENABLED=1`); the coordinator turns it on for dev. Set either to
+`0` and restart to stop it: no page is read, no model is asked, nothing is written. The research host list stays a human decision (`research/public-pages.ts`): growth fetches
+nothing from a host that is not on it.
+
+1. **See the candidates.** `content topic-candidates [--status ...]` prints the counts by status and the candidates, newest first: the page's address, its host, the status
+   (`pending` found but not read, `eligible` read and fit, `rejected` with the code why, `proposed` a run in flight, `refused` with the code why, `admitted` with the topic made,
+   `blocked_unknown`), the verdict code, how many attempts, and for an admitted one the topic's label, its facets' labels and whether it is servable yet. Rejection codes:
+   `not_an_article`, `disambiguation`, `list_page`, `stub`, `duplicate_topic`, `duplicate_page`, `recipe_page`, `page_unreachable` and `page_<the fetch's code>`.
+2. **Read the topic before it is served.** The label and facets of an admitted topic are the model's words, and they reach readers when the topic becomes servable. Read them
+   in `content topic-candidates --status admitted`. Nothing in the product shows the topic before it has three released explanations over two facets, so if the words are wrong,
+   release none of its Scrolls (`content reject` the held ones): it never becomes servable and nothing reaches readers. Rewording, retiring or merging a grown topic is not built yet; note it for the owner.
+3. **Its recipes and Scrolls.** The gap scan sees an admitted topic as a `thin_planet` hole (`supply gaps`) and the brief job proposes its first recipes from the page it grew from,
+   within the growth cap; or ask yourself: `content propose-recipes --topic <the new topic id>`. Then it is the flow in "New recipes for planets that exist" and "The review gate":
+   `content produce-library --only gen-<key>`, `content review-list`, `content release`; at three released explanations over two facets the next gap scan makes the topic servable in a release of its own.
+4. **Ask by hand.** `content propose-topic --page <the address of an eligible candidate> [--dry-run]` asks the model once (and repairs once) for that candidate; `--dry-run` prints the
+   counts of what would be sent and calls no provider. The page must be one code found: an operator never names a page of their own. A candidate that is `blocked_unknown` had an attempt of unknown outcome
+   (find it with `reasoning unknown` and write it off as for any unknown attempt); it is never asked again.
+5. **The brake.** At most one proposal a pass (twice an hour); no new run once today's runs reached `KS_SUPPLY_GROWTH_DAILY_CAP` (default 10); none while as many topics wait for supply as that cap;
+   none when every system holds `KS_TOPIC_GROWTH_MAX_PER_SYSTEM` topics (default 12, servable or not). A candidate is asked about twice at most, on different days. Each request is at
+   most one model request and one repair on the production harness (background class), counted against the production caps; a redelivered job repeats nothing that was paid.
 
 ## Running a library wave (S-6a, S-6b, D-197 to D-199, D-217)
 

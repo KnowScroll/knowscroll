@@ -212,6 +212,7 @@ import { reasoningPurgeProviders, reasoningSweepProviders } from '@knowscroll/ba
 import { scrollProductionConsumers } from './production-jobs.js';
 import { gapLoopConsumers } from './growth-jobs.js';
 import { releasePolicyConsumers } from './release-policy-jobs.js';
+import { topicGrowthConsumers } from './topic-growth-jobs.js';
 import {
   ENQUEUE_JOB,
   DATABASE,
@@ -430,6 +431,9 @@ export const jobWiring: Provider[] = [
       ...gapLoopConsumers({ config, db, boss, harness: productionHarness, withScope: withProductionScope, logEvent }),
       // The release policy's sweep (D-418): shared content only, on every worker, and a no-op until KS_CONTENT_AUTO_RELEASE_ENABLED=1.
       ...releasePolicyConsumers({ config, db, logEvent }),
+      // Topic growth (#674, D-422): candidate pages found by code, a place proposed for one, admitted by code as a topic that is not servable
+      // until the library has supply for it. Part of the gap loop's switch and its own; does nothing while either is off.
+      ...topicGrowthConsumers({ config, db, harness: productionHarness, withScope: withProductionScope, logEvent }),
       ...clearExplorationConsumers(
         clearExplorationFor(db, boss, {
           reasoning: clearReasoning,

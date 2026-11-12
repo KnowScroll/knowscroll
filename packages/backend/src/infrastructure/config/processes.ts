@@ -179,6 +179,10 @@ export interface WorkerConfig extends ReleaseIdentity {
   readonly supplyGapDepthTarget: number;
   /** `KS_SUPPLY_GAP_MAX_ROUNDS`: how many failed production rounds (a rejected take, recipes that all ended) reject a gap (D-414). */
   readonly supplyGapMaxRounds: number;
+  /** `KS_TOPIC_GROWTH_ENABLED`: new topics grow under existing systems from candidate pages; needs `supplyGrowthEnabled` too (D-422). Off unless set. */
+  readonly topicGrowthEnabled: boolean;
+  /** `KS_TOPIC_GROWTH_MAX_PER_SYSTEM`: the most topics (servable or not) a system may hold before growth stops adding to it (D-422). */
+  readonly topicGrowthMaxPerSystem: number;
   /** Ask orders (a short Scroll made for a person's question, D-218) Quartermaster may make per UTC day; 0 turns them off. */
   readonly supplyAskDailyCap: number;
   /** Ask orders one person may have made per UTC day. */
@@ -333,6 +337,20 @@ const supplyGapDepthTargetVariable = z.coerce.number().int().min(3).max(50).defa
  * nobody can fill is not tried for ever. Default 3.
  */
 const supplyGapMaxRoundsVariable = z.coerce.number().int().min(1).max(10).default(3);
+
+/**
+ * `KS_TOPIC_GROWTH_ENABLED`: topic growth (D-422): the scheduled step that finds candidate pages from the links of research pages already
+ * accepted for recipes, asks the proposal role where one belongs, and admits it as a topic that is not servable until the library has released
+ * supply for it. It is part of the gap loop: it also needs `KS_SUPPLY_GROWTH_ENABLED=1`. Off by default in every world.
+ */
+const topicGrowthEnabledVariable = z.enum(['0', '1']).default('0');
+
+/**
+ * `KS_TOPIC_GROWTH_MAX_PER_SYSTEM`: the one size limit of topic growth (D-422): a system that already holds this many topics, servable or not,
+ * is offered no more. New systems stay with the owner. The default, 12, leaves the seeded systems (three to four topics each) room to
+ * grow several times over before anyone has to look.
+ */
+const topicGrowthMaxPerSystemVariable = z.coerce.number().int().min(1).max(500).default(12);
 
 /**
  * `KS_SUPPLY_ASK_DAILY_CAP`: how many ask orders (a short Scroll made for one person's question, each one writer call
@@ -870,6 +888,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         KS_SUPPLY_GROWTH_ENABLED: supplyGrowthEnabledVariable,
         KS_SUPPLY_GAP_DEPTH_TARGET: supplyGapDepthTargetVariable,
         KS_SUPPLY_GAP_MAX_ROUNDS: supplyGapMaxRoundsVariable,
+        KS_TOPIC_GROWTH_ENABLED: topicGrowthEnabledVariable,
+        KS_TOPIC_GROWTH_MAX_PER_SYSTEM: topicGrowthMaxPerSystemVariable,
         KS_SUPPLY_ASK_DAILY_CAP: supplyAskDailyCapVariable,
         KS_SUPPLY_ASK_PERSON_DAILY_CAP: supplyAskPersonCapVariable,
         KS_SUPPLY_QUICK_ANSWER_DAILY_CAP: supplyQuickAnswerDailyCapVariable,
@@ -892,6 +912,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         'KS_SUPPLY_GROWTH_ENABLED',
         'KS_SUPPLY_GAP_DEPTH_TARGET',
         'KS_SUPPLY_GAP_MAX_ROUNDS',
+        'KS_TOPIC_GROWTH_ENABLED',
+        'KS_TOPIC_GROWTH_MAX_PER_SYSTEM',
         'KS_SUPPLY_ASK_DAILY_CAP',
         'KS_SUPPLY_ASK_PERSON_DAILY_CAP',
         'KS_SUPPLY_QUICK_ANSWER_DAILY_CAP',
@@ -927,6 +949,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     supplyGrowthEnabled: parsed.KS_SUPPLY_GROWTH_ENABLED === '1',
     supplyGapDepthTarget: parsed.KS_SUPPLY_GAP_DEPTH_TARGET,
     supplyGapMaxRounds: parsed.KS_SUPPLY_GAP_MAX_ROUNDS,
+    topicGrowthEnabled: parsed.KS_TOPIC_GROWTH_ENABLED === '1',
+    topicGrowthMaxPerSystem: parsed.KS_TOPIC_GROWTH_MAX_PER_SYSTEM,
     supplyAskDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_ASK_DAILY_CAP, release.world),
     supplyAskPersonDailyCap: parsed.KS_SUPPLY_ASK_PERSON_DAILY_CAP,
     supplyQuickAnswerDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_QUICK_ANSWER_DAILY_CAP, release.world),
@@ -1103,6 +1127,22 @@ export function readRoomFaceOperatorConfig(env: Environment): RoomFaceOperatorCo
     reasoning: reasoningSettings(reasoning),
     mediaRoot: scope.KS_MEDIA_ROOT,
   };
+}
+
+/** What the operator's topic growth commands read besides the world and the database (D-422). */
+export interface TopicGrowthOperatorConfig {
+  readonly topicGrowthMaxPerSystem: number;
+}
+
+/** `KS_TOPIC_GROWTH_MAX_PER_SYSTEM` for the operator's `content propose-topic`: the one size limit, read as the worker reads it. */
+export function readTopicGrowthOperatorConfig(env: Environment): TopicGrowthOperatorConfig {
+  const [parsed] = combineChecks(
+    checkEnvironment(
+      z.object({ KS_TOPIC_GROWTH_MAX_PER_SYSTEM: topicGrowthMaxPerSystemVariable }),
+      pick(env, ['KS_TOPIC_GROWTH_MAX_PER_SYSTEM']),
+    ),
+  );
+  return { topicGrowthMaxPerSystem: parsed.KS_TOPIC_GROWTH_MAX_PER_SYSTEM };
 }
 
 /** The bounded, nonpersonal Scroll operator's validated world, database and harness settings. */

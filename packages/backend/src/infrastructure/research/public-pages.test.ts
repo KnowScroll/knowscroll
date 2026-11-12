@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   extractResearch,
+  extractResearchLinks,
   fetchResearchPage,
+  fetchResearchWithLinks,
+  MAX_RESEARCH_LINKS,
   MAX_RESEARCH_BYTES,
   publicAddress,
   researchUrl,
@@ -149,5 +152,119 @@ describe('public research boundary (CI fixture)', () => {
     expect(text).not.toMatch(/\[1\]|displaystyle|cited work/u);
     expect(extracted.passages[0]?.text.endsWith('private evidence package.')).toBe(true);
     expect(extracted.passages.at(-1)?.text.startsWith('Abstract:')).toBe(true);
+  });
+});
+
+describe('the links of a research page (topic growth, CI fixture)', () => {
+  const wiki = 'https://en.wikipedia.org/wiki/Tide';
+  const prose = (links: string) => `<p>${paragraph} ${links}</p>`;
+  const wikiPage = (body: string, extra = '') =>
+    `<html><title>Tide - Wikipedia</title>${extra}<main>${body}</main></html>`;
+
+  it('reads the links of the prose, in order, as absolute addresses without fragments, and each once', () => {
+    const links = extractResearchLinks(
+      wikiPage(
+        prose(
+          '<a href="/wiki/Tidal_force#Origin">tidal force</a> and <a href="https://en.wikipedia.org/wiki/Spring_tide">spring tides</a> and <a href="/wiki/Tidal_force">again</a> <a href="/wiki/Moon/">trailing slash</a>',
+        ),
+      ),
+      wiki,
+    );
+    expect(links).toEqual([
+      'https://en.wikipedia.org/wiki/Tidal_force',
+      'https://en.wikipedia.org/wiki/Spring_tide',
+      'https://en.wikipedia.org/wiki/Moon',
+    ]);
+  });
+
+  it('keeps only links to a reviewed host, an article and not the page itself', () => {
+    const links = extractResearchLinks(
+      wikiPage(
+        prose(
+          [
+            '<a href="/wiki/Category:Tides">a category</a>',
+            '<a href="/wiki/File:Tide.png">a file</a>',
+            '<a href="/wiki/Special:Random">special</a>',
+            '<a href="/wiki/Main_Page">main</a>',
+            '<a href="/w/index.php?title=Tidal_flat&action=edit&redlink=1">a red link</a>',
+            '<a href="/wiki/Tide?action=raw">a query</a>',
+            '<a href="https://example.com/wiki/Tide">an unreviewed host</a>',
+            '<a href="http://en.wikipedia.org/wiki/Neap_tide">http</a>',
+            '<a href="https://user:pw@en.wikipedia.org/wiki/Neap_tide">credentials</a>',
+            '<a href="https://en.wikipedia.org:8443/wiki/Neap_tide">a port</a>',
+            '<a href="#cite_note-1">an anchor</a>',
+            '<a href="javascript:alert(1)">script</a>',
+            '<a href="/wiki/Tide">itself</a>',
+            '<a href="/wiki/Tide#Causes">itself with a fragment</a>',
+            '<a href="https://science.nasa.gov/earth/oceans/">a reviewed other host</a>',
+            '<a href="https://science.nasa.gov/">a root page</a>',
+            '<a href="https://arxiv.org/pdf/1234.12345">an arXiv pdf</a>',
+            '<a href="https://arxiv.org/abs/1234.12345">an arXiv abstract</a>',
+            '<a href="/wiki/Neap_tide">a real one</a>',
+          ].join(' '),
+        ),
+      ),
+      wiki,
+    );
+    expect(links).toEqual([
+      'https://science.nasa.gov/earth/oceans',
+      'https://arxiv.org/abs/1234.12345',
+      'https://en.wikipedia.org/wiki/Neap_tide',
+    ]);
+  });
+
+  it('does not read the navigation, a footer, a reference list, a footnote marker or a link outside a paragraph', () => {
+    const links = extractResearchLinks(
+      `<html><title>Tide - Wikipedia</title><nav><p><a href="/wiki/Navigation_page">nav</a></p></nav>
+        <main>
+          ${prose('<sup class="reference"><a href="/wiki/Footnote_page">[1]</a></sup>')}
+          <ul><li><a href="/wiki/List_item_page">a list item</a></li></ul>
+          <table class="navbox"><tr><td><a href="/wiki/Navbox_page">navbox</a></td></tr></table>
+          <ol class="references"><li><p><a href="/wiki/Reference_page">ref</a></p></li></ol>
+          ${prose('<a href="/wiki/Prose_page">prose</a>')}
+        </main><footer><p><a href="/wiki/Footer_page">footer</a></p></footer></html>`,
+      wiki,
+    );
+    expect(links).toEqual(['https://en.wikipedia.org/wiki/Prose_page']);
+  });
+
+  it('handles single quotes, entities in addresses and attributes in any order, and skips a broken address', () => {
+    const links = extractResearchLinks(
+      wikiPage(
+        prose(
+          `<a title="x" class="y" href='/wiki/Tidal_locking'>a</a> <a href="/wiki/Rock_%26_roll">b</a> <a href="https://[bad">c</a> <a>no href</a>`,
+        ),
+      ),
+      wiki,
+    );
+    expect(links).toEqual([
+      'https://en.wikipedia.org/wiki/Tidal_locking',
+      'https://en.wikipedia.org/wiki/Rock_%26_roll',
+    ]);
+  });
+
+  it('gives at most the bound, however many a page has', () => {
+    const many = Array.from({ length: MAX_RESEARCH_LINKS + 40 }, (_, n) => `<a href="/wiki/Page_${String(n)}">p</a>`);
+    const links = extractResearchLinks(wikiPage(prose(many.join(' '))), wiki);
+    expect(links).toHaveLength(MAX_RESEARCH_LINKS);
+    expect(links[0]).toBe('https://en.wikipedia.org/wiki/Page_0');
+  });
+
+  it('is read with the page by the fetch, through the same URL rule, DNS and size checks, and the passages are the page’s own', async () => {
+    const withLinks = wikiPage(
+      [prose('<a href="/wiki/Neap_tide">neap</a>'), prose('Another fact.'), prose('And a third.')].join(''),
+    );
+    const network = net({
+      read: () =>
+        Promise.resolve({ status: 200, headers: { 'content-type': 'text/html; charset=utf-8' }, body: withLinks }),
+    });
+    const both = await fetchResearchWithLinks(wiki, network, () => new Date('2026-10-20T00:00:00.000Z'));
+    expect(both.links).toEqual(['https://en.wikipedia.org/wiki/Neap_tide']);
+    const alone = await fetchResearchPage(wiki, network, () => new Date('2026-10-20T00:00:00.000Z'));
+    expect(both.page).toEqual(alone);
+    await expect(fetchResearchWithLinks('https://example.com/', net())).rejects.toThrow('host_refused');
+    await expect(
+      fetchResearchWithLinks(wiki, net({ addresses: () => Promise.resolve([{ address: '127.0.0.1', family: 4 }]) })),
+    ).rejects.toThrow('address_refused');
   });
 });

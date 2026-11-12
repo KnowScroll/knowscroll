@@ -46,7 +46,8 @@ or model labels never establish membership. _Implemented; migration 0117 seeds r
 - **A new topic waits for supply.** It is added not servable (not offered, matched, listed or made a room) until the library has released, coverage-mapped supply
   for it: at least three distinct explanations over two of its own facets by default (its own thresholds), counted from `content.region_bindings` of admitted
   Scrolls only (`readReleasedCoverage`), and only the bindings whose pinned meaning the catalogue still accepts (a facet whose meaning changed is not supplied by a Scroll mapped to the old one). `showServableTopics` makes such topics servable in a release of its own; the gap loop's scan runs it each pass, and
-  `content catalogue sync` runs it too. Production and the gap loop work on topics that are not yet servable (`allTopics()`).
+  `content catalogue sync` runs it too. Production and the gap loop work on topics that are not yet servable (`allTopics()`). A topic can also be added by growth
+  (D-422, "Topic growth" below), in a release whose source is `growth`; it waits the same way.
 - **A wording-only revision keeps certificates valid.** A revision lists the identities of the earlier wordings it only rephrases (`compatible_with`), so
   `acceptsMeaning` still accepts a certificate decided against them; a semantic change lists none and the binding is dropped from reads, never thrown on. New decisions
   pin the current wording (`meaningSha256`). A release that changes nothing a binding pins changes only the digest, which a read never compares, and re-admission
@@ -227,6 +228,10 @@ leaves it), and nothing here records who read what.
 | `content.concept_node_revisions`                        | `0117_topic_catalogue`                           | Immutable revisions of a node: label, meaning, the identity of the wording, `compatible_with` (earlier wordings it only rephrases), formation thresholds, silhouette and haze. Shared and nonpersonal | None: shared content       |
 | `content.concept_current`                               | `0117_topic_catalogue`                           | The one row that names the current release; it only moves forward | None: shared content       |
 | `content.recipe_proposals`                              | `0111_content_recipes`                           | One proposing run of the recipe brief role (D-412): its run id, planet, facet, UTC day and retry number, the frozen context it was sent (public pages and library text only), and `open` / `completed` / `failed`. Authoritative, shared and nonpersonal | None: shared content       |
+| `content.topic_seed_sources` | `0120_topic_growth` | A research page already accepted for a recipe whose links code has read, once, with the outcome and counts (D-422). Shared, nonpersonal | None: shared content |
+| `content.topic_candidates` | `0120_topic_growth` | A page code found by following those links, keyed by its canonical address, and what became of it: `pending`, `eligible`, `rejected` (the verdict code), `proposed`, `refused`, `admitted` (the topic made) or `blocked_unknown`. Holds the page's public paragraphs while it can be proposed for or has become a topic. No person | None: shared content |
+| `content.topic_proposals` | `0120_topic_growth` | One proposing run of the topic proposal role: the frozen context, the systems the model was offered, where the run stands and what code decided | None: shared content |
+| `pgboss/content.grow-topics` | Queue declaration, no table | Cron at :24 and :54 (D-422): payload a version only, naming no person, page or candidate. Seeds candidates and proposes a place for at most one; it returns at once unless `KS_SUPPLY_GROWTH_ENABLED` and `KS_TOPIC_GROWTH_ENABLED` are both on | Nothing personal |
 | `content.revision_reviews`                              | `0072_content_review_gate`                       | The review gate (D-138): one row for each v2 library revision that was stored held, its state `held` / `released` / `rejected`, and for a decision who (`cli:<operator>`), when and (rejection) why                                                                            | None: shared content       |
 | `content.library_support_checks`                        | `0113_library_support_checks`                    | What a version of the library support check (D-415) said about a stored library revision: the state, the verdict code decided from the sentences, the counts and every sentence's outcome. Informs the operator at the review gate and is the measure of the check; releases and rejects nothing | None: shared content       |
 | `content.release_topic_approvals`                       | `0115_content_release_policy`                    | The topics a person approved for the release policy (D-418): one row for each approval, who and when, and when, by whom and why it was revoked (`operator` or `withdrawal`). One live row for a topic at most. Approving changes nothing by itself: the policy is off until the owner switches it on | None: shared content       |
@@ -256,6 +261,8 @@ The storage adapter validates derived reading facts against the canonical Scroll
 | `Catalogue` (token `CATALOGUE`; `makeCatalogue(db)`) | geography, scenes, supply, rooms, composer, experience | `current()` and `release(n)`: one `CatalogueSnapshot` (the topic catalogue, D-419). Reads shared tables on the pool; never blocks on a refresh |
 | `RecipeBook` (`recipeBookOf(db)`)                            | production, supply's chooser, the review gate, `readmit-coverage`, the support-check replay (recipe family per asset) | `get(key)`, `servingBrief(brief)` and `all()` over the library plan and `content.recipes` (D-412). Read-only on the shared table; takes a database handle or the caller's transaction; no lock |
 | `makeProposeRecipes(deps)(request, signal)`                  | Operator command `content propose-recipes --topic <planet> [--facet <facet>] [--dry-run]` | One `content.recipe-brief` request and at most one repair on the production harness; code checks every draft and stores the accepted ones as `checked` recipes with the run closed, in one production transaction. Run id from planet, facet, UTC day and role version: a redelivery pays nothing. Refuses unknown planets and facets and planets with no page held before any request |
+| `makeProposeTopic(deps)(request, signal)` | Operator command `content propose-topic --page <url> [--dry-run]`; the scheduled `content.grow-topics` | One `content.topic-proposal` request and at most one repair on the production harness for a candidate page code found; code checks the answer and, in one production transaction under the catalogue's release lock, makes the release that admits the topic (not servable), settles the candidate and the run and closes the harness run. Run id from candidate page, the UTC day the attempt began on and which attempt it is: a redelivery pays nothing, an attempt of unknown outcome blocks the candidate and is never resent. Refuses a page that is no candidate or not open, and a catalogue with no room, before any request (D-422) |
+| `makeSeedTopicCandidates(deps)(signal)` and `makeGrowTopics(ports)(signal)` | The scheduled `content.grow-topics` job | Seeding reads the links of research pages already accepted for recipes (a network wait, outside any transaction) and the candidate pages, and stores each with a verdict. The pass runs only while `KS_SUPPLY_GROWTH_ENABLED` and `KS_TOPIC_GROWTH_ENABLED` are on, within the growth cap, one at a time (D-422) |
 | `ChooseScrollRecipe` (token `CHOOSE_SCROLL_RECIPE`)          | supply (Create and the Planner's demand) | Which recipe (plan or stored) a catalogue brief commissions, from the recipe book and each recipe's standing, given which kinds the day's caps leave open and the unit a Planner opportunity aimed at. No lock, no write |
 | `readmitRecipeCoverage(ports, recipes, {dryRun})`            | Operator command `dist/operator.js content readmit-coverage [--dry-run]`   | Lists every stored revision of generated Scrolls, finds each recipe by asset ID, and runs `admitRecipeCoverage` in its own short admission transaction; then every Reel revision whose provenance names a recipe, through `admitReelCoverage`. Idempotent. With `--dry-run` nothing is written. Returns counts; shared content only, refused outside the operator worlds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
@@ -389,6 +396,44 @@ the process's database handle, on shared tables only, never a personal scope (`a
   of an attempt, so a redelivery after midnight is the same request and is answered by the ledger. Absent, it is today, as before.
 
 Status: implemented, CI-verified on real PostgreSQL (`tests/integration/modules/supply-gaps.test.ts`); not runtime-verified on dev.
+
+## Topic growth: new topics under the systems that exist (#674, D-422)
+
+The plan and `content catalogue sync` are still how the owner adds a system or a topic by hand. Topics can also **grow**, under an **existing** system
+only, from pages the library already trusts. Code finds the candidates and decides which may be proposed for, a model places one and names its facets,
+code admits it or not, and the topic waits, invisible, for the same supply every topic waits for (D-419). Every Scroll made for it is held for an operator's read.
+
+- **Seeding** (`production/topic-seeds.ts`, tables `content.topic_seed_sources` and `content.topic_candidates`): the research pages of every recipe that is not retired
+  are the sources, each read once (again after a day if the network failed it) with the link reader of `infrastructure/research` (links of the prose, allow-listed hosts only, articles only). The links that are
+  not a recipe's own page, not a candidate already and not shown to be a list, a disambiguation or a namespace page by their address become `pending` candidates (ten
+  a source). Pending candidates are then read (five a pass) and decided by code (`domain/catalogue/topic-growth.ts`): `rejected` with a code (`not_an_article`,
+  `disambiguation`, `list_page`, `stub` below eight evidence passages, `duplicate_topic` when the title's words equal or share 0.6 of an existing topic's label,
+  `duplicate_page` for a redirect to a page already known, `recipe_page`, `page_unreachable`, or `page_<fetch code>`), or `eligible`, keeping the page's paragraphs.
+  No person, no demand and no model is involved. Output of the operator's list is codes and counts.
+- **Proposing** (`production/propose-topic.ts`, role `production/topic-proposal.ts`): `content propose-topic --page <candidate address> [--dry-run]`, or the scheduled step. One
+  `content.topic-proposal` request and at most one repair, background class, on the production harness. The frozen context is built by code: the page's title and
+  lead passages, a **shortlist of the systems that have room** under the size limit (`KS_TOPIC_GROWTH_MAX_PER_SYSTEM`, default 12, counting topics that are not servable),
+  with some of the topics each has, and one topic of the catalogue as the shape of an answer. The model returns one topic or none: a system id from the list, a
+  label, a one-line meaning and three to five facets, each with a label, a meaning and a quote copied from one passage. It never writes an id. The run id is
+  derived from the candidate, the UTC day the attempt began on (pinned on the candidate) and which attempt it is, and the first delivery freezes its context in
+  `content.topic_proposals`, so a redelivery sends the same request and the harness answers from its ledger: nothing is paid twice, a crash between the answer and the
+  store loses nothing, and an attempt of unknown outcome blocks the candidate and is never resent. A conclusive failure is counted; a candidate is asked about twice
+  at most, on different days.
+- **Admission** (`admitTopicProposal`, then the catalogue's own `planRelease`, D-419): the system must be one that was offered, exist and have room; no address or markup;
+  the id is `<system>.<slug of the label>` and must not be taken by any node of any status; no existing topic in any system has the same label or nearly it; facet
+  labels are distinct and there are at least three; every quote is a stretch of one of the page's own passages and no two quote the same stretch. It is checked again
+  and the release made in **one production transaction** under the release lock (`appendReleaseIn`), against the catalogue as it stands then, with the candidate and
+  the run settled in it. The release's source is `growth`. A refusal makes no release and refuses the candidate with a code; its text is dropped.
+- **Not servable until supply.** The new topic is invisible (not offered, matched, listed, made a room or offered a scout, D-419). The gap scan sees it as a `thin_planet`
+  hole and the gap loop's brief job proposes its first recipes: `propose-recipes` counts the page a topic grew from as a page held for it (`readTopicOriginPages`). Its Scrolls are
+  held, read and released by an operator; at three released explanations over two facets `showServableTopics` makes it servable in a release of its own.
+- **The scheduled step** (`production/grow-topics.ts`, queue `content.grow-topics`, `production/topic-growth-events.ts`): twice an hour, one pass at a time. It does
+  nothing unless `KS_SUPPLY_GROWTH_ENABLED=1` **and** `KS_TOPIC_GROWTH_ENABLED=1` and the production grant is held. Within the growth cap: no proposing run once today's runs reached
+  `KS_SUPPLY_GROWTH_DAILY_CAP`, none while as many topics wait for supply as that cap, none when every system is full. It seeds when fewer than three candidates are eligible and
+  proposes for at most one (a run in flight first, then the oldest eligible). `content topic-candidates [--status]` lists the candidates (an admitted one shows the topic's label
+  and its facets' labels, so a person can read the model's words before the topic is served).
+
+Status: implemented, with integration tests on real PostgreSQL and a labelled fixture model and fixture pages (`tests/integration/modules/topic-growth.test.ts`). Not runtime-verified on dev: no real provider call or page fetch has been made for it.
 
 ## The review gate for library v2 Scrolls (D-138)
 

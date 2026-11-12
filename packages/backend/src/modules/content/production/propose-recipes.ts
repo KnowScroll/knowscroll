@@ -21,6 +21,7 @@ import {
   storeAcceptedRecipes,
 } from '../adapters/recipe-proposals.js';
 import { recipeBookOf } from '../adapters/stored-recipes.js';
+import { readTopicOriginPages } from '../adapters/topic-candidates.js';
 import { readCatalogueIn } from '../adapters/catalogue-store.js';
 import { generatedKeyOf, type BookRecipe } from '../domain/library/generated.js';
 import {
@@ -165,10 +166,15 @@ async function factsOf(
   const planet = (await recipeBookOf(db).servingBrief({ topicId: topic.id })).filter(
     (recipe) => recipe.status !== 'retired',
   );
-  const candidates = await readCandidatePages(
+  const held = await readCandidatePages(
     db,
     planet.map((recipe) => recipe.key),
   );
+  // A topic that grew from a candidate page (#674, D-422) holds that page, which is all its first recipes can rest on.
+  const candidates = [
+    ...held,
+    ...(await readTopicOriginPages(db, topic.id)).filter((origin) => !held.some((page) => page.url === origin.url)),
+  ];
   if (candidates.length === 0) return { kind: 'refused', reason: 'no_candidate_pages' };
   return {
     facts: {

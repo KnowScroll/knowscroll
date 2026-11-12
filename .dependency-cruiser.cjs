@@ -42,6 +42,10 @@ const compositionRoots = [
   '^apps/worker/src/recipes-operator\\.ts$',
   // The catalogue command imports the plan as a release of the topic catalogue (#674, D-419).
   '^apps/worker/src/catalogue-operator\\.ts$',
+  // Topic growth's consumer composes the seeding of candidate pages, the proposal role on the production harness and the pass (#674, D-422).
+  '^apps/worker/src/topic-growth-jobs\\.ts$',
+  // The topic commands compose the production harness and the candidate reads (#674, D-422).
+  '^apps/worker/src/topic-operator\\.ts$',
   // The journey inspector composes the read-only operator views (#248).
   '^apps/worker/src/journey-operator\\.ts$',
   // The reconciliation marks every topic with support dirty through Personal Context's adapter (#674, D-416).

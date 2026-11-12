@@ -389,6 +389,48 @@ export interface ContentSeriesUnits {
   series_revision: number;
 }
 
+export interface ContentTopicCandidates {
+  attempt_day: Timestamp | null;
+  attempts: Generated<number>;
+  created_at: Generated<Timestamp>;
+  fetches: Generated<number>;
+  host: string;
+  page_sha256: string | null;
+  page_url: string;
+  passage_count: number | null;
+  passages: Json | null;
+  policy_version: string;
+  source_url: string | null;
+  status: Generated<string>;
+  title: string | null;
+  topic_id: string | null;
+  updated_at: Generated<Timestamp>;
+  verdict: Generated<string>;
+}
+
+export interface ContentTopicProposals {
+  context: Json;
+  created_at: Generated<Timestamp>;
+  day: Timestamp;
+  outcome: string | null;
+  page_url: string;
+  retry: Generated<number>;
+  run_id: string;
+  shortlist: string[];
+  state: Generated<string>;
+  topic_id: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ContentTopicSeedSources {
+  candidates: Generated<number>;
+  host: string;
+  links: Generated<number>;
+  outcome: string;
+  page_url: string;
+  read_at: Generated<Timestamp>;
+}
+
 export interface EvidenceActionEvents {
   action_id: string;
   asset_id: string;
@@ -2589,6 +2631,9 @@ export interface DB {
   "content.revision_reviews": ContentRevisionReviews;
   "content.scroll_production_runs": ContentScrollProductionRuns;
   "content.series_units": ContentSeriesUnits;
+  "content.topic_candidates": ContentTopicCandidates;
+  "content.topic_proposals": ContentTopicProposals;
+  "content.topic_seed_sources": ContentTopicSeedSources;
   "evidence.action_events": EvidenceActionEvents;
   "evidence.activity_current": EvidenceActivityCurrent;
   "evidence.activity_revisions": EvidenceActivityRevisions;

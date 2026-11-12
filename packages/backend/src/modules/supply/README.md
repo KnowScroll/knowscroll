@@ -403,7 +403,9 @@ budget, still held for the operator's read. Four parts, none of them a model exc
 
    **Demand is never evidence.** Nothing that ranks, plans, remembers or forms places reads the gaps or the counters (`gap-wall.test.ts`: only Supply, the
    generated database types and the operator's view list may name a gap table). Not here: a support check and release without an operator (slices 3.2 and
-   3.3), new topics or systems (3.4), Reels.
+   3.3), new systems, Reels. New **topics** grow beside the loop (Content's `content.grow-topics`, D-422, part of `KS_SUPPLY_GROWTH_ENABLED` and its own `KS_TOPIC_GROWTH_ENABLED`,
+   within the same growth cap): an admitted topic is not servable, so the scan sees it as a `thin_planet` hole and this job proposes its first recipes from the page it grew from;
+   nothing in Supply makes a topic.
 
 ## Tables, jobs and lock order
 

@@ -5,6 +5,8 @@ import { LOCK_CURRENT_ENCOUNTERS } from '../public.js';
 import type { Kysely } from 'kysely';
 import type { PgBoss } from 'pg-boss';
 import type { Database } from '../../../infrastructure/postgres/database.js';
+import { withSessionLock } from '../../../infrastructure/postgres/session-lock.js';
+import type { TopicGrowthLock } from '../production/grow-topics.js';
 import { makeImportEditorialScroll } from '../application/import-editorial-scroll.js';
 import { makeEnqueueScrollProduction } from './enqueue-production.js';
 import {
@@ -285,6 +287,33 @@ export { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageTe
 /** The operator's `content catalogue sync` and `status` (D-419), and the catalogue over a handle for composition roots and fixtures. */
 export { catalogueStatus, showServableTopics, syncCatalogue, type CatalogueSyncSummary } from './catalogue-sync.js';
 export { appendRelease, makeCatalogue, readCatalogueIn } from './catalogue-store.js';
+/**
+ * Topic growth (#674, D-422): the scheduled step's pieces and the operator's `content propose-topic` and `content topic-candidates`. A new topic
+ * grows from a candidate page code found, a model places it under an existing system, and code admits it as a catalogue release that is not
+ * servable until the library has released supply for it.
+ */
+export { makeProposeTopic, previewTopicProposal, type ProposeTopicResult } from '../production/propose-topic.js';
+export { makeSeedTopicCandidates, type ReadResearchPage, type SeedResult } from '../production/topic-seeds.js';
+export {
+  makeGrowTopics,
+  type GrowTopicsIdle,
+  type GrowTopicsResult,
+  type TopicGrowthLock,
+} from '../production/grow-topics.js';
+export {
+  CANDIDATE_STATUSES,
+  countCandidates,
+  listCandidates,
+  readCandidate,
+  type CandidateListing,
+  type CandidateStatus,
+} from './topic-candidates.js';
+export { TOPIC_GROWTH_POLICY } from '../domain/catalogue/topic-growth.js';
+export { fetchResearchWithLinks } from '../../../infrastructure/research/public-pages.js';
+/** The topic growth pass's session advisory lock: one pass at a time, on one dedicated connection, with no transaction across a model call. */
+export const topicGrowthLock = (db: Kysely<Database>): TopicGrowthLock => ({
+  exclusively: (work) => withSessionLock(db, 'content.grow-topics', work),
+});
 export { readLibraryReels } from './library-reels.js';
 export { makeReadLibraryFinds } from './library-finds.js';
 export { makeCutroomReelImporter, type CutroomImportSettings } from './import-cutroom-reel.js';
