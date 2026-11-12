@@ -16,6 +16,7 @@ import {
   CLEAR_COVERAGE_DIRTY,
   MARK_COVERAGE_DIRTY,
   READ_COMPOSER_CONTEXT,
+  READ_INTEREST_CONTEXT,
   READ_COVERAGE_DIRTY,
   READ_COVERAGE_INPUTS,
   READ_TRUSTED_COVERAGE,
@@ -56,6 +57,7 @@ export function workerParts(world: GeographyWorld, composerPolicy: 'v0' | 'v1' |
     [WORKER_CONFIG, { jevEnabled: false, reasoning: {} }],
     [RECORDING_REASONING_HARNESS, harness],
     [READ_COMPOSER_CONTEXT, c.readComposerContext],
+    [READ_INTEREST_CONTEXT, c.readInterestContext],
     ...[
       ...experienceBufferSourceProviders(),
       ...composerProviders({ isOperator: () => false }, composerPolicy),

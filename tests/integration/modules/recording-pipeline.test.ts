@@ -16,6 +16,7 @@ import {
 } from '@knowscroll/backend/modules/identity';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import {
   READ_ACTION_FOR_EVIDENCE,
   type ReadActionForEvidence,
@@ -32,6 +33,7 @@ import {
   makeExperienceRecordingEffects,
 } from '@knowscroll/backend/modules/evidence/nest-providers';
 import { buildFromProviders } from '../support/providers.js';
+import { catalogueOf } from '../support/catalogue.js';
 import { recordingPolicyFor, accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import {
   PROJECT_ENCOUNTER_ACTIVITY,
@@ -416,6 +418,7 @@ describe('recording Evidence intake and queued provenance', () => {
       [FENCE_OWN_ACCOUNT, own],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [READ_RECORDING_LIFECYCLE, identity.readRecordingLifecycle],
+      [CATALOGUE, catalogueOf(database.db)],
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),
       ...experienceReads.flatMap((provider) =>
         provider.useValue === undefined ? [] : [[provider.provide, provider.useValue] as const],
