@@ -27,10 +27,16 @@ export const TOPIC_GROWTH_POLICY = Object.freeze({
   /** A facet quotes between these many characters of one passage. */
   quoteMin: 40,
   quoteMax: 400,
+  /** The label of a topic shares at least this many key words with the title of the page it grew from. */
+  labelTitleStems: 1,
+  /** A facet's label and meaning together share at least this many key words with the passage it quotes. */
+  facetQuoteStems: 2,
   /** Failed proposing attempts a candidate may have before it is refused, on different days. */
   attemptsPerCandidate: 2,
   /** Failed reads of a page before it is rejected as unreachable. */
   fetchAttempts: 3,
+  /** The longest address a candidate may have (the table's limit): a link past it is dropped. */
+  addressMax: 300,
   /** Links one research page may give, and candidates one page may contribute. */
   linksPerPage: 300,
   candidatesPerSource: 10,
@@ -57,6 +63,7 @@ export const CANDIDATE_REJECTIONS = [
   'duplicate_page',
   'recipe_page',
   'page_unreachable',
+  'seed_failed',
 ] as const;
 export type CandidateRejection = (typeof CANDIDATE_REJECTIONS)[number] | `page_${string}`;
 
@@ -65,7 +72,14 @@ const NAMESPACE =
 const LIST_TITLE =
   /^(?:lists?|index|outline|glossary|timeline|comparison|table|catalog(?:ue)?) of\b|\((?:list|lists|index|timeline)\)$/iu;
 const DISAMBIGUATION = /\(disambiguation\)|\bdisambiguation\b/iu;
-const MAY_REFER = /\b(?:may|can|could) (?:also )?(?:refer|mean)\b/iu;
+/**
+ * How the first paragraph of a disambiguation page says what it is: "X may refer to", "X may also refer to", "X most commonly refers to", "X is the name
+ * of several". Read in the opening words only, so an article that happens to use the phrase later is not taken for one.
+ */
+const MAY_REFER =
+  /\b(?:(?:may|can|could|might|will|would)\s+(?:also\s+|sometimes\s+|alternatively\s+)?(?:refer|mean|stand)\b|(?:most\s+(?:commonly|often|frequently)|commonly|often|usually|typically|primarily|generally)\s+refers?\s+to\b|(?:is|are)\s+the\s+name\s+of\s+(?:several|many|multiple|various|more\s+than\s+one)\b|(?:may|might|could)\s+be\s+(?:any\s+of|one\s+of)\b)/iu;
+/** How many characters of a lead the disambiguation phrases are looked for in. */
+const LEAD_CHARS = 240;
 const IS_A_LIST = /\b(?:is|are) (?:a|an) (?:\w+ ){0,3}list of\b/iu;
 
 /** The title a page's `<title>` names, without the site that follows it ("Heart valve - Wikipedia" is "Heart valve"). */
@@ -125,7 +139,7 @@ export function candidateVerdict(
 ): { readonly kind: 'eligible' } | { readonly kind: 'rejected'; readonly code: CandidateRejection } {
   const title = titleVerdict(page.title);
   if (title !== undefined) return { kind: 'rejected', code: title };
-  if (MAY_REFER.test(page.lead)) return { kind: 'rejected', code: 'disambiguation' };
+  if (MAY_REFER.test(page.lead.slice(0, LEAD_CHARS))) return { kind: 'rejected', code: 'disambiguation' };
   if (IS_A_LIST.test(page.lead)) return { kind: 'rejected', code: 'list_page' };
   if (page.evidencePassages < TOPIC_GROWTH_POLICY.minEvidencePassages) return { kind: 'rejected', code: 'stub' };
   if (duplicatesTopic(page.title, topicLabels)) return { kind: 'rejected', code: 'duplicate_topic' };
@@ -261,6 +275,8 @@ export const TOPIC_REFUSALS = [
   'facet_label_unsluggable',
   'facet_duplicate',
   'facets_too_few',
+  'label_not_in_title',
+  'facet_not_grounded',
   'quote_not_in_page',
   'quote_repeated',
 ] as const;
@@ -286,8 +302,18 @@ export interface TopicAdmissionContext {
   readonly offered: readonly string[];
   /** The size limit of a system (`KS_TOPIC_GROWTH_MAX_PER_SYSTEM`). */
   readonly maxTopicsPerSystem: number;
+  /** The title of the candidate page, as the research fetch froze it. */
+  readonly pageTitle: string;
   /** The paragraphs of the candidate page, as the research fetch froze them. */
   readonly passages: readonly string[];
+}
+
+/** How many key words (stems) two texts share. */
+function sharedStems(a: string, b: string): number {
+  const wanted = tokensOf(a);
+  let shared = 0;
+  for (const token of tokensOf(b)) if (wanted.has(token)) shared += 1;
+  return shared;
 }
 
 const squash = (text: string): string => text.replace(/\s+/gu, ' ').trim();
@@ -296,7 +322,8 @@ const squash = (text: string): string => text.replace(/\s+/gu, ' ').trim();
  * Decides one proposal. The proposal is the model's; every other input is code's. The first check it fails names its refusal.
  * It must name a system code offered, which still exists and has room; carry no address or markup; make a label that gives an id
  * of the plan's shape that no node (of any status) already has, and that no existing topic's label equals or nearly equals; have
- * at least three facets with distinct labels, each quoting a stretch of the page, no two quoting the same one. What passes is the
+ * at least three facets with distinct labels, each quoting a stretch of the page, no two quoting the same one; a label that shares a key word with the
+ * page's title, and facet words that share key words with the stretch each quotes. What passes is the
  * topic and its facets as `add` changes, which the catalogue's own admission (`planRelease`) then checks again: the topic is not
  * servable until the library has released supply for it.
  */
@@ -331,11 +358,21 @@ export function admitTopicProposal(output: TopicProposalOutput, context: TopicAd
   }
   if (proposal.facets.length < TOPIC_GROWTH_POLICY.facetsMin) return refuse('facets_too_few');
 
+  // The words are the model's, so each must rest on the page: the topic's name on the page's own title, and each facet on the passage it quotes.
+  if (sharedStems(proposal.label, context.pageTitle) < TOPIC_GROWTH_POLICY.labelTitleStems)
+    return refuse('label_not_in_title');
   const page = context.passages.map(squash);
   const quotes = proposal.facets.map((facet) => squash(facet.quote));
   if (quotes.some((quote) => !page.some((passage) => passage.includes(quote)))) return refuse('quote_not_in_page');
   if (quotes.some((quote, at) => quotes.some((other, to) => at !== to && quote.includes(other))))
     return refuse('quote_repeated');
+  if (
+    proposal.facets.some(
+      (facet, at) =>
+        sharedStems(`${facet.label} ${facet.meaning}`, quotes[at] ?? '') < TOPIC_GROWTH_POLICY.facetQuoteStems,
+    )
+  )
+    return refuse('facet_not_grounded');
 
   const topic: NodeDraft = {
     id: topicId,

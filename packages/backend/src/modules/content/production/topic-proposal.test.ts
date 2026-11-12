@@ -97,6 +97,7 @@ describe('the request a topic proposal is', () => {
       retry: 0,
     });
     expect(key).toBe(`${TOPIC_PROPOSAL_ROLE_VERSION}|https://en.wikipedia.org/wiki/Orrin_seas|2026-11-12|0`);
+    expect(TOPIC_PROPOSAL_ROLE_VERSION).toBe('topic-proposal.v2');
     expect(
       topicProposalRequestKey({ pageUrl: 'https://en.wikipedia.org/wiki/Orrin_seas', day: '2026-11-13', retry: 0 }),
     ).not.toBe(key);
@@ -126,6 +127,11 @@ describe('the proposal role', () => {
     expect(instructions).toContain('never propose a new system');
     expect(instructions).toContain('copied exactly, word for word');
     expect(instructions).toContain('Use only what the page says');
+    // The model is not told a person reads its topic: the owner's approval is code's business, and a model that thinks it is reviewed is less careful.
+    expect(instructions).not.toMatch(/a person reads|will be reviewed|is reviewed|a human/iu);
+    // The words it is held to are told to it, so a refusal is not a surprise.
+    expect(instructions).toContain('using words of the title of the page');
+    expect(instructions).toContain('must use words of its own quote');
     expect(instructions).toContain(
       `${String(TOPIC_GROWTH_POLICY.facetsMin)} to ${String(TOPIC_GROWTH_POLICY.facetsMax)}`,
     );

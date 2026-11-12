@@ -9,6 +9,7 @@ import { LIBRARY_SYSTEMS } from '../domain/library/index.js';
 import type { LibrarySystem } from '../domain/library/plan.js';
 import { appendRelease, planNextRelease, readCatalogueIn, type AppendOutcome } from './catalogue-store.js';
 import { readReleasedCoverage } from './gap-reads.js';
+import { countAwaitingApproval, readWithheldTopics } from './topic-candidates.js';
 
 /** What one `content catalogue sync` did, or would do: counts and codes, never a label, meaning or reader. */
 export interface CatalogueSyncSummary {
@@ -77,10 +78,13 @@ const sum = (a: ReleaseSummary, b: ReleaseSummary): ReleaseSummary => ({
   retired: a.retired + b.retired,
 });
 
-/** Makes the servable topics servable: those that now have released, coverage-mapped supply (three units over two facets by default). One release, or none. */
+/**
+ * Makes the servable topics servable: those that now have released, coverage-mapped supply (three units over two facets by default). One release, or none.
+ * A topic that grew and that the owner has not approved is never one of them (D-422), whatever supply it has.
+ */
 export async function showServableTopics(db: Kysely<Database>): Promise<AppendOutcome> {
   const snapshot = await readCatalogueIn(db);
-  const ids = topicsNowServable(snapshot, await readReleasedCoverage(db, snapshot));
+  const ids = topicsNowServable(snapshot, await readReleasedCoverage(db, snapshot), await readWithheldTopics(db));
   if (ids.length === 0) return { kind: 'unchanged' };
   return appendRelease(
     db,
@@ -124,7 +128,7 @@ export async function syncCatalogue(
     // The first release of the import stands for it: the rest are checked as each is made.
     const chunks = releaseChunks(difference.changes);
     const plan = await planNextRelease(db, chunks[0] ?? []);
-    const servable = topicsNowServable(before, await readReleasedCoverage(db, before));
+    const servable = topicsNowServable(before, await readReleasedCoverage(db, before), await readWithheldTopics(db));
     if (plan.kind === 'refused')
       return done({ plan: 'refused', refusals: plan.refusals, nowServable: servable.length });
     if (plan.kind === 'unchanged') return done({ plan: 'unchanged', nowServable: servable.length });
@@ -169,6 +173,8 @@ export interface CatalogueStatus {
   readonly servableTopics: number;
   /** Topics that exist and wait for released supply (three explanations over two facets by default). */
   readonly waitingTopics: number;
+  /** Topics that grew and wait for the owner to read and approve them (D-422), of the waiting ones. */
+  readonly awaitingApproval: number;
 }
 
 export async function catalogueStatus(db: Kysely<Database>): Promise<CatalogueStatus> {
@@ -182,5 +188,6 @@ export async function catalogueStatus(db: Kysely<Database>): Promise<CatalogueSt
     facets: topics.reduce((total, topic) => total + topic.facets.length, 0),
     servableTopics: snapshot.topics().length,
     waitingTopics: topics.filter((topic) => !topic.servable).length,
+    awaitingApproval: await countAwaitingApproval(db),
   };
 }

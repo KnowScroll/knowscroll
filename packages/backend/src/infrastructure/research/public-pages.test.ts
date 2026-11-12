@@ -4,6 +4,7 @@ import {
   extractResearchLinks,
   fetchResearchPage,
   fetchResearchWithLinks,
+  MAX_RESEARCH_LINK_LENGTH,
   MAX_RESEARCH_LINKS,
   MAX_RESEARCH_BYTES,
   publicAddress,
@@ -241,6 +242,22 @@ describe('the links of a research page (topic growth, CI fixture)', () => {
       'https://en.wikipedia.org/wiki/Tidal_locking',
       'https://en.wikipedia.org/wiki/Rock_%26_roll',
     ]);
+  });
+
+  it('drops a link longer than the candidates table holds, and keeps one at the limit', () => {
+    const at = (length: number) => `/wiki/${'x'.repeat(length - 'https://en.wikipedia.org/wiki/'.length)}`;
+    const limit = at(MAX_RESEARCH_LINK_LENGTH);
+    const links = extractResearchLinks(
+      wikiPage(
+        prose(
+          `<a href="${at(MAX_RESEARCH_LINK_LENGTH + 1)}">too long</a> <a href="${limit}">at the limit</a> <a href="/wiki/Short">short</a>`,
+        ),
+      ),
+      wiki,
+    );
+    expect(MAX_RESEARCH_LINK_LENGTH).toBe(300);
+    expect(links).toEqual([`https://en.wikipedia.org${limit}`, 'https://en.wikipedia.org/wiki/Short']);
+    expect(links.every((link) => link.length <= MAX_RESEARCH_LINK_LENGTH)).toBe(true);
   });
 
   it('gives at most the bound, however many a page has', () => {

@@ -15,10 +15,12 @@ import {
 import {
   CANDIDATE_STATUSES,
   countCandidates,
-  listCandidates,
+  decideTopic,
   makeProposeTopic,
   previewTopicProposal,
-  readCatalogueIn,
+  proposeUnderLock,
+  reviewCandidates,
+  topicGrowthLock,
   type CandidateStatus,
 } from '@knowscroll/backend/modules/content/nest-providers';
 
@@ -26,6 +28,7 @@ type Print = (result: Record<string, unknown>) => void;
 
 const USAGE_PROPOSE = 'content propose-topic --page <https address of a candidate page> [--dry-run]';
 const USAGE_LIST = `content topic-candidates [--status ${CANDIDATE_STATUSES.join('|')}]`;
+const USAGE_DECIDE = 'content topic approve --topic <topic id> | content topic reject --topic <topic id>';
 
 export interface ProposeTopicOptions {
   readonly page: string | undefined;
@@ -104,9 +107,10 @@ export async function proposeTopicCommand(
         harness,
         maxTopicsPerSystem: topicGrowthMaxPerSystem,
       });
-      const result = await propose(request, abort.signal);
+      // Under the pass's own lock: the command and the scheduled pass never run at the same time, so neither finds the other's attempt half done.
+      const result = await proposeUnderLock(topicGrowthLock(database.db), propose, request, abort.signal);
       print({ command: 'content propose-topic', ...result });
-      return ['refused', 'paused', 'failed', 'not_admitted'].includes(result.kind) ? 2 : 0;
+      return ['refused', 'paused', 'failed', 'not_admitted', 'busy'].includes(result.kind) ? 2 : 0;
     } finally {
       process.off('SIGTERM', stop);
       process.off('SIGINT', stop);
@@ -122,7 +126,8 @@ export async function proposeTopicCommand(
 /**
  * `content topic-candidates [--status pending|eligible|rejected|proposed|refused|admitted|blocked_unknown]`: the candidate pages code found, newest
  * first, with their status, the verdict code, how many attempts they had, how many passages the page gives a writer and the topic made, with its
- * label, its facets' labels and whether it is servable yet, so a person can read what the model wrote before the topic is served. The page's
+ * label, its meaning, its facets' labels and meanings and whether it is servable yet, and the owner's decision on it, so a person can read what the model
+ * wrote and decide (`content topic approve|reject`) before the topic can be served. The page's
  * address is the handle `content propose-topic` takes. No page title and no page text. Read-only; the shared database only.
  */
 export async function topicCandidatesCommand(
@@ -142,19 +147,7 @@ export async function topicCandidatesCommand(
     });
     try {
       const counts = await countCandidates(database.db);
-      const listed = await listCandidates(database.db, status === undefined ? {} : { status });
-      // A topic's name and its facets' are the model's words, so a person must be able to read them before the topic is served: an admitted
-      // candidate shows the catalogue's label and its facets' labels. That is the one place text appears; a page's text never does.
-      const catalogue = listed.some((row) => row.topicId !== null) ? await readCatalogueIn(database.db) : undefined;
-      const candidates = listed.map((row) => {
-        const topic = row.topicId === null ? undefined : catalogue?.concept(row.topicId);
-        return topic === undefined
-          ? row
-          : {
-              ...row,
-              topic: { label: topic.label, servable: topic.servable, facets: topic.facets.map((facet) => facet.label) },
-            };
-      });
+      const candidates = await reviewCandidates(database.db, status === undefined ? {} : { status });
       print({ command: 'content topic-candidates', counts, candidates });
       return 0;
     } finally {
@@ -163,6 +156,51 @@ export async function topicCandidatesCommand(
   } catch (error) {
     if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
     else logEvent('process.crashed', { reasonCode: 'topic_candidates_failed', error });
+    return 1;
+  }
+}
+
+/**
+ * `content topic approve --topic <id>` and `content topic reject --topic <id>` (#674, D-422): the owner's decision on a topic that grew. A grown topic is
+ * not servable until it is approved, in addition to the supply every new topic waits for; read its label, meaning and facets in
+ * `content topic-candidates --status admitted` first. Approving records who and when and makes the topic servable if it has its supply; rejecting
+ * retires the topic by a release (its id is never reused). A decision is made once and never taken back; a topic of the plan has none to make.
+ * Shared database only: no provider, no personal root. Output is codes.
+ *
+ * Exit status: 0 decided, 2 bad usage, no such grown topic, or already decided, 1 a failure.
+ */
+export async function topicDecisionCommand(
+  options: { readonly decision: string | undefined; readonly topic: string | undefined; readonly decidedBy: string },
+  print: Print,
+  logEvent: LogEvent,
+): Promise<number> {
+  if (
+    (options.decision !== 'approve' && options.decision !== 'reject') ||
+    options.topic === undefined ||
+    !/^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$/u.test(options.topic)
+  ) {
+    print({ result: 'usage', usage: USAGE_DECIDE });
+    return 2;
+  }
+  try {
+    const config = readContentOperatorConfig(process.env);
+    const database = createDatabase<Database>(config.database, {
+      onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
+    });
+    try {
+      const result = await decideTopic(database.db, {
+        topicId: options.topic,
+        decision: options.decision,
+        decidedBy: options.decidedBy,
+      });
+      print({ command: `content topic ${options.decision}`, ...result });
+      return result.kind === 'approved' || result.kind === 'rejected' ? 0 : 2;
+    } finally {
+      await database.close();
+    }
+  } catch (error) {
+    if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
+    else logEvent('process.crashed', { reasonCode: 'topic_decision_failed', error });
     return 1;
   }
 }

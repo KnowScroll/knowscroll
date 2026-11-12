@@ -27,6 +27,9 @@ export const CANDIDATE_STATUSES = [
 ] as const;
 export type CandidateStatus = (typeof CANDIDATE_STATUSES)[number];
 
+/** The owner's decision on a topic that grew (D-422). Only an `approved` topic may be made servable; a `rejected` one is retired. */
+export type Approval = 'pending' | 'approved' | 'rejected';
+
 /** A candidate page as the step reads it. */
 export interface Candidate {
   readonly pageUrl: string;
@@ -41,11 +44,16 @@ export interface Candidate {
   readonly attempts: number;
   /** The UTC day of the attempt in flight, pinned so a redelivery after midnight is the same request. */
   readonly attemptDay?: string;
+  /** The first UTC day the candidate may be proposed for again: set after a failed attempt and after a page no system had room for. */
+  readonly notBefore?: string;
   readonly topicId?: string;
+  /** The owner's decision on the topic that was made: `pending` until an operator has read it. */
+  readonly approval: Approval;
   readonly createdAt: Date;
 }
 
-const COLUMNS = sql`page_url, host, status, verdict, title, passages, passage_count, attempts, attempt_day::text as attempt_day, topic_id, created_at`;
+const COLUMNS = sql`page_url, host, status, verdict, title, passages, passage_count, attempts, attempt_day::text as attempt_day,
+  not_before::text as not_before, topic_id, approval, created_at`;
 interface CandidateDbRow {
   readonly page_url: string;
   readonly host: string;
@@ -56,7 +64,9 @@ interface CandidateDbRow {
   readonly passage_count: number | null;
   readonly attempts: number;
   readonly attempt_day: string | null;
+  readonly not_before: string | null;
   readonly topic_id: string | null;
+  readonly approval: Approval;
   readonly created_at: Date;
 }
 
@@ -73,9 +83,15 @@ const candidateOf = (row: CandidateDbRow): Candidate => ({
   ...(row.passage_count === null ? {} : { passageCount: row.passage_count }),
   attempts: row.attempts,
   ...(row.attempt_day === null ? {} : { attemptDay: row.attempt_day }),
+  ...(row.not_before === null ? {} : { notBefore: row.not_before }),
   ...(row.topic_id === null ? {} : { topicId: row.topic_id }),
+  approval: row.approval,
   createdAt: row.created_at,
 });
+
+/** Whether an address is one the candidates table holds: https, a host of letters, digits, dots and hyphens, at most the policy's length. */
+export const fitsTable = (url: string): boolean =>
+  url.length <= TOPIC_GROWTH_POLICY.addressMax && /^https:\/\/[a-z0-9.-]+\//u.test(url);
 
 /** The hosts and paths a page's address is stored by: its host. */
 export const hostOf = (url: string): string => new URL(url).hostname;
@@ -116,7 +132,8 @@ export async function recordSeedSource(
 ): Promise<number> {
   return withTransaction(db, 'content.topic-seed', async (trx) => {
     let stored = 0;
-    for (const url of candidateUrls) {
+    // An address the table cannot hold is skipped, not stored: one bad link never stops a source from being recorded.
+    for (const url of candidateUrls.filter(fitsTable)) {
       const inserted = await trx
         .insertInto('content.topic_candidates')
         .values({
@@ -227,11 +244,12 @@ export async function countEligible(db: Queryable): Promise<number> {
 
 /**
  * The candidate the next proposal is for: a run still in flight first (a pass that stopped between the answer and storing it is resumed
- * on the very same request), then the oldest that is eligible.
+ * on the very same request), then the oldest that is eligible and not backed off. A candidate whose attempt failed, or that no system had room
+ * for, waits until the UTC day after (`not_before`), so the queue moves on to the next one instead of asking again at once.
  */
-export async function readNextToPropose(db: Queryable): Promise<Candidate | undefined> {
+export async function readNextToPropose(db: Queryable, today: string): Promise<Candidate | undefined> {
   const { rows } = await sql<CandidateDbRow>`select ${COLUMNS} from content.topic_candidates
-    where status in ('proposed', 'eligible')
+    where status = 'proposed' or (status = 'eligible' and (not_before is null or not_before <= ${today}::date))
     order by (status = 'proposed') desc, created_at, page_url limit 1`.execute(db);
   return rows[0] === undefined ? undefined : candidateOf(rows[0]);
 }
@@ -253,31 +271,46 @@ export async function beginAttempt(
   return rows[0];
 }
 
-/** The candidate's page is admitted as the topic, in the transaction that made the release. */
+/**
+ * The candidate's page is admitted as the topic, in the transaction that made the release. A candidate another delivery blocked while this answer
+ * was kept (the late answer of an attempt that had looked lost) is linked all the same: the topic exists, and nothing may lose the page it grew from.
+ */
 export async function settleAdmitted(tx: Transaction<Database>, pageUrl: string, topicId: string): Promise<void> {
   await sql`update content.topic_candidates set status = 'admitted', verdict = 'ok', topic_id = ${topicId},
       attempt_day = null, updated_at = now()
-    where page_url = ${pageUrl} and status in ('eligible', 'proposed')`.execute(tx);
+    where page_url = ${pageUrl} and status in ('eligible', 'proposed', 'blocked_unknown')`.execute(tx);
 }
 
 /** The model's answer was not admitted, or it found no fit: the candidate is refused with the code, and its text is dropped. */
 export async function settleRefused(tx: Queryable, pageUrl: string, code: string): Promise<void> {
   await sql`update content.topic_candidates set status = 'refused', verdict = ${code}, passages = null, attempt_day = null,
       updated_at = now()
-    where page_url = ${pageUrl} and status in ('eligible', 'proposed')`.execute(tx);
+    where page_url = ${pageUrl} and status in ('eligible', 'proposed', 'blocked_unknown')`.execute(tx);
 }
 
 /**
- * A conclusive failure of an attempt (an answer invalid after its repair, a provider that refused): it is counted and the day is released.
- * The candidate may be asked about again on another day, and past the policy's number it is refused as `model_failed`.
+ * A conclusive failure of an attempt (an answer invalid after its repair, a provider that refused): it is counted, the day is released and the
+ * candidate waits for the next UTC day (`not_before`), so an outage that fails every attempt is not asked again at once. It may be asked about
+ * again then, and past the policy's number it is refused as `model_failed`.
  */
 export async function countFailedAttempt(db: Queryable, pageUrl: string): Promise<'eligible' | 'refused'> {
   const { rows } = await sql<{ attempts: number }>`update content.topic_candidates
-    set attempts = attempts + 1, attempt_day = null, status = 'eligible', updated_at = now()
+    set attempts = attempts + 1, not_before = coalesce(attempt_day, (now() at time zone 'utc')::date) + 1, attempt_day = null,
+      status = 'eligible', updated_at = now()
     where page_url = ${pageUrl} and status in ('eligible', 'proposed') returning attempts`.execute(db);
   if ((rows[0]?.attempts ?? 0) < TOPIC_GROWTH_POLICY.attemptsPerCandidate) return 'eligible';
   await settleRefused(db, pageUrl, 'model_failed');
   return 'refused';
+}
+
+/**
+ * A candidate that cannot be proposed for now and costs nothing (no system with room offers itself for the page): it is put back as it was, with
+ * no pinned day, and waits for the next UTC day, so it does not stand first in the queue and hide the candidates behind it.
+ */
+export async function backOffCandidate(db: Queryable, pageUrl: string, today: string): Promise<void> {
+  await sql`update content.topic_candidates set status = 'eligible', attempt_day = null, not_before = ${today}::date + 1,
+      updated_at = now()
+    where page_url = ${pageUrl} and status in ('eligible', 'proposed')`.execute(db);
 }
 
 /** An attempt of unknown outcome, or a refusal of the harness that may have reached the provider: never resent, and the candidate is not offered again. */
@@ -404,6 +437,8 @@ export interface CandidateListing {
   readonly attempts: number;
   readonly passages: number | null;
   readonly topicId: string | null;
+  /** The owner's decision on the topic that was made (`pending` for every candidate that made none). */
+  readonly approval: Approval;
   readonly createdAt: string;
 }
 
@@ -414,7 +449,17 @@ export async function listCandidates(
 ): Promise<readonly CandidateListing[]> {
   let query = db
     .selectFrom('content.topic_candidates')
-    .select(['page_url', 'host', 'status', 'verdict', 'attempts', 'passage_count', 'topic_id', 'created_at'])
+    .select([
+      'page_url',
+      'host',
+      'status',
+      'verdict',
+      'attempts',
+      'passage_count',
+      'topic_id',
+      'approval',
+      'created_at',
+    ])
     .orderBy('created_at', 'desc')
     .orderBy('page_url')
     .limit(options.limit ?? 200);
@@ -427,6 +472,7 @@ export async function listCandidates(
     attempts: row.attempts,
     passages: row.passage_count,
     topicId: row.topic_id,
+    approval: row.approval as Approval,
     createdAt: row.created_at.toISOString(),
   }));
 }
@@ -438,4 +484,50 @@ export async function countCandidates(db: Queryable): Promise<Readonly<Partial<R
     n: string;
   }>`select status, count(*) as n from content.topic_candidates group by status`.execute(db);
   return Object.fromEntries(rows.map((row) => [row.status, Number(row.n)]));
+}
+
+/**
+ * The topics that grew and that the owner has not approved (`pending`, or `rejected` and retired): never made servable, whatever supply they have
+ * (D-422). Read by the step that makes topics servable and by the store of releases, which refuses any change that would.
+ */
+export async function readWithheldTopics(db: Queryable): Promise<ReadonlySet<string>> {
+  const { rows } = await sql<{ topic_id: string }>`select topic_id from content.topic_candidates
+    where status = 'admitted' and approval <> 'approved'`.execute(db);
+  return new Set(rows.map((row) => row.topic_id));
+}
+
+/** How many grown topics wait for the owner's decision. */
+export async function countAwaitingApproval(db: Queryable): Promise<number> {
+  const { rows } = await sql<{ n: string }>`select count(*) as n from content.topic_candidates
+    where status = 'admitted' and approval = 'pending'`.execute(db);
+  return Number(rows[0]?.n ?? 0);
+}
+
+export type ApprovalOutcome =
+  /** No candidate made this topic: it is a topic of the plan, or there is none. */
+  | { readonly kind: 'not_grown' }
+  /** An operator decided it already, and the decision is never taken back. */
+  | { readonly kind: 'already_decided'; readonly approval: Exclude<Approval, 'pending'> }
+  | { readonly kind: 'decided' };
+
+/**
+ * Records the owner's decision on a topic that grew, once: only a `pending` topic can be decided, who decided and when are kept, and a decision is never
+ * taken back. Making the topic servable, or retiring it, is the caller's next step.
+ */
+export async function decideTopicApproval(
+  db: Queryable,
+  topicId: string,
+  decision: 'approved' | 'rejected',
+  decidedBy: string,
+): Promise<ApprovalOutcome> {
+  const { rows } = await sql<{ topic_id: string }>`update content.topic_candidates
+    set approval = ${decision}, decided_by = ${decidedBy}, decided_at = now(), updated_at = now()
+    where topic_id = ${topicId} and status = 'admitted' and approval = 'pending' returning topic_id`.execute(db);
+  if (rows.length === 1) return { kind: 'decided' };
+  const existing = await sql<{ approval: Approval }>`select approval from content.topic_candidates
+    where topic_id = ${topicId} and status = 'admitted'`.execute(db);
+  const approval = existing.rows[0]?.approval;
+  return approval === undefined || approval === 'pending'
+    ? { kind: 'not_grown' }
+    : { kind: 'already_decided', approval };
 }

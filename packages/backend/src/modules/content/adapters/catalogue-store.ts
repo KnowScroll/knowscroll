@@ -3,6 +3,7 @@ import { canonicalSha256 } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
 import type { Catalogue } from '../application/catalogue.js';
+import { readWithheldTopics } from './topic-candidates.js';
 import { planRelease, type ReleaseChange, type ReleasePlan, type ReleaseSummary } from '../domain/catalogue/release.js';
 import { makeSnapshot, type CatalogueSnapshot } from '../domain/catalogue/snapshot.js';
 import type { NodeKind, NodeRow, ReleaseRows, RevisionRow } from '../domain/catalogue/types.js';
@@ -251,6 +252,15 @@ export async function appendReleaseIn(
   source: ReleaseSource,
 ): Promise<AppendOutcome> {
   await sql`select pg_advisory_xact_lock(hashtextextended('content.concept-releases', 0))`.execute(trx);
+  // The owner approves each topic that grew (D-422): a release that would make one servable first is refused whole, whoever asks.
+  const showing = changes.flatMap((change) => (change.kind === 'show' ? [change.nodeId] : []));
+  if (showing.length > 0) {
+    const withheld = await readWithheldTopics(trx);
+    const refusals = showing
+      .filter((nodeId) => withheld.has(nodeId))
+      .map((nodeId) => ({ code: 'not_approved' as const, nodeId }));
+    if (refusals.length > 0) return { kind: 'refused', refusals };
+  }
   const { rows } = await currentLoaded(trx);
   const plan = planRelease(rows, changes, catalogueHash);
   if (plan.kind === 'refused') return { kind: 'refused', refusals: plan.refusals };

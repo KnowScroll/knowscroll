@@ -390,11 +390,15 @@ export interface ContentSeriesUnits {
 }
 
 export interface ContentTopicCandidates {
+  approval: Generated<string>;
   attempt_day: Timestamp | null;
   attempts: Generated<number>;
   created_at: Generated<Timestamp>;
+  decided_at: Timestamp | null;
+  decided_by: string | null;
   fetches: Generated<number>;
   host: string;
+  not_before: Timestamp | null;
   page_sha256: string | null;
   page_url: string;
   passage_count: number | null;
