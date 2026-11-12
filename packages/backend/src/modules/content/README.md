@@ -123,7 +123,7 @@ changes qualification policy. A Reel's coverage is its own (next section).
 
 ## Reel coverage (#674, slice 5.1, D-421)
 
-Status: implemented, CI-tested against real PostgreSQL. Not yet run against dev. Migration 0118.
+Status: implemented, CI-tested against real PostgreSQL. Not yet run against dev. Migration 0116.
 
 A Reel binds facets by the same kind of code rule, over what its script says. `reel-recipe-coverage.v1`
 (`domain/reel-coverage.ts`, `application/admit-reel-coverage.ts`) runs in the Reel's publication transaction
@@ -154,7 +154,7 @@ A Reel binds facets by the same kind of code rule, over what its script says. `r
 - A re-cut is another asset revision. It has its own head and windows; the earlier revision's readings keep proving what
   they proved, as for a Scroll revision.
 - A Reel never joins a region by its own coverage. The mapping's policy differs from a Scroll's, the derived region lookup
-  keeps only the Scroll policy, and migration 0118 makes a revision of coverage whose policy does not match the kind of its
+  keeps only the Scroll policy, and migration 0116 makes a revision of coverage whose policy does not match the kind of its
   asset a data error. A Reel reaches a region only as the twin of a Scroll (D-404, below).
 - The standalone reviewed-command path cannot map a Reel (`CONTENT_COVERAGE_REEL_REQUIRES_RECIPE`); it can retract a
   Reel's head.
@@ -197,7 +197,7 @@ leaves it), and nothing here records who read what.
 | `content.release_withdrawals`                           | `0115_content_release_policy`                    | Who withdrew a Scroll the release policy released, when, and what became of its topic's approval (D-418); the first withdrawal of a revision is kept | None: shared content       |
 | `content.release_policy_looks`                          | `0115_content_release_policy`                    | The last look of the release policy's sweep at each held library revision: the hold code and the rules version, so the sweep pages past revisions that stay held (D-418). A hint: deleting one only makes the sweep look again | None: shared content       |
 | `content.release_risk_raises`                           | `0115_content_release_policy`                    | Raises of one library revision's risk class (D-418): a model's or a person's proposal that the Scroll touches a sensitive category, so it waits for a person. Append-only (a trigger refuses any change), so a proposal can never lower anything                                               | None: shared content       |
-| `content.coverage_revisions` / `content.coverage_heads` | `0022_content_coverage`, kind guard `0118`        | One immutable facet-to-block (a Reel's: facet-to-segment) mapping per correction or retraction, and one monotonic head per asset revision. `content.region_bindings` (`0037`) is the derived lookup by planet and facet                                                                                        | None: shared content       |
+| `content.coverage_revisions` / `content.coverage_heads` | `0022_content_coverage`, kind guard `0116`        | One immutable facet-to-block (a Reel's: facet-to-segment) mapping per correction or retraction, and one monotonic head per asset revision. `content.region_bindings` (`0037`) is the derived lookup by planet and facet                                                                                        | None: shared content       |
 | `content.reel_orders` / `content.reel_attempts`         | `0053_reel_orders`                               | The business run "make a Reel of this script" and the ledger of every request sent to Cutroom for it (request bytes, state, pool claim, cost). See "Reels from Cutroom"                                                                                                           | None: shared public        |
 | `content.media_objects` / `content.reel_imports`        | `0014_media_reels`, name check relaxed in `0053` | Content-addressed Reel bytes and which Cutroom run became which Reel revision                                                                                                                                                                                                     | None: shared content       |
 
