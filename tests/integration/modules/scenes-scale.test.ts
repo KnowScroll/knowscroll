@@ -9,7 +9,7 @@ import {
   type SceneClientCapabilities,
   type SceneSkySystem,
 } from '@knowscroll/contracts';
-import { CONCEPTS } from '@knowscroll/backend/modules/content';
+import { CATALOGUE, planSnapshot } from '@knowscroll/backend/modules/content';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import {
   makeWithPersonalScope,
@@ -64,6 +64,7 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases } from '../support/scroll.js';
 import { buildFromProviders } from '../support/providers.js';
+import { catalogueOf } from '../support/catalogue.js';
 
 const base: SceneClientCapabilities = {
   version: 'scene-client.v1',
@@ -87,7 +88,11 @@ const oldClient = base;
 /** Ids in creation order, so id order is arrival order, as UUIDv7 ids are. */
 const nid = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const planetConcepts = ['earth.seasons', 'earth.tides', 'earth.greenhouse-effect', 'earth.seasons'];
-const facetsOf = (planetConcept: string) => CONCEPTS.find((c) => c.id === planetConcept)!.facets.map((f) => f.id);
+const facetsOf = (planetConcept: string) =>
+  planSnapshot()
+    .all()
+    .find((c) => c.id === planetConcept)!
+    .facets.map((f) => f.id);
 const transition = nid(0xfffff);
 
 interface Synthetic {
@@ -175,6 +180,7 @@ describe('a map at scale (real PostgreSQL CI fixtures, synthetic places)', () =>
       ...sceneProviders({ withPersonalScope: SCOPE, logEvent: LOG }),
     ];
     const values = new Map<symbol, unknown>([
+      [CATALOGUE, catalogueOf(database.db)],
       [SCOPE, withScope()],
       [LOG, () => undefined],
       [ENQUEUE, makeEnqueueJob(c.boss)],
