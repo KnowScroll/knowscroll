@@ -120,7 +120,7 @@ describe('which systems are drawn in full', () => {
     const started = performance.now();
     for (let run = 0; run < 10; run++)
       chooseDetail({ places, target: { x: run * 3, z: 0 }, pinned: nobody, previous: nobody });
-    expect((performance.now() - started) / 10).toBeLessThan(25);
+    expect((performance.now() - started) / 10).toBeLessThan(100); // a loaded CI runner is several times slower than a quiet laptop; a scan that is not linear misses this by orders of magnitude
   });
 });
 
