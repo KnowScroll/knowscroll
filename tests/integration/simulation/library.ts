@@ -2,13 +2,16 @@ import { sql } from 'kysely';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { Kysely } from 'kysely';
-import { CONCEPTS, COVERAGE_POLICY, CONCEPT_CATALOGUE_VERSION } from '@knowscroll/backend/modules/content';
+import { COVERAGE_POLICY, CONCEPT_CATALOGUE_VERSION, planSnapshot } from '@knowscroll/backend/modules/content';
+
+/** The catalogue of the library plan (release 1), which the lab's database seeds. */
+const CONCEPTS = planSnapshot().all();
 import type { CoverageCommand, CoverageMapping, ImportEditorialScroll } from '@knowscroll/backend/modules/content';
 import {
   admitReelCoverage,
-  coverageCatalogue,
   coverageHeadPorts,
   makeAdmissionStore,
+  planCoverageCatalogue,
   makeAdmitCoverage,
   makeCoverageAdmissionPorts,
 } from '@knowscroll/backend/modules/content/nest-providers';
@@ -224,12 +227,12 @@ async function admitScroll(input: AdmitScrollInput): Promise<LibraryScroll> {
     readingFactsVersion: 2,
     readingFactsSha256: canonicalSha256(row.reading_facts),
     catalogueVersion: CONCEPT_CATALOGUE_VERSION,
-    catalogueSha256: coverageCatalogue.sha256,
+    catalogueSha256: planCoverageCatalogue().sha256,
     bindings: [
       {
         topicId: planet.id,
         facetId: facet.id,
-        meaningSha256: coverageCatalogue.meaningSha256(planet.id, facet.id)!,
+        meaningSha256: planCoverageCatalogue().meaningSha256(planet.id, facet.id)!,
         requiredBlockIds: ['intro-look-up'],
       },
     ],
