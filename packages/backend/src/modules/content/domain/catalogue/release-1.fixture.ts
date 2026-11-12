@@ -1,7 +1,7 @@
 import type { LibrarySystem } from '../library/plan.js';
 
 /**
- * The library plan exactly as release 1 of the catalogue seeded it (migration 0116, D-419), frozen. The live plan
+ * The library plan exactly as release 1 of the catalogue seeded it (migration 0117, D-419), frozen. The live plan
  * (`LIBRARY_SYSTEMS`) keeps growing in code; tests that prove the seed is exact compare against this copy, never against
  * the plan, so adding a topic to the plan breaks nothing here. Never edit it: a catalogue that changes is a new release.
  */
