@@ -1,4 +1,4 @@
-import { intervalsLength, mergeIntervals, type Interval } from './intervals.js';
+import { intervalsLength, mergeIntervals, mergeIntervalsBridging, type Interval } from './intervals.js';
 import type { ObservationRecord } from './reading-summary.js';
 
 export const REEL_QUALIFICATION_POLICY_V0 = {
@@ -14,6 +14,13 @@ export const REEL_QUALIFICATION_POLICY_V0 = {
  */
 export const REEL_WATCHED_POLICY = {
   version: 'reel-watched.v1',
+  /**
+   * Two reports of continuous playback that are at most this far apart in media time are one watched window. A sample's
+   * media end is clipped at intake to its active length (the wire allows a sample 100 ms more media than active time, and
+   * a player's position jitters), so honest consecutive samples leave gaps of a few milliseconds. A larger gap is not
+   * bridged: a seek, a stall or a dropped sample.
+   */
+  bridgeMs: 100,
   /** Intervals are rounded inward to this grid, so what is recorded is never more than was watched. */
   gridMs: 100,
   /** The summary keeps at most this many intervals (the longest), a bound on a stored row. */
@@ -31,14 +38,15 @@ export const REEL_WATCHED_POLICY = {
 export const REEL_SUMMARY_VERSION = 2;
 
 /**
- * The unique media a viewer watched as disjoint `[from, to]` windows, rounded inward and bounded; empty when the
- * media reported cannot have been watched in the active time (see `REEL_WATCHED_POLICY`). Pure.
+ * The unique media a viewer watched as disjoint `[from, to]` windows, joined across the gaps intake leaves between honest
+ * samples, rounded inward and bounded (the 32 longest, after the joining); empty when the media reported cannot have been
+ * watched in the active time (see `REEL_WATCHED_POLICY`). Pure.
  */
 export function watchedMedia(media: readonly Interval[], activeDwellMs: number): [number, number][] {
   const policy = REEL_WATCHED_POLICY;
-  const merged = mergeIntervals(media);
-  if (intervalsLength(merged) > activeDwellMs * policy.dwellRatio + policy.dwellAllowanceMs) return [];
-  const rounded = merged
+  // The tamper bound reads the media as reported, never the bridged windows: bridging adds nothing to what may be claimed.
+  if (intervalsLength(mergeIntervals(media)) > activeDwellMs * policy.dwellRatio + policy.dwellAllowanceMs) return [];
+  const rounded = mergeIntervalsBridging(media, policy.bridgeMs)
     .map(([from, to]): [number, number] => [
       Math.ceil(from / policy.gridMs) * policy.gridMs,
       Math.floor(to / policy.gridMs) * policy.gridMs,

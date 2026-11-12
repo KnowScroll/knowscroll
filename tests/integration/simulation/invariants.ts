@@ -17,7 +17,7 @@ export const INVARIANTS: Readonly<Record<InvariantId, { readonly name: string; r
   I2: {
     name: 'formation',
     statement:
-      'When a person qualified enough distinct explanations, the system or planet forms within a bounded number of drains; no Geography run settles an insufficient outcome other than no_changes, disabled or no_support_yet while the person has trusted supports; and no_support_yet appears only for a person with no coverage references.',
+      'When a person qualified enough distinct explanations whose reading proved their facet, the system or planet forms within a bounded number of drains; no Geography run settles an insufficient outcome other than no_changes, disabled or no_support_yet while the person has trusted supports; no_support_yet appears only for a person with no coverage references; and no system forms from fewer than two such units.',
   },
   I3: {
     name: 'work completes',
@@ -165,10 +165,11 @@ function formation(world: SimWorld, result: PersonaResult): Violation[] {
   const { run, db } = result;
   const violations: Violation[] = [];
   const persona = run.spec.id;
-  // Units the person qualified, with the evidence rules' own answer. Only reading that was recorded counts.
+  // Units the person qualified and whose reading met what their facet needs, with the evidence rules' own answer. Only
+  // reading that was recorded counts. A Reel watched to 90% qualifies and proves nothing, so nothing is owed for it.
   const qualified = new Map<string, { scroll: boolean; reel: boolean }>();
   for (const encounter of run.encounters) {
-    if (encounter.qualification !== 'qualified') continue;
+    if (encounter.qualification !== 'qualified' || !encounter.provesFacet) continue;
     const entry = qualified.get(encounter.offer.unitId) ?? { scroll: false, reel: false };
     if (encounter.offer.kind === 'scroll') entry.scroll = true;
     else entry.reel = true;
@@ -217,6 +218,20 @@ function formation(world: SimWorld, result: PersonaResult): Violation[] {
       persona,
       message: `${persona} qualified ${String(units.length)} distinct units over ${String(facets.size)} facets of ${topic} but no planet formed after ${String(result.settleDrains)} settling drains.`,
       detail: { topic, units },
+    });
+  }
+  // And nothing forms from reading that proved nothing: a system needs two units that did.
+  for (const key of places) {
+    const system = /^system:(.+):factual$/.exec(key)?.[1];
+    if (system === undefined) continue;
+    const proven = bySystem.get(system)?.all.length ?? 0;
+    if (proven >= FORMATION.systemUnits) continue;
+    violations.push({
+      invariant: 'I2',
+      code: 'system_formed_without_proof',
+      persona,
+      message: `${persona}: ${system} formed from ${String(proven)} unit(s) whose reading proved a facet, fewer than the ${String(FORMATION.systemUnits)} a system needs.`,
+      detail: { system, proven },
     });
   }
   violations.push(...settledOutcomeViolations(persona, run.formation));
@@ -409,6 +424,14 @@ function onlyRealEncounters(world: SimWorld, result: PersonaResult): Violation[]
       });
       continue;
     }
+    if (answered === 'qualified' && encounter.provesFacet !== db.referencedExposures.includes(encounter.exposureId))
+      violations.push({
+        invariant: 'I4',
+        code: 'coverage_misbound',
+        persona,
+        message: `${persona}: encounter ${String(encounter.index)} was a ${encounter.reading} of ${encounter.offer.unitId} (${encounter.offer.kind}) that ${encounter.provesFacet ? 'met' : 'did not meet'} what its facet needs, and Personal Context ${encounter.provesFacet ? 'holds no' : 'holds a'} coverage reference for it.`,
+        detail: { encounter: encounter.index, reading: encounter.reading, provesFacet: encounter.provesFacet },
+      });
     if (encounter.expectQualified !== (answered === 'qualified'))
       violations.push({
         invariant: 'I4',

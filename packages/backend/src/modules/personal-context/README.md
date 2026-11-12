@@ -224,8 +224,10 @@ catalogue digest keeps a Reel's reading, and a re-cut, which is another asset re
 inherit the earlier cut's windows), and the SHARE locks. The support key is the same, and its `truthSha256` is the
 factual framing digest a Reel and its Scroll twin share, so a Reel and its twin that bind one facet are one key with two
 references and one explanation unit: they count once, and Geography counts distinct units, never references. The
-dirty set is marked by a Reel's references exactly as by a Scroll's. A Reel with no Scroll twin is not in any region
-(D-404) but its facets count toward its system and planet like any other unit.
+dirty set is marked by a Reel's references exactly as by a Scroll's. A Reel with no twin Scroll gets no coverage at all
+(its target needs the twin, below), so what is watched of it counts for dust and nothing more; and a Reel whose twin Scroll
+was corrected or withdrawn after the Reel was published stops proving anything, for earlier readers as for new ones, because
+the trusted read no longer finds a mapping for it.
 
 ## The dirty set and the keys a run reads (#674, slice 4.1, D-416)
 

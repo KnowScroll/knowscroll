@@ -1,4 +1,5 @@
 import { canonicalSha256 } from '@knowscroll/scroll-model';
+import { z } from 'zod';
 import { ReelDocumentSchema } from '@knowscroll/contracts';
 import type { CoverageRef, CoverageTarget } from '../domain/coverage.js';
 import { ReelCoverageProvenanceSchema, reelSegmentsOf, segmentIsSupported } from '../domain/reel-coverage.js';
@@ -19,6 +20,26 @@ export interface StoredReelRevision {
 export interface StoredTwinRevision {
   readonly explanation_unit_id: string;
   readonly framing_kind: string | null;
+  readonly provenance: unknown;
+}
+
+/** What the twin's provenance (`scroll-provenance.v1` or `.v2`, both of which list their claims) says of its claims. */
+const TwinClaimsSchema = z.looseObject({
+  claims: z.array(z.looseObject({ claimId: z.string(), truthState: z.string() })),
+});
+
+/** The truth states a claim may have for coverage to rest on it, as the Scroll rule accepts (D-033). */
+const SUPPORTED_TRUTH_STATES: readonly string[] = ['documented', 'synthesis'];
+
+/**
+ * Whether every claim of the twin Scroll's provenance is documented or a synthesis. A Reel's claims are named locally
+ * (`c1`) and rest on the twin revision as a whole, not on one claim of it, so which claims a segment depends on cannot
+ * be told: a Reel is eligible only when nothing the twin says is an interpretation, disputed, modelled, counterfactual
+ * or fictional. A twin whose provenance cannot be read supports nothing.
+ */
+export function twinClaimsSupported(provenance: unknown): boolean {
+  const record = TwinClaimsSchema.safeParse(provenance);
+  return record.success && record.data.claims.every((claim) => SUPPORTED_TRUTH_STATES.includes(claim.truthState));
 }
 
 const FACTUAL_FRAMING_SHA256 = canonicalSha256({ kind: 'factual' });
@@ -32,7 +53,8 @@ const FACTUAL_FRAMING_SHA256 = canonicalSha256({ kind: 'factual' });
  *
  * `undefined` when the revision, its provenance, its facts and its twin do not agree, when it was not made from
  * an approved script (the Reels imported before scripts carried claims have no segments), when it is a fixture,
- * or when the twin is not a factual Scroll of the same explanation unit that a reader may be served.
+ * or when the twin is not a factual Scroll of the same explanation unit that a reader may be served now. A segment
+ * is truth-supported only when the twin's claims are all documented or synthesis (`twinClaimsSupported`).
  */
 export function coverageTargetOfReel(
   row: StoredReelRevision,
@@ -57,6 +79,7 @@ export function coverageTargetOfReel(
     twin.framing_kind !== 'factual'
   )
     return undefined;
+  const twinSupported = twinClaimsSupported(twin.provenance);
   return {
     format: 'reel',
     documentSha256: row.document_sha256,
@@ -70,7 +93,7 @@ export function coverageTargetOfReel(
       id: segment.id,
       type: 'segment',
       nested: false,
-      truthSupported: segmentIsSupported(segment, record),
+      truthSupported: twinSupported && segmentIsSupported(segment, record),
       span: [segment.startMs, segment.endMs] as const,
     })),
   };

@@ -205,10 +205,13 @@ missing/gapped instrumentation leaves short encounters unknown. Consumer navigat
 is not evidence. Diagnostics retain q, unique media, active time, duration and policy version.
 
 Since #674 slice 5.1 (D-421) a Reel's summary (`v: 2`) also records `watched`: the unique media windows that were
-met, as disjoint `[from, to]` millisecond pairs rounded inward to 100 ms and kept to the 32 longest, so a stored row
-never says more than was watched (`reel-watched.v1`, `domain/reel-summary.ts`). It is empty when the media reported
-is longer than the active time that could have produced it, since one viewer cannot be at two positions in the same
-moment. q, the qualification and every threshold are unchanged. A row written before this version has no windows and
+met, as disjoint `[from, to]` millisecond pairs (`reel-watched.v1`, `domain/reel-summary.ts`). Intake clips each
+sample's media end to its active length, and a player's position jitters, so consecutive samples of one continuous watch
+leave gaps of a few milliseconds; gaps of up to 100 ms, the most the wire allows between a sample's media and its active
+time, are joined first. Then the windows are rounded inward to 100 ms and the 32 longest are kept, so a stored row never
+says more than was watched. A larger gap (a seek, a stall, a dropped sample) stays a gap. The list is empty when the media
+reported, as reported and before any joining, is longer than the active time that could have produced it, since one viewer
+cannot be at two positions in the same moment. q, the qualification and every threshold are unchanged. A row written before this version has no windows and
 binds no facet; it is not rewritten, and the next observation of the exposure writes a new revision that has them.
 
 ## Activity and prepared routing context
@@ -339,7 +342,8 @@ revision and the Reel's reading facts. Each binding names the media window of ev
 (`requiredSpans`, beside `requiredBlockIds`, which are segment ids `s1`, `s2` ...). A binding counts when the viewer
 watched every one of those windows (`reel-segment-seen.v1`, `domain/coverage.ts`): the window is estimated from the
 narration, because Cutroom reports no shot times, so it is widened by one second each way within the Reel, and at least
-95% of that widened window must have been watched. Watching the first 26 seconds of a Reel credits the segments in
+95% of that widened window must have been watched. The first and last half second of the Reel are not required of a
+window that reaches them: a player starts a few hundred milliseconds in and the last report ends before the media does. Watching the first 26 seconds of a Reel credits the segments in
 them and no later one; aggregate media time still cannot locate a facet, which is why the windows are recorded.
 The certificate, its checks (`CheckCoverageEvidence` and the recording check, which accept a Reel row by its policy and
 judge the windows from its stored summary) and its size bounds are otherwise a Scroll's.

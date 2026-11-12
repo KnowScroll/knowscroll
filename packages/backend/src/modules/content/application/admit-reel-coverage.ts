@@ -13,8 +13,11 @@ export type ReelCoverageOutcome =
         | 'target_unavailable'
         | 'not_a_reel'
         | 'recipe_mismatch'
+        | 'retracted'
         | Extract<ReelCoveragePlan, { kind: 'refused' }>['code'];
     };
+
+const withoutDigest = (mapping: CoverageHead['mapping']) => ({ ...mapping, catalogueSha256: '' });
 
 type CoverageRecipe = Pick<LibraryRecipe, 'explanationUnitId' | 'topicId' | 'facetId' | 'supportingFacetId'>;
 
@@ -29,8 +32,8 @@ type CoverageRecipe = Pick<LibraryRecipe, 'explanationUnitId' | 'topicId' | 'fac
  * the current one, so history is kept.
  *
  * Returns `not_admitted` when the revision is not a Reel published from an approved script, names a different
- * twin or unit than the recipe, or has too few supported segments to bind. Nothing is written then, and the
- * Reel stays watchable but unmapped.
+ * twin or unit than the recipe, has too few supported segments to bind, or has a head an operator retracted for the
+ * same decision (`retracted`). Nothing is written then, and the Reel stays watchable but unmapped.
  */
 export async function admitReelCoverage(
   p: CoverageHeadPorts,
@@ -47,6 +50,13 @@ export async function admitReelCoverage(
   const previous = await p.readHead(tx, ref);
   if (previous?.status === 'active' && previous.authority.mappingSha256 === p.hash(plan.mapping))
     return { kind: 'admitted', head: previous, change: 'unchanged' };
+  // A head an operator retracted stays retracted while the decision is what it was. A new catalogue digest alone is not a
+  // new decision: only a different reading (another document, script, facet or window) appends a head after a retraction.
+  if (
+    previous?.status === 'retracted' &&
+    p.hash(withoutDigest(previous.mapping)) === p.hash(withoutDigest(plan.mapping))
+  )
+    return { kind: 'not_admitted', code: 'retracted' };
   const command: CoverageCommand = {
     version: 'content-coverage-command.v1',
     assetId: ref.assetId,

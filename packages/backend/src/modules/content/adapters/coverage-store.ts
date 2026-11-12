@@ -80,11 +80,15 @@ async function readReelTarget(
   const provenance = ReelCoverageProvenanceSchema.safeParse(row?.provenance);
   if (!row || !provenance.success) return undefined;
   const { twin } = provenance.data;
+  // The twin must be the Scroll as it is served now: a Reel cut from a Scroll that was corrected since rests on claims the
+  // Scroll no longer makes, and one whose twin was withdrawn rests on nothing a reader may be shown.
   const twinRows = await sql<{
     explanation_unit_id: string;
     framing_kind: string | null;
-  }>`select r.explanation_unit_id,r.document->'framing'->>'kind' as framing_kind
-    from content.assets a join content.asset_revisions r on r.asset_id=a.id
+    provenance: unknown;
+  }>`select r.explanation_unit_id,r.document->'framing'->>'kind' as framing_kind,p.provenance
+    from content.assets a join content.asset_revisions r on r.asset_id=a.id and r.revision=a.revision
+    join content.asset_provenance p on p.asset_id=r.asset_id and p.revision=r.revision
     where a.id=${twin.assetId}::uuid and a.kind='scroll' and ${reachable} and r.revision=${twin.assetRevision}`.execute(
     db,
   );
