@@ -286,7 +286,7 @@ and must be an exact member of the shortlist the model was shown (the schema ref
 never shown the whole catalogue (D-419): code builds a shortlist of at most 24 servable topics (all of them while there are no more,
 otherwise those whose label, meaning or facets share the most key words with the request), and where nothing shares a key word no call is made and the request
 closes as `unsupported_request`. The question-scope step (`ask-scope.2`) is shown a shortlist for the question the same way. The shortlist is a function of
-the request's words and the one catalogue release it was recorded against (`supply.requests.catalogue_release`, migration 0117, set when the request is
+the request's words and the one catalogue release it was recorded against (`supply.requests.catalogue_release`, migration 0118, set when the request is
 recorded as `matching`), so every delivery of the request shows the model the same shortlist: a release made between a delivery and its redelivery
 changes nothing the harness sees, and a kept paid answer is checked against the shortlist it was given. A request recorded before the release was kept reads the current one. A match
 is then handled like a person's own catalogue ask. A brief is made only for a servable topic: one that is retired, or that still waits for released supply, is not offered, matched or recorded as planned demand. A cancel that arrives while the model thinks wins.
