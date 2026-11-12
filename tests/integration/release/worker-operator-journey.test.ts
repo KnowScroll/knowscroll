@@ -192,6 +192,8 @@ describe('the worker operator command (reasoning) from the built release', () =>
       considered: 0,
       appended: 0,
       unchanged: 0,
+      changedUnits: 0,
+      remarked: { topics: 0, universes: 0 },
       skipped: {},
     });
   });
