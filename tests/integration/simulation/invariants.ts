@@ -1,6 +1,9 @@
 import { sql } from 'kysely';
 import type { ComposerDecision } from '@knowscroll/backend/modules/composer';
-import { CONCEPTS } from '@knowscroll/backend/modules/content';
+import { planSnapshot } from '@knowscroll/backend/modules/content';
+
+/** The catalogue of the library plan (release 1), which the lab's database seeds. */
+const CONCEPTS = planSnapshot().all();
 import { unsettledJobs } from './collect.js';
 import type { FormationPoint } from './model.js';
 import type { PersonaResult } from './run.js';
