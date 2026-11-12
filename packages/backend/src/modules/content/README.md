@@ -284,6 +284,25 @@ live in `content.recipes`, and the system can propose new ones for planets and f
 
 Status: implemented, with integration tests on real PostgreSQL and a labelled fixture model (`tests/integration/modules/content-recipes.test.ts`). Not runtime-verified on dev: no real provider call has been made for it.
 
+### Shared reads for the gap loop (#674, D-414)
+
+Supply's gap loop finds where the library is thin and commissions production for stored recipes with no person, so Content serves it the reads it needs over
+the process's database handle, on shared tables only, never a personal scope (`adapters/gap-reads.ts`, bound by `sharedLibraryProviders`):
+
+- **`ReadReleasedCoverage`** (`readReleasedCoverage`): the released Scrolls by planet and facet, as distinct explanations (a Reel and its Scroll twin count once).
+  Released is an asset `admitted` whose current revision has admitted coverage in `content.region_bindings`, the lookup the coverage head's trigger keeps in step
+  with admission, correction and retraction: a Scroll held for the operator's read is not an admitted asset, and a withdrawn one is no longer. A planet with
+  nothing released is absent from the list.
+- **`ReadGapRecipes`**: the recipes that would serve a planet (and facet), code and stored, with each one's production standing and the take a send should
+  name. A retired recipe is never listed. The loop uses it to see whether the hole is already being filled, whether a stored recipe waits to be produced and
+  whether a proposal is due.
+- **`ReadRecipeStates`**: the standing of named recipes, for a commissioned gap to see whether its Scroll was released.
+- **`ChooseSharedScrollRecipe`**: Create's chooser (`chooseScrollRecipeIn`) over a handle, the same rule whoever asks; `readScrollProductionIn` likewise.
+- **`propose-recipes` may be sent a UTC day** (`ProposeRecipesRequest.day`), which replaces today's date in the request's identity: the gap loop pins the day
+  of an attempt, so a redelivery after midnight is the same request and is answered by the ledger. Absent, it is today, as before.
+
+Status: implemented, CI-verified on real PostgreSQL (`tests/integration/modules/supply-gaps.test.ts`); not runtime-verified on dev.
+
 ## The review gate for library v2 Scrolls (D-138)
 
 Status: **implemented**, runtime-verified on real PostgreSQL with labelled fixtures, not yet on dev.

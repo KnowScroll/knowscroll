@@ -28,6 +28,8 @@ const compositionRoots = [
   '^apps/api/src/modules/[^/]+\\.ts$',
   '^apps/worker/src/worker\\.module\\.ts$',
   '^apps/worker/src/jobs\\.ts$',
+  // The gap loop's consumers compose the scan, the brief job and the production harness (#674, D-414).
+  '^apps/worker/src/growth-jobs\\.ts$',
   // The worker's operator command composes the reasoning ledger for write-offs (S2.2).
   '^apps/worker/src/operator\\.ts$',
   // The Reel operator commands compose the ledger, the shared pool and Cutroom (#240).

@@ -191,7 +191,18 @@ export async function chooseScrollRecipe(
   brief: CatalogueBrief,
   options: ChooseRecipeOptions = ALLOW_ALL,
 ): Promise<ScrollRecipeChoice> {
-  const db = transactionOf(scope);
+  return chooseScrollRecipeIn(transactionOf(scope), brief, options);
+}
+
+/**
+ * {@link chooseScrollRecipe} over a database handle or a transaction, for the one caller that has no person: the gap loop's
+ * growth commissioning (#674, D-414). It reads only the shared tables, so the rule is the same whoever asks.
+ */
+export async function chooseScrollRecipeIn(
+  db: Queryable,
+  brief: CatalogueBrief,
+  options: ChooseRecipeOptions = ALLOW_ALL,
+): Promise<ScrollRecipeChoice> {
   const book = recipeBookOf(db);
   const aimedFacet =
     brief.facetId === undefined && options.plannedUnit !== undefined
@@ -238,9 +249,14 @@ export async function chooseScrollRecipe(
  * is read as it is: a waiter keeps waiting while it runs, and stops once its Scroll is held for the operator's read.
  */
 export async function readScrollProduction(scope: PersonalScopeTx, recipe: string): Promise<ScrollProductionReading> {
+  return readScrollProductionIn(transactionOf(scope), recipe);
+}
+
+/** {@link readScrollProduction} over a database handle or a transaction (the gap loop, #674, D-414). */
+export async function readScrollProductionIn(db: Queryable, recipe: string): Promise<ScrollProductionReading> {
   const key = parseProductionRecipe(recipe);
   if (key === undefined) return { state: 'stopped' };
-  const [standing] = await readLibraryStatus(transactionOf(scope), [key]);
+  const [standing] = await readLibraryStatus(db, [key]);
   if (standing === undefined) return { state: 'stopped' };
   if (!isGeneratedRecipeKey(key) && scrollV2PlanOf(key) !== undefined && standing.state !== 'published')
     return { state: 'stopped' };

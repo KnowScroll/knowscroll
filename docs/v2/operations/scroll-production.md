@@ -448,6 +448,43 @@ planet, facet or system. Every Scroll made from a stored recipe is held for your
 
 A reader's ask closes `could_not_prepare` once its stored recipe's Scroll is held, and can be tried again after the release (D-410).
 
+## The library notices where it runs out (#674, slice 3.1, D-414)
+
+The gap loop proposes new recipes by itself where readers are running out of content, within the day's budget. It makes no planet, facet or system, and
+it releases nothing: every Scroll it makes is held for your read like any v2 library Scroll, so **your review is the one gate and the slow step**. It is
+**off in every world** until `KS_SUPPLY_GROWTH_ENABLED=1` on the API and the worker (the coordinator turns it on for dev); the brief job also needs
+`KS_REASONING_PRODUCTION_ENABLED=1` on the worker. To stop it, set the switch to `0` and restart: no signal is recorded, nothing is scanned, no model is asked
+and no job is sent. `KS_SUPPLY_GROWTH_DAILY_CAP` (default 10) is the day's limit on new Scrolls from stored recipes, the same cap `content propose-recipes`' flow
+uses; `KS_SUPPLY_GAP_DEPTH_TARGET` (default 6) is how many released explanations a planet should have before it stops counting as shallow.
+
+1. **See the gaps.** `supply gaps [--status open|briefed|commissioned|closed|rejected|blocked_unknown]` prints the counts by status and kind, then the gaps,
+   most pressing first: kind (`thin_planet`, `empty_facet`, `shallow_planet`, `demand`), planet, facet, priority, readers (reader-days over the last
+   14 days), attempts, a reason code and how many recipes. It prints codes and catalogue ids only. `ops.supply_gaps` is the same data for a query.
+2. **Read what it made.** A gap goes `open`, then `briefed` (recipes stored), then `commissioned` (production sent) as the job works through it, at most three gaps
+   and one for each planet in a pass (twice an hour). Its Scrolls appear in `content review-list` as held, with their recipe keys, like any other.
+   `content review-show`, `content release` and `content reject` are as in "The review gate" above. When you release a Scroll, the next scan (every fifteen minutes)
+   closes the gap as `released`, and opens a fresh one if the planet is still thin. **A rejected take does not strand the gap**: when you reject a Scroll
+   and its recipe may be taken again, and nothing else of the gap is running or held for your read, the scan puts the gap back to `briefed` and the loop
+   commissions that same stored recipe again under the growth cap (another take, no model call); when every recipe ended for good the gap goes back to `open`
+   and the model is asked for new recipes. Each of these counts a failed production round on the gap (`rounds` in `supply gaps`), and at
+   `KS_SUPPLY_GAP_MAX_ROUNDS` (default 3) the gap is rejected as `production_rejected` and not tried again, so reject for a reason, not for taste.
+3. **The loop's brake.** It does not pile work on your read: a planet with three recipes running or held, or a facet with one, is only noted as
+   `commissioned` and nothing is spent. It proposes only while the growth cap leaves room to produce what comes back, and the day's proposing attempts stay
+   below the cap. A planet that holds no page yet (none of its recipes was ever produced) is rejected at once as `no_candidate_pages`, at no cost, and looked
+   at again after seven days: produce its first recipe by hand (`content produce-library --only <key>`) to let the loop take over.
+4. **A rejected gap.** After two attempts that stored nothing, a gap is `rejected` with the reason (`nothing_accepted`, `model_failed`, `closed`). It opens
+   again only when readers point to the same planet or facet after seven days. A planet or facet the catalogue no longer holds is never opened again.
+5. **A blocked gap** (`blocked_unknown`). Its proposing attempt has an unknown outcome (the worker stopped while the request was out, or the harness refused after
+   dispatch): the loop never sends it again. Find the attempt with `reasoning unknown` and write it off with `reasoning write-off --attempt <uuid> --reason <text>`
+   as for any other unknown attempt (the write-off settles the ledger's liability; it does not reopen the gap). The gap stays blocked while its hole remains, so the
+   loop never tries that hole again on its own; the scan closes it once the hole fills (say, when you produce and release a Scroll for it by hand). To let the loop
+   try again, or to end it, use `supply gaps settle --key <the gap's 64-character key> [--reopen | --close]` after the write-off: it refuses, and says why, while the
+   attempt is still reserved, dispatched or unknown in the ledger, for a gap that is not blocked, and for one that names no run (`supply gaps settle --key <hex>` with
+   neither flag only reports whether the ledger is settled). `--reopen` counts the blocked attempt as a failed one, so the next request is a new one.
+6. **Cost.** At most one model request and one repair for each proposing attempt, on the production harness and its attempt ledger, counted against the
+   production caps. Two passes never overlap (the second does nothing while the first holds its lock), and a test account's reading is never counted. A redelivered job or a restarted worker repeats nothing that was paid: the gap pins the UTC day of its attempt and the same request is
+   answered by the ledger, even after midnight.
+
 ## Running a library wave (S-6a, S-6b, D-197 to D-199, D-217)
 
 A wave is a set of recipes produced, read and released together. The goal of the first waves: at least 20 stage Scrolls and 30 with calls, all admitted, each series whole, each read by a person. The plan marks the Seasons recipes, the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217).

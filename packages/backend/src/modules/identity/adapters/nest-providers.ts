@@ -4,8 +4,8 @@ import { makeInvalidateOwnAccountAccess } from '../application/account-lifecycle
 import { advanceAccountAccess, fenceAccountPair } from './account-access.js';
 import { makeWithPersonalScope } from '../../../infrastructure/postgres/personal-scope.js';
 import { FENCE_ACCOUNT_PAIR, FENCE_OWN_ACCOUNT, INVALIDATE_OWN_ACCOUNT_ACCESS } from '../public.js';
-import { CHECK_PERSONAL_OWNER_ACTIVE } from '../public.js';
-import { checkPersonalOwnerActive } from './scope-owner.js';
+import { CHECK_PERSONAL_ACCOUNT_DISPOSABLE, CHECK_PERSONAL_OWNER_ACTIVE } from '../public.js';
+import { checkPersonalAccountDisposable, checkPersonalOwnerActive } from './scope-owner.js';
 import type { Kysely } from 'kysely';
 import type { IdentitySettings } from '../../../infrastructure/config/index.js';
 import type { LogEvent } from '../../../infrastructure/observability/index.js';
@@ -282,7 +282,10 @@ export function identitySweepProviders(tokens: { readonly database: symbol }) {
 
 /** Explicit worker/API scope read; adds no actor impersonation or auth-route behaviour. */
 export function identityScopeOwnerProviders() {
-  return [{ provide: CHECK_PERSONAL_OWNER_ACTIVE, useValue: checkPersonalOwnerActive }];
+  return [
+    { provide: CHECK_PERSONAL_OWNER_ACTIVE, useValue: checkPersonalOwnerActive },
+    { provide: CHECK_PERSONAL_ACCOUNT_DISPOSABLE, useValue: checkPersonalAccountDisposable },
+  ];
 }
 
 /** Internal account barriers; no route, erasure executor or provider call is installed. */

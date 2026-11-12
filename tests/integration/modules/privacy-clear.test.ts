@@ -988,6 +988,18 @@ describe('durable selective Clear', () => {
             expires_at: new Date(Date.now() + 86_400_000),
           })
           .execute();
+        // Authored erasure-only gap signal mark (#674, D-414): the person's one-a-day mark for the gap loop's counters, catalogue ids only.
+        await tx
+          .insertInto('supply.gap_signal_marks')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            day: new Date(),
+            key: 'e'.repeat(64),
+            source: 'ask',
+            planet: 'earth.tides',
+          })
+          .execute();
         // Authored Scene erasure-only payloads: seed ALL new stores without claiming projection/formation.
         const sceneObjectId = randomUUID(),
           sceneChunkId = randomUUID(),

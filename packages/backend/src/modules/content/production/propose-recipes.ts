@@ -55,6 +55,11 @@ export interface ProposeRecipesRequest {
   readonly topicId: string;
   readonly facetId?: string;
   readonly retry?: number;
+  /**
+   * The UTC day (`YYYY-MM-DD`) the request is made on, when the caller must pin it: the gap loop records the day of an attempt and
+   * sends it again on every delivery, so a redelivery after midnight is the same request and never pays twice. Absent: today.
+   */
+  readonly day?: string;
   readonly dryRun: boolean;
 }
 
@@ -235,13 +240,13 @@ function decideDrafts(
 /** What a request would send: the facts, the frozen context and the run it would use; or why nothing can be proposed. */
 async function prepareProposal(
   db: Kysely<Database>,
-  request: Pick<ProposeRecipesRequest, 'topicId' | 'facetId'>,
+  request: Pick<ProposeRecipesRequest, 'topicId' | 'facetId' | 'day'>,
   retry: number,
   now: Date,
 ) {
   const read = await factsOf(db, request);
   if ('kind' in read) return read;
-  const day = utcDayOf(now);
+  const day = request.day ?? utcDayOf(now);
   const key = recipeBriefRequestKey({
     topicId: request.topicId,
     ...(request.facetId === undefined ? {} : { facetId: request.facetId }),
@@ -265,7 +270,7 @@ const validRetry = (retry: number | undefined): retry is number | undefined =>
  */
 export async function previewRecipeProposal(
   db: Kysely<Database>,
-  request: Pick<ProposeRecipesRequest, 'topicId' | 'facetId' | 'retry'>,
+  request: Pick<ProposeRecipesRequest, 'topicId' | 'facetId' | 'retry' | 'day'>,
   now: () => Date = () => new Date(),
 ): Promise<Extract<ProposeRecipesResult, { kind: 'refused' | 'dry_run' }>> {
   if (!validRetry(request.retry)) return { kind: 'refused', reason: 'retry_out_of_range' };

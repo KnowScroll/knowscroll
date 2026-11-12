@@ -109,6 +109,7 @@ import {
   resolveSupplyQueue,
   ANSWER_QUICK_ANSWER,
   PURGE_QUICK_ANSWERS,
+  RECORD_GAP_SIGNALS,
   RESOLVE_CONTENT_REQUEST,
   type AnswerQuickAnswerUseCase,
   type PurgeQuickAnswers,
@@ -179,7 +180,7 @@ import {
 } from '@knowscroll/backend/modules/composer';
 import {
   composerBufferWorkerProviders,
-  composerConfiguredProviders,
+  composerRecordingProviders,
   composerPruneProviders,
   composerRecordingOwnerProviders,
 } from '@knowscroll/backend/modules/composer/nest-providers';
@@ -208,6 +209,7 @@ import {
 } from '@knowscroll/backend/reasoning';
 import { reasoningPurgeProviders, reasoningSweepProviders } from '@knowscroll/backend/reasoning/nest-providers';
 import { scrollProductionConsumers } from './production-jobs.js';
+import { gapLoopConsumers } from './growth-jobs.js';
 import {
   ENQUEUE_JOB,
   DATABASE,
@@ -268,6 +270,7 @@ export const jobWiring: Provider[] = [
     enqueueJob: ENQUEUE_JOB,
     config: WORKER_CONFIG,
     recordingHarness: RECORDING_REASONING_HARNESS,
+    logEvent: LOG_EVENT,
   }),
   ...supplyRecordingOwnerProviders(),
   // Quick answers (D-253): the worker writes each one through the recording-aware harness and purges them after a day.
@@ -284,7 +287,8 @@ export const jobWiring: Provider[] = [
   ...experienceEvidenceReadProviders(),
   ...experienceBufferSourceProviders(),
   // The worker persists decisions and ranks; it exposes no operator read of them.
-  ...composerConfiguredProviders({ isOperator: () => false }, WORKER_CONFIG),
+  // A buffer's decision that shows content running out records it in the same transaction, for the gap loop (#674, D-414).
+  ...composerRecordingProviders({ isOperator: () => false }, WORKER_CONFIG, RECORD_GAP_SIGNALS, LOG_EVENT),
   ...composerBufferWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
   // Expired decisions nothing holds are physically deleted on a schedule, in bounded batches (#674).
   ...composerPruneProviders({ database: DATABASE, withPersonalScope: WITH_PERSONAL_SCOPE }),
@@ -416,6 +420,9 @@ export const jobWiring: Provider[] = [
         withScope: withProductionScope,
         logEvent,
       }),
+      // The gap loop (#674, D-414): the scan of the library for holes (SQL only) and the brief job, which proposes recipes within the
+      // growth cap, held for review. Both do nothing while KS_SUPPLY_GROWTH_ENABLED is off.
+      ...gapLoopConsumers({ config, db, boss, harness: productionHarness, withScope: withProductionScope, logEvent }),
       ...clearExplorationConsumers(
         clearExplorationFor(db, boss, {
           reasoning: clearReasoning,

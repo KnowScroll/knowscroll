@@ -317,12 +317,87 @@ the opposite of a Scroll made for one thread. The scenarios module makes one ord
 transaction that makes the branch, so a retry never gets here twice. The scenarios module's sweep sends later takes.
 *Implemented.*
 
+## The gap loop: content that is running out (#674, D-414)
+
+Status: **implemented**, CI-verified on real PostgreSQL with a labelled fixture model and pages; **off in every world** until
+`KS_SUPPLY_GROWTH_ENABLED=1`; not yet run on dev. The coordinator turns it on there.
+
+Readers must always have new content, so the system notices where it is running out and proposes recipes for it itself, within the day's
+budget, still held for the operator's read. Four parts, none of them a model except the one call the brief job makes:
+
+1. **Gaps** (`supply.gaps`, `domain/gaps.ts`). A gap is one hole: `thin_planet` (fewer than 3 released explanations or released across fewer than 2
+   facets; a planet with none is the most severe), `empty_facet` (a facet with no released Scroll, on a planet that is not thin), `shallow_planet` (not
+   thin, no empty facet, below the depth target `KS_SUPPLY_GAP_DEPTH_TARGET`, default 6) and `demand` (readers pointed to a planet or facet no structural
+   rule covers). "Released" is an admitted asset with admitted coverage: a Scroll held for the operator's read counts for nothing. The key is the SHA-256 of
+   kind, planet and facet and one gap may be open for a key (a partial unique index), so a scan never makes two. Status: `open`, `briefed`, `commissioned`,
+   `closed`, `rejected` (with a reason code) and `blocked_unknown`. `rounds` counts failed production rounds. Priority: structural severity times 100 plus a bounded log of the readers, then age.
+2. **Signals** (`application/gap-signals.ts`, `RECORD_GAP_SIGNALS`). Counts, written by code where the system already knows, in the person's own
+   transaction: the Composer's decision that fell to the last resort or offered the last unseen explanation of its topic (see the Composer README); a
+   planned demand or a person's ask that found no recipe left (`commissionSupply`, the cause `no_recipe_left`, never `cap_reached` or Create off), for the
+   catalogue planet and facet of the brief and never the ask's words. A name the catalogue does not hold is dropped. Each signal is the person's own mark for
+   the UTC day (`supply.gap_signal_marks`, `on conflict do nothing`: one for each planet and facet a day), so a reader counts once and the shared
+   counter holds no person; no shared row is locked, so a navigation never waits on another reader. Where the loop is off nothing is written, and **a
+   disposable test account never feeds shared supply**: the recorder asks Identity's public port (`CHECK_PERSONAL_ACCOUNT_DISPOSABLE`, the account's
+   `identity.email_addresses.disposable` flag) and writes no mark for one, from a Composer decision, a planned demand or an ask alike. Recording is a **best
+   effort** that can neither fail nor delay what knew it: it runs under a savepoint with a short lock wait (`infrastructure/postgres/best-effort.ts`), so an
+   error rolls back only its own writes and is swallowed (logged as `supply.gap_signal_failed` or `composer.gap_signal_failed` with the PostgreSQL error
+   code), a row another transaction holds makes it give up instead of waiting, and the mark store looks for the person's mark before it writes, so a mark the scan
+   is counting is read as committed, never waited on.
+3. **The scheduled scan** (`supply.scan-gaps`, every fifteen minutes, `application/gap-scan.ts`, SQL only). Under one advisory lock (a second scan does not
+   run) it counts new marks into `supply.gap_signals`, reads what the library can serve (Content's `readReleasedCoverage`), finds the structural holes,
+   merges the counted signals (a signal joins the hole of its own planet and facet, else of its whole planet, else opens a `demand` gap) and makes the table
+   say the same. A gap whose hole is gone closes as `filled`; a commissioned gap whose recipe was released closes as `released`; closing is settled before
+   opening, so a hole that remains gets a fresh gap in the same scan. A rejected take is not a recipe on its way: a recipe that may be taken again
+   (`retryable`) is not live, so a commissioned gap with no recipe running, held for a read or queued goes back to `briefed` with its stored recipe, and the
+   brief job commissions that recipe again under the growth cap with no model call; when every recipe ended for good it goes back to `open` and the brief
+   role is asked again. Each of these is a **failed production round**, counted on the gap (`rounds`), and at `KS_SUPPLY_GAP_MAX_ROUNDS` (default 3) the
+   gap is rejected as `production_rejected` instead of being tried again: the circuit breaker, so a hole nobody can fill is not tried for ever. A key rejected
+   before opens again only when its reason allows and a seven-day cooldown has passed (a reason on the model's side needs readers since; a planet that held no
+   page is looked at again, since an operator may have produced its first recipe; a name the catalogue lacks never reopens). It also deletes marks older than
+   three days, counters older than thirty and ended gaps older than ninety, in bounded batches.
+4. **The brief job** (`supply.brief-gap`, background class, twice an hour, one worker, `application/gap-brief.ts`). A pass takes at most three of the most
+   pressing open gaps, at most one for a planet, and for each:
+   - **already being filled**: recipes running or held for a read (one for a facet, three for a planet): the gap is noted `commissioned`, nothing is spent;
+   - **stored recipes wait to be produced**: they are commissioned (below), with no model call;
+   - **otherwise** it asks the brief role through `content propose-recipes`' path, its request identity and ledger handling unchanged. The gap pins the
+     UTC day of the attempt (`attempt_day`) and sends the attempt number as the retry, so a redelivery after midnight is the same request and is answered
+     by the ledger. Two failed attempts (a run that stored nothing) reject the gap with the reason code; a refusal no retry can change (a planet with no page
+     held) rejects it at once, is not an attempt and does not use the pass up; an attempt of unknown outcome, or a refusal of the harness that may have
+     reached the provider, makes it `blocked_unknown` and is **never resent**; a store refused after the answer was kept pauses it, and the same request sent
+     again stores the kept answer; a spent budget keeps it as it is and ends the pass.
+
+   **Budget.** A pass proposes only while today's growth cap (`KS_SUPPLY_GROWTH_DAILY_CAP`, default 10, 0 turns growth off) leaves room to produce what
+   comes back, and the day's proposing attempts stay below the cap, so a run of failures cannot spend model budget the cap never meets. Commissioning
+   (`application/growth.ts`) is Create's decision with no person, in one transaction that takes the commissioning lock Create takes: it joins production
+   already under way for exactly the brief or closes a group that ended, refuses when the cap is used up (it reads the library on that transaction's own connection, so it never waits for a second one of the pool while other transactions wait on the lock), lets the chooser pick a stored recipe (never a
+   recipe of the library plan) and commits a group with `commissioned_by = 'growth'`; at most one recipe for each facet comes from one proposal. The
+   production job is sent after the commit, outside any transaction, below any person's request; every pass sends again the job of a gap it commissioned
+   whose job has not run, one job for each recipe, version and take, so a lost job is not lost for good. The cap counts the groups of stored recipes started
+   that UTC day whoever started them: a person's ask and the Planner's demand are never reduced by it. Every Scroll made is held by the review gate.
+
+   The operator reads it with `supply gaps [--status open|briefed|commissioned|closed|rejected|blocked_unknown]` (counts by status and kind, then the gaps,
+   most pressing first: planet, facet, priority, readers, attempts, rounds, reason code) and `ops.supply_gaps`: codes, catalogue ids and counts, no recipe text.
+   A `blocked_unknown` gap keeps the run of its unknown attempt. It stays blocked while its hole remains (the scan closes it once the hole fills): write off the
+   unknown attempt (`reasoning write-off`) as for any other run, then decide with `supply gaps settle --key <hex> [--reopen | --close]` (the key is the gap's
+   64-character key). The command acts **only after the ledger has settled the attempt** (no attempt of the gap's run is still reserved, dispatched or unknown)
+   and refuses, saying why, for a gap that is not blocked, names no run, or whose attempt is not settled; with neither flag it only says whether the ledger is
+   settled. `--reopen` makes the gap `open` again and counts the blocked attempt as a failed one, so the next request has an identity of its own and is never the
+   blocked one; `--close` ends it. No model and no provider.
+
+   **Two passes never overlap.** The brief pass holds a session advisory lock (`supply.brief-gap`, `pg_try_advisory_lock` on one dedicated connection: no
+   transaction is open across a model call) for its whole run; a second pass finds it held and returns `busy` without reading or asking anything, and a crash
+   frees it with its connection.
+
+   **Demand is never evidence.** Nothing that ranks, plans, remembers or forms places reads the gaps or the counters (`gap-wall.test.ts`: only Supply, the
+   generated database types and the operator's view list may name a gap table). Not here: a support check and release without an operator (slices 3.2 and
+   3.3), new topics or systems (3.4), Reels.
+
 ## Tables, jobs and lock order
 
 | Store | Role | Erasure |
 |---|---|---|
 | `supply.requests` | Private demand and waiter in one row: command, state, brief, group link, one ready binding, retry count and the start of the current wait. Person asks and Planner asks (`origin`). | Erased with the person (full erasure and Clear). |
-| `supply.work` | Public shared group: SHA-256 key of a code-built brief, the recipe whose production it commissioned, who commissioned it (`person` or `planner`, for the two caps), `active`. No owner, no private context. | Survives erasure; it is public metadata. |
+| `supply.work` | Public shared group: SHA-256 key of a code-built brief, the recipe whose production it commissioned, who commissioned it (`person` or `planner`, for the two caps, or `growth` for the gap loop, D-414), `active`. No owner, no private context. | Survives erasure; it is public metadata. |
 | `pgboss/supply.resolve-request` | IDs only (`universeId`, `privacyEpoch`, `requestId`). Four at a time, 360 s expiry, three retries. A recovery job uses the same payload. | The eraser removes every queued, active, retained and dead-lettered payload of the owner. |
 | `pgboss/content.produce-scroll` | Owned by Content; names a recipe, never a person. | Nothing personal to erase. |
 | `pgboss/content.produce-answer` | Owned by Content; the same job for an ask order's answer (supply's ask path sends it, D-267); names an order's key, never a person. | Nothing personal to erase. |
@@ -333,6 +408,11 @@ transaction that makes the branch, so a retry never gets here twice. The scenari
 | `pgboss/supply.purge-quick-answers` | Cron, every ten minutes: first closes the Quick answers still waiting after the wait limit and clears their words, then deletes the ones whose day is over, 500 per transaction, at most ten batches a run. Logs `supply.quick_answers_given_up` and `supply.quick_answers_purged` with counts. | Nothing personal. |
 | `supply.planned_demand_outcomes` | Counters of what became of the Planner's missing-supply opportunities: UTC day, outcome, reason, total (D-410, migration 0110). Read by `ops.planned_demand_outcomes`. | Names no person, no topic and no words; survives erasure. |
 | `supply_requests_open_by_work` | A partial index (migration 0110) over the work group of requests that are `requested` or `deferred`: the question "does anyone else still wait on this group?" answers from open rows only. | Index only. |
+| `supply.gaps` | The open and ended holes of the library the gap loop found (D-414, migration 0112): kind, catalogue planet and facet, status, priority, readers, attempts, the pinned attempt day, the proposal run and at most three recipe keys. | Shared and nonpersonal: catalogue ids and counts; survives erasure. Ended rows are deleted after 90 days. |
+| `supply.gap_signals` | A daily counter, one row for each gap key and UTC day: the distinct readers counted. | Names no person; survives erasure. Deleted after 30 days. |
+| `supply.gap_signal_marks` | A person's own one-a-day mark for a signal, which makes a reader count once: universe, epoch, day, key, source code, planet and facet. | Erased with the person (full erasure and Clear), not exported (derived bookkeeping, three days, no words). |
+| `ops.supply_gaps` | The operator's view of the gaps: codes, catalogue ids and counts, no recipe text. | A view; nothing personal. |
+| `pgboss/supply.scan-gaps`, `pgboss/supply.brief-gap` | Crons (every fifteen minutes; twice an hour): payload a version only. The scan is SQL only; the brief job proposes within the growth cap. Both return at once while `KS_SUPPLY_GROWTH_ENABLED` is off. | Nothing personal. |
 | `supply.requests.planned_intent` | What the Planner's model wanted of the opportunity (move, explanation unit, brief), on a planned demand only. | Erased with the request. |
 | `supply.ask_orders` | The ledger of ask orders: order ID, when it was made, when its Scroll was first seen admitted, and whether it was made under the support check (`support_checked`, D-252). The world's cap and the "usually" time read it (D-218). | Names no person and no words; survives erasure. |
 | `supply.requests.ask_limit` | Which limit closed a question asked from a Scroll as `budget_unavailable` (`person`, `world`, `off`; D-387). Null for every other request. | Erased with the request. |
@@ -347,7 +427,7 @@ States of `supply.requests`: `matching`, `requested`, `deferred` (Planner), `rea
 `budget_unavailable`, `could_not_prepare`, `source_unavailable`, `no_production_path`, `no_recipe_left`.
 
 Lock order: personal root, owned demand, Content asset SHARE locks in UUID order, the commissioning
-advisory lock, the shared group row, then the outcome counter rows (sorted). A Quick answer's ask takes the personal root and then its own advisory lock (`supply.quick-answers`), last; no other path takes it. A resolver handles one recipient per transaction and never holds
+advisory lock, the shared group row, then the outcome counter rows (sorted). A Quick answer's ask takes the personal root and then its own advisory lock (`supply.quick-answers`), last; no other path takes it. The gap loop's growth commissioning takes the same commissioning lock first (it has no personal root), then the group row; the scan takes its own advisory lock (`supply.scan-gaps`, a try-lock) and then rows of its own tables; a signal writes only the person's own row. A resolver handles one recipient per transaction and never holds
 shared work while acquiring another personal root. No model call or network wait happens inside a
 transaction or on the HTTP path.
 
@@ -371,6 +451,7 @@ catch-up watermark.
   job, recovery of open demand left from before Create, erasure, and free-text matching with a fixture model.
 - `tests/integration/modules/supply-planned.test.ts`, `planner-loop.test.ts`: the Planner's demand, every outcome counted with its reason, the model's intent kept on the person's row and nowhere shared, a lost waiter closed (inline and by the operator command) so it stops blocking, an older `ready` row not hiding a waiting one.
 - `domain/planned-demand.test.ts`, `application/commission.test.ts`, `application/planned-demand.test.ts`, `planned-intent-wall.test.ts`: the counter codes and their order, the cause of each refusal, recording with a lost waiter, and who may name the intent.
+- `tests/integration/modules/supply-gaps.test.ts`: the gap loop on real PostgreSQL with a labelled fixture model and pages (D-414): signals from a Composer decision, a planned demand and an ask, one mark for a reader a day, erasure of marks, the scan opening one gap for each key and counting each reader once, the brief pass proposing and commissioning under the cap with the Scroll held, redelivery never paying twice, an unknown attempt blocking the gap, two failed attempts rejecting it and a later signal reopening it, and the switch off doing nothing. `domain/gaps.test.ts`, `application/gap-signals.test.ts`, `gap-scan.test.ts`, `gap-brief.test.ts`, `gap-proposal.test.ts` and `gap-wall.test.ts`: the rules, the transitions, the cap accounting and the wall.
 - `tests/integration/release/requests-http.test.ts`: the installed API.
 - `application/scenario-orders.test.ts`, `tests/integration/modules/scenarios.test.ts`: the order, both caps and idempotence.
 - `tests/integration/modules/supply-ask.test.ts`: ask from here on real PostgreSQL with labelled fixture models: a suggested question orders at once with no model call; a typed question placed here, in the catalogue or nowhere; the order, brief, pages and ledger; produced, bound and opened by the asker alone; both caps and zero; a refused take, Try again, three takes; cancel; paused and stale refused; a stop that is not in the Scroll; export, erasure and Clear; no exposure, observation or action written.
@@ -382,4 +463,4 @@ CI fixtures only; real-provider runs are summarised in the pull request for #239
 ## Related
 
 Production jobs and recipes: `../content/production/README.md`. Decisions: `docs/v2/decisions.md` D-035,
-D-037, D-218, D-230 to D-232, D-250 to D-252, D-410. Client: `apps/client/features/requests/`. Operator runbook: `docs/v2/operations/scroll-production.md`.
+D-037, D-218, D-230 to D-232, D-250 to D-252, D-410, D-412, D-414. Client: `apps/client/features/requests/`. Operator runbook: `docs/v2/operations/scroll-production.md`.

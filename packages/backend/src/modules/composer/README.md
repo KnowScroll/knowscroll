@@ -39,6 +39,7 @@ a private store of every decision, and **worker-prepared buffers** with an optio
 | Policy v2 (`composer-policy.v2`, D-408, #674): a person always gets new content. An explanation already met is left out of every system-chosen offer while anything unseen is eligible (the unseen are ranked as v1 ranks them, so a subject move still usually leaves the topic); only when nothing unseen exists is the least recently met offered, recorded as a fall back. Exploration draws only the unseen at the policy's fraction, ties fall by a seeded hash | implemented, CI-tested (unit, replay, real PostgreSQL); **off unless `KS_COMPOSER_POLICY=v2`**; not yet run on dev |
 | Retrieval is a rotating sample (D-408): primary before supporting topic roles, never incidental, ordered by a stable random key from a cursor the decision seed picks, text only when the person supplied text | implemented, CI-tested against real PostgreSQL; applies to every policy (retrieval is outside a frozen snapshot) |
 | `composer.prune-decisions`: expired decisions nothing holds are deleted on a schedule, in bounded batches | implemented, CI-tested against real PostgreSQL; offers are not deleted yet, so a decision an offer holds is not reclaimed (see "Private store and lifecycle") |
+| Signals for the gap loop (D-414): a v2 decision that fell to the last resort, or offered the last unseen explanation of its topic, records a count in the same transaction, derived from the decision alone; the decision and its replay are unchanged | implemented, CI-tested (unit, real PostgreSQL); **off unless `KS_SUPPLY_GROWTH_ENABLED=1`**; not yet run on dev |
 | Jev `jev.2` (D-193): kind, play level, minutes, series part n of m and the myth a Scroll corrects; never play | implemented, unit-tested; one real run on dev still to do |
 
 `composeEncounter(snapshot)` takes an already authorized, immutable prepared snapshot. It performs
@@ -330,9 +331,35 @@ have called eligible (the met ones included), so the ranking among the unseen eq
 **Truncation keeps the reserve.** When a snapshot exceeds its byte budget, the first `OTHER_FORMAT_RESERVE` candidates of the
 format the person is not in are dropped last, so format stickiness still has unseen candidates to give way to.
 
-Not here. Choosing a topic explicitly, long-term interest selecting candidates, and a content demand when the unseen run out
-belong to the later slices of #674. Retrieval with a condition probes the person's history once per row it reads; near the end of
+Not here. Choosing a topic explicitly and long-term interest selecting candidates belong to the later slices of #674. The content
+demand when the unseen run out is the gap loop (below, D-414). Retrieval with a condition probes the person's history once per row it reads; near the end of
 a very large library that is more rows than a plain slice, each an index lookup, and slice 4.2's lanes replace it.
+
+## Where content is running out: signals for the gap loop (#674, D-414)
+
+Status: implemented, CI-tested (unit and real PostgreSQL); **off unless `KS_SUPPLY_GROWTH_ENABLED=1`**; not yet run on dev.
+
+A decision under policy v2 already knows whether the person is near the end of what the library has, so it says so, and Supply's gap loop uses it to
+start production before they run out. Composer's side is small and pure (`domain/gap-signals.ts`, `gapSignalsOf(decision, maxCandidates)`):
+
+- **`last_resort`**: the decision fell back (`unseenLadder.outcome: 'fell_back'`: nothing unseen was eligible in either format), so the least recently met was
+  offered. The signal names the primary topic of the first offer.
+- **`low_headroom`**: an unseen explanation was offered (`outcome: 'unseen'`) and it is the last unseen one about its topic: at most one distinct unseen
+  explanation (a Reel and its Scroll twin are one) among the eligible candidates about that topic. It is judged only when the snapshot held fewer candidates than the
+  policy's maximum: a full snapshot is a sample of the library, and a sample that hides unseen explanations must not read as the end of a topic. The last
+  resort needs no such care, because retrieval reads the unseen explanations first (D-408).
+- Only a system-chosen vertical move under v2 has a ladder; series, related, variant and return moves, policy v0 and v1, and a decision that offered nothing carry no signal.
+
+It is read from the decision alone and changes nothing in it: the decision, its input, its replay and its stored bytes are exactly what they were, and
+the persist port records the signals only after a decision was **newly stored** (`adapters/gap-signal-persist.ts`, `withGapSignals`), in the same
+transaction, never for a replay. Recording is a best effort that can never fail or delay the navigation: it runs under a savepoint with a short lock wait
+(`infrastructure/postgres/best-effort.ts`), so a failing recorder rolls back only its own writes and is swallowed (the code is logged as
+`composer.gap_signal_failed`), and a row another transaction holds, one the scan is counting, makes it give up at once. A disposable test account's decision records
+nothing (Supply's recorder checks the account's flag through Identity's public port). Composer imports nothing of Supply: the composition roots pass Supply's recorder token to
+`composerRecordingProviders` (API and worker, both persist points: the navigation that ranks, and the buffer the worker prepares), and the recorder, not
+Composer, decides what is kept (the catalogue's planets only, one mark a person, planet and day, nothing where the loop is off). Composer names no table
+of it and reads none of it: demand is never evidence, and `modules/supply/gap-wall.test.ts` holds that for Composer, Evidence, Personal Context and
+Geography. See the [Supply README](../supply/README.md#the-gap-loop-content-that-is-running-out-674-d-414).
 
 ## Prepared buffers and Jev
 

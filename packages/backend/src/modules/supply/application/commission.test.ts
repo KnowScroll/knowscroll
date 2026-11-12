@@ -255,3 +255,60 @@ describe('Create and the growth cap', () => {
     ]);
   });
 });
+
+/** The gap loop's signal (#674, D-414): content that has nothing left to make is counted, and only that. */
+describe('Create notes where nothing is left to make, as a count and never the ask', () => {
+  type Signals = NonNullable<SupplyPorts['recordGapSignals']>;
+  function signalling(options: Parameters<typeof world>[0] & { facetId?: string }) {
+    const w = world(options);
+    const recorded: Parameters<Signals>[1][] = [];
+    (w.ports as { recordGapSignals?: Signals }).recordGapSignals = (_scope, signals) => {
+      recorded.push(signals);
+      return Promise.resolve();
+    };
+    return { ...w, recorded };
+  }
+  const facetBrief = brief({
+    subject: {
+      kind: 'catalogue',
+      catalogueVersion: 'content-concepts.v1',
+      topicId: 'earth.tides',
+      facetId: 'earth.tides.pull',
+    },
+  });
+
+  it('records the planet for a person’s ask and for the Planner’s demand, with its facet when the brief has one', async () => {
+    const person = signalling({ recipe: undefined });
+    await commissionSupply(person.ports, scope, brief(), 'person');
+    expect(person.recorded).toEqual([[{ source: 'ask', planet: 'earth.tides' }]]);
+    const planner = signalling({ recipe: undefined });
+    await commissionSupply(planner.ports, scope, facetBrief, 'planner');
+    expect(planner.recorded).toEqual([
+      [{ source: 'planned_demand', planet: 'earth.tides', facet: 'earth.tides.pull' }],
+    ]);
+  });
+
+  it('records nothing when something was commissioned, or when a cap, Create switched off or a Reel stopped it', async () => {
+    const commissioned = signalling({ recipe: 'tides' });
+    await commissionSupply(commissioned.ports, scope, brief(), 'person');
+    const capped = signalling({ cap: 1, commissionedToday: 1, recipe: 'tides' });
+    await commissionSupply(capped.ports, scope, brief(), 'person');
+    const off = signalling({ cap: 0, recipe: 'tides' });
+    await commissionSupply(off.ports, scope, brief(), 'planner');
+    const reel = signalling({ recipe: undefined });
+    await commissionSupply(reel.ports, scope, brief({ format: 'reel' }), 'person');
+    expect([commissioned, capped, off, reel].flatMap((w) => w.recorded)).toEqual([]);
+  });
+
+  it('carries only a catalogue planet and facet: the signal has no room for words', async () => {
+    const w = signalling({ recipe: undefined });
+    await commissionSupply(w.ports, scope, facetBrief, 'person');
+    const [signal] = w.recorded[0]!;
+    expect(Object.keys(signal!).sort()).toEqual(['facet', 'planet', 'source']);
+  });
+
+  it('still refuses honestly where no recorder is composed', async () => {
+    const w = world({ recipe: undefined });
+    expect(await commissionSupply(w.ports, scope, brief(), 'person')).toMatchObject({ cause: 'no_recipe_left' });
+  });
+});

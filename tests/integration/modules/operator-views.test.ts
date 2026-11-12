@@ -152,6 +152,24 @@ const SHOWN_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     'redacted',
   ],
   planned_demand_outcomes: ['day', 'outcome', 'reason', 'total'],
+  supply_gaps: [
+    'gap_id',
+    'kind',
+    'planet',
+    'facet',
+    'status',
+    'priority',
+    'readers',
+    'attempts',
+    'rounds',
+    'reason',
+    'recipes',
+    'first_seen_at',
+    'last_seen_at',
+    'last_attempt_at',
+    'commissioned_at',
+    'closed_at',
+  ],
   privacy_operations: ['kind', 'operation_id', 'state', 'failure_code', 'attempts', 'requested_at', 'completed_at'],
   production_runs: [
     'production_run_id',
@@ -285,6 +303,13 @@ describe('the ops views (real PostgreSQL)', () => {
     await sql`insert into supply.planned_demand_outcomes (day, outcome, reason, total)
       values ((now() at time zone 'utc')::date, 'not_commissioned', 'no_recipe_left', 3),
         ((now() at time zone 'utc')::date, 'reused', '', 2)`.execute(db());
+    // The gap loop's gaps: catalogue ids, codes and counts. The recipes a gap names are keys, and the view shows how many, never which or what they say.
+    await sql`insert into supply.gaps (id, key, kind, planet, facet, priority, readers, status, attempts, reason, recipes)
+      values (${randomUUID()}::uuid, ${'c'.repeat(64)}, 'empty_facet', 'earth.tides', 'earth.tides.forcing', 303, 2, 'commissioned', 0, null,
+        ${[`gen-${PRIVATE.plannedBrief.toLowerCase()}`]}::text[]),
+        (${randomUUID()}::uuid, ${'d'.repeat(64)}, 'thin_planet', 'earth.seasons', null, 500, 0, 'blocked_unknown', 1, 'unknown_outcome', '{}')`.execute(
+      db(),
+    );
     // A report with a note: operators learn that it has one, never what it says or who sent it.
     await sql`insert into feedback.reports (report_id, reporter_account_id, kind, category, target_kind, message_id, room_id, note, created_at)
       values (${randomUUID()}::uuid, ${person.accountId}::uuid, 'abuse', 'harassment', 'room_message', ${randomUUID()}::uuid,
@@ -374,6 +399,7 @@ describe('the ops views (real PostgreSQL)', () => {
     expect(shown['reel_attempts']).toBe(1);
     expect(shown['feedback_reports']).toBe(1);
     expect(shown['planned_demand_outcomes']).toBe(2);
+    expect(shown['supply_gaps']).toBe(2);
     expect(shown['jobs']).toBeGreaterThan(0);
     expect(shown['journey_events']).toBeGreaterThan(0);
   });

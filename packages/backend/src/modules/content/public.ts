@@ -302,6 +302,28 @@ export const CHOOSE_SCROLL_RECIPE = Symbol('content.chooseScrollRecipe');
 export type ReadScrollProduction = (scope: PersonalScopeTx, recipe: string) => Promise<ScrollProductionReading>;
 export const READ_SCROLL_PRODUCTION = Symbol('content.readScrollProduction');
 
+/**
+ * The reads and the chooser the gap loop uses with no person (#674, D-414): they read shared tables only, over the process's
+ * database handle, and are bound by `sharedLibraryProviders`. `ReadReleasedCoverage`: what the library can serve readers now, by
+ * planet and facet. `ReadGapRecipes`: the recipes that would serve a planet (and facet) and where each one's production stands.
+ * `ReadRecipeStates`: the standing of named stored recipes. `ChooseSharedScrollRecipe`: Create's chooser, the same rule whoever asks.
+ */
+export type { GapRecipe, ReleasedCoverage, ReleasedPlanet } from './domain/library/gap-facts.js';
+export type ReadReleasedCoverage = () => Promise<ReleasedCoverage>;
+export const READ_RELEASED_COVERAGE = Symbol('content.readReleasedCoverage');
+export type ReadGapRecipes = (target: CatalogueBrief) => Promise<readonly GapRecipe[]>;
+export const READ_GAP_RECIPES = Symbol('content.readGapRecipes');
+export type ReadRecipeStates = (keys: readonly string[]) => Promise<ReadonlyMap<string, ScrollProductionState>>;
+export const READ_RECIPE_STATES = Symbol('content.readRecipeStates');
+export type ChooseSharedScrollRecipe = (
+  brief: CatalogueBrief,
+  options?: ChooseRecipeOptions,
+) => Promise<ScrollRecipeChoice>;
+export const CHOOSE_SHARED_SCROLL_RECIPE = Symbol('content.chooseSharedScrollRecipe');
+
+/** What one proposal of recipes for a planet came to: stored recipes, a refusal, a closed run, a spent budget or an unknown attempt (#674, D-412). */
+export type { ProposeRecipesResult } from './production/propose-recipes.js';
+
 /** Code-selected production topics and predictable model-request ceiling; no research is exported. */
 export {
   parseProductionRecipe,
@@ -368,8 +390,10 @@ import type {
   CatalogueBrief,
   ChooseRecipeOptions,
   ScrollProductionReading,
+  ScrollProductionState,
   ScrollRecipeChoice,
 } from './domain/library/serving.js';
+import type { GapRecipe, ReleasedCoverage } from './domain/library/gap-facts.js';
 /**
  * The most topics one discovery read may filter by. A read with more is refused
  * (`DISCOVERY_QUERY_INVALID`), so a caller that gathers topics from open-ended history must keep

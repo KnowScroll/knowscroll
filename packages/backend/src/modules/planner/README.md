@@ -34,7 +34,7 @@ receive demand for content that does not exist yet.
 | Composer reads the current plan | implemented, CI-verified |
 | Missing-supply opportunities become deferred supply demand, carrying the model's move, unit and brief on the person's own demand row | implemented, CI-verified |
 | Every missing-supply opportunity ends as one counted outcome (reused, already recorded, commissioned, joined, not commissioned or unsupported, each with its reason), in the plan's own transaction | implemented, CI-verified |
-| Supply commissions new content from a Planner opportunity | not built: the chooser skips v2 recipes (D-138), so nearly every opportunity ends `not_commissioned` (`no_recipe_left`) until a later slice of #674 |
+| Supply commissions new content from a Planner opportunity | implemented for stored recipes (D-412): the chooser may pick one within the growth cap and its Scroll is held for a read. An opportunity that still ends `not_commissioned` with `no_recipe_left` also records a count for the gap loop (the planet only, one mark a person and day, nothing where the loop is off; D-414), so recipes are proposed for it. The Planner passes no signal of its own and never reads the gaps |
 | Planner and Cartographer respond independently | implemented (separate queues and roles) |
 | Consumer UI for the plan | not planned: the plan has no screen of its own |
 | Running on dev with real people | planned (see #222) |
