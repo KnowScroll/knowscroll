@@ -215,7 +215,7 @@ geography, planet, native/browser journey or deployment acceptance is establishe
 
 ## Reels in trusted coverage (#674, slice 5.1, D-421)
 
-Status: implemented, CI-tested against real PostgreSQL. Migration 0118 (a Content guard only).
+Status: implemented, CI-tested against real PostgreSQL. Migration 0116 (a Content guard only).
 
 `ReadTrustedCoverage` serves Reel certificates beside Scroll certificates (`supportedFormats: ['scroll', 'reel']`).
 Nothing in this module knows a format: a certificate is a certificate, and the same checks run for a Reel's: current
