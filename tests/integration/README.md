@@ -13,6 +13,7 @@ installed API and worker so source-level dependency injection alone cannot pass 
 | `pnpm --filter @knowscroll/integration-tests exec vitest run --project integration modules/account-deletion.test.ts` | One module journey using the same setup | The same disposable server, not an owner's database |
 | `pnpm --filter @knowscroll/integration-tests test:evaluation` | Synthetic role contexts through the fixture reasoning harness | The same server; no real provider key or content-quality claim |
 | `pnpm --filter @knowscroll/integration-tests test:simulation` | The [algorithm simulation lab](simulation/README.md): synthetic readers drive the real recommendation, formation and Planner modules, and invariants judge the run | The same server; no provider, a labelled fixture model |
+| `pnpm --filter @knowscroll/integration-tests test:load` | The [load test](load/README.md) of #674's design target (10,000 topics, 100,000 assets, a reader with thousands of places): manual, tens of minutes, not in any CI job; its report is [load-test-674.md](../../docs/v2/operations/load-test-674.md) | A disposable server you may fill with several gigabytes; superuser role |
 | `pnpm --filter @knowscroll/integration-tests test:release` | Deployed `pnpm deploy` trees, migrations, HTTP and worker lifecycle | `KS_RELEASE_DIR` plus the disposable server; see the hosted `build` job |
 
 The [hosted checks workflow](../../.github/workflows/checks.yml) supplies PostgreSQL, media tools,

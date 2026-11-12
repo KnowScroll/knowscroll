@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import { workspaceSources } from '../../vitest.workspace-sources.js';
 
-// Four Vitest projects over the same support code (`pnpm --filter @knowscroll/integration-tests test`
+// Four Vitest projects (the load test, `load/`, has its own config, vitest.load.config.ts, and is in none of them) over the same support code (`pnpm --filter @knowscroll/integration-tests test`
 // runs the first two; `--project <name>` runs one):
 // - `integration`: the module and infrastructure tests, one template-derived database per file;
 // - `role-evaluation` (blueprint §15): labelled synthetic contexts run through the reasoning
@@ -28,7 +28,7 @@ export default defineConfig({
           ...shared,
           name: 'integration',
           include: ['**/*.test.ts'],
-          exclude: ['**/node_modules/**', 'release/**', 'evaluation/**', 'simulation/**'],
+          exclude: ['**/node_modules/**', 'release/**', 'evaluation/**', 'simulation/**', 'load/**'],
         },
       },
       {

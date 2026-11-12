@@ -10,7 +10,8 @@
     "test": "vitest run --project integration --project role-evaluation",
     "test:simulation": "vitest run --project simulation && vitest run --project simulation-gate",
     "test:evaluation": "vitest run --project role-evaluation",
-    "test:release": "vitest run --config vitest.release.config.ts"
+    "test:release": "vitest run --config vitest.release.config.ts",
+    "test:load": "vitest run --config vitest.load.config.ts"
   },
   "devDependencies": {
     "@knowscroll/backend": "workspace:*",

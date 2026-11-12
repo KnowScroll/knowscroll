@@ -19,3 +19,5 @@ expo-env.d.ts
 coverage/
 # Algorithm simulation lab reports (a CI artifact)
 tests/integration/simulation/output/
+# Load test output (a manual run's raw numbers; the report is docs/v2/operations/load-test-674.md)
+tests/integration/load/output/
