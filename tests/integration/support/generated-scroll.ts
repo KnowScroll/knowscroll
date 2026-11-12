@@ -17,7 +17,9 @@ import {
   isAboutSentence,
   noClaimGround,
   sharedStems,
+  type CheckerRules,
 } from '../../../packages/backend/src/modules/content/domain/ask-support.js';
+import { LIBRARY_CHECK_RULES } from '../../../packages/backend/src/modules/content/domain/library-support.js';
 import type { WriterFormat } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { fixtureModel, fixtureSettings, silent } from './fixture-model.js';
 import type { FixtureCall, FixtureScenario } from './fixture-model-port.js';
@@ -252,6 +254,21 @@ export function verdicts(ids: readonly string[], flagged: Readonly<Record<string
 /** Whether a request is the support checker's (the answer to a person's question, D-250). */
 export const isSupportCall = (call: FixtureCall): boolean => call.request.system.includes('content.ask-support-check');
 
+/** Whether a request is the library support checker's (a stored library Scroll revision, D-415). */
+export const isLibrarySupportCall = (call: FixtureCall): boolean =>
+  call.request.system.includes('content.library-support-check');
+
+/** The asset and revision a library support request is about, from its context bundle (`scroll:<asset>:<revision>:library-support:<round>:<batch>`). */
+export function librarySupportTarget(call: FixtureCall): {
+  readonly assetId: string;
+  readonly revision: number;
+  readonly batch: number;
+} {
+  const match = /<context bundle="scroll:([0-9a-f-]{36}):(\d+):library-support:(\d+):(\d+)"/u.exec(call.request.user);
+  if (match === null) throw new Error('CI fixture: not a library support request');
+  return { assetId: match[1]!, revision: Number(match[2]), batch: Number(match[4]) };
+}
+
 const unescapeData = (text: string): string =>
   text.replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&');
 
@@ -299,14 +316,18 @@ export interface SupportScript {
  * words in common with it (the shortest of those), or nothing when no window of any cited passage is about it. A quote
  * that is real but about something else would not pass the schema, so a fixture reply must choose words that are.
  */
-export function quoteAbout(sentence: string, passages: readonly string[]): string | undefined {
+export function quoteAbout(
+  sentence: string,
+  passages: readonly string[],
+  rules: CheckerRules = ASK_ORDER_CHECK_RULES,
+): string | undefined {
   let best: { readonly quote: string; readonly shared: number; readonly length: number } | undefined;
   for (const passage of passages) {
     const words = passage.split(/\s+/u);
     for (let from = 0; from < words.length; from += 1)
       for (let to = from + 2; to < Math.min(words.length, from + 25); to += 1) {
         const quote = words.slice(from, to + 1).join(' ');
-        if (!hasEnoughWords(quote) || !isAboutSentence(quote, sentence, ASK_ORDER_CHECK_RULES)) continue;
+        if (!hasEnoughWords(quote) || !isAboutSentence(quote, sentence, rules)) continue;
         const shared = sharedStems(quote, sentence);
         if (best === undefined || shared > best.shared || (shared === best.shared && to - from < best.length))
           best = { quote, shared, length: to - from };
@@ -320,7 +341,11 @@ export function quoteAbout(sentence: string, passages: readonly string[]): strin
  * ones named, and a sentence no cited passage is about is marked as stating no fact (where that is allowed). The quote is real text of the
  * request and about the sentence, so the reply passes the schema's checks; an unrelated quote would not.
  */
-export function supportReply(call: FixtureCall, script: SupportScript = {}): FixtureScenario {
+export function supportReply(
+  call: FixtureCall,
+  script: SupportScript = {},
+  rules: CheckerRules = ASK_ORDER_CHECK_RULES,
+): FixtureScenario {
   const { sentences, passages } = supportRequestOf(call);
   return answerWith({
     sentences: sentences.map((sentence) => {
@@ -328,15 +353,12 @@ export function supportReply(call: FixtureCall, script: SupportScript = {}): Fix
       if (flagged !== undefined) return { n: sentence.n, verdict: 'unsupported', ...flagged };
       if (script.noClaim?.includes(sentence.n) === true) return { n: sentence.n, verdict: 'no_claim' };
       const cited = sentence.cites.flatMap((handle) => passages.get(handle) ?? []);
-      const quote = quoteAbout(sentence.text, cited);
+      const quote = quoteAbout(sentence.text, cited, rules);
       if (quote !== undefined) return { n: sentence.n, verdict: 'supported', quote };
       // A sentence no passage is about may state no fact only where code can see it; a fixture answer must not need more.
       if (
-        noClaimGround(
-          { text: sentence.text, ...(sentence.label === true ? { label: true } : {}) },
-          cited,
-          ASK_ORDER_CHECK_RULES,
-        ) === undefined
+        noClaimGround({ text: sentence.text, ...(sentence.label === true ? { label: true } : {}) }, cited, rules) ===
+        undefined
       )
         throw new Error(`CI fixture: sentence ${String(sentence.n)} has no words of its passages about it`);
       return { n: sentence.n, verdict: 'no_claim' };
@@ -359,6 +381,7 @@ export function routedScript(
   checker: (check: number, ids: readonly string[], call: FixtureCall) => FixtureScenario = (_check, ids) =>
     verdicts(ids),
   support: SupportChecker = (_check, call) => supportReply(call),
+  librarySupport: SupportChecker = (_check, call) => supportReply(call, {}, LIBRARY_CHECK_RULES),
 ): {
   readonly script: (sequence: number, call: FixtureCall) => FixtureScenario | Promise<FixtureScenario>;
   /** The writer's requests so far (live). */
@@ -367,11 +390,18 @@ export function routedScript(
   readonly checkerCalls: FixtureCall[];
   /** The support checker's requests so far (live). */
   readonly supportCalls: FixtureCall[];
+  /** The library support checker's requests so far (live, D-415). */
+  readonly librarySupportCalls: FixtureCall[];
 } {
   const writerCalls: FixtureCall[] = [];
   const checkerCalls: FixtureCall[] = [];
   const supportCalls: FixtureCall[] = [];
+  const librarySupportCalls: FixtureCall[] = [];
   const script = (_sequence: number, call: FixtureCall) => {
+    if (isLibrarySupportCall(call)) {
+      librarySupportCalls.push(call);
+      return librarySupport(librarySupportCalls.length, call);
+    }
     if (isCheckerCall(call)) {
       checkerCalls.push(call);
       return checker(checkerCalls.length, checkedCallIds(call), call);
@@ -383,7 +413,7 @@ export function routedScript(
     writerCalls.push(call);
     return writer(writerCalls.length, call);
   };
-  return { script, writerCalls, checkerCalls, supportCalls };
+  return { script, writerCalls, checkerCalls, supportCalls, librarySupportCalls };
 }
 
 /**

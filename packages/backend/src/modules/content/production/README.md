@@ -157,6 +157,58 @@ candidate file (D-280), and then the next pair is released or v4 and writer v5 a
 - **Versions.** `question-writer.v9` and `ask-support-check.v5` are a pair (`versions.test.ts`). `SCROLL_PRODUCTION_VERSION` stays `scroll-production.v14`
   because an order has a job of its own and the version is shared with v1 library recipes and what-ifs.
 
+## The support check of a library Scroll (#674 slice 3.2, D-415)
+
+Status: **implemented**, CI-verified with a labelled fixture checker on real PostgreSQL (`tests/integration/modules/library-support-check.test.ts`). **Planned:** the first measurement on real
+MiniMax, which the coordinator makes on dev with `content support-check-replay` ("Measure the library support check" in the runbook); no agreement number exists yet, and nothing relies on the check.
+The operator still reads and releases every library Scroll (D-138). The check informs that read once it has been measured; it releases, rejects and serves nothing, and a change that lets it do so is slice 3.3's, after the measure.
+**While it is measured, the operator does not see its verdict** (`review-list` and `review-show` leave it out unless `--show-check` is given), so the decisions it is measured against stay the operator's own.
+
+- **What is checked** (`library-support.ts`, `sentencesOfScroll`, pure). Every sentence a reader sees of a stored v2 revision, in reading order, each with the passages its own part cites: the title and the dek (resting on every
+  passage the Scroll cites), each stop's headings, paragraphs and lines, its plain restatement (`simple`), its guide's line, the explanation of a sort, a fork's prompt and branches, each point of a scale or a chart as the words a reader sees
+  (`describePoint`: a label and its figure, "Earth: 147 million km"), a call's statements, explanation, twist and restatement, each aside's title and text (beside the stop it opens next to), and the recap's captions. The passages are the claims of the
+  revision's private provenance (`scroll-provenance.v2`), one handle each (`e1`...), and a part rests on the claims it cites (`libraryEvidenceOf`). A Scroll with a stop, an aside or the recap that cites nothing the provenance holds is not
+  checked (`citations_missing`, no request). **What is not read** is listed in `NOT_COVERED` and printed as a "Not covered:" line with the verdict and in the replay's summary: questions put to the reader, a call's options and answer key (the answer check reads
+  the key, D-198), the items of a sort and their order, the labels of a fork's branches, a scale's axis and marker and a chart's shape and unit, the misconception, the landmark's name, the picture and the words derived from its state, and the Ask suggestions.
+- **The role** (`content.library-support-check`, background budget class). The ask check's schema, its three verdicts (`supported` with a quote, `unsupported` with a fixed kind and a short problem, `no_claim`) and every rule code applies to
+  a verdict on its own sentence (`judgeVerdicts`, D-265), under an introduction of its own and the library's rules (`LIBRARY_CHECK_RULES`): `oneKeyWordAbout` is on, because a Scroll is written in other words than its sources (nine words in a row may not be copied) and a good
+  paraphrase keeps one key word (D-306); `shortNoClaim` is off, because nothing takes a sentence out of a Scroll and a short line can state a fact (D-307); **`ownPassagesOnly` is on**: the quote must come from a passage the sentence's own stop, aside or recap cites
+  (the title and the dek cite every passage, so they may use any), not from any passage the Scroll cites as in an ask answer (D-305), so a sentence supported only by another stop's passage is not supported where the reader reads it; and **`noClaimUnshared` is off**: a sentence that
+  shares no key word with its passages is not "no fact" on that ground, which would be the way past the check for any sentence, so a "no fact" verdict for it is set aside (`no_claim_without_ground`) and the sentence is `unclear`. The role has its own id, so its daily budget and failure brake never touch
+  the writer's or an ask check's, and the background class stops it at the background share of the global and production caps, so it cannot use what a person's request needs.
+- **The version is a hash.** `LIBRARY_SUPPORT_CHECK_VERSION` is `library-support-check.` and eight hex digits of the SHA-256 of the instructions, the rules, the policy and the normalised text of the modules whose code decides what the check says: the ask check's shared judge and instructions
+  (`domain/ask-support`, `production/ask-support`), `domain/library-support`, `production/library-support` and `production/library-support-step` (`library-support-version.ts`; comments and layout do not count, code does; it reads the `.js` of a release or the `.ts` of a test). A stored result is keyed by it, so a change to any of them,
+  the ask check's shared code included, is a new measurement and never mixes with an old one. Nobody bumps a number.
+- **Batches and bound.** Ten sentences a request (the ask check's size, which no reply was cut short at, D-267), one request and one run each, in order, with at most ten batches (the ask check's
+  limit is four): a library Scroll is 40 to 90 sentences, and the Orrin fixture of 711 words has 57. A revision of more than 100 sentences is not checked (`revision_too_long`, no request). A request carries only the passages its own sentences cite (the batch with the title and the dek carries all of them),
+  in several items when they would not fit one. One unusable reply is repaired by the harness in the whole check, so a check costs at most eleven requests (`LIBRARY_SUPPORT_REQUEST_BOUND`) over every round, and its job's claim is 11 x 320 s + 180 s = 3,700 s. The first batch with no usable reply makes
+  the check unusable and the later batches are not asked.
+- **What is stored** (`content.library_support_checks`, migration 0113, `library-support-store.ts`). One row for a revision and a checker version: the state (`checked`, or `unchecked` with a code that never holds provider text), the revision's verdict and the policy it was decided
+  under, the counts, the requests sent over every round, the round, how often each batch failed, and the sentences with what became of each: `supported`, `unsupported` (the checker's kind and short problem), `unclear` (the checker's verdict broke a rule code applies, so nothing shows a passage states the sentence
+  and the checker did not say none does; the rule's code is kept) or `no_claim` (a label or a plain admission of a gap, with the `ground` code found for it). Each row also keeps the sentence's words and where it stands (`s3 paragraph #14`), and **the quote the checker gave with how it stands to the sentence** (the sentence's key words, the quote's and the
+  ones they share), even for a verdict code set aside, so that a stricter rule can be applied later without paying again. The key references the review gate's row (`content.revision_reviews`), so only a library or generated Scroll under review can have a check.
+- **The verdict is code's** (`domain/library-support.ts`, `decideRevision`). Policy `library-support-policy.v2` passes a revision with no `unsupported` sentence, no `unclear` one and at most eight labels or admissions passed as stating no fact (a title, a heading or an aside's title of a few
+  words passes without a quote, so a Scroll may not lean on them); anything else is `flagged`; a check that gave nothing is `unchecked`. A looser policy is a new version, chosen only after the replay has measured it: `agreementOf` reports the same stored results under looser limits at no cost.
+- **Running it** (`library-support-job.ts`, `adapters/enqueue-library-support.ts`, worker `production-jobs.ts`). Three things send a check, all to the queue `content.check-library-support` (exclusive: one job for a revision and checker version at a time, IDs only).
+  The delivery that held a Scroll sends its check at once, outside the transaction that held it and swallowing a failure to send, because the check is recoverable. The sweep `content.sweep-library-support` (a cron every ten minutes, no model) hands over
+  up to twenty held revisions that have no result of the current checker version, oldest first, and every one whose last try ended on a provider failure an hour ago with rounds left. So a revision an operator's direct run held, a check a spent budget paused and a revision
+  held before the check existed all get theirs. The consumer is registered only on a worker with the production grant, like the production queues, and the check runs `makeCheckLibrarySupport`, which **refuses a revision that has no row at the review gate** (`not_under_review`: a made-to-order revision never has one and is never stored here); nothing a person made is read, and no model call or network wait is inside a transaction.
+- **Reliability.** Every request is an attempt in the production ledger, so a redelivery of the job reads the stored result, or asks the ledger for the answers it already holds, and pays for nothing twice (tested: a delivery that dies after every batch was answered and before the
+  result was stored). An attempt of unknown outcome is never resent: the check ends `unchecked`, `outcome_unknown`, its run stays open for `reasoning unknown` and `reasoning write-off`, and the result is final for the checker version. The result row and the closing of the runs it used are
+  one short transaction under the production root. A spent budget or quota, or a full failure brake for the role (five unresolved or failing runs a day), stores nothing and sends nothing: the check stays open and the sweep asks again. **A conclusive provider failure is tried again in a later round
+  that asks only the batch that failed and those after it:** the batches answered before it keep their runs (open, with the same request, so the ledger gives their answers back for nothing) and a failed run is ended for good, so only the failed batch is asked in a run of its own. At most three rounds, and every request the revision could still need, one repair held back, must fit eleven in all
+  (`mayTryAgain`; a revision of ten batches is tried once). The result is `provider_failed` while another round may come and `provider_failed_final` once it may not; a later round that succeeds replaces the failed result. Every other `unchecked` code (`outcome_unknown`, `invalid_output`, `revision_too_long`,
+  `citations_missing`, `provenance_unreadable`, `refused_...`) is final for the version.
+- **What the operator sees.** Nothing by default. `content review-list --show-check` carries `supportCheck` for each revision (the checker version, the policy, the state, the verdict decided again from the stored sentences under the current policy and the counts, with no sentence; `null` when no check of the
+  current version ran yet) and `content review-show --show-check` prints the verdict under the header, the sentences that passed as stating no fact with their ground, "Read these first" with each unsupported or unclear sentence, where it stands and the checker's note or the rule's code, and the "Not covered:" line. The flag is for after the measurement.
+- **Measuring it** (`library-support-replay.ts`, worker `support-check-operator.ts`). `content support-check-replay [--since <ISO date>] [--limit <n>] --max-requests <n> [--fail-on-partial]` reads the newest revisions a person released or rejected (`decided_by` is `cli:<operator>`), runs the same use case over each that has no result of the current
+  checker version, and prints how the stored results agree with the decisions. **Only decisions made before a result existed count** (the result was made at or after the decision): a revision whose result existed before the operator decided is reported apart (`exposed`) and is in no matrix. The agreement has the confusion matrix, the rejected revisions the check would have passed (the dangerous number) and the released ones it would have flagged, by recipe family (the
+  system of the revision's recipe), each rate with n and its Wilson 95% interval (`rejectedPassedRate`, `releasedFlaggedRate`, `flagRate`; the rule of three when none passed), the revisions it could not check and why, the same results under looser limits, and **a time split**: the older half of the decisions chooses limits (only with at least three rejected revisions in it) and the newer half reports the active policy and the choice, which never saw it.
+  `conclusion` says plainly whether the number of rejected revisions in the newer half is enough to conclude anything (the upper bound of the rejected-passed rate must be at most 10%, which takes about 30 rejected revisions with none passed). The summary's `status` is `done`, `partial` (some decided revisions were skipped for the request cap, counted by decision in `skippedForCap`, and the agreement covers the rest only; exit 2 with `--fail-on-partial`) or `stopped`.
+  It writes only the check's own rows, is idempotent per revision and checker version, and is bounded by `--max-requests` (a revision that might pass it is skipped, not started). It prints counts and codes, never a sentence.
+- **Limits.** The check judges sentences against the passages their part cites; whether the quoted words support the sentence is the model's judgement, which code cannot check, and the measure is how that judgement agrees with the operator's. It cannot see a picture that
+  contradicts its words, a call whose answer key is wrong (the answer check does that, D-198), or a fact the passages do not hold and the writer left out. A Scroll with a fact the sources contradict can still pass if the checker is wrong. With the sweep running, a decision made after a result exists is reported as `exposed` even though the verdict was hidden; that is deliberately conservative.
+
 ## Jobs, takes and who sends them
 
 Production is the `content.produce-scroll` job (`events.ts`; the answer to a question is the same job on `content.produce-answer`, D-267), one per **recipe, recipe version and
@@ -235,7 +287,8 @@ operator ─▶ job (research) ─▶ evidence passages ─▶ writer (1 call + 
    immutable revision and its private provenance, mark the job published and project the topic.
 
 Numbers and quotations are checked mechanically; they do not prove that a sentence is entailed by
-its passage. Human sampling of generated Scrolls is still required.
+its passage. Human sampling of generated Scrolls is still required: a held library Scroll's sentences are also read by a model
+(the support check, below), which informs the operator's read and replaces none of it until it has been measured against the operator's decisions.
 
 ## Why this shape
 
@@ -255,9 +308,10 @@ research. Decision D-032.
 |---|---|---|---|
 | `content.scroll_production_runs` (0015, 0045, 0050, 0052) | Authoritative, private job: research pages, the authored document and the cited claims once published, code-only outcomes, the revision pointer. States `research`, `writer`, then `published`, `rejected` or `unknown` | Unique `(topic, policy_version, take)` with take 1 to 3, UUID | Nonpersonal public supply; retained for correction, no account erasure |
 | `content.asset_revisions` / `asset_provenance` | Immutable admitted consumer bytes / internal evidence and generation lineage | Asset + revision | Shared content; no account erasure |
+| `content.library_support_checks` (0113) | What a checker version said about a stored library revision: the state, the verdict code decided, the counts and every sentence's outcome | Asset + revision + checker version (the primary key); the held revisions with no result (the sweep) | Nonpersonal shared content; kept as the evidence of how the check agreed with the operator, no account erasure |
 | `reasoning.production_*` (0013, 0050) | The writer run, every possible paid attempt, and the refused answers kept 30 days for diagnosis | Stable writer run UUID | Harness retention and liability policy |
 
-Lock order: production root → production job row → asset advisory lock → asset rows. Short
+Lock order: production root → production job row → asset advisory lock → asset rows. The support check of a library Scroll takes the production root and then its own result row, and no asset lock. Short
 transactions freeze or apply data; no model or HTTP wait holds one. Every rejection and the final
 write require their expected stage under the root and job lock, so a delayed delivery reports the
 advanced job instead of acting on it. `--resume` continues the same frozen research and the same
@@ -268,7 +322,7 @@ a new `SCROLL_PRODUCTION_VERSION` (and `WRITER_PROMPT_VERSION`), never an edit o
 When a Scroll fails, `reasoning rejected` lists the refused answers with the validator's findings
 (`packages/backend/src/reasoning/README.md`); that is where to look first.
 
-Jobs: `content.produce-scroll` and `content.produce-answer` (above). Notices: none. Erasure: nonpersonal supply, nothing to erase.
+Jobs: `content.produce-scroll` and `content.produce-answer` (above), and `content.check-library-support` and `content.sweep-library-support` (the support check of a library Scroll, above). Notices: none. Erasure: nonpersonal supply, nothing to erase.
 Operator steps: `docs/v2/operations/scroll-production.md`.
 
 The recipes the producer runs are the library plan in `../domain/library/` (one file per topic

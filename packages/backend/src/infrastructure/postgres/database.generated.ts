@@ -144,6 +144,23 @@ export interface ContentEncounterTopics {
   weight: number;
 }
 
+export interface ContentLibrarySupportChecks {
+  asset_id: string;
+  batch_failures: Generated<Json>;
+  batches: number;
+  check_round: Generated<number>;
+  checked_at: Generated<Timestamp>;
+  checker_version: string;
+  code: string | null;
+  policy_version: string;
+  requests: number;
+  revision: number;
+  sentence_count: number;
+  sentences: Json;
+  state: string;
+  verdict: string;
+}
+
 export interface ContentMadeToOrderScrolls {
   asset_id: string;
   brief: string;
@@ -2460,6 +2477,7 @@ export interface DB {
   "content.coverage_revisions": ContentCoverageRevisions;
   "content.discovery_revisions": ContentDiscoveryRevisions;
   "content.encounter_topics": ContentEncounterTopics;
+  "content.library_support_checks": ContentLibrarySupportChecks;
   "content.made_to_order_scrolls": ContentMadeToOrderScrolls;
   "content.media_objects": ContentMediaObjects;
   "content.recipe_proposals": ContentRecipeProposals;

@@ -203,6 +203,22 @@ export const diagnosticCatalogue = {
     module: 'content',
     fields: ['context', 'outcome', 'reasonCode', 'count', 'durationMs'],
   },
+  // One delivery of the support check of a stored library Scroll revision (D-415): the library recipe key (`context`, `unknown_recipe` for
+  // an asset the plan does not name), what became of it (`outcome`: stored, reused, paused, not_found, skipped), the stored state's code and the
+  // revision. `count` is the paid requests it sent. Never a sentence, a passage or a note of the checker.
+  'content.library_support_checked': {
+    severity: 'info',
+    module: 'content',
+    fields: ['context', 'outcome', 'reasonCode', 'revision', 'count', 'durationMs'],
+  },
+  // The sweep that hands held library revisions with no support check to the check queue (D-415): how many it handed over. Counts only.
+  'content.library_support_swept': { severity: 'info', module: 'content', fields: ['count'] },
+  // The send of a revision's check after the delivery that held it failed. The sweep sends it again; nothing is lost. Codes only.
+  'content.library_support_not_queued': {
+    severity: 'warn',
+    module: 'content',
+    fields: ['context', 'revision', 'error'],
+  },
   // Evidence intake (API) and projection (worker). Counts and codes; no event, block or exposure
   // content (D-017); personal-linkable IDs are withheld from the journal by the sink projection.
   'evidence.observations_ingested': {

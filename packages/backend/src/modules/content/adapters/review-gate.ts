@@ -6,6 +6,15 @@ import { withTransaction } from '../../../infrastructure/postgres/personal-scope
 import { summariseAnswerChecks, withoutCallText, type AnswerCheckSummary } from '../domain/answer-check.js';
 import { codeRecipes } from '../application/recipe-book.js';
 import { answerChecksOf } from '../production/answer-check.js';
+import { LIBRARY_SUPPORT_CHECK_VERSION } from '../production/library-support.js';
+import { libraryCheckStore, type StoredLibraryCheck } from '../production/library-support-store.js';
+import {
+  LIBRARY_SUPPORT_POLICY,
+  countsOf,
+  decideRevision,
+  type CheckVerdict,
+  type LibraryCounts,
+} from '../domain/library-support.js';
 import {
   decideReject,
   decideRelease,
@@ -43,6 +52,37 @@ export interface ReviewListing {
    * problem and the call's id but not the text of the call: a list holds no body text. `review-show` prints it.
    */
   readonly answerCheck: AnswerCheckSummary | null;
+  /**
+   * What the library support check said about the sentences (D-415), or `null` when no check of the current version ran for the revision
+   * yet. A model's opinion that informs the read and decides nothing: releasing stays the operator's. Counts only, no sentence. Absent unless
+   * the operator asked to see it (`showCheck`): while the check is being measured against the operator's own decisions, the operator must not see
+   * its verdict, or the decisions would no longer be the operator's own.
+   */
+  readonly supportCheck?: SupportCheckSummary | null;
+}
+
+/** What the support check said about a revision, by the policy in force (the verdict is decided again from the stored sentences, so a policy change shows at once). */
+export interface SupportCheckSummary {
+  readonly checkerVersion: string;
+  readonly policy: string;
+  readonly state: 'checked' | 'unchecked';
+  readonly verdict: CheckVerdict;
+  /** Why the check gave nothing, when it did not. Never provider text. */
+  readonly code?: string;
+  readonly counts: LibraryCounts;
+}
+
+/** The summary of a stored check; the verdict is decided from its sentences under the current policy. */
+export function supportCheckSummaryOf(check: StoredLibraryCheck): SupportCheckSummary {
+  const counts = countsOf(check.sentences);
+  return {
+    checkerVersion: check.checkerVersion,
+    policy: LIBRARY_SUPPORT_POLICY.id,
+    state: check.state,
+    verdict: check.state === 'checked' ? decideRevision(counts, LIBRARY_SUPPORT_POLICY) : 'unchecked',
+    ...(check.code === null ? {} : { code: check.code }),
+    counts: check.state === 'checked' ? counts : { ...counts, sentences: check.sentenceCount },
+  };
 }
 
 export type ReviewShowResult =
@@ -98,7 +138,10 @@ function answerCheckOf(outcomes: unknown): AnswerCheckSummary | null {
   return summariseAnswerChecks(answerChecksOf(outcomes)) ?? null;
 }
 
-function listingOf(row: ListingRow): ReviewListing | undefined {
+/** The check's result for a listing: `undefined` leaves it out (hidden), `null` says none ran, a result becomes its summary. */
+type SupportView = StoredLibraryCheck | null | undefined;
+
+function listingOf(row: ListingRow, support: SupportView): ReviewListing | undefined {
   const check = answerCheckOf(row.outcomes);
   const parsed = parseDocumentV2(row.document);
   if (parsed.kind !== 'valid') return undefined;
@@ -121,7 +164,20 @@ function listingOf(row: ListingRow): ReviewListing | undefined {
     decidedBy: row.decided_by,
     reason: row.reason,
     answerCheck: check === null ? null : withoutCallText(check),
+    ...(support === undefined ? {} : { supportCheck: support === null ? null : supportCheckSummaryOf(support) }),
   };
+}
+
+/** The support check results of the current checker version for the revisions of these rows, by `assetId:revision`. */
+function readSupportChecks(
+  db: Kysely<Database> | Transaction<Database>,
+  rows: readonly ListingRow[],
+): Promise<ReadonlyMap<string, StoredLibraryCheck>> {
+  return libraryCheckStore.readMany(
+    db,
+    LIBRARY_SUPPORT_CHECK_VERSION,
+    rows.map((row) => ({ assetId: row.asset_id, revision: row.revision })),
+  );
 }
 
 /** The review rows of one asset or of every asset, with what the operator's list needs. */
@@ -198,9 +254,16 @@ async function lockReview(trx: Transaction<Database>, assetId: string, revision:
 }
 
 /** The revisions waiting for a decision, or with `all` every revision that went through the gate. */
-async function listRevisions(db: Kysely<Database>, options: { readonly all: boolean }) {
+async function listRevisions(db: Kysely<Database>, options: { readonly all: boolean; readonly showCheck?: boolean }) {
   const rows = await readListingRows(db, { onlyHeld: !options.all });
-  return rows.flatMap((row) => listingOf(row) ?? []);
+  const supports = options.showCheck === true ? await readSupportChecks(db, rows) : undefined;
+  return rows.flatMap(
+    (row) =>
+      listingOf(
+        row,
+        supports === undefined ? undefined : (supports.get(`${row.asset_id}:${String(row.revision)}`) ?? null),
+      ) ?? [],
+  );
 }
 
 /**
@@ -209,7 +272,13 @@ async function listRevisions(db: Kysely<Database>, options: { readonly all: bool
  */
 async function showRevision(
   db: Kysely<Database>,
-  request: { readonly assetId: string; readonly revision?: number; readonly withSources: boolean },
+  request: {
+    readonly assetId: string;
+    readonly revision?: number;
+    readonly withSources: boolean;
+    /** Show what the support check said (hidden by default, see `ReviewListing.supportCheck`). */
+    readonly showCheck?: boolean;
+  },
 ): Promise<ReviewShowResult> {
   const rows = await readListingRows(db, {
     assetId: request.assetId,
@@ -219,11 +288,19 @@ async function showRevision(
   if (rows.length === 0) return { kind: 'refused', reason: 'not_under_review' };
   const [row] = rows;
   if (rows.length > 1 || row === undefined) return { kind: 'refused', reason: 'ambiguous_revision' };
-  const listing = listingOf(row);
+  const support: SupportView =
+    request.showCheck === true
+      ? ((await readSupportChecks(db, [row])).get(`${row.asset_id}:${String(row.revision)}`) ?? null)
+      : undefined;
+  const listing = listingOf(row, support);
   const parsed = parseDocumentV2(row.document);
   if (listing === undefined || parsed.kind !== 'valid') return { kind: 'refused', reason: 'document_unreadable' };
   const evidence = request.withSources ? await readEvidence(db, row.asset_id, row.revision) : undefined;
-  return { kind: 'shown', listing, text: reviewTextOf(parsed.document, evidence, answerCheckOf(row.outcomes)) };
+  return {
+    kind: 'shown',
+    listing,
+    text: reviewTextOf(parsed.document, evidence, answerCheckOf(row.outcomes), support),
+  };
 }
 
 /**
@@ -303,7 +380,7 @@ async function rejectRevision(
  */
 export function makeReviewGate(db: Kysely<Database>) {
   return {
-    list: (options: { readonly all: boolean }) => listRevisions(db, options),
+    list: (options: Parameters<typeof listRevisions>[1]) => listRevisions(db, options),
     recipeKeyOf: (assetId: string) => recipeKeyOfAsset(db, assetId),
     show: (request: Parameters<typeof showRevision>[1]) => showRevision(db, request),
     release: (request: Parameters<typeof releaseRevision>[1]) => releaseRevision(db, request),
