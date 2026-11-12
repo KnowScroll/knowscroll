@@ -356,6 +356,19 @@ attempt and sends it on every delivery, so a redelivery after midnight is the sa
 recipe keys and codes (`proposed` and `already_proposed` are stored recipes, `closed_failed` a failed attempt, `refused` a refusal no retry changes, `paused`
 a spent budget, `failed` with an unknown or open run an attempt never to be resent) and records no model text.
 
+`topic-proposal.ts`, `propose-topic.ts`, `topic-seeds.ts`, `grow-topics.ts` and `topic-growth-events.ts` are topic growth (#674, D-422): new topics under the
+systems that exist, from pages code finds. `topic-seeds.ts` reads the links of the research pages of every recipe that is not retired (once each) and the candidate
+pages they lead to, outside any transaction and through the research URL rule, and stores each candidate with a verdict (`content.topic_candidates`). The role
+`content.topic-proposal` (version `topic-proposal.v1`, background class, one request and at most one repair, `repairWithPreviousAnswer`) runs on the production harness
+through `proposeProduction` exactly as `content.recipe-brief` does: its run is `stableUuid("content.topic-proposal:<version>|<candidate page>|<UTC day of the attempt>|<attempt>")`,
+the candidate pins the day of an attempt in flight, and `content.topic_proposals` freezes the context and the systems offered on the first delivery, so a redelivery sends
+exactly that and the ledger answers it. The outcomes follow the same convention (`settlementOf`): a kept answer completes the run, an answer invalid after its repair or a
+conclusive provider failure closes it as failed (the attempt is counted on the candidate, at most two), and an attempt of unknown outcome or any refusal of the harness leaves
+the run open and **blocks the candidate** so nothing is ever resent. After the answer one production transaction takes the catalogue's release lock, reads the catalogue
+as it is then, runs `admitTopicProposal` and, if it admits, `appendReleaseIn` (the release, source `growth`), settles the candidate and the run and closes the harness run.
+`grow-topics.ts` is one pass of the scheduled `content.grow-topics` job: gated by both switches and the production grant, kept within the growth cap and the size limit,
+one pass at a time under a session advisory lock, at most one proposal. The claim covers seven worst-case page reads and one request with its repair.
+
 ## Publication: topic attribution and coverage
 
 `completeWriterPublication` is private to production and has no consumer/composition attribution

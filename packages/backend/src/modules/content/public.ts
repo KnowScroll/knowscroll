@@ -348,6 +348,11 @@ export {
   ProduceScrollJobSchema,
   type ProduceScrollJob,
 } from './production/events.js';
+/**
+ * The scheduled topic growth step (#674, D-422): the queue only. What it does (seeding candidates, proposing a place, admitting a topic)
+ * is composed in the worker from `nest-providers`.
+ */
+export { growTopicsQueue, GrowTopicsPayloadSchema, type GrowTopicsPayload } from './production/topic-growth-events.js';
 export type { RunScrollProduction, ScrollProductionJobOutcome, ProduceScroll } from './production/job.js';
 /**
  * The support check of a library Scroll (D-415): one check job for a held revision, and the sweep that hands over every held revision

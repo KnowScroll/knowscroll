@@ -135,7 +135,7 @@ export function evidencePassages(pages: readonly ResearchPage[]): readonly Evide
  * sum over its pages, as `evidencePassages` offers them, which the source checker keeps between 6 and 63. Unlike
  * `evidencePassages` it never throws and does not verify the page: the caller holds frozen research the job already verified.
  */
-export function evidencePassageCount(page: ResearchPage): number {
+export function evidencePassageCount(page: { readonly passages: readonly { readonly text: string }[] }): number {
   return page.passages.reduce((total, source) => total + passagesOf(source.text).length, 0);
 }
 

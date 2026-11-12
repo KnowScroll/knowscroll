@@ -10,6 +10,7 @@ import {
   readWorkerOperatorConfig,
   readReelOperatorConfig,
   readScrollProductionOperatorConfig,
+  readTopicGrowthOperatorConfig,
 } from './index.js';
 
 const secretUrl = 'postgres://ks_api:hunter2-very-secret@127.0.0.1:5432/knowscroll_v2_dev';
@@ -197,6 +198,25 @@ describe('process configuration', () => {
     expect(api({ KS_WORLD: 'local', KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: '0' }).supplyPlannerCreateDailyCap).toBe(0);
     expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: '501' })).toThrow();
     expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: '-1' })).toThrow();
+  });
+  it('keeps topic growth off in every world until it is switched on, and reads its size limit from one value', () => {
+    const worker = (env: Record<string, string>) => readWorkerConfig({ DATABASE_URL: secretUrl, ...env });
+    for (const world of ['local', 'dev', 'stage']) expect(worker({ KS_WORLD: world }).topicGrowthEnabled).toBe(false);
+    expect(worker({ KS_WORLD: 'dev', KS_TOPIC_GROWTH_ENABLED: '1' }).topicGrowthEnabled).toBe(true);
+    expect(worker({ KS_WORLD: 'dev', KS_TOPIC_GROWTH_ENABLED: '0' }).topicGrowthEnabled).toBe(false);
+    expect(() => worker({ KS_WORLD: 'dev', KS_TOPIC_GROWTH_ENABLED: 'yes' })).toThrow();
+    // Its own switch does not turn on the gap loop, and the gap loop's does not turn it on.
+    expect(worker({ KS_WORLD: 'dev', KS_TOPIC_GROWTH_ENABLED: '1' }).supplyGrowthEnabled).toBe(false);
+    expect(worker({ KS_WORLD: 'dev', KS_SUPPLY_GROWTH_ENABLED: '1' }).topicGrowthEnabled).toBe(false);
+    // One size limit: twelve topics a system unless set, at least one, at most five hundred.
+    expect(worker({ KS_WORLD: 'local' }).topicGrowthMaxPerSystem).toBe(12);
+    expect(worker({ KS_WORLD: 'local', KS_TOPIC_GROWTH_MAX_PER_SYSTEM: '30' }).topicGrowthMaxPerSystem).toBe(30);
+    expect(() => worker({ KS_WORLD: 'local', KS_TOPIC_GROWTH_MAX_PER_SYSTEM: '0' })).toThrow();
+    expect(() => worker({ KS_WORLD: 'local', KS_TOPIC_GROWTH_MAX_PER_SYSTEM: '501' })).toThrow();
+    // The operator's command reads the same value the same way.
+    expect(readTopicGrowthOperatorConfig({}).topicGrowthMaxPerSystem).toBe(12);
+    expect(readTopicGrowthOperatorConfig({ KS_TOPIC_GROWTH_MAX_PER_SYSTEM: '7' }).topicGrowthMaxPerSystem).toBe(7);
+    expect(() => readTopicGrowthOperatorConfig({ KS_TOPIC_GROWTH_MAX_PER_SYSTEM: 'many' })).toThrow();
   });
   it('gives growth from stored recipes its own cap, ten a day unless set, apart from the two caps above', () => {
     const worker = (env: Record<string, string>) => readWorkerConfig({ DATABASE_URL: secretUrl, ...env });

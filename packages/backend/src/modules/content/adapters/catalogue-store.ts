@@ -209,7 +209,7 @@ export type AppendOutcome =
   | { readonly kind: 'unchanged' }
   | { readonly kind: 'refused'; readonly refusals: Extract<ReleasePlan, { kind: 'refused' }>['refusals'] };
 
-export type ReleaseSource = 'plan' | 'visibility' | 'operator';
+export type ReleaseSource = 'plan' | 'visibility' | 'operator' | 'growth';
 
 const CHUNK = 1000;
 const chunks = <T>(rows: readonly T[]): T[][] =>
@@ -236,74 +236,84 @@ export async function appendRelease(
   changes: readonly ReleaseChange[],
   source: ReleaseSource,
 ): Promise<AppendOutcome> {
-  const made = await withTransaction(db, 'content.concept-release', async (trx) => {
-    await sql`select pg_advisory_xact_lock(hashtextextended('content.concept-releases', 0))`.execute(trx);
-    const { rows } = await currentLoaded(trx);
-    const plan = planRelease(rows, changes, catalogueHash);
-    if (plan.kind !== 'release') return plan;
+  return withTransaction(db, 'content.concept-release', (trx) => appendReleaseIn(trx, changes, source));
+}
+
+/**
+ * The same release made inside a transaction the caller already holds (the production transaction that admits a topic for a candidate
+ * page, #674, D-422): the lock is taken here (a second take by the same transaction is free), so a caller that must judge something
+ * against the current release takes it first and reads the catalogue through the same transaction. Every write of the release is made in
+ * it, so it commits or rolls back with the caller's other writes.
+ */
+export async function appendReleaseIn(
+  trx: Transaction<Database>,
+  changes: readonly ReleaseChange[],
+  source: ReleaseSource,
+): Promise<AppendOutcome> {
+  await sql`select pg_advisory_xact_lock(hashtextextended('content.concept-releases', 0))`.execute(trx);
+  const { rows } = await currentLoaded(trx);
+  const plan = planRelease(rows, changes, catalogueHash);
+  if (plan.kind === 'refused') return { kind: 'refused', refusals: plan.refusals };
+  if (plan.kind === 'unchanged') return { kind: 'unchanged' };
+  await trx
+    .insertInto('content.concept_releases')
+    .values({
+      release_id: plan.releaseId,
+      digest: plan.digest,
+      source,
+      summary: JSON.stringify(plan.summary),
+    })
+    .execute();
+  for (const part of chunks(plan.newNodes))
     await trx
-      .insertInto('content.concept_releases')
-      .values({
-        release_id: plan.releaseId,
-        digest: plan.digest,
-        source,
-        summary: JSON.stringify(plan.summary),
+      .insertInto('content.concept_nodes')
+      .values(
+        part.map((node) => ({
+          node_id: node.nodeId,
+          kind: node.kind,
+          parent_id: node.parentId,
+          seq: node.seq,
+          status: 'active',
+          introduced_in: node.introducedIn,
+          visible_in: node.visibleIn,
+        })),
+      )
+      .execute();
+  for (const part of chunks(plan.newRevisions))
+    await trx
+      .insertInto('content.concept_node_revisions')
+      .values(
+        part.map((revision) => ({
+          node_id: revision.nodeId,
+          revision: revision.revision,
+          introduced_in: revision.introducedIn,
+          label: revision.label,
+          meaning: revision.meaning,
+          meaning_sha256: revision.meaningSha256,
+          compatible_with: [...revision.compatibleWith],
+          system_units: revision.systemUnits,
+          planet_units: revision.planetUnits,
+          planet_facets: revision.planetFacets,
+          scene_family: revision.sceneFamily,
+          haze: revision.haze,
+        })),
+      )
+      .execute();
+  for (const update of plan.updates)
+    await trx
+      .updateTable('content.concept_nodes')
+      .set({
+        ...(update.visibleIn === undefined ? {} : { visible_in: update.visibleIn }),
+        ...(update.retiredIn === undefined ? {} : { retired_in: update.retiredIn, status: 'retired' }),
       })
+      .where('node_id', '=', update.nodeId)
       .execute();
-    for (const part of chunks(plan.newNodes))
-      await trx
-        .insertInto('content.concept_nodes')
-        .values(
-          part.map((node) => ({
-            node_id: node.nodeId,
-            kind: node.kind,
-            parent_id: node.parentId,
-            seq: node.seq,
-            status: 'active',
-            introduced_in: node.introducedIn,
-            visible_in: node.visibleIn,
-          })),
-        )
-        .execute();
-    for (const part of chunks(plan.newRevisions))
-      await trx
-        .insertInto('content.concept_node_revisions')
-        .values(
-          part.map((revision) => ({
-            node_id: revision.nodeId,
-            revision: revision.revision,
-            introduced_in: revision.introducedIn,
-            label: revision.label,
-            meaning: revision.meaning,
-            meaning_sha256: revision.meaningSha256,
-            compatible_with: [...revision.compatibleWith],
-            system_units: revision.systemUnits,
-            planet_units: revision.planetUnits,
-            planet_facets: revision.planetFacets,
-            scene_family: revision.sceneFamily,
-            haze: revision.haze,
-          })),
-        )
-        .execute();
-    for (const update of plan.updates)
-      await trx
-        .updateTable('content.concept_nodes')
-        .set({
-          ...(update.visibleIn === undefined ? {} : { visible_in: update.visibleIn }),
-          ...(update.retiredIn === undefined ? {} : { retired_in: update.retiredIn, status: 'retired' }),
-        })
-        .where('node_id', '=', update.nodeId)
-        .execute();
-    const moved = await trx
-      .updateTable('content.concept_current')
-      .set({ release_id: plan.releaseId })
-      .where('release_id', '=', rows.releaseId)
-      .returning('release_id')
-      .execute();
-    if (moved.length !== 1) throw new Error('CONTENT_CATALOGUE_POINTER_MOVED');
-    return plan;
-  });
-  if (made.kind === 'refused') return { kind: 'refused', refusals: made.refusals };
-  if (made.kind === 'unchanged') return { kind: 'unchanged' };
-  return { kind: 'appended', releaseId: made.releaseId, digest: made.digest, summary: made.summary };
+  const moved = await trx
+    .updateTable('content.concept_current')
+    .set({ release_id: plan.releaseId })
+    .where('release_id', '=', rows.releaseId)
+    .returning('release_id')
+    .execute();
+  if (moved.length !== 1) throw new Error('CONTENT_CATALOGUE_POINTER_MOVED');
+  return { kind: 'appended', releaseId: plan.releaseId, digest: plan.digest, summary: plan.summary };
 }

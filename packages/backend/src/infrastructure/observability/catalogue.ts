@@ -245,6 +245,9 @@ export const diagnosticCatalogue = {
   // A topic catalogue release was made without a deploy (#674, D-419): the topics that became servable once the library had released
   // supply for them. A count and a code only: no topic, no label, no meaning.
   'content.catalogue_released': { severity: 'info', module: 'content', fields: ['outcome', 'count'] },
+  // One pass of topic growth (#674, D-422) that read links or proposed a place: `outcome` is done, admitted, paused or busy and `count` the topics
+  // it admitted (not servable yet). Counts and codes only: no page, no topic, no label.
+  'content.topic_growth': { severity: 'info', module: 'content', fields: ['outcome', 'count'] },
   // Evidence intake (API) and projection (worker). Counts and codes; no event, block or exposure
   // content (D-017); personal-linkable IDs are withheld from the journal by the sink projection.
   'evidence.observations_ingested': {
