@@ -89,7 +89,10 @@ describe('the catalogue topic', () => {
       expect(categoriesOfTopic(catalogue, concept.id).length > 0, concept.id).toBe(denied);
     }
     expect(categoriesOfTopic(catalogue, 'human-body.heart-and-blood')).toEqual(['medicine', 'health']);
-    expect(categoriesOfTopic(catalogue, 'history.industrial-revolution')).toEqual(['political_history', 'religious_history']);
+    expect(categoriesOfTopic(catalogue, 'history.industrial-revolution')).toEqual([
+      'political_history',
+      'religious_history',
+    ]);
   });
 
   it('makes a decision for every system of the catalogue: a system added to the plan fails here until the owner says whether it is sensitive', () => {
