@@ -377,8 +377,13 @@ function keysFor(catalogue: Catalogue, topicIds: readonly string[]): number {
   let keys: number = EVALUATION.keysPerFacet;
   for (const id of topicIds) {
     const topic = catalogue.topic(id);
-    const system = topic?.parent == null ? undefined : catalogue.topic(topic.parent);
-    keys = Math.max(keys, topic?.policy?.planetUnits ?? 0, topic?.policy?.systemUnits ?? 0, system?.policy?.systemUnits ?? 0);
+    const system = topic?.parent === undefined || topic.parent === null ? undefined : catalogue.topic(topic.parent);
+    keys = Math.max(
+      keys,
+      topic?.policy?.planetUnits ?? 0,
+      topic?.policy?.systemUnits ?? 0,
+      system?.policy?.systemUnits ?? 0,
+    );
   }
   return keys;
 }
@@ -732,11 +737,7 @@ async function evaluateTopics(
  * answer is used: the sample is read through the same trusted read and checks, but never enters the facts, so it changes no
  * place. A reader with trusted support elsewhere is healthy (`no_changes`); one with none anywhere is `no_trusted_support`.
  */
-async function sampledTrusted(
-  p: PinnedPorts,
-  scope: PersonalScopeTx,
-  exclude: readonly string[],
-): Promise<boolean> {
+async function sampledTrusted(p: PinnedPorts, scope: PersonalScopeTx, exclude: readonly string[]): Promise<boolean> {
   const found = await p.readInputs(scope, { recent: { limit: EVALUATION.sampleTopics, exclude }, perFacet: 1 });
   if (!found.probes.length) return false;
   const read = await readTrustedInBatches(p, scope, found.probes);

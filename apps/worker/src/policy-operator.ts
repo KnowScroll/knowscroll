@@ -5,7 +5,11 @@ import {
 } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
-import { makeCatalogue, makeReleasePolicy, type ReleasePolicy } from '@knowscroll/backend/modules/content/nest-providers';
+import {
+  makeCatalogue,
+  makeReleasePolicy,
+  type ReleasePolicy,
+} from '@knowscroll/backend/modules/content/nest-providers';
 
 type Print = (result: Record<string, unknown>) => void;
 

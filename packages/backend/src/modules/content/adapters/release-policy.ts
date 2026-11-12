@@ -130,11 +130,7 @@ function answerCheckFact(outcomes: unknown): AnswerCheckFact {
 }
 
 /** The facts of a held revision the policy decides from, read from stored rows: nothing is asked of a model. */
-async function factsOf(
-  db: Queryable,
-  summary: HeldSummary,
-  catalogue: CatalogueSnapshot,
-): Promise<AutoReleaseFacts> {
+async function factsOf(db: Queryable, summary: HeldSummary, catalogue: CatalogueSnapshot): Promise<AutoReleaseFacts> {
   const topicId = summary.topicIds.length === 1 ? (summary.topicIds[0] ?? null) : null;
   const [body, raised, supportCheck] = await Promise.all([
     releasePolicyStore.readBody(db, summary.assetId, summary.revision),

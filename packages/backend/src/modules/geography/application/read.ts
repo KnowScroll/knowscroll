@@ -39,7 +39,10 @@ export function makeReadGeography(p: GeographyPorts): ReadOwnGeography {
           snapshot: GeographySnapshotSchema.parse({ ...base, status: 'unavailable', reason }),
         }) as const;
       if (view.objects.length > 1000 || view.routes.length + view.aliases.length > 1000) return unavailable('limit');
-      if (!validView(view, scope.authority.universeId, pinCatalogue(await p.catalogue.current())) || !(await p.ownerActive(scope)))
+      if (
+        !validView(view, scope.authority.universeId, pinCatalogue(await p.catalogue.current())) ||
+        !(await p.ownerActive(scope))
+      )
         return unavailable('temporarily_unavailable');
       const systemId = q.selection.kind === 'system' ? q.selection.systemId : undefined;
       const selectedSystem =
