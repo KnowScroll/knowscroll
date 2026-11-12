@@ -29,7 +29,7 @@ export async function appendCoverageHead(
     throw new Error('CONTENT_COVERAGE_HEAD_STALE');
   if (command.change.kind === 'retract' && !previous) throw new Error('CONTENT_COVERAGE_NOT_MAPPED');
   const mapping = command.change.kind === 'admit' ? command.change.mapping : previous!.mapping;
-  if (command.change.kind === 'admit') validateCoverageMapping(mapping, target!, p.catalogue);
+  if (command.change.kind === 'admit') validateCoverageMapping(mapping, target!, await p.catalogue(tx));
   const head: CoverageHead = {
     authority: {
       assetId: command.assetId,

@@ -95,6 +95,48 @@ export interface ContentAssets {
   status: string;
 }
 
+export interface ContentConceptCurrent {
+  release_id: number;
+  singleton: Generated<boolean>;
+}
+
+export interface ContentConceptNodeRevisions {
+  compatible_with: Generated<string[]>;
+  created_at: Generated<Timestamp>;
+  haze: string | null;
+  introduced_in: number;
+  label: string;
+  meaning: string;
+  meaning_sha256: string;
+  node_id: string;
+  planet_facets: number | null;
+  planet_units: number | null;
+  revision: number;
+  scene_family: string | null;
+  system_units: number | null;
+}
+
+export interface ContentConceptNodes {
+  created_at: Generated<Timestamp>;
+  introduced_in: number;
+  kind: string;
+  merged_into: string | null;
+  node_id: string;
+  parent_id: string | null;
+  retired_in: number | null;
+  seq: number;
+  status: Generated<string>;
+  visible_in: number | null;
+}
+
+export interface ContentConceptReleases {
+  created_at: Generated<Timestamp>;
+  digest: string;
+  release_id: number;
+  source: string;
+  summary: Generated<Json>;
+}
+
 export interface ContentContinuityLinks {
   active: Generated<boolean>;
   authority_reference: string;
@@ -2521,6 +2563,10 @@ export interface DB {
   "content.asset_provenance": ContentAssetProvenance;
   "content.asset_revisions": ContentAssetRevisions;
   "content.assets": ContentAssets;
+  "content.concept_current": ContentConceptCurrent;
+  "content.concept_node_revisions": ContentConceptNodeRevisions;
+  "content.concept_nodes": ContentConceptNodes;
+  "content.concept_releases": ContentConceptReleases;
   "content.continuity_links": ContentContinuityLinks;
   "content.coverage_heads": ContentCoverageHeads;
   "content.coverage_revisions": ContentCoverageRevisions;

@@ -1,3 +1,5 @@
+import { catalogueOf } from '../support/catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -189,6 +191,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       recordingHarness: RECORDING,
     });
     const values = new Map<symbol, unknown>([
+      [CATALOGUE, catalogueOf(database.db)],
       [SCOPE, withScope()],
       [ENQUEUE, makeEnqueueJob(content.boss)],
       [

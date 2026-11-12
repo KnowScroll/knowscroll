@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { LibraryPassageSource, ReadLibraryPassages } from '@knowscroll/backend/modules/content';
-import { CONCEPTS } from '@knowscroll/backend/modules/content';
+import { planSnapshot } from '@knowscroll/backend/modules/content';
 import {
   importEditorialScrollUseCase,
   makeReadLibraryPassages,
@@ -38,6 +38,9 @@ import {
 } from '../support/rooms.js';
 import { starterSource } from '../support/scroll.js';
 import type { Friend } from '../support/talk.js';
+
+/** The catalogue of the library plan (release 1), which the migrated database seeds: the topics these journeys use. */
+const CONCEPTS = planSnapshot().all();
 
 const version = 'rooms.v1' as const;
 // Ten o'clock UTC on the day the test runs: the job port refuses a start more than a day ahead of the real clock.

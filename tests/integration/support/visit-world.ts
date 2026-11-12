@@ -6,6 +6,8 @@
 import { randomUUID } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import { expect } from 'vitest';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
+import { catalogueOf } from './catalogue.js';
 import {
   fencePersonalRecording,
   makeWithPersonalScope,
@@ -139,6 +141,7 @@ export function geographyReader(db: Kysely<Database>): ReadGeographySceneInput {
     [SCOPE, makeWithPersonalScope(db, { lockTimeoutMs: 5000 })],
     [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db, lockTimeoutMs: 5000 }).fenceOwnAccount],
     [ENQUEUE, undefined],
+    [CATALOGUE, catalogueOf(db)],
     [GEOGRAPHY_APPLIED, undefined],
     ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
   ]);

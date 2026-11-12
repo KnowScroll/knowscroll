@@ -15,6 +15,7 @@ import { RoomKitSchema, type RoomKit } from '@knowscroll/contracts';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { composeFaceOperator, readApprovedBackdrop } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
+import { catalogueOf } from '../support/catalogue.js';
 import { fixtureModel } from '../support/fixture-model.js';
 import type { FixtureModelPort, FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureImagePort, type FixtureImagePort, type FixtureImageScenario } from '../support/fixture-image.js';
@@ -86,6 +87,7 @@ describe('every room has a face (real PostgreSQL, CI fixture model and image pro
     const { harness, withScope } = roomScope(world.db, model);
     const image = 'image' in options ? options.image : fixtureImagePort();
     const face = composeFaceOperator({
+      catalogue: catalogueOf(world.db),
       db: world.db,
       harness,
       withRoomScope: withScope,

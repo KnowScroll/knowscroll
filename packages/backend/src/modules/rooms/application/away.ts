@@ -1,4 +1,3 @@
-import { CONCEPTS } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import {
   AWAY_MIN_NEW_MESSAGES,
@@ -81,7 +80,7 @@ export async function assembleAway(
     { also: [], refs: [] },
   );
   const placeOf = new Map(window.map((entry) => [entry.message.messageId, entry]));
-  const topic = CONCEPTS.find((concept) => concept.id === room.topic.id);
+  const topic = (await p.catalogue.current()).concept(room.topic.id);
   return {
     summaryId: summary.summaryId,
     roomName: room.name,

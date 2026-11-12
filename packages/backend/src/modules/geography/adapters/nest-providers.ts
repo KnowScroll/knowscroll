@@ -1,6 +1,7 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import { sql } from 'kysely';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
+import { CATALOGUE, type Catalogue } from '../../content/public.js';
 import {
   CLEAR_COVERAGE_DIRTY,
   MARK_COVERAGE_DIRTY,
@@ -140,9 +141,10 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
   return [
     {
       provide: READ_OWN_REGION_CONSTRAINT,
-      inject: [CHECK_PERSONAL_OWNER_ACTIVE],
-      useFactory: (ownerActive: CheckPersonalOwnerActive) =>
+      inject: [CHECK_PERSONAL_OWNER_ACTIVE, CATALOGUE],
+      useFactory: (ownerActive: CheckPersonalOwnerActive, catalogue: Catalogue) =>
         makeReadOwnRegionConstraint({
+          catalogue,
           ownerActive,
           state: (scope) => geographyStore.state(scope),
           object: readRegionPlace,
@@ -150,9 +152,10 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
     },
     {
       provide: READ_OWN_SYSTEM_TOPIC,
-      inject: [CHECK_PERSONAL_OWNER_ACTIVE],
-      useFactory: (ownerActive: CheckPersonalOwnerActive) =>
+      inject: [CHECK_PERSONAL_OWNER_ACTIVE, CATALOGUE],
+      useFactory: (ownerActive: CheckPersonalOwnerActive, catalogue: Catalogue) =>
         makeReadOwnSystemTopic({
+          catalogue,
           ownerActive,
           state: (scope) => geographyStore.state(scope),
           object: readRegionPlace,
@@ -172,6 +175,7 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
         READ_TRUSTED_COVERAGE,
         CHECK_PERSONAL_OWNER_ACTIVE,
         GEOGRAPHY_APPLIED,
+        CATALOGUE,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -185,7 +189,9 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
         readTrusted: ReadTrustedCoverage,
         ownerActive: CheckPersonalOwnerActive,
         applied: GeographyApplied,
+        catalogue: Catalogue,
       ): GeographyPorts => ({
+        catalogue,
         withScope,
         fenceOwn,
         fenceRecording,

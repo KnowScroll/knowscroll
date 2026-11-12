@@ -1,3 +1,5 @@
+import { catalogueOf } from '../support/catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -179,6 +181,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
   function worker(policy?: 'v2'): PrepareBuffer {
     const { harness } = fixtureRecordingHarness(database.db, { model: undefined });
     const values = new Map<symbol, unknown>([
+      [CATALOGUE, catalogueOf(database.db)],
       [WITH_SCOPE, withScope()],
       [WORKER_CONFIG, { jevEnabled: false, reasoning: {} }],
       [RECORDING_REASONING_HARNESS, harness],

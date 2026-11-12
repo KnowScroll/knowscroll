@@ -1,9 +1,10 @@
 /** Labelled fixtures for the residents' feed and memory tests (v3 R-8): library assets, the heartbeat over a fixture model. */
+import { catalogueOf } from './catalogue.js';
 import { randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { importEditorialScrollUseCase, makeReadLibraryFinds } from '@knowscroll/backend/modules/content/nest-providers';
-import { CONCEPTS, type ReadLibraryFinds } from '@knowscroll/backend/modules/content';
+import { planSnapshot, type ReadLibraryFinds } from '@knowscroll/backend/modules/content';
 import { composeFeedHeartbeat, composeScoutHeartbeat } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { fixtureModel } from './fixture-model.js';
 import type { FixtureCall, FixtureModelPort, FixtureScenario } from './fixture-model-port.js';
@@ -11,6 +12,9 @@ import { roomScope, unwrap, type RoomWorld } from './rooms.js';
 import { starterSource } from './scroll.js';
 import type { Friend } from './talk.js';
 import { seedReel } from './thread-fixtures.js';
+
+/** The catalogue of the library plan (release 1), which the migrated database seeds: the topics these journeys use. */
+const CONCEPTS = planSnapshot().all();
 
 const version = 'rooms.v1' as const;
 export const never = new AbortController().signal;
@@ -105,6 +109,7 @@ export function feedHeartbeat(
   const model: FixtureModelPort = fixtureModel(script, { label: 'rooms-feed' });
   const { harness, withScope } = roomScope(world.db, model);
   const heartbeat = composeFeedHeartbeat({
+    catalogue: catalogueOf(world.db),
     db: world.db,
     harness,
     withRoomScope: withScope,
@@ -189,6 +194,7 @@ export function scoutBeat(
   const model: FixtureModelPort = fixtureModel(script, { label: 'rooms-scout' });
   const { harness, withScope } = roomScope(world.db, model);
   const heartbeat = composeScoutHeartbeat({
+    catalogue: catalogueOf(world.db),
     db: world.db,
     harness,
     withRoomScope: withScope,

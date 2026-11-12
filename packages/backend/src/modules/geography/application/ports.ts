@@ -33,7 +33,7 @@ import type {
   TrustedCoverageRead,
 } from '../../personal-context/public.js';
 import type { RecordingReasoningHarness } from '../../../reasoning/public.js';
-import type { Catalogue } from '../domain/catalogue.js';
+import type { Catalogue as CatalogueSource } from '../../content/public.js';
 import type { Mac } from '../domain/ids.js';
 import type { PlaceSchedule } from '../domain/quiet.js';
 import type { GeographyProposal, FormationFacts, Place, Route } from '../domain/policy.js';
@@ -73,6 +73,7 @@ export type ReadOwnSystemTopic = (
   | { readonly kind: 'refused' }
 >;
 export interface RegionConstraintPorts {
+  readonly catalogue: CatalogueSource;
   readonly ownerActive: CheckPersonalOwnerActive;
   readonly state: GeographyStore['state'];
   /** One indexed own/epoch lookup per call, never the whole Geography view. */
@@ -129,6 +130,12 @@ export interface EvaluationScope {
 }
 export interface GeographyContext {
   readonly version: 'cartographer-context.v1';
+  /**
+   * The catalogue release this context was frozen against (D-419). The re-check at apply reads that release, not a newer one, so
+   * a topic added in between never changes a decision already made. Absent only on a context frozen before releases existed:
+   * it is read against the current release, which for the seeded catalogue is the same one.
+   */
+  readonly catalogueRelease?: number;
   readonly transitionId: string;
   readonly universeId: string;
   readonly privacyEpoch: number;
@@ -271,6 +278,8 @@ export interface GeographyStore {
   writeDelta(scope: PersonalScopeTx, runId: string | undefined, hash: string, delta: UniverseDelta): Promise<void>;
 }
 export interface GeographyPorts {
+  /** The topic catalogue (D-419): a use case reads one release of it and pins that release for the whole evaluation. */
+  readonly catalogue: CatalogueSource;
   readonly withScope: WithPersonalScope;
   readonly fenceOwn: FenceOwnAccount;
   readonly fenceRecording: FencePersonalRecording;
@@ -281,7 +290,6 @@ export interface GeographyPorts {
   readonly markDirty: MarkCoverageDirty;
   readonly readInputs: ReadCoverageInputs;
   readonly readTrusted: ReadTrustedCoverage;
-  readonly catalogue: Catalogue;
   readonly hash: (value: unknown) => string;
   /** HMAC-SHA-256 as hex. Derived ids are `mac(placeSecret, key)`. */
   readonly mac: Mac;
@@ -360,7 +368,10 @@ export type ReadOwnDeltas = (
 >;
 
 /** Dust cues read the same scope and store as the other own reads, plus Personal Context's snapshot. */
-export interface EmergingPorts extends Pick<GeographyPorts, 'withScope' | 'ownerActive' | 'store' | 'hash' | 'now'> {
+export interface EmergingPorts extends Pick<
+  GeographyPorts,
+  'catalogue' | 'withScope' | 'ownerActive' | 'store' | 'hash' | 'now'
+> {
   readonly readSnapshot: ReadExplorationSnapshot;
 }
 export type ReadOwnPlaceConcepts = (

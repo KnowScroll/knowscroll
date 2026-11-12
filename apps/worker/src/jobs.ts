@@ -146,6 +146,7 @@ import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
 import { jobConsumer, type JobConsumer } from '@knowscroll/backend/infrastructure/jobs';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import {
+  catalogueProviders,
   contentProviders,
   libraryPassageProviders,
   madeToOrderProviders,
@@ -296,6 +297,8 @@ export const jobWiring: Provider[] = [
   // Jev runs on the recording-aware harness; its owner check asks Experience whether the exposure was activated (D-270).
   ...composerRecordingOwnerProviders(),
   ...contentProviders(),
+  // The topic catalogue (D-419): data in Postgres, read by every module that names a topic.
+  ...catalogueProviders({ database: DATABASE }),
   ...madeToOrderProviders({ database: DATABASE, orderAudiences: [READ_ORDER_AUDIENCE, READ_ASK_ORDER_AUDIENCE] }),
   ...scrollProductionSenderProviders({ boss: PG_BOSS }),
   // Scenarios (D-049): the planner answers a draft, and a sweep binds branches to their Scrolls.

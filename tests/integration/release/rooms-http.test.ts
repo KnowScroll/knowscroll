@@ -10,6 +10,7 @@ import {
   type ScopeChangedHint,
 } from '@knowscroll/contracts';
 import { createDatabase, type Database, type DatabaseHandle } from '@knowscroll/backend/infrastructure/postgres';
+import { planSnapshot } from '@knowscroll/backend/modules/content';
 import { libraryRoomSeeds } from '@knowscroll/backend/modules/rooms';
 import { seedRooms, setRoomModerator } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { apiClient } from '../support/api-client.js';
@@ -70,7 +71,7 @@ describe('idea rooms over the installed API (disposable accounts)', () => {
     a = await withSessions(friends.a);
     b = await withSessions(friends.b);
     // The operator's seed: one room for each library system, with nobody in it.
-    await seedRooms(db.db, [...libraryRoomSeeds()], new Date());
+    await seedRooms(db.db, [...libraryRoomSeeds(planSnapshot())], new Date());
     const row = await db.db
       .selectFrom('rooms.rooms')
       .select('room_id')

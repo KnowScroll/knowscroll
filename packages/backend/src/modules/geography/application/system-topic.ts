@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { CONCEPTS } from '../../content/public.js';
 import { semanticKey } from '../domain/policy.js';
 import type { ReadOwnSystemTopic, RegionConstraintPorts } from './ports.js';
 
@@ -35,7 +34,7 @@ export function makeReadOwnSystemTopic(p: RegionConstraintPorts): ReadOwnSystemT
       system.parentKey !== 'universe' ||
       system.key !== semanticKey(system.kind, system.conceptId, system.truthStatus) ||
       system.objectRevision > state.revision ||
-      !CONCEPTS.some((topic) => topic.id === system.conceptId && topic.parent === null)
+      (await p.catalogue.current()).concept(system.conceptId)?.parent !== null
     )
       return { kind: 'unavailable', reason: 'temporarily_unavailable' };
     return { kind: 'read', systemId: system.id, topicId: system.conceptId };

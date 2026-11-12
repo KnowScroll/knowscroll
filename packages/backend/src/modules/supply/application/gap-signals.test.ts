@@ -26,7 +26,7 @@ function recorder(enabled: boolean, disposable = false) {
     marks,
     isDisposable: () => Promise.resolve(disposable),
     now: () => new Date('2026-11-11T23:59:59Z'),
-    catalogue: CATALOGUE,
+    catalogue: () => Promise.resolve(CATALOGUE),
   });
   return { record, written };
 }
@@ -102,7 +102,7 @@ describe('recording a signal in the person’s own transaction', () => {
         return Promise.resolve(false);
       },
       now: () => new Date('2026-11-11T12:00:00Z'),
-      catalogue: CATALOGUE,
+      catalogue: () => Promise.resolve(CATALOGUE),
     });
     await record(scope, [{ source: 'ask', planet: 'not a planet' }]);
     await record(scope, []);

@@ -1,3 +1,4 @@
+import { catalogueOf } from './catalogue.js';
 import {
   FENCE_OWN_ACCOUNT,
   FENCE_PERSONAL_RECORDING,
@@ -25,6 +26,7 @@ import {
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
 import {
+  CATALOGUE,
   CHECK_ASSET_AUDIENCE,
   RENDER_SCROLL,
   type ImportEditorialScroll,
@@ -222,6 +224,7 @@ export async function scrollUseCases(
     [FENCE_OWN_ACCOUNT, identity.fenceOwnAccount],
     [READ_RECORDING_LIFECYCLE, identity.readRecordingLifecycle],
     [DATABASE, database.db],
+    [CATALOGUE, catalogueOf(database.db)],
     [SCOPE, options.wrapScope ? options.wrapScope(scope) : scope],
     [ENQUEUE, options.wrapEnqueue === undefined ? enqueue : options.wrapEnqueue(enqueue)],
     ...(options.activityDerived ? [[ACTIVITY_CONTEXT_EFFECT, options.activityDerived] as [symbol, unknown]] : []),

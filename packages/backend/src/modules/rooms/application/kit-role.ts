@@ -7,7 +7,7 @@ import {
   type RoomEmblemGlyph,
   type RoomKitDraft,
 } from '@knowscroll/contracts';
-import { CONCEPTS, conceptLabel } from '../../content/public.js';
+import type { CatalogueSnapshot } from '../../content/public.js';
 import type { ProposeOutcome, ReasoningContext, ReasoningRole } from '../../../reasoning/public.js';
 import { KIT_HINTS, kitAnswerSchema } from './kit.js';
 import { unproposedVerdict } from './inhabitant-role.js';
@@ -78,15 +78,15 @@ export function kitRole(): ReasoningRole<RoomKitDraft> {
  * What the model may read: the room's topic and its library meaning. Nothing a member wrote, no name, no ID, no
  * message: a room's face comes from what the room is about.
  */
-export function kitContext(room: FaceRoom, revision: number): ReasoningContext {
-  const meaning = CONCEPTS.find((concept) => concept.id === room.topic.id)?.meaning;
+export function kitContext(room: FaceRoom, revision: number, catalogue: CatalogueSnapshot): ReasoningContext {
+  const meaning = catalogue.concept(room.topic.id)?.meaning;
   return {
     bundleRef: `rooms-kit:${room.roomId}:${String(revision)}`,
     items: [
       {
         ref: 'room',
         kind: 'room',
-        text: [`Topic: ${conceptLabel(room.topic.id)}`, meaning === undefined ? undefined : `About: ${meaning}`]
+        text: [`Topic: ${catalogue.label(room.topic.id)}`, meaning === undefined ? undefined : `About: ${meaning}`]
           .filter((line) => line !== undefined)
           .join('\n'),
       },

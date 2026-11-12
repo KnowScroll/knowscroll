@@ -2,6 +2,7 @@ import { parseArgs } from 'node:util';
 import { ConfigurationError, readContentOperatorConfig } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { makeCatalogue } from '@knowscroll/backend/modules/content/nest-providers';
 import { libraryRoomSeeds } from '@knowscroll/backend/modules/rooms';
 import { seedRooms, setRoomModerator } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { FACE_COMMANDS, FACE_USAGE, roomsFaceCommand } from './rooms-face-operator.js';
@@ -119,7 +120,7 @@ export async function roomsCommand(args: readonly string[], print: Print, logEve
     });
     try {
       if (isSeed) {
-        const seeds = libraryRoomSeeds();
+        const seeds = libraryRoomSeeds(await makeCatalogue(database.db).current());
         if (values['dry-run']) {
           print({ command: 'rooms seed', dryRun: true, wouldCreate: seeds.map((seed) => seed.slug) });
           return 0;

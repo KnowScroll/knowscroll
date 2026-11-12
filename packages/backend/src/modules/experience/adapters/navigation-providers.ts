@@ -13,6 +13,8 @@ import {
   type ReadSeriesTotal,
   type ResolveContinuityLink,
   type ReadEncounterAttribution,
+  CATALOGUE,
+  type Catalogue,
   READ_REGION_ENCOUNTER_CANDIDATES,
   LOCK_REGION_ENCOUNTER_CANDIDATES,
   type ReadRegionEncounterCandidates,
@@ -121,6 +123,7 @@ export function navigationProviders(
         READ_SERIES_TOTAL,
         RESOLVE_CONTINUITY_LINK,
         READ_ENCOUNTER_ATTRIBUTION,
+        CATALOGUE,
         ...(options.region
           ? [READ_OWN_REGION_CONSTRAINT, READ_REGION_ENCOUNTER_CANDIDATES, LOCK_REGION_ENCOUNTER_CANDIDATES]
           : []),
@@ -144,6 +147,7 @@ export function navigationProviders(
         readSeriesTotal: ReadSeriesTotal,
         resolveContinuityLink: ResolveContinuityLink,
         readAttribution: ReadEncounterAttribution,
+        catalogue: Catalogue,
         ...optional: readonly unknown[]
       ): NavigationPorts => {
         const readRegionConstraint = options.region ? (optional[0] as ReadOwnRegionConstraint) : undefined;
@@ -162,6 +166,7 @@ export function navigationProviders(
             }
           : undefined;
         return {
+          catalogue,
           withPersonalScope: withExperienceScope(withPersonalScope, fenceOwn),
           recording: recordingCommandHooks(readAttribution, lifecycle, effects),
           // Explicitly unmounted legacy composition cannot inherit/activate a regional offer.

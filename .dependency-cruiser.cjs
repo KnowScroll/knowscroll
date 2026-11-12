@@ -40,6 +40,8 @@ const compositionRoots = [
   '^apps/worker/src/supply-operator\\.ts$',
   // The recipe commands compose the production harness and the stored-recipe use cases (#674, D-412).
   '^apps/worker/src/recipes-operator\\.ts$',
+  // The catalogue command imports the plan as a release of the topic catalogue (#674, D-419).
+  '^apps/worker/src/catalogue-operator\\.ts$',
   // The journey inspector composes the read-only operator views (#248).
   '^apps/worker/src/journey-operator\\.ts$',
   // The reconciliation marks every topic with support dirty through Personal Context's adapter (#674, D-416).

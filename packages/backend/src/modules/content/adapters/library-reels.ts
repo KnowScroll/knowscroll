@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { ReadLibraryReels } from '../public.js';
+import { readCatalogueIn } from './catalogue-store.js';
 import { topicIdsOf } from './library-passages.js';
 import { notUnderReview } from './review-gate-sql.js';
 
@@ -21,7 +22,7 @@ interface Row {
  */
 export const readLibraryReels: ReadLibraryReels = async (scope, topic, limit, only) => {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > READ_LIMIT_MAX) throw new Error('LIBRARY_REELS_LIMIT');
-  const topicIds = topicIdsOf(topic);
+  const topicIds = topicIdsOf(await readCatalogueIn(transactionOf(scope)), topic);
   if (topicIds.length === 0) return [];
   const result =
     await sql<Row>`select r.asset_id, r.revision, r.title, (r.document ->> 'durationMs')::integer as duration_ms

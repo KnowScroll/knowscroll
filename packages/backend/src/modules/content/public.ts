@@ -10,6 +10,7 @@
 import type { z } from 'zod';
 import type { ConversationContentProjectionSchema } from '@knowscroll/contracts';
 import {
+  canonicalSha256,
   INTERACTION_KINDS,
   INTERACTION_KINDS_V2,
   type BlockStateSnapshot,
@@ -22,6 +23,11 @@ import type { AssetKind } from './domain/provenance.js';
 import type { CoverageAuthority } from './domain/coverage.js';
 import type { ReadingFacts } from './domain/reading-facts.js';
 import type { PlayLevel } from './domain/traits.js';
+import { seedSnapshot } from './domain/catalogue/seed.js';
+import { labelOfId, makeSnapshot, type CatalogueSnapshot } from './domain/catalogue/snapshot.js';
+import type { NodeRow, RevisionRow } from './domain/catalogue/types.js';
+import type { Catalogue } from './application/catalogue.js';
+import { LIBRARY_SYSTEMS } from './domain/library/index.js';
 
 export { PROVENANCE_KINDS, type AssetKind, type ProvenanceKind } from './domain/provenance.js';
 export { type ReadingFacts } from './domain/reading-facts.js';
@@ -195,10 +201,71 @@ export type ReadScrollQuickAnswerFacts = (
 
 export const READ_SCROLL_QUICK_ANSWER_FACTS = Symbol('content.readScrollQuickAnswerFacts');
 
-/** Shared semantic catalogue and exact-revision sidecars; no wire or personal coverage consumer. */
-export { CONCEPT_CATALOGUE_VERSION, CONCEPTS, conceptLabel, systemOfTopic } from './domain/concepts.js';
-/** Which Scene family draws a system, star or planet, and a system's haze family; defined by the library plan. */
-export { sceneFamilyOf, hazeFamilyOf } from './domain/library/index.js';
+/**
+ * The topic catalogue (#674, D-419): systems, topics and facets as data in Postgres, released in numbered steps, so a topic is added
+ * with no deploy. A use case asks the `Catalogue` port for one snapshot and reads everything of it from there, so a rule that looks
+ * twice never sees two releases. A Geography run pins the release it was frozen against and reads that one for ever.
+ */
+export { CONCEPT_CATALOGUE_VERSION, FORMATION_DEFAULTS } from './domain/catalogue/types.js';
+export type { FormationPolicy } from './domain/catalogue/types.js';
+export type { CatalogueConcept, CatalogueFacet, CatalogueSnapshot, FacetMeaning } from './domain/catalogue/snapshot.js';
+export { SHORTLIST_TOPICS, shortlistTopics } from './domain/catalogue/shortlist.js';
+export type { Catalogue } from './application/catalogue.js';
+export const CATALOGUE = Symbol('content.catalogue');
+/** The catalogue the library plan seeds (release 1): the fixture tests read, and the source `content catalogue sync` imports. Never what a use case reads. */
+export function planSnapshot(): CatalogueSnapshot {
+  seeded ??= seedSnapshot(LIBRARY_SYSTEMS, canonicalSha256);
+  return seeded;
+}
+let seeded: CatalogueSnapshot | undefined;
+/**
+ * A catalogue of invented concepts, for tests that need more (or other) topics than the library plan has: each concept is a
+ * system (`parent: null`) or a topic under one, with the facet ids it lists, all servable. Labelled fixture: never product data.
+ */
+export function fixtureSnapshot(
+  concepts: readonly { readonly id: string; readonly parent: string | null; readonly facets?: readonly string[] }[],
+  releaseId = 1,
+): CatalogueSnapshot {
+  const nodes: NodeRow[] = [];
+  const revisions: RevisionRow[] = [];
+  const add = (id: string, kind: NodeRow['kind'], parentId: string | null, visible: boolean) => {
+    nodes.push({
+      nodeId: id,
+      kind,
+      parentId,
+      seq: nodes.length + 1,
+      introducedIn: releaseId,
+      visibleIn: visible ? releaseId : null,
+      retiredIn: null,
+      mergedInto: null,
+    });
+    const meaning = `Fixture meaning of ${id}, invented for a test.`;
+    revisions.push({
+      nodeId: id,
+      revision: 1,
+      introducedIn: releaseId,
+      label: labelOfId(id),
+      meaning,
+      meaningSha256: canonicalSha256(meaning),
+      compatibleWith: [],
+      systemUnits: null,
+      planetUnits: null,
+      planetFacets: null,
+      sceneFamily: kind === 'system' ? 'terraced.v1' : null,
+      haze: kind === 'system' ? 'teal' : null,
+    });
+  };
+  for (const concept of concepts) {
+    add(concept.id, concept.parent === null ? 'system' : 'topic', concept.parent, concept.parent !== null);
+    for (const facet of concept.facets ?? []) add(facet, 'facet', concept.id, false);
+  }
+  return makeSnapshot({ releaseId, digest: canonicalSha256(concepts), nodes, revisions }, canonicalSha256);
+}
+/** A `Catalogue` that always answers one snapshot: for a test that needs no database. */
+export const staticCatalogue = (snapshot: CatalogueSnapshot): Catalogue => ({
+  current: () => Promise.resolve(snapshot),
+  release: (releaseId) => Promise.resolve(releaseId === snapshot.releaseId ? snapshot : undefined),
+});
 export type { HazeFamilyName } from './domain/library/plan.js';
 export {
   COVERAGE_POLICY,

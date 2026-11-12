@@ -1,8 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import { SceneChunkSchema, SceneManifestSchema, SCENE_LIMITS } from '@knowscroll/contracts';
+import { planSnapshot } from '../../content/public.js';
 import type { GeographySceneInput } from '../../geography/public.js';
-import { projectBounded, ProjectionUnavailable } from './projection.js';
+import { projectBounded as projectOnCatalogue, ProjectionUnavailable } from './projection.js';
+
+/** Projects against the catalogue of the library plan (release 1), as every fixture here is made from it. */
+const projectBounded = (
+  input: Parameters<typeof projectOnCatalogue>[0],
+  prior: Parameters<typeof projectOnCatalogue>[1],
+  previousChunks: Parameters<typeof projectOnCatalogue>[2],
+  worldSeed: string,
+  sceneRevision: number,
+  hashOf: Parameters<typeof projectOnCatalogue>[5],
+  priorRoutes?: Parameters<typeof projectOnCatalogue>[6],
+) => projectOnCatalogue(input, prior, previousChunks, worldSeed, sceneRevision, hashOf, priorRoutes, planSnapshot());
 const id = (n: number) => `00000000-0000-4000-a000-${String(n).padStart(12, '0')}`;
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const seed = 'a'.repeat(64);

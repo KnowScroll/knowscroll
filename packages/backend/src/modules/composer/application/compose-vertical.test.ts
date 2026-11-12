@@ -1,6 +1,7 @@
 import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
 import { composeEncounter, type ComposerSnapshot } from '../public.js';
+import { planSnapshot } from '../../content/public.js';
 import { assembleSnapshot } from './snapshot-assembly.js';
 import type { EncounterSnapshot } from '../../content/public.js';
 
@@ -455,6 +456,7 @@ describe('assembling the vertical rules from the source (labelled CI inputs)', (
     links: [],
     fallbackContextWatermark: 'unprepared:1',
     hashCatalogWatermarks: (watermarks: readonly string[]) => watermarks.join(','),
+    systemOf: (topicId: string) => planSnapshot().systemOf(topicId),
     ...extra,
   });
 

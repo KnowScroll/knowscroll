@@ -242,6 +242,9 @@ export const diagnosticCatalogue = {
     module: 'content',
     fields: ['context', 'revision', 'error'],
   },
+  // A topic catalogue release was made without a deploy (#674, D-419): the topics that became servable once the library had released
+  // supply for them. A count and a code only: no topic, no label, no meaning.
+  'content.catalogue_released': { severity: 'info', module: 'content', fields: ['outcome', 'count'] },
   // Evidence intake (API) and projection (worker). Counts and codes; no event, block or exposure
   // content (D-017); personal-linkable IDs are withheld from the journal by the sink projection.
   'evidence.observations_ingested': {

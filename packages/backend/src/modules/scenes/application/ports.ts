@@ -20,6 +20,7 @@ import type {
   PersonalAuthority,
   CheckPersonalOwnerActive,
 } from '../../identity/public.js';
+import type { Catalogue } from '../../content/public.js';
 import type { ReadGeographySceneInput } from '../../geography/public.js';
 import type { LogEvent } from '../../../infrastructure/observability/index.js';
 import type { BackfillLooksJob, ProjectSceneJob } from '../events.js';
@@ -64,6 +65,7 @@ export interface SceneStore {
   ): Promise<{ readonly geographyRevision: number; readonly personalRevision: number } | undefined>;
 }
 export interface ScenePorts {
+  readonly catalogue: Catalogue;
   readonly withScope: WithPersonalScope;
   readonly ownerActive: CheckPersonalOwnerActive;
   readonly readInput: ReadGeographySceneInput;

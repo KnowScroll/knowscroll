@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { planSnapshot } from '../../content/public.js';
 import { composeEncounter, type ComposerSnapshot } from '../public.js';
 import { COMPOSER_POLICY_V0, COMPOSER_POLICY_V1, COMPOSER_POLICY_V2 } from '../domain/policy.js';
 import { fixtureSnapshots } from './snapshot-fixtures.js';
@@ -89,12 +90,15 @@ const stored = (snapshot: ComposerSnapshot): StoredDecision => ({
   payload: JSON.parse(JSON.stringify(composeEncounter(snapshot, COMPOSER_POLICY_V0))) as unknown,
 });
 
+/** The system of each topic, from the library plan's catalogue. */
+const systemOf = (topicId: string) => planSnapshot().systemOf(topicId);
+
 describe('normaliseForReplay', () => {
   const input = storedInput('seed');
   const source = input.candidates[0]!;
 
   it('names the series and the format as today’s assembly would, and the topics of recent encounters', () => {
-    const normalised = normaliseForReplay(input, source);
+    const normalised = normaliseForReplay(input, source, systemOf);
     expect(normalised.intent.currentSeriesId).toBe(SERIES);
     expect(normalised.intent.stickyFormat).toBe('scroll');
     expect(normalised.evidence?.recent.map((r) => r.topicIds)).toEqual([['earth.seasons'], ['earth.seasons']]);
@@ -112,7 +116,7 @@ describe('normaliseForReplay', () => {
         ],
       },
     };
-    const normalised = normaliseForReplay(named, source);
+    const normalised = normaliseForReplay(named, source, systemOf);
     expect(normalised.intent).toMatchObject({ currentSeriesId: 'other.series', stickyFormat: 'reel' });
     expect(normalised.evidence?.recent[0]?.topicIds).toEqual(['a.b']);
     expect(normalised.evidence?.recent[1]?.topicIds).toBeUndefined();
@@ -120,17 +124,17 @@ describe('normaliseForReplay', () => {
 
   it('names the topics of the source’s system as today’s assembly does, for the `same_system` place', () => {
     // Seasons and Tides are both Earth topics; Stars is a Space topic. The source's own topic is the first step.
-    expect(normaliseForReplay(input, source).intent.systemTopicIds).toEqual(['earth.tides']);
+    expect(normaliseForReplay(input, source, systemOf).intent.systemTopicIds).toEqual(['earth.tides']);
   });
 
   it('keeps the system topics an input already names', () => {
     const named: ComposerSnapshot = { ...input, intent: { ...input.intent, systemTopicIds: ['space.stars'] } };
-    expect(normaliseForReplay(named, source).intent.systemTopicIds).toEqual(['space.stars']);
+    expect(normaliseForReplay(named, source, systemOf).intent.systemTopicIds).toEqual(['space.stars']);
   });
 
   it('does not change its input', () => {
     const before = JSON.stringify(input);
-    normaliseForReplay(input, source);
+    normaliseForReplay(input, source, systemOf);
     expect(JSON.stringify(input)).toBe(before);
   });
 });
@@ -139,7 +143,7 @@ describe('startPolicyReplay', () => {
   const seeds = Array.from({ length: 12 }, (_, n) => `seed-${String(n)}`);
 
   it('shows the series rule and the topic change: stored offers a part, v0 stays on the topic, v1 leaves it', () => {
-    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    const replay = startPolicyReplay(DEFAULT_VARIANTS, systemOf);
     for (const seed of seeds) replay.add(stored(storedInput(seed)));
     const report = replay.report();
     expect(report.read).toBe(12);
@@ -165,7 +169,7 @@ describe('startPolicyReplay', () => {
       DEFAULT_VARIANTS[0]!,
       withVerticalWeights(COMPOSER_POLICY_V1, { intent: 0.35, recentTopic: 0 }, 'v1 with the v0 numbers'),
     ];
-    const replay = startPolicyReplay(variants);
+    const replay = startPolicyReplay(variants, systemOf);
     for (const seed of seeds) replay.add(stored(storedInput(seed)));
     const [, v0, other] = replay.report().variants;
     expect(other?.label).toBe('v1 with the v0 numbers');
@@ -174,7 +178,7 @@ describe('startPolicyReplay', () => {
   });
 
   it('skips what it cannot replay and says how many, without guessing', () => {
-    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    const replay = startPolicyReplay(DEFAULT_VARIANTS, systemOf);
     const vertical = storedInput('seed');
     const noSource = stored({ ...vertical, candidates: vertical.candidates.slice(1) });
     const horizontal = fixtureSnapshots().find((s) => s.mode === 'horizontal')!;
@@ -192,7 +196,7 @@ describe('startPolicyReplay', () => {
   });
 
   it('replays the varied fixtures without error, and names no id, title or text', () => {
-    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    const replay = startPolicyReplay(DEFAULT_VARIANTS, systemOf);
     for (const snapshot of fixtureSnapshots()) replay.add(stored(snapshot));
     for (const seed of seeds) replay.add(stored(storedInput(seed)));
     const report = replay.report();
@@ -247,7 +251,7 @@ describe('new content: repeats, already met, tiers and places (#674)', () => {
   });
 
   it('shows v2 giving the unseen Scroll where the stored decisions and v0 and v1 gave one the person had met', () => {
-    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    const replay = startPolicyReplay(DEFAULT_VARIANTS, systemOf);
     for (const seed of seeds) replay.add(stored(asHistory(storedInput(seed))));
     const report = replay.report();
     expect(report.replayedWithHistory).toBe(12);
@@ -268,14 +272,14 @@ describe('new content: repeats, already met, tiers and places (#674)', () => {
   });
 
   it('counts the repeats of one person’s first offers, and none across people', () => {
-    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    const replay = startPolicyReplay(DEFAULT_VARIANTS, systemOf);
     for (const seed of seeds) replay.add(stored(asHistory(storedInput(seed))));
     const [, , , v2] = replay.report().variants;
     // Twelve decisions of one person, each offering Stars first: eleven repeat the first.
     expect(v2!.newContent.repeatedFirstOffer).toBe(11);
     expect(v2!.shares.repeatFirstOffer).toBe(0.917);
 
-    const other = startPolicyReplay(DEFAULT_VARIANTS);
+    const other = startPolicyReplay(DEFAULT_VARIANTS, systemOf);
     for (const [index, seed] of seeds.entries()) {
       const input = asHistory(storedInput(seed));
       other.add(
@@ -290,7 +294,7 @@ describe('new content: repeats, already met, tiers and places (#674)', () => {
   });
 
   it('puts each first offer in a tier and a place for every policy alike, each summing to the first offers', () => {
-    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    const replay = startPolicyReplay(DEFAULT_VARIANTS, systemOf);
     for (const seed of seeds) replay.add(stored(asHistory(storedInput(seed))));
     for (const variant of replay.report().variants) {
       const { tiers, places, firstOffers } = variant.newContent;
@@ -305,7 +309,7 @@ describe('new content: repeats, already met, tiers and places (#674)', () => {
 
   it('keeps the topic movement D-190 measured: on the fixtures v2 leaves the topic about as often as v1', () => {
     // No history, so nothing is met and v2 differs from v1 only in its tie-break and the way it draws exploration.
-    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    const replay = startPolicyReplay(DEFAULT_VARIANTS, systemOf);
     const noHistory = (snapshot: ComposerSnapshot): ComposerSnapshot =>
       snapshot.evidence ? { ...snapshot, evidence: { ...snapshot.evidence, recent: [] } } : snapshot;
     for (const snapshot of fixtureSnapshots()) replay.add(stored(noHistory(snapshot)));
@@ -320,13 +324,13 @@ describe('new content: repeats, already met, tiers and places (#674)', () => {
   });
 
   it('counts an input without retained history as history-less, and everything in it as unseen', () => {
-    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    const replay = startPolicyReplay(DEFAULT_VARIANTS, systemOf);
     for (const seed of seeds) replay.add(stored(storedInput(seed)));
     expect(replay.report().replayedWithHistory).toBe(0);
   });
 
   it('replays a stored v2 decision under every policy too, and names no id', () => {
-    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    const replay = startPolicyReplay(DEFAULT_VARIANTS, systemOf);
     replay.add({
       policyVersion: 'composer-policy.v2',
       payload: JSON.parse(

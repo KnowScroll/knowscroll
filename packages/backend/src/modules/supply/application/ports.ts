@@ -17,6 +17,7 @@ import type {
   FencePersonalRecording,
 } from '../../identity/public.js';
 import type {
+  Catalogue,
   ChooseScrollRecipe,
   EncounterSnapshot,
   ReadMadeToOrderProductionIn,
@@ -267,6 +268,8 @@ export type RecordPlannedDemand = (scope: PersonalScopeTx, input: PlannedDemandI
  */
 export type CountPlannedDemand = (scope: PersonalScopeTx, outcomes: readonly PlannedDemandOutcome[]) => Promise<void>;
 export interface SupplyPorts {
+  /** The topic catalogue (D-419): which topics exist, their facets and labels, and the shortlist a model is shown. */
+  readonly catalogue: Catalogue;
   readonly withScope: WithPersonalScope;
   readonly ownerActive: CheckPersonalOwnerActive;
   /**

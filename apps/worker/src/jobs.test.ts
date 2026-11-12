@@ -10,9 +10,10 @@ import {
   nightlyRitualsQueue,
   scoutHeartbeatQueue,
 } from '@knowscroll/backend/modules/rooms';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { RUN_WATCHDOG, watchdogQueue } from '@knowscroll/backend/modules/operator';
 import { jobWiring } from './jobs.js';
-import { WORKER_CONFIG } from './tokens.js';
+import { DATABASE, WORKER_CONFIG } from './tokens.js';
 
 /** A labelled CI fixture: a vertical move with nothing to offer, which still names the policy it was made under. */
 const SNAPSHOT: ComposerSnapshot = {
@@ -117,5 +118,15 @@ describe('the hourly watchdog (operator.watchdog, #674, D-411)', () => {
       (provider) => typeof provider === 'object' && 'provide' in provider && provider.provide === RUN_WATCHDOG,
     );
     expect(provided).toHaveLength(1);
+  });
+});
+
+describe('the topic catalogue (D-419)', () => {
+  it('is provided once to every module the worker composes, over the process database', () => {
+    const providers = jobWiring.filter(
+      (provider) => typeof provider === 'object' && 'provide' in provider && provider.provide === CATALOGUE,
+    );
+    expect(providers).toHaveLength(1);
+    expect(providers[0]).toMatchObject({ inject: [DATABASE] });
   });
 });

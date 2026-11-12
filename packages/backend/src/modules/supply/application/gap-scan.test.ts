@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { gapIdentity, priorityOf, type GapCandidate, type GapKind } from '../domain/gaps.js';
-import { catalogueTopics } from './gap-signals.js';
+import { planSnapshot } from '../../content/public.js';
+import { catalogueTopics as topicsOf } from './gap-signals.js';
 import { makeScanGaps } from './gap-scan.js';
 import type { GapRow, GapScanPorts, GapScanTx, SignalDay } from './gap-ports.js';
 
-/** Labelled CI fixtures over the library's own catalogue: no recipe, Scroll or reader is real. */
+/** The planets of the library plan's catalogue (release 1): the fixtures here, with no recipe, Scroll or reader that is real. */
+const catalogueTopics = () => topicsOf(planSnapshot());
 const [FIRST, SECOND] = catalogueTopics() as [
   ReturnType<typeof catalogueTopics>[number],
   ReturnType<typeof catalogueTopics>[number],
@@ -106,6 +108,7 @@ function world(options: {
     },
   };
   const ports: GapScanPorts = {
+    readCatalogue: () => Promise.resolve(catalogueTopics()),
     enabled: options.enabled ?? true,
     depthTarget: options.depthTarget ?? 6,
     maxRounds: options.maxRounds ?? 3,

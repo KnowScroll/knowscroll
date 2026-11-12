@@ -1,6 +1,7 @@
 import type { ConversationContentProjectionSchema, PublicPersonRef } from '@knowscroll/contracts';
 import type { z } from 'zod';
 import type {
+  Catalogue,
   ReadContentSequence,
   ReadLibraryReels,
   ResolveSnippetAnchor,
@@ -1158,6 +1159,8 @@ export type ReadRoomReports = (
 ) => Promise<readonly RoomReportRow[]>;
 
 export interface RoomPorts {
+  /** The topic catalogue (D-419): a room's topic meaning, its label and the planets of a system. */
+  readonly catalogue: Catalogue;
   readonly withScope: WithPersonalScope;
   readonly fenceOwn: FenceOwnAccount;
   /** Whether the person's recording is on, for the commands whose result the server stores as a play result (D-083). */

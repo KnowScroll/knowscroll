@@ -1,5 +1,6 @@
 import type { Provider } from '@nestjs/common';
 import {
+  catalogueProviders,
   contentProviders,
   contentRenderProviders,
   makeReadLibraryFinds,
@@ -15,6 +16,8 @@ import { DATABASE } from '../tokens.js';
  */
 export const contentWiring: Provider[] = [
   ...contentProviders(),
+  // The topic catalogue (D-419), read by every module that names a topic: rooms, scenes, supply, geography and the Composer.
+  ...catalogueProviders({ database: DATABASE }),
   ...contentRenderProviders({ database: DATABASE }),
   // A system's Reels and Scrolls (#697) read the shared library outside any transaction; the worker mounts the rest of it.
   {

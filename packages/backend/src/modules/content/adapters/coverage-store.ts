@@ -15,12 +15,14 @@ import type { AdmissionTx } from '../application/ports.js';
 import type {
   CoverageAdmissionPorts,
   CoverageHead,
+  CoverageRead,
   CoverageHeadPorts,
   LockCurrentCoverageAuthorities,
   ReadAdmittedCoverageMapping,
 } from '../application/coverage-ports.js';
 import { makeAdmitCoverage } from '../application/admit-coverage.js';
-import { CONCEPTS, CONCEPT_CATALOGUE_VERSION, conceptMeaning } from '../domain/concepts.js';
+import type { CatalogueSnapshot } from '../domain/catalogue/snapshot.js';
+import { planSnapshot } from '../public.js';
 import {
   CoverageAuthoritySchema,
   CoverageMappingSchema,
@@ -30,6 +32,7 @@ import {
   type CoverageRef,
   type CoverageTarget,
 } from '../domain/coverage.js';
+import { readCatalogueIn } from './catalogue-store.js';
 import { admissionTransaction, makeAdmissionStore } from './postgres-store.js';
 import { coverageTargetOfV2 } from './coverage-target-v2.js';
 import { coverageTargetOfReel } from './coverage-target-reel.js';
@@ -37,13 +40,25 @@ import { ReelCoverageProvenanceSchema } from '../domain/reel-coverage.js';
 import { notUnderReview } from './review-gate-sql.js';
 import { readingFactsOf } from './scroll-compiler.js';
 
-export const coverageCatalogue = {
-  sha256: canonicalSha256({ version: CONCEPT_CATALOGUE_VERSION, concepts: CONCEPTS }),
-  meaningSha256(topicId: string, facetId: string) {
-    const meaning = conceptMeaning(topicId, facetId);
-    return meaning ? canonicalSha256(meaning) : undefined;
-  },
-};
+/**
+ * The coverage catalogue of one release: its digest, the identity of each facet's wording, and which recorded identities still stand.
+ * Fixtures decide coverage against the seeded release's (`planCoverageCatalogue`); the use cases read the current release in their own transaction.
+ */
+export function coverageCatalogueOf(snapshot: CatalogueSnapshot): CoverageCatalogue {
+  return {
+    sha256: snapshot.digest,
+    meaningSha256: (topicId, facetId) => snapshot.meaningSha256(topicId, facetId),
+    acceptsMeaning: (topicId, facetId, sha256) => snapshot.acceptsMeaning(topicId, facetId, sha256),
+  };
+}
+
+/** The seeded release (the library plan) as a coverage catalogue: for fixtures that decide coverage against it. The same digest the migrated database stores for release 1. */
+export const planCoverageCatalogue = (): CoverageCatalogue => coverageCatalogueOf(planSnapshot());
+
+/** The current release as a coverage catalogue, read through the given transaction or handle. */
+async function currentCoverageCatalogue(db: Transaction<Database> | Kysely<Database>): Promise<CoverageCatalogue> {
+  return coverageCatalogueOf(await readCatalogueIn(db));
+}
 
 /** No live semantic map has been reviewed/admitted by this foundation. Never consume request config. */
 const SOURCE_REVIEWED_COMMANDS: readonly {
@@ -199,7 +214,7 @@ async function readHead(db: Transaction<Database>, ref: CoverageRef): Promise<Co
 export const coverageHeadPorts: CoverageHeadPorts = {
   hash: canonicalSha256,
   bytes: (value) => utf8ByteLength(canonicalJson(value)),
-  catalogue: coverageCatalogue,
+  catalogue: (tx) => currentCoverageCatalogue(admissionTransaction(tx)),
   async lockTarget(tx: AdmissionTx, ref: CoverageRef) {
     const trx = admissionTransaction(tx);
     await sql`select pg_advisory_xact_lock(hashtextextended(${`content.coverage:${ref.assetId}:${String(ref.assetRevision)}`},0))`.execute(
@@ -251,27 +266,37 @@ export function coverageAdmissionUseCase(db: Kysely<Database>) {
   );
 }
 
+type MappingCatalogue = Pick<CoverageCatalogue, 'acceptsMeaning'>;
+
+async function readMapping(
+  trx: Transaction<Database>,
+  ref: CoverageRef,
+  catalogue: MappingCatalogue,
+): Promise<CoverageRead> {
+  const target = await readTarget(trx, ref, 'served');
+  if (!target) return { kind: 'unavailable' };
+  const head = await readHead(trx, ref);
+  if (!head) return { kind: 'unmapped' };
+  if (head.status === 'retracted') return { kind: 'retracted', authority: head.authority };
+  return { kind: 'mapped', head: { ...head, mapping: currentCoverageMapping(head.mapping, target, catalogue) } };
+}
+
 /**
  * Reads one exact revision's current coverage in the caller's personal transaction. Bindings whose
  * facet meaning no longer matches the catalogue are dropped from the returned mapping (see
  * `currentCoverageMapping`); the head's authority is unchanged, so locks and certificates still bind
- * to the stored head. Takes the catalogue so tests can read against an edited plan.
+ * to the stored head. The catalogue is the release the transaction sees; a test passes its own to read against an edited one.
  */
 export function makeReadAdmittedCoverageMapping(
-  catalogue: Pick<CoverageCatalogue, 'meaningSha256'>,
+  catalogue: (trx: Transaction<Database>) => Promise<MappingCatalogue> = currentCoverageCatalogue,
 ): ReadAdmittedCoverageMapping {
   return async (scope, input) => {
     const ref = CoverageRefSchema.parse(input);
     const trx = transactionOf(scope);
-    const target = await readTarget(trx, ref, 'served');
-    if (!target) return { kind: 'unavailable' };
-    const head = await readHead(trx, ref);
-    if (!head) return { kind: 'unmapped' };
-    if (head.status === 'retracted') return { kind: 'retracted', authority: head.authority };
-    return { kind: 'mapped', head: { ...head, mapping: currentCoverageMapping(head.mapping, target, catalogue) } };
+    return readMapping(trx, ref, await catalogue(trx));
   };
 }
-export const readAdmittedCoverageMapping = makeReadAdmittedCoverageMapping(coverageCatalogue);
+export const readAdmittedCoverageMapping = makeReadAdmittedCoverageMapping();
 
 const Authorities = z.array(CoverageAuthoritySchema).min(1).max(100);
 
@@ -291,6 +316,7 @@ function makeCurrentCoverageAuthorityCheck(lock: boolean): LockCurrentCoverageAu
       a.assetId < b.assetId ? -1 : a.assetId > b.assetId ? 1 : a.assetRevision - b.assetRevision,
     );
     const trx = transactionOf(scope);
+    const catalogue = await currentCoverageCatalogue(trx);
     // Personal root -> canonical assets -> canonical mapping heads. Admission never takes personal roots.
     if (lock)
       for (const ref of expected)
@@ -300,10 +326,7 @@ function makeCurrentCoverageAuthorityCheck(lock: boolean): LockCurrentCoverageAu
         await sql`select revision from content.coverage_heads where asset_id=${ref.assetId}::uuid and asset_revision=${ref.assetRevision} for share`.execute(
           trx,
         );
-      const current = await readAdmittedCoverageMapping(scope, {
-        assetId: ref.assetId,
-        assetRevision: ref.assetRevision,
-      });
+      const current = await readMapping(trx, { assetId: ref.assetId, assetRevision: ref.assetRevision }, catalogue);
       if (
         current.kind !== 'mapped' ||
         current.head.authority.headRevision !== ref.headRevision ||

@@ -1,4 +1,5 @@
 import { ROOM_KIT_VERSION, type RoomKit } from '@knowscroll/contracts';
+import type { Catalogue } from '../../content/public.js';
 import type {
   ProductionAuthority,
   ProductionReasoningHarness,
@@ -29,6 +30,8 @@ export type ProposeKitResult =
 export type ReviewKitResult = { readonly kind: DecisionOutcome | 'invalid' };
 
 export interface FaceKitPorts {
+  /** The topic catalogue: the room's topic label and meaning, which are all the model reads. */
+  readonly catalogue: Catalogue;
   readonly store: FaceStore;
   /** The model the worker is configured for; recorded on the proposal. */
   readonly model: string;
@@ -118,7 +121,7 @@ export function makeFaceKitOperator(
       if (room === undefined) return { kind: 'unknown_room' };
       const { nextRevision, pending } = await p.store.kitState(room.roomId);
       if (pending) return { kind: 'pending_exists', revision: nextRevision - 1 };
-      const context = kitContext(room, nextRevision);
+      const context = kitContext(room, nextRevision, await p.catalogue.current());
       const role = kitRole();
       if (dryRun)
         return { kind: 'dry_run', slug, revision: nextRevision, role: role.id, roleVersion: role.version, context };

@@ -17,6 +17,7 @@ import {
   type WithProductionScope,
 } from '../../../reasoning/public.js';
 import {
+  CATALOGUE,
   CHECK_ASSET_AUDIENCE,
   READ_CONTENT_SEQUENCE,
   READ_LIBRARY_PASSAGES,
@@ -24,6 +25,7 @@ import {
   READ_SHAREABLE_CONTENT,
   RESOLVE_SNIPPET_ANCHOR,
   VALIDATE_SNIPPET_ANCHOR,
+  type Catalogue,
   type CheckAssetAudience,
   type ReadContentSequence,
   type ReadLibraryPassages,
@@ -129,6 +131,8 @@ import { gateSnippetAnchors } from './snippet-audience.js';
 
 /** What every room use case needs from the rest of the system, chosen by the composition root. */
 export interface RoomsDeps {
+  /** The topic catalogue (D-419): a room's topic meaning and label, and the planets a scout may look in. */
+  readonly catalogue: Catalogue;
   readonly withScope: WithPersonalScope;
   readonly fenceOwn: FenceOwnAccount;
   /** Only the API serves the command that reads it; the worker's jobs never ask. */
@@ -170,6 +174,7 @@ export interface RoomsDeps {
 /** The ports of the room use cases over PostgreSQL and the neighbouring modules' public reads. */
 export function roomPorts(deps: RoomsDeps): RoomPorts {
   return {
+    catalogue: deps.catalogue,
     withScope: deps.withScope,
     fenceOwn: deps.fenceOwn,
     fenceRecording: deps.fenceRecording ?? (() => Promise.resolve({ kind: 'unavailable' as const })),
@@ -387,6 +392,7 @@ export function runSummarise(
  */
 export function composeFaceOperator(deps: {
   readonly db: Kysely<Database>;
+  readonly catalogue: Catalogue;
   readonly harness: ProductionReasoningHarness;
   readonly withRoomScope: WithProductionScope;
   readonly image: ImagePort | undefined;
@@ -402,6 +408,7 @@ export function composeFaceOperator(deps: {
   return {
     kit: makeFaceKitOperator(
       {
+        catalogue: deps.catalogue,
         store,
         model: deps.model,
         generation: deps.generation,
@@ -413,6 +420,7 @@ export function composeFaceOperator(deps: {
       deps.withRoomScope,
     ),
     backdrop: makeFaceBackdropOperator({
+      catalogue: deps.catalogue,
       store,
       media: deps.mediaRoot === undefined ? undefined : localBackdropMedia(deps.mediaRoot),
       image: deps.image,
@@ -481,6 +489,7 @@ export function roomsProviders(tokens: {
         tokens.apiConfig,
         FENCE_PERSONAL_RECORDING,
         READ_LIBRARY_REELS,
+        CATALOGUE,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -500,8 +509,10 @@ export function roomsProviders(tokens: {
         config: ApiConfig,
         fenceRecording: FencePersonalRecording,
         readReels: ReadLibraryReels,
+        catalogue: Catalogue,
       ) =>
         roomUseCases({
+          catalogue,
           withScope,
           fenceOwn,
           fenceRecording,
@@ -566,6 +577,7 @@ export function roomsWorkerProviders(tokens: {
         CHECK_PERSONAL_OWNER_ACTIVE,
         tokens.enqueueJob,
         tokens.workerConfig,
+        CATALOGUE,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -582,8 +594,10 @@ export function roomsWorkerProviders(tokens: {
         ownerActive: CheckPersonalOwnerActive,
         enqueue: EnqueueJob,
         config: WorkerConfig,
+        catalogue: Catalogue,
       ) =>
         decideCast({
+          catalogue,
           withScope,
           fenceOwn,
           readPeople,
@@ -618,6 +632,7 @@ export function roomsWorkerProviders(tokens: {
         CHECK_PERSONAL_OWNER_ACTIVE,
         tokens.enqueueJob,
         tokens.workerConfig,
+        CATALOGUE,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -634,8 +649,10 @@ export function roomsWorkerProviders(tokens: {
         ownerActive: CheckPersonalOwnerActive,
         enqueue: EnqueueJob,
         config: WorkerConfig,
+        catalogue: Catalogue,
       ) =>
         settleLaunch({
+          catalogue,
           withScope,
           fenceOwn,
           readPeople,
@@ -673,6 +690,7 @@ export function roomsWorkerProviders(tokens: {
         tokens.enqueueJob,
         tokens.workerConfig,
         READ_LIBRARY_PASSAGES,
+        CATALOGUE,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -692,8 +710,10 @@ export function roomsWorkerProviders(tokens: {
         enqueue: EnqueueJob,
         config: WorkerConfig,
         readPassages: ReadLibraryPassages,
+        catalogue: Catalogue,
       ) =>
         runCastPass({
+          catalogue,
           withScope,
           fenceOwn,
           readPeople,
@@ -735,6 +755,7 @@ export function roomsWorkerProviders(tokens: {
         CHECK_PERSONAL_OWNER_ACTIVE,
         tokens.enqueueJob,
         tokens.workerConfig,
+        CATALOGUE,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -753,8 +774,10 @@ export function roomsWorkerProviders(tokens: {
         ownerActive: CheckPersonalOwnerActive,
         enqueue: EnqueueJob,
         config: WorkerConfig,
+        catalogue: Catalogue,
       ) =>
         runSummarise({
+          catalogue,
           withScope,
           fenceOwn,
           readPeople,
@@ -794,6 +817,7 @@ export function roomsWorkerProviders(tokens: {
         CHECK_PERSONAL_OWNER_ACTIVE,
         tokens.workerConfig,
         READ_LIBRARY_PASSAGES,
+        CATALOGUE,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -811,8 +835,10 @@ export function roomsWorkerProviders(tokens: {
         ownerActive: CheckPersonalOwnerActive,
         config: WorkerConfig,
         readPassages: ReadLibraryPassages,
+        catalogue: Catalogue,
       ) =>
         contributeAsInhabitant({
+          catalogue,
           withScope,
           fenceOwn,
           readPeople,

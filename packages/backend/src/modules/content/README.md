@@ -16,30 +16,56 @@ Database, fake-provider and installed-process checks are in the
 [integration suite](../../../../../tests/integration/README.md). Real provider calls require the
 [provider budget rules](../../../../../docs/v2/engineering/contributing.md#providers-and-money).
 
-## Library plan and concept catalogue
+## Library plan and the topic catalogue (#674, D-419)
 
-The library plan is code-owned data in [`domain/library/`](domain/library/README.md): the topic
-**systems**, the **planets** (topics) in each, the **facets** (kinds of angle) each planet can be
-explained from, and the explanation **recipes** the generator runs. `content-concepts.v1` is
-derived from it, so a system, planet or facet exists exactly where the plan declares it, with a
-parent and a one-line meaning. Prefixes, titles, discovery tags and personal or model labels never
-establish membership. The catalogue and each facet meaning have deterministic SHA-256 identities.
-_Implemented._
+The topic catalogue (`content-concepts.v1`) is **data in Postgres**: **systems**, **planets** (topics) and **facets** (kinds of angle), each a
+node with a stable id that is never reused, a label, a meaning and a chain of immutable revisions. The library plan in TypeScript
+([`domain/library/`](domain/library/README.md)) is its authoring source and the recipes the generator runs; what the code reads of
+topics is the `Catalogue` port (`CATALOGUE`, `current()` and `release(n)`), never a constant. Prefixes, titles, discovery tags and personal
+or model labels never establish membership. _Implemented; migration 0116 seeds release 1 exactly as the plan was._
 
-A coverage mapping records the catalogue digest it was decided against, but reads do not compare it:
-the plan grows, and every edit changes the digest. Each binding pins its own facet meaning instead.
-When a read finds a binding whose facet has vanished or changed meaning, it leaves that binding out of
-the returned mapping (the facet is unmapped), and never throws. Target identity and locators must
-still fit the immutable document, and a mismatch there is corrupt data and throws. Geography ignores
-supports whose meaning changed in the same way. _Implemented._
+- **Releases.** A release is one numbered, append-only step. The catalogue of release N is every node and revision introduced up to N, so
+  what a Geography run pinned reads the same for ever. A release's digest is the SHA-256 of the meanings in the first catalogue's
+  shape (so release 1's is the digest every earlier mapping recorded as `catalogueSha256`); it also covers topics not yet servable and
+  nodes that retired, and only when there are any. The pointer (`content.concept_current`) only moves forward.
+- **Snapshots.** `CatalogueSnapshot` is one release, immutable and synchronous: `concept(id)`, `systems()`, `topics()`, `allTopics()`, `children(system)`,
+  `slice(ids)`, `systemOf`, `meaning`, `meaningSha256`, `acceptsMeaning`, `label`, `sceneFamilyOf`, `hazeOf`, with formation thresholds on each node
+  (defaults 2, 3 and 2). A use case reads one snapshot and everything from it, so a rule that looks twice never sees two releases. A lookup by id finds
+  a node of any status; the listings leave out retired nodes and topics that are not servable. `adapters/catalogue-store.ts` reads a release once per process
+  (keyed by release and digest) and `makeCatalogue(db)` re-checks the pointer every few seconds without blocking a reader (a stale release is a valid
+  catalogue), so a release made by one process is read by the others without a restart. Content's own adapters read the release through the transaction they are already in.
+- **Admission is by code** (`domain/catalogue/release.ts`): an id has the plan's shape and sits under its parent, a parent exists and is of the right kind and
+  live, a normalised id and a normalised label are unique among their siblings, a meaning is 16 to 300 characters without an address or markup, a topic has two to sixteen facets
+  in its own release, a node keeps its place, kind, silhouette and haze for ever, and a rewording is declared the same meaning only of the wording it replaces.
+  Any refusal refuses the whole release. A facet is never retired alone, only with its topic.
+- **A new topic waits for supply.** It is added not servable (not offered, matched, listed or made a room) until the library has released, coverage-mapped supply
+  for it: at least three distinct explanations over two of its own facets by default (its own thresholds), counted from `content.region_bindings` of admitted
+  Scrolls only (`readReleasedCoverage`). `showServableTopics` makes such topics servable in a release of its own; the gap loop's scan runs it each pass, and
+  `content catalogue sync` runs it too. Production and the gap loop work on topics that are not yet servable (`allTopics()`).
+- **A wording-only revision keeps certificates valid.** A revision lists the identities of the earlier wordings it only rephrases (`compatible_with`), so
+  `acceptsMeaning` still accepts a certificate decided against them; a semantic change lists none and the binding is dropped from reads, never thrown on. New decisions
+  pin the current wording (`meaningSha256`). A release that changes nothing a binding pins changes only the digest, which a read never compares, and re-admission
+  treats it as no change (no new coverage head).
+- **Import.** `dist/operator.js content catalogue sync [--dry-run]` compares the plan with the current release (ids, labels, meanings, looks), adds what is new, revises what
+  changed (a changed silhouette or haze is refused), reports what the plan no longer names (it retires nothing), splits a large plan into releases of at most 20,000
+  nodes (never between a topic and its facets), and then makes servable the topics with supply. Running it twice makes one release.
+  `content catalogue status` prints the release and counts. Output is counts and codes only.
+- **Prompts that listed the catalogue** (free-text match, the scope of a question asked from a Scroll) are shown a bounded, code-built shortlist
+  (`shortlistTopics`: all servable topics while there are at most 24, otherwise the 24 whose label, meaning or facets share the most key words with the text) and the
+  model's answer must be one of them. Where nothing shares a key word the free-text match makes no call and says no topic fits.
 
-After a plan edit, the operator runs `dist/operator.js content readmit-coverage [--dry-run]`. It
-decides coverage again for every published generated Scroll revision through `admitRecipeCoverage`
-(and every Reel made from an approved script through `admitReelCoverage`),
-one short transaction each: an unchanged decision appends nothing, a changed one appends a corrected
-head, and history is kept. It prints counts (`considered`, `appended`, `unchanged`, `skipped`). It
-uses shared content only (no provider, personal root or network) and is refused outside the operator
-worlds. _Implemented; not yet run against dev._
+A coverage mapping records the catalogue digest (of the release) it was decided against, but reads do not compare it: the catalogue grows, and every
+release changes it. Each binding pins its own facet meaning instead. When a read finds a binding whose facet has vanished or changed meaning (and no
+revision declared the old wording the same), it leaves that binding out of the returned mapping (the facet is unmapped), and never throws. Target identity
+and locators must still fit the immutable document, and a mismatch there is corrupt data and throws. Geography ignores supports whose meaning changed in
+the same way. _Implemented._
+
+After a semantic change, the operator runs `dist/operator.js content readmit-coverage [--dry-run]`. It decides coverage again for every published
+generated Scroll revision through `admitRecipeCoverage` (and every Reel made from an approved script through `admitReelCoverage`), one short transaction each: an unchanged decision appends nothing, a changed one appends a corrected
+head, and history is kept. It prints counts (`considered`, `appended`, `unchanged`, `skipped`). It uses shared content only (no provider, personal root or
+network) and is refused outside the operator worlds. _Implemented; not yet run against dev._
+
+_Implemented; real-PostgreSQL tests: `tests/integration/modules/catalogue-release.test.ts`._
 
 ## Scroll coverage
 
@@ -190,6 +216,10 @@ leaves it), and nothing here records who read what.
 | `content.asset_provenance`                              | `0010_content_asset_revisions`                   | The internal provenance of a revision (claims, sources, bindings, checks, production record). Written by admission, **read by no API route**: the consumer document and its provenance are separate tables, so no read of the document can return them                            | None: shared content       |
 | `content.scroll_production_runs`                        | `0015_scroll_production`, key shape `0045`       | Private nonpersonal recipe-key/version jobs, frozen research/passages, accepted claims, code-only outcomes, draft and publication pointer; no consumer read port                                                                                                                  | None: shared public supply |
 | `content.recipes`                                       | `0111_content_recipes`                           | Recipes stored in the database (D-412): key (`gen-…` for a proposal), origin (`code` / `proposal`), status (`checked` / `queued` / `produced` / `retired`), title, planet, facet, optional supporting facet, asset id and explanation unit derived by code, brief, one to three pages, the plain v2 plan SQL pins, the proposing run and the check numbers. Authoritative, shared and nonpersonal | None: shared content       |
+| `content.concept_releases`                              | `0116_topic_catalogue`                           | One row per catalogue release (D-419): its number, the SHA-256 digest of the catalogue it made, its source (`seed`, `plan`, `visibility`, `operator`) and counts. Append-only (a trigger refuses an update or a delete). Authoritative, shared and nonpersonal | None: shared content       |
+| `content.concept_nodes`                                 | `0116_topic_catalogue`                           | The systems, topics and facets by stable id (never reused), parent, creation order (`seq`, a facet's site), `introduced_in`, `visible_in` (when a topic became servable), `retired_in`, status and `merged_into`. Only the last three and `visible_in` may change, once (a trigger); never deleted. Shared and nonpersonal | None: shared content       |
+| `content.concept_node_revisions`                        | `0116_topic_catalogue`                           | Immutable revisions of a node: label, meaning, the identity of the wording, `compatible_with` (earlier wordings it only rephrases), formation thresholds, silhouette and haze. Shared and nonpersonal | None: shared content       |
+| `content.concept_current`                               | `0116_topic_catalogue`                           | The one row that names the current release; it only moves forward | None: shared content       |
 | `content.recipe_proposals`                              | `0111_content_recipes`                           | One proposing run of the recipe brief role (D-412): its run id, planet, facet, UTC day and retry number, the frozen context it was sent (public pages and library text only), and `open` / `completed` / `failed`. Authoritative, shared and nonpersonal | None: shared content       |
 | `content.revision_reviews`                              | `0072_content_review_gate`                       | The review gate (D-138): one row for each v2 library revision that was stored held, its state `held` / `released` / `rejected`, and for a decision who (`cli:<operator>`), when and (rejection) why                                                                            | None: shared content       |
 | `content.library_support_checks`                        | `0113_library_support_checks`                    | What a version of the library support check (D-415) said about a stored library revision: the state, the verdict code decided from the sentences, the counts and every sentence's outcome. Informs the operator at the review gate and is the measure of the check; releases and rejects nothing | None: shared content       |
@@ -217,6 +247,7 @@ The storage adapter validates derived reading facts against the canonical Scroll
 | `RenderScroll` (token `RENDER_SCROLL`)                       | experience                                                                 | Reads the stored consumer document (never provenance), parses it on the client path, and **negotiates** it for the capabilities the client declared (D-012): unsupported blocks become readable fallbacks, essential ones are reported. Parsed documents are cached (immutable, 32 entries)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `FindAssetForAction` (token `FIND_ASSET_FOR_ACTION`)         | experience actions                                                         | Does the asset exist, is it admitted, at which revision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `admitRecipeCoverage(ports, tx, recipe, ref)`                | The production publication hook only                                       | Inside the production transaction: lock the revision's coverage, read the stored document and provenance, derive the bindings from the recipe (`scroll-recipe-coverage.v1`) and append the next head, or return `not_admitted` with a code. Idempotent for an identical decision. No model call, no network, no personal root                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `Catalogue` (token `CATALOGUE`; `makeCatalogue(db)`) | geography, scenes, supply, rooms, composer, experience | `current()` and `release(n)`: one `CatalogueSnapshot` (the topic catalogue, D-419). Reads shared tables on the pool; never blocks on a refresh |
 | `RecipeBook` (`recipeBookOf(db)`)                            | production, supply's chooser, the review gate, `readmit-coverage`, the support-check replay (recipe family per asset) | `get(key)`, `servingBrief(brief)` and `all()` over the library plan and `content.recipes` (D-412). Read-only on the shared table; takes a database handle or the caller's transaction; no lock |
 | `makeProposeRecipes(deps)(request, signal)`                  | Operator command `content propose-recipes --topic <planet> [--facet <facet>] [--dry-run]` | One `content.recipe-brief` request and at most one repair on the production harness; code checks every draft and stores the accepted ones as `checked` recipes with the run closed, in one production transaction. Run id from planet, facet, UTC day and role version: a redelivery pays nothing. Refuses unknown planets and facets and planets with no page held before any request |
 | `ChooseScrollRecipe` (token `CHOOSE_SCROLL_RECIPE`)          | supply (Create and the Planner's demand) | Which recipe (plan or stored) a catalogue brief commissions, from the recipe book and each recipe's standing, given which kinds the day's caps leave open and the unit a Planner opportunity aimed at. No lock, no write |

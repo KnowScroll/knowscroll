@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { CONCEPTS } from '../../content/public.js';
+import { planSnapshot } from '../../content/public.js';
 import { requiredChanges } from '../domain/formation.js';
 import { derivedPlaceId, derivedRouteId } from '../domain/ids.js';
 import { semanticKey, type Place } from '../domain/policy.js';
 import { evaluationOf, nothingTrusted, prepareGeography, topicsOfPlaces } from './context.js';
 import type { GeographyContext } from './ports.js';
 import { NOW, World, coverageOf, planetReadings, unreadable, uuid } from '../adapters/world.fixture.js';
+
+/** The catalogue of the library plan (release 1): the fixture these readings are authored over. */
+const CONCEPTS = planSnapshot().all();
 
 /** Authored readings over the real concept catalogue; none of this is a person's reading. */
 const earth = ['earth.seasons', 'earth.tides', 'earth.greenhouse-effect'] as const;

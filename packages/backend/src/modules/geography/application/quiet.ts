@@ -2,7 +2,7 @@ import { MAX_PROPOSAL_OPERATIONS } from '../domain/policy.js';
 import { QUIET_SWEEP, activityChanges } from '../domain/quiet.js';
 import { SettleQuietJobSchema, type SettleQuietJob } from '../events.js';
 import { applyProposal, commitEvaluation } from './apply.js';
-import { evaluationOf, prepareGeography, topicsOfPlaces } from './context.js';
+import { evaluationOf, pinnedCatalogue, prepareGeography, topicsOfPlaces } from './context.js';
 import type { GeographyPorts } from './ports.js';
 
 /**
@@ -136,8 +136,9 @@ async function settleUnderScope(
     return { outcome: 'run_active', changed: 0 };
   }
   const places = await p.store.placesById(scope, job.objectIds);
-  const topics = await topicsOfPlaces(p, scope, places);
-  const prepared = await prepareGeography(p, gate.scope, { kind: 'topics', topics });
+  const catalogue = await pinnedCatalogue(p);
+  const topics = await topicsOfPlaces(p, scope, places, catalogue);
+  const prepared = await prepareGeography(p, gate.scope, { kind: 'topics', topics }, { catalogue });
   if (prepared.kind !== 'prepared') {
     await p.store.backOffQuiet(scope, job.objectIds, p.now());
     return { outcome: 'support_unreadable', changed: 0 };

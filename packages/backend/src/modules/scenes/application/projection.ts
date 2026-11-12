@@ -8,7 +8,7 @@ import {
   type SceneManifest,
   type SceneChunk,
 } from '@knowscroll/contracts';
-import { CONCEPTS, sceneFamilyOf } from '../../content/public.js';
+import type { CatalogueSnapshot } from '../../content/public.js';
 import type { GeographySceneInput } from '../../geography/public.js';
 import type { StoredObject, StoredChunk, RouteChunk } from './ports.js';
 export const SCENE_POLICY = 'canonical-lattice.v1';
@@ -31,10 +31,11 @@ function family(
   o: GeographySceneInput['objects'][number],
   parent: StoredObject | undefined,
   parentMeaningId: string | undefined,
+  catalogue: CatalogueSnapshot,
 ): SceneDescriptor['family'] {
-  const concept = CONCEPTS.find((candidate) => candidate.id === o.meaningId);
+  const concept = catalogue.concept(o.meaningId);
   if (o.kind === 'region') {
-    const planet = CONCEPTS.find((candidate) => candidate.id === parentMeaningId);
+    const planet = parentMeaningId === undefined ? undefined : catalogue.concept(parentMeaningId);
     if (
       !parent ||
       planet === undefined ||
@@ -47,7 +48,7 @@ function family(
   const isSystem = o.kind === 'system' || o.kind === 'star';
   if (!concept || (isSystem ? concept.parent !== null : concept.parent !== parentMeaningId))
     return refuse('temporarily_unavailable');
-  return sceneFamilyOf(o.meaningId) ?? refuse('temporarily_unavailable');
+  return catalogue.sceneFamilyOf(o.meaningId) ?? refuse('temporarily_unavailable');
 }
 /** UUID derived from opaque seed + stable chunk identity; contains no account or meaning text. */
 function chunkId(hash: (v: unknown) => string, worldSeed: string, systemId: string, bucket: string): string {
@@ -62,7 +63,8 @@ export function projectBounded(
   worldSeed: string,
   sceneRevision: number,
   hash: (v: unknown) => string,
-  priorRoutes?: readonly RouteChunk[],
+  priorRoutes: readonly RouteChunk[] | undefined,
+  catalogue: CatalogueSnapshot,
 ): {
   readonly manifest: SceneManifest;
   readonly objects: readonly StoredObject[];
@@ -91,7 +93,7 @@ export function projectBounded(
           parent.descriptor.truthStatus !== o.truthStatus
     )
       return refuse('temporarily_unavailable');
-    const chosenFamily = family(o, parent, ids.get(o.parent.id)?.meaningId),
+    const chosenFamily = family(o, parent, ids.get(o.parent.id)?.meaningId, catalogue),
       existing = objects.get(o.id);
     if (existing) {
       const d = existing.descriptor;

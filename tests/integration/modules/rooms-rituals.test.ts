@@ -14,7 +14,7 @@ import {
   makeReadLibraryPassageText,
   makeReadLibraryPassages,
 } from '@knowscroll/backend/modules/content/nest-providers';
-import { CONCEPTS, type ReadLibraryPassages } from '@knowscroll/backend/modules/content';
+import { planSnapshot, type ReadLibraryPassages } from '@knowscroll/backend/modules/content';
 import { composeRitualOperator } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureModel } from '../support/fixture-model.js';
@@ -31,6 +31,9 @@ import {
 } from '../support/rooms.js';
 import { starterSource } from '../support/scroll.js';
 import type { Friend } from '../support/talk.js';
+
+/** The catalogue of the library plan (release 1), which the migrated database seeds: the topics these journeys use. */
+const CONCEPTS = planSnapshot().all();
 
 const START = new Date('2026-11-01T09:00:00Z');
 const DAY = '2026-11-01';

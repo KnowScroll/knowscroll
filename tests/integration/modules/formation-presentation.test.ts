@@ -1,5 +1,7 @@
 /** Authored CI Geography commits, real PostgreSQL and normal adapters. Not live formation,
  * provider output, HUMAN approval or proof that an actual client displayed anything. */
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
+import { catalogueOf } from '../support/catalogue.js';
 import { randomUUID } from 'node:crypto';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { UniverseDeltaSchema, type SceneClientCapabilities } from '@knowscroll/contracts';
@@ -150,6 +152,7 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
       ...sceneProviders({ withPersonalScope: SCOPE, logEvent: LOG }),
     ];
     const values = new Map<symbol, unknown>([
+      [CATALOGUE, catalogueOf(database.db)],
       [SCOPE, scope()],
       [LOG, () => undefined],
       [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],

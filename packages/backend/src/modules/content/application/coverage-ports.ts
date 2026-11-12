@@ -31,7 +31,8 @@ export type AdmitCoverage = (input: CoverageCommand) => Promise<CoverageHead>;
 export interface CoverageHeadPorts {
   readonly hash: (value: unknown) => string;
   readonly bytes: (value: unknown) => number;
-  readonly catalogue: CoverageCatalogue;
+  /** The catalogue release a decision is made against, read in the admission transaction: one release for the whole decision. */
+  readonly catalogue: (tx: AdmissionTx) => Promise<CoverageCatalogue>;
   /** Locks the asset revision's coverage, then reads the stored target it would describe. */
   readonly lockTarget: (tx: AdmissionTx, ref: CoverageRef) => Promise<CoverageTarget | undefined>;
   readonly readHead: (tx: AdmissionTx, ref: CoverageRef) => Promise<CoverageHead | undefined>;

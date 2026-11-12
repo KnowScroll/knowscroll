@@ -3,6 +3,8 @@
  * of the marked asset, a lapse by itself, no evidence, and the three erasures. CI fixture Scrolls and
  * accounts; no provider.
  */
+import { catalogueOf } from '../support/catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -357,6 +359,7 @@ describe('Not interested (real PostgreSQL)', () => {
       const workerConfig = Symbol('test.workerConfig');
       const { harness } = fixtureRecordingHarness(database.db, { model: undefined });
       const values = new Map<symbol, unknown>([
+        [CATALOGUE, catalogueOf(database.db)],
         [withScope, makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })],
         [workerConfig, { jevEnabled: false, reasoning: { minimax: { model: 'fixture-model-v1' } } }],
         [RECORDING_REASONING_HARNESS, harness],

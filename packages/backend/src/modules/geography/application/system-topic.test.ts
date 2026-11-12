@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { planSnapshot, staticCatalogue } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { makeReadOwnSystemTopic } from './system-topic.js';
 
@@ -16,6 +17,7 @@ const system = {
 
 const read = (stored: unknown, active = true) =>
   makeReadOwnSystemTopic({
+    catalogue: staticCatalogue(planSnapshot()),
     ownerActive: () => Promise.resolve(active),
     state: () => Promise.resolve({ revision: 5 } as never),
     object: (_scope, selector) => Promise.resolve('id' in selector && selector.id === id(1) ? stored : undefined),

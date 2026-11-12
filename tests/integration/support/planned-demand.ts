@@ -1,3 +1,5 @@
+import { catalogueOf } from './catalogue.js';
+import { CATALOGUE } from '@knowscroll/backend/modules/content';
 import type { PgBoss } from 'pg-boss';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import {
@@ -53,6 +55,7 @@ export function realSupply(
     CONFIG = Symbol('test.supply.config');
   const providers = supplyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE, config: CONFIG });
   const values = new Map<symbol, unknown>([
+    [CATALOGUE, catalogueOf(database.db)],
     [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
     [ENQUEUE, makeEnqueueJob(boss)],
     [

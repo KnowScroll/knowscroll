@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { LIMITS_V2 } from '@knowscroll/scroll-model';
-import { conceptMeaning } from './concepts.js';
+import { canonicalSha256 } from '@knowscroll/scroll-model';
+import { seedSnapshot } from './catalogue/seed.js';
+import { LIBRARY_SYSTEMS } from './library/index.js';
 import { validateCoverageMapping, type CoverageTarget } from './coverage.js';
 import { MIN_BODY_BLOCKS, planRecipeCoverage } from './recipe-coverage.js';
 
 const hash = 'a'.repeat(64);
 const meaningHash = 'b'.repeat(64);
+const plan = seedSnapshot(LIBRARY_SYSTEMS, canonicalSha256);
 const catalogue = {
   sha256: hash,
-  meaningSha256: (topicId: string, facetId: string) => (conceptMeaning(topicId, facetId) ? meaningHash : undefined),
+  meaningSha256: (topicId: string, facetId: string) => (plan.meaning(topicId, facetId) ? meaningHash : undefined),
+  acceptsMeaning: (topicId: string, facetId: string, sha256: string) =>
+    plan.meaning(topicId, facetId) !== undefined && sha256 === meaningHash,
 };
 const recipe = { topicId: 'earth.seasons', facetId: 'earth.seasons.axial-tilt' } as const;
 

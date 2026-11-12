@@ -46,6 +46,7 @@ export function makeStationReads(p: RoomPorts) {
         const now = p.now();
         const launching = await p.launches.liveRooms(scope, memberRooms, now);
         const watching = await p.watches.liveRooms(scope, memberRooms, now);
+        const catalogue = await p.catalogue.current();
         const stations = rows.flatMap((row) => {
           const place = placements.find(
             (candidate) => candidate.topic.kind === row.room.topic.kind && candidate.topic.id === row.room.topic.id,
@@ -53,7 +54,7 @@ export function makeStationReads(p: RoomPorts) {
           if (place === undefined) return [];
           return [
             {
-              room: roomSummary(row.room),
+              room: roomSummary(row.room, catalogue),
               standing: row.standing,
               placement: {
                 systemId: place.systemId,
