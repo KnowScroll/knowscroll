@@ -202,6 +202,7 @@ describe('Create and the growth cap', () => {
     const asked: unknown[] = [];
     const counted: string[] = [];
     const ports = {
+      accountDisposable: () => Promise.resolve(false),
       createDailyCaps: { person: options.cap ?? 5, planner: options.cap ?? 5 },
       growthDailyCap: options.growthCap ?? 10,
       now: () => new Date('2026-11-11T10:00:00Z'),

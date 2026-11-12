@@ -39,6 +39,8 @@ function world(
   let open = options.open;
   let ids = 0;
   const ports = {
+    // A real account: the rules of planned demand are tested apart from the disposable-account check (commission.test.ts).
+    accountDisposable: () => Promise.resolve(false),
     now: () => NOW,
     newId: () => `id-${String((ids += 1))}`,
     readCandidates: () => Promise.resolve([]),
