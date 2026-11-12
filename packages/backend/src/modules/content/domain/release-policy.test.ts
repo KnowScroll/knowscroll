@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { CONCEPTS } from './concepts.js';
+import { canonicalSha256 } from '@knowscroll/scroll-model';
+import { seedSnapshot } from './catalogue/seed.js';
+import { LIBRARY_SYSTEMS } from './library/index.js';
 import {
   AUTO_RELEASE_HOLDS,
   PERMANENT_HOLDS,
@@ -15,7 +17,16 @@ import {
   releasesLeftToday,
   type AutoReleaseFacts,
 } from './release-policy.js';
-import { SENSITIVE_CATEGORIES, SENSITIVE_KEYWORDS, SENSITIVE_SYSTEMS } from './release-sensitive-data.js';
+import {
+  ORDINARY_SYSTEMS,
+  SENSITIVE_CATEGORIES,
+  SENSITIVE_KEYWORDS,
+  SENSITIVE_SYSTEMS,
+} from './release-sensitive-data.js';
+
+/** The catalogue of the library plan (release 1): the fixture these rules are exercised on. */
+const catalogue = seedSnapshot(LIBRARY_SYSTEMS, canonicalSha256);
+const CONCEPTS = catalogue.all();
 
 const ORDINARY_TEXT = 'Orrin leans in its orbit, so a beam from its star strikes the north at a low angle in winter.';
 
@@ -48,7 +59,7 @@ describe('a risk class only goes up', () => {
   });
 
   it('cannot be lowered by anything an assessment is given: a raise makes an ordinary Scroll sensitive and nothing makes a sensitive one ordinary', () => {
-    const plain = { topicId: 'space.stars', text: ORDINARY_TEXT };
+    const plain = { catalogue, topicId: 'space.stars', text: ORDINARY_TEXT };
     expect(assessRisk({ ...plain, raised: [] })).toEqual({ riskClass: 'ordinary', categories: [], reasons: [] });
     expect(assessRisk({ ...plain, raised: ['safety'] })).toEqual({
       riskClass: 'sensitive',
@@ -56,7 +67,7 @@ describe('a risk class only goes up', () => {
       reasons: ['proposal'],
     });
     // The catalogue's verdict on a topic stands however much is proposed for ordinary.
-    const body = assessRisk({ topicId: 'human-body.immune-system', text: ORDINARY_TEXT, raised: [] });
+    const body = assessRisk({ catalogue, topicId: 'human-body.immune-system', text: ORDINARY_TEXT, raised: [] });
     expect(body.riskClass).toBe('sensitive');
     expect(body.categories).toEqual(['medicine', 'health']);
     expect(body.reasons).toEqual(['catalogue']);
@@ -65,24 +76,24 @@ describe('a risk class only goes up', () => {
 
 describe('the catalogue topic', () => {
   it('knows a topic, and neither a system nor a facet nor anything else', () => {
-    expect(isCatalogueTopic('space.stars')).toBe(true);
-    expect(isCatalogueTopic('space')).toBe(false);
-    expect(isCatalogueTopic('space.stars.fusion')).toBe(false);
-    expect(isCatalogueTopic('space.star')).toBe(false);
-    expect(isCatalogueTopic('')).toBe(false);
+    expect(isCatalogueTopic(catalogue, 'space.stars')).toBe(true);
+    expect(isCatalogueTopic(catalogue, 'space')).toBe(false);
+    expect(isCatalogueTopic(catalogue, 'space.stars.fusion')).toBe(false);
+    expect(isCatalogueTopic(catalogue, 'space.star')).toBe(false);
+    expect(isCatalogueTopic(catalogue, '')).toBe(false);
   });
 
   it('puts every topic of Human body and of History in a sensitive category and no topic of the other systems', () => {
     for (const concept of CONCEPTS.filter((entry) => entry.parent !== null)) {
       const denied = concept.parent === 'human-body' || concept.parent === 'history';
-      expect(categoriesOfTopic(concept.id).length > 0, concept.id).toBe(denied);
+      expect(categoriesOfTopic(catalogue, concept.id).length > 0, concept.id).toBe(denied);
     }
-    expect(categoriesOfTopic('human-body.heart-and-blood')).toEqual(['medicine', 'health']);
-    expect(categoriesOfTopic('history.industrial-revolution')).toEqual(['political_history', 'religious_history']);
+    expect(categoriesOfTopic(catalogue, 'human-body.heart-and-blood')).toEqual(['medicine', 'health']);
+    expect(categoriesOfTopic(catalogue, 'history.industrial-revolution')).toEqual(['political_history', 'religious_history']);
   });
 
   it('makes a decision for every system of the catalogue: a system added to the plan fails here until the owner says whether it is sensitive', () => {
-    const decidedOrdinary = ['earth', 'space', 'machine-learning', 'computing'];
+    const decidedOrdinary = ORDINARY_SYSTEMS;
     const systems = CONCEPTS.filter((concept) => concept.parent === null).map((concept) => concept.id);
     for (const system of systems)
       expect(system in SENSITIVE_SYSTEMS || decidedOrdinary.includes(system), system).toBe(true);
@@ -91,8 +102,8 @@ describe('the catalogue topic', () => {
   });
 
   it('is unknown for an id the catalogue does not hold, which the assessment treats as sensitive', () => {
-    expect(categoriesOfTopic('astrology.signs')).toEqual([]);
-    expect(assessRisk({ topicId: 'astrology.signs', text: ORDINARY_TEXT, raised: [] })).toEqual({
+    expect(categoriesOfTopic(catalogue, 'astrology.signs')).toEqual([]);
+    expect(assessRisk({ catalogue, topicId: 'astrology.signs', text: ORDINARY_TEXT, raised: [] })).toEqual({
       riskClass: 'sensitive',
       categories: [],
       reasons: ['unknown_topic'],

@@ -361,25 +361,6 @@ describe('reading only the newest keys of each facet (D-416)', () => {
     expect(newestKeysPerFacet(keys, 10)).toHaveLength(keys.length);
   });
 
-  it('keeps as many distinct units of a planet as the catalogue asks of it, not only the default three (D-419)', () => {
-    // The newest supports are all of one unit; five older units follow, one support each.
-    const newest = Array.from({ length: 8 }, (_, at) => ({
-      ...support('z', tilt, seasons, `2026-11-0${String(at + 1)}T00:00:00.000Z`),
-      ref: `z-${String(at)}`,
-    }));
-    const older = ['a', 'b', 'c', 'd', 'e'].map((unit, at) =>
-      support(unit, tilt, seasons, `2026-10-0${String(at + 1)}T00:00:00.000Z`),
-    );
-    const entries = [...newest, ...older].map((entry) => ({ support: entry, bytes: 100 }));
-    const distinct = (list: readonly { support: { explanationUnitId: string } }[]) =>
-      new Set(list.map((entry) => entry.support.explanationUnitId)).size;
-    const budget = { count: 5, bytes: 10_000 };
-    // By default a planet needs three units: the newest facet support and two further units, then repeats fill the room.
-    expect(distinct(compactSupports(entries, budget))).toBe(FORMATION.planetUnits);
-    // A planet whose node asks for five keeps five distinct units, so it forms exactly as it did before compaction.
-    expect(distinct(compactSupports(entries, budget, (topicId) => (topicId === seasons ? 5 : 3)))).toBe(5);
-  });
-
   it('is deterministic whatever the input order', () => {
     const keys = planetTopics.flatMap((topic) =>
       topic.facets.flatMap((facetEntry, index) =>

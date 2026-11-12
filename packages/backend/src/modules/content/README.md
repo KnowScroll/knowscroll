@@ -444,7 +444,7 @@ the gate's states: a policy release is the gate's own `release`, with `decided_b
   coverage mapping, an answer check that did not pass, and a missing (`no_support_check`), stale-version (`stale_support_check`), unchecked or flagged
   support check. `assessRisk` makes the class: the catalogue's systems, the words and every recorded raise each propose a class and the highest wins
   (`raiseRisk`), so nothing lowers it. `domain/release-sensitive-data.ts` is the one data file of the owner's sensitive categories (systems, whole-word
-  keywords, recent years, and the keys of a document that are not its words), versioned as `release-sensitivity.v1`. The words are `proseOf(document)`: every
+  keywords, recent years, and the keys of a document that are not its words), versioned as `release-sensitivity.v2`. The words are `proseOf(document)`: every
   string of the document's own fields except identity, versions, measures and the integrity hash, so no text is dropped by how it begins.
 - **The decision is made in the release transaction.** `adapters/release-policy.ts` (`makeReleasePolicy`: `sweep`, `releaseOne`, `approveTopic`, `revokeTopic`,
   `withdraw`, `proposeRaise`, `status`) passes the review gate a `ReleaseGuard`. Under the asset's lock the guard takes the policy lock, locks the

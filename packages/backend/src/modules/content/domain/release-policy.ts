@@ -1,6 +1,7 @@
-import { CONCEPTS, systemOfTopic } from './concepts.js';
+import type { CatalogueSnapshot } from './catalogue/snapshot.js';
 import {
   NON_PROSE_KEYS,
+  ORDINARY_SYSTEMS,
   RECENT_YEAR_FROM,
   RECENT_YEAR_TO,
   SENSITIVE_CATEGORIES,
@@ -59,20 +60,25 @@ export interface RiskAssessment {
   readonly reasons: readonly RiskReason[];
 }
 
-/** The topics of the catalogue: a system and a facet are not topics, and only a topic may be approved. */
-const CATALOGUE_TOPICS: ReadonlySet<string> = new Set(
-  CONCEPTS.filter((concept) => concept.parent !== null).map((concept) => concept.id),
-);
-
-/** Whether the id is a topic (a planet) of the concept catalogue. Exact membership, like every catalogue lookup. */
-export function isCatalogueTopic(topicId: string): boolean {
-  return CATALOGUE_TOPICS.has(topicId);
+/**
+ * Whether the id is a topic (a planet) of the release: a system and a facet are not topics, and only a topic may be approved. Exact membership, like
+ * every catalogue lookup. A topic a release retired is not one: nothing new is released for it.
+ */
+export function isCatalogueTopic(catalogue: CatalogueSnapshot, topicId: string): boolean {
+  const concept = catalogue.concept(topicId);
+  return concept?.kind === 'topic' && !concept.retired;
 }
 
 /** The sensitive categories the catalogue puts a topic in, through its system; empty for an ordinary topic and for an id the catalogue does not hold. */
-export function categoriesOfTopic(topicId: string): readonly SensitiveCategory[] {
-  const system = systemOfTopic(topicId);
+export function categoriesOfTopic(catalogue: CatalogueSnapshot, topicId: string): readonly SensitiveCategory[] {
+  const system = catalogue.systemOf(topicId);
   return system === undefined ? [] : (SENSITIVE_SYSTEMS[system] ?? []);
+}
+
+/** Whether the owner has decided the topic's system, as sensitive or as ordinary. A system a release added is undecided until the owner decides it. */
+export function isSystemDecided(catalogue: CatalogueSnapshot, topicId: string): boolean {
+  const system = catalogue.systemOf(topicId);
+  return system !== undefined && (system in SENSITIVE_SYSTEMS || ORDINARY_SYSTEMS.includes(system));
 }
 
 const escapeRegex = (text: string): string => text.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&');
@@ -135,14 +141,19 @@ export function categoriesOfText(text: string): readonly SensitiveCategory[] {
  * file, and nobody recorded a raise. `raised` is what a proposal recorded for this revision (`content.release_risk_raises`); it can only add.
  */
 export function assessRisk(input: {
+  /** The release of the catalogue the topic is looked up in. */
+  readonly catalogue: CatalogueSnapshot;
   /** The primary topic the Scroll is attributed to, or `null` when it has none. */
   readonly topicId: string | null;
   readonly text: string;
   readonly raised: readonly SensitiveCategory[];
 }): RiskAssessment {
-  const byTopic = input.topicId === null ? [] : categoriesOfTopic(input.topicId);
+  const byTopic = input.topicId === null ? [] : categoriesOfTopic(input.catalogue, input.topicId);
   const byText = categoriesOfText(input.text);
-  const unknownTopic = input.topicId !== null && !isCatalogueTopic(input.topicId);
+  // A topic the catalogue does not hold, or one of a system the owner has not decided yet, says nothing about what it is: it waits for a person.
+  const unknownTopic =
+    input.topicId !== null &&
+    (!isCatalogueTopic(input.catalogue, input.topicId) || !isSystemDecided(input.catalogue, input.topicId));
   const categories = SENSITIVE_CATEGORIES.filter(
     (category) => byTopic.includes(category) || byText.includes(category) || input.raised.includes(category),
   );

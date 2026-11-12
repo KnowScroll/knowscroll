@@ -2,7 +2,9 @@ import { sql, type Kysely, type Transaction } from 'kysely';
 import { parseDocumentV2 } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
+import type { Catalogue } from '../application/catalogue.js';
 import { summariseAnswerChecks } from '../domain/answer-check.js';
+import type { CatalogueSnapshot } from '../domain/catalogue/snapshot.js';
 import { LIBRARY_SUPPORT_POLICY, countsOf, decideRevision } from '../domain/library-support.js';
 import {
   POLICY_DECIDER_PREFIX,
@@ -11,6 +13,7 @@ import {
   categoriesOfTopic,
   decideAutoRelease,
   isCatalogueTopic,
+  isSystemDecided,
   proseOf,
   releasesLeftToday,
   type AnswerCheckFact,
@@ -127,7 +130,11 @@ function answerCheckFact(outcomes: unknown): AnswerCheckFact {
 }
 
 /** The facts of a held revision the policy decides from, read from stored rows: nothing is asked of a model. */
-async function factsOf(db: Queryable, summary: HeldSummary): Promise<AutoReleaseFacts> {
+async function factsOf(
+  db: Queryable,
+  summary: HeldSummary,
+  catalogue: CatalogueSnapshot,
+): Promise<AutoReleaseFacts> {
   const topicId = summary.topicIds.length === 1 ? (summary.topicIds[0] ?? null) : null;
   const [body, raised, supportCheck] = await Promise.all([
     releasePolicyStore.readBody(db, summary.assetId, summary.revision),
@@ -139,7 +146,7 @@ async function factsOf(db: Queryable, summary: HeldSummary): Promise<AutoRelease
     assetStatus: summary.assetStatus,
     topicId,
     topicApproved: summary.approved,
-    risk: assessRisk({ topicId, text: parsed?.kind === 'valid' ? proseOf(parsed.document) : '', raised }),
+    risk: assessRisk({ catalogue, topicId, text: parsed?.kind === 'valid' ? proseOf(parsed.document) : '', raised }),
     documentReadable: parsed?.kind === 'valid',
     coverageMapped: summary.mapped,
     answerCheck: answerCheckFact(body?.outcomes),
@@ -168,7 +175,11 @@ async function supportCheckFact(db: Queryable, summary: HeldSummary): Promise<Su
  * stops the release. The policy lock comes first, so the cap's count and the release are one step and two releases cannot both take the last place; the approval
  * row is locked `for share`, so a revocation that arrives later waits for the release to commit.
  */
-function guardFor(target: { readonly assetId: string; readonly revision: number }, dailyCap: number): ReleaseGuard {
+function guardFor(
+  target: { readonly assetId: string; readonly revision: number },
+  dailyCap: number,
+  catalogue: CatalogueSnapshot,
+): ReleaseGuard {
   return async (trx) => {
     await releasePolicyStore.lockPolicy(trx);
     await releasePolicyStore.lockApproval(trx, target.assetId, target.revision);
@@ -179,7 +190,7 @@ function guardFor(target: { readonly assetId: string; readonly revision: number 
       only: target,
     });
     if (summary === undefined) return 'not_held';
-    const decision = decideAutoRelease(await factsOf(trx, summary));
+    const decision = decideAutoRelease(await factsOf(trx, summary, catalogue));
     if (decision.kind === 'hold') return decision.reason;
     return releasesLeftToday(dailyCap, await releasePolicyStore.releasedToday(trx)) === 0
       ? 'daily_cap_reached'
@@ -194,22 +205,24 @@ function guardFor(target: { readonly assetId: string; readonly revision: number 
  * same row, with `decided_by = policy:<name>`. A model's opinion never enters as a fact that lowers anything: the only model input is a recorded
  * raise, which can make a Scroll wait for a person.
  */
-export function makeReleasePolicy(db: Kysely<Database>) {
+export function makeReleasePolicy(db: Kysely<Database>, catalogue: Catalogue) {
   const gate = makeReviewGate(db);
 
   /**
    * One attempt to release a held revision as the policy: the review gate's own release, with the policy's whole decision made inside its transaction
    * (see `guardFor`). The sweep does exactly this for each candidate it finds, and nothing it read to find the candidate is passed on.
    */
-  function releaseOne(
+  async function releaseOne(
     target: { readonly assetId: string; readonly revision: number },
     settings: Pick<ReleasePolicySettings, 'dailyCap'>,
   ): Promise<ReleaseResult> {
+    // The release of the catalogue is read before the transaction opens, so the decision inside it reads one catalogue and waits for none (D-419).
+    const release = await catalogue.current();
     return gate.release({
       assetId: target.assetId,
       revision: target.revision,
       decidedBy: RELEASE_POLICY.decidedBy,
-      guard: guardFor(target, settings.dailyCap),
+      guard: guardFor(target, settings.dailyCap, release),
     });
   }
 
@@ -268,8 +281,11 @@ export function makeReleasePolicy(db: Kysely<Database>) {
     readonly topicId: string;
     readonly approvedBy: string;
   }): Promise<ApproveTopicResult> {
-    if (!isCatalogueTopic(request.topicId)) return { kind: 'refused', reason: 'unknown_topic' };
-    const categories = categoriesOfTopic(request.topicId);
+    const release = await catalogue.current();
+    // A topic of a system the owner has not decided is unknown here: its Scrolls wait for a person whatever is approved.
+    if (!isCatalogueTopic(release, request.topicId) || !isSystemDecided(release, request.topicId))
+      return { kind: 'refused', reason: 'unknown_topic' };
+    const categories = categoriesOfTopic(release, request.topicId);
     if (categories.length > 0) return { kind: 'refused', reason: 'sensitive_topic', categories };
     const kind = await releasePolicyStore.approveTopic(db, request.topicId, request.approvedBy);
     return { kind, topicId: request.topicId };
@@ -357,6 +373,7 @@ export function makeReleasePolicy(db: Kysely<Database>) {
   /** Counts for the operator, and why each held Scroll is held. Reads every held revision's body once; run by hand. */
   async function status(settings: ReleasePolicySettings): Promise<PolicyStatus> {
     const counts = await releasePolicyStore.counts(db);
+    const release = await catalogue.current();
     const summaries = await releasePolicyStore.heldSummaries(db, {
       checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
       onlyReady: false,
@@ -365,7 +382,7 @@ export function makeReleasePolicy(db: Kysely<Database>) {
     const byReason: Record<string, number> = {};
     let wouldRelease = 0;
     for (const summary of summaries) {
-      const decision = decideAutoRelease(await factsOf(db, summary));
+      const decision = decideAutoRelease(await factsOf(db, summary, release));
       if (decision.kind === 'release') wouldRelease += 1;
       else bump(byReason, decision.reason);
     }

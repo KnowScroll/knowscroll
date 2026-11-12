@@ -113,6 +113,8 @@ export function coverageOf(catalogue: Catalogue, readings: readonly Reading[], p
 export interface Counters {
   trustedReads: number;
   inputReads: { topicIds: readonly string[]; maxTopics: number | undefined }[];
+  /** The keys of each facet every input read asked for, in order. */
+  keysPerFacet: (number | undefined)[];
   dirtyReads: number;
 }
 
@@ -142,7 +144,7 @@ export class World {
   /** Dirty rows in backoff: when each may be tried again (ms since the epoch) and how many times it was tried. */
   readonly backoff = new Map<string, { retryAt: number; attempts: number }>();
   readonly deltas = new Map<string, { hash: string; delta: UniverseDelta }>();
-  readonly counters: Counters = { trustedReads: 0, inputReads: [], dirtyReads: 0 };
+  readonly counters: Counters = { trustedReads: 0, inputReads: [], keysPerFacet: [], dirtyReads: 0 };
   /** The catalogue the world started with, pinned: what readings are authored against. */
   readonly catalogue: Catalogue;
   /** Every release the world holds, by number, and the one that is current: a later release is made with `release`. */
@@ -414,6 +416,7 @@ function portsOf(world: World): GeographyPorts {
       },
     ) => {
       world.counters.inputReads.push({ topicIds: query.topicIds ?? [], maxTopics: query.maxTopics });
+      world.counters.keysPerFacet.push(query.perFacet);
       const newestOf = new Map<string, string>();
       for (const key of world.keys())
         if (!newestOf.has(key.topicId) || key.lastActivatedAt > newestOf.get(key.topicId)!)

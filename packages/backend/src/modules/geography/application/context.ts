@@ -395,7 +395,15 @@ export async function topicsOfPlaces(
   places: readonly Pick<Place, 'kind' | 'conceptId' | 'parentKey'>[],
   pinned?: Catalogue,
 ): Promise<string[]> {
-  const catalogue = pinned ?? (await pinnedCatalogue(p));
+  return topicsOfPlacesIn(p, await pinnedCatalogue(p, { catalogue: pinned }), scope, places);
+}
+
+async function topicsOfPlacesIn(
+  p: Pick<ReadPorts, 'readInputs'>,
+  catalogue: Catalogue,
+  scope: PersonalScopeTx,
+  places: readonly Pick<Place, 'kind' | 'conceptId' | 'parentKey'>[],
+): Promise<string[]> {
   const topics = new Set<string>();
   const systems = new Set<string>();
   for (const place of places) {
@@ -445,7 +453,7 @@ async function chooseTopics(
   const topics = new Set(dirty.topics);
   if (request.alsoDueBy) {
     const due = await p.store.duePlaces(scope, request.alsoDueBy, 100);
-    for (const id of await topicsOfPlaces(p, scope, due, p.catalogue)) topics.add(id);
+    for (const id of await topicsOfPlacesIn(p, p.catalogue, scope, due)) topics.add(id);
   }
   return {
     kind: 'topics',

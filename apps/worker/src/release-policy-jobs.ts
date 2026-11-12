@@ -4,7 +4,7 @@ import type { WorkerConfig } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { sweepReleasePolicyQueue } from '@knowscroll/backend/modules/content';
-import { makeReleasePolicy } from '@knowscroll/backend/modules/content/nest-providers';
+import { makeCatalogue, makeReleasePolicy } from '@knowscroll/backend/modules/content/nest-providers';
 
 /**
  * The release step of the release policy (#674, D-418): `content.sweep-release-policy`, a cron every ten minutes that releases a held library
@@ -21,7 +21,7 @@ export function releasePolicyConsumers(deps: {
   readonly logEvent: LogEvent;
 }): readonly JobConsumer<unknown>[] {
   const { config, logEvent } = deps;
-  const policy = makeReleasePolicy(deps.db);
+  const policy = makeReleasePolicy(deps.db, makeCatalogue(deps.db));
   return [
     jobConsumer(sweepReleasePolicyQueue, async () => {
       const result = await policy.sweep(config.contentAutoRelease);

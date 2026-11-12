@@ -69,7 +69,7 @@ export async function admitRecipeCoverage(
  * accepts it. A binding decided against an earlier wording of the same meaning is the same decision: only the wording
  * changed, and replacing it would give a certificate that quotes the old wording nothing to match on the new head.
  */
-function withStandingMeanings(
+export function withStandingMeanings(
   planned: CoverageMapping,
   stored: CoverageMapping,
   catalogue: CoverageCatalogue,
