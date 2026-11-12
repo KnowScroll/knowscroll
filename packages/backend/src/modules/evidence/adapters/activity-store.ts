@@ -6,8 +6,8 @@ import type { ActivityPorts } from '../application/activity.js';
 import type { ActivityChannels } from '../domain/activity.js';
 import { activity, decay, replaceContribution } from '../domain/activity.js';
 import { moveCellCounts, readCells } from './cell-store.js';
-import { applyInterestRollups, type TopicInterestDelta } from './interest-store.js';
-import { logWeightOf } from '../domain/interest.js';
+import { applyInterestRollups, type TopicCountedChange } from './interest-store.js';
+import { parseCounted, type CountedState } from '../domain/interest-rollup.js';
 import type { PlayLevel } from '../../content/public.js';
 export const readQualification: ActivityPorts['readQualification'] = async (cap, id, domain, initializedAt) => {
   const scope = cap.personal;
@@ -109,7 +109,7 @@ export const persistActivity: ActivityPorts['persist'] = async (cap, x) => {
     inputHash: x.inputHash,
     vector: x.inputVector,
   });
-  const interestDeltas: TopicInterestDelta[] = [];
+  const interestChanges: TopicCountedChange[] = [];
   for (const topicId of new Set([...old.rows.map((t) => t.topic_id), ...x.metadata.topics.map((t) => t.topicId)])) {
     const topic = x.metadata.topics.find((t) => t.topicId === topicId);
     const before = old.rows.find((t) => t.topic_id === topicId);
@@ -124,6 +124,7 @@ export const persistActivity: ActivityPorts['persist'] = async (cap, x) => {
       reel_qualified: number;
       scroll_measured: number;
       scroll_qualified: number;
+      rollup_counted: unknown;
     }>`select * from evidence.topic_context where universe_id=${u}::uuid and privacy_epoch=${e} and topic_id=${topicId}`.execute(
       db,
     );
@@ -152,15 +153,21 @@ export const persistActivity: ActivityPorts['persist'] = async (cap, x) => {
     const reel = x.exposure.kind === 'reel';
     const m = measured - (before?.measured ?? 0),
       q = qualified - (before?.qualified ?? 0);
-    interestDeltas.push({
-      topicId,
-      previous: before?.value ?? 0,
-      next,
-      previousChannels: channelBefore,
-      nextChannels: channelNext,
-      measured: m,
-      qualified: q,
-    });
+    const reelMeasured = (a?.reel_measured ?? 0) + (reel ? m : 0),
+      reelQualified = (a?.reel_qualified ?? 0) + (reel ? q : 0),
+      scrollMeasured = (a?.scroll_measured ?? 0) + (reel ? 0 : m),
+      scrollQualified = (a?.scroll_qualified ?? 0) + (reel ? 0 : q);
+    // What the roll-ups will be told this topic row now holds, stored with the row so the next change takes away exactly that.
+    const counted: CountedState = {
+      a: activity,
+      t: Date.parse(x.evaluatedAt),
+      ch: channelValues,
+      rm: reelMeasured,
+      rq: reelQualified,
+      sm: scrollMeasured,
+      sq: scrollQualified,
+    };
+    interestChanges.push({ topicId, previous: parseCounted(a?.rollup_counted), next: counted });
     // The play level of the Scroll read decides which cell this encounter counts in (D-192).
     await moveCellCounts(
       db,
@@ -168,22 +175,12 @@ export const persistActivity: ActivityPorts['persist'] = async (cap, x) => {
       before ? { level: before.play_level, measured: before.measured, qualified: before.qualified } : undefined,
       { level: x.playLevel, measured, qualified },
     );
-    await sql`insert into evidence.topic_context(universe_id,privacy_epoch,topic_id,channel_values,activity,evaluated_at,reel_measured,reel_qualified,scroll_measured,scroll_qualified,log_weight) values(${u}::uuid,${e},${topicId},${JSON.stringify(channelValues)}::jsonb,${activity},${x.evaluatedAt}::timestamptz,${(a?.reel_measured ?? 0) + (reel ? m : 0)},${(a?.reel_qualified ?? 0) + (reel ? q : 0)},${(a?.scroll_measured ?? 0) + (reel ? 0 : m)},${(a?.scroll_qualified ?? 0) + (reel ? 0 : q)},${logWeightOf(activity, Date.parse(x.evaluatedAt))}) on conflict(universe_id,topic_id) do update set channel_values=excluded.channel_values,activity=excluded.activity,evaluated_at=excluded.evaluated_at,reel_measured=excluded.reel_measured,reel_qualified=excluded.reel_qualified,scroll_measured=excluded.scroll_measured,scroll_qualified=excluded.scroll_qualified,privacy_epoch=excluded.privacy_epoch,log_weight=excluded.log_weight`.execute(
+    await sql`insert into evidence.topic_context(universe_id,privacy_epoch,topic_id,channel_values,activity,evaluated_at,reel_measured,reel_qualified,scroll_measured,scroll_qualified,rollup_counted) values(${u}::uuid,${e},${topicId},${JSON.stringify(channelValues)}::jsonb,${activity},${x.evaluatedAt}::timestamptz,${reelMeasured},${reelQualified},${scrollMeasured},${scrollQualified},${JSON.stringify(counted)}::jsonb) on conflict(universe_id,topic_id) do update set channel_values=excluded.channel_values,activity=excluded.activity,evaluated_at=excluded.evaluated_at,reel_measured=excluded.reel_measured,reel_qualified=excluded.reel_qualified,scroll_measured=excluded.scroll_measured,scroll_qualified=excluded.scroll_qualified,privacy_epoch=excluded.privacy_epoch,rollup_counted=excluded.rollup_counted`.execute(
       db,
     );
   }
-  // The system and person roll-ups follow the topic rows in the same transaction (D-420).
-  await applyInterestRollups(
-    db,
-    {
-      universeId: u,
-      privacyEpoch: e,
-      kind: x.exposure.kind,
-      evaluatedAt: x.evaluatedAt,
-      encounterAt: x.exposure.activatedAt,
-    },
-    interestDeltas,
-  );
+  // The system and person roll-ups follow the topic rows in the same transaction, by what each topic was counted as (D-420).
+  await applyInterestRollups(db, { universeId: u, privacyEpoch: e, atMs: Date.parse(x.evaluatedAt) }, interestChanges);
   await sql`delete from evidence.topic_contributions where universe_id=${u}::uuid and exposure_id=${x.exposure.exposureId}::uuid`.execute(
     db,
   );

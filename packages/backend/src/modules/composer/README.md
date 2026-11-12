@@ -377,8 +377,8 @@ testing, not calibrated parameters.
 **Retrieval lanes.** Under `retrieval: 'lanes'` the callers (Experience's navigation and the buffer worker) first read the
 person's leads through `ReadInterestContext.leads` (implemented by Personal Context over Evidence's index, see the Evidence
 README): their top `interestTopK` = 32 long-term interest topics, strongest first, and the explanation units an unexpired Planner
-opportunity for existing content names. They hand both to Content as data (`lanes`), and Content reads the lanes `source`, `planned`,
-`continue` (the top topics, at most five candidates of any one system), `adjacent` (the other topics of the systems the source's
+opportunity for existing content names that is suited to a vertical move (`eligibility` includes `vertical`, as plan lifts require). They hand both to Content as data (`lanes`), and Content reads the lanes `source`, `planned`,
+`continue` (a capped window of each of the top topics, at most five candidates of any one system), `adjacent` (the other topics of the systems the source's
 topics belong to) and `explore` (a rotating sample of the whole library, stratified by system), with the unseen-first bands and the
 rotation cursor of D-408 applying to every lane (see the Content README). Each candidate carries the lane that read it first
 (`encounter.lane`) in the snapshot; scoring never reads it. The exploration pool is the `explore` lane when there is one (so exploration
@@ -414,7 +414,7 @@ of those candidates (unseen by construction: `already_encountered` runs first). 
 so the exploration draw of the same decision is unchanged. The decision records `formatExploration { fraction, branch, personFormat,
 propensity }`, `propensity` being the probability of the branch taken (0.05 or 0.95), and `exploration.selectedProbability` is the first
 offer's probability under the whole mixture (0.05 for a drawn first offer; for the person's-format branch 0.95 times its probability
-within the branch), so an off-policy estimate can weight it. Not drawn, and nothing recorded, when the person gave an explicit format
+within the branch), so an off-policy estimate can weight it. Never drawn in the last resort: when every eligible candidate has been met the least recently met goes first exactly as v2 offers it (D-408), a draw would offer the best scored of the other format and bypass that order, so nothing is drawn and nothing recorded, and only an explanation the person has not met is ever drawn. Not drawn, and nothing recorded, either, when the person gave an explicit format
 (a variant or an exact target is not system-chosen, and a snapshot cannot carry both a required and a sticky format), when stickiness gave
 way, when no unseen other-format candidate exists, or under v0 to v2. Buffers are drawn the same way, so a buffered first offer can be the other format.
 

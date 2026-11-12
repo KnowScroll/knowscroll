@@ -6,7 +6,8 @@
  * - `source`: the topics of the encounter the person is on (primary before supporting, never incidental).
  * - `planned`: the explanation units a valid Planner opportunity names.
  * - `text`: a match on text the person typed (never a source's own summary).
- * - `continue`: the person's top long-term interest topics, at most {@link DISCOVERY_LANE_QUOTAS}.continuePerSystem per system.
+ * - `continue`: the person's top long-term interest topics, a capped window of each ({@link DISCOVERY_LANE_QUOTAS}.continuePerTopic),
+ *   at most {@link DISCOVERY_LANE_QUOTAS}.continuePerSystem per system.
  * - `adjacent`: the other topics of the systems the source's topics belong to.
  * - `explore`: a rotating sample of the whole library, stratified by system. It takes the rest of the cap: every lane before it is
  *   bounded by its quota, and the sample is read round-robin across systems, so a person with no history still gets a full read.
@@ -32,6 +33,8 @@ export const DISCOVERY_LANE_QUOTAS = {
   text: 20,
   continue: 28,
   continuePerSystem: 5,
+  /** Eligible attributions read of each top topic, in its stable random order from the cursor: the window, not the topic. */
+  continuePerTopic: 6,
   adjacent: 12,
   explore: 100,
   /** Rows the explore lane reads from the rotation (each side of the cursor) before it stratifies them. */

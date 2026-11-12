@@ -58,11 +58,11 @@ describe('known failure rules', () => {
     expect(thrownBy(results, 'geography.cartograph')).toEqual([]);
   });
 
-  it('explains a system that Reels kept from forming only when Personal Context holds just what the qualified Scrolls left', () => {
+  it('explains a system that Reels kept from forming: Reels only in any run, and one Scroll with Reels only in the run of policy v3', () => {
     const notFormed = (
       referencesUnderSystem: number,
       supportsUnderSystem: number,
-      options: { onlyWithReels?: boolean; scrollOnlyUnits?: number } = {},
+      options: { onlyWithReels?: boolean; scrollOnlyUnits?: number; composerPolicy?: string } = {},
     ) =>
       violation({
         invariant: 'I2',
@@ -70,23 +70,28 @@ describe('known failure rules', () => {
         detail: {
           onlyWithReels: options.onlyWithReels ?? true,
           scrollOnlyUnits: options.scrollOnlyUnits ?? 0,
+          composerPolicy: options.composerPolicy ?? 'v2',
           referencesUnderSystem,
           supportsUnderSystem,
         },
       });
-    // Reels only: nothing under the system, as before.
-    expect(explainedBy(notFormed(0, 0))?.id).toBe('I2/reel-only-evidence-forms-no-system');
-    // One qualified Scroll and Reels: the Scroll left its one reference (and its support, or none yet), two covered units are needed.
-    expect(explainedBy(notFormed(1, 1, { scrollOnlyUnits: 1 }))?.id).toBe('I2/reel-only-evidence-forms-no-system');
-    expect(explainedBy(notFormed(1, 0, { scrollOnlyUnits: 1 }))?.id).toBe('I2/reel-only-evidence-forms-no-system');
+    const id = 'I2/reel-only-evidence-forms-no-system';
+    // Reels only: nothing under the system, in the policy dev runs and in v3.
+    for (const composerPolicy of ['v2', 'v3']) expect(explainedBy(notFormed(0, 0, { composerPolicy }))?.id).toBe(id);
+    // One qualified Scroll and Reels is the failure only in the run of v3. Under v2 the strict rule is the whole entry.
+    expect(explainedBy(notFormed(1, 1, { scrollOnlyUnits: 1, composerPolicy: 'v3' }))?.id).toBe(id);
+    expect(explainedBy(notFormed(1, 0, { scrollOnlyUnits: 1, composerPolicy: 'v3' }))?.id).toBe(id);
+    expect(explainedBy(notFormed(1, 1, { scrollOnlyUnits: 1, composerPolicy: 'v2' }))).toBeUndefined();
+    expect(explainedBy(notFormed(1, 0, { scrollOnlyUnits: 1 }))).toBeUndefined();
     // Two qualified Scrolls would form it: not this defect. Neither is a Scroll that left no reference, nor anything beyond the Scrolls.
-    expect(explainedBy(notFormed(0, 0, { onlyWithReels: false }))).toBeUndefined();
-    expect(explainedBy(notFormed(2, 2, { onlyWithReels: false, scrollOnlyUnits: 2 }))).toBeUndefined();
-    expect(explainedBy(notFormed(0, 0, { scrollOnlyUnits: 1 }))).toBeUndefined();
-    expect(explainedBy(notFormed(1, 0))).toBeUndefined();
-    expect(explainedBy(notFormed(0, 1))).toBeUndefined();
-    expect(explainedBy(notFormed(2, 1, { scrollOnlyUnits: 1 }))).toBeUndefined();
-    expect(explainedBy(notFormed(1, 2, { scrollOnlyUnits: 1 }))).toBeUndefined();
+    const v3 = { composerPolicy: 'v3' };
+    expect(explainedBy(notFormed(0, 0, { ...v3, onlyWithReels: false }))).toBeUndefined();
+    expect(explainedBy(notFormed(2, 2, { ...v3, onlyWithReels: false, scrollOnlyUnits: 2 }))).toBeUndefined();
+    expect(explainedBy(notFormed(0, 1, { ...v3, scrollOnlyUnits: 1 }))).toBeUndefined();
+    expect(explainedBy(notFormed(1, 0, v3))).toBeUndefined();
+    expect(explainedBy(notFormed(0, 1, v3))).toBeUndefined();
+    expect(explainedBy(notFormed(2, 1, { ...v3, scrollOnlyUnits: 1 }))).toBeUndefined();
+    expect(explainedBy(notFormed(1, 2, { ...v3, scrollOnlyUnits: 1 }))).toBeUndefined();
   });
 
   it('judges what Geography settles against what the person held when the step began', () => {

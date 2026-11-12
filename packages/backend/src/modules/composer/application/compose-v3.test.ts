@@ -481,6 +481,70 @@ describe('format exploration: a logged share of system-chosen first offers draws
     }
   });
 
+  it('never draws in the last resort: with every explanation met the least recently met goes first, exactly as v2 offers it', () => {
+    const everything = [...scrolls, reelOther];
+    // The Reel was met longest ago, then scroll-b, then scroll-a: v2's order in the last resort is by time met, not by score.
+    const lastMet = (unit: string) =>
+      unit === 'unit-reel-x'
+        ? '2026-10-01T10:00:00.000Z'
+        : unit === 'unit-scroll-b'
+          ? '2026-10-10T10:00:00.000Z'
+          : '2026-10-20T10:00:00.000Z';
+    const snapshotOf = (seed: string): ComposerSnapshot => {
+      const base = vertical(everything, {
+        seed,
+        intent: { stickyFormat: 'scroll' },
+        met: everything.map((c) => c.encounter.explanationUnitId),
+      });
+      return {
+        ...base,
+        evidence: {
+          ...base.evidence!,
+          established: {
+            ...base.evidence!.established!,
+            units: base.evidence!.established!.units.map((u) => ({
+              ...u,
+              lastEncounteredAt: lastMet(u.explanationUnitId),
+            })),
+          },
+        },
+      };
+    };
+    const noExploration: ComposerPolicy = { ...V3, formatExplorationFraction: 0 };
+    let drawnBefore = 0;
+    for (let n = 0; n < 2000; n += 1) {
+      const snapshot = snapshotOf(`last-resort-${String(n)}`);
+      const decision = composeEncounter(snapshot, V3);
+      const reference = composeEncounter(snapshot, noExploration);
+      expect(decision.unseenLadder?.outcome).toBe('fell_back');
+      // Nothing is drawn and nothing is recorded: the decision is the one without the quota.
+      expect(decision.formatExploration).toBeUndefined();
+      expect(decision.selection.map((s) => s.assetId)).toEqual(reference.selection.map((s) => s.assetId));
+      // The person's format is kept, so the least recently met Scroll comes first, never the (older) Reel the draw would have taken.
+      expect(decision.selection[0]!.assetId).toBe('scroll-b');
+      if (decision.exploration.selectedProbability === 0.05) drawnBefore += 1;
+    }
+    expect(drawnBefore).toBe(0);
+  });
+
+  it('draws only explanations the person has not met, whatever else keeps a met one out', () => {
+    // Under a variant that does not exclude the met ahead of stickiness, the met Reel is held back by stickiness alone.
+    const scoreOnly: ComposerPolicy = { ...V3, encountered: 'score' };
+    const metReel = candidate('reel-met', { kind: 'reel', topic: UNKNOWN_TOPIC });
+    for (let n = 0; n < 1500; n += 1) {
+      const decision = composeEncounter(
+        vertical([...scrolls, metReel], {
+          seed: `met-held-${String(n)}`,
+          intent: { stickyFormat: 'scroll' },
+          met: ['unit-reel-met'],
+        }),
+        scoreOnly,
+      );
+      expect(decision.formatExploration).toBeUndefined();
+      expect(decision.selection.map((s) => s.assetId)).not.toContain('reel-met');
+    }
+  });
+
   test.prop([fc.array(fc.boolean(), { minLength: 6, maxLength: 6 }), fc.string({ minLength: 1, maxLength: 12 })])(
     'never offers a met explanation first while an unseen one is eligible, drawn or not',
     (metFlags, seed) => {

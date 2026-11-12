@@ -202,6 +202,7 @@ function formation(world: SimWorld, result: PersonaResult): Violation[] {
         units: units.all,
         onlyWithReels,
         scrollOnlyUnits: units.scrollOnly.length,
+        composerPolicy: world.config.composerPolicy,
         referencesUnderSystem,
         supportsUnderSystem,
       },

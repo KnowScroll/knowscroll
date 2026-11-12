@@ -21,11 +21,16 @@ const rollup = (level: 'system' | 'person', subjectId: string, activity: number)
   ],
 });
 
-const opportunity = (unit: string, target: 'existing' | 'missing_supply', expiresAt: string) => ({
+const opportunity = (
+  unit: string,
+  target: 'existing' | 'missing_supply',
+  expiresAt: string,
+  eligibility: readonly ('vertical' | 'related')[] = ['vertical'],
+) => ({
   move: 'example' as const,
   topicIds: ['space.stars'],
   explanationUnitId: unit,
-  eligibility: ['vertical' as const],
+  eligibility,
   formats: ['scroll' as const],
   expiresAt,
   target,
@@ -52,6 +57,22 @@ describe('leads: the person’s top interest topics and the units a valid plan n
     const { read, calls } = reader();
     expect(await read.leads(scope, { evaluatedAt: NOW, topK: 32 })).toEqual({ topics, plannedUnitIds: [] });
     expect(calls).toEqual([['top', { limit: 32, evaluatedAt: NOW }]]);
+  });
+
+  it('names only opportunities suited to a vertical move, as plan lifts are: a related-only opportunity is not for this read', async () => {
+    const plan: CurrentPlan = {
+      revision: 4,
+      opportunities: [
+        opportunity('unit-vertical', 'existing', '2026-11-12T00:00:00.000Z', ['vertical']),
+        opportunity('unit-both', 'existing', '2026-11-12T00:00:00.000Z', ['related', 'vertical']),
+        opportunity('unit-related-only', 'existing', '2026-11-12T00:00:00.000Z', ['related']),
+      ],
+    };
+    const { read } = reader(plan);
+    expect((await read.leads(scope, { evaluatedAt: NOW, topK: 8 })).plannedUnitIds).toEqual([
+      'unit-vertical',
+      'unit-both',
+    ]);
   });
 
   it('reads no topics for a K of zero', async () => {

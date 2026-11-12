@@ -1,5 +1,5 @@
 import { validateTopics } from '../../content/public.js';
-import { unseenFirstApplies, lastMetAt, placeCounts, placeOf } from '../domain/encountered.js';
+import { isMet, unseenFirstApplies, lastMetAt, placeCounts, placeOf } from '../domain/encountered.js';
 import { explorationMass, explorationPick } from '../domain/exploration.js';
 import { features, playLevelOf, score, similarity } from '../domain/features.js';
 import { planLifts } from '../domain/plan.js';
@@ -417,18 +417,32 @@ function exploreFormat(
   policy: ComposerPolicy,
   evaluations: readonly Evaluation[],
   sticky: StickyFormatOutcome | undefined,
+  lastResort: boolean,
 ): FormatExploration | undefined {
   const fraction = policy.formatExplorationFraction;
-  if (fraction <= 0 || sticky?.outcome !== 'kept' || s.intent.format !== undefined || !unseenFirstApplies(s))
+  // In the last resort every eligible candidate has been met and the least recently met goes first (D-408): a draw would offer
+  // the best scored of the other format and bypass that order, so nothing is drawn and nothing is recorded.
+  if (
+    fraction <= 0 ||
+    lastResort ||
+    sticky?.outcome !== 'kept' ||
+    s.intent.format !== undefined ||
+    !unseenFirstApplies(s)
+  )
     return undefined;
   const tie = tieBreakOf(s, policy);
-  const heldBack = evaluations.filter(stickyOnly).sort((a, b) => b.score - a.score || tie(a, b));
+  // Only an explanation the person has not met is ever drawn, whatever else keeps the met ones out.
+  const heldBack = evaluations
+    .filter((e) => stickyOnly(e) && !isMet(s, e.explanationUnitId))
+    .sort((a, b) => b.score - a.score || tie(a, b));
   const best = heldBack[0];
   if (best === undefined) return undefined;
   const drawn = drawsWithin(randomSource(`${s.seed}:format-exploration`), fraction);
   const personFormat = sticky.preferred;
   if (!drawn) return { outcome: { fraction, branch: 'person_format', personFormat, propensity: 1 - fraction } };
-  const lifted = evaluations.map((e) => (stickyOnly(e) ? { ...e, eligible: true, exclusions: [] } : e));
+  const lifted = evaluations.map((e) =>
+    stickyOnly(e) && !isMet(s, e.explanationUnitId) ? { ...e, eligible: true, exclusions: [] } : e,
+  );
   const first = lifted.find((e) => refKey(e) === refKey(best))!;
   return {
     outcome: { fraction, branch: 'other_format', personFormat, propensity: fraction },
@@ -459,7 +473,7 @@ export function composeEncounter(
 export function decideValidated(s: ComposerSnapshot, policy: ComposerPolicy): ComposerDecision {
   const evaluated = evaluate(s, policy);
   const { sticky, related, unseenFirst } = evaluated;
-  const explored = exploreFormat(s, policy, evaluated.evaluations, sticky);
+  const explored = exploreFormat(s, policy, evaluated.evaluations, sticky, unseenFirst?.lastResort === true);
   const evaluations = explored?.other?.evaluations ?? evaluated.evaluations;
   const chosen = choose(
     s,

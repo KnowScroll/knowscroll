@@ -1,40 +1,58 @@
 -- #674 (slices 4.2 and 5.2) Composer policy v3 (D-420): long-term interest selects candidates, and format is learned
--- per topic with pooling. Owner: modules/evidence (the pin of composer.decisions is Composer's).
+-- per topic with pooling. Owner: modules/evidence (`encounter_topics.serve_rand` is Content's; the pin of composer.decisions is
+-- Composer's).
 --
--- 1. `topic_context.log_weight` = ln(activity) + ln(2) * evaluated_at_ms / half_life_ms. A topic's stored activity decays
+-- Nothing here scans, rewrites or backfills a large table, so no statement holds a long lock and none is near the 60 s timeout:
+-- the columns are nullable with no default, the new tables are empty, the triggers fill derived values for every later write, and
+-- what already exists is filled lazily by `evidence rebuild-interest-rollups` (run before a world turns v3 on).
+--
+-- 1. `topic_context.log_weight` = ln(activity) + ln(2) * evaluated_at_ms / half_life_ms, derived by a BEFORE INSERT OR UPDATE
+--    trigger, so any writer (an older binary in the deploy window included) leaves it correct. A topic's stored activity decays
 --    by the same factor as every other topic's, so ordering by this number is ordering by decayed activity at any later time:
---    "the person's top K topics now" is one range scan of `topic_context_top_interest`, never a read of every
---    topic. It is NULL while activity is 0 (ln 0). The half life is the one `activity.v1` uses (14 days); a change of it is a
---    new migration, because the column holds the old one.
--- 2. `interest_rollups`: one row per system and one for the person, in the shape of `topic_context` (decayed activity,
---    channels, reel/scroll measured and qualified, log_weight), written in the same transaction as the topic rows. The system
---    row is the sum of its topics' rows and the person row the sum of every topic, so "the system without this topic" and
---    "the person without this system" are differences. They are the priors of v3's interest and format shrinkage. They hold
---    reading only (a qualified response is q >= 0.6), never a pick, a result, a spark or a tier (D-063).
--- 3. The pin of `composer.decisions` also allows `composer-policy.v3`.
+--    "the person's top K topics now" is one range scan of `topic_context_top_interest`, never a read of every topic. It is NULL
+--    while activity is 0 (ln 0) and for rows nothing has written since this migration (the rebuild command fills them). The
+--    index is partial on `log_weight is not null`, so on the existing rows it starts empty and building it is one cheap scan.
+--    The half life is the one `activity.v1` uses (14 days); a change of it is a new migration, because the column holds it.
+-- 2. `topic_context.rollup_counted`: exactly what this topic row contributed to the roll-ups below (activity and time, channels,
+--    counts), written with the row by the new binary. A roll-up is changed by the difference between what a topic was counted as
+--    and what it is now, so it never subtracts what it did not add (an older binary leaves this stale, and the next write by the
+--    new binary corrects it; NULL means "not counted yet"). A roll-up that would go negative is rebuilt from the topic rows.
+-- 3. `interest_rollups`: one row per system and one for the person, in the shape of `topic_context`, written in the same
+--    transaction as the topic rows. They are the priors of v3's interest and format shrinkage, and hold reading only (a qualified
+--    response is q >= 0.6), never a pick, a result, a spark or a tier (D-063). Empty at creation; `evidence
+--    rebuild-interest-rollups` (idempotent, one personal scope per person, bounded memory) builds them from the topic rows.
+-- 4. `content.encounter_topics.serve_rand`: a stable random key per topic attribution, set by a trigger on insert, with the index
+--    `(topic_id, serve_rand)`. The `continue` lane reads a capped window of each of the person's top topics in that order, so its
+--    cost is the window and not every asset of the topics. The rows that exist are given a key here: the table has one row per
+--    topic attribution of an admitted revision (at most 16 per revision), shared library metadata and small, and the statement
+--    takes row locks only.
+-- 5. The pin of `composer.decisions` also allows `composer-policy.v3`. The constraint is added NOT VALID and not validated: every
+--    existing row names v0 to v2, which it allows, and a validation would scan the table. It is enforced for every new row.
 --
--- Backfill. `log_weight` is computed for every row. The person row is the sum of the person's topic rows decayed to the newest
--- row's time. The system rows are the sums over the systems of the code catalogue at this migration (the `values` list: the
--- 17 topics and 6 systems of `content-concepts.v1`); a topic the catalogue gains later gets its rollup from the writes that
--- follow it. Without the backfill a person's rollups appear only at their next activity, and v3 meanwhile reads no system
--- prior (it reads exactly what v2 reads).
---
--- Query shapes: top K = `where universe_id, privacy_epoch and log_weight is not null order by log_weight desc, topic_id limit K`
--- (index above, no sort); rollups = primary key probe by (universe, level, subject) for the systems of the candidates and the
--- person. Growth: one row per system a person has touched plus one. Retention and erasure: those of `topic_context` (retained
--- personal evidence; Clear and account deletion delete the rows by universe, before the universe).
+-- Query shapes: top K = `where universe_id, privacy_epoch and log_weight is not null [and log_weight >= floor] order by
+-- log_weight desc, topic_id limit K` (index above, no sort); rollups = primary key probe by (universe, level, subject) for the
+-- systems of the candidates and the person; a topic's window = `where topic_id = $ and serve_rand >= $cursor order by serve_rand
+-- limit W` and its wrap-round twin. Growth: one row per system a person has touched plus one; one key per topic attribution.
+-- Retention and erasure: those of `topic_context` (retained personal evidence; Clear and account deletion delete the rows by
+-- universe, before the universe); `serve_rand` is shared and not personal.
 -- Lock order: unchanged, written under the personal root with the rest of the projection.
--- Rollout: additive. An older writer leaves log_weight NULL and writes no rollup, so its topics are invisible to the top-K
--- read and a person's rollups lag until the new binary writes them; v3 is off unless `KS_COMPOSER_POLICY=v3`.
+-- Rollout: additive. An older writer leaves `rollup_counted` and the roll-ups alone (the trigger still derives `log_weight`), so
+-- roll-ups lag until the new binary writes the topic again or the rebuild runs. v3 is off unless `KS_COMPOSER_POLICY=v3`; run the
+-- rebuild first (docs/v2/operations/environments.md, "Switching Composer policy v3 on").
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';
 
 alter table evidence.topic_context add column log_weight double precision;
+alter table evidence.topic_context add column rollup_counted jsonb;
 
--- Bounded at rollout (one row per topic a person has met); the lock timeout above bounds the wait.
-update evidence.topic_context
-set log_weight = ln(activity) + ln(2) * (extract(epoch from evaluated_at)::double precision * 1000) / 1209600000
-where activity > 0;
+create function evidence.derive_log_weight() returns trigger language plpgsql as $$
+begin
+  new.log_weight := case when new.activity > 0
+    then ln(new.activity) + ln(2) * (extract(epoch from new.evaluated_at)::double precision * 1000) / 1209600000 end;
+  return new;
+end $$;
+create trigger topic_context_log_weight before insert or update on evidence.topic_context
+  for each row execute function evidence.derive_log_weight();
 
 -- squawk-ignore require-concurrent-index-creation
 create index topic_context_top_interest
@@ -57,67 +75,25 @@ create table evidence.interest_rollups (
   primary key (universe_id, level, subject_id),
   check ((level = 'person') = (subject_id = ''))
 );
+create trigger interest_rollups_log_weight before insert or update on evidence.interest_rollups
+  for each row execute function evidence.derive_log_weight();
 
-with catalogue(topic_id, system_id) as (
-  values
-    ('earth', 'earth'), ('earth.greenhouse-effect', 'earth'), ('earth.seasons', 'earth'), ('earth.tides', 'earth'),
-    ('space', 'space'), ('space.stars', 'space'), ('space.exoplanets', 'space'), ('space.black-holes', 'space'),
-    ('machine-learning', 'machine-learning'), ('machine-learning.attention', 'machine-learning'),
-    ('machine-learning.efficiency', 'machine-learning'), ('machine-learning.training', 'machine-learning'),
-    ('machine-learning.transformers', 'machine-learning'),
-    ('human-body', 'human-body'), ('human-body.heart-and-blood', 'human-body'), ('human-body.immune-system', 'human-body'),
-    ('human-body.nervous-system', 'human-body'),
-    ('computing', 'computing'), ('computing.algorithms', 'computing'), ('computing.browsers', 'computing'),
-    ('computing.web-requests', 'computing'),
-    ('history', 'history'), ('history.industrial-revolution', 'history')
-),
-scaled as (
-  select c.universe_id, c.privacy_epoch, m.system_id, c.activity, c.channel_values, c.evaluated_at,
-    c.reel_measured, c.reel_qualified, c.scroll_measured, c.scroll_qualified,
-    max(c.evaluated_at) over (partition by c.universe_id, c.privacy_epoch) as at,
-    power(2::double precision, -(extract(epoch from (max(c.evaluated_at) over (partition by c.universe_id, c.privacy_epoch) - c.evaluated_at))::double precision * 1000) / 1209600000) as factor
-  from evidence.topic_context c
-  left join catalogue m on m.topic_id = c.topic_id
-),
-rolled as (
-  select universe_id, privacy_epoch, 'person'::text as level, ''::text as subject_id, at,
-    sum(activity * factor) as activity,
-    jsonb_build_object(
-      'q', sum((channel_values ->> 'q')::double precision * factor),
-      'L', sum((channel_values ->> 'L')::double precision * factor),
-      'B', sum((channel_values ->> 'B')::double precision * factor),
-      'S', sum((channel_values ->> 'S')::double precision * factor),
-      'H', sum((channel_values ->> 'H')::double precision * factor),
-      'R', sum((channel_values ->> 'R')::double precision * factor)) as channel_values,
-    sum(reel_measured) as reel_measured, sum(reel_qualified) as reel_qualified,
-    sum(scroll_measured) as scroll_measured, sum(scroll_qualified) as scroll_qualified
-  from scaled group by universe_id, privacy_epoch, at
-  union all
-  select universe_id, privacy_epoch, 'system', system_id, at,
-    sum(activity * factor),
-    jsonb_build_object(
-      'q', sum((channel_values ->> 'q')::double precision * factor),
-      'L', sum((channel_values ->> 'L')::double precision * factor),
-      'B', sum((channel_values ->> 'B')::double precision * factor),
-      'S', sum((channel_values ->> 'S')::double precision * factor),
-      'H', sum((channel_values ->> 'H')::double precision * factor),
-      'R', sum((channel_values ->> 'R')::double precision * factor)),
-    sum(reel_measured), sum(reel_qualified), sum(scroll_measured), sum(scroll_qualified)
-  from scaled where system_id is not null group by universe_id, privacy_epoch, system_id, at
-)
-insert into evidence.interest_rollups
-  (universe_id, privacy_epoch, level, subject_id, channel_values, activity, evaluated_at,
-   reel_measured, reel_qualified, scroll_measured, scroll_qualified, log_weight)
-select universe_id, privacy_epoch, level, subject_id, channel_values, activity, at,
-  reel_measured, reel_qualified, scroll_measured, scroll_qualified,
-  case when activity > 0 then ln(activity) + ln(2) * (extract(epoch from at)::double precision * 1000) / 1209600000 end
-from rolled;
+alter table content.encounter_topics add column serve_rand double precision;
+create function content.derive_topic_serve_rand() returns trigger language plpgsql as $$
+begin
+  if new.serve_rand is null then new.serve_rand := random(); end if;
+  return new;
+end $$;
+create trigger encounter_topics_serve_rand before insert on content.encounter_topics
+  for each row execute function content.derive_topic_serve_rand();
+update content.encounter_topics set serve_rand = random() where serve_rand is null;
+-- squawk-ignore require-concurrent-index-creation
+create index encounter_topics_rand_idx on content.encounter_topics (topic_id, serve_rand, asset_id, asset_revision)
+  where serve_rand is not null;
 
--- The pin is widened by name; every existing row names v0, v1 or v2, which the new check also allows.
+-- The pin is widened by name; every existing row names v0, v1 or v2, which the new check also allows. Not validated: see above.
 -- squawk-ignore ban-drop-constraint
 alter table composer.decisions drop constraint decisions_policy_version_check;
 alter table composer.decisions
   add constraint decisions_policy_version_check
   check (policy_version in ('composer-policy.v0', 'composer-policy.v1', 'composer-policy.v2', 'composer-policy.v3')) not valid;
--- squawk-ignore constraint-missing-not-valid
-alter table composer.decisions validate constraint decisions_policy_version_check;
