@@ -2516,6 +2516,7 @@ export interface SupplyRequests {
   ask_limit: string | null;
   ask_order_id: string | null;
   brief: Json | null;
+  catalogue_release: number | null;
   command: Json;
   content: Json | null;
   content_availability_revision: number | null;

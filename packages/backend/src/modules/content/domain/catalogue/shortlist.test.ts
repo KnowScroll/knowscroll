@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
-import { LIBRARY_SYSTEMS } from '../library/index.js';
+import { RELEASE_1_PLAN } from './release-1.fixture.js';
 import type { ReleasedCoverage } from '../library/gap-facts.js';
 import { SHORTLIST_TOPICS, shortlistTopics } from './shortlist.js';
 import { makeSnapshot } from './snapshot.js';
@@ -10,7 +10,7 @@ import { planRelease } from './release.js';
 import type { NodeDraft } from './plan-import.js';
 import type { CatalogueSnapshot } from './snapshot.js';
 
-const seeded = seedSnapshot(LIBRARY_SYSTEMS, canonicalSha256);
+const seeded = seedSnapshot(RELEASE_1_PLAN, canonicalSha256);
 
 // A word's first five letters are its key word, so each invented word differs inside them.
 const letter = (n: number) => String.fromCharCode(97 + (n % 26));
@@ -19,7 +19,7 @@ const word = (n: number) =>
 
 /** A catalogue of many invented topics, each with a distinctive word, as a large catalogue would be. */
 function large(topics: number): CatalogueSnapshot {
-  const base = seedRelease(LIBRARY_SYSTEMS, canonicalSha256).rows;
+  const base = seedRelease(RELEASE_1_PLAN, canonicalSha256).rows;
   const drafts: NodeDraft[] = [];
   for (let n = 0; n < topics; n += 1) {
     const id = `earth.t${String(n)}`;
@@ -55,7 +55,7 @@ describe('the shortlist a prompt is shown instead of the whole catalogue', () =>
 
   it('is bounded however large the catalogue grows, best match first', () => {
     const catalogue = large(2000);
-    expect(catalogue.topics().length).toBe(2017);
+    expect(catalogue.topics().length).toBe(seeded.topics().length + 2000);
     const shortlist = shortlistTopics(catalogue, `${word(1)} ${word(1)}`);
     expect(shortlist.length).toBeGreaterThan(0);
     expect(shortlist.length).toBeLessThanOrEqual(SHORTLIST_TOPICS);
@@ -70,7 +70,7 @@ describe('the shortlist a prompt is shown instead of the whole catalogue', () =>
   });
 
   it('leaves out a topic that is not servable yet', () => {
-    const base = seedRelease(LIBRARY_SYSTEMS, canonicalSha256).rows;
+    const base = seedRelease(RELEASE_1_PLAN, canonicalSha256).rows;
     const drafts: NodeDraft[] = ['topic', 'a', 'b'].map((part, at) => ({
       id: at === 0 ? 'earth.waiting' : `earth.waiting.${part}`,
       kind: at === 0 ? 'topic' : 'facet',
@@ -93,7 +93,7 @@ describe('the shortlist a prompt is shown instead of the whole catalogue', () =>
 });
 
 describe('when a new topic becomes servable', () => {
-  const base = seedRelease(LIBRARY_SYSTEMS, canonicalSha256).rows;
+  const base = seedRelease(RELEASE_1_PLAN, canonicalSha256).rows;
   const drafts: NodeDraft[] = [
     {
       id: 'earth.waiting',

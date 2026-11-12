@@ -23,7 +23,11 @@ export type ReleaseChange =
   | { readonly kind: 'revise'; readonly draft: NodeDraft }
   /** A topic that now has released supply becomes servable. */
   | { readonly kind: 'show'; readonly nodeId: string }
-  /** A node (and what is under it) leaves the listings. Its id is never reused and what points at it still resolves. */
+  /**
+   * A node (and what is under it) leaves the listings and new formation. Its id is never reused and what points at it still resolves.
+   * A merge into another node (`mergedInto`) is refused (`merge_unsupported`): sending a retired topic's readers, places, rooms and
+   * certificates to another topic is not built, so a topic is retired, never merged, until it is.
+   */
   | { readonly kind: 'retire'; readonly nodeId: string; readonly mergedInto?: string };
 
 /** Why code refused a change. Codes only: a refusal never carries the text it refused. */
@@ -48,7 +52,7 @@ export const REFUSAL_CODES = [
   'not_a_topic',
   'facet_retire',
   'already_servable',
-  'merge_target',
+  'merge_unsupported',
   'too_many_changes',
 ] as const;
 export type RefusalCode = (typeof REFUSAL_CODES)[number];
@@ -63,7 +67,6 @@ export interface NodeUpdate {
   readonly nodeId: string;
   readonly visibleIn?: number;
   readonly retiredIn?: number;
-  readonly mergedInto?: string;
 }
 
 /** What a release changed, in counts. */
@@ -130,7 +133,11 @@ function revisionOf(
   };
 }
 
-/** The nodes of a draft batch and of the current catalogue that sit under one parent: what a new sibling must differ from. */
+/**
+ * The names a new node must differ from, normalised: for a system, every system; for a topic, every topic of the catalogue whatever
+ * its system; for a facet, the facets of its own topic (facets such as "Limits" are meant to repeat across topics). A retired node's
+ * names are free again, though its id stays taken.
+ */
 interface Siblings {
   readonly ids: Set<string>;
   readonly labels: Set<string>;
@@ -176,7 +183,7 @@ function textRefusal(draft: NodeDraft): RefusalCode | undefined {
 /**
  * Plans the next release from the rows of the current one and a list of changes. Admission is by code: ids have the plan's
  * shape and sit under their parent, a parent exists and is of the right kind, a normalised id and a normalised label are unique
- * among their siblings, a meaning is inside its bounds, a topic has two to sixteen facets, a node keeps its identity, place,
+ * across the whole catalogue for systems and for topics, and among the facets of one topic for facets, a meaning is inside its bounds, a topic has two to sixteen facets, a node keeps its identity, place,
  * silhouette and haze for ever, and a wording is declared the same meaning only of the wording it replaces. Any refusal
  * refuses the whole release: nothing is half admitted.
  *
@@ -220,20 +227,33 @@ export function planRelease(
     return list;
   };
   for (const node of base.nodes) childrenAt(node.parentId).push(node.nodeId);
+  /** Every node of a kind, so the names of all topics are read once, not by walking the catalogue for each new one. */
+  const ofKind = new Map<NodeRow['kind'], string[]>();
+  const ofKindAt = (kind: NodeRow['kind']): string[] => {
+    let list = ofKind.get(kind);
+    if (list === undefined) {
+      list = [];
+      ofKind.set(kind, list);
+    }
+    return list;
+  };
+  for (const node of base.nodes) ofKindAt(node.kind).push(node.nodeId);
   const isRetired = (nodeId: string): boolean =>
     retired(nodes.get(nodeId), base.releaseId) || updates.get(nodeId)?.retiredIn !== undefined;
 
-  /** What a new sibling must differ from, built once for a parent and kept current as the release goes on. */
+  /** What a new node of a kind must differ from, built once for its scope and kept current as the release goes on. */
   const siblingCache = new Map<string, Siblings>();
-  const siblingsOf = (parentId: string | null): Siblings => {
-    const key = parentId ?? '';
+  const siblingsOf = (kind: NodeRow['kind'], parentId: string | null): Siblings => {
+    const key = kind === 'facet' ? `facet:${parentId ?? ''}` : kind;
     const known = siblingCache.get(key);
     if (known !== undefined) return known;
     const ids = new Set<string>();
     const labels = new Set<string>();
-    for (const nodeId of childrenAt(parentId)) {
+    for (const nodeId of kind === 'facet' ? childrenAt(parentId) : ofKindAt(kind)) {
       if (isRetired(nodeId)) continue;
-      const slug = slugOf(nodeId, parentId);
+      const node = nodes.get(nodeId);
+      if (node === undefined || node.kind !== kind) continue;
+      const slug = slugOf(nodeId, node.parentId);
       if (slug !== undefined) ids.add(normalised(slug));
       const revision = newest.get(nodeId);
       if (revision !== undefined) labels.add(normalised(revision.label));
@@ -259,7 +279,7 @@ export function planRelease(
     if (!SLUG.test(slug)) return refuse('id_shape', id);
     const text = textRefusal(draft);
     if (text !== undefined) return refuse(text, id);
-    const siblings = siblingsOf(parentId);
+    const siblings = siblingsOf(kind, parentId);
     if (siblings.ids.has(normalised(slug))) return refuse('id_duplicate', id);
     if (siblings.labels.has(normalised(draft.label))) return refuse('label_duplicate', id);
     const node: NodeRow = {
@@ -276,6 +296,7 @@ export function planRelease(
     nodes.set(id, node);
     newNodes.push(node);
     childrenAt(parentId).push(id);
+    ofKindAt(kind).push(id);
     siblings.ids.add(normalised(slug));
     siblings.labels.add(normalised(draft.label));
     const revision = revisionOf(draft, 1, releaseId, [], hash);
@@ -300,7 +321,7 @@ export function planRelease(
     const reworded = draft.meaning !== current.meaning;
     if (!reworded && draft.label === current.label) return;
     if (draft.label !== current.label) {
-      const siblings = siblingsOf(node.parentId);
+      const siblings = siblingsOf(node.kind, node.parentId);
       if (siblings.labels.has(normalised(draft.label))) return refuse('label_duplicate', draft.id);
       siblings.labels.delete(normalised(current.label));
       siblings.labels.add(normalised(draft.label));
@@ -336,16 +357,7 @@ export function planRelease(
     // A facet leaves only with its topic: a stored place or certificate may name it, and a topic keeps the facets it was formed from.
     if (node.kind === 'facet') return refuse('facet_retire', nodeId);
     if (isRetired(nodeId)) return refuse('node_retired', nodeId);
-    if (mergedInto !== undefined) {
-      const target = nodes.get(mergedInto);
-      if (
-        target === undefined ||
-        target.kind !== node.kind ||
-        target.nodeId === nodeId ||
-        retired(target, base.releaseId)
-      )
-        return refuse('merge_target', nodeId);
-    }
+    if (mergedInto !== undefined) return refuse('merge_unsupported', nodeId);
     const doomed = [nodeId];
     for (let at = 0; at < doomed.length; at += 1) for (const child of childrenAt(doomed[at]!)) doomed.push(child);
     for (const id of doomed) {
@@ -353,7 +365,7 @@ export function planRelease(
       if (isRetired(id)) continue;
       // A retired node leaves its siblings' names free, though its id stays taken.
       const slug = slugOf(id, known.parentId);
-      const siblings = siblingsOf(known.parentId);
+      const siblings = siblingsOf(known.kind, known.parentId);
       if (slug !== undefined) siblings.ids.delete(normalised(slug));
       const revision = newest.get(id);
       if (revision !== undefined) siblings.labels.delete(normalised(revision.label));
@@ -361,7 +373,6 @@ export function planRelease(
         ...updates.get(id),
         nodeId: id,
         retiredIn: releaseId,
-        ...(id === nodeId && mergedInto !== undefined ? { mergedInto } : {}),
       });
       counts.retired += 1;
     }
@@ -391,7 +402,6 @@ export function planRelease(
       ...node,
       visibleIn: update.visibleIn ?? node.visibleIn,
       retiredIn: update.retiredIn ?? node.retiredIn,
-      mergedInto: update.mergedInto ?? node.mergedInto,
     };
   });
   const revisions = [...base.revisions, ...newRevisions];

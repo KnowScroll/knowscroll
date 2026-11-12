@@ -93,6 +93,7 @@ describe('admitRecipeCoverage (in-memory ports; the SQL adapter is covered in in
       catalogue: async (at: Parameters<typeof ports.catalogue>[0]) => ({
         ...(await ports.catalogue(at)),
         meaningSha256: () => digest('another meaning'),
+        acceptsMeaning: (_topicId: string, _facetId: string, sha256: string) => sha256 === digest('another meaning'),
       }),
     };
     const corrected = await admitRecipeCoverage(rephrased, tx, recipe, ref);
@@ -115,6 +116,46 @@ describe('admitRecipeCoverage (in-memory ports; the SQL adapter is covered in in
       change: 'unchanged',
     });
     expect(heads.map((head) => head.authority.headRevision)).toEqual([1]);
+  });
+
+  it('appends nothing when a revision only reworded a facet the catalogue still accepts as the same meaning (D-419, #674)', async () => {
+    const { ports, heads } = memoryPorts(targetOf(5));
+    await admitRecipeCoverage(ports, tx, recipe, ref);
+    const earlier = heads[0]!.mapping.bindings[0]!.meaningSha256;
+    const reworded = {
+      ...ports,
+      catalogue: async (at: Parameters<typeof ports.catalogue>[0]) => ({
+        ...(await ports.catalogue(at)),
+        sha256: digest('catalogue-2'),
+        meaningSha256: () => digest('reworded'),
+        acceptsMeaning: (_topicId: string, _facetId: string, sha256: string) =>
+          sha256 === earlier || sha256 === digest('reworded'),
+      }),
+    };
+    expect(await admitRecipeCoverage(reworded, tx, recipe, ref)).toMatchObject({
+      kind: 'admitted',
+      change: 'unchanged',
+    });
+    // The head a certificate was read against is still the head, binding for binding.
+    expect(heads).toHaveLength(1);
+    expect(heads[0]?.mapping.bindings[0]?.meaningSha256).toBe(earlier);
+  });
+
+  it('decides against one release even when another lands while it runs (#674)', async () => {
+    const { ports, heads } = memoryPorts(targetOf(5));
+    let reads = 0;
+    const racing: CoverageHeadPorts = {
+      ...ports,
+      catalogue: async (at) => {
+        reads += 1;
+        // A release published after the first read changes the digest every later read sees.
+        return { ...(await ports.catalogue(at)), sha256: digest(`catalogue-${String(reads)}`) };
+      },
+    };
+    const outcome = await admitRecipeCoverage(racing, tx, recipe, ref);
+    expect(outcome).toMatchObject({ kind: 'admitted', change: 'appended' });
+    expect(reads).toBe(1);
+    expect(heads[0]?.mapping.catalogueSha256).toBe(digest('catalogue-1'));
   });
 
   it('writes nothing when the revision is not an admissible target', async () => {

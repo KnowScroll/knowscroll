@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
-import { LIBRARY_SYSTEMS } from '../library/index.js';
+import { RELEASE_1_COUNTS, RELEASE_1_DIGEST, RELEASE_1_PLAN } from './release-1.fixture.js';
 import { nodesOfPlan } from './plan-import.js';
 import { planRelease, type ReleasePlan } from './release.js';
 import { seedRelease, seedSnapshot } from './seed.js';
@@ -8,7 +8,7 @@ import { makeSnapshot, type CatalogueSnapshot } from './snapshot.js';
 import type { ReleaseRows } from './types.js';
 
 /** The catalogue as it was when it was a constant derived from the plan: the shapes every consumer read before D-419. */
-const LEGACY = LIBRARY_SYSTEMS.flatMap((system) => [
+const LEGACY = RELEASE_1_PLAN.flatMap((system) => [
   { id: system.id, parent: null, meaning: system.meaning, facets: [] as { id: string; meaning: string }[] },
   ...system.topics.map((topic) => ({
     id: topic.id,
@@ -27,25 +27,25 @@ const legacyLabel = (topicId: string, facetId?: string): string => {
   return `${heading}: ${phrase(facetId.slice(topicId.length + 1))}`;
 };
 
-const seeded = seedSnapshot(LIBRARY_SYSTEMS, canonicalSha256);
+const seeded = seedSnapshot(RELEASE_1_PLAN, canonicalSha256);
 
 /** Applies one release on top of a snapshot's rows, as the adapter does, and reads the result. */
 function release(base: ReleaseRows, plan: ReleasePlan): ReleaseRows {
   if (plan.kind !== 'release') throw new Error(`expected a release, got ${plan.kind}`);
   return plan.rows;
 }
-const seedRows = seedRelease(LIBRARY_SYSTEMS, canonicalSha256).rows;
+const seedRows = seedRelease(RELEASE_1_PLAN, canonicalSha256).rows;
 const view = (rows: ReleaseRows): CatalogueSnapshot => makeSnapshot(rows, canonicalSha256);
 
 describe('the seeded catalogue is the old constant (catalogue-equivalence, no database)', () => {
-  it('holds the six systems, seventeen topics and fifty-three facets of the plan', () => {
-    expect(seeded.all().filter((concept) => concept.kind === 'system')).toHaveLength(6);
-    expect(seeded.allTopics()).toHaveLength(17);
-    expect(seeded.allTopics().reduce((total, topic) => total + topic.facets.length, 0)).toBe(53);
-    expect(seedRelease(LIBRARY_SYSTEMS, canonicalSha256).summary).toMatchObject({
-      addedSystems: 6,
-      addedTopics: 17,
-      addedFacets: 53,
+  it('holds the six systems, seventeen topics and fifty-three facets release 1 was seeded with (the frozen copy, not the live plan)', () => {
+    expect(seeded.all().filter((concept) => concept.kind === 'system')).toHaveLength(RELEASE_1_COUNTS.systems);
+    expect(seeded.allTopics()).toHaveLength(RELEASE_1_COUNTS.topics);
+    expect(seeded.allTopics().reduce((total, topic) => total + topic.facets.length, 0)).toBe(RELEASE_1_COUNTS.facets);
+    expect(seedRelease(RELEASE_1_PLAN, canonicalSha256).summary).toMatchObject({
+      addedSystems: RELEASE_1_COUNTS.systems,
+      addedTopics: RELEASE_1_COUNTS.topics,
+      addedFacets: RELEASE_1_COUNTS.facets,
     });
   });
 
@@ -62,6 +62,7 @@ describe('the seeded catalogue is the old constant (catalogue-equivalence, no da
 
   it('has the digest every earlier coverage mapping recorded as its catalogue digest', () => {
     expect(seeded.digest).toBe(canonicalSha256({ version: 'content-concepts.v1', concepts: LEGACY }));
+    expect(seeded.digest).toBe(RELEASE_1_DIGEST);
     expect(seeded.releaseId).toBe(1);
   });
 
@@ -104,7 +105,7 @@ describe('the seeded catalogue is the old constant (catalogue-equivalence, no da
     expect(seeded.systems().map((system) => system.id)).toEqual(
       LEGACY.filter((concept) => concept.parent === null).map((concept) => concept.id),
     );
-    expect(seeded.topics()).toHaveLength(17);
+    expect(seeded.topics()).toHaveLength(RELEASE_1_COUNTS.topics);
     for (const system of seeded.systems()) expect(seeded.children(system.id).length).toBeGreaterThan(0);
   });
 
@@ -116,8 +117,8 @@ describe('the seeded catalogue is the old constant (catalogue-equivalence, no da
       'ridged.v1',
     ]);
     expect(seeded.sceneFamilyOf('earth.seasons.axial-tilt')).toBeUndefined();
-    expect(LIBRARY_SYSTEMS.map((system) => seeded.hazeOf(system.id))).toEqual(
-      LIBRARY_SYSTEMS.map((system) => system.haze),
+    expect(RELEASE_1_PLAN.map((system) => seeded.hazeOf(system.id))).toEqual(
+      RELEASE_1_PLAN.map((system) => system.haze),
     );
     expect(seeded.hazeOf('earth.seasons')).toBeUndefined();
     expect(seeded.concept('earth')?.policy).toEqual({ systemUnits: 2, planetUnits: 3, planetFacets: 2 });
@@ -238,6 +239,32 @@ describe('the catalogue after releases', () => {
     expect(again).toMatchObject({ kind: 'refused', refusals: [{ code: 'id_taken' }] });
   });
 
+  it('leaves a retired node out of the slice new formation reads, and still resolves it by id (#674)', () => {
+    const after = view(
+      release(seedRows, planRelease(seedRows, [{ kind: 'retire', nodeId: 'earth.tides' }], canonicalSha256)),
+    );
+    expect(after.slice(['earth', 'earth.tides', 'earth.seasons']).map((concept) => concept.id)).toEqual([
+      'earth',
+      'earth.seasons',
+    ]);
+    // What was stored for it still resolves, with its facets, so an old place or certificate is never orphaned.
+    expect(after.concept('earth.tides')).toMatchObject({ retired: true });
+    expect(after.concept('earth.tides')!.facets.length).toBeGreaterThan(0);
+    expect(after.meaning('earth.tides', 'earth.tides.coasts')).toBeDefined();
+    // A topic that only waits for supply is not retired: formation may still reach it.
+    const waiting = view(
+      release(
+        seedRows,
+        planRelease(
+          seedRows,
+          newTopic.map((draft) => ({ kind: 'add', draft })),
+          canonicalSha256,
+        ),
+      ),
+    );
+    expect(waiting.slice(['earth.volcanoes']).map((concept) => concept.id)).toEqual(['earth.volcanoes']);
+  });
+
   it('a system is servable only while one of its topics is', () => {
     const system = [growthDraft('geology', null, 'system', 'The solid Earth and how it changes over deep time.')];
     const topic = [
@@ -265,7 +292,7 @@ describe('the catalogue after releases', () => {
 });
 
 describe('what a revision does to the certificates decided against the old wording', () => {
-  const [earthTides] = nodesOfPlan(LIBRARY_SYSTEMS).filter((draft) => draft.id === 'earth.tides.coasts');
+  const [earthTides] = nodesOfPlan(RELEASE_1_PLAN).filter((draft) => draft.id === 'earth.tides.coasts');
   const wordingOnly = {
     ...earthTides!,
     meaning: 'Coastlines and basin dynamics limit simple global tide predictions (rephrased).',
@@ -327,7 +354,7 @@ describe('what a revision does to the certificates decided against the old wordi
   });
 
   it('accepts a topic’s wording-only revision for each of its facets', () => {
-    const topic = nodesOfPlan(LIBRARY_SYSTEMS).find((draft) => draft.id === 'earth.tides')!;
+    const topic = nodesOfPlan(RELEASE_1_PLAN).find((draft) => draft.id === 'earth.tides')!;
     const rows = release(
       seedRows,
       planRelease(

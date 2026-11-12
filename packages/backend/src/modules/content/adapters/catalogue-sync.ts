@@ -6,6 +6,7 @@ import type { RefusalCode, ReleaseChange, ReleaseSummary } from '../domain/catal
 import { CATALOGUE_LIMITS } from '../domain/catalogue/types.js';
 import { topicsNowServable } from '../domain/catalogue/visibility.js';
 import { LIBRARY_SYSTEMS } from '../domain/library/index.js';
+import type { LibrarySystem } from '../domain/library/plan.js';
 import { appendRelease, planNextRelease, readCatalogueIn, type AppendOutcome } from './catalogue-store.js';
 import { readReleasedCoverage } from './gap-reads.js';
 
@@ -79,7 +80,7 @@ const sum = (a: ReleaseSummary, b: ReleaseSummary): ReleaseSummary => ({
 /** Makes the servable topics servable: those that now have released, coverage-mapped supply (three units over two facets by default). One release, or none. */
 export async function showServableTopics(db: Kysely<Database>): Promise<AppendOutcome> {
   const snapshot = await readCatalogueIn(db);
-  const ids = topicsNowServable(snapshot, await readReleasedCoverage(db));
+  const ids = topicsNowServable(snapshot, await readReleasedCoverage(db, snapshot));
   if (ids.length === 0) return { kind: 'unchanged' };
   return appendRelease(
     db,
@@ -95,13 +96,15 @@ export async function showServableTopics(db: Kysely<Database>): Promise<AppendOu
  * and a plan that matches the catalogue makes none. A new topic is added, a changed meaning is a new revision (it keeps earlier
  * certificates valid only where the plan declares `sameMeaningAs`), a changed silhouette or haze of an existing node is refused, and a node the plan no longer
  * names is reported, never retired. Any refusal writes nothing. Shared content only: no provider, no personal root, no network.
+ * `plan` is the library plan to import; the operator command passes none and gets the plan in code, a test passes a frozen one.
  */
 export async function syncCatalogue(
   db: Kysely<Database>,
   options: { readonly dryRun: boolean },
+  plan: readonly LibrarySystem[] = LIBRARY_SYSTEMS,
 ): Promise<CatalogueSyncSummary> {
   const before = await readCatalogueIn(db);
-  const difference = changesToMatch(before, nodesOfPlan(LIBRARY_SYSTEMS));
+  const difference = changesToMatch(before, nodesOfPlan(plan));
   const base = {
     dryRun: options.dryRun,
     releaseBefore: before.releaseId,
@@ -121,7 +124,7 @@ export async function syncCatalogue(
     // The first release of the import stands for it: the rest are checked as each is made.
     const chunks = releaseChunks(difference.changes);
     const plan = await planNextRelease(db, chunks[0] ?? []);
-    const servable = topicsNowServable(before, await readReleasedCoverage(db));
+    const servable = topicsNowServable(before, await readReleasedCoverage(db, before));
     if (plan.kind === 'refused')
       return done({ plan: 'refused', refusals: plan.refusals, nowServable: servable.length });
     if (plan.kind === 'unchanged') return done({ plan: 'unchanged', nowServable: servable.length });

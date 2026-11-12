@@ -56,8 +56,9 @@ export interface FacetMeaning {
 
 /**
  * One release of the catalogue, immutable and synchronous: everything a use case reads of the catalogue comes from one
- * snapshot, so a rule that looks at it twice never sees two catalogues. A lookup by id finds a node of any status; only the
- * listings leave out retired nodes and, for topics, the ones that are not yet servable.
+ * snapshot, so a rule that looks at it twice never sees two catalogues. A lookup by id finds a node of any status, so what was stored
+ * for a retired node still resolves; the listings and `slice` leave out retired nodes and the listings, for topics, the ones that are
+ * not yet servable. A retired node is never offered, matched, briefed or formed on.
  */
 export interface CatalogueSnapshot {
   readonly releaseId: number;
@@ -77,7 +78,11 @@ export interface CatalogueSnapshot {
   readonly allTopics: () => readonly CatalogueConcept[];
   /** The servable topics of a system, in catalogue order. */
   readonly children: (systemId: string) => readonly CatalogueConcept[];
-  /** The named nodes in catalogue order, whatever their status; ids the catalogue does not hold are skipped. */
+  /**
+   * The named nodes in catalogue order, for new formation: ids the catalogue does not hold are skipped, and so is a retired node, which
+   * no new place may form on. A servable or not-yet-servable node is included. `concept` still finds a retired node, so what was
+   * already stored for it resolves.
+   */
   readonly slice: (ids: Iterable<string>) => readonly CatalogueConcept[];
   /** The system a topic belongs to (a system belongs to itself), or `undefined` for an id the catalogue does not hold. */
   readonly systemOf: (id: string) => string | undefined;
@@ -273,7 +278,7 @@ export function makeSnapshot(rows: ReleaseRows, hash: JsonHash): CatalogueSnapsh
       const found = new Set<CatalogueConcept>();
       for (const id of ids) {
         const concept = concepts.get(id);
-        if (concept !== undefined) found.add(concept);
+        if (concept !== undefined && !concept.retired) found.add(concept);
       }
       return [...found].sort((a, b) => index.get(a.id)! - index.get(b.id)!);
     },

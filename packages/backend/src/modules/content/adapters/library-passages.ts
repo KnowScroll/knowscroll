@@ -62,7 +62,7 @@ export function topicIdsOf(
 ): readonly string[] {
   if (topic.kind === 'system') return catalogue.children(topic.id).map((planet) => planet.id);
   const planet = catalogue.concept(topic.id);
-  return planet?.kind === 'topic' && !planet.retired ? [topic.id] : [];
+  return planet?.kind === 'topic' && planet.servable ? [topic.id] : [];
 }
 
 /** A Scroll made for a thread belongs to that thread and is nobody's daily item (D-049). */

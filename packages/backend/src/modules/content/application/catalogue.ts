@@ -11,6 +11,9 @@ export interface Catalogue {
    * process is read without a restart; a read made inside a transaction never waits for that look.
    */
   current(): Promise<CatalogueSnapshot>;
-  /** An earlier release by number: what a run that pinned it reads for ever. `undefined` when there is no such release. */
+  /**
+   * An earlier release by number: what a run that pinned it reads for ever. `undefined` when there is no such release. A release the
+   * process has read already is answered from memory, with no query, so this is safe inside a personal transaction.
+   */
   release(releaseId: number): Promise<CatalogueSnapshot | undefined>;
 }

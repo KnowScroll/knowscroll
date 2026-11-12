@@ -31,21 +31,27 @@ or model labels never establish membership. _Implemented; migration 0116 seeds r
 - **Snapshots.** `CatalogueSnapshot` is one release, immutable and synchronous: `concept(id)`, `systems()`, `topics()`, `allTopics()`, `children(system)`,
   `slice(ids)`, `systemOf`, `meaning`, `meaningSha256`, `acceptsMeaning`, `label`, `sceneFamilyOf`, `hazeOf`, with formation thresholds on each node
   (defaults 2, 3 and 2). A use case reads one snapshot and everything from it, so a rule that looks twice never sees two releases. A lookup by id finds
-  a node of any status; the listings leave out retired nodes and topics that are not servable. `adapters/catalogue-store.ts` reads a release once per process
+  a node of any status, so what was stored for a retired node still resolves; the listings leave out retired nodes and topics that are not servable, and `slice(ids)`
+  (what new formation reads) leaves out retired nodes too. `adapters/catalogue-store.ts` reads a release once per process
   (keyed by release and digest) and `makeCatalogue(db)` re-checks the pointer every few seconds without blocking a reader (a stale release is a valid
-  catalogue), so a release made by one process is read by the others without a restart. Content's own adapters read the release through the transaction they are already in.
+  catalogue), so a release made by one process is read by the others without a restart. It keeps every release it has read by number, so `release(n)` for one of
+  those answers from memory with no query: a read inside a personal transaction never takes a second pool connection for one it has already read. Content's own adapters read the release through the transaction they are already in.
 - **Admission is by code** (`domain/catalogue/release.ts`): an id has the plan's shape and sits under its parent, a parent exists and is of the right kind and
-  live, a normalised id and a normalised label are unique among their siblings, a meaning is 16 to 300 characters without an address or markup, a topic has two to sixteen facets
+  live, a normalised id and a normalised label are unique across the whole catalogue for systems and for topics (and among the facets of one topic, since facets
+  such as "Limits" repeat across topics), a meaning is 16 to 300 characters without an address or markup, a topic has two to sixteen facets
   in its own release, a node keeps its place, kind, silhouette and haze for ever, and a rewording is declared the same meaning only of the wording it replaces.
-  Any refusal refuses the whole release. A facet is never retired alone, only with its topic.
+  Any refusal refuses the whole release. A facet is never retired alone, only with its topic. **A merge is refused** (`merge_unsupported`): sending a retired
+  topic's readers, places, rooms and certificates to another topic is not built, so a topic is retired, never merged, and `merged_into` stays null. Triggers
+  in the migration refuse a node or revision introduced at or below the release the pointer names, and a show or retirement in a release the pointer has passed.
 - **A new topic waits for supply.** It is added not servable (not offered, matched, listed or made a room) until the library has released, coverage-mapped supply
   for it: at least three distinct explanations over two of its own facets by default (its own thresholds), counted from `content.region_bindings` of admitted
-  Scrolls only (`readReleasedCoverage`). `showServableTopics` makes such topics servable in a release of its own; the gap loop's scan runs it each pass, and
+  Scrolls only (`readReleasedCoverage`), and only the bindings whose pinned meaning the catalogue still accepts (a facet whose meaning changed is not supplied by a Scroll mapped to the old one). `showServableTopics` makes such topics servable in a release of its own; the gap loop's scan runs it each pass, and
   `content catalogue sync` runs it too. Production and the gap loop work on topics that are not yet servable (`allTopics()`).
 - **A wording-only revision keeps certificates valid.** A revision lists the identities of the earlier wordings it only rephrases (`compatible_with`), so
   `acceptsMeaning` still accepts a certificate decided against them; a semantic change lists none and the binding is dropped from reads, never thrown on. New decisions
   pin the current wording (`meaningSha256`). A release that changes nothing a binding pins changes only the digest, which a read never compares, and re-admission
-  treats it as no change (no new coverage head).
+  treats it as no change (no new coverage head); so does a wording-only revision: a binding decided against an earlier wording the catalogue still accepts stands as it is, so
+  `content readmit-coverage` appends no head and the certificates read against the head stay valid. Re-admission reads the catalogue once, so a release that lands while it runs cannot fail the publication.
 - **Import.** `dist/operator.js content catalogue sync [--dry-run]` compares the plan with the current release (ids, labels, meanings, looks), adds what is new, revises what
   changed (a changed silhouette or haze is refused), reports what the plan no longer names (it retires nothing), splits a large plan into releases of at most 20,000
   nodes (never between a topic and its facets), and then makes servable the topics with supply. Running it twice makes one release.

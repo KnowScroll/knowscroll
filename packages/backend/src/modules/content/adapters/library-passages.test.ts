@@ -4,7 +4,8 @@ import { evidencePassages } from '../production/evidence.js';
 import { spikeRecipeV2 } from '../production/spike-v2/topics.js';
 import { fixtureAuthoredV2, fixtureResearchPageV2 } from '../production/spike-v2/writer-v2.fixture.js';
 import { compileGeneratedScrollV2, publicationV2 } from '../production/writer-v2.js';
-import { proseBlocksOf } from './library-passages.js';
+import { fixtureSnapshot } from '../public.js';
+import { proseBlocksOf, topicIdsOf } from './library-passages.js';
 
 /** A labelled CI fixture: the recorded v2 writer answer for the seasons recipe, compiled as production would. */
 function fixtureDocument() {
@@ -43,5 +44,32 @@ describe('the prose of a stored Scroll, for a room’s daily items', () => {
     expect(proseBlocksOf({ schemaVersion: 'scroll-document.v2', stops: 'nope' })).toEqual([]);
     expect(proseBlocksOf({ schemaVersion: 'scroll-document.v1' })).toEqual([]);
     expect(proseBlocksOf(null)).toEqual([]);
+  });
+});
+
+describe('the topics a library topic covers in one release of the catalogue (#674)', () => {
+  const concepts = [
+    { id: 'earth', parent: null },
+    { id: 'earth.tides', parent: 'earth', facets: ['earth.tides.forcing', 'earth.tides.coasts'] },
+    { id: 'earth.seasons', parent: 'earth', facets: ['earth.seasons.tilt', 'earth.seasons.limits'] },
+    { id: 'earth.volcanoes', parent: 'earth', facets: ['earth.volcanoes.magma', 'earth.volcanoes.plates'] },
+  ];
+
+  it('is the servable planets of a system, and a servable planet itself', () => {
+    const catalogue = fixtureSnapshot(concepts);
+    expect(topicIdsOf(catalogue, { kind: 'system', id: 'earth' })).toEqual([
+      'earth.tides',
+      'earth.seasons',
+      'earth.volcanoes',
+    ]);
+    expect(topicIdsOf(catalogue, { kind: 'planet', id: 'earth.tides' })).toEqual(['earth.tides']);
+  });
+
+  it('covers nothing for a planet that is retired or still waits for released supply, nor for one that is not there', () => {
+    const catalogue = fixtureSnapshot(concepts, 1, { retired: ['earth.tides'], waiting: ['earth.volcanoes'] });
+    expect(topicIdsOf(catalogue, { kind: 'planet', id: 'earth.tides' })).toEqual([]);
+    expect(topicIdsOf(catalogue, { kind: 'planet', id: 'earth.volcanoes' })).toEqual([]);
+    expect(topicIdsOf(catalogue, { kind: 'planet', id: 'earth.nothing' })).toEqual([]);
+    expect(topicIdsOf(catalogue, { kind: 'system', id: 'earth' })).toEqual(['earth.seasons']);
   });
 });

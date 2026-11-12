@@ -94,7 +94,8 @@ export function makeCreateRequest(p: SupplyPorts): CreateRequest {
       // This preliminary immutable read grants no authority; one sorted lock batch below
       // rechecks current admission after waiting before any receipt or private mutation.
       const preliminary = source ? await p.readExact(scope, { ...source, capabilities: c.capabilities }) : undefined;
-      const brief = briefOf(c, preliminary, await p.catalogue.current());
+      const catalogue = await p.catalogue.current();
+      const brief = briefOf(c, preliminary, catalogue);
       const current = await inventory(p, scope, c, brief);
       if (source && (!(await p.checkSource(scope, source)) || !current.sourceHead?.encounter))
         return { kind: 'refused', reason: 'source_unavailable' } as const;
@@ -138,6 +139,8 @@ export function makeCreateRequest(p: SupplyPorts): CreateRequest {
             : { ...demand, brief, reason: commissioned.reason };
       } else if (ask && askFacts) demand = await askDemand(p, scope, demand, ask, askFacts);
       else if (asksFreeText(c)) demand = { ...demand, status: 'matching', decision: 'pending', reason: undefined };
+      // A request that waits to be matched keeps the release it was asked against, so every delivery shows the model the same shortlist.
+      if (demand.status === 'matching') demand = { ...demand, catalogueRelease: catalogue.releaseId };
       const revision = await p.advance(scope);
       await p.store.insert(scope, { ...demand, revision });
       if (demand.status === 'requested' || demand.status === 'matching') await p.enqueue(scope, id);
@@ -370,7 +373,7 @@ export function makeRetryRequest(p: SupplyPorts): RetryRequest {
 export function makeRecordPlannedDemand(p: SupplyPorts): RecordPlannedDemand {
   return async (scope, input) => {
     const catalogue = await p.catalogue.current();
-    const topicId = input.topicIds.find((id) => catalogue.concept(id) !== undefined);
+    const topicId = input.topicIds.find((id) => catalogue.concept(id)?.servable === true);
     if (topicId === undefined) return { kind: 'unsupported', reason: 'topic_not_in_catalogue' };
     const command: CreateContentRequest = {
       version: 'content-request.v1',

@@ -25,6 +25,7 @@ function demandOf(r: Selectable<SupplyRequests>): Demand {
       ? { askOrder: { orderId: r.ask_order_id, assetId: r.ask_asset_id } }
       : {}),
     ...(r.reason ? { reason: r.reason as Demand['reason'] } : {}),
+    ...(r.catalogue_release === null ? {} : { catalogueRelease: r.catalogue_release }),
     ...(r.planned_intent ? { plannedIntent: r.planned_intent as unknown as Demand['plannedIntent'] } : {}),
     ...(r.ask_limit ? { askLimit: r.ask_limit as Demand['askLimit'] } : {}),
     ...(r.content ? { content: r.content as unknown as Demand['content'] } : {}),
@@ -64,6 +65,7 @@ export const supplyStore: SupplyStore = {
         request_revision: d.requestRevision,
         revision: d.revision,
         decision: d.decision,
+        catalogue_release: d.catalogueRelease ?? null,
         work_id: d.workId ?? null,
         ask_order_id: d.askOrder?.orderId ?? null,
         ask_asset_id: d.askOrder?.assetId ?? null,

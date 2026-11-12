@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { sql, type RawBuilder } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
-import { planSnapshot, type CatalogueSnapshot } from '@knowscroll/backend/modules/content';
+import type { CatalogueSnapshot } from '@knowscroll/backend/modules/content';
+import { canonicalSha256 } from '@knowscroll/scroll-model';
 import {
   appendRelease,
   catalogueStatus,
@@ -11,11 +12,18 @@ import {
   planCoverageCatalogue,
   readCatalogueIn,
   readReleasedCoverage,
+  readmitCoverageUseCase,
   makeReviewGate,
   showServableTopics,
   syncCatalogue,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { stableUuid } from '../../../packages/backend/src/infrastructure/ids/index.js';
+import {
+  RELEASE_1_COUNTS,
+  RELEASE_1_DIGEST,
+  RELEASE_1_PLAN,
+} from '../../../packages/backend/src/modules/content/domain/catalogue/release-1.fixture.js';
+import { seedSnapshot } from '../../../packages/backend/src/modules/content/domain/catalogue/seed.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
@@ -24,6 +32,9 @@ import { orrinResearchFor, plainOrrin } from '../support/scroll-v2.js';
 import { authoredWorld, geographyReader, seedAuthoredGeography } from '../support/visit-world.js';
 
 type Draft = Extract<Parameters<typeof appendRelease>[1][number], { readonly kind: 'add' }>['draft'];
+
+/** Release 1 as the migration seeded it, from the frozen copy of the plan: never from the plan in code, which keeps growing. */
+const releaseOne = () => seedSnapshot(RELEASE_1_PLAN, canonicalSha256);
 
 const draft = (id: string, kind: 'topic' | 'facet', parentId: string, label: string, meaning: string): Draft => ({
   id,
@@ -79,9 +90,9 @@ describe('The topic catalogue as data (labelled CI fixtures, real PostgreSQL)', 
       const counts = await sql<{ kind: string; n: string }>`
         select kind, count(*) as n from content.concept_nodes group by kind order by kind`.execute(db());
       expect(counts.rows.map((row) => [row.kind, Number(row.n)])).toEqual([
-        ['facet', 53],
-        ['system', 6],
-        ['topic', 17],
+        ['facet', RELEASE_1_COUNTS.facets],
+        ['system', RELEASE_1_COUNTS.systems],
+        ['topic', RELEASE_1_COUNTS.topics],
       ]);
       expect(
         (await db().selectFrom('content.concept_current').select('release_id').executeTakeFirstOrThrow()).release_id,
@@ -93,18 +104,19 @@ describe('The topic catalogue as data (labelled CI fixtures, real PostgreSQL)', 
       ).toBe(true);
       expect(await catalogueStatus(db())).toMatchObject({
         releaseId: 1,
-        systems: 6,
-        topics: 17,
-        facets: 53,
-        servableTopics: 17,
+        systems: RELEASE_1_COUNTS.systems,
+        topics: RELEASE_1_COUNTS.topics,
+        facets: RELEASE_1_COUNTS.facets,
+        servableTopics: RELEASE_1_COUNTS.topics,
         waitingTopics: 0,
       });
     });
 
-    it('reads every value from the database exactly as the code plan gave it: ids, order, meanings, labels, looks, digests', async () => {
+    it('reads every value from the database exactly as the frozen release-1 plan gave it: ids, order, meanings, labels, looks, digests', async () => {
       const stored = await readCatalogueIn(db());
-      const plan = planSnapshot();
+      const plan = releaseOne();
       expect(stored.releaseId).toBe(plan.releaseId);
+      expect(stored.digest).toBe(RELEASE_1_DIGEST);
       expect(stored.digest).toBe(plan.digest);
       expect(stored.all()).toEqual(plan.all());
       expect(stored.systems()).toEqual(plan.systems());
@@ -123,8 +135,8 @@ describe('The topic catalogue as data (labelled CI fixtures, real PostgreSQL)', 
       }
     });
 
-    it('is what `content catalogue sync` finds: nothing to import, nothing to make servable, nothing missing', async () => {
-      const dry = await syncCatalogue(db(), { dryRun: true });
+    it('is what `content catalogue sync` finds in that plan: nothing to import, nothing to make servable, nothing missing', async () => {
+      const dry = await syncCatalogue(db(), { dryRun: true }, RELEASE_1_PLAN);
       expect(dry).toMatchObject({
         plan: 'unchanged',
         missingFromPlan: 0,
@@ -132,12 +144,12 @@ describe('The topic catalogue as data (labelled CI fixtures, real PostgreSQL)', 
         releaseBefore: 1,
         releaseAfter: 1,
       });
-      const real = await syncCatalogue(db(), { dryRun: false });
+      const real = await syncCatalogue(db(), { dryRun: false }, RELEASE_1_PLAN);
       expect(real).toMatchObject({
         plan: 'unchanged',
         releaseBefore: 1,
         releaseAfter: 1,
-        digestAfter: planSnapshot().digest,
+        digestAfter: RELEASE_1_DIGEST,
       });
       expect((await db().selectFrom('content.concept_releases').select('release_id').execute()).length).toBe(1);
     });
@@ -164,17 +176,44 @@ describe('The topic catalogue as data (labelled CI fixtures, real PostgreSQL)', 
       await expect(sql`update content.concept_current set release_id = 0`.execute(db())).rejects.toBeDefined();
     });
 
-    it('refuses a node that breaks the shape of an id or a facet with no topic', async () => {
-      await expect(
-        sql`insert into content.concept_nodes (node_id, kind, parent_id, seq, introduced_in) values ('Bad Id', 'topic', 'earth', 900, 1)`.execute(
-          db(),
-        ),
-      ).rejects.toBeDefined();
-      await expect(
-        sql`insert into content.concept_nodes (node_id, kind, parent_id, seq, introduced_in) values ('lonely', 'facet', null, 901, 1)`.execute(
-          db(),
-        ),
-      ).rejects.toBeDefined();
+    it('refuses a node or a revision introduced at or below the release the pointer names, and a show or a retirement it has already passed', async () => {
+      // A release that exists never grows: rows for release 1 are refused while the pointer is at 1, whatever their shape.
+      await refused(
+        sql`insert into content.concept_nodes (node_id, kind, parent_id, seq, introduced_in) values ('earth.late', 'topic', 'earth', 902, 1)`,
+      );
+      await refused(
+        sql`insert into content.concept_node_revisions (node_id, revision, introduced_in, label, meaning, meaning_sha256)
+          values ('earth', 2, 1, 'Earth', 'A second revision of the earth system.', ${'a'.repeat(64)})`,
+      );
+      await refused(
+        sql`update content.concept_nodes set status = 'retired', retired_in = 1 where node_id = 'earth.tides'`,
+      );
+      expect(await readCatalogueIn(db())).toMatchObject({ releaseId: 1 });
+      expect((await readCatalogueIn(db())).has('earth.late')).toBe(false);
+    });
+
+    it('refuses a node that breaks the shape of an id or a facet with no topic, in the release that is next', async () => {
+      const inNextRelease = async (insertNode: RawBuilder<unknown>, constraint: string) => {
+        await expect(
+          db()
+            .transaction()
+            .execute(async (trx) => {
+              await sql`insert into content.concept_releases (release_id, digest, source)
+                select max(release_id) + 1, ${'b'.repeat(64)}, 'operator' from content.concept_releases`.execute(trx);
+              await insertNode.execute(trx);
+            }),
+        ).rejects.toMatchObject({ message: expect.stringContaining(constraint) as string });
+      };
+      await inNextRelease(
+        sql`insert into content.concept_nodes (node_id, kind, parent_id, seq, introduced_in)
+          values ('Bad Id', 'topic', 'earth', 900, (select max(release_id) from content.concept_releases))`,
+        'concept_nodes_id_check',
+      );
+      await inNextRelease(
+        sql`insert into content.concept_nodes (node_id, kind, parent_id, seq, introduced_in)
+          values ('lonely', 'facet', null, 901, (select max(release_id) from content.concept_releases))`,
+        'concept_nodes_parent_check',
+      );
     });
   });
 
@@ -204,7 +243,7 @@ describe('The topic catalogue as data (labelled CI fixtures, real PostgreSQL)', 
       expect(after.releaseId).toBe(2);
       expect(after.concept('earth.volcanoes')).toMatchObject({ parent: 'earth', servable: false, introducedIn: 2 });
       // What existed keeps its ids, its order, its facets' sites and the identity of every pinned meaning.
-      const first = planSnapshot();
+      const first = releaseOne();
       expect(after.topics()).toEqual(first.topics());
       expect(after.systems()).toEqual(first.systems());
       for (const topic of first.topics())
@@ -334,6 +373,26 @@ describe('The topic catalogue as data (labelled CI fixtures, real PostgreSQL)', 
       const afterWording = await readOf(recipeKeys[0]);
       expect(afterWording.mapping.bindings.map((binding) => binding.facetId)).toEqual(['earth.volcanoes.magma']);
       expect(afterWording.authority).toEqual((mappingBefore as { authority: unknown }).authority);
+      // `content readmit-coverage` decides every Scroll again. A reworded facet is the same decision, so it appends no head: the head a
+      // certificate names stays the head, binding for binding, and the facet still counts as released supply.
+      expect(await readmitCoverageUseCase(db())({ dryRun: false })).toMatchObject({ appended: 0 });
+      expect((await readOf(recipeKeys[0])).authority).toEqual(afterWording.authority);
+      expect(
+        await db()
+          .selectFrom('content.coverage_revisions')
+          .select('revision')
+          .where('asset_id', '=', stableUuid(`content.recipe-asset:${recipeKeys[0]}`))
+          .execute(),
+      ).toHaveLength(1);
+      const supplied = () =>
+        readReleasedCoverage(db()).then((coverage) => coverage.planets.find((p) => p.topicId === 'earth.volcanoes'));
+      expect(await supplied()).toMatchObject({
+        units: 3,
+        facets: [
+          { facetId: 'earth.volcanoes.magma', units: 2 },
+          { facetId: 'earth.volcanoes.plates', units: 1 },
+        ],
+      });
       // A semantic change: the meaning is something else, so the binding to the old meaning is dropped, never thrown on.
       const changed = { ...plates, meaning: 'Hotspots under a plate feed islands far from any boundary.' };
       expect(await appendRelease(db(), [{ kind: 'revise', draft: changed }], 'operator')).toMatchObject({
@@ -343,6 +402,11 @@ describe('The topic catalogue as data (labelled CI fixtures, real PostgreSQL)', 
       const afterMeaning = await readOf(recipeKeys[1]);
       expect(afterMeaning.mapping.bindings).toEqual([]);
       expect((await readOf(recipeKeys[0])).mapping.bindings).toHaveLength(1);
+      // Released supply counts only the bindings that still stand: the Scroll mapped to the old meaning no longer supplies that facet.
+      expect(await supplied()).toMatchObject({ units: 2, facets: [{ facetId: 'earth.volcanoes.magma', units: 2 }] });
+      // Deciding coverage again corrects it: the head for the changed facet is replaced, history kept, and the facet counts again.
+      expect(await readmitCoverageUseCase(db())({ dryRun: false })).toMatchObject({ appended: 1 });
+      expect(await supplied()).toMatchObject({ units: 3 });
     });
 
     it('refuses a change by code, writes nothing, and never reuses a retired id', async () => {
@@ -397,7 +461,53 @@ describe('The topic catalogue as data (labelled CI fixtures, real PostgreSQL)', 
     });
   });
 
+  describe('a release read inside a personal transaction (#674)', () => {
+    /** A handle on the same database that counts every query it is asked to run: a second connection taken would show here. */
+    const counting = () => {
+      const seen = { queries: 0 };
+      const handle = db().withPlugin({
+        transformQuery: (args) => {
+          seen.queries += 1;
+          return args.node;
+        },
+        transformResult: (args) => Promise.resolve(args.result),
+      });
+      return { seen, handle };
+    };
+
+    it('is answered from memory once it has been read: no query on the pool, so no second connection is held with the first', async () => {
+      const { seen, handle } = counting();
+      const catalogue = makeCatalogue(handle, { revalidateMs: 60_000, background: true });
+      const current = await catalogue.current();
+      const pinned = await catalogue.release(1);
+      expect(pinned).toMatchObject({ releaseId: 1 });
+      const person = await seedPerson(db());
+      const before = seen.queries;
+      await withScope()(person.authority, async () => {
+        expect(await catalogue.release(1)).toBe(pinned);
+        expect(await catalogue.release(current.releaseId)).toBe(current);
+        expect(await catalogue.current()).toBe(current);
+        return undefined;
+      });
+      expect(seen.queries).toBe(before);
+    });
+
+    it('reads a release it has never read once, and says there is none for a number that was never released', async () => {
+      const { seen, handle } = counting();
+      const catalogue = makeCatalogue(handle, { revalidateMs: 60_000, background: true });
+      await catalogue.current();
+      const before = seen.queries;
+      const second = await catalogue.release(2);
+      expect(second).toMatchObject({ releaseId: 2 });
+      const afterFirstRead = seen.queries;
+      expect(afterFirstRead).toBeGreaterThan(before);
+      expect(await catalogue.release(2)).toBe(second);
+      expect(seen.queries).toBe(afterFirstRead);
+      expect(await catalogue.release(9999)).toBeUndefined();
+    });
+  });
+
   it('keeps the seeded release’s coverage catalogue as the fixtures use it: the digest of release 1', () => {
-    expect(planCoverageCatalogue().sha256).toBe(planSnapshot().digest);
+    expect(planCoverageCatalogue().sha256).toBe(RELEASE_1_DIGEST);
   });
 });
