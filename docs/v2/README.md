@@ -8,7 +8,7 @@
 | [v3-revamp/](v3-revamp/README.md) | The change map from the v3 designs to the code, and its three findings | A starting map, not proof |
 | [decisions.md](decisions.md) | Decisions made during implementation, including design conflict resolutions | Binding, append-only |
 | [carried-forward-facts.md](carried-forward-facts.md) | Owner rulings and operational facts kept from the v1 docs | Binding where not changed by `decisions.md` |
-| `operations/` | Runbooks for environments, deploys, backups, providers and inspecting the running system | Procedures; verify the named environment before claiming an operation ran |
+| `operations/` | Runbooks for environments, deploys, backups, providers and inspecting the running system; the [#674 load test](operations/load-test-674.md) of the design target | Procedures; verify the named environment before claiming an operation ran |
 
 Package and backend-module READMEs live next to their code. Each one says what is planned, implemented and runtime-verified.
 
