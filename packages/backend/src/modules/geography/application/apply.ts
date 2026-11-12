@@ -138,7 +138,8 @@ export async function applyProposal(
   if (prepared.kind !== 'prepared' || !(await p.ownerActive(scope))) return retry('source_changed');
   const fresh = prepared.context;
   const view: GeographyView = { state, objects: fresh.facts.objects, routes: fresh.facts.routes, aliases: [] };
-  if (!validView(view, c.universeId, { catalogue: p.catalogue })) return { kind: 'refused', reason: 'stored_structure' };
+  if (!validView(view, c.universeId, { catalogue: p.catalogue }))
+    return { kind: 'refused', reason: 'stored_structure' };
   // New reading since the context was frozen does not void a proposal: it applies when every
   // operation still holds on today's authority. Support that was withdrawn, corrected or retracted
   // makes it fail here as `source_changed`.
