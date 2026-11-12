@@ -15,8 +15,8 @@ function stopText(stop: Stop): string {
 /**
  * The stored consumer document of one Scroll revision (never its provenance), read inside the caller's personal
  * transaction. A revision the review gate holds or rejected reads as absent, like every read that takes an exact
- * revision from its caller (D-138), and so does a document that is not a `scroll-document.v2`: the v2 parse alone
- * refuses a v1 document and an absent row. No lock and no network.
+ * revision from its caller (D-138), and so does one of an asset that is not admitted (withdrawn, D-418) and a document that is not a
+ * `scroll-document.v2`: the v2 parse alone refuses a v1 document and an absent row. An older revision of an admitted asset still reads. No lock and no network.
  */
 export async function readStoredDocumentV2(
   scope: PersonalScopeTx,
@@ -29,6 +29,7 @@ export async function readStoredDocumentV2(
     .where('revision.asset_id', '=', ref.assetId)
     .where('revision.revision', '=', ref.assetRevision)
     .where('asset.kind', '=', 'scroll')
+    .where('asset.status', '=', 'admitted')
     .where(sql<boolean>`${notUnderReview('revision.asset_id', 'revision.revision')}`)
     .executeTakeFirst();
   const parsed = parseDocumentV2(row?.document);

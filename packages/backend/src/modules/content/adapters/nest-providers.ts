@@ -329,6 +329,11 @@ export { makeEnqueueScrollProduction } from './enqueue-production.js';
 export { readLibraryStatus } from './production-state.js';
 /** The operator's review gate for library v2 Scrolls: list, show, release, reject (D-138). */
 export { makeReviewGate, type ReviewGate } from './review-gate.js';
+/**
+ * The release policy of held library Scrolls (#674, D-418): the worker's release step (off until switched on), the operator's topic approvals,
+ * the withdrawal that also revokes a topic and the status of counts. Every release goes through the review gate's own.
+ */
+export { makeReleasePolicy, type ReleasePolicy, type ReleasePolicySettings } from './release-policy.js';
 /** Bounded shared retrieval capabilities; no feature consumers are installed by this slice. */
 export {
   readEncounterAttribution,

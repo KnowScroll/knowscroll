@@ -13,6 +13,7 @@ import {
   produceAnswerQueue,
   produceScrollQueue,
   sweepLibrarySupportQueue,
+  sweepReleasePolicyQueue,
 } from './modules/content/public.js';
 import { plannerQueue } from './modules/planner/public.js';
 import { purgeReportsQueue } from './modules/feedback/public.js';
@@ -73,6 +74,7 @@ export const releaseQueues = queueRegistry([
   produceAnswerQueue,
   checkLibrarySupportQueue,
   sweepLibrarySupportQueue,
+  sweepReleasePolicyQueue,
   suggestDraftQueue,
   writeAnswerQueue,
   resolveBranchesQueue,

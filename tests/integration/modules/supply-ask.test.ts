@@ -2621,6 +2621,27 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await factsOf({ assetId: scroll.assetId, assetRevision: 2 }, stopId)).toBeUndefined();
     });
 
+    it('reads nothing of a Scroll withdrawn since the person opened it, and refuses their question', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      const setStatus = (status: 'admitted' | 'withdrawn') =>
+        sql`update content.assets set status = ${status} where id = ${scroll.assetId}::uuid`.execute(database.db);
+      const ref = { assetId: scroll.assetId, assetRevision: 1 };
+      expect(await factsOf(ref, stopId)).toBeDefined();
+      await setStatus('withdrawn');
+      try {
+        expect(await factsOf(ref, stopId)).toBeUndefined();
+        expect(await create(person.authority, askCommand(exposure, suggestions[0]!))).toEqual({
+          kind: 'refused',
+          reason: 'source_unavailable',
+        });
+        expect(await database.db.selectFrom('supply.ask_orders').select('order_id').execute()).toEqual([]);
+      } finally {
+        await setStatus('admitted');
+      }
+      expect(await factsOf(ref, stopId)).toBeDefined();
+    });
+
     it('reads nothing of a v1 Scroll, which has no stops and suggests nothing', async () => {
       await setup();
       const v1 = await seedScroll(database.db, 'attention-slowly');

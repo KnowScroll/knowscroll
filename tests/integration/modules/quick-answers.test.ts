@@ -591,6 +591,30 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
       expect(await row(quickAnswerId)).toMatchObject({ state: 'waiting' });
     });
 
+    it('reads nothing of a Scroll withdrawn since the person opened it, and refuses their question', async () => {
+      await setup();
+      const person = await reader();
+      const setStatus = (status: 'admitted' | 'withdrawn') =>
+        sql`update content.assets set status = ${status} where id = ${scroll.assetId}::uuid`.execute(database.db);
+      const factsOfAnchor = async () => {
+        const entered = await withScope()(person.authority, (tx) =>
+          readScrollQuickAnswerFacts(tx, { assetId: scroll.assetId, assetRevision: scroll.revision }, anchor().id),
+        );
+        return entered.kind === 'entered' ? entered.value : undefined;
+      };
+      expect(await factsOfAnchor()).toBeDefined();
+      await setStatus('withdrawn');
+      try {
+        expect(await factsOfAnchor()).toBeUndefined();
+        expect(await ask(person.authority, askCommand())).toEqual({ kind: 'refused', reason: 'source_unavailable' });
+        expect(await database.db.selectFrom('supply.quick_answers').select('id').execute()).toEqual([]);
+        expect(await queued()).toEqual([]);
+      } finally {
+        await setStatus('admitted');
+      }
+      expect(await factsOfAnchor()).toBeDefined();
+    });
+
     it('reads a stop for the model as the facts port says: never past the anchor, never a call, nothing for a call', async () => {
       await setup();
       const person = await reader();

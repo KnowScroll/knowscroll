@@ -213,6 +213,27 @@ export const diagnosticCatalogue = {
   },
   // The sweep that hands held library revisions with no support check to the check queue (D-415): how many it handed over. Counts only.
   'content.library_support_swept': { severity: 'info', module: 'content', fields: ['count'] },
+  // A Scroll the release policy released by itself (#674, D-418): the topic (`context`) and the revision. Never the Scroll. Who and when are in
+  // `content.revision_reviews` (`decided_by` is `policy:<name>`).
+  'content.release_policy_released': {
+    severity: 'info',
+    module: 'content',
+    fields: ['context', 'outcome', 'revision'],
+  },
+  // One pass of the release policy's sweep (#674, D-418), logged only when the switch is on: `outcome` released, none_released or cap_reached, the
+  // number released and, when something stayed held, the code most of the looked-at Scrolls stayed held for. Counts and codes only.
+  'content.release_policy_swept': {
+    severity: 'info',
+    module: 'content',
+    fields: ['outcome', 'count', 'reasonCode'],
+  },
+  // An operator's change to the release policy (#674, D-418): the topic (`context`, none for a withdrawal of a Scroll with no topic) and what happened
+  // (`outcome`: approved, already_approved, revoked, already_revoked, withdrawn, already_withdrawn or refused with its code). Never the Scroll.
+  'content.release_policy_changed': {
+    severity: 'by-call',
+    module: 'content',
+    fields: ['context', 'outcome', 'reasonCode', 'revision'],
+  },
   // The send of a revision's check after the delivery that held it failed. The sweep sends it again; nothing is lost. Codes only.
   'content.library_support_not_queued': {
     severity: 'warn',

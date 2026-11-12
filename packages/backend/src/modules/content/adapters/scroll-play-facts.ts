@@ -8,7 +8,9 @@ import type { ReadScrollPlayFacts, ScrollCallFacts } from '../public.js';
  * See `ReadScrollPlayFacts`. Reads the stored consumer document of one Scroll revision (never its
  * provenance), on the client path (structure and bounds; admission already proved the rest), and
  * keeps only what judging a pick, showing a call to a thread and awarding the landmark need. A revision the review gate holds or rejected reads as
- * absent, like every read that takes an exact revision from its caller (D-138). No lock and no
+ * absent, like every read that takes an exact revision from its caller (D-138), and so does a revision of an asset that is not admitted (withdrawn,
+ * D-418): a call is never judged against a Scroll nobody is served. An older revision of an admitted asset still reads, as for a person who
+ * opened it before a correction. No lock and no
  * network. A person locks at most four calls a Scroll, so nothing is cached: every read asks the
  * gate again.
  */
@@ -20,6 +22,7 @@ export const readScrollPlayFacts: ReadScrollPlayFacts = async (scope, assetId, r
     .where('revision.asset_id', '=', assetId)
     .where('revision.revision', '=', revision)
     .where('asset.kind', '=', 'scroll')
+    .where('asset.status', '=', 'admitted')
     .where(sql<boolean>`${notUnderReview('revision.asset_id', 'revision.revision')}`)
     .executeTakeFirst();
   if (

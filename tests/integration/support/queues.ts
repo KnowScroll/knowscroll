@@ -6,6 +6,7 @@ import {
   produceAnswerQueue,
   produceScrollQueue,
   sweepLibrarySupportQueue,
+  sweepReleasePolicyQueue,
 } from '@knowscroll/backend/modules/content';
 import { plannerQueue } from '@knowscroll/backend/modules/planner';
 import { prepareBufferQueue } from '@knowscroll/backend/modules/composer';
@@ -73,6 +74,7 @@ export const testQueues = queueRegistry([
   produceAnswerQueue,
   checkLibrarySupportQueue,
   sweepLibrarySupportQueue,
+  sweepReleasePolicyQueue,
   suggestDraftQueue,
   writeAnswerQueue,
   resolveBranchesQueue,
