@@ -111,3 +111,94 @@ describe('which media a Reel summary says was watched (#674, slice 5.1)', () => 
     expect(starts).toEqual([...starts].sort((a, b) => a - b));
   });
 });
+
+/**
+ * What the intake stores for a viewer who watched `[fromMs, toMs]` of a Reel: ticks about 250 ms apart whose position is a few
+ * milliseconds off, as samples whose media end the intake clips to the sample's active length (`boundPayload`). Consecutive
+ * samples therefore leave small gaps wherever the player's position ran ahead of the clock.
+ */
+function storedSamples(fromMs: number, toMs: number, seed: number) {
+  let state = seed;
+  const random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+  const samples: { activeMs: [number, number]; mediaMs: [number, number] }[] = [];
+  let clock = 1000;
+  let media = fromMs;
+  let previous = { position: media + (random() < 0.5 ? -1 : 1) * (0.3 + random() * 14.7), at: clock };
+  while (media < toMs) {
+    const step = Math.min(235 + random() * 30, toMs - media);
+    clock += step;
+    media += step;
+    const position = media + (random() < 0.5 ? -1 : 1) * (0.3 + random() * 14.7);
+    const activeFrom = Math.floor(previous.at);
+    const activeTo = Math.max(activeFrom + 1, Math.floor(clock));
+    const from = Math.max(0, Math.round(previous.position));
+    const to = Math.round(position);
+    if (to > from)
+      samples.push({ activeMs: [activeFrom, activeTo], mediaMs: [from, Math.min(to, from + (activeTo - activeFrom))] });
+    previous = { position, at: clock };
+  }
+  return samples;
+}
+
+describe('a viewer’s jittered samples are one window, not many (#674, slice 5.1)', () => {
+  const reportOf = (samples: ReturnType<typeof storedSamples>): ObservationRecord[] =>
+    samples.map((sample, index) => ({
+      seq: index + 1,
+      sessionId: 'fixture',
+      deviceSequence: index + 1,
+      instrumentationVersion: 1,
+      body: { kind: 'reel.playback', samples: [sample] },
+    }));
+
+  it.each([1, 2, 3, 4, 5, 6, 7, 8])('joins the gaps the intake leaves between honest samples (seed %i)', (seed) => {
+    const samples = storedSamples(120, 29_700, seed);
+    // The traces do leave gaps, which is what a union of touching intervals would see.
+    const gaps = samples.slice(1).filter((sample, index) => sample.mediaMs[0] > samples[index]!.mediaMs[1]).length;
+    expect(gaps).toBeGreaterThan(0);
+    const { summary, qualification } = summariseReel(reportOf(samples), 30_000);
+    expect(qualification).toBe('qualified');
+    expect(summary.watched).toHaveLength(1);
+    expect(summary.watched[0]![0]).toBeLessThanOrEqual(300);
+    expect(summary.watched[0]![1]).toBeGreaterThanOrEqual(29_600);
+  });
+
+  it('joins the gaps before it keeps the longest windows, so a long watch is never cut to a few windows', () => {
+    // 400 s of media would be hundreds of windows if each gap split one; the cut to 32 comes after the joining.
+    const samples = storedSamples(0, 59_000, 11);
+    expect(summariseReel(reportOf(samples), 60_000).summary.watched).toHaveLength(1);
+  });
+
+  it('joins a gap of 100 ms, the most the wire allows between a sample’s media and its active time, and no more', () => {
+    expect(
+      watchedMedia(
+        [
+          [0, 5000],
+          [5100, 10_000],
+        ],
+        20_000,
+      ),
+    ).toEqual([[0, 10_000]]);
+    expect(
+      watchedMedia(
+        [
+          [0, 5000],
+          [5101, 10_000],
+        ],
+        20_000,
+      ),
+    ).toEqual([
+      [0, 5000],
+      [5200, 10_000],
+    ]);
+  });
+
+  it('keeps the tamper bound on the media as reported: bridging never lets more media through than the active time allows', () => {
+    // Fifty 100 ms gaps would bridge 20 s of media into one window; the reported media is 15 s against 5 s of active time.
+    const reported: [number, number][] = Array.from({ length: 50 }, (_, index) => [index * 400, index * 400 + 300]);
+    expect(watchedMedia(reported, 2000)).toEqual([]);
+    expect(watchedMedia(reported, 15_000)).toEqual([[0, 19_900]]);
+  });
+});

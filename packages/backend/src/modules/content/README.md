@@ -142,9 +142,15 @@ A Reel binds facets by the same kind of code rule, over what its script says. `r
   observed coverage can be judged from the mapping alone. Its framing is factual, the digest a factual Scroll's is, and the
   reading facts it binds are the Reel's stored duration facts.
 - The Reel's target is read from the stored document, provenance (`reel-provenance.v1` with its `brief`) and facts, and
-  from the twin Scroll revision, which must exist, be served under the same rules as the Reel, share its explanation unit
-  and be factual. A fixture Reel, a Reel whose provenance has no script (the three imported before scripts carried
-  claims), and a Reel whose twin is withdrawn or still held at the review gate have no target and no coverage.
+  from the twin Scroll revision, which must exist, be served under the same rules as the Reel, **be the Scroll's current
+  revision**, share its explanation unit and be factual. A fixture Reel, a Reel whose provenance has no script (the three
+  imported before scripts carried claims), and a Reel whose twin is withdrawn, still held at the review gate, or has been
+  corrected since (a newer revision) have no target and no coverage: they stop crediting readers the moment that
+  happens, and `readmit-coverage` finds no target and appends nothing.
+- A segment is truth-supported only when every claim of the twin's provenance is documented or a synthesis, the truth
+  states the Scroll rule accepts. A Reel's claims are named locally (`c1`) and rest on the twin revision as a whole, so
+  which twin claims a segment depends on cannot be told, and a twin with an interpretation, a disputed, modelled,
+  counterfactual or fictional claim leaves every segment unsupported.
 - A re-cut is another asset revision. It has its own head and windows; the earlier revision's readings keep proving what
   they proved, as for a Scroll revision.
 - A Reel never joins a region by its own coverage. The mapping's policy differs from a Scroll's, the derived region lookup
@@ -154,7 +160,9 @@ A Reel binds facets by the same kind of code rule, over what its script says. `r
   Reel's head.
 
 `content readmit-coverage` decides every Reel that has a script again, with the recipe its provenance names, and
-counts it with the Scrolls; a Reel whose recipe is no longer in the plan is skipped as `no_recipe`. It names the units it
+counts it with the Scrolls; a Reel whose recipe is no longer in the plan is skipped as `no_recipe`. A head an operator
+retracted stays retracted while the decision is what it was (a new catalogue digest alone is not a new decision) and is
+counted as skipped (`retracted`); only a different reading, such as another script or facet, appends a head after it. It names the units it
 changed so their readers are judged again.
 
 A region also offers each covering Scroll's current Reel twin (#709, D-404): the admitted Reel sharing the Scroll

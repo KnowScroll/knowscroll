@@ -47,6 +47,11 @@ export interface EncounterRecord {
   readonly reading: ReadingKind;
   /** What the evidence rules should conclude for this reading. */
   readonly expectQualified: boolean;
+  /**
+   * Whether the reading met what the unit's facet needs (a Scroll read through, a Reel watched to its end) while recording
+   * was on: the unit then counts toward a system and a planet, and Personal Context must hold a coverage reference for it.
+   */
+  readonly provesFacet: boolean;
   /** Whether recording was on, so the encounter belongs to the person's history. */
   readonly recorded: boolean;
   readonly events: number;

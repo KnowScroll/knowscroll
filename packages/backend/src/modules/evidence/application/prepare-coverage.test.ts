@@ -116,6 +116,14 @@ describe('preparing the observed coverage of a Reel (#674, slice 5.1)', () => {
     });
   });
 
+  it('certifies every facet to a full watch that started and ended where a player does', async () => {
+    const full = reelEvidence({
+      summary: { ...(reelEvidence().summary as object), watched: [[300, 29_650]] },
+    });
+    const certificate = await prepare({ evidence: full, head, facts: reelFacts })(scope, exposure('reel'));
+    expect(certificate).toMatchObject({ availability: 'available', bindings: [reelBinding] });
+  });
+
   it('certifies no facet for watching that stopped before a required segment', async () => {
     const partial = reelEvidence({
       summary: { ...(reelEvidence().summary as object), watched: [[0, 26_000]] },

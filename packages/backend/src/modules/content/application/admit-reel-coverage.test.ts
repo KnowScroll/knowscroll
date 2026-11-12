@@ -154,3 +154,62 @@ describe('readmit-coverage decides the Reels again with the Scrolls', () => {
     });
   });
 });
+
+describe('a head an operator retracted (#674, slice 5.1)', () => {
+  /** A Reel with coverage whose head was then retracted by a reviewed command, which keeps the mapping it retracts. */
+  async function retracted() {
+    const fixture = memoryPorts(reelTarget(6));
+    await admitReelCoverage(fixture.ports, tx, recipe, ref);
+    const [active] = fixture.heads;
+    fixture.heads.push({
+      ...active!,
+      authority: { ...active!.authority, headRevision: 2 },
+      status: 'retracted',
+      semanticReviewReference: 'ci-retract',
+    });
+    return fixture;
+  }
+
+  it('stays retracted when readmit decides the same thing again, and says so', async () => {
+    const { ports, heads } = await retracted();
+    expect(await admitReelCoverage(ports, tx, recipe, ref)).toEqual({ kind: 'not_admitted', code: 'retracted' });
+    expect(heads.map((head) => head.status)).toEqual(['active', 'retracted']);
+  });
+
+  it('stays retracted after a catalogue change alone: a new digest is not a new decision', async () => {
+    const { ports, heads } = await retracted();
+    const grown = { ...ports, catalogue: { ...ports.catalogue, sha256: digest('catalogue-2') } };
+    expect(await admitReelCoverage(grown, tx, recipe, ref)).toEqual({ kind: 'not_admitted', code: 'retracted' });
+    expect(heads).toHaveLength(2);
+  });
+
+  it('gets a new head when the decision itself changes: another facet, or another script', async () => {
+    const { ports, heads } = await retracted();
+    const other = { ...recipe, facetId: 'earth.seasons.hemispheres' };
+    expect(await admitReelCoverage(ports, tx, other, ref)).toMatchObject({ kind: 'admitted', change: 'appended' });
+    expect(heads.map((head) => head.status)).toEqual(['active', 'retracted', 'active']);
+  });
+
+  it('is counted as left alone by readmit-coverage, and names no unit', async () => {
+    const { ports, heads } = await retracted();
+    const summary = await readmitRecipeCoverage(
+      {
+        coverage: ports,
+        inAdmission: (work) => work(tx),
+        listGeneratedRevisions: () => Promise.resolve([]),
+        listReelRevisions: () => Promise.resolve([{ ...ref, recipe: 'seasons-tilt' }]),
+      },
+      [],
+      { dryRun: false },
+      ((key: string) => (key === 'seasons-tilt' ? { ...recipe, assetId: ref.assetId } : undefined)) as never,
+    );
+    expect(summary).toMatchObject({
+      considered: 1,
+      appended: 0,
+      unchanged: 0,
+      skipped: { retracted: 1 },
+      changedUnits: [],
+    });
+    expect(heads).toHaveLength(2);
+  });
+});

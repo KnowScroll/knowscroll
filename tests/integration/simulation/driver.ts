@@ -360,7 +360,7 @@ export class PersonaRun {
     const result =
       offer.kind === 'scroll'
         ? scrollReading(fixture, sessionId, unit.scroll, reading, this.rng)
-        : reelReading(fixture, sessionId, unit.reel!, reading, this.rng);
+        : await reelReading(fixture, sessionId, unit.reel!, reading, this.rng);
     let events = 0;
     if (result.events.length > 0) {
       if (!this.resumed) await activatedMsAgo(this.world.geo.database.db, exposureId, result.elapsedMs);
@@ -390,6 +390,7 @@ export class PersonaRun {
       reading,
       // After a resume the recorder's session can claim only the time that really passed, which is none to speak of.
       expectQualified: result.expectQualified && this.recording.on && !this.resumed,
+      provesFacet: result.provesFacet && this.recording.on && !this.resumed,
       recorded: this.recording.on,
       events,
     };

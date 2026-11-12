@@ -22,8 +22,9 @@ import { RECIPES } from '../../../packages/backend/src/modules/content/domain/li
 import { signal } from '../support/fixture-model.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { geographyWorld, topic, facet, otherFacet, type GeographyWorld } from '../support/geography-world.js';
-import { activatedAgo, event } from '../support/observations.js';
-import { textCapabilities } from '../support/scroll.js';
+import { activatedAgo } from '../support/observations.js';
+import { playbackRandom, recordPlayback } from '../support/reel-playback.js';
+import { starterSource, textCapabilities } from '../support/scroll.js';
 
 /**
  * Reels count toward formation (#674, slice 5.1, D-421). A Reel's coverage is decided by code at publication from
@@ -52,11 +53,14 @@ describe('Reels count toward formation (real PostgreSQL CI fixtures)', () => {
   afterAll(() => world.close());
 
   type Twin = Awaited<ReturnType<GeographyWorld['fixture']>>;
+  /** What a Reel is made from: the twin Scroll revision, which need not have coverage of its own. */
+  type TwinRef = Pick<Twin, 'assetId' | 'revision' | 'unit'>;
   interface Reel {
     readonly assetId: string;
     readonly revision: number;
     readonly unit: string;
-    readonly twin: Twin;
+    readonly twin: TwinRef;
+    readonly durationMs: number;
     readonly coverage: string | undefined;
   }
   interface RecipeOptions {
@@ -68,7 +72,7 @@ describe('Reels count toward formation (real PostgreSQL CI fixtures)', () => {
     readonly recipeKey?: string;
   }
 
-  const briefOf = (twin: Twin, options: RecipeOptions) => {
+  const briefOf = (twin: TwinRef, options: RecipeOptions) => {
     const sentences = options.sentences ?? SENTENCES;
     return {
       version: 1 as const,
@@ -91,7 +95,7 @@ describe('Reels count toward formation (real PostgreSQL CI fixtures)', () => {
   };
 
   /** Publishes a Reel of `twin` through the real publisher, whose transaction decides its coverage. */
-  async function publishReel(twin: Twin, options: RecipeOptions = {}, topicId = topic): Promise<Reel> {
+  async function publishReel(twin: TwinRef, options: RecipeOptions = {}, topicId = topic): Promise<Reel> {
     const assetId = randomUUID();
     const brief = briefOf(twin, options);
     const digest = sha(assetId);
@@ -132,19 +136,45 @@ describe('Reels count toward formation (real PostgreSQL CI fixtures)', () => {
     };
     const published = await postgresReelPublisher(world.database.db).publish(reel);
     if (published.kind !== 'published') throw new Error(`CI Reel refused: ${published.code}`);
-    return { assetId, revision: 1, unit: twin.unit, twin, coverage: published.coverage };
+    return { assetId, revision: 1, unit: twin.unit, twin, durationMs: DURATION, coverage: published.coverage };
   }
   /** A new unit of one planet: its twin Scroll (with its own coverage of `facetId`) and a Reel of it. */
   async function reelOfUnit(options: RecipeOptions = {}, topicId = topic) {
     const twin = await world.fixture(undefined, topicId, [options.facetId ?? facet]);
-    return publishReel(twin, options, topicId);
+    return { ...(await publishReel(twin, options, topicId)), twin };
   }
 
-  /** The person watches `windows` of the Reel (media milliseconds) and the evidence and activity projections run. */
+  const approvals = new Map<string, string>();
+  /** A reviewed command that retracts a revision's head: withdrawing what a Reel is trusted for. */
+  const retract = async (reel: Reel, revision: number) => {
+    const head = await makeAdmissionStore(world.database.db).inAdmission((tx) =>
+      coverageHeadPorts.readHead(tx, { assetId: reel.assetId, assetRevision: revision }),
+    );
+    const command: CoverageCommand = {
+      version: 'content-coverage-command.v1',
+      assetId: reel.assetId,
+      assetRevision: revision,
+      expectedHeadRevision: head!.authority.headRevision,
+      semanticReviewReference: 'ci-retract-fixture-review',
+      change: { kind: 'retract' },
+    };
+    approvals.set(canonicalSha256(command), command.semanticReviewReference);
+    await makeAdmitCoverage(
+      makeCoverageAdmissionPorts(world.database.db, (digest, ref) => approvals.get(digest) === ref),
+    )(command);
+  };
+
+  let traces = 0;
+  /**
+   * The person watches the Reel and the evidence and activity projections run. `plays` are continuous plays in media
+   * milliseconds, with a seek between one and the next, and the whole Reel by default. The events are made by the app's
+   * own recorder from jittered player ticks (`recordPlayback`), as the intake receives them from a client.
+   */
   async function watch(
     p: FixturePerson,
     reel: Reel,
-    windows: readonly (readonly [number, number])[] = [[0, DURATION]],
+    plays: readonly (readonly [number, number])[] = [[0, reel.durationMs]],
+    seed = ++traces,
   ) {
     const { c, database } = world;
     const opened = await c.openExposure(p.authority, {
@@ -161,18 +191,13 @@ describe('Reels count toward formation (real PostgreSQL CI fixtures)', () => {
     if (activated.kind !== 'activated') throw new Error('CI Reel activation refused');
     const exposure = { exposureId: opened.outcome.exposureId, assetId: reel.assetId, assetRevision: reel.revision };
     await activatedAgo(database.db, exposure.exposureId, 20);
-    const samples = windows.flatMap(([from, to]) => {
-      const pieces: { activeMs: [number, number]; mediaMs: [number, number] }[] = [];
-      for (let at = from; at < to; at += 1000) {
-        const end = Math.min(to, at + 1000);
-        pieces.push({ activeMs: [at, end], mediaMs: [at, end] });
-      }
-      return pieces;
+    const { events } = await recordPlayback(exposure, {
+      durationMs: reel.durationMs,
+      spans: plays,
+      random: playbackRandom(seed),
     });
-    const events = [];
-    for (let start = 0; start < samples.length; start += 64)
-      events.push(event(exposure, { kind: 'reel.playback', payload: { samples: samples.slice(start, start + 64) } }));
-    await c.ingestObservations(p.authority, { instrumentationVersion: 1, events });
+    const ingested = await c.ingestObservations(p.authority, { instrumentationVersion: 1, events });
+    expect(ingested).toMatchObject({ kind: 'ingested', accepted: events.length });
     const job = { v: 1 as const, universeId: p.universeId, privacyEpoch: 1, exposureId: exposure.exposureId };
     const qualification = await c.projectScrollReading(job);
     await c.projectActivity(job);
@@ -370,7 +395,164 @@ describe('Reels count toward formation (real PostgreSQL CI fixtures)', () => {
       expect(head.mapping).toMatchObject({
         bindings: [{ facetId: recipe.facetId, requiredBlockIds: ['s1', 's3', 's6'] }],
       });
+
+      // An operator retracts the head. Deciding the same thing again must not undo it.
+      await retract(reel, 1);
+      expect(await readmitCoverageUseCase(world.database.db)({ dryRun: false })).toMatchObject({
+        considered: 1,
+        appended: 0,
+        unchanged: 0,
+        skipped: { retracted: 1 },
+        changedUnits: [],
+      });
+      expect(await headsOf()).toEqual([{ revision: 1 }, { revision: 2 }]);
     });
+  });
+
+  describe('what a viewer’s player reports (the app’s own recorder, jittered)', () => {
+    const summaryOf = (exposureId: string) =>
+      world.database.db
+        .selectFrom('evidence.encounter_evidence')
+        .select('summary')
+        .where('exposure_id', '=', exposureId)
+        .executeTakeFirstOrThrow()
+        .then((row) => row.summary as { watched: [number, number][] });
+
+    it('credits every facet to a full watch, whatever the jitter and the first and last offsets', async () => {
+      const reel = await reelOfUnit({ facetId: facet, supportingFacetId: otherFacet });
+      for (const seed of [101, 102, 103, 104, 105, 106, 107, 108]) {
+        const p = await seedPerson(world.database.db);
+        const { exposure } = await watch(p, reel, undefined, seed);
+        expect(
+          (await references(p)).map((row) => row.facet_id),
+          `seed ${String(seed)}`,
+        ).toEqual([facet, otherFacet]);
+        // The reports are one continuous window (the gaps the intake leaves between samples are not unwatched media).
+        expect((await summaryOf(exposure.exposureId)).watched, `seed ${String(seed)}`).toHaveLength(1);
+      }
+    });
+
+    it('credits a full watch that starts and ends as late and as early as the player does', async () => {
+      const reel = await reelOfUnit({ facetId: facet, supportingFacetId: otherFacet });
+      const p = await seedPerson(world.database.db);
+      const { c, database } = world;
+      const opened = await c.openExposure(p.authority, {
+        commandId: randomUUID(),
+        target: { kind: 'reel', assetId: reel.assetId },
+        origin: { kind: 'direct' },
+        capabilities,
+      });
+      if (opened.kind !== 'opened') throw new Error('CI Reel open refused');
+      await c.activateExposure(p.authority, { commandId: randomUUID(), exposureId: opened.outcome.exposureId });
+      const exposure = { exposureId: opened.outcome.exposureId, assetId: reel.assetId, assetRevision: reel.revision };
+      await activatedAgo(database.db, exposure.exposureId, 20);
+      const { events } = await recordPlayback(exposure, {
+        durationMs: reel.durationMs,
+        spans: [[0, reel.durationMs]],
+        random: playbackRandom(7),
+        maxFirstOffsetMs: 400,
+        maxLastOffsetMs: 400,
+      });
+      await c.ingestObservations(p.authority, { instrumentationVersion: 1, events });
+      const job = { v: 1 as const, universeId: p.universeId, privacyEpoch: 1, exposureId: exposure.exposureId };
+      expect(await c.projectScrollReading(job)).toMatchObject({ qualification: 'qualified' });
+      await c.projectActivity(job);
+      expect((await references(p)).map((row) => row.facet_id)).toEqual([facet, otherFacet]);
+    });
+
+    it('does not credit a segment the viewer skipped, but credits the facets whose segments they watched', async () => {
+      const reel = await reelOfUnit({ facetId: facet, supportingFacetId: otherFacet });
+      // Seeks over the third segment (10.7 to 12.9 s). The primary facet needs it; the supporting facet needs the last two.
+      const skipping = await seedPerson(world.database.db);
+      await watched(skipping, reel, [
+        [0, 10_700],
+        [13_000, reel.durationMs],
+      ]);
+      expect((await references(skipping)).map((row) => row.facet_id)).toEqual([otherFacet]);
+      // Seeks over most of the fifth (16.1 to 21.4 s; a viewer must also have met its neighbours' edges): the supporting
+      // facet needs it, the primary facet does not.
+      const other = await seedPerson(world.database.db);
+      await watched(other, reel, [
+        [0, 16_000],
+        [20_300, reel.durationMs],
+      ]);
+      expect((await references(other)).map((row) => row.facet_id)).toEqual([facet]);
+    });
+  });
+
+  describe('the twin Scroll after the Reel is published', () => {
+    /** A twin Scroll whose source is kept, so it can be corrected: another revision of the same asset. */
+    async function correctableTwin() {
+      const unit = `ci-reel-twin-${randomUUID()}`;
+      const source = starterSource() as {
+        assetId: string;
+        reference: string;
+        publication: { explanationUnitId: string };
+        draft: { title: string };
+      };
+      source.assetId = randomUUID();
+      source.reference = 'ci-reel-twin';
+      source.publication.explanationUnitId = unit;
+      source.draft.title = 'Authored CI twin';
+      const imported = await world.c.importScroll(source);
+      if (imported.kind !== 'imported') throw new Error('CI twin import refused');
+      return { twin: { assetId: source.assetId, revision: imported.revision, unit }, source };
+    }
+    const changes = {
+      corrected: async (twin: TwinRef, source: Awaited<ReturnType<typeof correctableTwin>>['source']) => {
+        const imported = await world.c.importScroll({
+          ...source,
+          draft: { ...source.draft, title: 'Authored CI twin, corrected' },
+        });
+        expect(imported).toMatchObject({ kind: 'imported', revision: twin.revision + 1 });
+      },
+      withdrawn: async (twin: TwinRef) => {
+        await world.database.db
+          .updateTable('content.assets')
+          .set({ status: 'withdrawn' })
+          .where('id', '=', twin.assetId)
+          .execute();
+      },
+    };
+
+    it.each(['corrected', 'withdrawn'] as const)(
+      'stops crediting a Reel once its twin Scroll is %s, for earlier readers and for new ones, and readmit does not restore it',
+      async (change) => {
+        const { twin, source } = await correctableTwin();
+        const reel = await publishReel(twin, { facetId: facet });
+        expect(reel.coverage).toBe('admitted');
+        const p = await seedPerson(world.database.db);
+        await watched(p, reel);
+        expect(await references(p)).toHaveLength(1);
+        expect((await trusted(p, reel)).witnesses).toHaveLength(1);
+
+        await changes[change](twin, source);
+
+        // What the earlier reader watched is no longer proved: the Reel rests on a Scroll that is not served as it was.
+        expect(await trusted(p, reel)).toMatchObject({ availability: 'unavailable', reason: 'not_observed' });
+        // A new viewer's qualified watching leaves no reference.
+        const q = await seedPerson(world.database.db);
+        await watched(q, reel);
+        expect(await references(q)).toEqual([]);
+        // Deciding the Reel's coverage again finds no target and writes no head.
+        const outcome = await makeAdmissionStore(world.database.db).inAdmission((tx) =>
+          admitReelCoverage(
+            coverageHeadPorts,
+            tx,
+            { explanationUnitId: reel.unit, topicId: topic, facetId: facet },
+            { assetId: reel.assetId, assetRevision: 1 },
+          ),
+        );
+        expect(outcome).toEqual({ kind: 'not_admitted', code: 'target_unavailable' });
+        expect(
+          await world.database.db
+            .selectFrom('content.coverage_revisions')
+            .select('revision')
+            .where('asset_id', '=', reel.assetId)
+            .execute(),
+        ).toEqual([{ revision: 1 }]);
+      },
+    );
   });
 
   describe('forming from Reels', () => {
@@ -427,7 +609,7 @@ describe('Reels count toward formation (real PostgreSQL CI fixtures)', () => {
 
       // Watched from 8 s to the end: the closing segments bind the supporting facet; the opening one was not met.
       const q = await seedPerson(world.database.db);
-      await watched(q, reel, [[8000, DURATION]]);
+      await watched(q, reel, [[8000, reel.durationMs]]);
       expect((await references(q)).map((row) => row.facet_id)).toEqual([otherFacet]);
 
       // Watched all of it: both facets.
@@ -557,28 +739,8 @@ describe('Reels count toward formation (real PostgreSQL CI fixtures)', () => {
         ),
       );
       expect(outcome).toMatchObject({ kind: 'admitted', change: 'appended' });
-      return { ...reel, revision };
+      return { ...reel, revision, durationMs };
     }
-    const approvals = new Map<string, string>();
-    /** A reviewed command that retracts a revision's head: withdrawing what a Reel is trusted for. */
-    const retract = async (reel: Reel, revision: number) => {
-      const head = await makeAdmissionStore(world.database.db).inAdmission((tx) =>
-        coverageHeadPorts.readHead(tx, { assetId: reel.assetId, assetRevision: revision }),
-      );
-      const command: CoverageCommand = {
-        version: 'content-coverage-command.v1',
-        assetId: reel.assetId,
-        assetRevision: revision,
-        expectedHeadRevision: head!.authority.headRevision,
-        semanticReviewReference: 'ci-retract-fixture-review',
-        change: { kind: 'retract' },
-      };
-      approvals.set(canonicalSha256(command), command.semanticReviewReference);
-      await makeAdmitCoverage(
-        makeCoverageAdmissionPorts(world.database.db, (digest, ref) => approvals.get(digest) === ref),
-      )(command);
-    };
-
     it('is read as another revision of one unit: the key is shared, the newest valid revision proves it, and a retracted one leaves the other', async () => {
       const p = await seedPerson(world.database.db);
       const first = await reelOfUnit({ facetId: facet });
@@ -601,7 +763,7 @@ describe('Reels count toward formation (real PostgreSQL CI fixtures)', () => {
       expect((await trusted(p, first)).witnesses.map((w) => w.exposureId)).toEqual([e1.exposureId]);
 
       // Watching the re-cut adds a reference to the same key and never a unit.
-      const e2 = await watched(p, second, [[0, 40_000]]);
+      const e2 = await watched(p, second);
       expect(await supports(p)).toEqual([
         { topic_id: topic, facet_id: facet, explanation_unit_id: first.unit, reference_count: 2 },
       ]);
@@ -625,7 +787,7 @@ describe('Reels count toward formation (real PostgreSQL CI fixtures)', () => {
       await watched(p, second, [[0, 30_000]]);
       expect(await references(p)).toEqual([]);
       const q = await seedPerson(world.database.db);
-      await watched(q, second, [[0, 40_000]]);
+      await watched(q, second);
       expect(await references(q)).toHaveLength(1);
     });
   });

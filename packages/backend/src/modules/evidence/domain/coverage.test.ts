@@ -246,3 +246,52 @@ describe('observed Reel coverage, labelled source fixtures (#674, slice 5.1)', (
     },
   );
 });
+
+describe('a viewer who starts and ends where a player does (#674, slice 5.1)', () => {
+  const durationMs = 30_000;
+  // First, middle and last segment of a 30 s Reel cut into six, as the mapping stores them.
+  const spans = [
+    [0, 4286],
+    [10_714, 12_857],
+    [21_429, 30_000],
+  ] as const;
+
+  it('does not require the first and last half second of the Reel, which a player starts after and a recorder ends before', () => {
+    expect(spans.every((span) => reelSegmentSeen([[300, 29_650]], span, durationMs))).toBe(true);
+    expect(spans.every((span) => reelSegmentSeen([[480, 29_520]], span, durationMs))).toBe(true);
+  });
+
+  it('still requires the opening and the close of the Reel when the viewer is well short of them', () => {
+    expect(reelSegmentSeen([[1500, 30_000]], spans[0], durationMs)).toBe(false);
+    expect(reelSegmentSeen([[0, 28_000]], spans[2], durationMs)).toBe(false);
+    expect(reelSegmentSeen([[0, 27_000]], spans[2], durationMs)).toBe(false);
+  });
+
+  it('applies the tolerance to the ends of the Reel only, not to the inside of a window', () => {
+    // 600 ms missing in the middle of the middle segment's window (4.1 s) is more than the 5% allowed.
+    expect(
+      reelSegmentSeen(
+        [
+          [0, 11_300],
+          [11_900, 30_000],
+        ],
+        spans[1],
+        durationMs,
+      ),
+    ).toBe(false);
+    expect(
+      reelSegmentSeen(
+        [
+          [0, 11_300],
+          [11_450, 30_000],
+        ],
+        spans[1],
+        durationMs,
+      ),
+    ).toBe(true);
+  });
+
+  it('judges a window that spans a short Reel entirely inside the edges as not seen', () => {
+    expect(reelSegmentSeen([[0, 800]], [0, 800], 800)).toBe(false);
+  });
+});

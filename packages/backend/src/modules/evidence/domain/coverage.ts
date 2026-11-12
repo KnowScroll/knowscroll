@@ -213,19 +213,36 @@ export const ReelCoverageSummarySchema = z.strictObject({
  * the neighbours of a segment is what shows the segment itself was met. Values are policy; a new value is a new
  * version.
  */
-export const REEL_SEGMENT_SEEN_POLICY = { version: 'reel-segment-seen.v1', marginMs: 1000, minShare: 0.95 } as const;
+export const REEL_SEGMENT_SEEN_POLICY = {
+  version: 'reel-segment-seen.v1',
+  marginMs: 1000,
+  minShare: 0.95,
+  /**
+   * A viewer who starts or finishes within this long of the Reel's first or last millisecond has met that end: playback
+   * starts at a position a few hundred milliseconds in and the last report ends before the media does. It applies only to
+   * a window that reaches the Reel's start or end.
+   */
+  edgeToleranceMs: 500,
+} as const;
 
-/** Whether the watched media covers a segment's estimated window under `REEL_SEGMENT_SEEN_POLICY`. Pure. */
+/**
+ * Whether the watched media covers a segment's estimated window under `REEL_SEGMENT_SEEN_POLICY`: the window widened
+ * by the margin, with the first and last `edgeToleranceMs` of the Reel not required. Pure.
+ */
 export function reelSegmentSeen(
   watched: readonly Interval[],
   span: readonly [number, number],
   durationMs: number,
 ): boolean {
-  const from = Math.max(0, span[0] - REEL_SEGMENT_SEEN_POLICY.marginMs);
-  const to = Math.min(durationMs, span[1] + REEL_SEGMENT_SEEN_POLICY.marginMs);
+  const policy = REEL_SEGMENT_SEEN_POLICY;
+  const wideFrom = Math.max(0, span[0] - policy.marginMs);
+  const wideTo = Math.min(durationMs, span[1] + policy.marginMs);
+  const from = wideFrom < policy.edgeToleranceMs ? Math.min(policy.edgeToleranceMs, wideTo) : wideFrom;
+  const to =
+    wideTo > durationMs - policy.edgeToleranceMs ? Math.max(durationMs - policy.edgeToleranceMs, from) : wideTo;
   if (to <= from) return false;
   const covered = intervalsLength(intersectIntervals(mergeIntervals(watched), [[from, to]]));
-  return covered >= (to - from) * REEL_SEGMENT_SEEN_POLICY.minShare;
+  return covered >= (to - from) * policy.minShare;
 }
 
 /** Whether every required segment of a Reel binding was watched; a binding without windows never was. */

@@ -16,6 +16,22 @@ export function mergeIntervals(intervals: readonly Interval[]): Interval[] {
   return merged;
 }
 
+/**
+ * Like `mergeIntervals`, and also joins intervals separated by at most `maxGapMs`. For reports whose edges the intake has
+ * clipped to the nearest millisecond of active time, where touching samples leave small gaps that are not unwatched
+ * media. A gap larger than `maxGapMs` stays a gap. Pure.
+ */
+export function mergeIntervalsBridging(intervals: readonly Interval[], maxGapMs: number): Interval[] {
+  const sorted = intervals.filter(([from, to]) => to > from).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const merged: [number, number][] = [];
+  for (const [from, to] of sorted) {
+    const last = merged[merged.length - 1];
+    if (last !== undefined && from - last[1] <= maxGapMs) last[1] = Math.max(last[1], to);
+    else merged.push([from, to]);
+  }
+  return merged;
+}
+
 /** Total length of already-merged (disjoint) intervals. */
 export function intervalsLength(merged: readonly Interval[]): number {
   let total = 0;
