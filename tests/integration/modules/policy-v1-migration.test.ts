@@ -86,7 +86,7 @@ describe('migrations 0081 and 0082 over existing decisions and counts (real Post
       expect.arrayContaining(['0081_composer_policy_v1', '0082_evidence_play_cells']),
     );
 
-    // The old decision is untouched; a decision under v1 is accepted, and under v2 and v3 once 0108 and 0117 (#674) have widened
+    // The old decision is untouched; a decision under v1 is accepted, and under v2 and v3 once 0108 and 0121 (#674) have widened
     // the pin again; another label is not.
     const kept = await sql<{
       policy_version: string;

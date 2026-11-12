@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ACTIVITY_POLICY } from './activity.js';
 
 /**
- * What a roll-up row counted of one topic, and what a roll-up row is, as pure arithmetic (migration 0117, D-420).
+ * What a roll-up row counted of one topic, and what a roll-up row is, as pure arithmetic (migration 0121, D-420).
  *
  * A system or person roll-up is the sum of the topic rows beneath it. It is changed by the difference between what a topic was
  * counted as and what it is now, never by what the writer believes the topic was: each topic row carries `rollup_counted`, the

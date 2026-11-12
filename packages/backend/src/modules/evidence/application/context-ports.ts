@@ -91,7 +91,7 @@ export interface InterestTopic {
 
 /**
  * The person's `limit` topics with the most decayed activity at `evaluatedAt` and at least `minActivity` of it (default 0.05),
- * strongest first (ties by topic id). It reads the index on `log_weight` (migration 0117, D-420): a range scan that stops at
+ * strongest first (ties by topic id). It reads the index on `log_weight` (migration 0121, D-420): a range scan that stops at
  * `limit`, so its cost does not depend on how many topics the person has met. Reading only, like every number here (D-063).
  */
 export type ReadTopInterestTopics = (

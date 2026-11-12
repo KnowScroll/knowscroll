@@ -379,8 +379,17 @@ describe('the watchdog (real PostgreSQL and pg-boss, CI fixtures)', () => {
 
     it('reads policy v3 too, which keeps the guarantee: a v3 decision that offered a met explanation first fires', async () => {
       const other = await seedPerson(db());
-      const snapshot = snapshotOf(other, [met(), fresh()], { intentTopic: tides });
+      const candidates = [met(), fresh()];
+      const snapshot = snapshotOf(other, candidates, { intentTopic: tides });
       expect(composeEncounter(snapshot, COMPOSER_POLICY_V3).unseenLadder?.outcome).toBe('unseen');
+      // The regression the rule reads is the unseen-first rule alone: v3 explores from every eligible candidate when the snapshot's
+      // pool has none (these fixtures carry no pool), and a draw that put the unseen one first made this test fail one run in twenty.
+      // The decision is therefore checked over many seeds, not trusted from one.
+      for (let n = 0; n < 300; n++) {
+        const regressed = regressedDecision(snapshotOf(other, candidates, { intentTopic: tides }), COMPOSER_POLICY_V3);
+        expect(regressed.exploration.branch).toBe('ranked');
+        expect(regressed.selection[0]?.assetId).toBe(candidates[0]!.asset);
+      }
       await storeRaw(db(), other, regressedDecision(snapshot, COMPOSER_POLICY_V3));
       expect(await repeated()).toEqual([
         { code: 'composer_repeat_offered', count: 1, windowSeconds: 86_400, outcome: 'composer-policy.v3' },

@@ -1,7 +1,7 @@
 import { ACTIVITY_POLICY } from './activity.js';
 
 /**
- * The key of a stored interest row that orders by decayed activity without reading the time (migration 0117, D-420).
+ * The key of a stored interest row that orders by decayed activity without reading the time (migration 0121, D-420).
  *
  * Every row decays by the same law, `A_now = A * 2^(-(now - T) / h)`, so `ln A_now = (ln A + ln2 * T / h) - ln2 * now / h`. The part
  * in brackets does not depend on `now`: ordering rows by it is ordering them by decayed activity at any later time, and the

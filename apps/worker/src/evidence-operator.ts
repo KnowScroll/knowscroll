@@ -18,7 +18,7 @@ export interface RebuildInterestRollupsOptions {
 /**
  * `evidence rebuild-interest-rollups [--max-universes <1-5000>]` (#674, D-420): builds every person's system and person interest
  * roll-ups from their topic rows, stamps what each topic row was counted as, and fills the `log_weight` of rows no writer has touched
- * since migration 0117. Run it once after the deploy that applies 0117 and before a world sets `KS_COMPOSER_POLICY=v3`, and again
+ * since migration 0121. Run it once after the deploy that applies 0121 and before a world sets `KS_COMPOSER_POLICY=v3`, and again
  * after any rollback to a binary that does not write roll-ups (docs/v2/operations/environments.md). Each person is one transaction
  * under their own personal scope, so it never runs beside that person's projection; it is idempotent, so it can be stopped and run
  * again. It stops after `--max-universes` (default 1000) and says whether the scan finished. Prints counts only: no person, universe

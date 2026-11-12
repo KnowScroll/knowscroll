@@ -361,7 +361,7 @@ describe('policy v3 against v2 (#674, D-420)', () => {
     return { ...input, candidates: [...input.candidates, reel], intent: { ...input.intent, stickyFormat: 'scroll' } };
   };
   const run = () => {
-    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    const replay = startPolicyReplay(DEFAULT_VARIANTS, systemOf);
     for (const seed of seeds) replay.add(stored(withReel(seed)));
     const [, , , v2, v3] = replay.report().variants;
     return { v2: v2!, v3: v3! };
@@ -400,7 +400,7 @@ describe('policy v3 against v2 (#674, D-420)', () => {
         variant.newContent.firstOffers,
       );
     }
-    const laned = startPolicyReplay([{ label: 'v3', policy: COMPOSER_POLICY_V3 }]);
+    const laned = startPolicyReplay([{ label: 'v3', policy: COMPOSER_POLICY_V3 }], systemOf);
     const input = withReel('laned');
     laned.add(
       stored({
@@ -412,7 +412,7 @@ describe('policy v3 against v2 (#674, D-420)', () => {
   });
 
   it('names no id and holds only counts, shares and labels, as the rest of the report', () => {
-    const replay = startPolicyReplay(DEFAULT_VARIANTS);
+    const replay = startPolicyReplay(DEFAULT_VARIANTS, systemOf);
     for (const seed of seeds.slice(0, 20)) replay.add(stored(withReel(seed)));
     const text = JSON.stringify(replay.report());
     for (const secret of ['fixture-universe', 'asset-', 'Fixture', 'unit-']) expect(text).not.toContain(secret);

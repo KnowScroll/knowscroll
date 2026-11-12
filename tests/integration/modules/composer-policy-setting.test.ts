@@ -116,7 +116,7 @@ describe.each([
     // v1 and v2 carry the recent-topic share; a v0 decision has no such feature.
     const features = row.payload.evaluations.map((evaluation) => Object.keys(evaluation.features));
     expect(features.every((keys) => keys.includes('recentTopic'))).toBe(label !== 'composer-policy.v0');
-    // Only v2 and v3 record the tier of a system-chosen move, and the widened pins (migrations 0108 and 0117) let them be stored.
+    // Only v2 and v3 record the tier of a system-chosen move, and the widened pins (migrations 0108 and 0121) let them be stored.
     expect(row.payload.unseenLadder !== undefined).toBe(
       label === 'composer-policy.v2' || label === 'composer-policy.v3',
     );

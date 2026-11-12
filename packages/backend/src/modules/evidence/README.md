@@ -243,8 +243,8 @@ jobs with an already-current vector do nothing. Required job failure rolls its o
 | `activity_revisions` | Immutable separate input vector, original channels, capped routing value; exact exposure/revision/hash keys | One per changed vector; bounded JSON; retained personal audit, full erasure |
 | `activity_current` | Current owned epoch/exposure -> matching revision FK | One/exposure; erase after topic contributions, before revisions |
 | `topic_contributions` | Current weighted capped value + independent original channel contributions and measured/qualified flags | <=16 actual attributed topics/exposure; sum topic weights<=1 enforced by content; replacement rather than additive replay |
-| `topic_context` | Scope/topic decayed activity and independent channel aggregates; per-topic-format Q/O; since 0117 `log_weight` and the top-interest index | One/topic; exact requested topics<=100; update affected union<=32 topics, no lifetime scan; top-K read is an index range scan |
-| `interest_rollups` (`0117`, D-420) | Per-system and per-person sum of the topic rows (same shape as `topic_context` plus `log_weight`), written in the same transaction; read by primary key | <=1 row per system a person has touched, plus 1; erased with `topic_context` |
+| `topic_context` | Scope/topic decayed activity and independent channel aggregates; per-topic-format Q/O; since 0121 `log_weight` and the top-interest index | One/topic; exact requested topics<=100; update affected union<=32 topics, no lifetime scan; top-K read is an index range scan |
+| `interest_rollups` (`0121`, D-420) | Per-system and per-person sum of the topic rows (same shape as `topic_context` plus `log_weight`), written in the same transaction; read by primary key | <=1 row per system a person has touched, plus 1; erased with `topic_context` |
 | `topic_format_cells` (`0082`, D-192) | Measured/qualified encounters per (topic, kind, play level), beside the `topic_context` counts, which are their parent over every level. `topic_contributions.play_level` records the level an exposure was counted at, so a correction moves its counts between cells. Reading only: no pick, result, spark or tier (D-063) | <=6 rows/topic; requested topics<=100; erased with `topic_context` |
 
 **Play-level cells** (implemented; CI-tested against real PostgreSQL, not yet run on dev). The play level (`plain`,
@@ -289,7 +289,7 @@ atomically; final redelivery of already-current A does nothing and creates no qu
 ## Long-term interest: the top-K index and the roll-ups (D-420)
 
 Status: implemented, CI-tested against real PostgreSQL (unit, integration, the simulation lab); not yet run on dev. Related: #674
-slices 4.2 and 5.2, migration 0117. Reading only (D-063): no pick, result, spark or tier is a column or an input.
+slices 4.2 and 5.2, migration 0121. Reading only (D-063): no pick, result, spark or tier is a column or an input.
 
 Composer policy v3 selects candidates from the person's top long-term interest topics, so "the person's top K topics now" must not read
 every topic they have met. `evidence.topic_context.log_weight` is `ln(activity) + ln2 · evaluated_at_ms / half_life_ms`, **derived by a
@@ -304,7 +304,7 @@ buffers, and took 131 ms), and the whole read including the personal scope entry
 plan and the result; hosted CI does not assert the time).
 
 `evidence.interest_rollups` (`level` `system` or `person`, `subject_id` the catalogue system or empty) has the shape of `topic_context`
-(decayed activity, channels, reel and scroll measured and qualified, `log_weight` by the same trigger). `persistActivity` writes it in the same
+(decayed activity, channels, reel and scroll measured and qualified, `log_weight` by the same trigger). `makePersistActivity(catalogue)` writes it in the same
 transaction as the topic rows. A roll-up is the sum of the topic rows beneath it, so a system less one topic is "the rest of the system", and it
 is changed by what each topic **was counted as**: every topic row stores `rollup_counted`, the activity (and time), channels and counts it last
 contributed, and a write adds the topic's new state and takes away exactly that, never a value the roll-up did not hold. A topic an older binary
@@ -315,7 +315,7 @@ a topic is Content's catalogue (`systemOfTopic`); a topic the catalogue does not
 `ReadInterestRollups(systemIds ≤ 100, person, evaluatedAt)` reads the primary keys. Both reads are decayed to the time asked and clamp a row
 stored after it (clock skew) instead of growing it. Personal Context serves them to Composer (see its README).
 
-**Migration 0117 holds no long lock.** The columns are nullable with no default, the new table is empty, the index is partial on `log_weight is not
+**Migration 0121 holds no long lock.** The columns are nullable with no default, the new table is empty, the index is partial on `log_weight is not
 null` (so on the existing rows it starts empty and building it is one cheap scan), the `composer.decisions` pin is added `NOT VALID` and not
 validated (every existing row names v0 to v2; every new row is checked), and nothing backfills a large table. Rows that exist when it runs have no
 key, no counted state and no roll-up; **`node dist/operator.js evidence rebuild-interest-rollups [--max-universes <1-5000>]` fills them**: for each
@@ -323,7 +323,7 @@ person with topic rows, in a page of 50 persons at a time, one transaction under
 rechecked, so it never runs beside their projection), it streams their topic rows in pages of 2,000, sums them by catalogue system and for the
 person, replaces their roll-up rows and stamps every topic row as counted as it is now (which lets the trigger derive `log_weight` for rows no writer
 touched since the migration). It is idempotent (a second run writes the same rows), counts only, stops at `--max-universes` (default 1000) and says
-whether the scan finished. **Run it after the deploy that applies 0117 and before a world sets `KS_COMPOSER_POLICY=v3`**, and again after any
+whether the scan finished. **Run it after the deploy that applies 0121 and before a world sets `KS_COMPOSER_POLICY=v3`**, and again after any
 rollback to a binary that does not write roll-ups (docs/v2/operations/environments.md, "Switching Composer policy v3 on"). Until it has run, an
 existing person's roll-ups lag and their top-K read lacks rows no writer has touched; v3 is off, and a world that runs v3 without it reads no system or
 person prior for that person (it reads what v2 reads).

@@ -230,10 +230,10 @@ the harness reads them; nothing here prints them.
 
 ### Switching Composer policy v3 on (D-420, #674)
 
-Composer policy v3 reads long-term interest roll-ups that migration 0117 creates empty, so a world turns it on in this order. Dev keeps
+Composer policy v3 reads long-term interest roll-ups that migration 0121 creates empty, so a world turns it on in this order. Dev keeps
 `KS_COMPOSER_POLICY=v2` until all of it is done.
 
-1. Deploy. `migrate.js` applies 0117 before the new release starts; it takes no long lock (nullable columns, an empty table, a partial index that
+1. Deploy. `migrate.js` applies 0121 before the new release starts; it takes no long lock (nullable columns, an empty table, a partial index that
    starts empty, a `NOT VALID` pin, no backfill). From then the new binary writes the roll-ups and every writer, an older binary included, gets a
    correct `log_weight` from the trigger.
 2. Rebuild, from the worker release tree on the server: `node dist/operator.js evidence rebuild-interest-rollups` (add `--max-universes <1-5000>`;

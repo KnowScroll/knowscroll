@@ -74,9 +74,9 @@ describe('the lanes of a retrieval (D-420)', () => {
     expect(() => validateDiscoveryLanes({ continueTopicIds: [''], plannedUnitIds: [], catalogue })).toThrow(
       'DISCOVERY_LANES_INVALID',
     );
-    expect(() => validateDiscoveryLanes({ continueTopicIds: ['x'.repeat(161)], plannedUnitIds: [], catalogue })).toThrow(
-      'DISCOVERY_LANES_INVALID',
-    );
+    expect(() =>
+      validateDiscoveryLanes({ continueTopicIds: ['x'.repeat(161)], plannedUnitIds: [], catalogue }),
+    ).toThrow('DISCOVERY_LANES_INVALID');
     expect(() =>
       validateDiscoveryLanes({
         continueTopicIds: [],
@@ -84,9 +84,9 @@ describe('the lanes of a retrieval (D-420)', () => {
         catalogue,
       }),
     ).toThrow('DISCOVERY_LANES_INVALID');
-    expect(() => validateDiscoveryLanes({ continueTopicIds: 'a' as unknown as string[], plannedUnitIds: [], catalogue })).toThrow(
-      'DISCOVERY_LANES_INVALID',
-    );
+    expect(() =>
+      validateDiscoveryLanes({ continueTopicIds: 'a' as unknown as string[], plannedUnitIds: [], catalogue }),
+    ).toThrow('DISCOVERY_LANES_INVALID');
     expect(() => validateDiscoveryLanes(null as unknown as never)).toThrow('DISCOVERY_LANES_INVALID');
   });
 
@@ -158,7 +158,11 @@ describe('the strata and siblings of retrieval lanes, read from one catalogue re
 
   it('reads the release it is given: a later release that adds a topic or retires one changes only its own answer', () => {
     const before = invented(nodes, { waiting: ['a.waiting'], retired: ['a.gone'] });
-    const after = invented([...nodes, { id: 'b.two', parent: 'b' }], { waiting: ['a.waiting'], retired: ['a.gone', 'a.two'] }, 2);
+    const after = invented(
+      [...nodes, { id: 'b.two', parent: 'b' }],
+      { waiting: ['a.waiting'], retired: ['a.gone', 'a.two'] },
+      2,
+    );
     expect(topicSystemPairs(before).topicIds).toEqual(['a.one', 'a.two', 'b.one']);
     expect(topicSystemPairs(after).topicIds).toEqual(['a.one', 'b.one', 'b.two']);
     expect(siblingTopicIds(before, ['b.one'])).toEqual([]);

@@ -42,7 +42,7 @@ const authorityOf = (owner: InterestRollupOwner): PersonalAuthority => ({
 /**
  * The operator's one-off pass behind `evidence rebuild-interest-rollups` (D-420): builds the system and person roll-ups, stamps what
  * each topic row was counted as and lets the table's trigger fill the `log_weight` of rows no writer has touched since migration
- * 0117, for every person with topic rows. It runs before a world turns Composer policy v3 on, and after any rollback to a binary that
+ * 0121, for every person with topic rows. It runs before a world turns Composer policy v3 on, and after any rollback to a binary that
  * does not write roll-ups. Each person is one transaction under their own personal scope (the account, epoch and root lock are
  * rechecked, so it never runs beside that person's projection), the work per person is a streamed read of their topic rows, and the
  * pass writes nothing but derived rows. Idempotent: a person already rebuilt gets the same rows again, so it can be stopped, run

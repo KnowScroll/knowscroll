@@ -61,7 +61,7 @@ changes with a newer policy. Which policy new decisions are made under is config
 `v2` or `v3`, default `v0`, read by the API and the worker): v1's numbers were chosen from the dev replay (D-190), and a world
 uses v1 or v2 only when its configuration says so. A stored decision replays under its own policy whatever the setting, and
 the replay command always runs every policy. A change to a stored policy's numbers or rules needs a new label and a
-migration that widens the pin (v1 needed 0081, v2 0108, v3 0117).
+migration that widens the pin (v1 needed 0081, v2 0108, v3 0121).
 Seed and all inputs/watermarks are saved; ties use immutable asset/revision lexical order under v0 and v1, and under v2 a
 hash of the seed and the asset id (see "Policy v2").
 
@@ -393,8 +393,9 @@ falls as any activity grows and never goes below 0.5. So a topic met once scores
 never-met topic of a loved system scores above an unknown one, an old interest decays to its system's prior and never below an
 unknown topic, and a heavy reader's unknown topics are not all loved (the person's level moves the prior by at most 0.05). The
 inputs are the topic row, the system roll-up and the person roll-up of Evidence, read after retrieval and frozen in the snapshot
-(`evidence.person`, `evidence.systems`, `evidence.topicSystems`, the system of each candidate topic from Content's catalogue at
-assembly, so a later catalogue never changes a stored decision).
+(`evidence.person`, `evidence.systems`, `evidence.topicSystems`, the system of each candidate topic from the one catalogue release the
+decision read (`Catalogue.current()` once per decision, handed to retrieval's lanes, the roll-up read and the snapshot's `systemOf`), so a later
+release never changes a stored decision).
 
 **Format by hierarchical shrinkage.** The fit of a topic for a candidate's kind is a chain from the general to the particular
 (`hierarchicalFormatFit`): the person's other systems' rate against a prior chosen by the candidate's duration, then the system's rest

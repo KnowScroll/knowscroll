@@ -525,7 +525,8 @@ describe('format exploration: a logged share of system-chosen first offers draws
       if (decision.exploration.selectedProbability === 0.05) drawnBefore += 1;
     }
     expect(drawnBefore).toBe(0);
-  });
+    // 2,000 decisions composed twice: about 5 s on a busy laptop, so it does not ride on the default 5 s limit.
+  }, 30_000);
 
   it('draws only explanations the person has not met, whatever else keeps a met one out', () => {
     // Under a variant that does not exclude the met ahead of stickiness, the met Reel is held back by stickiness alone.

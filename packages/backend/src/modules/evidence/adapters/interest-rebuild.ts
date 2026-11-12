@@ -41,8 +41,9 @@ export function evidenceRebuildInterestRollups(
     owners: interestRollupOwners(db),
     // A topic's system never changes once it is in the catalogue, so the release each person is read against does not matter.
     rebuild: async (scope) => ({
-      topics: (await rebuildInterestRollups(transactionOf(scope), scope.authority, (await catalogue.current()).systemOf))
-        .topics,
+      topics: (
+        await rebuildInterestRollups(transactionOf(scope), scope.authority, (await catalogue.current()).systemOf)
+      ).topics,
     }),
   });
 }

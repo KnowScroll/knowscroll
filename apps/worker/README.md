@@ -292,9 +292,9 @@ stops after `--max-universes` (default 1000), prints counts and `complete`, and 
 
 `node dist/operator.js evidence rebuild-interest-rollups [--max-universes <1-5000>]` (`src/evidence-operator.ts`, #674, D-420) builds every
 person's system and person interest roll-ups from their topic rows, stamps what each topic row was counted as and lets the table's trigger fill
-the `log_weight` of rows no writer touched since migration 0117. It is idempotent (a person already rebuilt gets the same rows), takes one
+the `log_weight` of rows no writer touched since migration 0121. It is idempotent (a person already rebuilt gets the same rows), takes one
 transaction per person under their own personal scope, stops after `--max-universes` (default 1000), prints counts and `complete`, and can be run
-again. Run it after the deploy that applies 0117 and before `KS_COMPOSER_POLICY=v3` is set, and after any rollback to a binary that does not write
+again. Run it after the deploy that applies 0121 and before `KS_COMPOSER_POLICY=v3` is set, and after any rollback to a binary that does not write
 roll-ups. See the Evidence README and docs/v2/operations/environments.md.
 
 The registry also holds `composer.prune-decisions` (cron `7,37 * * * *`, #674): it finds the universes with a decision that expired

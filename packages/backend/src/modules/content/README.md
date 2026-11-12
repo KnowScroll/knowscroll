@@ -613,14 +613,18 @@ Status: implemented, CI-tested against real PostgreSQL. Related: #674, D-408. No
   lane's 20 that a subject move never asks for; `explore` is last and takes the rest of the cap of 100, at least 34), ordered by lane priority and, within a lane, by the stable
   random key from the cursor; a candidate read by several lanes keeps the first lane, and every candidate carries it (`lane`, not part of the
   catalogue watermark). `source`: the source's topics, primary before supporting. `planned`: the named units. `text`: as above. `continue`:
-  a capped window (`continuePerTopic`, 6) of each of the person's top topics, read as two index range scans of `encounter_topics_rand_idx` (migration 0117: `encounter_topics.serve_rand`, a stable random key per topic attribution set by a trigger, index `(topic_id, serve_rand)`) from the cursor, so the cost of a topic is its window and not its size, however many topics there are and however large the library is (measured: 20,000 assets, 32 topics, 5 ms against 268 ms for reading every eligible asset of the topics); candidates rank by the strongest topic they are about, at most five of any one catalogue system, so one
+  a capped window (`continuePerTopic`, 6) of each of the person's top topics, read as two index range scans of `encounter_topics_rand_idx` (migration 0121: `encounter_topics.serve_rand`, a stable random key per topic attribution set by a trigger, index `(topic_id, serve_rand)`) from the cursor, so the cost of a topic is its window and not its size, however many topics there are and however large the library is (measured: 20,000 assets, 32 topics, 5 ms against 268 ms for reading every eligible asset of the topics); candidates rank by the strongest topic they are about, at most five of any one catalogue system, so one
   loved system cannot take the lane (a topic the catalogue does not hold is its own stratum). `adjacent`: the other topics of the systems of the
-  source's topics (`siblingTopicIds`, from the catalogue; never the source's own topic). `explore`: two index range scans of `serve_rand` from the
+  source's topics (`siblingTopicIds`, from the catalogue release; never the source's own topic). `explore`: two index range scans of `serve_rand` from the
   cursor (120 rows each side), each row put in the system of its heaviest primary topic and taken round-robin (the first of every system, then the
   second of every system, and so on), so a person with no history and no source still gets a full read. The unseen-first bands of D-408 apply to every lane (every lane is read twice, with the list and without, and the unseen of every
-  lane come before any other row), as does `alwaysUnits`. Without `lanes` the read is exactly the one above, so v0 to v2 retrieve as before. At
-  scale the system of a topic is a join to the catalogue table that slice 2.1 adds; today it is the code catalogue, passed as two parallel
-  arrays (`topicSystemPairs`).
+  lane come before any other row), as does `alwaysUnits`. Without `lanes` the read is exactly the one above, so v0 to v2 retrieve as before. The
+  caller hands `lanes` the one `CatalogueSnapshot` it read for the decision (D-419): the strata of `continue` (the system of each top topic,
+  `systemOf`) and `explore` (`topicSystemPairs`, the servable topics of the release with their systems, passed to SQL as two parallel arrays)
+  and the topics of `adjacent` (`siblingTopicIds`) all come from it, so retrieval and the systems frozen into the decision's snapshot are of
+  the same release. Only servable, active topics are listed: a topic still waiting for supply and a retired topic are in no stratum and no
+  sibling list (a candidate whose lead topic is one is its own stratum, like a topic the catalogue does not hold). A `lanes` without a
+  catalogue is refused (`DISCOVERY_LANES_INVALID`).
 - **No replay impact.** A stored decision freezes its candidates, so the order and sample retrieval reads change what future
   snapshots hold and never how a stored decision replays.
 - **Composer's use.** `readVerticalCandidates` passes the decision seed as `rotation` and always reads some candidates of the

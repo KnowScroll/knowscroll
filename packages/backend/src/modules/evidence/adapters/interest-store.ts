@@ -135,7 +135,7 @@ export async function applyInterestRollups(
 const REBUILD_PAGE = 2000;
 
 /**
- * Rebuilds a person's roll-ups from their topic rows, in the caller's transaction (migration 0117, D-420). It streams the topic rows
+ * Rebuilds a person's roll-ups from their topic rows, in the caller's transaction (migration 0121, D-420). It streams the topic rows
  * in pages, sums them by catalogue system and for the person as of the latest row, replaces the person's roll-up rows, and stamps
  * every topic row as counted as it is now (`rollup_counted`), which also lets the table's trigger derive the `log_weight` of rows no
  * writer has touched since the migration. Idempotent: a second run reads the same rows and writes the same values. The caller holds

@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { fixtureSnapshot, planSnapshot } from '@knowscroll/backend/modules/content';
 import { readDiscoveryCandidates } from '@knowscroll/backend/modules/content/nest-providers';
 import { rotationCursor } from '../../../packages/backend/src/modules/content/adapters/discovery-store.js';
 import { continueLane } from '../../../packages/backend/src/modules/content/adapters/discovery-lanes.js';
@@ -17,6 +18,8 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { textCapabilities } from '../support/scroll.js';
 
+/** The catalogue release the lanes read (the one the test database was seeded with: release 1, the library plan). */
+const catalogue = planSnapshot();
 const capabilities = { ...textCapabilities, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] };
 
 /** The topics of the fixture library, how many assets each has, and the catalogue system each belongs to. */
@@ -103,7 +106,7 @@ describe('retrieval lanes (real PostgreSQL, labelled CI fixtures)', () => {
 
   let planned: string;
   const sourceAssets: string[] = [];
-  const lanes = { continueTopicIds: CONTINUE, plannedUnitIds: [] as string[] };
+  const lanes = { continueTopicIds: CONTINUE, plannedUnitIds: [] as string[], catalogue };
 
   beforeAll(async () => {
     database = await createTestDatabase<Database>('content_lanes_v3');
@@ -186,6 +189,25 @@ describe('retrieval lanes (real PostgreSQL, labelled CI fixtures)', () => {
     expect(adjacent.every((id) => ['earth.tides', 'earth.greenhouse-effect'].includes(topicOf.get(id)!))).toBe(true);
   });
 
+  it('reads the adjacent lane from the release it is given: a sibling still waiting for supply or retired is not adjacent', async () => {
+    const plan = planSnapshot();
+    const concepts = plan.all().map((concept) => ({
+      id: concept.id,
+      parent: concept.parent,
+      facets: concept.facets.map((facet) => facet.id),
+    }));
+    // A later release that retires Greenhouse effect and a topic of the system that is waiting for supply: only servable, active topics count.
+    const later = fixtureSnapshot(concepts, 2, { waiting: ['earth.tides'], retired: ['earth.greenhouse-effect'] });
+    expect(ofLane(await laned({ lanes: { ...lanes, catalogue: later } }), 'adjacent')).toEqual([]);
+    // Only Greenhouse effect retired: its sibling, Tides, is still adjacent, and the retired topic never is.
+    const retired = fixtureSnapshot(concepts, 2, { retired: ['earth.greenhouse-effect'] });
+    const adjacent = ofLane(await laned({ lanes: { ...lanes, catalogue: retired } }), 'adjacent');
+    expect(adjacent).toHaveLength(6);
+    expect(adjacent.every((id) => topicOf.get(id) === 'earth.tides')).toBe(true);
+    // The read of the release before it is unchanged: a later release changes only the reads that name it.
+    expect(ofLane(await laned(), 'adjacent')).toHaveLength(10);
+  });
+
   it('stratifies the explore lane by system: round-robin, so a few of every system come before many of one, and it fills the rest of the cap', async () => {
     const found = await laned();
     const explored = ofLane(found, 'explore');
@@ -193,7 +215,7 @@ describe('retrieval lanes (real PostgreSQL, labelled CI fixtures)', () => {
     // The lane reaches most systems (the library has six, and unattributed assets), though the other lanes have claimed some of its rows.
     expect(new Set(explored.map(systemOf)).size).toBeGreaterThanOrEqual(5);
     // A person with no history and no source still gets a full read: the explore lane takes what no other lane claims.
-    const cold = await read({ rotation: 'seed-a', lanes: { continueTopicIds: [], plannedUnitIds: [] } });
+    const cold = await read({ rotation: 'seed-a', lanes: { continueTopicIds: [], plannedUnitIds: [], catalogue } });
     expect(cold.every((c) => c.lane === 'explore')).toBe(true);
     expect(cold).toHaveLength(100);
     expect(new Set(cold.slice(0, 7).map((c) => systemOf(c.assetId))).size).toBe(7);
@@ -254,7 +276,7 @@ describe('retrieval lanes (real PostgreSQL, labelled CI fixtures)', () => {
   });
 
   it('reads nothing of a lane with no input: no continue topics and no planned units leave the other lanes alone', async () => {
-    const found = await laned({ lanes: { continueTopicIds: [], plannedUnitIds: [] } });
+    const found = await laned({ lanes: { continueTopicIds: [], plannedUnitIds: [], catalogue } });
     expect(ofLane(found, 'continue')).toEqual([]);
     expect(ofLane(found, 'planned')).toEqual([]);
     expect(ofLane(found, 'source').length).toBe(8);
@@ -266,6 +288,7 @@ describe('retrieval lanes (real PostgreSQL, labelled CI fixtures)', () => {
       lanes: {
         continueTopicIds: ["x'; drop table content.assets; --", 'ci.unknown.topic'],
         plannedUnitIds: ["unit'; drop table content.assets; --"],
+        catalogue,
       },
     });
     expect(ofLane(found, 'continue')).toEqual([]);
@@ -277,10 +300,10 @@ describe('retrieval lanes (real PostgreSQL, labelled CI fixtures)', () => {
 
   it('refuses lane input that is not a bounded list of ids, and honours the limit', async () => {
     const tooMany = Array.from({ length: 65 }, (_, n) => `ci.topic.${String(n)}`);
-    await expect(laned({ lanes: { continueTopicIds: tooMany, plannedUnitIds: [] } })).rejects.toThrow(
+    await expect(laned({ lanes: { continueTopicIds: tooMany, plannedUnitIds: [], catalogue } })).rejects.toThrow(
       'DISCOVERY_LANES_INVALID',
     );
-    await expect(laned({ lanes: { continueTopicIds: [''], plannedUnitIds: [] } })).rejects.toThrow(
+    await expect(laned({ lanes: { continueTopicIds: [''], plannedUnitIds: [], catalogue } })).rejects.toThrow(
       'DISCOVERY_LANES_INVALID',
     );
     expect(await laned({ limit: 12 })).toHaveLength(12);
@@ -360,7 +383,7 @@ describe('the continue lane reads a capped window of each top topic, however lar
       'QUERY PLAN': { Plan: PlanNode; 'Execution Time': number }[];
     }>`explain (analyze, buffers, format json)
       select asset_id from ((select null::uuid as asset_id,0 as band,0 as priority,0 as role_rank,0::float8 as rot,'source'::text as lane where false)
-        ${continueLane(TOPICS, 0.37, 1, eligible)}) lanes`.execute(database.db);
+        ${continueLane(catalogue, TOPICS, 0.37, 1, eligible)}) lanes`.execute(database.db);
     const nodes = flatten(plan.rows[0]!['QUERY PLAN'][0]!.Plan);
     const scans = nodes.filter((n) => n['Index Name'] === 'encounter_topics_rand_idx');
     expect(scans.length).toBeGreaterThan(0);
@@ -385,7 +408,7 @@ describe('the continue lane reads a capped window of each top topic, however lar
           formats: ['reel'],
           capabilities,
           rotation,
-          lanes: { continueTopicIds: TOPICS, plannedUnitIds: [] },
+          lanes: { continueTopicIds: TOPICS, plannedUnitIds: [], catalogue },
         }),
       );
       if (entered.kind !== 'entered') throw new Error('CI scope refused');

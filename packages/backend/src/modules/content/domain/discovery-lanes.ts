@@ -63,7 +63,9 @@ export function topicSystemPairs(catalogue: CatalogueSnapshot): {
   readonly topicIds: readonly string[];
   readonly systemIds: readonly string[];
 } {
-  const topics = catalogue.topics().flatMap((topic) => (topic.parent === null ? [] : [{ id: topic.id, system: topic.parent }]));
+  const topics = catalogue
+    .topics()
+    .flatMap((topic) => (topic.parent === null ? [] : [{ id: topic.id, system: topic.parent }]));
   return { topicIds: topics.map((topic) => topic.id), systemIds: topics.map((topic) => topic.system) };
 }
 
@@ -72,7 +74,11 @@ export function topicSystemPairs(catalogue: CatalogueSnapshot): {
  * only; an id the catalogue does not hold has no siblings, and a system is not its own sibling topic. Ordered as the catalogue is,
  * bounded by `limit`.
  */
-export function siblingTopicIds(catalogue: CatalogueSnapshot, topicIds: readonly string[], limit = 64): readonly string[] {
+export function siblingTopicIds(
+  catalogue: CatalogueSnapshot,
+  topicIds: readonly string[],
+  limit = 64,
+): readonly string[] {
   const asked = new Set(topicIds);
   const systems = new Set(topicIds.flatMap((id) => catalogue.systemOf(id) ?? []));
   return catalogue
