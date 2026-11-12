@@ -296,6 +296,7 @@ export { makeProposeTopic, previewTopicProposal, type ProposeTopicResult } from 
 export { makeSeedTopicCandidates, type ReadResearchPage, type SeedResult } from '../production/topic-seeds.js';
 export {
   makeGrowTopics,
+  proposeUnderLock,
   type GrowTopicsIdle,
   type GrowTopicsResult,
   type TopicGrowthLock,
@@ -309,6 +310,14 @@ export {
   type CandidateStatus,
 } from './topic-candidates.js';
 export { TOPIC_GROWTH_POLICY } from '../domain/catalogue/topic-growth.js';
+/** The owner's approval of each topic that grew (D-422): the text an operator reads, and the decision. */
+export {
+  decideTopic,
+  reviewCandidates,
+  type GrownTopicText,
+  type ReviewedCandidate,
+  type TopicDecisionResult,
+} from '../production/topic-review.js';
 export { fetchResearchWithLinks } from '../../../infrastructure/research/public-pages.js';
 /** The topic growth pass's session advisory lock: one pass at a time, on one dedicated connection, with no transaction across a model call. */
 export const topicGrowthLock = (db: Kysely<Database>): TopicGrowthLock => ({

@@ -14,7 +14,9 @@ import {
 import type { WithProductionScope } from '@knowscroll/backend/reasoning';
 import { shortlistTopics } from '@knowscroll/backend/modules/content';
 import {
+  appendRelease,
   catalogueStatus,
+  decideTopic,
   fetchResearchWithLinks,
   makeCatalogue,
   makeGrowTopics,
@@ -642,9 +644,16 @@ describe('Topic growth (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
       // Counted as a failed attempt, the day released; the candidate may be asked about once more, on another day.
       expect(await readCandidate(db(), url)).toMatchObject({ status: 'eligible', attempts: 1 });
       expect((await readCandidate(db(), url))!.attemptDay).toBeUndefined();
-      // The same day is the same closed run: nothing is sent for it again. A new day is a new request, and a second failure refuses the page.
+      // The same day it is backed off: nothing is sent for it again. The next UTC day is a new request, and a second failure refuses the page.
       script = () => proposal('Orrin shape', { quotes: [QUOTES[0], QUOTES[1], QUOTES[2]] });
       proposing({ day: 30 });
+      expect(await propose({ pageUrl: url, dryRun: false }, signal())).toEqual({
+        kind: 'refused',
+        reason: 'backed_off',
+      });
+      expect(calls()).toBe(0);
+      expect(await readCandidate(db(), url)).toMatchObject({ status: 'eligible', notBefore: '2026-12-02' });
+      proposing({ day: 31 });
       expect(await propose({ pageUrl: url, dryRun: false }, signal())).toMatchObject({
         kind: 'admitted',
         topicId: 'earth.orrin-shape',
@@ -871,12 +880,20 @@ describe('Topic growth (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
         revision: 1,
         decidedBy: 'cli:ci-reviewer',
       });
+      // Three explanations over two facets are released, and the topic still waits: the owner has not approved it. No path makes it servable.
       const before = await releaseId();
-      expect(await showServableTopics(db())).toMatchObject({
-        kind: 'appended',
-        releaseId: before + 1,
-        summary: { shown: 1 },
+      expect(await showServableTopics(db())).toEqual({ kind: 'unchanged' });
+      expect(await appendRelease(db(), [{ kind: 'show', nodeId: TOPIC }], 'operator')).toMatchObject({
+        kind: 'refused',
+        refusals: [{ code: 'not_approved', nodeId: TOPIC }],
       });
+      expect(await releaseId()).toBe(before);
+      expect((await live().current()).concept(TOPIC)).toMatchObject({ servable: false });
+      expect(await decideTopic(db(), { topicId: TOPIC, decision: 'approve', decidedBy: 'cli:ci-owner' })).toEqual({
+        kind: 'approved',
+        servable: true,
+      });
+      expect(await releaseId()).toBe(before + 1);
       const catalogue = await live().current();
       expect(catalogue.concept(TOPIC)).toMatchObject({ servable: true });
       expect(catalogue.children('earth').map((topic) => topic.id)).toContain(TOPIC);

@@ -19,7 +19,11 @@
 --    research fetch froze it (at most 8,000 characters in at most a few dozen paragraphs), kept for an eligible, proposed
 --    or admitted candidate so the quotes a model gives can be checked against the page and the recipes of the new topic have
 --    a page to cite; it is dropped for a rejected one. `attempts` counts failed proposing attempts (at most two) and `fetches`
---    failed reads of the page. Query shapes: one candidate by address (the primary key); the next candidates to read, to
+--    failed reads of the page; `not_before` is the first UTC day the candidate may be proposed for again (the day after a failed attempt, or
+--    after a page that no system had room for), so one outage or one unplaceable page never holds the queue. The owner approves each new
+--    topic: `approval` is `pending` for every candidate, and `approved` or `rejected` (with who decided and when) once an operator has read the
+--    topic's label, meaning and facets; a grown topic is made servable only when it is `approved` (and has its supply), and a `rejected`
+--    topic is retired by a release. Query shapes: one candidate by address (the primary key); the next candidates to read, to
 --    propose and the operator's list by status (the status index). Locking: one row, one statement; a proposing run is
 --    serialised by the harness's own run, and its admission by the catalogue's release lock. Growth: at most ten rows for each
 --    recipe page, a few thousand. Retention: kept for ever, since a rejected row is what stops the same page being read
@@ -77,7 +81,11 @@ create table content.topic_candidates (
   fetches integer not null default 0,
   attempts integer not null default 0,
   attempt_day date,
+  not_before date,
   topic_id text,
+  approval text not null default 'pending',
+  decided_by text,
+  decided_at timestamptz,
   policy_version text not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -101,6 +109,11 @@ create table content.topic_candidates (
   constraint topic_candidates_attempts_check check (fetches between 0 and 10 and attempts between 0 and 2),
   constraint topic_candidates_topic_check
     check ((status = 'admitted') = (topic_id is not null) and (topic_id is null or char_length(topic_id) between 1 and 160)),
+  -- The owner's decision belongs to a topic that was made, and says who made it and when.
+  constraint topic_candidates_approval_check check (approval in ('pending', 'approved', 'rejected')),
+  constraint topic_candidates_approval_status_check check (approval = 'pending' or status = 'admitted'),
+  constraint topic_candidates_decision_check
+    check ((approval = 'pending') = (decided_by is null and decided_at is null) and (decided_by is null or char_length(decided_by) between 1 and 120)),
   constraint topic_candidates_policy_check check (char_length(policy_version) between 1 and 64)
 );
 
@@ -109,6 +122,7 @@ comment on table content.topic_candidates is
 
 create index topic_candidates_status on content.topic_candidates (status, created_at, page_url);
 create index topic_candidates_topic on content.topic_candidates (topic_id) where topic_id is not null;
+create index topic_candidates_withheld on content.topic_candidates (topic_id) where status = 'admitted' and approval <> 'approved';
 
 create table content.topic_proposals (
   run_id uuid not null,

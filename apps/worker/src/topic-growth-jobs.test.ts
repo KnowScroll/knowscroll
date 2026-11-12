@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { releaseQueues } from '@knowscroll/backend/job-queues';
 import { growTopicsQueue } from '@knowscroll/backend/modules/content';
 import { briefGapQueue, scanGapsQueue } from '@knowscroll/backend/modules/supply';
-import { proposeTopicCommand, topicCandidatesCommand } from './topic-operator.js';
+import { proposeTopicCommand, topicCandidatesCommand, topicDecisionCommand } from './topic-operator.js';
 import { topicGrowthRuns } from './topic-growth-jobs.js';
 
 describe('the topic growth job', () => {
@@ -81,5 +81,30 @@ describe('the operator’s topic commands', () => {
           'content topic-candidates [--status pending|eligible|rejected|proposed|refused|admitted|blocked_unknown]',
       },
     ]);
+  });
+});
+
+describe('the owner’s decision on a topic that grew', () => {
+  const usage = 'content topic approve --topic <topic id> | content topic reject --topic <topic id>';
+  it('needs approve or reject and a topic id, and refuses anything else before it opens a database', async () => {
+    const cases: readonly [string | undefined, string | undefined][] = [
+      [undefined, 'earth.orrin-seas'],
+      ['maybe', 'earth.orrin-seas'],
+      ['approve', undefined],
+      ['approve', ''],
+      ['approve', 'Earth.Orrin Seas'],
+      ['reject', 'earth'],
+      ['reject', "earth.x'; drop table content.topic_candidates; --"],
+    ];
+    for (const [decision, topic] of cases) {
+      const printed: Record<string, unknown>[] = [];
+      const code = await topicDecisionCommand(
+        { decision, topic, decidedBy: 'cli:test' },
+        (result) => printed.push(result),
+        () => undefined,
+      );
+      expect(code, `${String(decision)} ${String(topic)}`).toBe(2);
+      expect(printed).toEqual([{ result: 'usage', usage }]);
+    }
   });
 });

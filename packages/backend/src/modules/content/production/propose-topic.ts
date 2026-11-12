@@ -11,6 +11,7 @@ import type {
 } from '../../../reasoning/public.js';
 import { appendReleaseIn, readCatalogueIn } from '../adapters/catalogue-store.js';
 import {
+  backOffCandidate,
   beginAttempt,
   blockCandidate,
   countFailedAttempt,
@@ -61,12 +62,13 @@ export interface ProposeTopicRequest {
 
 export type ProposeTopicResult =
   /**
-   * Nothing was sent and nothing was paid: the page is no candidate, it is not open to a proposal (its status says why), no system has
-   * room under the size limit, or it has become an existing topic's duplicate since it was read.
+   * Nothing was sent and nothing was paid: the page is no candidate, it is not open to a proposal (its status says why), it is backed off until the
+   * next UTC day (after a failed attempt, or a page no system had room for), no system has room under the size limit, or it has become an
+   * existing topic's duplicate since it was read.
    */
   | {
       readonly kind: 'refused';
-      readonly reason: 'not_a_candidate' | 'not_open' | 'no_system_with_room' | 'duplicate_topic';
+      readonly reason: 'not_a_candidate' | 'not_open' | 'backed_off' | 'no_system_with_room' | 'duplicate_topic';
       readonly status?: string;
     }
   /** The context a run would send, in counts. Nothing was sent and nothing was stored. */
@@ -112,7 +114,10 @@ export type ProposeTopicResult =
       readonly closed: boolean;
     };
 
-/** The refusals of the harness that mean nothing was sent: the others (a lost dispatch, a changed request, a written-off attempt) may have reached the provider. */
+/**
+ * The refusals of the harness that mean nothing was sent: the others (a lost dispatch, a changed request, a written-off attempt) may have reached
+ * the provider.
+ */
 const NOTHING_SENT: ReadonlySet<string> = new Set([
   'provider_unavailable',
   'role_invalid',
@@ -121,6 +126,8 @@ const NOTHING_SENT: ReadonlySet<string> = new Set([
   'context_insufficient',
   'request_too_large',
   'scope_refused',
+  // Five failing runs a day trip the role's brake: it refuses the sixth before the request leaves, so an outage pauses the step and blocks nobody.
+  'failure_brake',
 ]);
 
 /** The UTC day of a moment, `2026-11-12`. */
@@ -238,6 +245,7 @@ export function makeProposeTopic(deps: ProposeTopicDependencies) {
         snapshot: await readCatalogueIn(tx),
         offered: shortlist,
         maxTopicsPerSystem: deps.maxTopicsPerSystem,
+        pageTitle: candidate.title ?? '',
         passages: candidate.passages ?? [],
       });
       let decided:
@@ -318,8 +326,12 @@ export function makeProposeTopic(deps: ProposeTopicDependencies) {
     if (candidate === undefined) return { kind: 'refused', reason: 'not_a_candidate' };
     if ((candidate.status !== 'eligible' && candidate.status !== 'proposed') || candidate.passages === undefined)
       return { kind: 'refused', reason: 'not_open', status: candidate.status };
+    const today = utcDayOf(now());
+    // A candidate whose attempt failed, or that no system had room for, waits for the next UTC day. A run already in flight is not backed off.
+    if (candidate.status === 'eligible' && candidate.notBefore !== undefined && candidate.notBefore > today)
+      return { kind: 'refused', reason: 'backed_off' };
     // The attempt's day is pinned on the candidate: a delivery after midnight is the same request and is answered by the ledger.
-    const begun = await beginAttempt(deps.db, candidate.pageUrl, utcDayOf(now()));
+    const begun = await beginAttempt(deps.db, candidate.pageUrl, today);
     if (begun === undefined) return { kind: 'refused', reason: 'not_open', status: candidate.status };
     const runId = runIdOf(candidate.pageUrl, begun.day, begun.retry);
     // The first delivery freezes its context; every later one sends that very context, whatever the catalogue holds by then. A run
@@ -328,9 +340,10 @@ export function makeProposeTopic(deps: ProposeTopicDependencies) {
     if (proposal === undefined) {
       const prepared = await prepare(deps.db, deps.maxTopicsPerSystem, candidate);
       if (prepared.kind !== 'ready') {
-        // Free refusals. A page that is an existing topic again is rejected for good; a catalogue with no room is only waited on.
+        // Free refusals. A page that is an existing topic again is rejected for good; a page no system has room for is backed off to the next
+        // UTC day, so it does not stand first in the queue and hide the candidates behind it.
         if (prepared.kind === 'duplicate_topic') await settleRejected(deps.db, candidate.pageUrl, 'duplicate_topic');
-        else await releaseAttempt(deps.db, candidate.pageUrl);
+        else await backOffCandidate(deps.db, candidate.pageUrl, today);
         return { kind: 'refused', reason: prepared.kind };
       }
       proposal = await openTopicProposal(deps.db, {
@@ -378,10 +391,4 @@ export function makeProposeTopic(deps: ProposeTopicDependencies) {
     const closed = await closeFailed(runId, candidate.pageUrl);
     return { kind: 'failed', runId, code: closed ? code : 'scope_refused', unknown: false, closed };
   };
-}
-
-/** Takes the pin off an attempt that sent nothing, so the candidate is as it was before it was chosen. */
-async function releaseAttempt(db: Kysely<Database>, pageUrl: string): Promise<void> {
-  await sql`update content.topic_candidates set status = 'eligible', attempt_day = null, updated_at = now()
-    where page_url = ${pageUrl} and status = 'proposed'`.execute(db);
 }

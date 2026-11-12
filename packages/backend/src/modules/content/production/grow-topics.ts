@@ -53,8 +53,13 @@ export type GrowTopicsResult =
 
 export type GrowTopics = (signal: AbortSignal) => Promise<GrowTopicsResult>;
 
-/** At most this many candidates that turn out to be an existing topic again (free, nothing paid) are passed over in one pass. */
+/** At most this many candidates refused for nothing (an existing topic again, no system with room) are passed over in one pass. */
 const FREE_REFUSALS_PER_PASS = 5;
+
+/** The free refusals after which a pass goes on to the next candidate: nothing was paid, and the candidate does not come back today. */
+const PASSED_OVER: ReadonlySet<string> = new Set(['duplicate_topic', 'no_system_with_room', 'backed_off']);
+
+const utcDay = (now: Date): string => now.toISOString().slice(0, 10);
 
 const startOfUtcDay = (now: Date): Date =>
   new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -95,13 +100,14 @@ export function makeGrowTopics(p: GrowTopicsPorts): GrowTopics {
     const proposals: ProposeTopicResult['kind'][] = [];
     let paused = false;
     for (let freeRefusals = 0; freeRefusals <= FREE_REFUSALS_PER_PASS && !signal.aborted; freeRefusals += 1) {
-      const next = await readNextToPropose(p.db);
+      const next = await readNextToPropose(p.db, utcDay(p.now()));
       if (next === undefined) break;
       const result = await p.propose({ pageUrl: next.pageUrl, dryRun: false }, signal);
       proposals.push(result.kind);
       paused = result.kind === 'paused';
-      // A page that turned out to be an existing topic again cost nothing: the next candidate is tried. Anything else ends the pass.
-      if (!(result.kind === 'refused' && result.reason === 'duplicate_topic')) break;
+      // A page that turned out to be an existing topic again, or that no system offered itself for, cost nothing and is not asked again today: the
+      // next candidate is tried. Anything else ends the pass.
+      if (!(result.kind === 'refused' && PASSED_OVER.has(result.reason))) break;
     }
     return {
       kind: 'done',
@@ -116,4 +122,20 @@ export function makeGrowTopics(p: GrowTopicsPorts): GrowTopics {
     // One pass at a time: a second one (another process, a redelivery that outlived its claim) finds the lock held and does nothing.
     return (await p.lock.exclusively(() => pass(signal))) ?? { kind: 'busy' };
   };
+}
+
+/** The proposal use case as a pass and the operator's command call it. */
+export type ProposeTopicFn = (request: ProposeTopicRequest, signal: AbortSignal) => Promise<ProposeTopicResult>;
+
+/**
+ * Asks for one candidate under the pass's own lock (D-422): the operator's `content propose-topic` and the scheduled pass never run at the same time, so
+ * neither finds the other's attempt half done. `{ kind: 'busy' }` when a pass holds the lock; nothing is sent and nothing is read then.
+ */
+export async function proposeUnderLock(
+  lock: TopicGrowthLock,
+  propose: ProposeTopicFn,
+  request: ProposeTopicRequest,
+  signal: AbortSignal,
+): Promise<ProposeTopicResult | { readonly kind: 'busy' }> {
+  return (await lock.exclusively(() => propose(request, signal))) ?? { kind: 'busy' };
 }

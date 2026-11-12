@@ -4,6 +4,7 @@ import { LIBRARY_SYSTEMS } from '../library/index.js';
 import { planRelease } from './release.js';
 import { seedRelease, seedSnapshot } from './seed.js';
 import { makeSnapshot } from './snapshot.js';
+import { topicsNowServable } from './visibility.js';
 import {
   TOPIC_GROWTH_POLICY,
   TOPIC_REFUSALS,
@@ -54,12 +55,12 @@ const proposal = (overrides: Partial<TopicProposalOutput['topics'][number]> = {}
         },
         {
           label: 'Locked face',
-          meaning: 'Why a moon keeps one face turned to its planet.',
+          meaning: 'Why the pull of a planet locks the spin of its moon over long ages.',
           quote: QUOTES[1],
         },
         {
           label: 'Narrow bays',
-          meaning: 'Why the water climbs higher where a bay narrows.',
+          meaning: 'Why the incoming water is squeezed into a smaller space where a bay narrows.',
           quote: QUOTES[2],
         },
       ],
@@ -72,6 +73,7 @@ const context = (overrides: Partial<TopicAdmissionContext> = {}): TopicAdmission
   snapshot: seeded,
   offered: [SYSTEM],
   maxTopicsPerSystem: 12,
+  pageTitle: 'Moon seas of Orrin',
   passages: PASSAGES,
   ...overrides,
 });
@@ -123,6 +125,28 @@ describe('what a title and a first paragraph show of a page', () => {
       kind: 'rejected',
       code: 'disambiguation',
     });
+    // The ways a disambiguation page opens, however its first sentence is put.
+    for (const lead of [
+      'Valve may also refer to:',
+      'Valve most commonly refers to a device that controls the flow of a fluid.',
+      'Valve most often refers to:',
+      'Valve usually refers to one of the following.',
+      'Valve is the name of several places in the invented moon Orrin.',
+      'Valves are the name of many things.',
+      'A valve might be any of the following.',
+      'Valve could mean one of several things.',
+    ])
+      expect(candidateVerdict({ ...ordinary, lead }, labels), lead).toEqual({
+        kind: 'rejected',
+        code: 'disambiguation',
+      });
+    // An article that uses such words late, or in another sense, is read as an article.
+    for (const lead of [
+      `${'A heart valve lets blood flow one way and keeps it from flowing back, as the following passages explain at length. '.repeat(3)}It may also refer to one of several devices.`,
+      'A heart valve lets blood flow one way.',
+      'The tide is the rise and fall of the sea, and it also reaches rivers.',
+    ])
+      expect(candidateVerdict({ ...ordinary, lead }, labels).kind, lead).toBe('eligible');
     expect(candidateVerdict({ ...ordinary, lead: 'This is a list of heart valves.' }, labels)).toEqual({
       kind: 'rejected',
       code: 'list_page',
@@ -348,6 +372,40 @@ describe('admission of a proposal, by code', () => {
     expect(refusal(proposal(), { passages: [] })).toBe('quote_not_in_page');
   });
 
+  it('refuses a name that shares no key word with the title of the page, and a facet whose words share too few with the passage it quotes', () => {
+    // The page is about the seas of Orrin; a topic named for something else rests on nothing the page says.
+    expect(refusal(proposal({ label: 'Volcano ash' }))).toBe('label_not_in_title');
+    expect(refusal(proposal(), { pageTitle: 'Orrin seas' })).toBe('admitted');
+    expect(refusal(proposal(), { pageTitle: 'Volcanic ash' })).toBe('label_not_in_title');
+    expect(refusal(proposal(), { pageTitle: '' })).toBe('label_not_in_title');
+    // A facet that says something the stretch it quotes does not: no shared key word, and one shared word is not enough either.
+    const unrelated = 'How a volcano builds its cone from layers of ash and lava over many eruptions.';
+    expect(
+      refusal(
+        withFacets(first.facets.map((f, at) => (at === 1 ? { ...f, label: 'Volcano cones', meaning: unrelated } : f))),
+      ),
+    ).toBe('facet_not_grounded');
+    expect(
+      refusal(
+        withFacets(
+          first.facets.map((f, at) =>
+            at === 2 ? { ...f, label: 'Water facts', meaning: 'A few things about the north coast.' } : f,
+          ),
+        ),
+      ),
+    ).toBe('facet_not_grounded');
+    // The stems are the key words of the label and the meaning together, so either may carry them.
+    expect(
+      refusal(
+        withFacets(
+          first.facets.map((f, at) =>
+            at === 2 ? { ...f, label: 'Squeezed water', meaning: 'Why a narrow bay squeezes the incoming tide.' } : f,
+          ),
+        ),
+      ),
+    ).toBe('admitted');
+  });
+
   it('names every refusal it can make', () => {
     // A small guard that the codes a test above relies on are the codes the step documents.
     for (const code of [
@@ -363,6 +421,8 @@ describe('admission of a proposal, by code', () => {
       'facet_duplicate',
       'quote_not_in_page',
       'quote_repeated',
+      'label_not_in_title',
+      'facet_not_grounded',
     ] as const)
       expect(TOPIC_REFUSALS).toContain(code);
   });
@@ -377,5 +437,56 @@ describe('ids made from labels', () => {
     expect(slugOfLabel('---')).toBeUndefined();
     expect(slugOfLabel('x'.repeat(61))).toBeUndefined();
     expect(slugOfLabel('x'.repeat(60))).toBe('x'.repeat(60));
+  });
+});
+
+describe('topics that are never made servable whatever supply they have (the owner has not approved them)', () => {
+  it('are left out of the topics that become servable, and the others are not', () => {
+    const drafts = [
+      {
+        kind: 'add' as const,
+        draft: {
+          id: 'earth.orrin-seas',
+          kind: 'topic' as const,
+          parentId: 'earth',
+          label: 'Orrin seas',
+          meaning: 'How the seas of the invented moon Orrin behave.',
+          sceneFamily: null,
+          haze: null,
+          sameMeaningAs: [],
+        },
+      },
+      ...['one', 'two'].map((slug) => ({
+        kind: 'add' as const,
+        draft: {
+          id: `earth.orrin-seas.${slug}`,
+          kind: 'facet' as const,
+          parentId: 'earth.orrin-seas',
+          label: slug,
+          meaning: `The ${slug} angle on the seas of the invented moon.`,
+          sceneFamily: null,
+          haze: null,
+          sameMeaningAs: [],
+        },
+      })),
+    ];
+    const planned = planRelease(seedRelease(LIBRARY_SYSTEMS, canonicalSha256).rows, drafts, canonicalSha256);
+    if (planned.kind !== 'release') throw new Error('expected a release');
+    const next = makeSnapshot(planned.rows, canonicalSha256);
+    const coverage = {
+      planets: [
+        {
+          topicId: 'earth.orrin-seas',
+          units: 3,
+          facets: [
+            { facetId: 'earth.orrin-seas.one', units: 2 },
+            { facetId: 'earth.orrin-seas.two', units: 1 },
+          ],
+        },
+      ],
+    };
+    expect(topicsNowServable(next, coverage)).toEqual(['earth.orrin-seas']);
+    expect(topicsNowServable(next, coverage, new Set(['earth.orrin-seas']))).toEqual([]);
+    expect(topicsNowServable(next, coverage, new Set(['earth.tides']))).toEqual(['earth.orrin-seas']);
   });
 });

@@ -175,6 +175,8 @@ export function extractResearch(html: string, url: string, retrievedAt: string):
 }
 /** How many links one page gives: a bound, however long the page. */
 export const MAX_RESEARCH_LINKS = 300;
+/** The longest address a link may have to be kept: what the candidates table holds. A longer one is dropped, never cut. */
+export const MAX_RESEARCH_LINK_LENGTH = 300;
 
 /** A link is worth following only to an article: not a root page, and on Wikipedia not a namespace page (`Category:`, `File:`, `Special:`). */
 function articleAddress(url: URL): boolean {
@@ -187,7 +189,7 @@ function articleAddress(url: URL): boolean {
 /**
  * The links of a page's prose (#674, D-422): the addresses its paragraphs link to, in the order they appear, each made absolute against
  * the page, without its fragment, without a trailing slash, and kept only if the research URL rule allows it (https, a host that was
- * individually reviewed, no credentials, port or query), it names an article and it is not the page itself. The navigation, the footer, a
+ * individually reviewed, no credentials, port or query), it names an article, it is not the page itself and it is at most {@link MAX_RESEARCH_LINK_LENGTH} characters long. The navigation, the footer, a
  * reference list and a footnote marker are not read, and nothing is fetched or executed. A link to a host the list does not name is
  * dropped here, so a page cannot lead the product anywhere a person did not review. At most {@link MAX_RESEARCH_LINKS}, each once.
  */
@@ -212,7 +214,8 @@ export function extractResearchLinks(html: string, url: string): readonly string
       } catch {
         continue;
       }
-      if (!articleAddress(allowed) || allowed.href === base.href) continue;
+      if (!articleAddress(allowed) || allowed.href === base.href || allowed.href.length > MAX_RESEARCH_LINK_LENGTH)
+        continue;
       found.add(allowed.href);
       if (found.size >= MAX_RESEARCH_LINKS) return [...found];
     }

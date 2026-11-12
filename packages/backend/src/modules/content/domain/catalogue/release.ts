@@ -30,7 +30,10 @@ export type ReleaseChange =
    */
   | { readonly kind: 'retire'; readonly nodeId: string; readonly mergedInto?: string };
 
-/** Why code refused a change. Codes only: a refusal never carries the text it refused. */
+/**
+ * Why code refused a change. Codes only: a refusal never carries the text it refused. `not_approved` is made by the store, which holds the approval the owner
+ * gives a topic that grew (D-422): a change that would make such a topic servable before then is refused whole, like any other.
+ */
 export const REFUSAL_CODES = [
   'id_shape',
   'id_taken',
@@ -50,6 +53,7 @@ export const REFUSAL_CODES = [
   'node_missing',
   'node_retired',
   'not_a_topic',
+  'not_approved',
   'facet_retire',
   'already_servable',
   'merge_unsupported',

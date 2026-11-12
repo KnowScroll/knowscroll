@@ -363,11 +363,13 @@ pages they lead to, outside any transaction and through the research URL rule, a
 through `proposeProduction` exactly as `content.recipe-brief` does: its run is `stableUuid("content.topic-proposal:<version>|<candidate page>|<UTC day of the attempt>|<attempt>")`,
 the candidate pins the day of an attempt in flight, and `content.topic_proposals` freezes the context and the systems offered on the first delivery, so a redelivery sends
 exactly that and the ledger answers it. The outcomes follow the same convention (`settlementOf`): a kept answer completes the run, an answer invalid after its repair or a
-conclusive provider failure closes it as failed (the attempt is counted on the candidate, at most two), and an attempt of unknown outcome or any refusal of the harness leaves
-the run open and **blocks the candidate** so nothing is ever resent. After the answer one production transaction takes the catalogue's release lock, reads the catalogue
+conclusive provider failure closes it as failed (the attempt is counted on the candidate, at most two, and the candidate waits for the next UTC day: `not_before`), a refusal that sent nothing (no
+provider, the scope off, a request the harness cannot take, the role's failure brake) leaves the run open and **pauses**, and an attempt of unknown outcome or any other refusal of the harness (it may have
+reached the provider) leaves the run open and **blocks the candidate** so nothing is ever resent; a late answer of a delivery whose candidate was blocked meanwhile still links the topic it made. After the answer one production transaction takes the catalogue's release lock, reads the catalogue
 as it is then, runs `admitTopicProposal` and, if it admits, `appendReleaseIn` (the release, source `growth`), settles the candidate and the run and closes the harness run.
 `grow-topics.ts` is one pass of the scheduled `content.grow-topics` job: gated by both switches and the production grant, kept within the growth cap and the size limit,
-one pass at a time under a session advisory lock, at most one proposal. The claim covers seven worst-case page reads and one request with its repair.
+one pass at a time under a session advisory lock (the operator's `content propose-topic` takes the same one: `proposeUnderLock`), at most one proposal; it skips candidates backed off until the next UTC day and goes on past a page no system offers itself for. The claim covers seven worst-case page reads and one request with its repair.
+`topic-review.ts` is the owner's approval of each topic that grew: `reviewCandidates` (the text an operator reads) and `decideTopic` (approve, which makes the topic servable if it has its supply, or reject, which retires it). A grown topic is withheld from `topicsNowServable` until approved, and the store of releases refuses a change that would show one.
 
 ## Publication: topic attribution and coverage
 
