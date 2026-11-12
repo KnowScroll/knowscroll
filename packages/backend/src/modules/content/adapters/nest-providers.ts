@@ -328,7 +328,7 @@ export { makeRunScrollProduction } from '../production/job.js';
 export { makeEnqueueScrollProduction } from './enqueue-production.js';
 export { readLibraryStatus } from './production-state.js';
 /** The operator's review gate for library v2 Scrolls: list, show, release, reject (D-138). */
-export { makeReviewGate, recipeKeyOfAsset, type ReviewGate } from './review-gate.js';
+export { makeReviewGate, type ReviewGate } from './review-gate.js';
 /**
  * The release policy of held library Scrolls (#674, D-418): the worker's release step (off until switched on), the operator's topic approvals,
  * the withdrawal that also revokes a topic and the status of counts. Every release goes through the review gate's own.

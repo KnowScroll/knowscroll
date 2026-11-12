@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { validateDocumentV2, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { categoriesOfText, proseOf } from '../domain/release-policy.js';
+import { RECIPES } from '../domain/library/index.js';
 import { evidencePassages } from '../production/evidence.js';
 import { fixtureAuthoredV2, fixtureResearchPageV2 } from '../production/spike-v2/writer-v2.fixture.js';
 import { storedScrollV2 } from '../production/stored-v2.js';
 import { publicationV2, type WriterV2Context } from '../production/writer-v2.js';
 
 const context: WriterV2Context = {
-  publication: publicationV2('seasons'),
+  publication: publicationV2(RECIPES.seasons),
   recipe: {
     variant: 'stage',
     misconception: {
