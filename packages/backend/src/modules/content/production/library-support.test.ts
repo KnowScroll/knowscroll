@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { validateDocumentV2, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { ScrollProvenanceV2 } from '@knowscroll/scroll-model/internal';
 import { MAX_CONTEXT_ITEM_CHARS } from '../../../reasoning/public.js';
+import { RECIPES } from '../domain/library/index.js';
 import { LIBRARY_CHECK_RULES, LIBRARY_SUPPORT_POLICY, resultsOf } from '../domain/library-support.js';
 import { ASK_SUPPORT_INSTRUCTIONS, askOrderCheckerRole, askSupportRole } from './ask-support.js';
 import { evidencePassages } from './evidence.js';
@@ -33,7 +34,7 @@ import { storedScrollV2 } from './stored-v2.js';
 import { publicationV2, type WriterV2Context } from './writer-v2.js';
 
 const context: WriterV2Context = {
-  publication: publicationV2('seasons'),
+  publication: publicationV2(RECIPES.seasons),
   recipe: {
     variant: 'stage',
     misconception: {

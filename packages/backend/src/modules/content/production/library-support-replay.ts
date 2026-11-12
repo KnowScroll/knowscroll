@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
-import { RECIPES } from '../domain/library/index.js';
+import type { RecipeBook } from '../application/recipe-book.js';
 import {
   LIBRARY_SUPPORT_POLICY,
   agreementOf,
@@ -12,7 +12,7 @@ import {
   type HumanDecision,
   type SupportPolicy,
 } from '../domain/library-support.js';
-import { recipeKeyOfAsset } from '../adapters/review-gate.js';
+import { recipeBookOf } from '../adapters/stored-recipes.js';
 import type { CheckLibrarySupport } from './library-support-check.js';
 import { LIBRARY_SUPPORT_CHECK_VERSION, NOT_COVERED } from './library-support.js';
 import { libraryCheckStore, type StoredLibraryCheck } from './library-support-store.js';
@@ -109,12 +109,34 @@ export interface LibrarySupportReplayDependencies {
   /** The model the harness is configured with; the replay refuses to run on any other (D-031). */
   readonly model: string;
   readonly policy?: SupportPolicy;
+  /** Where a recipe is read from (D-412); the book over `db` when absent. */
+  readonly recipes?: RecipeBook;
 }
 
-const familyOf = (assetId: string): { readonly recipe: string | null; readonly family: string } => {
-  const recipe = recipeKeyOfAsset(assetId);
-  return { recipe, family: recipe === null ? 'other' : RECIPES[recipe].systemId };
-};
+/** The library recipe an asset is the Scroll of, and the system family that recipe belongs to. */
+interface RecipeFamily {
+  readonly recipe: string | null;
+  readonly family: string;
+}
+
+type FamilyOf = (assetId: string) => RecipeFamily;
+
+/** An asset no recipe names, or a recipe whose planet the catalogue no longer holds, is measured under this family. */
+const OTHER_FAMILY = 'other';
+
+/**
+ * The recipe and family of every asset the recipe book names (the code-owned plan first, then the stored recipes, D-412), read once
+ * per replay. Asset ids are compared in lower case, as the review gate does.
+ */
+async function familyLookupOf(book: RecipeBook): Promise<FamilyOf> {
+  const byAsset = new Map<string, RecipeFamily>();
+  for (const recipe of await book.all()) {
+    const asset = recipe.assetId.toLowerCase();
+    if (!byAsset.has(asset))
+      byAsset.set(asset, { recipe: recipe.key, family: recipe.systemId === '' ? OTHER_FAMILY : recipe.systemId });
+  }
+  return (assetId) => byAsset.get(assetId.toLowerCase()) ?? { recipe: null, family: OTHER_FAMILY };
+}
 
 const tally = (keys: readonly (string | undefined)[]): Record<string, number> => {
   const counts: Record<string, number> = {};
@@ -136,6 +158,7 @@ const decidedBlind = (decided: DecidedRevision, stored: StoredLibraryCheck | und
   stored?.state !== 'checked' ? null : Date.parse(stored.checkedAt) >= Date.parse(decided.decidedAt);
 
 function lineOf(
+  familyOf: FamilyOf,
   decided: DecidedRevision,
   outcome: ReplayOutcome,
   stored: StoredLibraryCheck | undefined,
@@ -187,7 +210,7 @@ export function makeLibrarySupportReplay(deps: LibrarySupportReplayDependencies)
   const policy = deps.policy ?? LIBRARY_SUPPORT_POLICY;
 
   /** The agreement of the stored results of this checker version for these decided revisions. */
-  async function agreement(decided: readonly DecidedRevision[]): Promise<AgreementSummary> {
+  async function agreement(familyOf: FamilyOf, decided: readonly DecidedRevision[]): Promise<AgreementSummary> {
     const stored = await libraryCheckStore.readMany(deps.db, LIBRARY_SUPPORT_CHECK_VERSION, decided);
     const rows = decided.map((entry): DecidedCheck => {
       const check = stored.get(`${entry.assetId}:${String(entry.revision)}`);
@@ -207,6 +230,7 @@ export function makeLibrarySupportReplay(deps: LibrarySupportReplayDependencies)
   ): Promise<ReplaySummary> {
     const base = { checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION, maxRequests: target.maxRequests };
     const decided = await libraryCheckStore.decided(deps.db, { since: target.since, limit: target.limit });
+    const familyOf = await familyLookupOf(deps.recipes ?? recipeBookOf(deps.db));
     const common = { ...base, revisions: decided.length, notCovered: NOT_COVERED };
     if (deps.model !== SPIKE_MODEL)
       return {
@@ -215,7 +239,7 @@ export function makeLibrarySupportReplay(deps: LibrarySupportReplayDependencies)
         requestsSent: 0,
         skippedForCap: { released: 0, rejected: 0, total: 0 },
         stopped: 'model_mismatch',
-        agreement: await agreement(decided),
+        agreement: await agreement(familyOf, decided),
       };
     let requestsSent = 0;
     let stopped: ReplayStop | null = null;
@@ -233,19 +257,22 @@ export function makeLibrarySupportReplay(deps: LibrarySupportReplayDependencies)
       });
       switch (result.kind) {
         case 'not_found':
-          await emit(lineOf(entry, 'not_replayable', undefined, 0, policy, result.reason));
+          await emit(lineOf(familyOf, entry, 'not_replayable', undefined, 0, policy, result.reason));
           break;
         case 'over_cap':
           skipped[entry.decision] += 1;
-          await emit(lineOf(entry, 'over_cap', undefined, 0, policy, 'over_request_cap'));
+          await emit(lineOf(familyOf, entry, 'over_cap', undefined, 0, policy, 'over_request_cap'));
           break;
         case 'reused':
-          await emit(lineOf(entry, result.check.state === 'checked' ? 'reused' : 'unchecked', result.check, 0, policy));
+          await emit(
+            lineOf(familyOf, entry, result.check.state === 'checked' ? 'reused' : 'unchecked', result.check, 0, policy),
+          );
           break;
         case 'stored':
           requestsSent += result.requests;
           await emit(
             lineOf(
+              familyOf,
               entry,
               result.check.state === 'checked' ? 'checked' : 'unchecked',
               result.check,
@@ -257,7 +284,7 @@ export function makeLibrarySupportReplay(deps: LibrarySupportReplayDependencies)
           if (result.check.code === 'outcome_unknown') stopped = 'outcome_unknown';
           break;
         case 'paused':
-          await emit(lineOf(entry, 'paused', undefined, 0, policy, result.code));
+          await emit(lineOf(familyOf, entry, 'paused', undefined, 0, policy, result.code));
           stopped = 'paused';
           break;
         case 'scope_refused':
@@ -273,7 +300,7 @@ export function makeLibrarySupportReplay(deps: LibrarySupportReplayDependencies)
       requestsSent,
       skippedForCap,
       stopped,
-      agreement: await agreement(decided),
+      agreement: await agreement(familyOf, decided),
     };
   };
 }

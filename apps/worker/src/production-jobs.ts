@@ -14,11 +14,11 @@ import {
 import {
   makeCheckLibrarySupport,
   makeEnqueueLibrarySupport,
+  makeReviewGate,
   makeRunLibrarySupportCheck,
   makeRunScrollProduction,
   makeSweepLibrarySupport,
   produceScrollUseCase,
-  recipeKeyOfAsset,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import type { ProductionReasoningHarness, WithProductionScope } from '@knowscroll/backend/reasoning';
 
@@ -58,6 +58,10 @@ export function scrollProductionConsumers(deps: {
 }): readonly JobConsumer<unknown>[] {
   const { config, logEvent } = deps;
   if (!config.reasoning.productionEnabled) return [];
+  const gate = makeReviewGate(deps.db);
+  /** The recipe key a log line names; a failed read never fails a delivery whose result is already stored. */
+  const recipeOf = async (assetId: string): Promise<string> =>
+    (await gate.recipeKeyOf(assetId).catch(() => null)) ?? 'unknown_recipe';
   const authority = { scopeId: 'scroll-supply', generation: config.scrollProductionGeneration } as const;
   const run = makeRunScrollProduction(
     produceScrollUseCase({
@@ -107,7 +111,7 @@ export function scrollProductionConsumers(deps: {
       const durationMs = Math.round(performance.now() - startedAt);
       if (outcome.kind === 'skipped') {
         logEvent('content.library_support_checked', {
-          context: recipeKeyOfAsset(job.assetId) ?? 'unknown_recipe',
+          context: await recipeOf(job.assetId),
           outcome: 'skipped',
           reasonCode: outcome.reason,
           revision: job.revision,
@@ -124,7 +128,7 @@ export function scrollProductionConsumers(deps: {
             ? result.code
             : (stored?.code ?? undefined);
       logEvent('content.library_support_checked', {
-        context: recipeKeyOfAsset(job.assetId) ?? 'unknown_recipe',
+        context: await recipeOf(job.assetId),
         outcome: result.kind,
         ...(reason === undefined ? {} : { reasonCode: reason }),
         revision: job.revision,
