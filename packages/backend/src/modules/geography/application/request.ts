@@ -38,6 +38,7 @@ export async function ensureCartography(
   cap: RecordingScopeTx,
   state: GeographyState,
   paced = false,
+  notBefore?: Date,
 ): Promise<GeographyState> {
   const root = await p.store.root(cap);
   if (state.activeRunId) {
@@ -60,9 +61,40 @@ export async function ensureCartography(
     recording: { accountId: root.accountId, source: state.desiredSource },
   });
   await p.store.writeState(cap.personal, next);
-  const startAfter = paced ? wakeAt(state.nextRunNotBefore, p.now()) : undefined;
+  // `notBefore` is a backoff for work that could not be settled; it delays this wake only, never the person's next reading.
+  const later = notBefore && (!state.nextRunNotBefore || notBefore.getTime() > Date.parse(state.nextRunNotBefore));
+  const startAfter = paced ? wakeAt(later ? notBefore.toISOString() : state.nextRunNotBefore, p.now()) : undefined;
   if (!(await p.enqueue(cap, activeRunId, startAfter && { startAfter }))) throw new Error('GEOGRAPHY_REQUIRED_WAKE');
   return next;
+}
+/**
+ * Starts the next run for work a finished run left behind (D-416): more dirty topics than one run takes, more due than one delta
+ * holds, or topics that could not be settled (a refused apply, nothing trusted yet) and wait out a backoff. A topic that is
+ * eligible starts a paced run now; when only topics in backoff remain, the run is woken at the earliest of their times; when none
+ * remain there is nothing to do. It is a paced material-change run whatever started the last one, so an explicit request does not
+ * make every continuation ask the model. Coalesces with a run that already exists.
+ */
+export async function continueCartography(
+  p: Pick<GeographyPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement' | 'now' | 'readDirty'>,
+  cap: RecordingScopeTx,
+  idle: GeographyState,
+): Promise<GeographyState> {
+  const dirty = await p.readDirty(cap.personal, { limit: 1 });
+  if (!dirty.topics.length && dirty.nextRetryAt === null) return idle;
+  return ensureCartography(
+    p,
+    cap,
+    {
+      ...idle,
+      desiredSource: {
+        generation: cap.generation,
+        kind: 'material',
+        sourceRevision: Math.max(idle.materialRevision, 1),
+      },
+    },
+    true,
+    dirty.topics.length ? undefined : new Date(dirty.nextRetryAt!),
+  );
 }
 export function makeGeographyMaterialChange(p: GeographyPorts): MaterialGeographyChange {
   return async (cap, input) => {
@@ -141,6 +173,9 @@ export function makeRequestCartography(p: GeographyPorts): RequestCartography {
         if (!(await p.enqueue(cap, run.id))) return refuse('run_not_resumable');
         runId = run.id;
       } else {
+        // An explicit request wants the whole picture read again: every topic with support is marked dirty and the
+        // runs take them in order, paced (D-416).
+        await p.markDirty(scope);
         const next = {
           ...state,
           desiredRevision: state.desiredRevision + 1,

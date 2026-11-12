@@ -1,11 +1,12 @@
 import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
 import { CONCEPTS } from '../../content/public.js';
-import { compactSupports } from './compaction.js';
+import { EVALUATION, newestKeysPerFacet } from './evaluation.js';
 import { placesDue, reconcileWithRules, requiredChanges } from './formation.js';
 import {
   FORMATION,
   MAX_PROPOSAL_OPERATIONS,
+  PROOF_REFS,
   activityFor,
   formationEligible,
   proposalIssue,
@@ -287,14 +288,23 @@ describe('reconciling a model proposal with what the rules require', () => {
   });
 });
 
-describe('compacting supports for one frozen context', () => {
+describe('reading only the newest keys of each facet (D-416)', () => {
   const planetTopics = CONCEPTS.filter((topic) => topic.parent !== null);
-  // Per planet the rules need its newest support per facet plus enough further units.
-  const keepsEverythingTheRulesRead = planetTopics.reduce(
-    (sum, topic) => sum + topic.facets.length + FORMATION.planetUnits,
-    0,
-  );
   const day = 86_400_000;
+  const key = (entry: Support) => ({
+    topicId: entry.topicId,
+    facetId: entry.facetId,
+    explanationUnitId: entry.explanationUnitId,
+    lastActivatedAt: entry.activatedAt,
+  });
+  const bounded = (all: readonly Support[]) => {
+    const kept = new Set(
+      newestKeysPerFacet(all.map(key), EVALUATION.keysPerFacet).map(
+        (entry) => `${entry.topicId}|${entry.facetId}|${entry.explanationUnitId}`,
+      ),
+    );
+    return all.filter((entry) => kept.has(`${entry.topicId}|${entry.facetId}|${entry.explanationUnitId}`));
+  };
 
   test.prop([
     fc.array(
@@ -307,24 +317,22 @@ describe('compacting supports for one frozen context', () => {
       { maxLength: 400 },
     ),
   ])('changes no place the rules form and no activity they set', (picks) => {
-    const byRef = new Map(
-      picks
-        .map(({ unit, topic, facet, ageDays }) =>
-          support(
-            unit,
-            topic.facets[facet % topic.facets.length]!.id,
-            topic.id,
-            new Date(Date.parse(NOW) - ageDays * day).toISOString(),
-          ),
-        )
-        .map((entry) => [entry.ref, entry] as const),
-    );
-    const all = [...byRef.values()];
-    const kept = compactSupports(
-      all.map((entry) => ({ support: entry, bytes: 1_000 })),
-      { count: keepsEverythingTheRulesRead, bytes: Number.MAX_SAFE_INTEGER },
-    ).map((entry) => entry.support);
-    expect(kept.length).toBeLessThanOrEqual(keepsEverythingTheRulesRead);
+    const all = [
+      ...new Map(
+        picks
+          .map(({ unit, topic, facet, ageDays }) =>
+            support(
+              unit,
+              topic.facets[facet % topic.facets.length]!.id,
+              topic.id,
+              new Date(Date.parse(NOW) - ageDays * day).toISOString(),
+            ),
+          )
+          .map((entry) => [entry.ref, entry] as const),
+      ).values(),
+    ];
+    const kept = bounded(all);
+    expect(kept.length).toBeLessThanOrEqual(all.length);
     const before = facts(all),
       after = facts(kept);
     for (const candidate of candidates) {
@@ -336,39 +344,116 @@ describe('compacting supports for one frozen context', () => {
     );
   });
 
-  it('keeps the newest support of each facet first, then further units, within the count and bytes', () => {
-    const entries = [
-      support('old-1', tilt, seasons, '2026-01-01T00:00:00.000Z'),
-      support('new-1', tilt, seasons, '2026-10-01T00:00:00.000Z'),
-      support('new-2', tilt, seasons, '2026-10-02T00:00:00.000Z'),
-      support('only-limits', limits, seasons, '2026-03-01T00:00:00.000Z'),
-      support('third-unit', hemispheres, seasons, '2026-02-01T00:00:00.000Z'),
-    ].map((entry) => ({ support: entry, bytes: 100 }));
-    const refs = (list: readonly { support: { ref: string } }[]) => list.map((entry) => entry.support.ref);
-    // Facet tier: the newest per facet (new-2, only-limits, third-unit). Unit tier then needs no more.
-    expect(refs(compactSupports(entries, { count: 3, bytes: 10_000 }))).toEqual(
-      refs([entries[2]!, entries[3]!, entries[4]!]),
-    );
-    // A byte budget for two keeps the two newest facets.
-    expect(refs(compactSupports(entries, { count: 10, bytes: 200 }))).toEqual(refs([entries[2]!, entries[3]!]));
-    // Within budget nothing changes, and order is the input's.
-    expect(compactSupports(entries, { count: 10, bytes: 10_000 })).toBe(entries);
+  it('keeps the newest keys of each facet, newest first, a key with no time last, and a facet is never emptied', () => {
+    const keys = [
+      { topicId: seasons, facetId: tilt, explanationUnitId: 'old', lastActivatedAt: '2026-01-01T00:00:00.000Z' },
+      { topicId: seasons, facetId: tilt, explanationUnitId: 'new', lastActivatedAt: '2026-10-02T00:00:00.000Z' },
+      { topicId: seasons, facetId: tilt, explanationUnitId: 'newer', lastActivatedAt: '2026-10-03T00:00:00.000Z' },
+      { topicId: seasons, facetId: tilt, explanationUnitId: 'untimed', lastActivatedAt: null },
+      { topicId: seasons, facetId: hemispheres, explanationUnitId: 'only', lastActivatedAt: null },
+    ];
+    expect(newestKeysPerFacet(keys, 2).map((entry) => entry.explanationUnitId)).toEqual(['newer', 'new', 'only']);
+    expect(newestKeysPerFacet(keys, 1).map((entry) => entry.explanationUnitId)).toEqual(['newer', 'only']);
+    expect(newestKeysPerFacet(keys, 10)).toHaveLength(keys.length);
   });
 
   it('is deterministic whatever the input order', () => {
-    const entries = planetTopics
-      .flatMap((topic) =>
-        topic.facets.flatMap((facetEntry, index) =>
-          ['a', 'b', 'c'].map((unit) =>
-            support(`${unit}-${index}`, facetEntry.id, topic.id, `2026-10-0${1 + index}T00:00:00.000Z`),
-          ),
+    const keys = planetTopics.flatMap((topic) =>
+      topic.facets.flatMap((facetEntry, index) =>
+        ['a', 'b', 'c', 'd', 'e'].map((unit) => ({
+          topicId: topic.id,
+          facetId: facetEntry.id,
+          explanationUnitId: `${unit}-${index}`,
+          lastActivatedAt: `2026-10-0${1 + (index % 3)}T00:00:00.000Z`,
+        })),
+      ),
+    );
+    const name = (list: readonly { topicId: string; facetId: string; explanationUnitId: string }[]) =>
+      list.map((entry) => `${entry.topicId}|${entry.facetId}|${entry.explanationUnitId}`).sort();
+    expect(name(newestKeysPerFacet([...keys].reverse(), 3))).toEqual(name(newestKeysPerFacet(keys, 3)));
+  });
+});
+
+describe('the proof an operation cites (D-416)', () => {
+  const day = 86_400_000;
+  const facetsOfSeasons = CONCEPTS.find((topic) => topic.id === seasons)!.facets.map((facet) => facet.id);
+  const crowd = (units: number) =>
+    facetsOfSeasons.flatMap((facetId, n) =>
+      Array.from({ length: units }, (_, unit) =>
+        support(
+          `u${String(n)}-${String(unit)}`,
+          facetId,
+          seasons,
+          new Date(Date.parse(NOW) - (unit + n) * day).toISOString(),
         ),
-      )
-      .map((entry) => ({ support: entry, bytes: 400 }));
-    const budget = { count: 100, bytes: 360_000 };
-    const refs = (list: readonly { support: { ref: string } }[]) => list.map((entry) => entry.support.ref).sort();
-    const forward = compactSupports(entries, budget);
-    expect(forward.length).toBeLessThanOrEqual(100);
-    expect(refs(compactSupports([...entries].reverse(), budget))).toEqual(refs(forward));
+      ),
+    );
+
+  it('cites every support of a place that has no more than the limit, in the order they were read', () => {
+    const few = [support('a'), support('b', hemispheres), support('c')];
+    const planet = requiredChanges(facts(few)).operations.find((operation) => operation.kind === 'form_planet')!;
+    expect(planet.kind === 'form_planet' && planet.supportRefs).toEqual(few.map((entry) => entry.ref));
+  });
+
+  it('cuts a place with hundreds of supports to a proof the rules still accept, without losing a facet or its newest support', () => {
+    const many = crowd(80);
+    expect(many.length).toBeGreaterThan(300);
+    const rules = requiredChanges(facts(many));
+    const cited = (kind: string) =>
+      rules.operations.filter((operation) => operation.kind === kind).map((operation) => operation.supportRefs);
+    for (const refs of rules.operations.map((operation) => operation.supportRefs))
+      expect(refs.length).toBeLessThanOrEqual(PROOF_REFS);
+    expect(proposalIssue(rules, facts(many))).toBeUndefined();
+    const [planetRefs] = cited('form_planet');
+    const byRef = new Map(many.map((entry) => [entry.ref, entry]));
+    // Every facet of the planet is among the references, each by its newest support.
+    for (const facetId of facetsOfSeasons) {
+      const newest = [...many]
+        .filter((entry) => entry.facetId === facetId)
+        .sort((a, b) => b.activatedAt.localeCompare(a.activatedAt))[0]!;
+      expect(planetRefs).toContain(newest.ref);
+    }
+    expect(new Set(planetRefs!.map((ref) => byRef.get(ref)!.explanationUnitId)).size).toBeGreaterThanOrEqual(
+      FORMATION.planetUnits,
+    );
+    // A system cites the newest of distinct units, at least the two it needs.
+    const [systemRefs] = cited('create_system');
+    expect(new Set(systemRefs!.map((ref) => byRef.get(ref)!.explanationUnitId)).size).toBeGreaterThanOrEqual(
+      FORMATION.systemUnits,
+    );
+  });
+
+  test.prop(
+    [
+      fc.array(
+        fc.record({
+          unit: fc.nat(60),
+          topic: fc.constantFrom(...CONCEPTS.filter((topic) => topic.parent !== null)),
+          facet: fc.nat(3),
+          ageDays: fc.nat(100),
+        }),
+        { minLength: 1, maxLength: 600 },
+      ),
+    ],
+    { numRuns: 60 },
+  )('every operation the rules require cites a proof the rules accept, within the limit', (picks) => {
+    const all = [
+      ...new Map(
+        picks
+          .map(({ unit, topic, facet, ageDays }) =>
+            support(
+              `u-${String(unit)}`,
+              topic.facets[facet % topic.facets.length]!.id,
+              topic.id,
+              new Date(Date.parse(NOW) - ageDays * day).toISOString(),
+            ),
+          )
+          .map((entry) => [entry.ref, entry] as const),
+      ).values(),
+    ];
+    const f = facts(all);
+    const rules = requiredChanges(f);
+    for (const operation of rules.operations) expect(operation.supportRefs.length).toBeLessThanOrEqual(PROOF_REFS);
+    expect(proposalIssue(rules, f)).toBeUndefined();
   });
 });

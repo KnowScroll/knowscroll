@@ -99,8 +99,10 @@ describe('known failure rules', () => {
     ]);
     for (const outcome of [
       'no_trusted_support',
-      'discovery_limit',
       'coverage_limit',
+      'coverage_authority_changed',
+      'structure_limit',
+      'context_too_large',
       'context_limit',
       'context_unreadable',
     ])

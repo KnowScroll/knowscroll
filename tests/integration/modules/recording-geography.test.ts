@@ -19,7 +19,13 @@ import {
   identityScopeOwnerProviders,
   recordingPolicyFor,
 } from '@knowscroll/backend/modules/identity/nest-providers';
-import { READ_COVERAGE_INPUTS, READ_TRUSTED_COVERAGE } from '@knowscroll/backend/modules/personal-context';
+import {
+  CLEAR_COVERAGE_DIRTY,
+  MARK_COVERAGE_DIRTY,
+  READ_COVERAGE_DIRTY,
+  READ_COVERAGE_INPUTS,
+  READ_TRUSTED_COVERAGE,
+} from '@knowscroll/backend/modules/personal-context';
 import { GEOGRAPHY_APPLIED, type RequestCartography } from '@knowscroll/backend/modules/geography';
 import {
   geographyProviders,
@@ -59,6 +65,10 @@ describe('Geography original generation and exact wake ownership (Actions only)'
       [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [READ_COVERAGE_INPUTS, never],
+      [READ_COVERAGE_DIRTY, never],
+      [CLEAR_COVERAGE_DIRTY, never],
+      // An explicit request marks the topics a person has support under; this person has none.
+      [MARK_COVERAGE_DIRTY, () => Promise.resolve(0)],
       [READ_TRUSTED_COVERAGE, never],
       ...identityScopeOwnerProviders().map((x) => [x.provide, x.useValue] as const),
     ]);

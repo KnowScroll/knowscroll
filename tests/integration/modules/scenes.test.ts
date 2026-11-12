@@ -27,7 +27,13 @@ import {
   FENCE_PERSONAL_RECORDING,
   type PersonalScopeTx,
 } from '@knowscroll/backend/modules/identity';
-import { READ_COVERAGE_INPUTS, READ_TRUSTED_COVERAGE } from '@knowscroll/backend/modules/personal-context';
+import {
+  CLEAR_COVERAGE_DIRTY,
+  MARK_COVERAGE_DIRTY,
+  READ_COVERAGE_DIRTY,
+  READ_COVERAGE_INPUTS,
+  READ_TRUSTED_COVERAGE,
+} from '@knowscroll/backend/modules/personal-context';
 import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import {
   GEOGRAPHY_APPLIED,
@@ -125,6 +131,9 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [READ_TRUSTED_COVERAGE, c.readTrustedCoverage],
       [READ_COVERAGE_INPUTS, buildFromProviders(personalContextProviders(), READ_COVERAGE_INPUTS, new Map())],
+      [CLEAR_COVERAGE_DIRTY, buildFromProviders(personalContextProviders(), CLEAR_COVERAGE_DIRTY, new Map())],
+      [MARK_COVERAGE_DIRTY, buildFromProviders(personalContextProviders(), MARK_COVERAGE_DIRTY, new Map())],
+      [READ_COVERAGE_DIRTY, buildFromProviders(personalContextProviders(), READ_COVERAGE_DIRTY, new Map())],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
     ]);
     const get = <T>(token: symbol): T => {

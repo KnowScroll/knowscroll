@@ -70,9 +70,9 @@ receipt id. The sweep `identity.sweep-sign-in-records` also retires exports.
 
 ## Quiet sweep (v3 U-3, #467, D-104, D-105)
 
-The registry holds `geography.sweep-quiet` (every 15 minutes: the oldest 100 universes whose `next_quiet_at` has passed are looked at; each that can be
-settled gets one `geography.settle-quiet` job in the same transaction, any other is parked a day ahead) and `geography.settle-quiet` (one universe: a short transaction under the
-personal root that applies only the activity changes current support implies). Both are rules only: no model call, no ledger run, no network
+The registry holds `geography.sweep-quiet` (every 15 minutes: the oldest 100 places whose `quiet_check_at` has passed are looked at, across universes; the places of
+each universe that can be settled go to `geography.settle-quiet` jobs of at most 32 places in the same transaction, those of a universe a run holds wait 5 minutes and those of any other a day, in pages of 500 up to 100 pages a pass, D-416) and
+`geography.settle-quiet` (the named places of one universe: a short transaction under the personal root that reads only their topics and applies only the activity changes current support implies). Both are rules only: no model call, no ledger run, no network
 wait. Both follow `KS_CARTOGRAPHER_ENABLED`. The settle runs as a system actor and rechecks the account, epoch and recording generation
 itself; it stands aside while recording is paused or a Cartographer run holds the universe. Logs `geography.quiet_swept` (count handed
 over) and `geography.quiet_settled` (outcome code and places changed). Status: implemented, covered by
@@ -177,6 +177,10 @@ how many first offers the person had already met, how many repeat another to the
 resort) and place relative to the source (analytics) each falls under. It
 names no person, session, asset, title or text, calls no model and writes nothing. It needs only `KS_WORLD` and
 `DATABASE_URL`; exit 2 on bad usage. See the Composer README, "Policy replay".
+
+`node dist/operator.js geography reconcile-coverage [--universe <uuid>] [--unit <explanationUnitId>]... [--dry-run]` (`src/geography-operator.ts`, #674, D-416) is the one-time
+pass that marks every topic with a support key dirty for readers who read before dirty tracking existed, so the Cartographer reads each once,
+newest first, in paced batches. It reads no support, calls no model, starts no run and marks nothing twice; it prints counts only (exit 0 done, 2 usage, 1 failure).
 
 `node dist/operator.js geography dry-run --universe <uuid>` and `planner dry-run --universe <uuid>` (`src/dry-run-operator.ts`,
 `src/dry-run-wiring.ts`, #674, D-411) say what one Cartographer or Planner run would do for one universe now, without doing it:

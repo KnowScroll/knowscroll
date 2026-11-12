@@ -52,9 +52,11 @@ const prepared = (
   over: Partial<GeographyPreparedFacts> = {},
 ): GeographyPreparedFacts => ({
   formation: formationFacts,
+  topicsEvaluated: 1,
   candidateKeys: 3,
   witnessesHeld: 3,
   supportKeys: formationFacts.supports.length,
+  nothingTrusted: false,
   contextBytes: 4096,
   modelItems: 9,
   ...over,
@@ -87,7 +89,7 @@ describe('the Cartographer dry run report (D-411)', () => {
       wouldRecord: { status: 'accepted', outcome: null },
       due: { system: 1, star: 1, planet: 1, region: 2, total: 5, appliedByNextRun: 5 },
       activityChanges: { toQuiet: 0, toActive: 0 },
-      references: { candidateKeys: 3, witnessesHeld: 3, supportKeys: 3, supportsKept: 3, supportsDropped: 0 },
+      references: { topicsEvaluated: 1, candidateKeys: 3, witnessesHeld: 3, supportKeys: 3 },
       contextBytes: 4096,
       modelItems: 9,
     });
@@ -174,25 +176,27 @@ describe('the Cartographer dry run report (D-411)', () => {
     expect(report.due.appliedByNextRun).toBe(32);
   });
 
-  it('reports what compaction dropped, and nulls for what was not reached', () => {
-    const kept = formation([support('a'), support('b')]);
-    expect(shapeGeographyDryRun(facts({ prepared: prepared(kept, { supportKeys: 140 }) })).references).toMatchObject({
-      supportKeys: 140,
-      supportsKept: 2,
-      supportsDropped: 138,
+  it('names a reader whose probed keys are all untrusted as a run records it, unless activity is due', () => {
+    const none = formation([]);
+    expect(
+      shapeGeographyDryRun(facts({ prepared: prepared(none, { supportKeys: 0, nothingTrusted: true }) })),
+    ).toMatchObject({ action: 'stops', wouldRecord: { status: 'insufficient', outcome: 'no_trusted_support' } });
+    expect(shapeGeographyDryRun(facts({ prepared: prepared(none, { supportKeys: 0 }) }))).toMatchObject({
+      wouldRecord: { status: 'insufficient', outcome: 'no_changes' },
     });
+  });
+
+  it('reports what the evaluation read, and nulls for what was not reached', () => {
+    const kept = formation([support('a'), support('b')]);
+    expect(
+      shapeGeographyDryRun(facts({ prepared: prepared(kept, { supportKeys: 2, topicsEvaluated: 3 }) })).references,
+    ).toMatchObject({ topicsEvaluated: 3, supportKeys: 2 });
     expect(
       shapeGeographyDryRun(facts({ refusal: 'structure_limit', prepared: undefined, places: 1001, routes: 0 })),
     ).toMatchObject({
       wouldRecord: { status: 'insufficient', outcome: 'structure_limit' },
       places: 1001,
-      references: {
-        candidateKeys: null,
-        witnessesHeld: null,
-        supportKeys: null,
-        supportsKept: null,
-        supportsDropped: null,
-      },
+      references: { topicsEvaluated: null, candidateKeys: null, witnessesHeld: null, supportKeys: null },
       contextBytes: null,
     });
   });

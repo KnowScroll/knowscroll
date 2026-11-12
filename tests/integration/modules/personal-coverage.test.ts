@@ -23,7 +23,16 @@ import {
   type CoverageCommand,
   type CoverageMapping,
 } from '@knowscroll/backend/modules/content';
-import { READ_COVERAGE_INPUTS, type ReadCoverageInputs } from '@knowscroll/backend/modules/personal-context';
+import {
+  CLEAR_COVERAGE_DIRTY,
+  MARK_COVERAGE_DIRTY,
+  READ_COVERAGE_DIRTY,
+  READ_COVERAGE_INPUTS,
+  type ClearCoverageDirty,
+  type MarkCoverageDirty,
+  type ReadCoverageDirty,
+  type ReadCoverageInputs,
+} from '@knowscroll/backend/modules/personal-context';
 import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { buildFromProviders } from '../support/providers.js';
@@ -203,11 +212,28 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
     READ_COVERAGE_INPUTS,
     new Map(),
   ) as ReadCoverageInputs;
-  async function discovery(p: FixturePerson) {
-    const result = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(p.authority, readInputs);
+  const readDirty = buildFromProviders(personalContextProviders(), READ_COVERAGE_DIRTY, new Map()) as ReadCoverageDirty;
+  const clearDirty = buildFromProviders(
+    personalContextProviders(),
+    CLEAR_COVERAGE_DIRTY,
+    new Map(),
+  ) as ClearCoverageDirty;
+  const markDirty = buildFromProviders(personalContextProviders(), MARK_COVERAGE_DIRTY, new Map()) as MarkCoverageDirty;
+  const inScope = async <T>(p: FixturePerson, work: (scope: Parameters<ReadCoverageDirty>[0]) => Promise<T>) => {
+    const result = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(p.authority, work);
     if (result.kind !== 'entered') throw new Error('fixture_scope_refused');
     return result.value;
-  }
+  };
+  /** The keys one evaluation of the seasons topic reads: the newest `perFacet` of each facet. */
+  const discovery = (p: FixturePerson, perFacet = 3) =>
+    inScope(p, (scope) => readInputs(scope, { topicIds: [topic], perFacet }));
+  const dirtyRows = (p: FixturePerson) =>
+    database.db
+      .selectFrom('personal_context.coverage_dirty_topics')
+      .select(['topic_id', 'dirty_revision'])
+      .where('universe_id', '=', p.universeId)
+      .orderBy('topic_id')
+      .execute();
   async function seedDiscoveryReferences(legacyCount: number, recordingCount: number) {
     const p = await seedPerson(database.db),
       f = await fixture(),
@@ -277,8 +303,8 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
   /** `count` distinct support keys, one reference each; no certificate stands behind them. */
   async function seedDistinctSupports(count: number) {
     const p = await seedPerson(database.db);
-    await sql`insert into personal_context.coverage_supports(universe_id,privacy_epoch,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,reference_count)
-      select ${p.universeId}::uuid,1,${topic},${facet},repeat('0',64),'ci-distinct-unit-'||n,repeat('0',64),1 from generate_series(1,${count}) n`.execute(
+    await sql`insert into personal_context.coverage_supports(universe_id,privacy_epoch,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,reference_count,last_activated_at)
+      select ${p.universeId}::uuid,1,${topic},${facet},repeat('0',64),'ci-distinct-unit-'||n,repeat('0',64),1,now()-n*interval '1 minute' from generate_series(1,${count}) n`.execute(
       database.db,
     );
     return p;
@@ -288,49 +314,257 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
     { legacy: 0, recording: 1001 },
     { legacy: 600, recording: 401 },
   ])(
-    'discovers a reader whose raw references exceed 1000 by their distinct keys: $legacy legacy/$recording recording (#674)',
+    'reads a reader whose raw references exceed 1000 by their distinct keys: $legacy legacy/$recording recording (#674)',
     async ({ legacy, recording }) => {
       const { p, f } = await seedDiscoveryReferences(legacy, recording);
       expect(await discovery(p)).toEqual({
         revision: 0,
-        completeness: 'not_asserted',
-        availability: 'available',
-        reason: 'bounded',
+        topics: [topic],
         probes: [{ topicId: topic, facetId: facet, explanationUnitId: f.unit }],
       });
     },
   );
-  it('discovers each distinct key once, however many references hold it', async () => {
+  it('reads each distinct key once, however many references hold it', async () => {
     const { p, f } = await seedDiscoveryReferences(2, 2);
     expect(await discovery(p)).toEqual({
       revision: 0,
-      completeness: 'not_asserted',
-      availability: 'available',
-      reason: 'bounded',
+      topics: [topic],
       probes: [{ topicId: topic, facetId: facet, explanationUnitId: f.unit }],
     });
   });
-  it('discovers a reader with no support yet as no keys, not as a limit', async () => {
+  it('reads a reader with no support yet as no keys', async () => {
     const p = await seedPerson(database.db);
-    expect(await discovery(p)).toEqual({
-      revision: 0,
-      completeness: 'not_asserted',
-      availability: 'available',
-      reason: 'bounded',
-      probes: [],
-    });
+    expect(await discovery(p)).toEqual({ revision: 0, topics: [], probes: [] });
   });
-  it('returns 1000 distinct keys, and refuses the 1001st instead of truncating', async () => {
-    const full = await discovery(await seedDistinctSupports(1000));
-    expect(full).toMatchObject({ availability: 'available', reason: 'bounded' });
-    expect(full.probes).toHaveLength(1000);
-    expect(await discovery(await seedDistinctSupports(1001))).toEqual({
-      revision: 0,
-      completeness: 'not_asserted',
-      availability: 'unavailable',
-      reason: 'limit',
-      probes: [],
+  it('reads only the newest few keys of each facet of the topics it is asked for, however many keys a reader holds (D-416)', async () => {
+    const p = await seedDistinctSupports(1001);
+    // The newest keys come first: unit 1 is the newest, unit 1001 the oldest.
+    expect((await discovery(p)).probes.map((probe) => probe.explanationUnitId)).toEqual([
+      'ci-distinct-unit-1',
+      'ci-distinct-unit-2',
+      'ci-distinct-unit-3',
+    ]);
+    expect(await discovery(p, 5)).toMatchObject({ topics: [topic] });
+    expect((await discovery(p, 5)).probes).toHaveLength(5);
+    // A topic that was not asked for is not read, and a reader's other topics never count against this one.
+    const other = await inScope(p, (scope) => readInputs(scope, { topicIds: ['earth.tides'], perFacet: 3 }));
+    expect(other).toEqual({ revision: 0, topics: [], probes: [] });
+  });
+  it('names at most `maxTopics` of the supported topics asked for: the ones whose newest key is the most recent', async () => {
+    const p = await seedPerson(database.db);
+    await sql`insert into personal_context.coverage_supports(universe_id,privacy_epoch,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,reference_count,last_activated_at)
+      select ${p.universeId}::uuid,1,t,'f',repeat('0',64),'u',repeat('0',64),1,now()-a*interval '1 day'
+      from unnest(array['b','a','d','c'],array[4,3,1,2]) as seed(t,a)`.execute(database.db);
+    const read = await inScope(p, (scope) =>
+      readInputs(scope, { topicIds: ['a', 'b', 'c', 'd', 'e'], perFacet: 1, maxTopics: 2 }),
+    );
+    // d was supported most recently and c next; a and b are older, and e has no key.
+    expect(read.topics).toEqual(['c', 'd']);
+    expect(read.probes.map((probe) => probe.topicId)).toEqual(['c', 'd']);
+  });
+
+  it("reads the next page of a facet, only the facets asked for, and a reader's most recent other topics (PR #723)", async () => {
+    const p = await seedPerson(database.db);
+    // Topic x: facet f has five keys, u1 the newest; facet g has two. Topic y is older than x, z is the oldest.
+    await sql`insert into personal_context.coverage_supports(universe_id,privacy_epoch,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,reference_count,last_activated_at)
+      select ${p.universeId}::uuid,1,t,fa,repeat('0',64),u,repeat('0',64),1,now()-a*interval '1 hour'
+      from unnest(array['x','x','x','x','x','x','x','y','z'],array['f','f','f','f','f','g','g','f','f'],
+        array['u1','u2','u3','u4','u5','v1','v2','w1','w2'],array[1,2,3,4,5,6,7,50,90]) as seed(t,fa,u,a)`.execute(
+      database.db,
+    );
+    const units = (read: { probes: readonly { explanationUnitId: string }[] }) =>
+      read.probes.map((probe) => probe.explanationUnitId);
+    expect(units(await inScope(p, (scope) => readInputs(scope, { topicIds: ['x'], perFacet: 2 })))).toEqual([
+      'u1',
+      'u2',
+      'v1',
+      'v2',
+    ]);
+    // The next page of just facet f: the following two keys, newest first; g is not read again.
+    const next = await inScope(p, (scope) =>
+      readInputs(scope, { topicIds: ['x'], perFacet: 2, page: 1, onlyFacets: [{ topicId: 'x', facetId: 'f' }] }),
+    );
+    expect(units(next)).toEqual(['u3', 'u4']);
+    expect(next.topics).toEqual(['x']);
+    expect(
+      units(
+        await inScope(p, (scope) =>
+          readInputs(scope, { topicIds: ['x'], perFacet: 2, page: 2, onlyFacets: [{ topicId: 'x', facetId: 'f' }] }),
+        ),
+      ),
+    ).toEqual(['u5']);
+    expect(
+      (
+        await inScope(p, (scope) =>
+          readInputs(scope, { topicIds: ['x'], perFacet: 2, page: 3, onlyFacets: [{ topicId: 'x', facetId: 'f' }] }),
+        )
+      ).probes,
+    ).toEqual([]);
+    // The reader's most recent topics other than the ones excluded, newest first.
+    const recent = await inScope(p, (scope) =>
+      readInputs(scope, { recent: { limit: 1, exclude: ['x'] }, perFacet: 1 }),
+    );
+    expect(recent.topics).toEqual(['y']);
+    expect(units(recent)).toEqual(['w1']);
+    // Exactly one of named topics and a sample.
+    await expect(inScope(p, (scope) => readInputs(scope, { perFacet: 1 }))).rejects.toThrow();
+  });
+
+  describe('the dirty set (#674, D-416)', () => {
+    it('marks a topic when a reference is added to one of its support keys, at the revision the transaction commits at', async () => {
+      const p = await seedPerson(database.db);
+      expect(await dirtyRows(p)).toEqual([]);
+      expect(await inScope(p, (scope) => readDirty(scope, { limit: 16 }))).toMatchObject({
+        topics: [],
+        hasMore: false,
+        anySupport: false,
+      });
+      await read(p, await fixture());
+      const root = await database.db
+        .selectFrom('identity.universes')
+        .select('revision')
+        .where('id', '=', p.universeId)
+        .executeTakeFirstOrThrow();
+      expect(await dirtyRows(p)).toEqual([{ topic_id: topic, dirty_revision: root.revision }]);
+      expect(await inScope(p, (scope) => readDirty(scope, { limit: 16 }))).toMatchObject({
+        topics: [topic],
+        hasMore: false,
+        anySupport: true,
+      });
     });
+
+    it('marks it again when a second encounter adds a reference to a key that already exists: it is a newer encounter', async () => {
+      const p = await seedPerson(database.db),
+        f = await fixture();
+      await read(p, f);
+      const [first] = await dirtyRows(p);
+      await clearDirty_(p, first!.dirty_revision);
+      expect(await dirtyRows(p)).toEqual([]);
+      await read(p, f);
+      const [again] = await dirtyRows(p);
+      expect(again).toMatchObject({ topic_id: topic });
+      expect(again!.dirty_revision).toBeGreaterThan(first!.dirty_revision);
+      expect((await supportRows(p))[0]).toMatchObject({ reference_count: 2 });
+    });
+
+    it('marks nothing for a projection that changes nothing, and nothing for a change that reaches no support key', async () => {
+      const p = await seedPerson(database.db),
+        f = await fixture(),
+        e = await read(p, f);
+      await clearDirty_(p, 2_147_483_647);
+      // The same certificate projected again is a replay.
+      await c.projectActivity(job(p, e.exposureId));
+      expect(await dirtyRows(p)).toEqual([]);
+      // Activity-only reading that leaves the certificate unchanged (more dwell) adds no support.
+      await c.ingestObservations(p.authority, {
+        instrumentationVersion: 1,
+        events: [event(e, dwell([700000, 800000]))],
+      });
+      await c.projectActivity(job(p, e.exposureId));
+      expect(await dirtyRows(p)).toEqual([]);
+    });
+
+    it('marks the topic when its last support is removed by a retraction', async () => {
+      const p = await seedPerson(database.db),
+        f = await fixture(),
+        e = await read(p, f);
+      await clearDirty_(p, 2_147_483_647);
+      await admit()(approved({ ...f.command, expectedHeadRevision: 1, change: { kind: 'retract' } }));
+      await c.projectActivity(job(p, e.exposureId));
+      expect(await supportRows(p)).toEqual([]);
+      expect(await dirtyRows(p)).toMatchObject([{ topic_id: topic }]);
+    });
+
+    it('deletes only what a run had seen: a topic marked after the read stays dirty', async () => {
+      const p = await seedPerson(database.db),
+        f = await fixture();
+      await read(p, f);
+      const [seen] = await dirtyRows(p);
+      expect(await clearDirty_(p, seen!.dirty_revision - 1)).toBe(0);
+      expect(await dirtyRows(p)).toHaveLength(1);
+      // Evidence arrives after the run's read: the row is marked at a later revision and the clear through the read spares it.
+      await read(p, f);
+      const [later] = await dirtyRows(p);
+      expect(await clearDirty_(p, seen!.dirty_revision)).toBe(0);
+      expect(await dirtyRows(p)).toEqual([later]);
+      expect(await clearDirty_(p, later!.dirty_revision)).toBe(1);
+      expect(await dirtyRows(p)).toEqual([]);
+    });
+
+    it('lists the newest dirty topics first and says when more remain', async () => {
+      const p = await seedPerson(database.db);
+      await sql`insert into personal_context.coverage_dirty_topics(universe_id,privacy_epoch,topic_id,dirty_revision)
+        select ${p.universeId}::uuid,1,'t'||n,n from generate_series(1,5) n`.execute(database.db);
+      const page = await inScope(p, (scope) => readDirty(scope, { limit: 3 }));
+      expect(page).toMatchObject({ topics: ['t5', 't4', 't3'], hasMore: true });
+      await expect(inScope(p, (scope) => readDirty(scope, { limit: 65 }))).rejects.toThrow();
+    });
+
+    it('leaves a topic in backoff out of the read, reports when it is eligible, and a new reference ends the wait (PR #723)', async () => {
+      const p = await seedPerson(database.db),
+        f = await fixture();
+      await read(p, f);
+      const attempts = async () =>
+        (
+          await sql<{ attempts: number }>`select attempts from personal_context.coverage_dirty_topics
+            where universe_id = ${p.universeId}::uuid`.execute(database.db)
+        ).rows.map((row) => row.attempts);
+      const defer = async (maxAttempts?: number) => {
+        const [current] = await dirtyRows(p);
+        return inScope(p, (scope) =>
+          clearDirty(scope, {
+            topicIds: [],
+            throughRevision: current!.dirty_revision,
+            deferTopicIds: [topic],
+            ...(maxAttempts === undefined ? {} : { maxAttempts }),
+          }),
+        );
+      };
+      await defer();
+      const waiting = await inScope(p, (scope) => readDirty(scope, { limit: 4 }));
+      expect(waiting).toMatchObject({ topics: [], hasMore: false, anySupport: true });
+      expect(Date.parse(waiting.nextRetryAt!)).toBeGreaterThan(Date.now() + 30_000);
+      expect(await attempts()).toEqual([1]);
+      // Each try waits twice as long, up to an hour.
+      await sql`update personal_context.coverage_dirty_topics set retry_after = now() where universe_id = ${p.universeId}::uuid`.execute(
+        database.db,
+      );
+      await defer();
+      const [second] = (
+        await sql<{ secs: number; attempts: number }>`select extract(epoch from (retry_after - now())) as secs, attempts
+        from personal_context.coverage_dirty_topics where universe_id = ${p.universeId}::uuid`.execute(database.db)
+      ).rows;
+      expect(second!.attempts).toBe(2);
+      expect(Number(second!.secs)).toBeGreaterThan(100);
+      expect(Number(second!.secs)).toBeLessThanOrEqual(120);
+      // A new reference for the topic puts it back at once, out of any backoff.
+      await read(p, f);
+      expect(await inScope(p, (scope) => readDirty(scope, { limit: 4 }))).toMatchObject({
+        topics: [topic],
+        nextRetryAt: null,
+      });
+      expect(await attempts()).toEqual([0]);
+      // With a bound, a row already tried that often is let go instead of waiting again.
+      await defer();
+      await defer(2);
+      expect(await dirtyRows(p)).toEqual([]);
+    });
+
+    it('marks every topic with a support key for an explicit request, and records the newest activation of each key', async () => {
+      const p = await seedPerson(database.db),
+        f = await fixture();
+      await read(p, f);
+      await clearDirty_(p, 2_147_483_647);
+      expect(await inScope(p, (scope) => markDirty(scope))).toBe(1);
+      expect(await dirtyRows(p)).toMatchObject([{ topic_id: topic }]);
+      const [support] = await supportRows(p);
+      expect(support!.last_activated_at).toBeInstanceOf(Date);
+    });
+
+    /** Deletes through `revision`, as a run that read the set at that scope revision does. */
+    async function clearDirty_(p: FixturePerson, revision: number) {
+      return inScope(p, (scope) => clearDirty(scope, { topicIds: [topic], throughRevision: revision }));
+    }
   });
   it('requires actual ALL-OF leaves despite qualification, and never crosses facets into other attributed topics', async () => {
     const p = await seedPerson(database.db),
@@ -852,6 +1086,7 @@ describe('current observed personal coverage (PostgreSQL CI fixtures only)', () 
     expect(await c.projectActivity(job(p, e.exposureId))).toEqual({ kind: 'skipped', reason: 'epoch_changed' });
     for (const table of [
       'coverage_references',
+      'coverage_dirty_topics',
       'coverage_supports',
       'coverage_contributions',
       'recording_coverage_references',

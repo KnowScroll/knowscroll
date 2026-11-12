@@ -276,11 +276,14 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     await observe(person, await fixture(undefined, topic, [otherFacet]));
     await cartograph(person, () => garbage);
     expect(await placeKinds(person)).toEqual(['star', 'system']);
+    // Reading that no run has seen yet is a dirty topic; the run made the place secret.
+    await observe(person, await fixture(undefined, topic, [facet]));
     const stores = [
       'personal_context.topics',
       'personal_context.coverage_contributions',
       'personal_context.coverage_references',
       'personal_context.coverage_supports',
+      'personal_context.coverage_dirty_topics',
       'personal_context.recording_coverage_contributions',
       'personal_context.recording_coverage_references',
       'geography.state',
@@ -312,8 +315,21 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     expect(
       before['personal_context.coverage_references'] + before['personal_context.recording_coverage_references'],
     ).toBeGreaterThan(0);
-    for (const store of ['geography.state', 'geography.runs', 'geography.objects', 'geography.deltas'] as const)
+    for (const store of [
+      'geography.state',
+      'geography.runs',
+      'geography.objects',
+      'geography.deltas',
+      'personal_context.coverage_dirty_topics',
+    ] as const)
       expect(before[store]).toBeGreaterThan(0);
+    const secretRows = () =>
+      sql<{
+        n: number;
+      }>`select count(*)::int as n from geography.state where universe_id = ${person.universeId}::uuid and place_secret is not null`
+        .execute(database.db)
+        .then((result) => result.rows[0]!.n);
+    expect(await secretRows()).toBe(1);
 
     await database.db
       .updateTable('identity.universes')
@@ -323,6 +339,7 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     const fresh = { ...person.authority, privacyEpoch: 2 };
     await scope()(fresh, (sc) => eraseUniverse(sc, personalStores));
     expect(await rowsOf()).toEqual(Object.fromEntries(stores.map((store) => [store, 0])));
+    expect(await secretRows()).toBe(0);
     expect(await world.emerging(person.authority, {})).toEqual({ kind: 'refused', reason: 'scope_refused' });
     expect(await world.emerging(fresh, {})).toMatchObject({
       kind: 'read',
@@ -479,11 +496,10 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     });
   });
 
-  it('keeps forming places for a reader with more than 100 covered facet and unit pairs', async () => {
-    const { database, base, fixture, observe, scope, snapshot } = world;
+  it('forms for a reader with more than 100 covered facet and unit pairs, a bounded run at a time', async () => {
+    const { database, fixture, observe, snapshot, state } = world;
     const { cartograph } = steps;
     const planets = CONCEPTS.filter((concept) => concept.parent !== null);
-    // The last planet in key order is the one a plain first-100 cut would drop.
     const target = [...planets].sort((a, b) => a.id.localeCompare(b.id)).at(-1)!;
     const person = await seedPerson(database.db);
     let pairs = 0;
@@ -495,19 +511,35 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
       }
     }
     expect(pairs).toBeGreaterThan(100);
-    const discovered = await scope()(person.authority, (sc) => base.readInputs(sc));
-    expect(discovered).toMatchObject({ kind: 'entered', value: { availability: 'available' } });
-    if (discovered.kind !== 'entered') throw new Error('CI scope refused');
-    expect(discovered.value.probes.length).toBe(pairs);
+    // Every topic read is dirty, and one run takes at most 16 of them: the rest wait for their own paced run.
+    const dirty = await database.db
+      .selectFrom('personal_context.coverage_dirty_topics')
+      .select(sql<number>`count(*)::int`.as('n'))
+      .where('universe_id', '=', person.universeId)
+      .executeTakeFirstOrThrow();
+    expect(dirty.n).toBe(planets.length);
 
-    let frozen: Parameters<NonNullable<Parameters<typeof cartograph>[1]>>[0] | undefined;
-    await cartograph(person, (frozenContext) => {
-      frozen = frozenContext;
-      return garbage;
-    });
-    if (!frozen) throw new Error('CI the model never saw a context');
-    expect(frozen.facts.supports.length).toBeLessThanOrEqual(100);
-    expect(frozen.facts.supports.some((entry) => entry.topicId === target.id)).toBe(true);
+    const frozen: Parameters<NonNullable<Parameters<typeof cartograph>[1]>>[0][] = [];
+    let runs = 0;
+    while ((await state(person)).activeRunId && runs < 6) {
+      runs++;
+      await cartograph(person, (frozenContext) => {
+        frozen.push(frozenContext);
+        return garbage;
+      });
+    }
+    expect((await state(person)).activeRunId).toBeUndefined();
+    expect(runs).toBeGreaterThan(1);
+    for (const context of frozen) expect(context.evaluated!.topics.length).toBeLessThanOrEqual(16 + 8);
+    expect(
+      (
+        await database.db
+          .selectFrom('personal_context.coverage_dirty_topics')
+          .select(sql<number>`count(*)::int`.as('n'))
+          .where('universe_id', '=', person.universeId)
+          .executeTakeFirstOrThrow()
+      ).n,
+    ).toBe(0);
     const universe = await snapshot(person);
     if (universe.status !== 'ready') throw new Error('CI ready expected');
     const count = (kind: string) => universe.page.objects.filter((place) => place.kind === kind).length;
@@ -520,7 +552,7 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     });
     const planet = universe.page.objects.find((place) => place.kind === 'planet')!;
     expect(universe.page.objects.some((place) => place.kind === 'system' && place.id === planet.parent.id)).toBe(true);
-  }, 180_000);
+  }, 240_000);
 
   describe('formation that never stops (#674)', () => {
     async function runIdOf(person: FixturePerson) {
@@ -570,18 +602,6 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
       expect(await runOf(runId)).toMatchObject({ status: 'insufficient', outcome: 'no_trusted_support' });
     });
 
-    it('settles a reader with more distinct support keys than one discovery returns as discovery_limit', async () => {
-      const { cartograph, runOf } = steps;
-      const person = await seedPerson(database());
-      await sql`insert into personal_context.coverage_supports(universe_id,privacy_epoch,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,reference_count)
-        select ${person.universeId}::uuid,1,${topic},${facet},repeat('0',64),'ci-many-units-'||n,repeat('0',64),1 from generate_series(1,1001) n`.execute(
-        database(),
-      );
-      const runId = await runIdOf(person);
-      await cartograph(person, () => garbage);
-      expect(await runOf(runId)).toMatchObject({ status: 'insufficient', outcome: 'discovery_limit' });
-    });
-
     it('holds only the concepts the person has reached, not one slot for every concept of the catalogue', async () => {
       const { coherent } = world;
       const { cartograph } = steps;
@@ -603,7 +623,6 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
         ].sort(),
       );
       expect(frozen.facts.catalogue.map((entry) => entry.id)).toEqual(['earth', topic]);
-      expect(frozen.routeIds).toEqual({});
       // The old layout held a slot for each of these.
       const everySlot = CONCEPTS.reduce((n, t) => n + (t.parent === null ? 2 : 1 + t.facets.length), 0);
       expect(everySlot).toBeGreaterThan(80);
@@ -632,17 +651,18 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     }, 120_000);
 
     describe('a context too large for one model request', () => {
-      /** A store whose first view carries 400 more routes than the person has, so the claim freezes an oversized context. */
+      /** A store whose routes read in the claim carries 400 more routes than the person has, so the claim freezes an oversized context. */
       function oversized(): Partial<Parameters<typeof world.runner>[2]> {
-        let first = true;
+        let claim: unknown;
         return {
           store: {
             ...geographyStore,
-            view: async (scope) => {
-              const view = await geographyStore.view(scope);
-              if (!first) return view;
-              first = false;
-              const routes = Array.from({ length: 400 }, (_, n) => ({
+            routes: async (scope, keys) => {
+              const routes = await geographyStore.routes(scope, keys);
+              // The claim's transaction is the first to read; the apply's own transaction later reads the person's real routes.
+              claim ??= scope;
+              if (scope !== claim) return routes;
+              const filler = Array.from({ length: 400 }, (_, n) => ({
                 id: randomUUID(),
                 fromKey: `planet:filler-${n}:factual`,
                 toKey: `planet:filler-${n + 1}:factual`,
@@ -651,7 +671,7 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
                 originTransitionId: randomUUID(),
                 status: 'current' as const,
               }));
-              return { ...view, routes: [...view.routes, ...routes] };
+              return [...routes, ...filler];
             },
           },
         };

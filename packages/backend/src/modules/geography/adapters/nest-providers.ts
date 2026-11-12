@@ -1,9 +1,16 @@
+import { createHmac, randomBytes } from 'node:crypto';
 import { sql } from 'kysely';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import {
+  CLEAR_COVERAGE_DIRTY,
+  MARK_COVERAGE_DIRTY,
+  READ_COVERAGE_DIRTY,
   READ_COVERAGE_INPUTS,
   READ_EXPLORATION_SNAPSHOT,
   READ_TRUSTED_COVERAGE,
+  type ClearCoverageDirty,
+  type MarkCoverageDirty,
+  type ReadCoverageDirty,
   type ReadCoverageInputs,
   type ReadExplorationSnapshot,
   type ReadTrustedCoverage,
@@ -73,6 +80,7 @@ import type {
 import { makeReadGeographySceneInput } from '../application/scene-input.js';
 import type { GeographyApplied } from '../public.js';
 import { geographyStore, readRegionPlace } from './postgres-store.js';
+import { PRODUCT_CATALOGUE } from '../application/catalogue.js';
 import { makeReadOwnRegionConstraint } from '../application/region-constraint.js';
 import { makeReadOwnSystemTopic } from '../application/system-topic.js';
 import { makeSettleQuiet, makeSweepQuiet } from '../application/quiet.js';
@@ -157,6 +165,9 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
         FENCE_OWN_ACCOUNT,
         FENCE_PERSONAL_RECORDING,
         t.enqueueJob,
+        READ_COVERAGE_DIRTY,
+        CLEAR_COVERAGE_DIRTY,
+        MARK_COVERAGE_DIRTY,
         READ_COVERAGE_INPUTS,
         READ_TRUSTED_COVERAGE,
         CHECK_PERSONAL_OWNER_ACTIVE,
@@ -167,6 +178,9 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
         fenceOwn: FenceOwnAccount,
         fenceRecording: FencePersonalRecording,
         enqueue: EnqueueJob,
+        readDirty: ReadCoverageDirty,
+        clearDirty: ClearCoverageDirty,
+        markDirty: MarkCoverageDirty,
         readInputs: ReadCoverageInputs,
         readTrusted: ReadTrustedCoverage,
         ownerActive: CheckPersonalOwnerActive,
@@ -184,11 +198,17 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
             .executeTakeFirstOrThrow();
           return row.revision;
         },
+        readDirty,
+        clearDirty,
+        markDirty,
         readInputs,
         readTrusted,
+        catalogue: PRODUCT_CATALOGUE,
         ownerActive,
         store: geographyStore,
         hash: (value) => canonicalSha256(value),
+        mac: (secret, message) => createHmac('sha256', Buffer.from(secret, 'hex')).update(message).digest('hex'),
+        seed: () => randomBytes(32).toString('hex'),
         newId: () => uuidv7(),
         now: () => new Date(),
         advance: advanceScopeRevision,
@@ -414,6 +434,9 @@ export function geographyContextHashes(c: GeographyContext, runId: string) {
   return contextHashes(c, runId, canonicalSha256);
 }
 export { prepareGeography } from '../application/context.js';
+/** The pinned catalogue and the derived ids, for operator tools and tests that evaluate against a catalogue of their own (D-416). */
+export { catalogueOf, type Catalogue, type CatalogueTopic } from '../domain/catalogue.js';
+export { derivedPlaceId, derivedRouteId } from '../domain/ids.js';
 export { geographyStore } from './postgres-store.js';
 export type { GeographyPorts, CartographerPorts, GeographyContext } from '../application/ports.js';
 /** The shell operator's `geography dry-run`: what a run would do, read-only (D-411). */

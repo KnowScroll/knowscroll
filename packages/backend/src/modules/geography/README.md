@@ -3,7 +3,7 @@
 Geography owns the places in a person's universe: systems, their organising stars, planets, regions
 and routes. It decides when reading is enough to form one, records every change as an immutable
 delta, and offers the unlabelled dust cues that come before a system. Scene projection, rendering,
-navigation and sharing belong to other modules. Decisions: D-033, D-038, D-052, D-104, D-105, D-409. Tracker: #237, #467, #674.
+navigation and sharing belong to other modules. Decisions: D-033, D-038, D-052, D-104, D-105, D-409, D-416. Tracker: #237, #467, #674.
 
 A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev-check-N`, `fidelity-v3`, `room-journey`, `mod-steps`) was seen on dev on that day. The folders are on the coordinator's machine, not in the repository; `docs/v2/design/fidelity-v3.md` records what the screens looked like.
 
@@ -29,21 +29,21 @@ facet support today, so a Reel-only reader gets dust but no system until Reel co
 
 ## One journey
 
-1. Evidence qualifies an encounter and Personal Context projects it. In the same transaction the
-   material-change hook (`GEOGRAPHY_MATERIAL_CHANGE`) records a new desired revision and makes sure
-   one run exists for the person. Further changes coalesce into that run. A new run's wake waits
-   until `geography.state.next_run_not_before`, which every settled run sets 30 seconds ahead
-   (`domain/pacing.ts`, D-052). Reading that keeps arriving is therefore one pending run, not one
-   run per encounter. An explicit request is not paced: it starts a run at once when none is pending and otherwise joins the pending one.
-2. The worker (`geography.cartograph`) claims the run and, in a short transaction, freezes a
-   context: the candidates the person has reached, their stable IDs and labels, and the person's
-   current positive support. Support comes from Personal Context's trusted coverage, which itself
-   checks Evidence and Content under the person's root. A reader whose support is more than one
-   context holds gets the support the rules need (see Limits and degradation). The context holds
-   only what the person has reached (see What a frozen context holds), so it does not grow with the
-   catalogue. The context is frozen when the run starts, so a run that waited sees everything that
-   arrived while it waited. A reader with no coverage references yet settles the run as
-   `no_support_yet` before any coverage is read and without building a context.
+1. Evidence qualifies an encounter and Personal Context projects it. In the same transaction Personal Context marks the
+   topic dirty when a trusted support key of it gains or loses a reference (`personal_context.coverage_dirty_topics`), and the
+   material-change hook (`GEOGRAPHY_MATERIAL_CHANGE`) records a new desired revision and makes sure one run exists for the
+   person. Further changes coalesce into that run. A new run's wake waits until `geography.state.next_run_not_before`, which
+   every settled run sets 30 seconds ahead (`domain/pacing.ts`, D-052). Reading that keeps arriving is therefore one pending
+   run, not one run per encounter. An explicit request is not paced: it marks every topic that has support dirty, starts a run
+   at once when none is pending and otherwise joins the pending one.
+2. The worker (`geography.cartograph`) claims the run and, in a short transaction, freezes a context of **what changed**: the
+   newest dirty topics (at most 16, `EVALUATION.topicsPerRun`), the newest few support keys of each facet of each
+   (`READ_COVERAGE_INPUTS`), their exact trusted supports (`READ_TRUSTED_COVERAGE`, which checks Evidence and Content under the
+   person's root), the stored places of those topics found by key, and the identities the rules may form. Nothing else is read:
+   not the catalogue, not the rest of the person's history. A reader whose dirty set is empty gets a context with nothing in it;
+   a reader with no coverage reference at all settles the run as `no_support_yet` before any coverage is read. The context is
+   frozen when the run starts, so a run that waited sees everything that arrived while it waited. More dirty topics than one
+   run takes stay dirty, and the settled run starts the next one, paced (see What a frozen context holds).
 3. Formation is the rules' decision (D-038), so a model has something to choose only when a place is
    due. With none due, a reading-triggered run asks no model: it applies any activity change by the
    rules, or settles `insufficient/no_changes`, with no ledger run. An explicit request
@@ -91,28 +91,41 @@ shows no live attempt.
 
 ## What a frozen context holds
 
-A place with no support can never be due (`formationEligible`), so the frozen facts hold only what the
-person has reached (`application/context.ts`, #674, D-409):
+Formation is a pure, deterministic function of the pinned catalogue, the exact trusted supports of the topics being evaluated
+and the stored places (`application/context.ts`, #674, D-416). It costs what changed, never what the catalogue or a person's
+history holds, so it works for a person with thousands of topics and years of reading:
 
-- **Candidates** (a slot with a stable ID and its labels) for each system and star, planet and region
-  that has a trusted support or an established place, and for the systems of those. A region is a slot
-  only when its facet is supported or the region is established. Nothing else gets a slot.
-- **Catalogue slice** (`facts.catalogue`): the catalogue entries of those topics and their systems, with
-  every facet of each topic, as the rules read them.
-- **Route IDs** (`routeIds`) only for pairs of planets of one system that are formed or due. A route
-  joins only such planets, so no other pair needs one.
-- An identity comes from the stored place, else from the context being re-checked at apply, else a new
-  one. At apply the re-prepare does not refuse a concept the frozen slice did not hold (reading reached
-  it since): it gets a new identity that no proposal can name, because a creation must name a slot of
-  the frozen context (`source_changed` otherwise).
+- **Evaluated topics** (`evaluated.topics`): the newest dirty topics, at most `EVALUATION.topicsPerRun` (16). For each, the
+  newest `EVALUATION.keysPerFacet` (3) support keys of each facet are probed (`last_activated_at` orders them), so a heavy
+  re-reader's cost is the topics read and the library's units under them, never how much they have read. The newest key of a
+  facet decides a region and a place's last support, and a planet needs three units over two facets, so a facet with more keys
+  already holds enough: bounding by facet changes no place the rules form and no activity they set while the keys read are
+  trusted (`domain/formation.test.ts`, a property over random readings).
+- **Neighbours** (`evaluated.neighbours`): when a place of a touched system could be created now (the system is not formed, or a
+  planet is due beside a formed system), or the system's stored last support is newer than anything read under it (support was
+  just lowered), the run also reads up to 8 other supported topics of that system, the most recently supported first, one key of
+  each facet. They are read, not evaluated: a neighbour that was dirty stays dirty. A formed system with nothing due beside it
+  reads none, so the steady state of a heavy reader is the touched topics alone.
+- **Facts** (`facts`): the catalogue entries of the topics with support or a stored place and their systems, the supports,
+  the candidates (a slot with a derived id and its labels) for each system, star, planet and the regions that are supported or
+  established, the stored places loaded by semantic key (a topic's system, star, planet and the regions of its facets), and the
+  routes already joining those planets. A system's and a star's stored last support is carried in `carriedSupportAt`, so reading
+  one topic never makes the system look older than reading of another under it.
+- **Proof**: each support's witnesses (their digests name the certificates, which stay in Personal Context), a few hundred
+  bytes a support. An operation cites at most 20 supports (`PROOF_REFS`): the newest of each facet, then of each distinct unit,
+  then the newest of the rest, so 32 operations fit the 64 KiB a stored proposal holds and a place's row the 100 references it
+  allows. A place with 20 supports or fewer cites all of them.
+- **Identities**: a stored place keeps its id. A new place's id is an HMAC of the universe's place secret (created at the first
+  run, in `geography.state.place_secret`, erased with the state by Clear and erasure) and its semantic key, formatted as a UUID;
+  a new route's id is an HMAC of the sorted pair of the two planets' keys. Every evaluation of the same facts derives the same
+  ids, so there is no table of allocated slots or pairs, and an id names nothing without the secret (`domain/ids.ts`).
 
-The context therefore grows with what a person has read, not with the catalogue. With today's 23
-catalogue topics a reader of one planet has a context of 2 catalogue entries and about 5 slots instead
-of 23 and 82, and no route IDs instead of 136.
-
-A run claimed before this layout shipped keeps its stored context. The hashes that bind it
-(`geographyContextHashes`) are computed exactly as before, so it is not retired as `context_changed`
-(D-052); it finishes on its frozen context, and its apply re-prepares in the new layout.
+The apply re-reads exactly the topics (and neighbours) the context froze (`evaluationOf`) under today's authority, so its facts
+are the same facts and a proposal applies when every operation still holds (D-052). Evidence that arrived during the run has
+a higher dirty revision than the run's read, so it stays dirty and gets its own paced run. A context bigger than 500,000 bytes
+takes fewer of the dirty topics (halving until it fits), and one topic that alone does not fit is refused as
+`context_too_large`. A context frozen before incremental evaluation (no `evaluated`) is read as the topics of its supports and
+planets, and is finished as before.
 
 ## Run outcomes
 
@@ -123,55 +136,65 @@ are `insufficient`; none needs an engineer except the limits.
 |---|---|
 | `no_changes` | Nothing is due; reading alone does not ask a model |
 | `no_support_yet` | The person has no coverage references yet. Healthy. No coverage was read and no context built |
-| `no_trusted_support` | References exist but none is current trusted support (content withdrawn, a map corrected) |
-| `discovery_limit` | More than 1000 distinct support keys, or 256 KiB of keys (see Limits) |
+| `no_trusted_support` | The topics read have references but none is current trusted support (content withdrawn, a map corrected), and neither is any of the reader's 8 other most recent topics (a sample of one key of each facet, `evaluated.otherTrusted`; the sample never enters the facts). The evaluation is complete: places keep their activity, nothing is applied unless an activity change is due. When the sample does find trusted support the run records `no_changes`, so one withdrawn Scroll among a reader's newest topics is not a fault of the watchdog's `geography_insufficient_repeat` |
 | `coverage_limit` | The trusted read cannot hold even one probe's proof |
 | `coverage_authority_changed` | Content or Evidence moved while the proof was read; the next reading tries again |
-| `structure_limit` | More than 1000 places, or routes and aliases, in one universe |
-| `context_too_large` | The frozen context would pass 500,000 bytes |
+| `structure_limit` | More than 1000 places, or routes and aliases, in one universe (counted, not loaded) |
+| `context_too_large` | One topic's context alone would pass 500,000 bytes (a run takes fewer dirty topics until it fits) |
 | `applied_by_rules_context_limit` | The context does not fit one model request, so no model was asked, and the rules applied what was due |
 | `context_limit` | The same cause with nothing due: no model was asked and nothing was applied |
 | `context_unreadable` | The stored frozen context is missing or for another scope |
 | `disabled`, `provider_unavailable`, `request_too_large`, ... | Role switched off, or a refusal before admission (see One journey) |
 
-Runs written before #674 may say `coverage_unavailable`, which covered the six causes above.
+Runs written before #674 may say `coverage_unavailable`, which covered the six causes above, or `discovery_limit`, which no run records now.
 
 ## Quiet without new reading
 
-A person who stops reading would never start a Cartographer run, so a run alone could never show a
-place going quiet. The quiet sweep (D-104, D-105) closes that gap by rules alone. Status:
-**implemented** (CI integration on real PostgreSQL); **planned** for runtime verification on dev.
+A person who stops reading would never start a Cartographer run, so a run alone could never show a place going quiet. The quiet
+sweep (D-104, D-105, D-416) closes that gap by rules alone, place by place. Status: **implemented** (CI integration on real
+PostgreSQL); **planned** for runtime verification on dev.
 
-1. `geography.state.next_quiet_at` is the earliest the sweep needs to look at a universe: the moment
-   the newest support under an active place turns 30 days old, or now when a change is already due.
-   Every Cartographer apply and every sweep pass rewrites it. It is scheduling state, never evidence,
-   and never leaves the server. Null means no place can go quiet.
-2. `geography.sweep-quiet` (pg-boss cron every 15 minutes, worker) makes one indexed query for the
-   oldest 100 states whose time has passed. A universe that no run holds, whose account is active,
-   that is not being cleared and whose recording is on gets a `geography.settle-quiet` job in the
-   same transaction and `next_quiet_at` pushed 30 minutes ahead (a lease), so the next pass does not
-   queue it twice. Any other due universe is parked: `next_quiet_at` moves a day ahead. Every row a
-   pass looks at leaves the head of the index, so a pass reads at most 100 rows however many
-   universes are refused. It reads no support.
-3. `geography.settle-quiet` enters the personal scope as a system actor and rechecks the account,
-   epoch and the recording generation the sweep saw. It reads current support (`prepareGeography`),
-   and applies only `activityChanges` (`domain/quiet.ts`), the same pure rule the Cartographer's
-   `requiredChanges` uses, through the same `applyProposal`. One immutable delta with no run, the
-   revision stamps (only `activityRevision` moves), a scene-projection job and a publish job commit
-   together. With nothing due it stores the corrected time and moves no revision. No model call, no
-   ledger run, no network wait.
-4. It stands aside, and changes no place, delta or revision, when recording is paused, when
-   `KS_CARTOGRAPHER_ENABLED` is off, or when a Cartographer run holds the universe (a delta under a
-   run's frozen context would void its answer). The only thing it writes then is its own
-   `next_quiet_at`: the sweep parks a refused universe a day ahead, and the settle stores the same
-   day when current support cannot be read. With the role off, the sweep does nothing at all. Places
-   settle within a day after the obstacle ends. Paused time counts toward the 30 days: the server
-   keeps no record of reading while recording is paused (D-083). More than 32 changes settle over
-   several passes.
+1. Each `geography.objects` row stores `last_support_at` (the newest support activation under the place when its topic was last
+   evaluated; a system's and a star's is the newest of what was read and what was stored, or, when their support was just
+   lowered, what the other topics under them hold) and `quiet_check_at` (when the place next needs a look: its last support
+   plus 30 days while it is active, now while its stored activity differs from what its support implies, null for a quiet place
+   or one with no support). Every apply, every settle and every run that evaluates a topic rewrites them (`placeSchedules`). They
+   are scheduling state, never evidence, and never leave the server.
+2. `geography.sweep-quiet` (pg-boss cron every 15 minutes, worker) makes one indexed query (`geography_object_quiet_due`) for
+   the oldest 500 places whose `quiet_check_at` has passed, across universes, and takes up to 100 such pages a pass (50,000 places a
+   pass, 4,800,000 a day; see `QUIET_SWEEP`). The places of a universe that no run holds, whose
+   account is active, that is not being cleared and whose recording is on go to `geography.settle-quiet` jobs that name them (at
+   most 32 a job), in the same transaction, and their `quiet_check_at` moves 30 minutes ahead (a lease). The places of any other
+   universe wait: those of a universe a run holds 5 minutes (the run settles within minutes, so the next pass tries them), those of a
+   universe that is paused, being cleared or suspended a day. Every row a page looks at leaves the head of the index, so a page reads
+   at most 500 rows however many universes are refused. It reads no support. A place a settle could not read (its topic has no
+   support, or its support could not be read) backs off an hour, doubling up to a day, and is let go after the sixth look (its next
+   look is cleared until reading stores its schedule again, `quiet_attempts`); a place with no support is no longer looked at daily
+   for ever. **Capacity.** A migration-day backlog in which every place that is not quiet is due once drains within a day up to
+   4,800,000 places, which is about 96 non-quiet places for each of the 50,000 universes the operator's cost tests use; a development
+   database (tens of universes, at most 1000 places each) drains in its first pass or two. A page is one indexed query and at most 16
+   settle jobs (about 150 ms), so a full pass takes about 15 s against the queue's 120 s, and the 1,563 settles it hands over are
+   drained by the workers between passes.
+3. `geography.settle-quiet` enters the personal scope as a system actor and rechecks the account, epoch and the recording
+   generation the sweep saw. It reads the **topics of the named places only** (a planet's or a region's planet's topic; a system's
+   or a star's most recently supported topics) through the same evaluation a run uses, and applies only `activityChanges`
+   (`domain/quiet.ts`), the same pure rule the Cartographer's `requiredChanges` uses, through the same `applyProposal`. One
+   immutable delta with no run, the revision stamps (only `activityRevision` moves), a scene-projection job and a publish job
+   commit together. With nothing due it stores the corrected times and moves no revision. A place whose topic could not be read
+   waits a day. No model call, no ledger run, no network wait. A settle never clears a dirty topic: a creation that is due belongs
+   to the run that owns it.
+4. It stands aside, and changes no place, delta or revision, when recording is paused, when `KS_CARTOGRAPHER_ENABLED` is off, or
+   when a Cartographer run holds the universe (a delta under a run's frozen context would void its answer). The only thing it
+   writes then is the places' own `quiet_check_at`. With the role off, the sweep does nothing at all. Places settle within a day
+   after the obstacle ends. Paused time counts toward the 30 days: the server keeps no record of reading while recording is paused
+   (D-083). More than 32 changes settle over several passes. A job queued before places were scheduled one by one (`v: 1`) names
+   no place and is ignored.
 
-Inactivity changes activity, never existence: ids, labels and origin transitions are untouched. A new
-encounter after quiet starts a Cartographer run as before, and that run sets the places it supports
-active again. "Everything is where you left it" stays on the device.
+Inactivity changes activity, never existence: ids, labels and origin transitions are untouched. A new encounter after quiet starts
+a Cartographer run as before, and that run sets the places it supports active again. A place whose support is all gone keeps its
+activity and its last support time stays what it was. "Everything is where you left it" stays on the device. Before this slice the
+sweep's schedule was `geography.state.next_quiet_at`; the column and its index stay, unread and unwritten, for a release that
+still reads them.
 
 ## What the model may propose, and what code checks
 
@@ -253,9 +276,9 @@ stranded: reading after the switch is on starts a new run. A run that older code
 
 | Store | Purpose |
 |---|---|
-| `geography.state` | One row per universe and epoch: revisions (`revision`, `structureRevision`, `activityRevision`), desired and material revision, active run, published checkpoint, `next_run_not_before` (the pacing time), `next_quiet_at` (when the quiet sweep next looks, D-104) |
+| `geography.state` | One row per universe and epoch: revisions (`revision`, `structureRevision`, `activityRevision`), desired and material revision, active run, published checkpoint, `next_run_not_before` (the pacing time), `place_secret` (the HMAC key of derived place and route ids, D-416). `next_quiet_at` is no longer used |
 | `geography.runs` | The business run: header, frozen private context (at most 512 KiB), proposal, outcome |
-| `geography.objects` | Places with stable semantic key and UUID, support references, retained structure |
+| `geography.objects` | Places with stable semantic key and UUID, support references (at most 20 cited), retained structure, `last_support_at` and `quiet_check_at` (per-place quiet time, D-416) |
 | `geography.relations` | Routes and retained aliases, withdrawn rows stay |
 | `geography.deltas` | Immutable applied changes with their input hash and the run that made them (none for a quiet settle) |
 
@@ -271,7 +294,7 @@ recover anything the notice missed.
 
 Personal root, then the owned Geography, Personal Context and Evidence rows, then sorted Content
 asset and head SHARE locks, then the harness closure. Geography never takes another person's root.
-The quiet settle takes the same order. The sweep takes no personal root: it locks only the state rows
+The quiet settle takes the same order. The sweep takes no personal root: it locks only the place rows
 it hands over, skipping any another transaction holds.
 
 ## Reads
@@ -301,58 +324,76 @@ not no reading. `loading` and `lagging` need a real queued or prepared run.
 
 ## Limits and degradation
 
-- **Support in one context.** Trusted coverage is read in batches of 100 probes; a batch that
-  reaches the trusted read's own bound (candidate rows, assets, 128 KiB of output) is split and read
-  as two. When the supports do not fit one frozen context (100 supports and about 360 KB with their
-  proofs), `compactSupports` keeps the newest support of every facet of every planet, then
-  further distinct units up to what a planet needs, then the newest of the rest. Within that budget
-  no place the rules would form and no activity they would set changes. Beyond it the oldest and most
-  repetitive support goes first, so formation degrades and does not stop.
-- **Discovery.** Candidate discovery lists distinct support keys from `personal_context.coverage_supports`
-  (one row per topic, facet and unit however often it was read), so re-reading never counts. It refuses
-  past 1000 distinct keys or 256 KiB of keys; then the run settles as `discovery_limit` and the next
-  reading tries again. Slice 4.1 (incremental evaluation of the topics touched since the last run) removes
-  the single-run bound.
-- **Proof.** The trusted read returns one witness per support key, the newest valid one, so one
-  re-read Scroll can no longer exceed the read's 128 KiB bound (Personal Context README).
+- **One run reads what changed.** At most 16 dirty topics, 3 keys of each facet, and up to 8 neighbours of a system with one key of
+  each facet (`domain/evaluation.ts`, one place for every number). A run's context is typically tens of kilobytes; a first run over
+  a reader whose every topic is dirty (the operator reconciliation, an explicit request) takes the topics in paced batches. On a
+  disposable database a reader with 2,184 support keys over 240 topics (872 places) formed in 30 paced runs, the largest frozen
+  context 302,487 bytes (the neighbour reads of four unformed systems in one batch), and one new reading in a formed topic read
+  that topic's 9 keys and froze 17,418 bytes (D-416). Past 500,000 bytes a run takes fewer topics. A facet whose newest keys are
+  withdrawn costs one more page of 3 keys per page it needs, at most 16 pages.
+- **Trusted read.** Probes are read in batches of 100; a batch that reaches the trusted read's own bound (candidate rows, assets,
+  128 KiB of output) is split and read as two. The read returns one witness per support key, the newest valid one, so one
+  re-read Scroll can never exceed the read's output (Personal Context README). If all eight candidate exposures of a key are
+  invalid it has no witness that read.
+- **Withdrawn keys.** The newest 3 keys of a facet are probed, and a facet that then holds fewer than 3 trusted keys while its
+  last page was full is read a page further (`READ_COVERAGE_INPUTS` `page` and `onlyFacets`), until it holds 3 or has no key left,
+  up to `EVALUATION.maxKeyPages` (16) pages. A withdrawn newest key therefore never hides an older trusted one, and what a run
+  evaluates equals what the whole catalogue holds (PR #723). Only a facet with more than 48 untrusted keys, all newer than its trusted
+  ones, keeps an older trusted key unread until it is the newest. The same paging serves the neighbours (one key a page).
+- **Topics that cannot be settled.** A topic whose keys were probed with nothing trusted (`evaluated.untrusted`), and the topics of a
+  refused apply or a refused claim (`coverage_authority_changed`, `coverage_limit`, `context_too_large`, `source_changed`,
+  `revision_changed`, `limit`), are not cleared: the dirty row waits out a backoff (a minute, doubling to an hour; new evidence
+  ends it), and the continuation run (`continueCartography`) is woken when the earliest backoff ends, while any dirty row remains.
+  A topic that stays untrusted is let go after `EVALUATION.untrustedAttempts` (8) tries, about two hours; a coverage readmission
+  (`content readmit-coverage` marks the topics holding the units whose head it appended, `geography reconcile-coverage --unit`) brings
+  it back. A refusal that is terminal (the scope is gone, the delta key was reused) leaves the rows alone.
+- **A formed system or star with no stored last support** (formed before places stored one, or with no support at all) has nothing to
+  carry, so a run that touches a topic under it also reads the topics beside it, as when support is lowered; a partial reading never
+  judges it older than what is beside it. A carried last support is never a support to cite: with nothing read under a place it keeps
+  its activity, so a quiet settle never proposes a change with no support behind it (PR #723).
+- **A system's last support** is exact when reading changes a topic (the new reading is the newest) and when support is lowered
+  (the topics beside it are read). It can be older than the truth only when more than 8 other topics of the system hold the newer
+  support and none is among the most recent 8.
+- **Routes** join planets evaluated or read in the same run: a route to a planet formed earlier is offered when the new planet is
+  due (its neighbours are read), not afterwards. A system with more than 8 supported neighbours offers the 8 most recent.
+- **Structure.** More than 1000 places or 1000 routes and aliases in one universe settle as `structure_limit` (the Scene map is
+  bounded the same, so this stays until the map reads by chunk). They are counted by index, not loaded.
 - **Model packaging.** A model request holds at most 64 context items. That limit is checked only when
   a model is called; a run that applies the rules alone is never stopped by it. When a context does not
   fit one request the model is skipped and the rules apply what is due (`applied_by_rules_context_limit`,
   told apart from an ordinary `applied_by_rules`); a run with nothing due ends `context_limit`.
-- **Known limit (slice 4.1): compaction past one context.** When the supports pass 100 or 360,000 bytes,
-  `compactSupports` keeps the newest support of every facet of every planet first, so every supported
-  region and the latest activity of every place are exact while the facets of all planets together
-  stay within the budget. Today's 53 facets and 17 planets stay within it. Past it (more than 100
-  planet-and-facet pairs with support, or certificates large enough to reach the byte bound first), the
-  oldest facet entries go and two things follow, both measured: a planet that has not formed yet and
-  loses the support of one of its two facets looks one facet short, so it forms later than the reading
-  allows, until newer reading brings the facet back; and a place whose every support is cut has no
-  newest support, so `activityFor` is undefined and it keeps its activity: a formed planet last read
-  100 days ago stays `active`, because the rules read no support for it (120 single-facet planets, 20
-  lose all support). A place is never removed. This is not redesigned here.
-- **One delta.** A run applies at most 32 operations. Anything still due is applied by the next run.
-- **Model and cost.** A run makes a model call only when the rules entitle a place, or on an
-  explicit request, so calls follow formation events and not encounters. A call costs about 10,000
+- **One delta.** A run applies at most 32 operations. Anything still due keeps the evaluated topics dirty and the next run, paced,
+  applies it.
+- **Model and cost.** A run makes a model call only when the rules entitle a place, or on an explicit
+  request, so calls follow formation events and not encounters. A call costs about 10,000
   tokens and the first answer validates (the repair is the exception). Runs are paced 30 seconds
   apart. The shared reasoning budgets (60 requests and 600,000 tokens per person per UTC day) and the
   failure brake bound spend; a refused call applies the rules and closes its ledger run.
+
+## Operator: the reconciliation
+
+`geography reconcile-coverage [--universe <uuid>] [--unit <explanationUnitId>]... [--dry-run]` (worker operator command, `apps/worker/src/geography-operator.ts`)
+is the one-time pass for readers who read before dirty tracking existed: it marks every topic that has a support key dirty, for
+one universe or for all, at the universe's current revision. It reads no support, calls no model and starts no run; the next runs
+of those readers take the topics newest first, 16 at a time, paced. Running it twice marks nothing new. It prints counts only.
+Status: **implemented**, covered by `incremental-formation.test.ts`.
 
 ## Dry run (#674, D-411)
 
 `geography dry-run --universe <uuid>` (worker operator command, `application/dry-run.ts`) says what a Cartographer run would do
 for one universe now, without doing it. It enters the personal scope the way a read does (the root lock), in a READ ONLY
-transaction that always rolls back, freezes the context the run freezes (`prepareGeography`: the same discovery, trusted read and
-compaction) and applies the same pure rules (`dueCreations`, `activityChanges`, `modelContextItems`). No model is called, no job is
-sent and no row changes. Its output is counts and codes only (`domain/dry-run.ts`, `shapeGeographyDryRun`).
+transaction that always rolls back, freezes the context the run freezes (`prepareGeography`: the same dirty topics, trusted read
+and facts, plus the topics of the places a quiet settle would look at by the clock) and applies the same pure rules
+(`dueCreations`, `activityChanges`, `modelContextItems`). A universe with no place secret yet gets an unsaved one. No model is
+called, no job is sent and no row changes. Its output is counts and codes only (`domain/dry-run.ts`, `shapeGeographyDryRun`).
 
 `wouldRecord` is the status and outcome the run's row would hold, in **the codes a real run records**, not a second vocabulary: the
-refusals above (`no_support_yet`, `no_trusted_support`, `discovery_limit`, `coverage_limit`, `coverage_authority_changed`,
+refusals above (`no_support_yet`, `no_trusted_support`, `coverage_limit`, `coverage_authority_changed`,
 `structure_limit`, `context_too_large`), `disabled`, `no_changes`, `applied_by_rules` (activity alone) and
 `applied_by_rules_context_limit` (places are due but the context does not fit one model request, so the rules apply them with no
 call). Its `outcome` is `null` when a model call decides it (`applied`, `applied_with_rules` or `applied_by_rules`). `action` says what
 would happen: `calls_model`, `applies_rules`, `stops`, `recording_paused`, `not_runnable` or `would_fail` (a `GEOGRAPHY_*` fault).
-The rest are counts: places and routes, the keys discovery found, the witnesses the frozen context holds, distinct supports before
-compaction and how many it kept, what is due by kind and how many one delta applies, the activity changes and the context's bytes. Never
+The rest are counts: places and routes, the topics evaluated, the keys probed, the witnesses the frozen context holds, the distinct supports, what is due by kind and how many one delta applies, the activity changes and the context's bytes. Never
 a label, topic, unit or reference. Status: **implemented**; covered by `tests/integration/modules/geography-dry-run.test.ts`, which also
 runs it through the worker's own wiring.
 
@@ -362,9 +403,9 @@ and a reader with places due names the same places the run forms.
 
 ## Erasure
 
-Full erasure deletes deltas, relations, objects, state and runs across all epochs, and the payloads of
-the three universe-bearing queues (`cartograph`, `publish-delta`, `settle-quiet`) in every state. Scenes erases first. A selective Clear removes the same stores. The dust
-read has no store of its own.
+Full erasure deletes deltas, relations, objects, state (and with it the place secret) and runs across all epochs, and the payloads of
+the three universe-bearing queues (`cartograph`, `publish-delta`, `settle-quiet`) in every state. Scenes erases first. A selective Clear removes the same stores. Personal
+Context erases the dirty set with its other tables. The dust read has no store of its own.
 
 ## Scenes boundary
 
@@ -379,27 +420,29 @@ creation delta without its delivery fact fails the whole transaction at commit.
 `checks` runs the pure rules and properties (`domain/*.test.ts`, `application/role.test.ts`) and
 PostgreSQL integration suites:
 `geography.test.ts` (authority, atomicity, replay, paging, erasure), `cartographer-formation.test.ts`
-(dust, system, planet, unrelated topics, inactivity, Clear with row counts, model failure, the failure
-brake, a role switched off, parked runs, refusals before admission, a conflicting proposal and a reader
-with more than 100 covered pairs), `cartographer-churn.test.ts` (a burst of reading is one pending
+(dust, system, planet, unrelated topics, inactivity, Clear with row counts and the place secret and dirty set removed, model
+failure, the failure brake, a role switched off, parked runs, refusals before admission, a conflicting proposal and a reader with
+more than 100 covered pairs formed a bounded run at a time), `cartographer-churn.test.ts` (a burst of reading is one pending
 run, a valid answer applies while more reading arrives, no model call without a place due, budget
 refusal and a closed ledger run end the run) and
 `recording-geography.test.ts` (original generation and wake ownership) and `quiet-sweep.test.ts`
 (31 days without reading make every place quiet with the same ids, labels and origins; nothing handed
-over when nothing is due; a new encounter wakes only what it supports; a run, a pause, the role switch
+over when nothing is due; at most 32 places a settle; a new encounter wakes only what it supports; a run, a pause, the role switch
 and an earlier epoch stand the settle aside; the settle waits for the root; queued settles are erased;
-no ledger run is added). `domain/quiet.test.ts` covers the rule and the stored time. #674 adds, in
-`application/context.test.ts` (a frozen context holds only the concepts reached, route IDs only for
-formed or due pairs of one system, the rules read the slice exactly as they read the whole catalogue, a
-re-prepare keeps IDs and takes a concept reached since, each refusal named apart), `role.test.ts` (the
-packaging limit throws only when asked, and a context that does not fit still hashes), `emerging.test.ts`
-(dust stays within the cap) and, on PostgreSQL in `cartographer-formation.test.ts`: a reader with no
-references settles `no_support_yet` with no context and no trusted read, `no_trusted_support` and
-`discovery_limit` are named, a frozen context holds slots only for the supported concepts, a reader with
-more than 1000 raw references on one key still forms, and a context too large for one model request
-still forms by the rules with no model call; `cartographer-churn.test.ts` adds that an answer in flight
-applies when reading has reached a concept the frozen context did not hold. `domain/dry-run.test.ts` and
-`geography-dry-run.test.ts` cover the dry run. Sources, maps and model
+no ledger run is added). `domain/quiet.test.ts` covers the rule, the schedule and the carried last support. D-416 adds, in
+`application/context.test.ts` (a context holds only the topics evaluated and their systems, neighbours read only when a system could
+be created or its support was lowered, derived ids stable, secret and distinct per universe, each refusal named apart, fewer topics
+when a context is too large), `application/incremental.test.ts` (**the differential test**: on random histories of reading and
+withdrawn support, the real prepare and apply over the dirty set, a batch at a time, form exactly the places the whole catalogue forms,
+with the same activity once time has passed; 3,000 runs passed before commit), `domain/formation.test.ts` (reading the newest keys of
+each facet changes no place and no activity; a proof of at most 20 references stays accepted) and, on PostgreSQL,
+`incremental-formation.test.ts` (reading during a run stays dirty and gets its own run; an explicit request and the reconciliation
+mark topics; ids derive from the secret and the key; a reader with 2,184 support keys over 240 topics forms exactly what the rules
+entitle in bounded runs, keeps a half-built planet unformed and forms it from its own next reading, and goes quiet 31 days on past a
+hundred supports) and `personal-coverage.test.ts` (the dirty set's rules). Earlier #674 suites remain: `role.test.ts` (the packaging
+limit throws only when asked), `emerging.test.ts` (dust stays within the cap), a reader with more than 1000 raw references on one key
+still forms, and a context too large for one model request still forms by the rules with no model call.
+`domain/dry-run.test.ts` and `geography-dry-run.test.ts` cover the dry run. Sources, maps and model
 answers in tests are labelled CI fixtures. A local drive with a real sign-in, the release API and
 worker, three Scrolls from the production path and a real MiniMax call showed dust, then a system
 and star, then a planet (D-038). A timed local session (pg-boss consumers started as the worker
@@ -409,5 +452,5 @@ two regions formed (D-052).
 
 ## Related
 
-Blueprint §8, §12, §13, §16. Decisions: D-409. Contracts: `packages/contracts/src/geography.ts`. Library plan:
+Blueprint §8, §12, §13, §16. Decisions: D-409, D-416. Contracts: `packages/contracts/src/geography.ts`. Library plan:
 `modules/content/domain/library/`. Scenes: `modules/scenes/README.md`.

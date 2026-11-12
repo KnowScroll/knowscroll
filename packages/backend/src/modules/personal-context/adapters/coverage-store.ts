@@ -13,6 +13,7 @@ import { recordingTransactionOf, fencePersonalRecording } from '../../../infrast
 import {
   coverageSupports,
   coverageSupportKey,
+  dirtyTopicsOf,
   RecordingCoverageSlotsSchema,
   selectedWitnesses,
   type RecordingWitnessPointer,
@@ -90,30 +91,10 @@ export async function applyCoverage(
   if (converted) throw new Error('PERSONAL_COVERAGE_RECORDING_REQUIRED');
   const old = new Map((previous ? coverageSupports(previous.certificate) : []).map((s) => [coverageSupportKey(s), s]));
   const next = new Map(coverageSupports(c).map((s) => [coverageSupportKey(s), s]));
-  const changes = [
-    ...[...old].filter(([k]) => !next.has(k)).map(([, s]) => ({ ...s, delta: -1 })),
-    ...[...next].filter(([k]) => !old.has(k)).map(([, s]) => ({ ...s, delta: 1 })),
-  ];
   const db = transactionOf(scope),
     u = scope.authority.universeId,
     e = scope.authority.privacyEpoch;
-  for (const s of changes) {
-    const r = await sql<{
-      reference_count: number;
-    }>`select reference_count from personal_context.coverage_supports where universe_id=${u}::uuid and privacy_epoch=${e} and topic_id=${s.topicId} and facet_id=${s.facetId} and meaning_sha256=${s.meaningSha256} and explanation_unit_id=${s.explanationUnitId} and truth_sha256=${s.truthSha256}`.execute(
-      db,
-    );
-    const count = (r.rows[0]?.reference_count ?? 0) + s.delta;
-    if (count < 0) throw new Error('PERSONAL_COVERAGE_SUPPORT_UNDERFLOW');
-    if (!count)
-      await sql`delete from personal_context.coverage_supports where universe_id=${u}::uuid and privacy_epoch=${e} and topic_id=${s.topicId} and facet_id=${s.facetId} and meaning_sha256=${s.meaningSha256} and explanation_unit_id=${s.explanationUnitId} and truth_sha256=${s.truthSha256}`.execute(
-        db,
-      );
-    else
-      await sql`insert into personal_context.coverage_supports(universe_id,privacy_epoch,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,reference_count) values(${u}::uuid,${e},${s.topicId},${s.facetId},${s.meaningSha256},${s.explanationUnitId},${s.truthSha256},${count}) on conflict(universe_id,privacy_epoch,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256) do update set reference_count=excluded.reference_count`.execute(
-        db,
-      );
-  }
+  await replaceCoverageSupports(scope, old, next, c.activatedAt);
   await sql`insert into personal_context.coverage_contributions(universe_id,privacy_epoch,exposure_id,activity_id,input_sha256,payload) values(${u}::uuid,${e},${c.exposureId}::uuid,${activityId}::uuid,${digest},${JSON.stringify(c)}::jsonb) on conflict(universe_id,exposure_id) do update set privacy_epoch=excluded.privacy_epoch,activity_id=excluded.activity_id,input_sha256=excluded.input_sha256,payload=excluded.payload`.execute(
     db,
   );
@@ -324,7 +305,7 @@ export async function applyRecordingCoverage(
   );
   const oldSet = new Map(previous.map((v) => [coverageSupportKey(v), v])),
     nextSet = new Map(next.map((v) => [coverageSupportKey(v), v]));
-  await replaceCoverageSupports(personal, oldSet, nextSet);
+  await replaceCoverageSupports(personal, oldSet, nextSet, c?.activatedAt ?? null);
   await sql`insert into personal_context.recording_coverage_contributions(universe_id,privacy_epoch,exposure_id,working_generation,input_sha256,witnesses)
     values(${u}::uuid,${epoch},${exposureId}::uuid,${g},${effectiveDigest},${JSON.stringify(nextSlots)}::jsonb)
     on conflict(universe_id,exposure_id) do update set working_generation=excluded.working_generation,input_sha256=excluded.input_sha256,witnesses=excluded.witnesses`.execute(
@@ -363,37 +344,70 @@ async function replaceCoverageSupports(
   scope: PersonalScopeTx,
   old: ReadonlyMap<string, ReturnType<typeof coverageSupports>[number]>,
   next: ReadonlyMap<string, ReturnType<typeof coverageSupports>[number]>,
+  activatedAt: string | null,
+) {
+  await changeSupportCounts(
+    scope,
+    [
+      ...[...old].filter(([k]) => !next.has(k)).map(([, s]) => ({ ...s, delta: -1 as const })),
+      ...[...next].filter(([k]) => !old.has(k)).map(([, s]) => ({ ...s, delta: 1 as const })),
+    ],
+    activatedAt,
+  );
+}
+
+/**
+ * Applies the support-key reference changes of one exposure and marks each topic they touch dirty, in the
+ * producer's own transaction (#674, D-416). A key's row is deleted when its last reference goes. An added
+ * reference carries the activation of the exposure that adds it, which only orders the keys of a topic newest
+ * first; a removed one leaves the time where it was. The topic is marked for every change, including a
+ * reference added to a key that already exists: that is a newer encounter, which moves when its places last
+ * had support. Activity-only changes reach no support key and mark nothing.
+ */
+async function changeSupportCounts(
+  scope: PersonalScopeTx,
+  changes: readonly (ReturnType<typeof coverageSupports>[number] & { readonly delta: 1 | -1 })[],
+  activatedAt: string | null,
 ) {
   const db = transactionOf(scope),
     u = scope.authority.universeId,
     e = scope.authority.privacyEpoch;
-  const changes = [
-    ...[...old].filter(([k]) => !next.has(k)).map(([, s]) => ({ ...s, delta: -1 })),
-    ...[...next].filter(([k]) => !old.has(k)).map(([, s]) => ({ ...s, delta: 1 })),
-  ];
   for (const s of changes) {
-    const row = await db
-      .selectFrom('personal_context.coverage_supports')
-      .select('reference_count')
-      .where('universe_id', '=', u)
-      .where('privacy_epoch', '=', e)
-      .where('topic_id', '=', s.topicId)
-      .where('facet_id', '=', s.facetId)
-      .where('meaning_sha256', '=', s.meaningSha256)
-      .where('explanation_unit_id', '=', s.explanationUnitId)
-      .where('truth_sha256', '=', s.truthSha256)
-      .executeTakeFirst();
-    const count = (row?.reference_count ?? 0) + s.delta;
+    const row = await sql<{
+      reference_count: number;
+    }>`select reference_count from personal_context.coverage_supports where universe_id=${u}::uuid and privacy_epoch=${e} and topic_id=${s.topicId} and facet_id=${s.facetId} and meaning_sha256=${s.meaningSha256} and explanation_unit_id=${s.explanationUnitId} and truth_sha256=${s.truthSha256}`.execute(
+      db,
+    );
+    const count = (row.rows[0]?.reference_count ?? 0) + s.delta;
     if (count < 0) throw new Error('PERSONAL_COVERAGE_SUPPORT_UNDERFLOW');
     if (!count)
       await sql`delete from personal_context.coverage_supports where universe_id=${u}::uuid and privacy_epoch=${e} and topic_id=${s.topicId} and facet_id=${s.facetId} and meaning_sha256=${s.meaningSha256} and explanation_unit_id=${s.explanationUnitId} and truth_sha256=${s.truthSha256}`.execute(
         db,
       );
     else
-      await sql`insert into personal_context.coverage_supports(universe_id,privacy_epoch,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,reference_count)
-      values(${u}::uuid,${e},${s.topicId},${s.facetId},${s.meaningSha256},${s.explanationUnitId},${s.truthSha256},${count})
-      on conflict(universe_id,privacy_epoch,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256) do update set reference_count=excluded.reference_count`.execute(
+      await sql`insert into personal_context.coverage_supports(universe_id,privacy_epoch,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256,reference_count,last_activated_at)
+      values(${u}::uuid,${e},${s.topicId},${s.facetId},${s.meaningSha256},${s.explanationUnitId},${s.truthSha256},${count},${s.delta > 0 ? activatedAt : null}::timestamptz)
+      on conflict(universe_id,privacy_epoch,topic_id,facet_id,meaning_sha256,explanation_unit_id,truth_sha256) do update set reference_count=excluded.reference_count,
+        last_activated_at=greatest(personal_context.coverage_supports.last_activated_at,excluded.last_activated_at)`.execute(
         db,
       );
   }
+  await markTopicsDirty(scope, dirtyTopicsOf(changes));
+}
+
+/**
+ * Marks topics dirty at the personal scope revision the calling transaction commits at, which is how a run that read the
+ * set earlier knows a row is newer than what it evaluated. An existing row keeps the later revision. New evidence ends any
+ * backoff the row was in: it is eligible at once.
+ */
+export async function markTopicsDirty(scope: PersonalScopeTx, topicIds: readonly string[]): Promise<number> {
+  if (!topicIds.length) return 0;
+  const result =
+    await sql`insert into personal_context.coverage_dirty_topics(universe_id,privacy_epoch,topic_id,dirty_revision)
+    select ${scope.authority.universeId}::uuid,${scope.authority.privacyEpoch},topic,${scope.revisionAtEntry + 1}
+    from unnest(${[...topicIds]}::text[]) as topic
+    on conflict(universe_id,privacy_epoch,topic_id) do update set dirty_revision=greatest(personal_context.coverage_dirty_topics.dirty_revision,excluded.dirty_revision),attempts=0,retry_after=null`.execute(
+      transactionOf(scope),
+    );
+  return Number(result.numAffectedRows ?? 0);
 }

@@ -20,7 +20,7 @@ export type GeographyDryRunAction =
 
 /**
  * What the run's row would hold afterwards. `outcome` is exactly the code a real run records
- * (`geography.runs.outcome`): `no_changes`, `disabled`, `no_support_yet`, `no_trusted_support`, `discovery_limit`,
+ * (`geography.runs.outcome`): `no_changes`, `disabled`, `no_support_yet`, `no_trusted_support`,
  * `coverage_limit`, `coverage_authority_changed`, `structure_limit`, `context_too_large`, `applied_by_rules`,
  * `applied_by_rules_context_limit`. It is null when the model's answer decides it (`applied`, `applied_with_rules`
  * or `applied_by_rules`).
@@ -34,12 +34,16 @@ export interface GeographyWouldRecord {
 export interface GeographyPreparedFacts {
   /** The facts the rules read. They carry labels and ids; the report never shows them. */
   readonly formation: FormationFacts;
-  /** Distinct (topic, facet, unit) keys discovery found. */
+  /** Topics the evaluation read: the dirty topics, their neighbours and the topics of due places. */
+  readonly topicsEvaluated: number;
+  /** Distinct (topic, facet, unit) keys probed. */
   readonly candidateKeys: number;
   /** Witnesses (exposure-level references) the frozen context holds. */
   readonly witnessesHeld: number;
-  /** Distinct supports the catalogue and truth checks accept, before compaction. */
+  /** Distinct supports the catalogue and truth checks accept. */
   readonly supportKeys: number;
+  /** Keys were probed and none is current trusted support. */
+  readonly nothingTrusted: boolean;
   readonly contextBytes: number;
   /** How many items one model request would hold, or `too_large` when the context does not fit one. */
   readonly modelItems: number | 'too_large';
@@ -52,7 +56,7 @@ export interface GeographyDryRunFacts {
   /** The places and the routes and aliases stored, when the gate is open. */
   readonly places: number | undefined;
   readonly routes: number | undefined;
-  /** Why no context was prepared, as the code a run records (`no_support_yet`, `discovery_limit`, ...). */
+  /** Why no context was prepared, as the code a run records (`no_support_yet`, `coverage_limit`, ...). */
   readonly refusal: string | undefined;
   readonly prepared: GeographyPreparedFacts | undefined;
   /** A coded fault building the context threw, such as `GEOGRAPHY_WITNESS_AUTHORITY`. */
@@ -69,14 +73,14 @@ export interface GeographyDryRunReport {
   readonly places: number | null;
   readonly routes: number | null;
   readonly references: {
-    /** Distinct (topic, facet, unit) keys discovery found. */
+    /** Topics the evaluation read. */
+    readonly topicsEvaluated: number | null;
+    /** Distinct (topic, facet, unit) keys probed. */
     readonly candidateKeys: number | null;
-    /** Witnesses the frozen context holds (after compaction). */
+    /** Witnesses the frozen context holds. */
     readonly witnessesHeld: number | null;
-    /** Distinct supports accepted before compaction. */
+    /** Distinct supports accepted. */
     readonly supportKeys: number | null;
-    readonly supportsKept: number | null;
-    readonly supportsDropped: number | null;
   };
   readonly due: {
     readonly system: number;
@@ -120,7 +124,7 @@ function decide(
   if (dueTotal > 0) return { action: 'calls_model', wouldRecord: { status: 'accepted', outcome: null } };
   if (activityTotal > 0)
     return { action: 'applies_rules', wouldRecord: { status: 'accepted', outcome: 'applied_by_rules' } };
-  return stops('no_changes');
+  return stops(facts.prepared?.nothingTrusted ? 'no_trusted_support' : 'no_changes');
 }
 
 /**
@@ -134,8 +138,6 @@ export function shapeGeographyDryRun(facts: GeographyDryRunFacts): GeographyDryR
   const byKind = { system: 0, star: 0, planet: 0, region: 0 };
   for (const operation of due) byKind[DUE_KIND[operation.kind]] += 1;
   const decided = decide(facts, due.length, changes.length);
-  const supportsKept = prepared?.formation.supports.length ?? null;
-  const supportKeys = prepared?.supportKeys ?? null;
   return {
     trigger: 'reading',
     ...decided,
@@ -145,11 +147,10 @@ export function shapeGeographyDryRun(facts: GeographyDryRunFacts): GeographyDryR
     places: facts.places ?? null,
     routes: facts.routes ?? null,
     references: {
+      topicsEvaluated: prepared?.topicsEvaluated ?? null,
       candidateKeys: prepared?.candidateKeys ?? null,
       witnessesHeld: prepared?.witnessesHeld ?? null,
-      supportKeys,
-      supportsKept,
-      supportsDropped: supportKeys === null || supportsKept === null ? null : supportKeys - supportsKept,
+      supportKeys: prepared?.supportKeys ?? null,
     },
     due: {
       ...byKind,

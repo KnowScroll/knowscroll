@@ -26,6 +26,9 @@ import {
   type CoverageCommand,
 } from '@knowscroll/backend/modules/content';
 import {
+  CLEAR_COVERAGE_DIRTY,
+  MARK_COVERAGE_DIRTY,
+  READ_COVERAGE_DIRTY,
   READ_COVERAGE_INPUTS,
   READ_EXPLORATION_SNAPSHOT,
   READ_TRUSTED_COVERAGE,
@@ -114,6 +117,9 @@ export async function geographyWorld(
     [ENQUEUE, makeEnqueueJob(c.boss)],
     [READ_TRUSTED_COVERAGE, c.readTrustedCoverage],
     [READ_COVERAGE_INPUTS, buildFromProviders(personalContextProviders(), READ_COVERAGE_INPUTS, new Map())],
+    [CLEAR_COVERAGE_DIRTY, buildFromProviders(personalContextProviders(), CLEAR_COVERAGE_DIRTY, new Map())],
+    [MARK_COVERAGE_DIRTY, buildFromProviders(personalContextProviders(), MARK_COVERAGE_DIRTY, new Map())],
+    [READ_COVERAGE_DIRTY, buildFromProviders(personalContextProviders(), READ_COVERAGE_DIRTY, new Map())],
     [READ_EXPLORATION_SNAPSHOT, c.readExploration],
     ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
   ]);

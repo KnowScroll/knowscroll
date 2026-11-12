@@ -1,18 +1,28 @@
 import { UniverseDeltaSchema, type UniverseDelta, type GeographyObject } from '@knowscroll/contracts';
-import { CONCEPTS } from '../../content/public.js';
-import type { RecordingScopeTx } from '../../identity/public.js';
+import type { PersonalScopeTx, RecordingScopeTx } from '../../identity/public.js';
+import type { Catalogue } from '../domain/catalogue.js';
+import { EVALUATION } from '../domain/evaluation.js';
+import { requiredChanges } from '../domain/formation.js';
+import { derivedRouteId } from '../domain/ids.js';
 import {
   activityFor,
   semanticKey,
   proposalIssue,
   GEOGRAPHY_POLICY,
+  type FormationFacts,
   type GeographyProposal,
   type Place,
   type Route,
 } from '../domain/policy.js';
-import { nextQuietAt, withNextQuietAt } from '../domain/quiet.js';
-import type { GeographyPorts, GeographyContext, GeographyView } from './ports.js';
-import { prepareGeography } from './context.js';
+import { placeSchedules } from '../domain/quiet.js';
+import { PRODUCT_CATALOGUE } from './catalogue.js';
+import type { EvaluationScope, GeographyPorts, GeographyContext, GeographyView } from './ports.js';
+import { evaluationOf, prepareGeography } from './context.js';
+/** The claim's scope with the topics found untrusted under today's authority, which decides, not the claim's. */
+function settledScope(claimed: EvaluationScope, fresh: GeographyContext): EvaluationScope {
+  const { untrusted: _claimed, ...rest } = claimed;
+  return fresh.evaluated?.untrusted ? { ...rest, untrusted: fresh.evaluated.untrusted } : rest;
+}
 export function publicPlace(p: Place, universeId: string, objects: readonly Place[]): GeographyObject {
   const parentId = p.parentKey === 'universe' ? universeId : objects.find((o) => o.key === p.parentKey)?.id;
   if (!parentId) throw new Error('GEOGRAPHY_PARENT_MISSING');
@@ -28,9 +38,61 @@ export function publicPlace(p: Place, universeId: string, objects: readonly Plac
   } as GeographyObject;
 }
 /**
+ * What an evaluation leaves behind once its facts are committed: each place's last support and next look, and the
+ * dirty rows it covered (D-416). Dirty rows are deleted only up to the revision the evaluation read, and only when the
+ * rules require nothing more of these facts, so a topic with more due than one delta holds (or evidence that arrived
+ * during the run) stays dirty and gets its own paced run. A topic whose keys were probed with nothing trusted (`untrusted`)
+ * is not cleared either: it stays in backoff and is judged again when its content may be trusted, a bounded number of times.
+ * `more` says another run is wanted.
+ *
+ * Runs in the caller's transaction, after the writes it commits. `clearDirty: false` is the quiet settle, which applies
+ * activity only and must leave a due creation to the run that owns it.
+ */
+export async function commitEvaluation(
+  p: Pick<GeographyPorts, 'store' | 'clearDirty'>,
+  scope: PersonalScopeTx,
+  facts: FormationFacts,
+  evaluated: EvaluationScope,
+  options: { readonly clearDirty: boolean },
+): Promise<{ readonly more: boolean }> {
+  await p.store.saveSchedule(scope, placeSchedules(facts));
+  if (!options.clearDirty) return { more: false };
+  const leftover = requiredChanges(facts).operations.length > 0;
+  if (leftover) return { more: true };
+  const untrusted = new Set(evaluated.untrusted ?? []);
+  await p.clearDirty(scope, {
+    topicIds: evaluated.topics.filter((topic) => !untrusted.has(topic)),
+    throughRevision: evaluated.dirtyThrough,
+    ...(untrusted.size ? { deferTopicIds: [...untrusted], maxAttempts: EVALUATION.untrustedAttempts } : {}),
+  });
+  return { more: untrusted.size > 0 || evaluated.hasMore };
+}
+
+/**
+ * A refused apply or claim is not the end of the topics it covered: they are put in backoff (a minute, doubling to an hour) and
+ * another run is wanted, so reading that is already recorded is judged on a later run and not only when the person reads again.
+ * Terminal refusals (the scope is gone, the delta key was reused) leave them alone.
+ */
+export async function deferEvaluated(
+  p: Pick<GeographyPorts, 'clearDirty'>,
+  scope: PersonalScopeTx,
+  evaluated: Pick<EvaluationScope, 'topics' | 'dirtyThrough'>,
+  options: { readonly clearDirty?: boolean },
+): Promise<boolean> {
+  if (options.clearDirty === false || !evaluated.topics.length) return false;
+  await p.clearDirty(scope, {
+    topicIds: [],
+    throughRevision: evaluated.dirtyThrough,
+    deferTopicIds: evaluated.topics,
+  });
+  return true;
+}
+
+/**
  * Current authority, complete pure validation, all writes + immutable delta + required work in one root.
  * `runId` names the Cartographer run that made the delta; the quiet sweep has no run and passes none.
- * The universe's `nextQuietAt` is rewritten from the places as they are after the delta.
+ * The apply re-reads exactly the topics the context evaluated (D-416) and writes the schedule of every place among
+ * them in the same transaction, so a place's last support and next look never lag the delta that changed it.
  */
 export async function applyProposal(
   p: GeographyPorts,
@@ -39,9 +101,10 @@ export async function applyProposal(
   c: GeographyContext,
   proposal: GeographyProposal,
   closeLedger: () => Promise<void>,
+  options: { readonly clearDirty?: boolean } = {},
 ): Promise<
-  | { readonly kind: 'applied' | 'replayed'; readonly delta: UniverseDelta }
-  | { readonly kind: 'refused'; readonly reason: string }
+  | { readonly kind: 'applied' | 'replayed'; readonly delta: UniverseDelta; readonly more: boolean }
+  | { readonly kind: 'refused'; readonly reason: string; readonly more?: boolean }
 > {
   await p.store.root(cap);
   const scope = cap.personal;
@@ -55,30 +118,43 @@ export async function applyProposal(
     prior = await p.store.findDelta(scope, c.transitionId);
   if (prior) {
     return prior.hash === hash
-      ? { kind: 'replayed', delta: prior.delta }
+      ? { kind: 'replayed', delta: prior.delta, more: false }
       : { kind: 'refused', reason: 'transition_key_reused' };
   }
-  const view = await p.store.view(scope);
-  if (!validView(view, c.universeId)) return { kind: 'refused', reason: 'stored_structure' };
-  if (view.state.revision !== c.base.revision) return { kind: 'refused', reason: 'revision_changed' };
-  const prepared = await prepareGeography(p, cap, view, c);
-  if (prepared.kind !== 'prepared' || !(await p.ownerActive(scope)))
-    return { kind: 'refused', reason: 'source_changed' };
+  const state = await p.store.state(scope);
+  const evaluated = evaluationOf(c);
+  // A refusal that more reading or time can cure keeps what it covered dirty, in backoff, and asks for another run.
+  const retry = async (reason: string) => ({
+    kind: 'refused' as const,
+    reason,
+    more: await deferEvaluated(p, scope, evaluated, options),
+  });
+  if (state.revision !== c.base.revision) return retry('revision_changed');
+  const prepared = await prepareGeography(p, cap, { kind: 'evaluated', evaluated });
+  if (prepared.kind !== 'prepared' || !(await p.ownerActive(scope))) return retry('source_changed');
   const fresh = prepared.context;
+  const view: GeographyView = { state, objects: fresh.facts.objects, routes: fresh.facts.routes, aliases: [] };
+  if (!validView(view, c.universeId, p.catalogue)) return { kind: 'refused', reason: 'stored_structure' };
   // New reading since the context was frozen does not void a proposal: it applies when every
   // operation still holds on today's authority. Support that was withdrawn, corrected or retracted
   // makes it fail here as `source_changed`.
   const issue = proposalIssue(proposal, fresh.facts);
-  if (issue) return { kind: 'refused', reason: fresh.factsSha256 === c.factsSha256 ? issue : 'source_changed' };
-  // A place is created only from an identity the frozen context allocated. A concept that reading
-  // reached after the freeze has a new identity in `fresh` that no replay could reproduce.
+  if (issue) return retry(fresh.factsSha256 === c.factsSha256 ? issue : 'source_changed');
+  // A place is created only from a candidate the frozen context named. A concept that reading
+  // reached after the freeze is not one a proposal can use.
   if (proposal.operations.some((op) => 'key' in op && !c.facts.candidates.some((slot) => slot.key === op.key)))
-    return { kind: 'refused', reason: 'source_changed' };
-  if (!proposal.operations.length) return { kind: 'refused', reason: 'no_changes' };
-  const revision = view.state.revision + 1,
+    return retry('source_changed');
+  if (!proposal.operations.length) {
+    const settled = await commitEvaluation(p, scope, fresh.facts, settledScope(evaluated, fresh), {
+      clearDirty: options.clearDirty !== false,
+    });
+    return { kind: 'refused', reason: 'no_changes', more: settled.more };
+  }
+  const revision = state.revision + 1,
     objects = [...view.objects],
     routes = [...view.routes],
     operations: UniverseDelta['operations'] = [];
+  const secret = (await p.store.placeSecret(scope, true))!;
   const supportWrites: { object?: Place; route?: Route; refs: readonly string[] }[] = [];
   for (const op of proposal.operations) {
     if ('key' in op) {
@@ -98,11 +174,10 @@ export async function applyProposal(
         object: publicPlace(object, c.universeId, objects),
       } as UniverseDelta['operations'][number]);
     } else if (op.kind === 'connect_route') {
-      const key = [op.fromKey, op.toKey].sort().join('|'),
-        a = objects.find((x) => x.key === op.fromKey)!,
+      const a = objects.find((x) => x.key === op.fromKey)!,
         b = objects.find((x) => x.key === op.toKey)!;
       const route: Route = {
-        id: c.routeIds[key]!,
+        id: derivedRouteId(p.mac, secret, op.fromKey, op.toKey),
         fromKey: a.key,
         toKey: b.key,
         truthStatus: a.truthStatus,
@@ -110,7 +185,6 @@ export async function applyProposal(
         originTransitionId: c.transitionId,
         status: 'current',
       };
-      if (!route.id) return { kind: 'refused', reason: 'route_identity' };
       routes.push(route);
       supportWrites.push({ route, refs: op.supportRefs });
       operations.push({
@@ -150,13 +224,15 @@ export async function applyProposal(
       );
     }
   }
-  if (objects.length > 1000 || routes.length + view.aliases.length > 1000) return { kind: 'refused', reason: 'limit' };
+  const added = { objects: objects.length - view.objects.length, relations: routes.length - view.routes.length };
+  if (prepared.structure.objects + added.objects > 1000 || prepared.structure.relations + added.relations > 1000)
+    return retry('limit');
   await closeLedger();
   const personalWatermark = await p.advance(scope);
   const geography = {
     revision,
-    structureRevision: operations.some((x) => x.kind !== 'set_activity') ? revision : view.state.structureRevision,
-    activityRevision: operations.some((x) => x.kind === 'set_activity') ? revision : view.state.activityRevision,
+    structureRevision: operations.some((x) => x.kind !== 'set_activity') ? revision : state.structureRevision,
+    activityRevision: operations.some((x) => x.kind === 'set_activity') ? revision : state.activityRevision,
   };
   const delta = UniverseDeltaSchema.parse({
     version: 'universe-delta.v1',
@@ -174,8 +250,14 @@ export async function applyProposal(
     if (write.route) await p.store.saveRoute(scope, write.route, write.refs);
   }
   await p.store.writeDelta(scope, runId, hash, delta);
-  const quietAt = nextQuietAt({ ...fresh.facts, objects });
-  await p.store.writeState(scope, withNextQuietAt({ ...view.state, ...geography }, quietAt));
+  await p.store.writeState(scope, { ...state, ...geography });
+  const settled = await commitEvaluation(
+    p,
+    scope,
+    { ...fresh.facts, objects, routes },
+    settledScope(evaluated, fresh),
+    { clearDirty: options.clearDirty !== false },
+  );
   await p.enqueueDelta(scope, delta);
   await p.applied(cap, {
     recordingGeneration: cap.generation,
@@ -207,17 +289,17 @@ export async function applyProposal(
       }),
     },
   });
-  return { kind: 'applied', delta };
+  return { kind: 'applied', delta, more: settled.more };
 }
 /** Validate retained hierarchy and relations before any public read. Aliases have no creation operation. */
-export function validView(view: GeographyView, universeId: string): boolean {
+export function validView(view: GeographyView, universeId: string, catalogue: Catalogue = PRODUCT_CATALOGUE): boolean {
   const ids = new Map(view.objects.map((o) => [o.id, o])),
     keys = new Map(view.objects.map((o) => [o.key, o]));
   if (ids.size !== view.objects.length || keys.size !== view.objects.length) return false;
   for (const o of view.objects) {
     if (o.objectRevision > view.state.revision || o.key !== semanticKey(o.kind, o.conceptId, o.truthStatus))
       return false;
-    const topic = CONCEPTS.find((t) => t.id === o.conceptId);
+    const topic = catalogue.topic(o.conceptId);
     if (o.kind === 'system' && (!topic || topic.parent !== null)) return false;
     if (o.kind === 'star' && (!topic || topic.parent !== null)) return false;
     if (o.kind === 'planet' && (!topic || topic.parent === null)) return false;
@@ -233,10 +315,7 @@ export function validView(view: GeographyView, universeId: string): boolean {
         return false;
       if (o.kind === 'star' && parent.conceptId !== o.conceptId) return false;
       if (o.kind === 'planet' && topic?.parent !== parent.conceptId) return false;
-      if (
-        o.kind === 'region' &&
-        !CONCEPTS.some((t) => t.id === parent.conceptId && t.facets.some((f) => f.id === o.conceptId))
-      )
+      if (o.kind === 'region' && !catalogue.topic(parent.conceptId)?.facets.some((f) => f.id === o.conceptId))
         return false;
     }
     publicPlace(o, universeId, view.objects);

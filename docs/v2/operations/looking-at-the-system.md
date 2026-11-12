@@ -122,15 +122,28 @@ a public issue: never a label, title, topic, unit, reference or text.
 
 - `geography dry-run`: `action` is what a reading-triggered run would do (`calls_model`, `applies_rules`, `stops`,
   `recording_paused`, `not_runnable`, `would_fail`); `wouldRecord` is the status and outcome the run row would hold, **in the
-  codes a real run records** (`no_support_yet`, `no_trusted_support`, `discovery_limit`, `coverage_limit`,
+  codes a real run records** (`no_support_yet`, `no_trusted_support`, `coverage_limit`,
   `coverage_authority_changed`, `structure_limit`, `context_too_large`, `disabled`, `no_changes`, `applied_by_rules`,
-  `applied_by_rules_context_limit`; null when a model call decides); `references` counts the keys discovery found, the witnesses
-  the frozen context holds, the distinct supports and how many compaction kept; `due` counts the places the rules entitle by kind
+  `applied_by_rules_context_limit`; null when a model call decides); `references` counts the topics evaluated (the dirty topics, their
+  neighbours and the topics of places a quiet settle would look at by the clock), the keys probed, the witnesses the frozen context holds
+  and the distinct supports; `due` counts the places the rules entitle by kind
   and how many one delta applies; `activityChanges` counts places due to go quiet or active again; `contextBytes` is the frozen
   context's size.
 - `planner dry-run`: `outcome` is `calls_model`, `insufficient_evidence`, `proof_unavailable`, `context_bounds`,
   `disabled`, `recording_paused` or `not_runnable`; it counts the topics in the frozen context, the topic bound the
   inventory read was given, the inventory items and evidence references, and the context's bytes.
+
+After the migration that adds the dirty set (D-416), a reader who read before it has no dirty topic, so no run would read their
+history. To have the Cartographer read it once, newest first, in paced batches, mark every topic with a support key dirty:
+
+```sh
+node dist/operator.js geography reconcile-coverage --dry-run             # counts, writes nothing
+node dist/operator.js geography reconcile-coverage [--universe <uuid>]   # marks; twice marks nothing new
+node dist/operator.js geography reconcile-coverage --unit <explanationUnitId>   # after Content's trust in a unit changed (readmit-coverage does this itself)
+```
+
+It prints counts only, reads no support, calls no model and starts no run: each reader's next run (their next reading, or an
+explicit request) takes 16 topics, and a settled run that left dirty topics starts the next one 30 seconds later.
 
 Exit 0 read, 2 refused (usage, unknown or suspended universe), 1 failure. It waits for the root lock like any read and
 gives up after five seconds, and no statement of it runs longer than five seconds. Running it twice changes nothing.

@@ -39,6 +39,16 @@ export function coverageSupports(c: CoverageObservationSupport): readonly Covera
 export const coverageSupportKey = (s: CoverageSupport) =>
   JSON.stringify([s.topicId, s.facetId, s.meaningSha256, s.explanationUnitId, s.truthSha256]);
 /**
+ * The topics whose trusted support changed, from the support keys a producer added a reference to or removed one
+ * from, once each in a stable order (#674, D-416). Every such change counts, including a reference added to a key
+ * that already exists: that is a newer encounter, which moves when the places under the topic last had support.
+ * A change that reaches no support key (an activity-only change, an unqualified encounter, a replay of the same
+ * certificate) has no entry here, so it marks nothing.
+ */
+export function dirtyTopicsOf(changes: readonly Pick<CoverageSupport, 'topicId'>[]): string[] {
+  return [...new Set(changes.map((change) => change.topicId))].sort();
+}
+/**
  * The newest witness of each support key: the latest activation, then the greater exposure ID.
  * Variety is the number of distinct canonical units, never of witnesses, so a support that was read
  * a hundred times is proved by one exposure. The newest also sets when the support was last

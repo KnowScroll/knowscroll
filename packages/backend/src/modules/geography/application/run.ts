@@ -22,8 +22,9 @@ import { GEOGRAPHY_POLICY, type GeographyProposal } from '../domain/policy.js';
 import { CartographyJobSchema } from '../events.js';
 import { prepareGeography } from './context.js';
 import { cartographerRole, geographyContextHashes, modelContextItems } from './role.js';
-import { ensureCartography } from './request.js';
-import { applyProposal } from './apply.js';
+import { continueCartography, ensureCartography } from './request.js';
+import { applyProposal, commitEvaluation, deferEvaluated } from './apply.js';
+import { evaluationOf, nothingTrusted } from './context.js';
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 /** The state once a run is done: nobody holds it, and the person's next run waits its interval. */
 const idleAfterRun = (p: Pick<GeographyPorts, 'now'>, state: GeographyState): GeographyState => ({
@@ -239,10 +240,12 @@ async function settleUnadmitted(
       status: 'insufficient',
       outcome: reason,
     };
+    let more = false;
     if (context && rules?.operations.length) {
       const applied = await applyProposal(p, gate.scope, purpose.businessRunId, context, rules, () =>
         Promise.resolve(),
       );
+      more = applied.more ?? false;
       settlement =
         applied.kind === 'refused'
           ? { status: applied.reason === 'no_changes' ? 'insufficient' : 'stale', outcome: applied.reason }
@@ -250,6 +253,9 @@ async function settleUnadmitted(
               status: 'accepted',
               outcome: reason === 'context_limit' ? MODEL_SKIPPED_FOR_SIZE : OUTCOME_OF_SOURCE.rules,
             };
+    } else if (context && rules) {
+      // Nothing is due: the topics were evaluated, so record what it found and clear what it saw.
+      more = (await commitEvaluation(p, scope, context.facts, evaluationOf(context), { clearDirty: true })).more;
     }
     await p.store.finishUnadmitted(scope, purpose.businessRunId, purpose.claimId, settlement);
     const updated = await p.store.state(scope),
@@ -257,6 +263,7 @@ async function settleUnadmitted(
     await p.store.writeState(scope, idle);
     if (context && updated.desiredRevision > context.desiredRevision)
       await ensureCartography(p, gate.scope, idle, true);
+    else if (more) await continueCartography(p, gate.scope, idle);
   });
 }
 /**
@@ -369,7 +376,8 @@ async function settleRun(p: CartographerPorts, cap: RecordingScopeTx, answer: Mo
   }
   let status: GeographyRun['status'] = 'rejected',
     reason: string = outcome.kind === 'refused' ? outcome.reason : outcome.kind,
-    closed = false;
+    closed = false,
+    more = false;
   // A refusal can come from a run the ledger has already closed; then nothing is left to close.
   const closeLedger = async (state: 'completed' | 'cancelled') => {
     const result = await p.harness.closePersonalRun(cap, { runId: run.id, state, recordingPurpose: purpose });
@@ -383,6 +391,7 @@ async function settleRun(p: CartographerPorts, cap: RecordingScopeTx, answer: Mo
     reason = 'disabled';
   } else if (plan) {
     const result = await applyProposal(p, cap, run.id, context, plan.proposal, close);
+    more = result.more ?? false;
     if (result.kind === 'refused') {
       status = result.reason === 'no_changes' ? 'insufficient' : 'stale';
       reason = result.reason;
@@ -391,6 +400,9 @@ async function settleRun(p: CartographerPorts, cap: RecordingScopeTx, answer: Mo
       status = 'accepted';
       reason = OUTCOME_OF_SOURCE[plan.source];
     }
+  } else {
+    // An unusable answer with nothing due: the evaluation is complete, so its topics are recorded and cleared.
+    more = (await commitEvaluation(p, scope, context.facts, evaluationOf(context), { clearDirty: true })).more;
   }
   // A valid answer that concluded nothing needs changing was used, so it is completed, not cancelled.
   if (!closed) await closeLedger(outcome.kind === 'proposed' && reason === 'no_changes' ? 'completed' : 'cancelled');
@@ -406,6 +418,7 @@ async function settleRun(p: CartographerPorts, cap: RecordingScopeTx, answer: Mo
   await p.store.writeState(scope, idle);
   if (updated.desiredRevision > run.desiredRevision && updated.desiredSource?.generation === cap.generation)
     await ensureCartography(p, cap, idle, true);
+  else if (more) await continueCartography(p, cap, idle);
 }
 /** Short prepare/apply transactions around the shared finite attempt ledger. */
 export function makeRunCartographer(p: CartographerPorts): RunCartographer {
@@ -464,11 +477,22 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       let context: GeographyContext | undefined;
       if (run.hasContext) context = await p.store.context(cap, run.id);
       else {
-        const prepared = await prepareGeography(p, cap, await p.store.view(scope));
+        const prepared = await prepareGeography(p, cap, { kind: 'dirty' });
         if (prepared.kind === 'unavailable') {
           // Each cause is its own outcome. A reader with no coverage yet is healthy and builds no context.
           await p.store.writeRun(scope, { ...consumed, status: 'insufficient', outcome: prepared.reason });
-          await p.store.writeState(scope, idleAfterRun(p, state));
+          const idle = idleAfterRun(p, state);
+          await p.store.writeState(scope, idle);
+          // Reading already recorded is not lost with the claim: the topics this run tried wait out a backoff and a later run
+          // takes them (a changed authority or an oversized context is not an end). A reader with nothing to read, or a
+          // universe at its structure bound, has nothing a later run would change.
+          if (
+            prepared.attempted &&
+            prepared.reason !== 'no_support_yet' &&
+            prepared.reason !== 'structure_limit' &&
+            (await deferEvaluated(p, scope, { ...prepared.attempted }, {}))
+          )
+            await continueCartography(p, cap, idle);
           return undefined;
         }
         context = prepared.context;
@@ -515,7 +539,8 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       // Only a run's first claim can skip the model: a later claim may already have an attempt in the
       // ledger. An explicit request wants the model's say even when nothing is due.
       const explicit = state.desiredSource?.kind === 'command' || claimed.recording?.source.kind === 'command';
-      const modelOptional = !run.hasContext && !explicit;
+      // With nothing trusted there is nothing for a model to choose, even for an explicit request.
+      const modelOptional = !run.hasContext && (!explicit || nothingTrusted(context));
       return { kind: 'prepared', run: claimed, context, modelOptional } as const;
     });
     if (prepared.kind !== 'entered' || !prepared.value) return;
@@ -549,7 +574,13 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
     // Formation is the rules' decision. A model only chooses labels and routes for places that are
     // due, so with none due a reading-triggered run makes no call.
     if (modelOptional && !placesDue(c.facts)) {
-      await settleUnadmitted(p, authority, purpose, 'no_changes');
+      // Nothing trusted among the topics evaluated is a problem only when nothing is trusted anywhere the reader has been.
+      await settleUnadmitted(
+        p,
+        authority,
+        purpose,
+        nothingTrusted(c) && !c.evaluated?.otherTrusted ? 'no_trusted_support' : 'no_changes',
+      );
       return;
     }
     // A context too large for one request is not a reason to stop: the rules still apply what is due.

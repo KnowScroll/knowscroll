@@ -307,7 +307,15 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
 
       // Deciding again against the edited plan appends a corrected head, once.
       const first = await readmitRecipeCoverage(readmitPorts(editedCatalogue), recipes, { dryRun: false });
-      expect(first).toEqual({ dryRun: false, considered: 1, appended: 1, unchanged: 0, skipped: {} });
+      // The units whose head was appended are reported, so the operator marks the readers holding them (PR #723).
+      expect(first).toEqual({
+        dryRun: false,
+        considered: 1,
+        appended: 1,
+        unchanged: 0,
+        skipped: {},
+        changedUnits: [expect.any(String) as string],
+      });
       expect(await headCount()).toBe(2);
       expect(await readFacets(readEdited)).toEqual({
         facets: ['earth.tides.forcing', 'earth.tides.coasts'],
@@ -321,7 +329,7 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     it('reports what it would do in a dry run and writes nothing', async () => {
       await publishing('tides').publish();
       const dry = await readmitRecipeCoverage(readmitPorts(editedCatalogue), recipes, { dryRun: true });
-      expect(dry).toEqual({ dryRun: true, considered: 1, appended: 1, unchanged: 0, skipped: {} });
+      expect(dry).toEqual({ dryRun: true, considered: 1, appended: 1, unchanged: 0, skipped: {}, changedUnits: [] });
       expect(await headCount()).toBe(1);
     });
 
@@ -329,7 +337,14 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
       await publishing('tides').publish();
       await publishing('tides-coasts').publish();
       const summary = await readmitCoverageUseCase(database.db)({ dryRun: false });
-      expect(summary).toEqual({ dryRun: false, considered: 2, appended: 0, unchanged: 2, skipped: {} });
+      expect(summary).toEqual({
+        dryRun: false,
+        considered: 2,
+        appended: 0,
+        unchanged: 2,
+        skipped: {},
+        changedUnits: [],
+      });
       expect(await headCount()).toBe(2);
     });
   });

@@ -1,82 +1,178 @@
-import { CONCEPTS, CONCEPT_CATALOGUE_VERSION } from '../../content/public.js';
+import { CONCEPT_CATALOGUE_VERSION } from '../../content/public.js';
 import type { PersonalScopeTx, RecordingScopeTx } from '../../identity/public.js';
-import type { TrustedCoverageQuery } from '../../personal-context/public.js';
-import type {
-  GeographyContext,
-  GeographyPorts,
-  GeographyPreparation,
-  GeographyView,
-  PreparationRefusal,
-} from './ports.js';
-import { compactSupports, type WeightedSupport } from '../domain/compaction.js';
+import type { CoverageProbe, TrustedCoverageQuery } from '../../personal-context/public.js';
+import type { Catalogue, CatalogueTopic } from '../domain/catalogue.js';
+import { EVALUATION } from '../domain/evaluation.js';
+import { dueCreations } from '../domain/formation.js';
+import { derivedPlaceId, routeKey } from '../domain/ids.js';
 import {
-  formationEligible,
   semanticKey,
   type Candidate,
   type Concept,
   type FormationFacts,
   type Place,
+  type Route,
   type Support,
 } from '../domain/policy.js';
+import type {
+  EvaluationScope,
+  GeographyContext,
+  GeographyPorts,
+  GeographyPreparation,
+  PreparationRefusal,
+  StoredPlace,
+} from './ports.js';
+
 /** What freezing a context needs of the geography ports: reads, the clock and ids, never a write or a wake. */
-export type PreparationPorts = Pick<GeographyPorts, 'store' | 'readInputs' | 'readTrusted' | 'hash' | 'newId' | 'now'>;
+export type PreparationPorts = Pick<
+  GeographyPorts,
+  'store' | 'readDirty' | 'readInputs' | 'readTrusted' | 'catalogue' | 'hash' | 'mac' | 'seed' | 'newId' | 'now'
+>;
+
+/**
+ * What a context evaluates:
+ * - `dirty`: the topics whose trusted support changed since the last run (a Cartographer run). `alsoDueBy` adds the topics
+ *   of places due to be looked at by then (what the dry run says a settle would see).
+ * - `evaluated`: exactly the topics an earlier context evaluated, read again under today's authority (the apply).
+ * - `topics`: these topics (the quiet settle).
+ */
+export type PreparationRequest =
+  | { readonly kind: 'dirty'; readonly alsoDueBy?: Date }
+  | { readonly kind: 'evaluated'; readonly evaluated: EvaluationScope }
+  | { readonly kind: 'topics'; readonly topics: readonly string[] };
+
+/** `readOnly`: the scope cannot write (the dry run), so a universe with no place secret yet gets an unsaved one. */
+export interface PreparationOptions {
+  readonly readOnly?: boolean;
+}
+
 const label = (id: string) => {
   const value = id.split('.').at(-1)!.replaceAll('-', ' ');
   return value[0]!.toUpperCase() + value.slice(1);
 };
-const TOPICS: ReadonlyMap<string, (typeof CONCEPTS)[number]> = new Map(CONCEPTS.map((topic) => [topic.id, topic]));
-const refused = (reason: PreparationRefusal): GeographyPreparation => ({ kind: 'unavailable', reason });
+const refused = (
+  reason: PreparationRefusal,
+  attempted?: { readonly topics: readonly string[]; readonly dirtyThrough: number },
+): GeographyPreparation => ({ kind: 'unavailable', reason, ...(attempted ? { attempted } : {}) });
+
+/** A trusted read that observed nothing: no support to build on, as the places under these topics read it. */
+const emptyCoverage = (): Coverage => ({
+  version: 'trusted-coverage-read.v1',
+  completeness: 'not_asserted',
+  supportedFormats: ['scroll'],
+  availability: 'available',
+  reason: 'current',
+  supports: [],
+  witnesses: [],
+  certificates: [],
+});
 
 /**
- * The catalogue topics this person has reached, or already holds a place for, with the systems they
- * belong to. A place with no support can never be due (`formationEligible`), so no other concept
- * needs a slot, a catalogue entry or a route in the frozen context. This is what keeps the context
- * from growing with the catalogue (#674).
+ * True when topics were probed and none of what was found is current trusted support (content withdrawn, a map corrected).
+ * The evaluation is still complete: places under those topics keep their activity, and a system whose other topics were read
+ * is judged on them.
  */
-function relevantTopicIds(supports: readonly Support[], objects: readonly Place[]): ReadonlySet<string> {
+export const nothingTrusted = (context: Pick<GeographyContext, 'probes' | 'facts'>): boolean =>
+  context.probes.length > 0 && context.facts.supports.length === 0;
+const conceptOf = (topic: CatalogueTopic): Concept => ({
+  id: topic.id,
+  parent: topic.parent,
+  facets: topic.facets.map((facet) => facet.id),
+});
+
+/**
+ * The topics a context evaluated. A context frozen before incremental evaluation held every topic the person had
+ * reached, which is exactly the topics of its supports and its planets.
+ */
+export function evaluationOf(context: GeographyContext): EvaluationScope {
+  if (context.evaluated) return context.evaluated;
+  const topics = new Set(context.facts.supports.map((support) => support.topicId));
+  for (const place of context.facts.objects) if (place.kind === 'planet') topics.add(place.conceptId);
+  return { topics: [...topics].sort(), dirtyThrough: context.scopeRevision, hasMore: false };
+}
+
+/**
+ * The semantic keys of the stored places an evaluation of `topics` needs: for each, its system and star, its planet and
+ * the regions of its facets, which are the places under it and the parents above it. Loaded by key, never by scanning.
+ */
+function placeKeys(catalogue: Catalogue, topics: readonly string[]): string[] {
+  const keys = new Set<string>();
+  for (const id of topics) {
+    const topic = catalogue.topic(id);
+    if (!topic) continue;
+    if (topic.parent === null) {
+      keys.add(semanticKey('system', id));
+      keys.add(semanticKey('star', id));
+      continue;
+    }
+    keys.add(semanticKey('system', topic.parent));
+    keys.add(semanticKey('star', topic.parent));
+    keys.add(semanticKey('planet', id));
+    for (const facet of topic.facets) keys.add(semanticKey('region', facet.id));
+  }
+  return [...keys];
+}
+
+/** The pairs of stored planets of one system that a route could already join: their route keys, sorted pairs. */
+function routePairKeys(planets: readonly Place[]): string[] {
+  const bySystem = new Map<string, string[]>();
+  for (const planet of planets) bySystem.set(planet.parentKey, [...(bySystem.get(planet.parentKey) ?? []), planet.key]);
+  const pairs: string[] = [];
+  for (const keys of bySystem.values())
+    for (let i = 0; i < keys.length; i++)
+      for (let j = i + 1; j < keys.length; j++) pairs.push(routeKey(keys[i]!, keys[j]!));
+  return pairs;
+}
+
+/**
+ * The catalogue topics this person has reached among those evaluated, or already holds a place for, with the systems
+ * they belong to. A place with no support can never be due (`formationEligible`), so no other concept needs a slot or a
+ * catalogue entry in the frozen context (D-409).
+ */
+function relevantTopics(
+  catalogue: Catalogue,
+  supports: readonly Support[],
+  objects: readonly Place[],
+): readonly CatalogueTopic[] {
   const ids = new Set<string>();
   for (const support of supports) ids.add(support.topicId);
   // A region's concept is a facet; its planet is an object of its own and is added with the others.
   for (const object of objects) if (object.kind !== 'region') ids.add(object.conceptId);
   for (const id of [...ids]) {
-    const parent = TOPICS.get(id)?.parent;
+    const parent = catalogue.topic(id)?.parent;
     if (parent) ids.add(parent);
   }
-  return ids;
+  return [...ids]
+    .map((id) => catalogue.topic(id))
+    .filter((topic): topic is CatalogueTopic => topic !== undefined)
+    .sort((a, b) => catalogue.rank(a.id) - catalogue.rank(b.id));
 }
 
-/** The catalogue entries of `topicIds`, in catalogue order, as the rules read them. */
-const catalogueSlice = (topicIds: ReadonlySet<string>): Concept[] =>
-  CONCEPTS.filter((topic) => topicIds.has(topic.id)).map((topic) => ({
-    id: topic.id,
-    parent: topic.parent,
-    facets: topic.facets.map((facet) => facet.id),
-  }));
 /**
- * Identity slots are allocated once in the frozen context, never invented by the model. A slot is
- * made for each reached or established system, star and planet, and for each region that is
- * supported or established. An identity comes from the stored place, else from `previous` (the
- * context being re-checked at apply), else a new one.
+ * Identity slots are made once per evaluation, never invented by the model: a candidate for each reached or established
+ * system, star and planet, and for each region that is supported or established. A stored place keeps its id; a new
+ * one gets the id derived from the universe's place secret and its semantic key (`derivedPlaceId`), so every evaluation
+ * of the same facts derives the same id and no table of allocated ids exists.
  */
 function candidates(
-  p: PreparationPorts,
-  objects: readonly Place[],
+  p: Pick<PreparationPorts, 'mac'>,
+  secret: string,
+  stored: ReadonlyMap<string, Place>,
   supports: readonly Support[],
-  topicIds: ReadonlySet<string>,
-  previous?: readonly Candidate[],
+  topics: readonly CatalogueTopic[],
 ): readonly Candidate[] {
   const slots: Candidate[] = [];
-  const stored = new Map(objects.map((object) => [object.key, object]));
-  const frozen = new Map((previous ?? []).map((candidate) => [candidate.key, candidate]));
   const supported = new Set(supports.map((support) => `${support.topicId}|${support.facetId}`));
   const established = new Set(
-    objects.filter((object) => object.kind === 'region').map((object) => `${object.parentKey}|${object.conceptId}`),
+    [...stored.values()]
+      .filter((object) => object.kind === 'region')
+      .map((object) => `${object.parentKey}|${object.conceptId}`),
   );
   const add = (kind: Candidate['kind'], conceptId: string, parentKey: string, meaning: string) => {
     const key = semanticKey(kind, conceptId);
     slots.push({
       key,
-      id: stored.get(key)?.id ?? frozen.get(key)?.id ?? p.newId(),
+      id: stored.get(key)?.id ?? derivedPlaceId(p.mac, secret, key),
       kind,
       conceptId,
       parentKey,
@@ -84,8 +180,7 @@ function candidates(
       labels: [label(conceptId), meaning].filter((x, i, a) => x.length <= 160 && a.indexOf(x) === i),
     });
   };
-  for (const topic of CONCEPTS) {
-    if (!topicIds.has(topic.id)) continue;
+  for (const topic of topics) {
     if (topic.parent === null) {
       add('system', topic.id, 'universe', topic.meaning);
       add('star', topic.id, semanticKey('system', topic.id), topic.meaning);
@@ -100,40 +195,13 @@ function candidates(
   return slots;
 }
 
-/**
- * Identities for the routes the rules could connect: every pair of planets of one system that are
- * formed or due. A route only ever joins two such planets (`proposalIssue`), so no other pair needs
- * one. An earlier context keeps the identities it allocated.
- */
-function routeIdentities(
-  facts: FormationFacts,
-  previous: GeographyContext['routeIds'] | undefined,
-  newId: () => string,
-): Record<string, string> {
-  const formed = new Set(facts.objects.map((object) => object.key));
-  const bySystem = new Map<string, Candidate[]>();
-  for (const candidate of facts.candidates) {
-    if (candidate.kind !== 'planet' || !(formed.has(candidate.key) || formationEligible(facts, candidate))) continue;
-    bySystem.set(candidate.parentKey, [...(bySystem.get(candidate.parentKey) ?? []), candidate]);
-  }
-  const pairs: Record<string, string> = {};
-  for (const planets of bySystem.values())
-    for (let i = 0; i < planets.length; i++)
-      for (let j = i + 1; j < planets.length; j++) {
-        const key = [planets[i]!.key, planets[j]!.key].sort().join('|');
-        pairs[key] = previous?.[key] ?? newId();
-      }
-  return pairs;
-}
 /** A trusted read takes this many probes; more candidate keys are read in batches. */
 const PROBES_PER_READ = 100;
-/** What one frozen context holds of support and its proof. */
-const SUPPORT_BUDGET = { count: 100, bytes: 360_000 } as const;
 type Coverage = Extract<Awaited<ReturnType<GeographyPorts['readTrusted']>>, { availability: 'available' }>;
-type CoverageEntry = WeightedSupport & {
+type CoverageEntry = {
+  readonly support: Support;
   readonly source: Coverage['supports'][number];
   readonly witnesses: Coverage['witnesses'];
-  readonly certificates: Coverage['certificates'];
 };
 
 type BatchRead =
@@ -171,15 +239,14 @@ async function readBatch(
 }
 
 /**
- * Reads every candidate through the trusted coverage port, in batches under one root. The batches
- * are disjoint probes, so their union is the whole trusted read; certificates shared by two
- * bindings of one exposure are kept once. Any batch that cannot be read makes the whole read
- * unavailable, as does a read in which nothing was observed (`no_trusted_support`).
+ * Reads every probe through the trusted coverage port, in batches under one root. The batches are disjoint, so their
+ * union is the whole trusted read. Any batch that cannot be read makes the whole read unavailable; a read in which nothing
+ * was observed is a complete answer with no support (`nothingTrusted`).
  */
 async function readTrustedInBatches(
   p: PreparationPorts,
   scope: PersonalScopeTx,
-  probes: TrustedCoverageQuery['probes'],
+  probes: readonly CoverageProbe[],
 ): Promise<
   | { readonly kind: 'read'; readonly coverage: Coverage }
   | { readonly kind: 'unavailable'; readonly reason: PreparationRefusal }
@@ -190,17 +257,20 @@ async function readTrustedInBatches(
     if (batch.kind === 'unavailable') return batch;
     reads.push(...batch.reads);
   }
+  return { kind: 'read', coverage: mergeCoverage(reads) };
+}
+
+/** The union of disjoint trusted reads; none is a read in which nothing was observed. */
+function mergeCoverage(reads: readonly Coverage[]): Coverage {
   const [first] = reads;
-  if (!first) return { kind: 'unavailable', reason: 'no_trusted_support' };
-  if (reads.length === 1) return { kind: 'read', coverage: first };
+  if (!first) return emptyCoverage();
+  if (reads.length === 1) return first;
   return {
-    kind: 'read',
-    coverage: {
-      ...first,
-      supports: reads.flatMap((read) => read.supports),
-      witnesses: reads.flatMap((read) => read.witnesses),
-      certificates: [...new Map(reads.flatMap((read) => read.certificates).map((c) => [c.witnessKey, c])).values()],
-    },
+    ...first,
+    supports: reads.flatMap((read) => read.supports),
+    witnesses: reads.flatMap((read) => read.witnesses),
+    // A certificate shared by two bindings of one exposure is kept once.
+    certificates: [...new Map(reads.flatMap((read) => read.certificates).map((c) => [c.witnessKey, c])).values()],
   };
 }
 
@@ -208,7 +278,7 @@ async function readTrustedInBatches(
 function supportEntries(p: PreparationPorts, coverage: Coverage): CoverageEntry[] {
   const entries: CoverageEntry[] = [];
   for (const s of coverage.supports) {
-    const topic = TOPICS.get(s.topicId),
+    const topic = p.catalogue.topic(s.topicId),
       facet = topic?.facets.find((f) => f.id === s.facetId);
     // A facet that vanished or changed meaning since the evidence was recorded supports nothing now.
     // The catalogue grows with the library, so this is expected after a plan edit, not an error.
@@ -265,101 +335,434 @@ function supportEntries(p: PreparationPorts, coverage: Coverage): CoverageEntry[
         .sort()
         .at(-1)!,
     };
-    entries.push({ support, source: s, witnesses, certificates, bytes: 0 });
+    entries.push({ support, source: s, witnesses });
   }
-  return withShares(entries);
+  return entries.sort(
+    (a, b) =>
+      a.support.topicId.localeCompare(b.support.topicId) ||
+      a.support.facetId.localeCompare(b.support.facetId) ||
+      a.support.explanationUnitId.localeCompare(b.support.explanationUnitId) ||
+      a.support.ref.localeCompare(b.support.ref),
+  );
 }
 
-/** Sizes each entry by its own part plus an equal share of each certificate it uses with others. */
-function withShares(entries: readonly CoverageEntry[]): CoverageEntry[] {
-  const size = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
-  const sharers = new Map<string, number>();
-  for (const entry of entries)
-    for (const key of new Set(entry.certificates.map((c) => c.witnessKey)))
-      sharers.set(key, (sharers.get(key) ?? 0) + 1);
-  return entries.map((entry) => ({
-    ...entry,
-    bytes:
-      size({ support: entry.support, witnesses: entry.witnesses }) +
-      entry.certificates.reduce((sum, c) => sum + size(c) / (sharers.get(c.witnessKey) ?? 1), 0),
-  }));
+/** The topics a person's due places are read through (the quiet settle and the dry run). */
+export async function topicsOfPlaces(
+  p: Pick<PreparationPorts, 'readInputs' | 'catalogue'>,
+  scope: PersonalScopeTx,
+  places: readonly Pick<Place, 'kind' | 'conceptId' | 'parentKey'>[],
+): Promise<string[]> {
+  const topics = new Set<string>();
+  const systems = new Set<string>();
+  for (const place of places) {
+    if (place.kind === 'planet') topics.add(place.conceptId);
+    else if (place.kind === 'region') {
+      const planet = /^planet:(.+):factual$/.exec(place.parentKey)?.[1];
+      if (planet) topics.add(planet);
+    } else systems.add(place.conceptId);
+  }
+  for (const systemId of systems) {
+    const children = p.catalogue.childrenOf(systemId).map((topic) => topic.id);
+    const read = await p.readInputs(scope, { topicIds: children, perFacet: 1, maxTopics: EVALUATION.neighbourTopics });
+    for (const id of read.topics) topics.add(id);
+  }
+  return [...topics].sort((a, b) => p.catalogue.rank(a) - p.catalogue.rank(b));
 }
 
-/** The proof the frozen context keeps: exactly the retained supports', when some were left out. */
-function coverageOf(coverage: Coverage, all: readonly CoverageEntry[], kept: readonly CoverageEntry[]): Coverage {
-  if (kept.length === all.length) return coverage;
+/** The topics to evaluate for a request, and what the dirty set said about the person. */
+async function chooseTopics(
+  p: PreparationPorts,
+  scope: PersonalScopeTx,
+  request: PreparationRequest,
+): Promise<
+  | { readonly kind: 'none' }
+  | {
+      readonly kind: 'topics';
+      readonly topics: readonly string[];
+      readonly dirtyThrough: number;
+      readonly hasMore: boolean;
+    }
+> {
+  if (request.kind === 'evaluated')
+    return {
+      kind: 'topics',
+      topics: request.evaluated.topics,
+      dirtyThrough: request.evaluated.dirtyThrough,
+      hasMore: request.evaluated.hasMore,
+    };
+  if (request.kind === 'topics')
+    return { kind: 'topics', topics: request.topics, dirtyThrough: scope.revisionAtEntry, hasMore: false };
+  const dirty = await p.readDirty(scope, { limit: EVALUATION.topicsPerRun });
+  if (!dirty.anySupport) return { kind: 'none' };
+  const topics = new Set(dirty.topics);
+  if (request.alsoDueBy) {
+    const due = await p.store.duePlaces(scope, request.alsoDueBy, 100);
+    for (const id of await topicsOfPlaces(p, scope, due)) topics.add(id);
+  }
   return {
+    kind: 'topics',
+    topics: [...topics].sort((a, b) => p.catalogue.rank(a) - p.catalogue.rank(b)),
+    dirtyThrough: scope.revisionAtEntry,
+    hasMore: dirty.hasMore,
+  };
+}
+
+interface Evaluation {
+  /** The systems whose last support comes from what was read, not from what was stored. */
+  readonly systemsRead: readonly string[];
+  /** Topics read beside the evaluated ones, one key of each facet. */
+  readonly neighbours: readonly string[];
+  readonly facts: FormationFacts;
+  readonly probes: readonly CoverageProbe[];
+  readonly coverage: Coverage;
+  readonly supportKeys: number;
+  /** The topics evaluated in full. */
+  readonly topics: readonly string[];
+  /** The evaluated topics that have keys and no trusted support. */
+  readonly untrusted: readonly string[];
+  readonly pcRevision: number;
+}
+
+/**
+ * The systems that need more than the touched topics to be judged, with how many other supported topics of each to read:
+ * - A system that is not formed (or has no star yet) is judged on the units under it, and a place created now takes its
+ *   last support from them, so the other supported topics under it are read, up to `neighbourTopics`.
+ * - A planet that is due beside a formed system can be routed to the planets already formed there: the same.
+ * - A formed system whose stored last support is newer than anything read under it is one whose support was just
+ *   lowered (a retraction, withdrawn content): its true last support is in the other topics under it, so the most recently
+ *   supported of them are read and the stored value is not trusted.
+ * - A formed system or star with no stored last support has nothing to carry (it was formed before places stored one): the
+ *   same, so a partial reading never judges it older than the topics beside it.
+ * A formed system with nothing due beside it and nothing lowered needs no neighbour: reading one of its topics changes
+ * that topic's places only, and the system's last support is the newest of what was read and what was stored.
+ */
+function systemsNeedingNeighbours(
+  catalogue: Catalogue,
+  facts: FormationFacts,
+  topics: readonly string[],
+): ReadonlyMap<string, number> {
+  const stored = new Set(facts.objects.map((object) => object.key));
+  const due = dueCreations(facts);
+  const readLatest = new Map<string, number>();
+  for (const support of facts.supports) {
+    const systemId = catalogue.topic(support.topicId)?.parent;
+    if (systemId)
+      readLatest.set(
+        systemId,
+        Math.max(readLatest.get(systemId) ?? Number.NEGATIVE_INFINITY, Date.parse(support.activatedAt)),
+      );
+  }
+  const wanted = new Map<string, number>();
+  for (const id of topics) {
+    const systemId = catalogue.topic(id)?.parent;
+    if (!systemId || wanted.has(systemId)) continue;
+    const systemKey = semanticKey('system', systemId);
+    const formed = stored.has(systemKey) && stored.has(semanticKey('star', systemId));
+    const planetDue =
+      formed &&
+      due.some(
+        (operation) =>
+          operation.kind === 'form_planet' &&
+          facts.candidates.find((candidate) => candidate.key === operation.key)?.parentKey === systemKey,
+      );
+    const carried = facts.carriedSupportAt?.[systemKey];
+    const lowered =
+      formed && carried !== undefined && Date.parse(carried) > (readLatest.get(systemId) ?? Number.NEGATIVE_INFINITY);
+    // A formed system or star with no stored last support (made before places stored it, or one that had no support) has
+    // nothing to carry: what was read under it may be older than what is beside it, so the topics beside it are read.
+    const unknown =
+      formed && (carried === undefined || facts.carriedSupportAt?.[semanticKey('star', systemId)] === undefined);
+    if (lowered || unknown || !formed || planetDue) wanted.set(systemId, EVALUATION.neighbourTopics);
+  }
+  return wanted;
+}
+
+/** How far one facet's keys have been read: `perFacet` keys a page, the page last read, and whether that page was full. */
+interface FacetRead {
+  readonly topicId: string;
+  readonly facetId: string;
+  readonly perFacet: number;
+  readonly page: number;
+  readonly full: boolean;
+}
+
+/** Records the keys one page returned for each facet; a facet with a full page may have more. */
+function noteFacets(facets: Map<string, FacetRead>, found: readonly CoverageProbe[], perFacet: number, page: number) {
+  const counts = new Map<string, { topicId: string; facetId: string; count: number }>();
+  for (const probe of found) {
+    const slot = JSON.stringify([probe.topicId, probe.facetId]);
+    const entry = counts.get(slot) ?? { topicId: probe.topicId, facetId: probe.facetId, count: 0 };
+    entry.count++;
+    counts.set(slot, entry);
+  }
+  for (const [slot, entry] of counts)
+    facets.set(slot, { topicId: entry.topicId, facetId: entry.facetId, perFacet, page, full: entry.count >= perFacet });
+}
+
+/**
+ * The next page of keys of every facet that holds fewer trusted keys than it was asked for while its last page was full. Updates
+ * `facets` to the pages it read. Empty when no facet needs more.
+ */
+async function nextKeyPage(
+  p: PreparationPorts,
+  scope: PersonalScopeTx,
+  facets: Map<string, FacetRead>,
+  entries: readonly CoverageEntry[],
+): Promise<CoverageProbe[]> {
+  const trusted = new Map<string, number>();
+  for (const { support } of entries) {
+    const slot = JSON.stringify([support.topicId, support.facetId]);
+    trusted.set(slot, (trusted.get(slot) ?? 0) + 1);
+  }
+  const wanted = new Map<string, { perFacet: number; page: number; facets: FacetRead[] }>();
+  for (const [slot, read] of facets) {
+    if (!read.full || (trusted.get(slot) ?? 0) >= read.perFacet) continue;
+    const group = `${String(read.perFacet)}|${String(read.page + 1)}`;
+    const entry = wanted.get(group) ?? { perFacet: read.perFacet, page: read.page + 1, facets: [] };
+    entry.facets.push(read);
+    wanted.set(group, entry);
+  }
+  const found: CoverageProbe[] = [];
+  for (const { perFacet, page, facets: asked } of wanted.values()) {
+    const read = await p.readInputs(scope, {
+      topicIds: [...new Set(asked.map((facet) => facet.topicId))],
+      onlyFacets: asked.map(({ topicId, facetId }) => ({ topicId, facetId })),
+      perFacet,
+      page,
+    });
+    found.push(...read.probes);
+    noteFacets(facets, read.probes, perFacet, page);
+    // A facet that returned nothing has no further keys.
+    const returned = new Set(read.probes.map((probe) => JSON.stringify([probe.topicId, probe.facetId])));
+    for (const facet of asked)
+      if (!returned.has(JSON.stringify([facet.topicId, facet.facetId])))
+        facets.set(JSON.stringify([facet.topicId, facet.facetId]), { ...facet, page, full: false });
+  }
+  return found;
+}
+
+/**
+ * Reads the support of `base` topics (and, when asked, the other supported topics of `neighbourSystems`) through the
+ * trusted read, and builds the facts of exactly those topics: their catalogue entries and their systems', the stored
+ * places among them found by key, the routes already joining those planets, and the candidates the rules may form.
+ */
+async function evaluateTopics(
+  p: PreparationPorts,
+  scope: PersonalScopeTx,
+  secret: string,
+  base: readonly string[],
+  given: readonly string[],
+  expansions: ReadonlyMap<string, number>,
+  systemsRead: ReadonlySet<string>,
+): Promise<
+  | { readonly kind: 'evaluated'; readonly evaluation: Evaluation }
+  | { readonly kind: 'unavailable'; readonly reason: PreparationRefusal }
+> {
+  const evaluated = new Set(base);
+  const main = await p.readInputs(scope, { topicIds: base, perFacet: EVALUATION.keysPerFacet });
+  const probes: CoverageProbe[] = [...main.probes];
+  // What each facet was read to, so a facet whose newest keys are not trusted is read further (below).
+  const facets = new Map<string, FacetRead>();
+  noteFacets(facets, main.probes, EVALUATION.keysPerFacet, 0);
+  const near = new Set<string>();
+  if (given.length) {
+    const earlier = await p.readInputs(scope, { topicIds: given, perFacet: 1 });
+    probes.push(...earlier.probes);
+    noteFacets(facets, earlier.probes, 1, 0);
+    for (const id of earlier.topics) near.add(id);
+  }
+  for (const [systemId, maxTopics] of expansions) {
+    const children = p.catalogue
+      .childrenOf(systemId)
+      .map((topic) => topic.id)
+      .filter((id) => !evaluated.has(id) && !near.has(id));
+    const found = await p.readInputs(scope, { topicIds: children, perFacet: 1, maxTopics });
+    probes.push(...found.probes);
+    noteFacets(facets, found.probes, 1, 0);
+    for (const id of found.topics) near.add(id);
+  }
+  const topics = [...evaluated].sort((a, b) => p.catalogue.rank(a) - p.catalogue.rank(b));
+  const neighbours = [...near].sort((a, b) => p.catalogue.rank(a) - p.catalogue.rank(b));
+  const parts: Coverage[] = [];
+  let entries: CoverageEntry[] = [];
+  let newProbes: readonly CoverageProbe[] = probes;
+  for (let page = 0; ; page++) {
+    if (newProbes.length) {
+      const read = await readTrustedInBatches(p, scope, newProbes);
+      if (read.kind === 'unavailable') return read;
+      parts.push(read.coverage);
+      entries = supportEntries(p, mergeCoverage(parts));
+    }
+    // A key that is not trusted (withdrawn content) must not hide an older one that is: a facet that holds fewer trusted keys
+    // than it was asked for, and may hold more, is read a page further, so the evaluation equals the whole catalogue's.
+    if (page >= EVALUATION.maxKeyPages) break;
+    const further = await nextKeyPage(p, scope, facets, entries);
+    if (!further.length) break;
+    probes.push(...further);
+    newProbes = further;
+  }
+  const coverage = mergeCoverage(parts);
+  const supports = entries.map((entry) => entry.support);
+  const stored = await p.store.places(scope, placeKeys(p.catalogue, [...topics, ...neighbours]));
+  const objects = stored.map((entry) => entry.place);
+  const routes: readonly Route[] = await p.store.routes(
+    scope,
+    routePairKeys(objects.filter((object) => object.kind === 'planet')),
+  );
+  // A system whose other topics were read has its last support from what was read; any other keeps what it was last seen with.
+  const carried = Object.fromEntries(
+    stored.flatMap((entry: StoredPlace) =>
+      (entry.place.kind === 'system' || entry.place.kind === 'star') &&
+      entry.lastSupportAt &&
+      !systemsRead.has(entry.place.conceptId)
+        ? [[entry.place.key, entry.lastSupportAt]]
+        : [],
+    ),
+  );
+  const supported = new Set(supports.map((support) => support.topicId));
+  const probed = new Set(probes.map((probe) => probe.topicId));
+  const untrusted = topics.filter((id) => probed.has(id) && !supported.has(id));
+  const relevant = relevantTopics(p.catalogue, supports, objects);
+  // Planets and regions of the neighbours were read as a sample: they may join a route, but their activity is their own topic's to decide.
+  const own = new Set(placeKeys(p.catalogue, topics));
+  const sampled = placeKeys(p.catalogue, neighbours).filter(
+    (key) => !own.has(key) && objects.some((object) => object.key === key),
+  );
+  const facts: FormationFacts = {
+    catalogue: relevant.map(conceptOf),
+    supports,
+    candidates: candidates(p, secret, new Map(objects.map((object) => [object.key, object])), supports, relevant),
+    objects,
+    routes,
+    evaluatedAt: p.now().toISOString(),
+    completeness: 'not_asserted',
+    ...(Object.keys(carried).length ? { carriedSupportAt: carried } : {}),
+    ...(sampled.length ? { contextOnly: sampled } : {}),
+  };
+  // The frozen proof keeps each support's witnesses (their digests name the certificates); the certificates stay in
+  // Personal Context, so a context holds a few hundred bytes of proof per support, not a certificate each.
+  const kept: Coverage = {
     ...coverage,
-    supports: kept.map((entry) => entry.source),
-    witnesses: kept.flatMap((entry) => entry.witnesses),
-    certificates: [...new Map(kept.flatMap((entry) => entry.certificates).map((c) => [c.witnessKey, c])).values()],
+    supports: entries.map((entry) => entry.source),
+    witnesses: entries.flatMap((entry) => entry.witnesses),
+    certificates: [],
+  };
+  return {
+    kind: 'evaluated',
+    evaluation: {
+      systemsRead: [...systemsRead].sort(),
+      neighbours,
+      facts,
+      probes,
+      coverage: kept,
+      supportKeys: entries.length,
+      topics,
+      untrusted,
+      pcRevision: main.revision,
+    },
   };
 }
 
 /**
- * Revalidates indexed candidate probes through current PC/Evidence/Content authority in this root.
- * The rules read all trusted coverage; when it is more than one frozen context can hold, the context
- * keeps the supports they need (`compactSupports`), so a heavy reader's cartography degrades
- * instead of stopping.
+ * Whether the reader's other recent topics hold trusted support, for a run whose evaluated topics held none. Only the
+ * answer is used: the sample is read through the same trusted read and checks, but never enters the facts, so it changes no
+ * place. A reader with trusted support elsewhere is healthy (`no_changes`); one with none anywhere is `no_trusted_support`.
+ */
+async function sampledTrusted(
+  p: PreparationPorts,
+  scope: PersonalScopeTx,
+  exclude: readonly string[],
+): Promise<boolean> {
+  const found = await p.readInputs(scope, { recent: { limit: EVALUATION.sampleTopics, exclude }, perFacet: 1 });
+  if (!found.probes.length) return false;
+  const read = await readTrustedInBatches(p, scope, found.probes);
+  return read.kind === 'read' && supportEntries(p, read.coverage).length > 0;
+}
+
+/**
+ * Freezes what one evaluation reads: the facts of the topics it evaluates and the trusted support behind them. Pure
+ * function of the pinned catalogue, the exact trusted supports of those topics and the stored places; the model never
+ * sees or names anything else, so formation costs what changed, never the catalogue or the person's history (D-416).
  *
- * The context holds only what the person has reached: candidates, catalogue entries and route
- * identities for concepts with support or an established place, and for their systems. `previous`,
- * the context being re-checked at apply, gives identities to places it already allocated; a concept
- * it did not hold (reading reached it since) is simply new, and never a refusal.
+ * A Cartographer run (`dirty`) takes the newest dirty topics. When a place of one of their systems could be created now
+ * (the system is not formed, or a planet is due beside planets already formed), or the system's last support was just
+ * lowered, it also reads other supported topics of that system (`systemsNeedingNeighbours`), so the rules judge it on what is
+ * under it. The apply
+ * (`evaluated`) reads exactly the topics the context froze, so its facts are the same facts under today's authority.
  *
- * Returns why no context was prepared as a typed refusal, so the caller can record a distinct outcome.
- * A reader with no coverage references yet is refused before any coverage is read or any identity
- * allocated.
+ * Returns why no context was prepared as a typed refusal, so the caller can record a distinct outcome. A reader with no
+ * coverage reference yet is refused before any coverage is read or any identity made.
  */
 export async function prepareGeography(
   p: PreparationPorts,
   cap: RecordingScopeTx,
-  view: GeographyView,
-  previous?: GeographyContext,
+  request: PreparationRequest,
+  options: PreparationOptions = {},
 ): Promise<GeographyPreparation> {
   await p.store.root(cap);
   const scope = cap.personal;
-  if (view.objects.length > 1000 || view.routes.length + view.aliases.length > 1000) return refused('structure_limit');
-  const input = await p.readInputs(scope);
-  if (input.availability !== 'available') return refused('discovery_limit');
-  if (!input.probes.length) return refused('no_support_yet');
-  const read = await readTrustedInBatches(p, scope, input.probes);
-  if (read.kind === 'unavailable') return refused(read.reason);
-  const trusted = read.coverage;
-  const all = supportEntries(p, trusted);
-  const kept = compactSupports(all, SUPPORT_BUDGET);
-  const coverage = coverageOf(trusted, all, kept);
-  const supports = kept.map((entry) => entry.support);
-  const topicIds = relevantTopicIds(supports, view.objects);
-  const facts: FormationFacts = {
-    catalogue: catalogueSlice(topicIds),
-    supports,
-    candidates: candidates(p, view.objects, supports, topicIds, previous?.facts.candidates),
-    objects: view.objects,
-    routes: view.routes,
-    evaluatedAt: p.now().toISOString(),
-    completeness: 'not_asserted',
-  };
-  const { evaluatedAt: _time, ...authorityFacts } = facts;
-  const context: GeographyContext = {
-    version: 'cartographer-context.v1',
-    universeId: scope.authority.universeId,
-    privacyEpoch: scope.authority.privacyEpoch,
-    transitionId: previous?.transitionId ?? p.newId(),
-    desiredRevision: view.state.desiredRevision,
-    pcRevision: input.revision,
-    scopeRevision: scope.revisionAtEntry,
-    probes: input.probes,
-    facts,
-    factsSha256: p.hash({ facts: authorityFacts, coverage }),
-    coverage,
-    base: {
-      revision: view.state.revision,
-      structureRevision: view.state.structureRevision,
-      activityRevision: view.state.activityRevision,
-    },
-    routeIds: routeIdentities(facts, previous?.routeIds, p.newId),
-  };
-  if (new TextEncoder().encode(JSON.stringify(context)).byteLength > 500000) return refused('context_too_large');
-  return { kind: 'prepared', context, supportKeys: all.length };
+  const structure = await p.store.structure(scope);
+  if (structure.objects > 1000 || structure.relations > 1000) return refused('structure_limit');
+  const chosen = await chooseTopics(p, scope, request);
+  if (chosen.kind === 'none') return refused('no_support_yet');
+  const state = await p.store.state(scope);
+  const secret = (await p.store.placeSecret(scope, options.readOnly !== true)) ?? p.seed();
+  const incremental = request.kind === 'dirty';
+  const reread = new Set(request.kind === 'evaluated' ? (request.evaluated.systemsRead ?? []) : []);
+  const earlier = request.kind === 'evaluated' ? (request.evaluated.neighbours ?? []) : [];
+  let base = chosen.topics;
+  let hasMore = chosen.hasMore;
+  for (;;) {
+    let result = await evaluateTopics(p, scope, secret, base, earlier, new Map(), reread);
+    if (result.kind === 'evaluated' && incremental) {
+      const expansions = systemsNeedingNeighbours(p.catalogue, result.evaluation.facts, result.evaluation.topics);
+      if (expansions.size)
+        result = await evaluateTopics(p, scope, secret, base, [], expansions, new Set(expansions.keys()));
+    }
+    if (result.kind === 'unavailable')
+      return refused(result.reason, incremental ? { topics: base, dirtyThrough: chosen.dirtyThrough } : undefined);
+    const { evaluation } = result;
+    const otherTrusted =
+      incremental && evaluation.probes.length > 0 && evaluation.supportKeys === 0
+        ? await sampledTrusted(p, scope, [...evaluation.topics, ...evaluation.neighbours])
+        : false;
+    const { evaluatedAt: _time, ...authorityFacts } = evaluation.facts;
+    const context: GeographyContext = {
+      version: 'cartographer-context.v1',
+      universeId: scope.authority.universeId,
+      privacyEpoch: scope.authority.privacyEpoch,
+      transitionId: p.newId(),
+      desiredRevision: state.desiredRevision,
+      pcRevision: evaluation.pcRevision,
+      scopeRevision: scope.revisionAtEntry,
+      probes: evaluation.probes,
+      facts: evaluation.facts,
+      factsSha256: p.hash({ facts: authorityFacts, coverage: evaluation.coverage }),
+      coverage: evaluation.coverage,
+      base: {
+        revision: state.revision,
+        structureRevision: state.structureRevision,
+        activityRevision: state.activityRevision,
+      },
+      evaluated: {
+        topics: evaluation.topics,
+        dirtyThrough: chosen.dirtyThrough,
+        hasMore,
+        ...(evaluation.neighbours.length ? { neighbours: evaluation.neighbours } : {}),
+        ...(evaluation.systemsRead.length ? { systemsRead: evaluation.systemsRead } : {}),
+        ...(evaluation.untrusted.length ? { untrusted: evaluation.untrusted } : {}),
+        ...(otherTrusted ? { otherTrusted: true as const } : {}),
+      },
+    };
+    if (new TextEncoder().encode(JSON.stringify(context)).byteLength <= EVALUATION.contextBytes)
+      return { kind: 'prepared', context, supportKeys: evaluation.supportKeys, structure };
+    // Too much for one frozen context: take fewer of the dirty topics and leave the rest for the next run.
+    if (!incremental || base.length <= 1)
+      return refused(
+        'context_too_large',
+        incremental ? { topics: base, dirtyThrough: chosen.dirtyThrough } : undefined,
+      );
+    base = base.slice(0, Math.ceil(base.length / 2));
+    hasMore = true;
+  }
 }

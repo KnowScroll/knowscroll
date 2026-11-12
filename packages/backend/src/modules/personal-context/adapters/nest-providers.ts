@@ -1,5 +1,6 @@
-import { READ_COVERAGE_INPUTS } from '../public.js';
+import { CLEAR_COVERAGE_DIRTY, MARK_COVERAGE_DIRTY, READ_COVERAGE_DIRTY, READ_COVERAGE_INPUTS } from '../public.js';
 import { readCoverageInputs } from './coverage-inputs.js';
+import { clearCoverageDirty, markCoverageDirty, readCoverageDirty } from './coverage-dirty.js';
 import {
   CHECK_COVERAGE_EVIDENCE,
   CHECK_RECORDING_COVERAGE_EVIDENCE,
@@ -43,6 +44,9 @@ import { applyProjectedEncounter, readContextRevision, readStructure } from './p
 export function personalContextProviders(tokens: { readonly readCurrentPlan?: symbol } = {}) {
   return [
     { provide: READ_COVERAGE_INPUTS, inject: [], useFactory: () => readCoverageInputs },
+    { provide: READ_COVERAGE_DIRTY, inject: [], useFactory: () => readCoverageDirty },
+    { provide: CLEAR_COVERAGE_DIRTY, inject: [], useFactory: () => clearCoverageDirty },
+    { provide: MARK_COVERAGE_DIRTY, inject: [], useFactory: () => markCoverageDirty },
     {
       provide: READ_COMPOSER_CONTEXT,
       inject: [READ_EXPLORATION_SNAPSHOT, ...(tokens.readCurrentPlan ? [tokens.readCurrentPlan] : [])],
@@ -119,3 +123,4 @@ export function personalContextProviders(tokens: { readonly readCurrentPlan?: sy
 }
 export { applyProjectedEncounter, readContextRevision, readStructure } from './postgres-store.js';
 export { activityContextEffect } from './activity-effect.js';
+export { reconcileCoverageDirty, type CoverageReconciliation } from './coverage-reconcile.js';

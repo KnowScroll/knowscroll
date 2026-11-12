@@ -75,12 +75,12 @@ export const publishDeltaQueue = defineQueue({
 /** Payload of the scheduled scan: nothing to name, it finds the work itself. */
 export const SweepQuietJobSchema = z.strictObject({ v: z.literal(1) });
 /**
- * Every 15 minutes: finds universes with a place due to go quiet and hands each to
- * `geography.settle-quiet` (D-104). Names no person. Safe to run late or twice.
+ * Every 15 minutes: finds the places due to go quiet and hands each universe's to `geography.settle-quiet`
+ * (D-104, D-416). Names no person. Safe to run late or twice.
  */
 export const sweepQuietQueue = defineQueue({
   name: 'geography.sweep-quiet',
-  purpose: 'Find universes whose places are due to go quiet and enqueue one rules-only settle for each; no model.',
+  purpose: 'Find places due to go quiet and enqueue one rules-only settle for each universe that holds some; no model.',
   payload: SweepQuietJobSchema,
   policy: {
     expireInSeconds: 120,
@@ -95,18 +95,30 @@ export const sweepQuietQueue = defineQueue({
   schedule: { cron: '*/15 * * * *', payload: { v: 1 } },
 });
 
-/** One universe to settle, bound to the recording generation the sweep saw. IDs only. */
-export const SettleQuietJobSchema = z.strictObject({
-  v: z.literal(1),
-  universeId: z.uuid(),
-  privacyEpoch: z.number().int().positive(),
-  recordingGeneration: z.number().int().min(1).max(2147483647),
-});
+/**
+ * The places of one universe that are due, bound to the recording generation the sweep saw. IDs only (D-416). A job
+ * from before per-place quiet (`v: 1`) names no place: it is read and ignored, and the sweep finds the places again.
+ */
+export const SettleQuietJobSchema = z.union([
+  z.strictObject({
+    v: z.literal(1),
+    universeId: z.uuid(),
+    privacyEpoch: z.number().int().positive(),
+    recordingGeneration: z.number().int().min(1).max(2147483647),
+  }),
+  z.strictObject({
+    v: z.literal(2),
+    universeId: z.uuid(),
+    privacyEpoch: z.number().int().positive(),
+    recordingGeneration: z.number().int().min(1).max(2147483647),
+    objectIds: z.array(z.uuid()).min(1).max(32),
+  }),
+]);
 export type SettleQuietJob = z.infer<typeof SettleQuietJobSchema>;
 /**
- * Settles the activity of one universe's places by the rules: a short transaction under the
- * personal root that rechecks authority, epoch and recording, reads current support, and applies
- * only the activity changes the support implies. Makes no model call and no network wait.
+ * Settles the activity of the named places of one universe by the rules: a short transaction under the
+ * personal root that rechecks authority, epoch and recording, reads current support of only their topics, and applies
+ * only the activity changes that support implies. Makes no model call and no network wait.
  */
 export const settleQuietQueue = defineQueue({
   name: 'geography.settle-quiet',

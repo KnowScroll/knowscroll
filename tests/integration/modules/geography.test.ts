@@ -447,13 +447,13 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       .execute();
     expect(await snapshot(p)).toMatchObject({ status: 'unavailable', reason: 'temporarily_unavailable' });
   });
-  it('discovery overflow is unavailable, never a truncated set of formation witnesses', async () => {
+  it('a reader with a thousand distinct support keys under one topic is read through a bounded few, never a truncated claim', async () => {
     const p = await seedPerson(database.db),
       f = await fixture(),
       e = await observe(p, f);
     await scope()(p.authority, async (sc) => {
-      // Deliberately invalid DISTINCT-key overflow, never a claim of semantic support. Discovery reads
-      // the distinct support keys the projection holds (#674), so more than 1000 of them is the limit.
+      // Deliberately invalid keys, never a claim of semantic support: the topic is read for its newest keys of each facet
+      // and the trusted read refuses what no certificate stands behind.
       const source = await transactionOf(sc)
         .selectFrom('personal_context.recording_coverage_references')
         .selectAll()
@@ -463,23 +463,23 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
       const rows = Array.from({ length: 1001 }, (_, i) => ({
         universe_id: p.universeId,
         privacy_epoch: 1,
-        topic_id: `ci.overflow.${i}`,
-        facet_id: `ci.overflow.${i}.facet`,
+        topic_id: source.topic_id,
+        facet_id: source.facet_id,
         meaning_sha256: source.meaning_sha256,
-        explanation_unit_id: source.explanation_unit_id,
+        explanation_unit_id: `ci-overflow-${i}`,
         truth_sha256: source.truth_sha256,
         reference_count: 1,
       }));
       await transactionOf(sc).insertInto('personal_context.coverage_supports').values(rows).execute();
-      expect(await base.readInputs(sc)).toMatchObject({
-        availability: 'unavailable',
-        completeness: 'not_asserted',
-        probes: [],
-      });
+      const read = await base.readInputs(sc, { topicIds: [source.topic_id], perFacet: 3 });
+      expect(read.probes).toHaveLength(3);
+      expect(read.topics).toEqual([source.topic_id]);
     });
     const r = runner(p),
       s = await state(p);
     await r.run(await job(p, s.activeRunId!), signal());
+    // The real key is the newest, so it is among the three read and trusted; the others have no certificate and are refused.
+    // One unit forms nothing, so no model is asked.
     expect(r.model.calls).toHaveLength(0);
     expect(await snapshot(p)).toMatchObject({ status: 'empty' });
   });
@@ -638,7 +638,8 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     release({ kind: 'success', text: JSON.stringify(formation(frozen)) });
     await running;
     expect(r.model.calls).toHaveLength(1);
-    expect(await snapshot(p)).toMatchObject({ status: 'empty', geography: { revision: 0 } });
+    // No delta applied. The refused answer's topic waits out a backoff and a successor run is queued, so the universe is loading (PR #723).
+    expect(await snapshot(p)).toMatchObject({ status: 'loading', geography: { revision: 0 } });
     expect(
       (
         await database.db
