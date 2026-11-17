@@ -62,7 +62,7 @@ Rules:
   scope (`apps/client/providers/account-scope.tsx`), so a switch also remounts the screens.
 
 The package exports its TypeScript sources. Its tests (`src/**/*.test.ts`, Vitest, labelled test
-doubles for `fetch`) run in CI only: `pnpm --filter @knowscroll/client-core test`.
+doubles for `fetch`) run locally and in CI (D-030): `pnpm --filter @knowscroll/client-core test`.
 
 The Reel recorder emits `reel.playback` through the same scope outbox. Only consecutive visible,
 foreground, nonbuffering 1× playback ticks contribute; explicit seek, loop jumps, stalls and gaps reset

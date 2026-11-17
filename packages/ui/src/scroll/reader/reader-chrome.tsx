@@ -5,8 +5,8 @@ import { Button } from '../../actions/button';
 import { IconButton } from '../../actions/icon-button';
 import { useDisplay } from '../../display/display';
 import { Text, useTypeStyle } from '../../text/text';
-import type { NextPartPeek } from './end-tray';
-import { SparkChip } from './play-chips';
+import type { NextPartPeek } from './reader-commands';
+import { SparkChip } from '../calls/play-chips';
 
 /**
  * The top bar of a v2 Scroll (D-133, D-185): Back for a standalone reader, otherwise Your Universe at the left, the title with its

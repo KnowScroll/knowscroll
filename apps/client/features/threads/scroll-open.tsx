@@ -7,8 +7,9 @@ import { content, layout, spacing } from '@knowscroll/design-tokens';
 import { Button, ErrorState, IconButton, OfflineState, ScrollArticle, Skeleton, StateBlock } from '@knowscroll/ui';
 import { useDocumentTitle } from '../../platform/document-title';
 import { recorderFor } from '../scroll/reading-recorder';
-import type { OpenedScroll, OpenedStageScroll } from '../scroll/scroll-session';
-import { StageReaderSurface } from '../scroll/stage-reader-surface';
+import type { OpenedScroll, OpenedScrollV2 } from '../scroll/scroll-session';
+import { ScrollReaderSurface } from '../scroll/scroll-reader-surface';
+import { ARTICLE_ONLY, EVERY_READER } from '../scroll/scroll-readers';
 import { useScrollSession } from '../scroll/use-scroll-session';
 import type { MomentThread } from './share-stop-sheet';
 
@@ -28,33 +29,30 @@ function Frame({ children, onBack }: { readonly children: ReactNode; readonly on
  * other state has its screen: opening, unavailable, needs an update, offline, error. This is where
  * reading begins: nothing is opened before the person chose to read.
  *
- * A caller that can draw a v2 Scroll passes `stage`: the Scroll is then opened as the Stage + Spine reader's
- * document and handed to `stage`. Without it a v2 Scroll is "needs an app update", as it is for a caller that
- * cannot read one.
+ * A caller that can draw a v2 Scroll passes `v2`: the Scroll is then opened for the v2 reader and handed to
+ * `v2`. Without it a v2 Scroll is "needs an app update", as it is for a caller that cannot read one.
  */
 export function OpenScroll({
   scope,
   assetId,
   onBack,
   children,
-  stage,
+  v2,
 }: {
   readonly scope: AccountScope;
   readonly assetId: string;
   readonly onBack: () => void;
   readonly children: (scroll: OpenedScroll) => ReactNode;
-  readonly stage?: ((scroll: OpenedStageScroll) => ReactNode) | undefined;
+  readonly v2?: ((scroll: OpenedScrollV2) => ReactNode) | undefined;
 }) {
-  const { session, state } = useScrollSession(scope, assetId, { stage: stage !== undefined });
+  const { session, state } = useScrollSession(scope, assetId, v2 === undefined ? ARTICLE_ONLY : EVERY_READER);
   useEffect(() => {
     session.start();
     return () => session.dispose();
   }, [session]);
   switch (state.status) {
     case 'ready':
-      return <>{children(state.scroll)}</>;
-    case 'ready_stage':
-      return <>{stage?.(state.scroll)}</>;
+      return <>{state.reader === 'article' ? children(state.scroll) : v2?.(state.scroll)}</>;
     case 'opening':
     case 'loading':
     case 'activating':
@@ -171,7 +169,7 @@ export function ThreadScrollArticle({
  * finish of a part). Parts and related Scrolls are not offered: the next part is chosen in the thread, whose player is
  * the only thing that tells a place (D-153).
  */
-export function ThreadStageScroll({
+export function ThreadScrollV2({
   scope,
   scroll,
   onBack,
@@ -180,7 +178,7 @@ export function ThreadStageScroll({
   initialStopId,
 }: {
   readonly scope: AccountScope;
-  readonly scroll: OpenedStageScroll;
+  readonly scroll: OpenedScrollV2;
   readonly onBack: () => void;
   readonly endSlot?: ReactNode;
   /** The thread this is read in: "Share a moment" sends into it. */
@@ -199,7 +197,7 @@ export function ThreadStageScroll({
     return () => recorder.end();
   }, [recorder]);
   return (
-    <StageReaderSurface
+    <ScrollReaderSurface
       scroll={scroll}
       observer={recorder.observer}
       paused={!focused}

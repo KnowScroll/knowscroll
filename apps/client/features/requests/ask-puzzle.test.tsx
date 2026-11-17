@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
-import type { StageLock, StagePlay } from '@knowscroll/ui';
+import type { CallLock, CallPlay } from '@knowscroll/ui';
 import stageDocument from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { CallItStop, ScrollDocumentV2 } from '@knowscroll/scroll-model';
-import type { OpenedStageScroll } from '../scroll/scroll-session';
+import type { OpenedScrollV2 } from '../scroll/scroll-session';
 import { AskPuzzle } from './ask-puzzle';
 
 /** The labelled CI fixture, opened as the encounter opens a v2 Scroll (never product content). */
 const document = stageDocument as unknown as ScrollDocumentV2;
-const scroll: OpenedStageScroll = {
+const scroll: OpenedScrollV2 = {
   exposureId: 'fixture-exposure',
   assetId: 'fixture-asset',
   assetRevision: 2,
@@ -19,9 +19,9 @@ const calls = document.stops.filter((stop): stop is CallItStop => stop.kind === 
 const last = document.stops.at(-1)!.id;
 
 /** A play layer that judges a lock the way the device does, and keeps it in memory. */
-function Harness({ paused = false, locked = [] as readonly StageLock[] }) {
-  const [locks, setLocks] = useState<readonly StageLock[]>(locked);
-  const play: StagePlay = {
+function Harness({ paused = false, locked = [] as readonly CallLock[] }) {
+  const [locks, setLocks] = useState<readonly CallLock[]>(locked);
+  const play: CallPlay = {
     locks,
     sparks: locks.filter((lock) => lock.correct).length,
     combo: 0,
@@ -80,7 +80,7 @@ describe('the puzzle in the wait', () => {
     await fireEvent.press(paused.getAllByRole('radio')[0]!);
     expect(paused.getByText('Not saved while recording is paused.')).toBeTruthy();
     await paused.unmount();
-    const played = calls.map((call): StageLock => ({
+    const played = calls.map((call): CallLock => ({
       stopId: call.id,
       option: call.answer,
       correct: true,

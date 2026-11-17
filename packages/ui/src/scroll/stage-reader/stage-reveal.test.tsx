@@ -5,7 +5,7 @@ import { describeStageState, type ScrollDocumentV2, type StageState } from '@kno
 import { DisplayProvider } from '../../display/display';
 import { FRESH_CALL } from './call-state';
 import { StageReader } from './stage-reader';
-import type { StagePlay, StageLock } from './stage-play';
+import type { CallPlay, CallLock } from '../calls/call-play';
 import { pictureStopOf } from './stage-reveal';
 import type { StageReadingObserver } from './use-stop-reading';
 
@@ -40,7 +40,7 @@ function spy(): Spy {
   };
 }
 
-function reader(document: ScrollDocumentV2, observer: StageReadingObserver, play?: StagePlay) {
+function reader(document: ScrollDocumentV2, observer: StageReadingObserver, play?: CallPlay) {
   return render(
     <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
       <StageReader document={document} observer={observer} commands={{}} initialStopId="call-delhi" play={play} />
@@ -102,7 +102,7 @@ describe('the picture a wrong answer turns the stage to', () => {
   });
 
   it('turns at once for a wrong answer the play layer already holds, as after a reload', async () => {
-    const lock: StageLock = {
+    const lock: CallLock = {
       stopId: 'call-delhi',
       option: 0,
       correct: false,
@@ -111,7 +111,7 @@ describe('the picture a wrong answer turns the stage to', () => {
       finalCall: false,
       keeping: 'saved',
     };
-    const play: StagePlay = { locks: [lock], sparks: 0, combo: 0, landmark: undefined, paused: false, lock: jest.fn() };
+    const play: CallPlay = { locks: [lock], sparks: 0, combo: 0, landmark: undefined, paused: false, lock: jest.fn() };
     await reader(turning, spy(), play);
     expect(screen.getByLabelText(TURNED_TO_JANUARY)).toBeOnTheScreen();
   });
@@ -125,8 +125,8 @@ function KeepingPlay({
   readonly asked: jest.Mock<void, [string, number]>;
   readonly observer: StageReadingObserver;
 }) {
-  const [locks, setLocks] = useState<readonly StageLock[]>([]);
-  const play: StagePlay = {
+  const [locks, setLocks] = useState<readonly CallLock[]>([]);
+  const play: CallPlay = {
     locks,
     sparks: 0,
     combo: 0,

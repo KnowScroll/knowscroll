@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import type { AccountScope } from '@knowscroll/client-core';
 import { newCommandId } from '../../platform/command-id';
 import { createRequestSession } from '../requests/request-session';
-import type { OpenedStageScroll } from './scroll-session';
+import type { OpenedScrollV2 } from './scroll-session';
 
 /**
  * Ask from here on a Scroll's own address (`/scroll/<id>`), where there is no encounter. It is the same Ask as Explore's
@@ -13,7 +13,7 @@ import type { OpenedStageScroll } from './scroll-session';
  *
  * `currentStop` names the stop on screen when Ask opens; the last stop stands in at the end of the Scroll.
  */
-export function useDirectAsk(scope: AccountScope, scroll: OpenedStageScroll, currentStop: () => string | undefined) {
+export function useDirectAsk(scope: AccountScope, scroll: OpenedScrollV2, currentStop: () => string | undefined) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const { exposureId, assetId, assetRevision } = scroll;

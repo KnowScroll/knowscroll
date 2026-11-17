@@ -86,8 +86,9 @@ uses the same command. Runtime variables:
 | `pnpm build` | every package's build |
 | `pnpm test` | every package's tests; the integration package needs `KS_TEST_DATABASE_URL` |
 
-Automated suites run in GitHub Actions, not locally (owner rule, D-010). Local runs are for
-building and using the product by hand.
+Unit and integration suites may run locally (D-030, which replaced D-010); GitHub Actions `checks` is
+still the required gate before a merge. Browser, Android and end-to-end journeys run in Actions or
+against dev unless an issue authorises a focused local run.
 
 ## Import boundaries (dependency-cruiser)
 

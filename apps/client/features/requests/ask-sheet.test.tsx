@@ -4,12 +4,12 @@ import { DisplayProvider } from '@knowscroll/ui';
 import stageDocument from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { EncounterOverlay } from '../encounter/encounter-overlay';
-import type { OpenedStageScroll } from '../scroll/scroll-session';
+import type { OpenedScrollV2 } from '../scroll/scroll-session';
 import { RequestPanel } from './request-panel';
 import { requestHarness } from './request-session.fixture';
 
 /** The labelled CI fixture, opened as the encounter opens a v2 Scroll (never product content). */
-const scroll: OpenedStageScroll = {
+const scroll: OpenedScrollV2 = {
   exposureId: 'fixture-exposure',
   assetId: 'fixture-asset',
   assetRevision: 2,

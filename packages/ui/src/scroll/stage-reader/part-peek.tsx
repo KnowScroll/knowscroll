@@ -2,7 +2,7 @@ import { Animated, StyleSheet, View } from 'react-native';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Tag } from '../../status/tag';
 import { Text } from '../../text/text';
-import type { NextPartPeek } from './end-tray';
+import type { NextPartPeek } from '../reader/reader-commands';
 import { SWIPE_DISTANCE } from './part-gesture';
 
 /** The bar fills to this many times the distance a release needs, so the notch sits at two thirds of it. */

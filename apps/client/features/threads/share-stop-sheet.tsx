@@ -7,7 +7,7 @@ import { Banner, Button, Skeleton, Stage, Text, useFocusRing, useTypeStyle } fro
 import { momentAnchorOf, momentOf, whyNoMoment, type NoMoment } from '@knowscroll/scroll-model';
 import { newCommandId } from '../../platform/command-id';
 import { useAccountScope } from '../../providers/account-scope';
-import type { OpenedStageScroll } from '../scroll/scroll-session';
+import type { OpenedScrollV2 } from '../scroll/scroll-session';
 import { useSnippetSend } from './use-snippet-send';
 import { useThreadInbox } from './use-thread-inbox';
 
@@ -130,7 +130,7 @@ function SendMoment({
   onClose,
 }: {
   readonly scope: AccountScope;
-  readonly scroll: OpenedStageScroll;
+  readonly scroll: OpenedScrollV2;
   readonly stopId: string;
   readonly thread: MomentThread;
   readonly onClose: () => void;
@@ -215,7 +215,7 @@ function SendMoment({
  * as the reader draws it at that stop, when the Scroll has one, and the words the card will quote. The picture is the
  * reader's own drawing, so nothing about it is sent; the card carries the stop and a hash (D-292).
  */
-function MomentPreview({ scroll, stopId }: { readonly scroll: OpenedStageScroll; readonly stopId: string }) {
+function MomentPreview({ scroll, stopId }: { readonly scroll: OpenedScrollV2; readonly stopId: string }) {
   const moment = momentOf(scroll.document, stopId);
   const { stage, stops, title } = scroll.document;
   if (moment === undefined) return null;
@@ -248,7 +248,7 @@ export function ShareStopSheet({
   thread,
   onClose,
 }: {
-  readonly scroll: OpenedStageScroll;
+  readonly scroll: OpenedScrollV2;
   /** The stop on screen when the sheet opened. */
   readonly stopId: string | undefined;
   /** The thread the Scroll is being read in, when it is read in one. */

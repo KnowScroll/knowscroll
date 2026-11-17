@@ -13,7 +13,7 @@ import {
   type ScrollDocument,
   type ScrollDocumentV2,
 } from '@knowscroll/scroll-model';
-import { SCROLL_CAPABILITIES, STAGE_CAPABILITIES } from './capabilities';
+import { ARTICLE_ONLY, capabilitiesFor, readerFor, type ScrollReaderKind, type ScrollToDraw } from './scroll-readers';
 
 /** The lineage the recorder's observations carry. */
 export interface OpenedScroll {
@@ -28,19 +28,19 @@ export interface OpenedScroll {
 }
 
 /** A v2 Scroll, opened for the Stage + Spine reader: the same lineage, a stop-based document. */
-export type OpenedStageScroll = Omit<OpenedScroll, 'document'> & { readonly document: ScrollDocumentV2 };
+export type OpenedScrollV2 = Omit<OpenedScroll, 'document'> & { readonly document: ScrollDocumentV2 };
 
 /** Either kind of opened Scroll, for the places that only need what both share (lineage, keep positions). */
-export type AnyOpenedScroll = OpenedScroll | OpenedStageScroll;
+export type AnyOpenedScroll = OpenedScroll | OpenedScrollV2;
 
 /** Whether an opened Scroll is a v2 document, which the Stage + Spine reader draws (v1 keeps the article). */
-export function isStageScroll(scroll: AnyOpenedScroll): scroll is OpenedStageScroll {
+export function isScrollV2(scroll: AnyOpenedScroll): scroll is OpenedScrollV2 {
   return scroll.document.schemaVersion === SCROLL_DOCUMENT_V2_SCHEMA_VERSION;
 }
 
 /** The ids a position in this Scroll can name: block ids in v1, stop ids in v2. */
 export function positionIds(scroll: AnyOpenedScroll): readonly string[] {
-  return isStageScroll(scroll)
+  return isScrollV2(scroll)
     ? scroll.document.stops.map((stop) => stop.id)
     : scroll.document.sections.flatMap((section) => section.blocks.map((block) => block.id));
 }
@@ -54,9 +54,8 @@ export type ScrollSessionState =
   | { readonly status: 'opening' }
   | { readonly status: 'loading' }
   | { readonly status: 'activating' }
-  | { readonly status: 'ready'; readonly scroll: OpenedScroll }
-  /** A v2 document, for a caller that declared it can read one (`stage: true`). */
-  | { readonly status: 'ready_stage'; readonly scroll: OpenedStageScroll }
+  /** Opened, with the reader of those the caller offers that draws it. */
+  | ({ readonly status: 'ready' } & ScrollToDraw<AnyOpenedScroll>)
   | { readonly status: 'unavailable' }
   | { readonly status: 'needs_update' }
   | { readonly status: 'offline' }
@@ -67,8 +66,8 @@ export interface ScrollSessionOptions {
   readonly assetId: string;
   /** Mints a UUID per user intent (a command ID); one per step, kept for every retry of that step. */
   readonly newId: () => string;
-  /** The caller draws v2 documents (the Stage + Spine reader): declare `scroll-document.v2` and accept one. */
-  readonly stage?: boolean;
+  /** The readers the caller can draw with (`scroll-readers.ts`); the article alone unless it says otherwise. */
+  readonly readers?: readonly ScrollReaderKind[];
 }
 
 export interface ScrollSession {
@@ -90,7 +89,7 @@ const UNAVAILABLE_PROBLEMS: ReadonlySet<string> = new Set([
 /**
  * Opens a Scroll in three steps, each a command or read the API answers durably (blueprint §7):
  * `open` creates the exposure (the lineage root; a command with a receipt), the document is read for
- * that exposure (negotiated for `SCROLL_CAPABILITIES`), and `activate` marks the article the active
+ * that exposure (negotiated for the readers the caller offers), and `activate` marks the article the active
  * reading surface, after which, and only then, the recorder may start. Each command's ID is minted
  * once and reused when a step is retried, so a retry never opens a second exposure.
  *
@@ -107,7 +106,8 @@ export function createScrollSession(options: ScrollSessionOptions): ScrollSessio
   let opened: { exposureId: string; assetRevision: number } | undefined;
   let loaded:
     { document: ScrollDocument | ScrollDocumentV2; degradedEssential: OpenedScroll['degradedEssential'] } | undefined;
-  const capabilities: ClientCapabilities = options.stage === true ? STAGE_CAPABILITIES : SCROLL_CAPABILITIES;
+  const readers = options.readers ?? ARTICLE_ONLY;
+  const capabilities: ClientCapabilities = capabilitiesFor(readers);
 
   const set = (next: ScrollSessionState): void => {
     if (disposed) return;
@@ -153,7 +153,7 @@ export function createScrollSession(options: ScrollSessionOptions): ScrollSessio
         if (disposed) return;
         // The client path: structure, bounds and cheap checks; the server proved the rest at admission.
         const parsed = parseScrollDocument(response.document);
-        if (parsed.kind !== 'valid' || (parsed.schema === 'v2' && options.stage !== true)) {
+        if (parsed.kind !== 'valid' || readerFor({ document: parsed.document }, readers) === undefined) {
           set({ status: parsed.kind === 'valid' ? 'needs_update' : 'error' });
           return;
         }
@@ -181,12 +181,8 @@ export function createScrollSession(options: ScrollSessionOptions): ScrollSessio
         assetRevision: opened.assetRevision,
         degradedEssential: loaded.degradedEssential,
       };
-      const { document } = loaded;
-      set(
-        document.schemaVersion === SCROLL_DOCUMENT_V2_SCHEMA_VERSION
-          ? { status: 'ready_stage', scroll: { ...lineage, document } }
-          : { status: 'ready', scroll: { ...lineage, document } },
-      );
+      const drawn = readerFor({ ...lineage, document: loaded.document }, readers);
+      set(drawn === undefined ? { status: 'needs_update' } : { status: 'ready', ...drawn });
     } catch (error) {
       if (error instanceof ScopeEndedError || disposed) return;
       set(failure(error));

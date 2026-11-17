@@ -5,7 +5,7 @@ import { DisplayProvider } from '@knowscroll/ui';
 import { RequestNotice } from '../encounter/encounter-notices';
 import { id } from '../encounter/encounter-session.fixture';
 import { requestHarness } from '../requests/request-session.fixture';
-import type { OpenedStageScroll } from './scroll-session';
+import type { OpenedScrollV2 } from './scroll-session';
 import { SLOW_READ_EVERY_MS } from '../requests/request-session';
 import { useDirectAsk } from './use-direct-ask';
 
@@ -28,7 +28,7 @@ const scroll = {
   assetId: id(5),
   assetRevision: 2,
   document: { stops: [{ id: 'stop-one' }, { id: 'stop-two' }] },
-} as unknown as OpenedStageScroll;
+} as unknown as OpenedScrollV2;
 
 const harness = requestHarness();
 let latest: ReturnType<typeof useDirectAsk>;

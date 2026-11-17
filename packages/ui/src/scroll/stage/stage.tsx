@@ -5,8 +5,8 @@ import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { Text } from '../../text/text';
 import { KIT_PICTURES } from '../kit';
 import { printedSurface } from '../../display/printed';
-import { dataSet } from '../stage-reader/data-set';
-import { tiltText } from '../stage-reader/tilt-control';
+import { dataSet } from '../../display/data-set';
+import { tiltText } from './tilt-control';
 import { stageEntryAt } from './stage-state';
 import { useStagePictures } from './use-stage-pictures';
 

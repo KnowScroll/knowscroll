@@ -4,21 +4,13 @@ import { borderWidth, content, radius, spacing, target } from '@knowscroll/desig
 import { useFocusRing } from '../../display/focus-ring';
 import { Icon } from '../../icons/icon';
 import { Text } from '../../text/text';
-import type { NextPartPeek } from './end-tray';
+import type { NextPartPeek, PartArrival } from '../reader/reader-commands';
 
 /** How long the bar says where the person's place went: long enough to read, short enough not to sit on the text. */
 const BAR_MS = 4_000;
 
 /** The row of a Part with no picture that holds the back tab. */
 export const TAB_ROW_HEIGHT = target.minimum + spacing[2];
-
-/** What the reader says when it was opened by a move to the next Part. */
-export interface PartArrival {
-  /** The Part now on screen: "Part 2". */
-  readonly part: string;
-  /** The Part left behind, whose place is kept: "Part 1". */
-  readonly from: string;
-}
 
 /**
  * "Part 2 · your place in Part 1 is kept" (V3 G2, F11): said once when a Part opens from the one before, over the top of

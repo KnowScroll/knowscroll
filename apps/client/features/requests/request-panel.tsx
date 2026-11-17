@@ -13,7 +13,7 @@ import {
 } from '@knowscroll/design-tokens';
 import { Button, IconButton, RequestStatusChip, Text, useTypeStyle } from '@knowscroll/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { OpenedStageScroll } from '../scroll/scroll-session';
+import type { OpenedScrollV2 } from '../scroll/scroll-session';
 import { AskSheet } from './ask-sheet';
 import { RequestChoices } from './request-choices';
 import { canTryAgain, unavailableMessage } from './request-copy';
@@ -30,7 +30,7 @@ export function RequestPanel({
 }: {
   readonly session: RequestSession;
   readonly onClose: () => void;
-  readonly ask?: { readonly scroll: OpenedStageScroll } | undefined;
+  readonly ask?: { readonly scroll: OpenedScrollV2 } | undefined;
 }) {
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   const type = useTypeStyle('body');

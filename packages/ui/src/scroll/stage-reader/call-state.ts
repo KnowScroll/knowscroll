@@ -1,5 +1,5 @@
 import type { CallItStop, FinalCallStop } from '@knowscroll/scroll-model';
-import type { StageKeeping } from './stage-play';
+import type { CallKeeping } from '../calls/call-play';
 
 /**
  * A call as the reader shows it: the option picked, and whether the answer has been revealed (a lock
@@ -41,7 +41,7 @@ export function resultOf(call: CallItStop | FinalCallStop, state: CallState): Ca
 }
 
 /** What the screen says about whether a locked call is kept, or nothing when there is nothing to say. */
-export function keepingNote(keeping: StageKeeping): string | undefined {
+export function keepingNote(keeping: CallKeeping): string | undefined {
   switch (keeping) {
     case 'recording_paused':
       return 'Not saved while recording is paused.';

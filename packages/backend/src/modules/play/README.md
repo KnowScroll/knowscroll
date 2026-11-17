@@ -110,7 +110,7 @@ Scroll revision's calls, through Content's `READ_SCROLL_PLAY_FACTS`, which now a
 
 Decisions D-063, D-064, D-082, D-083, D-155 to D-157 (play in threads), D-180 to D-182, D-187, D-188. Contracts: `packages/contracts/src/play.ts`. Client:
 `packages/client-core/src/play-session.ts`, `packages/ui/src/scroll/stage-reader/` (the call view, sparks chip),
-`apps/client/features/scroll/use-stage-play.ts`. Tally rule shared with the device: `packages/scroll-model/src/v2/play.ts`.
+`apps/client/features/scroll/use-scroll-play.ts`. Tally rule shared with the device: `packages/scroll-model/src/v2/play.ts`.
 
 ### Scrolls with no questions (D-397)
 
