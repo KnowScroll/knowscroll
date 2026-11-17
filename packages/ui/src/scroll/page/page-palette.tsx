@@ -21,7 +21,7 @@ export interface PagePalette {
 }
 
 /** Today's printed page: the Light values of the content register, in both appearances (D-400). */
-export const PRINTED_PAGE: PagePalette = {
+const PRINTED_PAGE: PagePalette = {
   ground: printed.paper,
   raised: printed.paper2,
   ink: printed.ink,
@@ -30,10 +30,8 @@ export const PRINTED_PAGE: PagePalette = {
   link: printed.accentDeep,
 };
 
+/** A page's palette. Every page is printed Light for now (D-400); a provider will give the dark page its own. */
 const PageContext = createContext<PagePalette>(PRINTED_PAGE);
-
-/** Gives a page its palette. Without one, a page is printed Light. */
-export const PagePaletteProvider = PageContext.Provider;
 
 export function usePagePalette(): PagePalette {
   return useContext(PageContext);

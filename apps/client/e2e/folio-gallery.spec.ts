@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { mkdirSync } from 'node:fs';
+import { exportCarries } from './export-files';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import circulation from '@knowscroll/scroll-model/fixtures/circulation-stage-ci.json';
@@ -516,3 +517,16 @@ for (const { label, viewport } of sizes) {
     });
   }
 }
+
+test('a stop the document does not have opens the essay at its start and is never reported', async ({ page }) => {
+  await open(page, 'seasons', { width: 390, height: 844 }, { stop: 'no-such-stop' });
+  const top = await scroller(page).evaluate((node) => node.scrollTop);
+  expect(top).toBe(0);
+  const { stops } = await galleryEvents(page);
+  expect(stops).not.toContain('no-such-stop');
+  expect(stops[0]).toBe(seasons.stops[0]?.id);
+});
+
+test('the gallery build carries the Folio gallery marker (the control for the production export check)', () => {
+  expect(exportCarries(join(__dirname, '..', 'dist-gallery'), 'ks-folio-gallery')).toBe(true);
+});

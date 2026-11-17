@@ -16,6 +16,12 @@ function scrollerOf(element: Element): Element | null {
  */
 export function createPlaces(): Places {
   const elements = new Map<string, Element>();
+  // The scroller does not change under a mounted beat: found once per element, not on every scroll event.
+  const scrollers = new WeakMap<Element, Element | null>();
+  const scrollerFor = (element: Element): Element | null => {
+    if (!scrollers.has(element)) scrollers.set(element, scrollerOf(element));
+    return scrollers.get(element) ?? null;
+  };
   return {
     laidOut: () => undefined,
     attached: (id, element) => {
@@ -24,7 +30,7 @@ export function createPlaces(): Places {
     },
     topOf: (id) => {
       const element = elements.get(id);
-      const scroller = element === undefined ? null : scrollerOf(element);
+      const scroller = element === undefined ? null : scrollerFor(element);
       if (element === undefined || scroller === null || !element.isConnected) return undefined;
       return element.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
     },

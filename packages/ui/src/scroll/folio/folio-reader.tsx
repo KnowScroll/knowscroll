@@ -145,8 +145,11 @@ export function FolioReader({
   const [places] = useState(createPlaces);
   // A kept place opens where it was left. The page settles over several frames (holds measure themselves, figures draw),
   // so the place is held until the person scrolls or the page has had time to settle; until then it is what is being read.
-  const [kept] = useState(() => createKeptPlace(initialStopId !== undefined));
-  const [reading, setReading] = useState<string | undefined>(initialStopId ?? order[0]?.id);
+  // A place kept from another revision, or a mistyped anchor, names no beat here: the essay opens at its start instead,
+  // so nothing the screen keeps or asks about can name a stop this document does not have.
+  const [startStop] = useState(() => order.find((beat) => beat.id === initialStopId)?.id);
+  const [kept] = useState(() => createKeptPlace(startStop !== undefined));
+  const [reading, setReading] = useState<string | undefined>(startStop ?? order[0]?.id);
   const [atEnd, setAtEnd] = useState(false);
   const [textVersion, setTextVersion] = useState(false);
   const [simpler, setSimpler] = useState<ReadonlySet<string>>(new Set());
@@ -192,12 +195,12 @@ export function FolioReader({
     return () => clearTimeout(timer);
   }, [kept]);
   const restore = useCallback(() => {
-    if (!kept.holding() || initialStopId === undefined) return;
-    const target = targetOf(initialStopId);
+    if (!kept.holding() || startStop === undefined) return;
+    const target = targetOf(startStop);
     if (target === undefined) return;
     const y = Math.max(0, target);
     if (kept.ask(y)) scroller.current?.scrollTo({ y, animated: false });
-  }, [kept, initialStopId, targetOf]);
+  }, [kept, startStop, targetOf]);
   const placeBeat = useCallback(
     (beatId: string, top: number) => {
       places.laidOut(beatId, top);

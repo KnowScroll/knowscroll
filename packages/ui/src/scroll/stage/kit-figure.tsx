@@ -41,8 +41,8 @@ export interface DrawnFigure {
 function sceneOf(figure: FigureState): unknown {
   const kit = KIT_PICTURES[figure.kit];
   if (figure.kind === 'state') return kit.sceneOf(figure.state);
-  // A recap figure is only made for a kit that draws one (`stageFigureAt`); the last state is the honest fallback.
-  return kit.recap?.sceneOf(figure.states) ?? kit.sceneOf(figure.states.at(-1));
+  // A recap figure is made only where the kit draws one for these states (`stageFigureAt`).
+  return kit.recap?.sceneOf(figure.states);
 }
 
 /**

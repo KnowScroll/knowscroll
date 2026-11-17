@@ -5,6 +5,7 @@ import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { encounterFixture } from './encounter-fixture';
+import { exportCarries } from './export-files';
 
 /**
  * Folio, the essay reader of a v2 Scroll, in the production export (#732). It is opt-in by a device preference, so these
@@ -245,4 +246,11 @@ test('a device that has not chosen Folio gets the Stage reader: Folio is only a 
   await expect(page.getByRole('button', { name: 'Stop 1 of 12, you are here' })).toBeVisible();
   await expect(page.getByTestId('folio-page')).toHaveCount(0);
   await expect(page.getByTestId('folio-scroller')).toHaveCount(0);
+});
+
+test('the production export carries no Folio gallery, and its address is not a page', async ({ page }) => {
+  expect(exportCarries(join(__dirname, '..', 'dist'), 'ks-folio-gallery')).toBe(false);
+  await page.goto('/gallery-folio');
+  await expect(page.getByText("This page isn't here")).toBeVisible();
+  await expect(page.getByTestId('ks-folio-gallery')).toHaveCount(0);
 });

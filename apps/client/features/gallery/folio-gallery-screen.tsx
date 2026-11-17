@@ -28,7 +28,7 @@ import {
 import { useDocumentTitle } from '../../platform/document-title';
 
 /** Marker the browser smoke looks for; never in a production export. */
-export const folioGalleryMarker = 'ks-folio-gallery';
+const folioGalleryMarker = 'ks-folio-gallery';
 
 /** The labelled CI fixtures of `scroll-model` (not product content): every kit, and two Scrolls with play blocks and no picture. */
 const documents = {
