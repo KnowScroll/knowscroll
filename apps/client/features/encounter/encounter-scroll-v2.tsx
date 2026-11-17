@@ -5,7 +5,8 @@ import { content, spacing } from '@knowscroll/design-tokens';
 import { Button, useDisplay, type ReaderHandle } from '@knowscroll/ui';
 import { ScrollReaderSurface } from '../scroll/scroll-reader-surface';
 import type { OpenedScrollV2 } from '../scroll/scroll-session';
-import { EVERY_READER, readerFor } from '../scroll/scroll-readers';
+import { EVERY_READER, readerFor, v2ReaderOf } from '../scroll/scroll-readers';
+import { useScrollReaders } from '../scroll/use-scroll-readers';
 import { continuationIntent } from './continuation-intent';
 import { readerContinuations } from './continuation-moves';
 import { EncounterStrip } from './encounter-actions';
@@ -24,7 +25,8 @@ export type ScrollV2Entry = Extract<EncounterEntry, { kind: 'scroll' }> & { read
 
 /** Whether a v2 reader draws a Scroll entry (`readerFor`). The entry itself is kept: the session tracks entries by identity. */
 export function isScrollV2Entry(entry: Extract<EncounterEntry, { kind: 'scroll' }>): entry is ScrollV2Entry {
-  return readerFor(entry.scroll, EVERY_READER)?.reader === 'stage';
+  const drawn = readerFor(entry.scroll, EVERY_READER);
+  return drawn !== undefined && drawn.reader !== 'article';
 }
 
 /**
@@ -48,6 +50,7 @@ export function ScrollV2Encounter({
   readonly back: () => void;
   readonly hint: ReactNode;
 }) {
+  const readerKind = v2ReaderOf(useScrollReaders());
   const router = useRouter();
   const { breakpoint } = useDisplay();
   const narrow = breakpoint === 'compact' || breakpoint === 'phone';
@@ -91,6 +94,7 @@ export function ScrollV2Encounter({
   return (
     <View style={styles.page}>
       <ScrollReaderSurface
+        kind={readerKind}
         scroll={entry.scroll}
         observer={entry.recorder.observer}
         paused={!playable}

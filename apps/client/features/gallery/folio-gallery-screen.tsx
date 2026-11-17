@@ -71,7 +71,8 @@ const observer: UnitReadingObserver = {
 /**
  * Developer gallery of the Folio reader (`/gallery-folio`, gallery builds only): a v2 fixture document through the
  * real adapter (`readingModelOfV2`) and reader, with the app's top bar and dock and no backend. Query: `doc` (a fixture
- * name), `stop` (open at that stop), `motion=reduce`, `scale=2` (200 % text).
+ * name), `stop` (open at that stop), `motion=reduce`, `scale=2` (200 % text), `bare=1` (no fixture toolbar: the screen as
+ * a reader sees it).
  */
 export function FolioGalleryScreen() {
   useDocumentTitle('Folio gallery');
@@ -82,7 +83,13 @@ export function FolioGalleryScreen() {
   );
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ doc?: string; stop?: string; motion?: string; scale?: string }>();
+  const params = useLocalSearchParams<{
+    doc?: string;
+    stop?: string;
+    motion?: string;
+    scale?: string;
+    bare?: string;
+  }>();
   const name: DocumentName = isDocumentName(params.doc) ? params.doc : 'seasons';
   const document = documents[name] as unknown as ScrollDocumentV2;
   const model = useMemo(() => readingModelOfV2(document), [document]);
@@ -97,18 +104,20 @@ export function FolioGalleryScreen() {
       }}
     >
       <View testID={folioGalleryMarker} style={[styles.ground, { paddingTop: insets.top }]}>
-        <View role="toolbar" accessibilityLabel="Fixture documents" style={styles.controls}>
-          {(Object.keys(documents) as DocumentName[]).map((key) => (
-            <Button
-              key={key}
-              label={key}
-              size="sm"
-              variant={key === name ? 'primary' : 'default'}
-              toggled={key === name}
-              onPress={() => router.setParams({ doc: key, stop: undefined })}
-            />
-          ))}
-        </View>
+        {params.bare === '1' ? null : (
+          <View role="toolbar" accessibilityLabel="Fixture documents" style={styles.controls}>
+            {(Object.keys(documents) as DocumentName[]).map((key) => (
+              <Button
+                key={key}
+                label={key}
+                size="sm"
+                variant={key === name ? 'primary' : 'default'}
+                toggled={key === name}
+                onPress={() => router.setParams({ doc: key, stop: undefined })}
+              />
+            ))}
+          </View>
+        )}
         <FolioReader
           key={`${name}:${params.stop ?? ''}`}
           model={model}

@@ -93,7 +93,7 @@ export function BeatView({
           style={[styles.simplerLink, focus.style]}
           testID="simpler-toggle"
         >
-          <Text variant="uiS" color={page.link}>
+          <Text variant="meta" color={page.link}>
             {simpler ? 'Undo simpler' : 'Say it simpler'}
           </Text>
         </Pressable>

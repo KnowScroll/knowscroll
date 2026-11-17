@@ -19,6 +19,7 @@ import {
   type NativeSyntheticEvent,
   type ScrollViewInstance,
   type StyleProp,
+  type ViewInstance,
   type ViewStyle,
 } from 'react-native';
 import { layout, spacing } from '@knowscroll/design-tokens';
@@ -39,11 +40,14 @@ import { passageOf } from '../reader/passage';
 import { useBeatReading } from './beat-reading';
 import { BeatView } from './beat-view';
 import { EndPlateView } from './end-plate';
-import { figureHeightFor, isWide, readingBandOf } from './essay-layout';
+import { canPinHolds, figureHeightFor, holdsBeside, isWide, readingBandOf } from './essay-layout';
 import { FigureView } from './figure-view';
 import { folioKeyOf, type FolioKey } from './folio-keys';
 import { HoldView } from './hold-view';
-import { beatsOf, type Beat, type ReadingModel } from './reading-model';
+import { beatsOf, type Beat, type FigureControl, type ReadingModel } from './reading-model';
+import type { FigureState } from '../stage/kit-figure';
+import { createKeptPlace } from './kept-place';
+import { createPlaces, type Places } from './places';
 import { createScrollOffset, type ScrollOffset } from './scroll-offset';
 
 export interface FolioReaderProps {
@@ -71,16 +75,19 @@ export interface FolioReaderProps {
   readonly stopFooter?: ((stopId: string) => ReactNode) | undefined;
 }
 
-/** How far above a beat a jump lands, so the line before it still shows. */
-const JUMP_MARGIN = 24;
+/** The place of the end plate among the beats'. */
+const END = 'end';
 /** How long the arrival note stays: long enough to read, short enough not to sit on the text. */
 const ARRIVAL_MS = 4_000;
 
+/** How long after opening a kept place is held while the page settles, unless the person scrolls first. */
+const RESTORE_MS = 4_000;
+
 /** The beat being read: the last one whose top has reached the top of the reading band. */
-function beatAtLine(order: readonly Beat[], tops: ReadonlyMap<string, number>, line: number): string | undefined {
+function beatAtLine(order: readonly Beat[], places: Places, line: number): string | undefined {
   let reading = order[0]?.id;
   for (const beat of order) {
-    const top = tops.get(beat.id);
+    const top = places.topOf(beat.id);
     if (top !== undefined && top <= line) reading = beat.id;
   }
   return reading;
@@ -122,8 +129,10 @@ export function FolioReader({
   endSlot,
   stopFooter,
 }: FolioReaderProps) {
-  const { reducedMotion, breakpoint } = useDisplay();
+  const { reducedMotion, breakpoint, textScale } = useDisplay();
   const wide = isWide(breakpoint);
+  const [readerWidth, setReaderWidth] = useState(0);
+  const beside = holdsBeside(readerWidth);
   const page = usePagePalette();
   const [viewportHeight, setViewportHeight] = useState(0);
   const band = useMemo(() => readingBandOf(viewportHeight), [viewportHeight]);
@@ -133,8 +142,10 @@ export function FolioReader({
   const scroller = useRef<ScrollViewInstance>(null);
   const contentHeight = useRef(0);
   const order = useMemo(() => beatsOf(model), [model]);
-  const tops = useRef(new Map<string, number>());
-  const endTop = useRef(Infinity);
+  const [places] = useState(createPlaces);
+  // A kept place opens where it was left. The page settles over several frames (holds measure themselves, figures draw),
+  // so the place is held until the person scrolls or the page has had time to settle; until then it is what is being read.
+  const [kept] = useState(() => createKeptPlace(initialStopId !== undefined));
   const [reading, setReading] = useState<string | undefined>(initialStopId ?? order[0]?.id);
   const [atEnd, setAtEnd] = useState(false);
   const [textVersion, setTextVersion] = useState(false);
@@ -142,33 +153,57 @@ export function FolioReader({
   const [openNotes, setOpenNotes] = useState<ReadonlySet<string>>(
     () => new Set(order.flatMap((beat) => beat.notes.filter((note) => !note.collapsed).map((note) => note.id))),
   );
-  const figureHeight = figureHeightFor(viewportHeight, wide);
+  const figureHeight = figureHeightFor(viewportHeight, beside);
+  const pinHolds = canPinHolds(viewportHeight, figureHeight, beside, textScale);
 
   // The beat being read follows the scroll; the screen hears of it only when it changes.
   useEffect(
     () =>
       offset.subscribe(() => {
+        if (kept.holding()) return;
         const { top, viewport: height } = offset.current();
         const line = top + readingBandOf(height).top;
-        setReading(beatAtLine(order, tops.current, line));
-        setAtEnd(line >= endTop.current);
+        setReading(beatAtLine(order, places, line));
+        // The end: the end plate reached the reading line, or the page can scroll no further (a short end plate on a tall
+        // screen never reaches the line).
+        const bottom = top + height >= contentHeight.current - 2;
+        setAtEnd(line >= (places.topOf(END) ?? Infinity) || (bottom && top > 0));
       }),
-    [offset, order],
+    [kept, offset, order, places],
   );
   useEffect(() => {
     onStopChange?.(atEnd ? undefined : reading);
   }, [reading, atEnd, onStopChange]);
 
-  // A kept place opens where it was left: once, when its beat is first laid out, before the person scrolls.
-  const restored = useRef(initialStopId === undefined);
+  /**
+   * Where a stop is brought to: its top at the top of the reading band, so the stop opened is the stop being read, a held
+   * figure (which pins above the band) shows its state, and the end of the beat before it is still in view.
+   */
+  const targetOf = useCallback(
+    (stopId: string): number | undefined => {
+      const top = places.topOf(stopId);
+      return top === undefined ? undefined : top - readingBandOf(offset.current().viewport).top + 1;
+    },
+    [places, offset],
+  );
+
+  useEffect(() => {
+    const timer = setTimeout(kept.release, RESTORE_MS);
+    return () => clearTimeout(timer);
+  }, [kept]);
+  const restore = useCallback(() => {
+    if (!kept.holding() || initialStopId === undefined) return;
+    const target = targetOf(initialStopId);
+    if (target === undefined) return;
+    const y = Math.max(0, target);
+    if (kept.ask(y)) scroller.current?.scrollTo({ y, animated: false });
+  }, [kept, initialStopId, targetOf]);
   const placeBeat = useCallback(
     (beatId: string, top: number) => {
-      tops.current.set(beatId, top);
-      if (restored.current || beatId !== initialStopId) return;
-      restored.current = true;
-      scroller.current?.scrollTo({ y: Math.max(0, top - JUMP_MARGIN), animated: false });
+      places.laidOut(beatId, top);
+      restore();
     },
-    [initialStopId],
+    [places, restore],
   );
 
   const scrollTo = useCallback(
@@ -194,8 +229,8 @@ export function FolioReader({
     () => ({
       capture: () => (atEnd || reading === undefined ? undefined : { stopId: reading }),
       jumpToStop: (stopId) => {
-        const top = tops.current.get(stopId);
-        if (top !== undefined) scrollTo(top - JUMP_MARGIN);
+        const target = targetOf(stopId);
+        if (target !== undefined) scrollTo(target);
       },
       toggleSimpler: () => {
         if (atEnd || readBeat?.simple === undefined) return false;
@@ -214,7 +249,7 @@ export function FolioReader({
         textVersionOn: textVersion,
       }),
     }),
-    [atEnd, reading, readBeat, scrollTo, simpler, textVersion, textVersionShown, toggleSimpler],
+    [atEnd, reading, readBeat, scrollTo, simpler, targetOf, textVersion, textVersionShown, toggleSimpler],
   );
 
   const onKey = (key: FolioKey): boolean => {
@@ -273,18 +308,24 @@ export function FolioReader({
     }
   };
 
+  const onScrollEvent = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, layoutMeasurement } = event.nativeEvent;
+      // A scroll that is not the one the restore asked for is the person's: the kept place has done its job.
+      kept.scrolledTo(contentOffset.y);
+      offset.update(contentOffset.y, layoutMeasurement.height);
+      viewport.scrollProps.onScroll?.(event);
+    },
+    [kept, offset, viewport],
+  );
   const onScroll = useMemo(
     () =>
       Animated.event([{ nativeEvent: { contentOffset: { y: offset.animated } } }], {
         // Native moves a held figure on the UI thread; the browser pins it with CSS.
         useNativeDriver: Platform.OS !== 'web',
-        listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-          const { contentOffset, layoutMeasurement } = event.nativeEvent;
-          offset.update(contentOffset.y, layoutMeasurement.height);
-          viewport.scrollProps.onScroll?.(event);
-        },
+        listener: onScrollEvent,
       }),
-    [offset, viewport],
+    [offset, onScrollEvent],
   );
   const onLayout = (event: LayoutChangeEvent) => {
     const { height } = event.nativeEvent.layout;
@@ -300,14 +341,18 @@ export function FolioReader({
   const measure = wide ? (breakpoint === 'desktop' ? layout.measureDesktop : layout.measureTablet) : undefined;
   const column = measure === undefined ? styles.column : [styles.column, { maxWidth: measure }];
   // A hold beside its beats needs room for both: the column and the figure's share of the screen.
-  const holdColumn = measure === undefined ? styles.column : [styles.column, { maxWidth: measure * 1.7 }];
+  const holdColumn = !beside || measure === undefined ? column : [styles.column, { maxWidth: measure * 1.45 }];
   // A beat's wrapper is measured, so it must be a direct child of the essay's content (or of a hold, which says where it is).
-  const renderBeat = (beat: Beat, held?: { quiet: boolean; figureWords: string | undefined; contentTop: number }) => (
+  const renderBeat = (
+    beat: Beat,
+    held?: { quiet: boolean; figureWords: string | undefined; contentTop: number | undefined },
+  ) => (
     <MeasuredBeat
       key={beat.id}
       viewport={viewport}
       beat={beat}
-      contentTop={held?.contentTop ?? 0}
+      contentTop={held === undefined ? 0 : held.contentTop}
+      places={places}
       onTop={placeBeat}
       style={held === undefined ? column : undefined}
     >
@@ -330,11 +375,28 @@ export function FolioReader({
       />
     </MeasuredBeat>
   );
+  const renderFigure = (id: string, figure: FigureState, control?: FigureControl) => (
+    <View key={id} style={column}>
+      <FigureView
+        figure={figure}
+        control={control}
+        height={figureHeight}
+        reducedMotion={reducedMotion}
+        textVersion={textVersion}
+        testID={`figure-${id}`}
+      />
+    </View>
+  );
   return (
     <ReaderFocus keyOf={folioKeyOf} onKey={onKey}>
       {header}
       <ProgressRail offset={offset} contentHeight={contentHeight} />
-      <View style={[styles.page, { backgroundColor: page.ground }]} testID="folio-page" {...printedSurface()}>
+      <View
+        style={[styles.page, { backgroundColor: page.ground }]}
+        onLayout={(event) => setReaderWidth(event.nativeEvent.layout.width)}
+        testID="folio-page"
+        {...printedSurface()}
+      >
         <Animated.ScrollView
           ref={scroller}
           testID="folio-scroller"
@@ -345,6 +407,7 @@ export function FolioReader({
           onLayout={onLayout}
           onContentSizeChange={(width, height) => {
             contentHeight.current = height;
+            restore();
             viewport.scrollProps.onContentSizeChange?.(width, height);
           }}
           onScrollBeginDrag={viewport.scrollProps.onScrollBeginDrag}
@@ -369,43 +432,40 @@ export function FolioReader({
                 </Text>
               </View>
             ),
-            ...section.blocks.map((block) => {
-              if (block.kind === 'beat') return renderBeat(block.beat);
+            ...section.blocks.flatMap((block) => {
+              if (block.kind === 'beat') return [renderBeat(block.beat)];
               if (block.kind === 'figure') {
-                return (
-                  <View key={block.id} style={column}>
-                    <FigureView
-                      figure={block.figure}
-                      control={block.control}
-                      height={figureHeight}
-                      reducedMotion={reducedMotion}
-                      textVersion={textVersion}
-                      testID={`figure-${block.id}`}
-                    />
-                  </View>
+                return [renderFigure(block.id, block.figure, block.control)];
+              }
+              // Where a pinned figure would leave no room to read, a hold is drawn as beats each followed by its figure.
+              if (!pinHolds) {
+                return block.beats.flatMap((held, index) =>
+                  held.figure.key === block.beats[index - 1]?.figure.key
+                    ? [renderBeat(held.beat)]
+                    : [renderBeat(held.beat), renderFigure(`${block.id}-${held.beat.id}`, held.figure)],
                 );
               }
-              return (
+              return [
                 <HoldView
                   key={block.id}
                   style={holdColumn}
                   hold={block}
                   offset={offset}
-                  wide={wide}
+                  beside={beside}
                   figureHeight={figureHeight}
                   viewportHeight={viewportHeight}
                   reducedMotion={reducedMotion}
                   textVersion={textVersion}
                   renderBeat={renderBeat}
-                />
-              );
+                  places={places}
+                />,
+              ];
             }),
           ])}
           <View
+            ref={(node) => places.attached(END, node)}
             style={column}
-            onLayout={(event) => {
-              endTop.current = event.nativeEvent.layout.y;
-            }}
+            onLayout={(event) => places.laidOut(END, event.nativeEvent.layout.y)}
             {...dataSet({ ksStop: 'end', ksKind: 'end' })}
           >
             <EndPlateView
@@ -438,22 +498,32 @@ function MeasuredBeat({
   viewport,
   beat,
   contentTop,
+  places,
   onTop,
   style,
   children,
 }: {
   readonly viewport: ReadingViewport;
   readonly beat: Beat;
-  readonly contentTop: number;
+  readonly places: Places;
+  /** Where the beat's slot starts in the essay; `undefined` while it is not known (a hold not yet laid out). */
+  readonly contentTop: number | undefined;
   readonly onTop: (beatId: string, top: number) => void;
   readonly style?: StyleProp<ViewStyle>;
   readonly children: ReactNode;
 }) {
-  const { onLayout: onReadingLayout, ref } = useBeatReading(viewport, beat.id, contentTop);
+  const { onLayout: onReadingLayout, ref: readingRef } = useBeatReading(viewport, beat.id, contentTop);
+  const ref = useCallback(
+    (node: ViewInstance | null) => {
+      readingRef?.(node);
+      places.attached(beat.id, node);
+    },
+    [readingRef, places, beat.id],
+  );
   // A held beat learns where its hold is after its own layout: say where it starts again when that moves.
   const ownTop = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (ownTop.current !== undefined) onTop(beat.id, contentTop + ownTop.current);
+    if (ownTop.current !== undefined && contentTop !== undefined) onTop(beat.id, contentTop + ownTop.current);
   }, [beat.id, contentTop, onTop]);
   return (
     <View
@@ -462,7 +532,7 @@ function MeasuredBeat({
       onLayout={(event) => {
         onReadingLayout?.(event);
         ownTop.current = event.nativeEvent.layout.y;
-        onTop(beat.id, contentTop + event.nativeEvent.layout.y);
+        if (contentTop !== undefined) onTop(beat.id, contentTop + event.nativeEvent.layout.y);
       }}
       {...dataSet({ ksStop: beat.id, ksKind: beat.kind === 'prose' ? 'read' : 'call' })}
     >

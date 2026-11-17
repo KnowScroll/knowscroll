@@ -82,8 +82,21 @@ export function EndPlateView({
         {nextPart === undefined ? null : (
           <Button label={`${nextPart.label} · ${nextPart.title}`} variant="continue" onPress={nextPart.onPress} />
         )}
-        {onNextIdea === undefined ? null : <Button label="Next idea" variant="primary" onPress={onNextIdea} />}
-        {onClose === undefined ? null : <Button label="Close" variant="default" onPress={onClose} />}
+        {/* Close and the next idea share a row, the next idea taking the room: the prototype's end plate. */}
+        <View style={styles.row}>
+          {onClose === undefined ? null : <Button label="Close" variant="default" onPress={onClose} />}
+          {onNextIdea === undefined ? null : (
+            <View style={styles.grow}>
+              <Button
+                label="Next idea"
+                variant="primary"
+                icon="arrowRight"
+                iconPosition="trailing"
+                onPress={onNextIdea}
+              />
+            </View>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -94,4 +107,6 @@ const styles = StyleSheet.create({
   smallPrint: { gap: spacing[2], alignItems: 'flex-start' },
   smallPrintText: { gap: spacing[1] },
   ways: { gap: spacing[3], paddingTop: spacing[5], borderTopWidth: borderWidth.regular },
+  row: { flexDirection: 'row', gap: spacing[3], alignItems: 'stretch' },
+  grow: { flex: 1, minWidth: 0 },
 });

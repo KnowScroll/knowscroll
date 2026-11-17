@@ -155,6 +155,10 @@ The stage takes no drag in this version; the swipe is read on the text only (D-0
 
 **Quick answer card (D-253; status: implemented, web smoke-tested; **runtime-verified** on dev, web, 2 Nov, dev-check-9).** `QuickAnswerCard` (`reader/quick-answer-card.tsx`) is the presentational card the app draws under a stop through the reader's `stopFooter` slot: the server's label ("Quick answer · not a checked Scroll") on every state, then "working", the question and answer, or a plain sentence saying why there is none, with "Make it a full Scroll", "Ask a follow-up", Report and Close. It takes no model, request or evidence: the app's session owns those. It marks itself `data-ks-no-ask`, so the web selection menu offers nothing on words inside it, and `StageReader` brings a footer that appears or grows on screen (`onStopFooterLayout`). Tests: `quick-answer-card.test.tsx`, `selection-menu.web.test.tsx`.
 
+## Folio reader (`src/scroll/folio`, D-423)
+
+Status: **implemented** behind a device switch (Account → Accessibility & playback), unit-tested and smoke-tested on the web; a hold is checked on the Android emulator. A Scroll as an essay: `readingModelOfV2` turns a `scroll-document.v2` into a reading model, `FolioReader` draws it with the same commands, handle, header and dock as `StageReader`. Figures are drawn by `stage/kit-figure.tsx` (`useKitFigure`, `FigureDrawing`), which `Stage` uses too. The folder's own README says how a document becomes a screen, where a new document version plugs in and how reading is measured.
+
 ## Platform files
 
 Only where behaviour differs (blueprint §18):

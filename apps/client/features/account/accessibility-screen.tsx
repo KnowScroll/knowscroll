@@ -68,6 +68,13 @@ export function AccessibilityScreen() {
       <Text variant="body" style={{ paddingTop: spacing[2] }}>
         This line is the size you chose.
       </Text>
+      <SettingsLabel>Reading</SettingsLabel>
+      <SwitchRow
+        label="Read Scrolls as an essay (trial)"
+        description="The new Folio reader: one column, pictures in the text. Off: the Stage reader."
+        on={preferences.scrollReader === 'folio'}
+        onChange={(folio) => update({ scrollReader: folio ? 'folio' : 'stage' })}
+      />
       <SettingsLabel>Playback</SettingsLabel>
       <SwitchRow
         label="Start Reels with sound"
