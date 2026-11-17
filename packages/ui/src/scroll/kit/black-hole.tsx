@@ -12,10 +12,11 @@ import {
   FocusRing,
   INK,
   Label,
+  LIT,
   MUTED,
   OUTLINE,
-  PAPER,
   PAPER_DEEP,
+  SOLID,
   SUN,
   WARM,
 } from './parts';
@@ -32,18 +33,18 @@ const CORE = '#FF7A3D';
 const GAS = '#B9A5DA';
 const GLOW = '#FFB84D';
 
-/** A label in paper colour, for the dark discs. */
+/** A label in the always-light colour, for the dark discs. */
 function LightLabel({ at, text }: { readonly at: Point; readonly text: string }): ReactElement {
   return (
-    <SvgText x={at.x} y={at.y} fontSize={8.5} fontFamily={fontFamily.mono} fill={PAPER} textAnchor="middle">
+    <SvgText x={at.x} y={at.y} fontSize={8.5} fontFamily={fontFamily.mono} fill={LIT} textAnchor="middle">
       {text}
     </SvgText>
   );
 }
 
-/** A dark disc: a black hole, or the horizon of one. */
+/** A dark disc: a black hole, or the horizon of one. SOLID so it stays dark in both appearances; the INK edge keeps it visible on a dark plate. */
 function Hole({ at, radius }: { readonly at: Point; readonly radius: number }): ReactElement {
-  return <Circle cx={at.x} cy={at.y} r={radius} fill={INK} stroke={INK} strokeWidth={OUTLINE} />;
+  return <Circle cx={at.x} cy={at.y} r={radius} fill={SOLID} stroke={INK} strokeWidth={OUTLINE} />;
 }
 
 /** A ring-shaped part, as an even-odd path of two circles or two flattened ellipses. */
@@ -199,12 +200,12 @@ function HorizonView({ scene }: { readonly scene: BlackHoleScene }) {
         y1={target.at.y}
         x2={target.at.x}
         y2={target.at.y - target.radius}
-        stroke={PAPER}
+        stroke={LIT}
         strokeWidth={1.6}
         strokeDasharray="3 3"
       />
       <Arrow from={outStart} to={outEnd} width={4} colour={BLUE} outlined />
-      <Arrow from={inStart} to={inEnd} width={3} colour={PAPER} />
+      <Arrow from={inStart} to={inEnd} width={3} colour={LIT} />
       <Label at={{ x: Math.min(outStart.x, 244), y: outStart.y + 16 }} text="LIGHT ESCAPES" anchor="start" />
       <Label at={{ x: Math.min(Math.max(target.at.x, 95), 225), y: 152 }} text="EVEN OUTWARD LIGHT FALLS IN" />
       <Label at={{ x: 160, y: 182 }} text="HORIZON GOES WITH MASS · NOTHING DRAWN AT CENTRE" />
@@ -399,13 +400,13 @@ function ShadowView({ scene }: { readonly scene: BlackHoleScene }) {
         stroke={INK}
         strokeWidth={1.6}
       />
-      <Circle cx={centre.x} cy={centre.y} r={scene.shadowPx} fill={INK} />
+      <Circle cx={centre.x} cy={centre.y} r={scene.shadowPx} fill={SOLID} />
       <Circle
         cx={centre.x}
         cy={centre.y}
         r={scene.shadowHorizonPx}
         fill="none"
-        stroke={PAPER}
+        stroke={LIT}
         strokeWidth={1.6}
         strokeDasharray="3 3"
       />

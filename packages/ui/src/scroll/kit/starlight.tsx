@@ -1,16 +1,17 @@
 import type { ReactElement } from 'react';
 import Svg, { Circle, G, Line, Path, Polygon, Rect } from 'react-native-svg';
+import { printed } from '@knowscroll/design-tokens';
 import { VISIBLE_NANOMETRES, wavelengthColour, ZONE_STARS, type StarKind } from '../model';
 import { SCENE_HEIGHT, SCENE_WIDTH, type Point } from './earth-sky-scene';
 import {
   BLUE,
-  FOCUS,
   FocusBox,
   FocusOutline,
   FocusRing,
   GREEN,
   INK,
   Label,
+  LIT,
   MUTED,
   OUTLINE,
   PAPER_DEEP,
@@ -46,10 +47,17 @@ const NAMES: Readonly<Record<StarKind, string>> = {
 const colourOf = (scene: StarlightScene, kind: StarKind): string =>
   scene.colours[HOTTEST_FIRST.indexOf(kind)] ?? '#FFFFFF';
 
-/** A star's disc in its drawn colour, with a faint glow. */
+/**
+ * The blue of the total-output and share bars, fixed at the Light focus colour. FOCUS flips with the page and is also
+ * the dashed ring drawn round the row, so a FOCUS-filled bar would blend into its own ring in Dark.
+ */
+const OUTPUT_BLUE = printed.accentDeep;
+
+/** A star's disc in its drawn colour, with a faint glow: translucent over LIT, so it stays light on a dark plate. */
 function StarDisc({ at, radius, colour }: { readonly at: Point; readonly radius: number; readonly colour: string }) {
   return (
     <G>
+      <Circle cx={at.x} cy={at.y} r={radius * 1.25} fill={LIT} />
       <Circle cx={at.x} cy={at.y} r={radius * 1.25} fill={colour} opacity={0.28} />
       <Circle cx={at.x} cy={at.y} r={radius} fill={colour} stroke={INK} strokeWidth={OUTLINE} />
     </G>
@@ -138,7 +146,7 @@ function ColourView({ scene }: { readonly scene: StarlightScene }) {
 const BAR_ROWS = [
   { label: 'SIZE: SURFACE AREA', top: 116, colour: MUTED, focus: 'size' },
   { label: 'HEAT: LIGHT FROM EACH PATCH', top: 141, colour: WARM, focus: 'heat' },
-  { label: 'TOTAL OUTPUT: THE TWO TOGETHER', top: 166, colour: FOCUS, focus: 'output' },
+  { label: 'TOTAL OUTPUT: THE TWO TOGETHER', top: 166, colour: OUTPUT_BLUE, focus: 'output' },
 ] as const;
 
 /** One star beside a star like the Sun, and three bars on a stretched scale. */
@@ -276,7 +284,7 @@ function DimmingView({ scene }: { readonly scene: StarlightScene }) {
       <Label at={{ x: 306, y: 12 }} text="COLOURS STRENGTHENED" anchor="end" />
       <Label at={{ x: 20, y: 168 }} text="HOW BRIGHT IT LOOKS (NEAREST = FULL)" anchor="start" bold />
       <Rect x={20} y={174} width={200} height={10} fill={PAPER_DEEP} stroke={INK} strokeWidth={1.6} />
-      <Rect x={20} y={174} width={200 * scene.share} height={10} fill={FOCUS} stroke={INK} strokeWidth={1.6} />
+      <Rect x={20} y={174} width={200 * scene.share} height={10} fill={OUTPUT_BLUE} stroke={INK} strokeWidth={1.6} />
       {scene.focus === 'star' ? <FocusRing at={star} radius={24} /> : null}
       {scene.focus === 'spread' ? (
         <FocusBox x={FRAME.star + 38} y={CENTRE_Y - far / 2 - 6} width={farX - FRAME.star - 10} height={far + 12} />

@@ -170,7 +170,10 @@ export function Label({
   );
 }
 
-/** The Moon seen from Earth in a phase, as a disc with its lit part: new is dark, full is lit, the quarters are half. */
+/**
+ * The Moon seen from Earth in a phase, as a disc with its lit part: new is dark, full is lit, the quarters are half. The
+ * dark part is SOLID and the lit part LIT, so a phase reads the same in both appearances.
+ */
 export function PhaseGlyph({
   at,
   radius,
@@ -182,11 +185,11 @@ export function PhaseGlyph({
 }): ReactElement {
   return (
     <>
-      <Circle cx={at.x} cy={at.y} r={radius} fill={lit === 'all' ? PAPER : INK} stroke={INK} strokeWidth={1.8} />
+      <Circle cx={at.x} cy={at.y} r={radius} fill={lit === 'all' ? LIT : SOLID} stroke={INK} strokeWidth={1.8} />
       {lit === 'right' || lit === 'left' ? (
         <Path
           d={`M ${at.x} ${at.y - radius} A ${radius} ${radius} 0 0 ${lit === 'right' ? 1 : 0} ${at.x} ${at.y + radius} Z`}
-          fill={PAPER}
+          fill={LIT}
         />
       ) : null}
     </>

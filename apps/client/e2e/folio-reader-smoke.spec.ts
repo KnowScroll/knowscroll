@@ -10,7 +10,7 @@ import { exportCarries } from './export-files';
 /**
  * Folio, the essay reader of a v2 Scroll, in the production export (#732). It is opt-in by a device preference, so these
  * open a Scroll with that preference set and prove that Folio draws instead of the Stage reader, what it reports to the
- * recorder, the ••• sheet and Next idea, the page staying printed Light in both appearances, and that nothing changes
+ * recorder, the ••• sheet and Next idea, the page's own palette in each appearance, and that nothing changes
  * for a device that has not chosen it. The document is the labelled CI fixture `seasons-stage-ci` served by authored
  * HTTP fixtures, so this proves the reader and what it reports, not the backend. Screenshots are written only when
  * `KS_FOLIO_SHOTS` names a folder (outside the repository).
@@ -216,11 +216,13 @@ test('the ••• button opens the More sheet with its rows, and Next idea on 
   ).toBeVisible();
 });
 
-/** The printed page of Folio: cream, in Light and in Dark alike (the page stays printed Light in this pull request). */
-const PAPER = 'rgb(255, 251, 240)';
+/** Folio's page ground in each appearance (D-424): the printed cream in Light, a warm near-black in Dark. */
+const GROUND = { light: 'rgb(255, 251, 240)', dark: 'rgb(23, 21, 15)' } as const;
+/** Its ink: near-black on cream, cream on the dark ground (never pure white). */
+const INK = { light: 'rgb(17, 17, 17)', dark: 'rgb(234, 227, 208)' } as const;
 
 for (const appearance of ['dark', 'light'] as const) {
-  test(`in ${appearance} the page is the printed cream and the reader has no serious accessibility violation`, async ({
+  test(`in ${appearance} the page takes its own palette and the reader has no serious accessibility violation`, async ({
     page,
   }) => {
     await open(page, phone, { scrollReader: 'folio', appearance });
@@ -228,7 +230,8 @@ for (const appearance of ['dark', 'light'] as const) {
     await expect
       .poll(() => page.evaluate(() => document.documentElement.getAttribute('data-ks-appearance')))
       .toBe(appearance);
-    await expect(folio(page)).toHaveCSS('background-color', PAPER);
+    await expect(folio(page)).toHaveCSS('background-color', GROUND[appearance]);
+    await expect(folio(page).getByRole('heading', { level: 1 })).toHaveCSS('color', INK[appearance]);
     expect(await audit(page), `axe in ${appearance}`).toEqual([]);
     await shot(page, `appearance-${appearance}`);
     // Down to the end plate, with the pictures as words: still clean.
@@ -253,4 +256,18 @@ test('the production export carries no Folio gallery, and its address is not a p
   await page.goto('/gallery-folio');
   await expect(page.getByText("This page isn't here")).toBeVisible();
   await expect(page.getByTestId('ks-folio-gallery')).toHaveCount(0);
+});
+
+test('switching appearance in the middle of the essay repaints the page and keeps the place', async ({ page }) => {
+  await open(page, phone, { scrollReader: 'folio', appearance: 'dark' });
+  await expect(folio(page)).toHaveCSS('background-color', GROUND.dark);
+  const scroller = page.getByTestId('folio-scroller');
+  await scroller.evaluate((node) => {
+    node.scrollTop = node.scrollHeight / 2;
+  });
+  const before = await scroller.evaluate((node) => node.scrollTop);
+  // The app names the appearance on the root (Account → Appearance does the same): the page follows at once.
+  await page.evaluate(() => document.documentElement.setAttribute('data-ks-appearance', 'light'));
+  await expect(folio(page)).toHaveCSS('background-color', GROUND.light);
+  expect(await scroller.evaluate((node) => node.scrollTop)).toBe(before);
 });

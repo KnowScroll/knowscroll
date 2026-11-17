@@ -1,8 +1,23 @@
 import type { ReactElement } from 'react';
-import Svg, { Circle, G, Line, Rect } from 'react-native-svg';
+import Svg, { Circle, G, Line, Rect, Text as SvgText } from 'react-native-svg';
+import { fontFamily } from '@knowscroll/design-tokens';
 import { onCircle, SCENE_HEIGHT, SCENE_WIDTH } from './earth-sky-scene';
 import { ARROW_PX_PER_SUNLIGHT, type GreenhouseScene } from './greenhouse-scene';
-import { Arrow, FOCUS, GREEN, INK, Label, mixColour, OUTLINE, PAPER_DEEP, SKY_LIGHT, SUN, WARM } from './parts';
+import {
+  Arrow,
+  FOCUS,
+  GREEN,
+  INK,
+  Label,
+  mixColour,
+  OUTLINE,
+  PAPER_DEEP,
+  PRINTED_PAPER_DEEP,
+  SKY_LIGHT,
+  SOLID,
+  SUN,
+  WARM,
+} from './parts';
 
 /**
  * The greenhouse kit drawn in the V3 style (D-194): the Sun, sunlight and what is reflected, the ground, one
@@ -25,6 +40,52 @@ const groundColour = (warmth: number): string =>
     : mixColour(MID_GROUND, WARM_GROUND, (warmth - 0.5) * 2);
 const LAYER_TOP = 84;
 
+/**
+ * The layer's colour: pale blue, the more opaque the more infrared it absorbs. Mixed into the plate's Light colour
+ * instead of faded with opacity, which over a dark plate turns a muddy grey; Light is unchanged. The band is drawn
+ * before anything that crosses it, so a solid fill hides nothing.
+ */
+function LayerBand({
+  x,
+  y,
+  width,
+  height,
+  absorbs,
+}: {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly absorbs: number;
+}) {
+  const strength = 0.35 + absorbs * 0.65;
+  return (
+    <G>
+      <Rect x={x} y={y} width={width} height={height} fill={mixColour(PRINTED_PAPER_DEEP, SKY_LIGHT, strength)} />
+      <Rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill="none"
+        stroke={INK}
+        strokeWidth={1.6}
+        strokeDasharray="6 4"
+        opacity={strength}
+      />
+    </G>
+  );
+}
+
+/** A label on the ground's bright fill: it stays dark in both appearances (the ground colours never change). */
+function GroundLabel({ y }: { readonly y: number }) {
+  return (
+    <SvgText x={160} y={y} fontSize={8.5} fontFamily={fontFamily.mono} fill={SOLID} textAnchor="middle">
+      GROUND
+    </SvgText>
+  );
+}
+
 const has = (scene: GreenhouseScene, part: GreenhouseScene['parts'][number]): boolean => scene.parts.includes(part);
 const width = (energy: number): number => Math.max(0, energy * ARROW_PX_PER_SUNLIGHT);
 
@@ -40,7 +101,7 @@ function Ground({ scene }: { readonly scene: GreenhouseScene }) {
         stroke={INK}
         strokeWidth={OUTLINE}
       />
-      <Label at={{ x: 160, y: GROUND_TOP + 24 }} text="GROUND" bold />
+      <GroundLabel y={GROUND_TOP + 24} />
       {scene.focus === 'surface' ? (
         <Rect
           x={4}
@@ -62,17 +123,7 @@ function Layer({ scene }: { readonly scene: GreenhouseScene }) {
   if (!has(scene, 'layer')) return null;
   return (
     <G>
-      <Rect
-        x={-4}
-        y={LAYER_TOP}
-        width={SCENE_WIDTH + 8}
-        height={scene.layerPx}
-        fill={SKY_LIGHT}
-        opacity={0.35 + scene.layerOpacity * 0.65}
-        stroke={INK}
-        strokeWidth={1.6}
-        strokeDasharray="6 4"
-      />
+      <LayerBand x={-4} y={LAYER_TOP} width={SCENE_WIDTH + 8} height={scene.layerPx} absorbs={scene.layerOpacity} />
       <Label at={{ x: 300, y: LAYER_TOP - 6 }} text="LAYER" anchor="end" />
       {scene.focus === 'layer' ? (
         <Rect
@@ -251,16 +302,12 @@ function BalanceView({ scene }: { readonly scene: GreenhouseScene }) {
         strokeWidth={OUTLINE}
       />
       {has(scene, 'layer') ? (
-        <Rect
+        <LayerBand
           x={196}
           y={base - 12 - 16 - scene.layerPx * 0.8}
           width={64}
           height={scene.layerPx * 0.8}
-          fill={SKY_LIGHT}
-          opacity={0.35 + scene.layerOpacity * 0.65}
-          stroke={INK}
-          strokeWidth={1.6}
-          strokeDasharray="6 4"
+          absorbs={scene.layerOpacity}
         />
       ) : null}
       {has(scene, 'layer') ? <Label at={{ x: 228, y: base - 12 - 16 - scene.layerPx * 0.8 - 5 }} text="LAYER" /> : null}

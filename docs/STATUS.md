@@ -24,7 +24,7 @@ Dev settings beyond the defaults (`/etc/knowscroll/dev.v2.env`, edited by hand; 
 Every item below was used on dev at 390 × 844 in this run, and at 1440 × 900 where the fidelity table shows a shot. The handover lists the evidence and what was not seen on dev.
 
 - **Universe:** the three.js map with planet looks, the globe and landed map, region cards, search, the orbit dial, Simple views, friend visits, first-open and fly-in animations, landmarks as one folding card. Browsing writes no evidence.
-- **Scrolls as an essay (Folio), a trial behind a device switch** (#732, D-423): Account → Accessibility & playback → "Read Scrolls as an essay (trial)". Web only for now; Android is #740.
+- **Scrolls as an essay (Folio), a trial behind a device switch** (#732, D-423): Account → Accessibility & playback → "Read Scrolls as an essay (trial)". Web only for now; Android is #740. Its page follows Light and Dark with a palette of its own (D-424); the Stage reader keeps the printed Light page.
 - **Scrolls:** the stage reader with drawing kits; calls, sparks and the Final call; moving between Parts with "your place is kept"; the recap; the seven-row ••• sheet; Seasons Part 1 with the plot twist and cited distances (revision 4).
 - **Ask:** ask orders (5 of 5 Ready on dev, each checked sentence by sentence against the library's sources) and Quick answers. Limits say which cap is full.
 - **Recommendation:** Composer policy v1, format learned per topic, `jev.2`. Play results never feed ranking, planning, evidence or formation.

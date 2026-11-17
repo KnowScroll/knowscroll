@@ -18,6 +18,7 @@ import {
 import type { SceneLabel } from './earth-sky-boxes';
 import { dayBands, distanceMarks } from './earth-sky-figures';
 import { orbitLayout, recapPlaces, type RecapPlace } from './earth-sky-orbit-layout';
+import { FOCUS, FocusRing, INK, LIT, mixColour, OUTLINE, PAPER_DEEP, PRINTED_PAPER_DEEP, SOLID, SUN } from './parts';
 
 /**
  * The "Earth & sky" kit drawn in the V3 style (D-133): thick ink outlines on flat colour, the Sun, a
@@ -27,34 +28,22 @@ import { orbitLayout, recapPlaces, type RecapPlace } from './earth-sky-orbit-lay
  * picture's accessible name is its description, set by the caller.
  */
 
-const INK = content.ink;
-const SUN = content.continue;
 const EARTH = content.accent;
 const LAND = content.fresh;
 const WARM = status.danger.fill;
 const COOL = family.systems.base;
-const NEUTRAL = content.paper2;
-const FOCUS = content.accentDeep;
-const OUTLINE = 2.5;
 
-const mix = (cool: string, warm: string, share: number): string => {
-  const channel = (hex: string, at: number): number => parseInt(hex.slice(at, at + 2), 16);
-  const blended = [1, 3, 5].map((at) =>
-    Math.round(channel(cool, at) + (channel(warm, at) - channel(cool, at)) * share),
-  );
-  return `#${blended.map((value) => value.toString(16).padStart(2, '0')).join('')}`;
-};
-
-/** A pin's colour from its warmth: cool blue, a neutral cream, warm red. */
+/**
+ * A pin's colour from its warmth: cool blue, a neutral cream, warm red. Mixed from fixed hex colours only: an adaptive
+ * role is a `var(...)` string on the web and cannot be mixed.
+ */
 function pinColour(warmth: number): string {
-  return warmth >= 0.5 ? mix(NEUTRAL, WARM, (warmth - 0.5) * 2) : mix(COOL, NEUTRAL, warmth * 2);
+  return warmth >= 0.5
+    ? mixColour(PRINTED_PAPER_DEEP, WARM, (warmth - 0.5) * 2)
+    : mixColour(COOL, PRINTED_PAPER_DEEP, warmth * 2);
 }
 
 const has = (scene: EarthSkyScene, part: EarthSkyScene['parts'][number]): boolean => scene.parts.includes(part);
-
-function FocusRing({ at, radius }: { readonly at: Point; readonly radius: number }): ReactElement {
-  return <Circle cx={at.x} cy={at.y} r={radius} fill="none" stroke={FOCUS} strokeWidth={3} strokeDasharray="5 4" />;
-}
 
 function Sun({ at, radius, focused }: { readonly at: Point; readonly radius: number; readonly focused: boolean }) {
   const rays = Array.from({ length: 12 }, (_, index) => index * 30);
@@ -130,7 +119,7 @@ function Earth({
           d={`M ${at.x - radius * 0.55} ${at.y - radius * 0.25} q ${radius * 0.3} ${-radius * 0.45} ${radius * 0.62} ${-radius * 0.1} q ${radius * 0.1} ${radius * 0.5} ${-radius * 0.25} ${radius * 0.62} q ${-radius * 0.5} ${radius * 0.05} ${-radius * 0.37} ${-radius * 0.52} Z`}
           fill={LAND}
         />
-        <Path d={nightHalf(at, radius, sunward)} fill={INK} opacity={0.32} />
+        <Path d={nightHalf(at, radius, sunward)} fill={SOLID} opacity={0.32} />
       </G>
       <Circle cx={at.x} cy={at.y} r={radius} fill="none" stroke={INK} strokeWidth={OUTLINE} />
       {showAxis ? (
@@ -168,9 +157,9 @@ function Ray({ at, focused }: { readonly at: Point; readonly focused: boolean })
   return (
     <G>
       <Rect x={at.x - 6} y={at.y - 13} width={12} height={26} rx={3} fill={SUN} stroke={INK} strokeWidth={2} />
-      <Circle cx={at.x - 2.2} cy={at.y - 5} r={1.2} fill={INK} />
-      <Circle cx={at.x + 2.2} cy={at.y - 5} r={1.2} fill={INK} />
-      <Path d={`M ${at.x - 2.6} ${at.y} q 2.6 3 5.2 0`} fill="none" stroke={INK} strokeWidth={1.2} />
+      <Circle cx={at.x - 2.2} cy={at.y - 5} r={1.2} fill={SOLID} />
+      <Circle cx={at.x + 2.2} cy={at.y - 5} r={1.2} fill={SOLID} />
+      <Path d={`M ${at.x - 2.6} ${at.y} q 2.6 3 5.2 0`} fill="none" stroke={SOLID} strokeWidth={1.2} />
       {focused ? <FocusRing at={at} radius={20} /> : null}
     </G>
   );
@@ -191,13 +180,12 @@ function Beam({
   readonly colour: string;
 }) {
   const { top, bottom } = beamFootprint(centre, radius, pin);
+  const wash = `${from},${top.y} ${top.x},${top.y} ${bottom.x},${bottom.y} ${from},${bottom.y}`;
   return (
     <G>
-      <Polygon
-        points={`${from},${top.y} ${top.x},${top.y} ${bottom.x},${bottom.y} ${from},${bottom.y}`}
-        fill={SUN}
-        opacity={0.55}
-      />
+      {/* A light underlay: sun yellow at half strength over the dark plate would turn olive. */}
+      <Polygon points={wash} fill={LIT} />
+      <Polygon points={wash} fill={SUN} opacity={0.55} />
       <Line x1={from} y1={top.y} x2={top.x} y2={top.y} stroke={INK} strokeWidth={1.4} />
       <Line x1={from} y1={bottom.y} x2={bottom.x} y2={bottom.y} stroke={INK} strokeWidth={1.4} />
       <Line x1={top.x} y1={top.y} x2={bottom.x} y2={bottom.y} stroke={colour} strokeWidth={5} strokeLinecap="round" />
@@ -248,7 +236,14 @@ function RecapEarth({
       <G testID={`recap-badge-${String(mark.n)}`}>
         <Circle cx={badge.x} cy={badge.y} r={RECAP_FRAME.badgeRadius} fill={SUN} stroke={INK} strokeWidth={2} />
       </G>
-      <SvgText x={badge.x} y={badge.y + 3.4} fontSize={10} fontFamily={fontFamily.mono} fill={INK} textAnchor="middle">
+      <SvgText
+        x={badge.x}
+        y={badge.y + 3.4}
+        fontSize={10}
+        fontFamily={fontFamily.mono}
+        fill={SOLID}
+        textAnchor="middle"
+      >
         {String(mark.n)}
       </SvgText>
     </G>
@@ -414,7 +409,7 @@ function DayBands({ scene }: { readonly scene: EarthSkyScene }) {
             width={band.bar.width}
             height={band.bar.height}
             rx={2}
-            fill={NEUTRAL}
+            fill={PAPER_DEEP}
             stroke={INK}
             strokeWidth={1.4}
           />
@@ -483,14 +478,14 @@ function MoonView({ scene }: { readonly scene: EarthSkyScene }) {
         cx={moon.x}
         cy={moon.y}
         r={moonRadius}
-        fill={scene.moonPhased ? INK : content.paper2}
+        fill={scene.moonPhased ? SOLID : LIT}
         stroke={INK}
         strokeWidth={OUTLINE}
       />
       {scene.moonPhased ? (
         <Path
           d={`M ${moon.x} ${moon.y - moonRadius} A ${moonRadius} ${moonRadius} 0 0 0 ${moon.x} ${moon.y + moonRadius} Z`}
-          fill={content.paper2}
+          fill={LIT}
         />
       ) : null}
       {scene.focus === 'moon' ? <FocusRing at={moon} radius={moonRadius + 9} /> : null}

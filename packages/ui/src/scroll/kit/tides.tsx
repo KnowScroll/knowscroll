@@ -11,11 +11,13 @@ import {
   INK,
   Label,
   MUTED,
+  LIT,
   OUTLINE,
   PAPER_DEEP,
-  PhaseGlyph,
   pathOf,
+  PhaseGlyph,
   SKY_LIGHT,
+  SOLID,
   SUN,
 } from './parts';
 import { bulgeTips, type TidesScene } from './tides-scene';
@@ -70,7 +72,7 @@ function EarthDisc({ at, radius }: { readonly at: Point; readonly radius: number
 function Moon({ at, radius, focused }: { readonly at: Point; readonly radius: number; readonly focused: boolean }) {
   return (
     <G>
-      <Circle cx={at.x} cy={at.y} r={radius} fill={PAPER_DEEP} stroke={INK} strokeWidth={OUTLINE} />
+      <Circle cx={at.x} cy={at.y} r={radius} fill={LIT} stroke={INK} strokeWidth={OUTLINE} />
       <Circle cx={at.x - radius * 0.3} cy={at.y - radius * 0.2} r={radius * 0.22} fill={MUTED} opacity={0.45} />
       {focused ? <FocusRing at={at} radius={radius + 9} /> : null}
     </G>
@@ -89,8 +91,8 @@ function PhasedMoon({
 }) {
   return (
     <G>
-      <Circle cx={at.x} cy={at.y} r={radius} fill={INK} stroke={INK} strokeWidth={OUTLINE} />
-      <Path d={`M ${at.x} ${at.y - radius} A ${radius} ${radius} 0 0 0 ${at.x} ${at.y + radius} Z`} fill={PAPER_DEEP} />
+      <Circle cx={at.x} cy={at.y} r={radius} fill={SOLID} stroke={INK} strokeWidth={OUTLINE} />
+      <Path d={`M ${at.x} ${at.y - radius} A ${radius} ${radius} 0 0 0 ${at.x} ${at.y + radius} Z`} fill={LIT} />
       {focused ? <FocusRing at={at} radius={radius + 9} /> : null}
     </G>
   );

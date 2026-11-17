@@ -15,6 +15,7 @@ import {
   OUTLINE,
   PAPER,
   PAPER_DEEP,
+  PRINTED_PAPER,
   SUN,
   WARM,
 } from './parts';
@@ -300,7 +301,7 @@ function AxonView({ scene }: { readonly scene: NerveScene }) {
   const recoveringTo = Math.max(...recoveringIndexes);
   const segmentFill = (index: number): string =>
     (scene.recovering[index] ?? 0) > 0.5
-      ? mixColour(PAPER, WARM, 0.45)
+      ? mixColour(PRINTED_PAPER, WARM, 0.45)
       : (scene.profile[index] ?? scene.restVoltage) > scene.thresholdVoltage
         ? SUN
         : PAPER;

@@ -38,7 +38,9 @@ export function FigureView({ figure, height, reducedMotion, textVersion, control
         style={[styles.plate, { height, backgroundColor: page.raised, borderColor: page.ink }]}
         {...dataSet({ ksFigure: figure.key, ksFigureTransition: drawn.transition })}
       >
-        <FigureDrawing drawn={drawn} textVersion={asText} />
+        <View style={styles.drawing}>
+          <FigureDrawing drawn={drawn} textVersion={asText} />
+        </View>
         <TextChip on={asText} onPress={() => setOwnText(!asText)} />
       </View>
       {control?.kind === 'tilt' && figure.kind === 'state' ? (
@@ -66,14 +68,22 @@ function TextChip({ on, onPress }: { readonly on: boolean; readonly onPress: () 
   );
 }
 
+const CHIP_HEIGHT = 32;
+/**
+ * The strip along the bottom of the plate that the chip sits in. The drawing is fitted above it, so the chip never
+ * covers a kit's label: a kit draws to the edges of its frame, and the bottom right is where several put one.
+ */
+const CHIP_ROOM = CHIP_HEIGHT + 2 * spacing[2];
+
 const styles = StyleSheet.create({
   figure: { gap: spacing[2] },
+  drawing: { position: 'absolute', top: 0, left: 0, right: 0, bottom: CHIP_ROOM },
   plate: { width: '100%', borderWidth: borderWidth.regular, borderRadius: radius.lg, overflow: 'hidden' },
   chip: {
     position: 'absolute',
     right: spacing[2],
     bottom: spacing[2],
-    minHeight: 32,
+    minHeight: CHIP_HEIGHT,
     minWidth: 44,
     paddingHorizontal: spacing[2],
     alignItems: 'center',

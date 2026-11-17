@@ -59,7 +59,7 @@ How it reaches a component, without any component reading the setting:
   module-level `StyleSheet.create`, holds a reference. The client installs `appearanceStyleSheet()`
   once and names the page `data-ks-appearance="light|dark"`; switching repaints at once with no
   re-render. An element inside may name another appearance: `printedSurface()` in `ui` pins a
-  subtree to Light (a Scroll's page, a Reel, a yellow continuation surface).
+  subtree to Light (the Stage reader's page, a Reel, a yellow continuation surface).
 - **Native and tests.** `adaptive(role)` is the Light value: native chrome is drawn Light, and Talk
   and rooms follow Appearance through `talkThemes` (sky in Dark, Paper in Light).
 - **Never compute on an adaptive value.** On the web it is a `var(...)` string. Contrast or colour
@@ -68,6 +68,19 @@ How it reaches a component, without any component reading the setting:
 
 `printed` holds the Light values of the content register for authored artwork and media.
 `tokens.test.ts` ("Appearance") holds both palettes to the same contrast pairs.
+
+### A Scroll's page (D-424)
+
+A Scroll's page in Folio has a palette of its own in each appearance, `scrollPagePalettes` in
+`src/scroll-page-palette.ts`. Light is the printed page exactly. Dark is designed for reading, not
+inverted: a warm near-black ground, cream ink at about 14:1, links lifted to a light blue, and
+figures on a raised plate. It redefines every role above inside the page and adds three for figures,
+the `scrollPage` register: `plate`; `solid`, a body drawn dark in both appearances; `lit`, what is
+drawn light in both. On the web the page names itself (`data-ks-page`, `scrollPageSurface()` in
+`ui`) and `scrollPageStyleSheet()`, installed beside `appearanceStyleSheet()`, gives it the palette
+of the root's appearance. Native draws the Light page (#706, #740). `tokens.test.ts` ("A Scroll's
+page") holds both palettes to the Appearance pairs; a cobalt action on the page is edged in ink,
+which carries its 3:1 boundary, because cobalt cannot reach 3:1 on a warm near-black.
 
 ## Colour
 
