@@ -499,7 +499,8 @@ for (const { label, viewport } of sizes) {
       const pinned = await boxIn(page, '[data-testid="held-figure"]');
       if ((await held.count()) > 0 && label === 'phone' && pinned !== undefined && pinned.top >= -2 && pinned.top < 24)
         expect(top, 'the beat opens below the pinned figure').toBeGreaterThanOrEqual(pinned.bottom - 2);
-      // What the reader said it was reading while opening is only what is on screen: never a stop far down the essay.
+      // What the reader said it was reading while opening is the kept stop, then what is on screen once the page settles:
+      // never a stop far down the essay.
       const { stops } = await galleryEvents(page);
       const onScreen = await page.evaluate(() => {
         const frame = document.querySelector('[data-testid="folio-scroller"]')?.getBoundingClientRect();
