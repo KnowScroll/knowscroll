@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { content, spacing } from '@knowscroll/design-tokens';
-import { Button, useDisplay, type StageReaderHandle } from '@knowscroll/ui';
+import { Button, useDisplay, type ReaderHandle } from '@knowscroll/ui';
 import { ScrollReaderSurface } from '../scroll/scroll-reader-surface';
 import type { OpenedScrollV2 } from '../scroll/scroll-session';
 import { EVERY_READER, readerFor } from '../scroll/scroll-readers';
@@ -52,7 +52,7 @@ export function ScrollV2Encounter({
   const { breakpoint } = useDisplay();
   const narrow = breakpoint === 'compact' || breakpoint === 'phone';
   const metrics = useEncounterMetrics();
-  const reader = useRef<StageReaderHandle>(null);
+  const reader = useRef<ReaderHandle>(null);
   const playable = foreground && !state.overlay && state.phase === 'active';
   const origin = encounterOrigin(state.trail, entry, session.regionOriginOf(entry));
   const moves = readerContinuations(entry.context.continuations, (state, direction) =>

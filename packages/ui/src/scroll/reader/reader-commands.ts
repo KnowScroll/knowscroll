@@ -55,3 +55,25 @@ export interface PartArrival {
   /** The Part left behind, whose place is kept: "Part 1". */
   readonly from: string;
 }
+
+/** What a screen can ask of the reader drawing its Scroll, whichever reader that is. */
+export interface ReaderHandle {
+  /** The stop being read (the beat at the reading line, or the stop on screen), or `undefined` at the end. */
+  readonly capture: () => { readonly stopId: string } | undefined;
+  readonly jumpToStop: (stopId: string) => void;
+  /** Switches the stop being read between its words and its plainer ones; false when it has none (a call, the end). */
+  readonly toggleSimpler: () => boolean;
+  /** Shows or hides every picture's text version; false when the Scroll has nothing to show as words. */
+  readonly toggleTextVersion: () => boolean;
+  /** What the ••• sheet needs to draw its rows for the stop being read now. */
+  readonly view: () => ReaderView;
+}
+
+/** The reader's state as the ••• sheet draws it. */
+export interface ReaderView {
+  /** The stop being read when it has plainer words, otherwise `undefined`. */
+  readonly simplerStopId: string | undefined;
+  readonly simplerOn: boolean;
+  readonly hasTextVersion: boolean;
+  readonly textVersionOn: boolean;
+}

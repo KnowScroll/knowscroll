@@ -3,12 +3,11 @@ import { StyleSheet, View } from 'react-native';
 import { content, borderWidth, spacing } from '@knowscroll/design-tokens';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { Text } from '../../text/text';
-import { KIT_PICTURES } from '../kit';
-import { printedSurface } from '../../display/printed';
 import { dataSet } from '../../display/data-set';
+import { printedSurface } from '../../display/printed';
+import { FigureDrawing, useKitFigure } from './kit-figure';
+import { stageFigureAt } from './stage-figure';
 import { tiltText } from './tilt-control';
-import { stageEntryAt } from './stage-state';
-import { useStagePictures } from './use-stage-pictures';
 
 export interface StageProps {
   readonly document: Pick<ScrollDocumentV2, 'stops'> & { readonly stage: NonNullable<ScrollDocumentV2['stage']> };
@@ -35,7 +34,7 @@ export interface StageProps {
  * The pinned stage (D-133): one picture that changes as the reader moves from stop to stop. Its
  * accessible name is the description of the state it shows, derived by code in the document, so a
  * screen reader hears exactly what the picture draws. The drawing is the kit's (the stage names which,
- * D-194); this component only picks the state for the current stop and moves between states.
+ * D-194); this component only picks the figure for the current stop (`stageFigureAt`) and frames it.
  */
 export function Stage({
   document,
@@ -46,31 +45,11 @@ export function Stage({
   recap = false,
   height,
 }: StageProps) {
-  const kitId = document.stage.kit;
-  const kit = KIT_PICTURES[kitId];
-  const entry = stageEntryAt(document.stage, document.stops, stopId);
-  const states = useMemo(() => document.stage.states.map((held) => held.state), [document.stage]);
-  const recapScene = useMemo(() => (recap ? kit.recap?.sceneOf(states) : undefined), [kit, recap, states]);
-  const target = useMemo(
-    () =>
-      recapScene === undefined
-        ? { key: `${kitId}/${entry.stop}`, kit: kitId, scene: kit.sceneOf(entry.state) }
-        : { key: `${kitId}/recap`, kit: kitId, scene: recapScene },
-    [entry, kit, kitId, recapScene],
+  const figure = useMemo(
+    () => stageFigureAt(document.stage, document.stops, stopId, recap),
+    [document.stage, document.stops, stopId, recap],
   );
-  const { layers: moving, transition } = useStagePictures(target, reducedMotion, kit);
-  // A turned axis is drawn at once, so the picture follows the slider under the finger; it needs no move between states.
-  const turning = tilt !== undefined && kit.atTilt?.isTurned(tilt) === true ? { tilt, kit: kit.atTilt } : undefined;
-  const layers =
-    turning === undefined
-      ? moving
-      : [{ key: target.key, scene: turning.kit.sceneOf(entry.state, turning.tilt), opacity: 1 }];
-  const alt =
-    turning !== undefined
-      ? turning.kit.describe(entry.state, turning.tilt)
-      : recapScene !== undefined
-        ? (kit.recap?.describe(states) ?? entry.alt)
-        : entry.alt;
+  const drawn = useKitFigure(figure, reducedMotion, tilt);
   return (
     <View
       testID="stage"
@@ -78,31 +57,13 @@ export function Stage({
       // The picture is authored art: Light values wherever it is drawn, in the reader or a sheet (#666).
       {...printedSurface(
         dataSet({
-          ksStageState: recapScene === undefined ? entry.stop : 'recap',
-          ksStageTransition: transition,
-          ...(turning === undefined ? {} : { ksStageTilt: String(turning.tilt) }),
+          ksStageState: figure.kind === 'recap' ? 'recap' : figure.key,
+          ksStageTransition: drawn.transition,
+          ...(drawn.turnedTo === undefined ? {} : { ksStageTilt: String(drawn.turnedTo) }),
         }),
       )}
     >
-      {textVersion ? (
-        <View style={styles.text}>
-          <Text variant="body">{alt}</Text>
-        </View>
-      ) : (
-        <View role="img" aria-label={alt} accessibilityLabel={alt} style={StyleSheet.absoluteFill}>
-          {layers.map((layer) => (
-            <View
-              key={layer.key}
-              aria-hidden
-              importantForAccessibility="no-hide-descendants"
-              style={[StyleSheet.absoluteFill, { opacity: layer.opacity }]}
-              pointerEvents="none"
-            >
-              <kit.Picture scene={layer.scene} />
-            </View>
-          ))}
-        </View>
-      )}
+      <FigureDrawing drawn={drawn} textVersion={textVersion} />
       {tilt === undefined || textVersion ? null : (
         // The tag repeats what the control above the options says, so it is drawn for the eye alone (V3 F9, C3).
         <View
@@ -128,7 +89,6 @@ const styles = StyleSheet.create({
     borderBottomColor: content.ink,
     overflow: 'hidden',
   },
-  text: { flex: 1, justifyContent: 'center', padding: spacing[4] },
   tiltTag: {
     position: 'absolute',
     left: spacing[2],

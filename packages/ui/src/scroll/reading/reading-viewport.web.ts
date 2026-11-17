@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ViewInstance } from 'react-native';
 import { captureBlockPosition, restoreBlockPosition, type PositionBinding, type PositionBox } from './local-position';
-import type { ScrollReadingObserver } from '../observer';
-import type { BlockReadingProps, ReadingInsets, ReadingViewport } from './types';
+import type { BlockReadingProps, ReadingInsets, ReadingViewport, VisibilityObserver } from './types';
 import { createVisibilityTracker, monotonicNow, type VisibilityTracker } from './visibility';
 
 /** Every tenth of the visible fraction: the tracker decides which changes are events. */
@@ -119,7 +118,7 @@ class WebReadingViewport implements ReadingViewport {
     });
   }
 
-  private observerOf: ScrollReadingObserver | undefined;
+  private observerOf: VisibilityObserver | undefined;
   private insets: ReadingInsets = { top: 0, bottom: 0 };
   /** The insets the current observers were built with. */
   private built: ReadingInsets = { top: 0, bottom: 0 };
@@ -129,7 +128,7 @@ class WebReadingViewport implements ReadingViewport {
   }
 
   /** The latest observer and insets (set after every render, read when events arrive). */
-  configure(observer: ScrollReadingObserver | undefined, insets: ReadingInsets): void {
+  configure(observer: VisibilityObserver | undefined, insets: ReadingInsets): void {
     const replaced = this.observerOf !== observer;
     this.observerOf = observer;
     this.insets = insets;
@@ -222,10 +221,7 @@ class WebReadingViewport implements ReadingViewport {
   }
 }
 
-export function useReadingViewport(
-  observer: ScrollReadingObserver | undefined,
-  insets: ReadingInsets,
-): ReadingViewport {
+export function useReadingViewport(observer: VisibilityObserver | undefined, insets: ReadingInsets): ReadingViewport {
   const [viewport] = useState(() => {
     // Configured at creation, so blocks that mount before this component's effect runs (children's
     // effects run first) already report to the observer; later changes arrive through the effect.

@@ -11,8 +11,8 @@ import {
   useDisplay,
   type NextPartPeek,
   type PartArrival,
-  type StageReaderHandle,
-  type StageReaderView,
+  type ReaderHandle,
+  type ReaderView,
   type StageReadingObserver,
 } from '@knowscroll/ui';
 import { QUICK_ANSWER_LABEL, QUICK_ANSWER_QUESTION_MAX } from '@knowscroll/contracts';
@@ -94,7 +94,7 @@ export function ScrollReaderSurface({
   readonly observer?: StageReadingObserver | undefined;
   readonly paused?: boolean | undefined;
   readonly initialStopId?: string | undefined;
-  readonly handleRef?: Ref<StageReaderHandle> | undefined;
+  readonly handleRef?: Ref<ReaderHandle> | undefined;
   readonly onStopChange?: ((stopId: string | undefined) => void) | undefined;
   readonly moves: ReaderMoves;
   /** "Part 1 of 3": a count only when the server counted it. */
@@ -125,13 +125,13 @@ export function ScrollReaderSurface({
   const [reporting, setReporting] = useState<FeedbackTarget>();
   const [smallPrintOpen, setSmallPrintOpen] = useState(false);
   // What the reader showed when ••• opened, so the rows can say which words and pictures they would switch.
-  const [readerView, setReaderView] = useState<StageReaderView | undefined>();
+  const [readerView, setReaderView] = useState<ReaderView | undefined>();
   // Quick answers on this Scroll: asked from the selection menu, drawn under the stop, never part of the Scroll (D-253).
   const quick = useQuickAnswers(scroll);
   // The reader's own handle is kept here too, because the ••• menu switches the stop on screen to its plainer words.
-  const reader = useRef<StageReaderHandle | null>(null);
+  const reader = useRef<ReaderHandle | null>(null);
   const readerRef = useCallback(
-    (instance: StageReaderHandle | null) => {
+    (instance: ReaderHandle | null) => {
       reader.current = instance;
       assign(handleRef, instance);
     },

@@ -3,7 +3,8 @@ import { createRef } from 'react';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ReadStop, ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { DisplayProvider } from '../../display/display';
-import { StageReader, type StageReaderHandle } from './stage-reader';
+import type { ReaderHandle } from '../reader/reader-commands';
+import { StageReader } from './stage-reader';
 
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resolve(true)) }));
 
@@ -11,7 +12,7 @@ jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resol
 const document = seasons as unknown as ScrollDocumentV2;
 const first = document.stops[0] as ReadStop;
 
-function inReader(handle?: React.Ref<StageReaderHandle>) {
+function inReader(handle?: React.Ref<ReaderHandle>) {
   return render(
     <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
       <StageReader document={document} commands={{}} handleRef={handle} />
@@ -46,7 +47,7 @@ describe('Simpler, in place with Undo (V3 D2)', () => {
   });
 
   it('is switched by the ••• menu through the reader, for the stop on screen only', async () => {
-    const handle = createRef<StageReaderHandle>();
+    const handle = createRef<ReaderHandle>();
     await inReader(handle);
     await act(() => {
       expect(handle.current?.toggleSimpler()).toBe(true);

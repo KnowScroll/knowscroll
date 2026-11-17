@@ -1,0 +1,74 @@
+# The Folio reader over a labelled v2 fixture, on the device (#734). The one thing a browser cannot prove: on Android a
+# held figure is pushed down its hold by an offset the UI thread drives, so it must stay pinned at the top while its
+# beats pass, change as each arrives, and leave with its hold. The screenshots are read by a person; the assertions
+# here only prove the page and the hold were drawn. No session and no server.
+appId: com.knowscroll.client
+name: Folio holds a figure while its beats pass
+tags:
+  - gallery
+  - folio
+---
+- runFlow: start-app.yaml
+- openLink: knowscroll://gallery-folio?doc=circulation
+- extendedWaitUntil:
+    visible:
+      id: ks-folio-gallery
+    timeout: 60000
+- assertVisible: The heart and the blood.*
+- takeScreenshot: folio-01-opening
+- extendedWaitUntil:
+    visible:
+      id: held-figure
+    timeout: 10000
+# Short swipes from the text column, so each frame shows the hold a little further on (names are unique: a repeated
+# name would overwrite the frame before it).
+- swipe:
+    start: 50%, 78%
+    end: 50%, 52%
+    duration: 700
+- takeScreenshot: folio-02-hold
+- swipe:
+    start: 50%, 78%
+    end: 50%, 52%
+    duration: 700
+- takeScreenshot: folio-03-hold
+- swipe:
+    start: 50%, 78%
+    end: 50%, 52%
+    duration: 700
+- takeScreenshot: folio-04-hold
+- swipe:
+    start: 50%, 78%
+    end: 50%, 52%
+    duration: 700
+- takeScreenshot: folio-05-hold
+- swipe:
+    start: 50%, 78%
+    end: 50%, 52%
+    duration: 700
+- takeScreenshot: folio-06-hold
+- swipe:
+    start: 50%, 78%
+    end: 50%, 52%
+    duration: 700
+- takeScreenshot: folio-07-hold
+- swipe:
+    start: 50%, 78%
+    end: 50%, 52%
+    duration: 700
+- takeScreenshot: folio-08-hold
+- swipe:
+    start: 50%, 78%
+    end: 50%, 52%
+    duration: 700
+- takeScreenshot: folio-09-hold
+- swipe:
+    start: 50%, 78%
+    end: 50%, 52%
+    duration: 700
+- takeScreenshot: folio-10-hold
+- swipe:
+    start: 50%, 78%
+    end: 50%, 52%
+    duration: 700
+- takeScreenshot: folio-11-hold

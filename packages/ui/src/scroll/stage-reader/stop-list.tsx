@@ -10,7 +10,8 @@ import { EndTray } from './end-tray';
 import type { Payoff } from './payoff';
 import type { CallLock } from '../calls/call-play';
 import type { SpineDot } from './spine';
-import { AsideView, ReadStopView } from './stop-view';
+import { AsideView } from '../reader/aside-view';
+import { ReadStopView } from './stop-view';
 
 /** What the list needs from the reader around it. */
 export interface StopListProps {

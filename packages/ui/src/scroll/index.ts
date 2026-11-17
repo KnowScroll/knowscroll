@@ -22,4 +22,6 @@ export { type ScrollMediaRenderer, type ScrollMediaRequest } from './media';
 export * from './reader';
 export * from './calls';
 export * from './stage-reader';
+export * from './folio';
+export { PagePaletteProvider, type PagePalette } from './page/page-palette';
 export { Stage, type StageProps } from './stage/stage';

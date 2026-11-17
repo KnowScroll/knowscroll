@@ -16,7 +16,7 @@ import {
   StateBlock,
   useDisplay,
   type ScrollPositionHandle,
-  type StageReaderHandle,
+  type ReaderHandle,
 } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useFormatSiblings } from '../encounter/use-format-siblings';
@@ -282,7 +282,7 @@ function ReadyScrollV2({ scope, scroll }: { readonly scope: AccountScope; readon
   );
   // A Scroll that another screen covers (a Part, the Reel) is not being read: its time stops until it is back.
   const focused = useIsFocused();
-  const reader = useRef<StageReaderHandle>(null);
+  const reader = useRef<ReaderHandle>(null);
   const target = useMemo(() => ({ assetId: scroll.assetId, assetRevision: scroll.assetRevision }), [scroll]);
   const remember = useCallback(
     (stopId: string) => {
