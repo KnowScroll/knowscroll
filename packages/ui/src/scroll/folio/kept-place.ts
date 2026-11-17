@@ -1,29 +1,21 @@
 /**
  * Opening at a kept place while the page settles. Figures draw and holds measure themselves over several frames, moving
- * the place's beat; the reader keeps bringing it back until the person scrolls somewhere else or `release` is called.
+ * the place's beat; the reader keeps bringing it back until the person scrolls, touches the page or presses a key, or
+ * `release` is called. Only the person's own input lets the place go: the page moving under it (a hold measuring itself,
+ * the browser keeping its own scroll anchor) also scrolls, and must not.
  */
 export interface KeptPlace {
   readonly holding: () => boolean;
-  /** Records the offset the reader asks the scroller for; false when it is the offset already asked for. */
-  readonly ask: (y: number) => boolean;
-  /** A scroll to anywhere but the offset asked for is the person's: the place has done its job. */
-  readonly scrolledTo: (y: number) => void;
+  /** Whether the scroller, now at `at`, needs moving to `y`. */
+  readonly ask: (y: number, at: number) => boolean;
   readonly release: () => void;
 }
 
 export function createKeptPlace(active: boolean): KeptPlace {
   let holding = active;
-  let asked = 0;
   return {
     holding: () => holding,
-    ask(y) {
-      if (Math.abs(asked - y) < 1) return false;
-      asked = y;
-      return true;
-    },
-    scrolledTo(y) {
-      if (Math.abs(y - asked) > 2) holding = false;
-    },
+    ask: (y, at) => Math.abs(at - y) >= 1,
     release() {
       holding = false;
     },

@@ -47,6 +47,7 @@ import { HoldView } from './hold-view';
 import { beatsOf, type Beat, type FigureControl, type ReadingModel } from './reading-model';
 import type { FigureState } from '../stage/kit-figure';
 import { createKeptPlace } from './kept-place';
+import { usePersonInput } from './person-input';
 import { createPlaces, type Places } from './places';
 import { createScrollOffset, type ScrollOffset } from './scroll-offset';
 
@@ -196,11 +197,13 @@ export function FolioReader({
   }, [kept]);
   const restore = useCallback(() => {
     if (!kept.holding() || startStop === undefined) return;
+    // The reading band is a share of the viewport: until the scroller has a height, there is no place to put the beat.
+    if (offset.current().viewport <= 0) return;
     const target = targetOf(startStop);
     if (target === undefined) return;
     const y = Math.max(0, target);
-    if (kept.ask(y)) scroller.current?.scrollTo({ y, animated: false });
-  }, [kept, startStop, targetOf]);
+    if (kept.ask(y, offset.current().top)) scroller.current?.scrollTo({ y, animated: false });
+  }, [kept, offset, startStop, targetOf]);
   const placeBeat = useCallback(
     (beatId: string, top: number) => {
       places.laidOut(beatId, top);
@@ -232,6 +235,7 @@ export function FolioReader({
     () => ({
       capture: () => (atEnd || reading === undefined ? undefined : { stopId: reading }),
       jumpToStop: (stopId) => {
+        kept.release();
         const target = targetOf(stopId);
         if (target !== undefined) scrollTo(target);
       },
@@ -252,10 +256,12 @@ export function FolioReader({
         textVersionOn: textVersion,
       }),
     }),
-    [atEnd, reading, readBeat, scrollTo, simpler, targetOf, textVersion, textVersionShown, toggleSimpler],
+    [atEnd, kept, reading, readBeat, scrollTo, simpler, targetOf, textVersion, textVersionShown, toggleSimpler],
   );
 
   const onKey = (key: FolioKey): boolean => {
+    // A key the person presses is their own input: a place kept at the opening has done its job.
+    kept.release();
     const { top, viewport: height } = offset.current();
     switch (key.action) {
       case 'next-stop':
@@ -314,12 +320,10 @@ export function FolioReader({
   const onScrollEvent = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const { contentOffset, layoutMeasurement } = event.nativeEvent;
-      // A scroll that is not the one the restore asked for is the person's: the kept place has done its job.
-      kept.scrolledTo(contentOffset.y);
       offset.update(contentOffset.y, layoutMeasurement.height);
       viewport.scrollProps.onScroll?.(event);
     },
-    [kept, offset, viewport],
+    [offset, viewport],
   );
   const onScroll = useMemo(
     () =>
@@ -330,10 +334,19 @@ export function FolioReader({
       }),
     [offset, onScrollEvent],
   );
+  // The person's own input lets a kept place go; the page moving under it never does.
+  const releaseKept = useCallback(() => kept.release(), [kept]);
+  usePersonInput(scroller, releaseKept);
+  const onScrollBeginDrag = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    kept.release();
+    viewport.scrollProps.onScrollBeginDrag?.(event);
+  };
   const onLayout = (event: LayoutChangeEvent) => {
     const { height } = event.nativeEvent.layout;
     setViewportHeight(height);
     offset.update(offset.current().top, height);
+    // Beats may have been placed before the scroller had a height (a slow first layout): place the kept beat now.
+    restore();
     viewport.scrollProps.onLayout?.(event);
   };
 
@@ -413,7 +426,7 @@ export function FolioReader({
             restore();
             viewport.scrollProps.onContentSizeChange?.(width, height);
           }}
-          onScrollBeginDrag={viewport.scrollProps.onScrollBeginDrag}
+          onScrollBeginDrag={onScrollBeginDrag}
         >
           <View style={[column, styles.opening]}>
             {previousPart === undefined ? null : <PreviousPartLink previous={previousPart} />}
