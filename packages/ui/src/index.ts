@@ -4,6 +4,7 @@ export { FocusHaloProvider } from './display/focus-halo';
 export { useFocusRing } from './display/focus-ring';
 export { linkPress } from './display/link';
 export { printedSurface } from './display/printed';
+export { scrollPageSurface } from './display/scroll-page-surface';
 export {
   dialogHostSemantics,
   dialogSemantics,

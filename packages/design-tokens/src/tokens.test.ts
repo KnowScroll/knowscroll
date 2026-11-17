@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { adaptive as webAdaptive } from './adaptive.web';
+import { adaptive as webAdaptive, pageAdaptive as webPageAdaptive } from './adaptive.web';
 import {
   appearancePalettes,
   appearanceStyleSheet,
   appearanceVariable,
   defaultAppearance,
   printed,
+  scrollPage,
+  scrollPagePalettes,
+  scrollPageStyleSheet,
   talkThemeForAppearance,
   breakpointFor,
   content,
@@ -374,5 +377,63 @@ describe('Appearance (#666)', () => {
     expect(sheet).toContain(`[data-ks-appearance="dark"]{${appearanceVariable('paper')}:#020308;`);
     expect(sheet).toContain('color-scheme:dark;');
     expect(sheet).toContain(`[data-ks-appearance="light"]{${appearanceVariable('paper')}:#FFFBF0;`);
+  });
+});
+
+describe('A Scroll’s page (D-424)', () => {
+  describe.each(Object.entries(scrollPagePalettes))('%s', (_name, page) => {
+    // The text pairs every appearance is held to, on the page's own ground, and figure text on the plate.
+    const text: [string, string, string][] = [
+      ['ink on the page', page.ink, page.paper],
+      ['ink on paper-2', page.ink, page.paper2],
+      ['ink on a figure plate', page.ink, page.plate],
+      ['ink-2 on the page', page.ink2, page.paper],
+      ['ink-2 on a figure plate', page.ink2, page.plate],
+      ['a link on the page', page.accentDeep, page.paper],
+      ['danger text on the page', page.dangerText, page.paper],
+      ['ink on highlight', page.ink, page.highlight],
+      ['the page on an ink (inverted) chip', page.paper, page.ink],
+      ['hypothetical text on its ground', page.hypotheticalText, page.hypotheticalGround],
+      ['corrected text on its ground', page.correctedText, page.correctedGround],
+    ];
+    it.each(text)('%s meets 4.5:1', (_pair, foreground, background) => {
+      expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
+    });
+    // A cobalt action on the page is edged in ink, so its boundary is the ink edge, not its fill (WCAG 1.4.11).
+    const edges: [string, string, string][] = [
+      ['muted edge on the page', page.muted, page.paper],
+      ['focus ring on the page', page.focus, page.paper],
+      ['focus ring on a figure plate', page.focus, page.plate],
+      ['a cobalt action’s ink edge on the page', page.ink, page.paper],
+      ['a figure plate’s ink edge on the page', page.ink, page.paper],
+      ['a lit side against a solid body', page.lit, page.solid],
+    ];
+    it.each(edges)('%s meets 3:1', (_pair, foreground, background) => {
+      expect(contrast(foreground, background)).toBeGreaterThanOrEqual(3);
+    });
+    it('a solid body stands out from its plate, by its own fill or by its ink outline', () => {
+      expect(Math.max(contrast(page.solid, page.plate), contrast(page.ink, page.plate))).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  it('is printed Light exactly in Light, and has every role in both appearances', () => {
+    expect(Object.keys(scrollPagePalettes.dark).sort()).toEqual(Object.keys(scrollPagePalettes.light).sort());
+    for (const [role, value] of Object.entries(appearancePalettes.light)) {
+      expect(scrollPagePalettes.light[role as keyof typeof appearancePalettes.light]).toBe(value);
+    }
+    expect(scrollPage.plate).toBe(scrollPagePalettes.light.plate);
+  });
+
+  it('is never pure black nor pure white in Dark', () => {
+    expect(scrollPagePalettes.dark.paper).not.toBe('#000000');
+    expect(scrollPagePalettes.dark.ink).not.toBe('#FFFFFF');
+  });
+
+  it('on the web, takes the page’s palette inside a page, the dark one inside a dark root', () => {
+    expect(webPageAdaptive('plate')).toBe('var(--ks-page-plate, #F4EDD8)');
+    const sheet = scrollPageStyleSheet();
+    expect(sheet).toContain('[data-ks-page]{--ks-paper:#FFFBF0;');
+    expect(sheet).toContain('[data-ks-appearance="dark"] [data-ks-page]{--ks-paper:#17150F;');
+    expect(sheet).toContain('--ks-page-plate:#221F18;');
   });
 });

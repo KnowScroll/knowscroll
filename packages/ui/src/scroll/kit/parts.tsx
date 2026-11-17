@@ -1,11 +1,16 @@
 import type { ReactElement } from 'react';
 import { Circle, Line, Path, Polygon, Rect, Text as SvgText } from 'react-native-svg';
-import { content, fontFamily, family, status } from '@knowscroll/design-tokens';
+import { content, fontFamily, family, printed, scrollPage, status } from '@knowscroll/design-tokens';
 import type { Point } from './earth-sky-scene';
 
 /**
  * The parts every drawing kit shares in the V3 style (D-194): the palette, an arrow whose width means
  * something, the focus ring and the small mono label. Kits arrange these; they never decide a number.
+ *
+ * The palette by job. On a Scroll's page on the web the adaptive roles follow the page's appearance (D-424): INK is the
+ * line and the label, PAPER and PAPER_DEEP are the plate's own colours. A body that must stay dark in both appearances
+ * (a planet, a black hole, the night side) is SOLID, and what must stay light (a lit side) is LIT; never draw either with
+ * INK or PAPER, which swap in the dark. The other colours carry a meaning and keep one value.
  */
 
 export const INK = content.ink;
@@ -18,7 +23,12 @@ export const WARM = status.danger.fill;
 export const SKY_LIGHT = family.systems.pattern;
 export const GREEN = content.fresh;
 export const MUTED = content.muted;
+export const SOLID = scrollPage.solid;
+export const LIT = scrollPage.lit;
 export const OUTLINE = 2.5;
+/** The printed page's ground and sunken colours as plain hex, for colour maths only (see `mixColour`). */
+export const PRINTED_PAPER = printed.paper;
+export const PRINTED_PAPER_DEEP = printed.paper2;
 
 /** A closed or open path through points. */
 export function pathOf(points: readonly Point[], close = true): string {
@@ -183,7 +193,11 @@ export function PhaseGlyph({
   );
 }
 
-/** A colour part of the way from one hex colour to another. */
+/**
+ * A colour part of the way from one hex colour to another. Both must be concrete hex values: on the web an adaptive role
+ * is a `var(...)` string, and mixing one gives an invalid colour (the browser draws black). Mix `printed` or fixed
+ * colours (`PRINTED_PAPER`), never INK, PAPER, PAPER_DEEP, MUTED, FOCUS, SOLID or LIT.
+ */
 export function mixColour(from: string, to: string, share: number): string {
   const channel = (hex: string, at: number): number => parseInt(hex.slice(at, at + 2), 16);
   const blended = [1, 3, 5].map((at) => Math.round(channel(from, at) + (channel(to, at) - channel(from, at)) * share));

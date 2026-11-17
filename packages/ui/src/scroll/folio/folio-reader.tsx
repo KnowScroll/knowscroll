@@ -26,7 +26,7 @@ import { layout, spacing } from '@knowscroll/design-tokens';
 import { dataSet } from '../../display/data-set';
 import { useDisplay } from '../../display/display';
 import { useFocusRing } from '../../display/focus-ring';
-import { printedSurface } from '../../display/printed';
+import { scrollPageSurface } from '../../display/scroll-page-surface';
 import { Text } from '../../text/text';
 import { usePagePalette } from '../page/page-palette';
 import { useArticleActivity } from '../reading/use-activity';
@@ -411,7 +411,7 @@ export function FolioReader({
         style={[styles.page, { backgroundColor: page.ground }]}
         onLayout={(event) => setReaderWidth(event.nativeEvent.layout.width)}
         testID="folio-page"
-        {...printedSurface()}
+        {...scrollPageSurface()}
       >
         <Animated.ScrollView
           ref={scroller}

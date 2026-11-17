@@ -6,6 +6,7 @@ export {
   family,
   overlay,
   printed,
+  scrollPage,
   space,
   spaceOpacity,
   status,
@@ -52,3 +53,11 @@ export {
   type AppearancePalette,
   type AppearanceRole,
 } from './appearance';
+export {
+  scrollPageAttribute,
+  scrollPagePalettes,
+  scrollPageStyleSheet,
+  scrollPageVariable,
+  type ScrollPagePalette,
+  type ScrollPageRole,
+} from './scroll-page-palette';
