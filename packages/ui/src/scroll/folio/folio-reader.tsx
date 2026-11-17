@@ -149,7 +149,7 @@ export function FolioReader({
   // A place kept from another revision, or a mistyped anchor, names no beat here: the essay opens at its start instead,
   // so nothing the screen keeps or asks about can name a stop this document does not have.
   const [startStop] = useState(() => order.find((beat) => beat.id === initialStopId)?.id);
-  const [kept] = useState(() => createKeptPlace(startStop !== undefined));
+  const [kept] = useState(() => createKeptPlace(startStop));
   const [reading, setReading] = useState<string | undefined>(startStop ?? order[0]?.id);
   const [atEnd, setAtEnd] = useState(false);
   const [textVersion, setTextVersion] = useState(false);
@@ -197,14 +197,15 @@ export function FolioReader({
     return () => clearTimeout(timer);
   }, [kept]);
   const restore = useCallback(() => {
-    if (!kept.holding() || startStop === undefined) return;
+    const stop = kept.stop();
+    if (stop === undefined) return;
     // The reading band is a share of the viewport: until the scroller has a height, there is no place to put the beat.
     if (offset.current().viewport <= 0) return;
-    const target = targetOf(startStop);
+    const target = targetOf(stop);
     if (target === undefined) return;
     const y = Math.max(0, target);
     if (kept.ask(y, offset.current().top)) scroller.current?.scrollTo({ y, animated: false });
-  }, [kept, offset, startStop, targetOf]);
+  }, [kept, offset, targetOf]);
   const placeBeat = useCallback(
     (beatId: string, top: number) => {
       places.laidOut(beatId, top);
@@ -231,6 +232,15 @@ export function FolioReader({
   );
   const readBeat = order.find((beat) => beat.id === reading);
   const textVersionShown = hasTextVersion(model);
+  // The text version reflows the essay (pictures become words, holds lie flat), so the beat being read is kept in place
+  // while it settles, as a kept place is at the opening. At the very top there is nothing to keep: the page stays put.
+  const toggleTextVersion = useCallback(() => {
+    if (reading !== undefined && !atEnd && offset.current().top > 0) {
+      kept.keep(reading);
+      setTimeout(kept.release, RESTORE_MS);
+    }
+    setTextVersion((now) => !now);
+  }, [atEnd, kept, offset, reading, setTextVersion]);
   useImperativeHandle(
     handleRef,
     () => ({
@@ -247,7 +257,7 @@ export function FolioReader({
       },
       toggleTextVersion: () => {
         if (!textVersionShown) return false;
-        setTextVersion((now) => !now);
+        toggleTextVersion();
         return true;
       },
       view: () => ({
@@ -257,7 +267,19 @@ export function FolioReader({
         textVersionOn: textVersion,
       }),
     }),
-    [atEnd, kept, reading, readBeat, scrollTo, simpler, targetOf, textVersion, textVersionShown, toggleSimpler],
+    [
+      atEnd,
+      kept,
+      reading,
+      readBeat,
+      scrollTo,
+      simpler,
+      targetOf,
+      textVersion,
+      textVersionShown,
+      toggleSimpler,
+      toggleTextVersion,
+    ],
   );
 
   const onKey = (key: FolioKey): boolean => {
@@ -315,7 +337,7 @@ export function FolioReader({
         return true;
       case 'text-version':
         if (!textVersionShown) return false;
-        setTextVersion((now) => !now);
+        toggleTextVersion();
         return true;
     }
   };
@@ -476,6 +498,7 @@ export function FolioReader({
                   viewportHeight={viewportHeight}
                   reducedMotion={reducedMotion}
                   textVersion={textVersion}
+                  onTextVersion={textVersionShown ? toggleTextVersion : undefined}
                   renderBeat={renderBeat}
                   places={places}
                 />,

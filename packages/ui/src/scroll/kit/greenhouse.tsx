@@ -167,7 +167,7 @@ function SunlightView({ scene }: { readonly scene: GreenhouseScene }) {
       <SunDisc focused={scene.focus === 'sun'} />
       {/* Sunlight crosses the layer, which is pale in both appearances. */}
       <Arrow from={{ x: 64, y: 54 }} to={landing} width={width(1)} colour={SUN} outlined edged />
-      <Arrow from={landing} to={{ x: 236, y: 28 }} width={width(scene.reflected)} colour={SUN} outlined />
+      <Arrow from={landing} to={{ x: 236, y: 28 }} width={width(scene.reflected)} colour={SUN} outlined edged />
       {scene.focus === 'reflected' ? (
         <Circle cx={195} cy={95} r={26} fill="none" stroke={FOCUS} strokeWidth={3} strokeDasharray="5 4" />
       ) : null}

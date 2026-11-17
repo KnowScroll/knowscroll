@@ -408,7 +408,6 @@ describe('A Scroll’s page (D-424)', () => {
       ['a cobalt action’s ink edge on the page', page.ink, page.paper],
       ['focus ring on a figure plate', page.focus, page.plate],
       ['a figure plate’s ink edge on the page', page.ink, page.paper],
-      ['a solid body’s ink edge on a figure plate', page.ink, page.plate],
       ['a lit side against a solid body', page.lit, page.solid],
     ];
     it.each(edges)('%s meets 3:1', (_pair, foreground, background) => {

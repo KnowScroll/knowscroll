@@ -19,11 +19,16 @@ export interface FigureViewProps {
   readonly textVersion: boolean;
   readonly control?: FigureControl | undefined;
   /**
-   * The plate is exactly `height` tall, its chip strip included, so the drawing fits above the strip: a held figure,
+   * The plate holds `height` inside its border, its chip strip included, so the drawing fits above the strip: a held figure,
    * whose height the hold's geometry is built on (`canPinHolds`, the reading line). Otherwise the plate is the drawing's
    * height plus the strip.
    */
   readonly fixedHeight?: boolean;
+  /**
+   * Given, the chip is the reader's text version rather than this figure's own (a held figure, whose words would not fit
+   * its pinned plate): it shows that and turns it.
+   */
+  readonly onTextVersion?: (() => void) | undefined;
   readonly testID?: string;
 }
 
@@ -39,13 +44,14 @@ export function FigureView({
   textVersion,
   control,
   fixedHeight = false,
+  onTextVersion,
   testID,
 }: FigureViewProps) {
   const page = usePagePalette();
   const [ownText, setOwnText] = useState<boolean | undefined>(undefined);
   const [tilt, setTilt] = useState<number | undefined>(undefined);
   const drawn = useKitFigure(figure, reducedMotion, control?.kind === 'tilt' ? tilt : undefined);
-  const asText = ownText ?? textVersion;
+  const asText = onTextVersion === undefined ? (ownText ?? textVersion) : textVersion;
   const drawingHeight = fixedHeight ? height - FIGURE_CHIP_ROOM : height;
   return (
     <View style={styles.figure} testID={testID}>
@@ -58,7 +64,7 @@ export function FigureView({
           <FigureDrawing drawn={drawn} textVersion={asText} />
         </View>
         <View style={styles.chipRow}>
-          <TextChip on={asText} onPress={() => setOwnText(!asText)} />
+          <TextChip on={asText} onPress={onTextVersion ?? (() => setOwnText(!asText))} />
         </View>
       </View>
       {control?.kind === 'tilt' && figure.kind === 'state' ? (
