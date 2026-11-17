@@ -158,7 +158,8 @@ export function FolioReader({
     () => new Set(order.flatMap((beat) => beat.notes.filter((note) => !note.collapsed).map((note) => note.id))),
   );
   const figureHeight = figureHeightFor(viewportHeight, beside);
-  const pinHolds = canPinHolds(viewportHeight, figureHeight, beside, textScale);
+  // With every picture as its words, a figure is as tall as its words and nothing needs to stay in view: holds lie flat.
+  const pinHolds = !textVersion && canPinHolds(viewportHeight, figureHeight, beside, textScale);
 
   // The beat being read follows the scroll; the screen hears of it only when it changes.
   useEffect(
@@ -280,7 +281,9 @@ export function FolioReader({
         scrollTo(0);
         return true;
       case 'to-end':
-        scrollTo(contentHeight.current);
+        // The scroller's own end, not the last height it reported: right after the text version changes, the essay is
+        // still reflowing and that height is behind.
+        scroller.current?.scrollToEnd({ animated: !reducedMotion });
         return true;
       case 'next-part':
         return run(commands.wayOn);
@@ -453,7 +456,8 @@ export function FolioReader({
               if (block.kind === 'figure') {
                 return [renderFigure(block.id, block.figure, block.control)];
               }
-              // Where a pinned figure would leave no room to read, a hold is drawn as beats each followed by its figure.
+              // Where a pinned figure would leave no room to read, or the pictures are words, a hold is drawn as beats each
+              // followed by its figure.
               if (!pinHolds) {
                 return block.beats.flatMap((held, index) =>
                   held.figure.key === block.beats[index - 1]?.figure.key

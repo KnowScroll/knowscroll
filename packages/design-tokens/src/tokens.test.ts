@@ -30,6 +30,7 @@ import {
   toggle,
   typeScale,
   universe,
+  type AppearancePalette,
   type TypeRole,
 } from './index';
 
@@ -308,40 +309,49 @@ describe('Talk themes (T3 kit, D-145)', () => {
   });
 });
 
+/** The text pairs (4.5:1, WCAG 1.4.3) every appearance palette is held to, as the Light register is. */
+function appearanceTextPairs(palette: AppearancePalette): [string, string, string][] {
+  return [
+    ['ink on paper', palette.ink, palette.paper],
+    ['ink on paper-2', palette.ink, palette.paper2],
+    ['ink-2 on paper', palette.ink2, palette.paper],
+    ['ink-2 on paper-2', palette.ink2, palette.paper2],
+    ['accent-deep on paper', palette.accentDeep, palette.paper],
+    ['accent-deep on paper-2', palette.accentDeep, palette.paper2],
+    ['fresh-ink on paper', palette.freshInk, palette.paper],
+    ['ink on the success ground', palette.ink, palette.freshTint],
+    ['danger text on paper', palette.dangerText, palette.paper],
+    ['ink on highlight', palette.ink, palette.highlight],
+    ['paper on an ink (inverted) button', palette.paper, palette.ink],
+    ['cream on the nav pill', overlay.onDarkMuted, palette.nav],
+    ['ink-2 on a preparing stripe', palette.ink2, palette.preparingB],
+    ['hypothetical text on its ground', palette.hypotheticalText, palette.hypotheticalGround],
+    ['ink on the hypothetical ground (a picked row, a What-if card)', palette.ink, palette.hypotheticalGround],
+    ['ink-2 on the hypothetical ground', palette.ink2, palette.hypotheticalGround],
+    ['corrected text on its ground', palette.correctedText, palette.correctedGround],
+    ['ink on the corrected ground', palette.ink, palette.correctedGround],
+  ];
+}
+
+/** The edge and focus pairs (3:1, WCAG 1.4.11) every appearance palette is held to. */
+function appearanceEdgePairs(palette: AppearancePalette): [string, string, string][] {
+  return [
+    ['muted edge on paper', palette.muted, palette.paper],
+    ['focus ring on paper', palette.focus, palette.paper],
+    ['focus ring on paper-2', palette.focus, palette.paper2],
+    ['cobalt action on paper', content.accent, palette.paper],
+    ['hypothetical dashed edge on its ground', palette.hypotheticalEdge, palette.hypotheticalGround],
+    ['focus ring on the hypothetical ground', palette.focus, palette.hypotheticalGround],
+  ];
+}
+
 describe('Appearance (#666)', () => {
   describe.each(Object.entries(appearancePalettes))('%s', (_name, palette) => {
-    // The same pairs the Light register is held to, for every appearance (WCAG 1.4.3 and 1.4.11).
-    const text: [string, string, string][] = [
-      ['ink on paper', palette.ink, palette.paper],
-      ['ink on paper-2', palette.ink, palette.paper2],
-      ['ink-2 on paper', palette.ink2, palette.paper],
-      ['ink-2 on paper-2', palette.ink2, palette.paper2],
-      ['accent-deep on paper', palette.accentDeep, palette.paper],
-      ['accent-deep on paper-2', palette.accentDeep, palette.paper2],
-      ['fresh-ink on paper', palette.freshInk, palette.paper],
-      ['ink on the success ground', palette.ink, palette.freshTint],
-      ['danger text on paper', palette.dangerText, palette.paper],
-      ['ink on highlight', palette.ink, palette.highlight],
-      ['paper on an ink (inverted) button', palette.paper, palette.ink],
-      ['cream on the nav pill', overlay.onDarkMuted, palette.nav],
-      ['ink-2 on a preparing stripe', palette.ink2, palette.preparingB],
-      ['hypothetical text on its ground', palette.hypotheticalText, palette.hypotheticalGround],
-      ['ink on the hypothetical ground (a picked row, a What-if card)', palette.ink, palette.hypotheticalGround],
-      ['ink-2 on the hypothetical ground', palette.ink2, palette.hypotheticalGround],
-      ['corrected text on its ground', palette.correctedText, palette.correctedGround],
-      ['ink on the corrected ground', palette.ink, palette.correctedGround],
-    ];
+    const text = appearanceTextPairs(palette);
     it.each(text)('%s meets 4.5:1', (_pair, foreground, background) => {
       expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
     });
-    const edges: [string, string, string][] = [
-      ['muted edge on paper', palette.muted, palette.paper],
-      ['focus ring on paper', palette.focus, palette.paper],
-      ['focus ring on paper-2', palette.focus, palette.paper2],
-      ['cobalt action on paper', content.accent, palette.paper],
-      ['hypothetical dashed edge on its ground', palette.hypotheticalEdge, palette.hypotheticalGround],
-      ['focus ring on the hypothetical ground', palette.focus, palette.hypotheticalGround],
-    ];
+    const edges = appearanceEdgePairs(palette);
     it.each(edges)('%s meets 3:1', (_pair, foreground, background) => {
       expect(contrast(foreground, background)).toBeGreaterThanOrEqual(3);
     });
@@ -382,37 +392,27 @@ describe('Appearance (#666)', () => {
 
 describe('A Scroll’s page (D-424)', () => {
   describe.each(Object.entries(scrollPagePalettes))('%s', (_name, page) => {
-    // The text pairs every appearance is held to, on the page's own ground, and figure text on the plate.
+    // Every pair an appearance is held to, on the page's own palette, and figure text on a figure's plate.
     const text: [string, string, string][] = [
-      ['ink on the page', page.ink, page.paper],
-      ['ink on paper-2', page.ink, page.paper2],
+      ...appearanceTextPairs(page),
       ['ink on a figure plate', page.ink, page.plate],
-      ['ink-2 on the page', page.ink2, page.paper],
       ['ink-2 on a figure plate', page.ink2, page.plate],
-      ['a link on the page', page.accentDeep, page.paper],
-      ['danger text on the page', page.dangerText, page.paper],
-      ['ink on highlight', page.ink, page.highlight],
-      ['the page on an ink (inverted) chip', page.paper, page.ink],
-      ['hypothetical text on its ground', page.hypotheticalText, page.hypotheticalGround],
-      ['corrected text on its ground', page.correctedText, page.correctedGround],
     ];
     it.each(text)('%s meets 4.5:1', (_pair, foreground, background) => {
       expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
     });
-    // A cobalt action on the page is edged in ink, so its boundary is the ink edge, not its fill (WCAG 1.4.11).
+    // A cobalt action on the page is edged in ink, so its boundary is the ink edge (WCAG 1.4.11): cobalt itself cannot
+    // reach 3:1 on a warm near-black. Figures draw dark bodies in `solid` with an ink edge and light sides in `lit`.
     const edges: [string, string, string][] = [
-      ['muted edge on the page', page.muted, page.paper],
-      ['focus ring on the page', page.focus, page.paper],
-      ['focus ring on a figure plate', page.focus, page.plate],
+      ...appearanceEdgePairs(page).filter(([pair]) => pair !== 'cobalt action on paper'),
       ['a cobalt action’s ink edge on the page', page.ink, page.paper],
+      ['focus ring on a figure plate', page.focus, page.plate],
       ['a figure plate’s ink edge on the page', page.ink, page.paper],
+      ['a solid body’s ink edge on a figure plate', page.ink, page.plate],
       ['a lit side against a solid body', page.lit, page.solid],
     ];
     it.each(edges)('%s meets 3:1', (_pair, foreground, background) => {
       expect(contrast(foreground, background)).toBeGreaterThanOrEqual(3);
-    });
-    it('a solid body stands out from its plate, by its own fill or by its ink outline', () => {
-      expect(Math.max(contrast(page.solid, page.plate), contrast(page.ink, page.plate))).toBeGreaterThanOrEqual(3);
     });
   });
 

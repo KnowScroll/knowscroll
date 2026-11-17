@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import Svg, { Circle, G, Line, Path, Rect } from 'react-native-svg';
 import { SCENE_HEIGHT, SCENE_WIDTH, type Point } from './earth-sky-scene';
-import { BLUE, FOCUS, FocusRing, INK, Label, LIT, MUTED, OUTLINE, SOLID, SUN } from './parts';
+import { BLUE, FOCUS, FocusRing, Glow, INK, Label, LIT, MUTED, OUTLINE, SOLID, SUN } from './parts';
 import { CURVE_HALF_SPAN, CURVE_SAMPLES, DIP_ENLARGEMENT, type TransitScene } from './transit-scene';
 
 /**
@@ -99,9 +99,7 @@ function CrossingView({ scene }: { readonly scene: TransitScene }) {
   const marker = { x: xOf(crossingGraph, scene.separation), y: yOf(crossingGraph, scene.brightness) };
   return (
     <G>
-      {/* The star's glow, over LIT for the same reason. */}
-      <Circle cx={star.x} cy={star.y} r={starRadius * 1.22} fill={LIT} />
-      <Circle cx={star.x} cy={star.y} r={starRadius * 1.22} fill={SUN} opacity={0.3} />
+      <Glow at={star} radius={starRadius * 1.22} colour={SUN} opacity={0.3} />
       <Circle cx={star.x} cy={star.y} r={starRadius} fill={SUN} stroke={INK} strokeWidth={OUTLINE} />
       <Circle cx={planet.x} cy={planet.y} r={planetRadius} fill={PLANET} stroke={INK} strokeWidth={1.2} />
       <Axes graph={crossingGraph} bottom={186} />

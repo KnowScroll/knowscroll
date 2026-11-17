@@ -114,6 +114,7 @@ export function HoldView({
             height={figureHeight}
             reducedMotion={reducedMotion}
             textVersion={textVersion}
+            fixedHeight
             testID="held-figure"
           />
         </View>

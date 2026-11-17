@@ -304,12 +304,19 @@ test.describe('keys', () => {
     );
     expect(words.every((alt) => alt !== '')).toBe(true);
     await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(count);
+    const holds = await page.locator('[data-testid^="hold-"]').count();
+    expect(holds).toBeGreaterThan(0);
     await page.keyboard.press('t');
     await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(0);
-    for (const [index, alt] of words.entries()) await expect(plates.nth(index)).toContainText(alt);
-    // T again brings the pictures back.
+    // As words nothing needs to stay in view, so the holds lie flat: each beat is followed by its figure's words, and
+    // every picture that was drawn is now on the page as words.
+    await expect(page.locator('[data-testid^="hold-"]')).toHaveCount(0);
+    const shown = await plates.evaluateAll((nodes) => nodes.map((node) => node.textContent ?? ''));
+    for (const alt of words) expect(shown.some((text) => text.includes(alt))).toBe(true);
+    // T again brings the pictures, and the holds, back.
     await page.keyboard.press('t');
     await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(count);
+    await expect(page.locator('[data-testid^="hold-"]')).toHaveCount(holds);
   });
 
   test('a figure’s own Text chip turns that one picture into its words', async ({ page }) => {

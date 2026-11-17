@@ -30,8 +30,8 @@ import {
  */
 
 /**
- * Blood is drawn as a translucent wash, which turns muddy over a dark plate. Every wash therefore sits on a LIT underlay
- * (the plate's own colour in Light), so red and blue read the same in both appearances.
+ * Blood is drawn as a translucent wash, which turns muddy over a dark plate. Every wash therefore sits on a LIT underlay,
+ * so red and blue read the same in both appearances; what crosses a wash is `edged`.
  */
 const RICH = WARM;
 const POOR = BLUE;
@@ -212,6 +212,7 @@ function HeartView({ scene }: { readonly scene: CirculationScene }) {
           width={4}
           colour={INK}
           opacity={scene.atrioventricularOpen * 0.8}
+          edged
         />
       ))}
       {[SL_PULMONARY, SL_AORTIC].map((at) => (
@@ -222,6 +223,7 @@ function HeartView({ scene }: { readonly scene: CirculationScene }) {
           width={4}
           colour={INK}
           opacity={scene.semilunarOpen * 0.8}
+          edged
         />
       ))}
       <Label at={{ x: 82, y: 198 }} text="RIGHT" bold />

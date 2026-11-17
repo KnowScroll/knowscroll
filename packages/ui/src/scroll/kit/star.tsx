@@ -2,7 +2,7 @@ import type { ReactElement, ReactNode } from 'react';
 import Svg, { Circle, G, Line, Polygon, Rect } from 'react-native-svg';
 import { printed } from '@knowscroll/design-tokens';
 import { SCENE_HEIGHT, SCENE_WIDTH, onCircle, type Point } from './earth-sky-scene';
-import { Arrow, FOCUS, FocusRing, INK, Label, LIT, MUTED, OUTLINE, PAPER, PAPER_DEEP, SOLID, SUN, WARM } from './parts';
+import { Arrow, FOCUS, FocusRing, Glow, INK, Label, MUTED, OUTLINE, PAPER_DEEP, SOLID, SUN, WARM } from './parts';
 import type { StarScene } from './star-scene';
 
 /**
@@ -21,11 +21,7 @@ const GAS = '#B9A5DA';
  */
 const MARKED = printed.accentDeep;
 
-/** A star's disc in the colour of its surface. */
-/**
- * A star's disc and its glow. The glow is its colour, translucent over LIT, so it stays light on a dark plate rather than
- * turning olive; `beneath` is drawn over the glow and under the disc.
- */
+/** A star's disc in the colour of its surface, with its glow; `beneath` is drawn over the glow and under the disc. */
 function StarDisc({
   at,
   radius,
@@ -39,24 +35,10 @@ function StarDisc({
 }) {
   return (
     <G>
-      <Circle cx={at.x} cy={at.y} r={radius * 1.25} fill={LIT} />
-      <Circle cx={at.x} cy={at.y} r={radius * 1.25} fill={SURFACE_COLOUR[surface]} opacity={0.28} />
+      <Glow at={at} radius={radius * 1.25} colour={SURFACE_COLOUR[surface]} />
       {beneath}
       <Circle cx={at.x} cy={at.y} r={radius} fill={SURFACE_COLOUR[surface]} stroke={INK} strokeWidth={OUTLINE} />
     </G>
-  );
-}
-
-/**
- * Gravity's arrow, edged in the page's ground: it reaches into the star's glow, which is light in both appearances, and in
- * Dark its cream ink would vanish there without the edge.
- */
-function GravityArrow({ from, to, width }: { readonly from: Point; readonly to: Point; readonly width: number }) {
-  return (
-    <>
-      <Arrow from={from} to={to} width={width + 3} colour={PAPER} />
-      <Arrow from={from} to={to} width={width} colour={INK} />
-    </>
   );
 }
 
@@ -93,11 +75,14 @@ function BalanceView({ scene }: { readonly scene: StarScene }) {
       <Circle cx={centre.x} cy={centre.y} r={core} fill={CORE} stroke={INK} strokeWidth={OUTLINE} />
       <Label at={{ x: 22, y: 190 }} text="CORE: HYDROGEN → HELIUM" anchor="start" bold />
       {inward.map((degrees) => (
-        <GravityArrow
+        <Arrow
           key={degrees}
           from={onCircle(centre, base + 34, degrees)}
           to={onCircle(centre, base + 34 - 26 * scene.gravity, degrees)}
           width={4.5}
+          colour={INK}
+          // It reaches into the glow, which is light in both appearances.
+          edged
         />
       ))}
       {outward.map((degrees) => (
@@ -111,7 +96,7 @@ function BalanceView({ scene }: { readonly scene: StarScene }) {
       ))}
       <Label at={{ x: 22, y: 28 }} text="GRAVITY IN" anchor="start" bold />
       <Label at={{ x: 22, y: 42 }} text="PRESSURE OUT" anchor="start" bold />
-      <GravityArrow from={{ x: 112, y: 24 }} to={{ x: 132, y: 24 }} width={4} />
+      <Arrow from={{ x: 112, y: 24 }} to={{ x: 132, y: 24 }} width={4} colour={INK} edged />
       <Arrow from={{ x: 112, y: 38 }} to={{ x: 132, y: 38 }} width={4} colour={WARM} />
       {scene.focus === 'core' ? <FocusRing at={centre} radius={core + 10} /> : null}
       {scene.focus === 'gravity' ? <FocusRing at={onCircle(centre, base + 20, 45)} radius={22} /> : null}

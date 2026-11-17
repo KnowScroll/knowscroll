@@ -10,6 +10,7 @@ import {
   FOCUS,
   FocusBox,
   FocusRing,
+  Glow,
   INK,
   Label,
   LIT,
@@ -80,15 +81,9 @@ function FormationView({ scene }: { readonly scene: BlackHoleScene }) {
   const starColour = stage === 1 ? scene.giantColour : massive ? scene.massiveColour : scene.sunColour;
   return (
     <G>
-      <Label
-        at={{ x: 14, y: 16 }}
-        text={massive ? 'A STAR MANY TIMES THE SUN’S MASS' : 'A STAR LIKE THE SUN'}
-        anchor="start"
-        bold
-      />
       {stage < 2 ? (
         <G>
-          <Circle cx={centre.x} cy={centre.y} r={base * 1.25} fill={starColour} opacity={0.28} />
+          <Glow at={centre} radius={base * 1.25} colour={starColour} />
           <Circle cx={centre.x} cy={centre.y} r={base} fill={starColour} stroke={INK} strokeWidth={OUTLINE} />
           <Circle cx={centre.x} cy={centre.y} r={core} fill={CORE} stroke={INK} strokeWidth={OUTLINE} />
         </G>
@@ -101,6 +96,8 @@ function FormationView({ scene }: { readonly scene: BlackHoleScene }) {
               to={onCircle(centre, base - 6, degrees)}
               width={4.5 * scene.gravity}
               colour={INK}
+              // Its head lies on the star, which is light in both appearances.
+              edged
             />
           ))
         : null}
@@ -144,7 +141,15 @@ function FormationView({ scene }: { readonly scene: BlackHoleScene }) {
           <Circle cx={centre.x} cy={centre.y} r={8} fill={scene.dwarfColour} stroke={INK} strokeWidth={OUTLINE} />
         </G>
       ) : null}
-      <Label at={{ x: 160, y: 146 }} text={(massive ? CAPTIONS.massive : CAPTIONS.sunLike)[stage] ?? ''} bold />
+      {/* Over the star, which grows into the title's corner as it swells. */}
+      <Label
+        at={{ x: 14, y: 16 }}
+        text={massive ? 'A STAR MANY TIMES THE SUN’S MASS' : 'A STAR LIKE THE SUN'}
+        anchor="start"
+        bold
+        edged
+      />
+      <Label at={{ x: 160, y: 146 }} text={(massive ? CAPTIONS.massive : CAPTIONS.sunLike)[stage] ?? ''} bold edged />
       <Line x1={90} y1={160} x2={230} y2={160} stroke={INK} strokeWidth={1.6} />
       {STAGE_NAMES.map((name, index) => (
         <G key={name}>
@@ -239,7 +244,7 @@ function PullView({ scene }: { readonly scene: BlackHoleScene }) {
   };
   return (
     <G>
-      <Circle cx={star.x} cy={star.y} r={31} fill={scene.massiveColour} opacity={0.28} />
+      <Glow at={star} radius={31} colour={scene.massiveColour} />
       <Circle cx={star.x} cy={star.y} r={25} fill={scene.massiveColour} stroke={INK} strokeWidth={OUTLINE} />
       <Hole at={hole} radius={6} />
       {panel(star, scene.starPull)}

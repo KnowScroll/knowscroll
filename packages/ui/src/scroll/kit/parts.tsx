@@ -10,7 +10,9 @@ import type { Point } from './earth-sky-scene';
  * The palette by job. On a Scroll's page on the web the adaptive roles follow the page's appearance (D-424): INK is the
  * line and the label, PAPER and PAPER_DEEP are the plate's own colours. A body that must stay dark in both appearances
  * (a planet, a black hole, the night side) is SOLID, and what must stay light (a lit side) is LIT; never draw either with
- * INK or PAPER, which swap in the dark. The other colours carry a meaning and keep one value.
+ * INK or PAPER, which swap in the dark. SOLID is close to the dark plate, so a SOLID body on the plate carries an INK
+ * edge; LIT is close to cream ink, so what crosses something LIT is SOLID or `edged`. The other colours carry a meaning
+ * and keep one value.
  */
 
 export const INK = content.ink;
@@ -29,6 +31,29 @@ export const OUTLINE = 2.5;
 /** The printed page's ground and sunken colours as plain hex, for colour maths only (see `mixColour`). */
 export const PRINTED_PAPER = printed.paper;
 export const PRINTED_PAPER_DEEP = printed.paper2;
+
+/**
+ * The glow round a star or a sun: its colour, translucent, over LIT. Translucent colour straight over a dark plate turns
+ * olive; over LIT it stays light in both appearances. Draw it before what sits on it.
+ */
+export function Glow({
+  at,
+  radius,
+  colour,
+  opacity = 0.28,
+}: {
+  readonly at: Point;
+  readonly radius: number;
+  readonly colour: string;
+  readonly opacity?: number;
+}): ReactElement {
+  return (
+    <>
+      <Circle cx={at.x} cy={at.y} r={radius} fill={LIT} />
+      <Circle cx={at.x} cy={at.y} r={radius} fill={colour} opacity={opacity} />
+    </>
+  );
+}
 
 /** A closed or open path through points. */
 export function pathOf(points: readonly Point[], close = true): string {
@@ -105,10 +130,30 @@ export interface ArrowProps {
   readonly opacity?: number;
   /** An ink edge, for a pale arrow on the paper. */
   readonly outlined?: boolean;
+  /**
+   * A thin edge in the page's ground, outside everything else, for an arrow that crosses something light in both
+   * appearances (a glow, a wash, a pale band): in Dark its cream ink would vanish there without it.
+   */
+  readonly edged?: boolean;
 }
 
 /** An arrow from one point to another with a head at the end, its head sized by its width. */
-export function Arrow({ from, to, width, colour, opacity = 1, outlined = false }: ArrowProps): ReactElement {
+export function Arrow({
+  from,
+  to,
+  width,
+  colour,
+  opacity = 1,
+  outlined = false,
+  edged = false,
+}: ArrowProps): ReactElement {
+  if (edged)
+    return (
+      <>
+        <Arrow from={from} to={to} width={width + (outlined ? 3.5 : 0) + 3} colour={PAPER} opacity={opacity} />
+        <Arrow from={from} to={to} width={width} colour={colour} opacity={opacity} outlined={outlined} />
+      </>
+    );
   if (outlined)
     return (
       <>
@@ -150,13 +195,19 @@ export function Label({
   text,
   bold = false,
   anchor = 'middle',
+  edged = false,
 }: {
   readonly at: Point;
   readonly text: string;
   readonly bold?: boolean;
   readonly anchor?: 'start' | 'middle' | 'end';
+  /**
+   * A halo in the page's ground under the words, for a label that can lie on a glow, which is light in both appearances:
+   * in Dark its cream words would fade there without it.
+   */
+  readonly edged?: boolean;
 }): ReactElement {
-  return (
+  const words = (
     <SvgText
       x={at.x}
       y={at.y}
@@ -167,6 +218,25 @@ export function Label({
     >
       {text}
     </SvgText>
+  );
+  if (!edged) return words;
+  return (
+    <>
+      <SvgText
+        x={at.x}
+        y={at.y}
+        fontSize={8.5}
+        fontFamily={fontFamily.mono}
+        fill={PAPER}
+        stroke={PAPER}
+        strokeWidth={3}
+        strokeLinejoin="round"
+        textAnchor={anchor}
+      >
+        {text}
+      </SvgText>
+      {words}
+    </>
   );
 }
 

@@ -165,7 +165,8 @@ function SunlightView({ scene }: { readonly scene: GreenhouseScene }) {
     <G>
       <Layer scene={scene} />
       <SunDisc focused={scene.focus === 'sun'} />
-      <Arrow from={{ x: 64, y: 54 }} to={landing} width={width(1)} colour={SUN} outlined />
+      {/* Sunlight crosses the layer, which is pale in both appearances. */}
+      <Arrow from={{ x: 64, y: 54 }} to={landing} width={width(1)} colour={SUN} outlined edged />
       <Arrow from={landing} to={{ x: 236, y: 28 }} width={width(scene.reflected)} colour={SUN} outlined />
       {scene.focus === 'reflected' ? (
         <Circle cx={195} cy={95} r={26} fill="none" stroke={FOCUS} strokeWidth={3} strokeDasharray="5 4" />
@@ -191,6 +192,7 @@ function InfraredView({ scene }: { readonly scene: GreenhouseScene }) {
         width={width(scene.absorbed)}
         colour={SUN}
         outlined
+        edged
       />
       <Label at={{ x: 34, y: 12 }} text="SUN IN" />
       <Arrow

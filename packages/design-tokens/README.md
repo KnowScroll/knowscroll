@@ -79,8 +79,9 @@ the `scrollPage` register: `plate`; `solid`, a body drawn dark in both appearanc
 drawn light in both. On the web the page names itself (`data-ks-page`, `scrollPageSurface()` in
 `ui`) and `scrollPageStyleSheet()`, installed beside `appearanceStyleSheet()`, gives it the palette
 of the root's appearance. Native draws the Light page (#706, #740). `tokens.test.ts` ("A Scroll's
-page") holds both palettes to the Appearance pairs; a cobalt action on the page is edged in ink,
-which carries its 3:1 boundary, because cobalt cannot reach 3:1 on a warm near-black.
+page") holds both palettes to every Appearance pair and to the page's own (text on a figure's
+plate, a solid body's ink edge); a cobalt action on the page is edged in ink, which carries its
+3:1 boundary, because cobalt cannot reach 3:1 on a warm near-black.
 
 ## Colour
 

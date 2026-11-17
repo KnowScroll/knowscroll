@@ -8,10 +8,10 @@ import {
   FocusBox,
   FocusOutline,
   FocusRing,
+  Glow,
   GREEN,
   INK,
   Label,
-  LIT,
   MUTED,
   OUTLINE,
   PAPER_DEEP,
@@ -53,12 +53,11 @@ const colourOf = (scene: StarlightScene, kind: StarKind): string =>
  */
 const OUTPUT_BLUE = printed.accentDeep;
 
-/** A star's disc in its drawn colour, with a faint glow: translucent over LIT, so it stays light on a dark plate. */
+/** A star's disc in its drawn colour, with a faint glow. */
 function StarDisc({ at, radius, colour }: { readonly at: Point; readonly radius: number; readonly colour: string }) {
   return (
     <G>
-      <Circle cx={at.x} cy={at.y} r={radius * 1.25} fill={LIT} />
-      <Circle cx={at.x} cy={at.y} r={radius * 1.25} fill={colour} opacity={0.28} />
+      <Glow at={at} radius={radius * 1.25} colour={colour} />
       <Circle cx={at.x} cy={at.y} r={radius} fill={colour} stroke={INK} strokeWidth={OUTLINE} />
     </G>
   );
@@ -157,7 +156,7 @@ function OutputView({ scene }: { readonly scene: StarlightScene }) {
   return (
     <G>
       <StarDisc at={markedAt} radius={scene.markedRadiusPx} colour={scene.colours[marked] ?? '#FFFFFF'} />
-      <Label at={{ x: markedAt.x, y: 99 }} text={NAMES[HOTTEST_FIRST[marked] ?? 'sun-like']} bold />
+      <Label at={{ x: markedAt.x, y: 99 }} text={NAMES[HOTTEST_FIRST[marked] ?? 'sun-like']} bold edged />
       <Circle
         cx={240}
         cy={48}
