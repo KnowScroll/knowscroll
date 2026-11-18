@@ -27,14 +27,15 @@ import { KeepWriteStatus } from '../saved/keep-detail';
 import { ShareSheetBody } from '../sharing/share-sheet-body';
 import { EvidencePanel } from '../diagnostics/evidence-panel';
 import { combineObservers, createAnchorKeeper } from './anchor-keeper';
-import type { OpenedScroll, OpenedStageScroll } from './scroll-session';
+import type { OpenedScroll, OpenedScrollV2 } from './scroll-session';
 import { RequestNotice } from '../encounter/encounter-notices';
 import { EncounterOverlay } from '../encounter/encounter-overlay';
 import { RequestPanel } from '../requests/request-panel';
-import { StageReaderSurface } from './stage-reader-surface';
+import { ScrollReaderSurface } from './scroll-reader-surface';
 import { forgetPartLeft, partLeftFor } from './part-left';
 import { useAddressMoves } from './use-address-moves';
 import { useDirectAsk } from './use-direct-ask';
+import { EVERY_READER } from './scroll-readers';
 import { useScrollSession } from './use-scroll-session';
 import { ActivatedScrollView } from './activated-scroll-view';
 import { readResume, writeResume } from '../encounter/encounter-history';
@@ -257,7 +258,7 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
  * here is the same as in Explore (D1): there is no encounter, so its source is this Scroll's own
  * exposure. Next ↑ goes to Explore for a new topic.
  */
-function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; readonly scroll: OpenedStageScroll }) {
+function ReadyScrollV2({ scope, scroll }: { readonly scope: AccountScope; readonly scroll: OpenedScrollV2 }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const back = useBack();
@@ -330,7 +331,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
       : undefined;
   return (
     <>
-      <StageReaderSurface
+      <ScrollReaderSurface
         scroll={scroll}
         observer={recorder.observer}
         paused={!focused || sharing || ask.open}
@@ -414,7 +415,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
 
 function SignedInScroll({ scope, assetId }: { readonly scope: AccountScope; readonly assetId: string }) {
   const router = useRouter();
-  const { session, state } = useScrollSession(scope, assetId, { stage: true });
+  const { session, state } = useScrollSession(scope, assetId, EVERY_READER);
   useEffect(() => {
     session.start();
     return () => session.dispose();
@@ -422,9 +423,11 @@ function SignedInScroll({ scope, assetId }: { readonly scope: AccountScope; read
   useDocumentTitle('Scroll');
   switch (state.status) {
     case 'ready':
-      return <ReadyScroll scope={scope} scroll={state.scroll} />;
-    case 'ready_stage':
-      return <ReadyStageScroll key={state.scroll.exposureId} scope={scope} scroll={state.scroll} />;
+      return state.reader === 'article' ? (
+        <ReadyScroll scope={scope} scroll={state.scroll} />
+      ) : (
+        <ReadyScrollV2 key={state.scroll.exposureId} scope={scope} scroll={state.scroll} />
+      );
     case 'opening':
     case 'loading':
     case 'activating':

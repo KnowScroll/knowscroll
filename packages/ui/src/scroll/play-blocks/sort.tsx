@@ -6,7 +6,7 @@ import { useFocusRing } from '../../display/focus-ring';
 import { Icon } from '../../icons/icon';
 import { Text } from '../../text/text';
 import { isSortRight, sortedItems, sortPlacedRight, type SortBlock } from '../model';
-import { PlayChip } from '../stage-reader/play-chips';
+import { PlayChip } from '../calls/play-chips';
 import { frameStyles } from './frame';
 import { moved, shownOrder, type Attempt } from './sort-state';
 

@@ -4,10 +4,11 @@ import { layout, spacing } from '@knowscroll/design-tokens';
 import type { CallItStop, FinalCallStop, ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import type { CallState } from './call-state';
 import { CallView, type FinalCallPlay } from './call-view';
-import { dataSet } from './data-set';
-import { EndTray, type NextPartPeek, type SmallPrint } from './end-tray';
+import { dataSet } from '../../display/data-set';
+import type { NextPartPeek, SmallPrint } from '../reader/reader-commands';
+import { EndTray } from './end-tray';
 import type { Payoff } from './payoff';
-import type { StageLock } from './stage-play';
+import type { CallLock } from '../calls/call-play';
 import type { SpineDot } from './spine';
 import { AsideView, ReadStopView } from './stop-view';
 
@@ -23,7 +24,7 @@ export interface StopListProps {
   readonly measureSection: (index: number) => (event: LayoutChangeEvent) => void;
   readonly stateOf: (callId: string) => CallState;
   /** What play holds of a Call it: the lock, its spark and combo, and whether it is kept. */
-  readonly lockOf: (callId: string) => StageLock | undefined;
+  readonly lockOf: (callId: string) => CallLock | undefined;
   /** Recording is paused: whatever is locked stays on this device. */
   readonly paused: boolean;
   /** A call's reveal was laid out: its section's index and its height with the section's bottom padding. */

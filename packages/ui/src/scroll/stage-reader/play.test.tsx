@@ -4,8 +4,8 @@ import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { DisplayProvider } from '../../display/display';
 import { keepingNote } from './call-state';
-import { ReaderDock } from './reader-chrome';
-import type { StageLandmark, StageLock, StagePlay } from './stage-play';
+import { ReaderDock } from '../reader/reader-chrome';
+import type { CallLandmark, CallLock, CallPlay } from '../calls/call-play';
 import { StageReader } from './stage-reader';
 import type { StageReadingObserver } from './use-stop-reading';
 
@@ -31,9 +31,9 @@ function spy(): Spy {
 }
 
 /** A play layer the test holds: what is locked, and a record of every lock the reader asks for. */
-function playing(locks: readonly StageLock[] = [], paused = false, landmark?: StageLandmark) {
+function playing(locks: readonly CallLock[] = [], paused = false, landmark?: CallLandmark) {
   const asked = jest.fn<void, [string, number]>();
-  const play: StagePlay = {
+  const play: CallPlay = {
     locks,
     sparks: locks.reduce((sum, lock) => sum + lock.earned, 0),
     combo: locks.at(-1)?.combo ?? 0,
@@ -44,7 +44,7 @@ function playing(locks: readonly StageLock[] = [], paused = false, landmark?: St
   return { play, asked };
 }
 
-function reader(play?: StagePlay, observer: StageReadingObserver = spy()) {
+function reader(play?: CallPlay, observer: StageReadingObserver = spy()) {
   return render(
     <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
       <StageReader document={document} observer={observer} commands={{}} play={play} />
@@ -52,7 +52,7 @@ function reader(play?: StagePlay, observer: StageReadingObserver = spy()) {
   );
 }
 
-const lockedCall = (over: Partial<StageLock> = {}): StageLock => ({
+const lockedCall = (over: Partial<CallLock> = {}): CallLock => ({
   stopId: 'call-delhi',
   option: 1,
   correct: true,
@@ -64,7 +64,7 @@ const lockedCall = (over: Partial<StageLock> = {}): StageLock => ({
 });
 
 /** The Final call of the fixture (its right answer is the first option). */
-const lockedFinal = (over: Partial<StageLock> = {}): StageLock =>
+const lockedFinal = (over: Partial<CallLock> = {}): CallLock =>
   lockedCall({ stopId: 'final-tilt', option: 0, finalCall: true, ...over });
 
 const firstLock = () => {
@@ -220,8 +220,8 @@ describe('the options after the lock', () => {
   });
 });
 
-const gold: StageLandmark = { key: 'the-leaning-axis', name: 'The Leaning Axis', tier: 'gold' };
-const plain: StageLandmark = { ...gold, tier: 'plain' };
+const gold: CallLandmark = { key: 'the-leaning-axis', name: 'The Leaning Axis', tier: 'gold' };
+const plain: CallLandmark = { ...gold, tier: 'plain' };
 
 describe('the Final call (D-187, D-188)', () => {
   it('says what it is for before the lock: the way to the gold landmark, and the tilt to turn', async () => {

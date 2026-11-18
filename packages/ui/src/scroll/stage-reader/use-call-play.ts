@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FRESH_CALL, lockIn, pickOption, type CallState } from './call-state';
-import { lockOf, type StagePlay } from './stage-play';
+import { lockOf, type CallPlay } from '../calls/call-play';
 import type { StopReading } from './use-stop-reading';
 
 /**
@@ -10,7 +10,7 @@ import type { StopReading } from './use-stop-reading';
  * never with the option. A call that play already holds (locked earlier, and read back) is shown
  * revealed.
  */
-export function useCallPlay(reading: StopReading, play: StagePlay) {
+export function useCallPlay(reading: StopReading, play: CallPlay) {
   const [played, setPlayed] = useState<Readonly<Record<string, CallState>>>({});
   const stateOf = (callId: string): CallState => {
     const locked = lockOf(play, callId);

@@ -1,5 +1,5 @@
 import type { CallItStop, FinalCallStop } from '@knowscroll/scroll-model';
-import { lockOf, type StageKeeping, type StageLandmark, type StagePlay } from './stage-play';
+import { lockOf, type CallKeeping, type CallLandmark, type CallPlay } from '../calls/call-play';
 
 /** How the Final call stands at the end of the Scroll. */
 export type FinalCallStanding = 'right' | 'wrong' | 'open' | 'absent';
@@ -14,13 +14,13 @@ export interface Payoff {
   /** The longest run of right calls; shown only from two. */
   readonly bestCombo: number;
   readonly final: FinalCallStanding;
-  readonly landmark: StageLandmark | undefined;
+  readonly landmark: CallLandmark | undefined;
   /** Whether the Final call's lock is kept: the payoff says so when it is not (paused, waiting, refused). */
-  readonly keeping: StageKeeping | undefined;
+  readonly keeping: CallKeeping | undefined;
 }
 
 /** The payoff of a Scroll's play. Pure. */
-export function payoffOf(calls: readonly (CallItStop | FinalCallStop)[], play: StagePlay): Payoff {
+export function payoffOf(calls: readonly (CallItStop | FinalCallStop)[], play: CallPlay): Payoff {
   const finalCall = calls.find((call) => call.kind === 'final_call');
   const finalLock = finalCall === undefined ? undefined : lockOf(play, finalCall.id);
   return {

@@ -3,10 +3,10 @@ import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens
 import { Tag } from '../../status/tag';
 import { Text } from '../../text/text';
 import { keepingNote } from './call-state';
-import { dataSet } from './data-set';
+import { dataSet } from '../../display/data-set';
 import type { Payoff } from './payoff';
-import { PlayChip } from './play-chips';
-import type { StageLandmark } from './stage-play';
+import { PlayChip } from '../calls/play-chips';
+import type { CallLandmark } from '../calls/call-play';
 
 /** The score row of the payoff: the sparks of this Scroll, the best combo from two, and how the Final call went. */
 export function ScoreRow({ payoff }: { readonly payoff: Payoff }) {
@@ -30,7 +30,7 @@ export function LandmarkCard({
   landmark,
   note,
 }: {
-  readonly landmark: StageLandmark;
+  readonly landmark: CallLandmark;
   /** Why the landmark is not kept, when it is not. */
   readonly note: string | undefined;
 }) {

@@ -28,8 +28,8 @@ import { printedSurface } from '../../display/printed';
 import { Text } from '../../text/text';
 import { Stage } from '../stage';
 import type { FinalCallPlay } from './call-view';
-import type { NextPartPeek, SmallPrint } from './end-tray';
-import { PartArrivalBar, PartBackTab, PartBackTabRow, type PartArrival } from './part-arrival';
+import type { NextPartPeek, PartArrival, ReaderCommands, SmallPrint } from '../reader/reader-commands';
+import { PartArrivalBar, PartBackTab, PartBackTabRow } from './part-arrival';
 import { PartEdgePeek } from './part-edge-peek';
 import type { PartDrag, PartMove } from './part-gesture';
 import { partSwipeJustCommitted } from './part-handoff';
@@ -37,20 +37,19 @@ import { PartPeekPanel } from './part-peek';
 import { PartSwipe } from './part-swipe';
 import { usePartPeek } from './use-part-peek';
 import { payoffOf } from './payoff';
-import { passageOf } from './passage';
-import { SelectionMenu } from './selection-menu';
-import { actOnKey, run, type ReaderCommands } from './reader-actions';
-import { ReaderFocus } from './reader-focus';
-import type { ReaderKey } from './reader-keys';
+import { passageOf } from '../reader/passage';
+import { SelectionMenu } from '../reader/selection-menu';
+import { actOnKey } from './reader-actions';
+import { run } from '../reader/reader-commands';
+import { ReaderFocus } from '../reader/reader-focus';
+import type { ReaderKey } from '../reader/reader-keys';
 import { Spine, type SpineDot } from './spine';
-import { lockOf, useLocalStagePlay, type StagePlay } from './stage-play';
+import { lockOf, useLocalCallPlay, type CallPlay } from '../calls/call-play';
 import { pictureStopOf } from './stage-reveal';
 import { StopList } from './stop-list';
 import { useCallPlay } from './use-call-play';
 import { useReaderScroll } from './use-reader-scroll';
 import { useStopReading, type StageReadingObserver } from './use-stop-reading';
-
-export type { ReaderCommands } from './reader-actions';
 
 export interface StageReaderHandle {
   /** The stop the reader is on, or `undefined` at the end tray. */
@@ -104,7 +103,7 @@ export interface StageReaderProps {
    * Play on this Scroll: what was locked, the sparks, and how to lock another (D-063). The app passes
    * one backed by its play session; without one the reader keeps it on the device alone.
    */
-  readonly play?: StagePlay | undefined;
+  readonly play?: CallPlay | undefined;
   /** Drawn at the end of the Scroll, before the ways on: what the screen it is read on adds (a thread's finish). */
   readonly endSlot?: ReactNode;
   /** What the screen draws under a read stop's words: the Quick answer asked about them (V3 D2). */
@@ -202,7 +201,7 @@ export function StageReader({
   }, [enter]);
   const activeStopId = current < document.stops.length ? document.stops[current]?.id : undefined;
   const reading = useStopReading(observer, activeStopId, paused);
-  const ownPlay = useLocalStagePlay(calls, document.landmark);
+  const ownPlay = useLocalCallPlay(calls, document.landmark);
   const play = appPlay ?? ownPlay;
   const played = useCallPlay(reading, play);
   const finalCall = calls.find((call) => call.kind === 'final_call');

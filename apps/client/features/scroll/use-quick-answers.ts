@@ -7,7 +7,7 @@ import {
 } from '@knowscroll/client-core';
 import { newCommandId } from '../../platform/command-id';
 import { useAccountScopeIfPresent } from '../../providers/account-scope';
-import type { OpenedStageScroll } from './scroll-session';
+import type { OpenedScrollV2 } from './scroll-session';
 
 const noSubscription = () => () => undefined;
 const noSnapshot = () => NO_QUICK_ANSWERS;
@@ -18,7 +18,7 @@ const noSnapshot = () => NO_QUICK_ANSWERS;
  * selection. The session belongs to the scope: sign-out, an account switch, a privacy reset and Clear all end it.
  */
 export function useQuickAnswers(
-  scroll: OpenedStageScroll,
+  scroll: OpenedScrollV2,
 ): { readonly snapshot: QuickAnswerSnapshot; readonly session: QuickAnswerSession } | undefined {
   const { state } = useAccountScopeIfPresent();
   const scope = state.status === 'signed_in' ? state.scope : undefined;

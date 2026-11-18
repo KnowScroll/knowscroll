@@ -3,7 +3,7 @@ import type { CallItStop, FinalCallStop } from '@knowscroll/scroll-model';
 import { landmarkTier, talliesAfterEach, type LandmarkTier } from '../model';
 
 /** Whether a lock is kept, in the words the screen needs (the app's play session says; the reader only shows). */
-export type StageKeeping =
+export type CallKeeping =
   /** Stored on the server. */
   | 'saved'
   /** Not stored anywhere: the reader's own play when the app gives it none. */
@@ -16,7 +16,7 @@ export type StageKeeping =
   | 'refused';
 
 /** A call the person has locked: what they picked, whether it was right, and the run of right calls it ended at. */
-export interface StageLock {
+export interface CallLock {
   readonly stopId: string;
   /** Zero-based index of the option locked. */
   readonly option: number;
@@ -25,11 +25,11 @@ export interface StageLock {
   /** The sparks this lock earned: one for a right call, two for a right Final call after a combo of two or more (D-187). */
   readonly earned: number;
   readonly finalCall: boolean;
-  readonly keeping: StageKeeping;
+  readonly keeping: CallKeeping;
 }
 
 /** The landmark the Final call awarded: gold for a right answer, plain for any other (D-188). */
-export interface StageLandmark {
+export interface CallLandmark {
   readonly key: string;
   readonly name: string;
   readonly tier: LandmarkTier;
@@ -41,22 +41,22 @@ export interface StageLandmark {
  * one the reader keeps this on the device. None of it is evidence: the reader still reports only the
  * value-free "revealed" to the recorder.
  */
-export interface StagePlay {
+export interface CallPlay {
   /** In the order locked, those kept earlier first. */
-  readonly locks: readonly StageLock[];
+  readonly locks: readonly CallLock[];
   /** One for each right call. Sparks belong to this Scroll alone. */
   readonly sparks: number;
   /** Right calls in a row. */
   readonly combo: number;
   /** Present once the Final call is locked, when the Scroll names a landmark. */
-  readonly landmark: StageLandmark | undefined;
+  readonly landmark: CallLandmark | undefined;
   /** Recording is paused: whatever is locked now stays on this device, and the screen says so. */
   readonly paused: boolean;
   /** Locks an option of a call, the Final call included. A call already locked, or an option it does not have, changes nothing. */
   readonly lock: (stopId: string, option: number) => void;
 }
 
-export function lockOf(play: StagePlay, stopId: string): StageLock | undefined {
+export function lockOf(play: CallPlay, stopId: string): CallLock | undefined {
   return play.locks.find((lock) => lock.stopId === stopId);
 }
 
@@ -64,10 +64,10 @@ export function lockOf(play: StagePlay, stopId: string): StageLock | undefined {
  * The reader's own play when the app gives it none (the gallery, tests): locks judged from the
  * document and kept in memory. Nothing is sent and nothing survives the screen.
  */
-export function useLocalStagePlay(
+export function useLocalCallPlay(
   calls: readonly (CallItStop | FinalCallStop)[],
   named: { readonly key: string; readonly name: string } | undefined,
-): StagePlay {
+): CallPlay {
   const [picks, setPicks] = useState<
     readonly {
       readonly stopId: string;

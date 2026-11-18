@@ -3,8 +3,9 @@ import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { content, spacing } from '@knowscroll/design-tokens';
 import { Button, useDisplay, type StageReaderHandle } from '@knowscroll/ui';
-import { StageReaderSurface } from '../scroll/stage-reader-surface';
-import { isStageScroll, type OpenedStageScroll } from '../scroll/scroll-session';
+import { ScrollReaderSurface } from '../scroll/scroll-reader-surface';
+import type { OpenedScrollV2 } from '../scroll/scroll-session';
+import { EVERY_READER, readerFor } from '../scroll/scroll-readers';
 import { continuationIntent } from './continuation-intent';
 import { readerContinuations } from './continuation-moves';
 import { EncounterStrip } from './encounter-actions';
@@ -19,11 +20,11 @@ import { arrivalToSay, markArrivalSaid } from './part-arrival';
 import { FormatNoteCard } from './format-note-card';
 import { useFormatNote } from './use-format-note';
 
-export type StageEntry = Extract<EncounterEntry, { kind: 'scroll' }> & { readonly scroll: OpenedStageScroll };
+export type ScrollV2Entry = Extract<EncounterEntry, { kind: 'scroll' }> & { readonly scroll: OpenedScrollV2 };
 
-/** Whether a Scroll entry holds a v2 document. The entry itself is kept: the session tracks entries by identity. */
-export function isStageEntry(entry: Extract<EncounterEntry, { kind: 'scroll' }>): entry is StageEntry {
-  return isStageScroll(entry.scroll);
+/** Whether a v2 reader draws a Scroll entry (`readerFor`). The entry itself is kept: the session tracks entries by identity. */
+export function isScrollV2Entry(entry: Extract<EncounterEntry, { kind: 'scroll' }>): entry is ScrollV2Entry {
+  return readerFor(entry.scroll, EVERY_READER)?.reader === 'stage';
 }
 
 /**
@@ -32,7 +33,7 @@ export function isStageEntry(entry: Extract<EncounterEntry, { kind: 'scroll' }>)
  * Reel's edge tabs and the end card of a v1 Scroll make, through the same session, so a continuation
  * is only ever one the server admitted (the displayed link travels with the move).
  */
-export function StageEncounter({
+export function ScrollV2Encounter({
   entry,
   state,
   session,
@@ -40,7 +41,7 @@ export function StageEncounter({
   back,
   hint,
 }: {
-  readonly entry: StageEntry;
+  readonly entry: ScrollV2Entry;
   readonly state: EncounterState;
   readonly session: EncounterSession;
   readonly foreground: boolean;
@@ -89,7 +90,7 @@ export function StageEncounter({
   }, [entry, session, playable]);
   return (
     <View style={styles.page}>
-      <StageReaderSurface
+      <ScrollReaderSurface
         scroll={entry.scroll}
         observer={entry.recorder.observer}
         paused={!playable}

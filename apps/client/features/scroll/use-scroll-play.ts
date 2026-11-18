@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { playSessionFor, type PlayCall, type PlaySnapshot } from '@knowscroll/client-core';
 import { callsOf, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
-import type { StagePlay } from '@knowscroll/ui';
+import type { CallPlay } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useAccountScopeIfPresent } from '../../providers/account-scope';
 import { useRecordingPausedIn } from '../../providers/use-recording-paused';
-import type { OpenedStageScroll } from './scroll-session';
+import type { OpenedScrollV2 } from './scroll-session';
 
 const NO_PLAY: PlaySnapshot = { locks: [], sparks: 0, combo: 0, landmark: undefined };
 const noSubscription = () => () => undefined;
@@ -27,7 +27,7 @@ function playCallsOf(document: ScrollDocumentV2): readonly PlayCall[] {
  * device alone. The session belongs to the scope: sign-out, an account switch, a privacy reset and
  * Clear all end it.
  */
-export function useStagePlay(scroll: OpenedStageScroll): StagePlay | undefined {
+export function useScrollPlay(scroll: OpenedScrollV2): CallPlay | undefined {
   const { state } = useAccountScopeIfPresent();
   const scope = state.status === 'signed_in' ? state.scope : undefined;
   const { assetId, assetRevision, document } = scroll;

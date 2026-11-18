@@ -24,13 +24,13 @@ import { ChallengeSheet } from '../sharing/challenge-sheet';
 import { ShareStopSheet, type MomentThread } from '../threads/share-stop-sheet';
 import type { SaveMove } from './more-rows';
 import { MoreSheetBody } from './more-sheet';
-import type { OpenedStageScroll } from './scroll-session';
+import type { OpenedScrollV2 } from './scroll-session';
 import { quickAnswerViewOf } from './quick-answer-copy';
 import { useQuickAnswers } from './use-quick-answers';
-import { useStagePlay } from './use-stage-play';
+import { useScrollPlay } from './use-scroll-play';
 
 /** What the surface needs from the screen it is on: where each move goes. Each is also a gesture and a key in the reader. */
-export interface StageMoves {
+export interface ReaderMoves {
   readonly universe: () => void;
   /** Return to the opener of a standalone reader, preserving its navigation stack and scroll position. */
   readonly back?: (() => void) | undefined;
@@ -72,7 +72,7 @@ function assign<T>(ref: Ref<T> | undefined, value: T | null): void {
  * to the Scroll, so it is the same on both. On a tablet or desktop the reader is a
  * centred column with the stage pinned at its top (D-133).
  */
-export function StageReaderSurface({
+export function ScrollReaderSurface({
   scroll,
   observer,
   paused,
@@ -90,13 +90,13 @@ export function StageReaderSurface({
   topInset,
   bottomInset,
 }: {
-  readonly scroll: OpenedStageScroll;
+  readonly scroll: OpenedScrollV2;
   readonly observer?: StageReadingObserver | undefined;
   readonly paused?: boolean | undefined;
   readonly initialStopId?: string | undefined;
   readonly handleRef?: Ref<StageReaderHandle> | undefined;
   readonly onStopChange?: ((stopId: string | undefined) => void) | undefined;
-  readonly moves: StageMoves;
+  readonly moves: ReaderMoves;
   /** "Part 1 of 3": a count only when the server counted it. */
   readonly partLabel?: string | undefined;
   /**
@@ -143,7 +143,7 @@ export function StageReaderSurface({
   const noMoment = whyNoMoment(document, momentStop);
   const limits = document.asides.find((aside) => aside.id === document.recap.smallPrintAside);
   // Play on this Scroll: the person's own calls, sparks and combo, kept unless recording is paused (D-063, D-083).
-  const play = useStagePlay(scroll);
+  const play = useScrollPlay(scroll);
   const wayOn = moves.nextPart ?? moves.related;
   const openMoment = () => {
     setMomentStop(reader.current?.capture()?.stopId);

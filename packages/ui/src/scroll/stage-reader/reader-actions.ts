@@ -1,34 +1,7 @@
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
-import type { ReaderKey } from './reader-keys';
-
-/** What the app can do for the reader beyond reading: each is also a button, so no key or gesture stands alone. */
-export interface ReaderCommands {
-  readonly universe?: () => void;
-  readonly ask?: () => void;
-  readonly format?: () => void;
-  /** Continue: the next Part, or another angle when there is no next Part (D-184). */
-  readonly wayOn?: () => void;
-  readonly previousPart?: () => void;
-  readonly nextTopic?: () => void;
-  /** Challenge a friend with one of this Scroll's calls (D-245); absent where it cannot be sent. */
-  readonly challenge?: (() => void) | undefined;
-  /** The ••• sheet's other rows (V3 G5), each also a key; absent where the screen cannot do it (a thread's reader has no Save). */
-  readonly save?: (() => void) | undefined;
-  readonly shareMoment?: (() => void) | undefined;
-  readonly smallPrint?: (() => void) | undefined;
-  readonly report?: (() => void) | undefined;
-  /** Goes back to the Scroll a new topic left (V3 G4), while the note that offers it is showing. */
-  readonly undo?: (() => void) | undefined;
-  /** Opens Ask from here anchored to a stop, with the passage the reader selected as the draft question (D-244). */
-  readonly askAbout?: ((stopId: string, passage: string) => void) | undefined;
-}
-
-/** Runs a command the app may not provide; whether it ran is whether the key or swipe was used. */
-export function run(command: (() => void) | undefined): boolean {
-  if (command === undefined) return false;
-  command();
-  return true;
-}
+import type { ReaderCommands } from '../reader/reader-commands';
+import type { ReaderKey } from '../reader/reader-keys';
+import { run } from '../reader/reader-commands';
 
 /** What a key can reach: where the reader is, how to move, the calls and the app's commands. */
 export interface KeyTargets {

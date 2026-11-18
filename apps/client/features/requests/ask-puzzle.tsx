@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import type { CallItStop } from '@knowscroll/scroll-model';
-import { PlayChip, Text, radioGroupSemantics, radioSemantics, useFocusRing, type StagePlay } from '@knowscroll/ui';
+import { PlayChip, Text, radioGroupSemantics, radioSemantics, useFocusRing, type CallPlay } from '@knowscroll/ui';
 import { pickPuzzle } from './puzzle-pick';
-import type { OpenedStageScroll } from '../scroll/scroll-session';
+import type { OpenedScrollV2 } from '../scroll/scroll-session';
 
 function Option({
   number,
@@ -57,9 +57,9 @@ export function AskPuzzle({
   anchorStopId,
   play,
 }: {
-  readonly scroll: OpenedStageScroll;
+  readonly scroll: OpenedScrollV2;
   readonly anchorStopId: string;
-  readonly play: StagePlay;
+  readonly play: CallPlay;
 }) {
   // Chosen once, when the wait begins: the card does not swap to another call under the person's finger.
   const [call] = useState<CallItStop | undefined>(() =>

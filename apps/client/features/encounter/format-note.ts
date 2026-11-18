@@ -1,6 +1,6 @@
 import { callsOf } from '@knowscroll/scroll-model';
 import type { EncounterEntry } from './encounter-history';
-import { isStageScroll } from '../scroll/scroll-session';
+import { isScrollV2 } from '../scroll/scroll-session';
 
 /** A Scroll entry of either kind: a v2 document on the stage, or a v1 article of the library. */
 type ScrollEntryOf = Extract<EncounterEntry, { kind: 'scroll' }>;
@@ -39,7 +39,7 @@ export function formatNoteOf(trail: readonly EncounterEntry[], entry: ScrollEntr
   const { document } = entry.scroll;
   const minutes = Math.max(1, Math.round(document.measures.readingMinutes));
   // Only a stage Scroll has calls to play.
-  const calls = isStageScroll(entry.scroll) ? callsOf(entry.scroll.document).length : 0;
+  const calls = isScrollV2(entry.scroll) ? callsOf(entry.scroll.document).length : 0;
   const facts = [
     document.kicker,
     `${String(minutes)} min`,
@@ -48,7 +48,7 @@ export function formatNoteOf(trail: readonly EncounterEntry[], entry: ScrollEntr
     .filter((part): part is string => part !== undefined && part !== '')
     .join(' · ');
   const left = before.scroll;
-  const stops = isStageScroll(left) ? left.document.stops : undefined;
+  const stops = isScrollV2(left) ? left.document.stops : undefined;
   const placeId = before.position?.kind === 'scroll' ? before.position.value.blockId : undefined;
   const at =
     stops === undefined || placeId === undefined ? undefined : stops.findIndex((stop) => stop.id === placeId) + 1;

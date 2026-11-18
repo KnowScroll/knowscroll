@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, type LayoutChangeEvent } from 'react-native';
-import type { NextPartPeek } from './end-tray';
+import type { NextPartPeek } from '../reader/reader-commands';
 import { SWIPE_DISTANCE, type PartDrag } from './part-gesture';
 import { notePartSwipeCommitted } from './part-handoff';
 import type { PeekSide } from './part-peek';

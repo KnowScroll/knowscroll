@@ -7,9 +7,9 @@ import { useFocusRing } from '../../display/focus-ring';
 import { Tag } from '../../status/tag';
 import { Text } from '../../text/text';
 import { keepingNote, resultOf, type CallResult, type CallState } from './call-state';
-import { PlayChip } from './play-chips';
-import type { StageLock } from './stage-play';
-import { TiltControl } from './tilt-control';
+import { PlayChip } from '../calls/play-chips';
+import type { CallLock } from '../calls/call-play';
+import { TiltControl } from '../stage/tilt-control';
 
 /** What the Final call says and offers beyond a Call it (D-187, D-188). */
 export interface FinalCallPlay {
@@ -76,7 +76,7 @@ function Reveal({
   readonly result: CallResult;
   readonly picked: number;
   /** Present for a call that play holds. */
-  readonly lock: StageLock | undefined;
+  readonly lock: CallLock | undefined;
   /** A Final call that missed is told, in the reveal, that the landmark is still earned. */
   readonly landmarkNote: boolean;
   readonly onLayout: (event: LayoutChangeEvent) => void;
@@ -161,7 +161,7 @@ export function CallView({
   readonly position: string;
   readonly state: CallState;
   /** What play holds of this call; absent before the lock. */
-  readonly lock: StageLock | undefined;
+  readonly lock: CallLock | undefined;
   /** Recording is paused: whatever is locked stays on this device. */
   readonly paused: boolean;
   /** Present for the Final call. */

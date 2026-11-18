@@ -4,7 +4,7 @@ import { borderWidth, content, radius, spacing, status } from '@knowscroll/desig
 import { Button } from '../../actions/button';
 import { IconButton } from '../../actions/icon-button';
 import { Text } from '../../text/text';
-import { dataSet } from './data-set';
+import { dataSet } from '../../display/data-set';
 
 /**
  * What a card says, in the words a person sees. The words come from the app's session; the card draws them and says

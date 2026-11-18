@@ -5,7 +5,7 @@ import { problemDetails, type ProblemCode } from '@knowscroll/contracts';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { momentAnchorOf, momentOf } from '@knowscroll/scroll-model';
 import { DisplayProvider } from '@knowscroll/ui';
-import type { OpenedStageScroll } from '../scroll/scroll-session';
+import type { OpenedScrollV2 } from '../scroll/scroll-session';
 import { ShareStopSheet } from './share-stop-sheet';
 
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -73,7 +73,7 @@ jest.mock('./use-thread-inbox', () => ({
 }));
 
 const document = stageDocument as unknown as ScrollDocumentV2;
-const scroll = { assetId: ASSET, assetRevision: 3, document } as unknown as OpenedStageScroll;
+const scroll = { assetId: ASSET, assetRevision: 3, document } as unknown as OpenedScrollV2;
 const readStop = document.stops.find((stop) => stop.kind === 'read')!;
 const callStop = document.stops.find((stop) => stop.kind === 'call_it')!;
 const here = { ref: mockInbox[0]!.thread, name: 'this thread' };

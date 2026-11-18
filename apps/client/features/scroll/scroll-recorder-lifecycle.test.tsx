@@ -31,7 +31,7 @@ jest.mock('../../providers/account-scope', () => ({
   useAccountScope: () => ({ state: { status: 'signed_in', scope: mockScope } }),
 }));
 jest.mock('./use-scroll-session', () => ({
-  useScrollSession: () => ({ session: mockSession, state: { status: 'ready', scroll: mockScroll } }),
+  useScrollSession: () => ({ session: mockSession, state: { status: 'ready', reader: 'article', scroll: mockScroll } }),
 }));
 jest.mock('../diagnostics/evidence-panel', () => ({ EvidencePanel: () => null }));
 jest.mock('../../platform/command-id', () => {

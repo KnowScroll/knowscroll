@@ -6,25 +6,10 @@ import { Button } from '../../actions/button';
 import { Icon } from '../../icons/icon';
 import { Tag } from '../../status/tag';
 import { Text } from '../../text/text';
-import { useFocusOnMount } from './focus-on-mount';
+import { useFocusOnMount } from '../reader/focus-on-mount';
 import type { Payoff } from './payoff';
 import { landmarkNoteOf, LandmarkCard, ScoreRow } from './payoff-card';
-
-/** A way on as the end tray and the dock offer it: only an admitted continuation is ever shown. */
-export interface NextPartPeek {
-  /** "Part 2", or "Related" for another angle. */
-  readonly label: string;
-  readonly title: string;
-  /** Another angle rather than the next Part: drawn dashed. */
-  readonly related?: boolean;
-  readonly onPress: () => void;
-}
-
-/** The limits aside the "Small print" chip opens: its title and its text. */
-export interface SmallPrint {
-  readonly title: string;
-  readonly text: string;
-}
+import type { NextPartPeek, SmallPrint } from '../reader/reader-commands';
 
 export interface EndTrayProps {
   readonly recap: ScrollDocumentV2['recap'];

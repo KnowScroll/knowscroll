@@ -13,7 +13,7 @@ import { Banner, Button, StateBlock, Text } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useAccountScope } from '../../providers/account-scope';
 import { ShareFromScrollSheet } from './share-from-scroll-sheet';
-import { OpenScroll, ThreadScrollArticle, ThreadStageScroll } from './scroll-open';
+import { OpenScroll, ThreadScrollArticle, ThreadScrollV2 } from './scroll-open';
 import { partFromParam, threadHref, threadRefFromParams } from './thread-links';
 import { useSnippetSend } from './use-snippet-send';
 
@@ -97,10 +97,10 @@ function ReaderBody({
       scope={scope}
       assetId={assetId}
       onBack={leave}
-      stage={(scroll) => (
+      v2={(scroll) => (
         <>
           {started}
-          <ThreadStageScroll
+          <ThreadScrollV2
             scope={scope}
             scroll={scroll}
             onBack={leave}

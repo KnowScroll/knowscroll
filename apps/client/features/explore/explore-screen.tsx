@@ -9,7 +9,7 @@ import { Skeleton } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { useDocumentTitle } from '../../platform/document-title';
 import type { EncounterEntry } from '../encounter/encounter-history';
-import { isStageScroll } from '../scroll/scroll-session';
+import { isScrollV2 } from '../scroll/scroll-session';
 import { DirectionPicker } from '../encounter/direction-picker';
 import { EncounterEnding } from '../encounter/encounter-ending';
 import { EncounterSheets } from '../encounter/encounter-sheets';
@@ -66,7 +66,7 @@ const HINTS = {
 
 /** What the first-arrival note says for the encounter on screen: a Stage + Spine Scroll moves differently from an article. */
 function hintsFor(entry: EncounterEntry) {
-  return entry.kind === 'scroll' && isStageScroll(entry.scroll) ? HINTS.stage : HINTS[entry.kind];
+  return entry.kind === 'scroll' && isScrollV2(entry.scroll) ? HINTS.stage : HINTS[entry.kind];
 }
 
 export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {

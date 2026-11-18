@@ -1,8 +1,9 @@
 import { createRecordingPolicySession, createApiClient, ScopeEndedError } from '@knowscroll/client-core';
 import document from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
 import stageDocument from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import { SCROLL_CAPABILITIES, STAGE_CAPABILITIES } from './capabilities';
-import { createScrollSession, isStageScroll, positionIds, type ScrollSessionState } from './scroll-session';
+import { SCROLL_CAPABILITIES, SCROLL_V2_CAPABILITIES } from './capabilities';
+import { ARTICLE_ONLY, EVERY_READER } from './scroll-readers';
+import { createScrollSession, isScrollV2, positionIds, type ScrollSessionState } from './scroll-session';
 
 /**
  * Opening a Scroll (open → document → activate) over a labelled fixture `fetch`: no network, no API.
@@ -99,7 +100,7 @@ function fixture(handlers: { open?: Handler; document?: Handler; activate?: Hand
   return { fetch, calls };
 }
 
-function sessionOver(server: ReturnType<typeof fixture>, stage = false) {
+function sessionOver(server: ReturnType<typeof fixture>, drawsV2 = false) {
   const api = createApiClient({ baseUrl: 'https://app.session.test', fetch: server.fetch });
   let counter = 0;
   const newId = () => `0199a000-0000-7000-8000-${String(++counter).padStart(12, '0')}`;
@@ -111,7 +112,12 @@ function sessionOver(server: ReturnType<typeof fixture>, stage = false) {
     },
     newId,
   );
-  const session = createScrollSession({ scope: { api, active: true, recording }, assetId: ASSET, newId, stage });
+  const session = createScrollSession({
+    scope: { api, active: true, recording },
+    assetId: ASSET,
+    newId,
+    readers: drawsV2 ? EVERY_READER : ARTICLE_ONLY,
+  });
   const states: ScrollSessionState['status'][] = [];
   session.subscribe(() => states.push(session.getState().status));
   return { session, states };
@@ -264,12 +270,13 @@ describe('opening a Scroll for the signed-in scope', () => {
     });
     const { session } = sessionOver(server, true);
     session.start();
-    const state = await settled(session, 'ready_stage');
-    expect(server.calls[0]?.body).toMatchObject({ capabilities: STAGE_CAPABILITIES });
-    expect(STAGE_CAPABILITIES.documentSchemas).toContain('scroll-document.v2');
+    const state = await settled(session, 'ready');
+    expect(server.calls[0]?.body).toMatchObject({ capabilities: SCROLL_V2_CAPABILITIES });
+    expect(SCROLL_V2_CAPABILITIES.documentSchemas).toContain('scroll-document.v2');
     expect(SCROLL_CAPABILITIES.documentSchemas).not.toContain('scroll-document.v2');
-    if (state.status !== 'ready_stage') throw new Error('expected a stage Scroll');
-    expect(isStageScroll(state.scroll)).toBe(true);
+    if (state.status !== 'ready' || state.reader !== 'stage')
+      throw new Error('expected a v2 Scroll for the Stage reader');
+    expect(isScrollV2(state.scroll)).toBe(true);
     expect(positionIds(state.scroll)).toEqual(state.scroll.document.stops.map((stop) => stop.id));
   });
 
@@ -294,9 +301,9 @@ describe('opening a Scroll for the signed-in scope', () => {
   it('a v1 Scroll still opens as an article on a surface that also draws v2', async () => {
     const { session } = sessionOver(fixture({}), true);
     session.start();
-    const state = await settled(session, 'ready', 'ready_stage');
-    expect(state.status).toBe('ready');
-    if (state.status === 'ready') expect(isStageScroll(state.scroll)).toBe(false);
+    const state = await settled(session, 'ready');
+    expect(state.status === 'ready' && state.reader).toBe('article');
+    if (state.status === 'ready') expect(isScrollV2(state.scroll)).toBe(false);
   });
 
   it('drops the answer of an ended scope: no state changes after the scope ended or the session was disposed', async () => {

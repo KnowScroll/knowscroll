@@ -24,8 +24,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAccountScopeIfPresent } from '../../providers/account-scope';
 import { useRecordingPausedIn } from '../../providers/use-recording-paused';
-import type { OpenedStageScroll } from '../scroll/scroll-session';
-import { useStagePlay } from '../scroll/use-stage-play';
+import type { OpenedScrollV2 } from '../scroll/scroll-session';
+import { useScrollPlay } from '../scroll/use-scroll-play';
 import { AskPuzzle } from './ask-puzzle';
 import { COUNTER_FROM, PAUSED_COPY, aboutTitle, usuallyPhrase } from './ask-copy';
 import { canTryAgain, unavailableMessage } from './request-copy';
@@ -76,7 +76,7 @@ export function AskSheet({
   onClose,
 }: {
   readonly session: RequestSession;
-  readonly scroll: OpenedStageScroll;
+  readonly scroll: OpenedScrollV2;
   readonly onClose: () => void;
 }) {
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
@@ -85,7 +85,7 @@ export function AskSheet({
   const [focused, setFocused] = useState(false);
   const { state: account } = useAccountScopeIfPresent();
   const paused = useRecordingPausedIn(account.status === 'signed_in' ? account.scope : undefined);
-  const play = useStagePlay(scroll);
+  const play = useScrollPlay(scroll);
   const editing = state.phase === 'draft';
   const status = state.status;
   const suggestions = scroll.document.askSuggestions;

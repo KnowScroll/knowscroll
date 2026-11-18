@@ -3,8 +3,9 @@ import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { DisplayProvider } from '../../display/display';
 import { Text } from '../../text/text';
-import { ReaderDock } from './reader-chrome';
-import { StageReader, type ReaderCommands } from './stage-reader';
+import { ReaderDock } from '../reader/reader-chrome';
+import type { ReaderCommands } from '../reader/reader-commands';
+import { StageReader } from './stage-reader';
 import type { StageReadingObserver } from './use-stop-reading';
 
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resolve(true)) }));

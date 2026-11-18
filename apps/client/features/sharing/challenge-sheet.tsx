@@ -10,7 +10,7 @@ import { appApiOrigin } from '../../platform/api';
 import { useAccountScope } from '../../providers/account-scope';
 import { conversationHref } from '../conversations/conversation-links';
 import { useSheetAvailability } from '../friends/use-availability';
-import type { OpenedStageScroll } from '../scroll/scroll-session';
+import type { OpenedScrollV2 } from '../scroll/scroll-session';
 import { challengeCallOf, type ChallengeCall } from './challenge-call';
 import { FriendPicker } from './friend-picker';
 import { GroupLabel } from './step-header';
@@ -116,7 +116,7 @@ export function ChallengeSheetBody({
   onOpenConversation,
 }: {
   readonly scope: AccountScope;
-  readonly scroll: Pick<OpenedStageScroll, 'assetId' | 'assetRevision'>;
+  readonly scroll: Pick<OpenedScrollV2, 'assetId' | 'assetRevision'>;
   readonly call: ChallengeCall;
   readonly origin: string;
   readonly onClose: () => void;
@@ -202,7 +202,7 @@ export function ChallengeSheet({
   scroll,
   onClose,
 }: {
-  readonly scroll: OpenedStageScroll;
+  readonly scroll: OpenedScrollV2;
   readonly onClose: () => void;
 }): ReactNode {
   const router = useRouter();

@@ -15,14 +15,14 @@ import { EncounterTopBar } from './encounter-top-bar';
 import { FormatNoteCard } from './format-note-card';
 import { ScrollEnd } from './scroll-end';
 import { useFormatNote } from './use-format-note';
-import { isStageEntry, StageEncounter } from './encounter-stage';
+import { isScrollV2Entry, ScrollV2Encounter } from './encounter-scroll-v2';
 import type { OpenedScroll } from '../scroll/scroll-session';
 
 type ScrollEntry = Extract<EncounterEntry, { kind: 'scroll' }>;
 type ArticleEntry = ScrollEntry & { readonly scroll: OpenedScroll };
 
 function isArticleEntry(entry: ScrollEntry): entry is ArticleEntry {
-  return !isStageEntry(entry);
+  return !isScrollV2Entry(entry);
 }
 
 /** Past this many pixels into the first block the opening's action row has scrolled away. */
@@ -170,6 +170,6 @@ export function ScrollEncounter({
   readonly back: () => void;
   readonly hint: ReactNode;
 }) {
-  if (isStageEntry(entry)) return <StageEncounter {...rest} entry={entry} />;
+  if (isScrollV2Entry(entry)) return <ScrollV2Encounter {...rest} entry={entry} />;
   return isArticleEntry(entry) ? <ArticleEncounter {...rest} scope={scope} entry={entry} /> : null;
 }

@@ -3,7 +3,7 @@ import { borderWidth, content, radius, spacing, target } from '@knowscroll/desig
 import { useFocusRing } from '../../display/focus-ring';
 import { Icon } from '../../icons/icon';
 import { Text } from '../../text/text';
-import type { NextPartPeek } from './end-tray';
+import type { NextPartPeek } from '../reader/reader-commands';
 
 /**
  * The next Part peeking in from the right edge of the picture once the Scroll is at its end (V3 F10, E1): a yellow tab with
