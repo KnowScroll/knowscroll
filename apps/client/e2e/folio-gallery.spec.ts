@@ -304,25 +304,58 @@ test.describe('keys', () => {
     );
     expect(words.every((alt) => alt !== '')).toBe(true);
     await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(count);
+    const holds = await page.locator('[data-testid^="hold-"]').count();
+    expect(holds).toBeGreaterThan(0);
     await page.keyboard.press('t');
     await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(0);
-    for (const [index, alt] of words.entries()) await expect(plates.nth(index)).toContainText(alt);
-    // T again brings the pictures back.
+    // As words nothing needs to stay in view, so the holds lie flat: each beat is followed by its figure's words, and
+    // every picture that was drawn is now on the page as words.
+    await expect(page.locator('[data-testid^="hold-"]')).toHaveCount(0);
+    const shown = await plates.evaluateAll((nodes) => nodes.map((node) => node.textContent ?? ''));
+    for (const alt of words) expect(shown.some((text) => text.includes(alt))).toBe(true);
+    // T again brings the pictures, and the holds, back.
     await page.keyboard.press('t');
     await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(count);
+    await expect(page.locator('[data-testid^="hold-"]')).toHaveCount(holds);
   });
 
   test('a figure’s own Text chip turns that one picture into its words', async ({ page }) => {
-    await open(page, 'circulation', phone);
-    const hold = page.locator('[data-testid^="hold-"]').first();
-    const plate = hold.locator('[data-ks-figure]');
+    await open(page, 'seasons', phone);
+    const final = seasons.stops.at(-1);
+    if (final === undefined) throw new Error('seasons has a Final call');
+    const figure = page.getByTestId(`figure-figure-${final.id}`);
+    await figure.scrollIntoViewIfNeeded();
+    const plate = figure.locator('[data-ks-figure]');
     const chip = plate.getByRole('button', { name: 'Text version of this picture' });
+    const pictures = await page.locator('[data-ks-figure] [role="img"]').count();
     await expect(plate.getByRole('img')).toBeVisible();
     await chip.click();
     await expect(plate.getByRole('img')).toHaveCount(0);
     await expect(chip).toHaveAttribute('aria-pressed', 'true');
+    // Only that one: every other picture is still drawn.
+    await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(pictures - 1);
     await chip.click();
     await expect(plate.getByRole('img')).toBeVisible();
+  });
+
+  test('a held figure’s Text chip turns on the text version, lays the holds flat and keeps the beat being read', async ({
+    page,
+  }) => {
+    await open(page, 'circulation', phone);
+    const hold = page.locator('[data-testid^="hold-"]').first();
+    // Into the hold, so a beat inside it is the one being read.
+    const holdTop = await hold.evaluate((node) => (node as HTMLElement).offsetTop);
+    await scrollTo(page, holdTop + 200);
+    await expect.poll(async () => (await galleryEvents(page)).stops.at(-1) ?? null).not.toBeNull();
+    await page.waitForTimeout(300);
+    const reading = (await galleryEvents(page)).stops.at(-1);
+    if (reading === undefined || reading === null) throw new Error('a beat is being read');
+    await hold.getByTestId('held-figure').getByRole('button', { name: 'Text version of this picture' }).click();
+    await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid^="hold-"]')).toHaveCount(0);
+    // The essay reflowed under the reader, and the beat being read is still in view and still the one being read.
+    await expect.poll(() => inView(page, `[data-ks-stop="${reading}"]`)).toBe(true);
+    expect((await galleryEvents(page)).stops.at(-1)).toBe(reading);
   });
 
   test('Space and Page Down move a screen, Shift+Space back, and the arrow keys a step', async ({ page }) => {

@@ -18,6 +18,17 @@ export interface FigureViewProps {
   /** The reader's text version: every figure as its words. A figure's own chip can override it. */
   readonly textVersion: boolean;
   readonly control?: FigureControl | undefined;
+  /**
+   * The plate holds `height` inside its border, its chip strip included, so the drawing fits above the strip: a held figure,
+   * whose height the hold's geometry is built on (`canPinHolds`, the reading line). Otherwise the plate is the drawing's
+   * height plus the strip.
+   */
+  readonly fixedHeight?: boolean;
+  /**
+   * Given, the chip is the reader's text version rather than this figure's own (a held figure, whose words would not fit
+   * its pinned plate): it shows that and turns it.
+   */
+  readonly onTextVersion?: (() => void) | undefined;
   readonly testID?: string;
 }
 
@@ -26,20 +37,35 @@ export interface FigureViewProps {
  * control under it when it has one. Moving from one figure to the next glides or fades (`useKitFigure`), so a held
  * figure changes in place.
  */
-export function FigureView({ figure, height, reducedMotion, textVersion, control, testID }: FigureViewProps) {
+export function FigureView({
+  figure,
+  height,
+  reducedMotion,
+  textVersion,
+  control,
+  fixedHeight = false,
+  onTextVersion,
+  testID,
+}: FigureViewProps) {
   const page = usePagePalette();
   const [ownText, setOwnText] = useState<boolean | undefined>(undefined);
   const [tilt, setTilt] = useState<number | undefined>(undefined);
   const drawn = useKitFigure(figure, reducedMotion, control?.kind === 'tilt' ? tilt : undefined);
-  const asText = ownText ?? textVersion;
+  const asText = onTextVersion === undefined ? (ownText ?? textVersion) : textVersion;
+  const drawingHeight = fixedHeight ? height - FIGURE_CHIP_ROOM : height;
   return (
     <View style={styles.figure} testID={testID}>
       <View
-        style={[styles.plate, { height, backgroundColor: page.raised, borderColor: page.ink }]}
+        style={[styles.plate, { backgroundColor: page.raised, borderColor: page.ink }]}
         {...dataSet({ ksFigure: figure.key, ksFigureTransition: drawn.transition })}
       >
-        <FigureDrawing drawn={drawn} textVersion={asText} />
-        <TextChip on={asText} onPress={() => setOwnText(!asText)} />
+        {/* The words take the room they need; a picture takes the room the figure gives it. */}
+        <View style={asText ? { minHeight: drawingHeight } : { height: drawingHeight }}>
+          <FigureDrawing drawn={drawn} textVersion={asText} />
+        </View>
+        <View style={styles.chipRow}>
+          <TextChip on={asText} onPress={onTextVersion ?? (() => setOwnText(!asText))} />
+        </View>
       </View>
       {control?.kind === 'tilt' && figure.kind === 'state' ? (
         <TiltControl value={tilt ?? AXIAL_TILT_DEGREES} onChange={setTilt} onDragging={() => undefined} />
@@ -66,14 +92,24 @@ function TextChip({ on, onPress }: { readonly on: boolean; readonly onPress: () 
   );
 }
 
+const CHIP_HEIGHT = 32;
+/**
+ * How much taller than its drawing a figure's plate is: the strip along its bottom that the chip sits in, so the chip
+ * never covers a kit's label (a kit draws to the edges of its frame, and the bottom right is where several put one).
+ */
+const FIGURE_CHIP_ROOM = CHIP_HEIGHT + spacing[2];
+
 const styles = StyleSheet.create({
   figure: { gap: spacing[2] },
+  chipRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: spacing[2],
+    paddingBottom: spacing[2],
+  },
   plate: { width: '100%', borderWidth: borderWidth.regular, borderRadius: radius.lg, overflow: 'hidden' },
   chip: {
-    position: 'absolute',
-    right: spacing[2],
-    bottom: spacing[2],
-    minHeight: 32,
+    minHeight: CHIP_HEIGHT,
     minWidth: 44,
     paddingHorizontal: spacing[2],
     alignItems: 'center',

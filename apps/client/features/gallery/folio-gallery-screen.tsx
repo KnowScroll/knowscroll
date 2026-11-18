@@ -1,6 +1,6 @@
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
@@ -19,10 +19,13 @@ import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import {
   Button,
   DisplayProvider,
+  FigureView,
   FolioReader,
   ReaderDock,
   ReaderTopBar,
   readingModelOfV2,
+  scrollPageSurface,
+  type FigureState,
   type UnitReadingObserver,
 } from '@knowscroll/ui';
 import { useDocumentTitle } from '../../platform/document-title';
@@ -72,7 +75,7 @@ const observer: UnitReadingObserver = {
  * Developer gallery of the Folio reader (`/gallery-folio`, gallery builds only): a v2 fixture document through the
  * real adapter (`readingModelOfV2`) and reader, with the app's top bar and dock and no backend. Query: `doc` (a fixture
  * name), `stop` (open at that stop), `motion=reduce`, `scale=2` (200 % text), `bare=1` (no fixture toolbar: the screen as
- * a reader sees it).
+ * a reader sees it), `figures=1` (every figure state of the document on the page, to check a kit in each appearance).
  */
 export function FolioGalleryScreen() {
   useDocumentTitle('Folio gallery');
@@ -89,6 +92,7 @@ export function FolioGalleryScreen() {
     motion?: string;
     scale?: string;
     bare?: string;
+    figures?: string;
   }>();
   const name: DocumentName = isDocumentName(params.doc) ? params.doc : 'seasons';
   const document = documents[name] as unknown as ScrollDocumentV2;
@@ -118,27 +122,51 @@ export function FolioGalleryScreen() {
             ))}
           </View>
         )}
-        <FolioReader
-          key={`${name}:${params.stop ?? ''}`}
-          model={model}
-          observer={observer}
-          initialStopId={params.stop}
-          onStopChange={(stopId) => events.stops.push(stopId)}
-          commands={{ nextTopic: () => undefined }}
-          onDone={() => undefined}
-          header={<ReaderTopBar title={document.title} kicker={document.kicker} onUniverse={() => undefined} />}
-          dock={
-            <View style={{ paddingBottom: insets.bottom }}>
-              <ReaderDock onAsk={() => undefined} onMore={() => undefined} />
-            </View>
-          }
-        />
+        {params.figures === '1' ? (
+          <FigureSheet model={model} />
+        ) : (
+          <FolioReader
+            key={`${name}:${params.stop ?? ''}`}
+            model={model}
+            observer={observer}
+            initialStopId={params.stop}
+            onStopChange={(stopId) => events.stops.push(stopId)}
+            commands={{ nextTopic: () => undefined }}
+            onDone={() => undefined}
+            header={<ReaderTopBar title={document.title} kicker={document.kicker} onUniverse={() => undefined} />}
+            dock={
+              <View style={{ paddingBottom: insets.bottom }}>
+                <ReaderDock onAsk={() => undefined} onMore={() => undefined} />
+              </View>
+            }
+          />
+        )}
       </View>
     </DisplayProvider>
   );
 }
 
+/** Every distinct figure of the essay, one under the other, on the page: how each kit state looks in each appearance. */
+function FigureSheet({ model }: { readonly model: ReturnType<typeof readingModelOfV2> }) {
+  const figures = new Map<string, FigureState>();
+  for (const section of model.sections) {
+    for (const block of section.blocks) {
+      if (block.kind === 'figure') figures.set(block.figure.key, block.figure);
+      if (block.kind === 'hold') for (const held of block.beats) figures.set(held.figure.key, held.figure);
+    }
+  }
+  if (model.end.figure !== undefined) figures.set(model.end.figure.key, model.end.figure);
+  return (
+    <ScrollView {...scrollPageSurface()} contentContainerStyle={styles.sheet} testID="figure-sheet">
+      {[...figures.values()].map((figure) => (
+        <FigureView key={figure.key} figure={figure} height={240} reducedMotion textVersion={false} />
+      ))}
+    </ScrollView>
+  );
+}
+
 const styles = StyleSheet.create({
+  sheet: { gap: spacing[4], padding: layout.gutter, backgroundColor: content.paper },
   ground: { flex: 1, backgroundColor: content.paper },
   controls: {
     flexDirection: 'row',

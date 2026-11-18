@@ -8,7 +8,7 @@
  * the person's Light or Dark choice (`appearance.ts`); the rest keep one value. `printed` holds the
  * Light values for things that are drawn, not chrome: Scroll artwork and controls over media.
  */
-import { adaptive } from './adaptive';
+import { adaptive, pageAdaptive } from './adaptive';
 import { appearancePalettes } from './appearance';
 
 const light = appearancePalettes.light;
@@ -75,6 +75,19 @@ export const content = {
   onNav: printed.paper,
   /** Restored-anchor flash and row hover. Follows Appearance. */
   highlight: adaptive('highlight'),
+} as const;
+
+/**
+ * The roles a Scroll's page adds for its figures (D-424). Inside a page on the web they follow the page's appearance;
+ * elsewhere, and on native, they are the printed Light values.
+ */
+export const scrollPage = {
+  /** The plate a figure is drawn on. */
+  plate: pageAdaptive('plate'),
+  /** A body drawn dark in both appearances: a planet, a black hole, the night side. */
+  solid: pageAdaptive('solid'),
+  /** What is drawn light in both appearances: the lit side of the Moon or of Earth. */
+  lit: pageAdaptive('lit'),
 } as const;
 
 /** Status colours. Status labels are only Hypothetical and Corrected (D-006 a). Their grounds and text follow Appearance. */

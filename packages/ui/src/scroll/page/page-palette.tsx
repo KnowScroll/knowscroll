@@ -1,15 +1,15 @@
-import { createContext, useContext } from 'react';
-import { printed } from '@knowscroll/design-tokens';
+import { content, scrollPage } from '@knowscroll/design-tokens';
 
 /**
- * The colours of a Scroll's page, by job. Folio and the figures take them from here at render time rather than from
- * module constants, because native styles are fixed when a module loads: a palette in context is the only way a page
- * can change appearance on a phone without a reload.
+ * The colours of a Scroll's page, by job. Folio and its figures read them here rather than naming tokens, so the page's
+ * appearance is decided in one place: on the web they are the page's own custom properties, which follow the person's
+ * appearance inside a page (`scrollPageSurface`, D-424); on native they are the printed Light values until native can
+ * read the appearance (#740).
  */
 export interface PagePalette {
   /** The ground the essay is printed on. */
   readonly ground: string;
-  /** A figure's plate and other raised surfaces. */
+  /** A figure's plate. */
   readonly raised: string;
   readonly ink: string;
   /** Secondary text: kickers, captions, a held beat that is not the one the figure shows. */
@@ -20,19 +20,15 @@ export interface PagePalette {
   readonly link: string;
 }
 
-/** Today's printed page: the Light values of the content register, in both appearances (D-400). */
-const PRINTED_PAGE: PagePalette = {
-  ground: printed.paper,
-  raised: printed.paper2,
-  ink: printed.ink,
-  ink2: printed.ink2,
-  rule: printed.rule,
-  link: printed.accentDeep,
+const PAGE: PagePalette = {
+  ground: content.paper,
+  raised: scrollPage.plate,
+  ink: content.ink,
+  ink2: content.ink2,
+  rule: content.rule,
+  link: content.accentDeep,
 };
 
-/** A page's palette. Every page is printed Light for now (D-400); a provider will give the dark page its own. */
-const PageContext = createContext<PagePalette>(PRINTED_PAGE);
-
 export function usePagePalette(): PagePalette {
-  return useContext(PageContext);
+  return PAGE;
 }

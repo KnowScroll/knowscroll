@@ -8,6 +8,8 @@ import type { Guide } from '../model';
 const NAMES: Readonly<Record<Guide['character'], string>> = { ray: 'Ray' };
 
 const INK = content.ink;
+/** Ray's face is drawn on Ray's yellow, so it is the ink that goes on yellow in both appearances, never the page's ink. */
+const FACE = content.onContinue;
 
 /**
  * Ray, the sunbeam: a yellow slanted band with a face, drawn by the kit and never by the writer (D-207).
@@ -20,17 +22,17 @@ export function Ray({ pose }: { readonly pose: Guide['pose'] }) {
         <Rect x={10} y={6} width={36} height={70} rx={8} fill={content.continue} stroke={INK} strokeWidth={2.5} />
         {pose === 'wonder' ? (
           <G>
-            <Circle cx={21} cy={32} r={3.6} fill={INK} />
-            <Circle cx={35} cy={32} r={3.6} fill={INK} />
-            <Line x1={17} y1={24} x2={25} y2={22} stroke={INK} strokeWidth={2} strokeLinecap="round" />
-            <Line x1={31} y1={22} x2={39} y2={24} stroke={INK} strokeWidth={2} strokeLinecap="round" />
-            <Circle cx={28} cy={48} r={4.2} fill="none" stroke={INK} strokeWidth={2.2} />
+            <Circle cx={21} cy={32} r={3.6} fill={FACE} />
+            <Circle cx={35} cy={32} r={3.6} fill={FACE} />
+            <Line x1={17} y1={24} x2={25} y2={22} stroke={FACE} strokeWidth={2} strokeLinecap="round" />
+            <Line x1={31} y1={22} x2={39} y2={24} stroke={FACE} strokeWidth={2} strokeLinecap="round" />
+            <Circle cx={28} cy={48} r={4.2} fill="none" stroke={FACE} strokeWidth={2.2} />
           </G>
         ) : (
           <G>
-            <Circle cx={21} cy={33} r={2.8} fill={INK} />
-            <Circle cx={35} cy={33} r={2.8} fill={INK} />
-            <Path d="M19 44 Q28 54 37 44" fill="none" stroke={INK} strokeWidth={2.4} strokeLinecap="round" />
+            <Circle cx={21} cy={33} r={2.8} fill={FACE} />
+            <Circle cx={35} cy={33} r={2.8} fill={FACE} />
+            <Path d="M19 44 Q28 54 37 44" fill="none" stroke={FACE} strokeWidth={2.4} strokeLinecap="round" />
           </G>
         )}
       </G>

@@ -1,7 +1,8 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import Svg, { Circle, G, Line, Polygon, Rect } from 'react-native-svg';
+import { printed } from '@knowscroll/design-tokens';
 import { SCENE_HEIGHT, SCENE_WIDTH, onCircle, type Point } from './earth-sky-scene';
-import { Arrow, FOCUS, FocusRing, INK, Label, MUTED, OUTLINE, PAPER_DEEP, SUN, WARM } from './parts';
+import { Arrow, FOCUS, FocusRing, Glow, INK, Label, MUTED, OUTLINE, PAPER_DEEP, SOLID, SUN, WARM } from './parts';
 import type { StarScene } from './star-scene';
 
 /**
@@ -14,20 +15,28 @@ import type { StarScene } from './star-scene';
 const SURFACE_COLOUR = { cool: '#EE6A3F', middle: SUN, hot: '#C4D7FF' } as const;
 const CORE = '#FF7A3D';
 const GAS = '#B9A5DA';
+/**
+ * The blue of "this one" in the data (the marked bar, the current stage), fixed at the Light focus colour. FOCUS itself
+ * flips with the page and is also the dashed ring, so a ring round a FOCUS-filled bar would vanish in Dark.
+ */
+const MARKED = printed.accentDeep;
 
-/** A star's disc in the colour of its surface. */
+/** A star's disc in the colour of its surface, with its glow; `beneath` is drawn over the glow and under the disc. */
 function StarDisc({
   at,
   radius,
   surface,
+  beneath,
 }: {
   readonly at: Point;
   readonly radius: number;
   readonly surface: StarScene['surface'];
+  readonly beneath?: ReactNode;
 }) {
   return (
     <G>
-      <Circle cx={at.x} cy={at.y} r={radius * 1.25} fill={SURFACE_COLOUR[surface]} opacity={0.28} />
+      <Glow at={at} radius={radius * 1.25} colour={SURFACE_COLOUR[surface]} />
+      {beneath}
       <Circle cx={at.x} cy={at.y} r={radius} fill={SURFACE_COLOUR[surface]} stroke={INK} strokeWidth={OUTLINE} />
     </G>
   );
@@ -43,10 +52,25 @@ function BalanceView({ scene }: { readonly scene: StarScene }) {
   const outward = [0, 90, 180, 270];
   return (
     <G>
-      {scene.motion === 'holds' ? null : (
-        <Circle cx={centre.x} cy={centre.y} r={base} fill="none" stroke={INK} strokeWidth={1.6} strokeDasharray="6 5" />
-      )}
-      <StarDisc at={centre} radius={drawn} surface="middle" />
+      <StarDisc
+        at={centre}
+        radius={drawn}
+        surface="middle"
+        beneath={
+          scene.motion === 'holds' ? null : (
+            // Where the star's edge was. It lies on the glow (a shrunk star only), so it is SOLID to read in both.
+            <Circle
+              cx={centre.x}
+              cy={centre.y}
+              r={base}
+              fill="none"
+              stroke={SOLID}
+              strokeWidth={1.6}
+              strokeDasharray="6 5"
+            />
+          )
+        }
+      />
       <Circle cx={centre.x} cy={centre.y} r={drawn * 0.55} fill="#FFB84D" opacity={0.55} />
       <Circle cx={centre.x} cy={centre.y} r={core} fill={CORE} stroke={INK} strokeWidth={OUTLINE} />
       <Label at={{ x: 22, y: 190 }} text="CORE: HYDROGEN → HELIUM" anchor="start" bold />
@@ -57,6 +81,8 @@ function BalanceView({ scene }: { readonly scene: StarScene }) {
           to={onCircle(centre, base + 34 - 26 * scene.gravity, degrees)}
           width={4.5}
           colour={INK}
+          // It reaches into the glow, which is light in both appearances.
+          edged
         />
       ))}
       {outward.map((degrees) => (
@@ -70,7 +96,7 @@ function BalanceView({ scene }: { readonly scene: StarScene }) {
       ))}
       <Label at={{ x: 22, y: 28 }} text="GRAVITY IN" anchor="start" bold />
       <Label at={{ x: 22, y: 42 }} text="PRESSURE OUT" anchor="start" bold />
-      <Arrow from={{ x: 112, y: 24 }} to={{ x: 132, y: 24 }} width={4} colour={INK} />
+      <Arrow from={{ x: 112, y: 24 }} to={{ x: 132, y: 24 }} width={4} colour={INK} edged />
       <Arrow from={{ x: 112, y: 38 }} to={{ x: 132, y: 38 }} width={4} colour={WARM} />
       {scene.focus === 'core' ? <FocusRing at={centre} radius={core + 10} /> : null}
       {scene.focus === 'gravity' ? <FocusRing at={onCircle(centre, base + 20, 45)} radius={22} /> : null}
@@ -110,7 +136,7 @@ function MassView({ scene }: { readonly scene: StarScene }) {
               y={138}
               width={80 * (scene.lifetimes[index] ?? 0)}
               height={14}
-              fill={marked ? FOCUS : MUTED}
+              fill={marked ? MARKED : MUTED}
               stroke={INK}
               strokeWidth={1.6}
             />
@@ -154,7 +180,7 @@ function Supernova({ at, radius }: { readonly at: Point; readonly radius: number
     <G>
       <Polygon points={points} fill={SUN} stroke={INK} strokeWidth={OUTLINE} strokeLinejoin="round" />
       <Circle cx={at.x} cy={at.y} r={radius * 0.3} fill={CORE} />
-      <Circle cx={at.x} cy={at.y} r={5} fill={INK} />
+      <Circle cx={at.x} cy={at.y} r={5} fill={SOLID} />
     </G>
   );
 }
@@ -200,7 +226,7 @@ function LifeView({ scene }: { readonly scene: StarScene }) {
               cx={x}
               cy={170}
               r={current ? 7 : 5}
-              fill={current ? FOCUS : PAPER_DEEP}
+              fill={current ? MARKED : PAPER_DEEP}
               stroke={INK}
               strokeWidth={1.8}
             />

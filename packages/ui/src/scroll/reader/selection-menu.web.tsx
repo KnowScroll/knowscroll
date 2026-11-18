@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { content, fontFallback, fontFamily } from '@knowscroll/design-tokens';
+import { content, fontFallback, fontFamily, printed } from '@knowscroll/design-tokens';
 
 /** Where the menu sits and what it acts on: the stop the selection is in, the selected words and the middle of the first line. */
 interface Selected {
@@ -81,7 +81,10 @@ export function SelectionMenu({
         gap: 2,
         padding: 4,
         borderRadius: 12,
-        backgroundColor: content.ink,
+        // A dark chip with yellow words in both appearances: the page's ink turns cream in Dark, under yellow words. Its
+        // edge is the page's ink, so the chip stands out on a dark page too.
+        backgroundColor: printed.ink,
+        border: `1px solid ${content.ink}`,
       }}
     >
       {items.map(([label, act]) => (

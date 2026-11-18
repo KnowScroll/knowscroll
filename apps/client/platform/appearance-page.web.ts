@@ -1,4 +1,9 @@
-import { appearanceAttribute, appearanceStyleSheet, type Appearance } from '@knowscroll/design-tokens';
+import {
+  appearanceAttribute,
+  appearanceStyleSheet,
+  scrollPageStyleSheet,
+  type Appearance,
+} from '@knowscroll/design-tokens';
 
 const SHEET_ID = 'ks-appearance';
 
@@ -13,7 +18,8 @@ export function paintAppearance(appearance: Appearance): void {
   if (document.getElementById(SHEET_ID) === null) {
     const sheet = document.createElement('style');
     sheet.id = SHEET_ID;
-    sheet.textContent = appearanceStyleSheet();
+    // A Scroll's page has its own palette in each appearance (D-424); its rules follow the app's.
+    sheet.textContent = `${appearanceStyleSheet()}\n${scrollPageStyleSheet()}`;
     document.head.appendChild(sheet);
   }
   document.documentElement.setAttribute(appearanceAttribute, appearance);

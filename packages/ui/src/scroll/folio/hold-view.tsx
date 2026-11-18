@@ -52,6 +52,7 @@ export function HoldView({
   viewportHeight,
   reducedMotion,
   textVersion,
+  onTextVersion,
   renderBeat,
   places,
   style,
@@ -65,6 +66,8 @@ export function HoldView({
   readonly viewportHeight: number;
   readonly reducedMotion: boolean;
   readonly textVersion: boolean;
+  /** The held figure's chip turns the reader's text version on: its words would not fit a pinned plate (holds lie flat). */
+  readonly onTextVersion?: (() => void) | undefined;
   readonly renderBeat: RenderHeldBeat;
   readonly style?: StyleProp<ViewStyle>;
 }) {
@@ -114,6 +117,8 @@ export function HoldView({
             height={figureHeight}
             reducedMotion={reducedMotion}
             textVersion={textVersion}
+            onTextVersion={onTextVersion}
+            fixedHeight
             testID="held-figure"
           />
         </View>

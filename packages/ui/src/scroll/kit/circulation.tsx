@@ -1,8 +1,23 @@
 import type { ReactElement } from 'react';
-import Svg, { Circle, Ellipse, G, Line, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Ellipse, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
+import { fontFamily } from '@knowscroll/design-tokens';
 import { SCENE_HEIGHT, SCENE_WIDTH, type Point } from './earth-sky-scene';
 import { CURVE_SAMPLES, type CirculationScene } from './circulation-scene';
-import { Arrow, BLUE, FocusBox, FocusRing, INK, Label, MUTED, OUTLINE, PAPER, PAPER_DEEP, WARM } from './parts';
+import {
+  Arrow,
+  BLUE,
+  FocusBox,
+  FocusRing,
+  INK,
+  Label,
+  LIT,
+  MUTED,
+  OUTLINE,
+  PAPER,
+  PAPER_DEEP,
+  SOLID,
+  WARM,
+} from './parts';
 
 /**
  * The circulation kit drawn in the V3 style (D-201): the heart with its four chambers and valves, the two
@@ -14,6 +29,10 @@ import { Arrow, BLUE, FocusBox, FocusRing, INK, Label, MUTED, OUTLINE, PAPER, PA
  * description, set by the caller.
  */
 
+/**
+ * Blood is drawn as a translucent wash, which turns muddy over a dark plate. Every wash therefore sits on a LIT underlay,
+ * so red and blue read the same in both appearances; what crosses a wash is `edged`.
+ */
 const RICH = WARM;
 const POOR = BLUE;
 
@@ -61,6 +80,7 @@ function ChamberShape({
         stroke={INK}
         strokeWidth={inward ? 6 : OUTLINE}
       />
+      <Ellipse cx={centre.x} cy={centre.y} rx={(halfWidth - 6) * scale} ry={(halfHeight - 6) * scale} fill={LIT} />
       <Ellipse
         cx={centre.x}
         cy={centre.y}
@@ -152,6 +172,8 @@ function HeartView({ scene }: { readonly scene: CirculationScene }) {
   return (
     <G>
       <ColourKey />
+      <Path d="M 100 120 L 100 38 L 22 38" fill="none" stroke={LIT} strokeWidth={9} strokeLinejoin="round" />
+      <Path d="M 126 120 L 126 20 L 306 20" fill="none" stroke={LIT} strokeWidth={9} strokeLinejoin="round" />
       <Path
         d="M 100 120 L 100 38 L 22 38"
         fill="none"
@@ -190,6 +212,7 @@ function HeartView({ scene }: { readonly scene: CirculationScene }) {
           width={4}
           colour={INK}
           opacity={scene.atrioventricularOpen * 0.8}
+          edged
         />
       ))}
       {[SL_PULMONARY, SL_AORTIC].map((at) => (
@@ -200,6 +223,7 @@ function HeartView({ scene }: { readonly scene: CirculationScene }) {
           width={4}
           colour={INK}
           opacity={scene.semilunarOpen * 0.8}
+          edged
         />
       ))}
       <Label at={{ x: 82, y: 198 }} text="RIGHT" bold />
@@ -235,9 +259,19 @@ function HeartView({ scene }: { readonly scene: CirculationScene }) {
 // ---------------------------------------------------------------------------------------------------------------
 // The two loops.
 
+/** A bold label for a blood wash drawn over a LIT underlay: SOLID, because the ground under it is light in both appearances. */
+function WashLabel({ at, text }: { readonly at: Point; readonly text: string }) {
+  return (
+    <SvgText x={at.x} y={at.y} fontSize={8.5} fontFamily={fontFamily.mono} fill={SOLID} textAnchor="middle">
+      {text}
+    </SvgText>
+  );
+}
+
 function Swatch({ y, colour, text }: { readonly y: number; readonly colour: string; readonly text: string }) {
   return (
     <G>
+      <Rect x={200} y={y - 8} width={11} height={11} fill={LIT} />
       <Rect x={200} y={y - 8} width={11} height={11} fill={colour} opacity={0.7} stroke={INK} strokeWidth={1.4} />
       <Label at={{ x: 216, y }} text={text} anchor="start" />
     </G>
@@ -252,10 +286,12 @@ function CircuitsView({ scene }: { readonly scene: CirculationScene }) {
       <Label at={{ x: 110, y: 34 }} text="LUNGS" bold />
       <Ellipse cx={110} cy={170} rx={76} ry={19} fill={PAPER_DEEP} stroke={INK} strokeWidth={OUTLINE} />
       <Label at={{ x: 110, y: 174 }} text="REST OF THE BODY" bold />
+      <Rect x={80} y={80} width={30} height={40} fill={LIT} />
+      <Rect x={110} y={80} width={30} height={40} fill={LIT} />
       <Rect x={80} y={80} width={30} height={40} fill={POOR} opacity={0.55} stroke={INK} strokeWidth={OUTLINE} />
       <Rect x={110} y={80} width={30} height={40} fill={RICH} opacity={0.55} stroke={INK} strokeWidth={OUTLINE} />
-      <Label at={{ x: 95, y: 104 }} text="RIGHT" bold />
-      <Label at={{ x: 125, y: 104 }} text="LEFT" bold />
+      <WashLabel at={{ x: 95, y: 104 }} text="RIGHT" />
+      <WashLabel at={{ x: 125, y: 104 }} text="LEFT" />
       <Arrow from={{ x: 92, y: 78 }} to={{ x: 62, y: 44 }} width={5} colour={POOR} outlined />
       <Arrow from={{ x: 158, y: 44 }} to={{ x: 128, y: 78 }} width={5} colour={RICH} outlined />
       <Arrow from={{ x: 128, y: 122 }} to={{ x: 158, y: 152 }} width={5} colour={RICH} outlined />
@@ -293,18 +329,27 @@ function levelsPath(levels: readonly number[]): string {
 function PressureView({ scene }: { readonly scene: CirculationScene }) {
   const changed = scene.levels.some((level, index) => Math.abs(level - (scene.usualLevels[index] ?? 0)) > 1e-9);
   const tube = (index: number, width: number) => (
-    <Rect
-      key={index}
-      x={xAtSection(index) + 4}
-      y={TUBES_Y - width / 2}
-      width={SECTION_WIDTH - 8}
-      height={width}
-      rx={width / 2}
-      fill={index < 2 ? RICH : POOR}
-      opacity={0.6}
-      stroke={INK}
-      strokeWidth={1.6}
-    />
+    <G key={index}>
+      <Rect
+        x={xAtSection(index) + 4}
+        y={TUBES_Y - width / 2}
+        width={SECTION_WIDTH - 8}
+        height={width}
+        rx={width / 2}
+        fill={LIT}
+      />
+      <Rect
+        x={xAtSection(index) + 4}
+        y={TUBES_Y - width / 2}
+        width={SECTION_WIDTH - 8}
+        height={width}
+        rx={width / 2}
+        fill={index < 2 ? RICH : POOR}
+        opacity={0.6}
+        stroke={INK}
+        strokeWidth={1.6}
+      />
+    </G>
   );
   const focusSection = scene.focus === 'none' ? undefined : FOCUS_SECTION[scene.focus as keyof typeof FOCUS_SECTION];
   return (

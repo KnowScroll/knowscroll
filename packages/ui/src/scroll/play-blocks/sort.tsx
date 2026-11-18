@@ -93,7 +93,9 @@ export function SortBody({ sort, asText }: { readonly sort: SortBlock; readonly 
             <View key={item} role="listitem" style={styles.row} testID={settled ? 'sort-answer' : undefined}>
               {settled ? (
                 <View style={styles.number} aria-hidden>
-                  <Text variant="metaS">{String(place + 1)}</Text>
+                  <Text variant="metaS" color={content.onContinue}>
+                    {String(place + 1)}
+                  </Text>
                 </View>
               ) : null}
               <Text variant="ui" style={styles.rowText}>
@@ -109,7 +111,9 @@ export function SortBody({ sort, asText }: { readonly sort: SortBlock; readonly 
             return (
               <View key={index} role="listitem" style={styles.row} testID="sort-row">
                 <View style={styles.number} aria-hidden>
-                  <Text variant="metaS">{String(place + 1)}</Text>
+                  <Text variant="metaS" color={content.onContinue}>
+                    {String(place + 1)}
+                  </Text>
                 </View>
                 <Text variant="ui" style={styles.rowText}>
                   {item}

@@ -123,7 +123,8 @@ export function ScaleBody({ scale, asText }: { readonly scale: ScaleBlock; reado
                   y={labelY}
                   fontSize={11}
                   fontFamily={fontFamily.mono}
-                  fill={isHere ? BLUE : INK}
+                  // Small text, so the page's link colour, which keeps 4.5:1 in both appearances; cobalt does not on dark.
+                  fill={isHere ? content.accentDeep : INK}
                   textAnchor={anchor}
                 >
                   {point.label}

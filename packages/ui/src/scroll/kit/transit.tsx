@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import Svg, { Circle, G, Line, Path, Rect } from 'react-native-svg';
 import { SCENE_HEIGHT, SCENE_WIDTH, type Point } from './earth-sky-scene';
-import { BLUE, FOCUS, FocusRing, INK, Label, MUTED, OUTLINE, SUN } from './parts';
+import { BLUE, FOCUS, FocusRing, Glow, INK, Label, LIT, MUTED, OUTLINE, SOLID, SUN } from './parts';
 import { CURVE_HALF_SPAN, CURVE_SAMPLES, DIP_ENLARGEMENT, type TransitScene } from './transit-scene';
 
 /**
@@ -12,7 +12,8 @@ import { CURVE_HALF_SPAN, CURVE_SAMPLES, DIP_ENLARGEMENT, type TransitScene } fr
  * assistive technology; the picture's accessible name is its description, set by the caller.
  */
 
-const PLANET = INK;
+/** A planet is a dark body in front of the star in both appearances. */
+const PLANET = SOLID;
 
 /** The graph's frame: where the curve is drawn, and how the share of the light maps to pixels. */
 interface Graph {
@@ -71,6 +72,8 @@ function OrbitView({ scene }: { readonly scene: TransitScene }) {
   return (
     <G>
       <Circle cx={star.x} cy={star.y} r={orbit} fill="none" stroke={INK} strokeWidth={1.4} strokeDasharray="6 5" />
+      {/* Starlight on its way to us: translucent yellow over LIT, so it stays light on a dark plate, never olive. */}
+      <Line x1={star.x} y1={star.y} x2={star.x} y2={176} stroke={LIT} strokeWidth={4} />
       <Line x1={star.x} y1={star.y} x2={star.x} y2={176} stroke={SUN} strokeWidth={4} opacity={0.7} />
       <Circle cx={star.x} cy={star.y} r={18} fill={SUN} stroke={INK} strokeWidth={OUTLINE} />
       <Circle cx={planetAt.x} cy={planetAt.y} r={radius} fill={PLANET} stroke={INK} strokeWidth={1.4} />
@@ -96,7 +99,7 @@ function CrossingView({ scene }: { readonly scene: TransitScene }) {
   const marker = { x: xOf(crossingGraph, scene.separation), y: yOf(crossingGraph, scene.brightness) };
   return (
     <G>
-      <Circle cx={star.x} cy={star.y} r={starRadius * 1.22} fill={SUN} opacity={0.3} />
+      <Glow at={star} radius={starRadius * 1.22} colour={SUN} opacity={0.3} />
       <Circle cx={star.x} cy={star.y} r={starRadius} fill={SUN} stroke={INK} strokeWidth={OUTLINE} />
       <Circle cx={planet.x} cy={planet.y} r={planetRadius} fill={PLANET} stroke={INK} strokeWidth={1.2} />
       <Axes graph={crossingGraph} bottom={186} />
@@ -146,7 +149,7 @@ function CompareView({ scene }: { readonly scene: TransitScene }) {
         strokeWidth={2.6}
         strokeLinejoin="round"
       />
-      <Circle cx={200} cy={150} r={scene.smallWidth * 36} fill={PLANET} />
+      <Circle cx={200} cy={150} r={scene.smallWidth * 36} fill={PLANET} stroke={INK} strokeWidth={1.2} />
       <Label at={{ x: 214, y: 154 }} text="SMALL PLANET" anchor="start" />
       <Circle cx={200} cy={170} r={scene.largeWidth * 36} fill={BLUE} stroke={INK} strokeWidth={1.2} />
       <Label at={{ x: 214, y: 174 }} text="LARGE PLANET" anchor="start" />

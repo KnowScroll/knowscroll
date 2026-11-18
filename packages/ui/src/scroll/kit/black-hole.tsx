@@ -10,12 +10,14 @@ import {
   FOCUS,
   FocusBox,
   FocusRing,
+  Glow,
   INK,
   Label,
+  LIT,
   MUTED,
   OUTLINE,
-  PAPER,
   PAPER_DEEP,
+  SOLID,
   SUN,
   WARM,
 } from './parts';
@@ -32,18 +34,18 @@ const CORE = '#FF7A3D';
 const GAS = '#B9A5DA';
 const GLOW = '#FFB84D';
 
-/** A label in paper colour, for the dark discs. */
+/** A label in the always-light colour, for the dark discs. */
 function LightLabel({ at, text }: { readonly at: Point; readonly text: string }): ReactElement {
   return (
-    <SvgText x={at.x} y={at.y} fontSize={8.5} fontFamily={fontFamily.mono} fill={PAPER} textAnchor="middle">
+    <SvgText x={at.x} y={at.y} fontSize={8.5} fontFamily={fontFamily.mono} fill={LIT} textAnchor="middle">
       {text}
     </SvgText>
   );
 }
 
-/** A dark disc: a black hole, or the horizon of one. */
+/** A dark disc: a black hole, or the horizon of one. SOLID so it stays dark in both appearances; the INK edge keeps it visible on a dark plate. */
 function Hole({ at, radius }: { readonly at: Point; readonly radius: number }): ReactElement {
-  return <Circle cx={at.x} cy={at.y} r={radius} fill={INK} stroke={INK} strokeWidth={OUTLINE} />;
+  return <Circle cx={at.x} cy={at.y} r={radius} fill={SOLID} stroke={INK} strokeWidth={OUTLINE} />;
 }
 
 /** A ring-shaped part, as an even-odd path of two circles or two flattened ellipses. */
@@ -79,15 +81,9 @@ function FormationView({ scene }: { readonly scene: BlackHoleScene }) {
   const starColour = stage === 1 ? scene.giantColour : massive ? scene.massiveColour : scene.sunColour;
   return (
     <G>
-      <Label
-        at={{ x: 14, y: 16 }}
-        text={massive ? 'A STAR MANY TIMES THE SUN’S MASS' : 'A STAR LIKE THE SUN'}
-        anchor="start"
-        bold
-      />
       {stage < 2 ? (
         <G>
-          <Circle cx={centre.x} cy={centre.y} r={base * 1.25} fill={starColour} opacity={0.28} />
+          <Glow at={centre} radius={base * 1.25} colour={starColour} />
           <Circle cx={centre.x} cy={centre.y} r={base} fill={starColour} stroke={INK} strokeWidth={OUTLINE} />
           <Circle cx={centre.x} cy={centre.y} r={core} fill={CORE} stroke={INK} strokeWidth={OUTLINE} />
         </G>
@@ -100,6 +96,8 @@ function FormationView({ scene }: { readonly scene: BlackHoleScene }) {
               to={onCircle(centre, base - 6, degrees)}
               width={4.5 * scene.gravity}
               colour={INK}
+              // Its head lies on the star, which is light in both appearances.
+              edged
             />
           ))
         : null}
@@ -143,7 +141,15 @@ function FormationView({ scene }: { readonly scene: BlackHoleScene }) {
           <Circle cx={centre.x} cy={centre.y} r={8} fill={scene.dwarfColour} stroke={INK} strokeWidth={OUTLINE} />
         </G>
       ) : null}
-      <Label at={{ x: 160, y: 146 }} text={(massive ? CAPTIONS.massive : CAPTIONS.sunLike)[stage] ?? ''} bold />
+      {/* Over the star, which grows into the title's corner as it swells. */}
+      <Label
+        at={{ x: 14, y: 16 }}
+        text={massive ? 'A STAR MANY TIMES THE SUN’S MASS' : 'A STAR LIKE THE SUN'}
+        anchor="start"
+        bold
+        edged
+      />
+      <Label at={{ x: 160, y: 146 }} text={(massive ? CAPTIONS.massive : CAPTIONS.sunLike)[stage] ?? ''} bold edged />
       <Line x1={90} y1={160} x2={230} y2={160} stroke={INK} strokeWidth={1.6} />
       {STAGE_NAMES.map((name, index) => (
         <G key={name}>
@@ -199,12 +205,12 @@ function HorizonView({ scene }: { readonly scene: BlackHoleScene }) {
         y1={target.at.y}
         x2={target.at.x}
         y2={target.at.y - target.radius}
-        stroke={PAPER}
+        stroke={LIT}
         strokeWidth={1.6}
         strokeDasharray="3 3"
       />
       <Arrow from={outStart} to={outEnd} width={4} colour={BLUE} outlined />
-      <Arrow from={inStart} to={inEnd} width={3} colour={PAPER} />
+      <Arrow from={inStart} to={inEnd} width={3} colour={LIT} />
       <Label at={{ x: Math.min(outStart.x, 244), y: outStart.y + 16 }} text="LIGHT ESCAPES" anchor="start" />
       <Label at={{ x: Math.min(Math.max(target.at.x, 95), 225), y: 152 }} text="EVEN OUTWARD LIGHT FALLS IN" />
       <Label at={{ x: 160, y: 182 }} text="HORIZON GOES WITH MASS · NOTHING DRAWN AT CENTRE" />
@@ -238,7 +244,7 @@ function PullView({ scene }: { readonly scene: BlackHoleScene }) {
   };
   return (
     <G>
-      <Circle cx={star.x} cy={star.y} r={31} fill={scene.massiveColour} opacity={0.28} />
+      <Glow at={star} radius={31} colour={scene.massiveColour} />
       <Circle cx={star.x} cy={star.y} r={25} fill={scene.massiveColour} stroke={INK} strokeWidth={OUTLINE} />
       <Hole at={hole} radius={6} />
       {panel(star, scene.starPull)}
@@ -399,13 +405,13 @@ function ShadowView({ scene }: { readonly scene: BlackHoleScene }) {
         stroke={INK}
         strokeWidth={1.6}
       />
-      <Circle cx={centre.x} cy={centre.y} r={scene.shadowPx} fill={INK} />
+      <Circle cx={centre.x} cy={centre.y} r={scene.shadowPx} fill={SOLID} />
       <Circle
         cx={centre.x}
         cy={centre.y}
         r={scene.shadowHorizonPx}
         fill="none"
-        stroke={PAPER}
+        stroke={LIT}
         strokeWidth={1.6}
         strokeDasharray="3 3"
       />
