@@ -1,5 +1,5 @@
 import { ClientCapabilities, OFFER_COVER_SCHEMA } from '@knowscroll/contracts';
-import type { ProblemCode, RegionEncounterOpenRequest } from '@knowscroll/contracts';
+import type { OpenDiscoveryRequest, ProblemCode, RegionEncounterOpenRequest } from '@knowscroll/contracts';
 import type { EncounterRef } from '../../content/public.js';
 import type { GeographyRegionConstraint } from '../../geography/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
@@ -18,6 +18,8 @@ export const scopeCode = (kind: string): ProblemCode =>
   kind === 'epoch_changed' ? 'PRIVACY_EPOCH_CHANGED' : 'UNIVERSE_UNAVAILABLE';
 export const isRegionOpen = (command: NavigationCommand): command is RegionEncounterOpenRequest =>
   !('intent' in command) && command.target.kind === 'region';
+export const isDiscover = (command: NavigationCommand): command is OpenDiscoveryRequest =>
+  !('intent' in command) && command.target.kind === 'discover';
 export const sameRegion = (p: NavigationPorts, a: GeographyRegionConstraint, b: GeographyRegionConstraint) =>
   p.hashRequest('region-constraint', json(a)) === p.hashRequest('region-constraint', json(b));
 

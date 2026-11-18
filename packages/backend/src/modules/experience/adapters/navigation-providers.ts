@@ -89,6 +89,7 @@ import {
   writeSession,
 } from './navigation-store.js';
 import { readNotInterested } from './not-interested-store.js';
+import { readSessionCovers, recordCoverOpened, recordCoverPasses } from './cover-outcomes-store.js';
 import { readMetUnitIds } from './met-unit-ids.js';
 import { readRecentExposures } from './resume-store.js';
 import { readVisitedAssets } from './visited-assets.js';
@@ -200,6 +201,9 @@ export function navigationProviders(
           readInterestContext,
           readExactEncounter: gateExactEncounter(readExactEncounter, audience),
           readOfferEncounter: gateOfferEncounter(readOfferEncounter, audience),
+          recordCoverPasses,
+          recordCoverOpened,
+          readSessionCovers,
           readContinuations,
           readSeriesTotal,
           resolveContinuityLink,

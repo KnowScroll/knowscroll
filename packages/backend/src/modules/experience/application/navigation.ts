@@ -30,6 +30,7 @@ import { namesTarget, prepare, type Prepared } from './navigation-prepare.js';
 import {
   currentRegionOffers,
   declaresCover,
+  isDiscover,
   isRegionOpen,
   json,
   readWithheld,
@@ -390,6 +391,9 @@ async function writeOutcome(
       : undefined;
   await p.insertReceipt(scope, key);
   await p.recording?.remember(scope, key, originalRecordingGeneration(command), eligible, p.now());
+  // Covers passed before this move (#745): routing state, kept only while recording is on, never evidence.
+  const passes = isDiscover(command) ? command.passes : undefined;
+  if (passes && recording?.kind === 'recording') await p.recordCoverPasses(scope, passes, recording.scope.generation);
   await p.writeSession(
     scope,
     prepared.session,
@@ -566,6 +570,8 @@ export function makeActivateOffer(p: NavigationPorts): ActivateOffer {
           });
         activatedAt = now.toISOString();
       }
+      if (recording?.kind === 'recording')
+        await recordCoverOutcomes(p, scope, c, offer.id, !bound, recording.scope.generation);
       const offerGeneration = await p.recording?.offerOrigin(scope, offer.id);
       if (recording?.kind === 'recording')
         await p.recording?.activation(recording.scope, exposureId, c.commandId, at, {
@@ -593,6 +599,23 @@ export function makeActivateOffer(p: NavigationPorts): ActivateOffer {
     });
     return entered.kind === 'entered' ? entered.value : { kind: 'refused', code: scopeCode(entered.refusal.kind) };
   };
+}
+/**
+ * What an activation reports about covers (#745), written in its own transaction while recording is on: the covers passed
+ * before this one, and for a fresh activation how long this offer's cover was on screen, clamped by the store on the
+ * database clock. A replay returns before this, so the clamped time is written once and never recomputed.
+ */
+async function recordCoverOutcomes(
+  p: NavigationPorts,
+  scope: PersonalScopeTx,
+  c: Parameters<ActivateOffer>[1],
+  offerId: string,
+  fresh: boolean,
+  generation: number,
+): Promise<void> {
+  const passes = c.passes?.filter((pass) => pass.offerId !== offerId) ?? [];
+  if (passes.length > 0) await p.recordCoverPasses(scope, passes, generation);
+  if (fresh && c.coverMs !== undefined) await p.recordCoverOpened(scope, offerId, c.coverMs, generation);
 }
 /** The series position with its total counted from the admitted series revision; a series with no counted units has no position. */
 async function withTotal(p: NavigationPorts, scope: PersonalScopeTx, series: NonNullable<EncounterSnapshot['series']>) {

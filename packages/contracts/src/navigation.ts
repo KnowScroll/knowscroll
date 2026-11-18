@@ -111,7 +111,28 @@ export const ExpectedContinuationSchema = z.strictObject({
   assetRevision: Revision,
 });
 
-/** Initial discovery omits `session`; resuming discovery names a session and its expected intent. */
+/**
+ * A cover the person moved past without opening it (#745): which offer, a coarse band of how long it was on screen,
+ * and how it was left (to the next cover, by asking for more covers, or by leaving the covers). Routing state only,
+ * stored while recording is on and never evidence that anything was read.
+ */
+export const CoverPassSchema = z.strictObject({
+  offerId: UuidSchema,
+  onScreen: z.enum(['under_1_5s', '1_5s_to_5s', 'over_5s']),
+  way: z.enum(['next_cover', 'more_covers', 'left']),
+});
+/** The passes a request reports: covers of the hands since the last report, each offer at most once. */
+const CoverPassesSchema = z
+  .array(CoverPassSchema)
+  .min(1)
+  .max(9)
+  .refine((passes) => new Set(passes.map((pass) => pass.offerId)).size === passes.length, 'One pass per offer.');
+
+/**
+ * Initial discovery omits `session`; resuming discovery names a session and its expected intent. `after` asks for more
+ * covers: another hand after the one that decision dealt, in that format, with none of it opened (#745). It needs
+ * `session`. `passes` reports the covers moved past since the last report.
+ */
 export const OpenDiscoveryRequestSchema = z
   .strictObject({
     commandId: CommandIdSchema,
@@ -119,10 +140,16 @@ export const OpenDiscoveryRequestSchema = z
     session: ExperienceSessionRefSchema.optional(),
     capabilities: ClientCapabilities,
     recordingGeneration: RecordingGenerationSchema.optional(),
+    after: z.strictObject({ decisionId: UuidSchema, format: Format }).optional(),
+    passes: CoverPassesSchema.optional(),
   })
   .refine((r) => !Object.hasOwn(r, 'recordingGeneration') || r.recordingGeneration !== undefined, {
     path: ['recordingGeneration'],
     message: 'A supplied recording generation must be defined.',
+  })
+  .refine((r) => r.after === undefined || r.session !== undefined, {
+    path: ['after'],
+    message: 'More covers continue a session.',
   });
 
 /**
@@ -273,6 +300,12 @@ export const ActivateOfferRequestSchema = z
       expectedIntentRevision: IntentRevision,
     }),
     recordingGeneration: RecordingGenerationSchema.optional(),
+    /**
+     * How long the offer's cover was on screen before this tap, in milliseconds, as the client measured it (#745). The
+     * server keeps it only clamped to the time between the offer's creation and this activation on its own clock.
+     */
+    coverMs: z.number().int().min(0).max(900_000).optional(),
+    passes: CoverPassesSchema.optional(),
   })
   .refine((r) => !Object.hasOwn(r, 'recordingGeneration') || r.recordingGeneration !== undefined, {
     path: ['recordingGeneration'],
@@ -355,6 +388,7 @@ export type OpenRevisitRequest = z.infer<typeof OpenRevisitRequestSchema>;
 export type NavigateExperienceRequest = z.infer<typeof NavigateExperienceRequestSchema>;
 export type NavigationOutcome = z.infer<typeof NavigationOutcomeSchema>;
 export type ActivateOfferRequest = z.infer<typeof ActivateOfferRequestSchema>;
+export type CoverPass = z.infer<typeof CoverPassSchema>;
 export type ContinuationState = z.infer<typeof ContinuationStateSchema>;
 export type ExposureContextResponse = z.infer<typeof ExposureContextResponseSchema>;
 
