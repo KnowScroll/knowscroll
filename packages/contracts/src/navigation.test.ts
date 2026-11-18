@@ -452,9 +452,9 @@ describe('cover passes and more covers on the wire (#748)', () => {
     expect(OpenDiscoveryRequestSchema.parse(moreCovers)).toEqual(moreCovers);
     expect(OpenDiscoveryRequestSchema.safeParse({ ...discover, after: moreCovers.after }).success).toBe(false);
     expect(OpenDiscoveryRequestSchema.safeParse({ ...moreCovers, after: { decisionId: id } }).success).toBe(false);
-    expect(OpenDiscoveryRequestSchema.safeParse({ ...moreCovers, after: { decisionId: 'x', format: 'scroll' } }).success).toBe(
-      false,
-    );
+    expect(
+      OpenDiscoveryRequestSchema.safeParse({ ...moreCovers, after: { decisionId: 'x', format: 'scroll' } }).success,
+    ).toBe(false);
     expect(
       OpenDiscoveryRequestSchema.safeParse({ ...moreCovers, after: { decisionId: id, format: 'video' } }).success,
     ).toBe(false);

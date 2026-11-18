@@ -64,8 +64,7 @@ export function coverLine(
   title: string,
 ): string {
   const day = DAY.format(row.recorded_at);
-  if (row.outcome === 'opened')
-    return `Opened ${title} from its cover after ${seconds(row.cover_ms ?? 0)}, ${day}`;
+  if (row.outcome === 'opened') return `Opened ${title} from its cover after ${seconds(row.cover_ms ?? 0)}, ${day}`;
   const band = BANDS[row.on_screen ?? ''] ?? 'a moment';
   const way = WAYS[row.way ?? ''];
   return `Passed a cover of ${title} (on screen ${band}${way === undefined ? '' : `, ${way}`}), ${day}`;
@@ -149,7 +148,9 @@ export const experienceExportRead: ModuleExport['read'] = async (scope, person) 
   // A Scroll made for a thread the person has left (or never was in) keeps no title, place or part in their file.
   const reachable = await person.reach([
     ...new Set(
-      [...saved.rows, ...encounters.rows, ...reactions.rows, ...notInterested.rows, ...covers.rows].map((row) => row.asset_id),
+      [...saved.rows, ...encounters.rows, ...reactions.rows, ...notInterested.rows, ...covers.rows].map(
+        (row) => row.asset_id,
+      ),
     ),
   ]);
   const titleOf = (row: { readonly asset_id: string; readonly title: string }) =>

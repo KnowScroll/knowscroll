@@ -55,7 +55,9 @@ describe('coverLine', () => {
 
   it('words an opened cover with its time to a tenth of a second', () => {
     const opened = { outcome: 'opened', on_screen: null, way: null, recorded_at: when } as const;
-    expect(coverLine({ ...opened, cover_ms: 4000 }, 'Tides')).toBe('Opened Tides from its cover after 4 s, 18 Nov 2026');
+    expect(coverLine({ ...opened, cover_ms: 4000 }, 'Tides')).toBe(
+      'Opened Tides from its cover after 4 s, 18 Nov 2026',
+    );
     expect(coverLine({ ...opened, cover_ms: 1540 }, 'Tides')).toContain('after 1.5 s');
   });
 

@@ -34,7 +34,11 @@ function ready(result: Awaited<ReturnType<Cases['navigate']>>): Ready {
   return result.outcome;
 }
 const handOf = (outcome: Ready): EncounterOffer[] => [outcome.offer, ...outcome.bufferedOffers];
-const passOf = (offer: EncounterOffer, onScreen: CoverPass['onScreen'] = '1_5s_to_5s', way: CoverPass['way'] = 'more_covers') => ({
+const passOf = (
+  offer: EncounterOffer,
+  onScreen: CoverPass['onScreen'] = '1_5s_to_5s',
+  way: CoverPass['way'] = 'more_covers',
+) => ({
   offerId: offer.offerId,
   onScreen,
   way,
@@ -122,10 +126,13 @@ function world(database: TestDatabase<Database>, c: Cases) {
         where universe_id = ${universeId}::uuid and id = ${offerId}::uuid`.execute(database.db),
     /** What would make a report activity or evidence: exposures, recording segments, evidence sessions, their jobs. */
     footprint: async (universeId: string) => {
-      const count = async (query: ReturnType<typeof sql<{ n: number }>>) => (await query.execute(database.db)).rows[0]?.n;
+      const count = async (query: ReturnType<typeof sql<{ n: number }>>) =>
+        (await query.execute(database.db)).rows[0]?.n;
       return {
         exposures: await count(
-          sql<{ n: number }>`select count(*)::int as n from experience.exposures where universe_id = ${universeId}::uuid`,
+          sql<{
+            n: number;
+          }>`select count(*)::int as n from experience.exposures where universe_id = ${universeId}::uuid`,
         ),
         segments: await count(
           sql<{
@@ -308,9 +315,11 @@ describe('cover outcomes (real PostgreSQL, labelled CI fixtures)', () => {
       const p = await recordingPerson(database);
       const first = await w.open(p);
       const [opened, passed] = handOf(first);
-      expect(await w.activate(p, first, opened!, { passes: [passOf(passed!, 'over_5s', 'next_cover')] })).toMatchObject({
-        kind: 'accepted',
-      });
+      expect(await w.activate(p, first, opened!, { passes: [passOf(passed!, 'over_5s', 'next_cover')] })).toMatchObject(
+        {
+          kind: 'accepted',
+        },
+      );
       expect(await w.rowsOf(p.universeId)).toMatchObject([{ offer_id: passed!.offerId, outcome: 'passed' }]);
 
       await w.age(p.universeId, passed!.offerId, 30);
