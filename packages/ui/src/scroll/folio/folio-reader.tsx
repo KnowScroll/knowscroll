@@ -47,7 +47,8 @@ import { HoldView } from './hold-view';
 import { beatsOf, type Beat, type FigureControl, type ReadingModel } from './reading-model';
 import type { FigureState } from '../stage/kit-figure';
 import { createKeptPlace } from './kept-place';
-import { usePersonInput } from './person-input';
+import { stopScrolling, usePersonInput } from './person-input';
+import { useEndPull } from './use-end-pull';
 import { createPlaces, type Places } from './places';
 import { createScrollOffset, type ScrollOffset } from './scroll-offset';
 
@@ -110,7 +111,8 @@ function hasTextVersion(model: ReadingModel): boolean {
  * change them and a figure that holds while the beats about it pass. It draws a `ReadingModel`, whatever document made
  * it. It reports what is read by beat id through the article's measuring hooks, in a band of the viewport
  * (`readingBandOf`), and takes the same commands and handle as every reader, so the screens that host it wire nothing
- * new. Nothing scrolls sideways: Parts and the next idea are buttons and keys.
+ * new. Nothing scrolls sideways: Parts and the next idea are buttons and keys, and on a touch screen a pull up past the
+ * end is the next idea too (`use-end-pull`).
  */
 export function FolioReader({
   model,
@@ -214,9 +216,12 @@ export function FolioReader({
     [places, restore],
   );
 
+  // A smooth scroll the reader started (a key, Home, End) runs until the person's own input takes over.
+  const scrolling = useRef(false);
   const scrollTo = useCallback(
     (y: number) => {
       const most = Math.max(0, contentHeight.current - offset.current().viewport);
+      scrolling.current = !reducedMotion;
       scroller.current?.scrollTo({ y: Math.min(most, Math.max(0, y)), animated: !reducedMotion });
     },
     [offset, reducedMotion],
@@ -305,6 +310,7 @@ export function FolioReader({
       case 'to-end':
         // The scroller's own end, not the last height it reported: right after the text version changes, the essay is
         // still reflowing and that height is behind.
+        scrolling.current = !reducedMotion;
         scroller.current?.scrollToEnd({ animated: !reducedMotion });
         return true;
       case 'next-part':
@@ -359,9 +365,15 @@ export function FolioReader({
       }),
     [offset, onScrollEvent],
   );
-  // The person's own input lets a kept place go; the page moving under it never does.
-  const releaseKept = useCallback(() => kept.release(), [kept]);
-  usePersonInput(scroller, releaseKept);
+  // The person's own input lets a kept place go, and stops a scroll the reader started; the page moving never does.
+  const onPersonInput = useCallback(() => {
+    kept.release();
+    if (!scrolling.current) return;
+    scrolling.current = false;
+    stopScrolling(scroller);
+  }, [kept]);
+  usePersonInput(scroller, onPersonInput);
+  const pull = useEndPull(scroller, commands.nextTopic);
   const onScrollBeginDrag = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     kept.release();
     viewport.scrollProps.onScrollBeginDrag?.(event);
@@ -519,6 +531,7 @@ export function FolioReader({
               nextPart={nextPart}
               onClose={onDone}
               onNextIdea={commands.nextTopic}
+              pull={pull}
               endSlot={endSlot}
             />
           </View>

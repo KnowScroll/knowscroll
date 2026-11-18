@@ -5,3 +5,6 @@ import type { RefObject } from 'react';
  * `onScrollBeginDrag`.
  */
 export function usePersonInput(_scroller: RefObject<unknown>, _onInput: () => void): void {}
+
+/** Native: nothing to do; a finger on a scroll view stops its own animation. */
+export function stopScrolling(_scroller: RefObject<unknown>): void {}

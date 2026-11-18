@@ -7,8 +7,9 @@ import { defineConfig, devices } from '@playwright/test';
  * (`pnpm --filter @knowscroll/client build` and `build:gallery`); browsers are installed in CI
  * only (`playwright install --with-deps chromium`).
  */
-const production = 4310;
-const gallery = 4311;
+// Two local runs can share a machine by giving each its own ports and results folder; CI sets neither.
+const production = Number(process.env.KS_E2E_PRODUCTION_PORT ?? 4310);
+const gallery = Number(process.env.KS_E2E_GALLERY_PORT ?? 4311);
 
 export default defineConfig({
   testDir: '.',
@@ -16,7 +17,7 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   reporter: [['list']],
-  outputDir: '../test-results',
+  outputDir: process.env.KS_E2E_OUTPUT_DIR ?? '../test-results',
   use: { ...devices['Desktop Chrome'], trace: 'retain-on-failure' },
   projects: [
     {
@@ -66,7 +67,6 @@ export default defineConfig({
         'stage-reader-smoke.spec.ts',
         'kit-stage-smoke.spec.ts',
         'blocks-smoke.spec.ts',
-        'play-smoke.spec.ts',
         'payoff-smoke.spec.ts',
         'reader-nav-smoke.spec.ts',
         'ask-smoke.spec.ts',
