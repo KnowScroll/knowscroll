@@ -218,8 +218,20 @@ describe('P01 Accessibility & playback', () => {
       reelSound: false,
       readyNotices: true,
       appearance: 'dark',
+      coversInExplore: false,
     });
     expect(screen.getByRole('radio', { name: 'Always reduce motion', checked: true })).toBeOnTheScreen();
+    await f.app.unmount();
+  });
+
+  it('turns on Scrolls as covers in Explore, a trial switch that starts off (#747)', async () => {
+    const f = await mount('/account/accessibility');
+    expect(
+      await screen.findByRole('switch', { name: 'Show Scrolls as covers (trial)', checked: false }),
+    ).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('switch', { name: 'Show Scrolls as covers (trial)' }));
+    expect(JSON.parse(mockWrite.mock.calls.at(-1)?.[0] ?? '{}')).toMatchObject({ coversInExplore: true });
+    expect(screen.getByRole('switch', { name: 'Show Scrolls as covers (trial)', checked: true })).toBeOnTheScreen();
     await f.app.unmount();
   });
 

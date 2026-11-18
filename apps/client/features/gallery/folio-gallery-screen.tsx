@@ -1,6 +1,6 @@
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
@@ -19,12 +19,16 @@ import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import {
   Button,
   DisplayProvider,
+  EssayCover,
   FigureView,
   FolioReader,
   ReaderDock,
   ReaderTopBar,
   readingModelOfV2,
   scrollPageSurface,
+  stageFigureAt,
+  Text,
+  useDisplay,
   type FigureState,
   type UnitReadingObserver,
 } from '@knowscroll/ui';
@@ -58,9 +62,11 @@ interface FolioGalleryEvents {
   visibility: { blockId: string; visibleFraction: number; at: number }[];
   activity: { active: boolean; at: number }[];
   stops: (string | undefined)[];
+  /** What a person did on the covers board, as `<cover id>:<open|next|previous>`. */
+  covers: string[];
 }
 
-const events: FolioGalleryEvents = { visibility: [], activity: [], stops: [] };
+const events: FolioGalleryEvents = { visibility: [], activity: [], stops: [], covers: [] };
 
 const observer: UnitReadingObserver = {
   onBlockVisibility: ({ blockId, visibleFraction, at }) => {
@@ -75,7 +81,8 @@ const observer: UnitReadingObserver = {
  * Developer gallery of the Folio reader (`/gallery-folio`, gallery builds only): a v2 fixture document through the
  * real adapter (`readingModelOfV2`) and reader, with the app's top bar and dock and no backend. Query: `doc` (a fixture
  * name), `stop` (open at that stop), `motion=reduce`, `scale=2` (200 % text), `bare=1` (no fixture toolbar: the screen as
- * a reader sees it), `figures=1` (every figure state of the document on the page, to check a kit in each appearance).
+ * a reader sees it), `figures=1` (every figure state of the document on the page, to check a kit in each appearance),
+ * `covers=1` (the cover of a Scroll in each of its cases, one under the other).
  */
 export function FolioGalleryScreen() {
   useDocumentTitle('Folio gallery');
@@ -93,6 +100,7 @@ export function FolioGalleryScreen() {
     scale?: string;
     bare?: string;
     figures?: string;
+    covers?: string;
   }>();
   const name: DocumentName = isDocumentName(params.doc) ? params.doc : 'seasons';
   const document = documents[name] as unknown as ScrollDocumentV2;
@@ -122,7 +130,9 @@ export function FolioGalleryScreen() {
             ))}
           </View>
         )}
-        {params.figures === '1' ? (
+        {params.covers === '1' ? (
+          <CoverBoard />
+        ) : params.figures === '1' ? (
           <FigureSheet model={model} />
         ) : (
           <FolioReader
@@ -165,7 +175,108 @@ function FigureSheet({ model }: { readonly model: ReturnType<typeof readingModel
   );
 }
 
+interface CoverFixture {
+  readonly id: string;
+  readonly label: string;
+  readonly kicker: string;
+  readonly title: string;
+  readonly dek: string;
+  readonly minutes: number;
+  readonly figure?: FigureState;
+  readonly way: 'read' | 'continue';
+}
+
+/** A v2 fixture document as a cover: its own words and reading time, and the first state of its stage as the figure. */
+function coverOf(id: string, label: string, source: ScrollDocumentV2, way: 'read' | 'continue' = 'read'): CoverFixture {
+  const first = source.stage?.states[0];
+  const figure =
+    source.stage === undefined || first === undefined
+      ? undefined
+      : stageFigureAt(source.stage, source.stops, first.stop);
+  return {
+    id,
+    label,
+    kicker: source.kicker,
+    title: source.title,
+    dek: source.dek,
+    minutes: source.measures.readingMinutes,
+    ...(figure === undefined ? {} : { figure }),
+    way,
+  };
+}
+
+/** One hand of five covers, each a case of the cover (labelled fixtures, not product content). */
+const hand: readonly CoverFixture[] = [
+  coverOf(
+    'first',
+    'First cover of the hand, a v2 Scroll with a figure (no Previous)',
+    seasons as unknown as ScrollDocumentV2,
+  ),
+  coverOf('no-stage', 'A v2 Scroll without a stage: no figure', sortFork as unknown as ScrollDocumentV2),
+  {
+    id: 'text-only',
+    label: 'A v1-style cover: words only',
+    kicker: 'Fixture cover · not product content',
+    title: 'How a cover reads when a Scroll has no picture',
+    dek: 'Three lines and a way in. With no figure the cover is short, and the strip rests at its foot.',
+    minutes: 4,
+    way: 'read',
+  },
+  coverOf(
+    'continue',
+    'A cover the person has read part of: Continue',
+    tides as unknown as ScrollDocumentV2,
+    'continue',
+  ),
+  coverOf('last', 'The last cover of the hand: the strip says MORE COVERS', greenhouse as unknown as ScrollDocumentV2),
+];
+
+/**
+ * The cover of a Scroll in each of its cases (`covers=1`): the hand's covers one under the other, each as tall as the
+ * screen leaves it, so a phone, a desktop and large text show what a person sees. The page and the cover are the Scroll's
+ * page, so the appearance in force paints both.
+ */
+function CoverBoard() {
+  const { height } = useWindowDimensions();
+  const { reducedMotion } = useDisplay();
+  const frame = Math.max(480, Math.round(height - 120));
+  return (
+    <ScrollView {...scrollPageSurface()} contentContainerStyle={styles.board} testID="cover-board">
+      {hand.map((fixture, at) => {
+        const following = hand[at + 1];
+        const previous = hand[at - 1];
+        return (
+          <View key={fixture.id} style={styles.boardFrame} testID={`cover-fixture-${fixture.id}`}>
+            <Text variant="label" color={content.ink} heading={2} style={styles.boardLabel}>
+              {fixture.label}
+            </Text>
+            <EssayCover
+              kicker={fixture.kicker}
+              title={fixture.title}
+              dek={fixture.dek}
+              minutes={fixture.minutes}
+              {...(fixture.figure === undefined ? {} : { figure: fixture.figure })}
+              way={fixture.way}
+              position={{ index: at + 1, count: hand.length }}
+              next={following === undefined ? 'more' : { kicker: following.kicker, title: following.title }}
+              onOpen={() => events.covers.push(`${fixture.id}:open`)}
+              onNext={() => events.covers.push(`${fixture.id}:next`)}
+              {...(previous === undefined ? {} : { onPrevious: () => events.covers.push(`${fixture.id}:previous`) })}
+              reducedMotion={reducedMotion}
+              height={frame}
+              testID={`essay-cover-${fixture.id}`}
+            />
+          </View>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 const styles = StyleSheet.create({
+  board: { gap: spacing[6], paddingVertical: spacing[4], backgroundColor: content.paper },
+  boardFrame: { gap: spacing[2] },
+  boardLabel: { paddingHorizontal: layout.gutter },
   sheet: { gap: spacing[4], padding: layout.gutter, backgroundColor: content.paper },
   ground: { flex: 1, backgroundColor: content.paper },
   controls: {

@@ -75,6 +75,13 @@ export function AccessibilityScreen() {
         on={preferences.reelSound}
         onChange={(reelSound) => update({ reelSound })}
       />
+      <SettingsLabel>Explore</SettingsLabel>
+      <SwitchRow
+        label="Show Scrolls as covers (trial)"
+        description="Explore shows a Scroll's cover first and opens it when you tap. Off: a Scroll opens as it arrives."
+        on={preferences.coversInExplore}
+        onChange={(coversInExplore) => update({ coversInExplore })}
+      />
       <Text variant="meta" color={content.ink2} style={{ paddingTop: spacing[4] }}>
         These choices are kept on this device.
       </Text>

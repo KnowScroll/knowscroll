@@ -20,6 +20,11 @@ export interface DevicePreferences {
    * once to carry an earlier choice over and is never written again.
    */
   readonly appearance: Appearance;
+  /**
+   * Explore offers a Scroll as a cover that opens on tap, instead of opening it on arrival (#745). A trial switch, off
+   * by default, so covers can be tried on dev before they become how Explore works; it goes when they do.
+   */
+  readonly coversInExplore: boolean;
 }
 
 export const defaultDevicePreferences: DevicePreferences = {
@@ -28,6 +33,7 @@ export const defaultDevicePreferences: DevicePreferences = {
   reelSound: true,
   readyNotices: true,
   appearance: defaultAppearance,
+  coversInExplore: false,
 };
 
 /** How much each text size step multiplies the system's size. */
@@ -76,6 +82,7 @@ export function parseDevicePreferences(stored: string | null | undefined): Devic
     reelSound: typeof record.reelSound === 'boolean' ? record.reelSound : defaults.reelSound,
     readyNotices: typeof record.readyNotices === 'boolean' ? record.readyNotices : defaults.readyNotices,
     appearance: readAppearance(record),
+    coversInExplore: typeof record.coversInExplore === 'boolean' ? record.coversInExplore : defaults.coversInExplore,
   };
 }
 

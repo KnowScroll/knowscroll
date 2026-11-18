@@ -97,6 +97,7 @@ interface GalleryEvents {
   visibility: { blockId: string; visibleFraction: number; at: number }[];
   activity: { active: boolean; at: number }[];
   stops: (string | null | undefined)[];
+  covers: string[];
 }
 const galleryEvents = (page: Page) =>
   page.evaluate(() => (window as unknown as { __ksFolioGallery: GalleryEvents }).__ksFolioGallery);
@@ -559,6 +560,137 @@ test('a stop the document does not have opens the essay at its start and is neve
   const { stops } = await galleryEvents(page);
   expect(stops).not.toContain('no-such-stop');
   expect(stops[0]).toBe(seasons.stops[0]?.id);
+});
+
+/** The covers board (`?covers=1`): the cover of a Scroll in each of its cases, in either appearance. */
+const coverIds = ['first', 'no-stage', 'text-only', 'continue', 'last'] as const;
+const coverFrame = (page: Page, id: (typeof coverIds)[number]) => page.getByTestId(`cover-fixture-${id}`);
+
+async function openCovers(
+  page: Page,
+  viewport: { width: number; height: number },
+  appearance: 'light' | 'dark',
+  query: Record<string, string> = {},
+) {
+  await page.addInitScript(
+    ([key, value]) => {
+      window.localStorage.setItem(key, value);
+    },
+    ['ks.device.preferences', JSON.stringify({ appearance })] as const,
+  );
+  await page.setViewportSize(viewport);
+  await page.goto(`/gallery-folio?${new URLSearchParams({ covers: '1', bare: '1', ...query }).toString()}`);
+  await expect(page.getByTestId('cover-board')).toBeVisible();
+  await expect(coverFrame(page, 'first').getByRole('heading', { level: 1 })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.getAttribute('data-ks-appearance')))
+    .toBe(appearance);
+}
+
+const coverAxe = async (page: Page) => {
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
+    .analyze();
+  return results.violations
+    .filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
+    .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
+};
+
+for (const appearance of ['light', 'dark'] as const) {
+  for (const { label, viewport } of sizes) {
+    test(`the covers board has no serious accessibility violation in ${appearance} at ${label}`, async ({ page }) => {
+      await openCovers(page, viewport, appearance);
+      for (const id of coverIds) await expect(coverFrame(page, id)).toBeAttached();
+      expect(await coverAxe(page), `axe on the covers board in ${appearance}`).toEqual([]);
+      await shot(page, `covers-${appearance}-${label}`);
+    });
+  }
+
+  test(`each cover is its Scroll's page, in ${appearance}`, async ({ page }) => {
+    await openCovers(page, phone, appearance);
+    const ground = { light: 'rgb(255, 251, 240)', dark: 'rgb(23, 21, 15)' } as const;
+    await expect(coverFrame(page, 'first').getByTestId('essay-cover-first')).toHaveCSS(
+      'background-color',
+      ground[appearance],
+    );
+  });
+}
+
+test('a cover offers Previous (except the first), Next, Read and the strip, and the opening is no control of its own', async ({
+  page,
+}) => {
+  await openCovers(page, phone, 'light');
+  const names = async (id: (typeof coverIds)[number]) =>
+    (await coverFrame(page, id).getByRole('button').allInnerTexts()).length;
+  // First: no Previous. Others: Previous and Next above, Read and the strip below.
+  expect(await names('first')).toBe(3);
+  expect(await names('no-stage')).toBe(4);
+  await expect(coverFrame(page, 'first').getByRole('button', { name: 'Previous cover' })).toHaveCount(0);
+  await expect(coverFrame(page, 'no-stage').getByRole('button', { name: 'Previous cover' })).toBeVisible();
+  await expect(coverFrame(page, 'continue').getByRole('button', { name: /^Continue / })).toBeVisible();
+  await expect(coverFrame(page, 'first').getByRole('button', { name: /^Read / })).toBeVisible();
+  await expect(coverFrame(page, 'last').getByText('MORE COVERS', { exact: true })).toBeVisible();
+  await expect(coverFrame(page, 'first').getByText(/^NEXT · /)).toBeVisible();
+  // Tab goes from Next to Read to the strip: the opening and the picture are not stops.
+  const first = coverFrame(page, 'first');
+  await first.getByRole('button', { name: 'Next cover' }).focus();
+  await page.keyboard.press('Tab');
+  await expect(first.getByRole('button', { name: /^Read / })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(first.getByTestId('essay-cover-next')).toBeFocused();
+  // The figure's plate has no Text chip and nothing to press.
+  await expect(first.getByTestId('essay-cover-figure')).toBeVisible();
+  await expect(first.getByText('Text', { exact: true })).toHaveCount(0);
+  await expect(first.getByTestId('essay-cover-figure').getByRole('button')).toHaveCount(0);
+  await expect(first.getByTestId('essay-cover-figure').getByRole('slider')).toHaveCount(0);
+  await expect(coverFrame(page, 'no-stage').getByTestId('essay-cover-figure')).toHaveCount(0);
+  await expect(coverFrame(page, 'text-only').getByTestId('essay-cover-figure')).toHaveCount(0);
+});
+
+test('the buttons and a tap on the opening or the picture do what they say', async ({ page }) => {
+  await openCovers(page, phone, 'light');
+  const first = coverFrame(page, 'first');
+  await first.getByRole('button', { name: /^Read / }).click();
+  await first.getByRole('heading', { level: 1 }).click();
+  await first.getByTestId('essay-cover-figure').click();
+  await first.getByRole('button', { name: 'Next cover' }).click();
+  await first.getByTestId('essay-cover-next').click();
+  await coverFrame(page, 'no-stage').getByRole('button', { name: 'Previous cover' }).click();
+  expect((await galleryEvents(page)).covers).toEqual([
+    'first:open',
+    'first:open',
+    'first:open',
+    'first:next',
+    'first:next',
+    'no-stage:previous',
+  ]);
+});
+
+test('a cover is never cut off: at 200 % text on a small phone the figure is dropped and the cover scrolls to its strip', async ({
+  page,
+}) => {
+  await openCovers(page, { width: 320, height: 568 }, 'light', { scale: '2' });
+  const first = coverFrame(page, 'first');
+  await expect(first.getByTestId('essay-cover-figure')).toHaveCount(0);
+  const scrolls = await first.getByTestId('essay-cover-first').evaluate((cover) => {
+    const inner = [...cover.querySelectorAll('*')].find(
+      (node) => node.scrollHeight > node.clientHeight + 1 && getComputedStyle(node).overflowY !== 'visible',
+    );
+    return inner !== undefined;
+  });
+  expect(scrolls).toBe(true);
+  const strip = first.getByTestId('essay-cover-next');
+  await strip.scrollIntoViewIfNeeded();
+  await expect(strip).toBeInViewport();
+  const box = await strip.boundingBox();
+  const cover = await first.getByTestId('essay-cover-first').boundingBox();
+  expect(box && cover && box.y + box.height <= cover.y + cover.height + 1).toBe(true);
+  const sizesNow = await page.evaluate(() => ({
+    page: document.documentElement.scrollWidth,
+    inner: window.innerWidth,
+  }));
+  expect(sizesNow.page).toBeLessThanOrEqual(sizesNow.inner);
+  expect(await coverAxe(page)).toEqual([]);
 });
 
 test('the gallery build carries the Folio gallery marker (the control for the production export check)', () => {
