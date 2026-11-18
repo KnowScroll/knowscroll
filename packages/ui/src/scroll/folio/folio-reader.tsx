@@ -395,6 +395,14 @@ export function FolioReader({
   const column = measure === undefined ? styles.column : [styles.column, { maxWidth: measure }];
   // A hold beside its beats needs room for both: the column and the figure's share of the screen.
   const holdColumn = !beside || measure === undefined ? column : [styles.column, { maxWidth: measure * 1.45 }];
+  // A card that appears or grows under a beat (a Quick answer) is brought wholly on screen, never scrolling back up.
+  const showFooter = (beatId: string, bottom: number) => {
+    const top = places.topOf(beatId);
+    if (top === undefined) return;
+    const { top: at, viewport: height } = offset.current();
+    const end = top + bottom + spacing[4];
+    if (end > at + height) scrollTo(end - height);
+  };
   // A beat's wrapper is measured, so it must be a direct child of the essay's content (or of a hold, which says where it is).
   const renderBeat = (
     beat: Beat,
@@ -425,6 +433,7 @@ export function FolioReader({
         quiet={held?.quiet}
         figureWords={held?.figureWords}
         footer={stopFooter?.(beat.id)}
+        onFooterLayout={(bottom) => showFooter(beat.id, bottom)}
       />
     </MeasuredBeat>
   );

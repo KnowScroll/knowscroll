@@ -47,7 +47,10 @@ async function open(
     ...options,
   });
   await page.goto('/explore');
-  await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+  // The offer's own title heads the Scroll in the bar; the essay repeats it in its opening.
+  await expect(
+    page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Got it' }).click();
   return served;
 }
