@@ -351,7 +351,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     ) {
       work = undefined; // This old intent must never be automatically resubmitted with a new revision.
       history.park();
-      publish({ phase: 'stale', contextReady: false });
+      publish({ phase: 'stale', contextReady: false, covers: undefined });
       void refreshContext();
       return;
     }
@@ -363,10 +363,11 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     ) {
       history.park();
       work = undefined;
-      publish({ phase: 'revoked' });
+      publish({ phase: 'revoked', covers: undefined });
       return;
     }
-    publish({ phase: problem ? 'error' : 'offline' });
+    // A failure is shown on its own screen with its retry, never behind a cover that can no longer move.
+    publish({ phase: problem ? 'error' : 'offline', covers: undefined });
   }
   async function loadEntry(offer: EncounterOffer, activation: OfferActivation): Promise<EncounterEntry> {
     const exposureId = activation.exposureId;
@@ -563,11 +564,11 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         if (current.uncertain) {
           // A later refusal does not prove an earlier ambiguous send was never committed.
           history.park();
-          publish({ phase: problem ? 'error' : 'offline' });
+          publish({ phase: problem ? 'error' : 'offline', covers: undefined });
           return;
         }
       }
-      if (current.keep && valid() && work === current) publish({ phase: 'keep_blocked' });
+      if (current.keep && valid() && work === current) publish({ phase: 'keep_blocked', covers: undefined });
       else if (current.fromCover && valid() && work === current && spentOffer(error)) {
         // The cover outlived its offer (or the session moved on in another tab): deal a fresh hand, never "path changed".
         work = undefined;
@@ -601,10 +602,12 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       },
     });
   }
-  /** A refusal that means the offer itself can no longer be opened, as opposed to the network or the account. */
+  /**
+   * A refusal that means the offer itself can no longer be opened (it outlived its fifteen minutes, or its Scroll went),
+   * as opposed to the network, the account, or a session another tab moved on, which the stale screen handles.
+   */
   function spentOffer(error: unknown) {
-    const code = apiProblem(error)?.code;
-    return code === 'OFFER_UNAVAILABLE' || code === 'INTENT_REVISION_STALE';
+    return apiProblem(error)?.code === 'OFFER_UNAVAILABLE';
   }
   /** Shows the Scroll offers of a system-chosen move as a hand of covers; the entry on screen is put down, not left. */
   function dealHand(outcome: ReadyOutcome, offers: readonly CoveredOffer[], commandFields?: Work['commandFields']) {
@@ -718,8 +721,12 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     deal = false,
   ) => {
     if (!valid() || work || busy || actionRunning) return;
-    // Opening something else (Keep, a region, a requested Scroll) leaves the cover on screen behind: a pass.
-    if (state.covers && !deal) passShown('left');
+    // A move the person names (Keep, a region, a requested Scroll) leaves the cover on screen behind, a pass, and takes the
+    // covers down: its own screens show from here.
+    if (state.covers && !deal) {
+      passShown('left');
+      publish({ covers: undefined });
+    }
     work = {
       command,
       activateId: newId(),
@@ -1448,13 +1455,14 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         ? regionOrigin.label
         : undefined;
     },
-    canBack: () =>
-      valid() &&
-      (state.choices !== undefined ||
-        (state.covers !== undefined
-          ? state.covers.origin !== undefined
-          : history.current()?.fromCover?.handId === hand?.id && handOpen(hand)) ||
-        (regionOrigin ? !regionOrigin.returned : history.canBack())),
+    canBack: () => {
+      if (!valid()) return false;
+      if (state.choices !== undefined) return true;
+      // On covers, Back is Explore's only when there is an entry the hand was dealt over to return to.
+      if (state.covers !== undefined) return state.covers.origin !== undefined;
+      if (history.current()?.fromCover?.handId === hand?.id && handOpen(hand)) return true;
+      return regionOrigin ? !regionOrigin.returned : history.canBack();
+    },
     end,
   };
 }

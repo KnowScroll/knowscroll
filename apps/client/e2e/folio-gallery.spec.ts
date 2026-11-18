@@ -625,7 +625,10 @@ test('a cover offers Previous (except the first), Next, Read and the strip, and 
   // First: no Previous. Others: Previous and Next above, Read and the strip below.
   expect(await names('first')).toBe(3);
   expect(await names('no-stage')).toBe(4);
-  await expect(coverFrame(page, 'first').getByRole('button', { name: 'Previous cover' })).toHaveCount(0);
+  await expect(coverFrame(page, 'first').getByRole('button', { name: 'Previous cover' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
   await expect(coverFrame(page, 'no-stage').getByRole('button', { name: 'Previous cover' })).toBeVisible();
   await expect(coverFrame(page, 'continue').getByRole('button', { name: /^Continue / })).toBeVisible();
   await expect(coverFrame(page, 'first').getByRole('button', { name: /^Read / })).toBeVisible();

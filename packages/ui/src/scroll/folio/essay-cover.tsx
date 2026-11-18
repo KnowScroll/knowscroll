@@ -134,15 +134,15 @@ export function EssayCover({
             <View style={styles.topRow}>
               <Text variant="label" color={page.ink2}>{`${position.index} OF ${position.count}`}</Text>
               <View style={styles.moves}>
-                {onPrevious === undefined ? null : (
-                  <IconButton
-                    icon="arrowUp"
-                    label="Previous cover"
-                    size={BUTTON}
-                    onPress={onPrevious}
-                    testID="essay-cover-previous"
-                  />
-                )}
+                {/* Kept on the first cover, disabled, so a keyboard user who goes back to it keeps their focus here. */}
+                <IconButton
+                  icon="arrowUp"
+                  label="Previous cover"
+                  size={BUTTON}
+                  onPress={onPrevious ?? (() => undefined)}
+                  disabled={onPrevious === undefined}
+                  testID="essay-cover-previous"
+                />
                 <IconButton
                   icon="arrowDown"
                   label="Next cover"

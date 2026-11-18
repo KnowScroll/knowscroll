@@ -100,7 +100,7 @@ test('↓, J and the strip turn to the next cover, ↑ and K back; after the las
   await expect(position(page, 2)).toBeVisible();
   await page.keyboard.press('k');
   await expect(position(page, 1)).toBeVisible();
-  await expect(page.getByTestId('essay-cover-previous')).toHaveCount(0);
+  await expect(page.getByTestId('essay-cover-previous')).toHaveAttribute('aria-disabled', 'true');
   await page.keyboard.press('j');
   await expect(position(page, 2)).toBeVisible();
   await page.getByTestId('essay-cover-down').click();
