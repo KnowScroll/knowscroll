@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import document from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
 import type { EncounterOffer, ExposureContextResponse, ScrollResults } from '@knowscroll/contracts';
-import { callsOf, tallyOf, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import { callsOf, firstFrameOf, tallyOf, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
 
 export const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 
@@ -21,6 +21,18 @@ export interface EncounterFixtureOptions {
    * it). One part is no series.
    */
   readonly direct?: { readonly parts: number };
+  /**
+   * Scroll offers that carry a cover (`offer-cover.v1`), the way the server sends them to a client that declared the
+   * capability; a client that did not declare it is sent none. With `hand`, every open of discovery (and every move to a
+   * new subject) deals a new hand: that many distinct Scrolls, the first as the offer and the rest as buffered offers.
+   * Each Scroll activates and serves its own document. Without `hand` an offer is dealt alone, as it always was.
+   */
+  readonly covers?: { readonly hand?: number };
+  /**
+   * What this device has chosen in Account, written before the page loads and only where nothing is stored yet, so
+   * the app's own later writes survive a reload (`{ coversInExplore: true }` is the trial switch for covers).
+   */
+  readonly devicePreferences?: Record<string, unknown>;
   /** Play on the served v2 Scroll: whether recording is paused (D-083). */
   readonly play?: { readonly recordingPaused?: boolean };
   /**
@@ -53,6 +65,13 @@ export interface EncounterFixtureOptions {
 /** Actual production-export UI with explicitly labelled HTTP fixtures, not backend/provider acceptance. */
 export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', options: EncounterFixtureOptions = {}) {
   await page.setViewportSize(options.viewport ?? { width: 390, height: 844 });
+  if (options.devicePreferences !== undefined)
+    await page.addInitScript(
+      ([key, value]) => {
+        if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, value);
+      },
+      ['ks.device.preferences', JSON.stringify(options.devicePreferences)] as const,
+    );
   const series = options.series === true;
   const other = kind === 'scroll' ? 'reel' : 'scroll';
   const variantsOf = (n: number): EncounterOffer['variants'] =>
@@ -61,6 +80,10 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       : [{ kind: other, status: 'unavailable' }];
   let current = 0;
   let intentRevision = 1;
+  /** How many hands discovery has dealt: hand `k` is the Scrolls from `k * size` on. */
+  let dealt = 0;
+  const handSize = options.covers?.hand;
+  let declaresCover = false;
   /** The Part each entry is, once a series step has been taken to it (the first is Part 1). */
   const partOf = new Map<number, number>();
   const partAt = (n: number) => partOf.get(n) ?? 1;
@@ -156,6 +179,17 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
     };
   };
   const recording = options.play?.recordingPaused === true ? { on: false, generation: 2 } : { on: true, generation: 1 };
+  /** What a Scroll offer shows before it opens, from the document served for it (a v2 essay has a first figure). */
+  const coverOf = (n: number): NonNullable<EncounterOffer['cover']> => {
+    const figure = playable === undefined ? undefined : firstFrameOf(playable);
+    return {
+      version: 'offer-cover.v1',
+      kicker: `CI cover kicker ${String(n + 1)}`,
+      readingMinutes: 4 + n,
+      ...(playable === undefined ? {} : { readStops: playable.stops.length }),
+      ...(figure === undefined ? {} : { figure }),
+    };
+  };
   const offer = (n: number): EncounterOffer => ({
     offerId: id(100 + n),
     decisionId: id(200 + n),
@@ -168,12 +202,16 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       summary: 'HTTP fixture only',
       language: 'en',
     },
+    ...(options.covers !== undefined && declaresCover && kind === 'scroll' ? { cover: coverOf(n) } : {}),
     relation:
       partAt(n) > 1
         ? { kind: 'series_step', seriesId: 'ci-series', seriesRevision: 1, part: partAt(n) }
         : { kind: 'discovery' },
     variants: variantsOf(n),
   });
+  /** The offers after the first of a hand: none unless the fixture deals real hands. */
+  const buffered = (): EncounterOffer[] =>
+    handSize === undefined ? [] : Array.from({ length: handSize - 1 }, (_, i) => offer(current + 1 + i));
   const directContext = (
     n: number,
     direct: NonNullable<EncounterFixtureOptions['direct']>,
@@ -225,6 +263,11 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
     const request = route.request();
     const path = new URL(request.url()).pathname;
     const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
+    if (path === '/v1/experience/open' || path === '/v1/experience/navigate')
+      declaresCover =
+        (body.capabilities as { documentSchemas?: string[] } | undefined)?.documentSchemas?.includes(
+          'offer-cover.v1',
+        ) === true;
     if (path === '/v1/privacy/recording/read') {
       await route.fulfill({
         json: {
@@ -400,8 +443,16 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
     }
     if (path === '/v1/experience/open' || path === '/v1/experience/navigate') {
       commands.push({ path, body });
-      if (path.endsWith('/navigate')) {
-        const intent = body.intent as { mode?: string; direction?: string } | undefined;
+      const intent = body.intent as { mode?: string; direction?: string } | undefined;
+      const newHand =
+        handSize !== undefined &&
+        (path.endsWith('/open') ? (body.target as { kind?: string }).kind === 'discover' : intent?.mode === 'vertical');
+      if (newHand) {
+        // A new hand: the Scrolls after the last one dealt, so every offer is distinct across hands.
+        current = dealt * handSize;
+        dealt += 1;
+        intentRevision += 1;
+      } else if (path.endsWith('/navigate')) {
         const before = current;
         current =
           series && intent?.mode === 'series' && intent.direction === 'previous'
@@ -422,21 +473,26 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
           replayed: false,
           status: 'ready',
           offer: offer(current),
-          bufferedOffers: [],
+          bufferedOffers: buffered(),
         },
       });
       return;
     }
     if (path === '/v1/experience/activate') {
       commands.push({ path, body });
+      // In a hand any of its Scrolls can be the one opened; the offer the page names says which.
+      const opened =
+        handSize === undefined
+          ? current
+          : Number(String((body.target as { offerId: string }).offerId).slice(-12)) - 100;
       await route.fulfill({
         json: {
           commandId: body.commandId,
           sessionId: id(3),
           intentRevision,
-          offerId: offer(current).offerId,
-          exposureId: id(400 + current),
-          assetId: offer(current).assetId,
+          offerId: offer(opened).offerId,
+          exposureId: id(400 + opened),
+          assetId: offer(opened).assetId,
           assetRevision: document.revision,
           kind,
           activatedAt: '2026-10-20T10:00:00.000Z',

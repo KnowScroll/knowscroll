@@ -64,13 +64,6 @@ const HINTS = {
     ],
     footnote: 'Prefer buttons? Every move has one, and a key.',
   },
-  cover: {
-    lines: [
-      { icon: 'arrowUp', text: 'Swipe up for the next cover' },
-      { icon: 'arrowDown', text: 'Tap Read to open the Scroll' },
-    ],
-    footnote: 'Prefer buttons? The arrows at the top and the bar at the bottom do the same.',
-  },
 } as const;
 
 /** What the first-arrival note says for the encounter on screen: a v2 Scroll's essay has figures and Parts, an article neither. */
@@ -178,18 +171,7 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
     >
       <View role="main" style={styles.main}>
         {covers ? (
-          <CoverFeed
-            scope={scope}
-            session={session}
-            state={state}
-            hand={covers}
-            foreground={foreground}
-            hint={
-              hintOpen ? (
-                <FirstArrivalHint {...HINTS.cover} lines={HINTS.cover.lines} onDismiss={dismissHint} />
-              ) : null
-            }
-          />
+          <CoverFeed scope={scope} session={session} state={state} hand={covers} foreground={foreground} />
         ) : state.choices ? (
           <DirectionPicker
             choices={state.choices}
