@@ -244,8 +244,10 @@ test('switching halfway through a Scroll repaints the reader and keeps its place
     await page.getByRole('group', { name: 'Scroll reader' }).focus();
     await page.keyboard.press('h');
     const quote = await page.getByTestId('moment-quote').innerText();
-    await page.keyboard.press('Escape');
-    await expect(page.getByRole('dialog', { name: 'Share a moment' })).toHaveCount(0);
+    // Its own Close: an Escape pressed before the sheet has taken focus goes to the reader instead.
+    const sheet = page.getByRole('dialog', { name: 'Share a moment' });
+    await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(sheet).toHaveCount(0);
     return quote;
   };
   const before = await stopBeingRead();
