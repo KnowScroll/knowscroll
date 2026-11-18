@@ -543,4 +543,31 @@ describe('the scheduled cover-outcome sweep (real PostgreSQL, labelled CI fixtur
     expect(await idsOf(live.p.universeId)).toEqual([]);
     expect(await idsOf(gone.p.universeId)).toHaveLength(2);
   });
+
+  it('a refused universe with more expired rows than a pass reads never starves the others', async () => {
+    const gone = await personWithPasses(2);
+    const live = await personWithPasses(2);
+    // 250 more expired outcomes for the refused universe: copies of its own offer under new ids (fixture rows only).
+    const [seed] = gone.hand;
+    await sql`with copies as (
+        insert into experience.offers (universe_id, id, privacy_epoch, session_id, intent_revision, decision_id, policy_version,
+          asset_id, asset_revision, descriptor, mode, expires_at, created_at)
+        select o.universe_id, gen_random_uuid(), o.privacy_epoch, o.session_id, o.intent_revision, o.decision_id, o.policy_version,
+          o.asset_id, o.asset_revision, o.descriptor, o.mode, o.expires_at, o.created_at
+        from experience.offers o cross join generate_series(1, 250)
+        where o.universe_id = ${gone.p.universeId}::uuid and o.id = ${seed!.offerId}::uuid
+        returning universe_id, id, privacy_epoch, asset_id, asset_revision)
+      insert into experience.cover_outcomes (universe_id, privacy_epoch, offer_id, asset_id, asset_revision, outcome, on_screen, way,
+        recorded_at, expires_at)
+      select universe_id, privacy_epoch, id, asset_id, asset_revision, 'passed', 'under_1_5s', 'next_cover',
+        now() - interval '40 days', now() - interval '10 days'
+      from copies`.execute(database.db);
+    await sql`update identity.universes set privacy_epoch = privacy_epoch + 1 where id = ${gone.p.universeId}::uuid`.execute(
+      database.db,
+    );
+    // Its rows are the oldest expired ones there are; a scan that read rows oldest first would see nothing else.
+    expect((await prune()).failed).toBe(0);
+    expect(await idsOf(live.p.universeId)).toEqual([]);
+    expect(await idsOf(gone.p.universeId)).toHaveLength(252);
+  });
 });

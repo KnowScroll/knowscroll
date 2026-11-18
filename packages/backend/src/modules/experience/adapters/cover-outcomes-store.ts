@@ -53,7 +53,7 @@ export async function recordCoverOpened(
     insert into experience.cover_outcomes
       (universe_id, privacy_epoch, offer_id, asset_id, asset_revision, outcome, cover_ms, expires_at)
     select o.universe_id, o.privacy_epoch, o.id, o.asset_id, o.asset_revision, 'opened',
-           least(greatest(${coverMs}::int, 0), floor(extract(epoch from (now() - o.created_at)) * 1000)::int, 900000),
+           greatest(0, least(${coverMs}::int, floor(extract(epoch from (now() - o.created_at)) * 1000)::int, 900000)),
            now() + make_interval(days => ${COVER_OUTCOME_DAYS}::int)
     from experience.offers o
     join experience.recording_offer_origins r

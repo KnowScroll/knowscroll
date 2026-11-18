@@ -25,7 +25,7 @@ export interface PruneCoverOutcomesPorts {
   readonly withPersonalScope: WithPersonalScope;
   /** Deletes at most `limit` expired rows of the scope's own universe and epoch; returns how many. */
   readonly prune: (scope: PersonalScopeTx, limit: number) => Promise<number>;
-  /** The universes with an expired row, oldest first, from one indexed scan that takes no personal lock. Names no row. */
+  /** Up to `limit` universes with an expired row, in a random order, from one indexed scan that takes no personal lock. */
   readonly findOwners: (input: { readonly limit: number }) => Promise<readonly ExpiredCoverOutcomesOwner[]>;
 }
 
